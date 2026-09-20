@@ -46,7 +46,7 @@ const widget: DivergingBarWidget = {
 };
 
 function draw(drawn: DivergingBarWidget = widget) {
-  return render(<DivergingBar widget={drawn} ctx={{} as ResolveContext} />);
+  return render(<DivergingBar widget={drawn} context={{} as ResolveContext} />);
 }
 
 describe('the diverging bar', () => {

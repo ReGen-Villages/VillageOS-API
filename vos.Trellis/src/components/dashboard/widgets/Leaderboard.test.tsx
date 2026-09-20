@@ -23,7 +23,7 @@ function renderRanking(metric: Omit<LeaderMetric, 'key' | 'label'>): void {
     entities: ENTITIES,
     metrics: [{ key: 'loss', label: 'Loss', weight: 1, ...metric }],
   };
-  render(<Leaderboard widget={widget} ctx={{} as ResolveContext} />);
+  render(<Leaderboard widget={widget} context={{} as ResolveContext} />);
 }
 
 function rankedNames(): string[] {

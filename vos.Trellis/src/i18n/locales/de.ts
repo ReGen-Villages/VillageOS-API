@@ -7,7 +7,7 @@ import type { PartialResources } from './types';
  * English base locale, which is the expected behaviour for an incomplete draft.
  */
 export const de: PartialResources = {
-  nav: {
+  navigation: {
     appName: 'VILLAGEOS',
     subtitle: 'Oberfläche für temporale Graphen',
     collapseSidebar: 'Seitenleiste einklappen',
@@ -138,7 +138,7 @@ export const de: PartialResources = {
         '„{{name}}“ aus dem Modell zurückziehen? Dadurch wird die Verbindung entfernt, sodass Mycelium nicht mehr dorthin leitet. Sie bleibt im Seed erhalten, ein Neuladen des Seeds stellt sie wieder her. Um nur den Prozess zu stoppen, verwenden Sie stattdessen „Stoppen“.',
       confirm: 'Löschen',
     },
-    stats: {
+    statistics: {
       title: 'Modellstatistik',
       things: 'Dinge',
       relationships: 'Beziehungen',
@@ -157,11 +157,11 @@ export const de: PartialResources = {
       downloadLog: 'Protokoll herunterladen',
       deleteRetract: 'Löschen (aus dem Modell zurückziehen)',
       requests: 'Anfragen',
-      avgTime: 'Ø-Zeit',
+      averageTime: 'Ø-Zeit',
       errors: 'Fehler',
-      lastReq: 'Letzte Anfrage',
+      lastRequest: 'Letzte Anfrage',
       lastContact: 'Letzter Kontakt',
-      pid: 'PID',
+      processId: 'PID',
       failures: 'Fehler: {{count}}',
       health: {
         Healthy: 'Gesund',
@@ -189,7 +189,7 @@ export const de: PartialResources = {
       pausedBuffered_other: 'Pausiert — {{count}} neue Ereignisse gepuffert',
       filterPlaceholder: 'Ereignisse filtern…',
       none: 'Noch keine Aktivität',
-      category: { model: 'Modell', things: 'Dinge', rels: 'Bez.', props: 'Eig.', services: 'Dienste' },
+      category: { model: 'Modell', things: 'Dinge', relationships: 'Bez.', properties: 'Eig.', services: 'Dienste' },
     },
   },
   graph: {
@@ -252,10 +252,10 @@ export const de: PartialResources = {
       search: 'Typen suchen…',
       sort: 'Sortieren',
       sortAria: 'Typen sortieren',
-      sortCountDesc: 'Anzahl (hoch zu niedrig)',
+      sortCountDescending: 'Anzahl (hoch zu niedrig)',
       sortCountAsc: 'Anzahl (niedrig zu hoch)',
       sortNameAsc: 'Name (A → Z)',
-      sortNameDesc: 'Name (Z → A)',
+      sortNameDescending: 'Name (Z → A)',
       noMatch: 'Keine passenden Typen.',
     },
     predicateFilter: {
@@ -264,11 +264,11 @@ export const de: PartialResources = {
       noMatch: 'Keine passenden Prädikate.',
     },
   },
-  auth: {
+  authentication: {
     loadSeed: 'Einen Seed laden',
     searchSeeds: 'Seeds suchen…',
-    colName: 'Name',
-    colSize: 'Größe',
+    columnName: 'Name',
+    columnSize: 'Größe',
     noMatch: 'Keine Seeds entsprechen Ihrer Suche',
     noneAvailable: 'Keine Seeds verfügbar',
     seedCount: '{{shown}} von {{total}} Seeds',
@@ -442,9 +442,9 @@ export const de: PartialResources = {
     openInGraph: "Im Graph öffnen",
     ownProperties: "Eigene Eigenschaften",
     relationships: "Beziehungen",
-    propsAbbrev: "Eig.",
-    relsAbbrev: "Bez.",
-    moreProps: "+{{count}} weitere",
+    propertiesShort: "Eig.",
+    relationshipsShort: "Bez.",
+    moreProperties: "+{{count}} weitere",
     noMatch: "Keine Dinge stimmen mit „{{query}}\" überein.",
     foundCount_one: "{{count}} Ding gefunden",
     foundCount_other: "{{count}} Dinge gefunden",
@@ -610,7 +610,7 @@ export const de: PartialResources = {
       propertiesTab: "Eigenschaften ({{count}})",
       deleteRelationship: "Beziehung löschen",
     },
-    props: {
+    properties: {
       none: "Keine Eigenschaften",
       viewFullValue: "Vollständigen Wert anzeigen",
       addProperty: "Eigenschaft hinzufügen",
@@ -639,7 +639,7 @@ export const de: PartialResources = {
       renamed: "Umbenannt",
       renameFailed: "Umbenennen fehlgeschlagen",
     },
-    rel: {
+    relationship: {
       openEdgeDetail: "Kantendetails öffnen",
       outgoing: "Ausgehend",
       incoming: "Eingehend",
@@ -652,7 +652,7 @@ export const de: PartialResources = {
       retyped: "Neu typisiert",
       retypeFailed: "Neu-Typisierung fehlgeschlagen",
     },
-    addRel: {
+    addRelationship: {
       predicatePlaceholder: "Prädikat…",
       createRelationship: "Beziehung erstellen",
       targetPlaceholder: "Ziel…",
@@ -710,7 +710,7 @@ export const de: PartialResources = {
     runHistory: "Ausführungsverlauf",
     unsavedChanges: "ungespeicherte Änderungen",
     saved: "gespeichert",
-    params: "Parameter",
+    parameters: "Parameter",
     closeInspector: "Inspektor schließen",
     ports: "Ports ({{direction}}):",
     outputs: "Ausgänge",
@@ -721,7 +721,7 @@ export const de: PartialResources = {
     noInputPorts: "Keine Eingangsports.",
     bindInput: "Einen Eingang an einen Ausführungsparameter binden:",
     wired: "verdrahtet",
-    fromParam: "aus Param…",
+    fromParameter: "aus Param…",
     wire: "Verbindung",
     mapField: "Ein Feld zuordnen (leer = gesamte Nutzlast):",
     fromPath: "Von-Pfad",

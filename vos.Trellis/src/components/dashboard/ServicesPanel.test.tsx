@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ServicesPanel } from './ServicesPanel';
-import type { RegisteredService, EndpointServiceInfo } from '../../types/mycelium';
+import type { RegisteredService, EndpointServiceInformation } from '../../types/mycelium';
 
 function graphService(over: Partial<RegisteredService> = {}): RegisteredService {
   return {
@@ -12,7 +12,7 @@ function graphService(over: Partial<RegisteredService> = {}): RegisteredService 
   };
 }
 
-function httpEndpoint(over: Partial<EndpointServiceInfo> = {}): EndpointServiceInfo {
+function httpEndpoint(over: Partial<EndpointServiceInformation> = {}): EndpointServiceInformation {
   return {
     ObjectId: 't1', Name: 'Echo', Subdomain: 'echo', ServicePort: '7110',
     Stats: { RequestCount: 3, TotalResponseMs: 30, AverageResponseMs: 10, ErrorCount: 2 }, ...over,

@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { useActivityStore } from './activityStore';
 import type { ActivityEvent } from '../types/mycelium';
 
-function makeEvent(type: string, desc: string): ActivityEvent {
-  return { Type: type, Timestamp: new Date().toISOString(), Description: desc };
+function makeEvent(type: string, description: string): ActivityEvent {
+  return { Type: type, Timestamp: new Date().toISOString(), Description: description };
 }
 
 describe('activityStore', () => {

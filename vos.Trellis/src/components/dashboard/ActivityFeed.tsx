@@ -21,8 +21,8 @@ const typeColors: Record<string, string> = {
 const categories = [
   { label: 'Model', types: ['ModelChanged', 'ModelCleared'] },
   { label: 'Things', types: ['ThingCreated', 'ThingDeleted'] },
-  { label: 'Rels', types: ['RelationshipCreated', 'RelationshipDeleted'] },
-  { label: 'Props', types: ['PropertyChanged', 'PropertyDeleted'] },
+  { label: 'Relationships', types: ['RelationshipCreated', 'RelationshipDeleted'] },
+  { label: 'Properties', types: ['PropertyChanged', 'PropertyDeleted'] },
   { label: 'Services', types: ['ServiceHealthChanged', 'DaemonStatusChanged', 'DaemonStarted', 'DaemonStartFailed', 'EndpointServiceRequestCompleted'] },
 ] as const;
 
@@ -33,8 +33,8 @@ type CategoryLabel = (typeof categories)[number]['label'];
 const CATEGORY_KEY = {
   Model: 'dashboard.feed.category.model',
   Things: 'dashboard.feed.category.things',
-  Rels: 'dashboard.feed.category.rels',
-  Props: 'dashboard.feed.category.props',
+  Relationships: 'dashboard.feed.category.relationships',
+  Properties: 'dashboard.feed.category.properties',
   Services: 'dashboard.feed.category.services',
 } as const;
 
@@ -57,7 +57,7 @@ interface Props {
 
 export function ActivityFeed({ events, onCollapse }: Props) {
   const { t } = useTranslation();
-  const listRef = useRef<HTMLDivElement>(null);
+  const listReference = useRef<HTMLDivElement>(null);
   // What the feed froze on when it was paused, or null when it is live. One piece of state rather
   // than a flag beside two refs: the frozen list is rendered, and rendering has to read state.
   const [frozen, setFrozen] = useState<{ events: ActivityEvent[]; atLength: number } | null>(null);
@@ -67,7 +67,7 @@ export function ActivityFeed({ events, onCollapse }: Props) {
   );
   const [searchText, setSearchText] = useState('');
   const [height, setHeight] = useState<number | null>(loadHeight);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerReference = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
   const startY = useRef(0);
   const startHeight = useRef(0);
@@ -83,8 +83,8 @@ export function ActivityFeed({ events, onCollapse }: Props) {
   }, [events]);
 
   const toggleCategory = useCallback((label: CategoryLabel) => {
-    setEnabledCategories((prev) => {
-      const next = new Set(prev);
+    setEnabledCategories((previous) => {
+      const next = new Set(previous);
       if (next.has(label)) next.delete(label);
       else next.add(label);
       return next;
@@ -104,7 +104,7 @@ export function ActivityFeed({ events, onCollapse }: Props) {
   // feed fills.
   useEffect(() => {
     if (!paused) {
-      const list = listRef.current;
+      const list = listReference.current;
       if (list) list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
     }
   }, [events.length, paused]);
@@ -114,7 +114,7 @@ export function ActivityFeed({ events, onCollapse }: Props) {
       e.preventDefault();
       dragging.current = true;
       startY.current = e.clientY;
-      startHeight.current = height ?? containerRef.current?.offsetHeight ?? 400;
+      startHeight.current = height ?? containerReference.current?.offsetHeight ?? 400;
       (e.target as HTMLElement).setPointerCapture(e.pointerId);
     },
     [height],
@@ -148,7 +148,7 @@ export function ActivityFeed({ events, onCollapse }: Props) {
 
   return (
     <div
-      ref={containerRef}
+      ref={containerReference}
       className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 flex flex-col overflow-hidden"
       style={{ height: height ?? 'calc(100vh - 7.5rem)' }}
     >
@@ -236,7 +236,7 @@ export function ActivityFeed({ events, onCollapse }: Props) {
         </div>
 
         {/* Event list */}
-        <div ref={listRef} className="flex-1 overflow-auto space-y-1 min-h-0">
+        <div ref={listReference} className="flex-1 overflow-auto space-y-1 min-h-0">
           {filteredEvents.length === 0 && <p className="text-xs text-zinc-500">{t('dashboard.feed.none')}</p>}
           {filteredEvents.map((e, i) => (
             <div key={i} className="flex gap-2 text-xs py-0.5">

@@ -28,7 +28,7 @@ function widgetWith(...rows: VerdictWidget['rows']): VerdictWidget {
 }
 
 function draw(widget: VerdictWidget) {
-  render(<VerdictList widget={widget} ctx={{} as ResolveContext} />);
+  render(<VerdictList widget={widget} context={{} as ResolveContext} />);
 }
 
 describe('VerdictList', () => {
@@ -118,7 +118,7 @@ describe('VerdictList', () => {
           label: 'Food',
           verdicts: bind([{ state: 'FoodAssessed', property: null, operator: null, target: null, value: null }]),
         })}
-        ctx={{} as ResolveContext}
+        context={{} as ResolveContext}
       />,
     );
 

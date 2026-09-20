@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useUiStore } from '../stores/uiStore';
 
-const FLASH_DURATION_MS = 500;
+const FLASH_DURATION_MILLISECONDS = 500;
 
 export function useFlashTimer() {
   const addFlashNode = useUiStore((s) => s.addFlashNode);
@@ -9,28 +9,28 @@ export function useFlashTimer() {
   const addFlashEdge = useUiStore((s) => s.addFlashEdge);
   const removeFlashEdge = useUiStore((s) => s.removeFlashEdge);
 
-  const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const timersReference = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
   const triggerFlashNode = useCallback((thingId: string) => {
-    const timers = timersRef.current;
+    const timers = timersReference.current;
     const key = `n:${thingId}`;
-    const prev = timers.get(key);
-    if (prev) clearTimeout(prev);
+    const previous = timers.get(key);
+    if (previous) clearTimeout(previous);
     addFlashNode(thingId);
-    timers.set(key, setTimeout(() => { removeFlashNode(thingId); timers.delete(key); }, FLASH_DURATION_MS));
+    timers.set(key, setTimeout(() => { removeFlashNode(thingId); timers.delete(key); }, FLASH_DURATION_MILLISECONDS));
   }, [addFlashNode, removeFlashNode]);
 
   const triggerFlashEdge = useCallback((edgeId: string) => {
-    const timers = timersRef.current;
+    const timers = timersReference.current;
     const key = `e:${edgeId}`;
-    const prev = timers.get(key);
-    if (prev) clearTimeout(prev);
+    const previous = timers.get(key);
+    if (previous) clearTimeout(previous);
     addFlashEdge(edgeId);
-    timers.set(key, setTimeout(() => { removeFlashEdge(edgeId); timers.delete(key); }, FLASH_DURATION_MS));
+    timers.set(key, setTimeout(() => { removeFlashEdge(edgeId); timers.delete(key); }, FLASH_DURATION_MILLISECONDS));
   }, [addFlashEdge, removeFlashEdge]);
 
   useEffect(() => {
-    const timers = timersRef.current;
+    const timers = timersReference.current;
     return () => { timers.forEach((t) => clearTimeout(t)); timers.clear(); };
   }, []);
 

@@ -24,12 +24,12 @@ describe('ingestApi.upload', () => {
 
     const result = await ingestApi.upload(file, 'Demo', 'merge');
 
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url, requestOptions] = fetchMock.mock.calls[0];
     expect(url).toBe('http://localhost:6100/ingest');
-    expect(init.method).toBe('POST');
-    expect(init.headers.Authorization).toBe('Bearer jwt-123');
-    expect(init.body).toBeInstanceOf(FormData);
-    const form = init.body as FormData;
+    expect(requestOptions.method).toBe('POST');
+    expect(requestOptions.headers.Authorization).toBe('Bearer jwt-123');
+    expect(requestOptions.body).toBeInstanceOf(FormData);
+    const form = requestOptions.body as FormData;
     expect(form.get('name')).toBe('Demo');
     expect(form.get('mode')).toBe('merge');
     expect(result.thingsCreated).toBe(7);

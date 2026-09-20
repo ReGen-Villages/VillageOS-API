@@ -7,7 +7,7 @@ import type { PartialResources } from './types';
  * English base locale, which is the expected behaviour for an incomplete draft.
  */
 export const nl: PartialResources = {
-  nav: {
+  navigation: {
     appName: 'VILLAGEOS',
     subtitle: 'Temporele grafiek-interface',
     collapseSidebar: 'Zijbalk inklappen',
@@ -138,7 +138,7 @@ export const nl: PartialResources = {
         '„{{name}}” uit het model terugtrekken? Hiermee wordt de verbinding verwijderd zodat Mycelium er niet meer naartoe routeert. Ze blijft in de seed, dus opnieuw laden van de seed herstelt ze. Gebruik in plaats daarvan Stoppen om alleen het proces te stoppen.',
       confirm: 'Verwijderen',
     },
-    stats: {
+    statistics: {
       title: 'Modelstatistieken',
       things: 'Dingen',
       relationships: 'Relaties',
@@ -157,11 +157,11 @@ export const nl: PartialResources = {
       downloadLog: 'Logboek downloaden',
       deleteRetract: 'Verwijderen (terugtrekken uit model)',
       requests: 'Verzoeken',
-      avgTime: 'Gem. tijd',
+      averageTime: 'Gem. tijd',
       errors: 'Fouten',
-      lastReq: 'Laatste verzoek',
+      lastRequest: 'Laatste verzoek',
       lastContact: 'Laatste contact',
-      pid: 'PID',
+      processId: 'PID',
       failures: 'Fouten: {{count}}',
       health: {
         Healthy: 'Gezond',
@@ -189,7 +189,7 @@ export const nl: PartialResources = {
       pausedBuffered_other: 'Gepauzeerd — {{count}} nieuwe gebeurtenissen gebufferd',
       filterPlaceholder: 'Gebeurtenissen filteren…',
       none: 'Nog geen activiteit',
-      category: { model: 'Model', things: 'Dingen', rels: 'Rel.', props: 'Eig.', services: 'Diensten' },
+      category: { model: 'Model', things: 'Dingen', relationships: 'Rel.', properties: 'Eig.', services: 'Diensten' },
     },
   },
   graph: {
@@ -252,10 +252,10 @@ export const nl: PartialResources = {
       search: 'Typen zoeken…',
       sort: 'Sorteren',
       sortAria: 'Typen sorteren',
-      sortCountDesc: 'Aantal (hoog naar laag)',
+      sortCountDescending: 'Aantal (hoog naar laag)',
       sortCountAsc: 'Aantal (laag naar hoog)',
       sortNameAsc: 'Naam (A → Z)',
-      sortNameDesc: 'Naam (Z → A)',
+      sortNameDescending: 'Naam (Z → A)',
       noMatch: 'Geen overeenkomende typen.',
     },
     predicateFilter: {
@@ -264,11 +264,11 @@ export const nl: PartialResources = {
       noMatch: 'Geen overeenkomende predicaten.',
     },
   },
-  auth: {
+  authentication: {
     loadSeed: 'Een seed laden',
     searchSeeds: 'Seeds zoeken…',
-    colName: 'Naam',
-    colSize: 'Grootte',
+    columnName: 'Naam',
+    columnSize: 'Grootte',
     noMatch: 'Geen seeds komen overeen met uw zoekopdracht',
     noneAvailable: 'Geen seeds beschikbaar',
     seedCount: '{{shown}} van {{total}} seeds',
@@ -442,9 +442,9 @@ export const nl: PartialResources = {
     openInGraph: "Openen in Grafiek",
     ownProperties: "Eigen eigenschappen",
     relationships: "Relaties",
-    propsAbbrev: "eig.",
-    relsAbbrev: "rel.",
-    moreProps: "+{{count}} meer",
+    propertiesShort: "eig.",
+    relationshipsShort: "rel.",
+    moreProperties: "+{{count}} meer",
     noMatch: "Geen dingen komen overeen met \"{{query}}\".",
     foundCount_one: "{{count}} ding gevonden",
     foundCount_other: "{{count}} dingen gevonden",
@@ -610,7 +610,7 @@ export const nl: PartialResources = {
       propertiesTab: "Eigenschappen ({{count}})",
       deleteRelationship: "Relatie verwijderen",
     },
-    props: {
+    properties: {
       none: "Geen eigenschappen",
       viewFullValue: "Volledige waarde bekijken",
       addProperty: "Eigenschap toevoegen",
@@ -639,7 +639,7 @@ export const nl: PartialResources = {
       renamed: "Hernoemd",
       renameFailed: "Hernoemen mislukt",
     },
-    rel: {
+    relationship: {
       openEdgeDetail: "Verbindingsdetails openen",
       outgoing: "Uitgaand",
       incoming: "Inkomend",
@@ -652,7 +652,7 @@ export const nl: PartialResources = {
       retyped: "Hertyperd",
       retypeFailed: "Hertyperen mislukt",
     },
-    addRel: {
+    addRelationship: {
       predicatePlaceholder: "Predicaat…",
       createRelationship: "Relatie aanmaken",
       targetPlaceholder: "Doel…",
@@ -710,7 +710,7 @@ export const nl: PartialResources = {
     runHistory: "Uitvoeringsgeschiedenis",
     unsavedChanges: "niet-opgeslagen wijzigingen",
     saved: "opgeslagen",
-    params: "Parameters",
+    parameters: "Parameters",
     closeInspector: "Inspecteur sluiten",
     ports: "Poorten ({{direction}}):",
     outputs: "uitgangen",
@@ -721,7 +721,7 @@ export const nl: PartialResources = {
     noInputPorts: "Geen ingangspoorten.",
     bindInput: "Koppel een ingang aan een uitvoeringsparameter:",
     wired: "bedraad",
-    fromParam: "van param…",
+    fromParameter: "van param…",
     wire: "Draad",
     mapField: "Wijs een veld toe (leeg = volledige payload):",
     fromPath: "van-pad",

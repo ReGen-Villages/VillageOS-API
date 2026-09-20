@@ -16,11 +16,11 @@ vi.mock('../../../hooks/useFigureBreakdown', () => ({
 const { FigurePanel } = await import('./FigurePanel');
 
 const BINDING: Binding = { kind: 'stateCount', state: 'flooded', archetype: 'Catchment' };
-const CONTEXT = { idx: buildModelIndex([], []), scopeId: null } as ResolveContext;
+const CONTEXT = { index: buildModelIndex([], []), scopeId: null } as ResolveContext;
 
 function show(breakdown: FigureBreakdown | null, props: Partial<Parameters<typeof FigurePanel>[0]> = {}) {
   answer = { loading: false, breakdown };
-  return render(<FigurePanel binding={BINDING} ctx={CONTEXT} title="Flooded catchments" onClose={() => {}} {...props} />);
+  return render(<FigurePanel binding={BINDING} context={CONTEXT} title="Flooded catchments" onClose={() => {}} {...props} />);
 }
 
 const COUNTED: FigureBreakdown = {

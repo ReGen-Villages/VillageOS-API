@@ -42,7 +42,7 @@ const widget: StackedSharesWidget = {
 };
 
 function draw(drawn: StackedSharesWidget = widget) {
-  return render(<StackedShares widget={drawn} ctx={{} as ResolveContext} />);
+  return render(<StackedShares widget={drawn} context={{} as ResolveContext} />);
 }
 
 describe('the stacked percentage bar', () => {

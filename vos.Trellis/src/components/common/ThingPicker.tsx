@@ -21,7 +21,7 @@ export function ThingPicker({ things, ...rest }: Omit<EntityPickerProps<VosThing
 function EntityPicker<T extends PickerItem>({ items, value, onChange, placeholder = 'Search...', label }: EntityPickerProps<T>) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const reference = useRef<HTMLDivElement>(null);
 
   const selected = items.find((t) => t.Id === value);
 
@@ -50,14 +50,14 @@ function EntityPicker<T extends PickerItem>({ items, value, onChange, placeholde
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (reference.current && !reference.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={reference} className="relative">
       {label && <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{label}</label>}
       <input
         type="text"

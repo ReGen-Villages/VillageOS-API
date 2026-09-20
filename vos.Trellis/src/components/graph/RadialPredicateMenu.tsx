@@ -18,12 +18,12 @@ export function RadialPredicateMenu() {
   const { t } = useTranslation();
   const open = useUiStore((s) => s.radialMenuOpen);
   const position = useUiStore((s) => s.radialMenuPosition);
-  const predicateStats = useUiStore((s) => s.predicateStats);
+  const predicateStatistics = useUiStore((s) => s.predicateStatistics);
   const activePredicateIds = useUiStore((s) => s.activePredicateIds);
   const togglePredicateId = useUiStore((s) => s.togglePredicateId);
   const clearPredicateIds = useUiStore((s) => s.clearPredicateIds);
   const closeRadialMenu = useUiStore((s) => s.closeRadialMenu);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const menuReference = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -39,7 +39,7 @@ export function RadialPredicateMenu() {
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      if (menuReference.current && !menuReference.current.contains(e.target as Node)) {
         closeRadialMenu();
       }
     };
@@ -66,16 +66,16 @@ export function RadialPredicateMenu() {
     closeRadialMenu();
   }, [clearPredicateIds, closeRadialMenu]);
 
-  if (!open || !position || predicateStats.length === 0) return null;
+  if (!open || !position || predicateStatistics.length === 0) return null;
 
   const RADIUS = 130; // distance from centre to each button
   const BUTTON_SIZE = 56; // px, button diameter
-  const count = predicateStats.length;
+  const count = predicateStatistics.length;
   const hasActive = activePredicateIds.size > 0;
 
   return (
     <div
-      ref={menuRef}
+      ref={menuReference}
       className="absolute z-50 pointer-events-none"
       style={{
         left: position.x,
@@ -101,7 +101,7 @@ export function RadialPredicateMenu() {
       </button>
 
       {/* Predicate slices arranged radially */}
-      {predicateStats.map((stat, i) => {
+      {predicateStatistics.map((stat, i) => {
         // Angle: start at -90deg (12 o'clock), go clockwise
         const angle = ((2 * Math.PI) / count) * i - Math.PI / 2;
         const x = Math.cos(angle) * RADIUS;

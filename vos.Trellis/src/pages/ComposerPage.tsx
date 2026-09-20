@@ -68,7 +68,7 @@ export function ComposerPage() {
 
   const instant = useMemo(() => instantOf(moment), [moment]);
   const stood = useModelIndexAt(instant, modelIndex);
-  const ctx = useResolveContext(stood.index ?? modelIndex, null, undefined, brokerModelReads);
+  const context = useResolveContext(stood.index ?? modelIndex, null, undefined, brokerModelReads);
   const readingTheMoment = instant !== undefined && stood.index === null && !stood.failed;
   const { openDetail, windows } = useDetailWindows(modelIndex, ROW_CARD);
 
@@ -389,7 +389,7 @@ export function ComposerPage() {
             <DataTable
               columns={table.columns}
               rowsBinding={table.rows}
-              ctx={ctx}
+              context={context}
               sortKey={table.sortKey}
               sortDir={table.sortDir}
               visibleRows={table.visibleRows}

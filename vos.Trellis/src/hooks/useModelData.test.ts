@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 
 const mockGetAllThings = vi.fn();
-const mockGetAllRels = vi.fn();
+const mockGetAllRelationships = vi.fn();
 const mockGetThing = vi.fn();
-const mockGetRel = vi.fn();
+const mockGetRelationship = vi.fn();
 const mockGetThingByName = vi.fn();
 vi.mock('../api/thingApi', () => ({
   thingApi: {
@@ -14,7 +14,7 @@ vi.mock('../api/thingApi', () => ({
   },
 }));
 vi.mock('../api/relationshipApi', () => ({
-  relationshipApi: { getAll: () => mockGetAllRels(), get: (id: string) => mockGetRel(id) },
+  relationshipApi: { getAll: () => mockGetAllRelationships(), get: (id: string) => mockGetRelationship(id) },
 }));
 
 /** A Thing as the stream carries it: the snapshot's shape, properties in their typed wrappers. */
@@ -28,7 +28,7 @@ const wireEdge = (Id: string, SubjectId: string, PredicateId: string, TargetId: 
 });
 
 // Capture the SSE handler registry so tests can fire events synthetically.
-type Handler = (...args: unknown[]) => void;
+type Handler = (...callArguments: unknown[]) => void;
 const handlers = new Map<string, Handler>();
 const mockResubscribe = vi.fn();
 vi.mock('./useSse', () => ({
@@ -37,8 +37,8 @@ vi.mock('./useSse', () => ({
   useDefaultSubscription: () => {},
   useSse: () => ({
     connected: true,
-    on: (event: string, cb: Handler) => {
-      handlers.set(event, cb);
+    on: (event: string, callback: Handler) => {
+      handlers.set(event, callback);
       return () => handlers.delete(event);
     },
   }),
@@ -51,7 +51,7 @@ vi.mock('./useFlashTimer', () => ({
 
 // Toast is fire-and-forget; silence it.
 vi.mock('../components/common/toastStore', () => ({
-  toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
+  toast: { error: vi.fn(), success: vi.fn(), information: vi.fn() },
 }));
 
 import { useModelData, reloadModelData } from './useModelData';
@@ -79,12 +79,12 @@ describe('useModelData', () => {
   beforeEach(() => {
     handlers.clear();
     mockGetAllThings.mockReset();
-    mockGetAllRels.mockReset();
+    mockGetAllRelationships.mockReset();
     mockGetThing.mockReset();
-    mockGetRel.mockReset();
+    mockGetRelationship.mockReset();
     mockGetThingByName.mockReset();
     mockGetAllThings.mockResolvedValue([]);
-    mockGetAllRels.mockResolvedValue([]);
+    mockGetAllRelationships.mockResolvedValue([]);
     mockGetThingByName.mockResolvedValue(null);
     mockResubscribe.mockClear();
     vi.mocked(toast.error).mockClear();
@@ -143,7 +143,7 @@ describe('useModelData', () => {
 
   it('loads things + relationships into the model store on mount', async () => {
     mockGetAllThings.mockResolvedValue([{ Id: 't1', Name: 'A', Properties: {} }, { Id: 't2', Name: 'B', Properties: {} }]);
-    mockGetAllRels.mockResolvedValue([{ Id: 'r1', Name: 'is', SubjectId: 't1', PredicateId: 'p', TargetId: 't2' }]);
+    mockGetAllRelationships.mockResolvedValue([{ Id: 'r1', Name: 'is', SubjectId: 't1', PredicateId: 'p', TargetId: 't2' }]);
 
     await mountLoaded();
 
@@ -208,8 +208,8 @@ describe('useModelData', () => {
 
   it('RelationshipCreated lands the edge it carries with its three ends, and asks for nothing', async () => {
     await mountLoaded();
-    await waitFor(() => expect(mockGetAllRels).toHaveBeenCalled());
-    mockGetAllRels.mockClear();
+    await waitFor(() => expect(mockGetAllRelationships).toHaveBeenCalled());
+    mockGetAllRelationships.mockClear();
 
     await act(async () => {
       handlers.get('RelationshipCreated')!({ EntityId: 'r-new', Relationship: wireEdge('r-new', 't1', 'p', 't2') });
@@ -217,8 +217,8 @@ describe('useModelData', () => {
 
     await waitFor(() => expect(useModelStore.getState().relationships).toHaveLength(1));
     expect(useModelStore.getState().relationships[0]).toMatchObject({ Id: 'r-new', SubjectId: 't1', PredicateId: 'p', TargetId: 't2' });
-    expect(mockGetRel).not.toHaveBeenCalled();
-    expect(mockGetAllRels).not.toHaveBeenCalled();
+    expect(mockGetRelationship).not.toHaveBeenCalled();
+    expect(mockGetAllRelationships).not.toHaveBeenCalled();
   });
 
   it('ThingEntered adds the Thing it carries', async () => {
@@ -236,14 +236,14 @@ describe('useModelData', () => {
 
   it('RelationshipEntered adds the edge it carries', async () => {
     await mountLoaded();
-    await waitFor(() => expect(mockGetAllRels).toHaveBeenCalled());
+    await waitFor(() => expect(mockGetAllRelationships).toHaveBeenCalled());
 
     await act(async () => {
       handlers.get('RelationshipEntered')!({ EntityId: 'r-held', Relationship: wireEdge('r-held', 't-typed', 'is', 'arch') });
     });
 
     await waitFor(() => expect(useModelStore.getState().relationships.map((r) => r.Id)).toEqual(['r-held']));
-    expect(mockGetRel).not.toHaveBeenCalled();
+    expect(mockGetRelationship).not.toHaveBeenCalled();
   });
 
   it('ThingLeft removes the Thing without a full refetch', async () => {
@@ -259,18 +259,18 @@ describe('useModelData', () => {
   });
 
   it('RelationshipLeft removes the edge without a full refetch', async () => {
-    mockGetAllRels.mockResolvedValue([
+    mockGetAllRelationships.mockResolvedValue([
       { Id: 'r1', Name: 'is', SubjectId: 't1', PredicateId: 'p', TargetId: 't2' },
       { Id: 'r2', Name: 'is', SubjectId: 't2', PredicateId: 'p', TargetId: 't3' },
     ]);
     await mountLoaded();
     await waitFor(() => expect(useModelStore.getState().relationships).toHaveLength(2));
-    mockGetAllRels.mockClear();
+    mockGetAllRelationships.mockClear();
 
     await act(async () => { handlers.get('RelationshipLeft')!({ EntityId: 'r1' }); });
 
     await waitFor(() => expect(useModelStore.getState().relationships.map((r) => r.Id)).toEqual(['r2']));
-    expect(mockGetAllRels).not.toHaveBeenCalled();
+    expect(mockGetAllRelationships).not.toHaveBeenCalled();
   });
 
   it('a Thing that entered and left in one window is not kept', async () => {
@@ -300,17 +300,17 @@ describe('useModelData', () => {
   });
 
   it('RelationshipDeleted removes the relationship locally without a full refetch', async () => {
-    const rel = { Id: 'r1', Name: 'is', SubjectId: 't1', PredicateId: 'p', TargetId: 't2', Properties: {} };
-    useModelStore.setState({ things: [], relationships: [rel] });
+    const relationship = { Id: 'r1', Name: 'is', SubjectId: 't1', PredicateId: 'p', TargetId: 't2', Properties: {} };
+    useModelStore.setState({ things: [], relationships: [relationship] });
     await mountLoaded();
-    await waitFor(() => expect(mockGetAllRels).toHaveBeenCalled());
-    useModelStore.setState({ things: [], relationships: [rel] });
-    mockGetAllRels.mockClear();
+    await waitFor(() => expect(mockGetAllRelationships).toHaveBeenCalled());
+    useModelStore.setState({ things: [], relationships: [relationship] });
+    mockGetAllRelationships.mockClear();
 
     await act(async () => { handlers.get('RelationshipDeleted')!({ EntityId: 'r1' }); });
 
     await waitFor(() => expect(useModelStore.getState().relationships).toHaveLength(0));
-    expect(mockGetAllRels).not.toHaveBeenCalled();
+    expect(mockGetAllRelationships).not.toHaveBeenCalled();
   });
 
   it('ThingDeleted for an unknown id is a no-op', async () => {
@@ -616,7 +616,7 @@ describe('useModelData', () => {
     });
 
     it('a change to the edge the user opened lands, with no node selected', async () => {
-      mockGetAllRels.mockResolvedValue([relationship({ quantity: 5 })]);
+      mockGetAllRelationships.mockResolvedValue([relationship({ quantity: 5 })]);
       useUiStore.setState({ selectedNodeId: null, selectedEdgeId: 'r1' });
       await mountLoaded();
       await waitFor(() => expect(useModelStore.getState().relationships).toHaveLength(1));
@@ -626,7 +626,7 @@ describe('useModelData', () => {
     });
 
     it('keeps every relationship property changed in one window, not only the last', async () => {
-      mockGetAllRels.mockResolvedValue([relationship({ quantity: 5, unit: 'crates' })]);
+      mockGetAllRelationships.mockResolvedValue([relationship({ quantity: 5, unit: 'crates' })]);
       useUiStore.setState({ selectedNodeId: null, selectedEdgeId: 'r1' });
       await mountLoaded();
       await waitFor(() => expect(useModelStore.getState().relationships).toHaveLength(1));
@@ -646,7 +646,7 @@ describe('useModelData', () => {
     // property to null looks like, so a property another user deleted stayed on screen as an empty
     // row. It now says so, and the two are handled apart.
     it('takes a deleted relationship property out of the store', async () => {
-      mockGetAllRels.mockResolvedValue([relationship({ quantity: 5 })]);
+      mockGetAllRelationships.mockResolvedValue([relationship({ quantity: 5 })]);
       useUiStore.setState({ selectedNodeId: null, selectedEdgeId: 'r1' });
       await mountLoaded();
       await waitFor(() => expect(useModelStore.getState().relationships).toHaveLength(1));
@@ -658,7 +658,7 @@ describe('useModelData', () => {
     });
 
     it('keeps a relationship property that was genuinely set to null', async () => {
-      mockGetAllRels.mockResolvedValue([relationship({ quantity: 5 })]);
+      mockGetAllRelationships.mockResolvedValue([relationship({ quantity: 5 })]);
       useUiStore.setState({ selectedNodeId: null, selectedEdgeId: 'r1' });
       await mountLoaded();
       await waitFor(() => expect(useModelStore.getState().relationships).toHaveLength(1));
@@ -672,7 +672,7 @@ describe('useModelData', () => {
     });
 
     it('ignores a deletion on a relationship that is neither open nor on the open node', async () => {
-      mockGetAllRels.mockResolvedValue([relationship({ quantity: 5 })]);
+      mockGetAllRelationships.mockResolvedValue([relationship({ quantity: 5 })]);
       useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null });
       await mountLoaded();
       await waitFor(() => expect(useModelStore.getState().relationships).toHaveLength(1));
@@ -682,7 +682,7 @@ describe('useModelData', () => {
     });
 
     it('ignores a change to a relationship that is neither open nor on the open node', async () => {
-      mockGetAllRels.mockResolvedValue([relationship({ quantity: 5 })]);
+      mockGetAllRelationships.mockResolvedValue([relationship({ quantity: 5 })]);
       useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null });
       await mountLoaded();
       await waitFor(() => expect(useModelStore.getState().relationships).toHaveLength(1));

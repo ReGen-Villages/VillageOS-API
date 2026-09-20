@@ -27,7 +27,7 @@ const KNOWN_EVENTS = [
  *  what the page holds. Never sent by the server — this client raises it on itself. */
 export const SUBSCRIPTION_OPENED = 'SubscriptionOpened';
 
-type Handler = (...args: unknown[]) => void;
+type Handler = (...eventArguments: unknown[]) => void;
 type Entry = { event: string; handler: Handler };
 
 // Connection-independent handler registry, re-attached across reconnects.
@@ -37,7 +37,7 @@ const listeners = new Set<() => void>();
 let objectSource: EventSource | null = null;
 let systemSource: EventSource | null = null;
 let openSubscriptionId: string | null = null;
-let refCount = 0;
+let referenceCount = 0;
 let connectedState = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempt = 0;
@@ -86,10 +86,10 @@ const PROPERTY_EVENTS = new Set([
   'PropertyObserved',
 ]);
 
-// Map an SSE event's data object to the positional args the handlers expect.
+// Map an SSE event's data object to the positional arguments the handlers expect.
 // A property event is (id, name, value), with no value on a retraction; everything else passes the
 // data object through.
-function toArgs(kind: string, data: { EntityId?: string; PropertyName?: string; Value?: unknown } | unknown): unknown[] {
+function toArguments(kind: string, data: { EntityId?: string; PropertyName?: string; Value?: unknown } | unknown): unknown[] {
   if (PROPERTY_EVENTS.has(kind)) {
     const d = (data ?? {}) as { EntityId?: string; PropertyName?: string; Value?: unknown };
     return [d.EntityId, d.PropertyName, d.Value];
@@ -98,10 +98,10 @@ function toArgs(kind: string, data: { EntityId?: string; PropertyName?: string; 
 }
 
 function dispatch(kind: string, data: unknown) {
-  const args = toArgs(kind, data);
+  const eventArguments = toArguments(kind, data);
   handlers.forEach((h) => {
     if (h.event !== kind) return;
-    try { h.handler(...args); } catch (err) { console.error(`SSE handler for ${kind} threw:`, err); }
+    try { h.handler(...eventArguments); } catch (err) { console.error(`SSE handler for ${kind} threw:`, err); }
   });
 }
 
@@ -111,10 +111,10 @@ function attachListeners(source: EventSource, trackWatermark = false) {
   for (const kind of KNOWN_EVENTS) {
     source.addEventListener(kind, (e: MessageEvent) => {
       if (trackWatermark && e.lastEventId) {
-        const seq = Number(e.lastEventId);
+        const sequence = Number(e.lastEventId);
         // Monotonic guard: replay/de-dup can re-deliver ≤ our position; never rewind.
-        if (Number.isFinite(seq) && (consumedWatermark === null || seq > consumedWatermark)) {
-          consumedWatermark = seq;
+        if (Number.isFinite(sequence) && (consumedWatermark === null || sequence > consumedWatermark)) {
+          consumedWatermark = sequence;
         }
       }
       let data: unknown;
@@ -155,7 +155,7 @@ function scheduleReconnect() {
   reconnectAttempt++;
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
-    if (refCount > 0) void openStreams();
+    if (referenceCount > 0) void openStreams();
   }, delay);
 }
 
@@ -166,7 +166,7 @@ async function openStreams() {
   closeStreams();
   const selector = effectiveSelector();
   openedFor = JSON.stringify(selector);
-  const superseded = () => myGeneration !== generation || refCount === 0;
+  const superseded = () => myGeneration !== generation || referenceCount === 0;
   // The platform holds a subscription for this open from the moment the request answers, and only
   // an open that goes on to attach its streams records it as the live one. Every other path leaves
   // it here to be handed back — an abandoned entry is one nothing will ever read and nothing will
@@ -177,17 +177,17 @@ async function openStreams() {
     if (superseded()) return;
 
     // The subscription the mounted page declared. Its snapshot watermark anchors the first resume.
-    const resp = await fetch(`${BASE_URL}/api/subscriptions`, {
+    const response = await fetch(`${BASE_URL}/api/subscriptions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(selector),
     });
-    if (!resp.ok) {
+    if (!response.ok) {
       if (!superseded()) scheduleReconnect();
       return;
     }
 
-    const { subscriptionId, watermark, snapshot } = await resp.json();
+    const { subscriptionId, watermark, snapshot } = await response.json();
     granted = subscriptionId;
     if (superseded()) return;
 
@@ -196,7 +196,7 @@ async function openStreams() {
     const streamToken = await apiClient.mintStreamToken();
     if (superseded()) return;
 
-    const tokenParam = `access_token=${encodeURIComponent(streamToken)}`;
+    const tokenParameter = `access_token=${encodeURIComponent(streamToken)}`;
 
     // Resume from where we left off: on a reconnect the broker replays the
     // Facts we missed and de-dupes by sequence; on a first connect we have no position, so
@@ -204,15 +204,15 @@ async function openStreams() {
     // subscription's own watermark, so a fresh subscription still resumes precisely.
     const resumeFrom = consumedWatermark ?? watermark;
     consumedWatermark = resumeFrom;
-    const obj = new EventSource(
-      `${BASE_URL}/api/subscriptions/${subscriptionId}/stream?${tokenParam}&lastEventId=${resumeFrom}`,
+    const object = new EventSource(
+      `${BASE_URL}/api/subscriptions/${subscriptionId}/stream?${tokenParameter}&lastEventId=${resumeFrom}`,
     );
-    obj.onopen = () => { reconnectAttempt = 0; setConnected(true); };
-    obj.onerror = () => scheduleReconnect();
-    attachListeners(obj, true);
-    objectSource = obj;
+    object.onopen = () => { reconnectAttempt = 0; setConnected(true); };
+    object.onerror = () => scheduleReconnect();
+    attachListeners(object, true);
+    objectSource = object;
 
-    const sys = new EventSource(`${BASE_URL}/api/events/stream?${tokenParam}`);
+    const sys = new EventSource(`${BASE_URL}/api/events/stream?${tokenParameter}`);
     sys.onerror = () => scheduleReconnect();
     attachListeners(sys);
     systemSource = sys;
@@ -253,7 +253,7 @@ function announceOpened(
 /** How long an arriving page is given to make its declaration. Long enough for its code to be
  *  fetched and mounted; a page slower than this costs one snapshot built for no reader, and
  *  nothing else — the subscription still settles on what that page asked for. */
-const DECLARATIONS_SETTLE_MS = 300;
+const DECLARATIONS_SETTLE_MILLISECONDS = 300;
 
 /**
  * Reopen when what the mounted pages ask the subscription to cover has changed.
@@ -264,7 +264,7 @@ const DECLARATIONS_SETTLE_MS = 300;
  */
 function follow() {
   settling = null;
-  if (refCount === 0) return;
+  if (referenceCount === 0) return;
   if (JSON.stringify(effectiveSelector()) === openedFor) return;
   consumedWatermark = null;
   void openStreams();
@@ -289,7 +289,7 @@ function followDeclarations() {
   following = true;
   queueMicrotask(() => {
     following = false;
-    if (openedFor !== null && declared.length === 0) settling = setTimeout(follow, DECLARATIONS_SETTLE_MS);
+    if (openedFor !== null && declared.length === 0) settling = setTimeout(follow, DECLARATIONS_SETTLE_MILLISECONDS);
     else follow();
   });
 }
@@ -297,7 +297,7 @@ function followDeclarations() {
 /** Open the declared subscription again, from a fresh snapshot. What a subscription covers is
  *  resolved when it opens, so a model replaced under it has to be asked for again. */
 export function resubscribe(): void {
-  if (refCount === 0) return;
+  if (referenceCount === 0) return;
   // A reopen is a reopen: a settle still pending would make a second one for the same declaration.
   if (settling) { clearTimeout(settling); settling = null; }
   consumedWatermark = null;
@@ -342,14 +342,14 @@ export function useDefaultSubscription(selector: SubscriptionSelector): void {
 /** The first open goes through the same settling as any later one, so it is made with what the
  *  mounted pages declared rather than with the whole model they were about to narrow. */
 function acquire() {
-  refCount++;
-  if (refCount === 1) followDeclarations();
+  referenceCount++;
+  if (referenceCount === 1) followDeclarations();
 }
 
 function release() {
-  refCount--;
-  if (refCount <= 0) {
-    refCount = 0;
+  referenceCount--;
+  if (referenceCount <= 0) {
+    referenceCount = 0;
     generation++; // abort any in-flight open
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
     if (settling) { clearTimeout(settling); settling = null; }
@@ -368,7 +368,7 @@ export function useSse() {
   }, []);
 
   const connected = useSyncExternalStore(
-    (cb) => { listeners.add(cb); return () => listeners.delete(cb); },
+    (callback) => { listeners.add(callback); return () => listeners.delete(callback); },
     () => connectedState,
   );
 

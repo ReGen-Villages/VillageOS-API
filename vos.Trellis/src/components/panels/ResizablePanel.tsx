@@ -11,10 +11,10 @@ export function ResizablePanel({ children }: Props) {
   const dragging = useRef(false);
   const startX = useRef(0);
   const startWidth = useRef(0);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerReference = useRef<HTMLDivElement>(null);
 
   const getMaxWidth = useCallback(() => {
-    const parent = containerRef.current?.parentElement;
+    const parent = containerReference.current?.parentElement;
     if (!parent) return MAX_PANEL_WIDTH;
     return Math.min(MAX_PANEL_WIDTH, Math.floor(parent.clientWidth * 0.9));
   }, []);
@@ -55,7 +55,7 @@ export function ResizablePanel({ children }: Props) {
 
   return (
     <div
-      ref={containerRef}
+      ref={containerReference}
       className="absolute top-0 right-0 h-full flex z-20"
       style={{ width }}
     >

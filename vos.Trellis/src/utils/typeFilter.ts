@@ -82,7 +82,7 @@ export function discoverTypes(
     if (!name) continue;
     out.push({ typeId, name, instanceCount: members.size });
   }
-  // Real types sort by count desc then name asc; the synthetic no-type bucket
+  // Real types sort by count descending then name ascending; the synthetic no-type bucket
   // always sorts to the end so it doesn't displace meaningful types in the
   // panel even when its count is high.
   out.sort((a, b) => {
@@ -167,11 +167,11 @@ export function buildInstanceTypeIndex(
 ): Map<string, string> {
   const thingNames = new Map(things.map((t) => [t.Id, t.Name]));
   const subjectToType = new Map<string, string>();
-  for (const rel of relationships) {
-    const predName = thingNames.get(rel.PredicateId);
-    if (predName?.toLowerCase() !== IS_PREDICATE_NAME) continue;
-    if (!subjectToType.has(rel.SubjectId)) {
-      subjectToType.set(rel.SubjectId, rel.TargetId);
+  for (const relationship of relationships) {
+    const predicateName = thingNames.get(relationship.PredicateId);
+    if (predicateName?.toLowerCase() !== IS_PREDICATE_NAME) continue;
+    if (!subjectToType.has(relationship.SubjectId)) {
+      subjectToType.set(relationship.SubjectId, relationship.TargetId);
     }
   }
   return subjectToType;
@@ -220,9 +220,9 @@ export function applyTypeFilter(
   }
 
   const filteredThings = things.filter((t) => !hiddenThingIds.has(t.Id));
-  const filteredRels = relationships.filter(
+  const filteredRelationships = relationships.filter(
     (r) => !hiddenThingIds.has(r.SubjectId) && !hiddenThingIds.has(r.TargetId),
   );
 
-  return { things: filteredThings, relationships: filteredRels };
+  return { things: filteredThings, relationships: filteredRelationships };
 }

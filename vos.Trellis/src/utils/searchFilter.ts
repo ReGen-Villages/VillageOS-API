@@ -107,14 +107,14 @@ export function filterGraph(
   );
 
   // Find all relationships that touch a matched node
-  const touchingRels = relationships.filter(
+  const touchingRelationships = relationships.filter(
     (r) => matchedIds.has(r.SubjectId) || matchedIds.has(r.TargetId) || matchedIds.has(r.PredicateId),
   );
 
   // Expand to include neighbor nodes so edges always have both endpoints,
   // and predicate things so edge labels resolve to names instead of GUIDs
   const expandedIds = new Set(matchedIds);
-  for (const r of touchingRels) {
+  for (const r of touchingRelationships) {
     expandedIds.add(r.SubjectId);
     expandedIds.add(r.TargetId);
     expandedIds.add(r.PredicateId);

@@ -15,7 +15,7 @@ import { useUiStore } from '../../stores/uiStore';
 describe('PredicateFilterPanel layout', () => {
   beforeEach(() => {
     useUiStore.setState({
-      predicateStats: [
+      predicateStatistics: [
         { predicateId: 'p1', predicateName: 'consumes', edgeCount: 35, color: '#aaa' },
         { predicateId: 'p2', predicateName: 'produces', edgeCount: 28, color: '#bbb' },
       ],

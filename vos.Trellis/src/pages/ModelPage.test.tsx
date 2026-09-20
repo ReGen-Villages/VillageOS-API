@@ -83,8 +83,8 @@ vi.mock('../api/thingApi', () => ({
 }));
 
 let mockModelId: string | null = 'model-1';
-vi.mock('../hooks/useAuth', () => ({
-  useAuth: () => ({ modelId: mockModelId }),
+vi.mock('../hooks/useAuthentication', () => ({
+  useAuthentication: () => ({ modelId: mockModelId }),
 }));
 
 // Import after mocks so the mocked module is used.

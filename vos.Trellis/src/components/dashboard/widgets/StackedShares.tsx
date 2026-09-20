@@ -22,13 +22,13 @@ const AXIS_TICKS = [0, 0.25, 0.5, 0.75, 1];
 /** A thin ring in the surface colour is the gap between stacked segments. */
 const SURFACE_GAP = 1;
 
-export function StackedShares({ widget, ctx }: { widget: StackedSharesWidget; ctx: ResolveContext }) {
+export function StackedShares({ widget, context }: { widget: StackedSharesWidget; context: ResolveContext }) {
   const { i18n } = useTranslation();
   const [measure, measuredWidth] = useElementWidth();
   const [active, setActive] = useState<number | null>(null);
 
   const resolved = useBindings(
-    widget.classes.flatMap((entry) => [entry.share, typeof entry.colour === 'object' ? entry.colour : undefined]), ctx);
+    widget.classes.flatMap((entry) => [entry.share, typeof entry.colour === 'object' ? entry.colour : undefined]), context);
   const classes = widget.classes
     .map((entry, at) => ({
       label: entry.label,

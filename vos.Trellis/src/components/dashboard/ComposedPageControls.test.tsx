@@ -16,13 +16,13 @@ import { ComposedPageControls } from './ComposedPageControls';
 function thing(Id: string, Name: string, IsArchetype = false): VosThing {
   return { Id, Name, Properties: {}, IsArchetype };
 }
-function rel(Id: string, SubjectId: string, PredicateId: string, TargetId: string): VosRelationship {
+function relationship(Id: string, SubjectId: string, PredicateId: string, TargetId: string): VosRelationship {
   return { Id, SubjectId, PredicateId, TargetId, Properties: {} };
 }
 
-const idx = buildModelIndex(
+const index = buildModelIndex(
   [thing('is', 'is'), thing('dashboard', 'Dashboard', true), thing('kept', 'Springs by flow')],
-  [rel('i1', 'kept', 'is', 'dashboard')],
+  [relationship('i1', 'kept', 'is', 'dashboard')],
 );
 
 const composed: DashboardDescriptor = {
@@ -41,7 +41,7 @@ const seeded: DashboardDescriptor = {
 function show(dashboard: DashboardDescriptor) {
   return render(
     <MemoryRouter>
-      <ComposedPageControls dashboard={dashboard} idx={idx} />
+      <ComposedPageControls dashboard={dashboard} index={index} />
     </MemoryRouter>,
   );
 }

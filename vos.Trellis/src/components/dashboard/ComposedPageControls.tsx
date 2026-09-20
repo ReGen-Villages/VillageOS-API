@@ -12,7 +12,7 @@ const buttonClass =
 /** Rename and Remove for a page the console kept, and nothing for a seeded one: a page the seed
  *  wrote is the seed's to change, and the composition a kept page carries is what tells the two
  *  apart. A rename rewrites the title and keeps the Thing's name, so the address stays. */
-export function ComposedPageControls({ dashboard, idx }: { dashboard: DashboardDescriptor; idx: ModelIndex }) {
+export function ComposedPageControls({ dashboard, index }: { dashboard: DashboardDescriptor; index: ModelIndex }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [renaming, setRenaming] = useState(false);
@@ -37,7 +37,7 @@ export function ComposedPageControls({ dashboard, idx }: { dashboard: DashboardD
   };
 
   const remove = async () => {
-    const context = dashboardWriteContext(idx);
+    const context = dashboardWriteContext(index);
     if (!context || !window.confirm(t('composer.removeConfirm', { name: spec.title }))) return;
     setBusy(true);
     try {

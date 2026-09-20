@@ -14,7 +14,7 @@ import type { VosThing, VosRelationship } from '../types/vos';
 // ── Test helpers ──────────────────────────────────────────────────────
 
 let idCounter = 0;
-function uid() {
+function uniqueId() {
   return `test-${++idCounter}`;
 }
 
@@ -22,16 +22,16 @@ function makeThing(
   name: string,
   props: Record<string, unknown> = {},
 ): VosThing {
-  return { Id: uid(), Name: name, Properties: props };
+  return { Id: uniqueId(), Name: name, Properties: props };
 }
 
-function makeRel(
+function makeRelationship(
   subjectId: string,
   predicateId: string,
   targetId: string,
 ): VosRelationship {
   return {
-    Id: uid(),
+    Id: uniqueId(),
     Name: '',
     SubjectId: subjectId,
     PredicateId: predicateId,
@@ -42,16 +42,16 @@ function makeRel(
 
 /** Build the standard GUI_Settings type + GUI instance + is relationship. */
 function buildGuiFixture(
-  typeProps: Record<string, unknown>,
-  instanceProps: Record<string, unknown> = {},
+  typeProperties: Record<string, unknown>,
+  instanceProperties: Record<string, unknown> = {},
 ) {
-  const isPred = makeThing('is');
-  const guiType = makeThing('GUI_Settings', typeProps);
-  const gui = makeThing('GUI', instanceProps);
-  const rel = makeRel(gui.Id, isPred.Id, guiType.Id);
+  const isPredicate = makeThing('is');
+  const guiType = makeThing('GUI_Settings', typeProperties);
+  const gui = makeThing('GUI', instanceProperties);
+  const relationship = makeRelationship(gui.Id, isPredicate.Id, guiType.Id);
   return {
-    things: [isPred, guiType, gui],
-    relationships: [rel],
+    things: [isPredicate, guiType, gui],
+    relationships: [relationship],
   };
 }
 

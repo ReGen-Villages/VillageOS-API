@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '../api/client';
-import { useAuth } from '../hooks/useAuth';
+import { useAuthentication } from '../hooks/useAuthentication';
 import { thingApi } from '../api/thingApi';
 import { useUiStore } from '../stores/uiStore';
 import { useModelStore } from '../stores/modelStore';
@@ -50,7 +50,7 @@ function buildMappingFromThings(things: VosThing[]): BimFragmentsMapping {
 export function ModelPage() {
   useSubscription(WHOLE_MODEL);
   const { t } = useTranslation();
-  const { modelId } = useAuth();
+  const { modelId } = useAuthentication();
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
   // Tagged with the model it answers for, so switching models reads as loading without an effect

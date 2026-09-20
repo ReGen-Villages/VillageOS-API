@@ -4,28 +4,28 @@ import type { VosTypeName } from '../utils/constants';
 import { unwrapRelationship } from '../utils/propertyMapper';
 
 async function writeProperty(id: string, name: string, type: VosTypeName, value: unknown) {
-  const rel = await apiClient.put<VosRelationship>(`/api/relationships/${id}/properties`, { Name: name, Type: type, Value: value });
-  return unwrapRelationship(rel);
+  const relationship = await apiClient.put<VosRelationship>(`/api/relationships/${id}/properties`, { Name: name, Type: type, Value: value });
+  return unwrapRelationship(relationship);
 }
 
 export const relationshipApi = {
   getAll: async () => {
-    const rels = await apiClient.get<VosRelationship[]>('/api/relationships');
-    return rels.map(unwrapRelationship);
+    const relationships = await apiClient.get<VosRelationship[]>('/api/relationships');
+    return relationships.map(unwrapRelationship);
   },
 
   get: async (id: string, signal?: AbortSignal) => {
-    const rel = await apiClient.get<VosRelationship>(`/api/relationships/${id}`, signal);
-    return unwrapRelationship(rel);
+    const relationship = await apiClient.get<VosRelationship>(`/api/relationships/${id}`, signal);
+    return unwrapRelationship(relationship);
   },
 
   create: async (subjectId: string, predicateId: string, targetId: string) => {
-    const rel = await apiClient.post<VosRelationship>('/api/relationships', {
+    const relationship = await apiClient.post<VosRelationship>('/api/relationships', {
       SubjectId: subjectId,
       PredicateId: predicateId,
       TargetId: targetId,
     });
-    return unwrapRelationship(rel);
+    return unwrapRelationship(relationship);
   },
 
   remove: (id: string) => apiClient.del<{ message: string }>(`/api/relationships/${id}`),

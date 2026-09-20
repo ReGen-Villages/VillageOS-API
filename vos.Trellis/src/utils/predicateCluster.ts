@@ -4,7 +4,7 @@ import type { VosThing, VosRelationship } from '../types/vos';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
-export interface PredicateStats {
+export interface PredicateStatistics {
   predicateId: string;
   predicateName: string;
   edgeCount: number;
@@ -22,11 +22,11 @@ export interface ClusterMap {
 
 // ── Predicate statistics ──────────────────────────────────────────────
 
-/** Convert an accumulated counts map into a sorted PredicateStats array. */
-function buildPredicateStatsArray(
+/** Convert an accumulated counts map into a sorted PredicateStatistics array. */
+function buildPredicateStatisticsArray(
   counts: Map<string, { name: string; count: number }>,
   predicateColors: Record<string, string>,
-): PredicateStats[] {
+): PredicateStatistics[] {
   return [...counts.entries()]
     .map(([predicateId, { name, count }]) => ({
       predicateId,
@@ -42,24 +42,24 @@ function buildPredicateStatsArray(
  * Colors are resolved via `resolvePredicateColor` — explicit overrides
  * from GUI_Settings take priority, with hash-based fallback.
  */
-export function computePredicateStats(
+export function computePredicateStatistics(
   graph: Graph,
   predicateColors: Record<string, string> = {},
-): PredicateStats[] {
+): PredicateStatistics[] {
   const counts = new Map<string, { name: string; count: number }>();
 
-  graph.forEachEdge((_edge, attrs) => {
-    const pid = attrs.predicateId as string;
-    const label = attrs.label as string;
-    const existing = counts.get(pid);
+  graph.forEachEdge((_edge, attributes) => {
+    const predicateId = attributes.predicateId as string;
+    const label = attributes.label as string;
+    const existing = counts.get(predicateId);
     if (existing) {
       existing.count++;
     } else {
-      counts.set(pid, { name: label || pid, count: 1 });
+      counts.set(predicateId, { name: label || predicateId, count: 1 });
     }
   });
 
-  return buildPredicateStatsArray(counts, predicateColors);
+  return buildPredicateStatisticsArray(counts, predicateColors);
 }
 
 /**
@@ -68,26 +68,26 @@ export function computePredicateStats(
  * filtered by map-mode surface reduction), this operates on all relationships
  * so predicates like consumes/produces always appear in the radial menu.
  */
-export function computePredicateStatsFromModel(
+export function computePredicateStatisticsFromModel(
   things: VosThing[],
   relationships: VosRelationship[],
   predicateColors: Record<string, string> = {},
-): PredicateStats[] {
+): PredicateStatistics[] {
   const thingNames = new Map(things.map((t) => [t.Id, t.Name]));
   const counts = new Map<string, { name: string; count: number }>();
 
-  for (const rel of relationships) {
-    const pid = rel.PredicateId;
-    const existing = counts.get(pid);
+  for (const relationship of relationships) {
+    const predicateId = relationship.PredicateId;
+    const existing = counts.get(predicateId);
     if (existing) {
       existing.count++;
     } else {
-      const name = thingNames.get(pid) ?? pid;
-      counts.set(pid, { name, count: 1 });
+      const name = thingNames.get(predicateId) ?? predicateId;
+      counts.set(predicateId, { name, count: 1 });
     }
   }
 
-  return buildPredicateStatsArray(counts, predicateColors);
+  return buildPredicateStatisticsArray(counts, predicateColors);
 }
 
 // ── Cluster computation via BFS ───────────────────────────────────────
@@ -101,8 +101,8 @@ export function computeClusters(graph: Graph, predicateIds: Set<string>): Cluste
   // Build adjacency list for the chosen predicates (union of edges)
   const adj = new Map<string, Set<string>>();
 
-  graph.forEachEdge((_edge, attrs, source, target) => {
-    if (!predicateIds.has(attrs.predicateId as string)) return;
+  graph.forEachEdge((_edge, attributes, source, target) => {
+    if (!predicateIds.has(attributes.predicateId as string)) return;
 
     // Skip predicate-type nodes (they are structural connectors)
     const sourceType = graph.getNodeAttribute(source, 'thingType');
@@ -150,7 +150,7 @@ export function computeClusters(graph: Graph, predicateIds: Set<string>): Cluste
   }
 
   // Mark all other nodes as unclustered (-1)
-  graph.forEachNode((node, _attrs) => {
+  graph.forEachNode((node, _attributes) => {
     if (!nodeCluster.has(node)) {
       nodeCluster.set(node, -1);
     }

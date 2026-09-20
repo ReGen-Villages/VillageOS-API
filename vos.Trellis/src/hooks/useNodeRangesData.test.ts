@@ -7,7 +7,7 @@ const mockGetSummary = vi.fn();
 
 vi.mock('../api/rangeApi', () => ({
   rangeApi: {
-    getSummary: (...args: unknown[]) => mockGetSummary(...args),
+    getSummary: (...callArguments: unknown[]) => mockGetSummary(...callArguments),
   },
 }));
 
@@ -161,9 +161,9 @@ describe('useNodeRangesData', () => {
       const { result } = renderHook(() => useNodeRangesData('t1', 'ranges', 0));
 
       await waitFor(() => expect(result.current.rangesLoading).toBe(false));
-      expect(result.current.relRangesEntries).toHaveLength(1);
+      expect(result.current.relationshipRangesEntries).toHaveLength(1);
 
-      const entry = result.current.relRangesEntries[0];
+      const entry = result.current.relationshipRangesEntries[0];
       expect(entry.relationshipId).toBe('r1');
       expect(entry.label).toBe('Subject → connects → Target');
       expect(entry.rangesData.OwnRanges).toHaveLength(1);
@@ -174,7 +174,7 @@ describe('useNodeRangesData', () => {
       const { result } = renderHook(() => useNodeRangesData('t1', 'ranges', 0));
 
       await waitFor(() => expect(result.current.rangesLoading).toBe(false));
-      expect(result.current.relRangesEntries).toHaveLength(0);
+      expect(result.current.relationshipRangesEntries).toHaveLength(0);
     });
   });
 

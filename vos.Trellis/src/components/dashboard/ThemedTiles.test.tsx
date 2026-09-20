@@ -34,14 +34,14 @@ const sections: DashboardSection[] = [
   { title: 'Rock', theme: 'Terrain', widgets: [{ type: 'verdict', title: 'Slope', rows: [] }] },
 ];
 
-const ctx: ResolveContext = {
-  idx: buildModelIndex([], []),
+const context: ResolveContext = {
+  index: buildModelIndex([], []),
   scopeId: null,
   reads: {} as ModelReads,
 };
 
 function draw() {
-  render(<ThemedTiles sections={sections} themes={themes} ctx={ctx} />);
+  render(<ThemedTiles sections={sections} themes={themes} context={context} />);
 }
 
 describe('the themed tiles', () => {
@@ -111,7 +111,7 @@ describe('the themed tiles', () => {
 
   it('draws nothing where no section names a theme', () => {
     const { container } = render(
-      <ThemedTiles sections={[{ title: 'Balances', widgets: [] }]} themes={themes} ctx={ctx} />,
+      <ThemedTiles sections={[{ title: 'Balances', widgets: [] }]} themes={themes} context={context} />,
     );
 
     expect(container).toBeEmptyDOMElement();

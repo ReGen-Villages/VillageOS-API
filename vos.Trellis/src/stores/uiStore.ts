@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { PredicateStats, ClusterMap } from '../utils/predicateCluster';
+import type { PredicateStatistics, ClusterMap } from '../utils/predicateCluster';
 import { FLASH_DEFAULTS, LAYOUT_DEFAULTS } from '../utils/guiSettings';
 import type { FlashSettings, LayoutSettings } from '../utils/guiSettings';
 import type { SortOrder } from '../utils/typeFilter';
@@ -44,7 +44,7 @@ function persistHiddenTypeIds(modelId: string | null, ids: Set<string>): void {
 /**
  * Per-model TypeFilterPanel sort order, persisted in
  * localStorage so the user's preferred view sticks across reloads. Mirrors
- * the hiddenTypeIds pattern; falls back to count-desc on missing / invalid
+ * the hiddenTypeIds pattern; falls back to count-descending on missing / invalid
  * stored values.
  */
 function loadTypeSort(modelId: string | null): SortOrder {
@@ -125,7 +125,7 @@ interface UiState {
 
   activePredicateIds: Set<string>;
   clusterMap: ClusterMap | null;
-  predicateStats: PredicateStats[];
+  predicateStatistics: PredicateStatistics[];
   collapsedClusters: Set<number>;
   expandedNodes: Set<string>;
   radialMenuOpen: boolean;
@@ -140,7 +140,7 @@ interface UiState {
   nodeContextMenuOpen: boolean;
   nodeContextMenuPosition: { x: number; y: number } | null;
   nodeContextMenuNodeId: string | null;
-  openNodeContextMenu: (opts: { nodeId: string; position: { x: number; y: number } }) => void;
+  openNodeContextMenu: (options: { nodeId: string; position: { x: number; y: number } }) => void;
   closeNodeContextMenu: () => void;
 
   isLayoutFrozen: boolean;
@@ -168,7 +168,7 @@ interface UiState {
   clearPredicateIds: () => void;
   setPredicateIds: (ids: Set<string>) => void;
   setClusterMap: (map: ClusterMap | null) => void;
-  setPredicateStats: (stats: PredicateStats[]) => void;
+  setPredicateStatistics: (statistics: PredicateStatistics[]) => void;
   toggleClusterCollapsed: (clusterIndex: number) => void;
   toggleNodeExpanded: (nodeId: string) => void;
   openRadialMenu: (position: { x: number; y: number }) => void;
@@ -244,7 +244,7 @@ export const useUiStore = create<UiState>((set) => ({
 
   activePredicateIds: new Set<string>(),
   clusterMap: null,
-  predicateStats: [],
+  predicateStatistics: [],
   collapsedClusters: new Set<number>(),
   expandedNodes: new Set<string>(),
   radialMenuOpen: false,
@@ -353,7 +353,7 @@ export const useUiStore = create<UiState>((set) => ({
     }),
 
   setClusterMap: (map) => set({ clusterMap: map }),
-  setPredicateStats: (stats) => set({ predicateStats: stats }),
+  setPredicateStatistics: (statistics) => set({ predicateStatistics: statistics }),
 
   toggleClusterCollapsed: (clusterIndex) =>
     set((state) => {

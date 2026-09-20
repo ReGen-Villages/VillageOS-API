@@ -16,7 +16,7 @@ export function useNodeRangesData(
 ) {
   const [rangesData, setRangesData] = useState<ThingRangesResponse | null>(null);
   const [statesData, setStatesData] = useState<ThingStates | null>(null);
-  const [relRangesEntries, setRelRangesEntries] = useState<RelationshipRangesEntry[]>([]);
+  const [relationshipRangesEntries, setRelationshipRangesEntries] = useState<RelationshipRangesEntry[]>([]);
 
   const [snapshot, setSnapshot] = useState<number | undefined>(undefined);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -27,14 +27,14 @@ export function useNodeRangesData(
   const request = `${thingId}:${snapshot ?? ''}:${refreshKey}`;
   const [answeredRequest, setAnsweredRequest] = useState<string | null>(null);
   const rangesLoading = tab === 'ranges' && snapshot !== undefined && answeredRequest !== request;
-  const prevThingId = useRef('');
-  const prevTab = useRef('');
+  const previousThingId = useRef('');
+  const previousTab = useRef('');
 
   useEffect(() => {
-    const thingChanged = thingId !== prevThingId.current;
-    const tabJustOpened = tab === 'ranges' && prevTab.current !== 'ranges';
-    prevThingId.current = thingId;
-    prevTab.current = tab;
+    const thingChanged = thingId !== previousThingId.current;
+    const tabJustOpened = tab === 'ranges' && previousTab.current !== 'ranges';
+    previousThingId.current = thingId;
+    previousTab.current = tab;
 
     if (tab === 'ranges' && (thingChanged || tabJustOpened)) {
       setSnapshot(statesVersion);
@@ -62,29 +62,29 @@ export function useNodeRangesData(
           RangeEvaluations: summary.RangeEvaluations,
           OutOfBoundsCount: summary.OutOfBoundsCount,
         });
-        setRelRangesEntries(summary.Relationships.map((rel) => ({
-          relationshipId: rel.RelationshipId,
-          relationshipName: rel.RelationshipName,
-          label: `${rel.SubjectName} → ${rel.PredicateName} → ${rel.TargetName}`,
+        setRelationshipRangesEntries(summary.Relationships.map((relationship) => ({
+          relationshipId: relationship.RelationshipId,
+          relationshipName: relationship.RelationshipName,
+          label: `${relationship.SubjectName} → ${relationship.PredicateName} → ${relationship.TargetName}`,
           rangesData: {
-            ThingId: rel.RelationshipId,
-            ThingName: rel.RelationshipName,
-            OwnRanges: rel.OwnRanges,
+            ThingId: relationship.RelationshipId,
+            ThingName: relationship.RelationshipName,
+            OwnRanges: relationship.OwnRanges,
             InheritedRanges: [],
           },
           statesData: {
-            ThingId: rel.RelationshipId,
-            ThingName: rel.RelationshipName,
-            CurrentStates: rel.CurrentStates,
-            RangeEvaluations: rel.RangeEvaluations,
-            OutOfBoundsCount: rel.OutOfBoundsCount,
+            ThingId: relationship.RelationshipId,
+            ThingName: relationship.RelationshipName,
+            CurrentStates: relationship.CurrentStates,
+            RangeEvaluations: relationship.RangeEvaluations,
+            OutOfBoundsCount: relationship.OutOfBoundsCount,
           },
         })));
       } catch {
         if (!cancelled) {
           setRangesData(null);
           setStatesData(null);
-          setRelRangesEntries([]);
+          setRelationshipRangesEntries([]);
         }
       } finally {
         if (!cancelled) setAnsweredRequest(request);
@@ -99,7 +99,7 @@ export function useNodeRangesData(
     rangesData,
     statesData,
     rangesLoading,
-    relRangesEntries,
+    relationshipRangesEntries,
     refresh,
   };
 }

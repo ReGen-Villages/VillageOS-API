@@ -1,5 +1,5 @@
 export const en = {
-  nav: {
+  navigation: {
     appName: 'VILLAGEOS',
     subtitle: 'Temporal Graph GUI',
     collapseSidebar: 'Collapse sidebar',
@@ -130,7 +130,7 @@ export const en = {
         'Retract "{{name}}" from the model? This removes the connection so Mycelium no longer routes to it. It stays in the seed, so a seed reload restores it. To only stop the process, use Stop instead.',
       confirm: 'Delete',
     },
-    stats: {
+    statistics: {
       title: 'Model Statistics',
       things: 'Things',
       relationships: 'Relationships',
@@ -149,11 +149,11 @@ export const en = {
       downloadLog: 'Download log',
       deleteRetract: 'Delete (retract from model)',
       requests: 'Requests',
-      avgTime: 'Avg Time',
+      averageTime: 'Avg Time',
       errors: 'Errors',
-      lastReq: 'Last Req',
+      lastRequest: 'Last Req',
       lastContact: 'Last Contact',
-      pid: 'PID',
+      processId: 'PID',
       failures: 'Failures: {{count}}',
       health: {
         Healthy: 'Healthy',
@@ -184,8 +184,8 @@ export const en = {
       category: {
         model: 'Model',
         things: 'Things',
-        rels: 'Rels',
-        props: 'Props',
+        relationships: 'Rels',
+        properties: 'Props',
         services: 'Services',
       },
     },
@@ -250,10 +250,10 @@ export const en = {
       search: 'Search types…',
       sort: 'Sort',
       sortAria: 'Sort types',
-      sortCountDesc: 'Count (high to low)',
+      sortCountDescending: 'Count (high to low)',
       sortCountAsc: 'Count (low to high)',
       sortNameAsc: 'Name (A → Z)',
-      sortNameDesc: 'Name (Z → A)',
+      sortNameDescending: 'Name (Z → A)',
       noMatch: 'No matching types.',
     },
     predicateFilter: {
@@ -262,11 +262,11 @@ export const en = {
       noMatch: 'No matching predicates.',
     },
   },
-  auth: {
+  authentication: {
     loadSeed: 'Load a seed',
     searchSeeds: 'Search seeds…',
-    colName: 'Name',
-    colSize: 'Size',
+    columnName: 'Name',
+    columnSize: 'Size',
     noMatch: 'No seeds match your search',
     noneAvailable: 'No seeds available',
     seedCount: '{{shown}} of {{total}} seeds',
@@ -440,9 +440,9 @@ export const en = {
     openInGraph: "Open in Graph",
     ownProperties: "Own properties",
     relationships: "Relationships",
-    propsAbbrev: "props",
-    relsAbbrev: "rels",
-    moreProps: "+{{count}} more",
+    propertiesShort: "props",
+    relationshipsShort: "rels",
+    moreProperties: "+{{count}} more",
     noMatch: "No things match \"{{query}}\".",
     foundCount_one: "{{count}} thing found",
     foundCount_other: "{{count}} things found",
@@ -608,7 +608,7 @@ export const en = {
       propertiesTab: "Properties ({{count}})",
       deleteRelationship: "Delete Relationship",
     },
-    props: {
+    properties: {
       none: "No properties",
       viewFullValue: "View full value",
       addProperty: "Add property",
@@ -637,7 +637,7 @@ export const en = {
       renamed: "Renamed",
       renameFailed: "Failed to rename",
     },
-    rel: {
+    relationship: {
       openEdgeDetail: "Open edge detail",
       outgoing: "Outgoing",
       incoming: "Incoming",
@@ -650,7 +650,7 @@ export const en = {
       retyped: "Retyped",
       retypeFailed: "Failed to retype",
     },
-    addRel: {
+    addRelationship: {
       predicatePlaceholder: "Predicate…",
       createRelationship: "Create relationship",
       targetPlaceholder: "Target…",
@@ -708,7 +708,7 @@ export const en = {
     runHistory: "Run history",
     unsavedChanges: "unsaved changes",
     saved: "saved",
-    params: "Params",
+    parameters: "Params",
     closeInspector: "Close inspector",
     ports: "Ports ({{direction}}):",
     outputs: "outputs",
@@ -719,7 +719,7 @@ export const en = {
     noInputPorts: "No input ports.",
     bindInput: "Bind an input to a run parameter:",
     wired: "wired",
-    fromParam: "from param…",
+    fromParameter: "from param…",
     wire: "Wire",
     mapField: "Map a field (blank = whole payload):",
     fromPath: "from-path",

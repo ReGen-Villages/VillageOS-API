@@ -12,11 +12,11 @@ import { formatNumber } from './format';
  * track in the row's own units. `direction` sets which way is good — 'down-good' (default) treats
  * overshooting the band as critical, 'up-good' treats falling below it as critical.
  */
-export function BulletChart({ widget, ctx }: { widget: BulletWidget; ctx: ResolveContext }) {
+export function BulletChart({ widget, context }: { widget: BulletWidget; context: ResolveContext }) {
   const { t } = useTranslation();
   const results = useBindings(
     widget.rows.map((r) => r.value),
-    ctx,
+    context,
   );
 
   return (
@@ -45,8 +45,8 @@ function BulletBar({ row, value }: { row: BulletRow; value: number | null }) {
   // Position on the 0..max track, clamped to the track edges. Deriving the band's width from two
   // clamped positions (not a scaled delta) keeps it inside the track — a band whose upper bound
   // exceeds max can never bleed past the right edge into the labels.
-  const pos = (x: number) => Math.max(0, Math.min(100, (x / max) * 100));
-  const pct = (x: number) => `${pos(x)}%`;
+  const position = (x: number) => Math.max(0, Math.min(100, (x / max) * 100));
+  const percent = (x: number) => `${position(x)}%`;
 
   return (
     <div className="grid items-center gap-3 my-2.5" style={{ gridTemplateColumns: '104px 1fr 56px' }}>
@@ -55,12 +55,12 @@ function BulletBar({ row, value }: { row: BulletRow; value: number | null }) {
         {band && (
           <div
             className="absolute top-0 h-[15px] rounded"
-            style={{ left: `${pos(band[0])}%`, width: `${pos(band[1]) - pos(band[0])}%`, background: 'color-mix(in srgb, var(--good) 14%, transparent)' }}
+            style={{ left: `${position(band[0])}%`, width: `${position(band[1]) - position(band[0])}%`, background: 'color-mix(in srgb, var(--good) 14%, transparent)' }}
           />
         )}
-        <div className="absolute top-0 left-0 h-[15px] rounded" style={{ width: pct(v), background: color }} />
+        <div className="absolute top-0 left-0 h-[15px] rounded" style={{ width: percent(v), background: color }} />
         {row.target !== undefined && (
-          <div className="absolute -top-[3px] h-[21px] w-0.5 bg-zinc-800 dark:bg-zinc-200 rounded-sm" style={{ left: pct(row.target) }} />
+          <div className="absolute -top-[3px] h-[21px] w-0.5 bg-zinc-800 dark:bg-zinc-200 rounded-sm" style={{ left: percent(row.target) }} />
         )}
       </div>
       <div className="text-[12.5px] font-bold text-right tabular-nums" style={{ color }}>

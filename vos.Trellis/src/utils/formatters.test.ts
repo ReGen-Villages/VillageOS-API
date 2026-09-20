@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatGuid, formatTimestamp, formatDateTime, formatRelativeTime, formatMs, formatBytes, formatPropertyValue } from './formatters';
+import { formatGuid, formatTimestamp, formatDateTime, formatRelativeTime, formatMilliseconds, formatBytes, formatPropertyValue } from './formatters';
 
 describe('formatGuid', () => {
   it('truncates a GUID to first 8 chars with ellipsis', () => {
@@ -49,17 +49,17 @@ describe('formatRelativeTime', () => {
 
 describe('formatMs', () => {
   it('returns <1ms for sub-millisecond values', () => {
-    expect(formatMs(0.5)).toBe('<1ms');
+    expect(formatMilliseconds(0.5)).toBe('<1ms');
   });
 
   it('rounds milliseconds', () => {
-    expect(formatMs(42)).toBe('42ms');
-    expect(formatMs(999)).toBe('999ms');
+    expect(formatMilliseconds(42)).toBe('42ms');
+    expect(formatMilliseconds(999)).toBe('999ms');
   });
 
   it('converts to seconds above 1000ms', () => {
-    expect(formatMs(1500)).toBe('1.5s');
-    expect(formatMs(10000)).toBe('10.0s');
+    expect(formatMilliseconds(1500)).toBe('1.5s');
+    expect(formatMilliseconds(10000)).toBe('10.0s');
   });
 });
 

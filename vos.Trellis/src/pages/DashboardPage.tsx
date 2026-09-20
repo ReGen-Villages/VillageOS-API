@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ModelStatsCard } from '../components/dashboard/ModelStatsCard';
+import { ModelStatisticsCard } from '../components/dashboard/ModelStatisticsCard';
 import { ServicesPanel } from '../components/dashboard/ServicesPanel';
 import { EngineMetricsPanel } from '../components/dashboard/EngineMetricsPanel';
 import { ActivityFeed } from '../components/dashboard/ActivityFeed';
@@ -21,16 +21,16 @@ import { PropertyModePanel } from '../components/dashboard/PropertyModePanel';
 import { Power, PanelRightOpen, FileCode2, RefreshCw } from 'lucide-react';
 import { RegenLogo } from '../components/auth/RegenLogo';
 
-import type { RegisteredService, EndpointServiceInfo } from '../types/mycelium';
+import type { RegisteredService, EndpointServiceInformation } from '../types/mycelium';
 import type { EngineMetricsSummary } from '../types/engineMetrics';
 
 const FEED_COLLAPSED_KEY = 'vos-activity-feed-collapsed';
 
 // Definition writes publish EngineConfigurationChanged, so the panel refreshes on
 // events; the poll stays as a fallback for a dropped stream.
-const ENGINE_METRICS_POLL_MS = 15000;
+const ENGINE_METRICS_POLL_MILLISECONDS = 15000;
 
-const REGISTRY_REFRESH_WINDOW_MS = 2000;
+const REGISTRY_REFRESH_WINDOW_MILLISECONDS = 2000;
 
 export function DashboardPage() {
   useSubscription(WHOLE_MODEL);
@@ -38,7 +38,7 @@ export function DashboardPage() {
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
   const [services, setServices] = useState<RegisteredService[]>([]);
-  const [endpointServices, setEndpointServices] = useState<EndpointServiceInfo[]>([]);
+  const [endpointServices, setEndpointServices] = useState<EndpointServiceInformation[]>([]);
   const [httpOk, setHttpOk] = useState(false);
   const [engineMetrics, setEngineMetrics] = useState<EngineMetricsSummary | null>(null);
   const [showShutdown, setShowShutdown] = useState(false);
@@ -49,8 +49,8 @@ export function DashboardPage() {
   const { t } = useTranslation();
 
   const toggleFeedCollapsed = useCallback(() => {
-    setFeedCollapsed((prev) => {
-      const next = !prev;
+    setFeedCollapsed((previous) => {
+      const next = !previous;
       localStorage.setItem(FEED_COLLAPSED_KEY, String(next));
       return next;
     });
@@ -58,12 +58,12 @@ export function DashboardPage() {
 
   const loadMyceliumData = useCallback(async () => {
     try {
-      const [s, ep] = await Promise.all([
+      const [s, effectiveProperty] = await Promise.all([
         myceliumApi.getServices(),
         endpointApi.getAll(),
       ]);
       setServices(s);
-      setEndpointServices(ep);
+      setEndpointServices(effectiveProperty);
       setHttpOk(true);
     } catch (err) {
       console.warn('Mycelium services load failed (non-fatal):', err);
@@ -87,7 +87,7 @@ export function DashboardPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- state is only set after the await
     loadEngineMetrics();
-    const interval = setInterval(loadEngineMetrics, ENGINE_METRICS_POLL_MS);
+    const interval = setInterval(loadEngineMetrics, ENGINE_METRICS_POLL_MILLISECONDS);
     return () => clearInterval(interval);
   }, [loadEngineMetrics]);
 
@@ -108,7 +108,7 @@ export function DashboardPage() {
       registryRefresh = setTimeout(() => {
         registryRefresh = null;
         void loadMyceliumData();
-      }, REGISTRY_REFRESH_WINDOW_MS);
+      }, REGISTRY_REFRESH_WINDOW_MILLISECONDS);
     };
     const unsubs = [
       on('ServiceHealthChanged', registryMoved),
@@ -241,7 +241,7 @@ export function DashboardPage() {
       <div className="flex-1 overflow-auto px-6 pb-6">
         <div className={`grid grid-cols-1 gap-6 ${feedCollapsed ? '' : 'lg:grid-cols-3'}`}>
           <div className={`space-y-6 ${feedCollapsed ? '' : 'lg:col-span-2'}`}>
-            <ModelStatsCard things={things} relationships={relationships} />
+            <ModelStatisticsCard things={things} relationships={relationships} />
             <EngineMetricsPanel metrics={connected ? engineMetrics : null} />
             <ServicesPanel services={displayedServices} endpoints={endpointServices} onStart={handleStartService} onStop={handleStopService} onDelete={(thingId, name) => setDeleteTarget({ thingId, name })} onViewLogs={(serviceKey) => navigate(`/logs?service=${serviceKey}`)} onDownloadLogs={handleDownloadServiceLog} />
             <PropertyModePanel />

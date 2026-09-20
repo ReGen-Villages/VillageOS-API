@@ -231,8 +231,8 @@ function namedThings(spec: DashboardSpec): { ids: string[]; names: string[] } {
     if (thing && thing !== SCOPE_REF) referenced.add(thing);
   }
   return {
-    ids: [...referenced].filter((ref) => IDENTIFIER.test(ref)),
-    names: [...referenced].filter((ref) => !IDENTIFIER.test(ref)),
+    ids: [...referenced].filter((reference) => IDENTIFIER.test(reference)),
+    names: [...referenced].filter((reference) => !IDENTIFIER.test(reference)),
   };
 }
 

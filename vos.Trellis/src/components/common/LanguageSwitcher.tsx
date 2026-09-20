@@ -18,7 +18,7 @@ export function LanguageSwitcher({
 }) {
   const { t, i18n } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const rootReference = useRef<HTMLDivElement>(null);
 
   const active =
     SUPPORTED_LANGUAGES.find((language) => language.code === i18n.language) ?? SUPPORTED_LANGUAGES[0];
@@ -26,7 +26,7 @@ export function LanguageSwitcher({
   useEffect(() => {
     if (!isOpen) return;
     const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setIsOpen(false);
+      if (!rootReference.current?.contains(event.target as Node)) setIsOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setIsOpen(false);
@@ -45,7 +45,7 @@ export function LanguageSwitcher({
   };
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootReference} className="relative">
       <button
         type="button"
         onClick={() => setIsOpen((open) => !open)}

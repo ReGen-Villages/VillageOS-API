@@ -19,8 +19,8 @@ export class EditorHistory<T> {
   }
 
   /** Record the state *before* a mutation so `undo` can restore it. Bounded to MAX_HISTORY (oldest dropped). */
-  record(prev: T): void {
-    this.past.push(prev);
+  record(previous: T): void {
+    this.past.push(previous);
     if (this.past.length > MAX_HISTORY) this.past.shift();
   }
 

@@ -97,7 +97,7 @@ type ArabicPlurals = {
 };
 
 export const ar: PartialResources & ArabicPlurals = {
-  nav: {
+  navigation: {
     appName: 'VILLAGEOS',
     subtitle: 'واجهة الرسم البياني الزمني',
     collapseSidebar: 'طيّ الشريط الجانبي',
@@ -236,7 +236,7 @@ export const ar: PartialResources & ArabicPlurals = {
         'سحب «{{name}}» من النموذج؟ يؤدي هذا إلى إزالة الاتصال بحيث لا يوجّه Mycelium إليه بعد الآن. يبقى في الـ seed، لذا فإن إعادة تحميل الـ seed تستعيده. لإيقاف العملية فقط، استخدم إيقاف بدلاً من ذلك.',
       confirm: 'حذف',
     },
-    stats: {
+    statistics: {
       title: 'إحصاءات النموذج',
       things: 'الأشياء',
       relationships: 'العلاقات',
@@ -255,11 +255,11 @@ export const ar: PartialResources & ArabicPlurals = {
       downloadLog: 'تنزيل السجل',
       deleteRetract: 'حذف (سحب من النموذج)',
       requests: 'الطلبات',
-      avgTime: 'متوسط الوقت',
+      averageTime: 'متوسط الوقت',
       errors: 'الأخطاء',
-      lastReq: 'آخر طلب',
+      lastRequest: 'آخر طلب',
       lastContact: 'آخر اتصال',
-      pid: 'المعرّف',
+      processId: 'المعرّف',
       failures: 'حالات الفشل: {{count}}',
       health: {
         Healthy: 'سليم',
@@ -287,7 +287,7 @@ export const ar: PartialResources & ArabicPlurals = {
       pausedBuffered_other: 'متوقّف مؤقتًا — {{count}} أحداث جديدة في المخزن المؤقت',
       filterPlaceholder: 'تصفية الأحداث…',
       none: 'لا يوجد نشاط بعد',
-      category: { model: 'النموذج', things: 'الأشياء', rels: 'العلاقات', props: 'الخصائص', services: 'الخدمات' },
+      category: { model: 'النموذج', things: 'الأشياء', relationships: 'العلاقات', properties: 'الخصائص', services: 'الخدمات' },
     },
   },
   graph: {
@@ -350,10 +350,10 @@ export const ar: PartialResources & ArabicPlurals = {
       search: 'البحث عن الأنواع…',
       sort: 'الترتيب',
       sortAria: 'ترتيب الأنواع',
-      sortCountDesc: 'العدد (من الأعلى إلى الأدنى)',
+      sortCountDescending: 'العدد (من الأعلى إلى الأدنى)',
       sortCountAsc: 'العدد (من الأدنى إلى الأعلى)',
       sortNameAsc: 'الاسم (أ → ي)',
-      sortNameDesc: 'الاسم (ي → أ)',
+      sortNameDescending: 'الاسم (ي → أ)',
       noMatch: 'لا توجد أنواع مطابقة.',
     },
     predicateFilter: {
@@ -362,11 +362,11 @@ export const ar: PartialResources & ArabicPlurals = {
       noMatch: 'لا توجد مسندات مطابقة.',
     },
   },
-  auth: {
+  authentication: {
     loadSeed: 'تحميل seed',
     searchSeeds: 'البحث عن seeds…',
-    colName: 'الاسم',
-    colSize: 'الحجم',
+    columnName: 'الاسم',
+    columnSize: 'الحجم',
     noMatch: 'لا توجد seeds تطابق بحثك',
     noneAvailable: 'لا توجد seeds متاحة',
     seedCount: '{{shown}} من {{total}} seeds',
@@ -564,9 +564,9 @@ export const ar: PartialResources & ArabicPlurals = {
     openInGraph: "فتح في الرسم البياني",
     ownProperties: "الخصائص الذاتية",
     relationships: "العلاقات",
-    propsAbbrev: "خصائص",
-    relsAbbrev: "علاقات",
-    moreProps: "+{{count}} أخرى",
+    propertiesShort: "خصائص",
+    relationshipsShort: "علاقات",
+    moreProperties: "+{{count}} أخرى",
     noMatch: "لا توجد أشياء تطابق \"{{query}}\".",
     foundCount_one: "تم العثور على {{count}} شيء",
     foundCount_other: "تم العثور على {{count}} أشياء",
@@ -744,7 +744,7 @@ export const ar: PartialResources & ArabicPlurals = {
       propertiesTab: "الخصائص ({{count}})",
       deleteRelationship: "حذف العلاقة",
     },
-    props: {
+    properties: {
       none: "لا توجد خصائص",
       viewFullValue: "عرض القيمة الكاملة",
       addProperty: "إضافة خاصية",
@@ -773,7 +773,7 @@ export const ar: PartialResources & ArabicPlurals = {
       renamed: "تمت إعادة التسمية",
       renameFailed: "تعذّرت إعادة التسمية",
     },
-    rel: {
+    relationship: {
       openEdgeDetail: "فتح تفاصيل الحافة",
       outgoing: "صادرة",
       incoming: "واردة",
@@ -786,7 +786,7 @@ export const ar: PartialResources & ArabicPlurals = {
       retyped: "تمت إعادة التصنيف",
       retypeFailed: "تعذّرت إعادة التصنيف",
     },
-    addRel: {
+    addRelationship: {
       predicatePlaceholder: "المسند…",
       createRelationship: "إنشاء علاقة",
       targetPlaceholder: "الهدف…",
@@ -852,7 +852,7 @@ export const ar: PartialResources & ArabicPlurals = {
     runHistory: "سجل التشغيل",
     unsavedChanges: "تغييرات غير محفوظة",
     saved: "محفوظ",
-    params: "المعاملات",
+    parameters: "المعاملات",
     closeInspector: "إغلاق المفتّش",
     ports: "المنافذ ({{direction}}):",
     outputs: "المخرجات",
@@ -863,7 +863,7 @@ export const ar: PartialResources & ArabicPlurals = {
     noInputPorts: "لا توجد منافذ إدخال.",
     bindInput: "اربط مدخلًا بمعامل تشغيل:",
     wired: "موصول",
-    fromParam: "من معامل…",
+    fromParameter: "من معامل…",
     wire: "توصيل",
     mapField: "عيّن حقلًا (فارغ = الحمولة كاملة):",
     fromPath: "المسار-المصدر",

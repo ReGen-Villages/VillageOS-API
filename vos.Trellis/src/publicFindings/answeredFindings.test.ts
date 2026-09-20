@@ -65,7 +65,7 @@ function answered(over: Partial<FindingsAnswer> = {}): FindingsAnswer {
 
 function contextFor(answer: FindingsAnswer): ResolveContext {
   const findings = findingsFrom(answer);
-  return { idx: findings.index, scopeId: findings.scopeId, compareArchetype: 'Site', reads: findings.reads };
+  return { index: findings.index, scopeId: findings.scopeId, compareArchetype: 'Site', reads: findings.reads };
 }
 
 describe('the findings a submitter is answered with', () => {

@@ -7,7 +7,7 @@ import type { PartialResources } from './types';
  * English base locale, which is the expected behaviour for an incomplete draft.
  */
 export const es: PartialResources = {
-  nav: {
+  navigation: {
     appName: 'VILLAGEOS',
     subtitle: 'Interfaz de grafo temporal',
     collapseSidebar: 'Contraer barra lateral',
@@ -138,7 +138,7 @@ export const es: PartialResources = {
         '¿Retirar «{{name}}» del modelo? Esto elimina la conexión para que Mycelium ya no la enrute. Permanece en el seed, así que recargar el seed la restaura. Para detener solo el proceso, use Detener.',
       confirm: 'Eliminar',
     },
-    stats: {
+    statistics: {
       title: 'Estadísticas del modelo',
       things: 'Cosas',
       relationships: 'Relaciones',
@@ -157,11 +157,11 @@ export const es: PartialResources = {
       downloadLog: 'Descargar registro',
       deleteRetract: 'Eliminar (retirar del modelo)',
       requests: 'Solicitudes',
-      avgTime: 'Tiempo medio',
+      averageTime: 'Tiempo medio',
       errors: 'Errores',
-      lastReq: 'Última solicitud',
+      lastRequest: 'Última solicitud',
       lastContact: 'Último contacto',
-      pid: 'PID',
+      processId: 'PID',
       failures: 'Fallos: {{count}}',
       health: {
         Healthy: 'Correcto',
@@ -189,7 +189,7 @@ export const es: PartialResources = {
       pausedBuffered_other: 'En pausa — {{count}} eventos nuevos en búfer',
       filterPlaceholder: 'Filtrar eventos…',
       none: 'Aún no hay actividad',
-      category: { model: 'Modelo', things: 'Cosas', rels: 'Rel.', props: 'Prop.', services: 'Servicios' },
+      category: { model: 'Modelo', things: 'Cosas', relationships: 'Rel.', properties: 'Prop.', services: 'Servicios' },
     },
   },
   graph: {
@@ -252,10 +252,10 @@ export const es: PartialResources = {
       search: 'Buscar tipos…',
       sort: 'Ordenar',
       sortAria: 'Ordenar tipos',
-      sortCountDesc: 'Cantidad (de mayor a menor)',
+      sortCountDescending: 'Cantidad (de mayor a menor)',
       sortCountAsc: 'Cantidad (de menor a mayor)',
       sortNameAsc: 'Nombre (A → Z)',
-      sortNameDesc: 'Nombre (Z → A)',
+      sortNameDescending: 'Nombre (Z → A)',
       noMatch: 'No hay tipos coincidentes.',
     },
     predicateFilter: {
@@ -264,11 +264,11 @@ export const es: PartialResources = {
       noMatch: 'No hay predicados coincidentes.',
     },
   },
-  auth: {
+  authentication: {
     loadSeed: 'Cargar un seed',
     searchSeeds: 'Buscar seeds…',
-    colName: 'Nombre',
-    colSize: 'Tamaño',
+    columnName: 'Nombre',
+    columnSize: 'Tamaño',
     noMatch: 'Ningún seed coincide con su búsqueda',
     noneAvailable: 'No hay seeds disponibles',
     seedCount: '{{shown}} de {{total}} seeds',
@@ -442,9 +442,9 @@ export const es: PartialResources = {
     openInGraph: "Abrir en el Grafo",
     ownProperties: "Propiedades propias",
     relationships: "Relaciones",
-    propsAbbrev: "props",
-    relsAbbrev: "rels",
-    moreProps: "+{{count}} más",
+    propertiesShort: "props",
+    relationshipsShort: "rels",
+    moreProperties: "+{{count}} más",
     noMatch: "Ninguna cosa coincide con \"{{query}}\".",
     foundCount_one: "{{count}} cosa encontrada",
     foundCount_other: "{{count}} cosas encontradas",
@@ -610,7 +610,7 @@ export const es: PartialResources = {
       propertiesTab: "Propiedades ({{count}})",
       deleteRelationship: "Eliminar relación",
     },
-    props: {
+    properties: {
       none: "Sin propiedades",
       viewFullValue: "Ver valor completo",
       addProperty: "Añadir propiedad",
@@ -639,7 +639,7 @@ export const es: PartialResources = {
       renamed: "Renombrado",
       renameFailed: "Error al renombrar",
     },
-    rel: {
+    relationship: {
       openEdgeDetail: "Abrir detalle de arista",
       outgoing: "Salientes",
       incoming: "Entrantes",
@@ -652,7 +652,7 @@ export const es: PartialResources = {
       retyped: "Tipo reasignado",
       retypeFailed: "Error al reasignar tipo",
     },
-    addRel: {
+    addRelationship: {
       predicatePlaceholder: "Predicado…",
       createRelationship: "Crear relación",
       targetPlaceholder: "Destino…",
@@ -710,7 +710,7 @@ export const es: PartialResources = {
     runHistory: "Historial de ejecuciones",
     unsavedChanges: "cambios sin guardar",
     saved: "guardado",
-    params: "Parámetros",
+    parameters: "Parámetros",
     closeInspector: "Cerrar inspector",
     ports: "Puertos ({{direction}}):",
     outputs: "salidas",
@@ -721,7 +721,7 @@ export const es: PartialResources = {
     noInputPorts: "Sin puertos de entrada.",
     bindInput: "Vincula una entrada a un parámetro de ejecución:",
     wired: "conectado",
-    fromParam: "de param…",
+    fromParameter: "de param…",
     wire: "Cable",
     mapField: "Asigna un campo (vacío = toda la carga):",
     fromPath: "ruta-origen",

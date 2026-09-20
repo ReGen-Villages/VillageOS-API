@@ -45,7 +45,7 @@ describe('BulletChart up-good self-sufficiency rows', () => {
       ],
     };
 
-    render(<BulletChart widget={widget} ctx={{} as ResolveContext} />);
+    render(<BulletChart widget={widget} context={{} as ResolveContext} />);
 
     expect(screen.getByText('112%')).toBeInTheDocument();
     expect(parseFloat(bar('Energy — net positive').style.width)).toBeCloseTo(56, 5);
@@ -69,7 +69,7 @@ describe('BulletChart up-good self-sufficiency rows', () => {
       ],
     };
 
-    render(<BulletChart widget={widget} ctx={{} as ResolveContext} />);
+    render(<BulletChart widget={widget} context={{} as ResolveContext} />);
 
     expect(bar('Water — days of supply').style.background).toContain('--crit');
   });
@@ -83,7 +83,7 @@ describe('BulletChart up-good self-sufficiency rows', () => {
       ],
     };
 
-    render(<BulletChart widget={widget} ctx={{} as ResolveContext} />);
+    render(<BulletChart widget={widget} context={{} as ResolveContext} />);
 
     const row = screen.getByText('Water — resilience').closest('.grid') as HTMLElement;
     const bandEl = Array.from(row.querySelectorAll<HTMLElement>('div[style*="color-mix"]'))[0];
@@ -106,7 +106,7 @@ describe('BulletChart up-good self-sufficiency rows', () => {
       ],
     };
 
-    render(<BulletChart widget={widget} ctx={{} as ResolveContext} />);
+    render(<BulletChart widget={widget} context={{} as ResolveContext} />);
 
     expect(bar('Cube utilization').style.background).toContain('--crit');
   });

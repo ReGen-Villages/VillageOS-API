@@ -90,9 +90,9 @@ export function ExplorePage() {
 
   // What the dial effect and the polls read, so neither re-posts a state a render has already left.
   // Synced in an effect declared before every effect that reads it, so each sees the settled render.
-  const stateRef = useRef(state);
+  const stateReference = useRef(state);
   useEffect(() => {
-    stateRef.current = state;
+    stateReference.current = state;
   });
 
   useEffect(() => {
@@ -179,7 +179,7 @@ export function ExplorePage() {
     const held = ticket.current;
     if (held === null) throw new Error('No ticket is held.');
     const { thingId: _scopedByTheService, ...question } = query;
-    const reduced = await findingsApi.reduceWithTicket(stateRef.current.submissionId, held, question);
+    const reduced = await findingsApi.reduceWithTicket(stateReference.current.submissionId, held, question);
     ticket.current = reduced.ticket;
     return reduced.answer;
   }, []);
@@ -193,7 +193,7 @@ export function ExplorePage() {
     if (held === null) throw new Error('No ticket is held.');
     try {
       const shared = await findingsApi.shareDocumentWithTicket(
-        stateRef.current.submissionId, held, file, description, onProgress);
+        stateReference.current.submissionId, held, file, description, onProgress);
       ticket.current = shared.ticket;
       return shared.document;
     } catch (error) {
@@ -205,7 +205,7 @@ export function ExplorePage() {
   const listSurveys = useCallback(async (): Promise<SharedSurvey[]> => {
     const held = ticket.current;
     if (held === null) return [];
-    const listed = await findingsApi.listDocumentsWithTicket(stateRef.current.submissionId, held);
+    const listed = await findingsApi.listDocumentsWithTicket(stateReference.current.submissionId, held);
     ticket.current = listed.ticket;
     return listed.documents;
   }, []);
@@ -214,7 +214,7 @@ export function ExplorePage() {
     const held = ticket.current;
     if (held === null) return;
     const read = await findingsApi.readWithTicket(
-      stateRef.current.submissionId, stateRef.current.emailAddress.trim(), held);
+      stateReference.current.submissionId, stateReference.current.emailAddress.trim(), held);
     ticket.current = read.ticket;
     setFindings(findingsFrom(read.findings, reduceThroughTheService));
   }, [reduceThroughTheService]);
@@ -265,7 +265,7 @@ export function ExplorePage() {
       const held = ticket.current;
       if (held === null) return;
       try {
-        const posted = await intakeApi.submitWithTicket(documentFrom(stateRef.current), held);
+        const posted = await intakeApi.submitWithTicket(documentFrom(stateReference.current), held);
         ticket.current = posted.ticket;
         await readFindings();
       } catch (error) {
@@ -538,9 +538,9 @@ function LandFacts({
 /** A fact the model holds about the land, drawn beside the map: the figure, the title, and where the
  *  model says it came from. The same three things the `kpi` widget draws, on a card shaped for the
  *  column it stands in. */
-function ModelFact({ widget, ctx }: { widget: KpiWidget; ctx: ResolveContext }) {
-  const value = useBinding(widget.value, ctx);
-  const origin = useBinding(widget.origin, ctx);
+function ModelFact({ widget, context }: { widget: KpiWidget; context: ResolveContext }) {
+  const value = useBinding(widget.value, context);
+  const origin = useBinding(widget.origin, context);
 
   return (
     <FactCard label={widget.title}>
@@ -845,7 +845,7 @@ function Drawn({
   const { t, i18n } = useTranslation();
   const [measure, width] = useElementWidth();
   const spec = useMemo(() => localizeSpec(findings.spec, i18n.language), [findings.spec, i18n.language]);
-  const ctx = useResolveContext(findings.index, findings.scopeId, spec.compare?.archetype, () => findings.reads);
+  const context = useResolveContext(findings.index, findings.scopeId, spec.compare?.archetype, () => findings.reads);
   const facts = spec.sections
     .filter((section) => section.facts)
     .flatMap((section) => section.widgets)
@@ -858,14 +858,14 @@ function Drawn({
   return (
     <div ref={measure}>
       <ReportMap options={options} state={state} drawnArea={drawnArea} reference={reference}>
-        {facts.map((widget, at) => <ModelFact key={at} widget={widget} ctx={ctx} />)}
+        {facts.map((widget, at) => <ModelFact key={at} widget={widget} context={context} />)}
       </ReportMap>
-      <ThemedTiles sections={spec.sections} themes={options?.themes ?? []} ctx={ctx} />
+      <ThemedTiles sections={spec.sections} themes={options?.themes ?? []} context={context} />
       {(listed.length > 0 || spec.sections.length === 0) && (
         <div className="mt-4">
           <DashboardSections
             sections={listed}
-            ctx={ctx}
+            context={context}
             isWide={width >= WIDE}
             whenEmpty={<p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">{t('explore.emptyView')}</p>}
           />
@@ -883,7 +883,7 @@ function Drawn({
       {overviewOpen && (
         <OverviewView
           tabs={tabs}
-          ctx={ctx}
+          context={context}
           sources={options?.basemapSources ?? []}
           centre={state.position ?? { latitude: WORLD.latitude, longitude: WORLD.longitude }}
           zoom={PLOT_ZOOM}

@@ -18,7 +18,7 @@ import type { VosRelationship, VosThing } from '../types/vos';
  *  sim emits hundreds of ThingCreated/RelationshipCreated per second; applying each as
  *  its own rebuild of the whole store saturates the main thread and makes Trellis degrade as the
  *  model grows. We buffer events and flush once per window instead. */
-const FLUSH_DEBOUNCE_MS = 150;
+const FLUSH_DEBOUNCE_MILLISECONDS = 150;
 
 /** What happened to one property in a flush window: it was given a value, or it was retracted. */
 type PropertyChange = { deleted: false; value: unknown } | { deleted: true };
@@ -64,7 +64,7 @@ let holdsNarrowedSet = false;
  * `silent` withholds the failure toast, for a read behind a page that is already drawn: an error
  * toast does not auto-dismiss, so a retrying loop would stack un-dismissable ones.
  */
-export async function reloadModelData(opts?: { silent?: boolean }): Promise<void> {
+export async function reloadModelData(options?: { silent?: boolean }): Promise<void> {
   try {
     const declared = await declaredModelLoadProperties();
     const [t, r] = await Promise.all([thingApi.getAll(declared), relationshipApi.getAll()]);
@@ -75,7 +75,7 @@ export async function reloadModelData(opts?: { silent?: boolean }): Promise<void
     // this the Operations page sits on "Loading model…" forever.
     useModelStore.getState().markLoaded();
   } catch {
-    if (!opts?.silent) toast.error('Failed to load model');
+    if (!options?.silent) toast.error('Failed to load model');
   }
 }
 
@@ -152,10 +152,10 @@ export function useModelData(): void {
     const pending = {
       thingUpserts: new Map<string, VosThing>(),
       thingRemove: new Set<string>(),
-      relUpserts: new Map<string, VosRelationship>(),
-      relRemove: new Set<string>(),
-      thingProps: new Map<string, Map<string, PropertyChange>>(),
-      relProps: new Map<string, Map<string, PropertyChange>>(),
+      relationshipUpserts: new Map<string, VosRelationship>(),
+      relationshipRemove: new Set<string>(),
+      thingProperties: new Map<string, Map<string, PropertyChange>>(),
+      relationshipProperties: new Map<string, Map<string, PropertyChange>>(),
       thingStates: new Map<string, string[]>(),
     };
 
@@ -171,51 +171,51 @@ export function useModelData(): void {
     };
 
     // Each property event is (entity id, property name, value); a retraction carries no value.
-    const onThingProperty = (args: unknown[], change: PropertyChange) => {
-      const [thingId, propertyPath] = args as [string, string | undefined];
+    const onThingProperty = (eventArguments: unknown[], change: PropertyChange) => {
+      const [thingId, propertyPath] = eventArguments as [string, string | undefined];
       if (!thingId || propertyPath === undefined) return;
       triggerFlashNode(thingId);
-      recordProperty(pending.thingProps, thingId, propertyPath, change);
+      recordProperty(pending.thingProperties, thingId, propertyPath, change);
       schedule();
     };
 
     // Applied only while the relationship is on screen — as the opened relationship, or hanging off the
     // opened node. Asking about the node alone dropped every change to the relationship whose own panel was
     // in front of the user, because selecting a relationship clears the node selection.
-    const onRelationshipProperty = (args: unknown[], change: PropertyChange) => {
-      const [relId, propertyName] = args as [string, string | undefined];
-      if (!relId || propertyName === undefined) return;
-      triggerFlashEdge(relId);
+    const onRelationshipProperty = (eventArguments: unknown[], change: PropertyChange) => {
+      const [relationshipId, propertyName] = eventArguments as [string, string | undefined];
+      if (!relationshipId || propertyName === undefined) return;
+      triggerFlashEdge(relationshipId);
       const { selectedNodeId, selectedEdgeId } = useUiStore.getState();
-      if (!isVisibleRelationship(relId, selectedNodeId, selectedEdgeId, useModelStore.getState().relationships)) return;
-      recordProperty(pending.relProps, relId, propertyName, change);
+      if (!isVisibleRelationship(relationshipId, selectedNodeId, selectedEdgeId, useModelStore.getState().relationships)) return;
+      recordProperty(pending.relationshipProperties, relationshipId, propertyName, change);
       schedule();
     };
 
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const schedule = () => { if (!timer) timer = setTimeout(flush, FLUSH_DEBOUNCE_MS); };
+    const schedule = () => { if (!timer) timer = setTimeout(flush, FLUSH_DEBOUNCE_MILLISECONDS); };
 
     function flush(): void {
       timer = null;
       const thingUpserts = [...pending.thingUpserts.values()]; pending.thingUpserts.clear();
-      const relationshipUpserts = [...pending.relUpserts.values()]; pending.relUpserts.clear();
+      const relationshipUpserts = [...pending.relationshipUpserts.values()]; pending.relationshipUpserts.clear();
       const thingRemovals = [...pending.thingRemove]; pending.thingRemove.clear();
-      const relationshipRemovals = [...pending.relRemove]; pending.relRemove.clear();
+      const relationshipRemovals = [...pending.relationshipRemove]; pending.relationshipRemove.clear();
       const thingPropertyUpdates: { id: string; path: string; value: unknown }[] = [];
       const thingPropertyRemovals: { id: string; path: string }[] = [];
-      for (const [id, properties] of pending.thingProps)
+      for (const [id, properties] of pending.thingProperties)
         for (const [path, change] of properties)
           if (change.deleted) thingPropertyRemovals.push({ id, path });
           else thingPropertyUpdates.push({ id, path, value: change.value });
-      pending.thingProps.clear();
+      pending.thingProperties.clear();
 
       const relationshipPropertyUpdates: { id: string; name: string; value: unknown }[] = [];
       const relationshipPropertyRemovals: { id: string; name: string }[] = [];
-      for (const [id, properties] of pending.relProps)
+      for (const [id, properties] of pending.relationshipProperties)
         for (const [name, change] of properties)
           if (change.deleted) relationshipPropertyRemovals.push({ id, name });
           else relationshipPropertyUpdates.push({ id, name, value: change.value });
-      pending.relProps.clear();
+      pending.relationshipProperties.clear();
 
       const thingStateUpdates = [...pending.thingStates].map(([id, states]) => ({ id, states }));
       pending.thingStates.clear();
@@ -248,14 +248,14 @@ export function useModelData(): void {
     const relationshipArrived = (data: unknown) => {
       const relationship = carriedRelationship(data);
       if (relationship) {
-        pending.relRemove.delete(relationship.Id);
-        pending.relUpserts.set(relationship.Id, relationship);
+        pending.relationshipRemove.delete(relationship.Id);
+        pending.relationshipUpserts.set(relationship.Id, relationship);
         schedule();
       }
     };
     const relationshipGone = (data: unknown) => {
       const id = entityId(data);
-      if (id) { pending.relUpserts.delete(id); pending.relRemove.add(id); schedule(); }
+      if (id) { pending.relationshipUpserts.delete(id); pending.relationshipRemove.add(id); schedule(); }
     };
 
     const unsubs = [
@@ -272,11 +272,11 @@ export function useModelData(): void {
       // store, so dropping their updates left it showing stale or blank cells for anything changed
       // after the last full load. The debounced applyBatch coalesces the high rate into one write
       // per window.
-      on('PropertyChanged', (...args) => onThingProperty(args, { deleted: false, value: args[2] })),
-      on('PropertyObserved', (...args) => onThingProperty(args, { deleted: false, value: args[2] })),
-      on('PropertyDeleted', (...args) => onThingProperty(args, { deleted: true })),
-      on('RelationshipPropertyChanged', (...args) => onRelationshipProperty(args, { deleted: false, value: args[2] })),
-      on('RelationshipPropertyDeleted', (...args) => onRelationshipProperty(args, { deleted: true })),
+      on('PropertyChanged', (...eventArguments) => onThingProperty(eventArguments, { deleted: false, value: eventArguments[2] })),
+      on('PropertyObserved', (...eventArguments) => onThingProperty(eventArguments, { deleted: false, value: eventArguments[2] })),
+      on('PropertyDeleted', (...eventArguments) => onThingProperty(eventArguments, { deleted: true })),
+      on('RelationshipPropertyChanged', (...eventArguments) => onRelationshipProperty(eventArguments, { deleted: false, value: eventArguments[2] })),
+      on('RelationshipPropertyDeleted', (...eventArguments) => onRelationshipProperty(eventArguments, { deleted: true })),
       // Every open: the first, a reconnect, and a page changing what the subscription covers.
       on(SUBSCRIPTION_OPENED, (data) => loadWhatOpened(data as SubscriptionOpened)),
       // A replaced model is not the one the subscription resolved against, so it is asked for

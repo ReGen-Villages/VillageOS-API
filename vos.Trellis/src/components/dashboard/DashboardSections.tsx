@@ -11,13 +11,13 @@ import { WidgetRenderer } from './widgets/WidgetRenderer';
 
 export function DashboardSections({
   sections,
-  ctx,
+  context,
   isWide,
   openDetail,
   whenEmpty,
 }: {
   sections: DashboardSection[];
-  ctx: ResolveContext;
+  context: ResolveContext;
   isWide: boolean;
   openDetail?: (thingId: string) => void;
   /** What to say where the spec lists no sections. Each page says it in its own words; drawing
@@ -30,7 +30,7 @@ export function DashboardSections({
   return (
     <>
       {sections.map((section, i) => (
-        <Section key={i} section={section} ctx={ctx} isWide={isWide} openDetail={openDetail} />
+        <Section key={i} section={section} context={context} isWide={isWide} openDetail={openDetail} />
       ))}
     </>
   );
@@ -38,12 +38,12 @@ export function DashboardSections({
 
 function Section({
   section,
-  ctx,
+  context,
   isWide,
   openDetail,
 }: {
   section: DashboardSection;
-  ctx: ResolveContext;
+  context: ResolveContext;
   isWide: boolean;
   openDetail?: (thingId: string) => void;
 }) {
@@ -73,7 +73,7 @@ function Section({
       )}
       <div className="grid gap-3.5" style={{ gridTemplateColumns }}>
         {section.widgets.map((widget, i) => (
-          <WidgetRenderer key={i} widget={widget} ctx={ctx} openDetail={openDetail} />
+          <WidgetRenderer key={i} widget={widget} context={context} openDetail={openDetail} />
         ))}
       </div>
     </section>

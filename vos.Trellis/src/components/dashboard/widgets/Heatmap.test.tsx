@@ -75,7 +75,7 @@ const widget: HeatmapWidget = {
 };
 
 function draw(drawn: HeatmapWidget = widget) {
-  return render(<Heatmap widget={drawn} ctx={{} as ResolveContext} />);
+  return render(<Heatmap widget={drawn} context={{} as ResolveContext} />);
 }
 
 describe('the hour-by-day heatmap', () => {

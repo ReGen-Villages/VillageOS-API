@@ -19,11 +19,11 @@ function makeGraph(): Graph {
   return g;
 }
 
-const defaultOpts: SearchOptions = { caseSensitive: false, exactMatch: false, useRegex: false };
+const defaultOptions: SearchOptions = { caseSensitive: false, exactMatch: false, useRegex: false };
 
 describe('buildLabelMatcher', () => {
   it('matches by case-insensitive substring', () => {
-    const matcher = buildLabelMatcher('sensor', defaultOpts);
+    const matcher = buildLabelMatcher('sensor', defaultOptions);
     expect(matcher('SensorType')).toBe(true);
     expect(matcher('Zone')).toBe(false);
   });
@@ -41,7 +41,7 @@ describe('buildLabelMatcher', () => {
   });
 
   it('matches comma-separated terms', () => {
-    const matcher = buildLabelMatcher('Sensor, Zone', defaultOpts);
+    const matcher = buildLabelMatcher('Sensor, Zone', defaultOptions);
     expect(matcher('SensorType')).toBe(true);
     expect(matcher('Zone')).toBe(true);
     expect(matcher('Controller')).toBe(false);

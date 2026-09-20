@@ -26,13 +26,13 @@ export const SIDES = [
 ] as const;
 type Direction = (typeof SIDES)[number]['direction'];
 
-export function DivergingBar({ widget, ctx }: { widget: DivergingBarWidget; ctx: ResolveContext }) {
+export function DivergingBar({ widget, context }: { widget: DivergingBarWidget; context: ResolveContext }) {
   const { t, i18n } = useTranslation();
   const [measure, measuredWidth] = useElementWidth();
   const [active, setActive] = useState<number | null>(null);
 
   const sides: Record<Direction, DivergingBarSide> = { up: widget.up, down: widget.down };
-  const resolved = useBindings([widget.up.value, widget.up.threshold, widget.down.value, widget.down.threshold], ctx);
+  const resolved = useBindings([widget.up.value, widget.up.threshold, widget.down.value, widget.down.threshold], context);
   const groups: Record<Direction, Map<string, number>> = {
     up: groupsByKey(resolved[0]?.value ?? null),
     down: groupsByKey(resolved[2]?.value ?? null),

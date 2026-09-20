@@ -6,7 +6,7 @@ import { resolveRelations, buildStateChanges } from './entityDetail';
 function thing(id: string, name: string, properties: Record<string, unknown> = {}): VosThing {
   return { Id: id, Name: name, Properties: properties };
 }
-function rel(id: string, subjectId: string, predicateId: string, targetId: string): VosRelationship {
+function relationship(id: string, subjectId: string, predicateId: string, targetId: string): VosRelationship {
   return { Id: id, Name: id, SubjectId: subjectId, PredicateId: predicateId, TargetId: targetId, Properties: {} };
 }
 
@@ -31,25 +31,25 @@ function fixture() {
     thing('is', 'is'),
   ];
   const relationships = [
-    rel('r1', 'project', 'has', 'task'),
-    rel('r2', 'task', 'has', 'assignment'),
-    rel('r3', 'project', 'has', 'steward'),
-    rel('r4', 'project', 'references', 'phase'),
-    rel('r5', 'phase', 'contains', 'project'),
-    rel('r6', 'task', 'references', 'resource'),
-    rel('i1', 'task', 'is', 'ProjectTask'),
-    rel('i2', 'assignment', 'is', 'Assignment'),
-    rel('i3', 'steward', 'is', 'Steward'),
-    rel('i4', 'phase', 'is', 'Phase'),
-    rel('i5', 'resource', 'is', 'Resource'),
+    relationship('r1', 'project', 'has', 'task'),
+    relationship('r2', 'task', 'has', 'assignment'),
+    relationship('r3', 'project', 'has', 'steward'),
+    relationship('r4', 'project', 'references', 'phase'),
+    relationship('r5', 'phase', 'contains', 'project'),
+    relationship('r6', 'task', 'references', 'resource'),
+    relationship('i1', 'task', 'is', 'ProjectTask'),
+    relationship('i2', 'assignment', 'is', 'Assignment'),
+    relationship('i3', 'steward', 'is', 'Steward'),
+    relationship('i4', 'phase', 'is', 'Phase'),
+    relationship('i5', 'resource', 'is', 'Resource'),
   ];
   return buildModelIndex(things, relationships);
 }
 
 describe('resolveRelations', () => {
   it('follows an outbound predicate and keeps only the configured archetype', () => {
-    const idx = fixture();
-    const [group] = resolveRelations('project', idx, [
+    const index = fixture();
+    const [group] = resolveRelations('project', index, [
       { predicate: 'has', direction: 'out', archetype: 'ProjectTask', label: 'Project tasks' },
     ]);
     expect(group.label).toBe('Project tasks');
@@ -58,30 +58,30 @@ describe('resolveRelations', () => {
   });
 
   it('names the subject and target of each edge by direction', () => {
-    const idx = fixture();
-    const [out] = resolveRelations('project', idx, [{ predicate: 'has', direction: 'out', archetype: 'ProjectTask' }]);
+    const index = fixture();
+    const [out] = resolveRelations('project', index, [{ predicate: 'has', direction: 'out', archetype: 'ProjectTask' }]);
     expect(out.edges[0]).toMatchObject({ subjectName: 'PRJ-1', targetName: 'PRJ-1-T1' });
-    const [inbound] = resolveRelations('project', idx, [{ predicate: 'contains', direction: 'in', archetype: 'Phase' }]);
+    const [inbound] = resolveRelations('project', index, [{ predicate: 'contains', direction: 'in', archetype: 'Phase' }]);
     expect(inbound.edges[0]).toMatchObject({ subjectName: 'PHS-1', targetName: 'PRJ-1' });
   });
 
   it('shows only the requested properties, or all with "*"', () => {
-    const idx = fixture();
-    const [some] = resolveRelations('project', idx, [
+    const index = fixture();
+    const [some] = resolveRelations('project', index, [
       { predicate: 'has', archetype: 'ProjectTask', properties: ['quantity'] },
     ]);
     expect(some.edges[0].properties).toEqual([['quantity', 5]]);
-    const [all] = resolveRelations('project', idx, [
+    const [all] = resolveRelations('project', index, [
       { predicate: 'has', archetype: 'ProjectTask', properties: '*' },
     ]);
     expect(all.edges[0].properties).toEqual(expect.arrayContaining([['quantity', 5], ['code', 'RES-9']]));
-    const [none] = resolveRelations('project', idx, [{ predicate: 'has', archetype: 'ProjectTask' }]);
+    const [none] = resolveRelations('project', index, [{ predicate: 'has', archetype: 'ProjectTask' }]);
     expect(none.edges[0].properties).toEqual([]);
   });
 
   it('nests child relations from each matched Thing', () => {
-    const idx = fixture();
-    const [group] = resolveRelations('project', idx, [
+    const index = fixture();
+    const [group] = resolveRelations('project', index, [
       {
         predicate: 'has',
         archetype: 'ProjectTask',
@@ -95,8 +95,8 @@ describe('resolveRelations', () => {
   });
 
   it('folds an inline relation onto the parent row instead of nesting it', () => {
-    const idx = fixture();
-    const [group] = resolveRelations('project', idx, [
+    const index = fixture();
+    const [group] = resolveRelations('project', index, [
       {
         predicate: 'has',
         archetype: 'ProjectTask',
@@ -110,8 +110,8 @@ describe('resolveRelations', () => {
   });
 
   it('preserves the configured order of relation groups', () => {
-    const idx = fixture();
-    const groups = resolveRelations('project', idx, [
+    const index = fixture();
+    const groups = resolveRelations('project', index, [
       { predicate: 'references', archetype: 'Phase', label: 'Phase' },
       { predicate: 'has', archetype: 'Steward', label: 'Steward' },
     ]);
@@ -119,9 +119,9 @@ describe('resolveRelations', () => {
   });
 
   it('is cycle-guarded when a relation loops back to the root', () => {
-    const idx = fixture();
+    const index = fixture();
     // project -references-> phase -contains-> project: the nested contains must not re-expand the root.
-    const [group] = resolveRelations('project', idx, [
+    const [group] = resolveRelations('project', index, [
       { predicate: 'references', archetype: 'Phase', relations: [{ predicate: 'contains', direction: 'out' }] },
     ]);
     const phaseChildren = group.edges[0].children[0];

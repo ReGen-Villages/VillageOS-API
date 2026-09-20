@@ -27,11 +27,11 @@ import { WidgetCard } from './WidgetCard';
  *  `openDetail`, when provided, lets row-clickable widgets open a Thing detail window. */
 export function WidgetRenderer({
   widget,
-  ctx,
+  context,
   openDetail,
 }: {
   widget: Widget;
-  ctx: ResolveContext;
+  context: ResolveContext;
   openDetail?: (thingId: string) => void;
 }) {
   // Asked before anything resolves, because a widget drawn from a question this build only half
@@ -41,39 +41,39 @@ export function WidgetRenderer({
 
   switch (widget.type) {
     case 'kpi':
-      return <KpiCard widget={widget} ctx={ctx} openDetail={openDetail} />;
+      return <KpiCard widget={widget} context={context} openDetail={openDetail} />;
     case 'funnel':
-      return <Funnel widget={widget} ctx={ctx} openDetail={openDetail} />;
+      return <Funnel widget={widget} context={context} openDetail={openDetail} />;
     case 'bullet':
-      return <BulletChart widget={widget} ctx={ctx} />;
+      return <BulletChart widget={widget} context={context} />;
     case 'gantt':
-      return <Gantt widget={widget} ctx={ctx} />;
+      return <Gantt widget={widget} context={context} />;
     case 'leaderboard':
-      return <Leaderboard widget={widget} ctx={ctx} />;
+      return <Leaderboard widget={widget} context={context} />;
     case 'verdict':
-      return <VerdictList widget={widget} ctx={ctx} />;
+      return <VerdictList widget={widget} context={context} />;
     case 'working':
-      return <WorkingList widget={widget} ctx={ctx} />;
+      return <WorkingList widget={widget} context={context} />;
     case 'exceptionBar':
-      return <ExceptionBar widget={widget} ctx={ctx} />;
+      return <ExceptionBar widget={widget} context={context} />;
     case 'table':
-      return <TableWidgetView widget={widget} ctx={ctx} openDetail={openDetail} />;
+      return <TableWidgetView widget={widget} context={context} openDetail={openDetail} />;
     case 'rangeBar':
-      return <RangeBar widget={widget} ctx={ctx} />;
+      return <RangeBar widget={widget} context={context} />;
     case 'lineSeries':
-      return <LineSeries widget={widget} ctx={ctx} />;
+      return <LineSeries widget={widget} context={context} />;
     case 'heatmap':
-      return <Heatmap widget={widget} ctx={ctx} />;
+      return <Heatmap widget={widget} context={context} />;
     case 'stackedShares':
-      return <StackedShares widget={widget} ctx={ctx} />;
+      return <StackedShares widget={widget} context={context} />;
     case 'divergingBar':
-      return <DivergingBar widget={widget} ctx={ctx} />;
+      return <DivergingBar widget={widget} context={context} />;
     case 'smallMultiples':
-      return <SmallMultiples widget={widget} ctx={ctx} />;
+      return <SmallMultiples widget={widget} context={context} />;
     case 'action':
-      return <ActionList widget={widget} ctx={ctx} />;
+      return <ActionList widget={widget} context={context} />;
     case 'form':
-      return <RecordForm widget={widget} ctx={ctx} />;
+      return <RecordForm widget={widget} context={context} />;
     default:
       return <UnknownWidget reason={{ unknownType: (widget as { type?: unknown }).type }} />;
   }
@@ -101,11 +101,11 @@ function UnknownWidget({ reason }: { reason: { unknownType: unknown } | { unansw
 
 function TableWidgetView({
   widget,
-  ctx,
+  context,
   openDetail,
 }: {
   widget: TableWidget;
-  ctx: ResolveContext;
+  context: ResolveContext;
   openDetail?: (thingId: string) => void;
 }) {
   const { t } = useTranslation();
@@ -121,7 +121,7 @@ function TableWidgetView({
       <DataTable
         columns={widget.columns}
         rowsBinding={widget.rows}
-        ctx={ctx}
+        context={context}
         minWidth={widget.minWidth}
         sortKey={widget.sortKey}
         sortDir={widget.sortDir}

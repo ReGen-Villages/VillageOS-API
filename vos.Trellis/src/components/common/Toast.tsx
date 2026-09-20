@@ -1,12 +1,12 @@
 import { X } from 'lucide-react';
 import clsx from 'clsx';
-import { useToastStore } from './toastStore';
+import { useToastStore, type ToastItem } from './toastStore';
 
-const typeStyles: Record<string, string> = {
+const typeStyles: Record<ToastItem['type'], string> = {
   success: 'bg-emerald-600 text-white',
   error: 'bg-red-600 text-white',
   warning: 'bg-amber-500 text-white',
-  info: 'bg-blue-600 text-white',
+  information: 'bg-blue-600 text-white',
 };
 
 export function ToastContainer() {

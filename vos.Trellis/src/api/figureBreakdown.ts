@@ -86,8 +86,8 @@ export function hasBreakdown(binding: Binding | undefined): boolean {
 }
 
 /** What one figure is made of, or null when it is made of nothing a reader can be shown. */
-export async function breakdownOf(binding: Binding, ctx: ResolveContext): Promise<FigureBreakdown | null> {
-  const selected = ctx.scopeId ? ctx.idx.byId.get(ctx.scopeId)?.Name : undefined;
+export async function breakdownOf(binding: Binding, context: ResolveContext): Promise<FigureBreakdown | null> {
+  const selected = context.scopeId ? context.index.byId.get(context.scopeId)?.Name : undefined;
 
   switch (binding.kind) {
     case 'const':
@@ -97,7 +97,7 @@ export async function breakdownOf(binding: Binding, ctx: ResolveContext): Promis
       // The count's own narrowing, asked for its rows: the state read narrows a list exactly as it
       // narrows a count, so the members listed are the members counted.
       const counted = asRows(
-        await resolveBinding({ kind: 'stateList', state: binding.state, scope: binding.scope, archetype: binding.archetype, excludeState: binding.excludeState }, ctx),
+        await resolveBinding({ kind: 'stateList', state: binding.state, scope: binding.scope, archetype: binding.archetype, excludeState: binding.excludeState }, context),
       );
       return {
         value: counted.length,
@@ -106,16 +106,16 @@ export async function breakdownOf(binding: Binding, ctx: ResolveContext): Promis
           kind: 'things',
           reduction: 'count',
           measure: null,
-          rows: counted.map((row) => rowOfThing(String(row.id), String(row.name), ctx)),
+          rows: counted.map((row) => rowOfThing(String(row.id), String(row.name), context)),
         },
       };
     }
 
     case 'aggregate': {
-      const members = aggregateMembers(binding, ctx);
+      const members = aggregateMembers(binding, context);
       const measure = binding.op === 'count' ? null : (binding.property ?? null);
       return {
-        value: aggregateValue(binding, members, ctx),
+        value: aggregateValue(binding, members, context),
         terms: {
           archetype: binding.archetype,
           property: measure ?? undefined,
@@ -126,37 +126,37 @@ export async function breakdownOf(binding: Binding, ctx: ResolveContext): Promis
           kind: 'things',
           reduction: binding.op,
           measure,
-          rows: members.map((thing) => rowOfThing(thing.Id, thing.Name, ctx)),
+          rows: members.map((thing) => rowOfThing(thing.Id, thing.Name, context)),
         },
       };
     }
 
     case 'property': {
-      const named = referencedThing(binding.thing, ctx);
+      const named = referencedThing(binding.thing, context);
       // With nothing selected, `$scope` reads as the average across the compared entities — so the
       // rows behind such a figure are those entities, each with the value it contributed.
       const averaged =
-        !named && binding.thing === SCOPE_REF && ctx.compareArchetype
-          ? thingsOfArchetype(ctx.compareArchetype, ctx.idx)
+        !named && binding.thing === SCOPE_REF && context.compareArchetype
+          ? thingsOfArchetype(context.compareArchetype, context.index)
           : [];
       const holders = named ? [named] : averaged;
       if (!holders.length) return null;
       return {
-        value: asNumber(await resolveBinding(binding, ctx)),
-        terms: { property: binding.property, archetype: averaged.length ? ctx.compareArchetype : undefined },
+        value: asNumber(await resolveBinding(binding, context)),
+        terms: { property: binding.property, archetype: averaged.length ? context.compareArchetype : undefined },
         behind: {
           kind: 'things',
           reduction: averaged.length ? 'avg' : 'read',
           measure: binding.property,
-          rows: holders.map((thing) => rowOfThing(thing.Id, thing.Name, ctx)),
+          rows: holders.map((thing) => rowOfThing(thing.Id, thing.Name, context)),
         },
       };
     }
 
     case 'ratio': {
       const [numerator, denominator] = await Promise.all([
-        breakdownOf(binding.numerator, ctx),
-        breakdownOf(binding.denominator, ctx),
+        breakdownOf(binding.numerator, context),
+        breakdownOf(binding.denominator, context),
       ]);
       if (!numerator || !denominator) return null;
       return {
@@ -170,8 +170,8 @@ export async function breakdownOf(binding: Binding, ctx: ResolveContext): Promis
       const series = binding.series;
       const bucketsPerPoint = series.bucketsPerPoint ?? 1;
       const [figure, parts] = await Promise.all([
-        resolveBinding(binding, ctx),
-        resolveBinding({ ...series, buckets: bucketsPerPoint, bucketsPerPoint: 1 }, ctx),
+        resolveBinding(binding, context),
+        resolveBinding({ ...series, buckets: bucketsPerPoint, bucketsPerPoint: 1 }, context),
       ]);
       const values = asSeries(parts);
       return {

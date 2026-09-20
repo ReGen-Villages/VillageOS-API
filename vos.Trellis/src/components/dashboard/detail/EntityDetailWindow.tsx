@@ -21,7 +21,7 @@ import type { ResolvedRelation } from './entityDetail';
 import type { ServiceDispatch } from './serviceHandling';
 
 interface Props {
-  idx: ModelIndex;
+  modelIndex: ModelIndex;
   thingId: string;
   detail: DetailSpec;
   nonce?: number;
@@ -199,12 +199,12 @@ function RelationGroups({
   );
 }
 
-export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, index, total, spreadTick, zIndex, onClose, onFocus, onSpread, openDetail, declaredTypes }: Props) {
+export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset, index, total, spreadTick, zIndex, onClose, onFocus, onSpread, openDetail, declaredTypes }: Props) {
   const { t } = useTranslation();
-  const { loading, root, relations, statesById, stateChanges, coverage, dispatches } = useEntityDetail(idx, thingId, detail, nonce);
+  const { loading, root, relations, statesById, stateChanges, coverage, dispatches } = useEntityDetail(modelIndex, thingId, detail, nonce);
   const numbers = useNumberDisplaySettings();
 
-  const props = root ? effectiveProperties(root, idx) : {};
+  const props = root ? effectiveProperties(root, modelIndex) : {};
   const title = (detail.titleProperty && (props[detail.titleProperty] as string)) || root?.Name || formatGuid(thingId);
   const subtitle = detail.subtitleProperty ? (props[detail.subtitleProperty] as string) : undefined;
 
@@ -212,27 +212,27 @@ export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, index,
     ? detail.propertyGroups.map((g) => ({ label: g.label, entries: g.keys.filter((k) => k in props).map((k) => [k, props[k]] as const) }))
     : [{ label: t('entityDetail.properties'), entries: Object.entries(props) }];
 
-  const [pos, setPos] = useState({ x: 120 + offset * 28, y: 90 + offset * 28 });
+  const [position, setPosition] = useState({ x: 120 + offset * 28, y: 90 + offset * 28 });
   // Re-tile when the spread button is clicked, using React's "adjust state during render"
   // pattern (a guarded render-phase update) rather than an effect: spreadTick only advances on
   // an explicit click, and starts at 0 so the initial cascade above is kept until then.
   const [appliedSpread, setAppliedSpread] = useState(0);
   if (spreadTick !== appliedSpread) {
     setAppliedSpread(spreadTick);
-    if (spreadTick > 0) setPos(tiledPosition(index));
+    if (spreadTick > 0) setPosition(tiledPosition(index));
   }
   const drag = useRef<{ dx: number; dy: number } | null>(null);
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
       onFocus();
-      drag.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y };
+      drag.current = { dx: e.clientX - position.x, dy: e.clientY - position.y };
       (e.target as HTMLElement).setPointerCapture(e.pointerId);
     },
-    [pos, onFocus],
+    [position, onFocus],
   );
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     if (!drag.current) return;
-    setPos({ x: Math.max(0, e.clientX - drag.current.dx), y: Math.max(0, e.clientY - drag.current.dy) });
+    setPosition({ x: Math.max(0, e.clientX - drag.current.dx), y: Math.max(0, e.clientY - drag.current.dy) });
   }, []);
   const onPointerUp = useCallback((e: React.PointerEvent) => {
     drag.current = null;
@@ -243,7 +243,7 @@ export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, index,
     <div
       onPointerDown={onFocus}
       className="fixed flex flex-col rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden resize"
-      style={{ left: pos.x, top: pos.y, zIndex, width: 460, height: 560, minWidth: 320, minHeight: 260, maxWidth: '95vw', maxHeight: '90vh' }}
+      style={{ left: position.x, top: position.y, zIndex, width: 460, height: 560, minWidth: 320, minHeight: 260, maxWidth: '95vw', maxHeight: '90vh' }}
     >
       {/* Title bar (drag handle) */}
       <div

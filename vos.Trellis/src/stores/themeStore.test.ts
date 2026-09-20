@@ -12,8 +12,8 @@ function setupMatchMedia() {
       matches: query.includes('dark') ? mockSystemDark : false,
       media: query,
       onchange: null,
-      addEventListener: (_: string, cb: (e: MediaQueryListEvent) => void) => mqlListeners.add(cb),
-      removeEventListener: (_: string, cb: (e: MediaQueryListEvent) => void) => mqlListeners.delete(cb),
+      addEventListener: (_: string, callback: (e: MediaQueryListEvent) => void) => mqlListeners.add(callback),
+      removeEventListener: (_: string, callback: (e: MediaQueryListEvent) => void) => mqlListeners.delete(callback),
       addListener: () => {},
       removeListener: () => {},
       dispatchEvent: () => true,
@@ -23,7 +23,7 @@ function setupMatchMedia() {
 
 function emitSystemChange(dark: boolean) {
   mockSystemDark = dark;
-  mqlListeners.forEach((cb) => cb({ matches: dark, media: '(prefers-color-scheme: dark)' } as MediaQueryListEvent));
+  mqlListeners.forEach((callback) => callback({ matches: dark, media: '(prefers-color-scheme: dark)' } as MediaQueryListEvent));
 }
 
 describe('themeStore', () => {

@@ -18,8 +18,8 @@ import { useSigma } from '@react-sigma/core';
  */
 export function WebGLContextGuard() {
   const sigma = useSigma();
-  const recoveryCountRef = useRef(0);
-  const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recoveryCountReference = useRef(0);
+  const recoveryTimerReference = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const container = sigma.getContainer();
@@ -58,31 +58,31 @@ export function WebGLContextGuard() {
       // the context and 'webglcontextrestored' will never fire.
       event.preventDefault();
 
-      recoveryCountRef.current += 1;
+      recoveryCountReference.current += 1;
       console.warn(
-        `[WebGLContextGuard] WebGL context lost on canvas (recovery attempt #${recoveryCountRef.current})`,
+        `[WebGLContextGuard] WebGL context lost on canvas (recovery attempt #${recoveryCountReference.current})`,
       );
 
       // Safari doesn't always fire 'webglcontextrestored', so set a
       // fallback timer that forces a rebuild if the event never arrives.
-      if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
-      recoveryTimerRef.current = setTimeout(() => {
+      if (recoveryTimerReference.current) clearTimeout(recoveryTimerReference.current);
+      recoveryTimerReference.current = setTimeout(() => {
         console.warn('[WebGLContextGuard] contextrestored not received after 3 s — forcing rebuild');
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             rebuildSigma();
           });
         });
-        recoveryTimerRef.current = null;
+        recoveryTimerReference.current = null;
       }, 3000);
     };
 
     const handleContextRestored = () => {
       console.info('[WebGLContextGuard] WebGL context restored — rebuilding sigma renderer');
 
-      if (recoveryTimerRef.current) {
-        clearTimeout(recoveryTimerRef.current);
-        recoveryTimerRef.current = null;
+      if (recoveryTimerReference.current) {
+        clearTimeout(recoveryTimerReference.current);
+        recoveryTimerReference.current = null;
       }
 
       // Multiple RAF to ensure context is fully restored before we attempt to render
@@ -130,9 +130,9 @@ export function WebGLContextGuard() {
     return () => {
       observer.disconnect();
       watched.forEach(unwatchCanvas);
-      if (recoveryTimerRef.current) {
-        clearTimeout(recoveryTimerRef.current);
-        recoveryTimerRef.current = null;
+      if (recoveryTimerReference.current) {
+        clearTimeout(recoveryTimerReference.current);
+        recoveryTimerReference.current = null;
       }
     };
   }, [sigma]);

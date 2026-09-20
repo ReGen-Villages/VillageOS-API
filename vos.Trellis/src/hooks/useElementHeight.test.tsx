@@ -4,11 +4,11 @@ import { installResizeObserverDouble } from '../testResizeObserver';
 import { useElementHeight } from './useElementHeight';
 
 function MeasuredHeader() {
-  const [ref, height] = useElementHeight();
+  const [reference, height] = useElementHeight();
   return (
     <div>
       <span data-testid="height">{height}</span>
-      <div ref={ref}>header</div>
+      <div ref={reference}>header</div>
     </div>
   );
 }

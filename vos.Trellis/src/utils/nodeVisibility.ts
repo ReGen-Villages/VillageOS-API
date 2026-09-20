@@ -47,19 +47,19 @@ export function edgeTouchesNode(
  */
 export type EdgeDisplay = 'show' | 'brighten' | 'hide';
 
-export function decideEdgeDisplay(opts: {
+export function decideEdgeDisplay(options: {
   endpointMatchesHover: boolean;
   endpointMatchesSelection: boolean;
   bothEndpointsInSearch: boolean | undefined;
   predicateInActiveFilter: boolean | undefined;
 }): EdgeDisplay {
-  if (opts.endpointMatchesHover) return 'brighten';
-  if (opts.endpointMatchesSelection) return 'show';
-  if (opts.bothEndpointsInSearch !== undefined) {
-    return opts.bothEndpointsInSearch ? 'show' : 'hide';
+  if (options.endpointMatchesHover) return 'brighten';
+  if (options.endpointMatchesSelection) return 'show';
+  if (options.bothEndpointsInSearch !== undefined) {
+    return options.bothEndpointsInSearch ? 'show' : 'hide';
   }
-  if (opts.predicateInActiveFilter !== undefined) {
-    return opts.predicateInActiveFilter ? 'show' : 'hide';
+  if (options.predicateInActiveFilter !== undefined) {
+    return options.predicateInActiveFilter ? 'show' : 'hide';
   }
   return 'show';
 }

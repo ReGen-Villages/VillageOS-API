@@ -11,11 +11,11 @@ export function applyThingPropertyUpdate(
 
 /** Return a new VosRelationship with one property merged/overwritten. */
 export function applyRelationshipPropertyUpdate(
-  rel: VosRelationship,
+  relationship: VosRelationship,
   propertyName: string,
   newValue: unknown,
 ): VosRelationship {
-  return { ...rel, Properties: { ...rel.Properties, [propertyName]: newValue } };
+  return { ...relationship, Properties: { ...relationship.Properties, [propertyName]: newValue } };
 }
 
 /** Return a new VosThing without the named property. */
@@ -26,10 +26,10 @@ export function applyThingPropertyRemoval(thing: VosThing, propertyPath: string)
 }
 
 /** Return a new VosRelationship without the named property. */
-export function applyRelationshipPropertyRemoval(rel: VosRelationship, propertyName: string): VosRelationship {
-  if (!(propertyName in rel.Properties)) return rel;
-  const { [propertyName]: _removed, ...remaining } = rel.Properties;
-  return { ...rel, Properties: remaining };
+export function applyRelationshipPropertyRemoval(relationship: VosRelationship, propertyName: string): VosRelationship {
+  if (!(propertyName in relationship.Properties)) return relationship;
+  const { [propertyName]: _removed, ...remaining } = relationship.Properties;
+  return { ...relationship, Properties: remaining };
 }
 
 /**
@@ -41,14 +41,14 @@ export function applyRelationshipPropertyRemoval(rel: VosRelationship, propertyN
  * panel is in front of the user.
  */
 export function isVisibleRelationship(
-  relId: string,
+  relationshipId: string,
   selectedNodeId: string | null,
   selectedEdgeId: string | null,
   relationships: VosRelationship[],
 ): boolean {
-  if (selectedEdgeId && relId === selectedEdgeId) return true;
+  if (selectedEdgeId && relationshipId === selectedEdgeId) return true;
   if (!selectedNodeId) return false;
-  const rel = relationships.find((r) => r.Id === relId);
-  if (!rel) return false;
-  return rel.SubjectId === selectedNodeId || rel.TargetId === selectedNodeId;
+  const relationship = relationships.find((r) => r.Id === relationshipId);
+  if (!relationship) return false;
+  return relationship.SubjectId === selectedNodeId || relationship.TargetId === selectedNodeId;
 }

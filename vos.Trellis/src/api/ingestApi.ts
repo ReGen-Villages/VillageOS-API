@@ -27,11 +27,11 @@ export const ingestApi = {
     form.append('name', name);
     form.append('mode', mode);
 
-    const resp = await fetch(`${base.replace(/\/$/, '')}/ingest`, {
+    const response = await fetch(`${base.replace(/\/$/, '')}/ingest`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: form,
     });
-    return resp.json();
+    return response.json();
   },
 };

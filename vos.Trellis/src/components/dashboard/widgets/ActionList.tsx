@@ -18,11 +18,11 @@ import { actionRequest, complete, nameOf, type Entered } from './writeRequest';
  * decided here either: the endpoint lays down a relationship or a Fact and the model decides what that
  * wakes, which is why nothing on this page knows a handler's name.
  */
-export function ActionList({ widget, ctx }: { widget: ActionWidget; ctx: ResolveContext }) {
-  const [results] = useBindings([widget.rows], ctx);
+export function ActionList({ widget, context }: { widget: ActionWidget; context: ResolveContext }) {
+  const [results] = useBindings([widget.rows], context);
   const rows = asRows(results?.value);
   const asks = widget.asks ?? [];
-  const options = useAskedOptions(asks, ctx);
+  const options = useAskedOptions(asks, context);
 
   const [refusal, setRefusal] = useState('');
   // Which row is mid-write. A second press before the first answers would record the decision
@@ -37,11 +37,11 @@ export function ActionList({ widget, ctx }: { widget: ActionWidget; ctx: Resolve
     setWriting(id);
     setRefusal('');
     try {
-      const answer = await postToEndpoint(ctx.reads, widget.writes.via, actionRequest(widget, row, choice, entered[id] ?? {}));
+      const answer = await postToEndpoint(context.reads, widget.writes.via, actionRequest(widget, row, choice, entered[id] ?? {}));
       if (answer.error) setRefusal(answer.error);
       else {
         setDecided((was) => ({ ...was, [id]: answer.said ?? choice.label }));
-        ctx.wrote?.();
+        context.wrote?.();
       }
     } finally {
       setWriting(null);

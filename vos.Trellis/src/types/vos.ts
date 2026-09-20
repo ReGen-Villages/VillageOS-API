@@ -420,7 +420,7 @@ export interface StateOccurrencesResponse {
   Occurrences: StateOccurrence[];
 }
 
-export interface PropertyModeConfig {
+export interface PropertyModeConfiguration {
   Mode: string;
   RingBufferSize?: number;
   SampleRate?: number;

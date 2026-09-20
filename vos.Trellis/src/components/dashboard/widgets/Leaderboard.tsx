@@ -29,9 +29,9 @@ function score(row: Row, metrics: LeaderMetric[]): number {
   return wsum ? Math.round((total / wsum) * 1000) / 10 : 0;
 }
 
-export function Leaderboard({ widget, ctx }: { widget: LeaderboardWidget; ctx: ResolveContext }) {
+export function Leaderboard({ widget, context }: { widget: LeaderboardWidget; context: ResolveContext }) {
   const { t } = useTranslation();
-  const { loading, value } = useBinding(widget.entities, ctx);
+  const { loading, value } = useBinding(widget.entities, context);
   const rows = asRows(value);
   const labelKey = widget.labelKey ?? 'name';
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ApiError, AuthRequiredError, apiClient } from './client';
+import { ApiError, AuthenticationRequiredError, apiClient } from './client';
 
 function mockResponse(status: number, body: unknown): Response {
   const text = typeof body === 'string' ? body : JSON.stringify(body);
@@ -60,7 +60,7 @@ describe('ApiError', () => {
 
 describe('AuthRequiredError', () => {
   it('has correct name and message', () => {
-    const err = new AuthRequiredError();
+    const err = new AuthenticationRequiredError();
     expect(err.name).toBe('AuthRequiredError');
     expect(err.message).toBe('Authentication required');
     expect(err).toBeInstanceOf(Error);
@@ -96,8 +96,8 @@ describe('ApiClient', () => {
     });
 
     it('preserves MustChangePassword flag from response', async () => {
-      const resp = { ...tokenResponse, user: { ...tokenResponse.user, MustChangePassword: true } };
-      fetchSpy.mockResolvedValueOnce(mockResponse(200, resp));
+      const response = { ...tokenResponse, user: { ...tokenResponse.user, MustChangePassword: true } };
+      fetchSpy.mockResolvedValueOnce(mockResponse(200, response));
 
       const user = await apiClient.login('testuser', 'pass');
 
@@ -149,8 +149,8 @@ describe('ApiClient', () => {
       const logoutCall = calls.find((c) => String(c[0]).endsWith('/api/auth/session/logout'));
       expect(logoutCall, 'expected a POST to /api/auth/session/logout').toBeDefined();
       expect(logoutCall![1]?.method).toBe('POST');
-      const authHeader = (logoutCall![1]?.headers as Record<string, string> | undefined)?.Authorization;
-      expect(authHeader).toMatch(/^Bearer /);
+      const authenticationHeader = (logoutCall![1]?.headers as Record<string, string> | undefined)?.Authorization;
+      expect(authenticationHeader).toMatch(/^Bearer /);
     });
 
     it('clears local state even when Mycelium logout fails', async () => {
@@ -184,9 +184,9 @@ describe('ApiClient', () => {
 
     it('fires onAuthRequired when no token and no API key', async () => {
       const callback = vi.fn();
-      apiClient.setAuthRequiredCallback(callback);
+      apiClient.setAuthenticationRequiredCallback(callback);
 
-      await expect(apiClient.ensureToken()).rejects.toThrow(AuthRequiredError);
+      await expect(apiClient.ensureToken()).rejects.toThrow(AuthenticationRequiredError);
       expect(callback).toHaveBeenCalledTimes(1);
     });
   });
@@ -201,10 +201,10 @@ describe('ApiClient', () => {
       const streamToken = await apiClient.mintStreamToken();
 
       expect(streamToken).toBe('a-stream-token');
-      const [url, init] = fetchSpy.mock.calls[1] as [string, RequestInit];
+      const [url, requestOptions] = fetchSpy.mock.calls[1] as [string, RequestInit];
       expect(url).toContain('/api/auth/stream-token');
-      expect(init.method).toBe('POST');
-      expect((init.headers as Record<string, string>).Authorization).toBe('Bearer test-jwt-token');
+      expect(requestOptions.method).toBe('POST');
+      expect((requestOptions.headers as Record<string, string>).Authorization).toBe('Bearer test-jwt-token');
     });
 
     it('asks for a new one every time, because each is meant to go stale', async () => {
@@ -220,22 +220,22 @@ describe('ApiClient', () => {
 
     it('reports a refused mint as authentication required rather than returning nothing', async () => {
       const callback = vi.fn();
-      apiClient.setAuthRequiredCallback(callback);
+      apiClient.setAuthenticationRequiredCallback(callback);
       fetchSpy
         .mockResolvedValueOnce(mockResponse(200, tokenResponse))
         .mockResolvedValueOnce(mockResponse(401, '{"error":"Unauthorized"}'));
       await apiClient.login('testuser', 'pass');
 
-      await expect(apiClient.mintStreamToken()).rejects.toThrow(AuthRequiredError);
+      await expect(apiClient.mintStreamToken()).rejects.toThrow(AuthenticationRequiredError);
       expect(callback).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('changePassword', () => {
     it('sends password change request and clears MustChangePassword flag', async () => {
-      const loginResp = { ...tokenResponse, user: { ...tokenResponse.user, MustChangePassword: true } };
+      const loginResponse = { ...tokenResponse, user: { ...tokenResponse.user, MustChangePassword: true } };
       fetchSpy
-        .mockResolvedValueOnce(mockResponse(200, loginResp)) // login
+        .mockResolvedValueOnce(mockResponse(200, loginResponse)) // login
         .mockResolvedValueOnce(mockResponse(200, { message: 'Password changed' })); // changePassword
 
       await apiClient.login('testuser', 'pass');
@@ -273,7 +273,7 @@ describe('ApiClient', () => {
         .mockResolvedValueOnce(mockResponse(401, '{"error":"Unauthorized"}')); // changePassword
 
       await apiClient.login('testuser', 'pass');
-      await expect(apiClient.changePassword('user-1', 'newpass', 'wrong')).rejects.toThrow(AuthRequiredError);
+      await expect(apiClient.changePassword('user-1', 'newpass', 'wrong')).rejects.toThrow(AuthenticationRequiredError);
     });
   });
 
@@ -309,7 +309,7 @@ describe('ApiClient', () => {
       vi.useFakeTimers();
 
       const callback = vi.fn();
-      apiClient.setAuthRequiredCallback(callback);
+      apiClient.setAuthenticationRequiredCallback(callback);
 
       fetchSpy
         .mockResolvedValueOnce(mockResponse(200, tokenResponse)) // login
@@ -366,14 +366,14 @@ describe('ApiClient', () => {
   describe('assertOk (via get)', () => {
     it('fires onAuthRequired on 401 response', async () => {
       const callback = vi.fn();
-      apiClient.setAuthRequiredCallback(callback);
+      apiClient.setAuthenticationRequiredCallback(callback);
 
       fetchSpy
         .mockResolvedValueOnce(mockResponse(200, tokenResponse)) // login
         .mockResolvedValueOnce(mockResponse(401, '{"error":"Unauthorized"}')); // get
 
       await apiClient.login('testuser', 'pass');
-      await expect(apiClient.get('/api/things')).rejects.toThrow(AuthRequiredError);
+      await expect(apiClient.get('/api/things')).rejects.toThrow(AuthenticationRequiredError);
       expect(callback).toHaveBeenCalledTimes(1);
     });
 
@@ -389,7 +389,7 @@ describe('ApiClient', () => {
 
   describe('switchModel', () => {
     it('updates model context and schedules refresh', async () => {
-      const switchResp = {
+      const switchResponse = {
         ...tokenResponse,
         token: 'switched-token',
         model: { Id: 'model-2', Name: 'other-model' },
@@ -397,7 +397,7 @@ describe('ApiClient', () => {
 
       fetchSpy
         .mockResolvedValueOnce(mockResponse(200, tokenResponse)) // login
-        .mockResolvedValueOnce(mockResponse(200, switchResp)); // switchModel
+        .mockResolvedValueOnce(mockResponse(200, switchResponse)); // switchModel
 
       await apiClient.login('testuser', 'pass');
       const user = await apiClient.switchModel('model-2');

@@ -14,8 +14,8 @@ interface GanttRow {
   bars: GanttBar[];
 }
 
-export function Gantt({ widget, ctx }: { widget: GanttWidget; ctx: ResolveContext }) {
-  const { loading, value } = useBinding(widget.rows, ctx);
+export function Gantt({ widget, context }: { widget: GanttWidget; context: ResolveContext }) {
+  const { loading, value } = useBinding(widget.rows, context);
   const rows: GanttRow[] = Array.isArray(value) ? (value as unknown as GanttRow[]) : [];
   const now = widget.now;
 

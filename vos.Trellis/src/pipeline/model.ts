@@ -27,13 +27,13 @@ function carriesFlag(thing: VosThing, roleFlag: string): boolean {
   return thing.Properties[roleFlag] === true;
 }
 
-export interface RunInfo {
+export interface RunInformation {
   runId: string;
   status: string;
   startedUtc: string;
 }
 
-export interface PortInfo {
+export interface PortInformation {
   portName: string;
   direction: 'in' | 'out';
   type: string;
@@ -63,12 +63,12 @@ function wireMapping(properties: Record<string, unknown>) {
   };
 }
 
-export interface ConnectionInfo {
+export interface ConnectionInformation {
   connectionId: string;
   name: string;
   subdomain: string;
   serviceId: string;
-  ports: PortInfo[];
+  ports: PortInformation[];
 }
 
 export class PipelineModel {
@@ -82,16 +82,16 @@ export class PipelineModel {
   private readonly usedAsPredicate: Set<string>;
   private readonly roleCache = new Map<string, boolean>();
 
-  constructor(things: VosThing[], rels: VosRelationship[]) {
+  constructor(things: VosThing[], relationships: VosRelationship[]) {
     this.things = things;
     this.byId = new Map(things.map((t) => [t.Id, t]));
     this.bySubject = new Map();
     this.usedAsPredicate = new Set();
-    for (const rel of rels) {
-      const arr = this.bySubject.get(rel.SubjectId);
-      if (arr) arr.push(rel);
-      else this.bySubject.set(rel.SubjectId, [rel]);
-      this.usedAsPredicate.add(rel.PredicateId);
+    for (const relationship of relationships) {
+      const arr = this.bySubject.get(relationship.SubjectId);
+      if (arr) arr.push(relationship);
+      else this.bySubject.set(relationship.SubjectId, [relationship]);
+      this.usedAsPredicate.add(relationship.PredicateId);
     }
   }
 
@@ -101,13 +101,13 @@ export class PipelineModel {
 
   /** Targets reached from `subjectId` via a predicate matched by name (the built-in is/has). */
   outgoing(subjectId: string, predicateName: string): VosThing[] {
-    const rels = this.bySubject.get(subjectId);
-    if (!rels) return [];
+    const relationships = this.bySubject.get(subjectId);
+    if (!relationships) return [];
     const pn = predicateName.toLowerCase();
     const out: VosThing[] = [];
-    for (const rel of rels) {
-      if (this.byId.get(rel.PredicateId)?.Name.toLowerCase() === pn) {
-        const t = this.byId.get(rel.TargetId);
+    for (const relationship of relationships) {
+      if (this.byId.get(relationship.PredicateId)?.Name.toLowerCase() === pn) {
+        const t = this.byId.get(relationship.TargetId);
         if (t) out.push(t);
       }
     }
@@ -135,8 +135,8 @@ export class PipelineModel {
     return false;
   }
 
-  resolvePorts(serviceId: string): PortInfo[] {
-    const ports: PortInfo[] = [];
+  resolvePorts(serviceId: string): PortInformation[] {
+    const ports: PortInformation[] = [];
     const seen = new Set<string>();
     const stack = [serviceId];
     while (stack.length) {
@@ -151,7 +151,7 @@ export class PipelineModel {
     return ports;
   }
 
-  private toPort(t: VosThing): PortInfo {
+  private toPort(t: VosThing): PortInformation {
     const p = t.Properties;
     return {
       portName: String(p.portName ?? t.Name),
@@ -170,15 +170,15 @@ export class PipelineModel {
 
   /** A boundary node's own declared port child-Things, each with its Thing id — the save-diff needs the id
    * to update a port in place or retract a removed one. Ports are declared directly on the node. */
-  boundaryPortRels(nodeId: string): { portId: string; port: PortInfo }[] {
+  boundaryPortRelationships(nodeId: string): { portId: string; port: PortInformation }[] {
     return this.outgoing(nodeId, 'has')
       .filter((t) => this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.Port))
       .map((t) => ({ portId: t.Id, port: this.toPort(t) }));
   }
 
   /** Every dispatchable connection (carries a Subdomain and binds a service) — the editor palette. */
-  connections(): ConnectionInfo[] {
-    const result: ConnectionInfo[] = [];
+  connections(): ConnectionInformation[] {
+    const result: ConnectionInformation[] = [];
     for (const t of this.things) {
       if (!this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.Connection)) continue;
       const subdomain = t.Properties.Subdomain;
@@ -200,18 +200,18 @@ export class PipelineModel {
    * the optional field-paths. `wireId` is what the save edits and removes the wire through, and
    * `shape` says which call that is: a relationship for a wire drawn as a relationship, a Thing for one held. */
   outgoingWires(subjectId: string): WireRead[] {
-    const rels = this.bySubject.get(subjectId);
-    if (!rels) return [];
+    const relationships = this.bySubject.get(subjectId);
+    if (!relationships) return [];
     const out: WireRead[] = [];
-    for (const rel of rels) {
+    for (const relationship of relationships) {
       // Drawn as a relationship: the predicate is of the wire archetype and the relationship carries the mapping.
-      if (this.isOfArchetypeCarrying(rel.PredicateId, ARCHETYPE_FLAG.PipelineWire)) {
-        out.push({ wireId: rel.Id, shape: 'edge', targetId: rel.TargetId, ...wireMapping(rel.Properties) });
+      if (this.isOfArchetypeCarrying(relationship.PredicateId, ARCHETYPE_FLAG.PipelineWire)) {
+        out.push({ wireId: relationship.Id, shape: 'edge', targetId: relationship.TargetId, ...wireMapping(relationship.Properties) });
         continue;
       }
       // Held as a Thing: the node `has` a Thing of the wire archetype, and that Thing points at the node
       // the wire carries into. A wire pointing at nothing that is a node is half-drawn and is skipped.
-      const held = this.byId.get(rel.TargetId);
+      const held = this.byId.get(relationship.TargetId);
       if (!held || !this.isOfArchetypeCarrying(held.Id, ARCHETYPE_FLAG.PipelineWire)) continue;
       const target = (this.bySubject.get(held.Id) ?? [])
         .map((r) => r.TargetId)
@@ -249,10 +249,10 @@ export class PipelineModel {
    * node's AGGREGATE record (no `index`) drives the ring; per-item fan-out records are counted separately. */
   nodeRunStatuses(runId: string): Record<string, string> {
     const out: Record<string, string> = {};
-    for (const nr of this.outgoing(runId, 'has')) {
-      if (nr.Properties.index !== undefined) continue; // per-item fan-out record — see nodeRunProgress
-      const nodeId = nr.Properties.nodeId;
-      if (typeof nodeId === 'string' && nodeId) out[nodeId] = String(nr.Properties.status ?? '');
+    for (const nodeRun of this.outgoing(runId, 'has')) {
+      if (nodeRun.Properties.index !== undefined) continue; // per-item fan-out record — see nodeRunProgress
+      const nodeId = nodeRun.Properties.nodeId;
+      if (typeof nodeId === 'string' && nodeId) out[nodeId] = String(nodeRun.Properties.status ?? '');
     }
     return out;
   }
@@ -261,13 +261,13 @@ export class PipelineModel {
    * reached a terminal status out of the total. Empty for non-fan-out nodes. */
   nodeRunProgress(runId: string): Record<string, { done: number; total: number }> {
     const out: Record<string, { done: number; total: number }> = {};
-    for (const nr of this.outgoing(runId, 'has')) {
-      if (nr.Properties.index === undefined) continue; // aggregate record
-      const nodeId = nr.Properties.nodeId;
+    for (const nodeRun of this.outgoing(runId, 'has')) {
+      if (nodeRun.Properties.index === undefined) continue; // aggregate record
+      const nodeId = nodeRun.Properties.nodeId;
       if (typeof nodeId !== 'string' || !nodeId) continue;
       const entry = out[nodeId] ?? { done: 0, total: 0 };
-      entry.total = Math.max(entry.total, Number(nr.Properties.total ?? 0));
-      if (String(nr.Properties.status ?? '') !== 'running') entry.done += 1;
+      entry.total = Math.max(entry.total, Number(nodeRun.Properties.total ?? 0));
+      if (String(nodeRun.Properties.status ?? '') !== 'running') entry.done += 1;
       out[nodeId] = entry;
     }
     return out;
@@ -279,8 +279,8 @@ export class PipelineModel {
   }
 
   /** Past + in-flight runs of a pipeline (a run Thing `of` the pipeline), newest first — the history panel. */
-  runsOf(pipelineId: string): RunInfo[] {
-    const runs: RunInfo[] = [];
+  runsOf(pipelineId: string): RunInformation[] {
+    const runs: RunInformation[] = [];
     for (const t of this.things) {
       if (!this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.PipelineRun)) continue;
       if (!this.outgoing(t.Id, 'of').some((p) => p.Id === pipelineId)) continue;

@@ -3,8 +3,8 @@ import { render, screen, fireEvent } from '@testing-library/react';
 
 const logout = vi.fn();
 const switchModel = vi.fn();
-vi.mock('../../hooks/useAuth', () => ({
-  useAuth: () => ({ logout, switchModel }),
+vi.mock('../../hooks/useAuthentication', () => ({
+  useAuthentication: () => ({ logout, switchModel }),
 }));
 
 import { SessionControls } from './SessionControls';

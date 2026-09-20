@@ -249,24 +249,24 @@ function RelationshipMutationsPanel() {
   const things = useModelStore((s) => s.things);
   const thingNames = useMemo(() => new Map(things.map((thing) => [thing.Id, thing.Name])), [things]);
   const [relationships, setRelationships] = useState<VosRelationship[]>([]);
-  const [relId, setRelId] = useState('');
+  const [relationshipId, setRelationshipId] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [mutations, setMutations] = useState<RelationshipMutations | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const loadRels = useCallback(async () => {
+  const loadRelationships = useCallback(async () => {
     try { setRelationships(await relationshipApi.getAll()); } catch { /* ignore */ }
   }, []);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- every state write in the loader is after an await, so nothing is set while the effect runs; the rule does not model that boundary
-  useEffect(() => { loadRels(); }, [loadRels]);
+  useEffect(() => { loadRelationships(); }, [loadRelationships]);
 
   const loadMutations = async () => {
-    if (!relId) return;
+    if (!relationshipId) return;
     setLoading(true);
     try {
-      const data = await temporalApi.getRelationshipMutations(relId, startTime || undefined, endTime || undefined);
+      const data = await temporalApi.getRelationshipMutations(relationshipId, startTime || undefined, endTime || undefined);
       setMutations(data);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('temporal.toast.loadRelationshipMutationsFailed'));
@@ -275,7 +275,7 @@ function RelationshipMutationsPanel() {
     }
   };
 
-  const selectedRel = relationships.find((r) => r.Id === relId);
+  const selectedRelationship = relationships.find((r) => r.Id === relationshipId);
 
   return (
     <div className="max-w-3xl space-y-4">
@@ -285,8 +285,8 @@ function RelationshipMutationsPanel() {
       <div>
         <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.relationship')}</label>
         <select
-          value={relId}
-          onChange={(e) => { setRelId(e.target.value); setMutations(null); }}
+          value={relationshipId}
+          onChange={(e) => { setRelationshipId(e.target.value); setMutations(null); }}
           className="w-full px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">{t('temporal.selectRelationship')}</option>
@@ -306,7 +306,7 @@ function RelationshipMutationsPanel() {
           <input type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)}
             className="px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
-        <button onClick={loadMutations} disabled={loading || !relId}
+        <button onClick={loadMutations} disabled={loading || !relationshipId}
           className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
           {loading ? t('common.loading') : t('common.query')}
         </button>
@@ -316,7 +316,7 @@ function RelationshipMutationsPanel() {
         <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
           <div className="flex justify-between text-sm mb-3">
             <span className="text-zinc-500">
-              <strong className="text-zinc-200">{mutations.RelationshipName || selectedRel?.Name}</strong> — {t('temporal.mutationCount', { count: mutations.Mutations.length })}
+              <strong className="text-zinc-200">{mutations.RelationshipName || selectedRelationship?.Name}</strong> — {t('temporal.mutationCount', { count: mutations.Mutations.length })}
             </span>
             <span className="text-zinc-500 text-xs">
               {formatDateTime(mutations.StartTime)} — {formatDateTime(mutations.EndTime)}

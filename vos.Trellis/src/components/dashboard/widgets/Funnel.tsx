@@ -16,16 +16,16 @@ const STAGE_COLUMN: TableColumn = { key: '__stage', label: 'Stage', render: 'bad
  *  stage selected — searches across every stage's rows at once. */
 export function Funnel({
   widget,
-  ctx,
+  context,
   openDetail,
 }: {
   widget: FunnelWidget;
-  ctx: ResolveContext;
+  context: ResolveContext;
   openDetail?: (thingId: string) => void;
 }) {
   const counts = useBindings(
     widget.stages.map((s) => s.count),
-    ctx,
+    context,
   );
   const [drill, setDrill] = useState<number | null>(null);
   const [query, setQuery] = useState('');
@@ -41,7 +41,7 @@ export function Funnel({
 
   // Cross-stage search resolves every stage's drill rows and merges them; only fetched
   // while a cross-stage search is active (empty bindings array otherwise → no calls).
-  const allDrills = useBindings(searchAllStages ? widget.stages.map((s) => s.drill) : [], ctx);
+  const allDrills = useBindings(searchAllStages ? widget.stages.map((s) => s.drill) : [], context);
   const mergedRows = useMemo(() => {
     if (!searchAllStages) return [];
     const byId = new Map<string, Row>();
@@ -122,7 +122,7 @@ export function Funnel({
           <DataTable
             columns={[STAGE_COLUMN, ...(widget.drillColumns ?? [{ key: 'name', label: 'Thing', render: 'id' }])]}
             rows={mergedRows}
-            ctx={ctx}
+            context={context}
             query={query}
             searchKeys={widget.searchKeys}
             onRowClick={onRowClick}
@@ -148,7 +148,7 @@ export function Funnel({
           <DataTable
             columns={widget.drillColumns ?? [{ key: 'name', label: 'Thing', render: 'id' }]}
             rowsBinding={active.drill}
-            ctx={ctx}
+            context={context}
             query={widget.searchable ? query : undefined}
             searchKeys={widget.searchKeys}
             onRowClick={onRowClick}

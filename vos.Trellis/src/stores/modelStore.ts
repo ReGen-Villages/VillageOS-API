@@ -135,12 +135,12 @@ export const useModelStore = create<ModelState>((set) => ({
       next.things = thingsById.asArray();
     }
 
-    const touchRels =
+    const touchRelationships =
       batch.relationshipUpserts?.length ||
       batch.relationshipRemovals?.length ||
       batch.relationshipPropertyUpdates?.length ||
       batch.relationshipPropertyRemovals?.length;
-    if (touchRels) {
+    if (touchRelationships) {
       const map = relationshipsById.forThe(s.relationships);
       for (const id of batch.relationshipRemovals ?? []) map.delete(id);
       for (const r of batch.relationshipUpserts ?? []) map.set(r.Id, r);

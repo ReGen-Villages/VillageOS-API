@@ -41,10 +41,10 @@ interface Props {
 export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSelectNode, onDeleteProperty, onDeleteThing, onRenamed, statesVersion }: Props) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<'properties' | 'relationships' | 'ranges' | '3d'>('ranges');
-  const [effectiveProps, setEffectiveProps] = useState<Record<string, EffectiveProperty> | null>(null);
+  const [effectiveProperties, setEffectiveProperties] = useState<Record<string, EffectiveProperty> | null>(null);
   const [expandedValue, setExpandedValue] = useState<{ name: string; value: string } | null>(null);
   const [editMode, setEditMode] = useState(false);
-  const [relEditMode, setRelEditMode] = useState(false);
+  const [relationshipEditMode, setRelationshipEditMode] = useState(false);
 
   const selectEdge = useUiStore((s) => s.selectEdge);
   const classifyingProperty = useUiStore((s) => s.layoutSettings.classifyingProperty);
@@ -64,11 +64,11 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
     if (spatialPredicateIds.size === 0) return [];
 
     const children: ChildElement[] = [];
-    for (const rel of relationships) {
-      if (rel.SubjectId !== thing.Id) continue;
-      if (!spatialPredicateIds.has(rel.PredicateId)) continue;
+    for (const relationship of relationships) {
+      if (relationship.SubjectId !== thing.Id) continue;
+      if (!spatialPredicateIds.has(relationship.PredicateId)) continue;
 
-      const child = allThings.get(rel.TargetId);
+      const child = allThings.get(relationship.TargetId);
       if (!child?.Properties?.geometry) continue;
 
       children.push({
@@ -87,37 +87,37 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
   const outgoing = relationships.filter((r) => r.SubjectId === thing.Id);
   const incoming = relationships.filter((r) => r.TargetId === thing.Id);
 
-  const { rangesData, statesData, rangesLoading, relRangesEntries, refresh: refreshRanges } = useNodeRangesData(
+  const { rangesData, statesData, rangesLoading, relationshipRangesEntries, refresh: refreshRanges } = useNodeRangesData(
     thing.Id, tab, statesVersion,
   );
 
-  const [propsVersion, setPropsVersion] = useState(0);
+  const [propertiesVersion, setPropertiesVersion] = useState(0);
   const ownProperties = thing.Properties ? Object.entries(thing.Properties) : [];
   const ownPropertyCount = ownProperties.length;
-  const props = withDeclaredTypes(ownProperties, effectiveProps);
+  const props = withDeclaredTypes(ownProperties, effectiveProperties);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const ep = await thingApi.getEffectiveProperties(thing.Id);
-        if (!cancelled) setEffectiveProps(ep);
+        const effectiveProperty = await thingApi.getEffectiveProperties(thing.Id);
+        if (!cancelled) setEffectiveProperties(effectiveProperty);
       } catch {
-        if (!cancelled) setEffectiveProps(null);
+        if (!cancelled) setEffectiveProperties(null);
       }
     })();
     return () => { cancelled = true; };
-  }, [thing.Id, propsVersion]);
+  }, [thing.Id, propertiesVersion]);
 
   const handlePropertySaved = () => {
-    setPropsVersion((v) => v + 1);
+    setPropertiesVersion((v) => v + 1);
   };
 
   const handleExpandValue = (name: string, value: string) => setExpandedValue({ name, value });
 
   const copyId = () => {
     navigator.clipboard.writeText(thing.Id);
-    toast.info(t('panels.node.idCopied'));
+    toast.information(t('panels.node.idCopied'));
   };
 
   return (
@@ -178,7 +178,7 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
                 <h4 className="text-xs font-semibold text-zinc-500">{t('panels.node.own', { count: ownPropertyCount })}</h4>
                 <button
                   onClick={() => setEditMode((v) => !v)}
-                  disabled={!effectiveProps}
+                  disabled={!effectiveProperties}
                   className={`p-0.5 rounded transition-colors disabled:opacity-30 disabled:cursor-default ${
                     editMode
                       ? 'text-blue-400 bg-blue-500/20 hover:bg-blue-500/30'
@@ -200,8 +200,8 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
               />
             </div>
 
-            {effectiveProps && <InheritedPropertiesSection
-              effectiveProps={effectiveProps}
+            {effectiveProperties && <InheritedPropertiesSection
+              effectiveProperties={effectiveProperties}
               allThings={allThings}
               onSelectNode={onSelectNode}
               onExpandValue={handleExpandValue}
@@ -216,13 +216,13 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
           <div className="space-y-3">
             <div className="flex items-center justify-end">
               <button
-                onClick={() => setRelEditMode((v) => !v)}
+                onClick={() => setRelationshipEditMode((v) => !v)}
                 className={`p-0.5 rounded transition-colors ${
-                  relEditMode
+                  relationshipEditMode
                     ? 'text-blue-400 bg-blue-500/20 hover:bg-blue-500/30'
                     : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
                 }`}
-                title={relEditMode ? t('panels.node.exitEditMode') : t('panels.node.editRelationshipProperties')}
+                title={relationshipEditMode ? t('panels.node.exitEditMode') : t('panels.node.editRelationshipProperties')}
               >
                 <Pencil size={12} />
               </button>
@@ -234,9 +234,9 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
               hasGeometry={hasGeometry}
               onSelectNode={onSelectNode}
             />
-            <RelationshipList relationships={outgoing} direction="outgoing" allThings={allThings} onSelectNode={onSelectNode} onSelectEdge={selectEdge} editMode={relEditMode} fixedThingId={thing.Id} allRelationships={relationships} />
-            <RelationshipList relationships={incoming} direction="incoming" allThings={allThings} onSelectNode={onSelectNode} onSelectEdge={selectEdge} editMode={relEditMode} fixedThingId={thing.Id} allRelationships={relationships} />
-            {relEditMode && (
+            <RelationshipList relationships={outgoing} direction="outgoing" allThings={allThings} onSelectNode={onSelectNode} onSelectEdge={selectEdge} editMode={relationshipEditMode} fixedThingId={thing.Id} allRelationships={relationships} />
+            <RelationshipList relationships={incoming} direction="incoming" allThings={allThings} onSelectNode={onSelectNode} onSelectEdge={selectEdge} editMode={relationshipEditMode} fixedThingId={thing.Id} allRelationships={relationships} />
+            {relationshipEditMode && (
               <RetypeRow thingId={thing.Id} things={[...allThings.values()]} relationships={relationships} />
             )}
           </div>
@@ -249,7 +249,7 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
               statesData={statesData}
               loading={rangesLoading}
               onSelectNode={onSelectNode}
-              relationshipRanges={relRangesEntries}
+              relationshipRanges={relationshipRangesEntries}
               entityId={thing.Id}
               editable
               onRangeChanged={refreshRanges}
@@ -283,7 +283,7 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
               <button
                 onClick={() => {
                   navigator.clipboard.writeText(expandedValue.value);
-                  toast.info(t('panels.node.valueCopied'));
+                  toast.information(t('panels.node.valueCopied'));
                 }}
                 className="text-zinc-400 hover:text-zinc-200 p-1"
                 title={t('panels.node.copyValue')}
@@ -357,8 +357,8 @@ function CollapsiblePropertyGroup({ label, count, onNavigate, expanded, onToggle
   );
 }
 
-function InheritedPropertiesSection({ effectiveProps, allThings, onSelectNode, onExpandValue, editMode, entityId, onSaved }: {
-  effectiveProps: Record<string, EffectiveProperty>;
+function InheritedPropertiesSection({ effectiveProperties, allThings, onSelectNode, onExpandValue, editMode, entityId, onSaved }: {
+  effectiveProperties: Record<string, EffectiveProperty>;
   allThings: Map<string, VosThing>;
   onSelectNode: (id: string) => void;
   onExpandValue: (name: string, value: string) => void;
@@ -371,20 +371,20 @@ function InheritedPropertiesSection({ effectiveProps, allThings, onSelectNode, o
   // Every property resolved through an "is" chain is inherited, whether or not this thing overrode it.
   // The backend tags each effective property with its provenance; own properties are excluded here and
   // shown in the Own section above.
-  const inherited = Object.entries(effectiveProps).filter(([, ep]) => ep.IsInherited);
+  const inherited = Object.entries(effectiveProperties).filter(([, effectiveProperty]) => effectiveProperty.IsInherited);
   if (inherited.length === 0) return null;
 
   const bySource = new Map<string, { name: string; props: EditableProperty[] }>();
-  for (const [name, ep] of inherited) {
-    const sourceId = ep.InheritedFrom || 'unknown';
+  for (const [name, effectiveProperty] of inherited) {
+    const sourceId = effectiveProperty.InheritedFrom || 'unknown';
     if (!bySource.has(sourceId)) {
       bySource.set(sourceId, { name: allThings.get(sourceId)?.Name || formatGuid(sourceId), props: [] });
     }
-    bySource.get(sourceId)!.props.push({ name, value: ep.Value, type: ep.Type });
+    bySource.get(sourceId)!.props.push({ name, value: effectiveProperty.Value, type: effectiveProperty.Type });
   }
 
-  const toggleSource = (id: string) => setExpandedSources((prev) => {
-    const next = new Set(prev);
+  const toggleSource = (id: string) => setExpandedSources((previous) => {
+    const next = new Set(previous);
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
   });

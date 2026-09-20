@@ -33,10 +33,10 @@ export function GraphToolbar() {
     // Jitter positions to force the layout to re-settle.
     const graph = sigma.getGraph();
     graph.forEachNode((node) => {
-      const attrs = graph.getNodeAttributes(node);
-      if (!attrs.hasGeometry) {
-        graph.setNodeAttribute(node, 'x', attrs.x + (Math.random() - 0.5) * 50);
-        graph.setNodeAttribute(node, 'y', attrs.y + (Math.random() - 0.5) * 50);
+      const attributes = graph.getNodeAttributes(node);
+      if (!attributes.hasGeometry) {
+        graph.setNodeAttribute(node, 'x', attributes.x + (Math.random() - 0.5) * 50);
+        graph.setNodeAttribute(node, 'y', attributes.y + (Math.random() - 0.5) * 50);
       }
     });
     sigma.refresh();

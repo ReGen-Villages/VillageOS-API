@@ -14,13 +14,13 @@ const LATER = '2026-09-02T09:00:00.000Z';
 function thing(Id: string, Name: string, IsArchetype = false): VosThing {
   return { Id, Name, Properties: {}, IsArchetype };
 }
-function rel(Id: string, SubjectId: string, PredicateId: string, TargetId: string): VosRelationship {
+function relationship(Id: string, SubjectId: string, PredicateId: string, TargetId: string): VosRelationship {
   return { Id, SubjectId, PredicateId, TargetId, Properties: {} };
 }
 
 const live = buildModelIndex(
   [thing('is', 'is'), thing('spring', 'Spring', true), thing('hot', 'Hot spring', true), thing('s1', 'SPRING-1')],
-  [rel('i1', 'hot', 'is', 'spring'), rel('i2', 's1', 'is', 'hot')],
+  [relationship('i1', 'hot', 'is', 'spring'), relationship('i2', 's1', 'is', 'hot')],
 );
 
 const stood: TemporalSnapshot = {

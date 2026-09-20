@@ -13,16 +13,16 @@ export async function fetchFullLog(service?: string): Promise<{ blob: Blob; file
   const token = await apiClient.ensureToken();
   const query = service ? `?service=${encodeURIComponent(service)}` : '';
 
-  const resp = await fetch(`${BASE_URL}/api/logs/download${query}`, {
+  const response = await fetch(`${BASE_URL}/api/logs/download${query}`, {
     headers: { Authorization: `Bearer ${token}` },
     credentials: 'include',
   });
-  if (!resp.ok) throw new ApiError(resp.status, await resp.text());
+  if (!response.ok) throw new ApiError(response.status, await response.text());
 
   return {
-    blob: await resp.blob(),
+    blob: await response.blob(),
     fileName: fileNameFromContentDisposition(
-      resp.headers.get('Content-Disposition'),
+      response.headers.get('Content-Disposition'),
       fullLogFallbackName(service),
     ),
   };

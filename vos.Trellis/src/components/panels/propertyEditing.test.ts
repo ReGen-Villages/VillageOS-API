@@ -38,37 +38,37 @@ describe('editorForType', () => {
 describe('rejectionKeyForType', () => {
   it('refuses a fraction in a whole-number property', () => {
     // The platform would convert it and drop the fractional part — a quiet wrong answer.
-    expect(rejectionKeyForType('3.7', 'vos.Integer')).toBe('panels.props.rejected.wholeNumber');
+    expect(rejectionKeyForType('3.7', 'vos.Integer')).toBe('panels.properties.rejected.wholeNumber');
     expect(rejectionKeyForType('3', 'vos.Integer')).toBeNull();
     expect(rejectionKeyForType('-3', 'vos.LongInteger')).toBeNull();
   });
 
   it('refuses letters in a numeric property', () => {
-    expect(rejectionKeyForType('twelve', 'vos.Double')).toBe('panels.props.rejected.number');
+    expect(rejectionKeyForType('twelve', 'vos.Double')).toBe('panels.properties.rejected.number');
     expect(rejectionKeyForType('12.5', 'vos.Double')).toBeNull();
     expect(rejectionKeyForType('-0.25', 'vos.Decimal')).toBeNull();
   });
 
   it('refuses text that is not a date', () => {
-    expect(rejectionKeyForType('next tuesday', 'vos.DateTime')).toBe('panels.props.rejected.dateTime');
+    expect(rejectionKeyForType('next tuesday', 'vos.DateTime')).toBe('panels.properties.rejected.dateTime');
     expect(rejectionKeyForType('2026-08-05T09:20:14Z', 'vos.DateTime')).toBeNull();
   });
 
   it('refuses text that is not an identifier', () => {
-    expect(rejectionKeyForType('nope', 'vos.Guid')).toBe('panels.props.rejected.identifier');
+    expect(rejectionKeyForType('nope', 'vos.Guid')).toBe('panels.properties.rejected.identifier');
     expect(rejectionKeyForType('905abcab-913a-5941-a3e8-a24570de383a', 'vos.Guid')).toBeNull();
   });
 
   it('refuses anything for a type with no inline control', () => {
-    expect(rejectionKeyForType('{}', 'vos.GeoJson')).toBe('panels.props.rejected.readOnly');
+    expect(rejectionKeyForType('{}', 'vos.GeoJson')).toBe('panels.properties.rejected.readOnly');
   });
 
   // Clearing a property is what the delete button is for. An empty numeric field is a half-finished
   // edit, not an instruction to store nothing.
   it('refuses empty text for every type but text', () => {
-    expect(rejectionKeyForType('', 'vos.Integer')).toBe('panels.props.rejected.wholeNumber');
-    expect(rejectionKeyForType('   ', 'vos.Double')).toBe('panels.props.rejected.number');
-    expect(rejectionKeyForType('', 'vos.DateTime')).toBe('panels.props.rejected.dateTime');
+    expect(rejectionKeyForType('', 'vos.Integer')).toBe('panels.properties.rejected.wholeNumber');
+    expect(rejectionKeyForType('   ', 'vos.Double')).toBe('panels.properties.rejected.number');
+    expect(rejectionKeyForType('', 'vos.DateTime')).toBe('panels.properties.rejected.dateTime');
     expect(rejectionKeyForType('', 'vos.String')).toBeNull();
   });
 
@@ -80,6 +80,6 @@ describe('rejectionKeyForType', () => {
   it('takes only the two words for true/false', () => {
     expect(rejectionKeyForType('true', 'vos.Boolean')).toBeNull();
     expect(rejectionKeyForType('false', 'vos.Boolean')).toBeNull();
-    expect(rejectionKeyForType('yes', 'vos.Boolean')).toBe('panels.props.rejected.boolean');
+    expect(rejectionKeyForType('yes', 'vos.Boolean')).toBe('panels.properties.rejected.boolean');
   });
 });

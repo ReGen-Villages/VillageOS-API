@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { directionFor } from './i18n/languages';
 import { AppLayout } from './components/layout/AppLayout';
-import { AuthContext, useAuthState, useAuth } from './hooks/useAuth';
+import { AuthenticationContext, useAuthenticationState, useAuthentication } from './hooks/useAuthentication';
 import { LoginForm } from './components/auth/LoginForm';
 import { ChangePasswordForm } from './components/auth/ChangePasswordForm';
 import { useModelData } from './hooks/useModelData';
@@ -30,7 +30,7 @@ function AuthenticatedApp() {
   useModelData();
   // Per-model UI state (e.g. type filter) keys its localStorage entry off
   // the active modelId.
-  const { modelId, user } = useAuth();
+  const { modelId, user } = useAuthentication();
   const setCurrentModelId = useUiStore((s) => s.setCurrentModelId);
   useEffect(() => {
     setCurrentModelId(modelId);
@@ -68,7 +68,7 @@ function AuthenticatedApp() {
 }
 
 export default function App() {
-  const auth = useAuthState();
+  const authentication = useAuthenticationState();
   const theme = useThemeStore((s) => s.theme);
   const { i18n } = useTranslation();
 
@@ -88,34 +88,34 @@ export default function App() {
 
   useEffect(() => attachThemeMediaListener(), []);
 
-  if (!auth.isAuthenticated || auth.availableModels) {
+  if (!authentication.isAuthenticated || authentication.availableModels) {
     return (
       <LoginForm
-        onLogin={auth.login}
-        onSelectModel={auth.selectModel}
-        onSaveSeed={auth.saveSeed}
-        error={auth.error}
-        loading={auth.loading}
-        availableModels={auth.availableModels}
-        startupProgress={auth.startupProgress}
+        onLogin={authentication.login}
+        onSelectModel={authentication.selectModel}
+        onSaveSeed={authentication.saveSeed}
+        error={authentication.error}
+        loading={authentication.loading}
+        availableModels={authentication.availableModels}
+        startupProgress={authentication.startupProgress}
       />
     );
   }
 
-  if (auth.mustChangePassword) {
+  if (authentication.mustChangePassword) {
     return (
       <ChangePasswordForm
-        onChangePassword={auth.changePassword}
-        error={auth.error}
-        loading={auth.loading}
-        username={auth.user?.Username ?? ''}
+        onChangePassword={authentication.changePassword}
+        error={authentication.error}
+        loading={authentication.loading}
+        username={authentication.user?.Username ?? ''}
       />
     );
   }
 
   return (
-    <AuthContext.Provider value={auth}>
+    <AuthenticationContext.Provider value={authentication}>
       <AuthenticatedApp />
-    </AuthContext.Provider>
+    </AuthenticationContext.Provider>
   );
 }

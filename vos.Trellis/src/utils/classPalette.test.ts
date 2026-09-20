@@ -32,8 +32,8 @@ describe('getClassBucket (Feature #5340 — generic, property-name-keyed)', () =
       ['IfcMaterialConstituent', 'material'],
       ['IfcMaterialProfile', 'material'],
       ['IfcMaterialLayerSetUsage', 'material'],
-    ])('routes %s to bucket %s', (cls, bucket) => {
-      expect(getClassBucket('ifcClass', cls)).toBe(bucket);
+    ])('routes %s to bucket %s', (ifcClass, bucket) => {
+      expect(getClassBucket('ifcClass', ifcClass)).toBe(bucket);
     });
   });
 
@@ -45,8 +45,8 @@ describe('getClassBucket (Feature #5340 — generic, property-name-keyed)', () =
       'IfcDistributionPortType',
       'IfcCoveringType',
       'IfcFurnishingElementType',
-    ])('routes %s to typeDef via suffix match', (cls) => {
-      expect(getClassBucket('ifcClass', cls)).toBe('typeDef');
+    ])('routes %s to typeDef via suffix match', (ifcClass) => {
+      expect(getClassBucket('ifcClass', ifcClass)).toBe('typeDef');
     });
 
     it('does not match arbitrary *Type strings without the Ifc prefix', () => {

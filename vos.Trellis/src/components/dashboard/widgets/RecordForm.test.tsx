@@ -39,7 +39,7 @@ const ADD_ACCOUNT: FormWidget = {
 
 const mockPost = vi.fn();
 const mockWrote = vi.fn();
-const ctx = {
+const context = {
   reads: { fromService: (endpoint: string, body: unknown) => mockPost(endpoint, body) },
   wrote: () => mockWrote(),
 } as unknown as ResolveContext;
@@ -58,7 +58,7 @@ describe('RecordForm', () => {
 
   it('tells the page a press was taken, and nothing of one refused', async () => {
     mockPost.mockResolvedValueOnce({ error: 'SPRING-1 is dry this month' });
-    render(<RecordForm widget={BOOK} ctx={ctx} />);
+    render(<RecordForm widget={BOOK} context={context} />);
     fill();
     fireEvent.click(screen.getByRole('button', { name: 'Book' }));
     await screen.findByText('SPRING-1 is dry this month');
@@ -71,7 +71,7 @@ describe('RecordForm', () => {
 
   it('draws a secret field masked, and posts to a platform route as written', async () => {
     mockPost.mockResolvedValue({ said: 'Added ada' });
-    render(<RecordForm widget={ADD_ACCOUNT} ctx={ctx} />);
+    render(<RecordForm widget={ADD_ACCOUNT} context={context} />);
     const password = screen.getByLabelText('First password') as HTMLInputElement;
     expect(password.type).toBe('password');
 
@@ -83,14 +83,14 @@ describe('RecordForm', () => {
   });
 
   it('offers the Things a choice field lists by name, with nothing chosen yet, and waits for every required field', () => {
-    render(<RecordForm widget={BOOK} ctx={ctx} />);
+    render(<RecordForm widget={BOOK} context={context} />);
     expect(screen.getByRole('option', { name: 'SPRING-2' })).toBeInTheDocument();
     expect((screen.getByLabelText('Spring') as HTMLSelectElement).value).toBe('');
     expect(screen.getByRole('button', { name: 'Book' })).toBeDisabled();
   });
 
   it('posts the act and the filled fields to the endpoint the spec names, and nothing naming who asked', async () => {
-    render(<RecordForm widget={BOOK} ctx={ctx} />);
+    render(<RecordForm widget={BOOK} context={context} />);
     fill();
     fireEvent.click(screen.getByRole('button', { name: 'Book' }));
 
@@ -99,7 +99,7 @@ describe('RecordForm', () => {
 
   it('shows a refusal in the words the endpoint used and keeps what was typed', async () => {
     mockPost.mockRejectedValueOnce(new ApiError(400, JSON.stringify({ error: 'SPRING-1 is dry this month' })));
-    render(<RecordForm widget={BOOK} ctx={ctx} />);
+    render(<RecordForm widget={BOOK} context={context} />);
     fill();
     fireEvent.click(screen.getByRole('button', { name: 'Book' }));
 
@@ -108,7 +108,7 @@ describe('RecordForm', () => {
   });
 
   it('says what the endpoint said once it has taken the press, and clears the form', async () => {
-    render(<RecordForm widget={BOOK} ctx={ctx} />);
+    render(<RecordForm widget={BOOK} context={context} />);
     fill();
     fireEvent.click(screen.getByRole('button', { name: 'Book' }));
 
@@ -118,7 +118,7 @@ describe('RecordForm', () => {
 
   it('posts what is filled so far under the preview act, before every required field is given', async () => {
     mockPost.mockResolvedValueOnce({ said: 'Covers the north ridge' });
-    render(<RecordForm widget={BOOK} ctx={ctx} />);
+    render(<RecordForm widget={BOOK} context={context} />);
     fireEvent.change(screen.getByLabelText('Spring'), { target: { value: 'SPRING-1' } });
     fireEvent.click(screen.getByRole('button', { name: 'What this covers' }));
 
@@ -137,7 +137,7 @@ describe('RecordForm', () => {
       fields: [{ key: 'readers', label: 'Readers', kind: 'multichoice', options: { kind: 'thingList', archetype: 'Person' }, shows: ['role'] }],
       preview: undefined,
     };
-    render(<RecordForm widget={invites} ctx={ctx} />);
+    render(<RecordForm widget={invites} context={context} />);
     expect(screen.getByRole('option', { name: 'Ada · reader' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Mary' })).toBeInTheDocument();
 
@@ -150,7 +150,7 @@ describe('RecordForm', () => {
   });
 
   it('shows no preview at all where the spec names none', () => {
-    render(<RecordForm widget={{ ...BOOK, preview: undefined }} ctx={ctx} />);
+    render(<RecordForm widget={{ ...BOOK, preview: undefined }} context={context} />);
     expect(screen.queryByRole('button', { name: 'What this covers' })).toBeNull();
   });
 });

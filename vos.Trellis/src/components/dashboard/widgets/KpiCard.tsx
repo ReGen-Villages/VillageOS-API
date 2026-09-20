@@ -16,19 +16,19 @@ const MINIMUM_SPARK_WIDTH = 108;
 
 export function KpiCard({
   widget,
-  ctx,
+  context,
   openDetail,
 }: {
   widget: KpiWidget;
-  ctx: ResolveContext;
+  context: ResolveContext;
   openDetail?: (thingId: string) => void;
 }) {
   const { t } = useTranslation();
-  const value = useBinding(widget.value, ctx);
-  const delta = useBinding(widget.delta, ctx);
-  const spark = useBinding(widget.spark, ctx);
-  const sparkBaseline = useBinding(widget.sparkBaseline, ctx);
-  const origin = useBinding(widget.origin, ctx);
+  const value = useBinding(widget.value, context);
+  const delta = useBinding(widget.delta, context);
+  const spark = useBinding(widget.spark, context);
+  const sparkBaseline = useBinding(widget.sparkBaseline, context);
+  const origin = useBinding(widget.origin, context);
 
   const v = asNumber(value.value);
   const d = asNumber(delta.value);
@@ -72,7 +72,7 @@ export function KpiCard({
           <div className="text-3xl font-bold tracking-tight tabular-nums text-zinc-900 dark:text-white leading-none mt-2 mb-1">
             <DerivedFigure
               binding={widget.value}
-              ctx={ctx}
+              context={context}
               title={widget.title}
               format={widget.format}
               unit={widget.unit}

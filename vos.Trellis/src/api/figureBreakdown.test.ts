@@ -46,7 +46,7 @@ const reads = {
 
 function context(scopeId: string | null = null): ResolveContext {
   return {
-    idx: buildModelIndex(declared(THINGS, RELATIONSHIPS), RELATIONSHIPS),
+    index: buildModelIndex(declared(THINGS, RELATIONSHIPS), RELATIONSHIPS),
     scopeId,
     compareArchetype: 'Site',
     reads: reads as unknown as ModelReads,

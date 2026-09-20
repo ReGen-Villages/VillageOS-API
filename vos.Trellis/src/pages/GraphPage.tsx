@@ -147,7 +147,7 @@ export function GraphPage() {
     }
   };
 
-  const handleDeleteRelProperty = async (relationshipId: string, propertyName: string) => {
+  const handleDeleteRelationshipProperty = async (relationshipId: string, propertyName: string) => {
     try {
       await relationshipApi.deleteProperty(relationshipId, propertyName);
       toast.success(t('graph.toast.propertyDeleted', { name: propertyName }));
@@ -174,7 +174,7 @@ export function GraphPage() {
 
   // Import a fragment file ({ Name, Things, Relationships }) and upsert it into the live model.
   // Idempotent; created Things/relationships animate in over SSE, so we only need to trigger a reload.
-  const fragmentInputRef = useRef<HTMLInputElement>(null);
+  const fragmentInputReference = useRef<HTMLInputElement>(null);
   const handleImportFragment = async (file: File) => {
     try {
       const result = await modelApi.applyFragment(await file.text());
@@ -182,7 +182,7 @@ export function GraphPage() {
         t('graph.toast.fragmentApplied', {
           created: result.thingsCreated,
           updated: result.thingsUpdated,
-          rels: result.relationshipsCreated,
+          relationships: result.relationshipsCreated,
         }),
       );
       reloadModelData();
@@ -218,7 +218,7 @@ export function GraphPage() {
           obscured the control surface). */}
       <div className="absolute top-3 right-3 z-20 flex items-center gap-2 bg-zinc-800/80 backdrop-blur rounded-lg px-3 py-1.5">
         <input
-          ref={fragmentInputRef}
+          ref={fragmentInputReference}
           type="file"
           accept="application/json,.json"
           className="hidden"
@@ -229,7 +229,7 @@ export function GraphPage() {
           }}
         />
         <button
-          onClick={() => fragmentInputRef.current?.click()}
+          onClick={() => fragmentInputReference.current?.click()}
           title={t('graph.actions.importFragment')}
           className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
         >
@@ -310,7 +310,7 @@ export function GraphPage() {
                 name: relationshipLabel(detailRelationship, (thingId) => thingMap.get(thingId)?.Name),
               })
             }
-            onDeleteProperty={handleDeleteRelProperty}
+            onDeleteProperty={handleDeleteRelationshipProperty}
             statesVersion={statesVersion}
           />
         </ResizablePanel>

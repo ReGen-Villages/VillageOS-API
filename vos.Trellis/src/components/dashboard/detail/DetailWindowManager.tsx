@@ -9,23 +9,23 @@ import type { DetailSpec } from '../../../types/dashboard';
 import { EntityDetailWindow } from './EntityDetailWindow';
 import { useDeclaredPropertyTypes } from '../../../hooks/useDeclaredPropertyTypes';
 
-export function useDetailWindows(idx: ModelIndex, detail: DetailSpec | undefined, nonce?: number) {
+export function useDetailWindows(modelIndex: ModelIndex, detail: DetailSpec | undefined, nonce?: number) {
   const [order, setOrder] = useState<string[]>([]);
   const [spreadTick, setSpreadTick] = useState(0);
 
   const openDetail = useCallback((thingId: string) => {
     if (!thingId) return;
-    setOrder((prev) => [...prev.filter((id) => id !== thingId), thingId]);
+    setOrder((previous) => [...previous.filter((id) => id !== thingId), thingId]);
   }, []);
 
   const spread = useCallback(() => setSpreadTick((tick) => tick + 1), []);
 
   const focus = useCallback((thingId: string) => {
-    setOrder((prev) => (prev[prev.length - 1] === thingId ? prev : [...prev.filter((id) => id !== thingId), thingId]));
+    setOrder((previous) => (previous[previous.length - 1] === thingId ? previous : [...previous.filter((id) => id !== thingId), thingId]));
   }, []);
 
   const close = useCallback((thingId: string) => {
-    setOrder((prev) => prev.filter((id) => id !== thingId));
+    setOrder((previous) => previous.filter((id) => id !== thingId));
   }, []);
 
   // Read once for every window rather than once per window, only after one is opened, and only for
@@ -37,7 +37,7 @@ export function useDetailWindows(idx: ModelIndex, detail: DetailSpec | undefined
     ? order.map((thingId, i) => (
         <EntityDetailWindow
           key={thingId}
-          idx={idx}
+          modelIndex={modelIndex}
           thingId={thingId}
           detail={detail}
           nonce={nonce}

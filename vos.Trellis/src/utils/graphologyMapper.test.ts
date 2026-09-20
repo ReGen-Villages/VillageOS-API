@@ -8,15 +8,15 @@ function makeThing(id: string, name: string, props: Record<string, unknown> = {}
   return { Id: id, Name: name, Properties: props };
 }
 
-function makeRel(id: string, subjectId: string, predicateId: string, targetId: string): VosRelationship {
+function makeRelationship(id: string, subjectId: string, predicateId: string, targetId: string): VosRelationship {
   return { Id: id, Name: `${subjectId}-${predicateId}-${targetId}`, SubjectId: subjectId, PredicateId: predicateId, TargetId: targetId, Properties: {} };
 }
 
 // ── Test data ──────────────────────────────────────────────────────────
 
-const isPred = makeThing('p-is', 'is');
-const hasPred = makeThing('p-has', 'has');
-const monitorsPred = makeThing('p-monitors', 'monitors');
+const isPredicate = makeThing('p-is', 'is');
+const hasPredicate = makeThing('p-has', 'has');
+const monitorsPredicate = makeThing('p-monitors', 'monitors');
 
 const zone = makeThing('t-zone', 'Zone', { kind: 'type' });
 const sensor = makeThing('t-sensor', 'Sensor', { kind: 'type' });
@@ -28,32 +28,32 @@ const motionSensor = makeThing('i-motion', 'OrchardMotionSensor', { unit: 'boole
 const weightSensor = makeThing('i-weight', 'GateWeightSensor', { unit: 'kg' });
 const leafNode = makeThing('i-leaf', 'LeafNode', {});
 
-const allThings = [isPred, hasPred, monitorsPred, zone, sensor, orchardZone, reservoirZone, tempSensor, motionSensor, weightSensor, leafNode];
+const allThings = [isPredicate, hasPredicate, monitorsPredicate, zone, sensor, orchardZone, reservoirZone, tempSensor, motionSensor, weightSensor, leafNode];
 
-const rels: VosRelationship[] = [
-  makeRel('r1', 'i-orchardzone', 'p-is', 't-zone'),
-  makeRel('r2', 'i-reservoirzone', 'p-is', 't-zone'),
-  makeRel('r3', 'i-temp', 'p-is', 't-sensor'),
-  makeRel('r4', 'i-motion', 'p-is', 't-sensor'),
-  makeRel('r5', 'i-weight', 'p-is', 't-sensor'),
+const relationships: VosRelationship[] = [
+  makeRelationship('r1', 'i-orchardzone', 'p-is', 't-zone'),
+  makeRelationship('r2', 'i-reservoirzone', 'p-is', 't-zone'),
+  makeRelationship('r3', 'i-temp', 'p-is', 't-sensor'),
+  makeRelationship('r4', 'i-motion', 'p-is', 't-sensor'),
+  makeRelationship('r5', 'i-weight', 'p-is', 't-sensor'),
 
-  makeRel('r6', 'i-reservoirzone', 'p-has', 'i-temp'),
-  makeRel('r7', 'i-orchardzone', 'p-has', 'i-motion'),
+  makeRelationship('r6', 'i-reservoirzone', 'p-has', 'i-temp'),
+  makeRelationship('r7', 'i-orchardzone', 'p-has', 'i-motion'),
 
-  makeRel('r8', 'i-temp', 'p-monitors', 'i-reservoirzone'),
-  makeRel('r9', 'i-motion', 'p-monitors', 'i-orchardzone'),
+  makeRelationship('r8', 'i-temp', 'p-monitors', 'i-reservoirzone'),
+  makeRelationship('r9', 'i-motion', 'p-monitors', 'i-orchardzone'),
 ];
 
 // ── Tests ──────────────────────────────────────────────────────────────
 
 describe('getThingType', () => {
   const thingMap = new Map(allThings.map((t) => [t.Id, t]));
-  const index = buildRelationshipIndex(rels, thingMap);
+  const index = buildRelationshipIndex(relationships, thingMap);
 
   it('classifies predicate things used in relationships', () => {
-    expect(getThingType(isPred, index)).toBe('predicate');
-    expect(getThingType(hasPred, index)).toBe('predicate');
-    expect(getThingType(monitorsPred, index)).toBe('predicate');
+    expect(getThingType(isPredicate, index)).toBe('predicate');
+    expect(getThingType(hasPredicate, index)).toBe('predicate');
+    expect(getThingType(monitorsPredicate, index)).toBe('predicate');
   });
 
   it('classifies things with ExecutablePath as predicates', () => {
@@ -76,18 +76,18 @@ describe('getThingType', () => {
 describe('buildGraph', () => {
   describe('node creation', () => {
     it('creates a node for every thing', () => {
-      const graph = buildGraph(allThings, rels);
+      const graph = buildGraph(allThings, relationships);
       expect(graph.order).toBe(allThings.length);
     });
 
     it('assigns labels from thing names', () => {
-      const graph = buildGraph(allThings, rels);
+      const graph = buildGraph(allThings, relationships);
       expect(graph.getNodeAttribute('i-orchardzone', 'label')).toBe('OrchardZone');
       expect(graph.getNodeAttribute('t-zone', 'label')).toBe('Zone');
     });
 
     it('classifies node types correctly', () => {
-      const graph = buildGraph(allThings, rels);
+      const graph = buildGraph(allThings, relationships);
       expect(graph.getNodeAttribute('p-is', 'thingType')).toBe('predicate');
       expect(graph.getNodeAttribute('t-zone', 'thingType')).toBe('type');
       expect(graph.getNodeAttribute('i-orchardzone', 'thingType')).toBe('default');
@@ -96,25 +96,25 @@ describe('buildGraph', () => {
 
   describe('edge creation', () => {
     it('creates edges for all valid relationships', () => {
-      const graph = buildGraph(allThings, rels);
-      expect(graph.size).toBe(rels.length);
+      const graph = buildGraph(allThings, relationships);
+      expect(graph.size).toBe(relationships.length);
     });
 
     it('skips edges with missing endpoints', () => {
-      const partialThings = [isPred, orchardZone, zone]; // missing sensor, temp, etc.
-      const graph = buildGraph(partialThings, rels);
+      const partialThings = [isPredicate, orchardZone, zone]; // missing sensor, temp, etc.
+      const graph = buildGraph(partialThings, relationships);
       // Only r1 (orchardzone is zone) has both endpoints present
       expect(graph.size).toBe(1);
     });
 
     it('assigns predicate ID as edge attribute', () => {
-      const graph = buildGraph(allThings, rels);
+      const graph = buildGraph(allThings, relationships);
       expect(graph.getEdgeAttribute('r1', 'predicateId')).toBe('p-is');
       expect(graph.getEdgeAttribute('r6', 'predicateId')).toBe('p-has');
     });
 
     it('assigns predicate name as edge label', () => {
-      const graph = buildGraph(allThings, rels);
+      const graph = buildGraph(allThings, relationships);
       expect(graph.getEdgeAttribute('r1', 'label')).toBe('is');
       expect(graph.getEdgeAttribute('r6', 'label')).toBe('has');
       expect(graph.getEdgeAttribute('r8', 'label')).toBe('monitors');
@@ -126,7 +126,7 @@ describe('buildGraph', () => {
     // [NODE_SIZE_MIN, NODE_SIZE_MAX] of NODE_SIZE_MIN + degree * NODE_SIZE_SLOPE.
     // Defaults at time of writing: min 1, max 6, slope 0.4.
     it('gives minimum size (1) to nodes with no incoming edges', () => {
-      const graph = buildGraph(allThings, rels);
+      const graph = buildGraph(allThings, relationships);
       // LeafNode has no relationships at all
       expect(graph.getNodeAttribute('i-leaf', 'size')).toBe(1);
     });
@@ -135,9 +135,9 @@ describe('buildGraph', () => {
       // Create a source-only node: A -> B, A has outgoing but no incoming
       const a = makeThing('a', 'Source');
       const b = makeThing('b', 'Target');
-      const pred = makeThing('pred', 'connects');
-      const r = makeRel('r-ab', 'a', 'pred', 'b');
-      const graph = buildGraph([a, b, pred], [r]);
+      const predicate = makeThing('pred', 'connects');
+      const r = makeRelationship('r-ab', 'a', 'pred', 'b');
+      const graph = buildGraph([a, b, predicate], [r]);
 
       // Source (a) has 0 incoming → size = 1
       expect(graph.getNodeAttribute('a', 'size')).toBe(1);
@@ -146,7 +146,7 @@ describe('buildGraph', () => {
     });
 
     it('scales size by incoming relationship count', () => {
-      const graph = buildGraph(allThings, rels);
+      const graph = buildGraph(allThings, relationships);
 
       // Zone is target of: r1, r2 = 2 incoming → 1 + 2*0.4 = 1.8
       expect(graph.getNodeAttribute('t-zone', 'size')).toBeCloseTo(1.8, 6);
@@ -156,7 +156,7 @@ describe('buildGraph', () => {
     });
 
     it('does not count outgoing edges toward size', () => {
-      const graph = buildGraph(allThings, rels);
+      const graph = buildGraph(allThings, relationships);
 
       // ReservoirZone: incoming = r8 (1 incoming) → 1 + 1*0.4 = 1.4
       expect(graph.getNodeAttribute('i-reservoirzone', 'size')).toBeCloseTo(1.4, 6);
@@ -165,15 +165,15 @@ describe('buildGraph', () => {
     it('caps size at NODE_SIZE_MAX (6)', () => {
       // Create a node that is the target of many relationships
       const hub = makeThing('hub', 'Hub');
-      const pred = makeThing('pred', 'connects');
+      const predicate = makeThing('pred', 'connects');
       const sources: VosThing[] = [];
-      const hubRels: VosRelationship[] = [];
+      const hubRelationships: VosRelationship[] = [];
       for (let i = 0; i < 20; i++) {
-        const src = makeThing(`s${i}`, `Source-${i}`);
-        sources.push(src);
-        hubRels.push(makeRel(`r-${i}`, `s${i}`, 'pred', 'hub'));
+        const source = makeThing(`s${i}`, `Source-${i}`);
+        sources.push(source);
+        hubRelationships.push(makeRelationship(`r-${i}`, `s${i}`, 'pred', 'hub'));
       }
-      const graph = buildGraph([hub, pred, ...sources], hubRels);
+      const graph = buildGraph([hub, predicate, ...sources], hubRelationships);
 
       // 20 incoming → uncapped = 1 + 20*0.4 = 9, capped at 6
       expect(graph.getNodeAttribute('hub', 'size')).toBe(6);
@@ -183,8 +183,8 @@ describe('buildGraph', () => {
   describe('geometry detection', () => {
     it('sets hasGeometry=true for things with latitude/longitude properties', () => {
       const geoThing = makeThing('g1', 'Home-1', { latitude: 40.7937, longitude: -73.6612 });
-      const pred = makeThing('pred', 'is');
-      const graph = buildGraph([geoThing, pred], []);
+      const predicate = makeThing('pred', 'is');
+      const graph = buildGraph([geoThing, predicate], []);
       expect(graph.getNodeAttribute('g1', 'hasGeometry')).toBe(true);
     });
 
@@ -198,7 +198,7 @@ describe('buildGraph', () => {
     });
 
     it('sets hasGeometry=false for things without lat/lng properties', () => {
-      const graph = buildGraph(allThings, rels);
+      const graph = buildGraph(allThings, relationships);
       expect(graph.getNodeAttribute('i-orchardzone', 'hasGeometry')).toBe(false);
       expect(graph.getNodeAttribute('p-is', 'hasGeometry')).toBe(false);
     });
@@ -210,7 +210,7 @@ describe('buildGraph', () => {
     });
 
     it('does not set lat/lng on non-geo nodes', () => {
-      const graph = buildGraph(allThings, rels);
+      const graph = buildGraph(allThings, relationships);
       expect(graph.getNodeAttribute('i-orchardzone', 'lat')).toBeUndefined();
       expect(graph.getNodeAttribute('i-orchardzone', 'lng')).toBeUndefined();
     });
@@ -218,7 +218,7 @@ describe('buildGraph', () => {
 
   describe('node colours derived from relationships', () => {
     it('gives predicates amber colour', () => {
-      const graph = buildGraph(allThings, rels);
+      const graph = buildGraph(allThings, relationships);
       // 'is', 'has', 'monitors' are all used as PredicateId → predicate role
       expect(graph.getNodeAttribute('p-is', 'color')).toBe('#fbbf24');
       expect(graph.getNodeAttribute('p-has', 'color')).toBe('#fbbf24');
@@ -226,14 +226,14 @@ describe('buildGraph', () => {
     });
 
     it('gives type definitions blue colour', () => {
-      const graph = buildGraph(allThings, rels);
+      const graph = buildGraph(allThings, relationships);
       // Zone and Sensor are targets of "is" → type role
       expect(graph.getNodeAttribute('t-zone', 'color')).toBe('#60a5fa');
       expect(graph.getNodeAttribute('t-sensor', 'color')).toBe('#60a5fa');
     });
 
     it('derives instance colour from "is" type name consistently', () => {
-      const graph = buildGraph(allThings, rels);
+      const graph = buildGraph(allThings, relationships);
       // OrchardZone and ReservoirZone are both "is Zone" → same colour
       const orchardColor = graph.getNodeAttribute('i-orchardzone', 'color');
       const reservoirColor = graph.getNodeAttribute('i-reservoirzone', 'color');
@@ -247,7 +247,7 @@ describe('buildGraph', () => {
     });
 
     it('gives different types different colours', () => {
-      const graph = buildGraph(allThings, rels);
+      const graph = buildGraph(allThings, relationships);
       const zoneInstanceColor = graph.getNodeAttribute('i-orchardzone', 'color');
       const sensorInstanceColor = graph.getNodeAttribute('i-temp', 'color');
       // "Zone" and "Sensor" hash to different palette entries
@@ -255,13 +255,13 @@ describe('buildGraph', () => {
     });
 
     it('gives slate fallback to instances with no "is" relationship', () => {
-      const graph = buildGraph(allThings, rels);
+      const graph = buildGraph(allThings, relationships);
       // LeafNode has no "is" relationship → slate fallback
       expect(graph.getNodeAttribute('i-leaf', 'color')).toBe('#94a3b8');
     });
 
     it('uses vibrant (non-slate) colour for typed instances', () => {
-      const graph = buildGraph(allThings, rels);
+      const graph = buildGraph(allThings, relationships);
       const orchardColor = graph.getNodeAttribute('i-orchardzone', 'color');
       // Should NOT be the slate fallback
       expect(orchardColor).not.toBe('#94a3b8');
@@ -271,7 +271,7 @@ describe('buildGraph', () => {
   describe('multi-directed graph', () => {
     it('supports multiple edges between the same pair of nodes', () => {
       // ReservoirZone has ReservoirTempSensor AND ReservoirTempSensor monitors ReservoirZone
-      const graph = buildGraph(allThings, rels);
+      const graph = buildGraph(allThings, relationships);
       // outEdges: only edges from source → target in the given direction
       const outFromReservoir = graph.outEdges('i-reservoirzone', 'i-temp');
       const outFromTemp = graph.outEdges('i-temp', 'i-reservoirzone');
@@ -285,10 +285,10 @@ describe('buildGraph', () => {
   });
 
   describe('logical node classification', () => {
-    const geoProps = { latitude: 40.7937, longitude: -73.6612 };
+    const geometryProperties = { latitude: 40.7937, longitude: -73.6612 };
 
     it('marks nodes without lat/lng as isLogical=true', () => {
-      const graph = buildGraph(allThings, rels);
+      const graph = buildGraph(allThings, relationships);
       // All test things lack lat/lng → all logical
       expect(graph.getNodeAttribute('p-is', 'isLogical')).toBe(true);
       expect(graph.getNodeAttribute('t-zone', 'isLogical')).toBe(true);
@@ -297,30 +297,30 @@ describe('buildGraph', () => {
     });
 
     it('marks nodes with lat/lng as isLogical=false', () => {
-      const geoNode = makeThing('geo-1', 'Home-1', geoProps);
+      const geoNode = makeThing('geo-1', 'Home-1', geometryProperties);
       const graph = buildGraph([geoNode], []);
       expect(graph.getNodeAttribute('geo-1', 'isLogical')).toBe(false);
       expect(graph.getNodeAttribute('geo-1', 'hasGeometry')).toBe(true);
     });
 
     it('assigns parentGeoNodeId via "has" edge preferentially', () => {
-      const geoParent = makeThing('geo-parent', 'Building-1', geoProps);
+      const geoParent = makeThing('geo-parent', 'Building-1', geometryProperties);
       const logicalChild = makeThing('logical-child', 'SensorType');
-      const hasPredThing = makeThing('pred-has', 'has');
-      const hasRel = makeRel('r-has', 'geo-parent', 'pred-has', 'logical-child');
+      const hasPredicateThing = makeThing('pred-has', 'has');
+      const hasRelationship = makeRelationship('r-has', 'geo-parent', 'pred-has', 'logical-child');
 
-      const graph = buildGraph([geoParent, logicalChild, hasPredThing], [hasRel]);
+      const graph = buildGraph([geoParent, logicalChild, hasPredicateThing], [hasRelationship]);
       expect(graph.getNodeAttribute('logical-child', 'isLogical')).toBe(true);
       expect(graph.getNodeAttribute('logical-child', 'parentGeoNodeId')).toBe('geo-parent');
     });
 
     it('falls back to any geo neighbour when no "has" edge exists', () => {
-      const geoNode = makeThing('geo-1', 'Building-1', geoProps);
+      const geoNode = makeThing('geo-1', 'Building-1', geometryProperties);
       const logicalNode = makeThing('logical-1', 'SomeType');
-      const predThing = makeThing('pred-monitors', 'monitors');
-      const rel = makeRel('r-mon', 'logical-1', 'pred-monitors', 'geo-1');
+      const predicateThing = makeThing('pred-monitors', 'monitors');
+      const relationship = makeRelationship('r-mon', 'logical-1', 'pred-monitors', 'geo-1');
 
-      const graph = buildGraph([geoNode, logicalNode, predThing], [rel]);
+      const graph = buildGraph([geoNode, logicalNode, predicateThing], [relationship]);
       expect(graph.getNodeAttribute('logical-1', 'isLogical')).toBe(true);
       expect(graph.getNodeAttribute('logical-1', 'parentGeoNodeId')).toBe('geo-1');
     });
@@ -334,17 +334,17 @@ describe('buildGraph', () => {
   });
 
   describe('getLogicalChildren / countLogicalChildren', () => {
-    const geoProps = { latitude: 40.7937, longitude: -73.6612 };
+    const geometryProperties = { latitude: 40.7937, longitude: -73.6612 };
 
     it('returns logical children for a geo parent', () => {
-      const geoParent = makeThing('geo-p', 'Building-1', geoProps);
+      const geoParent = makeThing('geo-p', 'Building-1', geometryProperties);
       const childA = makeThing('child-a', 'TypeA');
       const childB = makeThing('child-b', 'TypeB');
-      const hasPredThing = makeThing('pred-has', 'has');
-      const relA = makeRel('r-a', 'geo-p', 'pred-has', 'child-a');
-      const relB = makeRel('r-b', 'geo-p', 'pred-has', 'child-b');
+      const hasPredicateThing = makeThing('pred-has', 'has');
+      const relationshipA = makeRelationship('r-a', 'geo-p', 'pred-has', 'child-a');
+      const relationshipB = makeRelationship('r-b', 'geo-p', 'pred-has', 'child-b');
 
-      const graph = buildGraph([geoParent, childA, childB, hasPredThing], [relA, relB]);
+      const graph = buildGraph([geoParent, childA, childB, hasPredicateThing], [relationshipA, relationshipB]);
       const children = getLogicalChildren(graph, 'geo-p');
       expect(children).toHaveLength(2);
       expect(children).toContain('child-a');
@@ -353,27 +353,27 @@ describe('buildGraph', () => {
     });
 
     it('returns empty array for a geo node with no logical children', () => {
-      const geoA = makeThing('geo-a', 'Building-A', geoProps);
-      const geoB = makeThing('geo-b', 'Building-B', geoProps);
-      const hasPredThing = makeThing('pred-has', 'has');
+      const geoA = makeThing('geo-a', 'Building-A', geometryProperties);
+      const geoB = makeThing('geo-b', 'Building-B', geometryProperties);
+      const hasPredicateThing = makeThing('pred-has', 'has');
       // Edge between two geo nodes — no logical children
-      const rel = makeRel('r-geo', 'geo-a', 'pred-has', 'geo-b');
+      const relationship = makeRelationship('r-geo', 'geo-a', 'pred-has', 'geo-b');
 
-      const graph = buildGraph([geoA, geoB, hasPredThing], [rel]);
+      const graph = buildGraph([geoA, geoB, hasPredicateThing], [relationship]);
       expect(getLogicalChildren(graph, 'geo-a')).toHaveLength(0);
       expect(countLogicalChildren(graph, 'geo-a')).toBe(0);
     });
 
     it('does not return children parented to a different geo node', () => {
-      const geoA = makeThing('geo-a', 'Building-A', geoProps);
-      const geoB = makeThing('geo-b', 'Building-B', geoProps);
+      const geoA = makeThing('geo-a', 'Building-A', geometryProperties);
+      const geoB = makeThing('geo-b', 'Building-B', geometryProperties);
       const childOfA = makeThing('child-of-a', 'SensorA');
       const childOfB = makeThing('child-of-b', 'SensorB');
-      const hasPredThing = makeThing('pred-has', 'has');
-      const relA = makeRel('r-a', 'geo-a', 'pred-has', 'child-of-a');
-      const relB = makeRel('r-b', 'geo-b', 'pred-has', 'child-of-b');
+      const hasPredicateThing = makeThing('pred-has', 'has');
+      const relationshipA = makeRelationship('r-a', 'geo-a', 'pred-has', 'child-of-a');
+      const relationshipB = makeRelationship('r-b', 'geo-b', 'pred-has', 'child-of-b');
 
-      const graph = buildGraph([geoA, geoB, childOfA, childOfB, hasPredThing], [relA, relB]);
+      const graph = buildGraph([geoA, geoB, childOfA, childOfB, hasPredicateThing], [relationshipA, relationshipB]);
       const childrenA = getLogicalChildren(graph, 'geo-a');
       expect(childrenA).toHaveLength(1);
       expect(childrenA).toContain('child-of-a');
@@ -399,34 +399,34 @@ describe('buildGraph', () => {
       makeThing('room1', 'Room-1', { latitude: 40.7937, longitude: -73.6612 }),
     ];
 
-    const allRels: VosRelationship[] = [
-      makeRel('r1', 'i-sensor', 'p-is', 't-zone'),
-      makeRel('r2', 'b1', 'p-has', 'i-sensor'),
-      makeRel('r3', 'b1', 'p-has', 'room1'),
+    const allRelationships: VosRelationship[] = [
+      makeRelationship('r1', 'i-sensor', 'p-is', 't-zone'),
+      makeRelationship('r2', 'b1', 'p-has', 'i-sensor'),
+      makeRelationship('r3', 'b1', 'p-has', 'room1'),
     ];
 
     it('phase 1: builds graph with surface things only', () => {
-      const graph = buildGraph(phase1Things, allRels);
+      const graph = buildGraph(phase1Things, allRelationships);
       expect(graph.order).toBe(1);
       expect(graph.hasNode('b1')).toBe(true);
       expect(graph.getNodeAttribute('b1', 'hasGeometry')).toBe(true);
     });
 
     it('phase 1: surface things have lat/lng', () => {
-      const graph = buildGraph(phase1Things, allRels);
+      const graph = buildGraph(phase1Things, allRelationships);
       expect(graph.getNodeAttribute('b1', 'lat')).toBeCloseTo(40.7937, 3);
       expect(graph.getNodeAttribute('b1', 'lng')).toBeCloseTo(-73.6612, 3);
     });
 
     it('phase 1: edges with missing endpoints are skipped', () => {
-      const graph = buildGraph(phase1Things, allRels);
+      const graph = buildGraph(phase1Things, allRelationships);
       // r2 and r3 reference b1 but sensor/room1 not loaded yet
       expect(graph.size).toBe(0);
     });
 
     it('phase 2: merging adds remaining nodes to graph', () => {
       const merged = [...phase1Things, ...phase2Things];
-      const graph = buildGraph(merged, allRels);
+      const graph = buildGraph(merged, allRelationships);
       expect(graph.order).toBe(6); // 1 surface + 5 remaining
       expect(graph.hasNode('i-sensor')).toBe(true);
       expect(graph.hasNode('room1')).toBe(true);
@@ -434,14 +434,14 @@ describe('buildGraph', () => {
 
     it('phase 2: non-surface geo nodes have lat/lng from properties', () => {
       const merged = [...phase1Things, ...phase2Things];
-      const graph = buildGraph(merged, allRels);
+      const graph = buildGraph(merged, allRelationships);
       expect(graph.getNodeAttribute('room1', 'hasGeometry')).toBe(true);
       expect(graph.getNodeAttribute('room1', 'lat')).toBeCloseTo(40.7937, 3);
     });
 
     it('phase 2: all edges now connect', () => {
       const merged = [...phase1Things, ...phase2Things];
-      const graph = buildGraph(merged, allRels);
+      const graph = buildGraph(merged, allRelationships);
       expect(graph.size).toBe(3);
       expect(graph.hasEdge('r1')).toBe(true);
       expect(graph.hasEdge('r2')).toBe(true);
@@ -450,7 +450,7 @@ describe('buildGraph', () => {
 
     it('complete 2-phase produces same graph as single-pass buildGraph', () => {
       const allThings = [...phase1Things, ...phase2Things];
-      const phasedGraph = buildGraph(allThings, allRels);
+      const phasedGraph = buildGraph(allThings, allRelationships);
 
       // Single-pass: all things with full data
       const allThingsSinglePass: VosThing[] = [
@@ -461,7 +461,7 @@ describe('buildGraph', () => {
         makeThing('i-sensor', 'TempSensor', { unit: 'celsius' }),
         makeThing('room1', 'Room-1', { latitude: 40.7937, longitude: -73.6612 }),
       ];
-      const singleGraph = buildGraph(allThingsSinglePass, allRels);
+      const singleGraph = buildGraph(allThingsSinglePass, allRelationships);
 
       expect(phasedGraph.order).toBe(singleGraph.order);
       expect(phasedGraph.size).toBe(singleGraph.size);
@@ -489,14 +489,14 @@ describe('colouring by the classifying property', () => {
       't-wall': { SourceId: 't-wall', SourceName: 'Basic Wall', InheritedAt: '', Properties: { ifcClass: 'IfcWall' } },
     },
   };
-  const things = [isPred, wallType, owned, overridden];
-  const rels = [
-    makeRel('r-owned', 'i-owned', 'p-is', 't-wall'),
-    makeRel('r-overridden', 'i-overridden', 'p-is', 't-wall'),
+  const things = [isPredicate, wallType, owned, overridden];
+  const relationships = [
+    makeRelationship('r-owned', 'i-owned', 'p-is', 't-wall'),
+    makeRelationship('r-overridden', 'i-overridden', 'p-is', 't-wall'),
   ];
 
   it('colours an instance the same whether it owns its class or overrides it', () => {
-    const graph = buildGraph(things, rels);
+    const graph = buildGraph(things, relationships);
 
     expect(graph.getNodeAttribute('i-overridden', 'color'))
       .toBe(graph.getNodeAttribute('i-owned', 'color'));

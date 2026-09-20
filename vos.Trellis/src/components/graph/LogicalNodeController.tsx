@@ -18,8 +18,8 @@ export function LogicalNodeController() {
   const sigma = useSigma();
   const expandedLogicalParents = useUiStore((s) => s.expandedLogicalParents);
   const semanticZoomEnabled = useUiStore((s) => s.semanticZoomEnabled);
-  const lastRatioRef = useRef<number | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastRatioReference = useRef<number | null>(null);
+  const debounceReference = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const graph = sigma.getGraph();
@@ -30,9 +30,9 @@ export function LogicalNodeController() {
       const children = getLogicalChildren(graph, parentId);
       if (children.length === 0) continue;
 
-      const parentAttrs = graph.getNodeAttributes(parentId);
-      const px = parentAttrs.x as number;
-      const py = parentAttrs.y as number;
+      const parentAttributes = graph.getNodeAttributes(parentId);
+      const px = parentAttributes.x as number;
+      const py = parentAttributes.y as number;
 
       // Radius scales with child count so they don't overlap
       const radius = Math.max(30, children.length * 5);
@@ -54,13 +54,13 @@ export function LogicalNodeController() {
     const camera = sigma.getCamera();
 
     const handler = () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
+      if (debounceReference.current) clearTimeout(debounceReference.current);
+      debounceReference.current = setTimeout(() => {
         const ratio = camera.getState().ratio;
-        const prev = lastRatioRef.current;
-        lastRatioRef.current = ratio;
+        const previous = lastRatioReference.current;
+        lastRatioReference.current = ratio;
 
-        if (prev !== null && Math.abs(ratio - prev) < 0.05) return;
+        if (previous !== null && Math.abs(ratio - previous) < 0.05) return;
 
         const graph = sigma.getGraph();
         const state = useUiStore.getState();
@@ -71,10 +71,10 @@ export function LogicalNodeController() {
           const gcy = viewCenter.y;
 
           const searchRadius = 150 * ratio;
-          graph.forEachNode((nodeId, attrs) => {
-            if (!attrs.hasGeometry) return;
-            const dx = (attrs.x as number) - gcx;
-            const dy = (attrs.y as number) - gcy;
+          graph.forEachNode((nodeId, attributes) => {
+            if (!attributes.hasGeometry) return;
+            const dx = (attributes.x as number) - gcx;
+            const dy = (attributes.y as number) - gcy;
             if (dx * dx + dy * dy < searchRadius * searchRadius) {
               const children = getLogicalChildren(graph, nodeId);
               if (children.length > 0 && !state.expandedLogicalParents.has(nodeId)) {
@@ -94,7 +94,7 @@ export function LogicalNodeController() {
 
     return () => {
       sigma.off('afterRender', handler);
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (debounceReference.current) clearTimeout(debounceReference.current);
     };
   }, [sigma, semanticZoomEnabled]);
 

@@ -14,7 +14,7 @@ import { discoverBasemapSources } from '../api/basemapApi';
 import { modelIndexFor } from '../api/dashboardApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { thingApi } from '../api/thingApi';
-import { useAuth } from '../hooks/useAuth';
+import { useAuthentication } from '../hooks/useAuthentication';
 import { IntakeWizard } from '../intake/IntakeWizard';
 import type { BasemapSource } from '../types/basemap';
 import {
@@ -26,7 +26,7 @@ import {
 
 export function IntakeWizardPage() {
   const { t } = useTranslation();
-  const { modelId } = useAuth();
+  const { modelId } = useAuthentication();
   const [categories, setCategories] = useState<readonly string[]>([]);
   const [basemapSources, setBasemapSources] = useState<BasemapSource[]>([]);
   const [hazardTypes, setHazardTypes] = useState<readonly string[]>([]);

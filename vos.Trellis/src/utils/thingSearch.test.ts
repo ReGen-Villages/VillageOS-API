@@ -6,7 +6,7 @@ import {
   searchThings,
   buildThingSearchMarkdown,
   THING_SEARCH_SKIP_KEYS,
-  PREVIEW_PROPS,
+  PREVIEW_PROPERTIES,
 } from './thingSearch';
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -15,7 +15,7 @@ function makeThing(id: string, name: string, props: Record<string, unknown> = {}
   return { Id: id, Name: name, Properties: props };
 }
 
-function makeRel(
+function makeRelationship(
   id: string,
   subjectId: string,
   predicateId: string,
@@ -33,8 +33,8 @@ function makeRel(
 
 // ── Fixtures ────────────────────────────────────────────────────────────
 
-const isPred = makeThing('p-is', 'is');
-const hasPred = makeThing('p-has', 'has');
+const isPredicate = makeThing('p-is', 'is');
+const hasPredicate = makeThing('p-has', 'has');
 
 const building = makeThing('b1', 'Building-A', { height: 20, floors: 5 });
 const sensor = makeThing('s1', 'Sensor-01', { temperature: 22.5, unit: 'C' });
@@ -42,12 +42,12 @@ const buildingType = makeThing('bt1', 'BuildingType');
 const zone = makeThing('z1', 'Zone-North');
 
 // building --[is]--> buildingType
-const relIsBuilding = makeRel('r1', 'b1', 'p-is', 'bt1');
+const relationshipIsBuilding = makeRelationship('r1', 'b1', 'p-is', 'bt1');
 // sensor --[has]--> zone
-const relHasSensor = makeRel('r2', 's1', 'p-has', 'z1');
+const relationshipHasSensor = makeRelationship('r2', 's1', 'p-has', 'z1');
 
-const allThings = [building, sensor, buildingType, zone, isPred, hasPred];
-const allRels = [relIsBuilding, relHasSensor];
+const allThings = [building, sensor, buildingType, zone, isPredicate, hasPredicate];
+const allRelationships = [relationshipIsBuilding, relationshipHasSensor];
 
 // ── scoreThingMatch ────────────────────────────────────────────────────
 
@@ -127,18 +127,18 @@ describe('scoreThingMatch', () => {
 describe('buildThingSearchIndex', () => {
   describe('isSubjectToTypeName', () => {
     it('maps subject ID to target name for "is" relationships', () => {
-      const index = buildThingSearchIndex(allThings, allRels);
+      const index = buildThingSearchIndex(allThings, allRelationships);
       expect(index.isSubjectToTypeName.get('b1')).toBe('BuildingType');
     });
 
     it('returns undefined for things with no "is" relationship', () => {
-      const index = buildThingSearchIndex(allThings, allRels);
+      const index = buildThingSearchIndex(allThings, allRelationships);
       expect(index.isSubjectToTypeName.get('s1')).toBeUndefined();
       expect(index.isSubjectToTypeName.get('z1')).toBeUndefined();
     });
 
     it('ignores non-"is" predicates', () => {
-      const index = buildThingSearchIndex(allThings, allRels);
+      const index = buildThingSearchIndex(allThings, allRelationships);
       // sensor --[has]--> zone should NOT appear in isSubjectToTypeName
       expect(index.isSubjectToTypeName.get('z1')).toBeUndefined();
     });
@@ -147,11 +147,11 @@ describe('buildThingSearchIndex', () => {
       const typeA = makeThing('ta', 'TypeA');
       const typeB = makeThing('tb', 'TypeB');
       const instance = makeThing('inst', 'Instance');
-      const relA = makeRel('rA', 'inst', 'p-is', 'ta');
-      const relB = makeRel('rB', 'inst', 'p-is', 'tb');
+      const relationshipA = makeRelationship('rA', 'inst', 'p-is', 'ta');
+      const relationshipB = makeRelationship('rB', 'inst', 'p-is', 'tb');
       const index = buildThingSearchIndex(
-        [isPred, instance, typeA, typeB],
-        [relA, relB],
+        [isPredicate, instance, typeA, typeB],
+        [relationshipA, relationshipB],
       );
       // First encountered wins
       expect(index.isSubjectToTypeName.get('inst')).toBe('TypeA');
@@ -161,42 +161,42 @@ describe('buildThingSearchIndex', () => {
       const IS = makeThing('p-IS', 'IS');
       const inst = makeThing('i1', 'Instance');
       const type = makeThing('t1', 'TheType');
-      const rel = makeRel('rx', 'i1', 'p-IS', 't1');
-      const index = buildThingSearchIndex([IS, inst, type], [rel]);
+      const relationship = makeRelationship('rx', 'i1', 'p-IS', 't1');
+      const index = buildThingSearchIndex([IS, inst, type], [relationship]);
       expect(index.isSubjectToTypeName.get('i1')).toBe('TheType');
     });
   });
 
   describe('relCountByThing', () => {
     it('counts outgoing relationships for subject', () => {
-      const index = buildThingSearchIndex(allThings, allRels);
+      const index = buildThingSearchIndex(allThings, allRelationships);
       // building is subject of relIsBuilding → count 1
-      expect(index.relCountByThing.get('b1')).toBe(1);
+      expect(index.relationshipCountByThing.get('b1')).toBe(1);
     });
 
     it('counts incoming relationships for target', () => {
-      const index = buildThingSearchIndex(allThings, allRels);
+      const index = buildThingSearchIndex(allThings, allRelationships);
       // buildingType is target of relIsBuilding → count 1
-      expect(index.relCountByThing.get('bt1')).toBe(1);
+      expect(index.relationshipCountByThing.get('bt1')).toBe(1);
     });
 
     it('counts both outgoing and incoming for a thing with multiple relationships', () => {
       // sensor is subject of relHasSensor (outgoing to zone)
-      // Add another rel where sensor is target
+      // Add another relationship where sensor is target
       const other = makeThing('o1', 'Other');
-      const relToSensor = makeRel('r3', 'o1', 'p-has', 's1');
+      const relationshipToSensor = makeRelationship('r3', 'o1', 'p-has', 's1');
       const index = buildThingSearchIndex(
         [...allThings, other],
-        [...allRels, relToSensor],
+        [...allRelationships, relationshipToSensor],
       );
       // sensor: 1 outgoing (relHasSensor) + 1 incoming (relToSensor) = 2
-      expect(index.relCountByThing.get('s1')).toBe(2);
+      expect(index.relationshipCountByThing.get('s1')).toBe(2);
     });
 
     it('returns 0 for things with no relationships', () => {
       const isolated = makeThing('iso', 'Isolated');
       const index = buildThingSearchIndex([isolated], []);
-      expect(index.relCountByThing.get('iso') ?? 0).toBe(0);
+      expect(index.relationshipCountByThing.get('iso') ?? 0).toBe(0);
     });
   });
 });
@@ -204,7 +204,7 @@ describe('buildThingSearchIndex', () => {
 // ── searchThings ───────────────────────────────────────────────────────
 
 describe('searchThings', () => {
-  const index = buildThingSearchIndex(allThings, allRels);
+  const index = buildThingSearchIndex(allThings, allRelationships);
 
   describe('empty query', () => {
     it('returns empty array for empty query', () => {
@@ -263,10 +263,10 @@ describe('searchThings', () => {
       // "B" matches Building-A (prefix, score 1) and BuildingType (prefix, score 1)
       const results = searchThings('B', allThings, index);
       const names = results.map((r) => r.name);
-      const buildingAIdx = names.indexOf('Building-A');
-      const buildingTypeIdx = names.indexOf('BuildingType');
+      const buildingAIndex = names.indexOf('Building-A');
+      const buildingTypeIndex = names.indexOf('BuildingType');
       // "Building-A" < "BuildingType" alphabetically
-      expect(buildingAIdx).toBeLessThan(buildingTypeIdx);
+      expect(buildingAIndex).toBeLessThan(buildingTypeIndex);
     });
   });
 
@@ -312,11 +312,11 @@ describe('searchThings', () => {
 
     it('includes up to PREVIEW_PROPS properties in previewProps', () => {
       const props: Record<string, unknown> = {};
-      for (let i = 0; i < PREVIEW_PROPS + 3; i++) props[`prop${i}`] = i;
+      for (let i = 0; i < PREVIEW_PROPERTIES + 3; i++) props[`prop${i}`] = i;
       const thing = makeThing('t1', 'PropRich', props);
       const localIndex = buildThingSearchIndex([thing], []);
       const results = searchThings('PropRich', [thing], localIndex);
-      expect(results[0].previewProps).toHaveLength(PREVIEW_PROPS);
+      expect(results[0].previewProperties).toHaveLength(PREVIEW_PROPERTIES);
     });
 
     it('does not include skip keys in previewProps', () => {
@@ -324,15 +324,15 @@ describe('searchThings', () => {
         geometry: '{}',
         footprint: '{}',
         __geometry_envelope: '{}',
-        realProp: 'visible',
+        realProperty: 'visible',
       });
       const localIndex = buildThingSearchIndex([thing], []);
       const results = searchThings('GeoThing', [thing], localIndex);
-      const keys = results[0].previewProps.map((p) => p.key);
+      const keys = results[0].previewProperties.map((p) => p.key);
       expect(keys).not.toContain('geometry');
       expect(keys).not.toContain('footprint');
       expect(keys).not.toContain('__geometry_envelope');
-      expect(keys).toContain('realProp');
+      expect(keys).toContain('realProperty');
     });
 
     // Left unformatted on purpose: how a value should read depends on the type the platform
@@ -341,7 +341,7 @@ describe('searchThings', () => {
       const thing = makeThing('t1', 'Thing', { count: 42 });
       const localIndex = buildThingSearchIndex([thing], []);
       const results = searchThings('Thing', [thing], localIndex);
-      expect(results[0].previewProps[0]).toEqual({ key: 'count', value: 42 });
+      expect(results[0].previewProperties[0]).toEqual({ key: 'count', value: 42 });
     });
   });
 });
@@ -371,7 +371,7 @@ describe('buildThingSearchMarkdown', () => {
       typeName: 'BuildingType',
       ownPropertyCount: 2,
       relationshipCount: 1,
-      previewProps: [],
+      previewProperties: [],
     },
     {
       id: 's1',
@@ -380,7 +380,7 @@ describe('buildThingSearchMarkdown', () => {
       typeName: undefined,
       ownPropertyCount: 2,
       relationshipCount: 0,
-      previewProps: [],
+      previewProperties: [],
     },
   ];
 

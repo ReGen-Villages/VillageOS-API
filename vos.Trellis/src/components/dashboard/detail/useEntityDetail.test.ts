@@ -28,7 +28,7 @@ import { useEntityDetail } from './useEntityDetail';
 function thing(Id: string, Name: string): VosThing {
   return { Id, Name, Properties: {} };
 }
-function rel(Id: string, SubjectId: string, PredicateId: string, TargetId: string): VosRelationship {
+function relationship(Id: string, SubjectId: string, PredicateId: string, TargetId: string): VosRelationship {
   return { Id, Name: Id, SubjectId, PredicateId, TargetId, Properties: {} };
 }
 
@@ -36,7 +36,7 @@ function rel(Id: string, SubjectId: string, PredicateId: string, TargetId: strin
 function index() {
   return buildModelIndex(
     [thing('root', 'ROOT-1'), thing('child', 'CHILD-1'), thing('has', 'has')],
-    [rel('r1', 'root', 'has', 'child')],
+    [relationship('r1', 'root', 'has', 'child')],
   );
 }
 
@@ -54,10 +54,10 @@ function indexWithAService() {
       thing('keeper', 'keeper service'),
     ],
     [
-      rel('w1', 'has', 'is', 'connectionArchetype'),
-      rel('w2', 'has', 'runs', 'keeper'),
-      rel('w3', 'keeper', 'is', 'serviceArchetype'),
-      rel('r1', 'root', 'has', 'child'),
+      relationship('w1', 'has', 'is', 'connectionArchetype'),
+      relationship('w2', 'has', 'runs', 'keeper'),
+      relationship('w3', 'keeper', 'is', 'serviceArchetype'),
+      relationship('r1', 'root', 'has', 'child'),
     ],
   );
 }
@@ -94,8 +94,8 @@ describe('useEntityDetail', () => {
   // leading-edge — the first bump after a quiet period refreshes promptly — so what must not
   // happen is a round per bump, not a round at all.
   it('does not start a fetch round per nonce bump', async () => {
-    const idx = index();
-    const { rerender } = renderHook(({ nonce }) => useEntityDetail(idx, 'root', detail, nonce), {
+    const modelIndex = index();
+    const { rerender } = renderHook(({ nonce }) => useEntityDetail(modelIndex, 'root', detail, nonce), {
       initialProps: { nonce: 0 },
     });
     await settle();
@@ -117,8 +117,8 @@ describe('useEntityDetail', () => {
   // forever, so the window would never refresh while the sim is busy — the failure mode
   // is silent staleness rather than a visible error.
   it('still refreshes under a continuously bumping nonce', async () => {
-    const idx = index();
-    const { rerender } = renderHook(({ nonce }) => useEntityDetail(idx, 'root', detail, nonce), {
+    const modelIndex = index();
+    const { rerender } = renderHook(({ nonce }) => useEntityDetail(modelIndex, 'root', detail, nonce), {
       initialProps: { nonce: 0 },
     });
     await settle();
@@ -135,8 +135,8 @@ describe('useEntityDetail', () => {
   });
 
   it('abandons a superseded history round', async () => {
-    const idx = index();
-    const { rerender, unmount } = renderHook(({ nonce }) => useEntityDetail(idx, 'root', detail, nonce), {
+    const modelIndex = index();
+    const { rerender, unmount } = renderHook(({ nonce }) => useEntityDetail(modelIndex, 'root', detail, nonce), {
       initialProps: { nonce: 0 },
     });
     await settle();
@@ -151,8 +151,8 @@ describe('useEntityDetail', () => {
 
   it('shows the states the snapshot seeded for the root and its related Things, asking for none', async () => {
     useModelStore.getState().seedThingStates(new Map([['root', ['flagged']], ['child', ['metered', 'verified']]]));
-    const idx = index();
-    const { result } = renderHook(() => useEntityDetail(idx, 'root', detail, 0));
+    const modelIndex = index();
+    const { result } = renderHook(() => useEntityDetail(modelIndex, 'root', detail, 0));
     await settle();
 
     expect(result.current.statesById.get('root')).toEqual(['flagged']);
@@ -166,11 +166,11 @@ describe('useEntityDetail', () => {
   it('redraws when a state moves, with nothing else changing', async () => {
     useModelStore.setState({ things: [thing('root', 'ROOT-1')], relationships: [] });
     useModelStore.getState().seedThingStates(new Map([['root', ['flagged']]]));
-    const idx = index();
+    const modelIndex = index();
     let renders = 0;
     const { result } = renderHook(() => {
       renders += 1;
-      return useEntityDetail(idx, 'root', detail, 0);
+      return useEntityDetail(modelIndex, 'root', detail, 0);
     });
     await settle();
     const before = renders;
@@ -184,8 +184,8 @@ describe('useEntityDetail', () => {
   });
 
   it('resolves the configured relations against the model', async () => {
-    const idx = index();
-    const { result } = renderHook(() => useEntityDetail(idx, 'root', detail, 0));
+    const modelIndex = index();
+    const { result } = renderHook(() => useEntityDetail(modelIndex, 'root', detail, 0));
     await settle();
 
     const edge = result.current.relations[0].edges[0];
@@ -194,8 +194,8 @@ describe('useEntityDetail', () => {
   });
 
   it('fetches state history for the root only, not for related Things', async () => {
-    const idx = index();
-    renderHook(() => useEntityDetail(idx, 'root', detail, 0));
+    const modelIndex = index();
+    renderHook(() => useEntityDetail(modelIndex, 'root', detail, 0));
     await settle();
 
     expect(mockGetStateTransitions.mock.calls.map((c) => c[0])).toEqual(['root']);
@@ -210,8 +210,8 @@ describe('useEntityDetail', () => {
         { At: '2026-07-17T00:30:00Z', Entered: ['allocated'], Exited: [], States: ['allocated'], TriggeringProperty: 'temp', OldValue: 50, NewValue: 150 },
       ],
     });
-    const idx = index();
-    const { result } = renderHook(() => useEntityDetail(idx, 'root', detail, 0));
+    const modelIndex = index();
+    const { result } = renderHook(() => useEntityDetail(modelIndex, 'root', detail, 0));
     await settle();
 
     expect(result.current.stateChanges).toEqual([{ at: '2026-07-17T00:30:00Z', entered: ['allocated'], exited: [] }]);
@@ -222,8 +222,8 @@ describe('useEntityDetail', () => {
   // its states and relations rather than losing the whole round to one rejected request.
   it('leaves coverage null and still resolves when the endpoint rejects', async () => {
     mockGetStateTransitions.mockRejectedValue(new Error('503'));
-    const idx = index();
-    const { result } = renderHook(() => useEntityDetail(idx, 'root', detail, 0));
+    const modelIndex = index();
+    const { result } = renderHook(() => useEntityDetail(modelIndex, 'root', detail, 0));
     await settle();
 
     expect(result.current.coverage).toBeNull();
@@ -255,8 +255,8 @@ describe('useEntityDetail dispatches', () => {
       Id: 'r1', SubjectId: 'root', PredicateId: 'has', TargetId: 'child',
       Properties: { __DispatchState: 'Done', __DispatchLastAttemptAt: '2026-07-17T00:30:00Z' },
     });
-    const idx = indexWithAService();
-    const { result } = renderHook(() => useEntityDetail(idx, 'root', { relations: [] }, 0));
+    const modelIndex = indexWithAService();
+    const { result } = renderHook(() => useEntityDetail(modelIndex, 'root', { relations: [] }, 0));
     await settle();
 
     expect(mockGetRelationship.mock.calls.map((c) => c[0])).toEqual(['r1']);
@@ -267,8 +267,8 @@ describe('useEntityDetail dispatches', () => {
   });
 
   it('reads nothing back where no edge on the Thing is a dispatch', async () => {
-    const idx = index();
-    renderHook(() => useEntityDetail(idx, 'root', { relations: [] }, 0));
+    const modelIndex = index();
+    renderHook(() => useEntityDetail(modelIndex, 'root', { relations: [] }, 0));
     await settle();
 
     expect(mockGetRelationship).not.toHaveBeenCalled();
@@ -276,8 +276,8 @@ describe('useEntityDetail dispatches', () => {
 
   it('still lists the dispatch, undated, when the platform refuses the edge read', async () => {
     mockGetRelationship.mockRejectedValue(new Error('404'));
-    const idx = indexWithAService();
-    const { result } = renderHook(() => useEntityDetail(idx, 'root', { relations: [] }, 0));
+    const modelIndex = indexWithAService();
+    const { result } = renderHook(() => useEntityDetail(modelIndex, 'root', { relations: [] }, 0));
     await settle();
 
     expect(result.current.loading).toBe(false);

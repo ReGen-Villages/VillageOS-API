@@ -1,4 +1,4 @@
-import { parseParamValue } from './parseParamValue';
+import { parseParameterValue } from './parseParamValue';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -19,7 +19,7 @@ import { Play, Save, FolderOpen, FilePlus, MousePointerClick, Ban, History, Slid
 import { useModelStore } from '../stores/modelStore';
 import { useSubscription } from '../hooks/useSse';
 import { WHOLE_MODEL } from '../types/subscription';
-import { PipelineModel, ARCHETYPE_FLAG, typesCompatible, type ConnectionInfo, type PortInfo } from '../pipeline/model';
+import { PipelineModel, ARCHETYPE_FLAG, typesCompatible, type ConnectionInformation, type PortInformation } from '../pipeline/model';
 import { savePipeline, loadPipeline, type EditorNode, type EditorEdge } from '../pipeline/serialize';
 import { validatePipeline } from '../pipeline/validate';
 import { EditorHistory } from '../pipeline/history';
@@ -37,7 +37,7 @@ const RUN_STATUS_COLOR: Record<string, string> = {
   partial: 'text-orange-500',
 };
 
-let nodeSeq = 0;
+let nodeSequence = 0;
 
 /** A short edge label for a mapped wire, e.g. `user.id → a` with a trailing `ƒ` when the wire
  * carries a JSONata transform; undefined when the wire is a plain whole-payload pass-through. */
@@ -72,22 +72,22 @@ export function PipelinePage() {
   const [thingIdByCanvasId, setThingIdByCanvasId] = useState<Record<string, string>>({});
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [runParamValues, setRunParamValues] = useState<Record<string, string>>({});
+  const [runParameterValues, setRunParameterValues] = useState<Record<string, string>>({});
 
   // Undo + optimistic rollback. The history records the editor state *before* each mutation (undo),
   // and holds the last server-confirmed state as a baseline (rollback on a rejected save). `canUndo`/`dirty`
   // drive the toolbar. A ref mirrors the latest nodes/edges so any handler can snapshot the current state.
   type EditorSnapshot = { nodes: Node[]; edges: Edge[] };
-  const historyRef = useRef(new EditorHistory<EditorSnapshot>({ nodes: [], edges: [] }));
-  const stateRef = useRef<EditorSnapshot>({ nodes, edges });
+  const historyReference = useRef(new EditorHistory<EditorSnapshot>({ nodes: [], edges: [] }));
+  const stateReference = useRef<EditorSnapshot>({ nodes, edges });
   // Mirrored after each commit rather than during render, so a handler that snapshots for undo
   // reads what is on screen — never values from a render React went on to discard.
-  useEffect(() => { stateRef.current = { nodes, edges }; }, [nodes, edges]);
+  useEffect(() => { stateReference.current = { nodes, edges }; }, [nodes, edges]);
   const [canUndo, setCanUndo] = useState(false);
   const [dirty, setDirty] = useState(false);
 
   const recordSnapshot = useCallback(() => {
-    historyRef.current.record(structuredClone(stateRef.current));
+    historyReference.current.record(structuredClone(stateReference.current));
     setCanUndo(true);
     setDirty(true);
   }, []);
@@ -99,21 +99,21 @@ export function PipelinePage() {
 
   // Baseline = the last server-confirmed state; also clears the undo stack (a fresh save/load/new is the floor).
   const commitBaseline = useCallback((s: EditorSnapshot) => {
-    historyRef.current.commit(structuredClone(s));
+    historyReference.current.commit(structuredClone(s));
     setCanUndo(false);
     setDirty(false);
   }, []);
 
   const onUndo = useCallback(() => {
-    const prev = historyRef.current.undo();
-    if (!prev) return;
-    applySnapshot(prev);
-    setCanUndo(historyRef.current.canUndo());
+    const previous = historyReference.current.undo();
+    if (!previous) return;
+    applySnapshot(previous);
+    setCanUndo(historyReference.current.canUndo());
     setDirty(true);
     setSavedId(null); // an undo leaves the canvas out of step with the last save
   }, [applySnapshot]);
 
-  const paramKeys = useMemo(() => {
+  const parameterKeys = useMemo(() => {
     const keys = new Set<string>();
     for (const n of nodes) {
       const b = (n.data as unknown as PipelineNodeData).paramBindings;
@@ -125,17 +125,17 @@ export function PipelinePage() {
   // Pre-run validation: why the DAG will not run — required inputs neither wired nor param-bound,
   // and dangling wires. Surfaced in the toolbar and gates Run so a broken pipeline fails loud, not silent.
   const validationIssues = useMemo(() => {
-    const valNodes = nodes.map((n) => {
+    const validationNodes = nodes.map((n) => {
       const d = n.data as unknown as PipelineNodeData;
       return { id: n.id, label: d.label, ports: d.ports, paramBindings: d.paramBindings };
     });
-    const valEdges = edges.map((e) => ({
+    const validationEdges = edges.map((e) => ({
       source: e.source,
       sourceHandle: e.sourceHandle ?? '',
       target: e.target,
       targetHandle: e.targetHandle ?? '',
     }));
-    return validatePipeline(valNodes, valEdges);
+    return validatePipeline(validationNodes, validationEdges);
   }, [nodes, edges]);
 
   const selectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : undefined;
@@ -164,13 +164,13 @@ export function PipelinePage() {
     setRunId(id || null);
   }, [clearStatuses]);
 
-  const addNode = useCallback((c: ConnectionInfo) => {
+  const addNode = useCallback((c: ConnectionInformation) => {
     recordSnapshot();
     const data: PipelineNodeData = { label: c.name, connectionId: c.connectionId, subdomain: c.subdomain, ports: c.ports };
     setNodes((ns) => [
       ...ns,
       {
-        id: `n${++nodeSeq}`,
+        id: `n${++nodeSequence}`,
         type: 'pipelineNode',
         position: { x: 80 + ns.length * 60, y: 80 + ns.length * 40 },
         data: data as unknown as Record<string, unknown>,
@@ -193,7 +193,7 @@ export function PipelinePage() {
     setNodes((ns) => [
       ...ns,
       {
-        id: `n${++nodeSeq}`,
+        id: `n${++nodeSequence}`,
         type: 'pipelineNode',
         position: { x: 80 + ns.length * 60, y: 80 + ns.length * 40 },
         data: data as unknown as Record<string, unknown>,
@@ -204,16 +204,16 @@ export function PipelinePage() {
 
   // Add / rename / remove a port on a boundary node (its ports are user-declared). Direction is fixed by the
   // node kind (Input → output ports, Output → input ports).
-  const setBoundaryPorts = useCallback((nodeId: string, ports: PortInfo[]) => {
+  const setBoundaryPorts = useCallback((nodeId: string, ports: PortInformation[]) => {
     recordSnapshot();
     setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ports } } : n)));
     setSavedId(null);
   }, [setNodes, recordSnapshot]);
 
   const onConnect = useCallback((c: Connection) => {
-    const src = nodes.find((n) => n.id === c.source)?.data as PipelineNodeData | undefined;
+    const source = nodes.find((n) => n.id === c.source)?.data as PipelineNodeData | undefined;
     const tgt = nodes.find((n) => n.id === c.target)?.data as PipelineNodeData | undefined;
-    const outPort = src?.ports.find((p) => p.portName === c.sourceHandle && p.direction === 'out');
+    const outPort = source?.ports.find((p) => p.portName === c.sourceHandle && p.direction === 'out');
     const inPort = tgt?.ports.find((p) => p.portName === c.targetHandle && p.direction === 'in');
     if (!outPort || !inPort) return;
     if (!typesCompatible(outPort.type, inPort.type)) {
@@ -247,7 +247,7 @@ export function PipelinePage() {
   const onSave = useCallback(async () => {
     // Optimistic rollback: remember the state we are trying to save so a rejected save can revert
     // the canvas to the last server-confirmed state instead of leaving it out of step with the server.
-    const attempt = structuredClone(stateRef.current);
+    const attempt = structuredClone(stateReference.current);
     setBusy(true);
     setError(null);
     try {
@@ -261,7 +261,7 @@ export function PipelinePage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : t('pipeline.saveFailed'));
       // Revert to the last server-confirmed state, if we have one (a never-saved canvas keeps the user's work).
-      const target = historyRef.current.rollbackTarget();
+      const target = historyReference.current.rollbackTarget();
       if (target) {
         applySnapshot(target);
         setCanUndo(false);
@@ -314,21 +314,21 @@ export function PipelinePage() {
       // Async spawn — get the run id up front and let the SSE animation effect below light up nodes.
       // Param values are parsed as JSON when valid (so a list `["a","b"]` drives fan-out, `42`→number),
       // otherwise passed through as a plain string.
-      const params = Object.fromEntries(paramKeys.map((k) => [k, parseParamValue(runParamValues[k] ?? '')]));
-      const accepted = await pipelineApi.spawnAsync(savedId, params);
+      const parameters = Object.fromEntries(parameterKeys.map((k) => [k, parseParameterValue(runParameterValues[k] ?? '')]));
+      const accepted = await pipelineApi.spawnAsync(savedId, parameters);
       setRunId(accepted.runId);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('pipeline.runFailed'));
     }
-  }, [savedId, setNodes, paramKeys, runParamValues, t]);
+  }, [savedId, setNodes, parameterKeys, runParameterValues, t]);
 
-  const setBinding = useCallback((nodeId: string, port: string, paramKey: string) => {
+  const setBinding = useCallback((nodeId: string, port: string, parameterKey: string) => {
     recordSnapshot();
     setNodes((ns) => ns.map((n) => {
       if (n.id !== nodeId) return n;
       const d = n.data as unknown as PipelineNodeData;
       const next = { ...(d.paramBindings ?? {}) };
-      if (paramKey.trim()) next[port] = paramKey.trim();
+      if (parameterKey.trim()) next[port] = parameterKey.trim();
       else delete next[port];
       return { ...n, data: { ...n.data, paramBindings: next } };
     }));
@@ -467,15 +467,15 @@ export function PipelinePage() {
           ) : null}
           {error && <span className="text-xs text-red-500 ml-2">{error}</span>}
         </div>
-        {paramKeys.length > 0 && (
+        {parameterKeys.length > 0 && (
           <div className="flex items-center gap-3 px-2 py-1 border-b border-zinc-200 dark:border-zinc-700 text-xs">
-            <span className="text-zinc-500 flex items-center gap-1"><SlidersHorizontal size={12} /> {t('pipeline.params')}</span>
-            {paramKeys.map((k) => (
+            <span className="text-zinc-500 flex items-center gap-1"><SlidersHorizontal size={12} /> {t('pipeline.parameters')}</span>
+            {parameterKeys.map((k) => (
               <label key={k} className="flex items-center gap-1">
                 <span className="font-mono text-zinc-600 dark:text-zinc-300">{k}</span>
                 <input
-                  value={runParamValues[k] ?? ''}
-                  onChange={(e) => setRunParamValues((v) => ({ ...v, [k]: e.target.value }))}
+                  value={runParameterValues[k] ?? ''}
+                  onChange={(e) => setRunParameterValues((v) => ({ ...v, [k]: e.target.value }))}
                   className="w-28 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800"
                 />
               </label>
@@ -550,7 +550,7 @@ export function PipelinePage() {
                           <span className="flex-1 italic text-zinc-400">{t('pipeline.wired')}</span>
                         ) : (
                           <input
-                            placeholder={t('pipeline.fromParam')}
+                            placeholder={t('pipeline.fromParameter')}
                             value={bindings[p.portName] ?? ''}
                             onChange={
                               // eslint-disable-next-line react-hooks/refs -- an event handler, which the rule's own guidance names as the right place to read a ref; it cannot tell one written inline in JSX from code running during render

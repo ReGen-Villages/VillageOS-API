@@ -32,7 +32,7 @@ describe('GraphDataLoader', () => {
     loadGraphMock.mockClear();
     animatedReset.mockClear();
     // Fire rAF synchronously so the camera-fit assertion is deterministic.
-    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => { cb(0); return 0; });
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { callback(0); return 0; });
   });
 
   it('does a full load and fits the camera on first load', () => {

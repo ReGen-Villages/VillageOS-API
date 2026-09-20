@@ -1,12 +1,12 @@
 import { useTranslation } from 'react-i18next';
-import type { RegisteredService, EndpointServiceInfo, HealthStatus } from '../../types/mycelium';
+import type { RegisteredService, EndpointServiceInformation, HealthStatus } from '../../types/mycelium';
 import { Badge } from '../common/Badge';
-import { formatMs, formatRelativeTime } from '../../utils/formatters';
+import { formatMilliseconds, formatRelativeTime } from '../../utils/formatters';
 import { Play, Square, Workflow, Globe, Trash2, ScrollText, HardDriveDownload } from 'lucide-react';
 
 interface Props {
   services: RegisteredService[];
-  endpoints: EndpointServiceInfo[];
+  endpoints: EndpointServiceInformation[];
   onStart: (id: string) => void;
   onStop: (id: string) => void;
   onDelete?: (thingId: string, name: string) => void;
@@ -39,8 +39,8 @@ interface ServiceRow {
   trigger: 'graph' | 'http';
   routeLabel: string;
   requests: number;
-  avgMs: number;
-  lastReqUtc?: string;
+  averageMilliseconds: number;
+  lastRequestUtc?: string;
   errors?: number;
   health?: string;
   running?: boolean;
@@ -52,49 +52,49 @@ interface ServiceRow {
   deleteThingId?: string;
 }
 
-function fromService(svc: RegisteredService): ServiceRow {
+function fromService(service: RegisteredService): ServiceRow {
   return {
-    key: `svc:${svc.HandlerId}`,
-    name: svc.ServiceName,
+    key: `svc:${service.HandlerId}`,
+    name: service.ServiceName,
     trigger: 'graph',
     routeLabel: 'predicate',
-    requests: svc.Stats.RequestsForwarded,
-    avgMs: svc.Stats.AverageResponseMilliseconds,
-    lastReqUtc: svc.Stats.LastRequestUtc,
-    health: svc.HealthStatus,
-    running: svc.IsRunning,
-    isExternal: svc.IsExternal,
-    processId: svc.ProcessId,
-    lastContactTime: svc.LastContactTime,
-    failureCount: svc.FailureCount,
-    controlId: svc.HandlerId,
+    requests: service.Stats.RequestsForwarded,
+    averageMilliseconds: service.Stats.AverageResponseMilliseconds,
+    lastRequestUtc: service.Stats.LastRequestUtc,
+    health: service.HealthStatus,
+    running: service.IsRunning,
+    isExternal: service.IsExternal,
+    processId: service.ProcessId,
+    lastContactTime: service.LastContactTime,
+    failureCount: service.FailureCount,
+    controlId: service.HandlerId,
   };
 }
 
-function fromEndpoint(ep: EndpointServiceInfo): ServiceRow {
+function fromEndpoint(effectiveProperty: EndpointServiceInformation): ServiceRow {
   return {
-    key: `ep:${ep.Subdomain}`,
-    name: ep.Name,
+    key: `ep:${effectiveProperty.Subdomain}`,
+    name: effectiveProperty.Name,
     trigger: 'http',
-    routeLabel: `/api/endpoints/${ep.Subdomain}`,
-    requests: ep.Stats.RequestCount,
-    avgMs: ep.Stats.AverageResponseMs,
-    lastReqUtc: ep.Stats.LastRequestUtc,
-    errors: ep.Stats.ErrorCount,
-    deleteThingId: ep.ObjectId,
+    routeLabel: `/api/endpoints/${effectiveProperty.Subdomain}`,
+    requests: effectiveProperty.Stats.RequestCount,
+    averageMilliseconds: effectiveProperty.Stats.AverageResponseMs,
+    lastRequestUtc: effectiveProperty.Stats.LastRequestUtc,
+    errors: effectiveProperty.Stats.ErrorCount,
+    deleteThingId: effectiveProperty.ObjectId,
   };
 }
 
 // Base cells: Requests, Avg Time, Last Req. Errors (endpoints), Last Contact and
 // PID (graph services) are added conditionally. Literal class strings so Tailwind
 // keeps them in the build.
-function statGridCols(row: ServiceRow): string {
-  const cols =
+function statGridColumns(row: ServiceRow): string {
+  const columns =
     3 +
     (row.errors !== undefined ? 1 : 0) +
     (row.lastContactTime ? 1 : 0) +
     (row.processId ? 1 : 0);
-  switch (cols) {
+  switch (columns) {
     case 6: return 'grid-cols-6';
     case 5: return 'grid-cols-5';
     case 4: return 'grid-cols-4';
@@ -144,14 +144,14 @@ export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete, 
                 )}
               </div>
             </div>
-            <div className={`grid ${statGridCols(row)} gap-2 text-xs text-zinc-500`}>
+            <div className={`grid ${statGridColumns(row)} gap-2 text-xs text-zinc-500`}>
               <div>
                 <span className="block text-zinc-400">{t('dashboard.services.requests')}</span>
                 <span className="font-mono text-zinc-300">{row.requests}</span>
               </div>
               <div>
-                <span className="block text-zinc-400">{t('dashboard.services.avgTime')}</span>
-                <span className="font-mono text-zinc-300">{formatMs(row.avgMs)}</span>
+                <span className="block text-zinc-400">{t('dashboard.services.averageTime')}</span>
+                <span className="font-mono text-zinc-300">{formatMilliseconds(row.averageMilliseconds)}</span>
               </div>
               {row.errors !== undefined && (
                 <div>
@@ -160,8 +160,8 @@ export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete, 
                 </div>
               )}
               <div>
-                <span className="block text-zinc-400">{t('dashboard.services.lastReq')}</span>
-                <span className="text-zinc-300">{row.lastReqUtc ? formatRelativeTime(row.lastReqUtc) : '—'}</span>
+                <span className="block text-zinc-400">{t('dashboard.services.lastRequest')}</span>
+                <span className="text-zinc-300">{row.lastRequestUtc ? formatRelativeTime(row.lastRequestUtc) : '—'}</span>
               </div>
               {row.lastContactTime && (
                 <div>
@@ -171,7 +171,7 @@ export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete, 
               )}
               {row.processId && (
                 <div>
-                  <span className="block text-zinc-400">{t('dashboard.services.pid')}</span>
+                  <span className="block text-zinc-400">{t('dashboard.services.processId')}</span>
                   <span className="font-mono text-zinc-300">{row.processId}</span>
                 </div>
               )}

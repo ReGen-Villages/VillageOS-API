@@ -30,7 +30,7 @@ export function NodeContextMenu({ things, relationships, onDeleteThing }: Props)
   const selectNode = useUiStore((s) => s.selectNode);
   const toggleNodeExpanded = useUiStore((s) => s.toggleNodeExpanded);
   const toggleLogicalExpansion = useUiStore((s) => s.toggleLogicalExpansion);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const menuReference = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -44,7 +44,7 @@ export function NodeContextMenu({ things, relationships, onDeleteThing }: Props)
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      if (menuReference.current && !menuReference.current.contains(e.target as Node)) {
         closeMenu();
       }
     };
@@ -103,7 +103,7 @@ export function NodeContextMenu({ things, relationships, onDeleteThing }: Props)
 
   return (
     <div
-      ref={menuRef}
+      ref={menuReference}
       className="absolute z-50 min-w-[180px] py-1 bg-zinc-800/95 backdrop-blur border border-zinc-700 rounded-lg shadow-xl shadow-black/40"
       style={{ left: position.x, top: position.y }}
     >

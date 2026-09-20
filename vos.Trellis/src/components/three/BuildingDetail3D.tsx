@@ -71,7 +71,7 @@ function RotatingBuilding({
   color: string;
   childElements?: ChildElement[];
 }) {
-  const groupRef = useRef<THREE.Group>(null);
+  const groupReference = useRef<THREE.Group>(null);
 
   const meshEntries = useMemo(() => {
     const entries: MeshEntry[] = [];
@@ -117,8 +117,8 @@ function RotatingBuilding({
   }, [geometryValue, color, childElements]);
 
   useFrame((_, delta) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y += delta * 0.3;
+    if (groupReference.current) {
+      groupReference.current.rotation.y += delta * 0.3;
     }
   });
 
@@ -133,7 +133,7 @@ function RotatingBuilding({
   if (meshEntries.length === 0) return null;
 
   return (
-    <group ref={groupRef}>
+    <group ref={groupReference}>
       {meshEntries.map((entry, i) => (
         <mesh key={i} geometry={entry.geometry}>
           <meshStandardMaterial
@@ -190,10 +190,10 @@ export default function BuildingDetail3D({
   let minZ = Infinity, maxZ = -Infinity;
   let maxHeight = 0;
   for (const m of allMeshes) {
-    const pos = m.positions;
-    for (let i = 0; i < pos.length; i += 3) {
-      const x = pos[i] - cx;
-      const z = pos[i + 2] - cz;
+    const position = m.positions;
+    for (let i = 0; i < position.length; i += 3) {
+      const x = position[i] - cx;
+      const z = position[i + 2] - cz;
       if (x < minX) minX = x;
       if (x > maxX) maxX = x;
       if (z < minZ) minZ = z;

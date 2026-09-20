@@ -23,7 +23,7 @@ vi.mock('../api/intakeApi', () => ({
 vi.mock('../components/common/toastStore', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
-vi.mock('../hooks/useAuth', () => ({ useAuth: () => ({ modelId: 'model-1' }) }));
+vi.mock('../hooks/useAuthentication', () => ({ useAuthentication: () => ({ modelId: 'model-1' }) }));
 vi.mock('../components/map/MapView', () => ({
   MapView: ({
     latitude,

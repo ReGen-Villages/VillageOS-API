@@ -11,7 +11,7 @@
  */
 import type { HistoryFold, HistoryFunction, OriginKind } from './vos';
 
-/** The archetype a model-resident dashboard config Thing must be `is`-linked to. */
+/** The archetype a model-resident dashboard configuration Thing must be `is`-linked to. */
 export const DASHBOARD_ARCHETYPE = 'Dashboard';
 /** The Thing property holding the JSON-encoded {@link DashboardSpec}. */
 export const DASHBOARD_SPEC_PROPERTY = 'spec';

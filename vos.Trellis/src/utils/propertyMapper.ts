@@ -32,9 +32,9 @@ function declaredWriteKinds(
 ): Record<string, DeclaredWriteKind> | undefined {
   if (!props) return undefined;
   const kinds: Record<string, DeclaredWriteKind> = {};
-  for (const [key, val] of Object.entries(props)) {
-    if (val === null || typeof val !== 'object') continue;
-    const declared = (val as Record<string, unknown>).writeKind;
+  for (const [key, value] of Object.entries(props)) {
+    if (value === null || typeof value !== 'object') continue;
+    const declared = (value as Record<string, unknown>).writeKind;
     if (isDeclaredWriteKind(declared)) kinds[key] = declared;
   }
   return Object.keys(kinds).length ? kinds : undefined;
@@ -48,8 +48,8 @@ export function unwrapProperties(
 ): Record<string, unknown> {
   if (!props) return {};
   const result: Record<string, unknown> = {};
-  for (const [key, val] of Object.entries(props)) {
-    result[key] = unwrapPropertyValue(val);
+  for (const [key, value] of Object.entries(props)) {
+    result[key] = unwrapPropertyValue(value);
   }
   return result;
 }
@@ -215,9 +215,9 @@ function resolveDefinitions(
  * Transform a VosRelationship from the API (with typed property wrappers)
  * into the GUI format (with raw property values).
  */
-export function unwrapRelationship(rel: VosRelationship): VosRelationship {
+export function unwrapRelationship(relationship: VosRelationship): VosRelationship {
   return {
-    ...rel,
-    Properties: unwrapProperties(rel.Properties),
+    ...relationship,
+    Properties: unwrapProperties(relationship.Properties),
   };
 }

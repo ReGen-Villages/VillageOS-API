@@ -54,11 +54,11 @@ function isSummary(widget: Widget): widget is KpiWidget {
 export function ThemedTiles({
   sections,
   themes,
-  ctx,
+  context,
 }: {
   sections: DashboardSection[];
   themes: DeclaredTheme[];
-  ctx: ResolveContext;
+  context: ResolveContext;
 }) {
   const { t } = useTranslation();
   const tiles = useMemo(() => tilesOf(sections, themes), [sections, themes]);
@@ -73,7 +73,7 @@ export function ThemedTiles({
           <ThemeTile
             key={at}
             tile={tile}
-            ctx={ctx}
+            context={context}
             onOpen={() => setView({ kind: 'gallery', tile: at })}
           />
         ))}
@@ -90,7 +90,7 @@ export function ThemedTiles({
       <div className="mt-4">
         <BackButton label={t('tiles.backToGallery')} onClick={() => setView({ kind: 'gallery', tile: view.tile })} />
         <h3 className="mb-3 text-base font-semibold text-zinc-900 dark:text-zinc-100">{heading}</h3>
-        <WidgetRenderer widget={gallery[view.card]} ctx={ctx} />
+        <WidgetRenderer widget={gallery[view.card]} context={context} />
       </div>
     );
   }
@@ -102,7 +102,7 @@ export function ThemedTiles({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {gallery.map((widget, at) => (
           <div key={at} className="relative">
-            <WidgetRenderer widget={widget} ctx={ctx} />
+            <WidgetRenderer widget={widget} context={context} />
             <button
               type="button"
               onClick={() => setView({ kind: 'widget', tile: view.tile, card: at })}
@@ -131,12 +131,12 @@ function BackButton({ label, onClick }: { label: string; onClick: () => void }) 
   );
 }
 
-function ThemeTile({ tile, ctx, onOpen }: { tile: Tile; ctx: ResolveContext; onOpen: () => void }) {
+function ThemeTile({ tile, context, onOpen }: { tile: Tile; context: ResolveContext; onOpen: () => void }) {
   const { t } = useTranslation();
   const { section, theme } = tile;
   const [revealed, setRevealed] = useState(false);
   const summary = section.widgets.filter(isSummary);
-  const figures = useBindings(summary.map((widget) => widget.value), ctx);
+  const figures = useBindings(summary.map((widget) => widget.value), context);
   const assessed = section.widgets.length > 0;
   const face = theme?.colour ?? NEUTRAL_FACE;
   const ink = inkFor(face) === 'dark' ? 'text-zinc-800' : 'text-white';

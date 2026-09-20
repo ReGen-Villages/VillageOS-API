@@ -8,7 +8,7 @@ export const THING_SEARCH_SKIP_KEYS = new Set([
 ]);
 
 /** Max own properties shown inline per result row. */
-export const PREVIEW_PROPS = 4;
+export const PREVIEW_PROPERTIES = 4;
 
 export interface ThingMatch {
   id: string;
@@ -20,14 +20,14 @@ export interface ThingMatch {
   relationshipCount: number;
   /** Left unformatted: how a value should read depends on the type the platform declares for it,
    *  which this index does not carry. The page that shows them resolves that and formats. */
-  previewProps: Array<{ key: string; value: unknown }>;
+  previewProperties: Array<{ key: string; value: unknown }>;
 }
 
 export interface ThingSearchIndex {
   /** Maps subject ID → type name from the first "is" relationship found. */
   isSubjectToTypeName: Map<string, string>;
   /** Maps thing ID → number of relationships where it appears as subject or target. */
-  relCountByThing: Map<string, number>;
+  relationshipCountByThing: Map<string, number>;
 }
 
 /**
@@ -40,14 +40,14 @@ export function buildThingSearchIndex(
 ): ThingSearchIndex {
   const thingMap = new Map(things.map((t) => [t.Id, t]));
   const isSubjectToTypeName = new Map<string, string>();
-  const relCountByThing = new Map<string, number>();
+  const relationshipCountByThing = new Map<string, number>();
 
   for (const r of relationships) {
-    relCountByThing.set(r.SubjectId, (relCountByThing.get(r.SubjectId) ?? 0) + 1);
-    relCountByThing.set(r.TargetId, (relCountByThing.get(r.TargetId) ?? 0) + 1);
+    relationshipCountByThing.set(r.SubjectId, (relationshipCountByThing.get(r.SubjectId) ?? 0) + 1);
+    relationshipCountByThing.set(r.TargetId, (relationshipCountByThing.get(r.TargetId) ?? 0) + 1);
 
-    const pred = thingMap.get(r.PredicateId);
-    if (pred && pred.Name.toLowerCase() === 'is') {
+    const predicate = thingMap.get(r.PredicateId);
+    if (predicate && predicate.Name.toLowerCase() === 'is') {
       if (!isSubjectToTypeName.has(r.SubjectId)) {
         const targetName = thingMap.get(r.TargetId)?.Name;
         if (targetName) isSubjectToTypeName.set(r.SubjectId, targetName);
@@ -55,7 +55,7 @@ export function buildThingSearchIndex(
     }
   }
 
-  return { isSubjectToTypeName, relCountByThing };
+  return { isSubjectToTypeName, relationshipCountByThing };
 }
 
 /**
@@ -103,7 +103,7 @@ export function searchThings(
     if (score === null) continue;
 
     const ownKeys = Object.keys(thing.Properties).filter((k) => !THING_SEARCH_SKIP_KEYS.has(k));
-    const previewProps = ownKeys.slice(0, PREVIEW_PROPS).map((key) => ({
+    const previewProperties = ownKeys.slice(0, PREVIEW_PROPERTIES).map((key) => ({
       key,
       value: thing.Properties[key],
     }));
@@ -114,8 +114,8 @@ export function searchThings(
       score,
       typeName: index.isSubjectToTypeName.get(thing.Id),
       ownPropertyCount: ownKeys.length,
-      relationshipCount: index.relCountByThing.get(thing.Id) ?? 0,
-      previewProps,
+      relationshipCount: index.relationshipCountByThing.get(thing.Id) ?? 0,
+      previewProperties,
     });
   }
 

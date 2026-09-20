@@ -84,7 +84,7 @@ const widget: RangeBarWidget = {
 };
 
 function draw(drawn: RangeBarWidget = widget) {
-  return render(<RangeBar widget={drawn} ctx={{} as ResolveContext} />);
+  return render(<RangeBar widget={drawn} context={{} as ResolveContext} />);
 }
 
 describe('the stacked range bar', () => {
@@ -101,10 +101,10 @@ describe('the stacked range bar', () => {
     const { container } = draw();
 
     const january = container.querySelector('[data-month="1"]')!;
-    const segments = [...january.querySelectorAll('rect[data-segment]')].map((rect) => ({
-      name: rect.getAttribute('data-segment'),
-      top: Number(rect.getAttribute('y')),
-      height: Number(rect.getAttribute('height')),
+    const segments = [...january.querySelectorAll('rect[data-segment]')].map((rectangle) => ({
+      name: rectangle.getAttribute('data-segment'),
+      top: Number(rectangle.getAttribute('y')),
+      height: Number(rectangle.getAttribute('height')),
     }));
     expect(segments.map((segment) => segment.name)).toEqual(['designHigh', 'averageHigh', 'averageLow', 'designLow']);
     // Stacked top to bottom without overlap, and a taller segment for a wider span.

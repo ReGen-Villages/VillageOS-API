@@ -38,11 +38,11 @@ export function AddRelationshipRow({ direction, fixedThingId, things, relationsh
       const subjectId = direction === 'outgoing' ? fixedThingId : otherId;
       const targetId = direction === 'outgoing' ? otherId : fixedThingId;
       await relationshipApi.create(subjectId, predicateId, targetId);
-      toast.success(t('panels.addRel.created'));
+      toast.success(t('panels.addRelationship.created'));
       setPredicateId('');
       setOtherId('');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('panels.addRel.createFailed'));
+      toast.error(err instanceof Error ? err.message : t('panels.addRelationship.createFailed'));
     } finally {
       setSaving(false);
     }
@@ -50,14 +50,14 @@ export function AddRelationshipRow({ direction, fixedThingId, things, relationsh
 
   return (
     <div className="border-t border-zinc-700/50 mt-2 pt-2 space-y-1.5">
-      <ThingPicker things={predicateSorted} value={predicateId} onChange={setPredicateId} placeholder={t('panels.addRel.predicatePlaceholder')} />
-      <ThingPicker things={nonPredicateThings} value={otherId} onChange={setOtherId} placeholder={direction === 'outgoing' ? t('panels.addRel.targetPlaceholder') : t('panels.addRel.subjectPlaceholder')} />
+      <ThingPicker things={predicateSorted} value={predicateId} onChange={setPredicateId} placeholder={t('panels.addRelationship.predicatePlaceholder')} />
+      <ThingPicker things={nonPredicateThings} value={otherId} onChange={setOtherId} placeholder={direction === 'outgoing' ? t('panels.addRelationship.targetPlaceholder') : t('panels.addRelationship.subjectPlaceholder')} />
       <div className="flex justify-end">
         <button
           onClick={submit}
           disabled={!canSubmit}
           className="p-0.5 rounded text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-30 disabled:cursor-default transition-colors flex-shrink-0"
-          title={t('panels.addRel.createRelationship')}
+          title={t('panels.addRelationship.createRelationship')}
         >
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
         </button>

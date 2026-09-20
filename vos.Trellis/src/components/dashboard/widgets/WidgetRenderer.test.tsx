@@ -11,7 +11,7 @@ vi.mock('../../../hooks/useDashboard', () => ({
 const { WidgetRenderer } = await import('./WidgetRenderer');
 
 function draw(widget: unknown) {
-  render(<WidgetRenderer widget={widget as Widget} ctx={{} as ResolveContext} />);
+  render(<WidgetRenderer widget={widget as Widget} context={{} as ResolveContext} />);
 }
 
 describe('a widget kind this build has no drawing for', () => {

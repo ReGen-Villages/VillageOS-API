@@ -235,7 +235,7 @@ describe('effectiveProperties', () => {
 });
 
 describe('unwrapRelationship', () => {
-  const baseRel: VosRelationship = {
+  const baseRelationship: VosRelationship = {
     Id: 'r1',
     Name: 'TestRel',
     SubjectId: 's1',
@@ -245,16 +245,16 @@ describe('unwrapRelationship', () => {
   };
 
   it('unwraps relationship properties', () => {
-    const rel: VosRelationship = {
-      ...baseRel,
+    const relationship: VosRelationship = {
+      ...baseRelationship,
       Properties: { weight: { typeInfo: 'vos.Double', value: 0.5 } },
     };
-    const result = unwrapRelationship(rel);
+    const result = unwrapRelationship(relationship);
     expect(result.Properties).toEqual({ weight: 0.5 });
   });
 
   it('preserves non-property fields', () => {
-    const result = unwrapRelationship(baseRel);
+    const result = unwrapRelationship(baseRelationship);
     expect(result.Id).toBe('r1');
     expect(result.SubjectId).toBe('s1');
     expect(result.TargetId).toBe('t1');

@@ -18,13 +18,13 @@ import clsx from 'clsx';
 const PAGE_SIZE = 100;
 
 function highlightMatch(text: string, query: string) {
-  const idx = text.toLowerCase().indexOf(query.toLowerCase());
-  if (idx === -1) return text;
+  const index = text.toLowerCase().indexOf(query.toLowerCase());
+  if (index === -1) return text;
   return (
     <>
-      {text.slice(0, idx)}
-      <span className="bg-amber-500/30 text-amber-200 rounded px-0.5">{text.slice(idx, idx + query.length)}</span>
-      {text.slice(idx + query.length)}
+      {text.slice(0, index)}
+      <span className="bg-amber-500/30 text-amber-200 rounded px-0.5">{text.slice(index, index + query.length)}</span>
+      {text.slice(index + query.length)}
     </>
   );
 }
@@ -41,7 +41,7 @@ export function PropertySearchPage() {
   const [historyTarget, setHistoryTarget] = useState<PropertyMatch | null>(null);
   const [versions, setVersions] = useState<PropertyVersionsResponse | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const debounceReference = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const numbers = useNumberDisplaySettings();
   const things = useModelStore((s) => s.things);
@@ -53,12 +53,12 @@ export function PropertySearchPage() {
   // store only carries own + stored overrides, so search must read the server-resolved effective set.
   // A read-only snapshot — Property Search is not a live surface — and the same read the panels make
   // for the declared types, which is why it comes from the one hook rather than a second fetch.
-  const effectiveProps = useDeclaredPropertyTypes();
+  const effectiveProperties = useDeclaredPropertyTypes();
 
   const onInputChange = useCallback((value: string) => {
     setInputValue(value);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
+    clearTimeout(debounceReference.current);
+    debounceReference.current = setTimeout(() => {
       setDebouncedQuery(value);
       setVisibleCount(PAGE_SIZE);
       setHistoryTarget(null);
@@ -66,7 +66,7 @@ export function PropertySearchPage() {
     }, 250);
   }, []);
 
-  useEffect(() => () => clearTimeout(debounceRef.current), []);
+  useEffect(() => () => clearTimeout(debounceReference.current), []);
 
   const thingNames = useMemo(() => {
     const map = new Map<string, string>();
@@ -75,8 +75,8 @@ export function PropertySearchPage() {
   }, [things]);
 
   const results = useMemo(
-    () => searchProperties({ effectiveProps, relationships, thingNames, query: debouncedQuery, mode: searchMode }),
-    [debouncedQuery, searchMode, effectiveProps, relationships, thingNames],
+    () => searchProperties({ effectiveProperties, relationships, thingNames, query: debouncedQuery, mode: searchMode }),
+    [debouncedQuery, searchMode, effectiveProperties, relationships, thingNames],
   );
 
   // Group results by property name, but only materialize what we'll render
@@ -121,15 +121,15 @@ export function PropertySearchPage() {
       g.set(m.propertyName, arr);
     }
     const lines: string[] = [`# Property Search (by ${searchMode}): "${debouncedQuery}"`, ''];
-    for (const [propName, matches] of g) {
-      lines.push(`## ${propName}`, '');
+    for (const [propertyName, matches] of g) {
+      lines.push(`## ${propertyName}`, '');
       lines.push('| Type | Owner | Inherited From | Value |', '|------|-------|----------------|-------|');
       for (const m of matches) {
         const type = m.ownerType === 'thing' ? 'Thing' : 'Rel';
         const owner = m.ownerType === 'thing' ? m.ownerName : (m.ownerDetail ?? m.ownerName);
         const via = m.inheritedFrom ?? '';
-        const val = formatPropertyValue(m.value, m.declaredType, numbers).replace(/\|/g, '\\|');
-        lines.push(`| ${type} | ${owner} | ${via} | ${val} |`);
+        const value = formatPropertyValue(m.value, m.declaredType, numbers).replace(/\|/g, '\\|');
+        lines.push(`| ${type} | ${owner} | ${via} | ${value} |`);
       }
       lines.push('');
     }
@@ -238,12 +238,12 @@ export function PropertySearchPage() {
         {/* Grouped results */}
         {debouncedQuery.trim().length > 0 && (
           <div className="space-y-4">
-            {[...grouped.entries()].map(([propName, matches]) => (
+            {[...grouped.entries()].map(([propertyName, matches]) => (
               <div
-                key={propName}
+                key={propertyName}
                 className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4"
               >
-                <h3 className="text-sm font-semibold text-amber-400 mb-2 font-mono">{propName}</h3>
+                <h3 className="text-sm font-semibold text-amber-400 mb-2 font-mono">{propertyName}</h3>
                 <div className="space-y-1.5">
                   {matches.map((m, i) => (
                     <div

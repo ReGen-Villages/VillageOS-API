@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import type { ConnectionInfo } from '../../pipeline/model';
+import type { ConnectionInformation } from '../../pipeline/model';
 
 /** The node palette: boundary Input/Output nodes plus every dispatchable Connection in the model.
  * Click a service to drop a node bound to it, or a boundary node for the pipeline's external input/output. */
@@ -8,8 +8,8 @@ export function Palette({
   onAdd,
   onAddBoundary,
 }: {
-  connections: ConnectionInfo[];
-  onAdd: (c: ConnectionInfo) => void;
+  connections: ConnectionInformation[];
+  onAdd: (c: ConnectionInformation) => void;
   onAddBoundary: (kind: 'input' | 'output') => void;
 }) {
   const { t } = useTranslation();

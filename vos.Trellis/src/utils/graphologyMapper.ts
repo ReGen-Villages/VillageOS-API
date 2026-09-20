@@ -33,8 +33,8 @@ export function buildRelationshipIndex(
 
   for (const r of relationships) {
     predicateIds.add(r.PredicateId);
-    const pred = thingMap.get(r.PredicateId);
-    if (pred && pred.Name.toLowerCase() === 'is') {
+    const predicate = thingMap.get(r.PredicateId);
+    if (predicate && predicate.Name.toLowerCase() === 'is') {
       isTypeTargets.add(r.TargetId);
       if (!isSubjectToTypeName.has(r.SubjectId)) {
         const targetName = thingMap.get(r.TargetId)?.Name;
@@ -72,7 +72,7 @@ function getInstanceTypeName(
 
 // ── Node attribute types ───────────────────────────────────────────────
 
-interface GraphNodeAttrs {
+interface GraphNodeAttributes {
   x: number;
   y: number;
   size: number;
@@ -89,7 +89,7 @@ interface GraphNodeAttrs {
   [key: string]: unknown;
 }
 
-interface GraphEdgeAttrs {
+interface GraphEdgeAttributes {
   size: number;
   color: string;
   label: string;
@@ -114,7 +114,7 @@ export function buildGraph(
   layoutSettings: LayoutSettings = LAYOUT_DEFAULTS,
 ): Graph {
   const classifyingProperty = layoutSettings.classifyingProperty;
-  const sizeOpts = {
+  const sizeOptions = {
     min: layoutSettings.nodeSizeMin,
     max: layoutSettings.nodeSizeMax,
     slope: layoutSettings.nodeSizeSlope,
@@ -124,26 +124,26 @@ export function buildGraph(
   const thingMap = new Map(things.map((t) => [t.Id, t]));
 
   // Pre-compute incoming relationship counts (node size ∝ how many things point at it)
-  const relCounts = new Map<string, number>();
+  const relationshipCounts = new Map<string, number>();
   for (const r of relationships) {
-    relCounts.set(r.TargetId, (relCounts.get(r.TargetId) || 0) + 1);
+    relationshipCounts.set(r.TargetId, (relationshipCounts.get(r.TargetId) || 0) + 1);
   }
 
   // Build predicate colour map — explicit overrides first, hash fallback
   const predicateColorMap = new Map<string, string>();
   for (const r of relationships) {
     if (predicateColorMap.has(r.PredicateId)) continue;
-    const predName = thingMap.get(r.PredicateId)?.Name || r.PredicateId;
-    predicateColorMap.set(r.PredicateId, resolvePredicateColor(predName, predicateColors));
+    const predicateName = thingMap.get(r.PredicateId)?.Name || r.PredicateId;
+    predicateColorMap.set(r.PredicateId, resolvePredicateColor(predicateName, predicateColors));
   }
 
-  const relIndex = buildRelationshipIndex(relationships, thingMap);
+  const relationshipIndex = buildRelationshipIndex(relationships, thingMap);
 
   // ── Add nodes ──────────────────────────────────────────────────────
   const angle = (2 * Math.PI) / Math.max(things.length, 1);
   things.forEach((t, i) => {
-    const thingType = getThingType(t, relIndex);
-    const relCount = relCounts.get(t.Id) || 0;
+    const thingType = getThingType(t, relationshipIndex);
+    const relationshipCount = relationshipCounts.get(t.Id) || 0;
 
     // Geographic centroid from pre-computed latitude/longitude properties.
     // These are always present on physical things (computed at import time).
@@ -171,7 +171,7 @@ export function buildGraph(
       if (classifyingValue) {
         color = resolveClassColor(classifyingProperty, classifyingValue, classColorOverrides);
       } else {
-        const typeName = getInstanceTypeName(t, relIndex);
+        const typeName = getInstanceTypeName(t, relationshipIndex);
         const palette = hasGeometry ? INSTANCE_PALETTE : LOGICAL_PALETTE;
         color = typeName
           ? palette[hashStringToIndex(typeName, palette.length)]
@@ -181,7 +181,7 @@ export function buildGraph(
 
     // Size: scale by relationship count (formula in computeNodeSize,
     // bounds drawn from LayoutSettings so they're runtime-tunable).
-    const size = computeNodeSize(relCount, sizeOpts);
+    const size = computeNodeSize(relationshipCount, sizeOptions);
 
     // Initial circular layout (force supervisor will re-position)
     const radius = 100;
@@ -199,7 +199,7 @@ export function buildGraph(
       ...(centroid ? { lat: centroid.lat, lng: centroid.lng } : {}),
       hidden: false,
       isLogical: false,
-    } satisfies GraphNodeAttrs);
+    } satisfies GraphNodeAttributes);
   });
 
   // ── Add edges ──────────────────────────────────────────────────────
@@ -216,12 +216,12 @@ export function buildGraph(
       label: predicate?.Name || r.PredicateId,
       type: 'arrow',
       predicateId: r.PredicateId,
-    } satisfies GraphEdgeAttrs);
+    } satisfies GraphEdgeAttributes);
   }
 
   // ── Second pass: classify logical nodes & compute parent linkage ───
-  graph.forEachNode((nodeId, attrs) => {
-    if (attrs.hasGeometry) return; // physical node — already classified
+  graph.forEachNode((nodeId, attributes) => {
+    if (attributes.hasGeometry) return; // physical node — already classified
     graph.setNodeAttribute(nodeId, 'isLogical', true);
 
     // Find the first geo-neighbour (via any edge direction) as parent
@@ -246,17 +246,17 @@ function findGeoParent(graph: Graph, logicalNodeId: string): string | null {
   // (parent "has" child pattern)
   for (const edge of graph.inEdges(logicalNodeId)) {
     const source = graph.source(edge);
-    const edgeAttrs = graph.getEdgeAttributes(edge);
-    const sourceAttrs = graph.getNodeAttributes(source);
-    if (sourceAttrs.hasGeometry && (edgeAttrs.label === 'has')) {
+    const edgeAttributes = graph.getEdgeAttributes(edge);
+    const sourceAttributes = graph.getNodeAttributes(source);
+    if (sourceAttributes.hasGeometry && (edgeAttributes.label === 'has')) {
       return source;
     }
   }
 
   // Second pass: any neighbour with geometry (in or out)
   for (const neighbor of graph.neighbors(logicalNodeId)) {
-    const neighborAttrs = graph.getNodeAttributes(neighbor);
-    if (neighborAttrs.hasGeometry) {
+    const neighborAttributes = graph.getNodeAttributes(neighbor);
+    if (neighborAttributes.hasGeometry) {
       return neighbor;
     }
   }
@@ -269,8 +269,8 @@ function findGeoParent(graph: Graph, logicalNodeId: string): string | null {
  */
 export function getLogicalChildren(graph: Graph, geoNodeId: string): string[] {
   const children: string[] = [];
-  graph.forEachNode((nodeId, attrs) => {
-    if (attrs.isLogical && attrs.parentGeoNodeId === geoNodeId) {
+  graph.forEachNode((nodeId, attributes) => {
+    if (attributes.isLogical && attributes.parentGeoNodeId === geoNodeId) {
       children.push(nodeId);
     }
   });
@@ -282,8 +282,8 @@ export function getLogicalChildren(graph: Graph, geoNodeId: string): string[] {
  */
 export function countLogicalChildren(graph: Graph, geoNodeId: string): number {
   let count = 0;
-  graph.forEachNode((_nodeId, attrs) => {
-    if (attrs.isLogical && attrs.parentGeoNodeId === geoNodeId) {
+  graph.forEachNode((_nodeId, attributes) => {
+    if (attributes.isLogical && attributes.parentGeoNodeId === geoNodeId) {
       count++;
     }
   });
