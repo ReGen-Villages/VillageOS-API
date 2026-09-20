@@ -89,7 +89,7 @@ function model(): { things: VosThing[]; relationships: VosRelationship[] } {
   return { things, relationships };
 }
 
-function ctxFor(scopeId: string | null): ResolveContext {
+function contextFor(scopeId: string | null): ResolveContext {
   const { things, relationships } = model();
   return { index: buildModelIndex(declared(things, relationships), relationships), scopeId, compareArchetype: 'Village', reads: brokerModelReads() };
 }
@@ -258,16 +258,16 @@ describe('resolveBinding', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('const', async () => {
-    expect(await resolveBinding({ kind: 'const', value: 7 }, ctxFor(null))).toBe(7);
+    expect(await resolveBinding({ kind: 'const', value: 7 }, contextFor(null))).toBe(7);
   });
 
   it('property $scope reads the selected entity', async () => {
-    const v = await resolveBinding({ kind: 'property', thing: '$scope', property: 'self_sufficiency_rate' }, ctxFor('vil1'));
+    const v = await resolveBinding({ kind: 'property', thing: '$scope', property: 'self_sufficiency_rate' }, contextFor('vil1'));
     expect(v).toBeCloseTo(98.9);
   });
 
   it('property $scope averages across entities when scope is All', async () => {
-    const v = await resolveBinding({ kind: 'property', thing: '$scope', property: 'self_sufficiency_rate' }, ctxFor(null));
+    const v = await resolveBinding({ kind: 'property', thing: '$scope', property: 'self_sufficiency_rate' }, contextFor(null));
     expect(v).toBeCloseTo((98.9 + 94.1) / 2);
   });
 
@@ -295,14 +295,14 @@ describe('resolveBinding', () => {
   });
 
   it('aggregate count over an archetype', async () => {
-    const v = await resolveBinding({ kind: 'aggregate', archetype: 'Village', op: 'count' }, ctxFor(null));
+    const v = await resolveBinding({ kind: 'aggregate', archetype: 'Village', op: 'count' }, contextFor(null));
     expect(v).toBe(2);
   });
 
   it('aggregate avg over a property', async () => {
     const v = await resolveBinding(
       { kind: 'aggregate', archetype: 'Village', op: 'avg', property: 'land_utilization' },
-      ctxFor(null),
+      contextFor(null),
     );
     expect(v).toBeCloseTo((0.81 + 0.93) / 2);
   });
@@ -310,7 +310,7 @@ describe('resolveBinding', () => {
   it('compareEntities emits one row per entity with requested props', async () => {
     const rows = (await resolveBinding(
       { kind: 'compareEntities', properties: ['self_sufficiency_rate'] },
-      ctxFor(null),
+      contextFor(null),
     )) as Record<string, unknown>[];
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ name: 'V-1', self_sufficiency_rate: 98.9 });
@@ -318,7 +318,7 @@ describe('resolveBinding', () => {
 
   it('stateCount answers with the count the state endpoint gave', async () => {
     vi.mocked(stateApi.getThingsInState).mockResolvedValue({ StateName: 'harvested', Count: 3 });
-    const v = await resolveBinding({ kind: 'stateCount', state: 'harvested' }, ctxFor(null));
+    const v = await resolveBinding({ kind: 'stateCount', state: 'harvested' }, contextFor(null));
     expect(v).toBe(3);
     expect(stateApi.getThingsInState).toHaveBeenCalledWith('harvested', expect.objectContaining({ countOnly: true }));
   });
@@ -330,7 +330,7 @@ describe('resolveBinding', () => {
     });
     const rows = (await resolveBinding(
       { kind: 'stateList', state: 'below_target', properties: ['self_sufficiency_rate'] },
-      ctxFor(null),
+      contextFor(null),
     )) as Record<string, unknown>[];
     expect(rows[0]).toMatchObject({ id: 'vil1', name: 'V-1', self_sufficiency_rate: 98.9 });
   });
@@ -339,7 +339,7 @@ describe('resolveBinding', () => {
   // and their OrderLines). `archetype` narrows the count/list to one archetype.
   describe('archetype narrowing', () => {
     // Model: 2 Orders + 1 OrderLine, all is-typed; state "open" holds all three.
-    function orderCtx(): ResolveContext {
+    function orderContext(): ResolveContext {
       const t = (Id: string, Name: string): VosThing => ({ Id, Name, Properties: {} });
       const things: VosThing[] = [
         t('is', 'is'), t('arch-order', 'Order'), t('arch-line', 'OrderLine'),
@@ -368,20 +368,20 @@ describe('resolveBinding', () => {
     });
 
     it('stateCount counts only Things of the given archetype', async () => {
-      const v = await resolveBinding({ kind: 'stateCount', state: 'open', archetype: 'Order' }, orderCtx());
+      const v = await resolveBinding({ kind: 'stateCount', state: 'open', archetype: 'Order' }, orderContext());
       expect(v).toBe(2);
     });
 
     it('stateList returns only Things of the given archetype', async () => {
       const rows = (await resolveBinding(
         { kind: 'stateList', state: 'open', archetype: 'Order' },
-        orderCtx(),
+        orderContext(),
       )) as Record<string, unknown>[];
       expect(rows.map((r) => r.id)).toEqual(['o1', 'o2']);
     });
 
     it('without an archetype counts every Thing in the state', async () => {
-      const v = await resolveBinding({ kind: 'stateCount', state: 'open' }, orderCtx());
+      const v = await resolveBinding({ kind: 'stateCount', state: 'open' }, orderContext());
       expect(v).toBe(3);
     });
   });
@@ -393,7 +393,7 @@ describe('resolveBinding', () => {
   describe('scope narrowing', () => {
     // root1 contains mid1 contains {leaf1, leaf2}; root2 contains mid2 contains leaf3.
     // root1 links direct1; root2 links direct2. Leaves are two hops from their root.
-    function scopeCtx(scopeId: string | null): ResolveContext {
+    function scopeContext(scopeId: string | null): ResolveContext {
       const t = (Id: string, Name: string): VosThing => ({ Id, Name, Properties: {} });
       const things: VosThing[] = [
         t('contains', 'contains'), t('links', 'links'), t('is', 'is'), t('arch-node', 'Node'),
@@ -422,7 +422,7 @@ describe('resolveBinding', () => {
     it('reaches Things nested more than one hop below the scope entity', async () => {
       const rows = await rowsOf(
         { kind: 'thingList', archetype: 'Node', scope: { viaPredicate: 'contains', direction: 'out' } },
-        scopeCtx('root1'),
+        scopeContext('root1'),
       );
       // mid1 and the two leaves under it — leaf3 hangs off root2.
       expect(rows.map((r) => r.name)).toEqual(['LEAF-1', 'LEAF-2', 'MID-1']);
@@ -431,7 +431,7 @@ describe('resolveBinding', () => {
     it('narrows a directly-linked predicate to the selected scope entity', async () => {
       const rows = await rowsOf(
         { kind: 'thingList', archetype: 'Node', scope: { viaPredicate: 'links', direction: 'out' } },
-        scopeCtx('root1'),
+        scopeContext('root1'),
       );
       expect(rows.map((r) => r.name)).toEqual(['DIRECT-1']);
     });
@@ -440,7 +440,7 @@ describe('resolveBinding', () => {
       vi.mocked(stateApi.getThingsInState).mockResolvedValue({ StateName: 'flagged', Count: 2 });
       const v = await resolveBinding(
         { kind: 'stateCount', state: 'flagged', scope: { viaPredicate: 'links', direction: 'out' } },
-        scopeCtx(null),
+        scopeContext(null),
       );
       expect(v).toBe(2);
     });
@@ -448,7 +448,7 @@ describe('resolveBinding', () => {
     // A cycle is a data error, but the walk must terminate rather than hang the dashboard —
     // and looping back must not smuggle the scope entity into its own scope.
     it('terminates on a cyclic scope graph without counting the scope entity itself', async () => {
-      const context = scopeCtx('root1');
+      const context = scopeContext('root1');
       const cycle = { Id: 'leaf1-contains-root1', Name: 'leaf1 contains root1',
         SubjectId: 'leaf1', PredicateId: 'contains', TargetId: 'root1', Properties: {} };
       context.index = buildModelIndex(
@@ -470,7 +470,7 @@ describe('resolveBinding', () => {
   describe('thingList', () => {
     // Machine <- Robot(sub-archetype) <- RBT-1, RBT-2; Machine <- CNV-1 directly.
     // SITE-1 contains RBT-1 and CNV-1; SITE-2 contains RBT-2.
-    function fleetCtx(scopeId: string | null): ResolveContext {
+    function fleetContext(scopeId: string | null): ResolveContext {
       const t = (Id: string, Name: string, Properties: Record<string, unknown> = {}): VosThing => ({
         Id, Name, Properties,
       });
@@ -497,27 +497,27 @@ describe('resolveBinding', () => {
     }
 
     it('lists every Thing of the archetype, in no state and with no scope selected', async () => {
-      const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine' }, fleetCtx(null));
+      const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine' }, fleetContext(null));
       expect(rows.map((r) => r.name)).toEqual(['CNV-1', 'RBT-1', 'RBT-2']);
       expect(stateApi.getThingsInState).not.toHaveBeenCalled();
     });
 
     it('carries each Thing effective properties into the row', async () => {
-      const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine' }, fleetCtx(null));
+      const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine' }, fleetContext(null));
       expect(rows.find((r) => r.name === 'CNV-1')).toMatchObject({ id: 'cnv1', duty_cycle: 0.88 });
     });
 
     // A childless archetype answers `is` exactly like an instance, so a service-side lister has
     // to filter it out by convention; the index tells the two apart structurally instead.
     it('returns instances only — a sub-archetype is descended into, never listed', async () => {
-      const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine' }, fleetCtx(null));
+      const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine' }, fleetContext(null));
       expect(rows.map((r) => r.id)).not.toContain('arch-robot');
     });
 
     it('narrows to the Things reachable from the selected scope entity', async () => {
       const rows = await rowsOf(
         { kind: 'thingList', archetype: 'Machine', scope: { viaPredicate: 'contains', direction: 'out' } },
-        fleetCtx('site1'),
+        fleetContext('site1'),
       );
       expect(rows.map((r) => r.name)).toEqual(['CNV-1', 'RBT-1']);
     });
@@ -525,12 +525,12 @@ describe('resolveBinding', () => {
     // Order is by name so a capped list is the same list every time, not whatever order the
     // archetype walk happened to produce.
     it('caps the row count at limit, taking the first by name', async () => {
-      const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine', limit: 2 }, fleetCtx(null));
+      const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine', limit: 2 }, fleetContext(null));
       expect(rows.map((r) => r.name)).toEqual(['CNV-1', 'RBT-1']);
     });
 
     it('resolves an unknown archetype to an empty list', async () => {
-      const rows = await rowsOf({ kind: 'thingList', archetype: 'Spaceship' }, fleetCtx(null));
+      const rows = await rowsOf({ kind: 'thingList', archetype: 'Spaceship' }, fleetContext(null));
       expect(rows).toEqual([]);
     });
 
@@ -542,12 +542,12 @@ describe('resolveBinding', () => {
       });
 
       it('keeps the rows whose property satisfies the comparison and no other', async () => {
-        const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine', where: [{ property: 'duty_cycle', op: '>', value: 0.5 }] }, fleetCtx(null));
+        const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine', where: [{ property: 'duty_cycle', op: '>', value: 0.5 }] }, fleetContext(null));
         expect(rows.map((r) => r.name)).toEqual(['CNV-1', 'RBT-1']);
       });
 
       it('keeps the rows the platform lists for the state and no other, asking once for the state', async () => {
-        const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine', inState: 'busy' }, fleetCtx(null));
+        const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine', inState: 'busy' }, fleetContext(null));
         expect(rows.map((r) => r.name)).toEqual(['CNV-1', 'RBT-1']);
         expect(stateApi.getThingsInState).toHaveBeenCalledTimes(1);
         expect(vi.mocked(stateApi.getThingsInState).mock.calls[0][1]).toMatchObject({ type: 'Machine' });
@@ -556,7 +556,7 @@ describe('resolveBinding', () => {
       it('applies the state and the comparison together, and the cap after both', async () => {
         const rows = await rowsOf({
           kind: 'thingList', archetype: 'Machine', inState: 'busy', where: [{ property: 'duty_cycle', op: '<', value: 0.7 }], limit: 5,
-        }, fleetCtx(null));
+        }, fleetContext(null));
         expect(rows.map((r) => r.name)).toEqual(['RBT-1']);
       });
     });
@@ -835,7 +835,7 @@ describe('resolveBinding', () => {
   // yields: averaging per-location ratios weights a nearly-empty plot the same as a full one.
   describe('ratio', () => {
     // V-A contains 2 locations (80 of 200 filled); V-B contains 1 (90 of 100).
-    function siteCtx(scopeId: string | null): ResolveContext {
+    function siteContext(scopeId: string | null): ResolveContext {
       const t = (Id: string, Name: string, Properties: Record<string, unknown> = {}): VosThing => ({
         Id, Name, Properties,
       });
@@ -871,12 +871,12 @@ describe('resolveBinding', () => {
     };
 
     it('divides the scoped sums for the selected Thing', async () => {
-      expect(await resolveBinding(utilization, siteCtx('vilA'))).toBeCloseTo(80 / 200);
-      expect(await resolveBinding(utilization, siteCtx('vilB'))).toBeCloseTo(90 / 100);
+      expect(await resolveBinding(utilization, siteContext('vilA'))).toBeCloseTo(80 / 200);
+      expect(await resolveBinding(utilization, siteContext('vilB'))).toBeCloseTo(90 / 100);
     });
 
     it('sums across every Thing before dividing when scope is All', async () => {
-      const v = await resolveBinding(utilization, siteCtx(null));
+      const v = await resolveBinding(utilization, siteContext(null));
       expect(v).toBeCloseTo(170 / 300);
       expect(v).not.toBeCloseTo((0.4 + 0.9) / 2); // not the average of per-site ratios
     });
@@ -884,7 +884,7 @@ describe('resolveBinding', () => {
     it('resolves to null rather than Infinity when the denominator is zero', async () => {
       const v = await resolveBinding(
         { kind: 'ratio', numerator: { kind: 'const', value: 5 }, denominator: { kind: 'const', value: 0 } },
-        siteCtx(null),
+        siteContext(null),
       );
       expect(v).toBeNull();
     });
@@ -897,7 +897,7 @@ describe('resolveBinding', () => {
           numerator: { kind: 'property', thing: 'vilA', property: 'missing' },
           denominator: { kind: 'const', value: 10 },
         },
-        siteCtx(null),
+        siteContext(null),
       );
       expect(v).toBeNull();
     });
@@ -905,7 +905,7 @@ describe('resolveBinding', () => {
     it('gives each compared Thing its own value in a computed column', async () => {
       const rows = (await resolveBinding(
         { kind: 'compareEntities', properties: [], computed: [{ key: 'utilization', value: utilization }] },
-        siteCtx(null),
+        siteContext(null),
       )) as Record<string, unknown>[];
       expect(rows).toHaveLength(2);
       expect(rows.find((r) => r.name === 'V-A')!.utilization).toBeCloseTo(0.4);
@@ -913,7 +913,7 @@ describe('resolveBinding', () => {
     });
 
     it('leaves a computed column null for a Thing with no members to measure', async () => {
-      const context = siteCtx(null);
+      const context = siteContext(null);
       const empty: VosThing = { Id: 'vilC', Name: 'V-C', Properties: {} };
       context.index = buildModelIndex(
         [...context.index.byId.values(), empty],
@@ -959,7 +959,7 @@ describe('resolveBinding', () => {
 // the parse was guessing at: a text property arrives as text, every numeric type as a number.
 describe('a text property is not a number', () => {
   // GATE-3 stores its door number as text; GATE-7 has a real reading.
-  function gateCtx(): ResolveContext {
+  function gateContext(): ResolveContext {
     const t = (Id: string, Name: string, Properties: Record<string, unknown> = {}): VosThing => ({
       Id, Name, Properties,
     });
@@ -981,7 +981,7 @@ describe('a text property is not a number', () => {
   }
 
   it('a property binding on a text property gives a widget no number to show', async () => {
-    const context = { ...gateCtx(), scopeId: 'gate3' };
+    const context = { ...gateContext(), scopeId: 'gate3' };
     const v = await resolveBinding({ kind: 'property', thing: '$scope', property: 'door_number' }, context);
     expect(asNumber(v)).toBeNull();
   });
@@ -989,7 +989,7 @@ describe('a text property is not a number', () => {
   it('an aggregate over a text property averages nothing, not the parsed codes', async () => {
     const v = await resolveBinding(
       { kind: 'aggregate', archetype: 'Gate', op: 'avg', property: 'door_number' },
-      gateCtx(),
+      gateContext(),
     );
     expect(v).toBe(0);
   });
@@ -997,7 +997,7 @@ describe('a text property is not a number', () => {
   it('a compareEntities column over a text property holds no number', async () => {
     const rows = (await resolveBinding(
       { kind: 'compareEntities', properties: ['door_number'] },
-      gateCtx(),
+      gateContext(),
     )) as Record<string, unknown>[];
     expect(rows.every((r) => Number.isNaN(r.door_number))).toBe(true);
   });
@@ -1005,7 +1005,7 @@ describe('a text property is not a number', () => {
   it('an ordered filter on a text property matches nothing', async () => {
     const v = await resolveBinding(
       { kind: 'aggregate', archetype: 'Gate', op: 'count', where: [{ property: 'door_number', op: '>', value: 1000 }] },
-      gateCtx(),
+      gateContext(),
     );
     expect(v).toBe(0);
   });
@@ -1013,12 +1013,12 @@ describe('a text property is not a number', () => {
   it('still reads a number, and still counts a boolean as one or nothing', async () => {
     const avg = await resolveBinding(
       { kind: 'aggregate', archetype: 'Gate', op: 'avg', property: 'open_ratio' },
-      gateCtx(),
+      gateContext(),
     );
     expect(avg).toBeCloseTo(0.5);
     const powered = await resolveBinding(
       { kind: 'aggregate', archetype: 'Gate', op: 'sum', property: 'powered' },
-      gateCtx(),
+      gateContext(),
     );
     expect(powered).toBe(1);
   });
@@ -1037,7 +1037,7 @@ describe('service bindings carry the selected scope', () => {
   it('replaces $scope with the selected entity id', async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ series: [1, 2, 3] });
 
-    const v = await resolveBinding(binding, ctxFor('vil1'));
+    const v = await resolveBinding(binding, contextFor('vil1'));
 
     expect(apiClient.post).toHaveBeenCalledWith('/api/endpoints/metrics', {
       view: 'yield-series',
@@ -1049,7 +1049,7 @@ describe('service bindings carry the selected scope', () => {
   it('sends a null scope when All is selected, so the service answers for everything', async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ series: [] });
 
-    await resolveBinding(binding, ctxFor(null));
+    await resolveBinding(binding, contextFor(null));
 
     expect(apiClient.post).toHaveBeenCalledWith('/api/endpoints/metrics', {
       view: 'yield-series',
@@ -1060,7 +1060,7 @@ describe('service bindings carry the selected scope', () => {
   it('leaves a body with no placeholder untouched', async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ rows: [] });
 
-    await resolveBinding({ ...binding, body: { view: 'visit-schedule' }, select: 'rows' }, ctxFor('vil1'));
+    await resolveBinding({ ...binding, body: { view: 'visit-schedule' }, select: 'rows' }, contextFor('vil1'));
 
     expect(apiClient.post).toHaveBeenCalledWith('/api/endpoints/metrics', { view: 'visit-schedule' });
   });
@@ -1398,7 +1398,7 @@ describe('state bindings ask the server to narrow', () => {
   const BUILDING_SCOPE = { viaPredicate: 'contains', direction: 'out' as const };
   const SPRING_SCOPE = { viaPredicate: 'feeds', direction: 'in' as const };
 
-  function estateCtx(scopeId: string | null): ResolveContext {
+  function estateContext(scopeId: string | null): ResolveContext {
     const t = (Id: string, Name: string, Properties: Record<string, unknown> = {}): VosThing =>
       ({ Id, Name, Properties });
     const things: VosThing[] = [
@@ -1434,7 +1434,7 @@ describe('state bindings ask the server to narrow', () => {
     vi.mocked(stateApi.getThingsInState).mockResolvedValue(counted(1));
     const count = await resolveBinding(
       { kind: 'stateCount', state: 'flagged', archetype: 'Building' },
-      estateCtx(null),
+      estateContext(null),
     );
     expect(count).toBe(1);
     expect(stateApi.getThingsInState).toHaveBeenCalledWith('flagged', expect.objectContaining({ type: 'Building' }));
@@ -1446,7 +1446,7 @@ describe('state bindings ask the server to narrow', () => {
     vi.mocked(stateApi.getThingsInState).mockResolvedValue(counted(1));
     const count = await resolveBinding(
       { kind: 'stateCount', state: 'flagged', scope: BUILDING_SCOPE },
-      estateCtx('site1'),
+      estateContext('site1'),
     );
     expect(count).toBe(1);
     expect(stateApi.getThingsInState).toHaveBeenCalledWith(
@@ -1459,7 +1459,7 @@ describe('state bindings ask the server to narrow', () => {
     vi.mocked(stateApi.getThingsInState).mockResolvedValue(counted(2));
     const count = await resolveBinding(
       { kind: 'stateCount', state: 'flagged', scope: BUILDING_SCOPE },
-      estateCtx(null),
+      estateContext(null),
     );
     expect(count).toBe(2);
     expect(stateApi.getThingsInState).toHaveBeenCalledWith('flagged', expect.not.objectContaining({ within: 'site1' }));
@@ -1471,7 +1471,7 @@ describe('state bindings ask the server to narrow', () => {
     vi.mocked(stateApi.getThingsInState).mockResolvedValue(answered([{ Id: 'r1', Name: 'RDG-1' }, { Id: 'r2', Name: 'RDG-2' }]));
     const count = await resolveBinding(
       { kind: 'stateCount', state: 'flagged', scope: SPRING_SCOPE },
-      estateCtx('spring1'),
+      estateContext('spring1'),
     );
     expect(count).toBe(1);
     expect(stateApi.getThingsInState).toHaveBeenCalledWith('flagged', expect.not.objectContaining({ within: 'spring1' }));
@@ -1481,7 +1481,7 @@ describe('state bindings ask the server to narrow', () => {
     vi.mocked(stateApi.getThingsInState).mockResolvedValue(answered([{ Id: 'b1', Name: 'BLD-1' }]));
     const rows = await rowsOf(
       { kind: 'stateList', state: 'flagged', excludeState: 'cleared', archetype: 'Building' },
-      estateCtx(null),
+      estateContext(null),
     );
     expect(rows.map((r) => r.id)).toEqual(['b1']);
     expect(stateApi.getThingsInState).toHaveBeenCalledTimes(1);
@@ -1492,7 +1492,7 @@ describe('state bindings ask the server to narrow', () => {
     vi.mocked(stateApi.getThingsInState).mockResolvedValue(answered([{ Id: 'b1', Name: 'BLD-1' }, { Id: 'b2', Name: 'BLD-2' }]));
     const rows = await rowsOf(
       { kind: 'stateList', state: 'flagged', archetype: 'Building', limit: 2, scope: BUILDING_SCOPE },
-      estateCtx('site1'),
+      estateContext('site1'),
     );
     expect(rows).toHaveLength(2);
     expect(stateApi.getThingsInState).toHaveBeenCalledWith('flagged', expect.objectContaining({ limit: 2 }));
@@ -1506,7 +1506,7 @@ describe('state bindings ask the server to narrow', () => {
     );
     const rows = await rowsOf(
       { kind: 'stateList', state: 'flagged', limit: 1, scope: SPRING_SCOPE },
-      estateCtx('spring1'),
+      estateContext('spring1'),
     );
     expect(rows.map((r) => r.id)).toEqual(['r1']);
     expect(stateApi.getThingsInState).toHaveBeenCalledWith('flagged', expect.not.objectContaining({ limit: 1 }));
@@ -1518,7 +1518,7 @@ describe('state bindings ask the server to narrow', () => {
     vi.mocked(stateApi.getThingsInState).mockImplementation(async (_state: string, narrowing?: { type?: string }) =>
       counted(narrowing?.type === 'Building' ? 1 : 2),
     );
-    const context = estateCtx(null);
+    const context = estateContext(null);
     const [orders, everything] = await Promise.all([
       resolveBinding({ kind: 'stateCount', state: 'flagged', archetype: 'Building' }, context),
       resolveBinding({ kind: 'stateCount', state: 'flagged' }, context),
@@ -1539,7 +1539,7 @@ describe('state bindings ask the server to narrow', () => {
 
     const rows = await rowsOf(
       { kind: 'stateList', state: 'flagged', archetype: 'Building', properties: ['area', 'storeys'] },
-      estateCtx(null),
+      estateContext(null),
     );
 
     expect(stateApi.getThingsInState)
@@ -1555,7 +1555,7 @@ describe('state bindings ask the server to narrow', () => {
 
     const rows = await rowsOf(
       { kind: 'stateList', state: 'flagged', archetype: 'Building', properties: ['area'] },
-      estateCtx(null), // where b1 also holds `storeys`, inherited from its archetype
+      estateContext(null), // where b1 also holds `storeys`, inherited from its archetype
     );
 
     expect(rows[0]).toEqual({ id: 'b1', name: 'BLD-1', area: 3 });
@@ -1564,7 +1564,7 @@ describe('state bindings ask the server to narrow', () => {
   it('asks for no properties when the binding names none', async () => {
     vi.mocked(stateApi.getThingsInState).mockResolvedValue(answered([{ Id: 'b1', Name: 'BLD-1' }]));
 
-    const rows = await rowsOf({ kind: 'stateList', state: 'flagged', archetype: 'Building' }, estateCtx(null));
+    const rows = await rowsOf({ kind: 'stateList', state: 'flagged', archetype: 'Building' }, estateContext(null));
 
     expect(stateApi.getThingsInState)
       .toHaveBeenCalledWith('flagged', expect.not.objectContaining({ properties: expect.anything() }));
@@ -1585,7 +1585,7 @@ describe('state bindings ask the server to narrow', () => {
       archetype: 'Building',
       properties: ['area'],
       computed: [{ key: 'site', value: { kind: 'related', via: [{ predicate: 'contains', direction: 'in' }] } }],
-    }, estateCtx(null));
+    }, estateContext(null));
 
     expect(rows[0]).toMatchObject({ id: 'b1', area: 3, site: 'SITE-1' });
   });
@@ -1610,7 +1610,7 @@ describe('state bindings ask the server to narrow', () => {
       const reads = countingReads(403);
       const count = await resolveBinding(
         { kind: 'stateCount', state: 'flagged', archetype: 'Building' },
-        { ...estateCtx(null), reads },
+        { ...estateContext(null), reads },
       );
       expect(count).toBe(403);
       expect(reads.asked).toEqual([expect.objectContaining({ countOnly: true, type: 'Building' })]);
@@ -1621,7 +1621,7 @@ describe('state bindings ask the server to narrow', () => {
       const reads = countingReads(2);
       const count = await resolveBinding(
         { kind: 'stateCount', state: 'flagged', scope: BUILDING_SCOPE },
-        { ...estateCtx('site1'), reads },
+        { ...estateContext('site1'), reads },
       );
       expect(count).toBe(2);
       expect(reads.asked[0]).toMatchObject({ countOnly: true, within: 'site1', withinPredicate: 'contains' });
@@ -1633,7 +1633,7 @@ describe('state bindings ask the server to narrow', () => {
         ...countingReads(0),
         thingsInState: async (state) => ({ StateName: state }),
       };
-      await expect(resolveBinding({ kind: 'stateCount', state: 'flagged' }, { ...estateCtx(null), reads }))
+      await expect(resolveBinding({ kind: 'stateCount', state: 'flagged' }, { ...estateContext(null), reads }))
         .rejects.toThrow('answered no count');
     });
 
@@ -1641,7 +1641,7 @@ describe('state bindings ask the server to narrow', () => {
       const reads = countingReads(5);
       await resolveBinding(
         { kind: 'stateCount', state: 'flagged', excludeState: 'cleared' },
-        { ...estateCtx(null), reads },
+        { ...estateContext(null), reads },
       );
       expect(reads.asked[0]).toMatchObject({ countOnly: true, notIn: ['cleared'] });
     });
@@ -1657,7 +1657,7 @@ describe('state bindings ask the server to narrow', () => {
       };
       const count = await resolveBinding(
         { kind: 'stateCount', state: 'flagged', scope: SPRING_SCOPE },
-        { ...estateCtx('spring1'), reads },
+        { ...estateContext('spring1'), reads },
       );
       expect(count).toBe(1);
       expect(asked[0]).not.toHaveProperty('countOnly');
@@ -1667,7 +1667,7 @@ describe('state bindings ask the server to narrow', () => {
       vi.mocked(stateApi.getThingsInState).mockImplementation(async (state, narrowing) =>
         narrowing?.countOnly ? { StateName: state, Count: 1 } : answered([{ Id: 'b1', Name: 'BLD-1' }]),
       );
-      const context = estateCtx(null);
+      const context = estateContext(null);
       await Promise.all([
         resolveBinding({ kind: 'stateCount', state: 'flagged', archetype: 'Building' }, context),
         resolveBinding({ kind: 'stateCount', state: 'flagged', archetype: 'Building' }, context),
@@ -1688,7 +1688,7 @@ describe('state bindings ask the server to narrow', () => {
 describe('timeseries reads the platform bucketed aggregate', () => {
   const SITE_SCOPE = { viaPredicate: 'contains', direction: 'out' as const };
 
-  function seriesCtx(scopeId: string | null): ResolveContext {
+  function seriesContext(scopeId: string | null): ResolveContext {
     const things: VosThing[] = [
       { Id: 'is', Name: 'is', Properties: {} },
       { Id: 'contains', Name: 'contains', Properties: {} },
@@ -1716,7 +1716,7 @@ describe('timeseries reads the platform bucketed aggregate', () => {
   });
 
   it('reduces the named measure over the named instant', async () => {
-    await resolveBinding(trace, seriesCtx(null));
+    await resolveBinding(trace, seriesContext(null));
     expect(temporalApi.aggregate).toHaveBeenCalledWith(expect.objectContaining({
       function: 'Sum', memberType: 'Building', timestampProperty: 'recorded_at', measureProperty: 'volume',
     }));
@@ -1725,20 +1725,20 @@ describe('timeseries reads the platform bucketed aggregate', () => {
   // A count reduces members, so naming a measure would ask the platform to reduce a value the
   // question is not about.
   it('names no measure when it is counting members', async () => {
-    await resolveBinding({ ...trace, op: 'count', property: 'volume' } as Binding, seriesCtx(null));
+    await resolveBinding({ ...trace, op: 'count', property: 'volume' } as Binding, seriesContext(null));
     expect(temporalApi.aggregate).toHaveBeenCalledWith(expect.objectContaining({ function: 'Count' }));
     expect(vi.mocked(temporalApi.aggregate).mock.calls[0][0].measureProperty).toBeUndefined();
   });
 
   it('asks for a window as wide as the buckets it wants', async () => {
-    await resolveBinding(trace, seriesCtx(null));
+    await resolveBinding(trace, seriesContext(null));
     expect(temporalApi.aggregate).toHaveBeenCalledWith(expect.objectContaining({
       windowSeconds: QUARTER_HOUR * 32, bucketSeconds: QUARTER_HOUR,
     }));
   });
 
   it('keeps the platform order, oldest bucket first', async () => {
-    expect(await resolveBinding(trace, seriesCtx(null))).toEqual([1, 2, 3]);
+    expect(await resolveBinding(trace, seriesContext(null))).toEqual([1, 2, 3]);
   });
 
   // A window equal to its bucket is the trailing-window figure a tile shows, and it comes from the
@@ -1749,20 +1749,20 @@ describe('timeseries reads the platform bucketed aggregate', () => {
     });
     const value = await resolveBinding(
       { ...trace, bucketSeconds: 3600, buckets: 1 } as Binding,
-      seriesCtx(null),
+      seriesContext(null),
     );
     expect(value).toBe(42);
   });
 
   it('sends the selected compare entity as the container', async () => {
-    await resolveBinding({ ...trace, scope: SITE_SCOPE } as Binding, seriesCtx('site1'));
+    await resolveBinding({ ...trace, scope: SITE_SCOPE } as Binding, seriesContext('site1'));
     expect(temporalApi.aggregate).toHaveBeenCalledWith(expect.objectContaining({
       within: 'site1', withinPredicate: 'contains',
     }));
   });
 
   it('sends no container when every compare entity is selected', async () => {
-    await resolveBinding({ ...trace, scope: SITE_SCOPE } as Binding, seriesCtx(null));
+    await resolveBinding({ ...trace, scope: SITE_SCOPE } as Binding, seriesContext(null));
     expect(vi.mocked(temporalApi.aggregate).mock.calls[0][0].within).toBeUndefined();
   });
 
@@ -1771,7 +1771,7 @@ describe('timeseries reads the platform bucketed aggregate', () => {
   it('refuses an inbound scope rather than ignoring it', async () => {
     const value = await resolveBinding(
       { ...trace, scope: { viaPredicate: 'feeds', direction: 'in' } } as Binding,
-      seriesCtx('site1'),
+      seriesContext('site1'),
     );
     expect(value).toBeNull();
     expect(temporalApi.aggregate).not.toHaveBeenCalled();
@@ -1779,7 +1779,7 @@ describe('timeseries reads the platform bucketed aggregate', () => {
 
   it('resolves to nothing when the platform refuses the question', async () => {
     vi.mocked(temporalApi.aggregate).mockRejectedValue(new Error('unknown reduction'));
-    expect(await resolveBinding(trace, seriesCtx(null))).toBeNull();
+    expect(await resolveBinding(trace, seriesContext(null))).toBeNull();
   });
 });
 
@@ -2233,7 +2233,7 @@ describe('origin binding', () => {
 const QUARTER_HOUR = 900;
 
 /** A reduction narrows by type alone here, so the model needs no more than the archetype it names. */
-function seriesCtx(): ResolveContext {
+function seriesContext(): ResolveContext {
   const things: VosThing[] = [
     { Id: 'is', Name: 'is', Properties: {} },
     { Id: 'arch-building', Name: 'Building', Properties: {} },
@@ -2262,7 +2262,7 @@ describe('a series whose points cover several buckets', () => {
   // The oldest point covers buckets that start before the first point does, so the window runs back
   // further than the points do. Asking only for the points would draw the oldest one short.
   it('asks for the buckets before the oldest point that the oldest point covers', async () => {
-    await resolveBinding(trace, seriesCtx());
+    await resolveBinding(trace, seriesContext());
     expect(temporalApi.aggregate).toHaveBeenCalledWith(expect.objectContaining({
       windowSeconds: QUARTER_HOUR * 4, bucketSeconds: QUARTER_HOUR,
     }));
@@ -2270,25 +2270,25 @@ describe('a series whose points cover several buckets', () => {
 
   // Points overlap: each covers `bucketsPerPoint` buckets and steps one bucket on.
   it('adds each point up from the buckets it covers', async () => {
-    expect(await resolveBinding(trace, seriesCtx())).toEqual([3, 5, 7]);
+    expect(await resolveBinding(trace, seriesContext())).toEqual([3, 5, 7]);
   });
 
   it('takes the least of the buckets a point covers when the reduction is a minimum', async () => {
-    expect(await resolveBinding({ ...trace, op: 'min' } as Binding, seriesCtx())).toEqual([1, 2, 3]);
+    expect(await resolveBinding({ ...trace, op: 'min' } as Binding, seriesContext())).toEqual([1, 2, 3]);
   });
 
   it('takes the greatest of the buckets a point covers when the reduction is a maximum', async () => {
-    expect(await resolveBinding({ ...trace, op: 'max' } as Binding, seriesCtx())).toEqual([2, 3, 4]);
+    expect(await resolveBinding({ ...trace, op: 'max' } as Binding, seriesContext())).toEqual([2, 3, 4]);
   });
 
   it('counts the same way it sums, because counts add', async () => {
-    expect(await resolveBinding({ ...trace, op: 'count' } as Binding, seriesCtx())).toEqual([3, 5, 7]);
+    expect(await resolveBinding({ ...trace, op: 'count' } as Binding, seriesContext())).toEqual([3, 5, 7]);
   });
 
   // The average of the buckets is not the average of what went into them unless every bucket holds
   // the same number of members, which nothing here knows.
   it('refuses an average spread over several buckets rather than approximating it', async () => {
-    const value = await resolveBinding({ ...trace, op: 'avg' } as Binding, seriesCtx());
+    const value = await resolveBinding({ ...trace, op: 'avg' } as Binding, seriesContext());
     expect(value).toBeNull();
     expect(temporalApi.aggregate).not.toHaveBeenCalled();
   });
@@ -2297,13 +2297,13 @@ describe('a series whose points cover several buckets', () => {
   it('averages a point covering one bucket, which is that bucket', async () => {
     answers([5, 6, 7]);
     const value = await resolveBinding(
-      { ...trace, op: 'avg', buckets: 3, bucketsPerPoint: 1 } as Binding, seriesCtx());
+      { ...trace, op: 'avg', buckets: 3, bucketsPerPoint: 1 } as Binding, seriesContext());
     expect(value).toEqual([5, 6, 7]);
   });
 
   it('draws the same series as before when a point covers no more than one bucket', async () => {
     answers([5, 6, 7]);
-    expect(await resolveBinding({ ...trace, bucketsPerPoint: undefined } as Binding, seriesCtx()))
+    expect(await resolveBinding({ ...trace, bucketsPerPoint: undefined } as Binding, seriesContext()))
       .toEqual([5, 6, 7]);
   });
 });
@@ -2325,11 +2325,11 @@ describe('the newest point of a series', () => {
   });
 
   it('resolves to the last point its series draws', async () => {
-    expect(await resolveBinding({ kind: 'latest', series } as Binding, seriesCtx())).toBe(7);
+    expect(await resolveBinding({ kind: 'latest', series } as Binding, seriesContext())).toBe(7);
   });
 
   it('asks the same question the series asks, once', async () => {
-    await resolveBinding({ kind: 'latest', series } as Binding, seriesCtx());
+    await resolveBinding({ kind: 'latest', series } as Binding, seriesContext());
     expect(temporalApi.aggregate).toHaveBeenCalledTimes(1);
     expect(temporalApi.aggregate).toHaveBeenCalledWith(expect.objectContaining({
       function: 'Sum', memberType: 'Building', windowSeconds: QUARTER_HOUR * 4,
@@ -2338,7 +2338,7 @@ describe('the newest point of a series', () => {
 
   it('resolves to nothing when its series is refused', async () => {
     const refused = { ...series, op: 'avg' } as const;
-    expect(await resolveBinding({ kind: 'latest', series: refused } as Binding, seriesCtx())).toBeNull();
+    expect(await resolveBinding({ kind: 'latest', series: refused } as Binding, seriesContext())).toBeNull();
   });
 
   it('resolves to nothing when the window holds no bucket at all', async () => {
@@ -2346,7 +2346,7 @@ describe('the newest point of a series', () => {
       Buckets: [], FirstBucketStart: '2026-08-23T00:00:00Z',
       BucketSeconds: QUARTER_HOUR, UnusableMembers: 0,
     });
-    expect(await resolveBinding({ kind: 'latest', series } as Binding, seriesCtx())).toBeNull();
+    expect(await resolveBinding({ kind: 'latest', series } as Binding, seriesContext())).toBeNull();
   });
 });
 
@@ -2355,7 +2355,7 @@ describe('the newest point of a series', () => {
 describe('history reads the platform reduction over a property series', () => {
   const UTC_OFFSET_PROPERTY = 'utcOffsetSeconds';
 
-  function siteCtx(scopeId: string | null, siteProperties: Record<string, unknown> = {}): ResolveContext {
+  function siteContext(scopeId: string | null, siteProperties: Record<string, unknown> = {}): ResolveContext {
     const things: VosThing[] = [
       { Id: 'is', Name: 'is', Properties: {} },
       { Id: 'site1', Name: 'SITE-1', Properties: siteProperties },
@@ -2377,7 +2377,7 @@ describe('history reads the platform reduction over a property series', () => {
   });
 
   it('asks about the scope entity, in its own clock offset, with the steps as the spec wrote them', async () => {
-    await resolveBinding(monthlyHigh, siteCtx('site1', { [UTC_OFFSET_PROPERTY]: 7200 }));
+    await resolveBinding(monthlyHigh, siteContext('site1', { [UTC_OFFSET_PROPERTY]: 7200 }));
 
     expect(temporalApi.reduce).toHaveBeenCalledWith({
       thingId: 'site1', property: 'temperature', windowSeconds: A_YEAR, utcOffsetSeconds: 7200,
@@ -2386,13 +2386,13 @@ describe('history reads the platform reduction over a property series', () => {
   });
 
   it('names no offset where the entity states none, so the platform folds in its own', async () => {
-    await resolveBinding(monthlyHigh, siteCtx('site1'));
+    await resolveBinding(monthlyHigh, siteContext('site1'));
 
     expect(vi.mocked(temporalApi.reduce).mock.calls[0][0].utcOffsetSeconds).toBeUndefined();
   });
 
   it('answers the groups as rows keyed as the platform keyed them, in the platform order', async () => {
-    expect(await resolveBinding(monthlyHigh, siteCtx('site1'))).toEqual([
+    expect(await resolveBinding(monthlyHigh, siteContext('site1'))).toEqual([
       { key: '1', value: 27.4 }, { key: '2', value: 26.9 },
     ]);
   });
@@ -2400,18 +2400,18 @@ describe('history reads the platform reduction over a property series', () => {
   // "All" names no property series to reduce, and a series read for nobody would be a figure for
   // nobody.
   it('resolves to nothing where no scope entity is selected, and asks nothing', async () => {
-    expect(await resolveBinding(monthlyHigh, siteCtx(null))).toBeNull();
+    expect(await resolveBinding(monthlyHigh, siteContext(null))).toBeNull();
     expect(temporalApi.reduce).not.toHaveBeenCalled();
   });
 
   it('resolves to nothing rather than an empty series when the platform refuses the question', async () => {
     vi.mocked(temporalApi.reduce).mockRejectedValue(new Error('400: too many groups'));
 
-    expect(await resolveBinding(monthlyHigh, siteCtx('site1'))).toBeNull();
+    expect(await resolveBinding(monthlyHigh, siteContext('site1'))).toBeNull();
   });
 
   it('asks one question once however many widgets bind to it in a refresh', async () => {
-    const context = siteCtx('site1');
+    const context = siteContext('site1');
 
     await Promise.all([resolveBinding(monthlyHigh, context), resolveBinding({ ...monthlyHigh }, context)]);
 
@@ -2430,7 +2430,7 @@ describe('history reads the platform reduction over a property series', () => {
       ],
     };
 
-    await resolveBinding(degreeDays, siteCtx('site1', { coolingSetpoint: 18 }));
+    await resolveBinding(degreeDays, siteContext('site1', { coolingSetpoint: 18 }));
 
     expect(vi.mocked(temporalApi.reduce).mock.calls[0][0].steps).toEqual([
       { fold: 'day', function: 'Average' }, { fold: 'monthOfYear', function: 'SumAbove', threshold: 18 },
@@ -2443,7 +2443,7 @@ describe('history reads the platform reduction over a property series', () => {
       steps: [{ fold: 'all', function: 'ShareWithin', from: { kind: 'property', thing: '$scope', property: 'comfortLow' } }],
     };
 
-    expect(await resolveBinding(share, siteCtx('site1'))).toBeNull();
+    expect(await resolveBinding(share, siteContext('site1'))).toBeNull();
     expect(temporalApi.reduce).not.toHaveBeenCalled();
   });
 });

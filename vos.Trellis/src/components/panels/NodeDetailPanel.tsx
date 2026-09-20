@@ -44,7 +44,7 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
   const [effectiveProps, setEffectiveProps] = useState<Record<string, EffectiveProperty> | null>(null);
   const [expandedValue, setExpandedValue] = useState<{ name: string; value: string } | null>(null);
   const [editMode, setEditMode] = useState(false);
-  const [relEditMode, setRelEditMode] = useState(false);
+  const [relationshipEditMode, setRelationshipEditMode] = useState(false);
 
   const selectEdge = useUiStore((s) => s.selectEdge);
   const classifyingProperty = useUiStore((s) => s.layoutSettings.classifyingProperty);
@@ -87,7 +87,7 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
   const outgoing = relationships.filter((r) => r.SubjectId === thing.Id);
   const incoming = relationships.filter((r) => r.TargetId === thing.Id);
 
-  const { rangesData, statesData, rangesLoading, relRangesEntries, refresh: refreshRanges } = useNodeRangesData(
+  const { rangesData, statesData, rangesLoading, relationshipRangesEntries, refresh: refreshRanges } = useNodeRangesData(
     thing.Id, tab, statesVersion,
   );
 
@@ -217,13 +217,13 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
           <div className="space-y-3">
             <div className="flex items-center justify-end">
               <button
-                onClick={() => setRelEditMode((v) => !v)}
+                onClick={() => setRelationshipEditMode((v) => !v)}
                 className={`p-0.5 rounded transition-colors ${
-                  relEditMode
+                  relationshipEditMode
                     ? 'text-blue-400 bg-blue-500/20 hover:bg-blue-500/30'
                     : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
                 }`}
-                title={relEditMode ? t('panels.node.exitEditMode') : t('panels.node.editRelationshipProperties')}
+                title={relationshipEditMode ? t('panels.node.exitEditMode') : t('panels.node.editRelationshipProperties')}
               >
                 <Pencil size={12} />
               </button>
@@ -235,9 +235,9 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
               hasGeometry={hasGeometry}
               onSelectNode={onSelectNode}
             />
-            <RelationshipList relationships={outgoing} direction="outgoing" allThings={allThings} onSelectNode={onSelectNode} onSelectEdge={selectEdge} editMode={relEditMode} fixedThingId={thing.Id} allRelationships={relationships} />
-            <RelationshipList relationships={incoming} direction="incoming" allThings={allThings} onSelectNode={onSelectNode} onSelectEdge={selectEdge} editMode={relEditMode} fixedThingId={thing.Id} allRelationships={relationships} />
-            {relEditMode && (
+            <RelationshipList relationships={outgoing} direction="outgoing" allThings={allThings} onSelectNode={onSelectNode} onSelectEdge={selectEdge} editMode={relationshipEditMode} fixedThingId={thing.Id} allRelationships={relationships} />
+            <RelationshipList relationships={incoming} direction="incoming" allThings={allThings} onSelectNode={onSelectNode} onSelectEdge={selectEdge} editMode={relationshipEditMode} fixedThingId={thing.Id} allRelationships={relationships} />
+            {relationshipEditMode && (
               <RetypeRow thingId={thing.Id} things={[...allThings.values()]} relationships={relationships} />
             )}
           </div>
@@ -250,7 +250,7 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
               statesData={statesData}
               loading={rangesLoading}
               onSelectNode={onSelectNode}
-              relationshipRanges={relRangesEntries}
+              relationshipRanges={relationshipRangesEntries}
               entityId={thing.Id}
               editable
               onRangeChanged={refreshRanges}

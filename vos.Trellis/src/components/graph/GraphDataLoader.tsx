@@ -22,13 +22,13 @@ export function GraphDataLoader({ things, relationships }: Props) {
   const loadGraph = useLoadGraph();
 
   useEffect(() => {
-    const { flash, layout, predicateColors: predColors } = extractAllGuiSettings(things, relationships);
+    const { flash, layout, predicateColors: predicateColors } = extractAllGuiSettings(things, relationships);
     useUiStore.getState().setFlashSettings(flash);
     useUiStore.getState().setLayoutSettings(layout);
-    useUiStore.getState().setPredicateColors(predColors);
+    useUiStore.getState().setPredicateColors(predicateColors);
 
     // classColorOverrides is empty today (future GUI_Settings panel populates it).
-    const nextGraph = buildGraph(things, relationships, predColors, {}, layout);
+    const nextGraph = buildGraph(things, relationships, predicateColors, {}, layout);
     const liveGraph = sigma.getGraph();
 
     // An empty live graph means first mount or a post-clear repopulate: do a full

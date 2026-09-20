@@ -12,13 +12,13 @@ import type { VosThing, VosRelationship } from '../../types/vos';
  */
 describe('TypeFilterPanel layout (Bug #5388)', () => {
   beforeEach(() => {
-    const isPred: VosThing = { Id: 'is', Name: 'is', Properties: {} };
+    const isPredicate: VosThing = { Id: 'is', Name: 'is', Properties: {} };
     const typeA: VosThing = { Id: 'tA', Name: 'TypeA', Properties: {} };
     const typeB: VosThing = { Id: 'tB', Name: 'TypeB', Properties: {} };
     const inst1: VosThing = { Id: 'i1', Name: 'Inst1', Properties: {} };
     const inst2: VosThing = { Id: 'i2', Name: 'Inst2', Properties: {} };
 
-    const things: VosThing[] = [isPred, typeA, typeB, inst1, inst2];
+    const things: VosThing[] = [isPredicate, typeA, typeB, inst1, inst2];
     const relationships: VosRelationship[] = [
       { Id: 'r1', Name: 'rel-A', SubjectId: 'i1', PredicateId: 'is', TargetId: 'tA', Properties: {} },
       { Id: 'r2', Name: 'rel-B', SubjectId: 'i2', PredicateId: 'is', TargetId: 'tB', Properties: {} },

@@ -257,7 +257,7 @@ export const ar: PartialResources & ArabicPlurals = {
       requests: 'الطلبات',
       avgTime: 'متوسط الوقت',
       errors: 'الأخطاء',
-      lastReq: 'آخر طلب',
+      lastRequest: 'آخر طلب',
       lastContact: 'آخر اتصال',
       processId: 'المعرّف',
       failures: 'حالات الفشل: {{count}}',
@@ -287,7 +287,7 @@ export const ar: PartialResources & ArabicPlurals = {
       pausedBuffered_other: 'متوقّف مؤقتًا — {{count}} أحداث جديدة في المخزن المؤقت',
       filterPlaceholder: 'تصفية الأحداث…',
       none: 'لا يوجد نشاط بعد',
-      category: { model: 'النموذج', things: 'الأشياء', relationships: 'العلاقات', props: 'الخصائص', services: 'الخدمات' },
+      category: { model: 'النموذج', things: 'الأشياء', relationships: 'العلاقات', properties: 'الخصائص', services: 'الخدمات' },
     },
   },
   graph: {
@@ -350,10 +350,10 @@ export const ar: PartialResources & ArabicPlurals = {
       search: 'البحث عن الأنواع…',
       sort: 'الترتيب',
       sortAria: 'ترتيب الأنواع',
-      sortCountDesc: 'العدد (من الأعلى إلى الأدنى)',
+      sortCountDescending: 'العدد (من الأعلى إلى الأدنى)',
       sortCountAsc: 'العدد (من الأدنى إلى الأعلى)',
       sortNameAsc: 'الاسم (أ → ي)',
-      sortNameDesc: 'الاسم (ي → أ)',
+      sortNameDescending: 'الاسم (ي → أ)',
       noMatch: 'لا توجد أنواع مطابقة.',
     },
     predicateFilter: {
@@ -365,8 +365,8 @@ export const ar: PartialResources & ArabicPlurals = {
   authentication: {
     loadSeed: 'تحميل seed',
     searchSeeds: 'البحث عن seeds…',
-    colName: 'الاسم',
-    colSize: 'الحجم',
+    columnName: 'الاسم',
+    columnSize: 'الحجم',
     noMatch: 'لا توجد seeds تطابق بحثك',
     noneAvailable: 'لا توجد seeds متاحة',
     seedCount: '{{shown}} من {{total}} seeds',
@@ -565,7 +565,7 @@ export const ar: PartialResources & ArabicPlurals = {
     ownProperties: "الخصائص الذاتية",
     relationships: "العلاقات",
     propsAbbrev: "خصائص",
-    relsAbbrev: "علاقات",
+    relationshipsShort: "علاقات",
     moreProps: "+{{count}} أخرى",
     noMatch: "لا توجد أشياء تطابق \"{{query}}\".",
     foundCount_one: "تم العثور على {{count}} شيء",
@@ -744,7 +744,7 @@ export const ar: PartialResources & ArabicPlurals = {
       propertiesTab: "الخصائص ({{count}})",
       deleteRelationship: "حذف العلاقة",
     },
-    props: {
+    properties: {
       none: "لا توجد خصائص",
       viewFullValue: "عرض القيمة الكاملة",
       addProperty: "إضافة خاصية",
@@ -786,7 +786,7 @@ export const ar: PartialResources & ArabicPlurals = {
       retyped: "تمت إعادة التصنيف",
       retypeFailed: "تعذّرت إعادة التصنيف",
     },
-    addRel: {
+    addRelationship: {
       predicatePlaceholder: "المسند…",
       createRelationship: "إنشاء علاقة",
       targetPlaceholder: "الهدف…",

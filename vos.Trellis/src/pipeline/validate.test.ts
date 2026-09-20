@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { validatePipeline, type ValNode, type ValEdge } from './validate';
+import { validatePipeline, type ValidationNode, type ValidationEdge } from './validate';
 
-const port = (portName: string, direction: 'in' | 'out', required = false): ValNode['ports'][number] => ({
+const port = (portName: string, direction: 'in' | 'out', required = false): ValidationNode['ports'][number] => ({
   portName,
   direction,
   type: '',
   required,
 });
 
-const node = (id: string, ports: ValNode['ports'], paramBindings?: Record<string, string>): ValNode => ({
+const node = (id: string, ports: ValidationNode['ports'], paramBindings?: Record<string, string>): ValidationNode => ({
   id,
   label: id,
   ports,
@@ -25,7 +25,7 @@ describe('validatePipeline', () => {
 
   it('accepts a required input satisfied by a wire', () => {
     const nodes = [node('src', [port('out1', 'out')]), node('dst', [port('in1', 'in', true)])];
-    const edges: ValEdge[] = [{ source: 'src', sourceHandle: 'out1', target: 'dst', targetHandle: 'in1' }];
+    const edges: ValidationEdge[] = [{ source: 'src', sourceHandle: 'out1', target: 'dst', targetHandle: 'in1' }];
     expect(validatePipeline(nodes, edges)).toEqual([]);
   });
 
@@ -41,7 +41,7 @@ describe('validatePipeline', () => {
 
   it('reports a dangling wire whose target node does not exist', () => {
     const nodes = [node('src', [port('out1', 'out')])];
-    const edges: ValEdge[] = [{ source: 'src', sourceHandle: 'out1', target: 'ghost', targetHandle: 'in1' }];
+    const edges: ValidationEdge[] = [{ source: 'src', sourceHandle: 'out1', target: 'ghost', targetHandle: 'in1' }];
     const issues = validatePipeline(nodes, edges);
     expect(issues).toHaveLength(1);
     expect(issues[0].kind).toBe('dangling-wire');
@@ -49,13 +49,13 @@ describe('validatePipeline', () => {
 
   it('reports a dangling wire whose port does not exist on an existing node', () => {
     const nodes = [node('src', [port('out1', 'out')]), node('dst', [port('in1', 'in')])];
-    const edges: ValEdge[] = [{ source: 'src', sourceHandle: 'nope', target: 'dst', targetHandle: 'in1' }];
+    const edges: ValidationEdge[] = [{ source: 'src', sourceHandle: 'nope', target: 'dst', targetHandle: 'in1' }];
     expect(validatePipeline(nodes, edges).some((i) => i.kind === 'dangling-wire')).toBe(true);
   });
 
   it('returns no issues for a fully-wired valid pipeline', () => {
     const nodes = [node('src', [port('out1', 'out')]), node('dst', [port('in1', 'in', true)])];
-    const edges: ValEdge[] = [{ source: 'src', sourceHandle: 'out1', target: 'dst', targetHandle: 'in1' }];
+    const edges: ValidationEdge[] = [{ source: 'src', sourceHandle: 'out1', target: 'dst', targetHandle: 'in1' }];
     expect(validatePipeline(nodes, edges)).toEqual([]);
   });
 });

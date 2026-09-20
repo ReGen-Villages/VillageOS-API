@@ -41,9 +41,9 @@ export const temporalApi = {
   getThingMutations: (thingId: string, start?: string, end?: string, signal?: AbortSignal) =>
     apiClient.get<ThingMutations>(`/api/things/${thingId}/mutations${timeParams(start, end)}`, signal),
 
-  getRelationshipMutations: (relId: string, start?: string, end?: string, signal?: AbortSignal) =>
+  getRelationshipMutations: (relationshipId: string, start?: string, end?: string, signal?: AbortSignal) =>
     apiClient.get<RelationshipMutations>(
-      `/api/relationships/${relId}/mutations${timeParams(start, end)}`,
+      `/api/relationships/${relationshipId}/mutations${timeParams(start, end)}`,
       signal,
     ),
 

@@ -27,7 +27,7 @@ export interface ThingSearchIndex {
   /** Maps subject ID → type name from the first "is" relationship found. */
   isSubjectToTypeName: Map<string, string>;
   /** Maps thing ID → number of relationships where it appears as subject or target. */
-  relCountByThing: Map<string, number>;
+  relationshipCountByThing: Map<string, number>;
 }
 
 /**
@@ -40,11 +40,11 @@ export function buildThingSearchIndex(
 ): ThingSearchIndex {
   const thingMap = new Map(things.map((t) => [t.Id, t]));
   const isSubjectToTypeName = new Map<string, string>();
-  const relCountByThing = new Map<string, number>();
+  const relationshipCountByThing = new Map<string, number>();
 
   for (const r of relationships) {
-    relCountByThing.set(r.SubjectId, (relCountByThing.get(r.SubjectId) ?? 0) + 1);
-    relCountByThing.set(r.TargetId, (relCountByThing.get(r.TargetId) ?? 0) + 1);
+    relationshipCountByThing.set(r.SubjectId, (relationshipCountByThing.get(r.SubjectId) ?? 0) + 1);
+    relationshipCountByThing.set(r.TargetId, (relationshipCountByThing.get(r.TargetId) ?? 0) + 1);
 
     const predicate = thingMap.get(r.PredicateId);
     if (predicate && predicate.Name.toLowerCase() === 'is') {
@@ -55,7 +55,7 @@ export function buildThingSearchIndex(
     }
   }
 
-  return { isSubjectToTypeName, relCountByThing };
+  return { isSubjectToTypeName, relationshipCountByThing };
 }
 
 /**
@@ -114,7 +114,7 @@ export function searchThings(
       score,
       typeName: index.isSubjectToTypeName.get(thing.Id),
       ownPropertyCount: ownKeys.length,
-      relationshipCount: index.relCountByThing.get(thing.Id) ?? 0,
+      relationshipCount: index.relationshipCountByThing.get(thing.Id) ?? 0,
       previewProps,
     });
   }

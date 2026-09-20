@@ -35,7 +35,7 @@ const OVERSCAN_ROWS = 6;
 export function DataTable({
   columns,
   rowsBinding,
-  rows: rowsProp,
+  rows: rowsProperty,
   context,
   minWidth = 520,
   sortKey,
@@ -73,7 +73,7 @@ export function DataTable({
      a fixed size, so one measurement holds for all of them. */
   const [bodyRowRef, measuredRowHeight] = useElementHeight();
   const [firstVisibleRow, setFirstVisibleRow] = useState(0);
-  const resolved = rowsProp ?? asRows(value);
+  const resolved = rowsProperty ?? asRows(value);
   const rows = useMemo(() => filterRows(resolved, query, searchKeys), [resolved, query, searchKeys]);
   const [sort, setSort] = useState<{ key: string; direction: 1 | -1 }>({
     key: sortKey ?? columns[0]?.key ?? '',
@@ -81,12 +81,12 @@ export function DataTable({
   });
 
   const sorted = useMemo(() => {
-    const col = columns.find((c) => c.key === sort.key);
+    const column = columns.find((c) => c.key === sort.key);
     const copy = [...rows];
     copy.sort((a, b) => {
       let x = a[sort.key];
       let y = b[sort.key];
-      if (col?.numeric) {
+      if (column?.numeric) {
         x = Number(x) || 0;
         y = Number(y) || 0;
         return ((x as number) - (y as number)) * sort.direction;
@@ -214,25 +214,25 @@ function SpacerRow({ height, columnCount }: { height: number; columnCount: numbe
   );
 }
 
-function renderCell(row: Row, col: TableColumn, max?: number) {
-  const raw = row[col.key];
-  if (col.render === 'id') {
+function renderCell(row: Row, column: TableColumn, max?: number) {
+  const raw = row[column.key];
+  if (column.render === 'id') {
     return <span className="font-mono text-[11.5px] text-zinc-600 dark:text-zinc-300">{String(raw ?? '')}</span>;
   }
-  if (col.render === 'badge') {
+  if (column.render === 'badge') {
     return (
       <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full ${badgeTone(String(raw ?? ''))}`}>
         {String(raw ?? '')}
       </span>
     );
   }
-  if (col.render === 'agebar') {
+  if (column.render === 'agebar') {
     const n = Number(raw) || 0;
     const frac = max ? n / max : 0;
     const color = frac > 0.66 ? 'var(--crit)' : frac > 0.4 ? 'var(--warn)' : 'var(--good)';
     return (
       <span className="inline-flex items-center gap-2 justify-end">
-        {formatNumber(n, col.format)}
+        {formatNumber(n, column.format)}
         <span
           className="inline-block h-1.5 rounded-full align-middle"
           style={{ width: `${Math.max(4, frac * 34)}px`, background: color }}
@@ -240,6 +240,6 @@ function renderCell(row: Row, col: TableColumn, max?: number) {
       </span>
     );
   }
-  if (col.numeric) return formatNumber(Number(raw), col.format);
+  if (column.numeric) return formatNumber(Number(raw), column.format);
   return String(raw ?? '');
 }

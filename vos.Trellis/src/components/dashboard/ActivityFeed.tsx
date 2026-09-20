@@ -22,8 +22,8 @@ const typeColors: Record<string, string> = {
 const categories = [
   { label: 'Model', types: ['ModelChanged', 'ModelCleared'] },
   { label: 'Things', types: ['ThingCreated', 'ThingDeleted'] },
-  { label: 'Rels', types: ['RelationshipCreated', 'RelationshipDeleted'] },
-  { label: 'Props', types: ['PropertyChanged', 'PropertyDeleted'] },
+  { label: 'Relationships', types: ['RelationshipCreated', 'RelationshipDeleted'] },
+  { label: 'Properties', types: ['PropertyChanged', 'PropertyDeleted'] },
   { label: 'Services', types: ['ServiceHealthChanged', 'DaemonStatusChanged', 'DaemonStarted', 'DaemonStartFailed', 'EndpointServiceRequestCompleted'] },
 ] as const;
 
@@ -34,8 +34,8 @@ type CategoryLabel = (typeof categories)[number]['label'];
 const CATEGORY_KEY = {
   Model: 'dashboard.feed.category.model',
   Things: 'dashboard.feed.category.things',
-  Rels: 'dashboard.feed.category.relationships',
-  Props: 'dashboard.feed.category.props',
+  Relationships: 'dashboard.feed.category.relationships',
+  Properties: 'dashboard.feed.category.properties',
   Services: 'dashboard.feed.category.services',
 } as const;
 

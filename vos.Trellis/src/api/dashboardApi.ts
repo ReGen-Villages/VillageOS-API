@@ -182,12 +182,12 @@ function adjacency(predicateId: string, inbound: boolean, index: ModelIndex): Ma
 export function thingIdsOfArchetype(archetype: string, index: ModelIndex): Set<string> {
   const answered = index.archetypeMembers.get(archetype);
   if (answered) return answered;
-  const archThing = index.byName.get(archetype);
+  const archetypeThing = index.byName.get(archetype);
   const out = new Set<string>();
   index.archetypeMembers.set(archetype, out);
-  if (!archThing) return out;
+  if (!archetypeThing) return out;
   const seen = new Set<string>();          // archetype nodes already descended (cycle guard)
-  const frontier = [archThing.Id];
+  const frontier = [archetypeThing.Id];
   while (frontier.length) {
     const current = frontier.pop()!;
     if (seen.has(current)) continue;
@@ -568,8 +568,8 @@ async function withComputedColumns(
   if (!computed?.length) return rows;
   return Promise.all(
     rows.map(async (row) => {
-      const rowCtx: ResolveContext = { ...context, scopeId: (row.id as string) ?? null };
-      const values = await Promise.all(computed.map((column) => resolveBinding(column.value, rowCtx)));
+      const rowContext: ResolveContext = { ...context, scopeId: (row.id as string) ?? null };
+      const values = await Promise.all(computed.map((column) => resolveBinding(column.value, rowContext)));
       computed.forEach((column, i) => (row[column.key] = asCell(values[i])));
       return row;
     }),

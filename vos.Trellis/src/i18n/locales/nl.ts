@@ -159,7 +159,7 @@ export const nl: PartialResources = {
       requests: 'Verzoeken',
       avgTime: 'Gem. tijd',
       errors: 'Fouten',
-      lastReq: 'Laatste verzoek',
+      lastRequest: 'Laatste verzoek',
       lastContact: 'Laatste contact',
       processId: 'PID',
       failures: 'Fouten: {{count}}',
@@ -189,7 +189,7 @@ export const nl: PartialResources = {
       pausedBuffered_other: 'Gepauzeerd — {{count}} nieuwe gebeurtenissen gebufferd',
       filterPlaceholder: 'Gebeurtenissen filteren…',
       none: 'Nog geen activiteit',
-      category: { model: 'Model', things: 'Dingen', relationships: 'Rel.', props: 'Eig.', services: 'Diensten' },
+      category: { model: 'Model', things: 'Dingen', relationships: 'Rel.', properties: 'Eig.', services: 'Diensten' },
     },
   },
   graph: {
@@ -252,10 +252,10 @@ export const nl: PartialResources = {
       search: 'Typen zoeken…',
       sort: 'Sorteren',
       sortAria: 'Typen sorteren',
-      sortCountDesc: 'Aantal (hoog naar laag)',
+      sortCountDescending: 'Aantal (hoog naar laag)',
       sortCountAsc: 'Aantal (laag naar hoog)',
       sortNameAsc: 'Naam (A → Z)',
-      sortNameDesc: 'Naam (Z → A)',
+      sortNameDescending: 'Naam (Z → A)',
       noMatch: 'Geen overeenkomende typen.',
     },
     predicateFilter: {
@@ -267,8 +267,8 @@ export const nl: PartialResources = {
   authentication: {
     loadSeed: 'Een seed laden',
     searchSeeds: 'Seeds zoeken…',
-    colName: 'Naam',
-    colSize: 'Grootte',
+    columnName: 'Naam',
+    columnSize: 'Grootte',
     noMatch: 'Geen seeds komen overeen met uw zoekopdracht',
     noneAvailable: 'Geen seeds beschikbaar',
     seedCount: '{{shown}} van {{total}} seeds',
@@ -443,7 +443,7 @@ export const nl: PartialResources = {
     ownProperties: "Eigen eigenschappen",
     relationships: "Relaties",
     propsAbbrev: "eig.",
-    relsAbbrev: "rel.",
+    relationshipsShort: "rel.",
     moreProps: "+{{count}} meer",
     noMatch: "Geen dingen komen overeen met \"{{query}}\".",
     foundCount_one: "{{count}} ding gevonden",
@@ -610,7 +610,7 @@ export const nl: PartialResources = {
       propertiesTab: "Eigenschappen ({{count}})",
       deleteRelationship: "Relatie verwijderen",
     },
-    props: {
+    properties: {
       none: "Geen eigenschappen",
       viewFullValue: "Volledige waarde bekijken",
       addProperty: "Eigenschap toevoegen",
@@ -652,7 +652,7 @@ export const nl: PartialResources = {
       retyped: "Hertyperd",
       retypeFailed: "Hertyperen mislukt",
     },
-    addRel: {
+    addRelationship: {
       predicatePlaceholder: "Predicaat…",
       createRelationship: "Relatie aanmaken",
       targetPlaceholder: "Doel…",

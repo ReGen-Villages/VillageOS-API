@@ -56,24 +56,24 @@ export function EdgeDetailPanel({ relationship: relationship, allThings, onClose
     let cancelled = false;
     (async () => {
       try {
-        const [rangesResp, statesResp] = await Promise.all([
+        const [rangesResponse, statesResponse] = await Promise.all([
           relationshipRangeApi.getAll(relationship.Id),
           relationshipRangeApi.getStates(relationship.Id),
         ]);
         if (!cancelled) {
           // Adapt to ThingRangesResponse shape (no inherited ranges for relationships)
           setRangesData({
-            ThingId: rangesResp.RelationshipId,
-            ThingName: rangesResp.RelationshipName,
-            OwnRanges: rangesResp.OwnRanges,
+            ThingId: rangesResponse.RelationshipId,
+            ThingName: rangesResponse.RelationshipName,
+            OwnRanges: rangesResponse.OwnRanges,
             InheritedRanges: [],
           });
           setStatesData({
-            ThingId: statesResp.RelationshipId,
-            ThingName: statesResp.RelationshipName,
-            CurrentStates: statesResp.CurrentStates,
-            RangeEvaluations: statesResp.RangeEvaluations,
-            OutOfBoundsCount: statesResp.OutOfBoundsCount,
+            ThingId: statesResponse.RelationshipId,
+            ThingName: statesResponse.RelationshipName,
+            CurrentStates: statesResponse.CurrentStates,
+            RangeEvaluations: statesResponse.RangeEvaluations,
+            OutOfBoundsCount: statesResponse.OutOfBoundsCount,
           });
         }
       } catch {

@@ -172,7 +172,7 @@ export class PipelineModel {
 
   /** A boundary node's own declared port child-Things, each with its Thing id — the save-diff needs the id
    * to update a port in place or retract a removed one (#5873). Ports are declared directly on the node. */
-  boundaryPortRels(nodeId: string): { portId: string; port: PortInfo }[] {
+  boundaryPortRelationships(nodeId: string): { portId: string; port: PortInfo }[] {
     return this.outgoing(nodeId, 'has')
       .filter((t) => this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.Port))
       .map((t) => ({ portId: t.Id, port: this.toPort(t) }));

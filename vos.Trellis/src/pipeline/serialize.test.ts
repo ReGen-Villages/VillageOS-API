@@ -29,9 +29,9 @@ const thingRemove = vi.mocked(thingApi.remove);
 const thingCreate = vi.mocked(thingApi.create);
 const thingAddProperty = vi.mocked(thingApi.addProperty);
 const thingSetProperty = vi.mocked(thingApi.setProperty);
-const relRemove = vi.mocked(relationshipApi.remove);
-const relCreate = vi.mocked(relationshipApi.create);
-const relSetProperty = vi.mocked(relationshipApi.setProperty);
+const relationshipRemove = vi.mocked(relationshipApi.remove);
+const relationshipCreate = vi.mocked(relationshipApi.create);
+const relationshipSetProperty = vi.mocked(relationshipApi.setProperty);
 
 /** An archetype's own mark, which is the only thing that says what role it plays. */
 const marked = (roleFlag: string): Record<string, unknown> => ({ [roleFlag]: true });
@@ -160,7 +160,7 @@ describe('savePipeline — update in place (existing pipeline id)', () => {
     const model = buildModel();
     // Drop the N1->N2 wire (no edges) — the one persisted wire should be removed, and no others.
     await savePipeline('MyPipeline', [node('N1', 'Node1'), node('N2', 'Node2')], [], model, 'P');
-    expect(relRemove).toHaveBeenCalledTimes(1);
+    expect(relationshipRemove).toHaveBeenCalledTimes(1);
   });
 
   it('creates a new wire as a Thing with its fromPort/toPort', async () => {
@@ -171,8 +171,8 @@ describe('savePipeline — update in place (existing pipeline id)', () => {
     // sits beside is in — held is the only shape that lets a node pair carry more than one.
     expect(thingCreate).toHaveBeenCalled();
     expect(thingAddProperty).toHaveBeenCalledWith('new-wire', 'fromPort', 'vos.String', 'out');
-    expect(relCreate).toHaveBeenCalledWith('N2', 'has', 'new-wire');
-    expect(relCreate).toHaveBeenCalledWith('new-wire', 'carries', 'N1');
+    expect(relationshipCreate).toHaveBeenCalledWith('N2', 'has', 'new-wire');
+    expect(relationshipCreate).toHaveBeenCalledWith('new-wire', 'carries', 'N1');
   });
 });
 
@@ -305,7 +305,7 @@ describe('a wire held as a Thing', () => {
       [wire('out', 'in'), wire('trace', 'context'), wire('extra', 'spare')],
       buildModelWithHeldWires(), 'P');
 
-    expect(relCreate.mock.calls).toEqual(
+    expect(relationshipCreate.mock.calls).toEqual(
       expect.arrayContaining([
         ['new-wire', 'is', 'arch-wire'],
         ['N1', 'has', 'new-wire'],
@@ -363,7 +363,7 @@ describe('a wire held as a Thing', () => {
 
     expect(thingCreate).not.toHaveBeenCalled();
     expect(thingRemove).not.toHaveBeenCalled();
-    expect(relRemove).not.toHaveBeenCalled();
+    expect(relationshipRemove).not.toHaveBeenCalled();
   });
 
   it('removes a held wire by removing its Thing, not a relationship', async () => {
@@ -371,7 +371,7 @@ describe('a wire held as a Thing', () => {
       buildModelWithHeldWires(), 'P');
 
     expect(thingRemove).toHaveBeenCalledWith('W2');
-    expect(relRemove).not.toHaveBeenCalled();
+    expect(relationshipRemove).not.toHaveBeenCalled();
   });
 
   it('re-writes a changed field-path on the wire Thing, not on an edge', async () => {
@@ -380,6 +380,6 @@ describe('a wire held as a Thing', () => {
       buildModelWithHeldWires(), 'P');
 
     expect(thingSetProperty).toHaveBeenCalledWith('W1', 'fromPath', 'vos.String', 'body.id');
-    expect(relSetProperty).not.toHaveBeenCalled();
+    expect(relationshipSetProperty).not.toHaveBeenCalled();
   });
 });

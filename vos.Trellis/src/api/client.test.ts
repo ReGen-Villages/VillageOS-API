@@ -237,9 +237,9 @@ describe('ApiClient', () => {
 
   describe('changePassword', () => {
     it('sends password change request and clears MustChangePassword flag', async () => {
-      const loginResp = { ...tokenResponse, user: { ...tokenResponse.user, MustChangePassword: true } };
+      const loginResponse = { ...tokenResponse, user: { ...tokenResponse.user, MustChangePassword: true } };
       fetchSpy
-        .mockResolvedValueOnce(mockResponse(200, loginResp)) // login
+        .mockResolvedValueOnce(mockResponse(200, loginResponse)) // login
         .mockResolvedValueOnce(mockResponse(200, { message: 'Password changed' })); // changePassword
 
       await apiClient.login('testuser', 'pass');
@@ -399,7 +399,7 @@ describe('ApiClient', () => {
 
   describe('switchModel', () => {
     it('updates model context and schedules refresh', async () => {
-      const switchResp = {
+      const switchResponse = {
         ...tokenResponse,
         token: 'switched-token',
         model: { Id: 'model-2', Name: 'other-model' },
@@ -407,7 +407,7 @@ describe('ApiClient', () => {
 
       fetchSpy
         .mockResolvedValueOnce(mockResponse(200, tokenResponse)) // login
-        .mockResolvedValueOnce(mockResponse(200, switchResp)); // switchModel
+        .mockResolvedValueOnce(mockResponse(200, switchResponse)); // switchModel
 
       await apiClient.login('testuser', 'pass');
       const user = await apiClient.switchModel('model-2');

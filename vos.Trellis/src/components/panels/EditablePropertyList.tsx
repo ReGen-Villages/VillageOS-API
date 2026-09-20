@@ -64,7 +64,7 @@ export function EditablePropertyList({
   return (
     <>
       {properties.length === 0 && !editMode && (
-        <p className="text-zinc-500 text-xs italic">{t('panels.props.none')}</p>
+        <p className="text-zinc-500 text-xs italic">{t('panels.properties.none')}</p>
       )}
       {properties.map(({ name, value, type }) =>
         editMode ? (
@@ -128,7 +128,7 @@ function DisplayRow({
           <button
             onClick={() => onExpand(formatted)}
             className="text-zinc-500 hover:text-zinc-300 shrink-0"
-            title={t('panels.props.viewFullValue')}
+            title={t('panels.properties.viewFullValue')}
           >
             <Expand size={12} />
           </button>
@@ -169,7 +169,7 @@ function AddPropertyRow({
     try {
       const api = entityType === 'thing' ? thingApi : relationshipApi;
       await api.addProperty(entityId, name.trim(), type, value);
-      toast.success(t('panels.props.setToast', { name: name.trim(), value }));
+      toast.success(t('panels.properties.setToast', { name: name.trim(), value }));
       setName('');
       setType(DEFAULT_PROPERTY_TYPE);
       setValue('');
@@ -177,7 +177,7 @@ function AddPropertyRow({
       // Re-focus the name input for quick successive adds
       nameRef.current?.focus();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('panels.props.addFailed'));
+      toast.error(err instanceof Error ? err.message : t('panels.properties.addFailed'));
     } finally {
       setSaving(false);
     }
@@ -209,7 +209,7 @@ function AddPropertyRow({
         value={name}
         onChange={(e) => setName(e.target.value)}
         onKeyDown={onKeyDown}
-        placeholder={t('panels.props.namePlaceholder')}
+        placeholder={t('panels.properties.namePlaceholder')}
         disabled={saving}
         className="w-[72px] px-1.5 py-0.5 text-xs rounded border border-zinc-600 bg-zinc-800 text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
       />
@@ -217,7 +217,7 @@ function AddPropertyRow({
         value={type}
         onChange={(e) => onTypeChange(e.target.value)}
         disabled={saving}
-        aria-label={t('panels.props.typeLabel')}
+        aria-label={t('panels.properties.typeLabel')}
         className="px-1 py-0.5 text-xs rounded border border-zinc-600 bg-zinc-800 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
       >
         {PROPERTY_TYPES.map((t) => (
@@ -231,7 +231,7 @@ function AddPropertyRow({
           onChange={(e) => setValue(String(e.target.checked))}
           onKeyDown={onKeyDown}
           disabled={saving}
-          aria-label={t('panels.props.valuePlaceholder')}
+          aria-label={t('panels.properties.valuePlaceholder')}
           className="flex-1 min-w-0 accent-blue-500"
         />
       ) : (
@@ -240,8 +240,8 @@ function AddPropertyRow({
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder={t('panels.props.valuePlaceholder')}
-          aria-label={t('panels.props.valuePlaceholder')}
+          placeholder={t('panels.properties.valuePlaceholder')}
+          aria-label={t('panels.properties.valuePlaceholder')}
           disabled={saving}
           className="flex-1 min-w-0 px-1.5 py-0.5 text-xs font-mono rounded border border-zinc-600 bg-zinc-800 text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
@@ -250,7 +250,7 @@ function AddPropertyRow({
         onClick={submit}
         disabled={!canSubmit}
         className="p-0.5 rounded text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-30 disabled:cursor-default transition-colors flex-shrink-0"
-        title={t('panels.props.addProperty')}
+        title={t('panels.properties.addProperty')}
       >
         {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
       </button>
@@ -314,7 +314,7 @@ function EditableRow({
     }
     const type = asVosTypeName(declaredType);
     if (!type) {
-      toast.error(t('panels.props.unknownType', { name, type: declaredType }));
+      toast.error(t('panels.properties.unknownType', { name, type: declaredType }));
       return;
     }
     // Refused here rather than sent for the platform to reject, so the message reaches the user
@@ -328,11 +328,11 @@ function EditableRow({
     try {
       const api = entityType === 'thing' ? thingApi : relationshipApi;
       await api.setProperty(entityId, name, type, trimmed);
-      toast.success(t('panels.props.savedToast', { name, value: trimmed }));
+      toast.success(t('panels.properties.savedToast', { name, value: trimmed }));
       setDirty(false);
       onSaved?.();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('panels.props.saveFailed'));
+      toast.error(err instanceof Error ? err.message : t('panels.properties.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -359,8 +359,8 @@ function EditableRow({
       <span className="text-zinc-400 text-xs shrink-0">{name}</span>
       <div className="flex items-center gap-1 min-w-0 flex-1 justify-end">
         {editor === 'readOnly' ? (
-          <span className="text-[11px] text-zinc-500 italic truncate" title={t('panels.props.writtenByIngest')}>
-            {t('panels.props.writtenByIngest')}
+          <span className="text-[11px] text-zinc-500 italic truncate" title={t('panels.properties.writtenByIngest')}>
+            {t('panels.properties.writtenByIngest')}
           </span>
         ) : editor === 'checkbox' ? (
           <input
@@ -394,7 +394,7 @@ function EditableRow({
           <button
             onClick={onDelete}
             className="text-red-400 hover:text-red-300 shrink-0"
-            title={t('panels.props.deleteProperty')}
+            title={t('panels.properties.deleteProperty')}
           >
             <Trash2 size={12} />
           </button>

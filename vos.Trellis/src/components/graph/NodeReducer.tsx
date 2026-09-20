@@ -52,10 +52,10 @@ export function NodeReducer({ searchQuery, searchOptions }: Props) {
   }, [flashingNodeIds, flashingEdgeIds, sigma]);
 
   useEffect(() => {
-    let prevHovered: string | null = useUiStore.getState().hoveredNodeId;
+    let previousHovered: string | null = useUiStore.getState().hoveredNodeId;
     return useUiStore.subscribe((state) => {
-      if (state.hoveredNodeId !== prevHovered) {
-        prevHovered = state.hoveredNodeId;
+      if (state.hoveredNodeId !== previousHovered) {
+        previousHovered = state.hoveredNodeId;
         sigma.refresh();
       }
     });
@@ -111,14 +111,14 @@ export function NodeReducer({ searchQuery, searchOptions }: Props) {
         return { ...data, hidden: true };
       }
 
-      const src = graph.source(edge);
+      const source = graph.source(edge);
       const tgt = graph.target(edge);
 
       const decision = decideEdgeDisplay({
         endpointMatchesHover: edgeTouchesNode(graph, edge, hovered),
         endpointMatchesSelection: edgeTouchesNode(graph, edge, selected),
         bothEndpointsInSearch: matchedNodes.size > 0
-          ? matchedNodes.has(src) && matchedNodes.has(tgt)
+          ? matchedNodes.has(source) && matchedNodes.has(tgt)
           : undefined,
         predicateInActiveFilter: activePredicateIds.size > 0
           ? activePredicateIds.has(data.predicateId as string)

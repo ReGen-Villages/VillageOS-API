@@ -168,8 +168,8 @@ export function buildInstanceTypeIndex(
   const thingNames = new Map(things.map((t) => [t.Id, t.Name]));
   const subjectToType = new Map<string, string>();
   for (const relationship of relationships) {
-    const predName = thingNames.get(relationship.PredicateId);
-    if (predName?.toLowerCase() !== IS_PREDICATE_NAME) continue;
+    const predicateName = thingNames.get(relationship.PredicateId);
+    if (predicateName?.toLowerCase() !== IS_PREDICATE_NAME) continue;
     if (!subjectToType.has(relationship.SubjectId)) {
       subjectToType.set(relationship.SubjectId, relationship.TargetId);
     }
@@ -220,9 +220,9 @@ export function applyTypeFilter(
   }
 
   const filteredThings = things.filter((t) => !hiddenThingIds.has(t.Id));
-  const filteredRels = relationships.filter(
+  const filteredRelationships = relationships.filter(
     (r) => !hiddenThingIds.has(r.SubjectId) && !hiddenThingIds.has(r.TargetId),
   );
 
-  return { things: filteredThings, relationships: filteredRels };
+  return { things: filteredThings, relationships: filteredRelationships };
 }

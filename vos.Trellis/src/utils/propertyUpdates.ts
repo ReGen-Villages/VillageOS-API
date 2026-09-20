@@ -41,14 +41,14 @@ export function applyRelationshipPropertyRemoval(relationship: VosRelationship, 
  * panel is in front of the user.
  */
 export function isVisibleRelationship(
-  relId: string,
+  relationshipId: string,
   selectedNodeId: string | null,
   selectedEdgeId: string | null,
   relationships: VosRelationship[],
 ): boolean {
-  if (selectedEdgeId && relId === selectedEdgeId) return true;
+  if (selectedEdgeId && relationshipId === selectedEdgeId) return true;
   if (!selectedNodeId) return false;
-  const relationship = relationships.find((r) => r.Id === relId);
+  const relationship = relationships.find((r) => r.Id === relationshipId);
   if (!relationship) return false;
   return relationship.SubjectId === selectedNodeId || relationship.TargetId === selectedNodeId;
 }

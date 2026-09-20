@@ -125,8 +125,8 @@ export function PropertySearchPage() {
       g.set(m.propertyName, arr);
     }
     const lines: string[] = [`# Property Search (by ${searchMode}): "${debouncedQuery}"`, ''];
-    for (const [propName, matches] of g) {
-      lines.push(`## ${propName}`, '');
+    for (const [propertyName, matches] of g) {
+      lines.push(`## ${propertyName}`, '');
       lines.push('| Type | Owner | Inherited From | Value |', '|------|-------|----------------|-------|');
       for (const m of matches) {
         const type = m.ownerType === 'thing' ? 'Thing' : 'Rel';
@@ -242,12 +242,12 @@ export function PropertySearchPage() {
         {/* Grouped results */}
         {debouncedQuery.trim().length > 0 && (
           <div className="space-y-4">
-            {[...grouped.entries()].map(([propName, matches]) => (
+            {[...grouped.entries()].map(([propertyName, matches]) => (
               <div
-                key={propName}
+                key={propertyName}
                 className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4"
               >
-                <h3 className="text-sm font-semibold text-amber-400 mb-2 font-mono">{propName}</h3>
+                <h3 className="text-sm font-semibold text-amber-400 mb-2 font-mono">{propertyName}</h3>
                 <div className="space-y-1.5">
                   {matches.map((m, i) => (
                     <div

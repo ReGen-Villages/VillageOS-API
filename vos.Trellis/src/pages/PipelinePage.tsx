@@ -129,17 +129,17 @@ export function PipelinePage() {
   // Pre-run validation (#5829): why the DAG will not run — required inputs neither wired nor param-bound,
   // and dangling wires. Surfaced in the toolbar and gates Run so a broken pipeline fails loud, not silent.
   const validationIssues = useMemo(() => {
-    const valNodes = nodes.map((n) => {
+    const validationNodes = nodes.map((n) => {
       const d = n.data as unknown as PipelineNodeData;
       return { id: n.id, label: d.label, ports: d.ports, paramBindings: d.paramBindings };
     });
-    const valEdges = edges.map((e) => ({
+    const validationEdges = edges.map((e) => ({
       source: e.source,
       sourceHandle: e.sourceHandle ?? '',
       target: e.target,
       targetHandle: e.targetHandle ?? '',
     }));
-    return validatePipeline(valNodes, valEdges);
+    return validatePipeline(validationNodes, validationEdges);
   }, [nodes, edges]);
 
   const selectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : undefined;
@@ -219,9 +219,9 @@ export function PipelinePage() {
 
   // Type-check a wire before accepting it (out-port type must be compatible with in-port type).
   const onConnect = useCallback((c: Connection) => {
-    const src = nodes.find((n) => n.id === c.source)?.data as PipelineNodeData | undefined;
+    const source = nodes.find((n) => n.id === c.source)?.data as PipelineNodeData | undefined;
     const tgt = nodes.find((n) => n.id === c.target)?.data as PipelineNodeData | undefined;
-    const outPort = src?.ports.find((p) => p.portName === c.sourceHandle && p.direction === 'out');
+    const outPort = source?.ports.find((p) => p.portName === c.sourceHandle && p.direction === 'out');
     const inPort = tgt?.ports.find((p) => p.portName === c.targetHandle && p.direction === 'in');
     if (!outPort || !inPort) return;
     if (!typesCompatible(outPort.type, inPort.type)) {

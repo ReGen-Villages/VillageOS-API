@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { configApi } from '../../api/configApi';
+import { configurationApi } from '../../api/configurationApi';
 import { toast } from '../common/toastStore';
-import type { PropertyModeConfig } from '../../types/vos';
+import type { PropertyModeConfiguration } from '../../types/vos';
 
 const MODES = ['CurrentOnly', 'RingBuffer', 'Sampled', 'FullHistory'] as const;
 
 export function PropertyModePanel() {
   const { t } = useTranslation();
-  const [configuration, setConfig] = useState<PropertyModeConfig | null>(null);
+  const [configuration, setConfiguration] = useState<PropertyModeConfiguration | null>(null);
   const [mode, setMode] = useState('');
   const [ringBufferSize, setRingBufferSize] = useState('');
   const [sampleRate, setSampleRate] = useState('');
@@ -17,8 +17,8 @@ export function PropertyModePanel() {
 
   const load = useCallback(async () => {
     try {
-      const data = await configApi.getDefaultPropertyMode();
-      setConfig(data);
+      const data = await configurationApi.getDefaultPropertyMode();
+      setConfiguration(data);
       setMode(data.Mode);
       setRingBufferSize(data.RingBufferSize?.toString() ?? '');
       setSampleRate(data.SampleRate?.toString() ?? '');
@@ -35,12 +35,12 @@ export function PropertyModePanel() {
   const save = async () => {
     setSaving(true);
     try {
-      const data = await configApi.setDefaultPropertyMode(
+      const data = await configurationApi.setDefaultPropertyMode(
         mode,
         ringBufferSize ? parseInt(ringBufferSize, 10) : undefined,
         sampleRate ? parseInt(sampleRate, 10) : undefined,
       );
-      setConfig(data);
+      setConfiguration(data);
       toast.success(t('dashboard.propertyMode.updated'));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('dashboard.propertyMode.updateFailed'));

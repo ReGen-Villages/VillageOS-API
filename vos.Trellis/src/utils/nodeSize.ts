@@ -26,7 +26,7 @@ export interface NodeSizeOptions {
   slope: number;
 }
 
-const DEFAULT_OPTS: NodeSizeOptions = {
+const DEFAULT_OPTIONS: NodeSizeOptions = {
   min: NODE_SIZE_MIN,
   max: NODE_SIZE_MAX,
   slope: NODE_SIZE_SLOPE,
@@ -37,6 +37,6 @@ const DEFAULT_OPTS: NodeSizeOptions = {
  * Pure function — overrides are read from <c>opts</c> when provided, otherwise
  * fall back to the LAYOUT_DEFAULTS-sourced module constants.
  */
-export function computeNodeSize(degree: number, options: NodeSizeOptions = DEFAULT_OPTS): number {
+export function computeNodeSize(degree: number, options: NodeSizeOptions = DEFAULT_OPTIONS): number {
   return Math.max(options.min, Math.min(options.max, options.min + degree * options.slope));
 }

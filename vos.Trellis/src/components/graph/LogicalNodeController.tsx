@@ -31,9 +31,9 @@ export function LogicalNodeController() {
       const children = getLogicalChildren(graph, parentId);
       if (children.length === 0) continue;
 
-      const parentAttrs = graph.getNodeAttributes(parentId);
-      const px = parentAttrs.x as number;
-      const py = parentAttrs.y as number;
+      const parentAttributes = graph.getNodeAttributes(parentId);
+      const px = parentAttributes.x as number;
+      const py = parentAttributes.y as number;
 
       // Radius scales with child count so they don't overlap
       const radius = Math.max(30, children.length * 5);

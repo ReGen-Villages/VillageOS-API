@@ -115,7 +115,7 @@ export async function savePipeline(
       relationships.push({ Name: 'is', Subject: thingId, Predicate: isId, Target: boundaryArchetype(n.kind)! });
       // Declared ports become child-Things under the archetype marked as holding ports. Reuse a persisted
       // port's id when the name matches (idempotent update); a port no longer declared is retracted.
-      const persisted = new Map(model.boundaryPortRels(n.id).map((r) => [r.port.portName, r.portId]));
+      const persisted = new Map(model.boundaryPortRelationships(n.id).map((r) => [r.port.portName, r.portId]));
       for (const p of n.ports) {
         const portId = persisted.get(p.portName) ?? crypto.randomUUID();
         persisted.delete(p.portName);
@@ -194,7 +194,7 @@ export async function savePipeline(
   const desiredThingIds = new Set(nodeThingId.values());
   for (const nid of persistedNodeIds)
     if (!desiredThingIds.has(nid)) {
-      for (const r of model.boundaryPortRels(nid)) await thingApi.remove(r.portId);
+      for (const r of model.boundaryPortRelationships(nid)) await thingApi.remove(r.portId);
       await thingApi.remove(nid);
     }
 
@@ -234,7 +234,7 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
     };
     // Boundary node (#5873): its ports are declared on the node itself, and it binds no connection.
     const kind = model.boundaryKind(t.Id);
-    if (kind) return { ...base, kind, connectionId: '', ports: model.boundaryPortRels(t.Id).map((r) => r.port) };
+    if (kind) return { ...base, kind, connectionId: '', ports: model.boundaryPortRelationships(t.Id).map((r) => r.port) };
 
     const conn = model.outgoing(t.Id, 'has').find((c) => model.isOfArchetypeCarrying(c.Id, ARCHETYPE_FLAG.Connection));
     return { ...base, connectionId: conn?.Id ?? '', ports: conn ? connectionsById.get(conn.Id)?.ports ?? [] : [] };

@@ -43,7 +43,7 @@ export function searchProperties({ effectiveProps, relationships, thingNames, qu
   // matches the timestamp it is stored as, and a shape matches its coordinates rather than the one
   // word a cell has room for. Searching the presentation would find less, not more.
   const matchFn = mode === 'name'
-    ? (key: string, _val: unknown) => key.toLowerCase().includes(q)
+    ? (key: string, _value: unknown) => key.toLowerCase().includes(q)
     : (_key: string, value: unknown) => formatPropertyValue(value).toLowerCase().includes(q);
 
   const matches: PropertyMatch[] = [];

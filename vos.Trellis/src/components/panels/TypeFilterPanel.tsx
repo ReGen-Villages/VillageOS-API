@@ -179,10 +179,10 @@ export function TypeFilterPanel() {
               onChange={(e) => setSortOrder(e.target.value as SortOrder)}
               className="flex-1 bg-zinc-900/60 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
             >
-              <option value="count-desc">{t('graph.typeFilter.sortCountDesc')}</option>
+              <option value="count-desc">{t('graph.typeFilter.sortCountDescending')}</option>
               <option value="count-asc">{t('graph.typeFilter.sortCountAsc')}</option>
               <option value="name-asc">{t('graph.typeFilter.sortNameAsc')}</option>
-              <option value="name-desc">{t('graph.typeFilter.sortNameDesc')}</option>
+              <option value="name-desc">{t('graph.typeFilter.sortNameDescending')}</option>
             </select>
           </div>
 

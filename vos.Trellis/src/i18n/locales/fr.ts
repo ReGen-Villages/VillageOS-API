@@ -159,7 +159,7 @@ export const fr: PartialResources = {
       requests: 'Requêtes',
       avgTime: 'Temps moyen',
       errors: 'Erreurs',
-      lastReq: 'Dernière requête',
+      lastRequest: 'Dernière requête',
       lastContact: 'Dernier contact',
       processId: 'PID',
       failures: 'Échecs : {{count}}',
@@ -189,7 +189,7 @@ export const fr: PartialResources = {
       pausedBuffered_other: 'En pause — {{count}} nouveaux évènements en mémoire',
       filterPlaceholder: 'Filtrer les évènements…',
       none: 'Aucune activité pour l’instant',
-      category: { model: 'Modèle', things: 'Choses', relationships: 'Rel.', props: 'Prop.', services: 'Services' },
+      category: { model: 'Modèle', things: 'Choses', relationships: 'Rel.', properties: 'Prop.', services: 'Services' },
     },
   },
   graph: {
@@ -252,10 +252,10 @@ export const fr: PartialResources = {
       search: 'Rechercher des types…',
       sort: 'Trier',
       sortAria: 'Trier les types',
-      sortCountDesc: 'Nombre (décroissant)',
+      sortCountDescending: 'Nombre (décroissant)',
       sortCountAsc: 'Nombre (croissant)',
       sortNameAsc: 'Nom (A → Z)',
-      sortNameDesc: 'Nom (Z → A)',
+      sortNameDescending: 'Nom (Z → A)',
       noMatch: 'Aucun type correspondant.',
     },
     predicateFilter: {
@@ -267,8 +267,8 @@ export const fr: PartialResources = {
   authentication: {
     loadSeed: 'Charger un seed',
     searchSeeds: 'Rechercher des seeds…',
-    colName: 'Nom',
-    colSize: 'Taille',
+    columnName: 'Nom',
+    columnSize: 'Taille',
     noMatch: 'Aucun seed ne correspond à votre recherche',
     noneAvailable: 'Aucun seed disponible',
     seedCount: '{{shown}} sur {{total}} seeds',
@@ -443,7 +443,7 @@ export const fr: PartialResources = {
     ownProperties: "Propriétés propres",
     relationships: "Relations",
     propsAbbrev: "props",
-    relsAbbrev: "rels",
+    relationshipsShort: "rels",
     moreProps: "+{{count}} de plus",
     noMatch: "Aucun objet ne correspond à « {{query}} ».",
     foundCount_one: "{{count}} objet trouvé",
@@ -610,7 +610,7 @@ export const fr: PartialResources = {
       propertiesTab: "Propriétés ({{count}})",
       deleteRelationship: "Supprimer la relation",
     },
-    props: {
+    properties: {
       none: "Aucune propriété",
       viewFullValue: "Voir la valeur complète",
       addProperty: "Ajouter une propriété",
@@ -652,7 +652,7 @@ export const fr: PartialResources = {
       retyped: "Retypé",
       retypeFailed: "Échec du retypage",
     },
-    addRel: {
+    addRelationship: {
       predicatePlaceholder: "Prédicat…",
       createRelationship: "Créer une relation",
       targetPlaceholder: "Cible…",

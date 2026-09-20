@@ -41,7 +41,7 @@ export function useAuthState(): AuthState {
   const [authFailed, setAuthFailed] = useState(false);
   const [startupProgress, setStartupProgress] = useState<StartupProgress | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pendingCredsRef = useRef<{ username: string; password: string } | null>(null);
+  const pendingCredentialsReference = useRef<{ username: string; password: string } | null>(null);
 
   const isAuthenticated = !authFailed && (apiClient.isAuthenticated() || !!import.meta.env.VITE_API_KEY);
 
@@ -50,7 +50,7 @@ export function useAuthState(): AuthState {
       clearInterval(pollTimerRef.current);
       pollTimerRef.current = null;
     }
-    pendingCredsRef.current = null;
+    pendingCredentialsReference.current = null;
   }, []);
 
   useEffect(() => stopPolling, [stopPolling]);
@@ -87,7 +87,7 @@ export function useAuthState(): AuthState {
   }, []);
 
   const startSeedPolling = useCallback((username: string, password: string) => {
-    pendingCredsRef.current = { username, password };
+    pendingCredentialsReference.current = { username, password };
     if (pollTimerRef.current) return;
 
     const poll = async () => {
@@ -96,7 +96,7 @@ export function useAuthState(): AuthState {
         setStartupProgress(status);
         if (!status.IsLoading && status.Phase === 'Done') {
           // Read creds BEFORE stopPolling (which clears pendingCredsRef)
-          const credentials = pendingCredsRef.current;
+          const credentials = pendingCredentialsReference.current;
           stopPolling();
           setStartupProgress(null);
           if (credentials) {

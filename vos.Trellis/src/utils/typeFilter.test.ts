@@ -62,8 +62,8 @@ describe('discoverTypes (Feature #5362)', () => {
   it('real types sort by count desc then name asc; no-type bucket pinned last', () => {
     const extraType = thing('t-z', 'Zonal');
     const extraInst = thing('z1', 'Zonal-1');
-    const extraRel = relationship('r5', 'z1', 'p-is', 't-z');
-    const r = discoverTypes([...things, extraType, extraInst], [...relationships, extraRel]);
+    const extraRelationship = relationship('r5', 'z1', 'p-is', 't-z');
+    const r = discoverTypes([...things, extraType, extraInst], [...relationships, extraRelationship]);
     // Real types: Wall(3), Door(1), Zonal(1) → Wall, Door, Zonal (Door < Zonal alphabetically)
     // no-type pinned last regardless of its count
     expect(r.map((x) => x.name)).toEqual(['Wall', 'Door', 'Zonal', NO_TYPE_NAME]);
@@ -77,24 +77,24 @@ describe('discoverTypes (Feature #5362)', () => {
 
   it('ignores non-is relationships', () => {
     const hasP = thing('p-has', 'has');
-    const containsRel = relationship('rh', 'w1', 'p-has', 'd1');
-    const r = discoverTypes([...things, hasP], [...relationships, containsRel]);
+    const containsRelationship = relationship('rh', 'w1', 'p-has', 'd1');
+    const r = discoverTypes([...things, hasP], [...relationships, containsRelationship]);
     // Bucket totals: Wall(3), Door(1), no-type(4 — isP, wallType, doorType, hasP)
     expect(r.find((x) => x.typeId === NO_TYPE_ID)!.instanceCount).toBe(4);
   });
 
   it('is case-insensitive on the predicate name', () => {
-    const isUpperPred = thing('p-IS', 'IS');
-    const upperRel = relationship('rU', 'w1', 'p-IS', 't-wall');
-    const r = discoverTypes([...things, isUpperPred], [...relationships, upperRel]);
+    const isUpperPredicate = thing('p-IS', 'IS');
+    const upperRelationship = relationship('rU', 'w1', 'p-IS', 't-wall');
+    const r = discoverTypes([...things, isUpperPredicate], [...relationships, upperRelationship]);
     // w1 already classified by 'is' (lowercase) — first-seen wins — count unchanged.
     expect(r.find((x) => x.typeId === 't-wall')!.instanceCount).toBe(3);
   });
 
   it('treats Things with dangling `is` references as no-type (skips the missing target)', () => {
     const w4 = thing('w4', 'Wall-4');
-    const danglingRel = relationship('rd', 'w4', 'p-is', 't-missing');
-    const r = discoverTypes([...things, w4], [...relationships, danglingRel]);
+    const danglingRelationship = relationship('rd', 'w4', 'p-is', 't-missing');
+    const r = discoverTypes([...things, w4], [...relationships, danglingRelationship]);
     expect(r.find((x) => x.typeId === 't-missing')).toBeUndefined();
     // w4's dangling `is` collapses to no-type bucket — was 3 (isP, wallType, doorType) + w4 = 4
     expect(r.find((x) => x.typeId === NO_TYPE_ID)!.instanceCount).toBe(4);
@@ -160,12 +160,12 @@ describe('applyTypeFilter (Feature #5362)', () => {
   it('drops relationships whose endpoints became hidden', () => {
     const hasP = thing('p-has', 'has');
     const contains = relationship('rContains', 'w1', 'p-has', 'w2');
-    const allRels = [...relationships, contains];
-    const result = applyTypeFilter([...things, hasP], allRels, new Set(['t-wall']));
-    const relIds = result.relationships.map((r) => r.Id);
-    expect(relIds).not.toContain('rContains');  // both walls hidden
-    expect(relIds).not.toContain('r1');         // is-rel to hidden t-wall
-    expect(relIds).toContain('r4');             // d1 → t-door, both still visible
+    const allRelationships = [...relationships, contains];
+    const result = applyTypeFilter([...things, hasP], allRelationships, new Set(['t-wall']));
+    const relationshipIds = result.relationships.map((r) => r.Id);
+    expect(relationshipIds).not.toContain('rContains');  // both walls hidden
+    expect(relationshipIds).not.toContain('r1');         // is-rel to hidden t-wall
+    expect(relationshipIds).toContain('r4');             // d1 → t-door, both still visible
   });
 
   it('hiding ALL discovered types AND no-type yields an empty graph', () => {

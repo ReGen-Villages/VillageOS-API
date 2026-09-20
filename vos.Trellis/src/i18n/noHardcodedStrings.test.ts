@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
  * A finding is silenced only by adding it to ALLOWED with a reason.
  */
 
-const SRC = join(dirname(fileURLToPath(import.meta.url)), '..');
+const SOURCE = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 // Exact strings that are legitimately literal. Keep this list short and justified.
 const ALLOWED = new Set<string>([
@@ -31,7 +31,7 @@ const ALLOWED = new Set<string>([
   'ReGen Villages',
 ]);
 
-const VISIBLE_ATTRS = ['placeholder', 'title', 'aria-label', 'alt'];
+const VISIBLE_ATTRIBUTES = ['placeholder', 'title', 'aria-label', 'alt'];
 const HAS_LETTER = /[A-Za-z]{2,}/;
 
 function tsxFiles(direction: string): string[] {
@@ -54,11 +54,11 @@ function findings(file: string): string[] {
     const trimmed = line.trim();
     if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
 
-    for (const attr of VISIBLE_ATTRS) {
-      const re = new RegExp(`\\b${attr}=("([^"]*)"|'([^']*)')`, 'g');
+    for (const attribute of VISIBLE_ATTRIBUTES) {
+      const re = new RegExp(`\\b${attribute}=("([^"]*)"|'([^']*)')`, 'g');
       for (const m of line.matchAll(re)) {
         const value = (m[2] ?? m[3] ?? '').trim();
-        if (HAS_LETTER.test(value) && !ALLOWED.has(value)) found.push(`${attr}="${value}"`);
+        if (HAS_LETTER.test(value) && !ALLOWED.has(value)) found.push(`${attribute}="${value}"`);
       }
     }
 
@@ -76,7 +76,7 @@ function findings(file: string): string[] {
 }
 
 describe('no hardcoded user-visible strings', () => {
-  for (const file of tsxFiles(SRC)) {
+  for (const file of tsxFiles(SOURCE)) {
     const relationship = `${basename(dirname(file))}/${basename(file)}`;
     it(`${relationship} routes visible text through i18n`, () => {
       expect(findings(file)).toEqual([]);

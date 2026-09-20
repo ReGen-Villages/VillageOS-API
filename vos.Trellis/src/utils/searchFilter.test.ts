@@ -9,7 +9,7 @@ function makeThing(id: string, name: string): VosThing {
   return { Id: id, Name: name, Properties: {} };
 }
 
-function makeRel(id: string, subjectId: string, predicateId: string, targetId: string): VosRelationship {
+function makeRelationship(id: string, subjectId: string, predicateId: string, targetId: string): VosRelationship {
   return { Id: id, Name: `${subjectId}-${predicateId}-${targetId}`, SubjectId: subjectId, PredicateId: predicateId, TargetId: targetId, Properties: {} };
 }
 
@@ -24,8 +24,8 @@ const likes = makeThing('4', 'likes');
 const things = [alice, bob, charlie, likes];
 
 // Alice -likes-> Bob,  Bob -likes-> Charlie
-const rel1 = makeRel('r1', '1', '4', '2'); // Alice likes Bob
-const rel2 = makeRel('r2', '2', '4', '3'); // Bob likes Charlie
+const rel1 = makeRelationship('r1', '1', '4', '2'); // Alice likes Bob
+const rel2 = makeRelationship('r2', '2', '4', '3'); // Bob likes Charlie
 const relationships = [rel1, rel2];
 
 // ── Tests ──────────────────────────────────────────────────────────────
@@ -144,7 +144,7 @@ describe('filterGraph', () => {
       const zone = makeThing('z1', 'Zone');
       const monitors = makeThing('p1', 'monitors');
       const isolated = makeThing('x1', 'Isolated');
-      const relationship = makeRel('rx', 's1', 'p1', 'z1');
+      const relationship = makeRelationship('rx', 's1', 'p1', 'z1');
       const allThings = [sensor, zone, monitors, isolated];
 
       const result = filterGraph('Sensor', allThings, [relationship], defaults);

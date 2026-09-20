@@ -4,7 +4,7 @@ import type { PortInfo } from './model';
 // user hits Run, instead of a silent dispatch failure. Kept pure so it is trivially unit-tested and can
 // drive both a canvas marker and the Run button's enabled state.
 
-export interface ValNode {
+export interface ValidationNode {
   id: string;
   label: string;
   ports: PortInfo[];
@@ -12,7 +12,7 @@ export interface ValNode {
   paramBindings?: Record<string, string>;
 }
 
-export interface ValEdge {
+export interface ValidationEdge {
   source: string;
   sourceHandle: string;
   target: string;
@@ -32,22 +32,22 @@ export type ValidationIssue =
 
 const key = (nodeId: string, port: string) => `${nodeId} ${port}`;
 
-export function validatePipeline(nodes: ValNode[], edges: ValEdge[]): ValidationIssue[] {
+export function validatePipeline(nodes: ValidationNode[], edges: ValidationEdge[]): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const byId = new Map(nodes.map((n) => [n.id, n]));
-  const hasPort = (n: ValNode, name: string, direction: 'in' | 'out') =>
+  const hasPort = (n: ValidationNode, name: string, direction: 'in' | 'out') =>
     n.ports.some((p) => p.portName === name && p.direction === direction);
 
   // A wire is dangling if either endpoint node, or the named port on it, no longer exists. Only
   // well-formed wires count toward satisfying a required input.
   const wiredInputs = new Set<string>();
   for (const e of edges) {
-    const src = byId.get(e.source);
+    const source = byId.get(e.source);
     const dst = byId.get(e.target);
     const wellFormed =
-      src !== undefined &&
+      source !== undefined &&
       dst !== undefined &&
-      hasPort(src, e.sourceHandle, 'out') &&
+      hasPort(source, e.sourceHandle, 'out') &&
       hasPort(dst, e.targetHandle, 'in');
     if (!wellFormed) {
       issues.push({

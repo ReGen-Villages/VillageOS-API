@@ -14,12 +14,12 @@ export function ModelStatsCard({ things, relationships }: Props) {
 
   // Top predicates by usage — use Map lookup to avoid O(things × relationships)
   const thingMap = new Map(things.map((t) => [t.Id, t]));
-  const predCounts = new Map<string, number>();
+  const predicateCounts = new Map<string, number>();
   for (const r of relationships) {
     const name = thingMap.get(r.PredicateId)?.Name || r.PredicateId;
-    predCounts.set(name, (predCounts.get(name) || 0) + 1);
+    predicateCounts.set(name, (predicateCounts.get(name) || 0) + 1);
   }
-  const topPredicates = [...predCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const topPredicates = [...predicateCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
 
   return (
     <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">

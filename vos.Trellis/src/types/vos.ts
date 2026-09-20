@@ -430,7 +430,7 @@ export interface StateOccurrencesResponse {
 
 // Property mode configuration
 
-export interface PropertyModeConfig {
+export interface PropertyModeConfiguration {
   Mode: string;
   RingBufferSize?: number;
   SampleRate?: number;

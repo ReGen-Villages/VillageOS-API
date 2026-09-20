@@ -15,7 +15,7 @@ const makeThing = (overrides?: Partial<VosThing>): VosThing => ({
   ...overrides,
 });
 
-const makeRel = (overrides?: Partial<VosRelationship>): VosRelationship => ({
+const makeRelationship = (overrides?: Partial<VosRelationship>): VosRelationship => ({
   Id: 'rel-1',
   Name: 'consumes',
   SubjectId: 'node-A',
@@ -50,7 +50,7 @@ describe('applyThingPropertyUpdate', () => {
 
 describe('applyRelationshipPropertyUpdate', () => {
   it('merges new property while preserving existing', () => {
-    const relationship = makeRel();
+    const relationship = makeRelationship();
     const updated = applyRelationshipPropertyUpdate(relationship, 'total_consumed', 100);
     expect(updated.Properties.total_consumed).toBe(100);
     expect(updated.Properties.quantity).toBe(5);
@@ -58,19 +58,19 @@ describe('applyRelationshipPropertyUpdate', () => {
   });
 
   it('overwrites existing property value', () => {
-    const relationship = makeRel();
+    const relationship = makeRelationship();
     const updated = applyRelationshipPropertyUpdate(relationship, 'quantity', 10);
     expect(updated.Properties.quantity).toBe(10);
   });
 
   it('handles relationship with empty Properties', () => {
-    const relationship = makeRel({ Properties: {} });
+    const relationship = makeRelationship({ Properties: {} });
     const updated = applyRelationshipPropertyUpdate(relationship, 'quantity', 5);
     expect(updated.Properties.quantity).toBe(5);
   });
 
   it('does not mutate the original relationship', () => {
-    const relationship = makeRel();
+    const relationship = makeRelationship();
     applyRelationshipPropertyUpdate(relationship, 'quantity', 999);
     expect(relationship.Properties.quantity).toBe(5);
   });
@@ -85,7 +85,7 @@ describe('property removal', () => {
   });
 
   it('drops the named property from a relationship', () => {
-    const updated = applyRelationshipPropertyRemoval(makeRel(), 'quantity');
+    const updated = applyRelationshipPropertyRemoval(makeRelationship(), 'quantity');
     expect('quantity' in updated.Properties).toBe(false);
   });
 
@@ -98,16 +98,16 @@ describe('property removal', () => {
   it('returns the same object when the property is not there, so no render is triggered', () => {
     const thing = makeThing();
     expect(applyThingPropertyRemoval(thing, 'never_existed')).toBe(thing);
-    const relationship = makeRel();
+    const relationship = makeRelationship();
     expect(applyRelationshipPropertyRemoval(relationship, 'never_existed')).toBe(relationship);
   });
 });
 
 describe('isVisibleRelationship', () => {
   const relationships = [
-    makeRel({ Id: 'rel-1', SubjectId: 'node-A', TargetId: 'node-B' }),
-    makeRel({ Id: 'rel-2', SubjectId: 'node-B', TargetId: 'node-C' }),
-    makeRel({ Id: 'rel-3', SubjectId: 'node-C', TargetId: 'node-A' }),
+    makeRelationship({ Id: 'rel-1', SubjectId: 'node-A', TargetId: 'node-B' }),
+    makeRelationship({ Id: 'rel-2', SubjectId: 'node-B', TargetId: 'node-C' }),
+    makeRelationship({ Id: 'rel-3', SubjectId: 'node-C', TargetId: 'node-A' }),
   ];
 
   it('returns true when rel subject matches selected node', () => {

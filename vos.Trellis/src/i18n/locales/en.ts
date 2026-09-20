@@ -151,7 +151,7 @@ export const en = {
       requests: 'Requests',
       avgTime: 'Avg Time',
       errors: 'Errors',
-      lastReq: 'Last Req',
+      lastRequest: 'Last Req',
       lastContact: 'Last Contact',
       processId: 'PID',
       failures: 'Failures: {{count}}',
@@ -185,7 +185,7 @@ export const en = {
         model: 'Model',
         things: 'Things',
         relationships: 'Rels',
-        props: 'Props',
+        properties: 'Props',
         services: 'Services',
       },
     },
@@ -250,10 +250,10 @@ export const en = {
       search: 'Search types…',
       sort: 'Sort',
       sortAria: 'Sort types',
-      sortCountDesc: 'Count (high to low)',
+      sortCountDescending: 'Count (high to low)',
       sortCountAsc: 'Count (low to high)',
       sortNameAsc: 'Name (A → Z)',
-      sortNameDesc: 'Name (Z → A)',
+      sortNameDescending: 'Name (Z → A)',
       noMatch: 'No matching types.',
     },
     predicateFilter: {
@@ -265,8 +265,8 @@ export const en = {
   authentication: {
     loadSeed: 'Load a seed',
     searchSeeds: 'Search seeds…',
-    colName: 'Name',
-    colSize: 'Size',
+    columnName: 'Name',
+    columnSize: 'Size',
     noMatch: 'No seeds match your search',
     noneAvailable: 'No seeds available',
     seedCount: '{{shown}} of {{total}} seeds',
@@ -441,7 +441,7 @@ export const en = {
     ownProperties: "Own properties",
     relationships: "Relationships",
     propsAbbrev: "props",
-    relsAbbrev: "rels",
+    relationshipsShort: "rels",
     moreProps: "+{{count}} more",
     noMatch: "No things match \"{{query}}\".",
     foundCount_one: "{{count}} thing found",
@@ -608,7 +608,7 @@ export const en = {
       propertiesTab: "Properties ({{count}})",
       deleteRelationship: "Delete Relationship",
     },
-    props: {
+    properties: {
       none: "No properties",
       viewFullValue: "View full value",
       addProperty: "Add property",
@@ -650,7 +650,7 @@ export const en = {
       retyped: "Retyped",
       retypeFailed: "Failed to retype",
     },
-    addRel: {
+    addRelationship: {
       predicatePlaceholder: "Predicate…",
       createRelationship: "Create relationship",
       targetPlaceholder: "Target…",

@@ -36,12 +36,12 @@ export function editorForType(type: string): EditorKind {
 /** Named as literals so a caller can pass one straight to the translator, which only accepts keys
  *  the English base defines. */
 export type RejectionKey =
-  | 'panels.props.rejected.wholeNumber'
-  | 'panels.props.rejected.number'
-  | 'panels.props.rejected.dateTime'
-  | 'panels.props.rejected.identifier'
-  | 'panels.props.rejected.boolean'
-  | 'panels.props.rejected.readOnly';
+  | 'panels.properties.rejected.wholeNumber'
+  | 'panels.properties.rejected.number'
+  | 'panels.properties.rejected.dateTime'
+  | 'panels.properties.rejected.identifier'
+  | 'panels.properties.rejected.boolean'
+  | 'panels.properties.rejected.readOnly';
 
 const WHOLE_NUMBER = /^-?\d+$/;
 const IDENTIFIER = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -61,16 +61,16 @@ export function rejectionKeyForType(text: string, type: string): RejectionKey | 
       // part, which is exactly the quiet wrong answer this work exists to remove.
       return WHOLE_NUMBER.test(trimmed) && Number.isFinite(Number(trimmed))
         ? null
-        : 'panels.props.rejected.wholeNumber';
+        : 'panels.properties.rejected.wholeNumber';
     case 'number':
-      return trimmed !== '' && Number.isFinite(Number(trimmed)) ? null : 'panels.props.rejected.number';
+      return trimmed !== '' && Number.isFinite(Number(trimmed)) ? null : 'panels.properties.rejected.number';
     case 'dateTime':
-      return trimmed !== '' && !Number.isNaN(Date.parse(trimmed)) ? null : 'panels.props.rejected.dateTime';
+      return trimmed !== '' && !Number.isNaN(Date.parse(trimmed)) ? null : 'panels.properties.rejected.dateTime';
     case 'checkbox':
-      return trimmed === 'true' || trimmed === 'false' ? null : 'panels.props.rejected.boolean';
+      return trimmed === 'true' || trimmed === 'false' ? null : 'panels.properties.rejected.boolean';
     case 'readOnly':
-      return 'panels.props.rejected.readOnly';
+      return 'panels.properties.rejected.readOnly';
     default:
-      return type === 'vos.Guid' && !IDENTIFIER.test(trimmed) ? 'panels.props.rejected.identifier' : null;
+      return type === 'vos.Guid' && !IDENTIFIER.test(trimmed) ? 'panels.properties.rejected.identifier' : null;
   }
 }

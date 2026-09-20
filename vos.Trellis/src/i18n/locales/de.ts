@@ -159,7 +159,7 @@ export const de: PartialResources = {
       requests: 'Anfragen',
       avgTime: 'Ø-Zeit',
       errors: 'Fehler',
-      lastReq: 'Letzte Anfrage',
+      lastRequest: 'Letzte Anfrage',
       lastContact: 'Letzter Kontakt',
       processId: 'PID',
       failures: 'Fehler: {{count}}',
@@ -189,7 +189,7 @@ export const de: PartialResources = {
       pausedBuffered_other: 'Pausiert — {{count}} neue Ereignisse gepuffert',
       filterPlaceholder: 'Ereignisse filtern…',
       none: 'Noch keine Aktivität',
-      category: { model: 'Modell', things: 'Dinge', relationships: 'Bez.', props: 'Eig.', services: 'Dienste' },
+      category: { model: 'Modell', things: 'Dinge', relationships: 'Bez.', properties: 'Eig.', services: 'Dienste' },
     },
   },
   graph: {
@@ -252,10 +252,10 @@ export const de: PartialResources = {
       search: 'Typen suchen…',
       sort: 'Sortieren',
       sortAria: 'Typen sortieren',
-      sortCountDesc: 'Anzahl (hoch zu niedrig)',
+      sortCountDescending: 'Anzahl (hoch zu niedrig)',
       sortCountAsc: 'Anzahl (niedrig zu hoch)',
       sortNameAsc: 'Name (A → Z)',
-      sortNameDesc: 'Name (Z → A)',
+      sortNameDescending: 'Name (Z → A)',
       noMatch: 'Keine passenden Typen.',
     },
     predicateFilter: {
@@ -267,8 +267,8 @@ export const de: PartialResources = {
   authentication: {
     loadSeed: 'Einen Seed laden',
     searchSeeds: 'Seeds suchen…',
-    colName: 'Name',
-    colSize: 'Größe',
+    columnName: 'Name',
+    columnSize: 'Größe',
     noMatch: 'Keine Seeds entsprechen Ihrer Suche',
     noneAvailable: 'Keine Seeds verfügbar',
     seedCount: '{{shown}} von {{total}} Seeds',
@@ -443,7 +443,7 @@ export const de: PartialResources = {
     ownProperties: "Eigene Eigenschaften",
     relationships: "Beziehungen",
     propsAbbrev: "Eig.",
-    relsAbbrev: "Bez.",
+    relationshipsShort: "Bez.",
     moreProps: "+{{count}} weitere",
     noMatch: "Keine Dinge stimmen mit „{{query}}\" überein.",
     foundCount_one: "{{count}} Ding gefunden",
@@ -610,7 +610,7 @@ export const de: PartialResources = {
       propertiesTab: "Eigenschaften ({{count}})",
       deleteRelationship: "Beziehung löschen",
     },
-    props: {
+    properties: {
       none: "Keine Eigenschaften",
       viewFullValue: "Vollständigen Wert anzeigen",
       addProperty: "Eigenschaft hinzufügen",
@@ -652,7 +652,7 @@ export const de: PartialResources = {
       retyped: "Neu typisiert",
       retypeFailed: "Neu-Typisierung fehlgeschlagen",
     },
-    addRel: {
+    addRelationship: {
       predicatePlaceholder: "Prädikat…",
       createRelationship: "Beziehung erstellen",
       targetPlaceholder: "Ziel…",

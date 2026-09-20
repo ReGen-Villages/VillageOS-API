@@ -134,9 +134,9 @@ export function findGuiSettingsProperties(
   if (!typeThing) return null;
 
   // Find an instance linked via "is" to this type
-  const isRel = relationships.find((r) => r.TargetId === typeThing.Id);
-  const instance = isRel
-    ? things.find((t) => t.Id === isRel.SubjectId)
+  const isRelationship = relationships.find((r) => r.TargetId === typeThing.Id);
+  const instance = isRelationship
+    ? things.find((t) => t.Id === isRelationship.SubjectId)
     : undefined;
 
   // Merge: type defaults ← instance overrides

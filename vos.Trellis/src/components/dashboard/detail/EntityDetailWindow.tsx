@@ -215,14 +215,14 @@ export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset,
     : [{ label: t('entityDetail.properties'), entries: Object.entries(props) }];
 
   // ── Drag & layout ─────────────────────────────────────────────────────────
-  const [position, setPos] = useState({ x: 120 + offset * 28, y: 90 + offset * 28 });
+  const [position, setPosition] = useState({ x: 120 + offset * 28, y: 90 + offset * 28 });
   // Re-tile when the spread button is clicked, using React's "adjust state during render"
   // pattern (a guarded render-phase update) rather than an effect: spreadTick only advances on
   // an explicit click, and starts at 0 so the initial cascade above is kept until then.
   const [appliedSpread, setAppliedSpread] = useState(0);
   if (spreadTick !== appliedSpread) {
     setAppliedSpread(spreadTick);
-    if (spreadTick > 0) setPos(tiledPosition(index));
+    if (spreadTick > 0) setPosition(tiledPosition(index));
   }
   const drag = useRef<{ dx: number; dy: number } | null>(null);
   const onPointerDown = useCallback(
@@ -235,7 +235,7 @@ export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset,
   );
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     if (!drag.current) return;
-    setPos({ x: Math.max(0, e.clientX - drag.current.dx), y: Math.max(0, e.clientY - drag.current.dy) });
+    setPosition({ x: Math.max(0, e.clientX - drag.current.dx), y: Math.max(0, e.clientY - drag.current.dy) });
   }, []);
   const onPointerUp = useCallback((e: React.PointerEvent) => {
     drag.current = null;

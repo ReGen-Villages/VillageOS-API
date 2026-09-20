@@ -25,7 +25,7 @@ function makeThing(
   return { Id: uniqueId(), Name: name, Properties: props };
 }
 
-function makeRel(
+function makeRelationship(
   subjectId: string,
   predicateId: string,
   targetId: string,
@@ -45,12 +45,12 @@ function buildGuiFixture(
   typeProps: Record<string, unknown>,
   instanceProps: Record<string, unknown> = {},
 ) {
-  const isPred = makeThing('is');
+  const isPredicate = makeThing('is');
   const guiType = makeThing('GUI_Settings', typeProps);
   const gui = makeThing('GUI', instanceProps);
-  const relationship = makeRel(gui.Id, isPred.Id, guiType.Id);
+  const relationship = makeRelationship(gui.Id, isPredicate.Id, guiType.Id);
   return {
-    things: [isPred, guiType, gui],
+    things: [isPredicate, guiType, gui],
     relationships: [relationship],
   };
 }

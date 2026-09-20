@@ -32,13 +32,13 @@ export function RelationshipList({ relationships, direction, allThings, onSelect
         const predicate = allThings.get(r.PredicateId);
         const other = allThings.get(direction === 'outgoing' ? r.TargetId : r.SubjectId);
         const otherId = direction === 'outgoing' ? r.TargetId : r.SubjectId;
-        const relProps = r.Properties ? Object.entries(r.Properties) : [];
+        const relationshipProperties = r.Properties ? Object.entries(r.Properties) : [];
         const isExpanded = expandedIds.has(r.Id);
 
         return (
           <div key={r.Id}>
             <div className="flex items-center py-1 text-xs hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded px-1">
-              {relProps.length > 0 && (
+              {relationshipProperties.length > 0 && (
                 <button
                   onClick={() => setExpandedIds((previous) => {
                     const next = new Set(previous);
@@ -73,11 +73,11 @@ export function RelationshipList({ relationships, direction, allThings, onSelect
                 </button>
               )}
             </div>
-            {isExpanded && relProps.length > 0 && (
+            {isExpanded && relationshipProperties.length > 0 && (
               <div className="ml-5 mb-1 pl-2 border-l-2 border-zinc-700">
                 <ExpandedRelationshipProperties
                   relationshipId={r.Id}
-                  storedProperties={relProps}
+                  storedProperties={relationshipProperties}
                   editMode={editMode}
                 />
               </div>

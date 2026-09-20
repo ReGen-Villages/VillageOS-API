@@ -150,7 +150,7 @@ export function computeClusters(graph: Graph, predicateIds: Set<string>): Cluste
   }
 
   // Mark all other nodes as unclustered (-1)
-  graph.forEachNode((node, _attrs) => {
+  graph.forEachNode((node, _attributes) => {
     if (!nodeCluster.has(node)) {
       nodeCluster.set(node, -1);
     }

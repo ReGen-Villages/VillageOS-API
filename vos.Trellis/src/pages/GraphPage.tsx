@@ -148,7 +148,7 @@ export function GraphPage() {
     }
   };
 
-  const handleDeleteRelProperty = async (relationshipId: string, propertyName: string) => {
+  const handleDeleteRelationshipProperty = async (relationshipId: string, propertyName: string) => {
     try {
       await relationshipApi.deleteProperty(relationshipId, propertyName);
       toast.success(t('graph.toast.propertyDeleted', { name: propertyName }));
@@ -311,7 +311,7 @@ export function GraphPage() {
                 name: relationshipLabel(detailRelationship, (thingId) => thingMap.get(thingId)?.Name),
               })
             }
-            onDeleteProperty={handleDeleteRelProperty}
+            onDeleteProperty={handleDeleteRelationshipProperty}
             statesVersion={statesVersion}
           />
         </ResizablePanel>

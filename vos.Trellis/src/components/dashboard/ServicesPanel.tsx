@@ -43,7 +43,7 @@ interface ServiceRow {
   routeLabel: string;
   requests: number;
   avgMs: number;
-  lastReqUtc?: string;
+  lastRequestUtc?: string;
   errors?: number;
   health?: string;
   running?: boolean;
@@ -63,7 +63,7 @@ function fromService(service: RegisteredService): ServiceRow {
     routeLabel: 'predicate',
     requests: service.Stats.RequestsForwarded,
     avgMs: service.Stats.AverageResponseMilliseconds,
-    lastReqUtc: service.Stats.LastRequestUtc,
+    lastRequestUtc: service.Stats.LastRequestUtc,
     health: service.HealthStatus,
     running: service.IsRunning,
     isExternal: service.IsExternal,
@@ -82,7 +82,7 @@ function fromEndpoint(effectiveProperty: EndpointServiceInfo): ServiceRow {
     routeLabel: `/api/endpoints/${effectiveProperty.Subdomain}`,
     requests: effectiveProperty.Stats.RequestCount,
     avgMs: effectiveProperty.Stats.AverageResponseMs,
-    lastReqUtc: effectiveProperty.Stats.LastRequestUtc,
+    lastRequestUtc: effectiveProperty.Stats.LastRequestUtc,
     errors: effectiveProperty.Stats.ErrorCount,
     deleteThingId: effectiveProperty.ObjectId,
   };
@@ -91,13 +91,13 @@ function fromEndpoint(effectiveProperty: EndpointServiceInfo): ServiceRow {
 // Base cells: Requests, Avg Time, Last Req. Errors (endpoints), Last Contact and
 // PID (graph services) are added conditionally. Literal class strings so Tailwind
 // keeps them in the build.
-function statGridCols(row: ServiceRow): string {
-  const cols =
+function statGridColumns(row: ServiceRow): string {
+  const columns =
     3 +
     (row.errors !== undefined ? 1 : 0) +
     (row.lastContactTime ? 1 : 0) +
     (row.processId ? 1 : 0);
-  switch (cols) {
+  switch (columns) {
     case 6: return 'grid-cols-6';
     case 5: return 'grid-cols-5';
     case 4: return 'grid-cols-4';
@@ -147,7 +147,7 @@ export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete, 
                 )}
               </div>
             </div>
-            <div className={`grid ${statGridCols(row)} gap-2 text-xs text-zinc-500`}>
+            <div className={`grid ${statGridColumns(row)} gap-2 text-xs text-zinc-500`}>
               <div>
                 <span className="block text-zinc-400">{t('dashboard.services.requests')}</span>
                 <span className="font-mono text-zinc-300">{row.requests}</span>
@@ -163,8 +163,8 @@ export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete, 
                 </div>
               )}
               <div>
-                <span className="block text-zinc-400">{t('dashboard.services.lastReq')}</span>
-                <span className="text-zinc-300">{row.lastReqUtc ? formatRelativeTime(row.lastReqUtc) : '—'}</span>
+                <span className="block text-zinc-400">{t('dashboard.services.lastRequest')}</span>
+                <span className="text-zinc-300">{row.lastRequestUtc ? formatRelativeTime(row.lastRequestUtc) : '—'}</span>
               </div>
               {row.lastContactTime && (
                 <div>

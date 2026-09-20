@@ -30,9 +30,9 @@ export const rangeApi = {
 };
 
 export const relationshipRangeApi = {
-  getAll: (relId: string) =>
-    apiClient.get<RelationshipRangesResponse>(`/api/relationships/${relId}/ranges`),
+  getAll: (relationshipId: string) =>
+    apiClient.get<RelationshipRangesResponse>(`/api/relationships/${relationshipId}/ranges`),
 
-  getStates: (relId: string) =>
-    apiClient.get<RelationshipStates>(`/api/relationships/${relId}/states`),
+  getStates: (relationshipId: string) =>
+    apiClient.get<RelationshipStates>(`/api/relationships/${relationshipId}/states`),
 };

@@ -29,13 +29,13 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
   const pipelineA = T('Workflow', marked(ARCHETYPE_FLAG.Pipeline)),
     nodeA = T('Step', marked(ARCHETYPE_FLAG.PipelineNode)),
     connA = T('Endpoint', marked(ARCHETYPE_FLAG.Connection)),
-    svcA = T('Capability', marked(ARCHETYPE_FLAG.Service)),
+    serviceA = T('Capability', marked(ARCHETYPE_FLAG.Service)),
     portA = T('Socket', marked(ARCHETYPE_FLAG.Port)),
     wireA = T('Link', marked(ARCHETYPE_FLAG.PipelineWire));
   R(carries.Id, is.Id, wireA.Id);
 
   const proto = T('EchoProto');
-  R(proto.Id, is.Id, svcA.Id);
+  R(proto.Id, is.Id, serviceA.Id);
   const pIn = T('p.in', { direction: 'in', type: 'string', portName: 'message', required: 'true' });
   const pOut = T('p.out', { direction: 'out', type: 'string', portName: 'echo' });
   R(pIn.Id, is.Id, portA.Id);
@@ -43,14 +43,14 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
   R(proto.Id, has.Id, pIn.Id);
   R(proto.Id, has.Id, pOut.Id);
 
-  const genSvc = T('genSvc'), echSvc = T('echSvc');
-  R(genSvc.Id, is.Id, proto.Id);
-  R(echSvc.Id, is.Id, proto.Id);
+  const generatorService = T('genSvc'), echoService = T('echSvc');
+  R(generatorService.Id, is.Id, proto.Id);
+  R(echoService.Id, is.Id, proto.Id);
   const genConn = T('genConn', { Subdomain: 'generate' }), echConn = T('echConn', { Subdomain: 'echo' });
   R(genConn.Id, is.Id, connA.Id);
   R(echConn.Id, is.Id, connA.Id);
-  R(genConn.Id, has.Id, genSvc.Id);
-  R(echConn.Id, has.Id, echSvc.Id);
+  R(genConn.Id, has.Id, generatorService.Id);
+  R(echConn.Id, has.Id, echoService.Id);
 
   const gen = T('Generate'), ech = T('Echo');
   R(gen.Id, is.Id, nodeA.Id);
@@ -268,7 +268,7 @@ describe('run animation source (#5635)', () => {
       things.push(t);
       return t;
     };
-    const is = T('is'), of = T('of'), runArch = T('Execution', marked(ARCHETYPE_FLAG.PipelineRun));
+    const is = T('is'), of = T('of'), runArchetype = T('Execution', marked(ARCHETYPE_FLAG.PipelineRun));
     const pipeA = T('Pipeline A'), pipeB = T('Pipeline B');
     const relationship = (s: string, p: string, t: string) =>
       relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
@@ -277,7 +277,7 @@ describe('run animation source (#5635)', () => {
     const a1 = T('PipelineRun a1', { status: 'succeeded', startedUtc: '2026-06-23T10:00:00Z' });
     const a2 = T('PipelineRun a2', { status: 'failed', startedUtc: '2026-06-23T12:00:00Z' });
     const b1 = T('PipelineRun b1', { status: 'succeeded', startedUtc: '2026-06-23T11:00:00Z' });
-    for (const r of [a1, a2, b1]) relationship(r.Id, is.Id, runArch.Id);
+    for (const r of [a1, a2, b1]) relationship(r.Id, is.Id, runArchetype.Id);
     relationship(a1.Id, of.Id, pipeA.Id);
     relationship(a2.Id, of.Id, pipeA.Id);
     relationship(b1.Id, of.Id, pipeB.Id);
@@ -316,16 +316,16 @@ describe('loadPipeline', () => {
     };
     const relationship = (s: string, p: string, t: string) =>
       relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
-    const is = T('is'), has = T('has'), pipeArch = T('Workflow', marked(ARCHETYPE_FLAG.Pipeline)),
-      nodeArch = T('Step', marked(ARCHETYPE_FLAG.PipelineNode)),
-      connArch = T('Endpoint', marked(ARCHETYPE_FLAG.Connection));
+    const is = T('is'), has = T('has'), pipelineArchetype = T('Workflow', marked(ARCHETYPE_FLAG.Pipeline)),
+      nodeArchetype = T('Step', marked(ARCHETYPE_FLAG.PipelineNode)),
+      connectionArchetype = T('Endpoint', marked(ARCHETYPE_FLAG.Connection));
     const conn = T('conn', { Subdomain: 'x' });
-    relationship(conn.Id, is.Id, connArch.Id);
+    relationship(conn.Id, is.Id, connectionArchetype.Id);
     const node = T('N', { paramBindings: '{"message":"greeting"}' });
-    relationship(node.Id, is.Id, nodeArch.Id);
+    relationship(node.Id, is.Id, nodeArchetype.Id);
     relationship(node.Id, has.Id, conn.Id);
     const pipe = T('P');
-    relationship(pipe.Id, is.Id, pipeArch.Id);
+    relationship(pipe.Id, is.Id, pipelineArchetype.Id);
     relationship(pipe.Id, has.Id, node.Id);
 
     const loaded = loadPipeline(pipe.Id, new PipelineModel(things, relationships))!;

@@ -153,10 +153,10 @@ export function useModelData(): void {
     const pending = {
       thingUpserts: new Map<string, VosThing>(),
       thingRemove: new Set<string>(),
-      relUpserts: new Map<string, VosRelationship>(),
-      relRemove: new Set<string>(),
+      relationshipUpserts: new Map<string, VosRelationship>(),
+      relationshipRemove: new Set<string>(),
       thingProps: new Map<string, Map<string, PropertyChange>>(),
-      relProps: new Map<string, Map<string, PropertyChange>>(),
+      relationshipProperties: new Map<string, Map<string, PropertyChange>>(),
       thingStates: new Map<string, string[]>(),
     };
 
@@ -184,12 +184,12 @@ export function useModelData(): void {
     // opened node. Asking about the node alone dropped every change to the edge whose own panel was
     // in front of the user, because selecting an edge clears the node selection.
     const onRelationshipProperty = (eventArguments: unknown[], change: PropertyChange) => {
-      const [relId, propertyName] = eventArguments as [string, string | undefined];
-      if (!relId || propertyName === undefined) return;
-      triggerFlashEdge(relId);
+      const [relationshipId, propertyName] = eventArguments as [string, string | undefined];
+      if (!relationshipId || propertyName === undefined) return;
+      triggerFlashEdge(relationshipId);
       const { selectedNodeId, selectedEdgeId } = useUiStore.getState();
-      if (!isVisibleRelationship(relId, selectedNodeId, selectedEdgeId, useModelStore.getState().relationships)) return;
-      recordProperty(pending.relProps, relId, propertyName, change);
+      if (!isVisibleRelationship(relationshipId, selectedNodeId, selectedEdgeId, useModelStore.getState().relationships)) return;
+      recordProperty(pending.relationshipProperties, relationshipId, propertyName, change);
       schedule();
     };
 
@@ -199,9 +199,9 @@ export function useModelData(): void {
     function flush(): void {
       timer = null;
       const thingUpserts = [...pending.thingUpserts.values()]; pending.thingUpserts.clear();
-      const relationshipUpserts = [...pending.relUpserts.values()]; pending.relUpserts.clear();
+      const relationshipUpserts = [...pending.relationshipUpserts.values()]; pending.relationshipUpserts.clear();
       const thingRemovals = [...pending.thingRemove]; pending.thingRemove.clear();
-      const relationshipRemovals = [...pending.relRemove]; pending.relRemove.clear();
+      const relationshipRemovals = [...pending.relationshipRemove]; pending.relationshipRemove.clear();
       const thingPropertyUpdates: { id: string; path: string; value: unknown }[] = [];
       const thingPropertyRemovals: { id: string; path: string }[] = [];
       for (const [id, properties] of pending.thingProps)
@@ -212,11 +212,11 @@ export function useModelData(): void {
 
       const relationshipPropertyUpdates: { id: string; name: string; value: unknown }[] = [];
       const relationshipPropertyRemovals: { id: string; name: string }[] = [];
-      for (const [id, properties] of pending.relProps)
+      for (const [id, properties] of pending.relationshipProperties)
         for (const [name, change] of properties)
           if (change.deleted) relationshipPropertyRemovals.push({ id, name });
           else relationshipPropertyUpdates.push({ id, name, value: change.value });
-      pending.relProps.clear();
+      pending.relationshipProperties.clear();
 
       const thingStateUpdates = [...pending.thingStates].map(([id, states]) => ({ id, states }));
       pending.thingStates.clear();
@@ -249,14 +249,14 @@ export function useModelData(): void {
     const relationshipArrived = (data: unknown) => {
       const relationship = carriedRelationship(data);
       if (relationship) {
-        pending.relRemove.delete(relationship.Id);
-        pending.relUpserts.set(relationship.Id, relationship);
+        pending.relationshipRemove.delete(relationship.Id);
+        pending.relationshipUpserts.set(relationship.Id, relationship);
         schedule();
       }
     };
     const relationshipGone = (data: unknown) => {
       const id = entityId(data);
-      if (id) { pending.relUpserts.delete(id); pending.relRemove.add(id); schedule(); }
+      if (id) { pending.relationshipUpserts.delete(id); pending.relationshipRemove.add(id); schedule(); }
     };
 
     const unsubs = [

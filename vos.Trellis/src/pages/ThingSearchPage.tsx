@@ -188,7 +188,7 @@ export function ThingSearchPage() {
                     <span className="text-zinc-400">{m.ownPropertyCount}</span>
                   </span>
                   <span title={t('thingSearch.relationships')}>
-                    <span className="text-zinc-600">{t('thingSearch.relsAbbrev')} </span>
+                    <span className="text-zinc-600">{t('thingSearch.relationshipsShort')} </span>
                     <span className="text-zinc-400">{m.relationshipCount}</span>
                   </span>
                 </div>

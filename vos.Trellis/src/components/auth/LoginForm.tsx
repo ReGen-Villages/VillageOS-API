@@ -128,13 +128,13 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
               onClick={() => toggleSort('name')}
               className="flex-1 text-left hover:text-gray-200 transition-colors"
             >
-              {t('authentication.colName')} {sortArrow('name')}
+              {t('authentication.columnName')} {sortArrow('name')}
             </button>
             <button
               onClick={() => toggleSort('size')}
               className="w-20 text-right hover:text-gray-200 transition-colors"
             >
-              {t('authentication.colSize')} {sortArrow('size')}
+              {t('authentication.columnSize')} {sortArrow('size')}
             </button>
           </div>
 

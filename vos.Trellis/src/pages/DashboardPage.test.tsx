@@ -18,14 +18,14 @@ vi.mock('../api/myceliumApi', () => ({
 }));
 vi.mock('../api/endpointApi', () => ({ endpointApi: { getAll: vi.fn() } }));
 vi.mock('../api/engineMetricsApi', () => ({ engineMetricsApi: { getSummary: vi.fn() } }));
-vi.mock('../api/configApi', () => ({
-  configApi: { getDefaultPropertyMode: vi.fn(), setDefaultPropertyMode: vi.fn() },
+vi.mock('../api/configurationApi', () => ({
+  configurationApi: { getDefaultPropertyMode: vi.fn(), setDefaultPropertyMode: vi.fn() },
 }));
 
 import { myceliumApi } from '../api/myceliumApi';
 import { endpointApi } from '../api/endpointApi';
 import { engineMetricsApi } from '../api/engineMetricsApi';
-import { configApi } from '../api/configApi';
+import { configurationApi } from '../api/configurationApi';
 import { DashboardPage } from './DashboardPage';
 
 /** Longer than the page's refresh window, so a burst meant to cost one read has had every chance to
@@ -59,7 +59,7 @@ describe('DashboardPage registry refresh', () => {
     vi.mocked(myceliumApi.getServices).mockResolvedValue([]);
     vi.mocked(endpointApi.getAll).mockResolvedValue([]);
     vi.mocked(engineMetricsApi.getSummary).mockRejectedValue(new Error('no engine'));
-    vi.mocked(configApi.getDefaultPropertyMode).mockRejectedValue(new Error('no such endpoint'));
+    vi.mocked(configurationApi.getDefaultPropertyMode).mockRejectedValue(new Error('no such endpoint'));
     vi.useFakeTimers({ shouldAdvanceTime: true });
   });
 

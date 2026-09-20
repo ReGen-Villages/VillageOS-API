@@ -89,7 +89,7 @@ const PROPERTY_EVENTS = new Set([
 // Map an SSE event's data object to the positional args the handlers expect.
 // A property event is (id, name, value), with no value on a retraction; everything else passes the
 // data object through.
-function toArgs(kind: string, data: { EntityId?: string; PropertyName?: string; Value?: unknown } | unknown): unknown[] {
+function toArguments(kind: string, data: { EntityId?: string; PropertyName?: string; Value?: unknown } | unknown): unknown[] {
   if (PROPERTY_EVENTS.has(kind)) {
     const d = (data ?? {}) as { EntityId?: string; PropertyName?: string; Value?: unknown };
     return [d.EntityId, d.PropertyName, d.Value];
@@ -98,7 +98,7 @@ function toArgs(kind: string, data: { EntityId?: string; PropertyName?: string; 
 }
 
 function dispatch(kind: string, data: unknown) {
-  const eventArguments = toArgs(kind, data);
+  const eventArguments = toArguments(kind, data);
   handlers.forEach((h) => {
     if (h.event !== kind) return;
     try { h.handler(...eventArguments); } catch (err) { console.error(`SSE handler for ${kind} threw:`, err); }
