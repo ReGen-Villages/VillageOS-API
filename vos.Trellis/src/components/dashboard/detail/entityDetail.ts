@@ -5,7 +5,7 @@
  */
 import type { ModelIndex } from '../../../api/dashboardApi';
 import { effectiveProperties } from '../../../utils/propertyMapper';
-import type { RelationSpec } from '../../../types/dashboard';
+import type { RelationSpecification } from '../../../types/dashboard';
 import type { StateTransition, VosThing } from '../../../types/vos';
 
 /** The one canonical predicate whose name is fixed by the platform (an archetype relationship). */
@@ -41,7 +41,7 @@ function archetypeNames(index: ModelIndex): Map<string, string> {
   return names;
 }
 
-function selectProperties(thing: VosThing, which: RelationSpec['properties'], index: ModelIndex): [string, unknown][] {
+function selectProperties(thing: VosThing, which: RelationSpecification['properties'], index: ModelIndex): [string, unknown][] {
   if (!which) return [];
   const props = effectiveProperties(thing, index);
   if (which === '*') return Object.entries(props);
@@ -57,19 +57,19 @@ function selectProperties(thing: VosThing, which: RelationSpec['properties'], in
 export function resolveRelations(
   rootId: string,
   index: ModelIndex,
-  specs: RelationSpec[] | undefined,
+  specifications: RelationSpecification[] | undefined,
 ): ResolvedRelation[] {
-  if (!specs?.length) return [];
+  if (!specifications?.length) return [];
   const archetypeOf = archetypeNames(index);
 
-  const walk = (anchorId: string, relationSpecs: RelationSpec[], visited: Set<string>): ResolvedRelation[] => {
+  const walk = (anchorId: string, relationSpecifications: RelationSpecification[], visited: Set<string>): ResolvedRelation[] => {
     const anchorName = index.byId.get(anchorId)?.Name ?? anchorId;
 
-    return relationSpecs.map((spec) => {
-      const direction = spec.direction ?? 'out';
-      const predicateId = index.predicateNameToId.get(spec.predicate);
-      const inlineSpecs = spec.relations?.filter((child) => child.inline) ?? [];
-      const nestedSpecs = spec.relations?.filter((child) => !child.inline) ?? [];
+    return relationSpecifications.map((specification) => {
+      const direction = specification.direction ?? 'out';
+      const predicateId = index.predicateNameToId.get(specification.predicate);
+      const inlineSpecifications = specification.relations?.filter((child) => child.inline) ?? [];
+      const nestedSpecifications = specification.relations?.filter((child) => !child.inline) ?? [];
       const edges: ResolvedEdge[] = [];
 
       if (predicateId) {
@@ -84,13 +84,13 @@ export function resolveRelations(
                 ? relationship.SubjectId
                 : null;
           if (!relatedId || visited.has(relatedId)) continue;
-          if (spec.archetype && archetypeOf.get(relatedId) !== spec.archetype) continue;
+          if (specification.archetype && archetypeOf.get(relatedId) !== specification.archetype) continue;
 
           const related = index.byId.get(relatedId);
           const relatedName = related?.Name ?? relatedId;
           const nextVisited = new Set(visited).add(relatedId);
 
-          const hoisted = inlineSpecs.flatMap((child) =>
+          const hoisted = inlineSpecifications.flatMap((child) =>
             walk(relatedId, [child], nextVisited).flatMap((group) => group.edges.flatMap((e) => e.properties)),
           );
 
@@ -99,18 +99,18 @@ export function resolveRelations(
             subjectName: direction === 'out' ? anchorName : relatedName,
             targetName: direction === 'out' ? relatedName : anchorName,
             relatedName,
-            properties: [...hoisted, ...(related ? selectProperties(related, spec.properties, index) : [])],
-            children: nestedSpecs.length ? walk(relatedId, nestedSpecs, nextVisited) : [],
+            properties: [...hoisted, ...(related ? selectProperties(related, specification.properties, index) : [])],
+            children: nestedSpecifications.length ? walk(relatedId, nestedSpecifications, nextVisited) : [],
           });
         }
       }
 
       edges.sort((a, b) => a.relatedName.localeCompare(b.relatedName));
-      return { label: spec.label ?? spec.predicate, predicate: spec.predicate, direction, edges };
+      return { label: specification.label ?? specification.predicate, predicate: specification.predicate, direction, edges };
     });
   };
 
-  return walk(rootId, specs, new Set([rootId]));
+  return walk(rootId, specifications, new Set([rootId]));
 }
 
 export interface StateChange {

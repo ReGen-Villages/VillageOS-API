@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import type { DashboardSpec, Widget } from '../../types/dashboard';
+import type { DashboardSpecification, Widget } from '../../types/dashboard';
 import type { DesignSelection } from '../../utils/designEdits';
 import { DesignPropertiesPanel } from './DesignPropertiesPanel';
 import { catchmentContext } from './testOffers';
 
 const figure = (title: string): Widget => ({ type: 'kpi', title, value: { kind: 'const', value: 1 }, placement: { column: 0, row: 0, width: 3, height: 3 } });
 
-const page = (): DashboardSpec => ({
+const page = (): DashboardSpecification => ({
   title: 'Springs',
   designed: true,
   sections: [
@@ -17,11 +17,11 @@ const page = (): DashboardSpec => ({
 });
 
 /** Renders the panel over a page, applying each edit to the page the way the workbench does. */
-function open(selection: DesignSelection, spec: DashboardSpec = page()) {
-  let held = spec;
-  const onEdit = vi.fn((change: (spec: DashboardSpec) => DashboardSpec) => { held = change(held); });
+function open(selection: DesignSelection, specification: DashboardSpecification = page()) {
+  let held = specification;
+  const onEdit = vi.fn((change: (specification: DashboardSpecification) => DashboardSpecification) => { held = change(held); });
   const onSelect = vi.fn();
-  const draw = () => <DesignPropertiesPanel spec={held} selection={selection} context={catchmentContext()} onEdit={onEdit} onSelect={onSelect} />;
+  const draw = () => <DesignPropertiesPanel specification={held} selection={selection} context={catchmentContext()} onEdit={onEdit} onSelect={onSelect} />;
   const { rerender } = render(draw());
   return { edited: () => held, onSelect, redraw: () => rerender(draw()) };
 }
@@ -29,9 +29,10 @@ function open(selection: DesignSelection, spec: DashboardSpec = page()) {
 describe('the page', () => {
   it('writes its title, subtitle and cadence', () => {
     const { edited } = open({ on: 'page' });
-    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Springs by flow' } });
-    fireEvent.change(screen.getByLabelText('Subtitle'), { target: { value: 'sampled hourly' } });
-    fireEvent.change(screen.getByLabelText('Refresh every (seconds)'), { target: { value: '30' } });
+    for (const [label, value] of [['Title', 'Springs by flow'], ['Subtitle', 'sampled hourly'], ['Refresh every (seconds)', '30']]) {
+      fireEvent.change(screen.getByLabelText(label), { target: { value } });
+      fireEvent.blur(screen.getByLabelText(label));
+    }
     expect(edited()).toMatchObject({ title: 'Springs by flow', subtitle: 'sampled hourly', refreshSeconds: 30 });
   });
 });
@@ -40,6 +41,7 @@ describe('a section', () => {
   it('writes its hint and cannot move earlier from the top', () => {
     const { edited } = open({ on: 'section', section: 0 });
     fireEvent.change(screen.getByLabelText('Hint'), { target: { value: 'litres a second' } });
+    fireEvent.blur(screen.getByLabelText('Hint'));
     expect(edited().sections[0].hint).toBe('litres a second');
     expect(screen.getByRole('button', { name: 'Earlier' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Later' })).toBeEnabled();

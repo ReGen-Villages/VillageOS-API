@@ -6,7 +6,7 @@ import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { useAuthentication } from '../../hooks/useAuthentication';
 import { useDashboards } from '../../hooks/useDashboard';
-import { makeSpecTranslator } from '../../api/dashboardLocalization';
+import { makeSpecificationTranslator } from '../../api/dashboardLocalization';
 import { SessionControls } from './SessionControls';
 import { ModelStatement } from './ModelStatement';
 
@@ -70,11 +70,11 @@ export function Sidebar() {
                 key={dashboard.routeKey}
                 to={`${OPERATIONS_PATH}/${dashboard.routeKey}`}
                 label={
-                  dashboard.spec
-                    ? makeSpecTranslator(dashboard.spec, i18n.language)(dashboard.spec.title)
+                  dashboard.specification
+                    ? makeSpecificationTranslator(dashboard.specification, i18n.language)(dashboard.specification.title)
                     : dashboard.name
                 }
-                icon={<SpecIcon name={dashboard.spec?.icon} />}
+                icon={<SpecificationIcon name={dashboard.specification?.icon} />}
                 isCollapsed={isCollapsed}
               />
             ))
@@ -133,7 +133,7 @@ function GenericIcon() {
 /** The icon a spec asks for, loaded on demand so a model can name any icon in the set without
  *  Trellis holding a list of the ones it will accept. A name the set does not have — or none at
  *  all — draws the generic dashboard icon, so the entry is never missing. */
-function SpecIcon({ name }: { name?: string }) {
+function SpecificationIcon({ name }: { name?: string }) {
   if (!name || !ICON_NAMES.has(name)) return <GenericIcon />;
   return <DynamicIcon name={name as IconName} size={18} fallback={GenericIcon} />;
 }

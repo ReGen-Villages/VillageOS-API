@@ -3,11 +3,11 @@
  * declares as tabs, and the basemap the view opens on.
  */
 import type { BasemapSource } from '../types/basemap';
-import type { DashboardSection, DashboardSpec } from '../types/dashboard';
+import type { DashboardSection, DashboardSpecification } from '../types/dashboard';
 
 /** The sections carrying a `tab`, in the order the spec lists them — the order the sheet draws them. */
-export function tabSections(spec: Pick<DashboardSpec, 'sections'>): DashboardSection[] {
-  return spec.sections.filter((section) => section.tab !== undefined);
+export function tabSections(specification: Pick<DashboardSpecification, 'sections'>): DashboardSection[] {
+  return specification.sections.filter((section) => section.tab !== undefined);
 }
 
 /** The basemap the view opens on: the first source drawing a tile pyramid, which is how imagery is

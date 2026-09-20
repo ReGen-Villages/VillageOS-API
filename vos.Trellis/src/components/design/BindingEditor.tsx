@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
-import type { Binding, ComputedColumn, PropertyFilter, RelationStep, ScopeRef } from '../../types/dashboard';
+import type { Binding, ComputedColumn, PropertyFilter, RelationStep, ScopeReference } from '../../types/dashboard';
 import { BINDING_SCHEMAS, FILTER_OPERATORS, STEP_DIRECTIONS, kindsForShape, type BindingShape, type FieldSpecification } from '../../utils/widgetSchema';
 import type { EdgeCandidate } from '../../api/modelDeclaration';
 import { rowKindOf } from '../../utils/rowKind';
@@ -61,11 +61,10 @@ export function BindingEditor({
 
   return (
     <Field title={label}>
-      {({ id, describedBy }) => (
+      {({ id }) => (
         <>
           <select
             id={id}
-            aria-describedby={describedBy}
             value={value?.kind ?? ''}
             onChange={(event) => onChange(event.target.value ? ({ kind: event.target.value } as Binding) : undefined)}
             className="mt-1 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-2 py-1 text-sm text-zinc-900 dark:text-zinc-100"
@@ -99,7 +98,7 @@ function BindingPart({
   const label = labelFor('bindingField', field.key, t);
   switch (field.kind) {
     case 'scope':
-      return <ScopeEditor label={label} value={held as ScopeRef | undefined} context={context} onChange={(next) => onWrite(field.key, next)} />;
+      return <ScopeEditor label={label} value={held as ScopeReference | undefined} context={context} onChange={(next) => onWrite(field.key, next)} />;
     case 'steps':
       return (
         <StepsEditor
@@ -142,7 +141,7 @@ function captionOf(edges: EdgeCandidate[]): string {
  * only where it is open — a predicate running both ways from the kind, or one the model holds no
  * link under.
  */
-function ScopeEditor({ label, value, context, onChange }: { label: string; value: ScopeRef | undefined; context: BindingContext; onChange: (value: ScopeRef | undefined) => void }) {
+function ScopeEditor({ label, value, context, onChange }: { label: string; value: ScopeReference | undefined; context: BindingContext; onChange: (value: ScopeReference | undefined) => void }) {
   const { t } = useTranslation();
   const compared = context.offers.compareKind;
   const carried = edgesByPredicate(compared ? context.offers.edgesFrom(compared) : []);

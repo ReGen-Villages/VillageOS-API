@@ -1,4 +1,4 @@
-import { GRID_COLUMNS, type DashboardSection, type DashboardSpec, type Placement, type Widget } from '../types/dashboard';
+import { GRID_COLUMNS, type DashboardSection, type DashboardSpecification, type Placement, type Widget } from '../types/dashboard';
 import { placementsOf } from './gridLayout';
 
 /**
@@ -12,20 +12,20 @@ import { placementsOf } from './gridLayout';
 /** The icon a page starts with, from the set the sidebar draws with. */
 const NEW_PAGE_ICON = 'layout-template';
 
-export function newPage(name: string): DashboardSpec {
+export function newPage(name: string): DashboardSpecification {
   return { title: name, icon: NEW_PAGE_ICON, sections: [{ layout: 'grid', widgets: [] }], designed: true };
 }
 
 /** A page the console kept — composed or designed — as against one the seed published. */
-export function isKeptPage(spec: DashboardSpec): boolean {
-  return !!spec.composed || !!spec.designed;
+export function isKeptPage(specification: DashboardSpecification): boolean {
+  return !!specification.composed || !!specification.designed;
 }
 
 /** The specification with every section as a grid, marked as the designer's, and a composition
  *  dropped — once its table is edited as a table the composer could no longer re-derive the choices. */
-export function openedForDesign(spec: DashboardSpec): DashboardSpec {
-  const { composed: _composed, ...rest } = spec;
-  return { ...rest, sections: spec.sections.map(asGrid), designed: true };
+export function openedForDesign(specification: DashboardSpecification): DashboardSpecification {
+  const { composed: _composed, ...rest } = specification;
+  return { ...rest, sections: specification.sections.map(asGrid), designed: true };
 }
 
 function asGrid(section: DashboardSection): DashboardSection {

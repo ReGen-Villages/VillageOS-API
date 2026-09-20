@@ -12,7 +12,7 @@ import type { FindingsAnswer } from './answeredFindings';
 const REFERENCE = '9f1c74d6-0b8e-4a52-bd31-6c7e5a92f048';
 const ADDRESS = 'ana.ferreira@example.pt';
 
-const SPEC = JSON.stringify({
+const SPECIFICATION = JSON.stringify({
   title: 'Site submission',
   subtitle: 'What was submitted, what was discovered, and what the analysis makes of it',
   compare: { label: 'site', archetype: 'Site' },
@@ -32,7 +32,7 @@ const SPEC = JSON.stringify({
 });
 
 const ANSWER: FindingsAnswer = {
-  spec: SPEC,
+  spec: SPECIFICATION,
   scopeId: 'site-1',
   things: [
     { Id: 'site-1', Name: 'Willow Bend', Properties: { statedAreaHectares: { typeInfo: 'vos.Double', value: 24 } } },

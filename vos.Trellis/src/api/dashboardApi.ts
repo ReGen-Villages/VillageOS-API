@@ -22,18 +22,18 @@ import type {
 } from '../types/vos';
 import {
   DASHBOARD_ARCHETYPE,
-  DASHBOARD_SPEC_PROPERTY,
+  DASHBOARD_SPECIFICATION_PROPERTY,
   IS_PREDICATE,
-  SCOPE_REF,
+  SCOPE_REFERENCE,
   UTC_OFFSET_PROPERTY,
   type Binding,
   type ComputedColumn,
   type DashboardDescriptor,
-  type DashboardSpec,
+  type DashboardSpecification,
   type OriginSource,
   type RelationStep,
   type ScopeEntity,
-  type ScopeRef,
+  type ScopeReference,
   type PropertyFilter,
   type HistoryStepBinding,
 } from '../types/dashboard';
@@ -218,7 +218,7 @@ export function discoverDashboardsFromIndex(index: ModelIndex): DashboardDescrip
   // appears and nothing anywhere saying why.
   const found = thingsOfArchetype(DASHBOARD_ARCHETYPE, index).map((thing) => ({
     thing,
-    spec: parseSpec(effectiveProperties(thing, index)[DASHBOARD_SPEC_PROPERTY]),
+    specification: parseSpecification(effectiveProperties(thing, index)[DASHBOARD_SPECIFICATION_PROPERTY]),
   }));
   found.sort((a, b) => a.thing.Name.localeCompare(b.thing.Name));
   const slugs = found.map((d) => slugOf(d.thing.Name));
@@ -228,7 +228,7 @@ export function discoverDashboardsFromIndex(index: ModelIndex): DashboardDescrip
     id: d.thing.Id,
     name: d.thing.Name,
     routeKey: slugs[i] && bearers.get(slugs[i]) === 1 ? slugs[i] : d.thing.Id,
-    spec: d.spec,
+    specification: d.specification,
   }));
   index.dashboards = out;
   return out;
@@ -241,7 +241,7 @@ export function discoverDashboardsFromIndex(index: ModelIndex): DashboardDescrip
  *  says so rather than going missing. */
 export function declaredPageDescriptor(page: { name: string; spec: unknown }): DashboardDescriptor {
   const id = `declared:${page.name}`;
-  return { id, name: page.name, routeKey: slugOf(page.name) || id, spec: parseSpec(page.spec) };
+  return { id, name: page.name, routeKey: slugOf(page.name) || id, specification: parseSpecification(page.spec) };
 }
 
 /** A Thing's name reduced to what a URL segment can carry: accents folded onto their base letters,
@@ -263,7 +263,7 @@ export function discoverDashboards(
   return discoverDashboardsFromIndex(buildModelIndex(things, relationships));
 }
 
-export function parseSpec(raw: unknown): DashboardSpec | null {
+export function parseSpecification(raw: unknown): DashboardSpecification | null {
   let object: unknown = raw;
   if (typeof raw === 'string') {
     try {
@@ -272,15 +272,15 @@ export function parseSpec(raw: unknown): DashboardSpec | null {
       return null;
     }
   }
-  if (object && typeof object === 'object' && Array.isArray((object as DashboardSpec).sections)) {
-    return object as DashboardSpec;
+  if (object && typeof object === 'object' && Array.isArray((object as DashboardSpecification).sections)) {
+    return object as DashboardSpecification;
   }
   return null;
 }
 
-export function scopeEntities(spec: DashboardSpec, index: ModelIndex): ScopeEntity[] {
-  if (!spec.compare) return [];
-  return thingsOfArchetype(spec.compare.archetype, index)
+export function scopeEntities(specification: DashboardSpecification, index: ModelIndex): ScopeEntity[] {
+  if (!specification.compare) return [];
+  return thingsOfArchetype(specification.compare.archetype, index)
     .map((t) => ({ id: t.Id, name: t.Name }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -315,7 +315,7 @@ export interface ResolveContext {
  *  container, with the predicate its containment is written with. Both walk outward from the
  *  container, so an inbound scope has no server expression and resolves to nothing here. */
 function containerFor(
-  scope: ScopeRef | undefined,
+  scope: ScopeReference | undefined,
   context: ResolveContext,
 ): { within: string; withinPredicate: string } | null {
   if (!scope || !context.scopeId || scope.direction === 'in') return null;
@@ -338,7 +338,7 @@ export function nullableNumber(value: unknown): number | null {
  *  The walk is transitive because a scope predicate can nest: the entity relates to
  *  intermediate Things that in turn relate to the ones a widget counts, and a one-hop walk
  *  would stop at the intermediates. The scope entity is never a member of its own scope. */
-function scopeMemberIds(scope: ScopeRef | undefined, context: ResolveContext): Set<string> | null {
+function scopeMemberIds(scope: ScopeReference | undefined, context: ResolveContext): Set<string> | null {
   if (!scope || !context.scopeId) return null;
   const predicateId = context.index.predicateNameToId.get(scope.viaPredicate);
   if (!predicateId) return new Set();
@@ -399,7 +399,7 @@ function passesFilters(thing: VosThing, filters: PropertyFilter[] | undefined, i
  *  and the index keeps whichever Thing of a name it saw first, so a name is the weaker answer and
  *  belongs in the fallback. */
 export function referencedThing(reference: string | undefined, context: ResolveContext): VosThing | null {
-  if (!reference || reference === SCOPE_REF) return context.scopeId ? (context.index.byId.get(context.scopeId) ?? null) : null;
+  if (!reference || reference === SCOPE_REFERENCE) return context.scopeId ? (context.index.byId.get(context.scopeId) ?? null) : null;
   return context.index.byId.get(reference) ?? context.index.byName.get(reference) ?? null;
 }
 
@@ -571,7 +571,7 @@ async function withComputedColumns(
  *  asked for one entity's numbers. With "All" selected the placeholder resolves to null and the
  *  service answers for everything. */
 function withScope(body: unknown, scopeId: string | null): unknown {
-  if (body === SCOPE_REF) return scopeId;
+  if (body === SCOPE_REFERENCE) return scopeId;
   if (Array.isArray(body)) return body.map((item) => withScope(item, scopeId));
   if (body && typeof body === 'object') {
     return Object.fromEntries(
@@ -649,7 +649,7 @@ export async function resolveBinding(binding: Binding, context: ResolveContext):
       return binding.value;
 
     case 'property': {
-      if (binding.thing === SCOPE_REF) {
+      if (binding.thing === SCOPE_REFERENCE) {
         if (context.scopeId) {
           const t = context.index.byId.get(context.scopeId);
           return t ? number(effectiveProperties(t, context.index)[binding.property]) : null;

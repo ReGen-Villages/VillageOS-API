@@ -15,7 +15,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { Sprout } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { findingsApi } from '../api/findingsApi';
-import { localizeSpec } from '../api/dashboardLocalization';
+import { localizeSpecification } from '../api/dashboardLocalization';
 import { DashboardSections } from '../components/dashboard/DashboardSections';
 import { LanguageSwitcher } from '../components/common/LanguageSwitcher';
 import { ToastContainer } from '../components/common/Toast';
@@ -182,15 +182,15 @@ function AskForFindings({ onRead }: { onRead: (findings: Findings) => void }) {
 function Drawn({ findings }: { findings: Findings }) {
   const { t, i18n } = useTranslation();
   const [measure, width] = useElementWidth();
-  const spec = useMemo(() => localizeSpec(findings.spec, i18n.language), [findings.spec, i18n.language]);
-  const context = useResolveContext(findings.index, findings.scopeId, spec.compare?.archetype, () => findings.reads);
+  const specification = useMemo(() => localizeSpecification(findings.specification, i18n.language), [findings.specification, i18n.language]);
+  const context = useResolveContext(findings.index, findings.scopeId, specification.compare?.archetype, () => findings.reads);
 
   return (
     <div ref={measure}>
-      <h2 className="text-lg font-bold text-zinc-900 dark:text-white">{spec.title}</h2>
-      {spec.subtitle && <p className="text-xs text-zinc-500 dark:text-zinc-400">{spec.subtitle}</p>}
+      <h2 className="text-lg font-bold text-zinc-900 dark:text-white">{specification.title}</h2>
+      {specification.subtitle && <p className="text-xs text-zinc-500 dark:text-zinc-400">{specification.subtitle}</p>}
       <DashboardSections
-        sections={spec.sections}
+        sections={specification.sections}
         context={context}
         isWide={width >= WIDE}
         whenEmpty={<p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">{t('publicFindings.emptyView')}</p>}

@@ -15,19 +15,18 @@ export interface Offered {
  * names the readings cannot see.
  */
 export function OfferedField({
-  label, hint, value, offered = [], mono, onCommit,
-}: { label: string; hint?: string; value: string; offered?: Offered[]; mono?: boolean; onCommit: (value: string) => void }) {
+  label, value, offered = [], mono, onCommit,
+}: { label: string; value: string; offered?: Offered[]; mono?: boolean; onCommit: (value: string) => void }) {
   const listId = useId();
   const written = useWrittenWhenLeft(value, onCommit);
   return (
-    <Field title={label} hint={hint}>
-      {({ id, describedBy }) => (
+    <Field title={label}>
+      {({ id }) => (
         <>
           <input
             {...written}
             id={id}
             list={listId}
-            aria-describedby={describedBy}
             autoComplete="off"
             className={clsx(
               'mt-1 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-2 py-1 text-sm text-zinc-900 dark:text-zinc-100',

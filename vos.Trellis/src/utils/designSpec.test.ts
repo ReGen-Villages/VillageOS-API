@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GRID_COLUMNS, type DashboardSpec, type Widget } from '../types/dashboard';
+import { GRID_COLUMNS, type DashboardSpecification, type Widget } from '../types/dashboard';
 import { WIDGET_KINDS } from './gridLayout';
 import { emptyWidget, isKeptPage, newPage, nextPlacement, openedForDesign, unboundSlots } from './designSpec';
 
@@ -16,7 +16,7 @@ describe('newPage', () => {
 });
 
 describe('openedForDesign', () => {
-  const seeded: DashboardSpec = {
+  const seeded: DashboardSpecification = {
     title: 'Springs',
     sections: [
       { title: 'Flow', widgets: [figure('a'), figure('b')] },
@@ -44,7 +44,7 @@ describe('openedForDesign', () => {
   });
 
   it('drops a composition, since a table edited as a table can no longer be re-derived', () => {
-    const composed: DashboardSpec = { ...seeded, composed: { kind: 'Reservoir', columns: [] } };
+    const composed: DashboardSpecification = { ...seeded, composed: { kind: 'Reservoir', columns: [] } };
     expect('composed' in openedForDesign(composed)).toBe(false);
   });
 

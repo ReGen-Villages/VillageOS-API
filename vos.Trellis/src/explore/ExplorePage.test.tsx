@@ -50,15 +50,15 @@ vi.mock('../hooks/useDashboard', () => ({
     bindings.map((binding) => ({ loading: false, error: false, value: binding?.value ?? null })),
 }));
 vi.mock('../api/dashboardLocalization', () => ({
-  localizeSpec: vi.fn(() => ({ sections: [] })),
+  localizeSpecification: vi.fn(() => ({ sections: [] })),
 }));
 vi.mock('../publicFindings/answeredFindings', () => ({
-  findingsFrom: vi.fn(() => ({ spec: {}, scopeId: 'site-1', index: {}, reads: {} })),
+  findingsFrom: vi.fn(() => ({ specification: {}, scopeId: 'site-1', index: {}, reads: {} })),
 }));
 
 import { intakeApi } from '../api/intakeApi';
 import { findingsApi } from '../api/findingsApi';
-import { localizeSpec } from '../api/dashboardLocalization';
+import { localizeSpecification } from '../api/dashboardLocalization';
 import { findingsFrom } from '../publicFindings/answeredFindings';
 import { DashboardSections } from '../components/dashboard/DashboardSections';
 import { useMapStore } from '../stores/mapStore';
@@ -86,7 +86,7 @@ beforeEach(() => {
     placeSearch: true,
     themes: [{ name: 'Temperature', colour: '#F0A840', icon: 'thermometer', order: 1 }],
   });
-  vi.mocked(localizeSpec).mockReturnValue({ title: 'Site submission', sections: [] });
+  vi.mocked(localizeSpecification).mockReturnValue({ title: 'Site submission', sections: [] });
   vi.mocked(intakeApi.parcelAt).mockResolvedValue({ boundary: aRing, attribution: '© the register' });
   vi.mocked(intakeApi.askForCode).mockResolvedValue(undefined);
   vi.mocked(intakeApi.exchangeTicket).mockResolvedValue('ticket-1');
@@ -205,7 +205,7 @@ describe('the facts beside the map', () => {
   });
 
   it('adds the reference as a card once the submission is accepted, and the model\'s own facts beside it', async () => {
-    vi.mocked(localizeSpec).mockReturnValue({
+    vi.mocked(localizeSpecification).mockReturnValue({
       title: 'Site submission',
       sections: [
         {
@@ -230,7 +230,7 @@ describe('the facts beside the map', () => {
 
 describe('the report as tiles', () => {
   it('draws a section naming a theme as a tile and hands the rest to the list', async () => {
-    vi.mocked(localizeSpec).mockReturnValue({
+    vi.mocked(localizeSpecification).mockReturnValue({
       title: 'Site submission',
       sections: [
         { title: 'Temperature', theme: 'Temperature', widgets: [] },
@@ -246,7 +246,7 @@ describe('the report as tiles', () => {
   });
 
   it('renders a spec naming no theme exactly as before', async () => {
-    vi.mocked(localizeSpec).mockReturnValue({
+    vi.mocked(localizeSpecification).mockReturnValue({
       title: 'Site submission',
       sections: [{ title: 'Balances', widgets: [] }],
     });
@@ -410,7 +410,7 @@ describe('the overview over the land', () => {
   const STREETS = { id: 'src-1', name: 'Streets', attribution: 'Example', kind: 'style' as const, styleUrl: 'https://example.test/s.json' };
 
   beforeEach(() => {
-    vi.mocked(localizeSpec).mockReturnValue({ title: 'Site submission', sections: [{ title: 'Balances', widgets: [] }, ...TABS] });
+    vi.mocked(localizeSpecification).mockReturnValue({ title: 'Site submission', sections: [{ title: 'Balances', widgets: [] }, ...TABS] });
     useMapStore.setState({ selectedSourceName: null });
   });
 
@@ -457,7 +457,7 @@ describe('the overview over the land', () => {
   });
 
   it('is not offered where the page declares no tab', async () => {
-    vi.mocked(localizeSpec).mockReturnValue({ title: 'Site submission', sections: [{ title: 'Balances', widgets: [] }] });
+    vi.mocked(localizeSpecification).mockReturnValue({ title: 'Site submission', sections: [{ title: 'Balances', widgets: [] }] });
 
     await reachTheReport();
 

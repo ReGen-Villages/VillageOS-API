@@ -4,7 +4,7 @@ import { relationshipApi } from '../api/relationshipApi';
 import { useModelStore } from '../stores/modelStore';
 import { useUiStore } from '../stores/uiStore';
 import { NAVIGATION_AND_SETTINGS } from '../api/dashboardSubscription';
-import { DASHBOARD_SPEC_PROPERTY } from '../types/dashboard';
+import { DASHBOARD_SPECIFICATION_PROPERTY } from '../types/dashboard';
 import type { SubscriptionOpened } from '../types/subscription';
 import { SUBSCRIPTION_OPENED, resubscribe, useSse, useDefaultSubscription } from './useSse';
 import { useFlashTimer } from './useFlashTimer';
@@ -40,7 +40,7 @@ async function declaredModelLoadProperties(): Promise<string[]> {
     // The navigation lists a model's dashboards on every page, and it reads each one out of this
     // property. A model that narrows its load without naming it is not asking for fewer dashboards
     // in the navigation — it is describing what its pages are drawn with.
-    if (declared.length && !declared.includes(DASHBOARD_SPEC_PROPERTY)) declared.push(DASHBOARD_SPEC_PROPERTY);
+    if (declared.length && !declared.includes(DASHBOARD_SPECIFICATION_PROPERTY)) declared.push(DASHBOARD_SPECIFICATION_PROPERTY);
     return declared;
   } catch {
     return [];

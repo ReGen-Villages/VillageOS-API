@@ -132,8 +132,8 @@ describe('ComposerPage', () => {
     await waitFor(() => expect(modelApi.applyFragment).toHaveBeenCalledTimes(1));
     const fragment = JSON.parse(vi.mocked(modelApi.applyFragment).mock.calls[0][0]);
     expect(fragment.Things[0].Name).toBe('Springs by flow');
-    const spec = JSON.parse(fragment.Things[0].Properties.spec.value);
-    expect(spec.composed).toMatchObject({ kind: 'Spring', columns: [{ source: 'property', name: 'flow' }] });
+    const specification = JSON.parse(fragment.Things[0].Properties.spec.value);
+    expect(specification.composed).toMatchObject({ kind: 'Spring', columns: [{ source: 'property', name: 'flow' }] });
     expect(fragment.Relationships).toEqual([{ Subject: 'minted-id', Predicate: 'is', Target: 'dashboard' }]);
   });
 

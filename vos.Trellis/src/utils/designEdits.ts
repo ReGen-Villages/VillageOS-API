@@ -1,4 +1,4 @@
-import type { DashboardSection, DashboardSpec, Placement, Widget } from '../types/dashboard';
+import type { DashboardSection, DashboardSpecification, Placement, Widget } from '../types/dashboard';
 
 /**
  * Every edit the Design page makes, as a function over the specification.
@@ -23,61 +23,61 @@ export interface GridItem {
   h: number;
 }
 
-function withSection(spec: DashboardSpec, index: number, next: DashboardSection): DashboardSpec {
-  return { ...spec, sections: spec.sections.map((section, at) => (at === index ? next : section)) };
+function withSection(specification: DashboardSpecification, index: number, next: DashboardSection): DashboardSpecification {
+  return { ...specification, sections: specification.sections.map((section, at) => (at === index ? next : section)) };
 }
 
-function withWidgets(spec: DashboardSpec, index: number, widgets: Widget[]): DashboardSpec {
-  return withSection(spec, index, { ...spec.sections[index], widgets });
+function withWidgets(specification: DashboardSpecification, index: number, widgets: Widget[]): DashboardSpecification {
+  return withSection(specification, index, { ...specification.sections[index], widgets });
 }
 
-export function withWidgetAdded(spec: DashboardSpec, section: number, widget: Widget, placement: Placement): DashboardSpec {
-  return withWidgets(spec, section, [...spec.sections[section].widgets, { ...widget, placement }]);
+export function withWidgetAdded(specification: DashboardSpecification, section: number, widget: Widget, placement: Placement): DashboardSpecification {
+  return withWidgets(specification, section, [...specification.sections[section].widgets, { ...widget, placement }]);
 }
 
 /** The grid reports its layout on every change and on none, so placements it did not move leave the
  *  specification as it was — a fresh specification for an unchanged layout would be drawn, reported,
  *  and written again without end. */
-export function withPlacements(spec: DashboardSpec, section: number, placements: Placement[]): DashboardSpec {
-  const held = spec.sections[section].widgets;
+export function withPlacements(specification: DashboardSpecification, section: number, placements: Placement[]): DashboardSpecification {
+  const held = specification.sections[section].widgets;
   const same = (a: Placement | undefined, b: Placement | undefined) =>
     a === b || (!!a && !!b && a.column === b.column && a.row === b.row && a.width === b.width && a.height === b.height);
-  if (held.every((widget, index) => same(widget.placement, placements[index] ?? widget.placement))) return spec;
-  return withWidgets(spec, section, held.map((widget, index) => ({ ...widget, placement: placements[index] ?? widget.placement })));
+  if (held.every((widget, index) => same(widget.placement, placements[index] ?? widget.placement))) return specification;
+  return withWidgets(specification, section, held.map((widget, index) => ({ ...widget, placement: placements[index] ?? widget.placement })));
 }
 
-export function withWidgetRemoved(spec: DashboardSpec, section: number, widget: number): DashboardSpec {
-  return withWidgets(spec, section, spec.sections[section].widgets.filter((_, index) => index !== widget));
+export function withWidgetRemoved(specification: DashboardSpecification, section: number, widget: number): DashboardSpecification {
+  return withWidgets(specification, section, specification.sections[section].widgets.filter((_, index) => index !== widget));
 }
 
-export function withWidgetReplaced(spec: DashboardSpec, section: number, widget: number, next: Widget): DashboardSpec {
-  return withWidgets(spec, section, spec.sections[section].widgets.map((held, index) => (index === widget ? next : held)));
+export function withWidgetReplaced(specification: DashboardSpecification, section: number, widget: number, next: Widget): DashboardSpecification {
+  return withWidgets(specification, section, specification.sections[section].widgets.map((held, index) => (index === widget ? next : held)));
 }
 
 export function withWidgetMoved(
-  spec: DashboardSpec,
+  specification: DashboardSpecification,
   from: { section: number; widget: number },
   toSection: number,
   placement: Placement,
-): DashboardSpec {
-  const moved = spec.sections[from.section].widgets[from.widget];
-  return withWidgetAdded(withWidgetRemoved(spec, from.section, from.widget), toSection, moved, placement);
+): DashboardSpecification {
+  const moved = specification.sections[from.section].widgets[from.widget];
+  return withWidgetAdded(withWidgetRemoved(specification, from.section, from.widget), toSection, moved, placement);
 }
 
-export function withSectionAdded(spec: DashboardSpec): DashboardSpec {
-  return { ...spec, sections: [...spec.sections, { layout: 'grid', widgets: [] }] };
+export function withSectionAdded(specification: DashboardSpecification): DashboardSpecification {
+  return { ...specification, sections: [...specification.sections, { layout: 'grid', widgets: [] }] };
 }
 
-export function withSectionRemoved(spec: DashboardSpec, index: number): DashboardSpec {
-  return { ...spec, sections: spec.sections.filter((_, at) => at !== index) };
+export function withSectionRemoved(specification: DashboardSpecification, index: number): DashboardSpecification {
+  return { ...specification, sections: specification.sections.filter((_, at) => at !== index) };
 }
 
-export function withSectionMoved(spec: DashboardSpec, index: number, direction: 'earlier' | 'later'): DashboardSpec {
+export function withSectionMoved(specification: DashboardSpecification, index: number, direction: 'earlier' | 'later'): DashboardSpecification {
   const to = direction === 'earlier' ? index - 1 : index + 1;
-  if (to < 0 || to >= spec.sections.length) return spec;
-  const sections = [...spec.sections];
+  if (to < 0 || to >= specification.sections.length) return specification;
+  const sections = [...specification.sections];
   [sections[index], sections[to]] = [sections[to], sections[index]];
-  return { ...spec, sections };
+  return { ...specification, sections };
 }
 
 /** An empty string, zero or undefined takes the key away rather than leaving an empty value the
@@ -91,15 +91,15 @@ function written<T extends object>(held: T, patch: Partial<T>): T {
   return next as T;
 }
 
-export function withSectionWritten(spec: DashboardSpec, index: number, patch: Partial<Pick<DashboardSection, 'title' | 'hint'>>): DashboardSpec {
-  return withSection(spec, index, written<DashboardSection>(spec.sections[index], patch));
+export function withSectionWritten(specification: DashboardSpecification, index: number, patch: Partial<Pick<DashboardSection, 'title' | 'hint'>>): DashboardSpecification {
+  return withSection(specification, index, written<DashboardSection>(specification.sections[index], patch));
 }
 
 export function withPageWritten(
-  spec: DashboardSpec,
-  patch: Partial<Pick<DashboardSpec, 'title' | 'subtitle' | 'icon' | 'refreshSeconds'>>,
-): DashboardSpec {
-  return written<DashboardSpec>(spec, patch);
+  specification: DashboardSpecification,
+  patch: Partial<Pick<DashboardSpecification, 'title' | 'subtitle' | 'icon' | 'refreshSeconds'>>,
+): DashboardSpecification {
+  return written<DashboardSpecification>(specification, patch);
 }
 
 export function layoutItemsOf(section: DashboardSection): GridItem[] {

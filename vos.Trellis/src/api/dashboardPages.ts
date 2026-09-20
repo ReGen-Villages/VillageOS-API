@@ -1,9 +1,9 @@
 import { thingApi } from './thingApi';
 import { relationshipApi } from './relationshipApi';
 import { modelApi } from './modelApi';
-import { parseSpec, type ModelIndex } from './dashboardApi';
+import { parseSpecification, type ModelIndex } from './dashboardApi';
 import type { VosRelationship } from '../types/vos';
-import { DASHBOARD_ARCHETYPE, DASHBOARD_SPEC_PROPERTY, IS_PREDICATE, type DashboardSpec } from '../types/dashboard';
+import { DASHBOARD_ARCHETYPE, DASHBOARD_SPECIFICATION_PROPERTY, IS_PREDICATE, type DashboardSpecification } from '../types/dashboard';
 
 /**
  * Writing a page back to the model.
@@ -13,7 +13,7 @@ import { DASHBOARD_ARCHETYPE, DASHBOARD_SPEC_PROPERTY, IS_PREDICATE, type Dashbo
  * seeded one, so a spec the discovery could not list is refused here before anything is written.
  */
 
-const SPEC_TYPE = 'vos.String';
+const SPECIFICATION_TYPE = 'vos.String';
 
 export interface DashboardWriteContext {
   dashboardArchetypeId: string;
@@ -31,9 +31,9 @@ export function dashboardWriteContext(modelIndex: ModelIndex): DashboardWriteCon
   return { dashboardArchetypeId: kind.Id, isPredicateId, relationships: modelIndex.relationships };
 }
 
-function asTheDiscoveryReadsIt(spec: DashboardSpec): string {
-  const written = JSON.stringify(spec);
-  if (!parseSpec(written)) throw new Error('The console could not read this page back, so it was not written.');
+function asTheDiscoveryReadsIt(specification: DashboardSpecification): string {
+  const written = JSON.stringify(specification);
+  if (!parseSpecification(written)) throw new Error('The console could not read this page back, so it was not written.');
   return written;
 }
 
@@ -42,25 +42,25 @@ export const dashboardPages = {
    *  model refuses leaves nothing behind. Written as three requests, a refusal after the first would
    *  leave a Thing of no kind that no discovery lists and nobody could see to remove. Answers the
    *  id, which the browser mints because the fragment points its own relationship at the Thing it creates. */
-  async keep(name: string, spec: DashboardSpec, context: DashboardWriteContext): Promise<string> {
-    const written = asTheDiscoveryReadsIt(spec);
+  async keep(name: string, specification: DashboardSpecification, context: DashboardWriteContext): Promise<string> {
+    const written = asTheDiscoveryReadsIt(specification);
     const id = crypto.randomUUID();
     await modelApi.applyFragment(JSON.stringify({
       Name: name,
-      Things: [{ Id: id, Name: name, Properties: { [DASHBOARD_SPEC_PROPERTY]: { typeInfo: SPEC_TYPE, value: written } } }],
+      Things: [{ Id: id, Name: name, Properties: { [DASHBOARD_SPECIFICATION_PROPERTY]: { typeInfo: SPECIFICATION_TYPE, value: written } } }],
       Relationships: [{ Subject: id, Predicate: context.isPredicateId, Target: context.dashboardArchetypeId }],
     }));
     return id;
   },
 
-  /** Writes a page's spec over the one it carries. The Thing keeps its name, so the address the
+  /** Writes a page's specification over the one it carries. The Thing keeps its name, so the address the
    *  sidebar links to stays. */
-  async write(id: string, spec: DashboardSpec): Promise<void> {
-    await thingApi.setProperty(id, DASHBOARD_SPEC_PROPERTY, SPEC_TYPE, asTheDiscoveryReadsIt(spec));
+  async write(id: string, specification: DashboardSpecification): Promise<void> {
+    await thingApi.setProperty(id, DASHBOARD_SPECIFICATION_PROPERTY, SPECIFICATION_TYPE, asTheDiscoveryReadsIt(specification));
   },
 
-  async retitle(id: string, spec: DashboardSpec, title: string): Promise<void> {
-    await dashboardPages.write(id, { ...spec, title });
+  async retitle(id: string, specification: DashboardSpecification, title: string): Promise<void> {
+    await dashboardPages.write(id, { ...specification, title });
   },
 
   /** Retracts a page. Relationships first: a Thing still named by one is a Thing something can still be

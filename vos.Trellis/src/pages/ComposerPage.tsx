@@ -130,7 +130,7 @@ export function ComposerPage() {
   );
 
   const name = pageName.trim();
-  const nameTaken = pages.some((page) => page.name === name || page.spec?.title === name);
+  const nameTaken = pages.some((page) => page.name === name || page.specification?.title === name);
 
   const keep = async () => {
     if (!composition || !writeContext || !name || nameTaken) return;

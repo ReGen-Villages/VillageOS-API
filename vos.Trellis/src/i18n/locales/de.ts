@@ -1102,8 +1102,8 @@ export const de: PartialResources = {
   operationsPage: {
     noDashboard: "Kein Dashboard konfiguriert",
     noDashboardBody: "Dieses Modell definiert keine <0>Dashboard</0>-Konfiguration. Fügen Sie ein Thing vom Archetyp <1>Dashboard</1> mit einer <2>spec</2>-Eigenschaft hinzu, um diese Seite zu steuern.",
-    unreadableSpec: "{{name}} konnte nicht gelesen werden",
-    unreadableSpecBody: "Die spec-Eigenschaft dieses Dashboard-Things enthält keine Spezifikation, die diese Anwendung lesen kann. Korrigieren Sie sie im Modell und laden Sie neu.",
+    unreadableSpecification: "{{name}} konnte nicht gelesen werden",
+    unreadableSpecificationBody: "Die spec-Eigenschaft dieses Dashboard-Things enthält keine Spezifikation, die diese Anwendung lesen kann. Korrigieren Sie sie im Modell und laden Sie neu.",
     emptyView: "Die Spezifikation dieses Dashboards nennt keine Abschnitte, es gibt also nichts zu zeichnen.",
   },
   palette: {

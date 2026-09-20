@@ -151,8 +151,9 @@ kept("property names the platform's templates declare; renaming them is a model 
   'pctOfConsumption', 'sharePct');
 keptIn('components/map/MapView.tsx', "maplibre's export, aliased on import", 'config');
 keptIn('components/map/MapView.test.tsx', "the mocked maplibre module exports maplibre's name", 'config');
-held("the page specification's clipped names and their JSON keys, shared with the platform's templates; Task 7123 renames them together",
-  ['spec', 'specs'], 'op', 'avg', 'sortDir', 'setSortDir', 'ScopeRef', 'SCOPE_REF', 'CompareConfig');
+kept("the wire's own name for a page's specification: the property a Dashboard Thing carries, the field the platform's declared pages and the intake service's findings answer with", 'spec');
+held("JSON keys a page specification shares with the platform's templates and the seed generators; Task 7123 renames them together",
+  [], 'op', 'avg', 'sortDir', 'setSortDir');
 
 const IDENTIFIER = /[A-Za-z_$][A-Za-z0-9_$]*/g;
 

@@ -56,7 +56,7 @@ function declared(things: VosThing[], relationships: VosRelationship[]): VosThin
   return things.map((x) => (targets.has(x.Id) ? { ...x, IsArchetype: true } : x));
 }
 
-const SPEC = {
+const SPECIFICATION = {
   title: 'Ops',
   compare: { label: 'site', archetype: 'Village' },
   sections: [{ widgets: [] }],
@@ -72,7 +72,7 @@ function model(): { things: VosThing[]; relationships: VosRelationship[] } {
     t('is', 'is'),
     t('arch-dash', 'Dashboard'),
     t('arch-vil', 'Village'),
-    t('dash1', 'Operations Dashboard', { spec: JSON.stringify(SPEC) }),
+    t('dash1', 'Operations Dashboard', { spec: JSON.stringify(SPECIFICATION) }),
     t('vil1', 'V-1', { self_sufficiency_rate: 98.9, land_utilization: 0.81 }),
     t('vil2', 'V-2', { self_sufficiency_rate: 94.1, land_utilization: 0.93 }),
   ];
@@ -102,14 +102,14 @@ describe('discovery', () => {
     const { things, relationships } = model();
     const found = discoverDashboards(things, relationships);
     expect(found).toHaveLength(1);
-    expect(found[0].spec?.title).toBe('Ops');
+    expect(found[0].specification?.title).toBe('Ops');
     expect(found[0].name).toBe('Operations Dashboard');
   });
 
   it('lists compare entities from the compare archetype', () => {
     const { things, relationships } = model();
     const index = buildModelIndex(declared(things, relationships), relationships);
-    const entities = scopeEntities(discoverDashboards(things, relationships)[0].spec!, index);
+    const entities = scopeEntities(discoverDashboards(things, relationships)[0].specification!, index);
     expect(entities.map((e) => e.name)).toEqual(['V-1', 'V-2']);
   });
 
@@ -125,7 +125,7 @@ describe('discovery', () => {
 
     const found = discoverDashboards(declared(things, relationships), relationships);
 
-    expect(found.map((d) => [d.name, d.spec === null])).toEqual([
+    expect(found.map((d) => [d.name, d.specification === null])).toEqual([
       ['Half a spec', true],
       ['Operations Dashboard', false],
     ]);
@@ -140,11 +140,11 @@ describe('discovery', () => {
 
 /** A model publishing dashboards under the given Thing names, and nothing else. */
 function dashboardModel(names: string[]): { things: VosThing[]; relationships: VosRelationship[] } {
-  const spec = JSON.stringify({ title: 'T', sections: [] });
+  const specification = JSON.stringify({ title: 'T', sections: [] });
   const things: VosThing[] = [
     { Id: 'is', Name: 'is', Properties: {} },
     { Id: 'arch-dash', Name: 'Dashboard', Properties: {} },
-    ...names.map((Name, i) => ({ Id: `dash-${i}`, Name, Properties: { spec } })),
+    ...names.map((Name, i) => ({ Id: `dash-${i}`, Name, Properties: { specification } })),
   ];
   const relationships: VosRelationship[] = names.map((_, i) => ({
     Id: `dash-${i}-is`,

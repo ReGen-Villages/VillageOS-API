@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { localizeSpec, displayStringsOf } from './dashboardLocalization';
+import { localizeSpecification, displayStringsOf } from './dashboardLocalization';
 import type {
   Binding,
-  DashboardSpec,
+  DashboardSpecification,
   FunnelWidget,
   KpiWidget,
   LeaderboardWidget,
@@ -23,7 +23,7 @@ import type {
  *  key (the exceptions section title) is left untranslated to prove key-level
  *  fallback, and the state name "Harvested" doubles as a KPI unit to prove that a
  *  binding value matching a translation entry is never rewritten. */
-function fixture(): DashboardSpec {
+function fixture(): DashboardSpecification {
   return {
     title: 'Village Operations',
     subtitle: 'Live view',
@@ -132,12 +132,12 @@ function fixture(): DashboardSpec {
 
 describe('localizeSpec', () => {
   it('renders display strings in the active locale', () => {
-    const spec = localizeSpec(fixture(), 'es');
-    expect(spec.title).toBe('Operaciones del pueblo');
-    expect(spec.subtitle).toBe('Vista en vivo');
-    expect(spec.compare?.label).toBe('sitio');
+    const specification = localizeSpecification(fixture(), 'es');
+    expect(specification.title).toBe('Operaciones del pueblo');
+    expect(specification.subtitle).toBe('Vista en vivo');
+    expect(specification.compare?.label).toBe('sitio');
 
-    const [yieldSection, exceptions] = spec.sections;
+    const [yieldSection, exceptions] = specification.sections;
     expect(yieldSection.title).toBe('Rendimiento');
     expect(yieldSection.hint).toBe('última hora');
 
@@ -160,60 +160,60 @@ describe('localizeSpec', () => {
     expect(leaderboard.metrics[0].label).toBe('Rendimiento');
 
     expect(exceptions.widgets[0].title).toBe('Problemas');
-    expect(spec.detail?.propertyGroups?.[0].label).toBe('Detalles');
-    expect(spec.detail?.relations?.[0].label).toBe('Tareas');
-    expect(spec.detail?.relations?.[0].relations?.[0].label).toBe('Recurso');
+    expect(specification.detail?.propertyGroups?.[0].label).toBe('Detalles');
+    expect(specification.detail?.relations?.[0].label).toBe('Tareas');
+    expect(specification.detail?.relations?.[0].relations?.[0].label).toBe('Recurso');
   });
 
   it('never translates binding values or model-vocabulary keys', () => {
-    const spec = localizeSpec(fixture(), 'es');
-    const kpi = spec.sections[0].widgets[0] as KpiWidget;
+    const specification = localizeSpecification(fixture(), 'es');
+    const kpi = specification.sections[0].widgets[0] as KpiWidget;
     // The state name stays "Harvested" even though the KPI unit "Harvested" was translatable.
     expect(kpi.value).toEqual({ kind: 'stateCount', state: 'Harvested' });
     // Row keys are identifiers, not labels — untouched.
-    const table = spec.sections[0].widgets[2] as TableWidget;
+    const table = specification.sections[0].widgets[2] as TableWidget;
     expect(table.columns.map((c) => c.key)).toEqual(['name', 'age']);
-    expect(spec.detail?.relations?.[0].predicate).toBe('has');
+    expect(specification.detail?.relations?.[0].predicate).toBe('has');
   });
 
   it('falls back to the base text when the active locale is absent', () => {
-    const spec = localizeSpec(fixture(), 'de');
-    expect(spec.title).toBe('Village Operations');
-    expect(spec.sections[0].title).toBe('Yield');
+    const specification = localizeSpecification(fixture(), 'de');
+    expect(specification.title).toBe('Village Operations');
+    expect(specification.sections[0].title).toBe('Yield');
   });
 
   it('falls back to the base text for a key missing within a present locale', () => {
-    const spec = localizeSpec(fixture(), 'es');
+    const specification = localizeSpecification(fixture(), 'es');
     // The "Exceptions" section title has no es entry.
-    expect(spec.sections[1].title).toBe('Exceptions');
+    expect(specification.sections[1].title).toBe('Exceptions');
   });
 
   it('reads a language-level block for a regional locale', () => {
-    const spec = localizeSpec(fixture(), 'es-MX');
-    expect(spec.title).toBe('Operaciones del pueblo');
-    expect(spec.sections[0].title).toBe('Rendimiento');
+    const specification = localizeSpecification(fixture(), 'es-MX');
+    expect(specification.title).toBe('Operaciones del pueblo');
+    expect(specification.sections[0].title).toBe('Rendimiento');
   });
 
   it('lets a regional block override single words without restating the language block', () => {
     const base = fixture();
     base.translations!['es-MX'] = { 'Village Operations': 'Operaciones del pueblito' };
-    const spec = localizeSpec(base, 'es-MX');
-    expect(spec.title).toBe('Operaciones del pueblito');
-    expect(spec.sections[0].title).toBe('Rendimiento');
+    const specification = localizeSpecification(base, 'es-MX');
+    expect(specification.title).toBe('Operaciones del pueblito');
+    expect(specification.sections[0].title).toBe('Rendimiento');
   });
 
   it('returns a spec with no translations block unchanged (no regression)', () => {
     const base = fixture();
     delete base.translations;
-    const spec = localizeSpec(base, 'es');
-    expect(spec).toBe(base);
+    const specification = localizeSpecification(base, 'es');
+    expect(specification).toBe(base);
   });
 });
 
 // The verdict wording is the only display text the spec vocabulary keeps on a binding, so the
 // invariant that binding values pass through untouched has to bend for it — and only for it.
 describe('localizeSpec over a verdict widget', () => {
-  function verdictSpec(): DashboardSpec {
+  function verdictSpecification(): DashboardSpecification {
     return {
       title: 'Analysis',
       sections: [
@@ -259,7 +259,7 @@ describe('localizeSpec over a verdict widget', () => {
     };
   }
 
-  const localized = localizeSpec(verdictSpec(), 'es').sections[0].widgets[0] as VerdictWidget;
+  const localized = localizeSpecification(verdictSpecification(), 'es').sections[0].widgets[0] as VerdictWidget;
   const binding = localized.rows[0].verdicts as Extract<Binding, { kind: 'verdict' }>;
 
   it('translates the wording each verdict reads as', () => {
@@ -294,7 +294,7 @@ describe('localizeSpec over a verdict widget', () => {
 });
 
 describe('localizeSpec over an origin binding', () => {
-  const localized = localizeSpec({
+  const localized = localizeSpecification({
     title: 'Analysis',
     sections: [
       {
@@ -342,7 +342,7 @@ describe('localizeSpec over an origin binding', () => {
 });
 
 describe('localizeSpec over a rangeBar widget', () => {
-  const spec: DashboardSpec = {
+  const specification: DashboardSpecification = {
     title: 'Analysis',
     sections: [{ widgets: [{
               type: 'rangeBar',
@@ -366,7 +366,7 @@ describe('localizeSpec over a rangeBar widget', () => {
       },
     },
   };
-  const localized = localizeSpec(spec, 'es').sections[0].widgets[0] as RangeBarWidget;
+  const localized = localizeSpecification(specification, 'es').sections[0].widgets[0] as RangeBarWidget;
 
   it('translates the wording the widget shows', () => {
     expect(localized.title).toBe('Temperatura');
@@ -381,7 +381,7 @@ describe('localizeSpec over a rangeBar widget', () => {
 });
 
 describe('localizeSpec over a lineSeries widget', () => {
-  const spec: DashboardSpec = {
+  const specification: DashboardSpecification = {
     title: 'Analysis',
     sections: [{ widgets: [{
               type: 'lineSeries',
@@ -399,7 +399,7 @@ describe('localizeSpec over a lineSeries widget', () => {
       },
     },
   };
-  const localized = localizeSpec(spec, 'es').sections[0].widgets[0] as LineSeriesWidget;
+  const localized = localizeSpecification(specification, 'es').sections[0].widgets[0] as LineSeriesWidget;
 
   it('translates the wording the widget shows', () => {
     expect(localized.title).toBe('Lluvia');
@@ -410,7 +410,7 @@ describe('localizeSpec over a lineSeries widget', () => {
 });
 
 describe('localizeSpec over a heatmap widget', () => {
-  const spec: DashboardSpec = {
+  const specification: DashboardSpecification = {
     title: 'Analysis',
     sections: [{ widgets: [{
               type: 'heatmap',
@@ -427,7 +427,7 @@ describe('localizeSpec over a heatmap widget', () => {
       },
     },
   };
-  const localized = localizeSpec(spec, 'es').sections[0].widgets[0] as HeatmapWidget;
+  const localized = localizeSpecification(specification, 'es').sections[0].widgets[0] as HeatmapWidget;
 
   it('translates the wording the widget shows', () => {
     expect(localized.title).toBe('Sol');
@@ -437,7 +437,7 @@ describe('localizeSpec over a heatmap widget', () => {
 });
 
 describe('localizeSpec over a stackedShares widget', () => {
-  const spec: DashboardSpec = {
+  const specification: DashboardSpecification = {
     title: 'Analysis',
     sections: [{ widgets: [{
               type: 'stackedShares',
@@ -453,7 +453,7 @@ describe('localizeSpec over a stackedShares widget', () => {
       },
     },
   };
-  const localized = localizeSpec(spec, 'es').sections[0].widgets[0] as StackedSharesWidget;
+  const localized = localizeSpecification(specification, 'es').sections[0].widgets[0] as StackedSharesWidget;
 
   it('translates the wording the widget shows', () => {
     expect(localized.title).toBe('Cubierta');
@@ -467,7 +467,7 @@ describe('localizeSpec over a stackedShares widget', () => {
 });
 
 describe('localizeSpec over a divergingBar widget', () => {
-  const spec: DashboardSpec = {
+  const specification: DashboardSpecification = {
     title: 'Analysis',
     sections: [{ widgets: [{
               type: 'divergingBar',
@@ -487,7 +487,7 @@ describe('localizeSpec over a divergingBar widget', () => {
       },
     },
   };
-  const localized = localizeSpec(spec, 'es').sections[0].widgets[0] as DivergingBarWidget;
+  const localized = localizeSpecification(specification, 'es').sections[0].widgets[0] as DivergingBarWidget;
 
   it('translates the wording the widget shows', () => {
     expect(localized.title).toBe('Balance hídrico');
@@ -499,7 +499,7 @@ describe('localizeSpec over a divergingBar widget', () => {
 });
 
 describe('localizeSpec over a smallMultiples widget', () => {
-  const spec: DashboardSpec = {
+  const specification: DashboardSpecification = {
     title: 'Analysis',
     sections: [{ widgets: [{
               type: 'smallMultiples',
@@ -521,7 +521,7 @@ describe('localizeSpec over a smallMultiples widget', () => {
       },
     },
   };
-  const localized = localizeSpec(spec, 'es').sections[0].widgets[0] as SmallMultiplesWidget;
+  const localized = localizeSpecification(specification, 'es').sections[0].widgets[0] as SmallMultiplesWidget;
 
   it('translates the wording the widget shows', () => {
     expect(localized.title).toBe('Meses');
@@ -539,7 +539,7 @@ describe('localizeSpec over a smallMultiples widget', () => {
 });
 
 describe('localizeSpec over the writing widgets', () => {
-  const spec: DashboardSpec = {
+  const specification: DashboardSpecification = {
     title: 'Springs',
     sections: [
       {
@@ -566,7 +566,7 @@ describe('localizeSpec over the writing widgets', () => {
       nl: { 'Awaiting a verdict': 'Wacht op oordeel', Reader: 'Lezer', Potable: 'Drinkbaar', 'Close it': 'Sluiten', 'Book a reading': 'Meting boeken', Litres: 'Liter', Book: 'Boek', 'What this covers': 'Wat dit dekt', close: 'NOOIT', book: 'NOOIT' },
     },
   };
-  const [action, form] = localizeSpec(spec, 'nl').sections[0].widgets as [ActionWidget, FormWidget];
+  const [action, form] = localizeSpecification(specification, 'nl').sections[0].widgets as [ActionWidget, FormWidget];
 
   it('translates the labels a person reads and leaves the act and the reason as the endpoint reads them', () => {
     expect(action.title).toBe('Wacht op oordeel');
@@ -586,7 +586,7 @@ describe('localizeSpec over the writing widgets', () => {
 
 describe('displayStringsOf', () => {
   it('lists every display string the localiser translates, once each, in the order it walks them', () => {
-    const spec: DashboardSpec = {
+    const specification: DashboardSpecification = {
       title: 'Springs',
       subtitle: 'by catchment',
       compare: { label: 'Catchment', archetype: 'Catchment' },
@@ -602,16 +602,16 @@ describe('displayStringsOf', () => {
       ],
       detail: { propertyGroups: [{ label: 'Readings', keys: ['flow'] }], relations: [{ predicate: 'feeds', label: 'Feeds' }] },
     };
-    expect(displayStringsOf(spec)).toEqual(['Springs', 'by catchment', 'Catchment', 'Flow', 'litres a second', 'Flowing', 'l/s', 'Springs', 'Flow', 'Readings', 'Feeds'].filter((word, at, all) => all.indexOf(word) === at));
+    expect(displayStringsOf(specification)).toEqual(['Springs', 'by catchment', 'Catchment', 'Flow', 'litres a second', 'Flowing', 'l/s', 'Springs', 'Flow', 'Readings', 'Feeds'].filter((word, at, all) => all.indexOf(word) === at));
   });
 
   it('agrees with what a translation reaches: every string it lists is one a translation of that string changes', () => {
-    const spec: DashboardSpec = {
+    const specification: DashboardSpecification = {
       title: 'Springs',
       sections: [{ title: 'Flow', widgets: [{ type: 'kpi', title: 'Flowing', footnote: 'sampled hourly', value: { kind: 'const', value: 1 } }] }],
     };
-    const translations = { nl: Object.fromEntries(displayStringsOf(spec).map((base) => [base, `${base} (nl)`])) };
-    const localized = localizeSpec({ ...spec, translations }, 'nl');
+    const translations = { nl: Object.fromEntries(displayStringsOf(specification).map((base) => [base, `${base} (nl)`])) };
+    const localized = localizeSpecification({ ...specification, translations }, 'nl');
     expect(localized.title).toBe('Springs (nl)');
     expect(localized.sections[0].title).toBe('Flow (nl)');
     expect((localized.sections[0].widgets[0] as { footnote?: string }).footnote).toBe('sampled hourly (nl)');

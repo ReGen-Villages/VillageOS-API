@@ -14,7 +14,7 @@ import { useNumberDisplaySettings } from '../../../hooks/useNumberDisplaySetting
 import type { DeclaredPropertyTypes } from '../../../hooks/useDeclaredPropertyTypes';
 import type { NumberDisplaySettings } from '../../../utils/guiSettings';
 import { badgeTone } from '../widgets/format';
-import type { DetailSpec } from '../../../types/dashboard';
+import type { DetailSpecification } from '../../../types/dashboard';
 import type { StateHistoryCoverage } from '../../../types/vos';
 import { useEntityDetail } from './useEntityDetail';
 import type { ResolvedRelation } from './entityDetail';
@@ -23,7 +23,7 @@ import type { ServiceDispatch } from './serviceHandling';
 interface Props {
   modelIndex: ModelIndex;
   thingId: string;
-  detail: DetailSpec;
+  detail: DetailSpecification;
   nonce?: number;
   offset: number;
   index: number;

@@ -16,8 +16,8 @@ import type {
   Binding,
   BulletWidget,
   DashboardSection,
-  DashboardSpec,
-  DetailSpec,
+  DashboardSpecification,
+  DetailSpecification,
   DivergingBarWidget,
   ExceptionWidget,
   FunnelWidget,
@@ -27,7 +27,7 @@ import type {
   LeaderboardWidget,
   LineSeriesWidget,
   RangeBarWidget,
-  RelationSpec,
+  RelationSpecification,
   SmallMultiplesWidget,
   StackedSharesWidget,
   TableColumn,
@@ -41,27 +41,27 @@ import type {
 } from '../types/dashboard';
 import { primarySubtag } from '../i18n/languages';
 
-export type SpecTranslator = <T extends string | undefined>(text: T) => T;
+export type SpecificationTranslator = <T extends string | undefined>(text: T) => T;
 
 /** The strings a locale reads: the primary-subtag block overlaid with the exact-tag
  *  one, so a model that authors `ar` once serves both `ar-SA` and `ar-AE`, and an
  *  `ar-AE` block need only carry the words that differ. */
-function translationsFor(spec: DashboardSpec, locale: string): Record<string, string> | undefined {
-  const regional = spec.translations?.[locale];
-  const language = spec.translations?.[primarySubtag(locale)];
+function translationsFor(specification: DashboardSpecification, locale: string): Record<string, string> | undefined {
+  const regional = specification.translations?.[locale];
+  const language = specification.translations?.[primarySubtag(locale)];
   if (!regional || !language || regional === language) return regional ?? language;
   return { ...language, ...regional };
 }
 
-export function makeSpecTranslator(spec: DashboardSpec, locale: string): SpecTranslator {
-  const table = translationsFor(spec, locale);
+export function makeSpecificationTranslator(specification: DashboardSpecification, locale: string): SpecificationTranslator {
+  const table = translationsFor(specification, locale);
   return (<T extends string | undefined>(text: T): T => {
     if (text === undefined || table === undefined) return text;
     return (table[text] ?? text) as T;
-  }) as SpecTranslator;
+  }) as SpecificationTranslator;
 }
 
-function localizeColumns(columns: TableColumn[] | undefined, tr: SpecTranslator): TableColumn[] | undefined {
+function localizeColumns(columns: TableColumn[] | undefined, tr: SpecificationTranslator): TableColumn[] | undefined {
   return columns?.map((column) => ({ ...column, label: tr(column.label) }));
 }
 
@@ -69,7 +69,7 @@ function localizeColumns(columns: TableColumn[] | undefined, tr: SpecTranslator)
  *  they are translated where every other binding value is not. What sits beside each stays as the
  *  model wrote it: a state name is resolved against the platform's derived states, and an origin is
  *  one of the four the model's declarations answer with. */
-function localizeWording(binding: Binding | undefined, tr: SpecTranslator): Binding | undefined {
+function localizeWording(binding: Binding | undefined, tr: SpecificationTranslator): Binding | undefined {
   if (binding?.kind === 'verdict') {
     return {
       ...binding,
@@ -89,7 +89,7 @@ function localizeWording(binding: Binding | undefined, tr: SpecTranslator): Bind
   return binding;
 }
 
-function localizeWidget(widget: Widget, tr: SpecTranslator): Widget {
+function localizeWidget(widget: Widget, tr: SpecificationTranslator): Widget {
   switch (widget.type) {
     case 'kpi': {
       const w: KpiWidget = {
@@ -270,11 +270,11 @@ function localizeWidget(widget: Widget, tr: SpecTranslator): Widget {
   }
 }
 
-function localizeFields(fields: AskedValue[] | undefined, tr: SpecTranslator): AskedValue[] | undefined {
+function localizeFields(fields: AskedValue[] | undefined, tr: SpecificationTranslator): AskedValue[] | undefined {
   return fields?.map((field) => ({ ...field, label: tr(field.label) }));
 }
 
-function localizeSection(section: DashboardSection, tr: SpecTranslator): DashboardSection {
+function localizeSection(section: DashboardSection, tr: SpecificationTranslator): DashboardSection {
   return {
     ...section,
     title: tr(section.title),
@@ -283,7 +283,7 @@ function localizeSection(section: DashboardSection, tr: SpecTranslator): Dashboa
   };
 }
 
-function localizeRelation(relation: RelationSpec, tr: SpecTranslator): RelationSpec {
+function localizeRelation(relation: RelationSpecification, tr: SpecificationTranslator): RelationSpecification {
   return {
     ...relation,
     label: tr(relation.label),
@@ -291,7 +291,7 @@ function localizeRelation(relation: RelationSpec, tr: SpecTranslator): RelationS
   };
 }
 
-function localizeDetail(detail: DetailSpec, tr: SpecTranslator): DetailSpec {
+function localizeDetail(detail: DetailSpecification, tr: SpecificationTranslator): DetailSpecification {
   return {
     ...detail,
     propertyGroups: detail.propertyGroups?.map((group) => ({ ...group, label: tr(group.label) })),
@@ -299,31 +299,31 @@ function localizeDetail(detail: DetailSpec, tr: SpecTranslator): DetailSpec {
   };
 }
 
-function localizeWith(spec: DashboardSpec, tr: SpecTranslator): DashboardSpec {
+function localizeWith(specification: DashboardSpecification, tr: SpecificationTranslator): DashboardSpecification {
   return {
-    ...spec,
-    title: tr(spec.title),
-    subtitle: tr(spec.subtitle),
-    compare: spec.compare ? { ...spec.compare, label: tr(spec.compare.label) } : undefined,
-    sections: spec.sections.map((section) => localizeSection(section, tr)),
-    detail: spec.detail ? localizeDetail(spec.detail, tr) : undefined,
+    ...specification,
+    title: tr(specification.title),
+    subtitle: tr(specification.subtitle),
+    compare: specification.compare ? { ...specification.compare, label: tr(specification.compare.label) } : undefined,
+    sections: specification.sections.map((section) => localizeSection(section, tr)),
+    detail: specification.detail ? localizeDetail(specification.detail, tr) : undefined,
   };
 }
 
-export function localizeSpec(spec: DashboardSpec, locale: string): DashboardSpec {
-  if (!translationsFor(spec, locale)) return spec;
-  return localizeWith(spec, makeSpecTranslator(spec, locale));
+export function localizeSpecification(specification: DashboardSpecification, locale: string): DashboardSpecification {
+  if (!translationsFor(specification, locale)) return specification;
+  return localizeWith(specification, makeSpecificationTranslator(specification, locale));
 }
 
 /** Every display string the localiser would translate, once each, in the order it walks them —
  *  the same walk, with a translator that records instead of translating, so a string the localiser
  *  reads is never one a translations panel forgot to offer. */
-export function displayStringsOf(spec: DashboardSpec): string[] {
+export function displayStringsOf(specification: DashboardSpecification): string[] {
   const seen: string[] = [];
   const recording = (<T extends string | undefined>(text: T): T => {
     if (text && !seen.includes(text)) seen.push(text);
     return text;
-  }) as SpecTranslator;
-  localizeWith(spec, recording);
+  }) as SpecificationTranslator;
+  localizeWith(specification, recording);
   return seen;
 }

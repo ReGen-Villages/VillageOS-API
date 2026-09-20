@@ -5,11 +5,11 @@
  */
 import { useCallback, useState } from 'react';
 import type { ModelIndex } from '../../../api/dashboardApi';
-import type { DetailSpec } from '../../../types/dashboard';
+import type { DetailSpecification } from '../../../types/dashboard';
 import { EntityDetailWindow } from './EntityDetailWindow';
 import { useDeclaredPropertyTypes } from '../../../hooks/useDeclaredPropertyTypes';
 
-export function useDetailWindows(modelIndex: ModelIndex, detail: DetailSpec | undefined, nonce?: number) {
+export function useDetailWindows(modelIndex: ModelIndex, detail: DetailSpecification | undefined, nonce?: number) {
   const [order, setOrder] = useState<string[]>([]);
   const [spreadTick, setSpreadTick] = useState(0);
 

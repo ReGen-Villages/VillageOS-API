@@ -3,7 +3,7 @@ import clsx from 'clsx';
 import { GripVertical, Plus } from 'lucide-react';
 import { GridLayout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
-import { GRID_COLUMNS, type DashboardSection, type DashboardSpec, type Placement, type Widget } from '../../types/dashboard';
+import { GRID_COLUMNS, type DashboardSection, type DashboardSpecification, type Placement, type Widget } from '../../types/dashboard';
 import type { ResolveContext } from '../../api/dashboardApi';
 import { useElementWidth } from '../../hooks/useElementWidth';
 import { DEFAULT_SIZE, GRID_GAP, GRID_ROW_HEIGHT } from '../../utils/gridLayout';
@@ -12,7 +12,7 @@ import { layoutItemsOf, placementsFromLayout, type DesignSelection, type GridIte
 import { WidgetRenderer } from '../dashboard/widgets/WidgetRenderer';
 
 interface Props {
-  spec: DashboardSpec;
+  specification: DashboardSpecification;
   selection: DesignSelection | null;
   dragging: Widget['type'] | null;
   context: ResolveContext;
@@ -32,11 +32,11 @@ const DRAG_HANDLE = 'design-handle';
  * The page as it is designed: every section a grid its widgets are moved and resized on, each widget
  * drawing live off the model, and the place a new widget is dropped.
  */
-export function DesignCanvas({ spec, selection, dragging, context, onSelect, onPlacements, onDrop, onAddSection }: Props) {
+export function DesignCanvas({ specification, selection, dragging, context, onSelect, onPlacements, onDrop, onAddSection }: Props) {
   const { t } = useTranslation();
   return (
     <div className="flex-1 min-w-0 overflow-auto px-6 pb-10">
-      {spec.sections.map((section, index) => (
+      {specification.sections.map((section, index) => (
         <DesignSection
           key={index}
           section={section}

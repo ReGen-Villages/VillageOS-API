@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { DashboardSpec } from '../types/dashboard';
+import type { DashboardSpecification } from '../types/dashboard';
 import type { VosThing, VosRelationship } from '../types/vos';
 
 vi.mock('./modelApi', () => ({ modelApi: { applyFragment: vi.fn() } }));
@@ -19,7 +19,7 @@ function relationship(Id: string, SubjectId: string, PredicateId: string, Target
   return { Id, SubjectId, PredicateId, TargetId, Properties: {} };
 }
 
-const PAGE: DashboardSpec = {
+const PAGE: DashboardSpecification = {
   title: 'Springs by flow',
   sections: [{ widgets: [] }],
   composed: { kind: 'Spring', columns: [] },
@@ -65,7 +65,7 @@ describe('keeping a page', () => {
   });
 
   it('refuses a spec the console’s own discovery could not read back, before anything is written', async () => {
-    await expect(dashboardPages.keep('Broken', { title: 'Broken' } as DashboardSpec, dashboardWriteContext(index())!)).rejects.toThrow(/could not read/);
+    await expect(dashboardPages.keep('Broken', { title: 'Broken' } as DashboardSpecification, dashboardWriteContext(index())!)).rejects.toThrow(/could not read/);
     expect(modelApi.applyFragment).not.toHaveBeenCalled();
   });
 });

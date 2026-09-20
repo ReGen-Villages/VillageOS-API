@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { DashboardSpec, Widget } from '../types/dashboard';
+import type { DashboardSpecification, Widget } from '../types/dashboard';
 import {
   layoutItemsOf,
   placementsFromLayout,
@@ -18,7 +18,7 @@ import {
 const figure = (title: string): Widget => ({ type: 'kpi', title, value: { kind: 'const', value: 1 } });
 const placed = (title: string, column: number, row: number): Widget => ({ ...figure(title), placement: { column, row, width: 3, height: 3 } });
 
-const page = (): DashboardSpec => ({
+const page = (): DashboardSpecification => ({
   title: 'Springs',
   designed: true,
   sections: [

@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import type { DashboardDescriptor, DashboardSpec } from '../types/dashboard';
+import type { DashboardDescriptor, DashboardSpecification } from '../types/dashboard';
 import { isKeptPage, newPage, openedForDesign } from '../utils/designSpec';
 import type { DesignSelection } from '../utils/designEdits';
 
@@ -12,7 +12,7 @@ export interface DesignSource {
 }
 
 export interface Design {
-  spec: DashboardSpec;
+  specification: DashboardSpecification;
   source: DesignSource;
   /** Whether anything has changed since the page was opened or kept. */
   dirty: boolean;
@@ -23,28 +23,28 @@ export interface Design {
  * selected on it. The workbench holding this is keyed on the page it opened, so opening another page
  * starts afresh rather than carrying edits across.
  */
-export function useDesign(initial: { opened?: DashboardDescriptor & { spec: DashboardSpec }; started?: string }) {
+export function useDesign(initial: { opened?: DashboardDescriptor & { specification: DashboardSpecification }; started?: string }) {
   const [design, setDesign] = useState<Design>(() =>
     initial.opened
       ? {
-          spec: openedForDesign(initial.opened.spec),
-          source: { id: initial.opened.id, name: initial.opened.name, seeded: !isKeptPage(initial.opened.spec) },
+          specification: openedForDesign(initial.opened.specification),
+          source: { id: initial.opened.id, name: initial.opened.name, seeded: !isKeptPage(initial.opened.specification) },
           dirty: false,
         }
-      : { spec: newPage(initial.started ?? ''), source: { id: null, name: initial.started ?? '', seeded: false }, dirty: false },
+      : { specification: newPage(initial.started ?? ''), source: { id: null, name: initial.started ?? '', seeded: false }, dirty: false },
   );
   const [selection, setSelection] = useState<DesignSelection | null>(null);
 
-  const edit = useCallback((change: (spec: DashboardSpec) => DashboardSpec) => {
+  const edit = useCallback((change: (specification: DashboardSpecification) => DashboardSpecification) => {
     setDesign((held) => {
-      const spec = change(held.spec);
-      return spec === held.spec ? held : { ...held, spec, dirty: true };
+      const specification = change(held.specification);
+      return specification === held.specification ? held : { ...held, specification, dirty: true };
     });
   }, []);
 
   /** The page now stands in the model under this id, as written. */
-  const kept = useCallback((id: string, name: string, written: DashboardSpec) => {
-    setDesign({ spec: written, source: { id, name, seeded: false }, dirty: false });
+  const kept = useCallback((id: string, name: string, written: DashboardSpecification) => {
+    setDesign({ specification: written, source: { id, name, seeded: false }, dirty: false });
   }, []);
 
   return { design, selection, select: setSelection, edit, kept };

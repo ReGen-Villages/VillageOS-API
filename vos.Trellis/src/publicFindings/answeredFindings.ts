@@ -12,7 +12,7 @@
  */
 import { buildModelIndex, type ModelIndex } from '../api/dashboardApi';
 import type { ModelReads } from '../api/modelReads';
-import type { DashboardSpec } from '../types/dashboard';
+import type { DashboardSpecification } from '../types/dashboard';
 import type {
   TemporalReduceQuery,
   TemporalReduceResponse,
@@ -28,6 +28,7 @@ import { unwrapRelationship, unwrapThing } from '../utils/propertyMapper';
 type AnsweredThing = VosThing & { States?: string[] };
 
 export interface FindingsAnswer {
+  /** The wire's own name for the page, as the service serialises it. */
   spec: string;
   scopeId: string;
   things: AnsweredThing[];
@@ -38,7 +39,7 @@ export interface FindingsAnswer {
 export interface Findings {
   /** The page the model declares, parsed. Not localized: which language it reads in changes while the
    *  page is open, and what it draws does not. */
-  spec: DashboardSpec;
+  specification: DashboardSpecification;
   index: ModelIndex;
   scopeId: string;
   reads: ModelReads;
@@ -52,12 +53,12 @@ export function findingsFrom(
   reduce: (query: TemporalReduceQuery) => Promise<TemporalReduceResponse> = () =>
     Promise.reject(new Error('This page was handed no way to reduce a property series.')),
 ): Findings {
-  const spec = JSON.parse(answer.spec) as DashboardSpec;
+  const specification = JSON.parse(answer.spec) as DashboardSpecification;
   const relationships = answer.relationships.map(unwrapRelationship);
   const holders = statesByThing(answer.things);
 
   return {
-    spec,
+    specification,
     index: buildModelIndex(answer.things.map(unwrapThing), relationships),
     scopeId: answer.scopeId,
     reads: {

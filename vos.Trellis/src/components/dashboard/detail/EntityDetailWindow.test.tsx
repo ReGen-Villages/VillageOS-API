@@ -22,7 +22,7 @@ vi.mock('../../../api/relationshipApi', () => ({
 
 import { buildModelIndex } from '../../../api/dashboardApi';
 import type { VosThing, VosRelationship } from '../../../types/vos';
-import type { DetailSpec } from '../../../types/dashboard';
+import type { DetailSpecification } from '../../../types/dashboard';
 import { formatTimestamp } from '../../../utils/formatters';
 import { EntityDetailWindow } from './EntityDetailWindow';
 
@@ -68,14 +68,14 @@ function indexWithAService() {
   );
 }
 
-const SPEC: DetailSpec = { relations: [{ predicate: 'feeds', direction: 'out' }] };
+const SPECIFICATION: DetailSpecification = { relations: [{ predicate: 'feeds', direction: 'out' }] };
 
 function open(overrides: Partial<Parameters<typeof EntityDetailWindow>[0]> = {}) {
   render(
     <EntityDetailWindow
       modelIndex={index()}
       thingId="catchment"
-      detail={SPEC}
+      detail={SPECIFICATION}
       offset={0}
       index={0}
       total={1}
