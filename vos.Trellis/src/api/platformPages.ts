@@ -12,8 +12,8 @@ export async function loadPlatformPages(accountId: string): Promise<void> {
   try {
     store.setState({ pages: (await myceliumApi.getPages()).map(declaredPageDescriptor) });
   } catch {
-    // Left unclaimed, so the next sign-in or mount asks again rather than a session holding no
-    // declared page for as long as it lasts.
+    // Left unclaimed, so the next sign-in asks again rather than a session holding no declared page
+    // for as long as it lasts.
     store.setState({ pages: [], loadedFor: null });
   }
 }
