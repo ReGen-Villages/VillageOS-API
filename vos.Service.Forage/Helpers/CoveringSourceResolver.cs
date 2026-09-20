@@ -53,10 +53,10 @@ public sealed record SiteAnalysis(Guid StudyId, IReadOnlyList<AnalysisTrigger> T
 
 // Reads which sources cover a site, and which sites a source reaches, each from one scoped snapshot.
 //
-// Coverage is edges, never a string: a source `covers` a Place, a site `isIn` a Place, and Places nest
-// through `isIn` so a source covering a continent — or the root every Place sits under — covers every
-// site within it. Nothing here compares a place name, so a source cannot be silently skipped because a
-// country was spelled two ways, which is the failure this whole path exists to prevent.
+// Coverage is relationships, never a string: a source `covers` a Place, a site `isIn` a Place, and
+// Places nest through `isIn` so a source covering a continent — or the root every Place sits under —
+// covers every site within it. Nothing here compares a place name, so a source cannot be silently
+// skipped because a country was spelled two ways, which is the failure this whole path exists to prevent.
 public static class CoveringSourceResolver
 {
     public const string CoversPredicate = "covers";

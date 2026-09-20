@@ -48,7 +48,7 @@ try
             launchSettings.Service.Issuer, launchSettings.Service.Audience);
     }
 
-    // Coverage is edges, so the only read this service makes is a scoped snapshot.
+    // Coverage is relationships, so the only read this service makes is a scoped snapshot.
     builder.Services.AddSingleton<ISubscriptionClient>(sp =>
         new SubscriptionClient(
             sp.GetRequiredService<IHttpClientFactory>(),
