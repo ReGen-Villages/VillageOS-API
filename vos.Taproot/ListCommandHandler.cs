@@ -360,8 +360,9 @@ namespace vos.Taproot
                 return;
 
             var stats = service.GetProperty("Stats");
-            var line = $"    Requests: {stats.GetIntOrDefault("RequestsForwarded")}";
-            if (stats.GetIntOrDefault("RequestsForwarded") > 0)
+            var forwarded = stats.GetIntOrDefault("RequestsForwarded");
+            var line = $"    Requests: {forwarded}";
+            if (forwarded > 0)
             {
                 var average = stats.TryGetProperty("AverageResponseMilliseconds", out var found) && found.ValueKind == JsonValueKind.Number
                     ? found.GetDouble()
