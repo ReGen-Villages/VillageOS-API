@@ -18,9 +18,10 @@ const path = require('path');
 
 const REPO = 'https://github.com/ReGen-Villages/VillageOS-API';
 const WIKI = `${REPO}/wiki`;
-// Branch that GitHub blob links point at. The mirror pushes main only, which is
-// also the branch a documentation deep-link should be stable against.
-const REPO_BRANCH = 'main';
+// The branch GitHub file links point at: the one the repository mirror pushes, which the build file
+// names in its "Mirror to GitHub" step. A link against any other branch answers 404, and the test
+// beside this reads the build file so the two cannot drift apart again.
+const REPO_BRANCH = 'develop';
 
 // --- pure helpers ----------------------------------------------------------
 
@@ -190,4 +191,4 @@ if (require.main === module) {
   main(process.argv.slice(2));
 }
 
-module.exports = { convert, convertMermaid, buildSidebar, flatName, pageSlug, decodeName };
+module.exports = { convert, convertMermaid, buildSidebar, flatName, pageSlug, decodeName, REPO_BRANCH };
