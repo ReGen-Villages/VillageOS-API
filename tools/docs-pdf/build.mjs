@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
 import { dirname, resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { spawnSync } from 'node:child_process';
 import puppeteer from 'puppeteer-core';
 import { mark, mermaidTheme, stylesheet, palette } from './brand.mjs';
 import { inlineFigure } from './figures.mjs';
@@ -18,6 +19,7 @@ function usage(message) {
 
   node build.mjs <guide.md> [options]
 
+  --version <label>    the version the minted PDF carries; required unless --html-only
   --out <file.pdf>     where the PDF goes (default: the guide's name, beside it)
   --keep-html          leave the intermediate HTML beside the PDF, to look at in a browser
   --html-only          write the HTML and stop, without starting a browser
@@ -36,6 +38,7 @@ function options(argv) {
     if (a === '--help' || a === '-h') usage();
     else if (a === '--keep-html') o.keepHtml = true;
     else if (a === '--html-only') { o.htmlOnly = true; o.keepHtml = true; }
+    else if (a === '--version') o.version = argv[++i];
     else if (a === '--out') o.out = argv[++i];
     else if (a === '--chrome') o.chrome = argv[++i];
     else if (a === '--owner') o.owner = argv[++i];
@@ -46,6 +49,7 @@ function options(argv) {
   if (rest.length !== 1) usage(rest.length ? 'name one Markdown file' : 'name the Markdown file to render');
   o.input = resolve(rest[0]);
   if (!existsSync(o.input)) usage(`no such file: ${o.input}`);
+  if (!o.version && !o.htmlOnly) usage('a minted PDF carries a version: name it with --version');
   o.out = resolve(o.out ?? o.input.replace(/\.md$/i, '.pdf'));
   o.html = o.out.replace(/\.pdf$/i, '.html');
   return o;
@@ -227,8 +231,18 @@ const renderRaw = (raw) => (raw ? marked.parse(raw) : '');
 
 /* ── The document as pages ─────────────────────────────────────────────────── */
 
+/**
+ * The version lives on the PDF, never in the Markdown: a guide changes on every merge, and a number
+ * written into it goes stale. The commit says exactly which text a minted copy was made from.
+ */
+export function sourceCommit(guidePath) {
+  const git = spawnSync('git', ['-C', dirname(guidePath), 'log', '-1', '--format=%h', '--', guidePath], { encoding: 'utf8' });
+  return git.status === 0 ? git.stdout.trim() || null : null;
+}
+
 function cover(doc, o) {
-  const rendered = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  const dated = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  const commit = sourceCommit(o.input);
   const lede = doc.lede
     ? renderRaw(doc.lede.replace(/^>\s?/gm, ''))
     : '';
@@ -244,7 +258,9 @@ function cover(doc, o) {
   </div>
   <div class="cover-foot">
     <div><b>Document</b>${escapeHtml(basename(o.input))}</div>
-    <div><b>Rendered</b>${rendered}</div>
+    ${o.version ? `<div><b>Version</b>${escapeHtml(o.version)}</div>` : ''}
+    <div><b>Date</b>${dated}</div>
+    ${commit ? `<div><b>Source</b>commit ${escapeHtml(commit)}</div>` : ''}
     <div><b>Notice</b>${escapeHtml(o.notice)}</div>
   </div>
 </section>`;
@@ -357,8 +373,8 @@ function findChrome(given) {
   process.exit(3);
 }
 
-const footer = (title) => `<div style="width:100%;box-sizing:border-box;padding:0 19mm;display:flex;align-items:center;justify-content:space-between;font-family:system-ui,'Segoe UI',Helvetica,Arial,sans-serif;font-size:7pt;color:${palette.faint};-webkit-print-color-adjust:exact;">
-  <span style="letter-spacing:.06em;">${escapeHtml(title)}</span>
+export const footer = (title, o) => `<div style="width:100%;box-sizing:border-box;padding:0 19mm;display:flex;align-items:center;justify-content:space-between;font-family:system-ui,'Segoe UI',Helvetica,Arial,sans-serif;font-size:7pt;color:${palette.faint};-webkit-print-color-adjust:exact;">
+  <span style="letter-spacing:.06em;">${escapeHtml(title)} · Version ${escapeHtml(o.version)}</span>
   <span style="color:${palette.regen800};font-weight:600;font-size:8pt;"><span class="pageNumber"></span></span>
   <span style="letter-spacing:.06em;">ReGen Villages</span>
 </div>`;
@@ -392,7 +408,7 @@ async function toPdf(htmlPath, o, title) {
       printBackground: true,
       displayHeaderFooter: true,
       headerTemplate: '<div></div>',
-      footerTemplate: footer(title),
+      footerTemplate: footer(title, o),
       tagged: true,
       outline: true,
       timeout: 180_000,

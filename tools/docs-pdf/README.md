@@ -6,18 +6,25 @@ built when somebody wants one and is never committed.
 ```bash
 cd tools/docs-pdf
 npm install                      # once
-node build.mjs ../../docs/FIELD_GUIDE.md
+node build.mjs ../../docs/FIELD_GUIDE.md --version 0.1.0
 ```
 
 That writes `docs/FIELD_GUIDE.pdf`. A guide in the other repository is rendered the same way, by naming
 it:
 
 ```bash
-node build.mjs ../../../VillageOS/docs/VILLAGEOS_FIELD_GUIDE.md
+node build.mjs ../../../VillageOS/docs/VILLAGEOS_FIELD_GUIDE.md --version 0.1.0
 ```
+
+**The PDF is the versioned document; the Markdown is not.** A guide changes on every merge, so a
+version or a date written into it goes stale and is never right for long. The version is given when a
+PDF is minted, and the cover carries it beside the date of minting and the commit the guide was
+rendered from, so a copy in someone's hands can always be traced back to the exact text it was made
+from. The running footer repeats the version.
 
 | Option | What it does |
 | --- | --- |
+| `--version <label>` | The version the minted PDF carries. Required, unless only the HTML is wanted |
 | `--out <file.pdf>` | Where the PDF goes. Default: the guide's own name, beside the guide |
 | `--keep-html` | Leave the intermediate HTML beside the PDF, to open in a browser |
 | `--html-only` | Write the HTML and stop, without starting a browser |
@@ -32,13 +39,13 @@ empty box.
 ## What it makes
 
 - **A cover** carrying the ReGen mark, the guide's own title and the standfirst under it, and the
-  document name, the date and the notice.
+  document name, the version, the date, the source commit and the notice.
 - **A contents page**, generated from the guide's headings rather than from any list the guide
   writes for itself — that list is dropped, so a reader never meets two.
 - **A divider page per part**, with the part's ordinal set large, who the part is written for, and
   the chapters it holds.
 - **A chapter badge** on every numbered heading, so a cross-reference to "chapter 42" is findable.
-- **A running footer** with the guide's name, the page number and the owner.
+- **A running footer** with the guide's name and version, the page number and the owner.
 - **A bookmark outline** in the PDF, so a reader can navigate from the sidebar, and tagged content
   for anything that reads a PDF aloud.
 
