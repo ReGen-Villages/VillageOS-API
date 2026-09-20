@@ -22,8 +22,6 @@ const WIKI = `${REPO}/wiki`;
 // also the branch a documentation deep-link should be stable against.
 const REPO_BRANCH = 'main';
 
-// --- pure helpers ----------------------------------------------------------
-
 // Azure DevOps project wikis percent-encode reserved characters in file names
 // (e.g. a literal hyphen in "API-Reference" is stored as API%2DReference.md).
 // GitHub addresses pages by the decoded name, so decode before writing.
@@ -131,8 +129,6 @@ function buildSidebar(readOrder) {
   }
   return lines.join('\n') + '\n';
 }
-
-// --- CLI -------------------------------------------------------------------
 
 function listMarkdown(dir, base = dir) {
   const out = [];

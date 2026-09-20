@@ -55,7 +55,6 @@ def main(argv) -> int:
         except urllib.error.HTTPError as e:
             return e.code, {"_err": e.read().decode()[:300]}
 
-    # ── resolve the built-in `is` predicate Thing id (any Thing named "is") ──
     is_pred = args.is_predicate
     if not is_pred:
         st, rels = get("/api/relationships")
@@ -116,7 +115,6 @@ def main(argv) -> int:
         "decimal capacity intact (250.5)": eff_val("capacity") == 250.5,
     }
 
-    # ── cleanup ──
     for tid in (X, A):
         try:
             client.delete_thing(tid)

@@ -23,7 +23,6 @@ def _out(name, type="any"):
 
 
 SERVICES = [
-    # ---- sources (no required inputs) --------------------------------------------------------------
     {"key": "generate", "label": "Generate Text", "subdomain": "generate",
      "ports": [_out("echo", "string")]},
     {"key": "timer", "label": "Timer Tick", "subdomain": "timer",
@@ -33,7 +32,6 @@ SERVICES = [
     {"key": "site-params", "label": "Site Parameters", "subdomain": "site-params",
      "ports": [_out("population", "number"), _out("area", "number"), _out("households", "number")]},
 
-    # ---- text / data transforms --------------------------------------------------------------------
     {"key": "echo", "label": "Echo", "subdomain": "echo",
      "ports": [_in("message", "string", required=True), _out("echo", "string")]},
     {"key": "uppercase", "label": "Uppercase", "subdomain": "uppercase",
@@ -45,13 +43,11 @@ SERVICES = [
     {"key": "format-report", "label": "Format Report", "subdomain": "format-report",
      "ports": [_in("data", "any", required=True), _out("text", "string")]},
 
-    # ---- arithmetic --------------------------------------------------------------------------------
     {"key": "multiply", "label": "Multiply", "subdomain": "multiply",
      "ports": [_in("value", "number", required=True), _in("factor", "number"), _out("result", "number")]},
     {"key": "sum", "label": "Sum", "subdomain": "sum",
      "ports": [_in("a", "number", required=True), _in("b", "number", required=True), _out("total", "number")]},
 
-    # ---- site-analysis domains (match live microservices) ------------------------------------------
     {"key": "water-reserve", "label": "Water Reserve", "subdomain": "water-reserve",
      "ports": [_in("population", "number", required=True),
                _in("perCapitaConsumptionM3", "number", required=True),
@@ -72,14 +68,12 @@ SERVICES = [
     {"key": "model-bridge", "label": "Model Bridge", "subdomain": "model-bridge",
      "ports": [_in("query", "string", required=True), _out("result", "any")]},
 
-    # ---- fan-out over a collection -----------------------------------------------------------------
     {"key": "score", "label": "Scorer", "subdomain": "score",
      "ports": [_in("item", "string", required=True, collection=True),
                _in("weight", "number"), _out("score", "string")]},
     {"key": "enrich", "label": "Batch Enrich", "subdomain": "enrich",
      "ports": [_in("record", "any", required=True, collection=True), _out("enriched", "any")]},
 
-    # ---- sink --------------------------------------------------------------------------------------
     {"key": "publish", "label": "Publish", "subdomain": "publish",
      "ports": [_in("payload", "any", required=True)]},
 ]

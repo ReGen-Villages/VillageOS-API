@@ -111,7 +111,6 @@ class Kit:
             }
         return self.rels[key]
 
-    # --- generic vocabulary (matched against a target model's own) -------------------------------
     def predicate(self, name):
         return self.thing(stable_id(_TAG, "predicate", name), name, shared=True)
 

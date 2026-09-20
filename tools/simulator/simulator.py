@@ -191,7 +191,6 @@ class Simulator:
         self.stats = collections.Counter()
         self.answers = {}
 
-    # ── per-op executors ─────────────────────────────────────────────────
     def _apply(self, action):
         op, a = action.op, action.args
         if op == "ledger_set":
@@ -270,7 +269,6 @@ class Simulator:
                 return
             raise
 
-    # ── setup: bulk-load or fast-apply the standing world ────────────────
     def _run_setup(self, setup):
         for action in setup:                       # ledger_set first so balances exist before writes
             if action.op == "ledger_set":
@@ -376,7 +374,6 @@ class Simulator:
                 paced_out.append(x)
         return setup_out + paced_out
 
-    # ── the pacer ────────────────────────────────────────────────────────
     def run(self, actions):
         actions = sorted(actions, key=lambda a: (a.offset, a.seq))
         # Coalesce BEFORE splitting/indexing: a pure function of the sorted input, so checkpoint
