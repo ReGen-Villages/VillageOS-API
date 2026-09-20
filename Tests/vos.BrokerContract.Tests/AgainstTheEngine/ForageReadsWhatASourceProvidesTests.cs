@@ -6,16 +6,14 @@ using Xunit;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
-/// <summary>
-/// Forage's read of a site, resolved by the real engine from the selector the service sends, rather
-/// than a snapshot a test built holding every Thing.
-///
-/// The resolver composes a source's <c>variables</c> from the Things it reaches through the predicate
-/// marked as providing them, reading the predicate and the variables out of the snapshot it was handed.
-/// Its unit tests hand it one holding all of them, so a selector that asked for none passed every case
-/// while every live discovery run called the climate history with the placeholder unfilled and was
-/// answered 400 (Bug #7192). This is the case that could not have.
-/// </summary>
+// Forage's read of a site, resolved by the real engine from the selector the service sends, rather
+// than a snapshot a test built holding every Thing.
+//
+// The resolver composes a source's variables from the Things it reaches through the predicate
+// marked as providing them, reading the predicate and the variables out of the snapshot it was handed.
+// Its unit tests hand it one holding all of them, so a selector that asked for none passed every case
+// while every live discovery run called the climate history with the placeholder unfilled and was
+// answered 400. This is the case that could not have.
 public class ForageReadsWhatASourceProvidesTests : IClassFixture<TheEngine>
 {
     private readonly TheEngine _engine;

@@ -862,10 +862,10 @@ public class CoveringSourceResolverTests
     [Fact]
     public void SelectorFor_ReachesTheVariablesASourceProvidesThroughTheMarkedPredicateAndAsksForThePredicateAlone()
     {
-        // The variables are composed from the edges a source holds through the marked predicate, read out
+        // The variables are composed from the relationships a source holds through the marked predicate, read out
         // of the snapshot, so both have to arrive: the variables by a traversal over the flag rather than
         // a name the model chose, and the predicate by its mark, since a traversal never brings the Thing
-        // it was followed through. Without either every live read left the placeholder unfilled (Bug #7192).
+        // it was followed through. Without either every live read left the placeholder unfilled.
         var selector = CoveringSourceResolver.SelectorFor(Guid.NewGuid());
         var flags = selector.Traverse!.Select(rule => rule.PredicateFlag).ToList();
         var predicates = selector.Traverse!.Select(rule => rule.Predicate).ToList();
