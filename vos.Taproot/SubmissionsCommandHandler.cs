@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using static vos.Taproot.ModelReading;
 
 namespace vos.Taproot;
 
@@ -18,10 +19,6 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
     public const string ProposedSitePredicateFlag = "__IsProposedSitePredicate";
     public const string DispositionArchetypeFlag = "__IsSubmissionDispositionArchetype";
     public const string DispositionPredicateFlag = "__IsSubmissionDispositionPredicate";
-
-    /// <summary>The platform's one canonical predicate, and the only predicate name a reader may hold: it
-    /// is the platform's own vocabulary rather than any model's, and nothing marks it.</summary>
-    private const string IsPredicateName = "is";
 
     /// <summary>The period after which a submission resolved to this disposition goes. Which disposition is
     /// disposable is read off the model as the one naming it, so a model spelling `rejected` differently
@@ -64,7 +61,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
 
     private async Task ListAsync()
     {
-        var model = await ReadModelAsync();
+        var model = await ModelSnapshot.ReadAsync(client!);
         var submissions = SubmissionsIn(model).ToList();
 
         if (submissions.Count == 0)
@@ -93,7 +90,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
             return;
         }
 
-        var model = await ReadModelAsync();
+        var model = await ModelSnapshot.ReadAsync(client!);
         // Everything after the subcommand, because a submission's name is the site's followed by a word and
         // the parser splits on spaces. Nothing follows it, so there is nothing to take the rest from it.
         if (Identify(model, string.Join(' ', args)) is not { } submission)
@@ -126,7 +123,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
             return;
         }
 
-        var model = await ReadModelAsync();
+        var model = await ModelSnapshot.ReadAsync(client!);
         if (Identify(model, args[0]) is not { } submission)
             return;
 
@@ -165,7 +162,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
             return;
         }
 
-        var model = await ReadModelAsync();
+        var model = await ModelSnapshot.ReadAsync(client!);
         if (OneOwning(model, ProposedSitePredicateFlag) is not { } proposes)
         {
             writer.WriteLine($"This model marks no predicate with '{ProposedSitePredicateFlag}'.");
@@ -276,32 +273,6 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
 
     // ── Reading the model ────────────────────────────────────────────────────
 
-    /// <summary>Everything the commands read, taken once. Properties are read effective rather than own:
-    /// seed normalization moves a Thing's own values into its overrides, and a reader looking only at own
-    /// properties finds a model full of Things and reads nothing off them.
-    ///
-    /// <para>Things arrive as a list and are held by identifier, because every question asked of one here
-    /// is asked while walking the submissions. Searching the list for each would read the whole model once
-    /// per submission, so the cost of listing a queue would grow with the size of the model around it.</para>
-    /// </summary>
-    private sealed record ModelSnapshot(
-        IReadOnlyDictionary<Guid, JsonElement> ThingsById, JsonElement Relationships, JsonElement Properties);
-
-    private async Task<ModelSnapshot> ReadModelAsync() => new(
-        ByIdentifier(await client!.GetAllThingsAsync()),
-        await client.GetAllRelationshipsAsync(),
-        await client.GetAllPropertiesAsync("effective"));
-
-    /// <summary>The first Thing under each identifier, which is what searching the list found before.</summary>
-    internal static IReadOnlyDictionary<Guid, JsonElement> ByIdentifier(JsonElement things)
-    {
-        var byIdentifier = new Dictionary<Guid, JsonElement>();
-        foreach (var thing in things.EnumerateArray())
-            byIdentifier.TryAdd(Identifier(thing, "Id"), thing);
-
-        return byIdentifier;
-    }
-
     private static IEnumerable<Submission> SubmissionsIn(ModelSnapshot model)
     {
         if (OneOwning(model, ProposedSitePredicateFlag) is not { } proposes)
@@ -346,91 +317,6 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
             var id = Subject(edge);
             yield return (id, NameOf(model, id) ?? id.ToString());
         }
-    }
-
-    /// <summary>The one Thing that owns a mark. More than one leaves a reader with two answers and no way
-    /// to choose, so it answers with none rather than picking.</summary>
-    private static (Guid Id, string Name)? OneOwning(ModelSnapshot model, string flag)
-    {
-        var owning = model.Properties.EnumerateObject()
-            .Where(entry => Owns(entry.Value, flag))
-            .Select(entry => Guid.TryParse(entry.Name, out var id) ? id : Guid.Empty)
-            .Where(id => id != Guid.Empty)
-            .ToList();
-
-        return owning.Count == 1 ? (owning[0], NameOf(model, owning[0]) ?? "") : null;
-    }
-
-    /// <summary>Owned, not merely present. Properties are read effective, and a mark is an ordinary
-    /// property on the archetype, so every term that `is` it reads the mark too. Counting every carrier
-    /// finds the archetype and all of its terms, and a vocabulary then reads as ambiguous the moment it
-    /// has any terms at all — which is every seeded model.</summary>
-    private static bool Owns(JsonElement properties, string flag) =>
-        properties.TryGetProperty(flag, out var mark)
-        && mark.TryGetProperty("IsInherited", out var inherited)
-        && inherited.ValueKind == JsonValueKind.False;
-
-    private static IEnumerable<JsonElement> EdgesThrough(ModelSnapshot model, Guid predicate) =>
-        model.Relationships.EnumerateArray().Where(edge => Predicate(edge) == predicate);
-
-    private static Guid Subject(JsonElement edge) => Identifier(edge, "SubjectId");
-
-    private static Guid Predicate(JsonElement edge) => Identifier(edge, "PredicateId");
-
-    private static Guid Target(JsonElement edge) => Identifier(edge, "TargetId");
-
-    private static Guid Identifier(JsonElement element, string name) =>
-        element.TryGetProperty(name, out var value) && value.TryGetGuid(out var id) ? id : Guid.Empty;
-
-    private static string? NameOf(ModelSnapshot model, Guid id) =>
-        model.ThingsById.TryGetValue(id, out var thing) && thing.TryGetProperty("Name", out var name)
-            ? name.GetString()
-            : null;
-
-    private static bool IsArchetype(ModelSnapshot model, Guid id) =>
-        model.ThingsById.TryGetValue(id, out var thing)
-        && thing.TryGetProperty("IsArchetype", out var archetype)
-        && archetype.ValueKind == JsonValueKind.True;
-
-    /// <summary>A property as text, whatever it is written as, because everything here is displayed.
-    ///
-    /// A Thing's own value is keyed by the bare name, but a value it holds for a name its archetype
-    /// declares comes back keyed by that archetype — <c>Submission.submittedAt</c> rather than
-    /// <c>submittedAt</c>. Both are the same property to a reader, so the name is matched after its
-    /// declaring prefix.
-    ///
-    /// A Thing cannot own a name and inherit the same one, so at most one key can match — except where
-    /// the name is inherited from more than one archetype. The model answers a bare read of that with an
-    /// ambiguity and asks for the full path; a list has no path to give, so it says which paths it found
-    /// rather than showing a reviewer a value the model itself declines to choose.</summary>
-    /// <summary>A key's name without the archetype that declared it, which is how the same property reads
-    /// whether a Thing holds it or inherits it.</summary>
-    private static string DeclaredName(string key) => key[(key.LastIndexOf('.') + 1)..];
-
-    private static string? Value(ModelSnapshot model, Guid thing, string property)
-    {
-        if (!model.Properties.TryGetProperty(thing.ToString(), out var properties)) return null;
-
-        var matching = properties.EnumerateObject()
-            .Where(held => DeclaredName(held.Name) == property)
-            .ToList();
-
-        if (matching.Count > 1)
-            throw new InvalidOperationException(
-                $"'{property}' is inherited from more than one archetype on {thing}, so reading it by that "
-                + $"name alone says nothing: {string.Join(", ", matching.Select(held => held.Name))}. "
-                + "Read it by its full path.");
-
-        if (matching.Count == 0) return null;
-        var held = matching[0].Value;
-
-        var value = held.TryGetProperty("Value", out var inner) ? inner : held;
-        return value.ValueKind switch
-        {
-            JsonValueKind.Null or JsonValueKind.Undefined => null,
-            JsonValueKind.String => value.GetString(),
-            _ => value.ToString(),
-        };
     }
 
     private void ShowHelp()

@@ -96,6 +96,28 @@ public class CommandHandlerTests
     }
 
     [Fact]
+    public async Task HandleCommandAsync_Pipeline_IsDispatchedToThePipelineHandler()
+    {
+        var writer = new StringWriter();
+        var handler = CreateHandler(new StringReader(""), writer);
+
+        await handler.HandleCommandAsync("pipeline", "cancel not-an-id");
+
+        Assert.DoesNotContain("Unknown command", writer.ToString());
+        Assert.Contains("Usage: pipeline cancel", writer.ToString());
+    }
+
+    [Fact]
+    public void ShowHelp_ListsThePipelineCommands()
+    {
+        var writer = new StringWriter();
+        CreateHandler(new StringReader(""), writer).ShowHelp();
+
+        Assert.Contains("pipeline run", writer.ToString());
+        Assert.Contains("pipeline history", writer.ToString());
+    }
+
+    [Fact]
     public async Task HandleCommandAsync_Logs_IsDispatchedToTheLogsHandler()
     {
         var writer = new StringWriter();

@@ -115,6 +115,12 @@ namespace vos.Taproot
             _writer.WriteLine("  model switch <id|name>                      - Switch to a different model");
             _writer.WriteLine("  clear model                                 - Clear all things and relationships");
             _writer.WriteLine();
+            _writer.WriteLine("Pipelines:");
+            _writer.WriteLine("  pipeline list                               - Every pipeline the model holds");
+            _writer.WriteLine("  pipeline run <pipeline> [json params] [--wait] - Start a run; --wait prints the per-node result");
+            _writer.WriteLine("  pipeline cancel <run-id>                    - Ask a running pipeline to stop");
+            _writer.WriteLine("  pipeline history <pipeline>                 - The runs of a pipeline, newest first");
+            _writer.WriteLine();
             _writer.WriteLine("Mycelium:");
             _writer.WriteLine("  mycelium status                               - Show Mycelium seed status");
             _writer.WriteLine("  mycelium endpoints                            - List registered endpoint services");
@@ -225,6 +231,7 @@ namespace vos.Taproot
             ["logs"] = async (_, a) => await new LogsCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["events"] = async (_, a) => await new EventsCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["call"] = async (_, a) => await new CallCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["pipeline"] = async (_, a) => await new PipelineCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
         };
 
         public async Task RunAsync()
