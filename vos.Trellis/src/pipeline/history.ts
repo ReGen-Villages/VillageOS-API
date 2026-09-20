@@ -1,4 +1,4 @@
-// Undo history + optimistic-save baseline for the pipeline editor (US #5872).
+// Undo history + optimistic-save baseline for the pipeline editor.
 //
 // Two jobs, one small structure:
 //  - Undo: `record` the editor state *before* each mutation; `undo` pops the last one back.
@@ -28,12 +28,10 @@ export class EditorHistory<T> {
     return this.past.length > 0;
   }
 
-  /** Pop and return the state before the last recorded change, or null if there is nothing to undo. */
   undo(): T | null {
     return this.past.pop() ?? null;
   }
 
-  /** Mark `state` as the saved baseline and drop the undo stack — a successful save, load, or new canvas. */
   commit(state: T): void {
     this.baseline = state;
     this.past = [];

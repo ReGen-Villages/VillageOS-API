@@ -16,7 +16,7 @@ public static class MyceliumModelToken
 
     internal static void Set(string? token) => _current.Value = token;
 
-    /// <summary>Run work that belongs to a model but arrived on no request, under that model's token.</summary>
+    // Run work that belongs to a model but arrived on no request, under that model's token.
     public static async Task ActingForAsync(string token, Func<Task> work)
     {
         var restore = _current.Value;

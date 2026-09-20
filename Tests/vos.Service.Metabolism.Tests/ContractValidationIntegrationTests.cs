@@ -7,7 +7,7 @@ using Xunit;
 namespace vos.Service.Metabolism.Tests;
 
 // Integration tests covering the contract-validation middleware on Metabolism's /handle
-// endpoint. Task #5429 wires AddContractValidation + UseRequestContractValidation
+// endpoint. Program.cs wires AddContractValidation + UseRequestContractValidation
 // + RequireContract<HandleRequest> into Program.cs. Tests use
 // WebApplicationFactory<Program> (same pattern as EndpointMapperTests).
 // Schema: handle-request-metabolism.schema.json — requires subjectId and

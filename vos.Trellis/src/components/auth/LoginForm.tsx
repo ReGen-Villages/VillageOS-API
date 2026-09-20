@@ -93,7 +93,6 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
     return filtered;
   }, [availableModels, search, sortKey, sortDir]);
 
-  // Model/seed picker — shown after credentials validated OR during model switch
   if (availableModels && availableModels.length > 0 && (onSelectModel || (username && password))) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900">
@@ -204,7 +203,6 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
     );
   }
 
-  // Phase 1: Credentials
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-900">
       <div className="fixed top-3 right-3 z-10">

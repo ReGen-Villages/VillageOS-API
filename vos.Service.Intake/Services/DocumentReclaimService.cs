@@ -1,7 +1,7 @@
 namespace vos.Service.Intake.Services;
 
-/// <summary>Takes the files of submissions the model has let go, once an hour: the retention pass runs on
-/// its own clock in the command line, so the store checks rather than being told.</summary>
+// Takes the files of submissions the model has let go, once an hour: the retention pass runs on
+// its own clock in the command line, so the store checks rather than being told.
 public sealed class DocumentReclaimService(SharedDocumentService documents, ILogger<DocumentReclaimService> logger) : BackgroundService
 {
     public static readonly TimeSpan Interval = TimeSpan.FromHours(1);

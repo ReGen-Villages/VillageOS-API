@@ -5,9 +5,8 @@ import { ingestApi } from '../../api/ingestApi';
 import { reloadModelData } from '../../hooks/useModelData';
 import { toast } from '../common/toastStore';
 
-// In-app IFC ingestion (#5844): drop or pick an .ifc, upload it to the Xylem service, and let the model
-// reload over SSE — replacing the old "go run vos.Tools.ModelIngest" empty state. Falls back to a hint when
-// no ingestion service is configured.
+// In-app IFC ingestion: drop or pick an .ifc, upload it to the Xylem service, and let the model
+// reload over SSE. Falls back to a hint when no ingestion service is configured.
 export function IfcUploadDropzone() {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);

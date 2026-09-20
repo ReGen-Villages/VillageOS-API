@@ -4,13 +4,13 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Forage.Services;
 
-// Turns the words a run's fetches wrote into the edges the model declares (#6809). The declaration is
+// Turns the words a run's fetches wrote into the relationships the model declares. The declaration is
 // read from one scoped snapshot after the fetches; the words come from the fetch responses, so nothing
 // here races the observation drainer.
 //
-// A word the vocabulary does not hold writes no edge and is reported naming the source, the subject,
+// A word the vocabulary does not hold writes no relationship and is reported naming the source, the subject,
 // the property, the word and the vocabulary — neither silently dropped nor silently written. A stale
-// edge is removed before its replacement is written, so a re-graded assessment never carries two
+// relationship is removed before its replacement is written, so a re-graded assessment never carries two
 // levels; a run that fails between the two leaves none, is reported, and the next run's fetch resolves
 // again.
 public sealed class VocabularyEdgeWriter
@@ -42,7 +42,7 @@ public sealed class VocabularyEdgeWriter
         {
             // The observations are already written and the site has left the state that dispatches a
             // run, so nothing retries this by itself — said out loud rather than left as words that
-            // quietly never became edges.
+            // quietly never became relationships.
             _logger.LogError(
                 "Could not read the vocabulary declarations for site {SiteId}; the fetched words stay "
                 + "unresolved until the next discovery run", siteId);
@@ -67,7 +67,7 @@ public sealed class VocabularyEdgeWriter
         foreach (var stale in edge.Replaces)
             if (!await _mycelium.DeleteRelationshipAsync(stale, cancellationToken))
             {
-                // Writing beside an edge that would not go would leave two answers; leaving the stale
+                // Writing beside a relationship that would not go would leave two answers; leaving the stale
                 // one alone keeps exactly one, and the next run resolves again.
                 _logger.LogError(
                     "Could not remove the stale vocabulary edge {RelationshipId} from {Subject}; "

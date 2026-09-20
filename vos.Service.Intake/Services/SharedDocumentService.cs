@@ -9,12 +9,10 @@ public enum ShareOutcome { Shared, NotYourSubmission, NotTakenHere }
 
 public sealed record SharedFile(ShareOutcome Outcome, string? Address = null, SharedDocumentListing? Document = null);
 
-/// <summary>
-/// A file a submitter shares about their land: the bytes go to the store beside this service, and the
-/// model gets the Thing it declares for one — its name, description, media type and size — related to
-/// the submission's project through the predicate the model marks, so the review page can list it and
-/// the retention pass takes it with a rejected submission.
-/// </summary>
+// A file a submitter shares about their land: the bytes go to the store beside this service, and the
+// model gets the Thing it declares for one — its name, description, media type and size — related to
+// the submission's project through the predicate the model marks, so the review page can list it and
+// the retention pass takes it with a rejected submission.
 public sealed class SharedDocumentService(
     IntakeMyceliumClient mycelium,
     ISubscriptionClient subscriptions,
@@ -23,7 +21,7 @@ public sealed class SharedDocumentService(
     ILogger<SharedDocumentService> logger)
 {
     public const long MaximumFileBytes = 25 * 1024 * 1024;
-    /// <summary>The file and the form around it: a description and the multipart framing.</summary>
+    // The file and the form around it: a description and the multipart framing.
     public const long MaximumRequestBytes = MaximumFileBytes + 64 * 1024;
 
     public async Task<SharedFile> ShareAsync(
@@ -63,8 +61,8 @@ public sealed class SharedDocumentService(
             new SharedDocumentListing(documentId, fileName, description, contentType, stored.SizeBytes, sharedAt));
     }
 
-    /// <summary>The files a submission holds, or null where the ticket was issued for no address the
-    /// submission names.</summary>
+    // The files a submission holds, or null where the ticket was issued for no address the
+    // submission names.
     public async Task<(IReadOnlyList<SharedDocumentListing> Documents, string Address)?> ListAsync(
         string submissionId, Func<string, bool> ticketIssuedFor, CancellationToken cancellation)
     {
@@ -82,11 +80,11 @@ public sealed class SharedDocumentService(
         return (documents, address);
     }
 
-    /// <summary>Takes the files of every submission the model no longer holds. The retention pass prunes
-    /// a rejected submission's Things once its period has run; the bytes cannot go with them, since the
-    /// model never held them, so this asks the model which submissions still stand and forgets the rest.
-    /// A model that declares no shared file is asked nothing: one not seeded yet, or not the one the files
-    /// were taken into, would otherwise read as having let every submission go.</summary>
+    // Takes the files of every submission the model no longer holds. The retention pass prunes
+    // a rejected submission's Things once its period has run; the bytes cannot go with them, since the
+    // model never held them, so this asks the model which submissions still stand and forgets the rest.
+    // A model that declares no shared file is asked nothing: one not seeded yet, or not the one the files
+    // were taken into, would otherwise read as having let every submission go.
     public async Task<int> ReclaimAsync(CancellationToken cancellation)
     {
         var held = store.SubmissionsHeld();

@@ -54,7 +54,6 @@ describe('resolveRelations', () => {
     ]);
     expect(group.label).toBe('Project tasks');
     expect(group.edges.map((e) => e.relatedName)).toEqual(['PRJ-1-T1']);
-    // 'has' also reaches the steward, but the archetype filter excludes it.
     expect(group.edges.some((e) => e.relatedName === 'STW-1')).toBe(false);
   });
 
@@ -106,7 +105,6 @@ describe('resolveRelations', () => {
       },
     ]);
     const task = group.edges[0];
-    // The resource's code is hoisted ahead of the task's own quantity; no nested Resource card remains.
     expect(task.properties).toEqual([['code', 'RES-9'], ['quantity', 5]]);
     expect(task.children).toEqual([]);
   });

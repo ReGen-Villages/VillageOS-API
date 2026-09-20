@@ -1,7 +1,5 @@
 import { useTranslation } from 'react-i18next';
 
-/** Tiny area+line sparkline with an emphasised endpoint, optionally read against a dashed
- *  reference line. Pure SVG, theme-aware. */
 export function Sparkline({
   values,
   baseline,

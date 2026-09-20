@@ -9,7 +9,7 @@ using static vos.Service.Tributary.Tests.MyceliumStub;
 
 namespace vos.Service.Tributary.Tests;
 
-// Integration tests for the ModelAsset kind through /handle (#6608): an endpoint reaching
+// Integration tests for the ModelAsset kind through /handle: an endpoint reaching
 // ModelAsset through keepsBy deposits the bytes a real upstream fetch served and writes the
 // ticket onto the assetSubject's assetProperty as an ordinary observation — timestamped by
 // the observedAtParameter value when the model names one, else left to the broker's model

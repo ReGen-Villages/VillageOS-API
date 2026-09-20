@@ -9,13 +9,13 @@ namespace vos.Service.Intake.Configuration;
 public sealed record IntakeLaunchSettings(
     ServiceLaunchSettings Service, string[] PublicFormOrigins, string FetcherSubdomain, string DocumentDirectory)
 {
-    /// <summary>Where the files a submitter shares are kept, keyed by submission, when no folder is
-    /// given: beside the service, so a deployment that never shares a file configures nothing.</summary>
+    // Where the files a submitter shares are kept, keyed by submission, when no folder is
+    // given: beside the service, so a deployment that never shares a file configures nothing.
     public const string DefaultDocumentDirectory = "documents";
 
-    /// <summary>The routing label the fetching service answers on, as the shipped analysis template
-    /// declares it — the same default the discovery service uses, overridden the same way where a
-    /// deployment points its fetches elsewhere.</summary>
+    // The routing label the fetching service answers on, as the shipped analysis template
+    // declares it — the same default the discovery service uses, overridden the same way where a
+    // deployment points its fetches elsewhere.
     public const string DefaultFetcherSubdomain = "tributary";
 
     public static IntakeLaunchSettings? Parse(string[]? arguments, IConfiguration? configuration = null)

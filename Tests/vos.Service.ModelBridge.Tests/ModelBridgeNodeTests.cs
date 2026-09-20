@@ -8,7 +8,7 @@ using Xunit;
 
 namespace vos.Service.ModelBridge.Tests;
 
-// Story #5866 — the model⇄DAG bridge: read outputs a Thing's property value, write persists its input onto one.
+// The model⇄DAG bridge: read outputs a Thing's property value, write persists its input onto one.
 public class ModelBridgeNodeTests
 {
     private static readonly Guid ThingId = Guid.Parse("11111111-1111-1111-1111-111111111111");

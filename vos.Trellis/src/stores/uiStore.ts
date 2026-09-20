@@ -15,7 +15,7 @@ const DEFAULT_TYPE_SORT: SortOrder = 'count-desc';
 const VALID_TYPE_SORTS: readonly SortOrder[] = ['count-desc', 'count-asc', 'name-asc', 'name-desc'];
 
 /**
- * Feature #5362 — load the persisted set of hidden type Thing ids for a model.
+ * Load the persisted set of hidden type Thing ids for a model.
  * Per-model so different models don't share filter state. Returns an empty
  * Set when no model is selected or no persisted state exists.
  */
@@ -42,7 +42,7 @@ function persistHiddenTypeIds(modelId: string | null, ids: Set<string>): void {
 }
 
 /**
- * Feature #5386 — per-model TypeFilterPanel sort order, persisted in
+ * Per-model TypeFilterPanel sort order, persisted in
  * localStorage so the user's preferred view sticks across reloads. Mirrors
  * the hiddenTypeIds pattern; falls back to count-desc on missing / invalid
  * stored values.
@@ -75,7 +75,6 @@ function loadPanelWidth(): number {
 }
 
 interface UiState {
-  // ── Selection & hover ─────────────────────────────────────────────
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
   hoveredNodeId: string | null;
@@ -96,7 +95,7 @@ interface UiState {
   statesMoved: (states: string[]) => void;
 
 
-  // ── Type filter (Feature #5362) ───────────────────────────────────
+  // ── Type filter ───────────────────────────────────
   // Set of type Thing ids currently hidden. Domain-agnostic — any Thing
   // that is the target of an `is` relationship is a "type" for purposes
   // of this filter. Both the Graph page (Sigma) and the Model page
@@ -110,11 +109,10 @@ interface UiState {
   setHiddenTypeIds: (ids: Set<string>) => void;
   clearHiddenTypeIds: () => void;
 
-  // Feature #5386 — TypeFilterPanel sort order, persisted per model.
   typeSortOrder: SortOrder;
   setTypeSortOrder: (order: SortOrder) => void;
 
-  // ── Predicate edge-visibility filter (Bug #5365) ──────────────────
+  // ── Predicate edge-visibility filter ──────────────────
   // Set of predicate ids whose edges should be HIDDEN. Mirror semantic of
   // hiddenTypeIds: empty set = nothing hidden = all edges show. Driven by
   // PredicateFilterPanel; consumed by NodeReducer.edgeReducer. Independent
@@ -125,7 +123,6 @@ interface UiState {
   setHiddenPredicateIds: (ids: Set<string>) => void;
   clearHiddenPredicateIds: () => void;
 
-  // ── Predicate clustering ───────────────────────────────────────────
   activePredicateIds: Set<string>;
   clusterMap: ClusterMap | null;
   predicateStats: PredicateStats[];
@@ -133,7 +130,6 @@ interface UiState {
   expandedNodes: Set<string>;
   radialMenuOpen: boolean;
   radialMenuPosition: { x: number; y: number } | null;
-  // ── Logical node expansion (Phase 3) ─────────────────────────────
   expandedLogicalParents: Set<string>;
   semanticZoomEnabled: boolean;
   toggleLogicalExpansion: (geoNodeId: string) => void;
@@ -141,30 +137,24 @@ interface UiState {
   clearLogicalExpansions: () => void;
   setSemanticZoomEnabled: (enabled: boolean) => void;
 
-  // ── Node context menu ──────────────────────────────────────────
   nodeContextMenuOpen: boolean;
   nodeContextMenuPosition: { x: number; y: number } | null;
   nodeContextMenuNodeId: string | null;
   openNodeContextMenu: (opts: { nodeId: string; position: { x: number; y: number } }) => void;
   closeNodeContextMenu: () => void;
 
-  // ── Layout freeze ────────────────────────────────────────────────
   isLayoutFrozen: boolean;
   toggleLayoutFrozen: () => void;
 
-  // ── Spread mode ────────────────────────────────────────────────
   isSpreadActive: boolean;
   toggleSpreadActive: () => void;
 
-  // ── Layout settings (from GUI Settings Thing) ────────────────────
   layoutSettings: LayoutSettings;
   setLayoutSettings: (settings: LayoutSettings) => void;
 
-  // ── Predicate colors (from GUI_Settings PredicateColors) ────────
   predicateColors: Record<string, string>;
   setPredicateColors: (colors: Record<string, string>) => void;
 
-  // ── Flash effects (property mutation pulse) ─────────────────────
   flashSettings: FlashSettings;
   flashingNodeIds: Set<string>;
   flashingEdgeIds: Set<string>;
@@ -188,7 +178,6 @@ interface UiState {
 export { MIN_PANEL_WIDTH, MAX_PANEL_WIDTH };
 
 export const useUiStore = create<UiState>((set) => ({
-  // ── Selection & hover ────────────────────────────────────────────────
   selectedNodeId: null,
   selectedEdgeId: null,
   hoveredNodeId: null,
@@ -202,7 +191,6 @@ export const useUiStore = create<UiState>((set) => ({
     set({ detailPanelWidth: clamped });
   },
 
-  // ── States refresh counters ───────────────────────────────────────
   statesVersion: 0,
   stateVersions: {},
   statesMoved: (states) =>
@@ -212,13 +200,11 @@ export const useUiStore = create<UiState>((set) => ({
       return { statesVersion: s.statesVersion + 1, stateVersions: moved };
     }),
 
-  // ── Type filter (Feature #5362) ───────────────────────────────────
   currentModelId: null,
   hiddenTypeIds: new Set<string>(),
   typeSortOrder: DEFAULT_TYPE_SORT,
   setCurrentModelId: (modelId) => set(() => ({
     currentModelId: modelId,
-    // Re-load persisted filter state for the new model
     hiddenTypeIds: loadHiddenTypeIds(modelId),
     typeSortOrder: loadTypeSort(modelId),
   })),
@@ -242,7 +228,6 @@ export const useUiStore = create<UiState>((set) => ({
     return { hiddenTypeIds: new Set<string>() };
   }),
 
-  // ── Predicate edge-visibility filter (Bug #5365) ──────────────────
   hiddenPredicateIds: new Set<string>(),
   toggleHiddenPredicate: (predicateId) => set((s) => {
     const next = new Set(s.hiddenPredicateIds);
@@ -257,7 +242,6 @@ export const useUiStore = create<UiState>((set) => ({
     hiddenPredicateIds: new Set<string>(),
   })),
 
-  // ── Predicate clustering ─────────────────────────────────────────────
   activePredicateIds: new Set<string>(),
   clusterMap: null,
   predicateStats: [],
@@ -265,7 +249,6 @@ export const useUiStore = create<UiState>((set) => ({
   expandedNodes: new Set<string>(),
   radialMenuOpen: false,
   radialMenuPosition: null,
-  // ── Logical node expansion (Phase 3) ────────────────────────────────
   expandedLogicalParents: new Set<string>(),
   semanticZoomEnabled: true,
 
@@ -289,7 +272,6 @@ export const useUiStore = create<UiState>((set) => ({
 
   setSemanticZoomEnabled: (enabled) => set({ semanticZoomEnabled: enabled }),
 
-  // ── Node context menu ────────────────────────────────────────────────
   nodeContextMenuOpen: false,
   nodeContextMenuPosition: null,
   nodeContextMenuNodeId: null,
@@ -298,23 +280,18 @@ export const useUiStore = create<UiState>((set) => ({
   closeNodeContextMenu: () =>
     set({ nodeContextMenuOpen: false, nodeContextMenuPosition: null, nodeContextMenuNodeId: null }),
 
-  // ── Layout freeze ──────────────────────────────────────────────────
   isLayoutFrozen: false,
   toggleLayoutFrozen: () => set((s) => ({ isLayoutFrozen: !s.isLayoutFrozen })),
 
-  // ── Spread mode ──────────────────────────────────────────────────
   isSpreadActive: false,
   toggleSpreadActive: () => set((s) => ({ isSpreadActive: !s.isSpreadActive })),
 
-  // ── Layout settings (from GUI Settings Thing) ──────────────────────
   layoutSettings: { ...LAYOUT_DEFAULTS },
   setLayoutSettings: (settings) => set({ layoutSettings: settings }),
 
-  // ── Predicate colors (from GUI_Settings PredicateColors) ─────────────
   predicateColors: {},
   setPredicateColors: (colors) => set({ predicateColors: colors }),
 
-  // ── Flash effects (property mutation pulse) ─────────────────────────
   flashSettings: { ...FLASH_DEFAULTS },
   flashingNodeIds: new Set<string>(),
   flashingEdgeIds: new Set<string>(),

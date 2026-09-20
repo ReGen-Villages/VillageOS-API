@@ -5,7 +5,6 @@ describe('isSafari', () => {
   const originalNavigator = globalThis.navigator;
 
   afterEach(() => {
-    // Restore original navigator
     Object.defineProperty(globalThis, 'navigator', {
       value: originalNavigator,
       writable: true,

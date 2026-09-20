@@ -7,7 +7,7 @@ using Xunit;
 
 namespace vos.Service.Tributary.Tests;
 
-// The kind edges sit on the template a registration `is`, and the selector applies traverse rules
+// The kind relationships sit on the template a registration `is`, and the selector applies traverse rules
 // before it closes over `is` ancestors. These pin both halves: the selector asked for, and the
 // walk that reads the answer back out of the snapshot it returns.
 public class EndpointKindResolverTests
@@ -55,8 +55,8 @@ public class EndpointKindResolverTests
     }
 
     // A predicate Thing is not pulled into a snapshot by being a predicate. Traversal adds the Things
-    // an edge points AT, and the incident-relationship pass adds the edges themselves — nothing adds
-    // the Thing naming the edge. Resolve matches on that name, so a predicate the selector does not
+    // a relationship points AT, and the incident-relationship pass adds the relationships themselves — nothing adds
+    // the Thing naming the relationship. Resolve matches on that name, so a predicate the selector does not
     // ask for by name is a role that silently matches nothing and reads as "reaches no kind".
     [Fact]
     public void SelectorFor_AsksForEveryPredicateResolveMatchesOn_ByName()

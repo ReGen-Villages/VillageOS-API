@@ -104,7 +104,6 @@ export const findingsApi = {
       request.send(form);
     }),
 
-  /** The files the model holds for the submission, under the ticket, for the page that shared them. */
   listDocumentsWithTicket: async (
     submissionId: string,
     ticket: string,

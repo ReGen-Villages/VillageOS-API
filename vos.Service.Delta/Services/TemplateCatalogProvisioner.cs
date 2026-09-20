@@ -4,18 +4,18 @@ using vos.Service.Shared.Subscriptions;
 namespace vos.Service.Delta.Services;
 
 // Idempotently provisions the endpoint-template catalog into one model. Idempotency rests on
-// find-or-create by name and on one read of the edges the catalog already carries: a name lookup
-// alone cannot tell a finished template from one whose `is` edge failed on an earlier run, and the
+// find-or-create by name and on one read of the relationships the catalog already carries: a name lookup
+// alone cannot tell a finished template from one whose `is` relationship failed on an earlier run, and the
 // second keeps resolving to its parent's values while looking correct. The is predicate is a model
 // primitive and is never created — if missing, provisioning logs and returns null, and the caller
 // refuses the registration.
 // A template is provisioned in three steps rather than one, because the order decides how Mycelium
 // stores a key the template narrows: create the thing with the keys no ancestor declares, wire its
-// is edge, then write the narrowed keys, which by then resolve as inherited and are stored as
+// is relationship, then write the narrowed keys, which by then resolve as inherited and are stored as
 // overrides (see NarrowedKeys).
-// The narrowed keys hang off the edge rather than off the create, which is what makes a repair whole:
-// a run that wires an edge some earlier run left unwritten writes them too, and a run that finds the
-// edge already there writes nothing at all.
+// The narrowed keys hang off the relationship rather than off the create, which is what makes a repair whole:
+// a run that wires a relationship some earlier run left unwritten writes them too, and a run that finds the
+// relationship already there writes nothing at all.
 public sealed class TemplateCatalogProvisioner
 {
     private readonly MyceliumClient _myceliumClient;
@@ -122,8 +122,8 @@ public sealed class TemplateCatalogProvisioner
             }
         }
 
-        // Kinds last: a role edge is written onto a template, so the template must already exist and
-        // already be in its own `is` chain, or the edge lands on a Thing whose narrowed keys are still
+        // Kinds last: a role relationship is written onto a template, so the template must already exist and
+        // already be in its own `is` chain, or the relationship lands on a Thing whose narrowed keys are still
         // unwritten and a reader resolving through it sees the parent's values.
         var kindEdges = await ProvisionKindsAsync(idByName, existingEdges);
 
@@ -135,17 +135,17 @@ public sealed class TemplateCatalogProvisioner
         return new ProvisionedCatalog(isPredicate.Value.Id, idByName);
     }
 
-    // The edges the catalog already carries, read in one call before anything is written. A subscribe
+    // The relationships the catalog already carries, read in one call before anything is written. A subscribe
     // is the read: it answers from the snapshot it returns, and that snapshot carries the relationships
     // a name lookup cannot.
     //
-    // Refusing on a failed read, because neither reading it as "no edges" nor as "every edge" is
-    // survivable: the first rewrites every edge of a finished catalog, and the second is exactly the
+    // Refusing on a failed read, because neither reading it as "no relationships" nor as "every relationship" is
+    // survivable: the first rewrites every relationship of a finished catalog, and the second is exactly the
     // silence this class exists to end.
     private async Task<HashSet<(Guid Subject, Guid Predicate, Guid Target)>?> ReadExistingEdgesAsync()
     {
-        // Every edge a template carries is incident to that template, so naming the templates reaches
-        // the `is` edges and the kind edges alike without naming either predicate.
+        // Every relationship a template carries is incident to that template, so naming the templates reaches
+        // the `is` relationships and the kind relationships alike without naming either predicate.
         var selector = new SubscriptionSelector
         {
             Names = [.. _graph.Templates.Values.Select(template => template.Name)],
@@ -186,7 +186,7 @@ public sealed class TemplateCatalogProvisioner
     }
 
     // Mints each kind and each role predicate find-or-create, then relates every template to the kind
-    // it declares. A kind that cannot be minted takes its edges with it: an endpoint reaching nothing
+    // it declares. A kind that cannot be minted takes its relationships with it: an endpoint reaching nothing
     // is refused by Tributary, where an endpoint reaching a Thing that does not exist is not.
     private async Task<int> ProvisionKindsAsync(
         Dictionary<string, Guid> templateIds,
@@ -259,7 +259,7 @@ public sealed class TemplateCatalogProvisioner
     }
 
     // The template's keys that an ancestor already declares. Mycelium turns a write to an inherited
-    // name into an override, but only once the `is` edge exists — carried on the create instead, the
+    // name into an override, but only once the `is` relationship exists — carried on the create instead, the
     // key becomes an own property shadowing a name the template also inherits, which the platform
     // forbids and which makes the key surface twice in every descendant's resolved view.
     private HashSet<string> NarrowedKeys(RegisterEndpointRequest template, string? parentName)

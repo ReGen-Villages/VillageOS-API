@@ -76,7 +76,7 @@ describe('edgeTouchesNode', () => {
   });
 });
 
-describe('decideEdgeDisplay (Feature #5344, simplified by Bug #5364)', () => {
+describe('decideEdgeDisplay', () => {
   const NEUTRAL = {
     endpointMatchesHover: false,
     endpointMatchesSelection: false,

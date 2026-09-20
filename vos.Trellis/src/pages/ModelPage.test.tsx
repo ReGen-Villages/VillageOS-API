@@ -33,7 +33,7 @@ vi.mock('../components/model/BimFragmentsViewer', () => ({
 }));
 
 // NodeDetailPanel has its own test suite; stub it here so we only assert that
-// ModelPage mounts the *same* component the GraphPage uses (Bug #5308).
+// ModelPage mounts the *same* component the GraphPage uses.
 vi.mock('../components/panels/NodeDetailPanel', () => ({
   NodeDetailPanel: ({
     thing,
@@ -114,9 +114,8 @@ describe('ModelPage', () => {
     capturedVisibility = { kind: 'everything' };
     // Reset shared selection state so cross-test bleed-through can't mask bugs.
     useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null, hiddenTypeIds: new Set() });
-    // Feature #5329: ModelPage now consumes things from the model store,
-    // populated by the app-shell-level useModelData hook. Tests seed it
-    // directly because they don't mount the AuthenticatedApp shell.
+    // ModelPage reads things from the model store, which the app-shell-level useModelData hook
+    // populates. Tests seed it directly because they don't mount the AuthenticatedApp shell.
     seedThings([]);
   });
 
@@ -174,7 +173,7 @@ describe('ModelPage', () => {
     await waitFor(() => expect(mockGetBytes).toHaveBeenCalledTimes(2));
   });
 
-  // Regression test for Bug #5308: the model page must mount NodeDetailPanel
+  // Regression: the model page must mount NodeDetailPanel
   // (the same component the GraphPage uses) — never a duplicate panel.
   it('mounts NodeDetailPanel (not a duplicate panel) when viewer picks an element', async () => {
     const bytes = new Uint8Array([0x01]).buffer;
@@ -230,7 +229,7 @@ describe('ModelPage', () => {
     await waitFor(() => expect(screen.queryByTestId('node-detail-panel')).toBeNull());
   });
 
-  // Bug #5384: a partial hide must cover the same three cases as applyTypeFilter
+  // A partial hide must cover the same three cases as applyTypeFilter
   // on the Graph page — instances of a hidden type, the hidden type-Things
   // themselves, and untyped Things when NO_TYPE_ID is hidden. A bespoke loop
   // once handled only the first, leaving IFC objects rendered.
@@ -288,7 +287,6 @@ describe('ModelPage', () => {
     mockGetBytes.mockResolvedValue(new Uint8Array([0x01]).buffer);
     seedTwoTypeModel();
 
-    // Hide the wall bucket and the synthetic one; the door bucket still shows.
     const { NO_TYPE_ID } = await import('../utils/typeFilter');
     useUiStore.setState({ hiddenTypeIds: new Set(['type-wall', NO_TYPE_ID]) });
 
@@ -309,7 +307,7 @@ describe('ModelPage', () => {
     ]);
   });
 
-  // Bug #5366: a guid list can only ever hide geometry the model has a Thing
+  // A guid list can only ever hide geometry the model has a Thing
   // for, and a real .frag holds far more elements than that. Unchecking every
   // type has to say "show nothing" outright or the scene stays on screen.
   it('shows nothing when every type is hidden, rather than listing guids to hide', async () => {

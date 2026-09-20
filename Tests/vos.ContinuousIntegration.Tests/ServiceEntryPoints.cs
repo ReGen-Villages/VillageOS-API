@@ -4,10 +4,8 @@ using System.Linq;
 
 namespace vos.ContinuousIntegration.Tests;
 
-/// <summary>
-/// The services in the checkout written in C#, and the entry-point files the guards in this project
-/// read. A service in another language has no Program.cs and so appears in neither.
-/// </summary>
+// The services in the checkout written in C#, and the entry-point files the guards in this project
+// read. A service in another language has no Program.cs and so appears in neither.
 internal static class ServiceEntryPoints
 {
     private const string EntryPointFileName = "Program.cs";

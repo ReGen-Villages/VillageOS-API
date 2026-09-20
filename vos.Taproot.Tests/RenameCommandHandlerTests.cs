@@ -5,8 +5,8 @@ using Xunit;
 
 namespace vos.Taproot.Tests;
 
-// Covers `rename <thing> <new-name>` (US #5862): rename a Thing in place via the broker's
-// PUT /api/things/{id}/name, keeping its Id and edges.
+// Covers `rename <thing> <new-name>`: rename a Thing in place via the broker's
+// PUT /api/things/{id}/name, keeping its Id and relationships.
 public class RenameCommandHandlerTests
 {
     private readonly Mock<MyceliumClient> _mycelium = new("https://localhost:7243") { CallBase = false };

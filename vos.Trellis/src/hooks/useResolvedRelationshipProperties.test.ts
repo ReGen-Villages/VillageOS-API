@@ -57,8 +57,8 @@ describe('useResolvedRelationshipProperties', () => {
     expect(mockGetEffectiveProperties).toHaveBeenCalledTimes(1);
   });
 
-  // The edge panel opens on its Ranges tab. Reading properties nobody has looked at would cost a
-  // request per edge a user clicks through.
+  // The relationship panel opens on its Ranges tab. Reading properties nobody has looked at would cost a
+  // request per relationship a user clicks through.
   it('asks nothing while disabled, and reads once enabled', async () => {
     mockGetEffectiveProperties.mockResolvedValue(quantity);
     const { rerender } = renderHook(({ enabled }) => useResolvedRelationshipProperties('rel-1', { enabled }), {

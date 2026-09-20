@@ -88,7 +88,7 @@ internal sealed class ModelBuilder
 
     // What a run writes onto a coverage as it goes. Every such name is one the coverage's archetype
     // declares, so the model stores the value as an override under that archetype rather than among the
-    // coverage's own properties, and this builds the shape a reader actually meets (#6805).
+    // coverage's own properties, and this builds the shape a reader actually meets.
     public ModelBuilder Carrying(string name, string property, object value)
     {
         var id = Id(name);

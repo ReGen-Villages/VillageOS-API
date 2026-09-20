@@ -4,7 +4,7 @@ using Xunit;
 
 namespace vos.Service.Delta.Tests.Models;
 
-// Unit tests for the chain-resolution surface added under Task #5467:
+// Unit tests for the chain-resolution surface:
 // EndpointSeedGraph.ContainsTemplate, EndpointSeedGraph.Chain,
 // EndpointSeedGraph.AllowedKeys, and EndpointSeedGraph.TryGetEffectiveSeedValue.
 // Structural Build validation lives in EndpointSeedGraphTests; these pin the

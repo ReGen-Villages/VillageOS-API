@@ -4,14 +4,14 @@ using Microsoft.Extensions.Logging;
 
 namespace vos.Service.Shared.Subscriptions;
 
-/// <summary>Builds the subscription client one model's follower speaks through. The token is asked for per
-/// call rather than fixed at construction, because a follower replaces its own before it expires.</summary>
+// Builds the subscription client one model's follower speaks through. The token is asked for per
+// call rather than fixed at construction, because a follower replaces its own before it expires.
 public delegate ISubscriptionClient SubscriptionClientFactory(Func<Task<string?>> currentToken);
 
 public static class InputChangeRecomputeRegistration
 {
-    /// <summary>Wire the subscription that keeps a compute service's results current. The handler type is
-    /// resolved per recompute rather than captured, so it follows whatever the container holds.</summary>
+    // Wire the subscription that keeps a compute service's results current. The handler type is
+    // resolved per recompute rather than captured, so it follows whatever the container holds.
     public static IServiceCollection AddInputChangeRecompute<THandler>(
         this IServiceCollection services, string serviceName, string myceliumUrl, string? serviceToken,
         Func<THandler, IReadOnlySet<string>> inputProperties,
@@ -43,36 +43,34 @@ public static class InputChangeRecomputeRegistration
     }
 }
 
-/// <summary>What a compute service needs to keep its results current: the inputs it reads off a
-/// subject, and how to recompute one.</summary>
-/// <param name="ServiceName">Names the service in log lines.</param>
-/// <param name="InputProperties">Only these trigger a recompute. A service also writes its outputs onto
-/// the subject it watches, so reacting to every change on that subject would recompute forever. Asked for
-/// per change rather than fixed here, because a service whose inputs are named by the model learns them
-/// when it first computes and a set captured at startup would answer for a model it has never read.</param>
+// What a compute service needs to keep its results current: the inputs it reads off a
+// subject, and how to recompute one.
+// ServiceName: Names the service in log lines.
+// InputProperties: Only these trigger a recompute. A service also writes its outputs onto
+// the subject it watches, so reacting to every change on that subject would recompute forever. Asked for
+// per change rather than fixed here, because a service whose inputs are named by the model learns them
+// when it first computes and a set captured at startup would answer for a model it has never read.
 public sealed record RecomputeInputs(
     string ServiceName,
     Func<IReadOnlySet<string>> InputProperties,
     Func<Guid, CancellationToken, Task> RecomputeAsync);
 
-/// <summary>
-/// Keeps a compute service's results current across every project it serves.
-///
-/// A subscription is bound to one model when Mycelium creates it, and a change event says nothing about
-/// which model it came from. A daemon shared by several projects therefore cannot follow them all through
-/// one subscription — it holds one per model instead, each opened with a token for that model.
-///
-/// The model is learned where it is already known: a service starts watching a subject inside the /handle
-/// call that made it compute, and the bearer on that call names the caller's model. That bearer expires in
-/// minutes, so it is exchanged for one that outlasts the subscription and replaced before it lapses.
-///
-/// Watching the subject alone covers both ways an input moves, because Mycelium publishes a derived value
-/// on the Thing that owns it: a param someone edited arrives as a property change on the subject, and a
-/// roll-up whose members changed arrives as a property change on the subject too.
-///
-/// A derived value is published live-only and never enters the journal, so a resumed stream does not
-/// replay one. After a reconnect every watched subject is recomputed rather than trusted.
-/// </summary>
+// Keeps a compute service's results current across every project it serves.
+//
+// A subscription is bound to one model when Mycelium creates it, and a change event says nothing about
+// which model it came from. A daemon shared by several projects therefore cannot follow them all through
+// one subscription — it holds one per model instead, each opened with a token for that model.
+//
+// The model is learned where it is already known: a service starts watching a subject inside the /handle
+// call that made it compute, and the bearer on that call names the caller's model. That bearer expires in
+// minutes, so it is exchanged for one that outlasts the subscription and replaced before it lapses.
+//
+// Watching the subject alone covers both ways an input moves, because Mycelium publishes a derived value
+// on the Thing that owns it: a param someone edited arrives as a property change on the subject, and a
+// roll-up whose members changed arrives as a property change on the subject too.
+//
+// A derived value is published live-only and never enters the journal, so a resumed stream does not
+// replay one. After a reconnect every watched subject is recomputed rather than trusted.
 public sealed class InputChangeRecomputeService : IHostedService
 {
     private readonly SubscriptionClientFactory _subscriptionClientFor;
@@ -105,11 +103,11 @@ public sealed class InputChangeRecomputeService : IHostedService
         _replacementCheckInterval = replacementCheckInterval ?? TimeSpan.FromMinutes(15);
     }
 
-    /// <summary>Start following a subject, in the model the work in hand belongs to. Called when the service
-    /// computes for one, so the set grows from the dispatches the service already receives rather than from
-    /// a discovery rule of its own.</summary>
-    /// <summary>Follow a subject, and every Thing its result is computed from when those are not the
-    /// subject itself. A service reading only what it writes passes none.</summary>
+    // Start following a subject, in the model the work in hand belongs to. Called when the service
+    // computes for one, so the set grows from the dispatches the service already receives rather than from
+    // a discovery rule of its own.
+    // Follow a subject, and every Thing its result is computed from when those are not the
+    // subject itself. A service reading only what it writes passes none.
     public void Watch(Guid subjectId, params Guid[] readsFrom)
     {
         var bearer = ModelScopedBearer.Read(MyceliumModelToken.Current ?? _startupToken);

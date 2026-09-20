@@ -147,8 +147,6 @@ hr {
   margin: 8mm auto; width: 100%;
 }
 
-/* ── The cover ───────────────────────────────────────────────────────────── */
-
 .cover {
   break-after: page;
   position: relative;
@@ -198,8 +196,6 @@ hr {
   margin-bottom: 1.2mm; letter-spacing: 0.12em; text-transform: uppercase; font-size: 7.2pt;
 }
 
-/* ── Front matter and contents ───────────────────────────────────────────── */
-
 .section-label {
   font-family: "ReGen Sans", system-ui, sans-serif;
   font-size: 8pt; font-weight: 600; letter-spacing: 0.18em;
@@ -236,8 +232,6 @@ h2.plain-heading {
   min-width: 5mm; text-align: right; flex: none;
   font-variant-numeric: tabular-nums lining-nums;
 }
-
-/* ── Part dividers ───────────────────────────────────────────────────────── */
 
 .divider {
   break-before: page; break-after: page;
@@ -291,8 +285,6 @@ h2.plain-heading {
   font-variant-numeric: tabular-nums lining-nums;
 }
 
-/* ── Chapters ────────────────────────────────────────────────────────────── */
-
 .chapter { break-inside: auto; }
 h3 {
   font-family: "ReGen Sans", system-ui, sans-serif;
@@ -322,8 +314,6 @@ h5, h6 {
   margin: 5mm 0 1.6mm; break-after: avoid;
 }
 
-/* ── Callouts ────────────────────────────────────────────────────────────── */
-
 blockquote {
   margin: 0 0 5mm; padding: 3.6mm 4.6mm;
   background: var(--tint); border-left: 1.1mm solid var(--regen);
@@ -334,8 +324,6 @@ blockquote {
 blockquote > :last-child { margin-bottom: 0; }
 blockquote strong:first-child { color: var(--regen-800); }
 blockquote code { background: #fff; }
-
-/* ── Tables ──────────────────────────────────────────────────────────────── */
 
 table {
   width: 100%; border-collapse: separate; border-spacing: 0;
@@ -368,8 +356,6 @@ th[align="right"], td[align="right"] { text-align: right; }
 /* A table of two columns is a glossary: the term carries the weight, the meaning does not. */
 table.pairs tbody td:first-child { width: 32%; }
 
-/* ── Code ────────────────────────────────────────────────────────────────── */
-
 code {
   font-family: "ReGen Mono", "SF Mono", Menlo, Consolas, monospace;
   font-size: 8.7pt; font-variant-numeric: normal;
@@ -391,8 +377,6 @@ pre:not(.mermaid) code {
 
 sub { vertical-align: baseline; font-size: 8.6pt; line-height: 1.5; color: var(--faint); }
 sub code { font-size: 7.6pt; }
-
-/* ── Diagrams and images ─────────────────────────────────────────────────── */
 
 img {
   display: block; width: 100%; height: auto;

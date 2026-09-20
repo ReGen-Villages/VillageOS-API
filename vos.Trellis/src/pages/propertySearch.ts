@@ -5,7 +5,7 @@ import { relationshipLabel } from '../utils/relationshipLabel';
 export interface PropertyMatch {
   propertyName: string;
   value: unknown;
-  /** What the platform says the property holds, for formatting the value (#6163). Absent on
+  /** What the platform says the property holds, for formatting the value. Absent on
    *  relationship matches, which are read from the model index and carry no declared type; those
    *  fall back to formatting by the value's own shape. */
   declaredType?: string;

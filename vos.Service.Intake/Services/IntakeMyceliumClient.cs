@@ -18,18 +18,16 @@ public sealed class IntakeMyceliumClient(
 {
     private static readonly JsonSerializerOptions AsTheBrokerReadsIt = new(JsonSerializerDefaults.Web);
 
-    /// <summary>A read of the model kept exactly as the broker wrote it, for one call.</summary>
-    /// <remarks>
-    /// Beside <see cref="ScopedRead"/> rather than through it, because that path reads a snapshot into
-    /// <see cref="SnapshotDocument"/> — the fields a service was written to need. What a submitter is
-    /// answered with is the broker's own envelope, so that it carries what draws each figure now and
-    /// whatever the model starts declaring later; a typed read would silently drop the difference.
-    /// <para>
-    /// A release that fails must not lose a read that succeeded, and the broker reaps what a caller
-    /// leaves behind — so the failure is logged where whoever runs the deployment reads it and the answer
-    /// still goes back.
-    /// </para>
-    /// </remarks>
+    // A read of the model kept exactly as the broker wrote it, for one call.
+    //
+    // Beside ScopedRead rather than through it, because that path reads a snapshot into
+    // SnapshotDocument — the fields a service was written to need. What a submitter is
+    // answered with is the broker's own envelope, so that it carries what draws each figure now and
+    // whatever the model starts declaring later; a typed read would silently drop the difference.
+    //
+    // A release that fails must not lose a read that succeeded, and the broker reaps what a caller
+    // leaves behind — so the failure is logged where whoever runs the deployment reads it and the answer
+    // still goes back.
     public async Task<JsonDocument> ReadAsync(SubscriptionSelector selector, CancellationToken cancellation)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
@@ -58,9 +56,9 @@ public sealed class IntakeMyceliumClient(
         }
     }
 
-    /// <summary>One Thing's ranges, own and inherited, as the broker answers them. A verdict reads its
-    /// target off the comparison a range makes, and a study's ranges sit on its archetype, so a reading
-    /// of the Things alone cannot answer one.</summary>
+    // One Thing's ranges, own and inherited, as the broker answers them. A verdict reads its
+    // target off the comparison a range makes, and a study's ranges sit on its archetype, so a reading
+    // of the Things alone cannot answer one.
     public async Task<JsonDocument?> ReadRangesAsync(Guid thingId, CancellationToken cancellation)
     {
         var client = await CreateAuthenticatedClientAsync();
@@ -78,8 +76,8 @@ public sealed class IntakeMyceliumClient(
         return JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellation));
     }
 
-    /// <summary>The history reduction, forwarded as asked and answered as the broker answered it — its
-    /// status and its words — so a question the broker refuses reaches the page with the reason.</summary>
+    // The history reduction, forwarded as asked and answered as the broker answered it — its
+    // status and its words — so a question the broker refuses reaches the page with the reason.
     public async Task<(int Status, string Body)> ReduceAsync(object question, CancellationToken cancellation)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
@@ -87,10 +85,10 @@ public sealed class IntakeMyceliumClient(
         return ((int)response.StatusCode, await response.Content.ReadAsStringAsync(cancellation));
     }
 
-    /// <summary>One call through the broker's endpoint-forward route, answered with the body the
-    /// forwarded service returned. Null is a call that was not answered — refused, failed, or out of
-    /// time — logged by its status and never by its body, and the caller decides what standing that
-    /// leaves the lookup in.</summary>
+    // One call through the broker's endpoint-forward route, answered with the body the
+    // forwarded service returned. Null is a call that was not answered — refused, failed, or out of
+    // time — logged by its status and never by its body, and the caller decides what standing that
+    // leaves the lookup in.
     public async Task<string?> CallEndpointAsync(
         string subdomain, object request, CancellationToken cancellation)
     {
@@ -154,9 +152,8 @@ public sealed class IntakeMyceliumClient(
             : null;
     }
 
-    /// <summary>Whether the model already holds the Thing under this identifier. Asked by identifier rather
-    /// than by name because a name can answer with more than one Thing, and the caller derived this one.
-    /// </summary>
+    // Whether the model already holds the Thing under this identifier. Asked by identifier rather
+    // than by name because a name can answer with more than one Thing, and the caller derived this one.
     public async Task<bool> HoldsThingAsync(Guid identifier, CancellationToken cancellation)
     {
         var client = await CreateAuthenticatedClientAsync();

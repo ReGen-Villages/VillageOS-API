@@ -11,10 +11,10 @@ using Xunit;
 
 namespace vos.Service.Metabolism.Tests;
 
-// Phase 4 (Feature #5445): ApplyQuantityAsync + IncrementRelationshipPropertyAsync now
+// ApplyQuantityAsync + IncrementRelationshipPropertyAsync
 // validate their outbound payloads against apply-quantity-request /
 // relationship-property-increment-request before POSTing. Same Throw/Log policy as
-// Phase 3, switched via OutboundViolationMode -- tests override it on a thin subclass
+// Switched via OutboundViolationMode -- tests override it on a thin subclass
 // so both paths run regardless of build config.
 public class MyceliumClientValidationTests
 {
@@ -141,7 +141,7 @@ public class MyceliumClientValidationTests
 
     // Subclass that exposes the OutboundViolationMode override + lets tests inject a
     // deliberately malformed payload object via overrideable build hooks. The hooks
-    // are protected-virtual on the production MyceliumClient (Phase 4).
+    // are protected-virtual on the production MyceliumClient.
     private sealed class TestableMetabolismMyceliumClient : MyceliumClient
     {
         public TestableMetabolismMyceliumClient(IHttpClientFactory http, ILogger<MyceliumClient> log, string myceliumUrl, ResourceDirection direction)

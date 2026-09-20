@@ -41,7 +41,7 @@ public class SnapshotsCommandHandlerTests
         Assert.Contains("2", output);
     }
 
-    /// A retry total is only readable against the number of resolutions it happened in.
+    // A retry total is only readable against the number of resolutions it happened in.
     [Fact]
     public async Task Execute_PrintsEachCountAsAShareOfResolutions()
     {
@@ -54,7 +54,7 @@ public class SnapshotsCommandHandlerTests
         Assert.Contains("0.5%", output);
     }
 
-    /// The totals include the seed load, so the output has to say what a run's rate needs.
+    // The totals include the seed load, so the output has to say what a run's rate needs.
     [Fact]
     public async Task Execute_SaysHowToMeasureOneRun()
     {
@@ -65,8 +65,8 @@ public class SnapshotsCommandHandlerTests
         Assert.Contains("difference", _writer.ToString());
     }
 
-    /// With no resolutions there is no share to show, and the column separator must go with it
-    /// rather than being left dangling at the end of the line.
+    // With no resolutions there is no share to show, and the column separator must go with it
+    // rather than being left dangling at the end of the line.
     [Fact]
     public async Task Execute_BeforeAnyResolution_PrintsNoShareAndNoDanglingSeparator()
     {

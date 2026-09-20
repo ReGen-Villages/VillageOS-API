@@ -8,7 +8,7 @@ using Xunit;
 
 namespace vos.Service.Intake.Tests;
 
-// Task #7060 — the two reads the tile design adds to the public page, proxied by this service because
+// The two reads the tile design adds to the public page, proxied by this service because
 // the page holds no credential and reaches this service alone: a reduction over one of the submission's
 // own site's property series, under the page's ticket; and the satellite basemap's tiles, anonymous like
 // the position lookups, forwarded to the registration the route names through the broker's endpoint
@@ -27,8 +27,8 @@ public class PublicPageProxyEndpointTests
     private const string TheReducedAnswer = """{"Groups":[{"Key":"1","Value":27.4}],"Samples":8760,"UnusableSamples":0}""";
     private static readonly byte[] SomeTileBytes = Encoding.ASCII.GetBytes("not really a jpeg");
 
-    /// <summary>The submissions model with the satellite tile registration the catalogue declares beside
-    /// it: a standalone Thing carrying the mark, its cache life, and the tile address.</summary>
+    // The submissions model with the satellite tile registration the catalogue declares beside
+    // it: a standalone Thing carrying the mark, its cache life, and the tile address.
     private static BrokerSnapshot ModelWithTiles() =>
         BrokerSnapshot.WithTwoSubmissions().Thing(
             TileRegistration, "satellite-tiles",

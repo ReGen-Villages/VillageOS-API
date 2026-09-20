@@ -14,7 +14,7 @@ using Xunit;
 
 namespace vos.Service.Metabolism.Tests;
 
-// Phase 5c (#5558): the SSE coordinator streams changes into the engine and keeps membership in step.
+// The SSE coordinator streams changes into the engine and keeps membership in step.
 public class MetabolismSubscriptionServiceTests
 {
     private sealed class RecordingMetabolism : Services.Metabolism

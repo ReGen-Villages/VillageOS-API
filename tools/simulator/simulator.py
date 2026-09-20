@@ -191,7 +191,6 @@ class Simulator:
         self.stats = collections.Counter()
         self.answers = {}
 
-    # ── per-op executors ─────────────────────────────────────────────────
     def _apply(self, action):
         op, a = action.op, action.args
         if op == "ledger_set":
@@ -270,7 +269,6 @@ class Simulator:
                 return
             raise
 
-    # ── setup: bulk-load or fast-apply the standing world ────────────────
     def _run_setup(self, setup):
         for action in setup:                       # ledger_set first so balances exist before writes
             if action.op == "ledger_set":
@@ -309,7 +307,7 @@ class Simulator:
                 raise ValueError(f"{action.op!r} cannot travel in a seed document")
         return {"Name": "simulator standing world", "Things": things, "Relationships": rels}
 
-    # ── coalescing: fold creates (+ their creation-time edges) into fragments ────
+    # ── coalescing: fold creates (+ their creation-time relationships) into fragments ────
     def _coalesce(self, actions):
         """Pure function of the already-sorted input: fold ``create_thing`` (and its creation-time
         ``create_rel`` edges) into ``apply_fragment`` upserts, so each Thing and its ``is`` edges reach
@@ -342,10 +340,10 @@ class Simulator:
             setup_out.extend(x for x in setup
                              if x.op != "ledger_set" and x.op not in BATCHED_OPS)
 
-        # ── PACED → each create_thing folds its same-offset creation-time edges into one fragment. ──
-        # A create_rel is a creation-time edge of C iff it shares C's offset and its subject is C.
-        # Such edges travel with C; a later-offset edge on an already-existing Thing stays granular.
-        # Creation position of every Thing, so a forward-referencing edge (target created in a LATER
+        # ── PACED → each create_thing folds its same-offset creation-time relationships into one fragment. ──
+        # A create_rel is a creation-time relationship of C iff it shares C's offset and its subject is C.
+        # Such relationships travel with C; a later-offset relationship on an already-existing Thing stays granular.
+        # Creation position of every Thing, so a forward-referencing relationship (target created in a LATER
         # fragment) is not folded into its subject's fragment — where it would apply before the target
         # exists (400 "target does not resolve"). It stays granular and applies via create_relationship
         # once both endpoints exist.
@@ -376,7 +374,6 @@ class Simulator:
                 paced_out.append(x)
         return setup_out + paced_out
 
-    # ── the pacer ────────────────────────────────────────────────────────
     def run(self, actions):
         actions = sorted(actions, key=lambda a: (a.offset, a.seq))
         # Coalesce BEFORE splitting/indexing: a pure function of the sorted input, so checkpoint

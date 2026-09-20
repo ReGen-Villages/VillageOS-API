@@ -3,13 +3,13 @@ using vos.Service.Intake.Models;
 
 namespace vos.Service.Intake.Tests;
 
-/// <summary>The worked example from <c>docs/LAND_INTAKE.md</c> §7 — a fictional 24-hectare site in Portugal
-/// for 320 residents. The platform's own fixture applies the same figures, so the two can be read against
-/// each other.</summary>
+// The worked example from docs/LAND_INTAKE.md §7 — a fictional 24-hectare site in Portugal
+// for 320 residents. The platform's own fixture applies the same figures, so the two can be read against
+// each other.
 public static class WillowBend
 {
-    /// <summary>What a wizard generates: an identifier nobody else could arrive at, which is what keeps one
-    /// submission from landing on the Things another submission minted.</summary>
+    // What a wizard generates: an identifier nobody else could arrive at, which is what keeps one
+    // submission from landing on the Things another submission minted.
     public const string SubmissionId = "9f1c74d6-0b8e-4a52-bd31-6c7e5a92f048";
 
     public static readonly Guid StudiesPredicateId = new("11111111-1111-1111-1111-111111111111");
@@ -25,13 +25,13 @@ public static class WillowBend
         new PredicateIdentity("proposes", ProposesPredicateId, Minted: false),
         new PredicateIdentity("servedAfter", ServedAfterPredicateId, Minted: false));
 
-    /// <summary>A moment to stamp an arrival with. Fixed, because a test that read the real clock could
-    /// only assert that the value was close to it.</summary>
+    // A moment to stamp an arrival with. Fixed, because a test that read the real clock could
+    // only assert that the value was close to it.
     public static readonly DateTime ArrivedAt = new(2026, 8, 22, 9, 30, 0, DateTimeKind.Utc);
 
-    /// <summary>The archetypes a model seeded from the shared analysis template and the land-intake
-    /// template holds. A submission points its Things at these rather than declaring their properties
-    /// again.</summary>
+    // The archetypes a model seeded from the shared analysis template and the land-intake
+    // template holds. A submission points its Things at these rather than declaring their properties
+    // again.
     public static readonly Guid SiteArchetypeId = new("44444444-4444-4444-4444-444444444444");
     public static readonly Guid SiteStudyArchetypeId = new("55555555-5555-5555-5555-555555555555");
     public static readonly Guid ParcelArchetypeId = new("66666666-6666-6666-6666-666666666666");
@@ -52,9 +52,9 @@ public static class WillowBend
     public static readonly Guid AssessesPredicateId = new("0a0a0a0a-0a0a-0a0a-0a0a-0a0a0a0a0a0a");
     public static readonly Guid ReportedAsPredicateId = new("0b0b0b0b-0b0b-0b0b-0b0b-0b0b0b0b0b0b");
 
-    /// <summary>The vocabularies the land-intake template declares, under the names it declares them
-    /// with. A submission names a term as the model spells it; how the term is displayed is the wizard's
-    /// business and never reaches here.</summary>
+    // The vocabularies the land-intake template declares, under the names it declares them
+    // with. A submission names a term as the model spells it; how the term is displayed is the wizard's
+    // business and never reaches here.
     public static readonly string[] AllocationCategoryNames =
     [
         "residential", "food-and-agriculture", "green-water-and-restoration", "commercial-and-retail",
@@ -75,30 +75,28 @@ public static class WillowBend
         "high", "medium", "low", "very-low", "no-data",
     ];
 
-    /// <summary>The demands the shared analysis declares one harvest is served over, in the order it
-    /// serves them. A study holds one of its own under each.</summary>
+    // The demands the shared analysis declares one harvest is served over, in the order it
+    // serves them. A study holds one of its own under each.
     public static readonly (string Name, long ServingOrder)[] WaterDemandNames =
     [
         ("domestic-demand", 1), ("irrigation-demand", 2),
     ];
 
-    /// <summary>What a deployment's model says a map may draw on. The address and the credit are the
-    /// model's answer, which is why the ones here are invented rather than any provider's.</summary>
+    // What a deployment's model says a map may draw on. The address and the credit are the
+    // model's answer, which is why the ones here are invented rather than any provider's.
     public const string VectorBasemapName = "Streets";
     public const string VectorBasemapStyleUrl = "https://basemaps.example.test/styles/streets.json";
     public const string BasemapAttribution = "© the basemap provider";
 
-    /// <summary>What a source says about drawing land rather than a diagram. Invented, like the
-    /// address above: which elevation set a deployment shapes its ground from is the model's answer.
-    /// </summary>
+    // What a source says about drawing land rather than a diagram. Invented, like the
+    // address above: which elevation set a deployment shapes its ground from is the model's answer.
     public const string TerrainTileUrl = "https://elevation.example.test/{z}/{x}/{y}.png";
     public const string TerrainEncoding = "terrarium";
     public const double TerrainExaggeration = 1.4;
     public const string BuildingSourceLayer = "building";
 
-    /// <summary>The starting split each category Thing states for itself, as the shipped analysis
-    /// template states it: the worked example's programme, describing the whole parcel between them.
-    /// </summary>
+    // The starting split each category Thing states for itself, as the shipped analysis
+    // template states it: the worked example's programme, describing the whole parcel between them.
     public static readonly (string Category, double SharePct)[] DefaultProgramme =
     [
         ("residential", 22), ("food-and-agriculture", 34), ("green-water-and-restoration", 20),
@@ -106,10 +104,10 @@ public static class WillowBend
         ("mobility-and-infrastructure", 7),
     ];
 
-    /// <summary>A parcel register and a place search as a model declares them. The reshapes are invented
-    /// alongside invented provider bodies, because what this service owns is applying whatever expression
-    /// the model declares — the shipped expressions are proven against provider-shaped bodies where they
-    /// ship, in the platform repository's template tests.</summary>
+    // A parcel register and a place search as a model declares them. The reshapes are invented
+    // alongside invented provider bodies, because what this service owns is applying whatever expression
+    // the model declares — the shipped expressions are proven against provider-shaped bodies where they
+    // ship, in the platform repository's template tests.
     public const string ParcelRegisterName = "parcel-at-position";
     public const string ParcelRegisterAttribution = "© the land register";
     public const string ParcelRegisterTransform = "{\"boundary\": ring}";
@@ -117,8 +115,8 @@ public static class WillowBend
     public const string PlaceSearchAttribution = "© the gazetteer";
     public const string PlaceSearchTransform = "{\"places\": found}";
 
-    /// <summary>Inside the fixture register's bounds — a field outside Paris — where the Willow Bend
-    /// site itself is not, which is what the outside-the-bounds test reads on.</summary>
+    // Inside the fixture register's bounds — a field outside Paris — where the Willow Bend
+    // site itself is not, which is what the outside-the-bounds test reads on.
     public const double CoveredLatitude = 48.80;
     public const double CoveredLongitude = 2.30;
 

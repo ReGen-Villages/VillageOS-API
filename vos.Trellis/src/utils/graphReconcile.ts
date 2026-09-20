@@ -18,10 +18,10 @@ export interface ReconcileResult {
  *
  * Removals go through one `clear` + `import` instead of per-element drops.
  * Sigma re-indexes the whole graph synchronously on every `nodeDropped` /
- * `edgeDropped` event, so dropping one at a time costs O(removed × graph size)
+ * `edgeDropped` event, so dropping one at a time costs the graph size once per removed element
  * and wedges the main thread when a filter hides a large share of a big model.
  * A single `cleared` event costs one re-index, and the re-import rides Sigma's
- * per-element add path, which is O(1) each.
+ * per-element add path, which costs the same for each element whatever the graph's size.
  *
  * `next` is scratch space on that path — it is mutated and must not be reused.
  */

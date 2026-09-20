@@ -8,7 +8,7 @@ using Xunit;
 
 namespace vos.Service.Intake.Tests;
 
-// Feature #6906 — a fresh ticket rides back on every act performed with a live one, so a person
+// A fresh ticket rides back on every act performed with a live one, so a person
 // adjusting their submission and re-reading their findings stays in the exchange they already
 // completed, while a ticket nobody uses still dies at the age it always did.
 public class TicketRenewalTests

@@ -240,14 +240,12 @@ func TestRequireAuth(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	// no token -> 401
 	rec := httptest.NewRecorder()
 	guarded(rec, httptest.NewRequest(http.MethodPost, "/handle", nil))
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("missing token: status = %d", rec.Code)
 	}
 
-	// valid token -> 200
 	rec = httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/handle", nil)
 	req.Header.Set("Authorization", "Bearer "+makeToken(t, pair, validClaims()))

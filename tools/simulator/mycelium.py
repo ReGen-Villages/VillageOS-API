@@ -79,7 +79,6 @@ class MyceliumClient:
         self._ssl = (ssl._create_unverified_context()
                      if insecure or environment.get("VOS_TLS_NOVERIFY") else None)
 
-    # -- auth -------------------------------------------------------------
     def token(self) -> str:
         """Return the bearer JWT, minting one from the API key if only that was supplied.
 
@@ -122,7 +121,6 @@ class MyceliumClient:
                 return self._json(method, path, body, headers, address, _retry=False)
             raise RuntimeError(f"{method} {path} -> {e.code} {e.read().decode()[:200]}")
 
-    # -- writes -----------------------------------------------------------
     def post(self, path, body=None, headers=None, address=None):
         """A post to a route outside the write API, on this host or on ``address`` — a service served
         beside the broker. It takes the same request path as every write, so a post here is re-minted
@@ -214,7 +212,6 @@ class MyceliumClient:
         return self._json("POST", "/api/model/fragment",
                           {"Name": name, "Things": things, "Relationships": relationships})
 
-    # -- fragment builders ------------------------------------------------
     @staticmethod
     def fragment_thing(thing_id, name, properties=None):
         """Build a ThingDto: id, name, and plain scalars wrapped in typed envelopes."""
@@ -226,7 +223,6 @@ class MyceliumClient:
         return {"Name": name or "rel", "Subject": subject_id,
                 "Predicate": predicate_id, "Target": target_id}
 
-    # -- subscriptions ----------------------------------------------------
     def subscribe(self, selector: dict):
         return self._json("POST", "/api/subscriptions", selector)
 

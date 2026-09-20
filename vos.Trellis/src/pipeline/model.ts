@@ -9,7 +9,7 @@ import type { VosThing, VosRelationship } from '../types/vos';
 export const ARCHETYPE_FLAG = {
   Pipeline: '__IsPipelineArchetype',
   PipelineNode: '__IsPipelineNodeArchetype',
-  // Boundary nodes (#5873): a pipeline's external input ("from the start") and output ("at the end").
+  // Boundary nodes: a pipeline's external input ("from the start") and output ("at the end").
   PipelineInput: '__IsPipelineInputArchetype',
   PipelineOutput: '__IsPipelineOutputArchetype',
   Connection: '__IsConnectionArchetype',
@@ -27,7 +27,6 @@ function carriesFlag(thing: VosThing, roleFlag: string): boolean {
   return thing.Properties[roleFlag] === true;
 }
 
-/** A past or in-flight run of a pipeline, for the run-history panel (#5646). */
 export interface RunInfo {
   runId: string;
   status: string;
@@ -53,7 +52,7 @@ export interface WireRead {
   transform: string;
 }
 
-/** The five values a wire carries, read the same off an edge and off a wire Thing. */
+/** The five values a wire carries, read the same off a relationship and off a wire Thing. */
 function wireMapping(properties: Record<string, unknown>) {
   return {
     fromPort: String(properties.fromPort ?? ''),
@@ -75,7 +74,7 @@ export interface ConnectionInfo {
 export class PipelineModel {
   private readonly things: VosThing[];
   private readonly byId: Map<string, VosThing>;
-  // Relationships indexed by subject so traversal is O(node degree), not O(all relationships).
+  // Relationships indexed by subject, so a traversal costs a node's own relationships rather than every relationship in the model.
   private readonly bySubject: Map<string, VosRelationship[]>;
   // The Things this model uses as a predicate. A wire held as a Thing is of the wire archetype exactly as
   // the wire predicate is, so being of that archetype no longer tells the two apart — being used as a
@@ -136,7 +135,6 @@ export class PipelineModel {
     return false;
   }
 
-  /** Collect a service's ports by walking its `is`-chain and gathering the port Things it `has` at each level. */
   resolvePorts(serviceId: string): PortInfo[] {
     const ports: PortInfo[] = [];
     const seen = new Set<string>();
@@ -163,7 +161,7 @@ export class PipelineModel {
     };
   }
 
-  /** Is this thing a boundary node — of the archetype marked as a pipeline's input, or as its output? (#5873) */
+  /** Is this thing a boundary node — of the archetype marked as a pipeline's input, or as its output? */
   boundaryKind(thingId: string): 'input' | 'output' | undefined {
     if (this.isOfArchetypeCarrying(thingId, ARCHETYPE_FLAG.PipelineInput)) return 'input';
     if (this.isOfArchetypeCarrying(thingId, ARCHETYPE_FLAG.PipelineOutput)) return 'output';
@@ -171,7 +169,7 @@ export class PipelineModel {
   }
 
   /** A boundary node's own declared port child-Things, each with its Thing id — the save-diff needs the id
-   * to update a port in place or retract a removed one (#5873). Ports are declared directly on the node. */
+   * to update a port in place or retract a removed one. Ports are declared directly on the node. */
   boundaryPortRels(nodeId: string): { portId: string; port: PortInfo }[] {
     return this.outgoing(nodeId, 'has')
       .filter((t) => this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.Port))
@@ -199,14 +197,14 @@ export class PipelineModel {
   }
 
   /** Outgoing wires from a node, in either shape the model may hold them in, with their port mapping and
-   * the optional field-paths (#5874). `wireId` is what the save edits and removes the wire through, and
-   * `shape` says which call that is: a relationship for a wire drawn as an edge, a Thing for one held. */
+   * the optional field-paths. `wireId` is what the save edits and removes the wire through, and
+   * `shape` says which call that is: a relationship for a wire drawn as a relationship, a Thing for one held. */
   outgoingWires(subjectId: string): WireRead[] {
     const rels = this.bySubject.get(subjectId);
     if (!rels) return [];
     const out: WireRead[] = [];
     for (const rel of rels) {
-      // Drawn as an edge: the predicate is of the wire archetype and the edge carries the mapping.
+      // Drawn as a relationship: the predicate is of the wire archetype and the relationship carries the mapping.
       if (this.isOfArchetypeCarrying(rel.PredicateId, ARCHETYPE_FLAG.PipelineWire)) {
         out.push({ wireId: rel.Id, shape: 'edge', targetId: rel.TargetId, ...wireMapping(rel.Properties) });
         continue;
@@ -239,14 +237,14 @@ export class PipelineModel {
     )?.Id;
   }
 
-  /** Id of the archetype this model marks with the given role — the Thing an `is` edge is written to.
+  /** Id of the archetype this model marks with the given role — the Thing an `is` relationship is written to.
    *  Undefined when the model marks the role on nothing, which is a model this editor cannot author.
    *  Seed validation refuses a model that marks one role on two archetypes, so the first is the only one. */
   archetypeCarrying(roleFlag: string): string | undefined {
     return this.things.find((t) => carriesFlag(t, roleFlag))?.Id;
   }
 
-  /** Live per-node status for a run, keyed by the node Thing id — the SSE animation source (#5635).
+  /** Live per-node status for a run, keyed by the node Thing id — the SSE animation source.
    * Phloem records each node's progress on a node-run Thing the run `has`, carrying `nodeId` + `status`. Only the
    * node's AGGREGATE record (no `index`) drives the ring; per-item fan-out records are counted separately. */
   nodeRunStatuses(runId: string): Record<string, string> {
@@ -259,7 +257,7 @@ export class PipelineModel {
     return out;
   }
 
-  /** Fan-out progress per node (#5648): from the per-item records (those carrying an `index`), how many have
+  /** Fan-out progress per node: from the per-item records (those carrying an `index`), how many have
    * reached a terminal status out of the total. Empty for non-fan-out nodes. */
   nodeRunProgress(runId: string): Record<string, { done: number; total: number }> {
     const out: Record<string, { done: number; total: number }> = {};
@@ -275,13 +273,12 @@ export class PipelineModel {
     return out;
   }
 
-  /** A run's overall status (running/succeeded/failed/cancelled), if the run Thing is in the model yet. */
   runStatus(runId: string): string | undefined {
     const s = this.byId.get(runId)?.Properties.status;
     return typeof s === 'string' ? s : undefined;
   }
 
-  /** Past + in-flight runs of a pipeline (a run Thing `of` the pipeline), newest first — the history panel (#5646). */
+  /** Past + in-flight runs of a pipeline (a run Thing `of` the pipeline), newest first — the history panel. */
   runsOf(pipelineId: string): RunInfo[] {
     const runs: RunInfo[] = [];
     for (const t of this.things) {

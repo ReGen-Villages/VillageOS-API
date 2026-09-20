@@ -37,15 +37,12 @@ export interface FigureTerms {
   property?: string;
   /** The instant property a trailing-window figure reads each member's event from. */
   happenedAt?: string;
-  /** The compare entity the figure was narrowed to, by name. */
   within?: string;
   where?: PropertyFilter[];
 }
 
 export type BehindTheFigure =
-  /** The Things the figure was formed from, one row each. */
   | { kind: 'things'; reduction: Reduction; rows: Row[]; measure: string | null }
-  /** A division, each side a figure in its own right. */
   | { kind: 'division'; numerator: FigureBreakdown; denominator: FigureBreakdown }
   /** A reduction the platform performed over time. There are no rows behind it — what there is is
    *  the same question over the same window, asked in parts. `endsAt` is the moment the answer came

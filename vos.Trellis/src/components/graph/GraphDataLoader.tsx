@@ -27,7 +27,6 @@ export function GraphDataLoader({ things, relationships }: Props) {
     useUiStore.getState().setLayoutSettings(layout);
     useUiStore.getState().setPredicateColors(predColors);
 
-    // classColorOverrides is empty today (future GUI_Settings panel populates it).
     const nextGraph = buildGraph(things, relationships, predColors, {}, layout);
     const liveGraph = sigma.getGraph();
 

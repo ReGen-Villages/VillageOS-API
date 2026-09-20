@@ -13,7 +13,7 @@ import { complete, formRequest, type Entered } from './writeRequest';
  *
  * It posts what was filled in to the endpoint the spec names, under the act's name, and nothing
  * else: no actor, and no Thing built here. The endpoint lays down what the model already
- * understands, so what the write summons is the model's to decide from the edges it now holds.
+ * understands, so what the write summons is the model's to decide from the relationships it now holds.
  */
 export function RecordForm({ widget, ctx }: { widget: FormWidget; ctx: ResolveContext }) {
   const options = useAskedOptions(widget.fields, ctx);

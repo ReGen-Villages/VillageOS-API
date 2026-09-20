@@ -5,9 +5,9 @@ import { PipelineModel, ARCHETYPE_FLAG, type PortInfo } from './model';
 import type { VosTypeName } from '../utils/constants';
 
 // Persist / read a pipeline as Things + relationships (the lean-on-model bet): the editor is just CRUD over
-// thingApi / relationshipApi. Save shape mirrors the seed — node -has-> connection, and a wire is an edge
+// thingApi / relationshipApi. Save shape mirrors the seed — node -has-> connection, and a wire is a relationship
 // through the predicate the model marks as holding wires, carrying fromPort/toPort. Every archetype an `is`
-// edge is written to is the one the model marks with that role, never one this file names. Node canvas
+// relationship is written to is the one the model marks with that role, never one this file names. Node canvas
 // position round-trips as x/y properties on the node Thing.
 
 const DOUBLE: VosTypeName = 'vos.Double';
@@ -21,9 +21,9 @@ export interface EditorNode {
   x: number;
   y: number;
   ports: PortInfo[];
-  /** Input-port name → run-param key (#5647). Persisted as a JSON `paramBindings` property on the node. */
+  /** Input-port name → run-param key. Persisted as a JSON `paramBindings` property on the node. */
   paramBindings?: Record<string, string>;
-  /** Boundary node (#5873): 'input' (a param source) or 'output' (the run's result sink). A boundary node
+  /** Boundary node: 'input' (a param source) or 'output' (the run's result sink). A boundary node
    * binds no connection — its `ports` are user-declared and persisted as its own port child-Things. */
   kind?: 'input' | 'output';
 }
@@ -34,11 +34,11 @@ export interface EditorEdge {
   sourceHandle: string;
   target: string;
   targetHandle: string;
-  /** Field-level mapping (#5874): extract this dotted from-path of the upstream output and place it at this
+  /** Field-level mapping: extract this dotted from-path of the upstream output and place it at this
    * dotted to-path of the downstream input. Empty = the whole payload. */
   fromPath?: string;
   toPath?: string;
-  /** On-wire JSONata transform (#5875): reshape the extracted value before it is placed at the to-path. */
+  /** On-wire JSONata transform: reshape the extracted value before it is placed at the to-path. */
   transform?: string;
 }
 
@@ -49,7 +49,7 @@ export interface LoadedPipeline {
 }
 
 /** The result of a save: the new Pipeline id and the canvas-node-id → Thing-id map so the editor can map
- * live NodeRun statuses (keyed by Thing id) back onto its canvas nodes for animation (#5635). */
+ * live NodeRun statuses (keyed by Thing id) back onto its canvas nodes for animation. */
 export interface SavedPipeline {
   pipelineId: string;
   nodeIdMap: Record<string, string>;
@@ -57,8 +57,8 @@ export interface SavedPipeline {
 
 // Save the editor state to the model. With no existingPipelineId this creates a new pipeline; with one
 // it updates that pipeline IN PLACE — existing node Things keep their Ids (no duplicate pipeline/nodes),
-// removed nodes and wires are retracted. The Thing graph (pipeline + nodes + is/has edges) rides ONE
-// idempotent fragment upsert (#5808); wires are written per-entity because /api/model/fragment does not
+// removed nodes and wires are retracted. The Thing graph (pipeline + nodes + is/has relationships) rides ONE
+// idempotent fragment upsert; wires are written per-entity because /api/model/fragment does not
 // carry a relationship's fromPort/toPort properties.
 export async function savePipeline(
   name: string,
@@ -155,7 +155,7 @@ export async function savePipeline(
   const persistedByKey = new Map(persistedWires.map((w) => [w.key, w]));
 
   // A wire persisted in either shape is edited through its own shape's calls: a relationship for one drawn
-  // as an edge, a Thing for one held. A wire that is new is written held, which is the only shape that lets
+  // as a relationship, a Thing for one held. A wire that is new is written held, which is the only shape that lets
   // a node pair carry more than one.
   const writeOn = (shape: 'edge' | 'held') =>
     shape === 'edge' ? relationshipApi.setProperty : thingApi.setProperty;
@@ -215,7 +215,6 @@ function parseParamBindings(raw: unknown): Record<string, string> | undefined {
   }
 }
 
-/** Reconstruct the editor state for an existing pipeline from the loaded model (pure read). */
 export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPipeline | null {
   const pipe = model.thing(pipelineId);
   if (!pipe || !model.isOfArchetypeCarrying(pipelineId, ARCHETYPE_FLAG.Pipeline)) return null;
@@ -232,7 +231,7 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
       y: Number(t.Properties.y ?? 80),
       paramBindings: parseParamBindings(t.Properties.paramBindings),
     };
-    // Boundary node (#5873): its ports are declared on the node itself, and it binds no connection.
+    // Boundary node: its ports are declared on the node itself, and it binds no connection.
     const kind = model.boundaryKind(t.Id);
     if (kind) return { ...base, kind, connectionId: '', ports: model.boundaryPortRels(t.Id).map((r) => r.port) };
 

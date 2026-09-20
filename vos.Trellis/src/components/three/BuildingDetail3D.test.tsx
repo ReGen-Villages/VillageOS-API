@@ -35,7 +35,6 @@ vi.mock('../../utils/geometryDispatcher', () => ({
 
 describe('BuildingDetail3D', () => {
   it('keeps a stable hook order when geometry appears after an empty render', () => {
-    // Empty first: the component takes the early-return branch.
     const { rerender, queryByTestId, getByText } = render(<BuildingDetail3D geometryValue={null} />);
     expect(getByText('Unable to parse 3D geometry.')).toBeTruthy();
 

@@ -129,7 +129,7 @@ public class RegisterEndpointTests
     [Fact]
     public async Task Handle_MissingHttpMethod_InheritsFromSeed_Returns200()
     {
-        // Task #5467: httpMethod is inheritable. The default seed's Endpoint declares httpMethod=GET,
+        // HttpMethod is inheritable. The default seed's Endpoint declares httpMethod=GET,
         // so a request omitting httpMethod registers successfully against the effective value.
         await using var factory = new DeltaWebApplicationFactory();
         await factory.InitializeAsync();
@@ -467,7 +467,7 @@ public class RegisterEndpointTests
         (await response.Content.ReadAsStringAsync()).Should().Contain("\"success\":true");
     }
 
-    // ---------- Template selection (Task #5467) ----------
+    // ---------- Template selection ----------
 
     [Fact]
     public async Task Handle_UnknownTemplate_Returns400WithDescentMessage()
@@ -586,7 +586,7 @@ public class RegisterEndpointTests
     [Fact]
     public async Task Handle_TemplateDeclaringBaseCapabilityKeys_AcceptsRegistrationUsingThem()
     {
-        // Cross-service consistency with Tributary's base request capabilities (Task #5469): once a
+        // Cross-service consistency with Tributary's base request capabilities: once a
         // template declares headers/queryParams/requestContentType/timeout as structural keys, Delta's
         // AllowedKeys whitelist admits a registration that supplies them. No Delta code change is
         // needed — this is ordinary seed authoring, exactly like url/httpMethod/responseTransform.

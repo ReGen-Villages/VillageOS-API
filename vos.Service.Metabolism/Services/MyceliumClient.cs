@@ -6,10 +6,6 @@ using vos.Service.Shared;
 
 namespace vos.Service.Metabolism.Services;
 
-// HTTP client for communicating with the VOS Mycelium (Metabolism-specific operations).
-// Adds the resource/quantity write endpoints on top of the shared base. Live property
-// updates now arrive via the SSE Shared.Subscriptions.SubscriptionClient
-// (Phase 5c, #5558).
 public class MyceliumClient : MyceliumClientBase
 {
     private readonly ResourceDirection _direction;
@@ -19,11 +15,6 @@ public class MyceliumClient : MyceliumClientBase
     {
         _direction = direction;
     }
-
-    // Registers this handler with Mycelium.
-    public Task<bool> RegisterAsync(int port)
-        => RegisterAsync(port, $"Metabolism-{_direction.LaunchArgument}",
-            $"dotnet run --project vos.Service.Metabolism -- --port={port} --myceliumUrl={MyceliumUrl} --mode={_direction.LaunchArgument}");
 
     private const string ApplyQuantitySchemaId = "https://villageos/contracts/apply-quantity-request.schema.json";
     private const string RelationshipIncrementSchemaId = "https://villageos/contracts/relationship-property-increment-request.schema.json";
@@ -43,8 +34,6 @@ public class MyceliumClient : MyceliumClientBase
         var payload = BuildApplyQuantityPayload(amount, subjectName, unit);
         var json = JsonSerializer.Serialize(payload);
 
-        // Validate the outbound payload before any network call. Throw mode propagates
-        // ContractValidationException; Log mode warns and lets the call through.
         ValidateOutbound(json, ApplyQuantitySchemaId);
 
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
@@ -69,7 +58,6 @@ public class MyceliumClient : MyceliumClientBase
         }
     }
 
-    // Increment a property on a relationship (for tracking per-relationship cumulative totals).
     public async Task IncrementRelationshipPropertyAsync(string relationshipId, string propertyPath, decimal amount)
     {
         var payload = BuildIncrementRelationshipPayload(amount);

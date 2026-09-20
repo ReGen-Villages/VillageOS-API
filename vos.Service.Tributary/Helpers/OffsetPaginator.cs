@@ -39,7 +39,6 @@ public static class OffsetPaginator
             try { node = JsonNode.Parse(body); }
             catch (JsonException) { node = null; }
 
-            // Not a paginated-list object: can't be aggregated, return verbatim.
             if (node is not JsonObject page)
                 return aggregate?.ToJsonString() ?? body;
 
@@ -67,7 +66,6 @@ public static class OffsetPaginator
             offset += config.PageSize is > 0 ? config.PageSize.Value : count;
         }
 
-        // The aggregate must not still advertise more.
         SetFalse(aggregate, config.HasMorePath);
         return aggregate.ToJsonString();
     }

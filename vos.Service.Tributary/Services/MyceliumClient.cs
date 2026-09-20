@@ -5,7 +5,6 @@ using vos.Service.Shared;
 
 namespace vos.Service.Tributary.Services;
 
-// HTTP client for communicating with the VOS Mycelium.
 public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
 {
     public MyceliumClient(IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, string? serviceToken = null, string? apiKey = null)

@@ -2,33 +2,33 @@ using System.Text.Json;
 
 namespace vos.Service.Shared.Subscriptions;
 
-/// <summary>What a Thing in a snapshot says for itself, as against what its type says for it.
-///
-/// <para>A value written for a name the Thing's archetype declares is not stored as an own property: the
-/// model clones the declaration into an override under that archetype's id and writes there, so the
-/// instance keeps its own value without touching the type. The snapshot carries the two apart, which
-/// leaves a reader of own properties alone finding every figure a submission wrote absent — a parcel's
-/// measured area, an allocation's share, a coverage's attempt count — while the same figure reads back
-/// perfectly well over the REST routes, which resolve.</para>
-///
-/// <para>Own first, then the override sets, and never up the `is` chain: the question a reader asks of a
-/// snapshot is whether this Thing states this, and a Thing that merely inherits a value has stated
-/// nothing. That is what keeps an archetype's members from answering with the mark the archetype
-/// carries.</para></summary>
+// What a Thing in a snapshot says for itself, as against what its type says for it.
+//
+// A value written for a name the Thing's archetype declares is not stored as an own property: the
+// model clones the declaration into an override under that archetype's id and writes there, so the
+// instance keeps its own value without touching the type. The snapshot carries the two apart, which
+// leaves a reader of own properties alone finding every figure a submission wrote absent — a parcel's
+// measured area, an allocation's share, a coverage's attempt count — while the same figure reads back
+// perfectly well over the REST routes, which resolve.
+//
+// Own first, then the override sets, and never up the `is` chain: the question a reader asks of a
+// snapshot is whether this Thing states this, and a Thing that merely inherits a value has stated
+// nothing. That is what keeps an archetype's members from answering with the mark the archetype
+// carries.
 public static class SnapshotValues
 {
     public static SnapshotProperty? StatedValue(this SnapshotThing thing, string name) =>
         StatedIn(thing.Properties, thing.InheritedOverrides, name);
 
-    /// <summary>Whether the Thing itself carries a mark. Asked of what it states rather than of what the
-    /// `is` chain resolves, because a mark is an ordinary property and so is inherited: a resolving reader
-    /// would answer with every member of the archetype as well as the archetype, leaving nothing to select
-    /// a vocabulary or a role by.</summary>
+    // Whether the Thing itself carries a mark. Asked of what it states rather than of what the
+    // `is` chain resolves, because a mark is an ordinary property and so is inherited: a resolving reader
+    // would answer with every member of the archetype as well as the archetype, leaving nothing to select
+    // a vocabulary or a role by.
     public static bool CarriesFlag(this SnapshotThing thing, string flag) =>
         thing.StatedValue(flag) is { } marked && marked.Value.ValueKind == JsonValueKind.True;
 
-    /// <summary>Every value the Thing states, for a reader that takes what it finds rather than asking for
-    /// a name it already knows. Own properties answer first, so a name stated twice is read once.</summary>
+    // Every value the Thing states, for a reader that takes what it finds rather than asking for
+    // a name it already knows. Own properties answer first, so a name stated twice is read once.
     public static IEnumerable<KeyValuePair<string, SnapshotProperty>> ValuesStated(this SnapshotThing thing)
     {
         var answered = new HashSet<string>(StringComparer.Ordinal);

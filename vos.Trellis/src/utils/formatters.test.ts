@@ -85,7 +85,7 @@ describe('formatPropertyValue', () => {
 
 // The value alone cannot say how it should read: a date arrives as the machine timestamp the
 // platform stores, an identifier at full length, geometry as a JSON body. The platform declares a
-// type for every property, and that is the answer this was guessing at (#6163).
+// type for every property, and that is the answer this was guessing at.
 describe('formatPropertyValue by declared type', () => {
   const numbers = { floatingPointPrecision: 5, decimalPrecision: 2 };
 

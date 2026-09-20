@@ -2,8 +2,8 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Tests;
 
-/// <summary>A scoped read that answers with a model a test built, and records what it was asked for and
-/// whether the subscription was released.</summary>
+// A scoped read that answers with a model a test built, and records what it was asked for and
+// whether the subscription was released.
 public sealed class StubSubscriptions(SnapshotDocument snapshot) : ISubscriptionClient
 {
     public SubscriptionSelector? AskedFor { get; private set; }

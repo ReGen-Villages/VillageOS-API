@@ -189,8 +189,8 @@ namespace vos.Taproot
                 $"    {relIdDisplay}{subjectDisplay} --[{predicate}]--> {targetDisplay}{OwnName(rel)}");
         }
 
-        // An edge given a name of its own is the only one the platform sends a name for, and that name
-        // is about the whole edge rather than the step between the arrows.
+        // A relationship given a name of its own is the only one the platform sends a name for, and that name
+        // is about the whole relationship rather than the step between the arrows.
         private static string OwnName(JsonElement rel) =>
             rel.TryGetProperty("Name", out var name) && name.GetString() is { Length: > 0 } own
                 ? $"  \"{own}\""

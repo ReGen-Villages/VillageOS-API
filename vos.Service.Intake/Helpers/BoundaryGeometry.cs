@@ -3,13 +3,11 @@ using vos.Service.Intake.Models;
 
 namespace vos.Service.Intake.Helpers;
 
-/// <summary>
-/// What a drawn boundary encloses, and how it is stored.
-///
-/// The area is computed on the sphere. Treating latitude and longitude as flat coordinates looks right
-/// near the equator and is meaningfully wrong away from it — a boundary in northern Europe would come out
-/// close to twice its real size, and every downstream figure is proportional to the area.
-/// </summary>
+// What a drawn boundary encloses, and how it is stored.
+//
+// The area is computed on the sphere. Treating latitude and longitude as flat coordinates looks right
+// near the equator and is meaningfully wrong away from it — a boundary in northern Europe would come out
+// close to twice its real size, and every downstream figure is proportional to the area.
 public static class BoundaryGeometry
 {
     private const double EarthRadiusMetres = 6371008.8;
@@ -30,8 +28,8 @@ public static class BoundaryGeometry
         return squareMetres / SquareMetresPerHectare;
     }
 
-    /// <summary>The boundary as a GeoJSON polygon: longitude before latitude, and the first corner repeated
-    /// at the end to close the ring, as that format requires.</summary>
+    // The boundary as a GeoJSON polygon: longitude before latitude, and the first corner repeated
+    // at the end to close the ring, as that format requires.
     public static string ToGeoJson(IReadOnlyList<BoundaryPoint> boundary)
     {
         var ring = new StringBuilder();

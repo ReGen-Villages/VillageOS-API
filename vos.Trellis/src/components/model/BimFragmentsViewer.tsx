@@ -102,7 +102,7 @@ export function BimFragmentsViewer({
         <ambientLight intensity={0.6} />
         <directionalLight position={[30, 50, 20]} intensity={0.8} castShadow />
 
-        {/* Bug #5298: swapping between two drei cameras broke BimFragmentsModel.raycast
+        {/* Swapping between two drei cameras broke BimFragmentsModel.raycast
             (returned null for every click). Use the single built-in camera; plan mode
             is faked by lifting it overhead and narrowing FOV instead of an ortho camera. */}
         <OrbitControls
@@ -293,7 +293,7 @@ function BimFragmentsScene({
       if (dx > CLICK_MAX_DRAG_PX || dy > CLICK_MAX_DRAG_PX) return;
       if (e.button !== 0) return;
 
-      // Bug #5298: Fragments' raycaster does the NDC conversion itself, so pass
+      // Fragments' raycaster does the NDC conversion itself, so pass
       // raw client pixels — pre-normalised NDC makes it miss all geometry.
       const mouse = new THREE.Vector2(e.clientX, e.clientY);
 
@@ -332,9 +332,8 @@ function BimFragmentsScene({
 
     const applyHighlight = async (localId: number) => {
       if (highlightedRef.current === localId) return;
-      // Note: model.highlight(undefined, ...) highlights EVERY item (Bug
-      // #5298 follow-up — the whole model turned yellow on the 2nd pick).
-      // Use resetHighlight() to clear the previous selection instead.
+      // model.highlight(undefined, ...) highlights EVERY item — the whole model turned yellow on the
+      // second pick — so resetHighlight() clears the previous selection instead.
       if (highlightedRef.current != null) {
         await model.resetHighlight([highlightedRef.current]);
       }
@@ -359,8 +358,6 @@ function BimFragmentsScene({
   if (!model) return null;
   return <primitive object={model.object} />;
 }
-
-// ── Camera framing + bounds ─────────────────────────────────────────────────
 
 async function computeBounds(model: BimFragmentsModel): Promise<ModelBounds> {
   const boxes = await model.getBoxes();
@@ -401,8 +398,7 @@ async function fitCameraToBounds(
   } else {
     // Plan mode: fake orthographic by lifting the same perspective camera
     // straight above the model and narrowing its FOV. Using a single camera
-    // (rather than drei's OrthographicCamera) preserves Fragments picking
-    // (Bug #5298).
+    // (rather than drei's OrthographicCamera) preserves Fragments picking.
     const horizontal = Math.max(size.x, size.z) || 1;
     const planFov = 10;
     const distance = horizontal / (2 * Math.tan((planFov * Math.PI) / 360)) * 1.1;

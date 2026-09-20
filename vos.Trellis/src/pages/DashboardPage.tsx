@@ -26,7 +26,7 @@ import type { EngineMetricsSummary } from '../types/engineMetrics';
 
 const FEED_COLLAPSED_KEY = 'vos-activity-feed-collapsed';
 
-// Definition writes publish EngineConfigurationChanged (#6227), so the panel refreshes on
+// Definition writes publish EngineConfigurationChanged, so the panel refreshes on
 // events; the poll stays as a fallback for a dropped stream.
 const ENGINE_METRICS_POLL_MS = 15000;
 
@@ -97,7 +97,6 @@ export function DashboardPage() {
     ? services
     : services.map((s) => ({ ...s, IsRunning: false, ProcessId: undefined, HealthStatus: 'Unreachable' }));
 
-  // Mycelium-specific live updates only; model data is handled at app level.
   useEffect(() => {
     // Under a simulation a service request completes hundreds of times a second, far more often
     // than the registry is worth reading again. The first event after a quiet spell claims the

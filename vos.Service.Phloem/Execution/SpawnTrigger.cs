@@ -2,7 +2,6 @@ using System.Text.Json;
 
 namespace vos.Service.Phloem.Execution;
 
-// How a spawn reached Phloem.
 public enum SpawnKind
 {
     // http endpoint-forward: { pipelineId, params } — synchronous spawn-and-wait.
@@ -12,7 +11,7 @@ public enum SpawnKind
     Invalid,
 }
 
-// Classifies a /handle body into a spawn (#5633). Phloem is reachable two ways through Mycelium,
+// Classifies a /handle body into a spawn. Phloem is reachable two ways through Mycelium,
 // both via the same /handle:
 // an http endpoint-forward carrying {pipelineId, params} (Trellis Run, or any caller);
 // a graph trigger — Mycelium forwards a X runs Pipeline relationship as

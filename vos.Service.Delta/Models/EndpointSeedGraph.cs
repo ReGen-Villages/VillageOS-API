@@ -18,8 +18,8 @@ public sealed class EndpointSeedGraph
 
     public IReadOnlyDictionary<string, EndpointKind> Kinds { get; }
 
-    // The kind edges as declared, for provisioning. Resolution walks the chain; provisioning writes
-    // only what a template declares itself, because an inherited edge is reached through `is`.
+    // The kind relationships as declared, for provisioning. Resolution walks the chain; provisioning writes
+    // only what a template declares itself, because an inherited relationship is reached through `is`.
     public IEnumerable<(string Template, string Role, string Kind)> KindEdges =>
         _kindEdges.Select(entry => (entry.Key.Template, entry.Key.Role, entry.Value));
 

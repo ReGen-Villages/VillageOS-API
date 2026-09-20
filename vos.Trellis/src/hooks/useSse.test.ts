@@ -149,7 +149,7 @@ describe('useSse', () => {
 
   const objectStreams = () => FakeEventSource.instances.filter((e) => e.url.includes('/subscriptions/'));
 
-  // Bug #5943: the first connect has no consumed position, so it seeds from the snapshot
+  // The first connect has no consumed position, so it seeds from the snapshot
   // watermark; after consuming events, a reconnect must resume from the consumed sequence so
   // the broker replays only the gap — not re-subscribe at the current head (skipping the gap).
   it('resumes the object stream from the consumed sequence on reconnect', async () => {
@@ -264,7 +264,7 @@ describe('useSse', () => {
     unmount();
   });
 
-  // Nothing expires a subscription (Bug #6562), and a page declaring its own opens one per
+  // Nothing expires a subscription, and a page declaring its own opens one per
   // navigation, so an abandoned one would go on being written to for the life of the process.
   it('hands back the subscription it replaces', async () => {
     const { unmount } = renderHook(() => useSse());
@@ -343,7 +343,7 @@ describe('useSse', () => {
     unmount();
   });
 
-  /** A platform answering with a snapshot of one Thing and the edge it sits on. */
+  /** A platform answering with a snapshot of one Thing and the relationship it sits on. */
   function answersWithASnapshot() {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,

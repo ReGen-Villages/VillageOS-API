@@ -167,7 +167,6 @@ describe('OperationsPage', () => {
   it('ranks sites in the leaderboard with the winner marked', async () => {
     renderAt();
     expect(await screen.findByText('🏆')).toBeInTheDocument();
-    // V-1 / V-2 appear in both the scope switcher and the leaderboard row.
     expect(screen.getAllByText('V-1').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('V-2').length).toBeGreaterThanOrEqual(1);
   });
@@ -196,7 +195,7 @@ describe('OperationsPage', () => {
   });
 });
 
-describe('OperationsPage addressing (Story 6582)', () => {
+describe('OperationsPage addressing', () => {
   const ROSTER_SPEC = { title: 'Roster', sections: [{ title: 'Rows', widgets: [] }] };
 
   beforeEach(() => {
@@ -233,7 +232,7 @@ describe('OperationsPage addressing (Story 6582)', () => {
   });
 });
 
-describe('OperationsPage section widths (Bug 6671)', () => {
+describe('OperationsPage section widths', () => {
   const WIDTH_SPEC = {
     title: 'Widths',
     sections: [
@@ -299,7 +298,7 @@ describe('OperationsPage section widths (Bug 6671)', () => {
   });
 });
 
-// Story #6477: a spec is model data and can be authored wrong. Every one of these draws something a
+// A spec is model data and can be authored wrong. Every one of these draws something a
 // reader can act on, rather than an empty page that looks like a model with nothing in it.
 describe('OperationsPage on a spec authored wrong', () => {
   function publish(name: string, spec: string) {

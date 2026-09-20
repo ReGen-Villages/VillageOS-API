@@ -7,16 +7,14 @@ using Xunit;
 
 namespace vos.ContinuousIntegration.Tests;
 
-/// <summary>
-/// A worktree links the main checkout's node_modules rather than installing a second copy of it. Git
-/// records a link as a file whatever it points at, and an ignore rule ending in a slash matches
-/// directories only, so a rule that reads as covering node_modules leaves every worktree's link
-/// untracked and staging the whole tree commits it.
-///
-/// <para>The main checkout holds a real directory there, which such a rule does match, so nothing shows
-/// wrong in the place most of the work happens. Asked of git rather than read out of the file, because
-/// the pattern is not what is wrong with it: the rule reads correctly and does not match.</para>
-/// </summary>
+// A worktree links the main checkout's node_modules rather than installing a second copy of it. Git
+// records a link as a file whatever it points at, and an ignore rule ending in a slash matches
+// directories only, so a rule that reads as covering node_modules leaves every worktree's link
+// untracked and staging the whole tree commits it.
+//
+// The main checkout holds a real directory there, which such a rule does match, so nothing shows
+// wrong in the place most of the work happens. Asked of git rather than read out of the file, because
+// the pattern is not what is wrong with it: the rule reads correctly and does not match.
 public class NodeModulesIsIgnoredWhereverItIsLinkedTests
 {
     [Fact]
@@ -35,10 +33,8 @@ public class NodeModulesIsIgnoredWhereverItIsLinkedTests
             + $"lose its trailing slash: {string.Join("; ", exposed)}");
     }
 
-    /// <summary>
-    /// Hidden directories are skipped because a git worktree lives under one and holds a second
-    /// checkout of every project this would otherwise find.
-    /// </summary>
+    // Hidden directories are skipped because a git worktree lives under one and holds a second
+    // checkout of every project this would otherwise find.
     private static IEnumerable<string> NpmProjectDirectories(DirectoryInfo directory)
     {
         if (directory.EnumerateFiles("package.json").Any()) yield return directory.FullName;

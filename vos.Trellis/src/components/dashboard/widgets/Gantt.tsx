@@ -14,7 +14,6 @@ interface GanttRow {
   bars: GanttBar[];
 }
 
-/** Schedule/timeline widget: rows of time-positioned bars, 0..1 across the axis. */
 export function Gantt({ widget, ctx }: { widget: GanttWidget; ctx: ResolveContext }) {
   const { loading, value } = useBinding(widget.rows, ctx);
   const rows: GanttRow[] = Array.isArray(value) ? (value as unknown as GanttRow[]) : [];

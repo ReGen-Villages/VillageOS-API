@@ -6,14 +6,10 @@ const DARK_QUERY = '(prefers-color-scheme: dark)';
 export type Theme = 'light' | 'dark';
 
 interface ThemeState {
-  /** The currently-applied theme. */
   theme: Theme;
   /** True if the user has explicitly chosen a theme; false means we're following the OS. */
   isOverride: boolean;
-  /** Flip to the opposite theme. Marks the choice as a manual override. */
   toggle: () => void;
-  /** Drop the override and follow the OS again (not used yet, but kept for symmetry). */
-  followSystem: () => void;
   /** Internal: called by the matchMedia listener when the OS theme changes. */
   _systemChanged: (next: Theme) => void;
 }
@@ -40,11 +36,6 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     const next: Theme = get().theme === 'dark' ? 'light' : 'dark';
     localStorage.setItem(THEME_KEY, next);
     set({ theme: next, isOverride: true });
-  },
-
-  followSystem: () => {
-    localStorage.removeItem(THEME_KEY);
-    set({ theme: systemPreference(), isOverride: false });
   },
 
   _systemChanged: (next) => {

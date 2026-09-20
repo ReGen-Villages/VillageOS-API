@@ -3,7 +3,6 @@ using vos.Service.Shared.Configuration;
 
 namespace vos.Service.Metabolism.Configuration;
 
-// The common service settings plus the direction this instance moves a quantity in.
 public sealed record MetabolismLaunchSettings(ServiceLaunchSettings Service, ResourceDirection Direction)
 {
     public static MetabolismLaunchSettings? Parse(string[]? arguments, IConfiguration? configuration = null)

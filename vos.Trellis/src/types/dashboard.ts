@@ -18,7 +18,7 @@ export const DASHBOARD_SPEC_PROPERTY = 'spec';
 /** The spec's reference to "the compare entity currently selected in the scope switcher", which
  *  inside a computed column is the row's own Thing. */
 export const SCOPE_REF = '$scope';
-/** The edge saying what a Thing is. Every reader here follows it to resolve a type's members and
+/** The relationship saying what a Thing is. Every reader here follows it to resolve a type's members and
  *  the values they inherit, so both the walk and the subscription that has to carry it name the
  *  same predicate. */
 export const IS_PREDICATE = 'is';
@@ -38,15 +38,6 @@ export type NumberFormat =
   | 'compact'   // 12_400 → "12.4k"
   | 'money';
 
-/**
- * A Binding is *how a widget slot gets its number/rows*. The `kind` set is
- * generic; the values (`state: 'active'`, `archetype: 'Device'`, property names)
- * are model-specific and come from the spec.
- *
- * The special thing reference `$scope` resolves to the compare-entity currently
- * selected in the page's scope switcher, or is averaged across all compare
- * entities when "All" is selected.
- */
 /** A step of a history reduction as the spec writes it. A parameter — a percentile, a band's bound, a
  *  threshold — is a number, or a binding onto the model's own value (a setpoint the study declares,
  *  a bound a class Thing carries) resolved to the number before the platform is asked. */
@@ -60,6 +51,15 @@ export interface HistoryStepBinding {
   threshold?: BoundNumber;
 }
 
+/**
+ * A Binding is *how a widget slot gets its number/rows*. The `kind` set is
+ * generic; the values (`state: 'active'`, `archetype: 'Device'`, property names)
+ * are model-specific and come from the spec.
+ *
+ * The special thing reference `$scope` resolves to the compare-entity currently
+ * selected in the page's scope switcher, or is averaged across all compare
+ * entities when "All" is selected.
+ */
 export type Binding =
   | { kind: 'const'; value: number }
   /** Count of Things currently in a derived State, asked of the platform as a number so a figure of
@@ -117,10 +117,10 @@ export type Binding =
     }
   /** A single property of a named/id'd Thing, or of the selected scope entity (`$scope`). */
   | { kind: 'property'; thing: string; property: string }
-  /** What a Thing's edges say rather than what its own properties store: follow `via` from the
+  /** What a Thing's relationships say rather than what its own properties store: follow `via` from the
    *  starting Thing and read the name of what that reaches, or the named `property` of it. The
    *  archetype a Thing `is`, the location it is `at`, the zone it `operates_in` — each is one
-   *  step; a value two edges away is two. `thing` names the starting Thing and defaults to the
+   *  step; a value two relationships away is two. `thing` names the starting Thing and defaults to the
    *  selected scope entity (`$scope`), which inside a computed column is the row's own Thing.
    *  A lone numeric value resolves as a number so it can feed a numeric column or a KPI;
    *  several matches resolve as their names in alphabetical order, joined with ", "; none
@@ -262,7 +262,7 @@ export type Binding =
  * A column of a row-producing binding (`thingList`, `stateList`, `compareEntities`) derived per
  * row rather than read from a stored property. The binding resolves once per row with that row's
  * Thing as the scope, so `$scope` in it means "this row's Thing" — which is how a column holds
- * a live aggregate over the Thing's members (`aggregate`, `ratio`), what its edges reach
+ * a live aggregate over the Thing's members (`aggregate`, `ratio`), what its relationships reach
  * (`related`), or the condition the platform derives for it (`stateOf`).
  *
  * The value lands on the row as it resolves: a number stays a number, text stays text. A binding
@@ -280,12 +280,11 @@ export interface ComputedColumn {
 
 /**
  * One step of a binding's path — `related`'s, or `verdict`'s walk to the Thing the ranges judge:
- * which edge to follow from the Things reached so far, and which of the Things it reaches to keep.
+ * which relationship to follow from the Things reached so far, and which of the Things it reaches to keep.
  * Unlike {@link RelationSpec}, which describes how to render a related Thing on a detail card, a
  * step only narrows a walk down to the neighbour the binding means.
  */
 export interface RelationStep {
-  /** Predicate name to follow. */
   predicate: string;
   /** 'out': the current Thing is the subject, follow to the targets. 'in': the reverse. Default 'out'. */
   direction?: 'out' | 'in';
@@ -376,8 +375,6 @@ export interface ScopeRef {
   direction?: 'out' | 'in';
 }
 
-// ---- Widgets -------------------------------------------------------------
-
 export interface KpiWidget {
   type: 'kpi';
   title: string;
@@ -397,7 +394,6 @@ export interface KpiWidget {
   spark?: Binding;
   /** Resolves to the number the sparkline is read against — drawn as a dashed reference line. */
   sparkBaseline?: Binding;
-  /** Label for that line, shown under the sparkline. */
   sparkBaselineLabel?: string;
   footnote?: string;
   /** Where the figure came from, drawn under it — an `origin` binding. A figure a reader cannot
@@ -766,7 +762,7 @@ export interface ActionChoice {
 }
 
 /** What pressing a choice writes, and no service named anywhere in it. Which service wakes is the
- *  model's to decide from the edge the endpoint lays down — a spec naming a handler would move that
+ *  model's to decide from the relationship the endpoint lays down — a spec naming a handler would move that
  *  decision into the spec. */
 export interface ActionRecords {
   /** The endpoint that accepts the act, by the name `POST /api/endpoints/{name}` forwards to — or,
@@ -777,7 +773,7 @@ export interface ActionRecords {
    *  the endpoint so the seed rules that check every archetype a page names cover what it writes.
    *  A press that marks the row itself mints nothing and names none. */
   archetype?: string;
-  /** The edge from the minted Thing to the row it is about. */
+  /** The relationship from the minted Thing to the row it is about. */
   predicate?: string;
   /** Whether a row can be pressed again after an act was recorded against it. Absent, a row is
    *  decided once. An act that administers rather than decides — a grant, a password — is made as
@@ -813,7 +809,6 @@ export interface FormWidget {
   title?: string;
   hint?: string;
   fields: AskedValue[];
-  /** The words on the button. */
   submit: string;
   /** A read of the same fields, offered beside the press that acts on them — what a choice covers
    *  before somebody commits to it. It posts what has been filled in so far under its own act and
@@ -878,19 +873,16 @@ export interface DashboardSection {
 
 /** Declares the entity type compared in the scope switcher + leaderboard. */
 export interface CompareConfig {
-  /** Human label for one entity, as the spec words it. */
   label: string;
-  /** Archetype of the entities being compared. */
   archetype: string;
 }
 
 /**
- * One relation to surface on the detail card: which edge to follow from the current Thing,
+ * One relation to surface on the detail card: which relationship to follow from the current Thing,
  * which related Thing to keep, and what of it to show. `relations` nest, so a card can walk
- * Order → line → allocation. Array order is the display order at every level.
+ * project → phase → task. Array order is the display order at every level.
  */
 export interface RelationSpec {
-  /** Predicate name to follow from the current Thing. */
   predicate: string;
   /**
    * 'out': the current Thing is the subject, follow to the targets.
@@ -911,9 +903,9 @@ export interface RelationSpec {
   properties?: string[] | '*';
   /**
    * Fold this relation's matched Thing onto the parent row instead of rendering it as its own
-   * nested card: its selected `properties` are hoisted onto the parent edge. Use for a one-hop
-   * lookup that belongs on the parent line — e.g. an order line's item number, which lives on the
-   * referenced Item. Ignored on a top-level relation (there is no parent row to fold onto).
+   * nested card: its selected `properties` are hoisted onto the parent relationship. Use for a one-hop
+   * lookup that belongs on the parent line — e.g. a task's resource code, which lives on the
+   * referenced Resource. Ignored on a top-level relation (there is no parent row to fold onto).
    */
   inline?: boolean;
   /** Relations to follow from each matched Thing in turn. */
@@ -965,14 +957,12 @@ export interface DashboardSpec {
   refreshSeconds?: number;
   /** Enables clickable rows that open a generic Thing detail window. */
   detail?: DetailSpec;
-  /** Optional per-locale translations of this spec's display strings. */
   translations?: SpecTranslations;
   /** The choices a composed page was made from. Present only on a page the console kept, which is
    *  what lets it offer to rename or remove the page and leave a seeded one alone. */
   composed?: Composition;
 }
 
-/** A discovered dashboard: the source Thing + its spec. */
 export interface DashboardDescriptor {
   id: string;
   name: string;
@@ -985,7 +975,6 @@ export interface DashboardDescriptor {
   spec: DashboardSpec | null;
 }
 
-/** A compare entity offered in the scope switcher. */
 export interface ScopeEntity {
   id: string;
   name: string;

@@ -3,10 +3,6 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { useNodeRangesData } from './useNodeRangesData';
 import type { ThingRangeSummary } from '../types/vos';
 
-// ---------------------------------------------------------------------------
-// Mocks
-// ---------------------------------------------------------------------------
-
 const mockGetSummary = vi.fn();
 
 vi.mock('../api/rangeApi', () => ({
@@ -32,10 +28,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockGetSummary.mockResolvedValue(emptySummary());
 });
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('useNodeRangesData', () => {
   describe('snapshot behavior', () => {
@@ -79,11 +71,9 @@ describe('useNodeRangesData', () => {
       await waitFor(() => expect(result.current.rangesLoading).toBe(false));
       expect(mockGetSummary).toHaveBeenCalledTimes(1);
 
-      // Navigate away
       rerender({ tab: 'properties', version: 1 });
       await act(() => Promise.resolve());
 
-      // Navigate back
       const callsBefore = mockGetSummary.mock.calls.length;
       rerender({ tab: 'ranges', version: 2 });
       await waitFor(() => expect(mockGetSummary.mock.calls.length).toBeGreaterThan(callsBefore));

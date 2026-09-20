@@ -25,7 +25,6 @@ export function RadialPredicateMenu() {
   const closeRadialMenu = useUiStore((s) => s.closeRadialMenu);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close on Escape
   useEffect(() => {
     if (!open) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -37,7 +36,6 @@ export function RadialPredicateMenu() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open, closeRadialMenu]);
 
-  // Close on click outside
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: MouseEvent) => {

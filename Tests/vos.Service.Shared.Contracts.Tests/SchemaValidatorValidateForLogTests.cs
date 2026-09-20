@@ -5,7 +5,7 @@ using Xunit;
 
 namespace vos.Service.Shared.Contracts.Tests;
 
-// Tests for the Phase 3 (Feature #5440) "log instead of throw" failure policy that
+// Tests for the "log instead of throw" failure policy that
 // SchemaValidator.ValidateForLog implements. Pairs with the existing
 // SchemaValidator.ValidateOrThrow -- one explicit policy per method, so
 // callers (MyceliumClientBase) can pick via #if DEBUG and both paths stay

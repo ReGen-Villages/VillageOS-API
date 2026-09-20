@@ -1,6 +1,5 @@
 namespace vos.Taproot;
 
-// The `--name=value` and `--flag` options a command takes after its subject.
 public static class CommandOptions
 {
     public static string? Value(IEnumerable<string> tokens, string option)

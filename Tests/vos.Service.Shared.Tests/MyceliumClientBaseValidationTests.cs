@@ -9,7 +9,7 @@ using Xunit;
 
 namespace vos.Service.Shared.Tests;
 
-// Phase 3 (Feature #5440): outbound + response validation in MyceliumClientBase.
+// Outbound + response validation in MyceliumClientBase.
 // Both Throw and Log policies tested regardless of build config -- the MyceliumClient's
 // OutboundViolationMode is a virtual property the test subclass overrides, so
 // CI (Release) can exercise both paths without re-running tests in two configurations.

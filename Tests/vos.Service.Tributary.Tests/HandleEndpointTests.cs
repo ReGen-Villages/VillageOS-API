@@ -329,7 +329,7 @@ public class HandleEndpointTests
         sentBody!.Should().Contain("\"hello\"").And.Contain("\"world\"");
     }
 
-    // ---------- The reshape expression in effect drives ingest (Bug #6051) ----------
+    // ---------- The reshape expression in effect drives ingest ----------
 
     // Tributary cannot tell an own property from an inherited one, and must not try: Mycelium's
     // resolved view qualifies an inherited key with the template that declares it, and both
@@ -568,7 +568,7 @@ public class HandleEndpointTests
         (await response.Content.ReadAsStringAsync()).Should().Contain("Endpoint call failed");
     }
 
-    // ---------- What the provider answered reaches the caller (Bug #6831) ----------
+    // ---------- What the provider answered reaches the caller ----------
 
     [Fact]
     public async Task Handle_ProviderRefusesTheCall_AnswersWithItsStatusAndWords()
@@ -672,7 +672,7 @@ public class HandleEndpointTests
             .Which.Should().Be(OutboundRequest.DefaultUserAgent);
     }
 
-    // ---------- Base request capabilities (Task #5469) ----------
+    // ---------- Base request capabilities ----------
 
     [Fact]
     public async Task Handle_CustomHeaders_AppliedToOutboundRequest()

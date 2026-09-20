@@ -1,6 +1,5 @@
 namespace vos.Service.Shared.Contracts.Validation;
 
-// Carries the structured ContractValidationResult so callers can map errors back to the wire.
 public sealed class ContractValidationException : Exception
 {
     public ContractValidationResult Result { get; }

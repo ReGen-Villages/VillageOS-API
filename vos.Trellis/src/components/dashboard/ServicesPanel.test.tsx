@@ -27,7 +27,6 @@ describe('ServicesPanel (unified)', () => {
     expect(screen.getByText('Services')).toBeInTheDocument();
     expect(screen.getByText('consumes')).toBeInTheDocument();
     expect(screen.getByText('Echo')).toBeInTheDocument();
-    // http connection shows its route; graph connection shows the predicate label
     expect(screen.getByText('/api/endpoints/echo')).toBeInTheDocument();
     expect(screen.getByText('predicate')).toBeInTheDocument();
   });
@@ -60,7 +59,6 @@ describe('ServicesPanel (unified)', () => {
   it('offers delete for endpoints (with a model Thing id) and fires it; graph services have none', () => {
     const onDelete = vi.fn();
     render(<ServicesPanel services={[graphService()]} endpoints={[httpEndpoint({ ObjectId: 't9', Name: 'Phloem' })]} onStart={noop} onStop={noop} onDelete={onDelete} />);
-    // one delete control — only the endpoint row has a retractable Thing id
     const deleteButtons = screen.getAllByTitle('Delete (retract from model)');
     expect(deleteButtons).toHaveLength(1);
     fireEvent.click(deleteButtons[0]);

@@ -5,9 +5,9 @@ import { useUiStore } from '../../stores/uiStore';
 import type { PredicateStats } from '../../utils/predicateCluster';
 
 /**
- * Feature #5362 — predicate filter panel, sibling to TypeFilterPanel.
+ * Predicate filter panel, sibling to TypeFilterPanel.
  *
- * Bug #5365 — checkbox semantics now mirror the type filter exactly:
+ * Checkbox semantics mirror the type filter exactly:
  *   - Checked = predicate's edges are visible.
  *   - Unchecked = predicate's edges are hidden.
  *   - Default state on a fresh model is all-checked (everything visible).

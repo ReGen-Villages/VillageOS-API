@@ -7,7 +7,6 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { windowOf } from './historySeries';
 
-/** How far a tooltip stands off the mark it describes. */
 const TOOLTIP_OFFSET = 10;
 /** Past this share of the chart's width the tooltip opens to the left of the mark, so it never leaves
  *  the card on the right. */

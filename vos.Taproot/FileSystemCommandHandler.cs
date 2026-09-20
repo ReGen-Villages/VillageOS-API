@@ -67,7 +67,6 @@ namespace vos.Taproot
                 return;
             }
 
-            // Add .json extension if not provided
             if (!Path.HasExtension(filePath))
             {
                 filePath += ".json";
@@ -94,7 +93,6 @@ namespace vos.Taproot
             }
             else
             {
-                // Add .json extension if not provided
                 if (!Path.HasExtension(filePath))
                 {
                     filePath += ".json";

@@ -103,7 +103,7 @@ public class FormOptionsEndpointTests
         answered.GetProperty("placeSearch").GetBoolean().Should().BeFalse();
     }
 
-    // Feature #6912. A page that cannot read the model cannot know what the ground is shaped from, so
+    // A page that cannot read the model cannot know what the ground is shaped from, so
     // whatever the model says about it travels with the source or the page draws flat for everybody.
     [Fact]
     public async Task It_answers_what_a_source_says_about_raising_the_ground()

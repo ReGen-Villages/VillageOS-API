@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { pickChunk } from './manualChunks';
 
-describe('pickChunk (Bug #5359 — vendor split + Bug #5297 — three identity)', () => {
-  describe('vendor-three (Bug #5297 — single-chunk identity)', () => {
+describe('pickChunk', () => {
+  describe('vendor-three (single-chunk identity)', () => {
     it.each([
       '/repo/node_modules/three/build/three.module.js',
       '/repo/node_modules/three-stdlib/controls/OrbitControls.js',
@@ -82,7 +82,7 @@ describe('pickChunk (Bug #5359 — vendor split + Bug #5297 — three identity)'
   describe('rule ordering — regression guards', () => {
     it('routes three-stdlib to vendor-three even though it could match the catch-all', () => {
       // Without the leading three(-[\w-]+)? rule, three-stdlib would fall through to
-      // `vendor` and split three.js identity across chunks (Bug #5297).
+      // `vendor` and split three.js identity across chunks.
       expect(pickChunk('/x/node_modules/three-stdlib/loaders/GLTFLoader.js')).toBe('vendor-three');
     });
 

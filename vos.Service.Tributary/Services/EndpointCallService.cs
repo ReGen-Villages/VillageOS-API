@@ -43,8 +43,8 @@ public sealed class EndpointCallService
         _logger = logger;
     }
 
-    // One scoped read answers every role, and the `observed` edges the endpoint already carries with
-    // them — those edges are in the same snapshot whether or not anything reads them, so provenance
+    // One scoped read answers every role, and the `observed` relationships the endpoint already carries with
+    // them — those relationships are in the same snapshot whether or not anything reads them, so provenance
     // costs no second call. Unsubscribing in a finally keeps a failed resolution from leaving a live
     // subscription on the gateway for the rest of the process's life.
     //
@@ -105,7 +105,6 @@ public sealed class EndpointCallService
             return Problem(502, "Endpoint resolution failed",
                 "Failed to read which kinds the endpoint reaches. Refusing rather than calling out as though it reaches none.");
 
-        // ---- The checks, in the order they are relied on ----
         // What a kind requires is checked before any mechanism reads its settings, so an endpoint
         // that under-supplies is refused in the kind's words rather than the mechanism's. The body
         // kind comes before the reshape, which refuses a transform over bytes. Each clash check comes
@@ -188,7 +187,7 @@ public sealed class EndpointCallService
             }
 
             // The key is the fully-resolved address — placeholders filled, query attached — plus
-            // the Accept header, since the same address can answer with different formats (#5913).
+            // the Accept header, since the same address can answer with different formats.
             string? cacheKey = null;
             CachedResponse? cached = null;
             if (cacheFor is { } timeToLive)
@@ -238,7 +237,6 @@ public sealed class EndpointCallService
             }
             else if (pageConfig != null)
             {
-                // Walk every page and aggregate before the transform runs below.
                 var paging = pageConfig!;
                 body = await OffsetPaginator.FetchAllPagesAsync(
                     async (offset, ct) =>

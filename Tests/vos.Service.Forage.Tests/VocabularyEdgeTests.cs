@@ -9,10 +9,9 @@ using static vos.Service.Forage.Tests.ModelSnapshotStub;
 
 namespace vos.Service.Forage.Tests;
 
-// A discovered word becomes the edge the model declares, inside the run that fetched it (#6809; the
-// declaration is platform User Story 6773). Driven through /handle because the thing worth pinning is
+// A discovered word becomes the relationship the model declares, inside the run that fetched it. Driven through /handle because the thing worth pinning is
 // the whole path: the fetch response reports what was written, the declaration is read back by mark,
-// and the edge lands — with the stale one removed first — before the analysis starts. Nothing here
+// and the relationship lands — with the stale one removed first — before the analysis starts. Nothing here
 // tells Forage the vocabulary's names; the model declares them and the run reads them.
 public class VocabularyEdgeTests
 {
@@ -125,7 +124,7 @@ public class VocabularyEdgeTests
             .Which.Should().Be((ids["WillowBend"], ids["flowsAs"], ids["steady"]));
     }
 
-    // The stated rule for a word outside the vocabulary: the observation stays, no edge is written,
+    // The stated rule for a word outside the vocabulary: the observation stays, no relationship is written,
     // and the run reports it — neither silently dropped nor silently written.
     [Fact]
     public async Task A_word_the_vocabulary_does_not_hold_writes_no_edge()
@@ -168,7 +167,7 @@ public class VocabularyEdgeTests
         recorder.Written.Should().BeEmpty();
     }
 
-    // A refused edge write is logged and the run carries on — it must not throw the run away, and it
+    // A refused relationship write is logged and the run carries on — it must not throw the run away, and it
     // must not retry into a burst; the next discovery run resolves again.
     [Fact]
     public async Task A_refused_edge_write_is_attempted_once_and_the_run_carries_on()
@@ -199,7 +198,7 @@ public class VocabularyEdgeTests
         attempts.Should().Be(1);
     }
 
-    // The read already succeeded, so a subscription release that fails must not lose it: the edge is
+    // The read already succeeded, so a subscription release that fails must not lose it: the relationship is
     // still written. The release ignores what the gateway answers, so only a dropped connection can
     // fail it — which is what the thrown handler stages.
     [Fact]
@@ -228,7 +227,7 @@ public class VocabularyEdgeTests
         recorder.Written.Should().Contain((ids["WillowBend"], ids["flowsAs"], ids["steady"]));
     }
 
-    // Writing beside an edge that would not go would leave a reader two answers; leaving the stale one
+    // Writing beside a relationship that would not go would leave a reader two answers; leaving the stale one
     // alone keeps exactly one, and the next run resolves again.
     [Fact]
     public async Task A_stale_edge_that_will_not_go_blocks_its_replacement()
@@ -261,7 +260,7 @@ public class VocabularyEdgeTests
 
     // The words came from the fetches, but the declaration read can still fail — and the site has
     // already left the state that dispatches runs, so nothing retries by itself. The run must not
-    // guess: no edge is written, and the failure is the run's to report.
+    // guess: no relationship is written, and the failure is the run's to report.
     [Fact]
     public async Task A_failed_declaration_read_writes_no_edge()
     {

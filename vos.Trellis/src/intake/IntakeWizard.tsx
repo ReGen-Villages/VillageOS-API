@@ -1,6 +1,6 @@
 /**
  * The land-intake wizard: what somebody knows about a piece of land, collected step by step and posted to
- * the intake service as one document (#6016), with the parcel boundary drawn on the map last (#6015).
+ * the intake service as one document, with the parcel boundary drawn on the map last.
  *
  * One definition, rendered both by the planner's page and by the public form, so a field added here
  * appears in both and there is one shape of submission rather than two that can disagree.

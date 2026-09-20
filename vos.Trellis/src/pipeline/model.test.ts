@@ -12,7 +12,7 @@ const marked = (roleFlag: string): Record<string, unknown> => ({ [roleFlag]: tru
 
 // Build the demo model (Generate –carries(echo→message)→ Echo), node -has-> connection[subdomain] -has-> service.
 // Every archetype here is named something the editor has never heard of and says what it is by the flag it
-// carries, so a fixture that resolves at all proves nothing is found by name (#6530).
+// carries, so a fixture that resolves at all proves nothing is found by name.
 function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchetypeId: string } {
   const things: VosThing[] = [];
   const rels: VosRelationship[] = [];
@@ -67,8 +67,8 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
   return { model: new PipelineModel(things, rels), pipelineId: pipe.Id, pipelineArchetypeId: pipelineA.Id };
 }
 
-// The same two nodes, wired by Things rather than edges, and wired twice — the case an edge cannot
-// express, because the model refuses a second edge on one subject, predicate and target. The wires are
+// The same two nodes, wired by Things rather than relationships, and wired twice — the case a relationship cannot
+// express, because the model refuses a second relationship on one subject, predicate and target. The wires are
 // listed before the predicate on purpose: a snapshot's order is arbitrary, and both are of the wire
 // archetype, so anything picking "the first of that archetype" picks a wire here.
 function heldWireModel(): { model: PipelineModel; carriesId: string } {
@@ -180,7 +180,7 @@ describe('the vocabulary the editor holds', () => {
   ];
 
   // What the seed tool happens to call these archetypes. A model may call them anything at all, which is
-  // why the editor holds none of these words (#6530).
+  // why the editor holds none of these words.
   const NAMES_A_MODEL_MAY_CHANGE = [
     'Pipeline', 'PipelineNode', 'PipelineInput', 'PipelineOutput', 'PlatformServiceConnection',
     'Service', 'Port', 'PipelineWire', 'PipelineRun', 'NodeRun',

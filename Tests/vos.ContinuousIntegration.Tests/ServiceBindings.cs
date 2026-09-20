@@ -4,29 +4,27 @@ using System.Linq;
 
 namespace vos.ContinuousIntegration.Tests;
 
-/// <summary>
-/// Reads what a service entry point binds, from its source.
-///
-/// The question is what an address reaches, not how someone chose to spell it: a service is free to
-/// write its loopback binding as an interpolated string, a concatenation, or a Kestrel listen call, and
-/// all three are correct. Judging one spelling refuses the other two and — worse — says nothing about a
-/// second address alongside it that reaches the whole network.
-/// </summary>
+// Reads what a service entry point binds, from its source.
+//
+// The question is what an address reaches, not how someone chose to spell it: a service is free to
+// write its loopback binding as an interpolated string, a concatenation, or a Kestrel listen call, and
+// all three are correct. Judging one spelling refuses the other two and — worse — says nothing about a
+// second address alongside it that reaches the whole network.
 internal static class ServiceBindings
 {
-    /// <summary>Calls that decide what a managed service listens on.</summary>
+    // Calls that decide what a managed service listens on.
     private static readonly string[] BindingCalls = ["UseUrls(", "ListenLocalhost(", "ListenAnyIP(", ".Listen("];
 
-    /// <summary>Addresses that reach past the machine. Kestrel treats <c>*</c> and <c>+</c> as every
-    /// interface exactly as <c>0.0.0.0</c> does, which is what made a wildcard binding pass unnoticed.
-    /// <c>[::]</c> does not match the loopback <c>[::1]</c>, whose digit sits inside the brackets.</summary>
+    // Addresses that reach past the machine. Kestrel treats * and + as every
+    // interface exactly as 0.0.0.0 does, which is what made a wildcard binding pass unnoticed.
+    // [::] does not match the loopback [::1], whose digit sits inside the brackets.
     private static readonly string[] BeyondLoopback =
         ["0.0.0.0", "[::]", "ListenAnyIP", "IPAddress.Any", "://*:", "://+:"];
 
     private static readonly string[] LoopbackAddresses = ["localhost", "127.0.0.1", "[::1]", "IPAddress.Loopback"];
 
-    /// <summary>The text of every binding call the source makes, each from the call to its closing
-    /// bracket, so an address is judged with the call that binds it rather than on its own.</summary>
+    // The text of every binding call the source makes, each from the call to its closing
+    // bracket, so an address is judged with the call that binds it rather than on its own.
     internal static IReadOnlyList<string> BindingCallsIn(string source)
     {
         var calls = new List<string>();
@@ -51,9 +49,9 @@ internal static class ServiceBindings
         || (LoopbackAddresses.Any(address => bindingCall.Contains(address, StringComparison.Ordinal))
             && !ReachesBeyondLoopback(bindingCall));
 
-    /// <summary>Whether the text names an address reaching past the machine. Asked of a whole entry point
-    /// as well as of one call, so a service written in a language this cannot parse is still refused a
-    /// binding that would put it on the network.</summary>
+    // Whether the text names an address reaching past the machine. Asked of a whole entry point
+    // as well as of one call, so a service written in a language this cannot parse is still refused a
+    // binding that would put it on the network.
     internal static bool ReachesBeyondLoopback(string text) =>
         BeyondLoopback.Any(address => text.Contains(address, StringComparison.Ordinal));
 

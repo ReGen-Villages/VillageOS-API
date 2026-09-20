@@ -6,9 +6,9 @@ using Xunit;
 
 namespace vos.Service.Intake.Tests;
 
-/// <summary>Which mailer a service actually ends up holding. The settings decide it and the host wires
-/// it, and a test of the settings alone would pass while the host sent through a server nobody
-/// configured.</summary>
+// Which mailer a service actually ends up holding. The settings decide it and the host wires
+// it, and a test of the settings alone would pass while the host sent through a server nobody
+// configured.
 public class MailerWiringTests
 {
     private static IntakeWebApplicationFactory Started(string environmentName, string? delivery) => new()

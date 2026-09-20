@@ -21,7 +21,6 @@ export function LogicalNodeController() {
   const lastRatioRef = useRef<number | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── A) Radial positioning when parents expand ──────────────────────
   useEffect(() => {
     const graph = sigma.getGraph();
 
@@ -49,7 +48,6 @@ export function LogicalNodeController() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [[...expandedLogicalParents].sort().join(','), sigma]);
 
-  // ── B) Semantic zoom ───────────────────────────────────────────────
   useEffect(() => {
     if (!semanticZoomEnabled) return;
 

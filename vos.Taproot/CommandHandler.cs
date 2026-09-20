@@ -239,7 +239,6 @@ namespace vos.Taproot
             _writer.WriteLine($"VillageOS CLI - Connected to Mycelium at {_myceliumUrl}");
             _writer.WriteLine("Type 'help' to see available commands.");
 
-            // Test mycelium connection
             try
             {
                 await _mycelium.GetTokenAsync();

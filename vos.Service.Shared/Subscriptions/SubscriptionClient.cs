@@ -13,9 +13,9 @@ public interface ISubscriptionClient
     Task UnsubscribeAsync(Guid subscriptionId, CancellationToken ct = default);
     IAsyncEnumerable<ModelChangeEvent> StreamAsync(Guid subscriptionId, long fromSequence, CancellationToken ct = default);
 
-    /// <summary>Raised once the stream has re-established a dropped connection. Replay covers Facts, but a
-    /// derived value (a roll-up recompute) is published live-only and is absent from the journal, so a
-    /// subscriber computing from one must re-read after a gap rather than trust the resume.</summary>
+    // Raised once the stream has re-established a dropped connection. Replay covers Facts, but a
+    // derived value (a roll-up recompute) is published live-only and is absent from the journal, so a
+    // subscriber computing from one must re-read after a gap rather than trust the resume.
     event Action? Reconnected;
 }
 
