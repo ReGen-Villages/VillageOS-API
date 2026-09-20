@@ -440,27 +440,86 @@ public class MyceliumClientTests
     }
 
     [Fact]
+    public async Task GetThingsAsync_CarriesEveryNarrowingOnTheQueryString()
+    {
+        var container = Guid.NewGuid();
+
+        var request = await CaptureRequest(c => c.GetThingsAsync(
+            new ThingListNarrowing(Type: "Home", Within: container, Limit: 5, Properties: "area,storeys", Names: "Home-1,Home-2")));
+
+        request.RequestUri!.AbsolutePath.Should().Be("/api/things");
+        request.RequestUri.Query.Should()
+            .Contain("name=Home-1%2CHome-2")
+            .And.Contain("type=Home")
+            .And.Contain($"within={container}")
+            .And.Contain("limit=5")
+            .And.Contain("properties=area%2Cstoreys");
+    }
+
+    [Fact]
+    public async Task GetThingsAsync_OneNameAnsweredAsAThing_IsAListOfOne()
+    {
+        var (client, _) = NewClient(req => req.RequestUri!.AbsolutePath == "/api/auth/token"
+            ? TokenResponse(ServiceToken)
+            : JsonResponse("{\"Id\":\"a\",\"Name\":\"Home-1\"}"));
+
+        var answer = await client.GetThingsAsync(new ThingListNarrowing(Names: "Home-1"));
+
+        answer.ValueKind.Should().Be(JsonValueKind.Array);
+        answer.GetArrayLength().Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GetThingsAsync_OneNameAnsweredNotFound_IsAnEmptyList()
+    {
+        var (client, _) = NewClient(req => req.RequestUri!.AbsolutePath == "/api/auth/token"
+            ? TokenResponse(ServiceToken)
+            : new HttpResponseMessage(HttpStatusCode.NotFound));
+
+        var answer = await client.GetThingsAsync(new ThingListNarrowing(Names: "Nobody"));
+
+        answer.ValueKind.Should().Be(JsonValueKind.Array);
+        answer.GetArrayLength().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task GetThingsAsync_OnRefusal_ThrowsCarryingThePlatformsReason()
+    {
+        var (client, _) = NewClient(req => req.RequestUri!.AbsolutePath == "/api/auth/token"
+            ? TokenResponse(ServiceToken)
+            : new HttpResponseMessage(HttpStatusCode.BadRequest)
+            {
+                Content = new StringContent("{\"error\":\"No predicate is marked as writing containment.\"}")
+            });
+
+        var act = async () => await client.GetThingsAsync(new ThingListNarrowing(Within: Guid.NewGuid()));
+
+        await act.Should().ThrowAsync<HttpRequestException>().WithMessage("*writing containment*");
+    }
+
+    [Fact]
     public async Task GetThingsInStateAsync_CarriesEveryNarrowingOnTheQueryString()
     {
         var container = Guid.NewGuid();
 
         var request = await CaptureRequest(c => c.GetThingsInStateAsync(
             "empty",
-            alsoIn: "reachable",
-            notIn: "on_hold",
-            type: "Vessel",
-            within: container,
-            withinPredicate: "holds",
-            includeArchetypes: true,
-            limit: 5,
-            properties: "capacity,fill"));
+            new StateListNarrowing(
+                AlsoIn: "reachable",
+                NotIn: "on_hold",
+                Type: "Vessel",
+                Within: container,
+                IncludeArchetypes: true,
+                Limit: 5,
+                Properties: "capacity,fill",
+                CountOnly: true)));
 
         request.RequestUri!.Query.Should()
             .Contain("alsoIn=reachable")
             .And.Contain("notIn=on_hold")
             .And.Contain("type=Vessel")
             .And.Contain($"within={container}")
-            .And.Contain("withinPredicate=holds")
+            .And.Contain("countOnly=true")
             .And.Contain("includeArchetypes=true")
             .And.Contain("limit=5")
             .And.Contain("properties=capacity%2Cfill");

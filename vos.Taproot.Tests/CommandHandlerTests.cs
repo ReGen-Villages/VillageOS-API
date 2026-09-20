@@ -38,7 +38,8 @@ public class CommandHandlerTests
         Assert.Contains("find thing", output);
         Assert.Contains("find relationships", output);
         Assert.Contains("get thing", output);
-        Assert.Contains("list", output);
+        Assert.Contains("list things [--type=<kind>]", output);
+        Assert.Contains("--count", output);
         Assert.Contains("set", output);
         Assert.Contains("serialize", output);
         Assert.Contains("deserialize", output);

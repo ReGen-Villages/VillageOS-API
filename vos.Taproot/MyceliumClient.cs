@@ -159,6 +159,26 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
+    // The platform answers one name with the Thing itself and 404 with none, several names with a list;
+    // a narrowed list is a list either way to its caller.
+    public virtual async Task<JsonElement> GetThingsAsync(ThingListNarrowing narrowing)
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things" + Query(
+            ("name", narrowing.Names),
+            ("type", narrowing.Type),
+            ("within", narrowing.Within?.ToString()),
+            ("limit", narrowing.Limit?.ToString()),
+            ("properties", narrowing.Properties)));
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return JsonDocument.Parse("[]").RootElement;
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        var answer = await response.Content.ReadFromJsonAsync<JsonElement>();
+        return answer.ValueKind == JsonValueKind.Object
+            ? JsonDocument.Parse($"[{answer.GetRawText()}]").RootElement
+            : answer;
+    }
+
     // Every Thing's resolved properties in one call, keyed by Thing id. scope: effective (own +
     // inherited with own/overrides winning) | own | inherited. Each property carries IsInherited /
     // InheritedFrom; inherited ones are keyed by qualified path ("Device.serialNumber"). Lets snapshot
@@ -765,39 +785,39 @@ public class MyceliumClient
     // rather than the size of the model. Kinds — the Things others `is` — are absent unless
     // includeArchetypes asks for them, which is the one thing that changes for a caller naming
     // nothing.
-    public virtual async Task<JsonElement> GetThingsInStateAsync(
-        string stateName,
-        string? alsoIn = null,
-        string? notIn = null,
-        string? type = null,
-        Guid? within = null,
-        string? withinPredicate = null,
-        bool includeArchetypes = false,
-        int? limit = null,
-        string? properties = null)
+    public virtual async Task<JsonElement> GetThingsInStateAsync(string stateName, StateListNarrowing? narrowing = null)
     {
         await SetAuthHeaderAsync();
-
-        var queryParams = new List<string>();
-        void Add(string name, string? value)
-        {
-            if (!string.IsNullOrWhiteSpace(value))
-                queryParams.Add($"{name}={Uri.EscapeDataString(value)}");
-        }
-
-        Add("alsoIn", alsoIn);
-        Add("notIn", notIn);
-        Add("type", type);
-        Add("within", within?.ToString());
-        Add("withinPredicate", withinPredicate);
-        if (includeArchetypes) Add("includeArchetypes", "true");
-        Add("limit", limit?.ToString());
-        Add("properties", properties);
-        var query = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : "";
-
+        var asked = narrowing ?? new StateListNarrowing();
         var response = await _httpClient.GetAsync(
-            $"{_myceliumUrl}/api/states/{Uri.EscapeDataString(stateName)}/things{query}");
-        response.EnsureSuccessStatusCode();
+            $"{_myceliumUrl}/api/states/{Uri.EscapeDataString(stateName)}/things" + Query(
+                ("alsoIn", asked.AlsoIn),
+                ("notIn", asked.NotIn),
+                ("type", asked.Type),
+                ("within", asked.Within?.ToString()),
+                ("includeArchetypes", asked.IncludeArchetypes ? "true" : null),
+                ("limit", asked.Limit?.ToString()),
+                ("properties", asked.Properties),
+                ("countOnly", asked.CountOnly ? "true" : null)));
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 }
+
+// What a list read may be narrowed by, in the platform's own words: the kind a Thing `is`, the container
+// that reaches it, the most to answer, the properties to send, and the names to look up instead of listing.
+public sealed record ThingListNarrowing(
+    string? Type = null, Guid? Within = null, int? Limit = null, string? Properties = null, string? Names = null)
+{
+    public bool IsEmpty => Type is null && Within is null && Limit is null && Properties is null && Names is null;
+}
+
+public sealed record StateListNarrowing(
+    string? AlsoIn = null,
+    string? NotIn = null,
+    string? Type = null,
+    Guid? Within = null,
+    bool IncludeArchetypes = false,
+    int? Limit = null,
+    string? Properties = null,
+    bool CountOnly = false);
