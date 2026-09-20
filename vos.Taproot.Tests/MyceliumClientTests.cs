@@ -265,6 +265,72 @@ public class MyceliumClientTests
     }
 
     [Fact]
+    public async Task GetLogTailAsync_RoutesToLogsTailWithTheLinesAndServiceAsked()
+    {
+        var captured = await CaptureRequest(c => c.GetLogTailAsync(50, "irrigator"));
+
+        captured.Method.Should().Be(HttpMethod.Get);
+        captured.RequestUri!.PathAndQuery.Should().Be("/api/logs/tail?lines=50&service=irrigator");
+    }
+
+    [Fact]
+    public async Task GetLogTailAsync_WithNothingAsked_SendsNoQuery()
+    {
+        var captured = await CaptureRequest(c => c.GetLogTailAsync(null, null));
+
+        captured.RequestUri!.PathAndQuery.Should().Be("/api/logs/tail");
+    }
+
+    [Fact]
+    public async Task DownloadLogAsync_RoutesToLogsDownloadAndKeepsThePlatformsFileName()
+    {
+        var (client, handler) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("line\n") };
+            response.Content.Headers.ContentDisposition = new ContentDispositionHeaderValue("attachment") { FileName = "\"watch-irrigator.log\"" };
+            return response;
+        });
+
+        var download = await client.DownloadLogAsync("irrigator");
+
+        handler.Requests.Last().RequestUri!.PathAndQuery.Should().Be("/api/logs/download?service=irrigator");
+        download.FileName.Should().Be("watch-irrigator.log");
+        (await new StreamReader(download.Content).ReadToEndAsync()).Should().Be("line\n");
+    }
+
+    [Fact]
+    public async Task DownloadLogAsync_WithNoFileNameFromThePlatform_NamesTheFileAfterWhatWasAsked()
+    {
+        var (client, _) = NewClient(req => req.RequestUri!.AbsolutePath == "/api/auth/token"
+            ? TokenResponse(ServiceToken)
+            : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("") });
+
+        (await client.DownloadLogAsync(null)).FileName.Should().Be("mycelium.log");
+        (await client.DownloadLogAsync("irrigator")).FileName.Should().Be("irrigator.log");
+    }
+
+    [Fact]
+    public async Task FollowLogAsync_RoutesToLogsStreamWithABearerTokenAndYieldsEachEvent()
+    {
+        var (client, handler) = NewClient(req => req.RequestUri!.AbsolutePath == "/api/auth/token"
+            ? TokenResponse(ServiceToken)
+            : new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(": stream open\n\nevent: log\ndata: \"one\"\n\nevent: log\ndata: \"two\"\n\n")
+            });
+
+        var received = new List<ServerSentEvent>();
+        await foreach (var one in client.FollowLogAsync(20, "irrigator", CancellationToken.None))
+            received.Add(one);
+
+        var request = handler.Requests.Last();
+        request.RequestUri!.PathAndQuery.Should().Be("/api/logs/stream?tail=20&service=irrigator");
+        request.Headers.Authorization!.Parameter.Should().Be(ServiceToken);
+        received.Should().Equal(new ServerSentEvent("log", "\"one\""), new ServerSentEvent("log", "\"two\""));
+    }
+
+    [Fact]
     public async Task GetDefaultPropertyModeAsync_RoutesToConfigPropertyModeEndpoint()
     {
         await VerifyGetEndpointHit("/api/config/property-mode", c => c.GetDefaultPropertyModeAsync());

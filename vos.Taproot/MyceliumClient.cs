@@ -8,9 +8,12 @@ using System.Text.Json;
 
 namespace vos.Taproot;
 
+public readonly record struct LogDownload(string FileName, Stream Content);
+
 public class MyceliumClient
 {
     private readonly HttpClient _httpClient;
+    private readonly HttpClient _streamClient;
     private readonly string _myceliumUrl;
     private readonly string? _apiKey;
     private readonly Func<DateTime> _clock;
@@ -28,6 +31,10 @@ public class MyceliumClient
         _httpClient = new HttpClient(CreateHandler())
         {
             Timeout = TimeSpan.FromSeconds(30)
+        };
+        _streamClient = new HttpClient(CreateHandler())
+        {
+            Timeout = Timeout.InfiniteTimeSpan
         };
     }
 
@@ -50,6 +57,7 @@ public class MyceliumClient
         _myceliumUrl = myceliumUrl.TrimEnd('/');
         _apiKey = apiKey ?? Environment.GetEnvironmentVariable("VOS_API_KEY");
         _httpClient = httpClient;
+        _streamClient = httpClient;
         _clock = clock ?? (() => DateTime.UtcNow);
     }
 
@@ -86,6 +94,55 @@ public class MyceliumClient
     {
         var token = await GetTokenAsync();
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+    }
+
+    public virtual async Task<JsonElement> GetLogTailAsync(int? lines, string? service)
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.GetAsync(
+            $"{_myceliumUrl}/api/logs/tail{Query(("lines", lines?.ToString()), ("service", service))}");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    public virtual async Task<LogDownload> DownloadLogAsync(string? service)
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.GetAsync(
+            $"{_myceliumUrl}/api/logs/download{Query(("service", service))}", HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+        var fileName = response.Content.Headers.ContentDisposition?.FileNameStar
+            ?? response.Content.Headers.ContentDisposition?.FileName?.Trim('"')
+            ?? (service is null ? "mycelium.log" : $"{service}.log");
+        return new LogDownload(fileName, await response.Content.ReadAsStreamAsync());
+    }
+
+    public virtual IAsyncEnumerable<ServerSentEvent> FollowLogAsync(int? tail, string? service, CancellationToken cancellationToken)
+        => StreamAsync($"{_myceliumUrl}/api/logs/stream{Query(("tail", tail?.ToString()), ("service", service))}", cancellationToken);
+
+    // A stream stays open as long as the caller listens, so it cannot go through the client whose
+    // timeout bounds every request.
+    private async IAsyncEnumerable<ServerSentEvent> StreamAsync(
+        string url, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var token = await GetTokenAsync();
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        using var response = await _streamClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        await using var body = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var reader = new StreamReader(body);
+        await foreach (var received in ServerSentEvents.ReadAsync(reader, cancellationToken))
+            yield return received;
+    }
+
+    private static string Query(params (string Name, string? Value)[] parameters)
+    {
+        var present = parameters
+            .Where(parameter => !string.IsNullOrWhiteSpace(parameter.Value))
+            .Select(parameter => $"{parameter.Name}={Uri.EscapeDataString(parameter.Value!)}")
+            .ToList();
+        return present.Count > 0 ? "?" + string.Join("&", present) : "";
     }
 
     private static string BuildTimeRangeQuery(DateTime? startTime, DateTime? endTime)
