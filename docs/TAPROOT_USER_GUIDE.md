@@ -737,7 +737,7 @@ Model Statistics:
 
 ### Temporal Queries
 
-**As the console printed it** — one Thing's mutations after two changes to a property:
+**As the console printed it** — one Thing's mutations after one of its properties was changed:
 
 ```text
 > temporal mutations CommunityCenter
@@ -1527,7 +1527,7 @@ step.
 An account holds one role — `admin`, `editor` or `viewer` — and enters only the models it has been
 granted; an administrator enters every model and needs no grant. Every `user` command but
 `change-password` goes through the platform's administration route, `POST /api/auth/administration`,
-the same door the console's Accounts page uses, so the command line and the console say and refuse
+the same route the console's Accounts page uses, so the command line and the console say and refuse
 the same things; a refusal is written in the route's own words.
 
 - `user list` — every account, its role, the models it may enter, whether its password must change,
@@ -1553,7 +1553,6 @@ Guide's route table, on the VillageOS repository's wiki).
 Account              Role     May enter                                Password                     Created
 admin                admin    every model                              set                          2026-09-20
 ada                  editor   Regenerative Village — Ecosystem Model   must change at next sign-in  2026-09-20
-bo                   editor   Regenerative Village — Ecosystem Model, MarthasVineyard must change at next sign-in  2026-09-20
 > user create bo viewer Regenerative Village — Ecosystem Model
 First password: viewer-first
 Added bo as viewer; they must choose a password at their first sign-in

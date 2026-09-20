@@ -2696,7 +2696,7 @@ reduction request.
 
 ### The widgets that write
 
-Every widget reads; two write. Both post to the door the spec names under `via`: an
+Every widget reads; two write. Both post to the route the spec names under `via`: an
 endpoint by name — `POST /api/endpoints/{name}`, the route the pipeline page already
 uses — or, where `via` begins with `/`, a route on the platform itself, posted to as
 written. Either way the post carries the session the console holds and nothing that
@@ -2710,14 +2710,14 @@ own to put there.
 | Widget | What it does | What it sends |
 | --- | --- | --- |
 | `action` | Decides about a row it lists. A choice names either the Thing the act is about — a reason, a verdict, a disposition the model declares — sent as `reason`, or the act itself, sent as `view`. A row can be asked for a value first (`asks`): typed, typed masked (`kind: 'secret'`, for a password), or chosen by name from a roster binding, and one field may take several names. `shows` names the values drawn beside the row. A row is decided once; where the writes are marked `repeatable`, it stays pressable and the last answer is shown beside it until the next press. | the row by name (`record`), the choice, what was asked |
-| `form` | Records something nothing on the page lists yet. Its fields (`AskedValue[]`) are typed or chosen by name. An optional preview act posts what is filled so far under its own name and shows the endpoint's answer, before every required field is given. `archetype` on its writes is optional where the door mints no Thing. | the act (`view`), the fields |
+| `form` | Records something nothing on the page lists yet. Its fields (`AskedValue[]`) are typed or chosen by name. An optional preview act posts what is filled so far under its own name and shows the endpoint's answer, before every required field is given. `archetype` on its writes is optional where the route creates no Thing. | the act (`view`), the fields |
 
 `writeRequest.ts` is the pure statement of what is sent: a number field as a
 number, a multichoice field as the names chosen, an optional field left empty
 not at all — an endpoint reading `""` as an answer would be answering a
 question nobody asked — and no field naming an actor. `dashboardWrites.ts` is
 the post. The rows an `action` lists and the rosters its fields are chosen from
-are declared to the subscription like any other binding. A press the door took
+are declared to the subscription like any other binding. A press the route accepted
 calls the page's `wrote`, which starts a new generation of broker reads, so a
 table on the same page shows what the press changed — a write the platform
 records outside the model, an account, announces nothing on the stream.
