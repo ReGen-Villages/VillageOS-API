@@ -2,9 +2,9 @@
 <rect width="686" height="498" fill="#ffffff"/>
 <path d="M 172.2,78.0 L 172.2,100.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
 <path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(172.2,100.0) rotate(90.0)"/>
-<path d="M 179.6,158.0 L 179.6,180.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
-<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(179.6,180.0) rotate(90.0)"/>
-<path d="M 187.1,222.0 L 187.1,245.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 179.6,158.0 L 179.6,169.0 L 216.8,169.0 L 216.8,180.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(216.8,180.0) rotate(90.0)"/>
+<path d="M 216.8,222.0 L 216.8,233.5 L 187.1,233.5 L 187.1,245.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
 <path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(187.1,245.0) rotate(90.0)"/>
 <path d="M 187.1,287.0 L 187.1,310.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
 <path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(187.1,310.0) rotate(90.0)"/>
@@ -20,9 +20,9 @@
 <text x="179.6" y="117.0" font-size="12" font-weight="normal" fill="#46497e" text-anchor="middle">Step 0: recompute every derived value</text>
 <text x="179.6" y="133.0" font-size="12" font-weight="normal" fill="#46497e" text-anchor="middle">the change feeds, each after the ones</text>
 <text x="179.6" y="149.0" font-size="12" font-weight="normal" fill="#46497e" text-anchor="middle">it reads, until none moves</text>
-<rect x="30.0" y="180.0" width="314.2" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
-<text x="187.1" y="197.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Step 1: find the ranges that read what</text>
-<text x="187.1" y="213.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">changed, on this Thing and across edges</text>
+<rect x="30.0" y="180.0" width="373.7" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="216.8" y="197.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Step 1: find the ranges that read what</text>
+<text x="216.8" y="213.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">changed, on this Thing and across relationships</text>
 <rect x="30.0" y="245.0" width="314.2" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
 <text x="187.1" y="262.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Evaluate each; a range that starts or</text>
 <text x="187.1" y="278.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">stops holding changes the Thing's state</text>

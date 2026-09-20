@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 829 268" width="829" height="268" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" role="img" aria-label="Coverage is edges: a source covers a place, a site sits in a place, and places nest.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 829 268" width="829" height="268" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" role="img" aria-label="Coverage is relationships: a source covers a place, a site sits in a place, and places nest.">
 <rect width="829" height="268" fill="#ffffff"/>
 <path d="M 726.4,180.0 L 726.4,126.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
 <path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(726.4,126.0) rotate(-90.0)"/>

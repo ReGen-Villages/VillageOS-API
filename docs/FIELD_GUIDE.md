@@ -870,7 +870,7 @@ There is no code anywhere that knows about any particular data provider. A provi
 **configuration**: a **registration** Thing carrying an address, how to call it, and a small
 **reshaping rule** that turns whatever the provider answers into readings.
 
-![Coverage is edges: a source covers a place, a site sits in a place, and places nest](assets/field-guide-discovery.svg)
+![Coverage is relationships: a source covers a place, a site sits in a place, and places nest](assets/field-guide-discovery.svg)
 
 Registrations inherit from a small tree of **templates**, so shared behaviour is declared once: the
 root template says a plain call, a child template fixes one provider's field names and says that it
@@ -893,7 +893,7 @@ Some sources return bytes rather than text — map tiles, imagery — and a regi
 reaching the kind that reads its body as bytes; it may also cache the bytes on disk for the life the
 provider's terms allow.
 
-**Coverage is edges.** A source relates to a **Place**; a site relates to the Place it sits in;
+**Coverage is relationships.** A source relates to a **Place**; a site relates to the Place it sits in;
 Places nest. A source covering a region covers every site within it without naming any, and a
 country spelled two ways can never hide a source. The registrations every project shares ship as
 template data: a climate classification, rainfall and sunlight averaged over twenty years,
@@ -1110,7 +1110,7 @@ on: it has kinds several levels deep, energy, water, biodiversity and transport 
 building geometry for the 3D views.
 
 ### 47. The graph page
-The Graph page draws every Thing as a node and every relationship as an arrow, laid out by a force
+The Graph page draws every Thing as a node and every relationship as a line with an arrowhead, laid out by a force
 simulation: Things with many relationships drift to the centre and leaf Things to the edge.
 
 ![The Graph page on the village seed: the force-directed layout, the search bar top left, the predicate and type filters on the right and the toolbar bottom left](assets/trellis-graph.png)
@@ -1124,7 +1124,7 @@ simulation: Things with many relationships drift to the centre and leaf Things t
   display settings name as its classifying property, or by its kind, so every home shares one colour
   and every solar array another; a new kind gets a distinct colour with no configuration. A Thing
   with no kind is grey.
-- **Edge colour** is one colour per predicate, so every `consumes` relationship reads the same
+- **Relationship colour** is one colour per predicate, so every `consumes` relationship reads the same
   across the graph. A model may name the colour a predicate takes in its display settings; the rest
   are assigned from a fixed palette. The predicate menu uses the same colours.
 - **Physical and logical Things.** A Thing carrying geometry — a building, a sensor mounted on one —
@@ -1167,17 +1167,17 @@ with geometry.
 
 ![The Relationships tab: outgoing and incoming relationships, each expandable](assets/trellis-graph-relationships.png)
 
-**Click an arrow** for the relationship's panel: its subject, predicate and target as links, its own
+**Click a relationship** for its panel: its subject, predicate and target as links, its own
 values with editing, its ranges and states, and a delete control.
 
-![An edge selected: subject, predicate and target as links, the Ranges and Properties tabs beneath](assets/trellis-graph-edge-selected.png)
+![A relationship selected: subject, predicate and target as links, the Ranges and Properties tabs beneath](assets/trellis-graph-edge-selected.png)
 
 **Right-click a node** for a menu: view details, expand its relationships, show or hide the logical
 Things under it, view it in 3D, copy its identifier, and delete it after a confirmation. Right-click
 the background for the predicate menu (chapter 50). Click the empty background to
 deselect everything and close every panel and menu.
 
-![The context menu on a node, with the node's edges labelled while the pointer rests on it](assets/trellis-graph-context-menu.png)
+![The context menu on a node, with the node's relationships labelled while the pointer rests on it](assets/trellis-graph-context-menu.png)
 
 ### 49. Searching
 **On the graph page.** Type in the search bar and every Thing whose name contains the text stays
@@ -1225,7 +1225,7 @@ how many left the view.
 ![After choosing a predicate in the menu: its relationships leave the view and the filter panel shows it unticked](assets/trellis-graph-predicate-hidden.png)
 
 With `is` active, every kind gathers its members around it at full brightness, the predicates
-shrink to dots, unclustered Things dim, and the `is` arrows appear. A large cluster starts folded
+shrink to dots, unclustered Things dim, and the `is` relationships appear. A large cluster starts folded
 into one node with a count badge — click it to open. Double-click any node in cluster mode to show
 all of its relationships at reduced brightness, not only the clustered ones. The toolbar shows the
 active predicate, a control to open or fold every cluster, a toggle to hide rather than dim the other
@@ -1274,7 +1274,7 @@ The landing page after sign-in, in four parts.
 registered services, and the most-used predicates.
 
 **Reactive engines.** What the two engines are carrying for this model: registered ranges and the
-edges they watch, derived-value definitions and the members they reduce over, and an estimated
+dependencies they watch, derived-value definitions and the members they reduce over, and an estimated
 memory footprint for each. The card refreshes when the model changes and when a range or definition
 is registered. Before the first load, or while the connection is down, it reads *Metrics
 unavailable* rather than zeros.
@@ -1373,8 +1373,8 @@ Everything is done in place on the graph page.
 | Edit a property | In editing mode click a value; Enter or click away saves, Escape reverts; a blue border marks an unsaved change. Editing an inherited value creates an override |
 | Delete a property | The bin on its row. An inherited property cannot be deleted, only overridden |
 | Create a relationship | Select a node, pencil, the row at the bottom of the outgoing or incoming list: pick a predicate (known predicates first) and a Thing, then **+** |
-| Edit a relationship's values | Open its chevron, or click the arrow on the graph |
-| Delete a relationship | Click the arrow, **Delete Relationship**, confirm |
+| Edit a relationship's values | Open its chevron, or click the relationship on the graph |
+| Delete a relationship | Click it on the graph, **Delete Relationship**, confirm |
 | Delete a Thing | Right-click, **Delete**, confirm |
 | Retype a Thing | In editing mode, the retype row on the Relationships tab |
 | Add a range | The Ranges tab, **Add Range**: a name and a criterion |
@@ -1454,7 +1454,7 @@ marking none says so in place of the list.
 | Scroll | Zoom, centred on the pointer |
 | Drag the background | Pan |
 | Click a node | Select it, open its panel |
-| Click an arrow | Select the relationship, open its panel |
+| Click a relationship | Select it, open its panel |
 | Click the background | Deselect all, close panels and menus |
 | Right-click a node | The node menu |
 | Right-click the background | The predicate menu |
@@ -2142,8 +2142,8 @@ store current. The graph mapper turns the store into the renderer's graph:
   display settings name (the building element class by default) through a curated table, falling
   back to a colour hashed from the kind's name, so a new kind is distinct with no configuration.
   The classifying value is read through the override store, because a member that shares a name
-  with its kind holds its value as an override rather than an own property. Edge colours come from
-  the display settings' predicate colours, else a hashed palette, through one resolver shared with
+  with its kind holds its value as an override rather than an own property. Relationship colours come
+  from the display settings' predicate colours, else a hashed palette, through one resolver shared with
   the predicate menu.
 - **Size** follows incoming relationships only.
 - **Logical Things** — those without geometry — are marked after the graph is built, each with the
@@ -2155,8 +2155,8 @@ store current. The graph mapper turns the store into the renderer's graph:
 - **Clustering** uses the layout's own primitives: every node outside the active predicate is
   pinned, and only the active predicate's relationships pull, so members gather while the rest hold
   still.
-- **Search** dims and hides through the renderer's node and edge reducers; a match is widened to
-  its direct neighbours and predicates so every visible arrow has both ends and a name.
+- **Search** dims and hides through the renderer's reducers; a match is widened to its direct
+  neighbours and predicates so every visible relationship has both ends and a name.
 - **Removals** are one clear-and-import rather than one drop per node, because the renderer
   re-indexes the whole graph on every single removal; hiding most of a large model one node at a
   time locked the page for long enough to look like a crash.
@@ -2227,7 +2227,7 @@ that is not a stream — because an address is recorded in logs and history wher
 | Event | Carries | On |
 | --- | --- | --- |
 | `ThingCreated`, `RelationshipCreated` | The object whole, in the snapshot's shape | Object stream |
-| `ThingEntered`, `RelationshipEntered` | A Thing a later `is` typed into a followed kind, and the edges it already held | Object stream |
+| `ThingEntered`, `RelationshipEntered` | A Thing a later `is` typed into a followed kind, and the relationships it already held | Object stream |
 | `ThingLeft`, `RelationshipLeft`, `ThingDeleted`, `RelationshipDeleted` | The identifier | Object stream |
 | `PropertyChanged`, `PropertyDeleted`, and the relationship pair | The name, and the value | Object stream |
 | `PropertyObserved` | A reading, delivered to a subscription that asked for readings | Object stream |
@@ -2279,7 +2279,7 @@ Almost every command has an equivalent on the graph page; where one has none, th
 | `create thing` | The **+** beside the search bar |
 | `create property` | Editing mode, the row at the bottom of the property list |
 | `create relation` | Editing mode, the row at the bottom of a relationship list |
-| `set` on a relationship | Click the arrow, editing mode |
+| `set` on a relationship | Click the relationship, editing mode |
 | `delete thing` | Right-click, **Delete** |
 | `delete relationship` | The relationship panel, **Delete Relationship** |
 | `delete property` | Editing mode, the bin on the row |
@@ -2375,7 +2375,7 @@ nothing.
 | `ratio` | Two bindings divided | Nothing |
 | `stateCount`, `stateList` | How many Things hold a state, and which; narrowed by archetype, scope, an excluded state and a cap, all sent on the request so the server answers the question asked | One request per distinct question per refresh, shared across every widget asking it |
 | `thingList` | Every Thing of an archetype whatever state it is in, ordered by name | Nothing: the loaded model |
-| `related`, `stateOf` | What an edge says; which of several states a Thing holds | Nothing |
+| `related`, `stateOf` | What a relationship says; which of several states a Thing holds | Nothing |
 | `timeseries`, `latest`, `history` | The two temporal reductions (chapter 91) | One request per distinct question per refresh |
 | `verdict`, `working`, `origin` | A judged value as a sentence; a figure's formula and inputs; where a figure came from | One range read per judged Thing; nothing; nothing |
 | `service` | A model-side service's answer | One request per distinct question per refresh, shared while in flight and never replayed once settled, because the writing widgets post through the same port and a press answered from an earlier reply would record nothing and say it had |
@@ -2521,10 +2521,10 @@ translated. No request: the definition travels with the Thing.
 
 **Who the platform ran on a Thing.** The detail window's *Handled by* section lists every service
 dispatched on a Thing — the connection, when the platform last tried, how it ended, and what the
-service said — read from the handled edges and dispatch records the platform leaves in the model,
-found by the marks it puts on its own wiring. Only the subject of an edge counts as handled. The
-platform stamps a dispatch's state onto the edge rather than as a committed Fact, so each dispatched
-edge is read back in the same request round as the states.
+service said — read from the handled relationships and dispatch records the platform leaves in the
+model, found by the marks it puts on its own wiring. Only the subject of a relationship counts as
+handled. The platform stamps a dispatch's state onto the relationship rather than as a committed
+Fact, so each dispatched relationship is read back in the same request round as the states.
 
 **A figure opens to show what it is made of.** A dotted rule under a kpi appears only where the
 binding's shape says the model derived the figure, and opens to the same narrowed question asked for
@@ -2575,7 +2575,7 @@ service's form route, found by the mark.
 **What a page is sent.** A page opens the subscription its description implies (chapter
 85), so a binding reaches its subject either by naming it or by walking to it; a
 Thing the description never mentions is not sent, and a binding over it resolves to nothing. A walk
-of two steps is asked for as one path, because the second edge applied to the scope entity would
+of two steps is asked for as one path, because the second step applied to the scope entity would
 reach nothing.
 
 ### 95. The map and its basemap sources
@@ -2614,7 +2614,7 @@ type-checks) are what the build runs, and a failure in any of them fails it. `np
 test:integration` needs a running server and checks what only one can answer — today, that the
 property type names the console holds are the ones the platform's write routes accept. Walk a
 change through the model: load a seed, confirm every Thing and relationship draws, search, select a
-node and an arrow, create a Thing from the command line and watch it appear without a reload,
+Thing and a relationship, create a Thing from the command line and watch it appear without a reload,
 cluster by `is`, open a member's inherited properties, and switch seeds.
 
 ---
