@@ -86,7 +86,6 @@ class FakeMycelium:
             self.things.pop(thing_id, None)
 
     def post(self, path, body=None, headers=None, address=None):
-        """Record a post beyond the write API and answer what the test scripted for its path."""
         with self._lock:
             self.posts.append({"address": address, "path": path, "body": body, "headers": headers})
             return self.answers.get(path, {})
@@ -702,7 +701,7 @@ class AnHttpPostReachesItsRoute(unittest.TestCase):
 
     INTAKE = "http://intake:5101"
 
-    def _verification_then_ticket_then_submission(self):
+    def _intake_steps(self):
         return [
             S.Action(0, 0, "submitter", "http_post",
                      {"address": self.INTAKE, "path": "/submissions/verification",
@@ -717,7 +716,8 @@ class AnHttpPostReachesItsRoute(unittest.TestCase):
                       "reads": {"ticket": {"from": "ticket a", "field": "ticket"}}}, "submit a"),
             S.Action(3, 3, "submitter", "http_post",
                      {"address": self.INTAKE, "path": "/submissions/{{reference}}/documents",
-                      "body": {"note": "for {{reference}}", "ticket": "{{ticket}}"},
+                      "body": {"note": "for {{reference}}", "ticket": "{{ticket}}",
+                               "pages": [{"of": "{{reference}}"}, 2]},
                       "reads": {"reference": {"from": "submit a", "field": "reference"},
                                 "ticket": {"from": "ticket a", "field": "ticket"}}}, "document a"),
         ]
@@ -730,48 +730,49 @@ class AnHttpPostReachesItsRoute(unittest.TestCase):
         return client
 
     def test_the_post_reaches_the_client_with_its_address_path_body_and_headers(self):
-        client = self._played(self._verification_then_ticket_then_submission()[:1])
+        client = self._played(self._intake_steps()[:1])
 
         self.assertEqual(client.posts, [{"address": self.INTAKE, "path": "/submissions/verification",
                                          "body": {"emailAddress": "a@example.test"}, "headers": None}])
 
     def test_a_later_action_reads_a_field_of_the_answer_into_a_header_a_path_and_a_body(self):
-        client = self._played(self._verification_then_ticket_then_submission())
+        client = self._played(self._intake_steps())
 
         submission, document = client.posts[2], client.posts[3]
         self.assertEqual(submission["headers"], {"X-Submission-Ticket": "T-1"})
         self.assertEqual(document["path"], "/submissions/R-7/documents")
-        self.assertEqual(document["body"], {"note": "for R-7", "ticket": "T-1"})
+        self.assertEqual(document["body"], {"note": "for R-7", "ticket": "T-1",
+                                            "pages": [{"of": "R-7"}, 2]})
 
     def test_the_answer_is_kept_under_the_action_key(self):
         client = FakeMycelium()
         client.answers["/submissions/ticket"] = {"ticket": "T-1"}
         simulator = S.Simulator(client, **_fast())
-        simulator.run(self._verification_then_ticket_then_submission()[:2])
+        simulator.run(self._intake_steps()[:2])
 
         self.assertEqual(simulator.answers["ticket a"], {"ticket": "T-1"})
         self.assertEqual(simulator.stats["http_post"], 2)
 
     def test_a_read_of_a_key_no_post_answered_is_refused_naming_the_key(self):
-        submission = self._verification_then_ticket_then_submission()[2]
+        submission = self._intake_steps()[2]
 
         with self.assertRaises(RuntimeError) as refused:
             S.Simulator(FakeMycelium(), **_fast()).run([submission])
 
         self.assertIn("ticket a", str(refused.exception))
-        self.assertIn("#0", str(refused.exception))
+        self.assertIn("action #0", str(refused.exception))
 
     def test_a_read_of_a_field_the_answer_does_not_hold_is_refused_naming_the_field(self):
         client = FakeMycelium()
         client.answers["/submissions/ticket"] = {"validForSeconds": 900}
 
         with self.assertRaises(RuntimeError) as refused:
-            S.Simulator(client, **_fast()).run(self._verification_then_ticket_then_submission()[1:3])
+            S.Simulator(client, **_fast()).run(self._intake_steps()[1:3])
 
         self.assertIn("ticket", str(refused.exception))
 
     def test_a_placeholder_naming_nothing_declared_is_refused(self):
-        submission = self._verification_then_ticket_then_submission()[2]
+        submission = self._intake_steps()[2]
         submission.args["reads"] = {}
 
         with self.assertRaises(RuntimeError) as refused:
@@ -784,7 +785,7 @@ class AnHttpPostReachesItsRoute(unittest.TestCase):
             def post(self, path, body=None, headers=None, address=None):
                 raise RuntimeError(f"POST {path} -> 404 ")
 
-        actions = self._verification_then_ticket_then_submission()[:2]
+        actions = self._intake_steps()[:2]
         actions.insert(0, S.Action(0, 0, "setup", "create_thing", {"name": "A", "thing_id": "A"}, "A"))
 
         with self.assertRaises(RuntimeError) as refused:
@@ -796,7 +797,7 @@ class AnHttpPostReachesItsRoute(unittest.TestCase):
     def test_a_dry_run_posts_nothing_and_counts_the_action(self):
         client = FakeMycelium()
         simulator = S.Simulator(client, **_fast(dry_run=True))
-        simulator.run(self._verification_then_ticket_then_submission())
+        simulator.run(self._intake_steps())
 
         self.assertEqual(client.posts, [])
         self.assertEqual(simulator.stats["dry_run"], 4)

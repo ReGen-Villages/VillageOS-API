@@ -229,9 +229,9 @@ class Simulator:
         self.stats[op] += 1
 
     def _values_read(self, action):
-        """What an ``http_post`` declares in ``reads``: a name for each field of an earlier post's
-        answer it writes into itself. An answer is kept for the run and not journaled, so a read of a
-        post committed before a restart is refused here rather than posting a placeholder."""
+        """``reads`` names a field of an earlier post's answer for each ``{{name}}`` the action
+        carries. Answers are kept for the run and not journaled, so a read of a post committed before
+        a restart is refused rather than posting the placeholder as a value."""
         values = {}
         for name, read in action.args.get("reads", {}).items():
             if read["from"] not in self.answers:
