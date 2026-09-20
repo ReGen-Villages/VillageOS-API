@@ -831,7 +831,25 @@ export interface FormWidget {
   };
 }
 
-export type Widget =
+/** The columns a grid section is laid out on. */
+export const GRID_COLUMNS = 12;
+
+/** Where a widget stands in a `grid` section: the column and row it starts at, counted from zero,
+ *  and how many of each it spans. */
+export interface Placement {
+  column: number;
+  row: number;
+  width: number;
+  height: number;
+}
+
+/** A widget in a `grid` section carries where it stands; in the three fixed layouts the section's
+ *  rule places it and the placement is not read. */
+export interface Placed {
+  placement?: Placement;
+}
+
+export type Widget = Placed & (
   | KpiWidget
   | FunnelWidget
   | BulletWidget
@@ -848,13 +866,15 @@ export type Widget =
   | DivergingBarWidget
   | SmallMultiplesWidget
   | ActionWidget
-  | FormWidget;
+  | FormWidget
+);
 
 export interface DashboardSection {
   title?: string;
   hint?: string;
-  /** 'kpi-strip' = equal columns; 'split' = weighted 2-col; 'single' = full width. */
-  layout?: 'kpi-strip' | 'split' | 'single';
+  /** 'kpi-strip' = equal columns; 'split' = weighted 2-col; 'single' = full width; 'grid' = each
+   *  widget where its own placement says, on {@link GRID_COLUMNS} columns. */
+  layout?: 'kpi-strip' | 'split' | 'single' | 'grid';
   /** Relative column widths for 'split'/'kpi-strip'. */
   widths?: number[];
   widgets: Widget[];
@@ -970,6 +990,9 @@ export interface DashboardSpec {
   /** The choices a composed page was made from. Present only on a page the console kept, which is
    *  what lets it offer to rename or remove the page and leave a seeded one alone. */
   composed?: Composition;
+  /** Marks a page the Design page kept. Like `composed`, it is what lets the console offer to
+   *  rename or remove the page and leave a seeded one alone. */
+  designed?: true;
 }
 
 /** A discovered dashboard: the source Thing + its spec. */

@@ -7,6 +7,7 @@
  */
 import type { ResolveContext } from '../../api/dashboardApi';
 import type { DashboardSection } from '../../types/dashboard';
+import { sectionGrid } from '../../utils/gridLayout';
 import { WidgetRenderer } from './widgets/WidgetRenderer';
 
 export function DashboardSections({
@@ -47,20 +48,7 @@ function Section({
   isWide: boolean;
   openDetail?: (thingId: string) => void;
 }) {
-  const layout = section.layout ?? (section.widgets.every((w) => w.type === 'kpi') ? 'kpi-strip' : 'single');
-  /* Every track states a zero minimum. A bare `1fr` track is `minmax(auto, 1fr)`, which grows to
-     whatever its widest content needs — one long unbreakable cell in a table then widens the page
-     rather than scrolling inside the card it was put in. The card states a zero minimum of its own
-     as well, for the same defect from the other side. */
-  let gridTemplateColumns = 'minmax(0, 1fr)';
-  if (isWide) {
-    if (layout === 'kpi-strip') {
-      gridTemplateColumns = `repeat(${Math.min(section.widgets.length, 4)}, minmax(0, 1fr))`;
-    } else if (layout === 'split') {
-      const widths = section.widths ?? section.widgets.map(() => 1);
-      gridTemplateColumns = widths.map((w) => `minmax(0, ${w}fr)`).join(' ');
-    }
-  }
+  const grid = sectionGrid(section, isWide);
 
   return (
     <section className="mb-2">
@@ -71,9 +59,11 @@ function Section({
           <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
         </div>
       )}
-      <div className="grid gap-3.5" style={{ gridTemplateColumns }}>
+      <div className="grid gap-3.5" style={{ gridTemplateColumns: grid.gridTemplateColumns, gridAutoRows: grid.gridAutoRows }}>
         {section.widgets.map((widget, i) => (
-          <WidgetRenderer key={i} widget={widget} context={context} openDetail={openDetail} />
+          <div key={i} className="grid min-w-0 min-h-0" style={grid.cells[i]}>
+            <WidgetRenderer widget={widget} context={context} openDetail={openDetail} />
+          </div>
         ))}
       </div>
     </section>

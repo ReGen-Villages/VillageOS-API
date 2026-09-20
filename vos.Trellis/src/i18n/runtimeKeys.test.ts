@@ -9,6 +9,7 @@ import { TEMPORAL_TABS } from '../pages/temporalTabs';
 import { DELETABLE_ENTITIES } from '../pages/graphDeletions';
 import { STATISTICS } from '../components/dashboard/widgets/RangeBar';
 import { SIDES } from '../components/dashboard/widgets/DivergingBar';
+import { WIDGET_KINDS } from '../utils/gridLayout';
 
 /**
  * Whether a key the console assembles at run time has anything to say.
@@ -34,6 +35,7 @@ const BUILT_FROM = {
   'graph.entity': [...DELETABLE_ENTITIES],
   'widgets.rangeBar': [...STATISTICS],
   'widgets.divergingBar': SIDES.map((side) => side.word),
+  'design.palette.kind': [...WIDGET_KINDS],
 } as Record<string, string[]>;
 
 /** A `t()` call whose key is assembled rather than written out, e.g. t(`intake.step.${step}`). */
