@@ -136,6 +136,7 @@ kept("React's holder for a value that outlives a render, and the attribute that 
 kept("React's report handed to an error boundary", 'ErrorInfo');
 kept("react-router's hooks and link", 'useParams', 'useSearchParams', 'NavLink');
 kept("react-three-fiber's constructor arguments on an element", 'args=');
+kept("react-grid-layout's settings, each an attribute of the grid, and the column count inside one", 'gridConfig=', 'dragConfig=', 'resizeConfig=', 'dropConfig=', 'cols');
 kept("Testing Library's first inputs to a rendered hook", 'initialProps');
 kept("lucide's icon", 'Info');
 kept("the browser's own names: the request shape, the query string, a bounding box, a canvas call, a table cell, a pattern match, a console level, a link relation",

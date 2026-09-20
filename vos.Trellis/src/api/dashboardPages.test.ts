@@ -78,6 +78,20 @@ describe('retitling a page', () => {
   });
 });
 
+describe('writing a page over', () => {
+  it('rewrites the whole spec on the Thing the page stands as', async () => {
+    const laidOut = { ...PAGE, designed: true as const };
+    await dashboardPages.write('kept', laidOut);
+
+    expect(thingApi.setProperty).toHaveBeenCalledWith('kept', 'spec', 'vos.String', JSON.stringify(laidOut));
+  });
+
+  it('refuses a spec the discovery could not read back', async () => {
+    await expect(dashboardPages.write('kept', { ...PAGE, sections: undefined } as never)).rejects.toThrow();
+    expect(thingApi.setProperty).not.toHaveBeenCalled();
+  });
+});
+
 describe('removing a page', () => {
   it('retracts the edges on the page and then the Thing', async () => {
     const order: string[] = [];

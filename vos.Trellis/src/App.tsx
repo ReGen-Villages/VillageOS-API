@@ -15,6 +15,7 @@ const GraphPage = lazy(() => import('./pages/GraphPage').then(m => ({ default: m
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const OperationsPage = lazy(() => import('./pages/OperationsPage').then(m => ({ default: m.OperationsPage })));
 const ComposerPage = lazy(() => import('./pages/ComposerPage').then(m => ({ default: m.ComposerPage })));
+const DesignPage = lazy(() => import('./pages/DesignPage').then(m => ({ default: m.DesignPage })));
 const IntakeWizardPage = lazy(() => import('./pages/IntakeWizardPage').then(m => ({ default: m.IntakeWizardPage })));
 const SubmissionReviewPage = lazy(() => import('./pages/SubmissionReviewPage').then(m => ({ default: m.SubmissionReviewPage })));
 const TemporalPage = lazy(() => import('./pages/TemporalPage').then(m => ({ default: m.TemporalPage })));
@@ -50,6 +51,8 @@ function AuthenticatedApp() {
             <Route path="/operations" element={<OperationsPage />} />
             <Route path="/operations/:dashboardKey" element={<OperationsPage />} />
             <Route path="/compose" element={<ComposerPage />} />
+            <Route path="/design" element={<DesignPage />} />
+            <Route path="/design/:dashboardKey" element={<DesignPage />} />
             <Route path="/intake" element={<IntakeWizardPage />} />
             <Route path="/submissions" element={<SubmissionReviewPage />} />
             <Route path="/graph" element={<GraphPage />} />

@@ -53,9 +53,14 @@ export const dashboardPages = {
     return id;
   },
 
-  /** Gives a page a new title. The Thing keeps its name, so the address the sidebar links to stays. */
+  /** Writes a page's spec over the one it carries. The Thing keeps its name, so the address the
+   *  sidebar links to stays. */
+  async write(id: string, spec: DashboardSpec): Promise<void> {
+    await thingApi.setProperty(id, DASHBOARD_SPEC_PROPERTY, SPEC_TYPE, asTheDiscoveryReadsIt(spec));
+  },
+
   async retitle(id: string, spec: DashboardSpec, title: string): Promise<void> {
-    await thingApi.setProperty(id, DASHBOARD_SPEC_PROPERTY, SPEC_TYPE, asTheDiscoveryReadsIt({ ...spec, title }));
+    await dashboardPages.write(id, { ...spec, title });
   },
 
   /** Retracts a page. Relationships first: a Thing still named by one is a Thing something can still be
