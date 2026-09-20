@@ -117,7 +117,13 @@ namespace vos.Taproot
             _writer.WriteLine("                                              - Copy one into a project model of its own");
             _writer.WriteLine();
             _writer.WriteLine("User Management:");
-            _writer.WriteLine("  user change-password <userId>               - Change a user's password");
+            _writer.WriteLine("  user list                                   - Every account, its role and the models it may enter");
+            _writer.WriteLine("  user create <username> <role> [<model name>] - Add an account; prompts for its first password");
+            _writer.WriteLine("  user grant|revoke <username> <model name>   - Let an account enter a model, or take one off it");
+            _writer.WriteLine("  user role <username> <admin|editor|viewer>  - Change an account's role");
+            _writer.WriteLine("  user reset-password <username>              - Set a password the person must then change");
+            _writer.WriteLine("  user delete <username>                      - Remove an account");
+            _writer.WriteLine("  user change-password <userId>               - Change your own password");
             _writer.WriteLine();
             _writer.WriteLine("Other:");
             _writer.WriteLine("  shutdown                                    - Shut down Mycelium");
