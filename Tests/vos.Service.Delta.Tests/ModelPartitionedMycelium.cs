@@ -6,9 +6,9 @@ using vos.Service.Shared;
 
 namespace vos.Service.Delta.Tests;
 
-/// <summary>A Mycelium that keeps each model's Things apart, the way the real one does. Every call is
-/// answered from the model its bearer names, so a test can tell provisioning a model from finding what
-/// another model already holds — which a stub with one set of Things cannot show at all.</summary>
+// A Mycelium that keeps each model's Things apart, the way the real one does. Every call is
+// answered from the model its bearer names, so a test can tell provisioning a model from finding what
+// another model already holds — which a stub with one set of Things cannot show at all.
 public sealed class ModelPartitionedMycelium
 {
     private readonly ConcurrentDictionary<Guid, Model> _models = new();
@@ -23,15 +23,15 @@ public sealed class ModelPartitionedMycelium
     public Guid? IdOf(Guid modelId, string name) =>
         _models.TryGetValue(modelId, out var model) && model.Things.TryGetValue(name, out var id) ? id : null;
 
-    /// <summary>Remove a Thing a caller may still be holding the id of — a template deleted out from
-    /// under whoever provisioned it. The name stops resolving and relating to the id is refused.</summary>
+    // Remove a Thing a caller may still be holding the id of — a template deleted out from
+    // under whoever provisioned it. The name stops resolving and relating to the id is refused.
     public void DeleteThing(Guid modelId, string name)
     {
         if (ModelFor(modelId).Things.TryRemove(name, out var id))
             _deleted.Add(id);
     }
 
-    /// <summary>Every model answers for `is`: it is a model primitive, present before Delta arrives.</summary>
+    // Every model answers for `is`: it is a model primitive, present before Delta arrives.
     private Model ModelFor(Guid modelId) => _models.GetOrAdd(modelId, _ =>
     {
         var model = new Model();

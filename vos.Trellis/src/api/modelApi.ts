@@ -38,14 +38,14 @@ export const modelApi = {
   },
 
   // Upsert a fragment ({ Name, Things, Relationships }) into the live model. Idempotent: re-applying
-  // the same fragment neither duplicates nor errors; created Things/edges animate over SSE. Contrast
+  // the same fragment neither duplicates nor errors; created Things/relationships animate over SSE. Contrast
   // `set`, which replaces the whole model.
   applyFragment: (fragmentJson: string) => {
     const parsed = JSON.parse(fragmentJson);
     return apiClient.post<FragmentResult>('/api/model/fragment', parsed);
   },
 
-  // Carry a group out of this model into a project model built for it from a template (#6045). The
+  // Carry a group out of this model into a project model built for it from a template. The
   // token names the SOURCE, the opposite way round from a fragment: the receiving model does not
   // exist when the call begins. `followedPredicateNames` says what belongs with the root — this
   // model's own vocabulary, so the caller names it rather than the platform assuming it.

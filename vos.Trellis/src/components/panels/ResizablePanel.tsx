@@ -45,7 +45,6 @@ export function ResizablePanel({ children }: Props) {
     dragging.current = false;
   }, []);
 
-  // Prevent text selection while dragging
   useEffect(() => {
     const prevent = (e: Event) => {
       if (dragging.current) e.preventDefault();

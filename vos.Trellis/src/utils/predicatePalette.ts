@@ -1,4 +1,4 @@
-// Bug/Feature #5340 — curated edge colors for known predicates.
+// Curated edge colors for known predicates.
 //
 // Resolution priority for an edge color (see resolvePredicateColor in
 // ./colors.ts):

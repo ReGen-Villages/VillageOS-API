@@ -127,7 +127,7 @@ describe('valueOrigin', () => {
       .toEqual({ origin: 'unknown', assumedFrom: null });
   });
 
-  // TC #6480: the origin comes from what the model declares, so the same value under any other
+  // The origin comes from what the model declares, so the same value under any other
   // name answers the same way.
   it('decides the origin from the declaration, not from the property name', () => {
     const underOneName = thing('s', 'Willow Bend', {

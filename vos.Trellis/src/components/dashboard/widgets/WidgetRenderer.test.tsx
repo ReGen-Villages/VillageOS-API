@@ -36,7 +36,7 @@ describe('a widget kind this build has no drawing for', () => {
 });
 
 // A widget whose binding this build cannot answer is refused rather than drawn, because drawing it
-// puts a figure on screen that reads as an answer (Bug #6866).
+// puts a figure on screen that reads as an answer.
 describe('a widget asking for binding vocabulary this build cannot answer', () => {
   it('names the binding kind it could not answer', () => {
     draw({ type: 'kpi', title: 'Throughput', value: { kind: 'runningTotal', property: 'volume' } });

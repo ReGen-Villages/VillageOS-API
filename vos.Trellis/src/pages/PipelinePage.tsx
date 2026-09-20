@@ -39,7 +39,7 @@ const RUN_STATUS_COLOR: Record<string, string> = {
 
 let nodeSequence = 0;
 
-/** A short edge label for a mapped wire (#5874/#5875), e.g. `user.id → a` with a trailing `ƒ` when the wire
+/** A short edge label for a mapped wire, e.g. `user.id → a` with a trailing `ƒ` when the wire
  * carries a JSONata transform; undefined when the wire is a plain whole-payload pass-through. */
 function pathLabel(fromPath?: string, toPath?: string, transform?: string): string | undefined {
   if (!fromPath && !toPath && !transform) return undefined;
@@ -64,20 +64,17 @@ export function PipelinePage() {
   const [name, setName] = useState(() => t('pipeline.newPipelineName'));
   const [savedId, setSavedId] = useState<string | null>(null);
   // The persistent id of the pipeline being edited — kept across edits (which clear savedId to mark the
-  // canvas dirty) so a save UPDATES the loaded pipeline in place instead of forking a duplicate (#5826).
+  // canvas dirty) so a save UPDATES the loaded pipeline in place instead of forking a duplicate.
   const [editingPipelineId, setEditingPipelineId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Live run: the active run id + the canvas-node-id → Thing-id map so NodeRun statuses (keyed by Thing id)
-  // land on the right canvas node as they stream in over SSE.
   const [runId, setRunId] = useState<string | null>(null);
   const [thingIdByCanvasId, setThingIdByCanvasId] = useState<Record<string, string>>({});
-  // Param routing (#5647): the selected node (binding editor) + the values supplied for each bound run param.
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [runParameterValues, setRunParameterValues] = useState<Record<string, string>>({});
 
-  // Undo + optimistic rollback (#5872). The history records the editor state *before* each mutation (undo),
+  // Undo + optimistic rollback. The history records the editor state *before* each mutation (undo),
   // and holds the last server-confirmed state as a baseline (rollback on a rejected save). `canUndo`/`dirty`
   // drive the toolbar. A ref mirrors the latest nodes/edges so any handler can snapshot the current state.
   type EditorSnapshot = { nodes: Node[]; edges: Edge[] };
@@ -116,7 +113,6 @@ export function PipelinePage() {
     setSavedId(null); // an undo leaves the canvas out of step with the last save
   }, [applySnapshot]);
 
-  // The distinct run-param keys any node binds an input to — drives the Params form.
   const parameterKeys = useMemo(() => {
     const keys = new Set<string>();
     for (const n of nodes) {
@@ -126,7 +122,7 @@ export function PipelinePage() {
     return [...keys].sort();
   }, [nodes]);
 
-  // Pre-run validation (#5829): why the DAG will not run — required inputs neither wired nor param-bound,
+  // Pre-run validation: why the DAG will not run — required inputs neither wired nor param-bound,
   // and dangling wires. Surfaced in the toolbar and gates Run so a broken pipeline fails loud, not silent.
   const validationIssues = useMemo(() => {
     const validationNodes = nodes.map((n) => {
@@ -145,7 +141,6 @@ export function PipelinePage() {
   const selectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : undefined;
   const selectedEdge = selectedEdgeId ? edges.find((e) => e.id === selectedEdgeId) : undefined;
 
-  // Edit a wire's field-path (#5874): update the edge's data + its label, and mark the canvas dirty.
   const setEdgePath = useCallback((edgeId: string, which: 'fromPath' | 'toPath' | 'transform', value: string) => {
     recordSnapshot();
     setEdges((es) => es.map((e) => {
@@ -158,14 +153,12 @@ export function PipelinePage() {
 
   const liveRunStatus = runId ? model.runStatus(runId) : undefined;
   const runActive = !!runId && (liveRunStatus === undefined || liveRunStatus === 'running');
-  // Past + in-flight runs of the loaded pipeline — the history panel (#5646).
   const runs = useMemo(() => (savedId ? model.runsOf(savedId) : []), [savedId, model]);
 
   const clearStatuses = useCallback(() => {
     setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined, progress: undefined } })));
   }, [setNodes]);
 
-  // Replay a past run: point runId at it and the animation effect paints its (terminal) node statuses.
   const onSelectRun = useCallback((id: string) => {
     clearStatuses();
     setRunId(id || null);
@@ -186,7 +179,7 @@ export function PipelinePage() {
     setSavedId(null);
   }, [setNodes, recordSnapshot]);
 
-  // Drop a boundary node (#5873): an Input source (one output port) or an Output sink (one input port). Its
+  // Drop a boundary node: an Input source (one output port) or an Output sink (one input port). Its
   // ports are user-declared — editable in the inspector — and the run fills an Input's outputs from the run
   // parameters and collects an Output's inputs as the pipeline result.
   const addBoundaryNode = useCallback((kind: 'input' | 'output') => {
@@ -217,7 +210,6 @@ export function PipelinePage() {
     setSavedId(null);
   }, [setNodes, recordSnapshot]);
 
-  // Type-check a wire before accepting it (out-port type must be compatible with in-port type).
   const onConnect = useCallback((c: Connection) => {
     const source = nodes.find((n) => n.id === c.source)?.data as PipelineNodeData | undefined;
     const tgt = nodes.find((n) => n.id === c.target)?.data as PipelineNodeData | undefined;
@@ -253,7 +245,7 @@ export function PipelinePage() {
     }));
 
   const onSave = useCallback(async () => {
-    // Optimistic rollback (#5872): remember the state we are trying to save so a rejected save can revert
+    // Optimistic rollback: remember the state we are trying to save so a rejected save can revert
     // the canvas to the last server-confirmed state instead of leaving it out of step with the server.
     const attempt = structuredClone(stateReference.current);
     setBusy(true);
@@ -289,7 +281,6 @@ export function PipelinePage() {
     setSavedId(pipelineId);
     setEditingPipelineId(pipelineId);
     setRunId(null);
-    // Loaded canvas node ids ARE the Thing ids, so the canvas→Thing map is the identity.
     setThingIdByCanvasId(Object.fromEntries(loaded.nodes.map((n) => [n.id, n.id])));
     const loadedNodes: Node[] = loaded.nodes.map((n) => ({
       id: n.id,
@@ -331,7 +322,6 @@ export function PipelinePage() {
     }
   }, [savedId, setNodes, parameterKeys, runParameterValues, t]);
 
-  // Bind (or clear) an input port of a node to a run-param key.
   const setBinding = useCallback((nodeId: string, port: string, parameterKey: string) => {
     recordSnapshot();
     setNodes((ns) => ns.map((n) => {

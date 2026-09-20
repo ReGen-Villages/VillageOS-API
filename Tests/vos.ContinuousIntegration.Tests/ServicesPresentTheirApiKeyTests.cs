@@ -7,14 +7,12 @@ using Xunit;
 
 namespace vos.ContinuousIntegration.Tests;
 
-/// <summary>
-/// A service reaches the broker with whatever credential it was built holding. Every launch reads an
-/// API key, and a service that reads one and then builds its clients without it authenticates as
-/// nobody — which the broker answers with a refusal the service reports as its own failure.
-///
-/// Each construction is judged rather than the file: a service can build one client correctly and
-/// another beside it without the key, and a file-wide search for the word would call that good.
-/// </summary>
+// A service reaches the broker with whatever credential it was built holding. Every launch reads an
+// API key, and a service that reads one and then builds its clients without it authenticates as
+// nobody — which the broker answers with a refusal the service reports as its own failure.
+//
+// Each construction is judged rather than the file: a service can build one client correctly and
+// another beside it without the key, and a file-wide search for the word would call that good.
 public class ServicesPresentTheirApiKeyTests
 {
     [Fact]
@@ -38,13 +36,12 @@ public class ServicesPresentTheirApiKeyTests
             + $"credential and every call they make is refused: {string.Join(", ", found)}");
     }
 
-    /// <summary>The client types a service reaches the broker through: everything deriving from the base
-    /// that holds a credential. Read from the checkout rather than listed here, so a new client is
-    /// covered on the day it is written.
-    ///
-    /// The parameter list between the name and the base is optional because a client written with a
-    /// primary constructor carries one — and the client this guard was written for is one of those.
-    /// </summary>
+    // The client types a service reaches the broker through: everything deriving from the base
+    // that holds a credential. Read from the checkout rather than listed here, so a new client is
+    // covered on the day it is written.
+    //
+    // The parameter list between the name and the base is optional because a client written with a
+    // primary constructor carries one — and the client this guard was written for is one of those.
     private static IReadOnlyCollection<string> BrokerClientTypesUnder(string root)
     {
         var derived = new HashSet<string> { "SubscriptionClient" };
@@ -64,9 +61,9 @@ public class ServicesPresentTheirApiKeyTests
         return derived;
     }
 
-    /// <summary>Every <c>new T(...)</c> in the source, each as the whole call. Taken by balancing the
-    /// brackets rather than by reading to the next one: these calls hold nested calls of their own, and
-    /// stopping at the first closing bracket would cut every one of them short.</summary>
+    // Every new T(...) in the source, each as the whole call. Taken by balancing the
+    // brackets rather than by reading to the next one: these calls hold nested calls of their own, and
+    // stopping at the first closing bracket would cut every one of them short.
     private static IEnumerable<string> ConstructionsOf(string clientType, string source)
     {
         foreach (Match match in Regex.Matches(source, @"new\s+" + Regex.Escape(clientType) + @"\s*\("))

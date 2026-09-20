@@ -14,8 +14,7 @@ namespace vos.Service.Delta.Tests;
 // Custom WebApplicationFactory for Delta endpoint tests.
 // Pattern follows vos.Mycelium.Tests.MyceliumWebApplicationFactory from the sibling
 // VillageOS repo, including the IAsyncLifetime workaround for the sync-over-async
-// deadlock in CreateHost under the XPlat Code Coverage collector on Windows CI
-// (VillageOS Bug #5260).
+// deadlock in CreateHost under the XPlat Code Coverage collector on Windows CI.
 // Settings are injected via UseSetting on the host builder; ServiceLaunchSettings.Parse
 // falls back to those when no command-line flags are present, which is always the case here.
 // Tests that need a per-test verification key set VerificationKey / Issuer /
@@ -23,8 +22,8 @@ namespace vos.Service.Delta.Tests;
 // The seed is supplied in-memory: ConfigureWebHost swaps the production
 // IEndpointSeedProvider (FileEndpointSeedProvider) for an
 // InMemoryEndpointSeedProvider seeded from SeedJson, so each
-// factory instance owns its seed without touching AppContext.BaseDirectory
-// (Task #5455). Tests override SeedJson before the first CreateClient()
+// factory instance owns its seed without touching AppContext.BaseDirectory.
+// Tests override SeedJson before the first CreateClient()
 // to exercise malformed-seed boot paths.
 // IHttpClientFactory is replaced with a PerCallHttpClientFactory that returns
 // a fresh HttpClient per CreateClient call — MyceliumClientBase.CreateAuthenticatedClientAsync
@@ -68,7 +67,7 @@ public class DeltaWebApplicationFactory : WebApplicationFactory<Program>, IAsync
     }
     """;
 
-    // Provisioning reads the catalog's existing edges before it writes anything. A test that routes
+    // Provisioning reads the catalog's existing relationships before it writes anything. A test that routes
     // nothing for that read is saying nothing about it rather than saying it fails, so it is answered
     // here — after the callback, so a test with something to say about it still has the first word.
     private HttpResponseMessage Route(HttpRequestMessage request)

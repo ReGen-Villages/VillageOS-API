@@ -5,7 +5,7 @@ using Xunit;
 
 namespace vos.Taproot.Tests;
 
-// Covers the `apply <file.json>` command (US #5814): read a fragment payload from a file,
+// Covers the `apply <file.json>` command: read a fragment payload from a file,
 // upsert it via MyceliumClient.ApplyFragmentAsync, and report the counts.
 public class ApplyCommandHandlerTests : IDisposable
 {

@@ -5,9 +5,9 @@ using Xunit;
 
 namespace vos.Service.Intake.Tests;
 
-/// <summary>How a verification code leaves this service. A deployment hands it to a mail server; a
-/// developer with no relay to hand can have it written where they can read it instead, which verifies
-/// nobody and is refused anywhere but a development machine.</summary>
+// How a verification code leaves this service. A deployment hands it to a mail server; a
+// developer with no relay to hand can have it written where they can read it instead, which verifies
+// nobody and is refused anywhere but a development machine.
 public class MailDeliveryTests
 {
     private static IConfiguration Configured(params (string Key, string Value)[] settings) =>

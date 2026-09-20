@@ -78,7 +78,6 @@ public sealed class ModelIngestRunner : IModelIngestRunner
         return psi;
     }
 
-    // Pull "Ingested <n> things, <m> relationships" out of the CLI output; (0,0) if absent.
     internal static (int Things, int Relationships) ParseCounts(string stdout)
     {
         var m = CountLine.Match(stdout);

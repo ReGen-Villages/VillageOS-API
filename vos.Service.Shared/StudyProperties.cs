@@ -3,23 +3,23 @@ using System.Text.Json;
 
 namespace vos.Service.Shared;
 
-/// <summary>The two calls a compute service makes against Mycelium: read the study it was dispatched
-/// against, and write a computed value back as a Fact — onto that study, or onto a Thing beside it whose
-/// own result it is. Bound to the service making them, so every refusal names itself.
-///
-/// <para>Shared rather than copied into each handler: the read sat in every compute service and the
-/// write in most of them, identical but for the name in the message — the shape where one gets fixed
-/// and the others are left as they were. <see cref="StudyInputs"/> was shared out of the same handlers
-/// for the same reason. Several of those services have since been retired, because the model declares
-/// what they computed.</para>
-///
-/// <para>The client is supplied rather than built per call, unlike
-/// <see cref="MyceliumClientBase.SetFactAsync"/>: a recompute writes several outputs and would otherwise
-/// exchange a token for each one.</para></summary>
+// The two calls a compute service makes against Mycelium: read the study it was dispatched
+// against, and write a computed value back as a Fact — onto that study, or onto a Thing beside it whose
+// own result it is. Bound to the service making them, so every refusal names itself.
+//
+// Shared rather than copied into each handler: the read sat in every compute service and the
+// write in most of them, identical but for the name in the message — the shape where one gets fixed
+// and the others are left as they were. StudyInputs was shared out of the same handlers
+// for the same reason. Several of those services have since been retired, because the model declares
+// what they computed.
+//
+// The client is supplied rather than built per call, unlike
+// MyceliumClientBase.SetFactAsync: a recompute writes several outputs and would otherwise
+// exchange a token for each one.
 public sealed class StudyProperties(HttpClient client, string myceliumUrl, string serviceName)
 {
-    /// <summary>The study's effective properties, so an assumption declared on the shared archetype
-    /// resolves without the service knowing where it came from.</summary>
+    // The study's effective properties, so an assumption declared on the shared archetype
+    // resolves without the service knowing where it came from.
     public async Task<StudyInputs> ReadAsync(Guid studyId, CancellationToken cancellationToken = default)
     {
         var response = await client.GetAsync(

@@ -6,32 +6,30 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Services;
 
-/// <summary>What a position lookup came to: an answer, nothing available, or a register that could not
-/// be asked. Three outcomes rather than exceptions, because the first two are answers a stranger's
-/// browser acts on and only the last is the deployment's problem.</summary>
+// What a position lookup came to: an answer, nothing available, or a register that could not
+// be asked. Three outcomes rather than exceptions, because the first two are answers a stranger's
+// browser acts on and only the last is the deployment's problem.
 public enum LookupOutcome { Found, NothingAvailable, ProviderUnavailable }
 
 public sealed record ParcelLookup(LookupOutcome Outcome, AnsweredParcel? Parcel = null);
 
 public sealed record PlacesLookup(LookupOutcome Outcome, AnsweredPlaces? Places = null);
 
-/// <summary>
-/// The two lookups a page makes before any site exists, answered from the registrations the model
-/// declares. The outbound call goes through the broker's endpoint-forward route to the fetching
-/// service, which owns addresses, placeholder filling and outbound identification — a second HTTP path
-/// here would be a second mapping to keep right. What comes back is the provider's raw body, because
-/// the registration carries no <c>responseTransform</c>; the reshape this service applies is the
-/// registration's own <c>lookupTransform</c>.
-/// </summary>
+// The two lookups a page makes before any site exists, answered from the registrations the model
+// declares. The outbound call goes through the broker's endpoint-forward route to the fetching
+// service, which owns addresses, placeholder filling and outbound identification — a second HTTP path
+// here would be a second mapping to keep right. What comes back is the provider's raw body, because
+// the registration carries no responseTransform; the reshape this service applies is the
+// registration's own lookupTransform.
 public sealed class PositionLookupService(
     IntakeMyceliumClient mycelium,
     ISubscriptionClient subscriptions,
     string fetcherSubdomain,
     ILogger<PositionLookupService> logger)
 {
-    /// <summary>One wording for a register nothing registered, none covering the position, and none
-    /// holding a parcel there: the caller does the same thing in all three — draws the boundary — and
-    /// the form options already say whether the capability exists at all.</summary>
+    // One wording for a register nothing registered, none covering the position, and none
+    // holding a parcel there: the caller does the same thing in all three — draws the boundary — and
+    // the form options already say whether the capability exists at all.
     public const string NoParcelAvailable =
         "No parcel boundary is available at this position. Draw the boundary instead.";
 

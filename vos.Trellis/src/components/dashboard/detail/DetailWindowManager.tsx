@@ -11,7 +11,6 @@ import { useDeclaredPropertyTypes } from '../../../hooks/useDeclaredPropertyType
 
 export function useDetailWindows(modelIndex: ModelIndex, detail: DetailSpec | undefined, nonce?: number) {
   const [order, setOrder] = useState<string[]>([]);
-  // Bumped when a window's "spread" button is clicked; every window re-tiles on the change.
   const [spreadTick, setSpreadTick] = useState(0);
 
   const openDetail = useCallback((thingId: string) => {

@@ -8,16 +8,16 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Tests;
 
-/// <summary>A model that answers: every name it is asked for resolves to a Thing, and a fragment applies.
-/// Tests that care about one call in particular recognise it with <see cref="IsFragment"/> and answer the
-/// rest with <see cref="Holds"/>.</summary>
+// A model that answers: every name it is asked for resolves to a Thing, and a fragment applies.
+// Tests that care about one call in particular recognise it with IsFragment and answer the
+// rest with Holds.
 public static class ModelStub
 {
     public static bool IsFragment(HttpRequestMessage request) =>
         request.RequestUri!.AbsolutePath == "/api/model/fragment";
 
-    /// <summary>The scoped read the vocabularies are resolved through. A subscription is released by a
-    /// DELETE under the same path, which the name-lookup answer serves well enough.</summary>
+    // The scoped read the vocabularies are resolved through. A subscription is released by a
+    // DELETE under the same path, which the name-lookup answer serves well enough.
     private static bool IsSubscriptionRead(HttpRequestMessage request) =>
         request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/api/subscriptions";
 
@@ -34,9 +34,8 @@ public static class ModelStub
         return Json($$"""{"Id":"{{Guid.NewGuid()}}","Name":"predicate"}""");
     }
 
-    /// <summary>What the scoped read answers with: a model declaring both vocabularies, serialised the way
-    /// the broker serialises it, so the tests that go through the real client exercise the real reading.
-    /// </summary>
+    // What the scoped read answers with: a model declaring both vocabularies, serialised the way
+    // the broker serialises it, so the tests that go through the real client exercise the real reading.
     public static string DeclaredVocabularyAnswer =>
         JsonSerializer.Serialize(
             new SubscribeResult(Guid.NewGuid(), 0, DeclaredModel.Seeded().Build()),
@@ -55,8 +54,8 @@ public static class ModelStub
         SubmissionFragmentComposer.SubmissionArchetypeName,
     ];
 
-    /// <summary>A lookup by identifier rather than by name — how the service asks whether a submission's
-    /// record is already there.</summary>
+    // A lookup by identifier rather than by name — how the service asks whether a submission's
+    // record is already there.
     public static bool IsThingLookupById(HttpRequestMessage request) =>
         request.Method == HttpMethod.Get
         && request.RequestUri!.AbsolutePath.StartsWith("/api/things/", StringComparison.Ordinal)
@@ -67,9 +66,9 @@ public static class ModelStub
     public static string NameAsked(HttpRequestMessage request) =>
         HttpUtility.ParseQueryString(request.RequestUri!.Query)["name"] ?? "";
 
-    /// <summary>A model seeded from the analysis templates, which is the only kind a submission may enter.
-    /// The archetypes answer with an identifier derived from their name, so two calls agree; everything
-    /// else is left to the test, which is what it came to say something about.</summary>
+    // A model seeded from the analysis templates, which is the only kind a submission may enter.
+    // The archetypes answer with an identifier derived from their name, so two calls agree; everything
+    // else is left to the test, which is what it came to say something about.
     public static Func<HttpRequestMessage, HttpResponseMessage> Seeded(
         Func<HttpRequestMessage, HttpResponseMessage> answerTheRest) =>
         request =>
@@ -81,8 +80,8 @@ public static class ModelStub
                 : answerTheRest(request);
         };
 
-    /// <summary>What <see cref="Seeded"/> answers a name lookup with, for a test that has to wrap the
-    /// answering itself rather than hand it over.</summary>
+    // What Seeded answers a name lookup with, for a test that has to wrap the
+    // answering itself rather than hand it over.
     public static HttpResponseMessage SeededAnswer(HttpRequestMessage request)
     {
         var name = NameAsked(request);

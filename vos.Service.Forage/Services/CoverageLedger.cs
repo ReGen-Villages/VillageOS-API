@@ -12,7 +12,7 @@ public sealed record OutstandingCall(CoveringSource Source, SourceCall Call, Gui
 // What the model already records about a run's calls, and what each call came to.
 //
 // A site was discovered exactly once ever while the state a run is dispatched by counted `observed`
-// edges: nothing removes one, so the first source to answer ended the occupancy for every source. The
+// relationships: nothing removes one, so the first source to answer ended the occupancy for every source. The
 // coverage Things replace that count, and this is what fills them — so a partial failure leaves exactly
 // the calls that failed outstanding, and a source added to the catalogue later reaches a site already
 // discovered.

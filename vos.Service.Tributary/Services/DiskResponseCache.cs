@@ -6,7 +6,7 @@ namespace vos.Service.Tributary.Services;
 
 public readonly record struct CachedResponse(byte[] Bytes, string ContentType);
 
-// The on-disk store behind the DiskCache kind (#5918). Entries are real files with real
+// The on-disk store behind the DiskCache kind. Entries are real files with real
 // extensions — a cached tile opens in any viewer — under one directory per endpoint. The
 // extension is derived from the media type by a small generic map (media types, not sources);
 // a type the map does not know falls back to `.bin` plus a `.meta.json` sidecar carrying the
@@ -38,7 +38,7 @@ public sealed class DiskResponseCache
     }
 
     // The Accept header is part of the identity: the same address can legitimately answer with
-    // different formats (#5913), and serving one negotiation's bytes to another would be a lie.
+    // different formats, and serving one negotiation's bytes to another would be a lie.
     public static string CacheKey(Uri address, string? acceptHeader) =>
         Convert.ToHexString(SHA256.HashData(
             Encoding.UTF8.GetBytes(address.AbsoluteUri + "\n" + (acceptHeader ?? string.Empty)))).ToLowerInvariant();

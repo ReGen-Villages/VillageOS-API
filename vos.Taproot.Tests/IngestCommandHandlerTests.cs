@@ -5,7 +5,7 @@ using Xunit;
 
 namespace vos.Taproot.Tests;
 
-// Covers the `ingest <file.ifc>` command (US #5843): upload an IFC to the Xylem service and report counts.
+// Covers the `ingest <file.ifc>` command: upload an IFC to the Xylem service and report counts.
 public class IngestCommandHandlerTests : IDisposable
 {
     private readonly Mock<MyceliumClient> _myceliumMock;

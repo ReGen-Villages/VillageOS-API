@@ -13,7 +13,7 @@ using Xunit;
 
 namespace vos.Service.Delta.Tests;
 
-// Unit tests for TemplateCatalogProvisioner (Task #5468) — idempotent creation of one model's
+// Unit tests for TemplateCatalogProvisioner — idempotent creation of one model's
 // endpoint-template catalog and its is wiring. The provisioner is exercised
 // against a real MyceliumClient over a MockHttpMessageHandler (the repo's
 // mycelium-faking convention), with a small stateful MyceliumStub tracking created things
@@ -382,7 +382,7 @@ public class TemplateCatalogProvisionerTests
             "without the is edge the key is not inherited, so writing it would create the shadow this avoids");
     }
 
-    // The run that fails the edge still leaves the thing behind, and a name lookup cannot tell that
+    // The run that fails the relationship still leaves the thing behind, and a name lookup cannot tell that
     // thing from a finished one. Without repair the template answers with the parent's values for the
     // rest of the model's life, and only the run that first failed ever says so.
     [Fact]
@@ -479,7 +479,7 @@ public class TemplateCatalogProvisionerTests
         public List<(Guid Subject, Guid Predicate, Guid Target)> Relationships { get; } = new();
         public List<(Guid ThingId, string Name, string Body)> PropertyWrites { get; } = new();
 
-        // Mycelium writes in call order, so ordering between the `is` edge and a property write is the
+        // Mycelium writes in call order, so ordering between the `is` relationship and a property write is the
         // whole point of these tests; record it rather than inferring it from the per-kind lists.
         public List<string> Calls { get; } = new();
         public int ThingPostCount => ThingPostBodies.Count;

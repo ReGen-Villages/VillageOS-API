@@ -60,7 +60,6 @@ namespace vos.Taproot
                 return;
             }
 
-            // Get name before deleting (for display)
             var thingName = tok[0];
             var result = await _resolver.ResolveThingAsync(tok[0]);
             if (!result.IsSuccess)
@@ -70,7 +69,6 @@ namespace vos.Taproot
             }
             var id = result.Id;
 
-            // If user provided a GUID, try to get the name for display
             if (Guid.TryParse(tok[0], out _))
             {
                 thingName = await _resolver.ResolveNameAsync(id);
@@ -131,7 +129,6 @@ namespace vos.Taproot
 
             var propertyName = tok[1];
 
-            // Resolve thing name for display
             var thingName = await _resolver.ResolveNameAsync(thingId);
             var thingDisplay = _options.FormatIdentifier(thingName, thingId);
 

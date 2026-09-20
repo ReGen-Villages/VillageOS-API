@@ -146,7 +146,7 @@ describe('what has arrived', () => {
     expect(submissionsIn(declared).find((one) => one.id === 'arrival-1')?.submittedAt).toBeUndefined();
   });
 
-  // A template declares its proposed-site predicate by relating the two archetypes, so that edge is
+  // A template declares its proposed-site predicate by relating the two archetypes, so that relationship is
   // asserted through the same predicate every real submission is. Listed, it offers a reviewer a
   // Reject and a Promote over the model's own declaration.
   it('leaves out the declaration the model makes of what a submission is', () => {

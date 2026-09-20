@@ -199,7 +199,6 @@ def test_handle_rejects_a_token_carrying_no_signature(client, signing):
     assert res.status_code == 401
 
 
-# ---- Write kinds (Fact / Observation / Sediment) ----
 import asyncio
 
 import httpx
@@ -325,7 +324,6 @@ def test_demo_endpoint_requires_thing_id(client):
     assert res.status_code == 400
 
 
-# ---- Snapshot selector ---- (reuses the asyncio/json/httpx imports + mycelium fixture above)
 from app import subscribe, unsubscribe, slice_by_type_and_traverse, demo_subscribe
 
 
@@ -387,8 +385,6 @@ def test_demo_subscribe_summarises_and_unsubscribes(mycelium):
     assert captured[1].method == "DELETE"
     assert captured[1].url.path == "/api/subscriptions/s-1"
 
-
-# ---- Launch settings ----
 
 from app import USAGE, parse_args
 

@@ -68,7 +68,7 @@ public class FindingsReaderTests
         selector.All.Should().BeFalse();
     }
 
-    // Every predicate the page walks, in the direction it walks it — and the `is` edge, without which no
+    // Every predicate the page walks, in the direction it walks it — and the `is` relationship, without which no
     // Thing in the answer can be told what it is.
     [Fact]
     public void The_findings_read_follows_the_edges_the_page_walks()
@@ -108,7 +108,7 @@ public class FindingsReaderTests
         Identifiers(answered).Should().Contain(ThisSite);
     }
 
-    // An edge to a Thing that was withheld names an identifier the answer does not carry, and says the
+    // A relationship to a Thing that was withheld names an identifier the answer does not carry, and says the
     // site relates to something the reader is not shown.
     [Fact]
     public void It_answers_with_no_edge_naming_a_withheld_thing()
@@ -178,8 +178,8 @@ public class FindingsReaderTests
             || !properties.TryGetProperty(flag, out _));
     }
 
-    /// <summary>The snapshot as the platform would have answered a walk rooted at one site: that site,
-    /// what it reaches, and the declarations. Another submitter's Things are simply absent.</summary>
+    // The snapshot as the platform would have answered a walk rooted at one site: that site,
+    // what it reaches, and the declarations. Another submitter's Things are simply absent.
     private static JsonDocument OnlyReaching(JsonElement snapshot, Guid site)
     {
         var reached = new HashSet<Guid>

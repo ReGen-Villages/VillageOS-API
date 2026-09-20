@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
 
-// Ensure localStorage is available (jsdom may not have it in all configs)
 if (!globalThis.localStorage || typeof globalThis.localStorage.getItem !== 'function') {
   const store: Record<string, string> = {};
   Object.defineProperty(globalThis, 'localStorage', {
@@ -18,10 +17,8 @@ if (!globalThis.localStorage || typeof globalThis.localStorage.getItem !== 'func
   });
 }
 
-// Import after localStorage is available
 const { useUiStore } = await import('./uiStore');
 
-// Reset Zustand store state before each test
 beforeEach(() => {
   useUiStore.setState({
     selectedNodeId: null,
@@ -247,11 +244,9 @@ describe('hiddenTypeIds — type filter (Feature #5362)', () => {
     toggleHiddenType('t-wall');
     toggleHiddenType('t-door');
 
-    // Switch to a different model — store should clear (different localStorage key)
     setCurrentModelId('model-B');
     expect(useUiStore.getState().hiddenTypeIds.size).toBe(0);
 
-    // Switch back — persisted state restored
     setCurrentModelId('model-A');
     const restored = useUiStore.getState().hiddenTypeIds;
     expect(restored.has('t-wall')).toBe(true);
@@ -265,7 +260,6 @@ describe('hiddenTypeIds — type filter (Feature #5362)', () => {
     expect(useUiStore.getState().hiddenTypeIds.size).toBe(1);
     clearHiddenTypeIds();
     expect(useUiStore.getState().hiddenTypeIds.size).toBe(0);
-    // Re-load model — should still be empty
     useUiStore.getState().setCurrentModelId(null);
     useUiStore.getState().setCurrentModelId('m1');
     expect(useUiStore.getState().hiddenTypeIds.size).toBe(0);
@@ -283,7 +277,6 @@ describe('hiddenTypeIds — type filter (Feature #5362)', () => {
     // localStorage so we don't pollute a global key.
     useUiStore.setState({ currentModelId: null, hiddenTypeIds: new Set<string>() });
     useUiStore.getState().toggleHiddenType('t-wall');
-    // No localStorage entry should exist for an unkeyed model
     const allKeys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);

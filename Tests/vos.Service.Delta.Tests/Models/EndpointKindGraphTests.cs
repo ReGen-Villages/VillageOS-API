@@ -93,9 +93,9 @@ public class EndpointKindGraphTests
             .Message.Should().Contain("EsriEndpoint");
     }
 
-    // Delta writes these edges and Tributary reads them. If one side matched the role name case
+    // Delta writes these relationships and Tributary reads them. If one side matched the role name case
     // sensitively and the other did not, a seed spelling it differently would provision a plain
-    // relationship that the reader then treated as a kind edge, or the reverse.
+    // relationship that the reader then treated as a kind relationship, or the reverse.
     [Fact]
     public void Build_RoleSpelledWithDifferentCase_IsStillAKindEdge()
     {

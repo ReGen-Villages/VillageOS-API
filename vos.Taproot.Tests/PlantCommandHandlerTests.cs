@@ -352,7 +352,7 @@ public class PlantCommandHandlerTests : IDisposable
         Assert.Contains("Configured 1 properties across 1 things", output);
     }
 
-    // Regression (#6513): the client held its own list of modes and silently dropped a word that was
+    // Regression: the client held its own list of modes and silently dropped a word that was
     // not on it, so a mode the platform accepts and this client had not heard of did nothing at all.
     [Fact]
     public async Task Execute_WithAModeThisClientDoesNotKnow_SendsItToThePlatform()

@@ -39,9 +39,8 @@ try
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
     builder.Services.AddHttpClient();
 
-    // Add JWT auth if mycelium provided a signing key. Bug #5391: use the
-    // issuer/audience Mycelium passes via CLI so validation matches what
-    // Mycelium signed.
+    // Validate with the issuer and audience Mycelium passes on the command line, so validation
+    // matches what Mycelium signed.
     var authEnabled = !string.IsNullOrEmpty(verificationKey);
     if (authEnabled)
     {
@@ -69,11 +68,11 @@ try
             myceliumUrl,
             serviceToken, apiKey: apiKey));
     builder.Services.AddSingleton<ObservationIngestService>();
-    // Per-process token-exchange cache (Task #5470). TimeProvider.System drives its refresh threshold;
+    // Per-process token-exchange cache. TimeProvider.System drives its refresh threshold;
     // tests substitute a fake clock. Singleton so the cache survives across /handle requests.
     builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.AddSingleton<TokenExchangeCache>();
-    // The DiskCache kind's store (#5918). One root for the process; entries live under one
+    // The DiskCache kind's store. One root for the process; entries live under one
     // directory per endpoint. The root is deployment configuration, not endpoint config.
     var cacheDirectory = builder.Configuration["CacheDirectory"]
         ?? Path.Combine(Directory.GetCurrentDirectory(), "cache");
@@ -125,7 +124,6 @@ finally
     Log.CloseAndFlush();
 }
 
-// Map the framework-free EndpointCallResult back to the exact HTTP responses /handle always returned.
 static IResult ToHttpResult(EndpointCallResult result)
 {
     if (result.Error is ProblemError problem)

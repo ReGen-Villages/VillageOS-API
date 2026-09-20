@@ -11,8 +11,6 @@ import { inlineFigure } from './figures.mjs';
 
 const require = createRequire(import.meta.url);
 
-/* ── What the caller asked for ─────────────────────────────────────────────── */
-
 function usage(message) {
   if (message) console.error(`docs-pdf: ${message}\n`);
   console.error(`Render a guide's Markdown as a ReGen-branded PDF.
@@ -54,8 +52,6 @@ function options(argv) {
   o.html = o.out.replace(/\.pdf$/i, '.html');
   return o;
 }
-
-/* ── Markdown to a document ────────────────────────────────────────────────── */
 
 export const PART = /^(Part\s+(?:[IVXLCDM]+|\d+)|Appendix\s+[A-Z\d]+|Annex\s+[A-Z\d]+)\s*[—–:-]\s*(.+)$/i;
 const NUMBERED = /^(\d+)\.\s+(.+)$/;
@@ -182,8 +178,6 @@ function keepEverythingBut(tokens, startsSection) {
   return kept;
 }
 
-/* ── Markdown to HTML ──────────────────────────────────────────────────────── */
-
 function configureMarked(baseDir, report) {
   marked.use({
     gfm: true,
@@ -228,8 +222,6 @@ function configureMarked(baseDir, report) {
 
 const render = (tokens) => (tokens.length ? marked.parse(tokens.map((t) => t.raw).join('')) : '');
 const renderRaw = (raw) => (raw ? marked.parse(raw) : '');
-
-/* ── The document as pages ─────────────────────────────────────────────────── */
 
 /**
  * The version lives on the PDF, never in the Markdown: a guide changes on every merge, and a number
@@ -353,8 +345,6 @@ function page(doc, o) {
 </head><body>${html}${diagrams}</body></html>`;
 }
 
-/* ── The browser that prints it ────────────────────────────────────────────── */
-
 const CHROME_CANDIDATES = [
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   '/Applications/Chromium.app/Contents/MacOS/Chromium',
@@ -417,8 +407,6 @@ async function toPdf(htmlPath, o, title) {
     await browser.close();
   }
 }
-
-/* ── Run ───────────────────────────────────────────────────────────────────── */
 
 export async function renderGuide(argv) {
   const o = options(argv);

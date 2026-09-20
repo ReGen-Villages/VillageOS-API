@@ -135,7 +135,7 @@ public class QueryCommandHandlerTests
     }
 
     // The platform answers a relationship as { Id, SubjectId, PredicateId, TargetId, Properties }; the
-    // predicate is a Thing the PredicateId names (#7168).
+    // predicate is a Thing the PredicateId names.
     private static readonly Guid LikesId = Guid.Parse("dddddddd-0000-0000-0000-000000000001");
     private static readonly Guid OwnsId = Guid.Parse("dddddddd-0000-0000-0000-000000000002");
 
@@ -375,7 +375,7 @@ public class QueryCommandHandlerTests
     [Fact]
     public async Task QueryProperty_InheritedProperty_ShowsInheritedSource()
     {
-        // Regression for #6058: the value lives only on the archetype (inherited, never overridden),
+        // Regression: the value lives only on the archetype (inherited, never overridden),
         // so it comes from the effective endpoint keyed by qualified path — not the removed key.
         var thingId = Guid.NewGuid();
         _myceliumMock.Setup(b => b.GetAllThingsAsync())

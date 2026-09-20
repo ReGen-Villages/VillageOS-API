@@ -46,7 +46,7 @@ public class EnergyBalanceNodeTests
         response.Outputs.Should().BeEmpty();
     }
 
-    // #6549: a port wired to a withheld roll-up arrives present-but-null, which is not the same as absent.
+    // A port wired to a withheld roll-up arrives present-but-null, which is not the same as absent.
     // Reading it with GetDouble() raised .NET's own "target element has type 'Null'" — a message naming no
     // port, which is the failure this change exists to remove on the reactive side.
     [Fact]

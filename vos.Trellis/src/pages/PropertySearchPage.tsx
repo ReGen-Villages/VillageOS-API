@@ -17,7 +17,6 @@ import clsx from 'clsx';
 /** Max rows rendered at once to keep the DOM lightweight. */
 const PAGE_SIZE = 100;
 
-/** Return a ReactNode with the first occurrence of `query` highlighted in yellow. */
 function highlightMatch(text: string, query: string) {
   const index = text.toLowerCase().indexOf(query.toLowerCase());
   if (index === -1) return text;
@@ -56,7 +55,6 @@ export function PropertySearchPage() {
   // for the declared types, which is why it comes from the one hook rather than a second fetch.
   const effectiveProperties = useDeclaredPropertyTypes();
 
-  // Debounce: update the actual search query 250ms after the user stops typing
   const onInputChange = useCallback((value: string) => {
     setInputValue(value);
     clearTimeout(debounceReference.current);
@@ -70,14 +68,12 @@ export function PropertySearchPage() {
 
   useEffect(() => () => clearTimeout(debounceReference.current), []);
 
-  // Build a name lookup for relationship detail display
   const thingNames = useMemo(() => {
     const map = new Map<string, string>();
     for (const t of things) map.set(t.Id, t.Name);
     return map;
   }, [things]);
 
-  // Search — runs only when the query, mode, resolved properties, or relationships change
   const results = useMemo(
     () => searchProperties({ effectiveProperties, relationships, thingNames, query: debouncedQuery, mode: searchMode }),
     [debouncedQuery, searchMode, effectiveProperties, relationships, thingNames],

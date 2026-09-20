@@ -4,11 +4,9 @@ using Xunit;
 
 namespace vos.Auth.Shared.Tests;
 
-/// <summary>
-/// VosClaimsTests pins each name against the spelling Mycelium mints, and that pin is only worth
-/// something while the running code reads the constant. Code that spells a claim itself keeps the old
-/// spelling when the pin is corrected, and nothing fails until a caller is refused at run time.
-/// </summary>
+// VosClaimsTests pins each name against the spelling Mycelium mints, and that pin is only worth
+// something while the running code reads the constant. Code that spells a claim itself keeps the old
+// spelling when the pin is corrected, and nothing fails until a caller is refused at run time.
 public class ClaimNamesLiveOnlyInVosClaimsTests
 {
     private const string ClaimLiteral = "\"vos:";
@@ -33,10 +31,10 @@ public class ClaimNamesLiveOnlyInVosClaimsTests
             + "so the pin guards a value nothing reads at run time", Declaration);
     }
 
-    /// <summary>Every project is named vos.something, and the ones outside Tests are what runs in
-    /// production. A test writes the name Mycelium mints on purpose, the way VosClaimsTests does: a
-    /// token in a test stands in for one the platform signed, and spelling it out is what makes the
-    /// pin mean anything.</summary>
+    // Every project is named vos.something, and the ones outside Tests are what runs in
+    // production. A test writes the name Mycelium mints on purpose, the way VosClaimsTests does: a
+    // token in a test stands in for one the platform signed, and spelling it out is what makes the
+    // pin mean anything.
     private static IEnumerable<string> ProductionSources(string root) =>
         new DirectoryInfo(root)
             .EnumerateDirectories("vos.*")

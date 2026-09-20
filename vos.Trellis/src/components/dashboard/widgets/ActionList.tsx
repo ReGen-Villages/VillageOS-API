@@ -15,7 +15,7 @@ import { actionRequest, complete, nameOf, type Entered } from './writeRequest';
  * A press posts the row, the choice and whatever the row was asked for to the endpoint the spec
  * names. It sends no actor: the session the request travels under is the only answer to who is
  * asking, and a body naming a person could name somebody else. What the write summons is not
- * decided here either: the endpoint lays down an edge or a Fact and the model decides what that
+ * decided here either: the endpoint lays down a relationship or a Fact and the model decides what that
  * wakes, which is why nothing on this page knows a handler's name.
  */
 export function ActionList({ widget, context }: { widget: ActionWidget; context: ResolveContext }) {

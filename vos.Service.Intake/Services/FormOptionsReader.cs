@@ -4,21 +4,18 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Services;
 
-/// <summary>
-/// What a public form needs to draw itself, read out of the model the page cannot read for itself.
-/// </summary>
-/// <remarks>
-/// The categories are found by the mark their archetype carries, as every vocabulary this service reads
-/// is. The predicate they are asserted through is required even though a form never writes an edge: a
-/// model missing it refuses every submission naming a category, and a form offering choices its own
-/// service would then refuse is worse than no form.
-/// </remarks>
+// What a public form needs to draw itself, read out of the model the page cannot read for itself.
+//
+// The categories are found by the mark their archetype carries, as every vocabulary this service reads
+// is. The predicate they are asserted through is required even though a form never writes a relationship: a
+// model missing it refuses every submission naming a category, and a form offering choices its own
+// service would then refuse is worse than no form.
 public static class FormOptionsReader
 {
-    /// <summary>The archetype a basemap source is declared under. A name where the rest of this service
-    /// reads a mark, because the name is the contract the map chapter of <c>docs/FIELD_GUIDE.md</c> already states for every
-    /// client that draws a map — a second way of finding the same Things would be one more thing a model's
-    /// author has to know.</summary>
+    // The archetype a basemap source is declared under. A name where the rest of this service
+    // reads a mark, because the name is the contract the map chapter of docs/FIELD_GUIDE.md already states for every
+    // client that draws a map — a second way of finding the same Things would be one more thing a model's
+    // author has to know.
     public const string BasemapSourceArchetypeName = "BasemapSource";
 
     public const string AttributionProperty = "attribution";
@@ -30,8 +27,8 @@ public static class FormOptionsReader
     public const string TerrainExaggerationProperty = "terrainExaggeration";
     public const string BuildingSourceLayerProperty = "buildingSourceLayer";
 
-    /// <summary>The mark on the archetype whose members a report's sections name as their theme. Declared
-    /// in the platform repository's <c>land-intake.template.json</c>; the two agree by this literal.</summary>
+    // The mark on the archetype whose members a report's sections name as their theme. Declared
+    // in the platform repository's land-intake.template.json; the two agree by this literal.
     public const string ThemeArchetypeFlag = "__IsThemeArchetype";
 
     public const string ColourProperty = "colour";
@@ -73,9 +70,9 @@ public static class FormOptionsReader
         PositionLookupReader.PlaceSearch(snapshot) is not null,
         Themes(snapshot));
 
-    /// <summary>The starting split, from the share each category Thing states for itself. Only the
-    /// categories stating one are in it, so a model declaring no defaults offers a page that starts
-    /// where the wizard starts — with nothing chosen.</summary>
+    // The starting split, from the share each category Thing states for itself. Only the
+    // categories stating one are in it, so a model declaring no defaults offers a page that starts
+    // where the wizard starts — with nothing chosen.
     public const string DefaultShareProperty = "defaultSharePct";
 
     private static List<DeclaredShare> DefaultProgramme(SnapshotDocument snapshot)

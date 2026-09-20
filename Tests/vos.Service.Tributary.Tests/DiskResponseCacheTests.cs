@@ -4,7 +4,7 @@ using Xunit;
 
 namespace vos.Service.Tributary.Tests;
 
-// Unit tests for DiskResponseCache — the on-disk store behind the DiskCache kind (#5918).
+// Unit tests for DiskResponseCache — the on-disk store behind the DiskCache kind.
 // Files carry real extensions derived from the media type so a cached tile opens in any
 // viewer; unknown types fall back to .bin plus a sidecar carrying the exact Content-Type.
 public class DiskResponseCacheTests : IDisposable

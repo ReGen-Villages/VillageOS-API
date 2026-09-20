@@ -1,4 +1,4 @@
-// Contract tests for DagNodeService (Feature #5628, Phase #5630): envelope detection, literal- and
+// Contract tests for DagNodeService: envelope detection, literal- and
 // reference-input resolution, the failure-not-500 contract, and the advertised port manifest.
 
 using System.Net;
@@ -128,7 +128,7 @@ public class DagNodeServiceTests
     private static HttpResponseMessage Json(HttpStatusCode code, string json) =>
         new(code) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
 
-    // Minimal node: echoes its "message" input to an "echo" output (the #5631 reference shape).
+    // Minimal node: echoes its "message" input to an "echo" output.
     private sealed class EchoNode : DagNodeService
     {
         private readonly bool _throw;

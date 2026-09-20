@@ -8,8 +8,8 @@ namespace vos.Service.Forage.Helpers;
 // reading the model back straight after the call races the drainer.
 public sealed record FetchedWords(Guid SubjectId, string Source, IReadOnlyDictionary<string, string> Values);
 
-// One edge the run should write: the subject, the predicate the shape edge names, and the member the
-// fetched word resolved to — with the edges it replaces where the subject already carries this
+// One relationship the run should write: the subject, the predicate the shape relationship names, and the member the
+// fetched word resolved to — with the relationships it replaces where the subject already carries this
 // predicate pointing elsewhere, so a re-graded assessment ends the run carrying one level.
 public sealed record PlannedVocabularyEdge(
     Guid SubjectId,
@@ -20,17 +20,16 @@ public sealed record PlannedVocabularyEdge(
     IReadOnlyList<Guid> Replaces);
 
 // A word the vocabulary does not hold, reported rather than silently dropped or silently written: the
-// observation stays on the series, no edge is written, and every name a reader needs is carried.
+// observation stays on the series, no relationship is written, and every name a reader needs is carried.
 public sealed record UnresolvedWord(
     string Source, string SubjectName, string Property, string Word, string Vocabulary);
 
 public sealed record VocabularyResolution(
     IReadOnlyList<PlannedVocabularyEdge> Edges, IReadOnlyList<UnresolvedWord> Unresolved);
 
-// Resolves the words a run's fetches wrote into the edges the model declares (#6809; the declaration
-// is platform User Story 6773). Everything is read from the declaration: the vocabulary archetype
-// carries the generic mark and names the property its word arrives under, and an archetype-level edge
-// names the Thing the word is written onto and the predicate the resolved edge is written through.
+// Resolves the words a run's fetches wrote into the relationships the model declares. Everything is read from the declaration: the vocabulary archetype
+// carries the generic mark and names the property its word arrives under, and an archetype-level relationship
+// names the Thing the word is written onto and the predicate the resolved relationship is written through.
 // Nothing here names a vocabulary, an archetype, a predicate or a property of any model — a project
 // adding a vocabulary edits its model and deploys nothing.
 public static class DiscoveredVocabularyResolver
@@ -42,14 +41,14 @@ public static class DiscoveredVocabularyResolver
 
     private const string IsPredicateName = "is";
 
-    // A subject reaches the shape edge's archetype through `is`, possibly via intermediate types. The
+    // A subject reaches the shape relationship's archetype through `is`, possibly via intermediate types. The
     // same handful-of-levels reasoning as Place nesting: nobody has needed a deeper type chain, and an
     // unused level costs one set expansion.
     private const int TypeChainDepth = 8;
 
     // The subjects' type chains, every marked vocabulary with its members, and the relationships
-    // incident to all of them — which is what carries the shape edges, the members' `is` edges, and
-    // the vocabulary edges the subjects already hold.
+    // incident to all of them — which is what carries the shape relationships, the members' `is` relationships, and
+    // the vocabulary relationships the subjects already hold.
     public static SubscriptionSelector SelectorFor(IReadOnlyCollection<Guid> subjectIds) => new()
     {
         Ids = [.. subjectIds],
@@ -65,7 +64,7 @@ public static class DiscoveredVocabularyResolver
         var namesById = thingsById.ToDictionary(entry => entry.Key, entry => entry.Value.Name ?? string.Empty);
         var declarations = Declarations(snapshot, thingsById, namesById);
 
-        // Keyed by subject and predicate, so two fetches writing one word in one run plan one edge and
+        // Keyed by subject and predicate, so two fetches writing one word in one run plan one relationship and
         // the later fetch decides it, matching the series' own latest-wins reading.
         var planned = new Dictionary<(Guid Subject, Guid Predicate), PlannedVocabularyEdge>();
         var unresolved = new List<UnresolvedWord>();
@@ -95,7 +94,7 @@ public static class DiscoveredVocabularyResolver
             }
         }
 
-        // An edge already pointing at the resolved member needs nothing; it is planned above so a later
+        // A relationship already pointing at the resolved member needs nothing; it is planned above so a later
         // fetch in the same run can still move it, and dropped here once the run's answer is settled.
         var edges = planned.Values
             .Where(edge => !AlreadyInPlace(snapshot, edge))
@@ -115,7 +114,7 @@ public static class DiscoveredVocabularyResolver
         IReadOnlyList<Shape> Shapes);
 
     // Every archetype carrying the mark as its own property, with the property its word arrives under,
-    // its members by name, and the shape edges reaching it. A member name two Things carry resolves
+    // its members by name, and the shape relationships reaching it. A member name two Things carry resolves
     // nothing — relationship order is not defined, and picking either would resolve one word two ways
     // on two runs — so the word is left to be reported as unresolved.
     private static List<Declaration> Declarations(

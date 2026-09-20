@@ -86,7 +86,6 @@ namespace vos.Taproot
 
             await _mycelium.AddPropertyAsync(thingId, name, type, value);
 
-            // Resolve thing name for display
             var thingName = await _resolver.ResolveNameAsync(thingId);
             var thingDisplay = _options.FormatIdentifier(thingName, thingId);
             _writer.WriteLine($"Added property '{name}' to thing {thingDisplay}");
@@ -100,7 +99,6 @@ namespace vos.Taproot
                 return;
             }
 
-            // Resolve all three references in a single batch (uses one API call)
             var results = await _resolver.ResolveThingsAsync(tok[0], tok[1], tok[2]);
 
             if (!results[0].IsSuccess)
@@ -128,7 +126,6 @@ namespace vos.Taproot
             var result = await _mycelium.CreateRelationshipAsync(subjectId, predicateId, targetId);
             var id = result.TryGetProperty("Id", out var idProp) ? idProp.GetString() : "unknown";
 
-            // Resolve names for display
             var nameMap = await _resolver.GetGuidToNameMapAsync();
             var subjectName = nameMap.TryGetValue(subjectId.ToString().ToLowerInvariant(), out var sn) ? sn : subjectId.ToString();
             var predicateName = nameMap.TryGetValue(predicateId.ToString().ToLowerInvariant(), out var pn) ? pn : predicateId.ToString();

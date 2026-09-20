@@ -8,7 +8,7 @@ using Xunit;
 
 namespace vos.Service.Intake.Tests;
 
-// Feature #6906 — the two lookups a page makes before any site exists: the legal parcel at a clicked
+// The two lookups a page makes before any site exists: the legal parcel at a clicked
 // position, and place names for what somebody typed. Both are anonymous for the reason the form route
 // is: the click is the first act, and there is nothing yet to verify against. The outbound call goes
 // through the broker's endpoint-forward route, so what these tests fake at the handler is the broker
@@ -18,8 +18,8 @@ public class PositionLookupEndpointTests
 {
     private const string EndpointForwardPath = "/api/endpoints/tributary";
 
-    /// <summary>What the fixture register answers at the covered position: a ring the registration's own
-    /// reshape (<c>{"boundary": ring}</c>) turns into the boundary the caller reads.</summary>
+    // What the fixture register answers at the covered position: a ring the registration's own
+    // reshape ({"boundary": ring}) turns into the boundary the caller reads.
     private const string ARingOfCorners =
         """
         {"ring": [

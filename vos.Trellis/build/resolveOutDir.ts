@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
  * Pick where the production build emits assets. Resolution order:
  *   1. `VOS_MYCELIUM_WWWROOT` env override
  *   2. Sibling `VillageOS/vos.Mycelium/wwwroot/` if it exists (dominant local-dev
- *      setup; emitting to `dist/` instead caused stale-bundle confusion, Bug #5332)
+ *      setup; emitting to `dist/` instead caused stale-bundle confusion)
  *   3. `dist/` (CI / standalone builds)
  */
 export function resolveOutDir(opts: {

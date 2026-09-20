@@ -18,7 +18,6 @@ const typeColors: Record<string, string> = {
   ModelCleared: 'text-red-400',
 };
 
-/** Category groups for the filter chips. */
 const categories = [
   { label: 'Model', types: ['ModelChanged', 'ModelCleared'] },
   { label: 'Things', types: ['ThingCreated', 'ThingDeleted'] },
@@ -73,7 +72,6 @@ export function ActivityFeed({ events, onCollapse }: Props) {
   const startY = useRef(0);
   const startHeight = useRef(0);
 
-  // Build the set of enabled event types from the active category chips
   const enabledTypes: Set<string> = new Set(
     categories
       .filter((c) => enabledCategories.has(c.label))
@@ -111,13 +109,11 @@ export function ActivityFeed({ events, onCollapse }: Props) {
     }
   }, [events.length, paused]);
 
-  // ── Resize drag handlers ──────────────────────────────────────────
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
       e.preventDefault();
       dragging.current = true;
       startY.current = e.clientY;
-      // If no explicit height yet, measure the current rendered height
       startHeight.current = height ?? containerReference.current?.offsetHeight ?? 400;
       (e.target as HTMLElement).setPointerCapture(e.pointerId);
     },
@@ -142,7 +138,6 @@ export function ActivityFeed({ events, onCollapse }: Props) {
     }
   }, []);
 
-  // Prevent text selection while dragging
   useEffect(() => {
     const prevent = (e: Event) => {
       if (dragging.current) e.preventDefault();

@@ -266,14 +266,14 @@ public abstract class MyceliumClientBase
             $"{op} failed ({(int)response.StatusCode} {response.StatusCode}): {error}", null, response.StatusCode);
     }
 
-    /// <summary>A Thing the broker answers with is serialized under the naming policy it shares with the
-    /// seed files — <c>Id</c>, <c>Name</c> — while the payloads it accepts and most of the rest of the
-    /// platform's JSON read camelCase. A client that asks for the wrong casing reads the field as absent
-    /// and the whole call as failed, so every client reads an answer through this — including one that
-    /// reads a snapshot as the broker wrote it rather than through a typed record, which is why this is
-    /// reachable from outside the clients themselves.</summary>
-    /// <remarks>An answer that is not an object at all is no field either, rather than the
-    /// <see cref="InvalidOperationException"/> asking a non-object for a property would throw.</remarks>
+    // A Thing the broker answers with is serialized under the naming policy it shares with the
+    // seed files — Id, Name — while the payloads it accepts and most of the rest of the
+    // platform's JSON read camelCase. A client that asks for the wrong casing reads the field as absent
+    // and the whole call as failed, so every client reads an answer through this — including one that
+    // reads a snapshot as the broker wrote it rather than through a typed record, which is why this is
+    // reachable from outside the clients themselves.
+    // An answer that is not an object at all is no field either, rather than the
+    // InvalidOperationException asking a non-object for a property would throw.
     public static bool TryGetPropertyCaseInsensitive(
         JsonElement element, string propertyName, out JsonElement value)
     {

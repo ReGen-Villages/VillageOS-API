@@ -6,12 +6,10 @@ using Xunit;
 
 namespace vos.ContinuousIntegration.Tests;
 
-/// <summary>
-/// A service that parses its own /handle body raises on text that is not JSON, and the caller gets a
-/// failed request where it should have had a refusal. Worse, a failed dispatch is re-driven: a body
-/// that can never parse is retried rather than refused once. The shared classifier answers
-/// <c>Unrecognised</c> for such text, so a service hands it the body and never parses one itself.
-/// </summary>
+// A service that parses its own /handle body raises on text that is not JSON, and the caller gets a
+// failed request where it should have had a refusal. Worse, a failed dispatch is re-driven: a body
+// that can never parse is retried rather than refused once. The shared classifier answers
+// Unrecognised for such text, so a service hands it the body and never parses one itself.
 public class ServicesDoNotParseHandleBodiesTests
 {
     private const string ParsingTheBodyIntoAnElement = "JsonSerializer.Deserialize<JsonElement>";

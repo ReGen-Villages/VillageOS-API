@@ -5,7 +5,7 @@ using Xunit;
 
 namespace vos.Taproot.Tests;
 
-// Covers `retype` (US #5860): swap ONE of a Thing's is-edges, preserving multiple inheritance.
+// Covers `retype`: swap ONE of a Thing's is-relationships, preserving multiple inheritance.
 public class RetypeCommandHandlerTests
 {
     private readonly Mock<MyceliumClient> _mycelium = new("https://localhost:7243") { CallBase = false };

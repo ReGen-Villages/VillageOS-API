@@ -6,7 +6,7 @@ using vos.Service.Tributary.Helpers;
 namespace vos.Service.Tributary.Services;
 
 // Written is what a subject-supplied call put onto its subject, property by property, and null on the
-// bulk path (#6809): the caller that names a subject is a discovery run needing to resolve what was
+// bulk path: the caller that names a subject is a discovery run needing to resolve what was
 // written, and the response is the one place it can learn that without racing the observation
 // drainer — while the bulk path ingests whole fetched pages, and echoing those back would put every
 // page into every response.
@@ -18,16 +18,16 @@ public record ObservationIngestResult(
     string? Detail,
     IReadOnlyDictionary<string, object?>? Written = null);
 
-// Ingests fetched-and-reshaped readings as time-series observations (Phase 5b hybrid, #5587).
+// Ingests fetched-and-reshaped readings as time-series observations.
 // Each reading names an entity and carries a bag of property values at an observed time. Entities
 // become structural Things — created once, and related to the endpoint that wrote onto them once —
 // so the graph scales with the number of entities, not readings; the readings themselves are written
 // as observations on each entity's property series (Canopy → Sapwood), bounded by PropertyMode.
 //
-// The `observed` edge is what a value can be walked back along to the registration that produced it,
+// The `observed` relationship is what a value can be walked back along to the registration that produced it,
 // and from there to the source through `DataSource resolvedBy Endpoint`. It is written on every ingest
 // that puts values on a Thing, not only on the one that created it — a Thing that already existed is
-// the ordinary case, and an edge written only by whichever fetch happened to be first leaves every
+// the ordinary case, and a relationship written only by whichever fetch happened to be first leaves every
 // later value with no source at all.
 public class ObservationIngestService
 {
@@ -135,9 +135,9 @@ public class ObservationIngestService
             var toObserve = created ? entityReadings.Skip(1) : entityReadings;
             var samples = SamplesOf(toObserve);
 
-            // Related before the values are written, so a refused edge leaves nothing behind that
+            // Related before the values are written, so a refused relationship leaves nothing behind that
             // cannot be walked back to what produced it. A run that writes neither a seed nor a
-            // sample relates nothing: an edge there would claim a reading that was never taken.
+            // sample relates nothing: a relationship there would claim a reading that was never taken.
             if (created || samples.Count > 0)
             {
                 if (await provenance.EnsureObservedAsync(entity.Value.Id) is { } failure)
@@ -158,7 +158,7 @@ public class ObservationIngestService
     }
 
     // One value onto one already-resolved subject, through the same steps every ingest takes: the
-    // `observed` edge first, then the sample. A caller with a single value to place — an asset
+    // `observed` relationship first, then the sample. A caller with a single value to place — an asset
     // ticket, say — rides this rather than composing readings, so its writes carry provenance and
     // model-clock discipline identically to the reshape lane. Null when the value landed; otherwise
     // the words saying which half was refused.
@@ -184,7 +184,7 @@ public class ObservationIngestService
     {
         var samples = SamplesOf(readings);
 
-        // Nothing resolved, nothing created, nothing written — so nothing to report, and no edge
+        // Nothing resolved, nothing created, nothing written — so nothing to report, and no relationship
         // claiming a source produced a value it did not. This is deliberately not what the name path
         // answers: that one counts the entity it resolved even when the reading gave it no values,
         // because resolving is work this path never does. The empty set is still reported: a call that
@@ -214,9 +214,9 @@ public class ObservationIngestService
         return written;
     }
 
-    // Writes the edge saying this endpoint observed a Thing, once per Thing. The edges the endpoint
+    // Writes the relationship saying this endpoint observed a Thing, once per Thing. The relationships the endpoint
     // already carries come from the snapshot the call has already taken, so a second run over the same
-    // site adds no edge and costs no read of its own.
+    // site adds no relationship and costs no read of its own.
     private sealed class ProvenanceWriter
     {
         private readonly IEndpointMyceliumClient _myceliumClient;
@@ -236,7 +236,7 @@ public class ObservationIngestService
             _predicateId = alreadyObserved.PredicateId;
         }
 
-        // Null when the edge is in place. The two failures are named apart because one is a model with
+        // Null when the relationship is in place. The two failures are named apart because one is a model with
         // no predicate to relate through and the other is a write the model refused.
         public async Task<string?> EnsureObservedAsync(Guid thingId)
         {

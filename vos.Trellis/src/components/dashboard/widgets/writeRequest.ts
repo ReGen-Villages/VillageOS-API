@@ -5,7 +5,6 @@ import type { Row } from '../../../api/dashboardApi';
  *  names at once holds them as a list; every other field holds what was typed or chosen. */
 export type Entered = Record<string, string | string[]>;
 
-/** What was entered for one field, as a list — one name, several, or none. */
 function chosen(entered: Entered, key: string): string[] {
   const value = entered[key];
   if (Array.isArray(value)) return value.filter((name) => name.trim() !== '');
