@@ -20,7 +20,7 @@ import type { BoundaryPoint } from '../../utils/parcelGeometry';
 
 // Naming the worker is what makes the bundler emit it: maplibre's own address for it is computed at
 // run time, which a bundler cannot see. Unnamed, no tile is ever parsed and nothing says so — see
-// docs/TRELLIS.md §22.
+// the map chapter of docs/FIELD_GUIDE.md.
 //
 // Asked for as a worker rather than as a file, because the library splits it in two and the worker
 // imports the other half by name. Asked for as a file, the bundler copies the one it was named and

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 849 346" width="849" height="346" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" role="img" aria-label="The life of a service: launched, registered, called, checked, stopped.">
+<rect width="849" height="346" fill="#ffffff"/>
+<path d="M 166.3,36.0 V 336.0" stroke="#d6ddd2" stroke-dasharray="4 4" fill="none"/>
+<path d="M 696.4,36.0 V 336.0" stroke="#d6ddd2" stroke-dasharray="4 4" fill="none"/>
+<path d="M 166.3,70.0 L 696.4,70.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(696.4,70.0) rotate(0.0)"/>
+<text x="431.4" y="51.0" font-size="11" fill="#74857a" text-anchor="middle">launched with its port and the server's address;</text>
+<text x="431.4" y="64.0" font-size="11" fill="#74857a" text-anchor="middle">its credentials on the environment, never the command line</text>
+<path d="M 696.4,110.0 L 166.3,110.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(166.3,110.0) rotate(180.0)"/>
+<text x="431.4" y="104.0" font-size="11" fill="#74857a" text-anchor="middle">registers: its name, its address, its health route</text>
+<path d="M 166.3,215.0 L 696.4,215.0" fill="none" stroke="#46497e" stroke-width="1.7"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#46497e" transform="translate(696.4,215.0) rotate(0.0)"/>
+<text x="431.4" y="196.0" font-size="11" fill="#46497e" text-anchor="middle">handle: the subject, the target and the relationship's own values,</text>
+<text x="431.4" y="209.0" font-size="11" fill="#46497e" text-anchor="middle">signed with a five-minute pass that names the model</text>
+<path d="M 696.4,250.0 L 166.3,250.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(166.3,250.0) rotate(180.0)"/>
+<text x="431.4" y="244.0" font-size="11" fill="#74857a" text-anchor="middle">a success answer: accepted, or done</text>
+<path d="M 166.3,285.0 L 696.4,285.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(696.4,285.0) rotate(0.0)"/>
+<text x="431.4" y="279.0" font-size="11" fill="#74857a" text-anchor="middle">health, every fifteen seconds</text>
+<path d="M 166.3,320.0 L 696.4,320.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(696.4,320.0) rotate(0.0)"/>
+<text x="431.4" y="314.0" font-size="11" fill="#74857a" text-anchor="middle">shutdown, when the server stops</text>
+<rect x="120.0" y="10.0" width="92.6" height="26.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="166.3" y="27.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">Mycelium</text>
+<rect x="560.0" y="10.0" width="272.8" height="26.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="696.4" y="27.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">Your service, in any language</text>
+<rect x="162.2" y="130.0" width="538.3" height="42.0" rx="2" fill="#dbeade" stroke="#1f6047"/>
+<text x="431.4" y="147.0" font-size="11" font-weight="normal" fill="#1f6047" text-anchor="middle">a relationship through its predicate is created, a Thing enters the state it</text>
+<text x="431.4" y="163.0" font-size="11" font-weight="normal" fill="#1f6047" text-anchor="middle">watches, or a request arrives at its endpoint</text>
+</svg>

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 868 334" width="868" height="334" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" role="img" aria-label="From a piece of land to a living village: intake, discovery, analysis, and a page that reads it back.">
+<rect width="868" height="334" fill="#ffffff"/>
+<rect x="16.0" y="14.0" width="223.1" height="98.0" rx="3" fill="#f5f7f3" stroke="#d6ddd2" stroke-dasharray="3 3"/>
+<text x="26.0" y="29.0" font-size="10" letter-spacing="1.6" fill="#74857a">INTAKE</text>
+<rect x="276.0" y="14.0" width="260.3" height="98.0" rx="3" fill="#f5f7f3" stroke="#d6ddd2" stroke-dasharray="3 3"/>
+<text x="286.0" y="29.0" font-size="10" letter-spacing="1.6" fill="#74857a">DISCOVERY</text>
+<rect x="546.0" y="14.0" width="252.9" height="98.0" rx="3" fill="#f5f7f3" stroke="#d6ddd2" stroke-dasharray="3 3"/>
+<text x="556.0" y="29.0" font-size="10" letter-spacing="1.6" fill="#74857a">ANALYSIS</text>
+<path d="M 225.1,69.0 L 290.0,69.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(290.0,69.0) rotate(0.0)"/>
+<path d="M 522.3,69.0 L 560.0,69.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(560.0,69.0) rotate(0.0)"/>
+<path d="M 127.6,98.0 L 127.6,190.0" fill="none" stroke="#47574d" stroke-width="1.2" stroke-dasharray="2 3"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(127.6,190.0) rotate(90.0)"/>
+<text x="135.6" y="148.0" font-size="11" fill="#74857a" text-anchor="start">writes the submission</text>
+<path d="M 406.2,98.0 L 406.2,190.0" fill="none" stroke="#47574d" stroke-width="1.2" stroke-dasharray="2 3"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(406.2,190.0) rotate(90.0)"/>
+<text x="414.2" y="148.0" font-size="11" fill="#74857a" text-anchor="start">writes readings, with source and date</text>
+<path d="M 672.4,98.0 L 672.4,190.0" fill="none" stroke="#47574d" stroke-width="1.2" stroke-dasharray="2 3"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(672.4,190.0) rotate(90.0)"/>
+<text x="680.4" y="148.0" font-size="11" fill="#74857a" text-anchor="start">writes results</text>
+<path d="M 157.3,216.0 L 157.3,260.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(157.3,260.0) rotate(90.0)"/>
+<text x="165.3" y="242.0" font-size="11" fill="#74857a" text-anchor="start">read back, live</text>
+<rect x="30.0" y="40.0" width="195.1" height="58.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="127.6" y="57.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">A person answers a few</text>
+<text x="127.6" y="73.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">questions and draws the</text>
+<text x="127.6" y="89.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">parcel on a map</text>
+<rect x="290.0" y="40.0" width="232.3" height="58.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="406.2" y="57.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">The platform works out which</text>
+<text x="406.2" y="73.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">data sources cover the site</text>
+<text x="406.2" y="89.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">and fetches each one</text>
+<rect x="560.0" y="40.0" width="224.9" height="58.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="672.4" y="57.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Formulas and a service work</text>
+<text x="672.4" y="73.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">out the balances; ranges</text>
+<text x="672.4" y="89.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">judge every result</text>
+<rect x="30.0" y="190.0" width="821.9" height="26.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="441.0" y="207.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">The model: site · parcel · programme · fetched values · results · where each figure came from</text>
+<rect x="30.0" y="260.0" width="254.6" height="58.0" rx="2" fill="#dbeade" stroke="#1f6047"/>
+<text x="157.3" y="277.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">A page the model publishes</text>
+<text x="157.3" y="293.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">shows every figure, its origin,</text>
+<text x="157.3" y="309.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">its working and its levers</text>
+</svg>

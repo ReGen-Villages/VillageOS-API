@@ -946,7 +946,7 @@ export interface DetailSpec {
  * blank or a raw key. Only human-facing labels are looked up; model vocabulary
  * (state names, property keys, predicate names, archetypes) is never translated.
  * See `localizeSpec` in src/api/dashboardLocalization.ts and the authoring
- * contract in docs/TRELLIS.md.
+ * contract in docs/FIELD_GUIDE.md, Part IX.
  */
 export type SpecTranslations = Record<string, Record<string, string>>;
 

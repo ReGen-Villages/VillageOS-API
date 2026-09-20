@@ -23,7 +23,7 @@ and each generated page says so at the top. Edit the document in `docs/` instead
 - **Rewrites cross-document links** — `[Tributary](TRIBUTARY.md)` becomes
   `[Tributary](/Services/Tributary)` when the target is a mapped document, and a link to the
   file in the repository when it is not (a roadmap, a licence).
-- **Relabels file-name links** — a documentation index that writes `[TRELLIS.md](TRELLIS.md)`
+- **Relabels file-name links** — a documentation index that writes `[FIELD_GUIDE.md](FIELD_GUIDE.md)`
   reads as `[Trellis](/Trellis)` on the wiki.
 - **Translates heading anchors** — the two systems slug headings differently: `1. Getting
   Started` is `#1-getting-started` in the repository and `#1.-getting-started` on the wiki.

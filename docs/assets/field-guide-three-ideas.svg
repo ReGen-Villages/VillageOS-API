@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 682 233" width="682" height="233" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" role="img" aria-label="A kind, a member, a relationship that does work, and a range that judges.">
+<rect width="682" height="233" fill="#ffffff"/>
+<path d="M 199.9,41.0 L 330.0,41.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(330.0,41.0) rotate(0.0)"/>
+<text x="264.9" y="35.0" font-size="11" fill="#74857a" text-anchor="middle">declares</text>
+<path d="M 86.6,120.0 L 86.6,91.0 L 114.9,91.0 L 114.9,62.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(114.9,62.0) rotate(-90.0)"/>
+<text x="94.6" y="109.5" font-size="11" fill="#74857a" text-anchor="start">is</text>
+<path d="M 143.3,141.0 L 330.0,141.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(330.0,141.0) rotate(0.0)"/>
+<text x="236.6" y="135.0" font-size="11" fill="#74857a" text-anchor="middle">feeds</text>
+<path d="M 398.6,133.0 L 560.0,133.0" fill="none" stroke="#1f6047" stroke-width="1.7"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#1f6047" transform="translate(560.0,133.0) rotate(0.0)"/>
+<text x="479.3" y="127.0" font-size="11" fill="#1f6047" text-anchor="middle">consumes</text>
+<rect x="30.0" y="20.0" width="169.9" height="42.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="114.9" y="37.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">Reservoir</text>
+<text x="114.9" y="53.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">(a kind of Thing)</text>
+<rect x="330.0" y="20.0" width="224.9" height="42.0" rx="2" fill="#dbeade" stroke="#1f6047"/>
+<text x="442.4" y="37.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">range LowWater</text>
+<text x="442.4" y="53.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">quantity &lt; capacityM3 * 0.2</text>
+<rect x="30.0" y="120.0" width="113.3" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="86.6" y="137.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Reservoir-01</text>
+<text x="86.6" y="153.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">(a Thing)</text>
+<rect x="330.0" y="120.0" width="68.6" height="26.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="364.3" y="137.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Home-4</text>
+<rect x="560.0" y="120.0" width="105.8" height="26.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="612.9" y="137.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Energy pool</text>
+<text x="30.0" y="192.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">capacityM3: 3 000</text>
+<text x="30.0" y="208.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">quantity: 2 412, every past value kept</text>
+<text x="330.0" y="192.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">a relationship a service acts on:</text>
+<text x="330.0" y="208.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">Home-4 draws from the pool on a schedule</text>
+</svg>

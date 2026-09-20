@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 864 249" width="864" height="249" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" role="img" aria-label="The dependency graph: values feed ranges, ranges produce states, states feed other ranges.">
+<rect width="864" height="249" fill="#ffffff"/>
+<path d="M 219.1,43.0 L 254.6,43.0 L 254.6,66.0 L 290.0,66.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(290.0,66.0) rotate(0.0)"/>
+<text x="236.8" y="37.0" font-size="11" fill="#74857a" text-anchor="middle">reads</text>
+<path d="M 234.0,103.0 L 262.0,103.0 L 262.0,66.0 L 290.0,66.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(290.0,66.0) rotate(0.0)"/>
+<path d="M 514.9,66.0 L 670.0,66.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(670.0,66.0) rotate(0.0)"/>
+<text x="592.4" y="60.0" font-size="11" fill="#74857a" text-anchor="middle">holds, or not</text>
+<path d="M 152.2,203.0 L 290.0,203.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(290.0,203.0) rotate(0.0)"/>
+<text x="221.1" y="197.0" font-size="11" fill="#74857a" text-anchor="middle">reads</text>
+<path d="M 552.1,204.0 L 670.0,204.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(670.0,204.0) rotate(0.0)"/>
+<text x="611.0" y="198.0" font-size="11" fill="#74857a" text-anchor="middle">holds, or not</text>
+<path d="M 742.1,79.0 L 742.1,140.0 L 501.0,140.0 L 501.0,175.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(501.0,175.0) rotate(90.0)"/>
+<text x="621.5" y="134.0" font-size="11" fill="#74857a" text-anchor="middle">a state read across an edge</text>
+<rect x="24.0" y="30.0" width="195.1" height="26.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="121.6" y="47.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Reservoir-01 · quantity</text>
+<rect x="24.0" y="90.0" width="210.0" height="26.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="129.0" y="107.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Reservoir-01 · capacityM3</text>
+<rect x="24.0" y="190.0" width="128.2" height="26.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="88.1" y="207.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Pump-3 · state</text>
+<rect x="290.0" y="45.0" width="224.9" height="42.0" rx="2" fill="#dbeade" stroke="#1f6047"/>
+<text x="402.4" y="62.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">LowWater, on Reservoir-01</text>
+<text x="402.4" y="78.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">quantity &lt; capacityM3 * 0.2</text>
+<rect x="290.0" y="175.0" width="262.1" height="58.0" rx="2" fill="#dbeade" stroke="#1f6047"/>
+<text x="421.0" y="192.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">SupplyAtRisk, on Pump-3</text>
+<text x="421.0" y="208.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">self.state HAS 'Running' AND</text>
+<text x="421.0" y="224.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">[drawsFrom].state HAS 'LowWater'</text>
+<rect x="670.0" y="53.0" width="144.1" height="26.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="742.1" y="70.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">state LowWater</text>
+<rect x="670.0" y="191.0" width="178.4" height="26.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="759.2" y="208.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">state SupplyAtRisk</text>
+</svg>

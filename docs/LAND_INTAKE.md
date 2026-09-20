@@ -281,7 +281,7 @@ comes first, and the report comes before the questions.
   model declares is a tile faced in the theme's colour and icon; its figures show on hover or focus,
   a click opens its charts as a gallery, and a card opens full width. A section naming no theme
   draws as the list it always did, so the same spec serves the findings page unchanged. See
-  [TRELLIS.md](TRELLIS.md#a-section-drawn-as-a-tile).
+  [the Field Guide](FIELD_GUIDE.md#92-tiles-and-what-a-page-is-sent).
 - **The only questions are a name for the land, the person's name, and the mailbox** — the same
   verification exchange as the wizard, and nothing else. The programme starts from the default share
   each category declares in the model, and the population and household size start unset.
@@ -308,7 +308,7 @@ comes first, and the report comes before the questions.
   so no page holds the provider's address), with the sections the submitted page declares as tabs —
   location, water, nutrition, housing, infrastructure and overview — in a sheet along the bottom,
   each drawing its own figures. The opening map is a globe that flattens as the map closes in, the
-  library's own blend; see [TRELLIS.md](TRELLIS.md#a-section-drawn-as-a-tile).
+  library's own blend; see [the Field Guide](FIELD_GUIDE.md#92-tiles-and-what-a-page-is-sent).
 
 What the two approaches share is deliberately everything that matters: one submission document, one
 composing path, one verification exchange, one dashboard. What differs is only the order the person
@@ -1261,7 +1261,7 @@ application, so sharing a file is the point and reaching the broker through one 
 **`GET /submissions/form` answers what a form draws itself with and nothing else.** It demands no
 credential for the same reason `POST /submissions` demands none, and it spends the same request budget.
 The categories are found by the mark their archetype carries; the basemap sources by the archetype name
-[TRELLIS.md §22](TRELLIS.md#22-the-map-and-its-basemap-sources) states for every client that draws a map;
+[the Field Guide's map chapter](FIELD_GUIDE.md#93-the-map-and-its-basemap-sources) states for every client that draws a map;
 the themes a report's tiles are faced with by the mark `__IsThemeArchetype`, each with its colour, icon
 and order as the model states them, and none where the model declares no themes. A model that was
 never seeded is answered `503` with nothing in the body, as a submission into one is.
@@ -1317,10 +1317,10 @@ Thing of that kind, which in a staging model is every other submitter's land.
 the same resolver and the same widgets the signed-in page uses, so a figure added to that dashboard
 appears for the submitter with no code change, and a balance nobody assessed reads as *not assessed* in
 the same words on both. What made that possible was taking the broker out of the resolver: see
-[TRELLIS.md](TRELLIS.md#the-public-pages-are-not-among-these-routes).
+[the Field Guide](FIELD_GUIDE.md#83-the-pages-and-their-addresses).
 
 **A chart on the page reduces the site's history through the service.** The climate charts bind to
-the platform's reduction over one property's observation series ([TRELLIS.md](TRELLIS.md#a-propertys-history-reduced)),
+the platform's reduction over one property's observation series ([the Field Guide](FIELD_GUIDE.md#89-series-and-charts)),
 a question asked after the findings arrived and one the page cannot put to the broker. It puts it to
 `POST /findings/{submissionId}/reduce` under the ticket the read bought — the body is the platform's
 without the Thing, which the service supplies as the submission's own site — and carries the renewed
@@ -1383,8 +1383,8 @@ A reviewer does this either from the **Submissions** page in Trellis or from `su
 the marks it puts on its own vocabulary rather than by any name — and both call the same two actions,
 so a staging model can be worked from a browser or a terminal. Clearing the rejected ones once their
 period has run is `submissions dispose`, which has no page: it is a retention pass rather than
-something a reviewer decides. See [the Trellis guide](TRELLIS.md#88-reviewing-what-has-arrived) and
-[the Taproot guide](TAPROOT_USER_GUIDE.md).
+something a reviewer decides. See [the Field Guide](FIELD_GUIDE.md#56-reviewing-what-has-arrived), which covers the page and the
+commands.
 
 ---
 
@@ -1520,7 +1520,7 @@ and reads the service's own log back, both when the submission lands and when it
 | # | Question | Recommendation |
 |---|---|---|
 | 1 | **What is the energy node's efficiency port?** Module efficiency and system yield factor differ by about half. | Rename it to say system yield factor, or add a separate performance-ratio input. Either way the port name must state which it is. |
-| 2 | ~~**Map library** — Leaflet or MapLibre?~~ **Settled: MapLibre**, added once by the viewer's Phase 0 (#5346) as a component the wizard consumes rather than duplicates. Leaflet cannot tilt or share a WebGL context, so drawing the 3D model on the basemap would have needed a second library. See [TRELLIS.md §22](TRELLIS.md#22-the-map-and-its-basemap-sources). | What remains is not a library question: MapLibre renders tiles, it does not supply them. Imagery for a given site comes from that country's own service and is declared in the model, not chosen here. |
+| 2 | ~~**Map library** — Leaflet or MapLibre?~~ **Settled: MapLibre**, added once by the viewer's Phase 0 (#5346) as a component the wizard consumes rather than duplicates. Leaflet cannot tilt or share a WebGL context, so drawing the 3D model on the basemap would have needed a second library. See [the Field Guide's map chapter](FIELD_GUIDE.md#93-the-map-and-its-basemap-sources). | What remains is not a library question: MapLibre renders tiles, it does not supply them. Imagery for a given site comes from that country's own service and is declared in the model, not chosen here. |
 | 3 | ~~**Area match tolerance** — how far apart may stated and drawn be?~~ **Settled: 8%**, loose enough for hand-drawing and tight enough to catch a wrong unit. | **Built** (#6015) as the named constant `AREA_MATCH_TOLERANCE` in `vos.Trellis/src/utils/parcelGeometry.ts`; changing the policy is a one-line edit there. |
 | 4 | ~~**Retention** for submissions that are never promoted.~~ **Settled: every submission is retained.** A rejected one moves to cold storage 30 days after it was rejected; one nobody has dealt with is kept indefinitely. The period lives on the disposition Thing (`daysBeforeColdStorage` on `rejected`), so changing it is a model edit, and a disposition naming no period is kept. | **Built.** `POST /api/model/prune` takes a submission and everything it minted out of the live model, retracting each; the nodes are reclaimed once a snapshot covers the retraction. `taproot submissions dispose <predicates>` is the pass that decides which are due, from the period the disposition names and the instant the submission was decided about. The values go with it: contact details are declared to keep no history, so they are never copied out of the commit log, and the platform deletes a log segment once a snapshot supersedes it. What is left is the interval before the next snapshot, and details submitted before the declaration shipped, which need the erase pass filed as platform Task 6672. |
 | 5 | **Boundary file upload** — does the intake service accept one at launch? | Inline geometry first; file upload is the reason the service exists as its own public-facing program, so it is a natural follow-up. |
@@ -1537,7 +1537,7 @@ and reads the service's own log back, both when the submission lands and when it
 | [DELTA.md](DELTA.md) | How registrations are validated and provisioned |
 | [SERVICES.md](SERVICES.md) | Section 14 for endpoint services and how a handled predicate dispatches one |
 | [SERVICE_CONTRACT.md](SERVICE_CONTRACT.md) | The wire contract, and the fact / observation / fragment write kinds |
-| [TRELLIS.md](TRELLIS.md) | The GUI — operations dashboard in section 16 |
+| [FIELD_GUIDE.md](FIELD_GUIDE.md) | The console and the command line, and the page-authoring contract in Part IX |
 
 ---
 

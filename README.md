@@ -152,8 +152,7 @@ The same documentation is published to the [VillageOS API Wiki](https://dev.azur
 
 Key pages:
 
-- [Trellis](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FTrellis) — visualization stack, tech spec, user guide
-- [Taproot](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FTaproot) — command reference
+- [Field Guide](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FField%20Guide) — the whole platform for every reader: the console page by page, the command line command by command, and the page-authoring contract
 - [Services](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FServices) — the service host, the wire contract, and each service
 
 ## License

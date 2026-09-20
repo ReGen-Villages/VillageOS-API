@@ -1035,7 +1035,7 @@ accepts; the wrong kind returns **405**, an unknown thing/property **404**.
 
 A **pipeline** is a Directed Acyclic Graph whose **nodes are microservices** and whose **edges are typed
 data-flow wires**. You build one visually in **Trellis → Pipelines** (see
-[`TRELLIS.md`](TRELLIS.md) §7.4), and the **Phloem** orchestrator microservice executes it — resolving
+[the Field Guide](FIELD_GUIDE.md#41-building-one-on-the-canvas), Part VI), and the **Phloem** orchestrator microservice executes it — resolving
 dependencies, invoking each node through the same `/handle` dispatch every handler already uses, and routing
 each node's outputs to its downstream inputs.
 
@@ -1232,7 +1232,7 @@ and a model may call its archetypes anything.
 1. **Enable a seed:** run the `seed-migrate` tool from the private VillageOS repo
    (`node tools/seed-migrate/pipeline-enable.js <seed.json> --write`), then reload the
    broker (clear `vos-data`).
-2. **Author:** Trellis → **Pipelines** (`TRELLIS.md` §7.4) — drag services from the palette, wire output→input
+2. **Author:** Trellis → **Pipelines** (the Field Guide, Part VI) — drag services from the palette, wire output→input
    ports (type-checked), **Save**.
 3. **Run:** click **Run** — the editor uses the async spawn and **animates each node live over SSE**
    (running → succeeded / failed / skipped); **Cancel** stops an in-flight run, marking pending nodes

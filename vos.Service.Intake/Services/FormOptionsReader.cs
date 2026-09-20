@@ -16,7 +16,7 @@ namespace vos.Service.Intake.Services;
 public static class FormOptionsReader
 {
     /// <summary>The archetype a basemap source is declared under. A name where the rest of this service
-    /// reads a mark, because the name is the contract <c>docs/TRELLIS.md</c> §22 already states for every
+    /// reads a mark, because the name is the contract the map chapter of <c>docs/FIELD_GUIDE.md</c> already states for every
     /// client that draws a map — a second way of finding the same Things would be one more thing a model's
     /// author has to know.</summary>
     public const string BasemapSourceArchetypeName = "BasemapSource";

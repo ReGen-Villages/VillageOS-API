@@ -227,7 +227,7 @@ test('a handoff is ignored however it is spelled', () => {
                       'docs/trellis-performance-handoff.md', 'Trellis Performance Handoff.md']) {
     assert.ok(ignored(name), `a case-sensitive checkout would leave ${name} tracked`);
   }
-  for (const name of ['README.md', 'docs/TRELLIS.md', 'handoff.txt']) {
+  for (const name of ['README.md', 'docs/FIELD_GUIDE.md', 'handoff.txt']) {
     assert.ok(!ignored(name), `${name} is ignored, and is not a handoff`);
   }
 });
