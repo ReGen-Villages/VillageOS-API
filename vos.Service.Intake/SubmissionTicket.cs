@@ -5,33 +5,28 @@ using System.Text;
 
 namespace vos.Service.Intake;
 
-/// <summary>
-/// A short-lived value this service issues in exchange for a verified address, and reads back when the
-/// form is posted. It is what carries the verification from the one exchange to the other.
-/// </summary>
-/// <remarks>
-/// What it establishes: whoever posted answered a code sent to one particular address, recently. A post
-/// arriving with nothing, with a value signed by somebody else, with one issued longer ago than a ticket
-/// lasts, or with one issued for a different address than the submission names, never had that exchange.
-/// <para>
-/// The address is not in the ticket. What is in it is a mark this service computes from the address under
-/// its own key, so a ticket in the open says nothing about whose mailbox it was issued against, and the
-/// mark cannot be worked out without the key. <see cref="WhyRefused"/> asks whether the ticket is one of
-/// ours and still live, which is the cheap question and is asked before the body is read;
-/// <see cref="WasIssuedFor"/> asks whose it is, once the submission has been read and there is an address
-/// to compare against.
-/// </para>
-/// <para>
-/// The signing key is made when the process starts, so a ticket is only good at the instance that issued
-/// it. One service answers one hostname, which is the deployment <c>deploy/Caddyfile</c> describes.
-/// </para>
-/// </remarks>
+// A short-lived value this service issues in exchange for a verified address, and reads back when the
+// form is posted. It is what carries the verification from the one exchange to the other.
+//
+// What it establishes: whoever posted answered a code sent to one particular address, recently. A post
+// arriving with nothing, with a value signed by somebody else, with one issued longer ago than a ticket
+// lasts, or with one issued for a different address than the submission names, never had that exchange.
+//
+// The address is not in the ticket. What is in it is a mark this service computes from the address under
+// its own key, so a ticket in the open says nothing about whose mailbox it was issued against, and the
+// mark cannot be worked out without the key. WhyRefused asks whether the ticket is one of
+// ours and still live, which is the cheap question and is asked before the body is read;
+// WasIssuedFor asks whose it is, once the submission has been read and there is an address
+// to compare against.
+//
+// The signing key is made when the process starts, so a ticket is only good at the instance that issued
+// it. One service answers one hostname, which is the deployment deploy/Caddyfile describes.
 public sealed class SubmissionTicket(TimeProvider time)
 {
     public const string HeaderName = "X-Submission-Ticket";
 
-    /// <summary>Long enough to cover a form being posted after it was asked for, short enough that a ticket
-    /// cannot be kept and used indefinitely.</summary>
+    // Long enough to cover a form being posted after it was asked for, short enough that a ticket
+    // cannot be kept and used indefinitely.
     public static readonly TimeSpan ValidFor = TimeSpan.FromMinutes(10);
 
     private const int IssuedAtBytes = sizeof(long);
@@ -48,9 +43,8 @@ public sealed class SubmissionTicket(TimeProvider time)
         return Base64Url.EncodeToString([.. signed, .. HMACSHA256.HashData(_signingKey, signed)]);
     }
 
-    /// <summary>Whether this ticket was issued against this address. A ticket that is not one of ours at
-    /// all answers false, so a caller cannot tell a forged ticket from one issued to somebody else.
-    /// </summary>
+    // Whether this ticket was issued against this address. A ticket that is not one of ours at
+    // all answers false, so a caller cannot tell a forged ticket from one issued to somebody else.
     public bool WasIssuedFor(string? presented, string emailAddress) =>
         TryReadSigned(presented, out var signed)
         && CryptographicOperations.FixedTimeEquals(
@@ -61,9 +55,8 @@ public sealed class SubmissionTicket(TimeProvider time)
     private byte[] MarkFor(string emailAddress) =>
         HMACSHA256.HashData(_signingKey, Encoding.UTF8.GetBytes(AddressVerification.Key(emailAddress)));
 
-    /// <summary>Why the ticket was not accepted, or null when it was. The wording is what a person whose
-    /// form sat open too long needs, because that is the only way this refuses a legitimate submission.
-    /// </summary>
+    // Why the ticket was not accepted, or null when it was. The wording is what a person whose
+    // form sat open too long needs, because that is the only way this refuses a legitimate submission.
     public string? WhyRefused(string? presented)
     {
         const string askAgain = "Verify the address again and submit.";

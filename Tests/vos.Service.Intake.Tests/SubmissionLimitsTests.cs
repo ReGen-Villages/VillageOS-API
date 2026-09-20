@@ -6,10 +6,10 @@ using Xunit;
 
 namespace vos.Service.Intake.Tests;
 
-/// <summary>What a submission may contain, checked where a document becomes a submission. The route is
-/// anonymous, so every bound here is a bound on what a stranger can make this service hold.</summary>
-/// <remarks>A shape is written with apostrophes where JSON wants quotation marks, so the fragments read as
-/// the objects they are rather than as escaping.</remarks>
+// What a submission may contain, checked where a document becomes a submission. The route is
+// anonymous, so every bound here is a bound on what a stranger can make this service hold.
+// A shape is written with apostrophes where JSON wants quotation marks, so the fragments read as
+// the objects they are rather than as escaping.
 public class SubmissionLimitsTests
 {
     private static SubmissionError Refusing(string shape) =>

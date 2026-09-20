@@ -4,34 +4,30 @@ using vos.Service.Intake.Models;
 
 namespace vos.Service.Intake.Services;
 
-/// <summary>The broker's answer as it gave it, and the address the ticket was renewed for.</summary>
+// The broker's answer as it gave it, and the address the ticket was renewed for.
 public sealed record ReducedForSubmitter(int Status, string Body, string Address);
 
-/// <summary>
-/// What the platform worked out about one submitter's land, answered to the submitter and to nobody else.
-/// </summary>
-/// <remarks>
-/// Two things have to hold before anything is read. The reference is known to whoever submitted and to
-/// anybody who guessed one, so on its own it names a submission without establishing whose it is; the
-/// ticket says somebody answered a code sent to a particular mailbox, and says nothing about which
-/// submission. Together they are the whole claim: this mailbox, and the submission that names it.
-/// <para>
-/// A reference nothing was submitted under and a reference naming a different address are refused in one
-/// wording. Told apart, answering would say whether a reference exists for anybody who tried one.
-/// </para>
-/// </remarks>
+// What the platform worked out about one submitter's land, answered to the submitter and to nobody else.
+//
+// Two things have to hold before anything is read. The reference is known to whoever submitted and to
+// anybody who guessed one, so on its own it names a submission without establishing whose it is; the
+// ticket says somebody answered a code sent to a particular mailbox, and says nothing about which
+// submission. Together they are the whole claim: this mailbox, and the submission that names it.
+//
+// A reference nothing was submitted under and a reference naming a different address are refused in one
+// wording. Told apart, answering would say whether a reference exists for anybody who tried one.
 public sealed class SubmissionFindingsService(
     IntakeMyceliumClient mycelium, ILogger<SubmissionFindingsService> logger)
 {
-    /// <summary>What a caller is told when the reference names no submission, names one under another
-    /// address, or names one that has been cleared. One wording, because telling them apart answers
-    /// "was anything ever submitted under this reference" to whoever asks.</summary>
+    // What a caller is told when the reference names no submission, names one under another
+    // address, or names one that has been cleared. One wording, because telling them apart answers
+    // "was anything ever submitted under this reference" to whoever asks.
     public const string NotYourSubmission =
         "No submission was found for that reference and address. Check both, and note that a submission "
         + "is cleared once it has been dealt with.";
 
-    /// <summary>The findings for one submission, or null where the reference and the address do not name
-    /// one between them.</summary>
+    // The findings for one submission, or null where the reference and the address do not name
+    // one between them.
     public async Task<Findings?> ReadAsync(
         string submissionId, string emailAddress, CancellationToken cancellation)
     {
@@ -60,9 +56,9 @@ public sealed class SubmissionFindingsService(
             await RangesAsync(FindingsReader.JudgedThings(things), cancellation));
     }
 
-    /// <summary>A reduction over one of the submission's own site's series, or null where the ticket was
-    /// issued for no address the submission names. The page names no Thing: the service supplies the site,
-    /// which is the one guarantee this route gives — a ticket reduces its own land and nobody else's.</summary>
+    // A reduction over one of the submission's own site's series, or null where the ticket was
+    // issued for no address the submission names. The page names no Thing: the service supplies the site,
+    // which is the one guarantee this route gives — a ticket reduces its own land and nobody else's.
     public async Task<ReducedForSubmitter?> ReduceAsync(
         string submissionId, Func<string, bool> ticketIssuedFor, JsonElement question, CancellationToken cancellation)
     {

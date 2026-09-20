@@ -3,8 +3,8 @@ using System.Text.Json;
 
 namespace vos.Tests.Shared;
 
-/// <summary>Unsigned tokens shaped like the ones Mycelium mints. Nothing here validates a signature — the
-/// service reads its own credential to learn which project it speaks for and when to replace it.</summary>
+// Unsigned tokens shaped like the ones Mycelium mints. Nothing here validates a signature — the
+// service reads its own credential to learn which project it speaks for and when to replace it.
 public static class TestTokens
 {
     public static string For(Guid modelId, DateTimeOffset expiresAt, string scope = "endpoint:test:*") =>

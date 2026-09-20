@@ -5,11 +5,9 @@ using Xunit;
 
 namespace vos.Service.Intake.Tests;
 
-/// <summary>
-/// The archetype diagram is what a reader builds a submission against, and a predicate drawn there that
-/// nothing mints fails quietly: the fragment is accepted, the Things appear, and every reader that walks
-/// the real predicate finds a site with nothing hanging off it.
-/// </summary>
+// The archetype diagram is what a reader builds a submission against, and a predicate drawn there that
+// nothing mints fails quietly: the fragment is accepted, the Things appear, and every reader that walks
+// the real predicate finds a site with nothing hanging off it.
 public class ArchetypeDiagramTests
 {
     private const string DesignDocumentFileName = "LAND_INTAKE.md";

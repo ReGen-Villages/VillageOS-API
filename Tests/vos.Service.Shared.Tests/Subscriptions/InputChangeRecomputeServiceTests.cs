@@ -618,7 +618,7 @@ public class InputChangeRecomputeServiceTests
 
         public Task StartAsync() => Service.StartAsync(CancellationToken.None);
 
-        /// <summary>Watch a subject the way /handle does: under the bearer that arrived with the call.</summary>
+        // Watch a subject the way /handle does: under the bearer that arrived with the call.
         public async Task WatchAsync(
             Guid subjectId, Guid modelId, TimeSpan? expiresIn = null, bool waitForSubscription = true,
             Guid[]? alsoOn = null)
@@ -651,9 +651,9 @@ public class InputChangeRecomputeServiceTests
             }
         }
 
-        /// <summary>Waits for the follower to settle on the last bearer the exchange issued. Only
-        /// meaningful once the exchange has begun issuing outside the lead time, because until then
-        /// there is always another replacement coming and no answer stays true.</summary>
+        // Waits for the follower to settle on the last bearer the exchange issued. Only
+        // meaningful once the exchange has begun issuing outside the lead time, because until then
+        // there is always another replacement coming and no answer stays true.
         public async Task WaitForCurrentTokenToBeTheLastIssuedAsync(Guid modelId)
         {
             var deadline = DateTime.UtcNow.AddSeconds(5);
@@ -750,12 +750,12 @@ public class InputChangeRecomputeServiceTests
 
         public FakeSubscriptionClient(Func<Task<string?>> currentToken) => _currentToken = currentToken;
 
-        /// <summary>The model this client speaks for, read off the token it is handed — the same way the
-        /// real one learns it. The provider is a completed task, so nothing blocks here.</summary>
+        // The model this client speaks for, read off the token it is handed — the same way the
+        // real one learns it. The provider is a completed task, so nothing blocks here.
         public Guid ModelId => ModelScopedBearer.Read(_currentToken().GetAwaiter().GetResult())!.ModelId;
 
-        /// <summary>What this client would put on its next call. The follower is asked afresh each time,
-        /// so a replacement shows up here without the client being rebuilt.</summary>
+        // What this client would put on its next call. The follower is asked afresh each time,
+        // so a replacement shows up here without the client being rebuilt.
         public string? CurrentToken => _currentToken().GetAwaiter().GetResult();
 
         public bool Unsubscribed { get; private set; }

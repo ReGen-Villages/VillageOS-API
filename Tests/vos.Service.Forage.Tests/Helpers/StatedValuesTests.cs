@@ -58,9 +58,9 @@ public class StatedValuesTests
         values["elevation"].Should().Be("1200");
     }
 
-    /// <summary>A submitted site states its coordinates over the names its archetype declares, so the
-    /// model stores them as overrides and its own properties are empty. Read as inherited defaults and
-    /// left out, every submitted site addressed its sources with nothing (#6805).</summary>
+    // A submitted site states its coordinates over the names its archetype declares, so the
+    // model stores them as overrides and its own properties are empty. Read as inherited defaults and
+    // left out, every submitted site addressed its sources with nothing (#6805).
     [Fact]
     public void Of_CarriesWhatTheSiteStatesOverItsArchetypesDeclaration()
     {
@@ -81,9 +81,9 @@ public class StatedValuesTests
         values["lng"].Should().Be("28.19");
     }
 
-    /// <summary>What the archetype itself carries stays on the archetype. The snapshot puts a value the
-    /// instance never wrote nowhere in the instance's payload, so a default for a kind of site cannot
-    /// reach a provider as though it were this site's own.</summary>
+    // What the archetype itself carries stays on the archetype. The snapshot puts a value the
+    // instance never wrote nowhere in the instance's payload, so a default for a kind of site cannot
+    // reach a provider as though it were this site's own.
     [Fact]
     public void Of_LeavesOutWhatOnlyTheArchetypeCarries()
     {

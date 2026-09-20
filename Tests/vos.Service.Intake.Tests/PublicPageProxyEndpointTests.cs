@@ -27,8 +27,8 @@ public class PublicPageProxyEndpointTests
     private const string TheReducedAnswer = """{"Groups":[{"Key":"1","Value":27.4}],"Samples":8760,"UnusableSamples":0}""";
     private static readonly byte[] SomeTileBytes = Encoding.ASCII.GetBytes("not really a jpeg");
 
-    /// <summary>The submissions model with the satellite tile registration the catalogue declares beside
-    /// it: a standalone Thing carrying the mark, its cache life, and the tile address.</summary>
+    // The submissions model with the satellite tile registration the catalogue declares beside
+    // it: a standalone Thing carrying the mark, its cache life, and the tile address.
     private static BrokerSnapshot ModelWithTiles() =>
         BrokerSnapshot.WithTwoSubmissions().Thing(
             TileRegistration, "satellite-tiles",

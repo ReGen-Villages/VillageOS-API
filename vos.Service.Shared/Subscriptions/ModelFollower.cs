@@ -2,14 +2,12 @@ using Microsoft.Extensions.Logging;
 
 namespace vos.Service.Shared.Subscriptions;
 
-/// <summary>
-/// What a compute service holds for one project: the subjects it has computed for in that model, the
-/// subscription carrying that model's changes, and the bearer both are held open with.
-///
-/// The bearer is replaced before it expires rather than when a call fails. A subscription can sit quiet
-/// for longer than a token lives, and by the time the stream dropped there would be no valid token left
-/// to ask for a replacement with.
-/// </summary>
+// What a compute service holds for one project: the subjects it has computed for in that model, the
+// subscription carrying that model's changes, and the bearer both are held open with.
+//
+// The bearer is replaced before it expires rather than when a call fails. A subscription can sit quiet
+// for longer than a token lives, and by the time the stream dropped there would be no valid token left
+// to ask for a replacement with.
 internal sealed class ModelFollower
 {
     private static readonly int[] BackoffMilliseconds = { 0, 1000, 2000, 5000, 10000 };
@@ -49,8 +47,8 @@ internal sealed class ModelFollower
 
     public Guid ModelId => _bearer.ModelId;
 
-    /// <summary>Follow a subject and every Thing its result is computed from. Re-registering replaces
-    /// what the subject reads, because a planner can add or remove one of them.</summary>
+    // Follow a subject and every Thing its result is computed from. Re-registering replaces
+    // what the subject reads, because a planner can add or remove one of them.
     public void Watch(Guid subjectId, IReadOnlyCollection<Guid> readsFrom)
     {
         List<Guid> joined, abandoned;
@@ -77,8 +75,8 @@ internal sealed class ModelFollower
             _ = RemoveFromMembershipAsync(abandoned);
     }
 
-    /// <summary>Drops the subject from everything it has stopped reading, and answers with the Things no
-    /// subject reads any more. Held under the caller's lock.</summary>
+    // Drops the subject from everything it has stopped reading, and answers with the Things no
+    // subject reads any more. Held under the caller's lock.
     private List<Guid> ReleaseWhatTheSubjectNoLongerReads(Guid subjectId, HashSet<Guid> reads)
     {
         var abandoned = new List<Guid>();
@@ -118,8 +116,8 @@ internal sealed class ModelFollower
         }
     }
 
-    /// <summary>The bearer every call this follower makes is signed with. Asked for per call so a
-    /// replacement takes effect without rebuilding the client.</summary>
+    // The bearer every call this follower makes is signed with. Asked for per call so a
+    // replacement takes effect without rebuilding the client.
     private Task<string?> CurrentTokenAsync() => Task.FromResult<string?>(Volatile.Read(ref _bearer).Token);
 
     private async Task FollowAsync(CancellationToken cancellationToken)
@@ -157,8 +155,8 @@ internal sealed class ModelFollower
         catch (OperationCanceledException) { /* shutting down */ }
     }
 
-    /// <summary>Trade the bearer this follower was seeded with — typically the one that arrived on a
-    /// /handle call, which expires in minutes — for one that outlasts the subscription.</summary>
+    // Trade the bearer this follower was seeded with — typically the one that arrived on a
+    // /handle call, which expires in minutes — for one that outlasts the subscription.
     private async Task ExtendTokenAsync(CancellationToken cancellationToken)
     {
         try
@@ -219,8 +217,8 @@ internal sealed class ModelFollower
             _ = RecomputeAsync(subjectId, "reconnect", cancellationToken);
     }
 
-    /// <summary>Every recompute runs under this model's token, so a handler writes its results back into the
-    /// project the subject belongs to without knowing there is more than one.</summary>
+    // Every recompute runs under this model's token, so a handler writes its results back into the
+    // project the subject belongs to without knowing there is more than one.
     private Task RecomputeAsync(Guid subjectId, string reason, CancellationToken cancellationToken) =>
         MyceliumModelToken.ActingForAsync(Volatile.Read(ref _bearer).Token, async () =>
         {
@@ -248,11 +246,11 @@ internal sealed class ModelFollower
         }
     }
 
-    /// <summary>Every Thing whose changes have to reach this follower, which is what the subscription
-    /// covers. Wider than the subjects: a subject is recomputed, the Things it reads only report.</summary>
-    /// <summary>A Thing no subject reads any more keeps arriving on the stream until the subscription is
-    /// told to drop it, and a service that re-registers per recompute would otherwise grow its membership
-    /// for the lifetime of the model.</summary>
+    // Every Thing whose changes have to reach this follower, which is what the subscription
+    // covers. Wider than the subjects: a subject is recomputed, the Things it reads only report.
+    // A Thing no subject reads any more keeps arriving on the stream until the subscription is
+    // told to drop it, and a service that re-registers per recompute would otherwise grow its membership
+    // for the lifetime of the model.
     private async Task RemoveFromMembershipAsync(IReadOnlyCollection<Guid> things)
     {
         try

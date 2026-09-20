@@ -18,8 +18,8 @@ public class PositionLookupEndpointTests
 {
     private const string EndpointForwardPath = "/api/endpoints/tributary";
 
-    /// <summary>What the fixture register answers at the covered position: a ring the registration's own
-    /// reshape (<c>{"boundary": ring}</c>) turns into the boundary the caller reads.</summary>
+    // What the fixture register answers at the covered position: a ring the registration's own
+    // reshape ({"boundary": ring}) turns into the boundary the caller reads.
     private const string ARingOfCorners =
         """
         {"ring": [

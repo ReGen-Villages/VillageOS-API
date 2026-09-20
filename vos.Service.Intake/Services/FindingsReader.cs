@@ -5,42 +5,37 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Services;
 
-/// <summary>
-/// What the page a submitter opens is drawn from, read out of the model that page cannot read for itself.
-/// </summary>
-/// <remarks>
-/// Nothing here names a dashboard, an archetype or a predicate. The page is whichever Thing the model
-/// marks as the one a submitter may read; the Things that never travel are whichever archetype it marks
-/// as carrying personal details; and the edges the reading follows are the ones that page's own spec
-/// walks. So a project may re-author the page, and what a submitter is sent follows it without a change
-/// here.
-/// <para>
-/// The walk is rooted at one site and follows each edge the way the spec follows it. A selector naming
-/// the archetypes instead would answer with every Thing of that kind in the model — which in a staging
-/// model is every other submitter's land.
-/// </para>
-/// <para>
-/// A snapshot is read here as the broker wrote it rather than through <see cref="SnapshotDocument"/>,
-/// because what the answer carries is the broker's own envelope and not a shape of this service's. The
-/// broker serializes with no naming policy, so the payload's own fields are lower-case and everything it
-/// serialized off a Thing keeps the capital it was declared with.
-/// </para>
-/// </remarks>
+// What the page a submitter opens is drawn from, read out of the model that page cannot read for itself.
+//
+// Nothing here names a dashboard, an archetype or a predicate. The page is whichever Thing the model
+// marks as the one a submitter may read; the Things that never travel are whichever archetype it marks
+// as carrying personal details; and the edges the reading follows are the ones that page's own spec
+// walks. So a project may re-author the page, and what a submitter is sent follows it without a change
+// here.
+//
+// The walk is rooted at one site and follows each edge the way the spec follows it. A selector naming
+// the archetypes instead would answer with every Thing of that kind in the model — which in a staging
+// model is every other submitter's land.
+//
+// A snapshot is read here as the broker wrote it rather than through SnapshotDocument,
+// because what the answer carries is the broker's own envelope and not a shape of this service's. The
+// broker serializes with no naming policy, so the payload's own fields are lower-case and everything it
+// serialized off a Thing keeps the capital it was declared with.
 public static class FindingsReader
 {
-    /// <summary>The mark on the page a submitter may read. Declared in the platform repository's
-    /// <c>land-intake.template.json</c>; the two agree by this literal and by nothing else.</summary>
+    // The mark on the page a submitter may read. Declared in the platform repository's
+    // land-intake.template.json; the two agree by this literal and by nothing else.
     public const string FindingsDashboardFlag = "__IsSubmitterFindingsDashboard";
 
-    /// <summary>The mark on the archetype whose members never leave the model.</summary>
+    // The mark on the archetype whose members never leave the model.
     public const string PersonalDetailFlag = "__IsPersonalDetailArchetype";
 
     public const string SpecProperty = "spec";
     public const string EmailAddressProperty = "emailAddress";
 
-    /// <summary>What the model declares, plus the contact of the one submission being asked about. Read
-    /// together because none of it is answered to anybody: the address is compared against the ticket and
-    /// dropped, and the marks decide what the second read may carry.</summary>
+    // What the model declares, plus the contact of the one submission being asked about. Read
+    // together because none of it is answered to anybody: the address is compared against the ticket and
+    // dropped, and the marks decide what the second read may carry.
     public static SubscriptionSelector DeclarationSelector(Guid contactId) => new()
     {
         Ids = [contactId],
@@ -69,10 +64,9 @@ public static class FindingsReader
             contact is { } named ? PropertyText(named, EmailAddressProperty) : null);
     }
 
-    /// <summary>The reading the page is drawn from: the site, and what the spec's own walks reach from
-    /// it. Depth is unbounded because a walk that nests — a site to its parcel to where the boundary came
-    /// from — is one the spec writes as one step; the platform stops as soon as a hop reaches nothing new.
-    /// </summary>
+    // The reading the page is drawn from: the site, and what the spec's own walks reach from
+    // it. Depth is unbounded because a walk that nests — a site to its parcel to where the boundary came
+    // from — is one the spec writes as one step; the platform stops as soon as a hop reaches nothing new.
     public static SubscriptionSelector FindingsSelector(Guid siteId, string spec)
     {
         var walked = WalksIn(spec);
@@ -100,8 +94,8 @@ public static class FindingsReader
         };
     }
 
-    /// <summary>Everything the reading reached except what carries personal details, which is dropped
-    /// whatever walk arrived at it rather than by trusting that no walk does.</summary>
+    // Everything the reading reached except what carries personal details, which is dropped
+    // whatever walk arrived at it rather than by trusting that no walk does.
     public static List<JsonElement> ThingsToAnswerWith(JsonElement snapshot, Guid personalDetailArchetype)
     {
         var things = Things(snapshot).ToList();
@@ -109,9 +103,9 @@ public static class FindingsReader
         return [.. things.Where(thing => !withheld.Contains(Identifier(thing)))];
     }
 
-    /// <summary>The edges between the Things being answered with. An edge to one that was withheld is
-    /// withheld with it: it would name an identifier the answer does not carry, and say that the site
-    /// relates to something the reader is not shown.</summary>
+    // The edges between the Things being answered with. An edge to one that was withheld is
+    // withheld with it: it would name an identifier the answer does not carry, and say that the site
+    // relates to something the reader is not shown.
     public static List<JsonElement> RelationshipsToAnswerWith(JsonElement snapshot, IEnumerable<JsonElement> things)
     {
         var answered = things.Select(Identifier).ToHashSet();
@@ -122,9 +116,9 @@ public static class FindingsReader
         ];
     }
 
-    /// <summary>Whose ranges the answer has to carry: every Thing holding a state. A verdict row is drawn
-    /// only for a Thing in one of the states its spec names, and the target it reads comes off the range
-    /// that judged it — so this is exactly the set the page will ask about, and no more.</summary>
+    // Whose ranges the answer has to carry: every Thing holding a state. A verdict row is drawn
+    // only for a Thing in one of the states its spec names, and the target it reads comes off the range
+    // that judged it — so this is exactly the set the page will ask about, and no more.
     public static List<Guid> JudgedThings(IEnumerable<JsonElement> things) =>
     [
         .. things
@@ -153,8 +147,8 @@ public static class FindingsReader
                 + "Seed the model from the analysis templates.");
     }
 
-    /// <summary>One edge a spec follows. Both shapes a spec writes a walk in — a step in a binding's
-    /// <c>via</c>, and the predicate a scope narrows through — are the same question of the model.</summary>
+    // One edge a spec follows. Both shapes a spec writes a walk in — a step in a binding's
+    // via, and the predicate a scope narrows through — are the same question of the model.
     private readonly record struct Walk(string Predicate, bool Inbound);
 
     private static List<Walk> WalksIn(string spec)
@@ -237,12 +231,12 @@ public static class FindingsReader
             ? value.GetString()
             : null;
 
-    /// <summary>What the Thing itself states for a name: its own properties first, then the override
-    /// sets. A value written for a name the Thing's archetype declares is never an own property — the
-    /// model clones the declaration under that archetype's id and writes the value inside it — so a
-    /// reader of the own map alone finds every submitted value absent (Bug #6908). The same rule the
-    /// shared snapshot reader states; this reader works on the broker's raw envelope rather than on a
-    /// typed snapshot, so it spells the rule out rather than calling it.</summary>
+    // What the Thing itself states for a name: its own properties first, then the override
+    // sets. A value written for a name the Thing's archetype declares is never an own property — the
+    // model clones the declaration under that archetype's id and writes the value inside it — so a
+    // reader of the own map alone finds every submitted value absent (Bug #6908). The same rule the
+    // shared snapshot reader states; this reader works on the broker's raw envelope rather than on a
+    // typed snapshot, so it spells the rule out rather than calling it.
     private static JsonElement? Property(JsonElement thing, string name)
     {
         if (MyceliumClientBase.TryGetPropertyCaseInsensitive(thing, "Properties", out var properties)
@@ -263,7 +257,7 @@ public static class FindingsReader
         return null;
     }
 
-    /// <summary>A property's value as text. Everything read this way the model wrote as a string.</summary>
+    // A property's value as text. Everything read this way the model wrote as a string.
     private static string? PropertyText(JsonElement thing, string name) =>
         Property(thing, name) is { } property
         && MyceliumClientBase.TryGetPropertyCaseInsensitive(property, "value", out var value)

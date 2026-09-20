@@ -4,16 +4,16 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Tests;
 
-/// <summary>A model as the scoped read returns it: Things, their own properties, and the edges between
-/// them. Built rather than fetched, so a test can say what a model declares and what it leaves out.</summary>
+// A model as the scoped read returns it: Things, their own properties, and the edges between
+// them. Built rather than fetched, so a test can say what a model declares and what it leaves out.
 public sealed class DeclaredModel
 {
     private readonly Dictionary<string, Guid> _idsByName = new(StringComparer.Ordinal);
     private readonly List<SnapshotThing> _things = [];
     private readonly List<SnapshotRelationship> _edges = [];
 
-    /// <summary>A model seeded from the land-intake template: every vocabulary, each under a marked
-    /// archetype and reached through a marked predicate.</summary>
+    // A model seeded from the land-intake template: every vocabulary, each under a marked
+    // archetype and reached through a marked predicate.
     public static DeclaredModel Seeded()
     {
         var model = new DeclaredModel()
@@ -98,13 +98,13 @@ public sealed class DeclaredModel
         return this;
     }
 
-    /// <summary>A Thing carrying values of its own, for what a reader takes off properties rather than off
-    /// the edges under an archetype.</summary>
+    // A Thing carrying values of its own, for what a reader takes off properties rather than off
+    // the edges under an archetype.
     public DeclaredModel Stating(string name, params (string Property, object Value)[] values) =>
         Stating(name, isArchetype: false, values);
 
-    /// <summary>An archetype carrying values of its own — a water demand states where in the queue it
-    /// stands, and members of it are minted per study rather than declared here.</summary>
+    // An archetype carrying values of its own — a water demand states where in the queue it
+    // stands, and members of it are minted per study rather than declared here.
     public DeclaredModel ArchetypeStating(string name, params (string Property, object Value)[] values) =>
         Stating(name, isArchetype: true, values);
 

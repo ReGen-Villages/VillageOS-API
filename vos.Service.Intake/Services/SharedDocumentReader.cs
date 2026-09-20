@@ -3,11 +3,11 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Services;
 
-/// <summary>What the model declares a shared file as, found by the marks rather than by name: the
-/// archetype a document `is`, the predicate a project shares it through, and `is` itself.</summary>
+// What the model declares a shared file as, found by the marks rather than by name: the
+// archetype a document `is`, the predicate a project shares it through, and `is` itself.
 public sealed record SharedDocumentDeclarations(Guid Archetype, string ArchetypeName, Guid Predicate, string PredicateName, Guid Is);
 
-/// <summary>One file a submission holds, as the model holds it.</summary>
+// One file a submission holds, as the model holds it.
 public sealed record SharedDocumentListing(
     Guid Id, string FileName, string? Description, string? ContentType, long? SizeBytes, string? SharedAt);
 
@@ -28,8 +28,8 @@ public static class SharedDocumentReader
         MarkedArchetypes = [ArchetypeFlag, PredicateFlag],
     };
 
-    /// <summary>Null where the model declares no shared file: a submitter is then told files are not
-    /// taken here, rather than a file being kept that nothing can list.</summary>
+    // Null where the model declares no shared file: a submitter is then told files are not
+    // taken here, rather than a file being kept that nothing can list.
     public static SharedDocumentDeclarations? ReadDeclarations(SnapshotDocument snapshot)
     {
         var archetype = snapshot.Things.FirstOrDefault(thing => thing.CarriesFlag(ArchetypeFlag));
@@ -41,8 +41,8 @@ public static class SharedDocumentReader
             archetype.Id, archetype.Name ?? string.Empty, predicate.Id, predicate.Name ?? string.Empty, isPredicate.Id);
     }
 
-    /// <summary>The documents a project shares, read off the walk from it: the Things at the far end of
-    /// the marked predicate, with what each states.</summary>
+    // The documents a project shares, read off the walk from it: the Things at the far end of
+    // the marked predicate, with what each states.
     public static SubscriptionSelector ListingSelector(Guid projectId, string predicateName) => new()
     {
         Ids = [projectId],

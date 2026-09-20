@@ -6,9 +6,9 @@ using Xunit;
 
 namespace vos.Service.Intake.Tests;
 
-/// <summary>Where a verification code is handed to be delivered, and what the message says. A submission
-/// is accepted only from somebody who answered one, so a deployment that cannot send is a deployment
-/// nobody can submit to.</summary>
+// Where a verification code is handed to be delivered, and what the message says. A submission
+// is accepted only from somebody who answered one, so a deployment that cannot send is a deployment
+// nobody can submit to.
 public class MailSettingsTests
 {
     private static IConfiguration Configured(params (string Key, string Value)[] settings) =>

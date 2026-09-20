@@ -4,17 +4,14 @@ using vos.Service.Intake.Services;
 
 namespace vos.Service.Intake.Tests;
 
-/// <summary>
-/// A snapshot as the broker writes one, rather than as a typed record round-trips one.
-/// </summary>
-/// <remarks>
-/// The findings a submitter is answered with are the broker's own envelope passed through, so what a test
-/// feeds in has to be that envelope: the payload's own fields lower-case, a Thing's fields keeping the
-/// capital they were declared with, and a property carrying <c>typeInfo</c>, <c>value</c> and the
-/// <c>writeKind</c> that says whether a figure was stated or measured. A fixture built out of
-/// <see cref="vos.Service.Shared.Subscriptions.SnapshotDocument"/> carries neither the capitals nor the
-/// write kind, so a test written on one would pass over a service that answers a page it cannot draw.
-/// </remarks>
+// A snapshot as the broker writes one, rather than as a typed record round-trips one.
+//
+// The findings a submitter is answered with are the broker's own envelope passed through, so what a test
+// feeds in has to be that envelope: the payload's own fields lower-case, a Thing's fields keeping the
+// capital they were declared with, and a property carrying typeInfo, value and the
+// writeKind that says whether a figure was stated or measured. A fixture built out of
+// vos.Service.Shared.Subscriptions.SnapshotDocument carries neither the capitals nor the
+// write kind, so a test written on one would pass over a service that answers a page it cannot draw.
 public sealed class BrokerSnapshot
 {
     private static readonly JsonSerializerOptions AsTheBrokerWritesIt = new() { PropertyNamingPolicy = null };
@@ -41,10 +38,9 @@ public sealed class BrokerSnapshot
         return this;
     }
 
-    /// <summary>Values written for names an archetype declares, in the store the model actually puts
-    /// them in: the declaration is cloned under the archetype's id and the value written inside it, so a
-    /// submitted value is never an own property. Bug #6908 was a reader looking only at the own map.
-    /// </summary>
+    // Values written for names an archetype declares, in the store the model actually puts
+    // them in: the declaration is cloned under the archetype's id and the value written inside it, so a
+    // submitted value is never an own property. Bug #6908 was a reader looking only at the own map.
     private static Dictionary<string, object> OverridesUnder(Dictionary<string, object>? overriding) =>
         overriding is null or { Count: 0 }
             ? []
@@ -65,8 +61,8 @@ public sealed class BrokerSnapshot
         return this;
     }
 
-    /// <summary>The model as a deployment that was never seeded for this holds it: the page and the
-    /// archetype are there, and nothing says which is which.</summary>
+    // The model as a deployment that was never seeded for this holds it: the page and the
+    // archetype are there, and nothing says which is which.
     public BrokerSnapshot WithoutTheMarks()
     {
         foreach (var flag in (string[])[FindingsReader.FindingsDashboardFlag, FindingsReader.PersonalDetailFlag])
@@ -75,8 +71,7 @@ public sealed class BrokerSnapshot
         return this;
     }
 
-    /// <summary>A Thing the model no longer holds — a submission cleared once its retention period ran.
-    /// </summary>
+    // A Thing the model no longer holds — a submission cleared once its retention period ran.
     public BrokerSnapshot Without(Guid id)
     {
         _things.RemoveAll(thing => thing.Id == id);
@@ -84,7 +79,7 @@ public sealed class BrokerSnapshot
         return this;
     }
 
-    /// <summary>A value the model holds, in the envelope the broker writes one in.</summary>
+    // A value the model holds, in the envelope the broker writes one in.
     public static Dictionary<string, object> Stating(params (string Name, object Value, string? WriteKind)[] values) =>
         values.ToDictionary(
             stated => stated.Name,
@@ -92,12 +87,12 @@ public sealed class BrokerSnapshot
                 ? (object)new { typeInfo = "vos.Double", value = stated.Value, writeKind = kind }
                 : new { typeInfo = "vos.Double", value = stated.Value });
 
-    /// <summary>What <c>POST /api/subscriptions</c> answers a selector that takes the model whole.</summary>
+    // What POST /api/subscriptions answers a selector that takes the model whole.
     public string Opened() => Written(_things, _edges);
 
-    /// <summary>What it answers a selector rooted at one site: that site, what the page's own walks reach
-    /// from it, and what each of those <c>is</c>. This is the platform's job, reproduced here because the
-    /// whole guarantee a submitter is given rests on the walk starting at one Thing.</summary>
+    // What it answers a selector rooted at one site: that site, what the page's own walks reach
+    // from it, and what each of those is. This is the platform's job, reproduced here because the
+    // whole guarantee a submitter is given rests on the walk starting at one Thing.
     public string OpenedReaching(Guid site)
     {
         var reached = new HashSet<Guid> { site };
@@ -186,9 +181,9 @@ public sealed class BrokerSnapshot
     public static string AddressOn(string siteName) =>
         $"{siteName.Replace(" ", string.Empty).ToLowerInvariant()}@example.test";
 
-    /// <summary>The spec the page carries: one figure read off the site, one read through the parcel, one
-    /// verdict reached by walking `studies` backwards, and a provenance line walking the parcel's
-    /// `obtainedBy`. Between them they exercise every shape a walk is written in.</summary>
+    // The spec the page carries: one figure read off the site, one read through the parcel, one
+    // verdict reached by walking `studies` backwards, and a provenance line walking the parcel's
+    // `obtainedBy`. Between them they exercise every shape a walk is written in.
     public const string PageSpec = """
         {"title": "Site submission",
          "compare": {"label": "site", "archetype": "Site"},
@@ -205,9 +200,9 @@ public sealed class BrokerSnapshot
                         "states": [{"state": "EnergyNetPositive", "reads": "the site makes what it uses"}]}}]}]}
         """;
 
-    /// <summary>The model a submitter's page is drawn from: the marks, the archetypes, one submitter's
-    /// site with its parcel, study and contact — and a second submitter's, which is what a test about who
-    /// may read what needs there to be.</summary>
+    // The model a submitter's page is drawn from: the marks, the archetypes, one submitter's
+    // site with its parcel, study and contact — and a second submitter's, which is what a test about who
+    // may read what needs there to be.
     public static BrokerSnapshot WithTwoSubmissions(string submissionId = WillowBend.SubmissionId)
     {
         var snapshot = new BrokerSnapshot()

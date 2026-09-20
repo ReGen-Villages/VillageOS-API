@@ -4,7 +4,7 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Services;
 
-/// <summary>The single path from what a wizard collected to what the model holds.</summary>
+// The single path from what a wizard collected to what the model holds.
 public sealed class SubmissionIntakeService(
     IntakeMyceliumClient mycelium, ISubscriptionClient subscriptions, ILogger<SubmissionIntakeService> logger,
     TimeProvider time)

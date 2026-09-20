@@ -15,8 +15,8 @@ public sealed class GraphThing
             ? v.ValueKind == JsonValueKind.String ? v.GetString() : v.ToString()
             : null;
 
-    /// <summary>True when the Thing carries this flag set to true. A model says a Thing plays a role by
-    /// marking it; absent, false, and a non-boolean all mean it does not.</summary>
+    // True when the Thing carries this flag set to true. A model says a Thing plays a role by
+    // marking it; absent, false, and a non-boolean all mean it does not.
     public bool CarriesFlag(string name) =>
         Properties.TryGetValue(name, out var value) && value.ValueKind == JsonValueKind.True;
 }
@@ -60,14 +60,14 @@ public sealed class PipelineGraph
 
     public GraphThing? Thing(Guid id) => _things.TryGetValue(id, out var t) ? t : null;
 
-    /// <summary>The archetype in this snapshot carrying the given flag, or null when none does. A snapshot
-    /// asked for the marked archetypes carries them whether or not the pipeline in it uses one, so a null
-    /// here says the model marks that role on nothing (#6516).</summary>
+    // The archetype in this snapshot carrying the given flag, or null when none does. A snapshot
+    // asked for the marked archetypes carries them whether or not the pipeline in it uses one, so a null
+    // here says the model marks that role on nothing (#6516).
     public GraphThing? ArchetypeCarrying(string roleFlag) =>
         _things.Values.FirstOrDefault(thing => thing.CarriesFlag(roleFlag));
 
-    /// <summary>True when the Thing `is` — directly or transitively — an archetype carrying the given flag.
-    /// An archetype does not play its own role, so the walk starts above the Thing.</summary>
+    // True when the Thing `is` — directly or transitively — an archetype carrying the given flag.
+    // An archetype does not play its own role, so the walk starts above the Thing.
     public bool IsOfArchetypeCarrying(GraphThing thing, string roleFlag) =>
         IsOfArchetypeCarrying(thing, roleFlag, new HashSet<Guid> { thing.Id });
 
@@ -108,12 +108,12 @@ public sealed class PipelineGraph
         }
     }
 
-    /// <summary>Things the subject <c>has</c> that are of an archetype carrying <paramref name="roleFlag"/>,
-    /// each with the Thing it points at that is of an archetype carrying <paramref name="targetRoleFlag"/> —
-    /// how a wire held as a Thing is found, and where it goes, without naming either predicate.
-    ///
-    /// A wire that points at no such Thing is skipped rather than reported: it is half-drawn, and the shape
-    /// this reads is one an editor writes a piece at a time.</summary>
+    // Things the subject has that are of an archetype carrying roleFlag,
+    // each with the Thing it points at that is of an archetype carrying targetRoleFlag —
+    // how a wire held as a Thing is found, and where it goes, without naming either predicate.
+    //
+    // A wire that points at no such Thing is skipped rather than reported: it is half-drawn, and the shape
+    // this reads is one an editor writes a piece at a time.
     public IEnumerable<(GraphThing Held, GraphThing Target)> HeldThingsCarrying(
         GraphThing subject, string roleFlag, string targetRoleFlag)
     {

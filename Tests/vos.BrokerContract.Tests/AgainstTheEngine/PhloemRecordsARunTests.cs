@@ -7,13 +7,11 @@ using Xunit;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
-/// <summary>
-/// Phloem's own gateway, writing a run's record into the real engine.
-///
-/// Its unit tests answer every write with 200 whatever the body, so they agreed with the writer about
-/// a rule neither of them applied and every case passed while no run in the live system was ever
-/// recorded (Bug #6929). These are the cases that could not have.
-/// </summary>
+// Phloem's own gateway, writing a run's record into the real engine.
+//
+// Its unit tests answer every write with 200 whatever the body, so they agreed with the writer about
+// a rule neither of them applied and every case passed while no run in the live system was ever
+// recorded (Bug #6929). These are the cases that could not have.
 public class PhloemRecordsARunTests : IClassFixture<TheEngine>
 {
     private readonly TheEngine _engine;
@@ -23,12 +21,12 @@ public class PhloemRecordsARunTests : IClassFixture<TheEngine>
     private MyceliumGateway Gateway() => new(
         _engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, _engine.AdminToken);
 
-    /// <summary>What the gateway needs to find before it can write: the built-in predicates by name,
-    /// and an archetype for each run role found by the flag it carries.
-    ///
-    /// Every case arranges this and the host is shared by the class, so it has to be write-once. A
-    /// second Thing of the same name makes the name ambiguous, and the gateway resolves its predicates
-    /// by name — so the arrangement would break the thing it exists to set up.</summary>
+    // What the gateway needs to find before it can write: the built-in predicates by name,
+    // and an archetype for each run role found by the flag it carries.
+    //
+    // Every case arranges this and the host is shared by the class, so it has to be write-once. A
+    // second Thing of the same name makes the name ambiguous, and the gateway resolves its predicates
+    // by name — so the arrangement would break the thing it exists to set up.
     private async Task<Guid> AModelThatMarksItsRunArchetypesAsync()
     {
         foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of })
@@ -54,8 +52,8 @@ public class PhloemRecordsARunTests : IClassFixture<TheEngine>
         (await _engine.ValueOfAsync(runId, "pipelineId")).Should().Be(pipelineId.ToString());
     }
 
-    /// <summary>The result is known only when the run ends, and the engine sets only a property the
-    /// Thing already carries — so publishing it proves the run was created carrying it.</summary>
+    // The result is known only when the run ends, and the engine sets only a property the
+    // Thing already carries — so publishing it proves the run was created carrying it.
     [Fact]
     public async Task A_run_publishes_the_result_it_ends_with()
     {

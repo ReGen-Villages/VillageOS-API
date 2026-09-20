@@ -5,11 +5,9 @@ using Xunit;
 
 namespace vos.Service.Intake.Tests;
 
-/// <summary>
-/// What a submission has to put into the model. The tests about the study, the site and the parcel are the
-/// executable form of clauses the platform's own fixture pins, so a site built here and a site built by an
-/// imported building model stay the same shape and one reader serves both.
-/// </summary>
+// What a submission has to put into the model. The tests about the study, the site and the parcel are the
+// executable form of clauses the platform's own fixture pins, so a site built here and a site built by an
+// imported building model stay the same shape and one reader serves both.
 public class SubmissionFragmentComposerTests
 {
     private static ComposedSubmission Compose(Submission submission) =>

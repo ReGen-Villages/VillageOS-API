@@ -32,8 +32,8 @@ public sealed class SharedDocumentEndpointTests : IDisposable
         if (Directory.Exists(_folder)) Directory.Delete(_folder, recursive: true);
     }
 
-    /// <summary>The submissions model with what the land-intake template declares for a shared file, and
-    /// one file the project already shares.</summary>
+    // The submissions model with what the land-intake template declares for a shared file, and
+    // one file the project already shares.
     private static BrokerSnapshot ModelWithDocuments() =>
         BrokerSnapshot.WithTwoSubmissions()
             .Thing(DocumentArchetype, "SharedDocument", isArchetype: true,

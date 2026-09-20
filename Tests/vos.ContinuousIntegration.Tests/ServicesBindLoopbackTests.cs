@@ -6,20 +6,18 @@ using Xunit;
 
 namespace vos.ContinuousIntegration.Tests;
 
-/// <summary>
-/// Every service is reachable only through the reverse proxy, which reaches it over loopback. A service
-/// that binds any other address is on the network the moment it starts, with whatever authentication it
-/// happens to have — so the binding is pinned here rather than trusted.
-///
-/// Two questions, asked as widely as each can be answered. What an entry point binds is read from the
-/// binding calls themselves, which only the managed services can be read for. Whether an entry point
-/// names an address reaching past the machine is asked of every service in every language, because that
-/// is the answer that matters and it needs no parsing.
-/// </summary>
+// Every service is reachable only through the reverse proxy, which reaches it over loopback. A service
+// that binds any other address is on the network the moment it starts, with whatever authentication it
+// happens to have — so the binding is pinned here rather than trusted.
+//
+// Two questions, asked as widely as each can be answered. What an entry point binds is read from the
+// binding calls themselves, which only the managed services can be read for. Whether an entry point
+// names an address reaching past the machine is asked of every service in every language, because that
+// is the answer that matters and it needs no parsing.
 public class ServicesBindLoopbackTests
 {
-    /// <summary>The file that decides what a service listens on, per language. The managed one is
-    /// <see cref="ServiceEntryPoints"/>'s business, so it is not named twice.</summary>
+    // The file that decides what a service listens on, per language. The managed one is
+    // ServiceEntryPoints's business, so it is not named twice.
     private static readonly string[] EntryPointFiles =
         ["main.go", Path.Combine("src", "index.ts"), "app.py", Path.Combine("src", "main.rs")];
 

@@ -3,46 +3,40 @@ using vos.Service.Intake.Models;
 
 namespace vos.Service.Intake.Services;
 
-/// <summary>
-/// The shape a submission has to land in: <c>SiteStudy -studies-&gt; Site</c>, the site carrying what is true
-/// of the land and the study carrying what an analysis makes of it. It is the shape an imported building
-/// model already produces, so no reader has to ask where a site's facts came from, and a study is found by
-/// its flag rather than by its source.
-/// </summary>
-/// <remarks>
-/// A tool in the VillageOS repository reads this file as text. It checks what a submission writes against the
-/// archetypes that declare those properties, and this file is the only place it can learn that. What it takes
-/// from the shape below: the property maps, by the names <c>SiteProperties</c>, <c>StudyProperties</c>,
-/// <c>ParcelProperties</c>, <c>ProjectProperties</c>, <c>ContactProperties</c>, <c>AllocationProperties</c>,
-/// <c>HazardProperties</c>, <c>DataSourceProperties</c> and <c>SubmissionProperties</c>, one per Thing;
-/// each property, from a
-/// <c>Write(properties, …)</c> call or a
-/// <c>["name"] = TypedValue.…</c> entry; the archetypes a submission is composed against, from the
-/// <c>…ArchetypeName</c> constants; and the predicates it may use, from the <c>…PredicateName</c> constants,
-/// matched by name to the fields of <see cref="vos.Service.Intake.Models.ResolvedPredicates"/>.
-/// <para>
-/// Renaming any of them compiles and passes every test here, and the failures are not alike. A renamed
-/// property map stops the model reference building. A renamed <c>…ArchetypeName</c> is quieter: that list is
-/// the gate deciding whether a model is one this producer targets at all, so a shorter list weakens the gate
-/// rather than tripping it, and the reference builds full of findings about a model the producer was never
-/// pointed at. A map added here and not there is quieter still — it builds, it passes, and what that Thing
-/// carries is never checked against the archetype declaring it.
-/// </para>
-/// <para>
-/// Adding an <c>…ArchetypeName</c> tightens the gate rather than weakening it: the producer section reports
-/// only on a model holding every archetype named here, so a model carrying some of them and not the rest
-/// goes silent. That is the intended reading — a submission is composed against the whole set — but it means
-/// a name added here narrows which models the reference says anything about.
-/// </para>
-/// <para>
-/// The vocabularies a submission uses — what an allocation is for, how a boundary was obtained, and what
-/// an assessment is about — are neither named nor listed here, and none is written as a property. A
-/// submitted word is resolved against the Things the model declares (see
-/// <see cref="DeclaredVocabularyReader"/>) and written only as an edge to the one it names, so a project
-/// that adds a term edits the model and deploys nothing, and a reader asking what an allocation is for
-/// follows the edge to a Thing it can ask further questions of.
-/// </para>
-/// </remarks>
+// The shape a submission has to land in: SiteStudy -studies-> Site, the site carrying what is true
+// of the land and the study carrying what an analysis makes of it. It is the shape an imported building
+// model already produces, so no reader has to ask where a site's facts came from, and a study is found by
+// its flag rather than by its source.
+//
+// A tool in the VillageOS repository reads this file as text. It checks what a submission writes against the
+// archetypes that declare those properties, and this file is the only place it can learn that. What it takes
+// from the shape below: the property maps, by the names SiteProperties, StudyProperties,
+// ParcelProperties, ProjectProperties, ContactProperties, AllocationProperties,
+// HazardProperties, DataSourceProperties and SubmissionProperties, one per Thing;
+// each property, from a
+// Write(properties, …) call or a
+// ["name"] = TypedValue.… entry; the archetypes a submission is composed against, from the
+// …ArchetypeName constants; and the predicates it may use, from the …PredicateName constants,
+// matched by name to the fields of vos.Service.Intake.Models.ResolvedPredicates.
+//
+// Renaming any of them compiles and passes every test here, and the failures are not alike. A renamed
+// property map stops the model reference building. A renamed …ArchetypeName is quieter: that list is
+// the gate deciding whether a model is one this producer targets at all, so a shorter list weakens the gate
+// rather than tripping it, and the reference builds full of findings about a model the producer was never
+// pointed at. A map added here and not there is quieter still — it builds, it passes, and what that Thing
+// carries is never checked against the archetype declaring it.
+//
+// Adding an …ArchetypeName tightens the gate rather than weakening it: the producer section reports
+// only on a model holding every archetype named here, so a model carrying some of them and not the rest
+// goes silent. That is the intended reading — a submission is composed against the whole set — but it means
+// a name added here narrows which models the reference says anything about.
+//
+// The vocabularies a submission uses — what an allocation is for, how a boundary was obtained, and what
+// an assessment is about — are neither named nor listed here, and none is written as a property. A
+// submitted word is resolved against the Things the model declares (see
+// DeclaredVocabularyReader) and written only as an edge to the one it names, so a project
+// that adds a term edits the model and deploys nothing, and a reader asking what an allocation is for
+// follows the edge to a Thing it can ask further questions of.
 public static class SubmissionFragmentComposer
 {
     public const string SiteStudyFlag = "__IsSiteStudy";
@@ -52,8 +46,8 @@ public static class SubmissionFragmentComposer
     public const string ProposesPredicateName = "proposes";
     public const string ServedAfterPredicateName = "servedAfter";
 
-    /// <summary>What the submission record's identifier is derived under. Public because the service derives
-    /// the same identifier to ask whether the record is already there.</summary>
+    // What the submission record's identifier is derived under. Public because the service derives
+    // the same identifier to ask whether the record is already there.
     public const string SubmissionRole = "submission";
 
     public const string SiteArchetypeName = "Site";
@@ -63,16 +57,16 @@ public static class SubmissionFragmentComposer
     public const string ContactArchetypeName = "Contact";
     public const string ProgrammeAllocationArchetypeName = "ProgrammeAllocation";
     public const string HazardAssessmentArchetypeName = "HazardAssessment";
-    /// <summary>A source a submitter named is that submission's own, minted under an identifier derived
-    /// from it, so it belongs to the group and goes when the submission is cleared. The catalogue's
-    /// archetype is the one that carries the mark ending a prune's walk, and it is not this one — held in
-    /// common they could not be told apart, and a submitter's source outlived the submission that named it
-    /// (platform Bug #6840).</summary>
+    // A source a submitter named is that submission's own, minted under an identifier derived
+    // from it, so it belongs to the group and goes when the submission is cleared. The catalogue's
+    // archetype is the one that carries the mark ending a prune's walk, and it is not this one — held in
+    // common they could not be told apart, and a submitter's source outlived the submission that named it
+    // (platform Bug #6840).
     public const string SubmittedSourceArchetypeName = "SubmittedSource";
     public const string SubmissionArchetypeName = "Submission";
 
-    /// <param name="arrivedAt">When this submission reached the service, or null when the model already
-    /// holds its record and its arrival is already recorded.</param>
+    // arrivedAt: When this submission reached the service, or null when the model already
+    // holds its record and its arrival is already recorded.
     public static ComposedSubmission Compose(
         Submission submission, ResolvedPredicates predicates, ResolvedArchetypes archetypes,
         DeclaredVocabulary vocabulary, DateTime? arrivedAt)

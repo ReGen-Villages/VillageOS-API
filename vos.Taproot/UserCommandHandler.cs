@@ -2,11 +2,11 @@ using System.Text.Json;
 
 namespace vos.Taproot;
 
-/// <summary>Accounts, administered through the same route the platform's Accounts page uses, so the
-/// command line and the console say the same things and refuse the same things. Accounts and models
-/// are named, not identified: a model's name is the rest of the line, spaces and all, because that is
-/// how a person knows it. A password is prompted for rather than taken from the line, where it would
-/// stay in the shell's history.</summary>
+// Accounts, administered through the same route the platform's Accounts page uses, so the
+// command line and the console say the same things and refuse the same things. Accounts and models
+// are named, not identified: a model's name is the rest of the line, spaces and all, because that is
+// how a person knows it. A password is prompted for rather than taken from the line, where it would
+// stay in the shell's history.
 public class UserCommandHandler
 {
     private readonly TextWriter _writer;
@@ -104,7 +104,7 @@ public class UserCommandHandler
             : new { view = "create", username, password, role, models = new[] { modelName } });
     }
 
-    /// <summary>Posts one act and writes what the route said on taking it.</summary>
+    // Posts one act and writes what the route said on taking it.
     private async Task SayAsync(object act)
     {
         var answer = await _mycelium.AdministerAccountsAsync(act);

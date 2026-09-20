@@ -662,13 +662,13 @@ static void LogRefusal(HttpContext context, string reason) =>
         .LogWarning("A submission was refused: {Reason}, source {Source}",
             reason, context.Connection.RemoteIpAddress?.ToString() ?? "unknown");
 
-/// <summary>An address somebody wants a code sent to.</summary>
+// An address somebody wants a code sent to.
 public sealed record VerificationAsked(string? EmailAddress);
 
-/// <summary>The address and the code that was sent to it, exchanged for a ticket.</summary>
+// The address and the code that was sent to it, exchanged for a ticket.
 public sealed record VerificationAnswered(string? EmailAddress, string? Code);
 
-/// <summary>The reference a submitter was answered with, and the address their submission names.</summary>
+// The reference a submitter was answered with, and the address their submission names.
 public sealed record FindingsAsked(string? SubmissionId, string? EmailAddress);
 
 // Exposed to WebApplicationFactory<Program> in the test project per docs/SERVICES.md.

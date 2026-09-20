@@ -2,12 +2,12 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Services;
 
-/// <summary>A read of the model that lasts one call.</summary>
+// A read of the model that lasts one call.
 internal static class ScopedRead
 {
-    /// <summary>Subscribe, read, release. A release that fails must not lose a read that succeeded, and
-    /// the broker reaps what a caller leaves behind — so the failure is logged where whoever runs the
-    /// deployment reads it and the answer still goes back.</summary>
+    // Subscribe, read, release. A release that fails must not lose a read that succeeded, and
+    // the broker reaps what a caller leaves behind — so the failure is logged where whoever runs the
+    // deployment reads it and the answer still goes back.
     public static async Task<T> ReadAsync<T>(
         this ISubscriptionClient subscriptions,
         SubscriptionSelector selector,

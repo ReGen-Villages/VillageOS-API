@@ -2,15 +2,13 @@ using System.Text.Json;
 
 namespace vos.Taproot;
 
-/// <summary>
-/// The reactive engines' capacity, from the CLI: `engines` prints both engines' totals for the
-/// current model, `engines ranges` / `engines rollups` drill in to every reactor with its owner,
-/// what it watches or declares, and its footprint.
-/// </summary>
+// The reactive engines' capacity, from the CLI: `engines` prints both engines' totals for the
+// current model, `engines ranges` / `engines rollups` drill in to every reactor with its owner,
+// what it watches or declares, and its footprint.
 public class EnginesCommandHandler
 {
-    /// <summary>The path a reduction declares when its members are every instance of the related
-    /// type, connected to the owner or not — a symbol on the wire, spelled out here.</summary>
+    // The path a reduction declares when its members are every instance of the related
+    // type, connected to the owner or not — a symbol on the wire, spelled out here.
     private const string EveryInstance = "*";
 
     private readonly TextWriter _writer;
@@ -116,11 +114,9 @@ public class EnginesCommandHandler
         }
     }
 
-    /// <summary>
-    /// The platform declares a derived property either as a reduction over the Things a relationship
-    /// path reaches or as an expression over property names, and fills only that form's fields —
-    /// so rendering the reduction's four regardless prints an expression as a line of blanks.
-    /// </summary>
+    // The platform declares a derived property either as a reduction over the Things a relationship
+    // path reaches or as an expression over property names, and fills only that form's fields —
+    // so rendering the reduction's four regardless prints an expression as a line of blanks.
     private static string Declaration(JsonElement reactor)
     {
         if (TextOrNull(reactor, "Expression") is { } expression) return expression;

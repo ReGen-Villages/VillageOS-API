@@ -20,64 +20,63 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     public Func<HttpRequestMessage, HttpResponseMessage> HandlerCallback { get; set; }
         = _ => new HttpResponseMessage(HttpStatusCode.NotFound);
 
-    /// <summary>Base64 of Mycelium's public signing key. This service checks no inbound credential, so
-    /// setting it changes nothing — which is what a test says out loud, because it is one of the settings
-    /// every service is launched with and could easily be believed to close the public route.</summary>
+    // Base64 of Mycelium's public signing key. This service checks no inbound credential, so
+    // setting it changes nothing — which is what a test says out loud, because it is one of the settings
+    // every service is launched with and could easily be believed to close the public route.
     public string? VerificationKey { get; set; }
 
     public string Issuer { get; set; } = "VillageOS";
 
     public string Audience { get; set; } = "intake-handler";
 
-    /// <summary>Origin(s) of the public form allowed to call this service across origins. Null leaves
-    /// every cross-origin caller refused, the default a public service must start from.</summary>
+    // Origin(s) of the public form allowed to call this service across origins. Null leaves
+    // every cross-origin caller refused, the default a public service must start from.
     public string? PublicFormOrigin { get; set; }
 
-    /// <summary>Time as the service reads it. A ticket is judged by how long ago it was issued, so a test
-    /// that let the real clock run could only say the elapsed time was small.</summary>
+    // Time as the service reads it. A ticket is judged by how long ago it was issued, so a test
+    // that let the real clock run could only say the elapsed time was small.
     public MovableClock Clock { get; } = new(new DateTimeOffset(2026, 8, 22, 9, 30, 0, TimeSpan.Zero));
 
-    /// <summary>What the service logged about submissions, so a test can say a line names the submission
-    /// and carries none of what was submitted.</summary>
+    // What the service logged about submissions, so a test can say a line names the submission
+    // and carries none of what was submitted.
     public CapturingLogger<SubmissionIntakeService> Log { get; } = new();
 
-    /// <summary>Whether a request arrives with an address on it. False is the service run with nothing in
-    /// front of it, where every caller is one source because there is nothing to tell them apart by.
-    /// </summary>
+    // Whether a request arrives with an address on it. False is the service run with nothing in
+    // front of it, where every caller is one source because there is nothing to tell them apart by.
     public bool ArrivesThroughAProxy { get; set; } = true;
 
-    /// <summary>The service JWT. A non-empty one short-circuits the token exchange, so a test about the
-    /// key the service holds sets this to null to make the exchange happen.</summary>
+    // The service JWT. A non-empty one short-circuits the token exchange, so a test about the
+    // key the service holds sets this to null to make the exchange happen.
     public string? Token { get; set; } = "test-token";
 
-    /// <summary>The durable credential a service nobody launches has to hold. Null is a service given
-    /// none.</summary>
+    // The durable credential a service nobody launches has to hold. Null is a service given
+    // none.
     public string? ApiKey { get; set; }
 
-    /// <summary>Where a verification code goes instead of a mail server, so a test can read back the code
-    /// a person would have read in their mail.</summary>
+    // Where a verification code goes instead of a mail server, so a test can read back the code
+    // a person would have read in their mail.
     public CapturingMailer Mailer { get; } = new();
 
-    /// <summary>Whether the service keeps whichever mailer it wired for itself. False substitutes
-    /// <see cref="Mailer"/>, which is what a test about the exchange wants; true is for a test about which
-    /// mailer the settings chose.</summary>
+    // Whether the service keeps whichever mailer it wired for itself. False substitutes
+    // Mailer, which is what a test about the exchange wants; true is for a test about which
+    // mailer the settings chose.
     public bool KeepsTheServicesOwnMailer { get; set; }
 
-    /// <summary>How the service is running. Testing unless a test is about something the environment
-    /// decides — writing codes to the console is allowed on a development machine and nowhere else. Named
-    /// as the host names it, and never <c>Environment</c>, which would shadow <see cref="System.Environment"/>
-    /// for everything in this class.</summary>
+    // How the service is running. Testing unless a test is about something the environment
+    // decides — writing codes to the console is allowed on a development machine and nowhere else. Named
+    // as the host names it, and never Environment, which would shadow System.Environment
+    // for everything in this class.
     public string EnvironmentName { get; set; } = "Testing";
 
-    /// <summary>Where codes go, or null to leave the service on its default of sending them.</summary>
+    // Where codes go, or null to leave the service on its default of sending them.
     public string? MailDelivery { get; set; }
 
-    /// <summary>Where shared files are kept, or null for the service's default beside itself. A test about
-    /// files gives a folder of its own and removes it after.</summary>
+    // Where shared files are kept, or null for the service's default beside itself. A test about
+    // files gives a folder of its own and removes it after.
     public string? DocumentDirectory { get; set; }
 
-    /// <summary>Whether the hourly pass that takes out the files of let-go submissions runs with the host.
-    /// A test that drives the pass by hand leaves it out, or the two would race over the same folders.</summary>
+    // Whether the hourly pass that takes out the files of let-go submissions runs with the host.
+    // A test that drives the pass by hand leaves it out, or the two would race over the same folders.
     public bool RunsTheReclaimPass { get; set; } = true;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -128,9 +127,9 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         });
     }
 
-    /// <summary>The test host opens no socket, so a request arrives with no address on it and the service
-    /// reads every caller as one source. Behind the reverse proxy the connection is from loopback and the
-    /// caller's own address is in the forwarded header, which is what this reproduces.</summary>
+    // The test host opens no socket, so a request arrives with no address on it and the service
+    // reads every caller as one source. Behind the reverse proxy the connection is from loopback and the
+    // caller's own address is in the forwarded header, which is what this reproduces.
     private sealed class ArrivingThroughTheProxy : IStartupFilter
     {
         public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) =>
@@ -146,14 +145,14 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     }
 }
 
-/// <summary>Where a verification code goes with no mail server to send it. A test reads the code back
-/// because reading it out of a mailbox is the one step in the exchange it cannot take.</summary>
+// Where a verification code goes with no mail server to send it. A test reads the code back
+// because reading it out of a mailbox is the one step in the exchange it cannot take.
 public sealed class CapturingMailer : IVerificationMailer
 {
     private readonly List<(string EmailAddress, string Code)> _sent = [];
 
-    /// <summary>What the mail server does instead of accepting the message, where a test is about a
-    /// deployment whose mail is not working.</summary>
+    // What the mail server does instead of accepting the message, where a test is about a
+    // deployment whose mail is not working.
     public Exception? Refuses { get; set; }
 
     public IReadOnlyList<(string EmailAddress, string Code)> Sent => _sent;

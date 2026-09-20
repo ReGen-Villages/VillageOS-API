@@ -8,11 +8,9 @@ public enum TileOutcome { Served, NoSuchBasemap, ProviderUnavailable }
 
 public sealed record ServedTile(TileOutcome Outcome, byte[]? Bytes = null, string? ContentType = null, TimeSpan? CacheLife = null);
 
-/// <summary>
-/// One tile of a basemap, fetched through the registration the route names — the broker's endpoint route
-/// forwards to the fetching service, which reaches the provider and keeps the bytes on disk for the
-/// registration's cache life — so a page is never handed the provider's address or any key.
-/// </summary>
+// One tile of a basemap, fetched through the registration the route names — the broker's endpoint route
+// forwards to the fetching service, which reaches the provider and keeps the bytes on disk for the
+// registration's cache life — so a page is never handed the provider's address or any key.
 public sealed class BasemapTileService(
     IntakeMyceliumClient mycelium,
     ISubscriptionClient subscriptions,

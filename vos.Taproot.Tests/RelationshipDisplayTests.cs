@@ -4,11 +4,11 @@ using Xunit;
 
 namespace vos.Taproot.Tests;
 
-/// <summary>How a relationship reads on screen, against the payload the platform actually serves.
-///
-/// <c>GET /api/relationships</c> sends the four identifiers and sends a name only for an edge given
-/// one of its own — which nothing in the platform currently does. Everything else is named by the
-/// three endpoints, each of which resolves through the Thing name map the handlers already build.</summary>
+// How a relationship reads on screen, against the payload the platform actually serves.
+//
+// GET /api/relationships sends the four identifiers and sends a name only for an edge given
+// one of its own — which nothing in the platform currently does. Everything else is named by the
+// three endpoints, each of which resolves through the Thing name map the handlers already build.
 public class RelationshipDisplayTests
 {
     private readonly Mock<MyceliumClient> _mycelium = new("https://localhost:7243") { CallBase = false };

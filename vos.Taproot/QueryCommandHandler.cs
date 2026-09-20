@@ -138,14 +138,14 @@ namespace vos.Taproot
             return inheritedMatch;
         }
 
-        /// <summary>Leaf name of a qualified inherited key: "Device.serialNumber" → "serialNumber".</summary>
+        // Leaf name of a qualified inherited key: "Device.serialNumber" → "serialNumber".
         private static string LeafName(string key)
         {
             var dot = key.LastIndexOf('.');
             return dot >= 0 ? key[(dot + 1)..] : key;
         }
 
-        /// <summary>Source path of a qualified inherited key: "Device.serialNumber" → "Device".</summary>
+        // Source path of a qualified inherited key: "Device.serialNumber" → "Device".
         private static string SourcePrefix(string key)
         {
             var dot = key.LastIndexOf('.');

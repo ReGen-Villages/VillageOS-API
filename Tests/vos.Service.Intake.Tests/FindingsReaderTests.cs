@@ -178,8 +178,8 @@ public class FindingsReaderTests
             || !properties.TryGetProperty(flag, out _));
     }
 
-    /// <summary>The snapshot as the platform would have answered a walk rooted at one site: that site,
-    /// what it reaches, and the declarations. Another submitter's Things are simply absent.</summary>
+    // The snapshot as the platform would have answered a walk rooted at one site: that site,
+    // what it reaches, and the declarations. Another submitter's Things are simply absent.
     private static JsonDocument OnlyReaching(JsonElement snapshot, Guid site)
     {
         var reached = new HashSet<Guid>

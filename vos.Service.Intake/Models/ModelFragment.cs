@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace vos.Service.Intake.Models;
 
-/// <summary>The document <c>POST /api/model/fragment</c> reads, applied as one upsert.</summary>
+// The document POST /api/model/fragment reads, applied as one upsert.
 public sealed record ModelFragment(
     string Name,
     IReadOnlyList<FragmentThing> Things,
@@ -10,11 +10,11 @@ public sealed record ModelFragment(
 
 public sealed record FragmentThing(Guid Id, string Name, IReadOnlyDictionary<string, TypedValue> Properties);
 
-/// <summary>An edge carries no identifier: the endpoint keys an edge on subject, predicate and target, so a
-/// re-posted submission finds its own edges rather than adding second copies of them.</summary>
+// An edge carries no identifier: the endpoint keys an edge on subject, predicate and target, so a
+// re-posted submission finds its own edges rather than adding second copies of them.
 public sealed record FragmentRelationship(string Name, Guid Subject, Guid Predicate, Guid Target);
 
-/// <summary>A property value with the type it is written as.</summary>
+// A property value with the type it is written as.
 public sealed record TypedValue
 {
     [JsonPropertyName("typeInfo")]
