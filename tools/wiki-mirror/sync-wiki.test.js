@@ -2,6 +2,8 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const {
   convert,
   convertMermaid,
@@ -9,10 +11,20 @@ const {
   flatName,
   pageSlug,
   decodeName,
+  REPO_BRANCH,
 } = require('./sync-wiki');
 
 const WIKI = 'https://github.com/ReGen-Villages/VillageOS-API/wiki';
-const BLOB = 'https://github.com/ReGen-Villages/VillageOS-API/blob/main';
+const BLOB = 'https://github.com/ReGen-Villages/VillageOS-API/blob/develop';
+
+// A file link on the public wiki answers 404 unless it names the branch the repository mirror pushes,
+// and nothing but the pipeline says which branch that is — so the pipeline is read rather than remembered.
+test('blob links name the branch the pipeline mirrors to GitHub', () => {
+  const pipeline = fs.readFileSync(path.join(__dirname, '..', '..', 'azure-pipelines.yml'), 'utf8');
+  const pushed = pipeline.match(/git push github "HEAD:refs\/heads\/([^"]+)"/);
+  assert.ok(pushed, 'the pipeline no longer pushes the repository to GitHub by a fully-qualified ref');
+  assert.equal(REPO_BRANCH, pushed[1]);
+});
 
 test('internal wiki links become absolute GitHub wiki URLs', () => {
   assert.equal(convert('[vos.Trellis](/GUI)'), `[vos.Trellis](${WIKI}/GUI)`);
