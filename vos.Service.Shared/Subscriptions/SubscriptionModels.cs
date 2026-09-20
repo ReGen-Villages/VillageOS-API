@@ -78,7 +78,7 @@ public sealed record InheritedPropertySet(
 // InheritedOverrides is named as Mycelium serializes it. A member named anything else binds to nothing,
 // and since that is where every value a Thing states over its archetype's declaration is carried, a
 // reader of Properties alone finds each of them absent. Read both through
-// <see cref="SnapshotValues.StatedValue(SnapshotThing, string)"/> rather than either directly.
+// SnapshotValues.StatedValue rather than either directly.
 //
 // Relationships is the closure's relationships incident to the Thing, which only a snapshot can say anything
 // about; the same shape on the change stream carries none, since a Thing's relationships arrive as events.
