@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 686 498" width="686" height="498" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" role="img" aria-label="What happens to one committed change, in order.">
+<rect width="686" height="498" fill="#ffffff"/>
+<path d="M 172.2,78.0 L 172.2,100.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(172.2,100.0) rotate(90.0)"/>
+<path d="M 179.6,158.0 L 179.6,169.0 L 216.8,169.0 L 216.8,180.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(216.8,180.0) rotate(90.0)"/>
+<path d="M 216.8,222.0 L 216.8,233.5 L 187.1,233.5 L 187.1,245.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(187.1,245.0) rotate(90.0)"/>
+<path d="M 187.1,287.0 L 187.1,310.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(187.1,310.0) rotate(90.0)"/>
+<path d="M 187.1,352.0 L 187.1,375.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(187.1,375.0) rotate(90.0)"/>
+<path d="M 187.1,417.0 L 187.1,428.5 L 205.7,428.5 L 205.7,440.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(205.7,440.0) rotate(90.0)"/>
+<rect x="30.0" y="20.0" width="284.4" height="58.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="172.2" y="37.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">A change is committed</text>
+<text x="172.2" y="53.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">a Fact at once; readings in a batch</text>
+<text x="172.2" y="69.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">a few milliseconds later</text>
+<rect x="30.0" y="100.0" width="299.3" height="58.0" rx="2" fill="#e3e4f2" stroke="#46497e"/>
+<text x="179.6" y="117.0" font-size="12" font-weight="normal" fill="#46497e" text-anchor="middle">Step 0: recompute every derived value</text>
+<text x="179.6" y="133.0" font-size="12" font-weight="normal" fill="#46497e" text-anchor="middle">the change feeds, each after the ones</text>
+<text x="179.6" y="149.0" font-size="12" font-weight="normal" fill="#46497e" text-anchor="middle">it reads, until none moves</text>
+<rect x="30.0" y="180.0" width="373.7" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="216.8" y="197.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Step 1: find the ranges that read what</text>
+<text x="216.8" y="213.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">changed, on this Thing and across relationships</text>
+<rect x="30.0" y="245.0" width="314.2" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="187.1" y="262.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Evaluate each; a range that starts or</text>
+<text x="187.1" y="278.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">stops holding changes the Thing's state</text>
+<rect x="30.0" y="310.0" width="314.2" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="187.1" y="327.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Re-evaluate every range that reads a</text>
+<text x="187.1" y="343.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">state that moved, until nothing changes</text>
+<rect x="30.0" y="375.0" width="314.2" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="187.1" y="392.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Step 2: evaluate binding guards and</text>
+<text x="187.1" y="408.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">bounds; report deviations, never errors</text>
+<rect x="30.0" y="440.0" width="351.4" height="42.0" rx="2" fill="#dbeade" stroke="#1f6047"/>
+<text x="205.7" y="457.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">Tell everyone: state-change events, state</text>
+<text x="205.7" y="473.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">history, and the services that watch a state</text>
+<text x="400.0" y="117.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">A criterion that reads both a</text>
+<text x="400.0" y="133.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">value and a total derived from it</text>
+<text x="400.0" y="149.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">sees the total the write leaves,</text>
+<text x="400.0" y="165.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">never the one about to move.</text>
+<text x="400.0" y="327.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">A set of states seen before is an</text>
+<text x="400.0" y="343.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">oscillation: it is reported, the</text>
+<text x="400.0" y="359.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">last state is kept, nothing crashes.</text>
+<text x="400.0" y="392.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">A guard may read a state but</text>
+<text x="400.0" y="408.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">never produces one, so the two</text>
+<text x="400.0" y="424.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">steps cannot loop.</text>
+</svg>

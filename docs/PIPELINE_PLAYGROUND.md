@@ -1,7 +1,7 @@
 # Pipeline Playground — using the example DAGs
 
 A set of ready-made **services and pipelines (DAGs)** for exercising the Trellis
-[Pipelines page](TRELLIS.md#74-pipelines-dag-editor) — the service palette, wiring, field mapping,
+[Pipelines page](FIELD_GUIDE.md#41-building-one-on-the-canvas) — the service palette, wiring, field mapping,
 transforms, parameter binding, fan-out, pre-run validation, run history, and live node status.
 
 They come from a generator (see [tools/pipeline-playground](../tools/pipeline-playground/README.md)); this
@@ -38,7 +38,7 @@ example services; the **Load pipeline…** dropdown in the toolbar lists the exa
 - **Inspector** — click a node to bind its inputs to run parameters (or edit a boundary node's ports); click
   a wire to set field paths and a transform.
 
-Full reference: [TRELLIS.md §7.4](TRELLIS.md#74-pipelines-dag-editor).
+Full reference: [the Field Guide, Part VI](FIELD_GUIDE.md#41-building-one-on-the-canvas).
 
 ## The example DAGs
 

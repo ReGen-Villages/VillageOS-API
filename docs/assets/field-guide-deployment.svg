@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 938 324" width="938" height="324" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" role="img" aria-label="A deployment: one proxy hears the internet; everything else answers only on the machine itself.">
+<rect width="938" height="324" fill="#ffffff"/>
+<path d="M 181.9,51.0 L 231.0,51.0 L 231.0,129.0 L 280.0,129.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(280.0,129.0) rotate(0.0)"/>
+<text x="239.0" y="94.0" font-size="11" fill="#74857a" text-anchor="start">app.example.org</text>
+<path d="M 211.7,231.0 L 280.0,231.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(280.0,231.0) rotate(0.0)"/>
+<path d="M 399.9,220.0 L 399.9,158.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(399.9,158.0) rotate(-90.0)"/>
+<text x="407.9" y="193.0" font-size="11" fill="#74857a" text-anchor="start">intake.example.org</text>
+<path d="M 509.9,129.0 L 585.0,129.0 L 585.0,49.0 L 660.0,49.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(660.0,49.0) rotate(0.0)"/>
+<text x="577.0" y="96.0" font-size="11" fill="#74857a" text-anchor="end">requests, and the</text>
+<text x="577.0" y="109.0" font-size="11" fill="#74857a" text-anchor="end">console's own files</text>
+<path d="M 509.9,129.0 L 585.0,129.0 L 585.0,169.0 L 660.0,169.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(660.0,169.0) rotate(0.0)"/>
+<text x="600.0" y="185.0" font-size="11" fill="#74857a" text-anchor="middle">submissions</text>
+<path d="M 892.3,49.0 L 922.3,49.0 L 922.3,279.0 L 855.1,279.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(855.1,279.0) rotate(180.0)"/>
+<path d="M 690.0,140.0 L 690.0,78.0" fill="none" stroke="#47574d" stroke-width="1.2" stroke-dasharray="2 3"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(690.0,78.0) rotate(-90.0)"/>
+<text x="698.0" y="98.0" font-size="11" fill="#74857a" text-anchor="start">writes with a key confined</text>
+<text x="698.0" y="111.0" font-size="11" fill="#74857a" text-anchor="start">to the intake model</text>
+<rect x="24.0" y="30.0" width="157.9" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="103.0" y="47.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Someone signed in,</text>
+<text x="103.0" y="63.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">in a browser</text>
+<rect x="24.0" y="210.0" width="187.7" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="117.8" y="227.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">A member of the public</text>
+<text x="117.8" y="243.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">with land to describe</text>
+<rect x="280.0" y="100.0" width="229.9" height="58.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="395.0" y="117.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">Reverse proxy</text>
+<text x="395.0" y="133.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">the only thing reachable</text>
+<text x="395.0" y="149.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">from the internet</text>
+<rect x="280.0" y="220.0" width="239.8" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="399.9" y="237.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">The public pages</text>
+<text x="399.9" y="253.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">static files on a public site</text>
+<rect x="660.0" y="20.0" width="232.3" height="58.0" rx="2" fill="#dbeade" stroke="#1f6047"/>
+<text x="776.2" y="37.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">Mycelium</text>
+<text x="776.2" y="53.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">the server, with the console</text>
+<text x="776.2" y="69.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">built in</text>
+<rect x="660.0" y="140.0" width="195.1" height="58.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="757.6" y="157.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">The intake service</text>
+<text x="757.6" y="173.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">the one door a stranger</text>
+<text x="757.6" y="189.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">comes through</text>
+<rect x="660.0" y="250.0" width="195.1" height="58.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="757.6" y="267.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Every other service</text>
+<text x="757.6" y="283.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">launched and supervised</text>
+<text x="757.6" y="299.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">by Mycelium</text>
+</svg>

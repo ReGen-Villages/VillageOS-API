@@ -4,12 +4,16 @@ Guides and references for the client-facing side of VillageOS. New here? Start w
 [repository README](../README.md) for what this project is and how to build it, then use the
 map below.
 
+## Start here
+
+| Doc | For | What it covers |
+|-----|-----|----------------|
+| [FIELD_GUIDE.md](FIELD_GUIDE.md) | Everyone | The whole platform in one document: what it is and why, the model, how every change is judged, services, pipelines, the web console and the command line page by page and command by command, installing and running it, and the inside of the console with the page-authoring contract. Written in plain language for a technical or a lay reader. |
+
 ## Client tools
 
 | Doc | For | What it covers |
 |-----|-----|----------------|
-| [TRELLIS.md](TRELLIS.md) | GUI users **and** GUI developers | The web GUI. Part 1 is a click-around user guide; Part 2 is the technical spec (architecture, pages, state, API/SSE layer). |
-| [TAPROOT_USER_GUIDE.md](TAPROOT_USER_GUIDE.md) | CLI users | The command-line interface — commands, examples, and workflows. |
 | [PIPELINE_PLAYGROUND.md](PIPELINE_PLAYGROUND.md) | Anyone exploring the Pipelines page | How to load and use the ready-made example DAGs and services that exercise the Trellis Pipeline editor. |
 
 ## Platform concepts

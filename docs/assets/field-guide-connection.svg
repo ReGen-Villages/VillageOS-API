@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 892 204" width="892" height="204" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" role="img" aria-label="How the model says which program a relationship starts.">
+<rect width="892" height="204" fill="#ffffff"/>
+<path d="M 155.0,130.0 L 155.0,62.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(155.0,62.0) rotate(-90.0)"/>
+<text x="163.0" y="100.0" font-size="11" fill="#74857a" text-anchor="start">is</text>
+<path d="M 286.1,159.0 L 313.0,159.0 L 313.0,49.0 L 340.0,49.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(340.0,49.0) rotate(0.0)"/>
+<text x="321.0" y="108.0" font-size="11" fill="#74857a" text-anchor="start">triggeredBy</text>
+<path d="M 286.1,159.0 L 340.0,159.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(340.0,159.0) rotate(0.0)"/>
+<text x="313.0" y="153.0" font-size="11" fill="#74857a" text-anchor="middle">has</text>
+<path d="M 572.3,151.0 L 620.0,151.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(620.0,151.0) rotate(0.0)"/>
+<text x="596.2" y="145.0" font-size="11" fill="#74857a" text-anchor="middle">is</text>
+<path d="M 743.6,130.0 L 743.6,62.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(743.6,62.0) rotate(-90.0)"/>
+<text x="751.6" y="100.0" font-size="11" fill="#74857a" text-anchor="start">is</text>
+<rect x="24.0" y="20.0" width="281.4" height="42.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="164.7" y="37.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">PlatformServiceConnection</text>
+<text x="164.7" y="53.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">(the kind every connection is)</text>
+<rect x="340.0" y="20.0" width="202.6" height="58.0" rx="2" fill="#e3e4f2" stroke="#46497e"/>
+<text x="441.3" y="37.0" font-size="12" font-weight="normal" fill="#46497e" text-anchor="middle">graph</text>
+<text x="441.3" y="53.0" font-size="12" font-weight="normal" fill="#46497e" text-anchor="middle">(a trigger: fires when a</text>
+<text x="441.3" y="69.0" font-size="12" font-weight="normal" fill="#46497e" text-anchor="middle">relationship is created)</text>
+<rect x="620.0" y="20.0" width="255.7" height="42.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="747.8" y="37.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">Service</text>
+<text x="747.8" y="53.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">(the kind every service is)</text>
+<rect x="24.0" y="130.0" width="262.1" height="58.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="155.0" y="147.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">consumes</text>
+<text x="155.0" y="163.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">(a connection, used as</text>
+<text x="155.0" y="179.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">the predicate of a relationship)</text>
+<rect x="340.0" y="130.0" width="232.3" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="456.2" y="147.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">consumes service</text>
+<text x="456.2" y="163.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">port 7102, its own arguments</text>
+<rect x="620.0" y="130.0" width="247.2" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="743.6" y="147.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Metabolism</text>
+<text x="743.6" y="163.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">(one program, shared settings)</text>
+</svg>

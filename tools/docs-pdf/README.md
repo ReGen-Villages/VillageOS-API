@@ -6,10 +6,10 @@ built when somebody wants one and is never committed.
 ```bash
 cd tools/docs-pdf
 npm install                      # once
-node build.mjs ../../docs/TRELLIS.md
+node build.mjs ../../docs/FIELD_GUIDE.md
 ```
 
-That writes `docs/TRELLIS.pdf`. A guide in the other repository is rendered the same way, by naming
+That writes `docs/FIELD_GUIDE.pdf`. A guide in the other repository is rendered the same way, by naming
 it:
 
 ```bash
