@@ -351,6 +351,53 @@ public class MyceliumClientTests
     }
 
     [Fact]
+    public async Task PostToEndpointAsync_PostsTheBodyAsGivenToTheSubdomainRouteAndAnswersTheText()
+    {
+        HttpRequestMessage? captured = null;
+        string? sent = null;
+        var (client, _) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            captured = req;
+            sent = req.Content!.ReadAsStringAsync().Result;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"said\":1}") };
+        });
+
+        var answer = await client.PostToEndpointAsync("echo", "{\"say\": 1}");
+
+        captured!.Method.Should().Be(HttpMethod.Post);
+        captured.RequestUri!.AbsolutePath.Should().Be("/api/endpoints/echo");
+        captured.Content!.Headers.ContentType!.MediaType.Should().Be("application/json");
+        sent.Should().Be("{\"say\": 1}");
+        answer.Should().Be("{\"said\":1}");
+    }
+
+    [Fact]
+    public async Task RequestServiceAsync_PostsToTheHandlersRequestRoute()
+    {
+        var handlerId = Guid.NewGuid();
+        var captured = await CaptureRequest(c => c.RequestServiceAsync(handlerId, "{}"));
+
+        captured.Method.Should().Be(HttpMethod.Post);
+        captured.RequestUri!.AbsolutePath.Should().Be($"/api/mycelium/services/{handlerId}/request");
+    }
+
+    [Fact]
+    public async Task PostToEndpointAsync_OnRefusal_ThrowsCarryingTheRoutesWords()
+    {
+        var (client, _) = NewClient(req => req.RequestUri!.AbsolutePath == "/api/auth/token"
+            ? TokenResponse(ServiceToken)
+            : new HttpResponseMessage(HttpStatusCode.NotFound)
+            {
+                Content = new StringContent("{\"error\":\"No endpoint service registered for subdomain 'ghost'\"}")
+            });
+
+        var act = async () => await client.PostToEndpointAsync("ghost", "{}");
+
+        await act.Should().ThrowAsync<HttpRequestException>().WithMessage("*registered for subdomain 'ghost'*");
+    }
+
+    [Fact]
     public async Task GetDefaultPropertyModeAsync_RoutesToConfigPropertyModeEndpoint()
     {
         await VerifyGetEndpointHit("/api/config/property-mode", c => c.GetDefaultPropertyModeAsync());
