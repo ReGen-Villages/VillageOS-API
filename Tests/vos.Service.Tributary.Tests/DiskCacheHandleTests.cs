@@ -8,7 +8,7 @@ using static vos.Service.Tributary.Tests.MyceliumStub;
 
 namespace vos.Service.Tributary.Tests;
 
-// Integration tests for the DiskCache kind through /handle (#5918): an endpoint reaching
+// Integration tests for the DiskCache kind through /handle: an endpoint reaching
 // DiskCache through cachesBy serves a repeated fetch from local disk within cacheTtl —
 // the upstream is contacted once. Combinations the cache cannot answer honestly (paging,
 // a credentialed call, a request body that is not part of the key) are refused up front.

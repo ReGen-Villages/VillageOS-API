@@ -21,15 +21,11 @@ import type {
 import type { StateNarrowing } from './stateQuery';
 
 export interface ModelReads {
-  /** Which Things hold a state, narrowed as the question allows. */
   thingsInState(state: string, narrowing?: StateNarrowing): Promise<ThingsInStateResponse>;
   /** One Thing's ranges, own and inherited. Null where the read failed: a verdict the model holds
    *  still reads, without the target it names. */
   thingRanges(thingId: string): Promise<ThingRangesResponse | null>;
-  /** A reduction over a trailing window. */
   aggregate(query: TemporalAggregateQuery): Promise<TemporalAggregateResponse>;
-  /** A reduction over one property's observation history. */
   reduce(query: TemporalReduceQuery): Promise<TemporalReduceResponse>;
-  /** Whatever a model-side service answers when a spec names one. */
   fromService(endpoint: string, body: unknown): Promise<unknown>;
 }

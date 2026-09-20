@@ -2,7 +2,7 @@ using vos.Service.Shared.DagNode;
 
 namespace vos.Service.CSharp.Echo.Services;
 
-// Echo as a pipeline DAG node (Feature #5628): copies the message input straight to the
+// Echo as a pipeline DAG node: copies the message input straight to the
 // echo output. The reference node — the smallest thing that proves the envelope end to end.
 public sealed class EchoNode : DagNodeService
 {

@@ -43,7 +43,7 @@ test('a wiki whose pages are not all generated keeps the ones the manifest does 
   assert.deepEqual(pagesToRemove(['/', '/Home', '/Guide', '/Written by hand'], ['/Guide'], false), []);
 });
 
-// Bug #6148: raw bytes were sent and every publish stopped at the first image with
+// Raw bytes were sent and every publish stopped at the first image with
 // "The input is not a valid Base-64 string".
 test('an attachment body is base64, and decodes back to the original bytes', () => {
   const bytes = Buffer.from(Array.from({ length: 256 }, (_, value) => value));
@@ -64,7 +64,7 @@ test('a page tree flattens to every path it contains', () => {
   assert.deepEqual(flattenPages(tree), ['/', '/Home', '/Services', '/Services/Delta']);
 });
 
-// Bug #6151 — every develop build failed here. The step expected an attachment that is already on
+// Every develop build failed here. The step expected an attachment that is already on
 // the wiki to answer 409; the wiki answers 500 with this body, so the one case the step was written
 // to tolerate was the one it died on. Verbatim from the failing run.
 const ALREADY_THERE = JSON.stringify({

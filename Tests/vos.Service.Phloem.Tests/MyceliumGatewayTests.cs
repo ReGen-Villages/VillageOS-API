@@ -80,7 +80,7 @@ public class MyceliumGatewayTests
 
     // The stand-in above answers a write with 200 whatever its body. Two rules the real broker applies are
     // applied here as well, because a stand-in that accepts anything is what let the writer's shape drift
-    // from the route's and left every run unrecorded (#6929): a property is written as a typed envelope,
+    // from the route's and left every run unrecorded: a property is written as a typed envelope,
     // and a property is set only on a Thing that already carries it.
     private sealed class BrokerApplyingItsWriteRules
     {
@@ -168,7 +168,7 @@ public class MyceliumGatewayTests
         selector.GetProperty("includeRelationships").GetBoolean().Should().BeTrue();
         selector.GetProperty("includeIsAncestors").GetBoolean().Should().BeTrue();
         // The only names on the selector are the two built-in predicates: an archetype name asked for here
-        // is what stopped finding anything the moment a model renamed one (#6516).
+        // is what stopped finding anything the moment a model renamed one.
         selector.GetProperty("names").EnumerateArray().Select(name => name.GetString())
             .Should().BeEquivalentTo(["is", "has"]);
         selector.TryGetProperty("types", out _).Should().BeFalse();
@@ -267,7 +267,7 @@ public class MyceliumGatewayTests
     }
 
     // The broker reads each property as { typeInfo, value } and refuses a bare one with a 400 carrying no
-    // body, so a run answered its caller and left nothing behind (#6929).
+    // body, so a run answered its caller and left nothing behind.
     [Fact]
     public async Task CreateRunAsync_WritesEveryPropertyAsATypedEnvelope()
     {
@@ -298,7 +298,7 @@ public class MyceliumGatewayTests
     }
 
     // Read in the wrong casing the predicate is not found at all, so the run is created and then left with
-    // no edges — reaching neither the archetype that makes it a run nor the pipeline it ran.
+    // no relationships — reaching neither the archetype that makes it a run nor the pipeline it ran.
     [Fact]
     public async Task CreateRunAsync_WritesEachEdgeAgainstThePredicateIdentifierTheBrokerNamed()
     {
@@ -345,7 +345,7 @@ public class MyceliumGatewayTests
     }
 
     // A NodeRun is created before its first status is known to be its last, and an error arrives only on a
-    // failure — so the Thing declares both, or the transition that fails has nowhere to write (#6929).
+    // failure — so the Thing declares both, or the transition that fails has nowhere to write.
     [Fact]
     public async Task SetNodeRunStatusAsync_WritesEveryPropertyAsATypedEnvelope()
     {

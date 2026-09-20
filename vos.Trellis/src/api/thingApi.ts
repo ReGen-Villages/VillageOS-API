@@ -37,7 +37,7 @@ export const thingApi = {
 
   remove: (id: string) => apiClient.del<{ message: string }>(`/api/things/${id}`),
 
-  // Rename a Thing in place (#5862) — keeps its Id and all edges (unlike delete+recreate). The broker
+  // Rename a Thing in place — keeps its Id and all relationships (unlike delete+recreate). The broker
   // persists a NameSet Fact, so the change streams over SSE and is temporally reconstructable.
   rename: async (id: string, name: string) => {
     const thing = await apiClient.put<VosThing>(`/api/things/${id}/name`, { Name: name });

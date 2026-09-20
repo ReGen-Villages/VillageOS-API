@@ -4,8 +4,8 @@ using Xunit;
 
 namespace vos.Service.Intake.Tests;
 
-/// <summary>The expected identifiers are RFC 4122 version 5 UUIDs computed outside this codebase, so a
-/// derivation done in another language for the same submission agrees with this one.</summary>
+// The expected identifiers are RFC 4122 version 5 UUIDs computed outside this codebase, so a
+// derivation done in another language for the same submission agrees with this one.
 public class StableIdentityTests
 {
     [Fact]

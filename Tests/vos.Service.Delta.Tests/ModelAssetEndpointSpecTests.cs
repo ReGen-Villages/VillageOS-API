@@ -5,7 +5,7 @@ using Xunit;
 
 namespace vos.Service.Delta.Tests;
 
-// Pins the keepsBy role and the ModelAsset kind in the catalog vocabulary (#6608). Keeping is a
+// Pins the keepsBy role and the ModelAsset kind in the catalog vocabulary. Keeping is a
 // model decision, not a service default: a template reaching ModelAsset through keepsBy names the
 // property that receives asset tickets and the Thing that carries them, while the root reaches no
 // keeping kind — a model that says nothing keeps nothing, exactly today's transient behaviour.

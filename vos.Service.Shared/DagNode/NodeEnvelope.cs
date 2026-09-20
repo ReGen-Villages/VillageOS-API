@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace vos.Service.Shared.DagNode;
 
-// One input/output port a service advertises when it acts as a DAG node (Feature #5628). The
+// One input/output port a service advertises when it acts as a DAG node. The
 // shape mirrors the model's Port archetype (direction / type / portName / required) so a
 // service's /manifest can seed those Port Things, and the Trellis editor can type-check wires.
 public sealed record PortDescriptor(
@@ -37,11 +37,9 @@ public sealed class NodeContext
         Inputs = inputs;
     }
 
-    // The value wired into portName, or null if nothing feeds that port.
     public JsonElement? Input(string portName) =>
         Inputs.TryGetValue(portName, out var value) ? value : null;
 
-    // The static param named name, or null if unset.
     public JsonElement? Param(string name) =>
         Params.ValueKind == JsonValueKind.Object && Params.TryGetProperty(name, out var value) ? value : null;
 }
@@ -70,7 +68,6 @@ public sealed record NodeRequest(
     JsonElement Params,
     IReadOnlyDictionary<string, JsonElement> Inputs);
 
-// The wire-level reply the orchestrator reads back from a node's /handle.
 public sealed record NodeResponse(
     [property: JsonPropertyName("success")] bool Success,
     [property: JsonPropertyName("outputs")] IReadOnlyDictionary<string, object?> Outputs,

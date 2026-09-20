@@ -8,7 +8,7 @@ using Xunit;
 
 namespace vos.Service.EnergyBalance.Tests;
 
-// Story #5839 — the reactive (model-driven) energy analysis: read inputs off the anchor, compute, write outputs back.
+// The reactive (model-driven) energy analysis: read inputs off the anchor, compute, write outputs back.
 public class EnergyBalanceReactiveHandlerTests
 {
     private static readonly Guid Anchor = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
@@ -84,7 +84,7 @@ public class EnergyBalanceReactiveHandlerTests
         Assert.Equal(110.5, answer.Outputs!.PctOfConsumption, 3);
     }
 
-    // #6549: the platform withholds a roll-up whose member type resolves to nothing rather than answering
+    // The platform withholds a roll-up whose member type resolves to nothing rather than answering
     // zero, so an input can arrive present-but-null. 6826: that says the same thing about a study as an
     // absent one — no Thing to reduce over yet — so it is waited for, and the name still has to reach the
     // log. Six inputs are read here, and "not numeric: Null" names none of them.

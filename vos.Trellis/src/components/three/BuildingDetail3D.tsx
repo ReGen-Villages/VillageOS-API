@@ -38,7 +38,6 @@ function colorForKey(key: string): string {
   return ELEMENT_COLORS[hashStringToIndex(key, ELEMENT_COLORS.length)];
 }
 
-/** Parse and center a single mesh, returning the Three.js geometry. */
 function buildCenteredGeometry(
   mesh: SolidMeshData,
   cx: number,
@@ -80,7 +79,6 @@ function RotatingBuilding({
     // Parse the primary mesh (may be null for container IFC things)
     const primaryMesh = parseSolidMesh(geometryValue);
 
-    // Collect all meshes to compute a shared center
     const allMeshes: { mesh: SolidMeshData; color: string }[] = [];
 
     if (primaryMesh) {
@@ -100,7 +98,6 @@ function RotatingBuilding({
 
     if (allMeshes.length === 0) return entries;
 
-    // Compute shared center across all meshes
     let sumCx = 0, sumCz = 0;
     for (const { mesh } of allMeshes) {
       sumCx += mesh.localCenter[0];
@@ -119,14 +116,12 @@ function RotatingBuilding({
     return entries;
   }, [geometryValue, color, childElements]);
 
-  // Slow auto-rotation
   useFrame((_, delta) => {
     if (groupReference.current) {
       groupReference.current.rotation.y += delta * 0.3;
     }
   });
 
-  // Cleanup geometries on unmount
   useEffect(() => {
     return () => {
       for (const entry of meshEntries) {
@@ -158,7 +153,6 @@ export default function BuildingDetail3D({
   color = '#6d8ea8',
   childElements,
 }: BuildingDetail3DProps) {
-  // Parse all meshes for camera computation
   const allMeshes = useMemo(() => {
     const meshes: SolidMeshData[] = [];
     const primary = parseSolidMesh(geometryValue);
@@ -184,7 +178,6 @@ export default function BuildingDetail3D({
     );
   }
 
-  // Compute camera distance from combined bounding box
   let sumCx = 0, sumCz = 0;
   for (const m of allMeshes) {
     sumCx += m.localCenter[0];

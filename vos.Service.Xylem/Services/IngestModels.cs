@@ -8,7 +8,6 @@ public enum IngestMode
     NewModel,
 }
 
-// What the ModelIngest runner reports back after parsing + applying the IFC.
 public record IngestRunResult(
     bool Success,
     int ThingsCreated,
@@ -16,7 +15,6 @@ public record IngestRunResult(
     int RelationshipsCreated,
     string? Error);
 
-// The service's response to an ingest request.
 public record IngestResult(
     bool Success,
     int ThingsCreated,

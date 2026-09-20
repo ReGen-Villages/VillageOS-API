@@ -85,7 +85,7 @@ public class SnapshotParserTests
         graph.IsOfArchetypeCarrying(graph.Thing(pipe)!, PipelineArchetypes.PipelineFlag).Should().BeTrue();
     }
 
-    // A wire's ports live on the edge, so a relationship read wrongly leaves the DAG builder two nodes with
+    // A wire's ports live on the relationship, so a relationship read wrongly leaves the DAG builder two nodes with
     // nothing between them.
     [Fact]
     public void Parse_ReadsEdgePropertiesFromABrokerWrittenRelationship()
@@ -126,7 +126,7 @@ public class SnapshotParserTests
         wire.PropertyString("toPort").Should().Be("message");
     }
 
-    // An edge short of one of its four identifiers is dropped rather than failing the load, and the Things
+    // A relationship short of one of its four identifiers is dropped rather than failing the load, and the Things
     // around it still parse. Fixtured bare, without the subscription answer's wrapper, which the parser
     // also accepts.
     [Fact]

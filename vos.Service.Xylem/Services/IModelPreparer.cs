@@ -10,7 +10,6 @@ public interface IModelPreparer
     Task<string?> ClearModelAsync(CancellationToken ct);
 }
 
-// Clears the current model via DELETE /api/model so an ingest can build a fresh one.
 public sealed class HttpModelPreparer : IModelPreparer
 {
     private readonly IHttpClientFactory _httpFactory;

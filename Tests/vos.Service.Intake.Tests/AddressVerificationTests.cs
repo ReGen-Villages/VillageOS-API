@@ -4,8 +4,8 @@ using Xunit;
 
 namespace vos.Service.Intake.Tests;
 
-/// <summary>The codes this service is waiting for, and what it will accept back. Anybody may ask for one,
-/// so every bound here is a bound on what a stranger can make this service do.</summary>
+// The codes this service is waiting for, and what it will accept back. Anybody may ask for one,
+// so every bound here is a bound on what a stranger can make this service do.
 public class AddressVerificationTests
 {
     private const string Address = "ana.ferreira@example.pt";

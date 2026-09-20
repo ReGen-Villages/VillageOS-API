@@ -118,7 +118,7 @@ export function hashStringToIndex(s: string, paletteSize: number): number {
 import { CURATED_PREDICATE_COLORS } from './predicatePalette';
 
 /**
- * Resolve a predicate's edge color. Three-tier priority chain (Bug #5340):
+ * Resolve a predicate's edge color. Three-tier priority chain:
  *
  *   1. User override from GUI_Settings.PredicateColors (per-deployment
  *      customization — Mycelium-stored, fetched on login)

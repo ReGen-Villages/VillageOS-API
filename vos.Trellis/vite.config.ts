@@ -8,23 +8,23 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
     // Resolution: VOS_MYCELIUM_WWWROOT > sibling vos.Mycelium/wwwroot > dist/.
-    // The sibling auto-detect (Bug #5332) keeps `npm run build` from silently
+    // The sibling auto-detect keeps `npm run build` from silently
     // emitting to `dist/` while developers wonder why Mycelium URL still
     // serves a stale bundle.
     outDir: resolveOutDir({ guiRoot: __dirname }),
     emptyOutDir: true,
-    // vendor-three is bound by Bug #5297: three + Fragments + three-stdlib
+    // vendor-three: three + Fragments + three-stdlib
     // + three-mesh-bvh + @react-three/* + @thatopen/* MUST share one chunk
     // for `instanceof Camera` identity. Its minified size sits at ~1.27 MB
     // and cannot be reduced without breaking raycasting. Raise the warning
     // limit to 1500 so vendor-three doesn't trip it; every other chunk is
-    // still expected to stay below 1000 kB (Bug #5359 split vendor itself
+    // still expected to stay below 1000 kB (vendor itself is split
     // into vendor-react + vendor for that reason).
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {
         // Chunking rule lives in build/manualChunks.ts so it can be unit-
-        // tested. See Bug #5297 (three identity) and Bug #5359 (vendor split).
+        // tested.
         manualChunks: pickChunk,
       },
     },

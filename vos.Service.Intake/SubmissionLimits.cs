@@ -2,41 +2,38 @@ using vos.Service.Intake.Models;
 
 namespace vos.Service.Intake;
 
-/// <summary>
-/// What a submission may contain, and the check that it does. Anyone may post to this service, so every
-/// bound here is a bound on what a stranger can make the model hold.
-/// </summary>
-/// <remarks>
-/// A refusal names the field and never quotes the value back. Contact details arrive on this route by
-/// design, and a message that echoed one would put it in whatever reads the response — see
-/// <c>docs/LAND_INTAKE.md</c> §12.
-/// </remarks>
+// What a submission may contain, and the check that it does. Anyone may post to this service, so every
+// bound here is a bound on what a stranger can make the model hold.
+//
+// A refusal names the field and never quotes the value back. Contact details arrive on this route by
+// design, and a message that echoed one would put it in whatever reads the response — see
+// docs/LAND_INTAKE.md §12.
 public static class SubmissionLimits
 {
-    /// <summary>A submission is a form's worth of answers and a drawn boundary — kilobytes. The cap is
-    /// generous against that and small enough that a body cannot cost the service its memory before
-    /// anything has looked at it.</summary>
+    // A submission is a form's worth of answers and a drawn boundary — kilobytes. The cap is
+    // generous against that and small enough that a body cannot cost the service its memory before
+    // anything has looked at it.
     public const long MaximumBodyBytes = 256 * 1024;
 
-    /// <summary>A verification body is an address and a six-figure code. Nothing that size can cost this
-    /// service anything, and a body far past it was never one.</summary>
+    // A verification body is an address and a six-figure code. Nothing that size can cost this
+    // service anything, and a body far past it was never one.
     public const long MaximumVerificationBytes = 1024;
 
-    /// <summary>A name, a country, a relationship, an address, a phone number.</summary>
+    // A name, a country, a relationship, an address, a phone number.
     public const int LongestText = 200;
 
-    /// <summary>A field a person writes sentences into.</summary>
+    // A field a person writes sentences into.
     public const int LongestProse = 4_000;
 
     public const int MostAllocations = 50;
     public const int MostHazards = 50;
 
-    /// <summary>Generous against a hand-drawn parcel and against a boundary imported from a survey file,
-    /// which is where a corner count of any size would come from.</summary>
+    // Generous against a hand-drawn parcel and against a boundary imported from a survey file,
+    // which is where a corner count of any size would come from.
     public const int MostBoundaryCorners = 2_000;
 
-    /// <summary>Larger than any single landholding and smaller than a country, so a figure entered in
-    /// square metres is caught rather than composed.</summary>
+    // Larger than any single landholding and smaller than a country, so a figure entered in
+    // square metres is caught rather than composed.
     public const double LargestAreaHectares = 1_000_000;
 
     public const long LargestPopulation = 10_000_000;

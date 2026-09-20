@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { VOS_TYPES, PROPERTY_TYPES, DEFAULT_PROPERTY_TYPE, asVosTypeName, type VosTypeName } from './constants';
 
-// Bug (#6141): the panel sent the short name "double" where the platform wanted "vos.Double".
+// The panel sent the short name "double" where the platform wanted "vos.Double".
 // Nothing checked it, so every property write from the GUI failed for months. These type names are
 // now a named set, which puts that mistake in front of the compiler.
 describe('a type name the client writes is checked when the code is compiled', () => {

@@ -40,7 +40,7 @@ try
     builder.Services.AddHttpClient();
     builder.Services.AddContractValidation();
 
-    // Bug #5391: validate with the issuer/audience Mycelium passes via CLI, not library defaults —
+    // Validate with the issuer/audience Mycelium passes via CLI, not library defaults —
     // defaults diverged from Mycelium config and silently accepted nothing in production.
     if (!string.IsNullOrEmpty(verificationKey))
     {

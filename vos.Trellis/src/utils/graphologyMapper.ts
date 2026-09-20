@@ -12,7 +12,7 @@ import { computeNodeSize } from './nodeSize';
 import { LAYOUT_DEFAULTS, type LayoutSettings } from './guiSettings';
 import { resolveClassColor } from './classPalette';
 
-// ── Relationship index (O(n+m) instead of O(n*m)) ────────────────────
+// ── Relationship index: one pass over things and relationships, rather than a scan of every relationship per thing ──
 
 interface RelationshipIndex {
   /** Set of all thing IDs used as predicates in any relationship. */
@@ -137,7 +137,6 @@ export function buildGraph(
     predicateColorMap.set(r.PredicateId, resolvePredicateColor(predicateName, predicateColors));
   }
 
-  // Pre-compute relationship index (O(m) one-time cost)
   const relationshipIndex = buildRelationshipIndex(relationships, thingMap);
 
   // ── Add nodes ──────────────────────────────────────────────────────
@@ -159,13 +158,13 @@ export function buildGraph(
     } else if (thingType === 'type') {
       color = ROLE_COLORS.type;
     } else {
-      // Feature #5340 — color by the user-configured classifying property
+      // Color by the user-configured classifying property
       // (default 'ifcClass' for IFC seeds; deployments override via
       // GUI_Settings.ClassifyingProperty). When the value is missing or has
       // no curated bucket and no override, fall back to the vibrant/pastel
       // hash palette keyed by the instance's `is`-target type name so demos
       // without a class table still render distinctly.
-      // Bug #6191: an IFC instance stores its own class as an override, because
+      // An IFC instance stores its own class as an override, because
       // its type declares the same name — so the own bag alone is empty here and
       // every instance fell through to the hash palette.
       const classifyingValue = storedTextOf(t, classifyingProperty);
@@ -180,7 +179,7 @@ export function buildGraph(
       }
     }
 
-    // Size: scale by relationship count (Bug #5361 — formula in computeNodeSize,
+    // Size: scale by relationship count (formula in computeNodeSize,
     // bounds drawn from LayoutSettings so they're runtime-tunable).
     const size = computeNodeSize(relationshipCount, sizeOptions);
 

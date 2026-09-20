@@ -1,8 +1,8 @@
 namespace vos.Service.Metabolism.Configuration;
 
-/// <summary>Which way an instance of this service moves a quantity, and every word that follows from
-/// it. One row per direction, so a reader takes a direction and asks it rather than deciding again
-/// from the launch word — where anything but an exact match silently means the other direction.</summary>
+// Which way an instance of this service moves a quantity, and every word that follows from
+// it. One row per direction, so a reader takes a direction and asks it rather than deciding again
+// from the launch word — where anything but an exact match silently means the other direction.
 public sealed record ResourceDirection(
     string LaunchArgument,
     string ProgressVerb,

@@ -40,7 +40,7 @@ public sealed class GraphFixture
     }
 
     // An archetype carrying the flag that says which role it plays. The name is this fixture's own choice:
-    // nothing in the orchestrator reads it (#6516).
+    // nothing in the orchestrator reads it.
     public GraphThing Archetype(string name, string roleFlag) => Thing(name, (roleFlag, true));
 
     public PipelineVocabulary DeclareVocabulary(string namePrefix = "")
@@ -130,7 +130,7 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
-    // Boundary I/O demo (#5873): In (PipelineInput, out port `seed`) → Echo (message→echo) → Out
+    // Boundary I/O demo: In (PipelineInput, out port `seed`) → Echo (message→echo) → Out
     // (PipelineOutput, in port `result`). The Input node's `seed` output is filled from the run param `seed`;
     // the value wired into the Output node's `result` input becomes the run's published result.
     public static (GraphFixture Fixture, Guid PipelineId) BoundaryPipeline()
@@ -184,7 +184,7 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
-    // Field-merge demo (#5874): A and B both feed node C's single `in` input, A at to-path `a` and B
+    // Field-merge demo: A and B both feed node C's single `in` input, A at to-path `a` and B
     // at to-path `b`, so C receives the two outputs deep-merged into one object. All three nodes share an IO
     // prototype with an `in` input and an `out` output.
     public static (GraphFixture Fixture, Guid PipelineId) FieldMergePipeline()
@@ -212,7 +212,7 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
-    // Wire-transform demo (#5875): A → C over one wire carrying a JSONata transform
+    // Wire-transform demo: A → C over one wire carrying a JSONata transform
     // that reshapes A's output before it reaches C's `in` input.
     public static (GraphFixture Fixture, Guid PipelineId) WireTransformPipeline(string transform)
     {
@@ -235,7 +235,7 @@ public static class TestGraphs
     }
 
     // A single Echo node whose input port `message` is bound to the run param `greeting`
-    // (no wires) — exercises run-level param routing (#5647).
+    // (no wires) — exercises run-level param routing.
     public static (GraphFixture Fixture, Guid PipelineId) ParamBoundPipeline()
     {
         var fx = new GraphFixture();
@@ -267,7 +267,7 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
-    // The Water-reserve site-analysis pipeline (#5805): a single WaterReserve node whose three inputs
+    // The Water-reserve site-analysis pipeline: a single WaterReserve node whose three inputs
     // (population, perCapitaConsumptionM3, storageCapacityM3) are param-bound, so a run supplies them.
     public static (GraphFixture Fixture, Guid PipelineId) SiteAnalysisWaterPipeline()
     {
@@ -299,7 +299,7 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
-    // The Energy site-analysis pipeline (#5806): an EnergyBalance node whose five inputs are param-bound,
+    // The Energy site-analysis pipeline: an EnergyBalance node whose five inputs are param-bound,
     // so a run supplies them. Same shape as SiteAnalysisWaterPipeline — every analysis domain composes
     // the same way.
     public static (GraphFixture Fixture, Guid PipelineId) SiteAnalysisEnergyPipeline()
@@ -335,7 +335,7 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
-    // A single Scorer node whose input port `item` is a collection (fan-out, #5648) and `weight` is a
+    // A single Scorer node whose input port `item` is a collection (fan-out) and `weight` is a
     // scalar (broadcast). Both inputs are param-bound (`item`→`items`, `weight`→`w`) so a run supplies the list.
     // onItemError sets the node's failure policy.
     public static (GraphFixture Fixture, Guid PipelineId) FanOutPipeline(string onItemError = "fail")
@@ -399,9 +399,9 @@ public static class TestGraphs
         return node;
     }
 
-    // The same two nodes as DemoPipeline, wired by wire Things rather than by edges, and wired twice:
-    // two Things between one node pair is the case an edge cannot express, because the model refuses a
-    // second edge on one subject, predicate and target.
+    // The same two nodes as DemoPipeline, wired by wire Things rather than by relationships, and wired twice:
+    // two Things between one node pair is the case a relationship cannot express, because the model refuses a
+    // second relationship on one subject, predicate and target.
     public static (GraphFixture Fixture, Guid PipelineId) ParallelWirePipeline()
     {
         var fx = new GraphFixture();

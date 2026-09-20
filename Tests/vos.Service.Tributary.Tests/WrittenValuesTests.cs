@@ -11,8 +11,8 @@ using static vos.Service.Tributary.Tests.MyceliumStub;
 
 namespace vos.Service.Tributary.Tests;
 
-// A call that names its subject reports the values it wrote (#6809). The discovery service resolves a
-// fetched word into the edge the model declares, and the fetch response is the one place it can learn
+// A call that names its subject reports the values it wrote. The discovery service resolves a
+// fetched word into the relationship the model declares, and the fetch response is the one place it can learn
 // the word from: an observation is accepted into a queue and applied later, so reading the model back
 // straight after the call races the drainer. Tributary already knows what it submitted — this only
 // hands it back. The bulk path, readings naming their own entities, keeps its counts-only summary: a

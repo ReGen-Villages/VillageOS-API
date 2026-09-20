@@ -4,7 +4,7 @@ using static vos.Service.Shared.MyceliumClientBase;
 namespace vos.Service.Phloem.Model;
 
 // Builds a PipelineGraph from a Mycelium subscription snapshot
-// ({ snapshot: { things:[...], relationships:[...] } }). Property/edge values arrive wrapped as
+// ({ snapshot: { things:[...], relationships:[...] } }). Property/relationship values arrive wrapped as
 // { value, typeInfo }; this unwraps them to the bare value.
 //
 // Every member is read without regard to case: the broker serialises a snapshot with no naming policy, so

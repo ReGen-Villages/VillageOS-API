@@ -4,7 +4,7 @@
 
 The Metabolism service is a persistent daemon that simulates continuous resource flows in a VillageOS graph. It serves two predicates — `consumes` and `produces` — from a single binary, differentiated by a `--mode` CLI argument.
 
-When a relationship like `Chemistry-Test --[consumes]--> Reagent-Pool` is created, Mycelium notifies the Metabolism service. The handler then runs a continuous loop: every N seconds, it decrements (or increments, for `produces`) a numeric property on the target thing. This turns VillageOS's static graph into a live simulation where resource quantities change over time.
+When a relationship like `Cottage-01 --[consumes]--> VillageElectricityPool` is created, Mycelium notifies the Metabolism service. The handler then runs a continuous loop: every N seconds, it decrements (or increments, for `produces`) a numeric property on the target thing. This turns VillageOS's static graph into a live simulation where resource quantities change over time.
 
 **In concrete terms**: if a village has 5 homes that each `consumes` electricity from a shared pool, the Metabolism service runs 5 independent loops, each decrementing the pool's `quantity` property at its own rate. The pool's value drops in real-time, and any ranges defined on it (e.g., "Low Power Alert" when `quantity < 50`) evaluate automatically.
 
@@ -48,7 +48,7 @@ When a seed loads with 20 `consumes` relationships, all 20 get registered within
 5. Wait for /handle requests from Mycelium (validated via Mycelium-signed request tokens)
 ```
 
-The handler does **not** self-register with Mycelium on startup in the normal flow — Mycelium discovers it by successfully calling `/handle` or `/health`. Registration happens as a courtesy so Mycelium can track the handler for graceful shutdown.
+The handler does **not** register itself with Mycelium: Mycelium launched it, tracks its process under the connection that binds it, and reaches it by calling `/handle` and `/health`.
 
 ### The `/handle` request
 
@@ -57,13 +57,13 @@ When a relationship using the `consumes` or `produces` predicate is created (or 
 ```json
 {
   "relationshipId": "abc-123",
-  "subjectId": "chemistry-test-guid",
-  "targetId": "reagent-pool-guid",
-  "subjectName": "Chemistry-Test-Run-1",
-  "targetName": "Reagent-Lot-A",
+  "subjectId": "cottage-guid",
+  "targetId": "electricity-pool-guid",
+  "subjectName": "Cottage-01",
+  "targetName": "VillageElectricityPool",
   "properties": {
-    "quantity": 5.0,
-    "unit": "mL",
+    "quantity": 0.5,
+    "unit": "kWh",
     "frequencySeconds": 30,
     "propertyPath": "quantity"
   }
@@ -92,7 +92,7 @@ stateDiagram-v2
     end note
 ```
 
-**delayed**: If `startDelaySeconds > 0`, the loop sleeps for that duration first. Used to stagger different stages of a process (e.g., reagent consumption starts 10 seconds after the process begins).
+**delayed**: If `startDelaySeconds > 0`, the loop sleeps for that duration first. Used to stagger different stages of a process (e.g., a greenhouse's water draw starts 10 seconds after its pump comes on).
 
 **waiting**: If `startUtc` is in the future, the loop sleeps until that time.
 
@@ -146,7 +146,7 @@ vos.Service.Metabolism/
 
 **`Metabolism`** — The simulation engine. Holds a `ConcurrentDictionary<string, SimulationEntry>` keyed by relationship ID. Each entry has its own async loop running in a `Task`. Handles registration, cancellation, property hot-reload, and graceful shutdown.
 
-**`MyceliumClient`** — HTTP communication with Mycelium: pre-minted service token from the `Token` startup setting (with open-endpoint fallback), service registration, and quantity increment/decrement API calls.
+**`MyceliumClient`** — HTTP communication with Mycelium: the pre-minted service token from the `Token` startup setting (exchanged at the token route when none was given), and the quantity increment and decrement calls.
 
 **`MetabolismSubscriptionService`** — Hosted service owning the SSE subscription: streams `RelationshipPropertyChanged` events into the engine and keeps the subscription's membership in step with registered simulations (add on Register, remove on Cancel).
 
@@ -179,7 +179,7 @@ These are set on the relationship (not the things) and control the simulation:
 | `startUtc` | ISO 8601 | now | When to start ticking |
 | `endUtc` | ISO 8601 | 2099-12-31 | When to stop |
 
-> **Typed envelopes in seed files**: When defining metabolism properties in seed JSON files, numeric properties (`quantity`, `frequencySeconds`, `startDelaySeconds`, `reorder_point`) **must** use typed envelopes: `{"typeInfo": "vos.Decimal", "value": 5.0}`. Plain numeric values are stored as `vos.Integer`, which truncates decimal increments to 0. This applies to both pool thing properties and relationship properties. See the seed format section of the Mycelium page on Mycelium repo's wiki (`ReGenVillages/VillageOS` → wiki → Mycelium) for details.
+> **Typed envelopes, everywhere**: every property value the platform reads — in a seed, a fragment or a write route, on a Thing or a relationship — is a typed envelope, `{"typeInfo": "vos.Decimal", "value": 5.0}`; a bare value is refused. Use `vos.Decimal` for `quantity`, `frequencySeconds` and `startDelaySeconds`, since an integer type truncates a decimal increment to nothing. The platform Field Guide's seed chapter has the envelope in full.
 
 ## How to Use
 
@@ -189,25 +189,33 @@ Each predicate is a connection that `has` a Service; one shared prototype carrie
 service holds only what differs between the two:
 
 ```json
-{ "Name": "consumes", "Properties": { "trigger": "graph" } }
-{ "Name": "produces", "Properties": { "trigger": "graph" } }
+{ "Name": "consumes", "Properties": { } }
+{ "Name": "produces", "Properties": { } }
 
 {
   "Name": "Metabolism prototype",
+  "IsArchetype": true,
   "Properties": {
-    "ExecutablePath": "../vos.Service.Metabolism/bin/Debug/net10.0/vos.Service.Metabolism.dll",
-    "RunMode": "daemon",
-    "TokenScope": "metabolism:quantity,read"
+    "ServiceAssembly": { "typeInfo": "vos.String", "value": "vos.Service.Metabolism" },
+    "TokenScope":      { "typeInfo": "vos.String", "value": "metabolism:quantity,read" }
   }
 }
 
-{ "Name": "consumes service", "Properties": { "ServicePort": 7102, "ServiceArgs": "--mode=consumes", "AutoStart": true } }
-{ "Name": "produces service", "Properties": { "ServicePort": 7103, "ServiceArgs": "--mode=produces", "AutoStart": true } }
+{ "Name": "consumes service", "Properties": {
+    "ServicePort": { "typeInfo": "vos.LongInteger", "value": 7102 },
+    "ServiceArgs": { "typeInfo": "vos.String", "value": "--mode=consumes" },
+    "AutoStart":   { "typeInfo": "vos.Boolean", "value": true } } }
+{ "Name": "produces service", "Properties": {
+    "ServicePort": { "typeInfo": "vos.LongInteger", "value": 7103 },
+    "ServiceArgs": { "typeInfo": "vos.String", "value": "--mode=produces" },
+    "AutoStart":   { "typeInfo": "vos.Boolean", "value": true } } }
 ```
 
-Relationships wire them: `consumes is PlatformServiceConnection`, `consumes has "consumes service"`,
-`"consumes service" is "Metabolism prototype"`, `"Metabolism prototype" is Service` — and the same for
-`produces`. The full shape, and the marks the platform finds the two archetypes by, are in
+Relationships wire them: `consumes is PlatformServiceConnection`, `consumes triggeredBy graph`,
+`consumes has "consumes service"`, `"consumes service" is "Metabolism prototype"`,
+`"Metabolism prototype" is Service` — and the same for `produces`. The `Service` archetype carries the
+`ExecutablePathTemplate` that turns `ServiceAssembly` into a path, and relates to the `daemon` run
+mode; the trigger and the run mode are Things the seed declares, never words on a connection. The full shape, and the marks the platform finds the two archetypes by, are in
 [`RELATIONSHIP_SERVICES.md`](RELATIONSHIP_SERVICES.md#platformserviceconnection--service-configuration).
 
 `AutoStart: true` is important — it tells Mycelium to re-invoke the handler for all existing relationships when a seed is loaded. Since simulation state is in-memory (not serialized), simulations must be re-started on every load.
@@ -217,8 +225,11 @@ Relationships wire them: `consumes is PlatformServiceConnection`, `consumes has 
 ```json
 POST /api/things
 {
-  "Name": "Electricity-Pool",
-  "Properties": { "quantity": 1000.0, "unit": "kWh" }
+  "Name": "VillageElectricityPool",
+  "Properties": {
+    "quantity": { "typeInfo": "vos.Decimal", "value": 1000.0 },
+    "unit":     { "typeInfo": "vos.String",  "value": "kWh" }
+  }
 }
 ```
 
@@ -231,9 +242,9 @@ POST /api/relationships
   "PredicateId": "{consumes-predicate-id}",
   "TargetId": "{electricity-pool-id}",
   "Properties": {
-    "quantity": 0.5,
-    "unit": "kWh",
-    "frequencySeconds": 10
+    "quantity":         { "typeInfo": "vos.Decimal", "value": 0.5 },
+    "unit":             { "typeInfo": "vos.String",  "value": "kWh" },
+    "frequencySeconds": { "typeInfo": "vos.Decimal", "value": 10 }
   }
 }
 ```

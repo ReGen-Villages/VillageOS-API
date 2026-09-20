@@ -30,7 +30,7 @@ import { columnKey, hopsOf, pageOf, tableOf, unresolvedNames } from '../utils/co
 
 const OPERATORS: PropertyFilter['op'][] = ['=', '!=', '>', '>=', '<', '<='];
 
-/** A row's card shows what it holds and every edge it sits on: no page names the relations, since
+/** A row's card shows what it holds and every relationship it sits on: no page names the relations, since
  *  the rows behind one composition can be of any kind. */
 const ROW_CARD = { relations: [] };
 

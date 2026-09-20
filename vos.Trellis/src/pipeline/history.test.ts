@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { EditorHistory, MAX_HISTORY } from './history';
 
-// US #5872 (A): undo history + optimistic-save baseline for the pipeline editor.
+// Undo history + optimistic-save baseline for the pipeline editor.
 // The module is pure and generic over the snapshot type, so it is unit-tested here without React Flow.
 type Snap = { v: number };
 

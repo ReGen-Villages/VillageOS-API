@@ -4,9 +4,7 @@ import type Sigma from 'sigma';
 import { useUiStore } from '../../stores/uiStore';
 import { countLogicalChildren } from '../../utils/graphologyMapper';
 
-/** Pixel distance threshold for detecting overlapping nodes. */
 const OVERLAP_PX = 20;
-/** Fan-out radius in graph units. */
 const FAN_RADIUS = 50;
 
 /** Expands the cluster only if nodeId is its collapsed representative. */

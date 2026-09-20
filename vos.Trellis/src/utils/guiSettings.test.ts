@@ -164,7 +164,7 @@ describe('extractLayoutSettings', () => {
       repulsion: 0.5,
       gravity: 0.01,
       clusterRepulsion: 1.5,
-      // Bug #5361 — perf knobs not present in this fixture, so defaults apply.
+      // Perf knobs not present in this fixture, so defaults apply.
       scalingRatioMultiplier: LAYOUT_DEFAULTS.scalingRatioMultiplier,
       gravityMultiplier: LAYOUT_DEFAULTS.gravityMultiplier,
       barnesHutTheta: LAYOUT_DEFAULTS.barnesHutTheta,
@@ -174,7 +174,7 @@ describe('extractLayoutSettings', () => {
       nodeSizeMax: LAYOUT_DEFAULTS.nodeSizeMax,
       nodeSizeSlope: LAYOUT_DEFAULTS.nodeSizeSlope,
       edgeSize: LAYOUT_DEFAULTS.edgeSize,
-      // Feature #5362 cleanup — classifyingProperty defaults when unset
+      // classifyingProperty defaults when unset
       classifyingProperty: LAYOUT_DEFAULTS.classifyingProperty,
     });
   });
@@ -319,7 +319,7 @@ describe('extractPredicateColors', () => {
 
 // How many decimal places a number shows belongs to the model being looked at, not to the client
 // looking at it — a model of geometry, a model of money and a model of readings each want a
-// different one, and only the model knows which it is (#6163).
+// different one, and only the model knows which it is.
 describe('extractNumberDisplaySettings', () => {
   it('shows five places for both when no GUI_Settings type exists', () => {
     expect(extractNumberDisplaySettings([makeThing('SomeOtherThing')], [])).toEqual(NUMBER_DISPLAY_DEFAULTS);

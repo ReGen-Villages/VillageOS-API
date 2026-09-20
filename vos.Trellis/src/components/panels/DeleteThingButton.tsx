@@ -1,7 +1,7 @@
 import { Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-/** Delete affordance for the node detail panel (#5828). Initiates deletion; the caller confirms
+/** Delete affordance for the node detail panel. Initiates deletion; the caller confirms
  * (GraphPage routes this through its delete-confirm modal) and performs the retract. */
 export function DeleteThingButton({ onDelete }: { onDelete: () => void }) {
   const { t } = useTranslation();

@@ -6,7 +6,7 @@ using static vos.Service.Tributary.Tests.MyceliumStub;
 
 namespace vos.Service.Tributary.Tests;
 
-// One registration serving many addresses, driven through /handle (Feature #5917). The unit-level
+// One registration serving many addresses, driven through /handle. The unit-level
 // substitution rules live in Helpers/AddressPlaceholdersTests; these pin what the call path does with
 // them — which address goes on the wire, and what is refused before anything is called.
 public class AddressParameterHandleTests

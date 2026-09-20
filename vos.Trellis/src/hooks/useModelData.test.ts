@@ -416,8 +416,8 @@ describe('useModelData', () => {
     expect(useUiStore.getState().stateVersions).toEqual({ flagged: 1, metered: 1 });
   });
 
-  // A walk step that keeps or drops what is in a state reads an edge's states as readily as a
-  // Thing's, so an edge's move has to reach the same counters.
+  // A walk step that keeps or drops what is in a state reads a relationship's states as readily as a
+  // Thing's, so a relationship's move has to reach the same counters.
   it('moves the counters of the states a RelationshipStatesChanged names', async () => {
     await mountLoaded();
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
@@ -444,7 +444,7 @@ describe('useModelData', () => {
     expect(useModelStore.getState().things).toHaveLength(1);
   });
 
-  // Regression (Bug #5930): OperationsPage blocks rendering on the store's
+  // Regression: OperationsPage blocks rendering on the store's
   // `loaded` flag. reloadModelData must flip it, or the page hangs on
   // "Loading model…" forever even though the data arrived.
   it('marks the store loaded after a successful fetch', async () => {
@@ -459,7 +459,7 @@ describe('useModelData', () => {
     expect(useModelStore.getState().loaded).toBe(false);
   });
 
-  // Regression (Bug #5940): a reopened subscription answers with a fresh snapshot, and the changes
+  // Regression: a reopened subscription answers with a fresh snapshot, and the changes
   // missed while the stream was down come back with it — without blind polling.
   it('reads the model again when the subscription reopens, and says nothing about it', async () => {
     await mountLoaded();
@@ -588,9 +588,9 @@ describe('useModelData', () => {
     });
   });
 
-  // Bug #6143 — the panels no longer reload the whole model after a property write, so every case
-  // the reload used to cover has to arrive on the stream instead.
-  describe('what the removed full reload used to cover', () => {
+  // The panels do not reload the whole model after a property write, so every change a reload
+  // would have carried has to arrive on the stream instead.
+  describe('what arrives on the stream in place of a full reload', () => {
     const relationship = (Properties: Record<string, unknown>) => ({
       Id: 'r1', Name: 'holds', SubjectId: 't1', PredicateId: 'p1', TargetId: 't2', Properties,
     });
@@ -633,16 +633,16 @@ describe('useModelData', () => {
 
       await act(async () => {
         handlers.get('RelationshipPropertyChanged')!('r1', 'quantity', 9);
-        handlers.get('RelationshipPropertyChanged')!('r1', 'unit', 'pallets');
+        handlers.get('RelationshipPropertyChanged')!('r1', 'unit', 'litres');
       });
       await waitFor(() => {
         const properties = useModelStore.getState().relationships[0].Properties;
         expect(properties?.quantity).toBe(9);
-        expect(properties?.unit).toBe('pallets');
+        expect(properties?.unit).toBe('litres');
       });
     });
 
-    // Bug #6149 — a retraction used to arrive as a change to null, which is also what setting a
+    // A retraction used to arrive as a change to null, which is also what setting a
     // property to null looks like, so a property another user deleted stayed on screen as an empty
     // row. It now says so, and the two are handled apart.
     it('takes a deleted relationship property out of the store', async () => {

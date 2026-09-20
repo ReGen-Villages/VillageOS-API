@@ -4,21 +4,17 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Services;
 
-/// <summary>
-/// The vocabularies a submitted word is resolved against, read from the model that declares them: what a
-/// programme allocation is for, how a parcel boundary was obtained, and what a hazard assessment is about.
-/// </summary>
-/// <remarks>
-/// Nothing here names an archetype or a predicate. Each vocabulary is found by the mark its archetype
-/// carries and each edge by the mark its predicate carries, so a model that renamed either keeps
-/// answering — and a model that declares a term this service has never heard of resolves it anyway,
-/// which is the whole reason the terms are Things.
-/// <para>
-/// The alternative fails quietly rather than loudly: selecting by name, a renamed archetype answers with
-/// an empty vocabulary, and every submission is then refused for naming a term the model was still
-/// holding.
-/// </para>
-/// </remarks>
+// The vocabularies a submitted word is resolved against, read from the model that declares them: what a
+// programme allocation is for, how a parcel boundary was obtained, and what a hazard assessment is about.
+//
+// Nothing here names an archetype or a predicate. Each vocabulary is found by the mark its archetype
+// carries and each relationship by the mark its predicate carries, so a model that renamed either keeps
+// answering — and a model that declares a term this service has never heard of resolves it anyway,
+// which is the whole reason the terms are Things.
+//
+// The alternative fails quietly rather than loudly: selecting by name, a renamed archetype answers with
+// an empty vocabulary, and every submission is then refused for naming a term the model was still
+// holding.
 public static class DeclaredVocabularyReader
 {
     public const string AllocationCategoryArchetypeFlag = "__IsAllocationCategoryArchetype";
@@ -42,9 +38,9 @@ public static class DeclaredVocabularyReader
     public const string RootPlaceFlag = "__IsRootPlace";
     public const string PlaceNestingPredicateFlag = "__IsPlaceNestingPredicate";
 
-    /// <summary>Every vocabulary in one read. The terms come from the archetype marks and the predicates
-    /// from their own, and `is` is named so the walk from an archetype to its terms can recognise the
-    /// edges the snapshot carries.</summary>
+    // Every vocabulary in one read. The terms come from the archetype marks and the predicates
+    // from their own, and `is` is named so the walk from an archetype to its terms can recognise the
+    // relationships the snapshot carries.
     public static SubscriptionSelector Selector() => new()
     {
         Names = [SubmissionFragmentComposer.IsPredicateName],
@@ -54,7 +50,7 @@ public static class DeclaredVocabularyReader
             HazardLevelArchetypeFlag, WaterDemandComponentArchetypeFlag,
         ],
         // The root Place belongs here beside the predicates rather than with the marked types: it is a
-        // Thing whose id an edge is written to, not an archetype whose members are wanted.
+        // Thing whose id a relationship is written to, not an archetype whose members are wanted.
         MarkedArchetypes =
         [
             AllocationCategoryPredicateFlag, BoundarySourcePredicateFlag, HazardTypePredicateFlag,
@@ -72,10 +68,10 @@ public static class DeclaredVocabularyReader
         PlaceNesting(snapshot),
         WaterDemands(snapshot));
 
-    /// <summary>The demands one harvest is served over, in the order it serves them. Empty where the model
-    /// declares none: a study then holds no demand and every coverage reads unassessed, which is the honest
-    /// answer for a model that does no water analysis — unlike a submitted word naming a term nothing
-    /// holds, where something has to say the word means nothing.</summary>
+    // The demands one harvest is served over, in the order it serves them. Empty where the model
+    // declares none: a study then holds no demand and every coverage reads unassessed, which is the honest
+    // answer for a model that does no water analysis — unlike a submitted word naming a term nothing
+    // holds, where something has to say the word means nothing.
     internal static IReadOnlyList<DeclaredDemand> WaterDemands(SnapshotDocument snapshot)
     {
         var vocabulary = snapshot.Things
@@ -105,21 +101,21 @@ public static class DeclaredVocabularyReader
         demand.StatedValue(ServingOrderProperty) is { } stated
         && stated.Value.TryGetInt64(out var order) ? order : 0;
 
-    /// <summary>What a hazard assessment is about, offered by a form so somebody marks what they have
-    /// seen rather than nominating hazards from memory.</summary>
+    // What a hazard assessment is about, offered by a form so somebody marks what they have
+    // seen rather than nominating hazards from memory.
     internal static DeclaredTerms HazardTypes(SnapshotDocument snapshot) =>
         TermsMarked(snapshot, HazardTypeArchetypeFlag, HazardTypePredicateFlag,
             "what a hazard assessment is about");
 
-    /// <summary>How bad a hazard is, in the words the model holds — the set a submitter picks from and
-    /// the set the portal's own grading resolves against.</summary>
+    // How bad a hazard is, in the words the model holds — the set a submitter picks from and
+    // the set the portal's own grading resolves against.
     internal static DeclaredTerms HazardLevels(SnapshotDocument snapshot) =>
         TermsMarked(snapshot, HazardLevelArchetypeFlag, ReportedLevelPredicateFlag, "how bad a hazard is");
 
-    /// <summary>The terms where the model declares that vocabulary, and none where it does not. What a form
-    /// asks for: a deployment declaring no hazards draws one step fewer, the way one declaring no imagery
-    /// draws no map — where a submission naming a term the model does not hold is still refused, because
-    /// there the word is already written and something has to say it means nothing.</summary>
+    // The terms where the model declares that vocabulary, and none where it does not. What a form
+    // asks for: a deployment declaring no hazards draws one step fewer, the way one declaring no imagery
+    // draws no map — where a submission naming a term the model does not hold is still refused, because
+    // there the word is already written and something has to say it means nothing.
     internal static IReadOnlyList<string> HazardTypeNamesOrNone(SnapshotDocument snapshot) =>
         NamesOrNone(() => HazardTypes(snapshot));
 
@@ -138,13 +134,13 @@ public static class DeclaredVocabularyReader
         }
     }
 
-    /// <summary>What a programme allocation is for, which is the one vocabulary a form has to offer
-    /// before anybody can fill it in.</summary>
+    // What a programme allocation is for, which is the one vocabulary a form has to offer
+    // before anybody can fill it in.
     internal static DeclaredTerms AllocationCategories(SnapshotDocument snapshot) =>
         TermsMarked(snapshot, AllocationCategoryArchetypeFlag, AllocationCategoryPredicateFlag,
             "what a programme allocation is for");
 
-    // No terms to walk: a submission names no Place, so this reads the two Things an edge is written from
+    // No terms to walk: a submission names no Place, so this reads the two Things a relationship is written from
     // and to. The same one-carrier rule applies — two roots would put a site under a different one on
     // different submissions, and the sources selected for it would differ by run.
     private static DeclaredPlace PlaceNesting(SnapshotDocument snapshot)

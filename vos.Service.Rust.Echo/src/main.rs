@@ -92,8 +92,6 @@ struct AppState {
     requests: AtomicU64,
 }
 
-// ---- inbound JWT validation (ES256) --------------------------------------
-
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 struct Claims {
@@ -151,8 +149,6 @@ async fn auth(State(state): State<Arc<AppState>>, req: Request, next: Next) -> R
     }
 }
 
-// ---- endpoints -----------------------------------------------------------
-
 async fn handle_relationship(State(state): State<Arc<AppState>>, body: Option<Json<Value>>) -> Response {
     let n = state.requests.fetch_add(1, Ordering::SeqCst) + 1;
     let payload = body.map(|Json(v)| v).unwrap_or(Value::Null);
@@ -192,8 +188,6 @@ async fn stats(State(state): State<Arc<AppState>>) -> Json<Value> {
 async fn shutdown() -> Json<Value> {
     Json(json!({ "message": format!("Shutting down {SERVICE_NAME} microservice") }))
 }
-
-// ---- Mycelium registration ----------------------------------------------
 
 async fn get_token(cfg: &Config, http: &reqwest::Client) -> reqwest::Result<String> {
     if let Some(t) = &cfg.token {
@@ -853,7 +847,6 @@ mod tests {
         assert!(deposit_sediment(&cfg, &http, &[]).await.is_err());
     }
 
-    // ---- Snapshot selector ---- (reuses Mutex/AUTHORIZATION imports above)
     type Cap = Arc<Mutex<Vec<(String, String, String)>>>;
 
     async fn sub_mock(State(cap): State<Cap>, req: Request) -> Response {

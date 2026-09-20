@@ -5,16 +5,16 @@ using Xunit;
 
 namespace vos.Service.Shared.Tests.Subscriptions;
 
-/// <summary>Reading a snapshot the way Mycelium sends one.
-///
-/// <para>Every other test of a snapshot reader builds the records in memory, which asserts nothing about
-/// the names the payload arrives under. These deserialize the payload instead, so a member that binds to
-/// nothing fails here rather than on a running broker — which is how a value every submitted site states
-/// read as absent to every service while reading back perfectly well over the REST routes (#6805).</para>
-///
-/// <para>The payload below is what <c>SnapshotBuilder</c> produces for a Thing that wrote a value for a
-/// name its archetype declares, serialized as Mycelium's controllers serialize it: property names keep
-/// the casing the platform declared them in.</para></summary>
+// Reading a snapshot the way Mycelium sends one.
+//
+// Every other test of a snapshot reader builds the records in memory, which asserts nothing about
+// the names the payload arrives under. These deserialize the payload instead, so a member that binds to
+// nothing fails here rather than on a running broker — which is how a value every submitted site states
+// read as absent to every service while reading back perfectly well over the REST routes.
+//
+// The payload below is what SnapshotBuilder produces for a Thing that wrote a value for a
+// name its archetype declares, serialized as Mycelium's controllers serialize it: property names keep
+// the casing the platform declared them in.
 public class SnapshotValuesTests
 {
     private const string SubscribeResponse = """
@@ -86,8 +86,8 @@ public class SnapshotValuesTests
         Parcel().StatedValue("measuredAreaHectares")!.Value.GetDouble().Should().Be(28.39);
     }
 
-    /// <summary>Where the value is carried, in the words the payload uses. The value above could be found
-    /// through a member bound to anything, and this is what says which one.</summary>
+    // Where the value is carried, in the words the payload uses. The value above could be found
+    // through a member bound to anything, and this is what says which one.
     [Fact]
     public void The_payload_carries_it_as_an_override_and_not_among_the_things_own_properties()
     {
@@ -98,8 +98,8 @@ public class SnapshotValuesTests
             .Which.Value.Properties.Should().ContainKey("measuredAreaHectares");
     }
 
-    /// <summary>A Thing that overrode nothing carries no override set at all, so every reader has to
-    /// answer for the member being absent rather than empty.</summary>
+    // A Thing that overrode nothing carries no override set at all, so every reader has to
+    // answer for the member being absent rather than empty.
     [Fact]
     public void A_thing_that_states_nothing_over_a_declaration_is_read_without_faulting()
     {
@@ -120,8 +120,8 @@ public class SnapshotValuesTests
         stated["measuredAreaHectares"].Value.GetDouble().Should().Be(28.39);
     }
 
-    /// <summary>An override two levels up: a name declared on the archetype's own archetype is stored
-    /// under a set nested inside the first, and a walk of the top level alone would miss it.</summary>
+    // An override two levels up: a name declared on the archetype's own archetype is stored
+    // under a set nested inside the first, and a walk of the top level alone would miss it.
     [Fact]
     public void A_value_stated_over_a_declaration_further_up_the_chain_is_read()
     {
@@ -145,8 +145,8 @@ public class SnapshotValuesTests
         thing.ValuesStated().Select(entry => entry.Key).Should().Equal("measuredAreaHectares");
     }
 
-    /// <summary>An own property answers for a name an override set also holds, so a name read twice is
-    /// read once and answers the same way both times.</summary>
+    // An own property answers for a name an override set also holds, so a name read twice is
+    // read once and answers the same way both times.
     [Fact]
     public void An_own_property_answers_for_a_name_an_override_set_also_holds()
     {

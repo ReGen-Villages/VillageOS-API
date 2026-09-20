@@ -94,7 +94,7 @@ public class ConfigCommandHandlerTests
     // ========== HandlePropertyModeAsync Tests ==========
 
     // The fixtures below are the reply the platform actually sends: a field named Mode, and the modes
-    // it accepts. Reading a field it does not send printed an empty default and nothing failed (#6517).
+    // it accepts. Reading a field it does not send printed an empty default and nothing failed.
     [Fact]
     public async Task Mode_WithNoArgs_ShowsCurrentConfigAndTheModesThePlatformReports()
     {
@@ -112,7 +112,7 @@ public class ConfigCommandHandlerTests
         Assert.Contains("Available modes: CurrentOnly, RingBuffer, Sampled, FullHistory", output);
     }
 
-    // Regression (#6513): the client used to print a list of modes it was built with, which could
+    // Regression: the client used to print a list of modes it was built with, which could
     // disagree with the platform's.
     [Fact]
     public async Task Mode_WithNoArgs_ReportsAModeThisClientWasNeverBuiltWith()
@@ -224,7 +224,7 @@ public class ConfigCommandHandlerTests
     }
 
     // The per-property route answers with a field called Mode, like the default-mode route does.
-    // Nothing covered this path, so the field it reads was never checked against a reply (#6517).
+    // Nothing covered this path, so the field it reads was never checked against a reply.
     [Fact]
     public async Task Mode_SetForOneProperty_PrintsTheModeThePlatformReports()
     {
@@ -238,7 +238,7 @@ public class ConfigCommandHandlerTests
         Assert.Contains("Set property 'flowRate' mode to FullHistory", _writer.ToString());
     }
 
-    // Regression (#6513): a word that is not a subcommand is a mode name, and the platform decides
+    // Regression: a word that is not a subcommand is a mode name, and the platform decides
     // whether it is one. The client used to refuse it first, from a list of its own.
     [Fact]
     public async Task Mode_WithAWordThatIsNotASubcommand_SendsItAsAModeAndShowsThePlatformsRefusal()

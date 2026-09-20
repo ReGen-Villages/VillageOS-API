@@ -7,7 +7,7 @@ import { LAYOUT_DEFAULTS } from './guiSettings';
  *
  * Re-exported for back-compat with older callers (e.g. tests) that imported the
  * constant directly. The runtime path now reads <c>layoutSettings.scalingRatioMultiplier</c>
- * so it can be tuned through GUI_Settings without a code change (Bug #5361).
+ * so it can be tuned through GUI_Settings without a code change.
  */
 export const FA2_SCALING_RATIO_MULTIPLIER = LAYOUT_DEFAULTS.scalingRatioMultiplier;
 
@@ -36,7 +36,7 @@ export const FA2_SLOW_DOWN = LAYOUT_DEFAULTS.slowDown;
  * Strong-gravity mode — runtime path reads <c>layoutSettings.strongGravityMode</c>.
  *
  * When true, the centering force is proportional to distance (linear pull-back).
- * THE key change in Bug #5361: at 30k nodes, normal-mode gravity (which falls
+ * The key change: at 30k nodes, normal-mode gravity (which falls
  * off as 1/distance) is too weak to hold the graph against repulsion at large
  * bounding-box widths. Live-browser test confirmed bounding box collapses from
  * 214,000 → 2,400 units when this is enabled, and movement drops from never-
@@ -59,7 +59,7 @@ export interface ResolvedFA2Settings {
  * clustering flags.
  *
  * Every knob is read from <c>layoutSettings</c> so a deployment can override
- * any of them through GUI_Settings without a rebuild (Bug #5361 made this
+ * any of them through GUI_Settings without a rebuild (this was made
  * comprehensive; previously the multipliers + theta + slowDown + strongGravity
  * were hard-coded).
  *

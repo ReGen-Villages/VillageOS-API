@@ -2,8 +2,8 @@
 //
 // A worker named for its address alone is copied without its import graph, so the library's own
 // second half is never emitted and the worker fails to load — no tile is ever parsed, no error is
-// shown, and every map in every built deployment draws its background colour and nothing else
-// (Bug #6910). It cannot be caught by a unit test: it exists only in built output, and the
+// shown, and every map in every built deployment draws its background colour and nothing else.
+// It cannot be caught by a unit test: it exists only in built output, and the
 // development server hides it by resolving the import out of the installed package.
 //
 //   node ci/every-worker-carries-its-imports.mjs <built directory> [more directories]

@@ -33,6 +33,13 @@ the entry here.
 > setting reads from configuration and the environment, not just the command
 > line. Six of the nine services could not do that, which was Bug #6168.
 >
+> Two more pieces of the delivery contract have since shipped in a different shape from the sketch:
+> a handler recognises a repeat by `relationshipId`, which is the same on every delivery of one
+> relation, and `vos.Service.Shared.Dispatch.IdempotentExecution` keeps a claim per identifier
+> (see [Authoring a service](SERVICE_AUTHORING.md)); and the platform reads a `400` as a permanent
+> refusal it never re-drives, while any other failure is sent again
+> ([the contract](SERVICE_CONTRACT.md)). Neither needs an `X-Delivery-Id`.
+>
 > **What has not shipped:** the shared auth extension, in-flight request
 > draining on shutdown, `X-Delivery-Id` dedup, the common response envelope,
 > and the outbox. Those are what the rest of this section is about.

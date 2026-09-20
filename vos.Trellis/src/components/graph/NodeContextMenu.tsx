@@ -32,7 +32,6 @@ export function NodeContextMenu({ things, relationships, onDeleteThing }: Props)
   const toggleLogicalExpansion = useUiStore((s) => s.toggleLogicalExpansion);
   const menuReference = useRef<HTMLDivElement>(null);
 
-  // Close on Escape
   useEffect(() => {
     if (!open) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -42,7 +41,6 @@ export function NodeContextMenu({ things, relationships, onDeleteThing }: Props)
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open, closeMenu]);
 
-  // Close on click outside
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: MouseEvent) => {
@@ -94,7 +92,6 @@ export function NodeContextMenu({ things, relationships, onDeleteThing }: Props)
 
   if (!open || !position || !nodeId) return null;
 
-  // Determine which actions to show based on thing attributes
   const thing = things.find((t) => t.Id === nodeId);
   const hasGeometry = thing?.Properties?.geometry !== undefined;
   const hasLogicalChildren = hasGeometry && relationships.some(

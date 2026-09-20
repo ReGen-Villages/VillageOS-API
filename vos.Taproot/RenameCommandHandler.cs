@@ -1,6 +1,6 @@
 namespace vos.Taproot;
 
-// Rename a Thing in place, keeping its Id and all edges:
+// Rename a Thing in place, keeping its Id and all relationships:
 //   rename <thing> <new-name>
 // The <thing> is resolved by name or id; the new name is the rest of the argument (so it may contain
 // spaces). Uses the broker's PUT /api/things/{id}/name — no delete+recreate, so relationships survive.
@@ -21,7 +21,6 @@ public class RenameCommandHandler
 
     public async Task ExecuteAsync()
     {
-        // Split off the first token as the target; the remainder is the new name (may contain spaces).
         var trimmed = _arg.Trim();
         var space = trimmed.IndexOf(' ');
         if (space < 0) { ShowUsage(); return; }
