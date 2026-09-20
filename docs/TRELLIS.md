@@ -79,7 +79,15 @@ npm run dev
 
 Open `http://localhost:5173` in your browser. You'll see a login form. Sign in as `admin` with the password Mycelium wrote to `bootstrap-credentials.txt` in its data directory on its first start — or the one `VOS_ADMIN_PASSWORD` held then. There is no default password. If multiple models exist, you'll be prompted to select one. Alternatively, set `VITE_API_KEY` in `.env.local` for auto-login during development.
 
-If your account has been flagged for a password change (e.g., created by an admin with `MustChangePassword: true`), you'll see a password change form after login. Enter your current password and choose a new one — the app won't be accessible until the password is changed.
+![The sign-in form: username, password and the ReGen mark above them](assets/trellis-sign-in.png)
+
+The sign-in and password pages have one look, whichever theme the rest of the console is in. With several models loaded, the models are offered by name after sign-in; an account enters only the models it has been granted, and an administrator every one (see [Accounts](#accounts-the-page-the-platform-declares)).
+
+![Choosing a model after sign-in: the loaded models listed by name](assets/trellis-choose-a-model.png)
+
+If your account has been flagged for a password change (e.g., created by an admin with `MustChangePassword: true`, or added or reset from the Accounts page), you'll see a password change form after login. Enter your current password and choose a new one — the app won't be accessible until the password is changed.
+
+![The password change form shown after sign-in when a change is required](assets/trellis-change-password.png)
 
 Your session stays alive automatically — the GUI silently refreshes your authentication token in the background before it expires, so you won't be logged out unexpectedly during normal use.
 
@@ -88,6 +96,7 @@ After login, the **Dashboard** is the default landing page. The sidebar on the l
 | Page | Purpose |
 |------|---------|
 | **Dashboard** | Model statistics, reactive-engine capacity, service health & daemon state, and live activity feed |
+| **Accounts** | The page the platform declares for administrators: who may sign in and which models each account may enter ([Accounts](#accounts-the-page-the-platform-declares)). Listed only to an administrator |
 | **Operations** | The dashboards the model declares, one entry each, drawn from their specs ([Section 7](#7-dashboard)) |
 | **Compose** | Build a table from a kind's own declarations and keep it as a dashboard ([7.5](#75-compose--a-table-from-a-kinds-own-declarations)) |
 | **Land intake** | The land-intake wizard, shown when an intake service is configured ([8.7](#87-describing-a-piece-of-land)) |
@@ -102,7 +111,17 @@ After login, the **Dashboard** is the default landing page. The sidebar on the l
 
 The sidebar can be collapsed to icon-only mode by clicking the chevron button at the top-right of the sidebar panel.
 
-The sidebar footer holds a shared control panel visible on **every** page: a **light/dark theme** toggle, **Switch Model**, **Log Out**, and the **language** selector. This lets you change appearance, swap models, sign out, or switch language from anywhere without re-entering credentials. The panel collapses with the sidebar into a vertical icon strip.
+![The same page with the sidebar collapsed to its icon strip](assets/trellis-sidebar-collapsed.png)
+
+The sidebar footer holds a shared control panel visible on **every** page: a **light/dark theme** toggle, **Switch Model**, **Log Out**, and the **language** selector. This lets you change appearance, swap models, sign out, or switch language from anywhere without re-entering credentials. Above the controls a model statement says whether the stream is live, how many Things and relationships the model holds ("Reading the model…" until it is loaded) and when the newest activity event arrived ("Nothing has moved yet" before one). The panel collapses with the sidebar into a vertical icon strip; collapsed, only the live mark stays, with the statement as its tooltip.
+
+The theme toggle switches the whole console between day and night. Every other picture in this guide is taken in day mode; here is the Dashboard in both.
+
+![The Dashboard in day mode](assets/trellis-dashboard.png)
+
+![The Dashboard in night mode, after the theme toggle](assets/trellis-dashboard-night.png)
+
+**Switch Model** offers the library of seed files on disk and loads the one chosen, replacing the model the session is on. To move to a model that is already loaded, sign out and choose it after signing in again.
 
 ### 1.2a Switching Seeds (Models)
 
@@ -157,6 +176,8 @@ The **village seed** is recommended for this guide because it demonstrates all f
 ## 2. The Graph View
 
 The Graph page is where you'll spend most of your time. It renders every thing in your model as a node and every relationship as a directed edge, using a WebGL-accelerated force-directed layout powered by Sigma.js and graphology.
+
+![The Graph page on the village seed: the force-directed layout, the search bar top left, the predicate and type filters on the right and the toolbar bottom left](assets/trellis-graph.png)
 
 ### 2.1 Understanding What You See
 
@@ -217,11 +238,15 @@ When clustering is active, additional controls appear to the right: the active p
 
 Click any node in the graph. A **detail panel** slides in from the right showing everything about that thing.
 
+![A node selected: the CommunityCenter's detail panel opens on its Ranges tab](assets/trellis-graph-node-selected.png)
+
 **Rename in place** — the thing's name in the panel header has a **pencil icon**; click it to edit the name inline. Press **Enter** (or click away) to save, **Escape** to cancel; a blank or unchanged name is a no-op. The rename keeps the thing's Id and all of its edges — unlike delete-and-recreate — and the new name may contain spaces. The change is persisted by the broker as a `NameSet` Fact, so it streams over SSE and stays temporally reconstructable.
 
 The detail panel has three tabs — **Ranges**, which it opens on, **Properties** and **Relationships** — and a fourth, **3D**, for things with geometry:
 
 **Properties** — Shows the thing's own properties (name, value, type). Each value is formatted to the type the platform declares for it: a date reads as a date rather than the stored timestamp, an identifier is shortened, geometry and GeoJSON show a summary instead of emptying a JSON body into the cell, and the floating-point and decimal types show the number of decimal places the model asks for (`FloatingPointDisplayPrecision` and `DecimalDisplayPrecision` on `GUI_Settings`, five each by default). Click the **pencil icon** to toggle inline editing mode: each property value becomes an editable field with a delete button (trash icon). The field follows the declared type — a checkbox for `vos.Boolean`, a date and time picker for `vos.DateTime`, a numeric field for the number types (whole-number types step by one, so a fraction cannot be entered), a text box otherwise. `vos.IfcGeometry` and `vos.GeoJson` are not editable inline and say so rather than showing a disabled box: a JSON body typed into a narrow panel field is not editing, and a half-valid body is worse than no edit. A value the type cannot hold is refused in the client before the request is sent, naming the property and what was typed, so the message arrives while the field that caused it is still in view — the platform's own conversion check remains the authority. The edit box deliberately holds the **stored** value rather than the formatted one — a reading shown to five places is rounded, and an edit box holding that rounded text would save the rounding back over the stored value. Edit a value and press **Enter** or click away to save; press **Escape** to cancel. A blue border indicates unsaved changes. The property type is preserved by the platform — editing a value never changes what the property holds. In edit mode, an **Add Property** row appears at the bottom with name, type dropdown, and value inputs — press Enter or click "+" to add a new property. Below the own properties, inherited properties are grouped under the type each comes from, one collapsible group per source with its property count; click the source's name to navigate to that type node. For example, clicking a "Serpentine-Home-4" node might show `energy_rating: A+` under the "Home" group. In edit mode, inherited property values are also editable (but cannot be deleted) — editing an inherited property creates an own property override that shadows the inherited value.
+
+![The Properties tab in edit mode: each own value in a field with a delete control, an add-property row beneath, the inherited groups below](assets/trellis-graph-properties-edit.png)
 
 **Relationships** — Lists all incoming and outgoing relationships. Each row shows the other thing's name and the predicate. For example, "Serpentine-Home-4" might show:
 
@@ -231,6 +256,8 @@ The detail panel has three tabs — **Ranges**, which it opens on, **Properties*
 
 Each thing name is a clickable link — clicking it navigates to that node, selecting it and scrolling the graph to center on it. Click the **chevron** next to a relationship to expand it and see its properties. Multiple relationships can be expanded simultaneously. Relationship properties also support inline editing (pencil toggle, same as own properties). Each relationship row also has an **edge-detail icon** — clicking it opens the **EdgeDetailPanel** for that relationship, where you can view and edit its properties and ranges without having to click the edge in the graph. In edit mode, an **Add Relationship** row appears at the bottom of each section (outgoing/incoming) with predicate and other-thing pickers — select both and click "+" to create a new relationship inline.
 
+![The Relationships tab: outgoing and incoming relationships, each expandable](assets/trellis-graph-relationships.png)
+
 **Ranges** — Shows any active ranges defined on this thing with their current state. A windmill spinner appears while data loads. Own ranges, inherited ranges, current states, and relationship ranges are all fetched in a single composite API call for efficiency. **Add Range** creates a range on the thing from a name and a criteria expression, and each own range has a delete control; an inherited range is removed from the type that declares it. The tab uses a temporal snapshot approach — data reflects a point-in-time view when the tab was opened, and is not disrupted by ongoing SSE state-change events. Click the **refresh icon** in the tab bar to re-fetch the latest data without navigating away.
 
 **3D** (conditional) — For things with IFC mesh geometry, a "3D" tab appears showing an interactive 3D view of the element. The model auto-rotates slowly. You can drag to orbit, scroll to zoom, and examine the element from any angle. For IFC container things (e.g., IfcBuilding, IfcBuildingStorey) that have no own geometry but contain child elements via `contains`/`aggregates` relationships, the 3D view renders all child meshes together, colored by IFC class. This tab is hidden on Safari due to WebGL context limits.
@@ -239,6 +266,8 @@ Each thing name is a clickable link — clicking it navigates to that node, sele
 
 Click any edge (relationship line) in the graph. The detail panel opens with two tabs:
 
+![An edge selected: subject, predicate and target as links, the Ranges and Properties tabs beneath](assets/trellis-graph-edge-selected.png)
+
 **Properties** — Shows the relationship's Subject, Predicate, and Target — each as a clickable link to the respective thing. Any properties on the relationship are also displayed with inline editing. A "Delete Relationship" button at the bottom allows removal (with confirmation).
 
 **Ranges** — Shows any ranges defined directly on this relationship, mirroring the Ranges tab on nodes. Active states appear as colored severity badges (green for nominal, yellow for warning, red for critical). Own ranges list their criteria expressions and current evaluation status. If bounds are defined, per-binding deviation details show how far actual values are from expected.
@@ -246,6 +275,8 @@ Click any edge (relationship line) in the graph. The detail panel opens with two
 ### 3.3 Right-Click Context Menu
 
 **Right-click any node** to open a context menu with quick actions:
+
+![The context menu on a node, with the node's edges labelled while the pointer rests on it](assets/trellis-graph-context-menu.png)
 
 - **View Details** — Opens the detail panel for that node (same as clicking it)
 - **Expand Relationships** — Reveals all of that node's edges in cluster mode
@@ -269,6 +300,8 @@ The search bar at the top of the Graph page provides powerful filtering.
 ### 4.1 Basic Search
 
 Start typing in the search bar. As you type, nodes whose names contain your text remain at full opacity, while non-matching nodes are dimmed (physical nodes) or hidden entirely (logical nodes). Edges are hidden by default — only edges where **both** endpoints match the search remain visible. The match count appears to the right of the search options (e.g., "5 found").
+
+![A search for one name: everything else dims or hides, and the count reads "1 found"](assets/trellis-graph-search.png)
 
 **Example**: Type `Home` in the village seed — you'll see "Home" (the type), "Home-1", "Home-2", etc. light up while everything else dims. Only edges connecting two matched nodes are visible.
 
@@ -298,6 +331,8 @@ Delete the text in the search bar (or select all and press Backspace) to return 
 
 Click **Things** in the sidebar to open the dedicated thing search page (`/things`). Unlike the Graph search bar (which filters the live graph visualization), this page lets you find things by name without the graph rendering overhead — useful for large models.
 
+![The Things page: a search for "Community" listing each match with its type, a property or two, and its counts](assets/trellis-things.png)
+
 **How to use it:**
 
 1. Type any part of a thing's name in the search field. Results update automatically after 250 ms.
@@ -323,6 +358,8 @@ Click **Things** in the sidebar to open the dedicated thing search page (`/thing
 ### 4.6 Property Search Page
 
 Click **Properties** in the sidebar to open the property search page (`/properties`). This searches across all thing and relationship properties by **property name** — useful when you know a field exists but not which things have it.
+
+![The Properties page: a search by property name, each holder listed with the value it holds](assets/trellis-properties.png)
 
 **How to use it:**
 
@@ -356,9 +393,13 @@ When you have a large graph with many relationship types, clustering helps you f
 
 **Right-click** anywhere on the graph background (not on a node). A radial menu appears showing all predicates in your model, ordered by relationship count. Each predicate has a colored dot matching its edge color and a count showing how many relationships use it.
 
+![The radial predicate menu on the village seed, one entry per predicate with its colour and count](assets/trellis-graph-predicate-menu.png)
+
 In the village seed you'll see predicates like **is** (type classification), **feeds** (energy/resource flow), **powers** (power supply), **serves** (service relationships), and **has** (containment/ownership).
 
-Click a predicate to activate clustering on that relationship type. Click multiple predicates to cluster on several types simultaneously.
+Click a predicate to activate clustering on that relationship type. Click multiple predicates to cluster on several types simultaneously. The choice is the same one the **Filter by Predicate** panel on the right makes: the predicate's entry there follows the menu, and its count of hidden relationships says how many left the view.
+
+![After choosing a predicate in the menu: its relationships leave the view and the filter panel shows it unticked](assets/trellis-graph-predicate-hidden.png)
 
 ### 5.2 What Clustering Looks Like
 
@@ -392,7 +433,9 @@ The mouse and trackpad gestures differ between them, so they are documented sepa
 
 ### 6.1 The Model Page (Full Village Viewer)
 
-Click **Model** in the sidebar to open the full-village viewer (`/model`). It renders the IFC-derived Fragments artifact — the whole village at once — and lets you select elements and filter by type.
+Click **Model** in the sidebar to open the full-village viewer (`/model`). It renders the IFC-derived Fragments artifact — the whole village at once — and lets you select elements and filter by type. The artifact is the `.frag` file beside the model's seed; a model loaded without one shows how to make it.
+
+![The Model page on an IFC-derived model: the type filter on the left, the village in the viewer, 3D and Plan views and the section slider top right](assets/trellis-model.png)
 
 **Navigating the village:**
 
@@ -481,7 +524,7 @@ Every card shows request statistics (total requests, average response time, last
 
 ### 7.3 Activity Feed
 
-The right column shows a real-time log of all model mutations, streamed via Server-Sent Events (SSE). Events include "ThingCreated", "RelationshipCreated", "PropertyChanged", etc. The feed keeps the most recent 200 events. Each event type has a distinct color (green for created, red for deleted, amber for property changes, purple/cyan for services).
+The right column shows a real-time log of all model mutations, streamed via Server-Sent Events (SSE). Events include "ThingCreated", "RelationshipCreated", "PropertyChanged", etc. A "PropertyObserved" is a sample delivered to a subscription that asked for observations — a dashboard asks, the navigation does not — so the feed shows one only while such a page is open. The feed keeps the most recent 200 events. Each event type has a distinct color (green for created, red for deleted, amber for property changes, purple/cyan for services).
 
 **Pause/Resume** — Click the pause button to freeze the feed at its current snapshot. New events are buffered in the background and a badge shows how many are waiting. Click play to resume and see all buffered events.
 
@@ -506,6 +549,8 @@ If either status indicator turns red, Mycelium may be down or unreachable.
 The **Pipelines** page (`/pipelines`) is a Grasshopper/Dynamo-style visual editor for building and running
 DAGs whose nodes are microservices, on `@xyflow/react` (the Sigma graph view stays for the model). A pipeline
 is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no new storage.
+
+![The Pipelines page with a saved pipeline loaded: the boundary and the service palette on the left, the nodes wired on the canvas, the parameters along the top](assets/trellis-pipelines.png)
 
 - **Palette** — every dispatchable **connection** in the model (an http connection carrying a `Subdomain` and
   binding a service). Click one to drop a node bound to it; its typed input/output **ports** resolve from the
@@ -599,6 +644,8 @@ The **Compose** page (`/compose`) is the one page nobody seeded. Choose a kind o
 offers what the model declares for it, read off the model the console already holds
 (`src/api/modelDeclaration.ts`):
 
+![Compose: a kind chosen on the left, a link and a state picked as columns, the table drawn on the right](assets/trellis-compose.png)
+
 - **its properties**, up its `is` chain, each with the kind that declares it and an example value
   read off an instance;
 - **the links its instances carry**, outward and inward, each with the kind at the far end and how
@@ -645,6 +692,49 @@ rows standing now are not what a moment was asked for.
 column costs one walk per row per hop, said beside the column. A state filter is one state read per
 refresh. A moment is one whole-model read per settled instant — the most expensive thing this page
 can ask for, until the platform's narrowed read takes a timestamp.
+
+### 7.6 Operations dashboards
+
+Every `Dashboard` Thing a model publishes is a page of its own under **Operations**, one sidebar
+entry each, drawn from its spec by the widgets in [§21](#21-dashboard-internals). Nothing on such a
+page is Trellis's own wording: every title, figure and unit comes from the spec.
+
+![A model's operations dashboard: verdicts, figures, and how each figure was worked out](assets/trellis-operations-dashboard.png)
+
+A model holding the performance observatory publishes a **Platform performance** page the same way,
+read from the observations the platform samples about itself when `PerformanceSampler:Enabled` is
+on.
+
+![The Platform performance page, drawn from the platform's own samples](assets/trellis-platform-performance.png)
+
+### 7.7 Temporal queries
+
+**Temporal** in the sidebar (`/temporal`) reads the model's past: property mutations across the model
+or for one Thing, the model as it stood at an instant, one property's history, and which Things held
+a state. Each tab takes a time range and asks the platform's temporal routes.
+
+![The Temporal page: the Mutations tab, a time range and the changes it found](assets/trellis-temporal.png)
+
+### 7.8 The broker log
+
+**Logs** in the sidebar (`/logs`) tails the Mycelium's log as it is written, with a pause, a
+snapshot, and the whole file to download.
+
+![The Logs page streaming the broker's log](assets/trellis-logs.png)
+
+### Accounts: the page the platform declares
+
+**Accounts** is not a page Trellis ships or a model publishes: the platform declares it, as a dashboard
+spec, to an administrator, and Trellis draws it exactly as it draws a model's own dashboards (see
+[A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation)). Anyone who is not
+an administrator sees no such entry.
+
+![The Accounts page: every account, a form that adds one, and the acts that grant, revoke, change a role, reset a password and delete](assets/trellis-accounts.png)
+
+Every read and write on it goes to the platform's administration route. An account added or reset
+here signs in with the password typed and must then choose its own. An account enters only the
+models it is granted; an administrator enters every model and needs no grant. Nothing on the page acts
+on the administrator's own account.
 
 ---
 
@@ -708,6 +798,8 @@ intake service, which composes it into Things. Nothing is downloaded and nothing
 answers are in the model as soon as the submission is accepted, and it then waits on the Submissions
 page for a reviewer.
 
+![The land-intake wizard on its first step, the six steps across the top](assets/trellis-land-intake.png)
+
 Five steps — project, contact, location, size and programme, parcel. The planner can move between any
 step already visited, and progress is written to browser storage on every keystroke, keyed by the
 model, so closing the tab loses nothing. A submission that has been posted clears its draft, because
@@ -753,7 +845,11 @@ than no form.
 ### 8.8 Reviewing what has arrived
 
 **Submissions** in the sidebar lists what has arrived in this model, so a reviewer can throw away the
-junk and promote the rest into a project model of its own. It is the same read and the same two
+junk and promote the rest into a project model of its own.
+
+![The Submissions page on a model that takes no submissions: it says so rather than listing nothing](assets/trellis-submissions.png)
+
+On a model built for intake the page lists each submission with what a reviewer may do about it. It is the same read and the same two
 actions as `submissions list`, `submissions reject` and `submissions promote` in
 [the Taproot guide](TAPROOT_USER_GUIDE.md); either can be used against the same model. Clearing
 rejected submissions once their period has run is `submissions dispose`, and has no page — it is a
@@ -1150,7 +1246,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 | Route | Page | Description |
 |-------|------|-------------|
 | `/` | `DashboardPage` | Model stats, services (with daemon state), activity feed (default landing page) |
-| `/operations/{dashboard}` | `OperationsPage` | The dashboards a model declares, one address and one sidebar entry per `Dashboard` Thing — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Each is drawn from its `spec` by a generic binding resolver over the state, thing and temporal APIs, live over the stream; the widget kinds are KPI, funnel, bullet, gantt, table, leaderboard, verdict, working, exception bar, range bar, line series, heatmap, stacked shares, diverging bar and small multiples. The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. How a binding reads a value, how a state answer is narrowed, what a row carries and what the Thing detail window shows are in [§21](#21-dashboard-internals), under [How a binding reads a value](#how-a-binding-reads-a-value) and after. |
+| `/operations/{dashboard}` | `OperationsPage` | The dashboards a model declares, one address and one sidebar entry per `Dashboard` Thing, and before them the pages the platform declares for the signed-in account (`GET /api/mycelium/pages`, read once per account into `platformPagesStore`), drawn by the same renderer — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Each is drawn from its `spec` by a generic binding resolver over the state, thing and temporal APIs, live over the stream; the widget kinds are KPI, funnel, bullet, gantt, table, leaderboard, verdict, working, exception bar, range bar, line series, heatmap, stacked shares, diverging bar and small multiples. The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. How a binding reads a value, how a state answer is narrowed, what a row carries and what the Thing detail window shows are in [§21](#21-dashboard-internals), under [How a binding reads a value](#how-a-binding-reads-a-value) and after. |
 | `/compose` | `ComposerPage` | A table composed from a kind's own declarations, drawn by the dashboard's table and kept as a `Dashboard` Thing — see [7.5 Compose](#75-compose--a-table-from-a-kinds-own-declarations). |
 | `/intake` | `IntakeWizardPage` | The land-intake wizard (#6016): project, contact, location, size and programme, and parcel, posted to the intake service as one document once the address on it has been verified: pressing **Send a code** asks the service to send one to the contact's email address, and the submission goes when that code is entered. The code is never part of the draft. The draft is written to browser storage on every keystroke, keyed by the model, so a closed tab loses nothing, and it is cleared once the submission is in the model. The area is stored in hectares whatever unit it is typed in; an area that is not a figure is left out rather than sent as zero. The programme categories are the Things under the archetype marked `__IsAllocationCategoryArchetype` — the same vocabulary the intake service resolves a submitted word against — so the wizard cannot offer a term that is then refused, and the shares always describe the whole parcel. Coordinates are read out of a pasted map link by `src/utils/mapLink.ts`, which refuses a pair that could not be a point on Earth and names a shortened link as one to open by hand; once both are given the location step shows the site on the shared map module (#6014). The parcel step draws the boundary on that same map (#6015) — a draft square of the stated area or corners placed by hand — with the drawn area measured on the sphere by `src/utils/parcelGeometry.ts` and compared with the stated area. Offered only where `VITE_INTAKE_URL` is set. The wizard itself is `src/intake/IntakeWizard.tsx`, which the public submission form renders too, so a field added to one appears in the other; pure logic in `src/intake/submissionDraft.ts` and `src/pages/modelVocabulary.ts`. |
 | `/submissions` | `SubmissionReviewPage` | What has arrived in this model and what a reviewer decides about it — the client half of the promotion story (#6621), mirroring `submissions list`, `submissions reject` and `submissions promote` in Taproot — `submissions dispose` is a retention pass and has no page. Reads the model itself (things, relationships, and server-resolved effective properties) rather than through the app shell's load, which a model may narrow to the properties it declares its pages are drawn with. Holds no archetype and no predicate name: a submission is whatever asserts an edge through the predicate the model marks with `__IsProposedSitePredicate`, the dispositions are the Things under the archetype marked `__IsSubmissionDispositionArchetype`, and a decision is written through the predicate marked `__IsSubmissionDispositionPredicate`. **Reject** relates the submission to whichever disposition names a period after which a submission goes; **Promote** copies the site the submission proposes — never the record of the arrival — into a project model built from a template, then relates the submission to the disposition naming no period. What travels with the site is chosen from the predicates the model actually asserts through. Promoting twice produces one project, because the broker derives the project model's identifier from the source model and the site; the page shows the server's answer rather than disabling the button. Pure reading logic in `src/pages/submissionReview.ts`, whose test reads `vos.Taproot/SubmissionsCommandHandler.cs` so the page and the command line cannot come to answer the same model differently. |
@@ -1355,7 +1451,7 @@ the one in force, so a page leaving restores whatever the page beneath it asked 
 |-------------|--------|
 | The app shell (`useModelData`) | `NAVIGATION_AND_SETTINGS` — the dashboards the navigation lists and the Thing the model states its display settings on. What every page reads whatever it shows. |
 | The graph, the explorer, the two searches, the pipeline editor, the temporal page, the home page | `WHOLE_MODEL` — these read across the model, so they ask for it. |
-| A dashboard (`OperationsPage`) | `subscriptionForSpec(spec, scopeId)` — derived from the spec: the compare entities, the types its list widgets draw, the Things it names, the selected entity, and one traversal rule per edge its bindings and detail cards walk. |
+| A dashboard (`OperationsPage`) | `subscriptionForSpec(spec, scopeId)` — derived from the spec: the compare entities, the types its list widgets draw, the Things it names, the selected entity, and one traversal rule per edge its bindings and detail cards walk. It also sets `includeObservations`, so a figure bound to a reading moves without a reload, each series held to the platform's cadence. |
 
 Two properties of the platform shape this:
 
@@ -1548,8 +1644,12 @@ A model publishes as many `Dashboard` Things as it likes, and each one is a page
 reader needs to find, link to, and come back to. Three things follow.
 
 **One sidebar entry per dashboard.** Where the sidebar shows a single **Operations**
-entry for a model that publishes no dashboard, a model that publishes some gets one
-entry each in its place, ordered by name. The entry is labelled with the dashboard's
+entry for a model that publishes no dashboard and the platform declares no page, a model
+that publishes some gets one entry each in its place, ordered by name. The pages the
+platform declares for the signed-in account come first — they are the same whichever
+model a session opens, and a page that moved when the model changed would be one a
+reader loses. The platform lists such a page only to the accounts it is for; today that
+is the Accounts page, to an administrator. The entry is labelled with the dashboard's
 `title`, translated like every other display string in the spec, so the navigation
 reads in the reader's language.
 
@@ -1629,6 +1729,11 @@ The window needs a row height, which it takes from a rendered row measured with 
 `ResizeObserver`, falling back to the height the cap's own CSS implies until one is
 measured. A table with no `visibleRows` has no bounded container to measure against
 and renders every row, as before.
+
+**Download as CSV.** Every table carries a download control beside its footnote. It
+writes the rows as shown — the drawn columns in their order, labels first, numbers as
+numbers, in the current sort and under the current search — to a file named after the
+table.
 
 ### The width a card is given
 
@@ -2159,10 +2264,26 @@ the same state narrowed the same way — is served by one request. So the roster
 above costs one request per listed state per refresh, whatever the row count.
 Two widgets narrowing one state differently are two questions and two requests,
 deliberately: sharing by state name alone would hand one of them the other's
-answer. `timeseries` and `service` columns have no such sharing and do cost one
-request per row. Everything else — `related`,
+answer. A `service` read is shared while it is in flight — the widgets of one
+refresh ask a question once between them — and never replayed once settled, because
+the writing widgets post through the same port and a press answered from an earlier
+reply would record nothing and say it had. `timeseries` alone has no sharing and does
+cost one request per row. Everything else — `related`,
 `property`, `aggregate`, `ratio` — reads the client-side model index and calls
 nothing.
+
+### When a figure is asked again
+
+A figure read from the loaded model — `const`, `property`, `aggregate`, `thingList`,
+`compareEntities`, a walk naming no state — resolves again when the model index is
+rebuilt. A figure the broker answers — `stateCount`, `stateList`, `stateOf`,
+`verdict`, `timeseries`, `latest`, `service`, `history`, a `ratio` with either side
+among these, a walk step naming a state, a computed column doing any of these —
+resolves again when a `StatesChanged` names a state it reads, on the spec's
+`refreshSeconds`, on a model reload, and after a press one of the page's writing
+widgets took; not on a property change. A page stating no cadence keeps the live
+event as its beat. `bindingRefresh.ts` says which kind each binding is;
+`uiStore.stateVersions` holds the per-state counters the judgement reads.
 
 ### Reading a judged value as a sentence
 
@@ -2575,9 +2696,11 @@ reduction request.
 
 ### The widgets that write
 
-Every widget reads; two write. Both post to an endpoint the spec names —
-`POST /api/endpoints/{name}`, the route the pipeline page already uses — with
-the session the console holds and nothing that says who is asking. Neither
+Every widget reads; two write. Both post to the route the spec names under `via`: an
+endpoint by name — `POST /api/endpoints/{name}`, the route the pipeline page already
+uses — or, where `via` begins with `/`, a route on the platform itself, posted to as
+written. Either way the post carries the session the console holds and nothing that
+says who is asking. Neither
 builds a Thing: what the endpoint lays down is what the model acts on, so
 nothing on a page names a handler. A refusal is shown in the endpoint's own
 words, whether the endpoint refused with a status or answered `{ error }`, and
@@ -2586,19 +2709,22 @@ own to put there.
 
 | Widget | What it does | What it sends |
 | --- | --- | --- |
-| `action` | Decides about a row it lists. A choice names either the Thing the act is about — a reason, a verdict, a disposition the model declares — sent as `reason`, or the act itself, sent as `view`. A row can be asked for a value first (`asks`): typed, or chosen by name from a roster binding, and one field may take several names. `shows` names the values drawn beside the row. | the row by name (`record`), the choice, what was asked |
-| `form` | Records something nothing on the page lists yet. Its fields (`AskedValue[]`) are typed or chosen by name. An optional preview act posts what is filled so far under its own name and shows the endpoint's answer, before every required field is given. | the act (`view`), the fields |
+| `action` | Decides about a row it lists. A choice names either the Thing the act is about — a reason, a verdict, a disposition the model declares — sent as `reason`, or the act itself, sent as `view`. A row can be asked for a value first (`asks`): typed, typed masked (`kind: 'secret'`, for a password), or chosen by name from a roster binding, and one field may take several names. `shows` names the values drawn beside the row. A row is decided once; where the writes are marked `repeatable`, it stays pressable and the last answer is shown beside it until the next press. | the row by name (`record`), the choice, what was asked |
+| `form` | Records something nothing on the page lists yet. Its fields (`AskedValue[]`) are typed or chosen by name. An optional preview act posts what is filled so far under its own name and shows the endpoint's answer, before every required field is given. `archetype` on its writes is optional where the route creates no Thing. | the act (`view`), the fields |
 
 `writeRequest.ts` is the pure statement of what is sent: a number field as a
 number, a multichoice field as the names chosen, an optional field left empty
 not at all — an endpoint reading `""` as an answer would be answering a
 question nobody asked — and no field naming an actor. `dashboardWrites.ts` is
 the post. The rows an `action` lists and the rosters its fields are chosen from
-are declared to the subscription like any other binding.
+are declared to the subscription like any other binding. A press the route accepted
+calls the page's `wrote`, which starts a new generation of broker reads, so a
+table on the same page shows what the press changed — a write the platform
+records outside the model, an account, announces nothing on the stream.
 
-**What an endpoint has to accept.** No endpoint shipped with the platform takes
-these bodies today; the tests use a fake. An endpoint registered by a model has
-to accept `{ view | reason, record, …asked }` for an action and
+**What an endpoint has to accept.** The platform's own `POST /api/auth/administration`
+takes these bodies for its Accounts page; the tests use a fake. An endpoint registered
+by a model has to accept `{ view | reason, record, …asked }` for an action and
 `{ view, …fields }` for a form, and answer `{ said }` on taking a press or
 `{ error }` (or a refusing status carrying `error`) on refusing one. The
 platform's endpoint forwarder hands the body to the service under the
