@@ -12,21 +12,34 @@ public static class CommandParser
 
     public static void WriteJsonOrText(TextWriter writer, string answer)
     {
-        if (IsJson(answer))
-            WriteFormattedJson(writer, JsonDocument.Parse(answer).RootElement);
+        if (TryParseJson(answer, out var document))
+        {
+            using (document)
+                WriteFormattedJson(writer, document.RootElement);
+        }
         else
+        {
             writer.WriteLine(answer);
+        }
     }
 
     public static bool IsJson(string text)
     {
+        if (!TryParseJson(text, out var document)) return false;
+        document.Dispose();
+        return true;
+    }
+
+    private static bool TryParseJson(string text, out JsonDocument document)
+    {
         try
         {
-            JsonDocument.Parse(text).Dispose();
+            document = JsonDocument.Parse(text);
             return true;
         }
         catch (JsonException)
         {
+            document = null!;
             return false;
         }
     }
