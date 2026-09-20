@@ -4,7 +4,7 @@ Build a **containment tree** from a file and apply it as one model fragment.
 
 A *layout* is a nested physical structure: something contains areas, those contain sub-areas, and
 somewhere down the chain are the places things stand. This tool turns a description of one into
-Things, containment edges and `is` edges, and puts it into a model.
+Things, containment relationships and `is` relationships, and puts it into a model.
 
 It is **domain-agnostic**. The level names, the containment predicate and the type each level
 belongs to are all named by the caller, so the tool carries no vocabulary of its own. A consumer's
@@ -99,7 +99,7 @@ python3 -m unittest test_layout
 
 Names building the tree, a name that does not follow the standard being reported, a row overriding
 one field and leaving the rest, the fragment carrying every node once with its containment and type
-edges, ids staying stable, an extended file keeping the ids the first run used, applying sending one
+relationships, ids staying stable, an extended file keeping the ids the first run used, applying sending one
 fragment and a second run sending the same one, a file that cannot be read failing before the model
 is asked anything, and a run that puts the API key on the command line being refused.
 

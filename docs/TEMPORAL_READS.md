@@ -163,7 +163,7 @@ The second is where a value written onto an archetype-declared name lives, so it
 value and every value a service writes through the fragment upsert is answered from. A reader that
 resolves a live Thing by reading `Properties`, then its override sets, then up the `is` chain reads an
 instant the same way: the archetypes' defaults at the instant are the own properties of the archetype
-Things in the same snapshot, and the `is` edges live then are in the same answer.
+Things in the same snapshot, and the `is` relationships live then are in the same answer.
 
 Values in both members are bare, not the `{ typeInfo, value }` envelope the live read uses. A value
 that cannot be answered for the instant is left out, under the retention rule above, and so is an

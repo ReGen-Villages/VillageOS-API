@@ -4,7 +4,7 @@ Delta is VillageOS's **endpoint-registration service**. It owns two jobs around 
 endpoint-template catalog that [Tributary](TRIBUTARY.md) fetches against:
 
 1. **Provision** the endpoint-template catalog into Mycelium at startup — find-or-create
-   every template Thing and wire its `is` inheritance edges.
+   every template Thing and wire its `is` inheritance relationships.
 2. **Register** individual endpoints on demand — validate an incoming endpoint against the
    template graph, create the Thing, attach it to its template with an `is` relationship, and
    set its properties.
@@ -43,7 +43,7 @@ roles are `authenticatesBy`, `pagesBy` and `readsBodyAs`; a role reaching no kin
 means the plain behaviour, and the nearest declaration up the `is` chain wins.
 
 A seed that still sets `authKind`, `pagingKind` or `responseKind` as a property
-is refused at provisioning, naming the template and the edge to write instead.
+is refused at provisioning, naming the template and the relationship to write instead.
 There is no compatibility shim: a catalogue half-provisioned against the old
 shape would leave endpoints reaching nothing while looking configured.
 
@@ -84,7 +84,7 @@ the caller's bearer carries.
 2. Order templates **root-first** (ascending chain length is a valid topological order, so a
    parent is always provisioned before its children).
 3. For each template: if a Thing with that name already exists, reuse it; otherwise create it and
-   — only for the newly-created Thing — wire its `is` edge to its parent, then write the keys it
+   — only for the newly-created Thing — wire its `is` relationship to its parent, then write the keys it
    narrows.
 
 **Why a narrowed key is written last.** A template usually restates keys its parent already
@@ -97,12 +97,12 @@ order those two writes happen in decides how Mycelium stores the result:
 | `is` first, property after | An **override** — the name resolves as inherited, so the write materializes a per-instance override | One key in the resolved view, holding the narrowed value |
 
 So the provisioner splits a template's seed properties: keys no ancestor declares are carried on
-the create, and keys some ancestor declares are written after the `is` edge exists. The root
+the create, and keys some ancestor declares are written after the `is` relationship exists. The root
 template inherits nothing, so all of its properties stay on the create.
 
-> **Known gap.** If a template Thing was created on a prior run but its `is` edge failed, a later
-> run finds the Thing and cannot repair the missing edge — there is no Mycelium relationship-query
-> API to detect it. The same run leaves that template's narrowed keys unwritten, so it silently
+> **Known gap.** If a template Thing was created on a prior run but its `is` relationship failed, a
+> later run finds the Thing and cannot repair the missing relationship — there is no Mycelium
+> relationship-query API to detect it. The same run leaves that template's narrowed keys unwritten, so it silently
 > keeps the parent's values. Tracked in the code comment on `TemplateCatalogProvisioner`.
 
 **A model provisions once, and calls that arrive together queue behind it.** Mycelium accepts a

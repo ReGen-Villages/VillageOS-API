@@ -770,8 +770,8 @@ With nothing staged the project still builds and its suite reports one skipped c
 saying so. The VillageOS pipeline runs it in every build, because that build has the
 engine to stage.
 
-**Put a case here whenever a service writes to the model** — a Thing, a property, an
-edge. That is where every drift so far has been.
+**Put a case here whenever a service writes to the model** — a Thing, a property, a
+relationship. That is where every drift so far has been.
 
 ### 10.3 Service-specific endpoint tests
 
@@ -1033,7 +1033,7 @@ accepts; the wrong kind returns **405**, an unknown thing/property **404**.
 
 ## 16. Pipelines / DAG orchestration
 
-A **pipeline** is a Directed Acyclic Graph whose **nodes are microservices** and whose **edges are typed
+A **pipeline** is a Directed Acyclic Graph whose **nodes are microservices**, joined by **typed
 data-flow wires**. You build one visually in **Trellis → Pipelines** (see
 [the Field Guide](FIELD_GUIDE.md#41-building-one-on-the-canvas), Part VI), and the **Phloem** orchestrator microservice executes it — resolving
 dependencies, invoking each node through the same `/handle` dispatch every handler already uses, and routing
@@ -1060,16 +1060,16 @@ graph LR
   `Subdomain` is the dispatch address Phloem forwards to.
 - **Ports** are first-class `Port` Things on the service **prototype**, resolved by walking the bound
   service's `is`-chain (relationships do **not** inherit through `is`, so ports resolve at read time).
-- A **wire** carries `fromPort`/`toPort`, and Phloem reads it in either of two shapes. **Drawn as an
-  edge**, it is a relationship whose predicate `is` the wire archetype. **Held as a Thing**, the wire
+- A **wire** carries `fromPort`/`toPort`, and Phloem reads it in either of two shapes. **Drawn as a
+  relationship**, its predicate `is` the wire archetype. **Held as a Thing**, the wire
   itself `is` the wire archetype, its source node `has` it, and it points at its target node. Both are
   found by the role the archetype is marked with, never by the predicate name `"carries"`.
 - **Two nodes may carry more than one wire only in the second shape.** The model refuses a second active
-  relationship with the same subject, predicate and target, so as an edge a node pair carries one wire
+  relationship with the same subject, predicate and target, so drawn that way a node pair carries one wire
   whatever ports either side declares, and further inputs have to travel as node parameter bindings —
   which the validator does not check, while every wire's ports are proved to exist and to have compatible
   types. As Things, two wires between a pair are two Things and the rule never applies. The Thing shape is
-  replacing the edge shape; both are read while producers move over.
+  replacing the relationship shape; both are read while producers move over.
 - The predicate name is the model's to choose, and it is deliberately not `feeds`: that word already names
   matter moving between built things (a swale into a buffer, a compost station into a greenhouse),
   and a dashboard scope resolves a predicate **by name**.
