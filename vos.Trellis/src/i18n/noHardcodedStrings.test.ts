@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 /**
  * Guards that no component reintroduces a hardcoded user-visible English string
- * after the i18n sweep (#6004). Heuristic, not a parser: it flags
+ * after the i18n sweep. Heuristic, not a parser: it flags
  *  - human-facing attribute literals (placeholder / title / aria-label / alt), and
  *  - JSX text nodes of two or more words, or ending in sentence punctuation,
  * that are not wrapped in a t(...) call. Single-word JSX text is intentionally

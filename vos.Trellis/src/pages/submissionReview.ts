@@ -2,7 +2,7 @@
  * What has arrived in this model, and what a reviewer may do about it — the read behind the
  * submission review page.
  *
- * Nothing here names an archetype or a predicate. A submission is whatever asserts an edge through
+ * Nothing here names an archetype or a predicate. A submission is whatever asserts a relationship through
  * the predicate the model marks as reaching a proposed site, and the dispositions are the Things
  * under the archetype the model marks as holding them. These are the same marks the `submissions`
  * commands read, and a test in this folder reads that handler's source so the page and the command
@@ -36,7 +36,6 @@ export interface Submission {
 export interface Disposition {
   id: string;
   name: string;
-  /** True when this disposition names a period after which a submission goes. */
   disposable: boolean;
 }
 
@@ -46,7 +45,6 @@ export function proposedSitePredicate(reading: ModelReading): string | null {
   return ownCarrierOf(reading, PROPOSED_SITE_PREDICATE_FLAG);
 }
 
-/** The predicate a decision is written through. */
 export function dispositionPredicate(reading: ModelReading): string | null {
   return ownCarrierOf(reading, DISPOSITION_PREDICATE_FLAG);
 }
@@ -61,9 +59,9 @@ export function submissionsIn(reading: ModelReading): Submission[] {
     reading.things.filter((thing) => thing.IsArchetype).map((thing) => thing.Id),
   );
 
-  // One submission per edge: a submission is only a submission because it proposes a site, so the
+  // One submission per relationship: a submission is only a submission because it proposes a site, so the
   // walk that finds it is also the walk that says which site travels when it is promoted. A model
-  // declares that predicate by relating its own archetypes, and that edge is asserted through the
+  // declares that predicate by relating its own archetypes, and that relationship is asserted through the
   // same predicate — listed, it offers a reviewer a decision over the declaration itself.
   return reading.relationships
     .filter((edge) => edge.PredicateId === proposes && !declarations.has(edge.SubjectId))
@@ -141,6 +139,12 @@ function decisions(reading: ModelReading, names: Map<string, string>): Map<strin
   return decided;
 }
 
+/** A key's name without the archetype that declared it, which is how the same property reads whether a
+ *  Thing holds it or inherits it. */
+function declaredName(key: string): string {
+  return key.slice(key.lastIndexOf('.') + 1);
+}
+
 /** A property as text, whatever it is written as, because everything here is displayed. A property
  *  a model declares but never gives a value to reads as absent, which is what it is.
  *
@@ -152,12 +156,6 @@ function decisions(reading: ModelReading, names: Map<string, string>): Map<strin
  *  name is inherited from more than one archetype. The model answers a bare read of that with an
  *  ambiguity and asks for the full path; this page has no path to give, so it says which paths it
  *  found rather than showing a reviewer a value the model itself declines to choose. */
-/** A key's name without the archetype that declared it, which is how the same property reads whether a
- *  Thing holds it or inherits it. */
-function declaredName(key: string): string {
-  return key.slice(key.lastIndexOf('.') + 1);
-}
-
 function valueOf(reading: ModelReading, thingId: string, property: string): string | undefined {
   const held = reading.properties[thingId] ?? {};
   const keys = Object.keys(held).filter((name) => declaredName(name) === property);

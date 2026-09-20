@@ -1,10 +1,8 @@
 namespace vos.Service.Shared.Validation;
 
-// Validates that required property keys are present in a provided key set.
 public static class RequiredPropertyValidator
 {
-    // Returns required keys that are missing from provided keys.
-    // Output preserves required key order.
+    // In the order the required keys were given.
     public static IReadOnlyList<string> GetMissingRequiredKeys(
         IEnumerable<string>? requiredKeys,
         IEnumerable<string>? providedKeys,

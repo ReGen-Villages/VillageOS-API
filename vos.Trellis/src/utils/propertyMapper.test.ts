@@ -101,7 +101,7 @@ describe('unwrapThing', () => {
     expect(result.InheritedOverrides).toBeUndefined();
   });
 
-  // Regression (Bug #5932 / #6048): the wire field is InheritedOverrides (override-only).
+  // Regression: the wire field is InheritedOverrides (override-only).
   // unwrapThing must read it, or inherited override values silently vanish from the GUI.
   it('reads inherited override values from the InheritedOverrides field', () => {
     const thing = {
@@ -120,7 +120,7 @@ describe('unwrapThing', () => {
   });
 });
 
-// Regression (Bug #5932): under lazy inheritance an instance's value for an
+// Regression: under lazy inheritance an instance's value for an
 // inherited name is relocated out of Properties into InheritedOverrides, so
 // reading Properties alone misses it and dashboard widgets render blank/0.
 describe('effectiveProperties', () => {
@@ -167,7 +167,7 @@ describe('effectiveProperties', () => {
     expect(merged).toEqual({ a: 1 });
   });
 
-  // Bug #6048: resolve a non-overridden inherited default from the archetype up the is-chain — the
+  // Resolve a non-overridden inherited default from the archetype up the is-chain — the
   // exact value that was invisible before, since it lives on the archetype, not in the instance.
   it('resolves a non-overridden inherited default from the archetype', () => {
     const home = archetype('h', 'Home', { energy_rating: 'A+' });
@@ -212,7 +212,7 @@ describe('effectiveProperties', () => {
     expect(merged).toEqual({ x: 1, y: 2 });
   });
 
-  // Bug #5941: within a stable model (same index) a repeat call returns the very same frozen object.
+  // Within a stable model (same index) a repeat call returns the very same frozen object.
   it('memoizes per model index and freezes the result', () => {
     const thing = { Id: 'i', Properties: { a: 1 }, InheritedOverrides: { Home: inheritedSet('Home', { b: 2 }) } };
     const first = effectiveProperties(thing, noAncestors);
@@ -222,8 +222,8 @@ describe('effectiveProperties', () => {
     expect(() => { (first as Record<string, unknown>).a = 99; }).toThrow();
   });
 
-  // Bug #6048: the cache is keyed on the model index, so when an archetype default changes the
-  // instance's effective value updates — a Thing-only cache (Bug #5941) would have gone stale.
+  // The cache is keyed on the model index, so when an archetype default changes the
+  // instance's effective value updates — a Thing-only cache would have gone stale.
   it('invalidates when the model index changes (archetype default updated)', () => {
     const instance = { Id: 'i', Properties: {}, InheritedOverrides: undefined };
     const before = effectiveProperties(instance, chain([archetype('h', 'Home', { rate: 'A+' })], { i: ['h'] }));
@@ -262,7 +262,7 @@ describe('unwrapRelationship', () => {
   });
 });
 
-// Story #6475: unwrapping keeps only what a value is, and the declaration is the model's only
+// Unwrapping keeps only what a value is, and the declaration is the model's only
 // record of how it came to be one — dropped here, no page can ever say where a figure came from.
 describe('the declaration a value arrives with', () => {
   it('keeps the write kind of an own property', () => {

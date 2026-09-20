@@ -16,38 +16,38 @@ public class SubmissionEndpointTests
 
     private static readonly string WillowBendDocument = AboutTheSite(",'population':320");
 
-    /// <summary>The project and contact every submission carries. The details are a synthetic enquiry:
-    /// they reach this service by design, and a log line is the one place they would leave the model
-    /// behind.</summary>
+    // The project and contact every submission carries. The details are a synthetic enquiry:
+    // they reach this service by design, and a log line is the one place they would leave the model
+    // behind.
     private const string ProjectAndContact =
         "'project':{'name':'Willow Bend Regeneration'},"
         + "'contact':{'name':'Ana Ferreira','emailAddress':'ana.ferreira@example.pt'},";
 
-    /// <summary>The land itself, which every submission describes — an analysis divides its area, so a
-    /// submission without one is refused. Generated from the stated area rather than surveyed, which is
-    /// what the boundary source records.</summary>
+    // The land itself, which every submission describes — an analysis divides its area, so a
+    // submission without one is refused. Generated from the stated area rather than surveyed, which is
+    // what the boundary source records.
     private const string TheLand =
         ",'parcel':{'boundarySource':'generated-from-stated-area','boundary':["
         + "{'latitude':39.4988,'longitude':-8.4168},{'latitude':39.5036,'longitude':-8.4168},"
         + "{'latitude':39.5036,'longitude':-8.4106},{'latitude':39.4988,'longitude':-8.4106}]}";
 
-    /// <summary>A whole submission, varying only what is known about the land.</summary>
+    // A whole submission, varying only what is known about the land.
     private static string AboutTheSite(string sitePart) =>
         Document(ProjectAndContact + "'site':{'name':'Willow Bend'" + sitePart + "}" + TheLand);
 
-    /// <summary>A submission written with apostrophes where JSON wants quotation marks, so a fragment reads
-    /// as the object it is rather than as escaping.</summary>
+    // A submission written with apostrophes where JSON wants quotation marks, so a fragment reads
+    // as the object it is rather than as escaping.
     private static string Document(string shape) =>
         ("{'submissionId':'" + WillowBend.SubmissionId + "'," + shape + "}").Replace('\'', '"');
 
     private static StringContent Submission(string document) =>
         new(document, Encoding.UTF8, "application/json");
 
-    /// <summary>The address the submissions here name, which is therefore the one they verify.</summary>
+    // The address the submissions here name, which is therefore the one they verify.
     private const string AnasAddress = "ana.ferreira@example.pt";
 
-    /// <summary>A form's whole exchange: ask for a code, answer it, then post under the ticket that
-    /// comes back.</summary>
+    // A form's whole exchange: ask for a code, answer it, then post under the ticket that
+    // comes back.
     private static async Task<HttpResponseMessage> SubmitAsync(
         IntakeWebApplicationFactory factory, HttpClient client, string document) =>
         await PostAsync(client, document, await TicketFor(factory, client, AnasAddress));
@@ -491,8 +491,8 @@ public class SubmissionEndpointTests
         factory.Log.Lines.Should().Contain(line => line.Contains("source unknown"));
     }
 
-    /// <summary>One request against a source's budget. A different address each time, so what runs out is
-    /// the source's share of the route and never the budget one address has for codes.</summary>
+    // One request against a source's budget. A different address each time, so what runs out is
+    // the source's share of the route and never the budget one address has for codes.
     private static async Task<HttpResponseMessage> AskFromAsync(HttpClient client, string from, int attempt)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/submissions/verification")

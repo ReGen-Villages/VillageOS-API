@@ -4,8 +4,8 @@ import { formatGuid } from './formatters';
 /**
  * How a relationship reads: "subject predicate target".
  *
- * The platform sends `Name` only for an edge given a name of its own when it was created — the one
- * thing a client could not work out. Every other edge composes its name from the three endpoints on
+ * The platform sends `Name` only for a relationship given a name of its own when it was created — the one
+ * thing a client could not work out. Every other relationship composes its name from the three endpoints on
  * every read, all of which are already in the payload, so composing it here saves sending the single
  * biggest repeated string in a model read, and a renamed endpoint shows through immediately.
  *

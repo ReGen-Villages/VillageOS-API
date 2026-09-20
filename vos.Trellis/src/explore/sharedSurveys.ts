@@ -11,7 +11,6 @@ export const MAXIMUM_SURVEY_BYTES = 25 * 1024 * 1024;
 
 export const MAXIMUM_SURVEY_MEGABYTES = MAXIMUM_SURVEY_BYTES / (1024 * 1024);
 
-/** One file the model holds for the submission, as the service lists it. */
 export interface SharedSurvey {
   id: string;
   fileName: string;

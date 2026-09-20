@@ -1,6 +1,6 @@
 /**
  * What has arrived in this model, and what a reviewer decides about it: list the submissions, reject
- * the junk, promote the rest into a project model of its own (#6621, the client half of #6045).
+ * the junk, promote the rest into a project model of its own.
  *
  * The page holds no archetype and no predicate name. Everything it reads it finds by the marks the
  * model puts on its own vocabulary (see `submissionReview.ts`), and what travels with a promoted
@@ -71,7 +71,7 @@ export function SubmissionReviewPage() {
   }, [rereadCount]);
 
   // Held against the reading rather than recomputed per render: each of these walks every Thing and
-  // every edge in the model, and a render happens on every click.
+  // every relationship in the model, and a render happens on every click.
   const model = reading ?? NOTHING_READ;
   const submissions = useMemo(() => byArrival(submissionsIn(model)), [model]);
   const predicateNames = useMemo(() => predicateNamesIn(model), [model]);

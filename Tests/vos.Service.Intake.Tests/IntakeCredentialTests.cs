@@ -9,21 +9,19 @@ using static vos.Service.Intake.Tests.ModelStub;
 
 namespace vos.Service.Intake.Tests;
 
-/// <summary>
-/// What this service authenticates with. Nothing launches it, so no short-lived token is ever minted
-/// for it and an API key is the only credential it can hold — which is why the key reaching the clients
-/// it calls the broker with is worth a test of its own.
-///
-/// These go through the host rather than building a client by hand. A credential that never leaves
-/// configuration is invisible to a test that constructs the client itself and passes the key in.
-/// </summary>
+// What this service authenticates with. Nothing launches it, so no short-lived token is ever minted
+// for it and an API key is the only credential it can hold — which is why the key reaching the clients
+// it calls the broker with is worth a test of its own.
+//
+// These go through the host rather than building a client by hand. A credential that never leaves
+// configuration is invisible to a test that constructs the client itself and passes the key in.
 public class IntakeCredentialTests
 {
     private const string TicketHeader = "X-Submission-Ticket";
     private const string KeyHeader = "X-API-Key";
     private const string TheKey = "vos_sk_a-key-the-broker-would-accept";
 
-    /// <summary>The address the submission names, and therefore the one it verifies.</summary>
+    // The address the submission names, and therefore the one it verifies.
     private const string AnasAddress = "ana.ferreira@example.pt";
 
     private static readonly string WillowBendDocument =
@@ -79,11 +77,11 @@ public class IntakeCredentialTests
             + "reason whoever sent it cannot act on");
     }
 
-    /// <summary>A broker that mints a token for a caller presenting the key and refuses one for a caller
-    /// presenting none — which is what the deployed broker does. The token states an expiry, because a
-    /// token that states none is deliberately never held and the exchange would read as a refusal.
-    /// The instant is read off the real clock rather than the service's, which stands still: only the
-    /// ticket is judged against the service's clock, and the credential is not.</summary>
+    // A broker that mints a token for a caller presenting the key and refuses one for a caller
+    // presenting none — which is what the deployed broker does. The token states an expiry, because a
+    // token that states none is deliberately never held and the exchange would read as a refusal.
+    // The instant is read off the real clock rather than the service's, which stands still: only the
+    // ticket is judged against the service's clock, and the credential is not.
     private static HttpResponseMessage BrokerDemandingTheKey(HttpRequestMessage request)
     {
         if (!IsTokenExchange(request)) return Holds(request);
@@ -97,9 +95,9 @@ public class IntakeCredentialTests
         request.Headers.TryGetValues(KeyHeader, out var values)
         && values.Contains(TheKey);
 
-    /// <summary>The whole exchange a submitter makes. Only the last of it reaches the broker — verifying
-    /// an address is between this service and the person reading their mail — which is what leaves the
-    /// token exchange below as the one thing these tests are about.</summary>
+    // The whole exchange a submitter makes. Only the last of it reaches the broker — verifying
+    // an address is between this service and the person reading their mail — which is what leaves the
+    // token exchange below as the one thing these tests are about.
     private static async Task<HttpResponseMessage> SubmitAsync(
         IntakeWebApplicationFactory factory, HttpClient client, string document)
     {

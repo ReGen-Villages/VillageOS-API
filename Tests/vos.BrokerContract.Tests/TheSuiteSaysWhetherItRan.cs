@@ -2,14 +2,12 @@ using Xunit;
 
 namespace vos.BrokerContract.Tests;
 
-/// <summary>
-/// The cases in <c>AgainstTheEngine</c> compile only when an engine is staged, so a checkout without
-/// one builds and tests like any other — and would otherwise report a green run over nothing. This
-/// says which of the two happened, in the place a reader looks: the test results.
-///
-/// It is not the guard against a build that runs the empty variant. That is <c>VosRequireEngine</c>
-/// in the project file, which fails the build rather than the suite.
-/// </summary>
+// The cases in AgainstTheEngine compile only when an engine is staged, so a checkout without
+// one builds and tests like any other — and would otherwise report a green run over nothing. This
+// says which of the two happened, in the place a reader looks: the test results.
+//
+// It is not the guard against a build that runs the empty variant. That is VosRequireEngine
+// in the project file, which fails the build rather than the suite.
 public class TheSuiteSaysWhetherItRan
 {
 #if VOS_ENGINE_IS_STAGED

@@ -3,15 +3,13 @@ using System.Text;
 
 namespace vos.Service.Intake.Helpers;
 
-/// <summary>
-/// Identifiers derived from the submission rather than generated fresh. A wizard saves as it goes and a
-/// planner can double-click, so the same submission has to land on the same Things every time — the
-/// fragment endpoint keys its upsert on the identifier, and a fresh one would build a second site beside
-/// the first.
-///
-/// RFC 4122 version 5 (name-based, SHA-1), in canonical byte order, so a derivation done anywhere agrees
-/// with one done here.
-/// </summary>
+// Identifiers derived from the submission rather than generated fresh. A wizard saves as it goes and a
+// planner can double-click, so the same submission has to land on the same Things every time — the
+// fragment endpoint keys its upsert on the identifier, and a fresh one would build a second site beside
+// the first.
+//
+// RFC 4122 version 5 (name-based, SHA-1), in canonical byte order, so a derivation done anywhere agrees
+// with one done here.
 public static class StableIdentity
 {
     // Never change this constant: every identifier already derived from a submission would shift.

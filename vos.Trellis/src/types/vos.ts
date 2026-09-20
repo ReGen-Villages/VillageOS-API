@@ -31,7 +31,7 @@ export interface VosThing {
   Id: string;
   Name: string;
   /** Declared when the Thing was created, because nothing can re-derive it: a type and a member are
-   *  the same shape, and a type whose members do not exist yet has no `is` edge to give it away. */
+   *  the same shape, and a type whose members do not exist yet has no `is` relationship to give it away. */
   IsArchetype?: boolean;
   Properties: Record<string, unknown>;
   /** The write kind each stored property was declared with, keyed the way `Properties` is. Unwrapping
@@ -82,7 +82,7 @@ export interface InheritedPropertySet {
 
 export interface VosRelationship {
   Id: string;
-  /** Present only for an edge given a name of its own when it was created. Every other edge is called
+  /** Present only for a relationship given a name of its own when it was created. Every other relationship is called
    *  "subject predicate target", composed on each read. Read it through `relationshipLabel`, which
    *  composes that form from the endpoints when this is absent. */
   Name?: string;
@@ -103,8 +103,6 @@ export interface ModelSummary {
   Id: string;
   Name: string;
 }
-
-// Temporal types
 
 export interface PropertyVersion {
   Timestamp: string;
@@ -225,8 +223,6 @@ export interface RelationshipMutations {
   Mutations: MutationDto[];
 }
 
-// Ranges and States
-
 export interface PropertyBindingDto {
   PropertyName: string;
   BoundsDescription: string;
@@ -321,7 +317,7 @@ export interface RelationshipStates {
   OutOfBoundsCount: number;
 }
 
-// Composite range summary (single-call replacement for 2N+2 individual fetches)
+// Composite range summary, answered in one call rather than one fetch per range and state
 
 export interface RelationshipRangeSummary {
   RelationshipId: string;
@@ -356,8 +352,6 @@ export interface EffectiveProperty {
   InheritedFrom?: string;
 }
 
-// Range CRUD request/response
-
 export interface CreateRangeRequest {
   Name: string;
   Criteria: string;
@@ -369,8 +363,6 @@ export interface CriteriaValidationResult {
   IsValid: boolean;
   Error?: string;
 }
-
-// State query
 
 /** Response of GET /api/states/{state}/things. The kinds Things `is` are left out unless the
  *  request asks for them, and `Properties` is present only on the entries of a request that named
@@ -428,8 +420,6 @@ export interface StateOccurrencesResponse {
   Occurrences: StateOccurrence[];
 }
 
-// Property mode configuration
-
 export interface PropertyModeConfiguration {
   Mode: string;
   RingBufferSize?: number;
@@ -453,7 +443,6 @@ export interface ValuesAtAnInstant {
   InheritedOverrides: Record<string, InheritedPropertySetAtAnInstant>;
 }
 
-// Temporal snapshot
 export interface TemporalSnapshot {
   Timestamp: string;
   Things: Array<{ Id: string; Name: string } & ValuesAtAnInstant>;

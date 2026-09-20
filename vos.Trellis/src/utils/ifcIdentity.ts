@@ -1,6 +1,6 @@
 // Reading a Thing's property wherever it is stored.
 //
-// Bug #6191: when an IFC instance and the type it `is`-relates to both define a
+// When an IFC instance and the type it `is`-relates to both define a
 // name, the instance's own value is stored as an override rather than as an own
 // property. It is the instance's value, not an inherited one — but code reading
 // the own bag alone sees nothing there. That is how most of what the 3D viewer

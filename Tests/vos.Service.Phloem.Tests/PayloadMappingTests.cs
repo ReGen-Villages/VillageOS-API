@@ -5,13 +5,13 @@ using Xunit;
 
 namespace vos.Service.Phloem.Tests;
 
-// Field-level wire mapping (#5874): extract a dotted from-path, place at a dotted to-path, deep-merge several
+// Field-level wire mapping: extract a dotted from-path, place at a dotted to-path, deep-merge several
 // contributions into one input. Pure functions, tested without the executor.
 public class PayloadMappingTests
 {
     private static JsonElement Json(string s) => JsonDocument.Parse(s).RootElement;
 
-    [Fact] // TC #5882: a from-path extracts a single field of the upstream output
+    [Fact] // A from-path extracts a single field of the upstream output
     public void Extract_dotted_path_returns_the_nested_field()
     {
         var value = Json("{\"user\":{\"id\":7,\"name\":\"Ada\"}}");
@@ -19,7 +19,7 @@ public class PayloadMappingTests
         PayloadMapping.Extract(value, "user.name")!.Value.GetString().Should().Be("Ada");
     }
 
-    [Fact] // TC #5884: an empty path carries the whole payload
+    [Fact] // An empty path carries the whole payload
     public void Extract_empty_path_returns_the_whole_value()
     {
         var value = Json("{\"a\":1}");
@@ -46,7 +46,7 @@ public class PayloadMappingTests
         PayloadMapping.ToElement(PayloadMapping.Place("", Json("\"hi\""))).GetString().Should().Be("hi");
     }
 
-    [Fact] // TC #5883: two contributions deep-merge instead of overwriting
+    [Fact] // Two contributions deep-merge instead of overwriting
     public void Merge_combines_object_keys_recursively()
     {
         var a = PayloadMapping.Place("a", Json("1"));       // {"a":1}

@@ -1,6 +1,6 @@
 namespace vos.Service.Xylem.Services;
 
-// Streams an upload to a temp file, enforcing the size cap as it copies (#5845) so a very large
+// Streams an upload to a temp file, enforcing the size cap as it copies so a very large
 // IFC is never held whole in memory and an over-cap upload is stopped early rather than fully buffered.
 public static class UploadSpooler
 {

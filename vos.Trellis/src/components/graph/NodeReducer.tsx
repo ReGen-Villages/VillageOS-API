@@ -23,7 +23,7 @@ interface Props {
 /**
  * Installs Sigma nodeReducer/edgeReducer for visual filtering.
  *
- * Edge visibility (Bug #5343):
+ * Edge visibility:
  * - Default: ALL edges visible
  * - Hover: edges touching hovered node brightened
  * - Selection: edges touching selected node visible (others fall under default)
@@ -102,7 +102,7 @@ export function NodeReducer({ searchQuery, searchOptions }: Props) {
       const hovered = currentState.hoveredNodeId;
       const selected = currentState.selectedNodeId;
 
-      // Bug #5365 — predicate filter (PredicateFilterPanel) is an absolute
+      // Predicate filter (PredicateFilterPanel) is an absolute
       // hide. If the edge's predicate is in the user's hidden set, the edge
       // never renders, regardless of hover / selection / search / clustering.
       // Mirrors the type filter's behavior so checkbox state is the single
@@ -132,7 +132,6 @@ export function NodeReducer({ searchQuery, searchOptions }: Props) {
       }
     });
 
-    // ── Priority 1: Search query ────────────────────────────────────────
     if (searchQuery && labelMatcher) {
       setSettings({
         nodeReducer: withNodeFlash((node: string, data: Record<string, unknown>) => {
@@ -148,7 +147,6 @@ export function NodeReducer({ searchQuery, searchOptions }: Props) {
       return;
     }
 
-    // ── Priority 2: Clustering active ───────────────────────────────────
     if (activePredicateIds.size > 0 && clusterMap) {
       setSettings({
         nodeReducer: withNodeFlash((node: string, data: Record<string, unknown>) => {
@@ -164,7 +162,6 @@ export function NodeReducer({ searchQuery, searchOptions }: Props) {
       return;
     }
 
-    // ── Priority 3: Default — all nodes visible with selection highlight
     setSettings({
       nodeReducer: withNodeFlash((node: string, data: Record<string, unknown>) => {
         const selId = useUiStore.getState().selectedNodeId;

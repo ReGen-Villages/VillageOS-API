@@ -4,13 +4,11 @@ using Xunit;
 
 namespace vos.Taproot.Tests;
 
-/// <summary>
-/// The working directory is one value for the whole process, so two classes changing it in parallel
-/// each read the value the other set. That mismatch is not the failure that costs. A class captures
-/// the directory it will restore while another class is holding its own temporary one; that class
-/// deletes the temporary one; the restore then points the process at a directory that is gone, and
-/// every later read of the working directory throws — including in classes that never touch it.
-/// </summary>
+// The working directory is one value for the whole process, so two classes changing it in parallel
+// each read the value the other set. That mismatch is not the failure that costs. A class captures
+// the directory it will restore while another class is holding its own temporary one; that class
+// deletes the temporary one; the restore then points the process at a directory that is gone, and
+// every later read of the working directory throws — including in classes that never touch it.
 public class WorkingDirectoryTestsShareOneCollectionTests
 {
     private static readonly string[] TouchesTheWorkingDirectory =

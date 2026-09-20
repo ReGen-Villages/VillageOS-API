@@ -7,7 +7,7 @@ const resolved =(entries: Record<string, string>): Record<string, EffectivePrope
     Object.entries(entries).map(([name, Type]) => [name, { Value: null, Type, IsInherited: false }]),
   );
 
-// Feature #6146 — a save states the type the platform reports for the property. It was inferred
+// A save states the type the platform reports for the property. It was inferred
 // from the typed text before, so a code stored as text was announced as a number.
 describe('withDeclaredTypes', () => {
   it('carries the platform type alongside each value', () => {

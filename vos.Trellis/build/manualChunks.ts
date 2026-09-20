@@ -5,7 +5,7 @@
  */
 export function pickChunk(id: string): string | undefined {
   // Three.js ecosystem shares one chunk for `instanceof Camera` identity
-  // across OrbitControls + Fragments raycasting (Bug #5297).
+  // across OrbitControls + Fragments raycasting.
   if (
     /node_modules\/three(-[\w-]+)?\//.test(id) ||
     id.includes('node_modules/@react-three/') ||
@@ -27,7 +27,7 @@ export function pickChunk(id: string): string | undefined {
   }
 
   // React kept on its own cache key so unrelated node_modules churn doesn't
-  // invalidate it, and to keep `vendor` under the size warning limit (Bug #5359).
+  // invalidate it, and to keep `vendor` under the size warning limit.
   if (
     /node_modules\/(react|react-dom|scheduler)\//.test(id)
   ) {

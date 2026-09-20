@@ -5,11 +5,11 @@ using Xunit;
 
 namespace vos.Service.Phloem.Tests;
 
-// DAG resolution + validation (Feature #5628, #5632): build the executable DAG from the loaded graph and
+// DAG resolution + validation: build the executable DAG from the loaded graph and
 // validate it acyclic with type-compatible wires.
 public class PipelineModelTests
 {
-    [Fact] // #5873: boundary nodes resolve with a kind + their own declared ports, and no dispatch subdomain.
+    [Fact] // Boundary nodes resolve with a kind + their own declared ports, and no dispatch subdomain.
     public void Build_BoundaryNodes_ResolveKindAndDeclaredPorts()
     {
         var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
@@ -101,7 +101,7 @@ public class PipelineModelTests
         wire.ToPort.Should().Be("message");
     }
 
-    // The whole point of the flags (#6516): a model may call its archetypes anything, and a deployment that
+    // The whole point of the flags: a model may call its archetypes anything, and a deployment that
     // renames them used to leave this orchestrator starting cleanly and finding nothing.
     [Fact]
     public void Build_WhenTheModelNamesEveryArchetypeSomethingElse_ResolvesTheSameDag()
@@ -284,7 +284,7 @@ public class PipelineModelTests
     public void Validate_Cycle_IsRejected()
     {
         var (fx, pipelineId) = TestGraphs.DemoPipeline();
-        // add the back-edge Echo –carries(echo→message)→ Generate to make a cycle
+        // add the back-relationship Echo –carries(echo→message)→ Generate to make a cycle
         fx.Rel(fx.Get("Echo"), fx.Get("carries"), fx.Get("Generate"), ("fromPort", "echo"), ("toPort", "message"));
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
 

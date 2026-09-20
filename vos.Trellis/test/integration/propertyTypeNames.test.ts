@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { VOS_TYPES } from '../../src/utils/constants';
 
-// The client holds the platform's property type names as a compiled set (#6147), which checks the
+// The client holds the platform's property type names as a compiled set, which checks the
 // names it writes but cannot notice when the platform's own list changes. This reads the list from
 // a running platform and compares it, so a type added on one side and not the other fails a build
 // rather than surfacing later as a property the GUI mishandles for no visible reason.

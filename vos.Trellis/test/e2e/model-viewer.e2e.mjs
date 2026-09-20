@@ -271,7 +271,7 @@ test('ModelPage renders the Fragments artifact via WebGL', async () => {
   }
 });
 
-// Bug #5366 — unchecking every type must empty the canvas. The regression this
+// Unchecking every type must empty the canvas. The regression this
 // guards is specific: visibility used to be driven by a list of IFC GlobalIds
 // built from the model's Things, and a .frag holds far more elements than the
 // model has Things for. Hiding "everything" reached only the mapped few, so the

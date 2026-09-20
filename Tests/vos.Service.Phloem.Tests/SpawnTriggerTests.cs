@@ -5,7 +5,7 @@ using Xunit;
 
 namespace vos.Service.Phloem.Tests;
 
-// #5633: one /handle, two spawn shapes — http {pipelineId,params} (sync) and the graph `runs` relationship
+// One /handle, two spawn shapes — http {pipelineId,params} (sync) and the graph `runs` relationship
 // envelope {targetId, properties} (fire-and-forget). SpawnTrigger classifies and resolves the pipelineId.
 public class SpawnTriggerTests
 {
@@ -27,7 +27,7 @@ public class SpawnTriggerTests
     [Fact]
     public void Resolve_HttpBodyWithAsync_IsAsyncHttpSpawn()
     {
-        // The editor's Run uses an async spawn so it gets the run id up front and animates over SSE (#5635).
+        // The editor's Run uses an async spawn so it gets the run id up front and animates over SSE.
         var body = JsonSerializer.Serialize(new { pipelineId = Pipe.ToString(), @async = true });
         var t = SpawnTrigger.Resolve(Json(body));
 

@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace vos.Service.Shared.DagNode;
 
-// Base a microservice inherits to act as a node in a pipeline DAG (Feature #5628). It maps the uniform
+// Base a microservice inherits to act as a node in a pipeline DAG. It maps the uniform
 // orchestrator envelope {runId,nodeId,params,inputs} → {success,outputs,error} onto the
 // subclass's ExecuteNodeAsync, resolving any graph-reference inputs first. The envelope is
 // additive: a service detects a node invocation with IsNodeEnvelope and routes it
@@ -17,7 +17,6 @@ public abstract class DagNodeService : MyceliumClientBase
     {
     }
 
-    // The input/output ports this node advertises — served at /manifest and shown in the editor.
     public abstract IReadOnlyList<PortDescriptor> Ports { get; }
 
     // Map resolved inputs + params to outputs. Throw to fail the node — the failure is reported as
@@ -31,8 +30,6 @@ public abstract class DagNodeService : MyceliumClientBase
         && root.TryGetProperty("runId", out _)
         && root.TryGetProperty("nodeId", out _);
 
-    // Parse the envelope, resolve reference inputs, run the node, and shape the reply. A service
-    // wires this into its /handle after IsNodeEnvelope matches.
     public async Task<NodeResponse> HandleNodeAsync(JsonElement root, CancellationToken cancellationToken = default)
     {
         NodeRequest request;

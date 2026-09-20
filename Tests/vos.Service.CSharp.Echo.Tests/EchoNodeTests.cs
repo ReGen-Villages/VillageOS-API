@@ -1,4 +1,4 @@
-// EchoNode is the reference pipeline DAG node (Feature #5628, #5631): it copies its "message" input
+// EchoNode is the reference pipeline DAG node: it copies its "message" input
 // to its "echo" output through the shared DagNodeService envelope. These tests pin that behaviour and
 // the advertised port manifest.
 

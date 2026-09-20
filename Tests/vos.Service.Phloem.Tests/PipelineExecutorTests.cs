@@ -7,7 +7,7 @@ using Xunit;
 
 namespace vos.Service.Phloem.Tests;
 
-// The orchestration core (Feature #5628, #5632): synchronous spawn-and-wait, routing each node's outputs to
+// The orchestration core: synchronous spawn-and-wait, routing each node's outputs to
 // its downstream inputs, halting dependents on failure. Mycelium is faked so the logic is tested without HTTP.
 public class PipelineExecutorTests
 {
@@ -281,9 +281,9 @@ public class PipelineExecutorTests
 
     // --- helpers ---
 
-    // Field-level mapping + merge (#5874) ---------------------------------------------------------------
+    // Field-level mapping + merge ---------------------------------------------------------------
 
-    [Fact] // TC #5883 at the executor level: two wires into one input deep-merge by their to-paths
+    [Fact] // Two wires into one input deep-merge by their to-paths
     public async Task RunAsync_TwoWiresIntoOneInput_DeepMergeByToPath()
     {
         var (fx, pipelineId) = TestGraphs.FieldMergePipeline();
@@ -309,9 +309,9 @@ public class PipelineExecutorTests
         input.GetProperty("b").GetString().Should().Be("BB");
     }
 
-    // On-wire JSONata transforms (#5875) ----------------------------------------------------------------
+    // On-wire JSONata transforms ----------------------------------------------------------------
 
-    [Fact] // TC #5885: a JSONata transform reshapes the upstream output before the downstream input
+    [Fact] // A JSONata transform reshapes the upstream output before the downstream input
     public async Task RunAsync_WireTransform_ReshapesUpstreamOutput()
     {
         var (fx, pipelineId) = TestGraphs.WireTransformPipeline("{\"name\": firstName & \" \" & lastName}");
@@ -338,7 +338,7 @@ public class PipelineExecutorTests
         envelope.GetProperty("inputs").GetProperty("in").GetProperty("name").GetString().Should().Be("Ada Lovelace");
     }
 
-    [Fact] // TC #5886: an invalid transform is caught at pre-run validation — the run fails without dispatching
+    [Fact] // An invalid transform is caught at pre-run validation — the run fails without dispatching
     public async Task RunAsync_InvalidWireTransform_FailsValidationBeforeDispatch()
     {
         var (fx, pipelineId) = TestGraphs.WireTransformPipeline("this is ( not valid jsonata");
@@ -352,9 +352,9 @@ public class PipelineExecutorTests
         gateway.Dispatched.Should().BeEmpty("a pipeline that fails validation never dispatches a node");
     }
 
-    // Boundary I/O nodes (#5873) ------------------------------------------------------------------------
+    // Boundary I/O nodes ------------------------------------------------------------------------
 
-    [Fact] // TC #5879: Input node output ports are filled from run params
+    [Fact] // Input node output ports are filled from run params
     public async Task RunAsync_InputBoundaryNode_SeedsOutputPortsFromRunParams()
     {
         var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
@@ -374,7 +374,7 @@ public class PipelineExecutorTests
         gateway.Dispatched.Should().Equal("ech");
     }
 
-    [Fact] // TC #5880: value wired into the Output node becomes the run result
+    [Fact] // A value wired into the Output node becomes the run result
     public async Task RunAsync_OutputBoundaryNode_CollectsWiredInputAsRunResult()
     {
         var (fx, pipelineId) = TestGraphs.BoundaryPipeline();

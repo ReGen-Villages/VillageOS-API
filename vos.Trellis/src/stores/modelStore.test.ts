@@ -60,7 +60,7 @@ describe('modelStore', () => {
     expect(useModelStore.getState().relationships.map((r) => r.Id)).toEqual(['r2']);
   });
 
-  // Bug #6143 — a batch could set a property but never take one away, so a deleted property stayed
+  // A batch could set a property but never take one away, so a deleted property stayed
   // in the store until the whole model was reloaded.
   it('applyBatch removes a property from a thing and a relationship', () => {
     useModelStore.getState().setThings([{ ...thing('1', 'A'), Properties: { keep: 1, drop: 2 } }]);

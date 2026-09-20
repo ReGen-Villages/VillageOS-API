@@ -139,7 +139,7 @@ class ReadsTheStructure(unittest.TestCase):
         self.assertIn("levels", str(raised.exception))
 
     # A pattern whose groups end at the same place gives two levels the same node name, and a name
-    # can only be one thing. Better said than quietly resolved one way or the other.
+    # can only be one thing. Said, rather than quietly resolved one way or the other.
     def test_one_name_read_as_two_levels_is_refused(self):
         with self.assertRaises(L.LayoutError) as raised:
             L.read_layout(spec(pattern=r"(?P<site>[A-Z]+)(?P<room>)-(?P<cell>\d{2})",

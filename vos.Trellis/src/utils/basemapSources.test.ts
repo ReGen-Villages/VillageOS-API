@@ -131,7 +131,7 @@ describe('styleForSource', () => {
   });
 });
 
-// Feature #6912 — what the model says about drawing land rather than a diagram. Every part is
+// What the model says about drawing land rather than a diagram. Every part is
 // optional, and a part stated without what it needs is dropped rather than half-applied: a height
 // cannot be read off a tile pyramid without knowing how the pyramid packs one.
 describe('what a source says about raising the ground', () => {

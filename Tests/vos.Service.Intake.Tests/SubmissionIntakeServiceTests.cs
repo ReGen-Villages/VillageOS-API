@@ -32,13 +32,13 @@ public class SubmissionIntakeServiceTests
         }
         """;
 
-    /// <summary>What the route hands this service. Reading a posted document is the route's, because the
-    /// ticket is checked against the address in it before anything is written.</summary>
+    // What the route hands this service. Reading a posted document is the route's, because the
+    // ticket is checked against the address in it before anything is written.
     private static Submission Document => SubmissionReader.Read(DocumentText);
 
-    /// <summary>A service talking to a model seeded from the analysis templates: the archetypes answer, and
-    /// the test says what happens to everything else. <see cref="ServiceOfAnUnseededModel"/> is the one
-    /// that does not.</summary>
+    // A service talking to a model seeded from the analysis templates: the archetypes answer, and
+    // the test says what happens to everything else. ServiceOfAnUnseededModel is the one
+    // that does not.
     private static SubmissionIntakeService Service(Func<HttpRequestMessage, HttpResponseMessage> respond) =>
         ServiceOfAnUnseededModel(Seeded(respond));
 
@@ -46,8 +46,8 @@ public class SubmissionIntakeServiceTests
         Func<HttpRequestMessage, HttpResponseMessage> respond) =>
         ServiceAnswering(new MockHttpMessageHandler(respond), ReadingASeededModel());
 
-    /// <summary>For a test whose answers must be able to overlap; a handler answering synchronously runs
-    /// each call to completion before the next starts, whatever the caller did.</summary>
+    // For a test whose answers must be able to overlap; a handler answering synchronously runs
+    // each call to completion before the next starts, whatever the caller did.
     private static SubmissionIntakeService ServiceOfAnUnseededModel(
         Func<HttpRequestMessage, Task<HttpResponseMessage>> respond) =>
         ServiceAnswering(MockHttpMessageHandler.AnsweringAsynchronously(respond), ReadingASeededModel());
@@ -65,14 +65,14 @@ public class SubmissionIntakeServiceTests
             NullLogger<SubmissionIntakeService>.Instance,
             new FakeTimeProvider(WillowBend.ArrivedAt));
 
-    /// <summary>A clock that does not move, so an arrival time can be asserted rather than bounded.</summary>
+    // A clock that does not move, so an arrival time can be asserted rather than bounded.
     private sealed class FakeTimeProvider(DateTime now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => new(now, TimeSpan.Zero);
     }
 
-    /// <summary>A service reading its vocabularies out of the model a test built, against archetypes that
-    /// answer.</summary>
+    // A service reading its vocabularies out of the model a test built, against archetypes that
+    // answer.
     private static (SubmissionIntakeService Service, StubSubscriptions Read) ServiceReading(DeclaredModel model)
     {
         var read = new StubSubscriptions(model.Build());
@@ -106,7 +106,7 @@ public class SubmissionIntakeServiceTests
     }
 
     // A model seeded with the archetypes but not the vocabularies would take a submission and write the
-    // words back with no edge, which is the state land allocation reads as every allocation uncategorised.
+    // words back with no relationship, which is the state land allocation reads as every allocation uncategorised.
     [Fact]
     public async Task A_model_holding_the_archetypes_but_not_the_vocabularies_is_refused()
     {
@@ -119,7 +119,7 @@ public class SubmissionIntakeServiceTests
     }
 
     // The name is the contract with the platform's land-intake template, which declares `SubmittedSource`
-    // beside the catalogue's `OpenDataSource` so a prune can tell them apart (platform Bug #6840). Asking
+    // beside the catalogue's `OpenDataSource` so a prune can tell them apart. Asking
     // for a name the template does not declare refuses every submission, and nothing here would say why —
     // so the string is pinned rather than left to be read off a rename someone did in the other
     // repository.
@@ -282,8 +282,8 @@ public class SubmissionIntakeServiceTests
                 "the model answers a name it does not hold with an empty body as readily as with a 404");
     }
 
-    /// <summary>The record this submission's arrival is kept on, under the identifier the service derives to
-    /// ask whether it is already there.</summary>
+    // The record this submission's arrival is kept on, under the identifier the service derives to
+    // ask whether it is already there.
     private static Guid RecordIdentity() =>
         StableIdentity.Derive(WillowBend.SubmissionId, SubmissionFragmentComposer.SubmissionRole);
 

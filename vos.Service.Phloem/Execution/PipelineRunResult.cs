@@ -2,7 +2,6 @@ using System.Text.Json;
 
 namespace vos.Service.Phloem.Execution;
 
-// Terminal status of a run or a node.
 public static class RunStatus
 {
     public const string Running = "running";
@@ -13,7 +12,6 @@ public static class RunStatus
     public const string Partial = "partial";
 }
 
-// The outcome of a single node in a run.
 public sealed record NodeRunResult(
     Guid NodeId,
     string Name,
@@ -23,7 +21,7 @@ public sealed record NodeRunResult(
 
 // The synchronous result Phloem returns to whoever spawned the run. Result is the
 // pipeline's published output — the Output boundary node's collected inputs — or null when the pipeline has
-// no Output node or did not succeed (#5873).
+// no Output node or did not succeed.
 public sealed record PipelineRunResult(
     Guid RunId,
     Guid PipelineId,

@@ -42,7 +42,7 @@ function useGraphIsPopulated(graph: Graph): boolean {
 
 /**
  * Force-directed layout lifecycle. Every graph runs the worker-based
- * ForceAtlas2 (Barnes-Hut O(N log N), off the main thread) so panning and
+ * ForceAtlas2 (Barnes-Hut, off the main thread) so panning and
  * clicking stay responsive while the layout runs.
  *
  * Predicate clustering has no dedicated engine: instead of a main-thread
@@ -105,7 +105,6 @@ export function LayoutController() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sigma, isPopulated, activePredicateKey, layoutKey, isSpreadActive]);
 
-  // Stop / start the supervisor when freeze toggle changes.
   useEffect(() => {
     const supervisor = supervisorReference.current;
     if (!supervisor) return;

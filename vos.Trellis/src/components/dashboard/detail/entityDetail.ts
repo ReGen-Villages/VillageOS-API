@@ -8,10 +8,9 @@ import { effectiveProperties } from '../../../utils/propertyMapper';
 import type { RelationSpec } from '../../../types/dashboard';
 import type { StateTransition, VosThing } from '../../../types/vos';
 
-/** The one canonical predicate whose name is fixed by the platform (an archetype edge). */
+/** The one canonical predicate whose name is fixed by the platform (an archetype relationship). */
 const IS_PREDICATE = 'is';
 
-/** A related Thing surfaced under a relation, with the chosen properties and any nested relations. */
 export interface ResolvedEdge {
   thingId: string;
   /** Subject and target of the underlying relationship, so the card can render "A —predicate→ B". */
@@ -23,7 +22,6 @@ export interface ResolvedEdge {
   children: ResolvedRelation[];
 }
 
-/** One relation group on the card: every edge of a single {@link RelationSpec} from an anchor Thing. */
 export interface ResolvedRelation {
   label: string;
   predicate: string;
@@ -31,7 +29,7 @@ export interface ResolvedRelation {
   edges: ResolvedEdge[];
 }
 
-/** Archetype name for each Thing, from its direct `is`-edge. First writer wins. */
+/** Archetype name for each Thing, from its direct `is`-relationship. First writer wins. */
 function archetypeNames(index: ModelIndex): Map<string, string> {
   const isId = index.predicateNameToId.get(IS_PREDICATE);
   const names = new Map<string, string>();
@@ -52,9 +50,9 @@ function selectProperties(thing: VosThing, which: RelationSpec['properties'], in
 
 /**
  * Resolve the configured relations against the model, following each {@link RelationSpec} from the
- * root Thing outward. Array order is preserved (it is the display order); within a group the edges
+ * root Thing outward. Array order is preserved (it is the display order); within a group the relationships
  * are sorted by the related Thing's name for stability. Cycle-guarded per path so a relation that
- * loops back (Order references Wave, Wave contains Order) can't recurse forever.
+ * loops back (a project references a phase, the phase contains the project) can't recurse forever.
  */
 export function resolveRelations(
   rootId: string,
@@ -92,7 +90,6 @@ export function resolveRelations(
           const relatedName = related?.Name ?? relatedId;
           const nextVisited = new Set(visited).add(relatedId);
 
-          // Hoist each inline child's matched properties onto this row, ahead of the row's own.
           const hoisted = inlineSpecs.flatMap((child) =>
             walk(relatedId, [child], nextVisited).flatMap((group) => group.edges.flatMap((e) => e.properties)),
           );
@@ -116,7 +113,6 @@ export function resolveRelations(
   return walk(rootId, specs, new Set([rootId]));
 }
 
-/** A derived-state change of the root Thing, for the handling-history list. */
 export interface StateChange {
   at: string;
   entered: string[];

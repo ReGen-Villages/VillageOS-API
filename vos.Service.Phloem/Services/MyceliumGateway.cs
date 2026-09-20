@@ -127,8 +127,6 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         return new NodeDispatchResult((int)response.StatusCode, body);
     }
 
-    // --- helpers ---
-
     private async Task<PipelineGraph> LoadSnapshotAsync(object selector, TimeSpan timeout, CancellationToken cancellationToken)
     {
         var client = await CreateAuthenticatedClientAsync(timeout);
@@ -147,7 +145,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     }
 
     // The archetype playing a role, found by the flag it carries rather than by a name this orchestrator
-    // was told (#6516). Asked for on its own: markedTypes would answer with every Thing that already `is`
+    // was told. Asked for on its own: markedTypes would answer with every Thing that already `is`
     // one, which for a run archetype is every run ever recorded. An archetype cannot change role while the
     // process lives, and this runs once per node run, so the answer is kept.
     private async Task<Guid> ArchetypeCarryingAsync(string roleFlag, CancellationToken cancellationToken)
@@ -170,7 +168,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 
     // A property reaches the broker as a typed envelope, never as a bare value: the create route reads each
     // one through the same converter the property routes use, and refuses a bare value with a 400 carrying
-    // no body to say why (#6929).
+    // no body to say why.
     private async Task CreateThingWithIdAsync(Guid id, string name, IReadOnlyDictionary<string, string?> properties, CancellationToken cancellationToken)
     {
         var envelopes = properties.ToDictionary(
@@ -201,7 +199,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         return new Guid(System.Security.Cryptography.MD5.HashData(buffer));
     }
 
-    // Per-item NodeRun id for a fan-out — stable per (run, node, item index) (#5648).
+    // Per-item NodeRun id for a fan-out — stable per (run, node, item index).
     private static Guid DeterministicGuid(Guid runId, Guid nodeId, int index)
     {
         Span<byte> buffer = stackalloc byte[36];

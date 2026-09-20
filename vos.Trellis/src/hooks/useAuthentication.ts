@@ -67,7 +67,6 @@ export function useAuthenticationState(): AuthenticationState {
     });
   }, []);
 
-  // Restore a prior session from the HttpOnly cookie if its JWT is still valid.
   useEffect(() => {
     if (apiClient.isAuthenticated()) return;
     apiClient.restoreSession().then((restored) => {
@@ -150,7 +149,7 @@ export function useAuthenticationState(): AuthenticationState {
       }
       const message = err instanceof Error ? err.message : 'Login failed';
       // "No models loaded" is ambiguous: a seed loading at startup (poll + retry)
-      // vs. an empty library that will never reach Phase=Done (Bug #5324 — surface
+      // vs. an empty library that will never reach Phase=Done (surface
       // an actionable error). Disambiguate via SeedLoadingStatus before deciding.
       if (message.includes('No models loaded')) {
         try {
@@ -176,7 +175,7 @@ export function useAuthenticationState(): AuthenticationState {
   }, [stopPolling, startSeedPolling]);
 
   const logout = useCallback(async () => {
-    // setAuthFailed(true) is load-bearing (Bug #5325): it forces the next render
+    // setAuthFailed(true) is load-bearing: it forces the next render
     // to see isAuthenticated as false even though apiClient.isAuthenticated()
     // (a non-React field) stays true until the awaited round-trip completes.
     // login() resets authFailed on success.
@@ -226,7 +225,6 @@ export function useAuthenticationState(): AuthenticationState {
     setError(null);
     try {
       const result = await myceliumApi.loadSeed(seedName);
-      // Re-scope the JWT to the newly loaded model (works for login and API-key authentication).
       await apiClient.rescopeToModel(result.modelId);
       useModelStore.getState().clear();
       setModelId(result.modelId);

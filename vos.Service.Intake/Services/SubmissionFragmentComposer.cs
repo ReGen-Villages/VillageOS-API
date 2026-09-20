@@ -3,46 +3,40 @@ using vos.Service.Intake.Models;
 
 namespace vos.Service.Intake.Services;
 
-/// <summary>
-/// The shape a submission has to land in: <c>SiteStudy -studies-&gt; Site</c>, the site carrying what is true
-/// of the land and the study carrying what an analysis makes of it. It is the shape an imported building
-/// model already produces, so no reader has to ask where a site's facts came from, and a study is found by
-/// its flag rather than by its source.
-/// </summary>
-/// <remarks>
-/// A tool in the VillageOS repository reads this file as text. It checks what a submission writes against the
-/// archetypes that declare those properties, and this file is the only place it can learn that. What it takes
-/// from the shape below: the property maps, by the names <c>SiteProperties</c>, <c>StudyProperties</c>,
-/// <c>ParcelProperties</c>, <c>ProjectProperties</c>, <c>ContactProperties</c>, <c>AllocationProperties</c>,
-/// <c>HazardProperties</c>, <c>DataSourceProperties</c> and <c>SubmissionProperties</c>, one per Thing;
-/// each property, from a
-/// <c>Write(properties, …)</c> call or a
-/// <c>["name"] = TypedValue.…</c> entry; the archetypes a submission is composed against, from the
-/// <c>…ArchetypeName</c> constants; and the predicates it may use, from the <c>…PredicateName</c> constants,
-/// matched by name to the fields of <see cref="vos.Service.Intake.Models.ResolvedPredicates"/>.
-/// <para>
-/// Renaming any of them compiles and passes every test here, and the failures are not alike. A renamed
-/// property map stops the model reference building. A renamed <c>…ArchetypeName</c> is quieter: that list is
-/// the gate deciding whether a model is one this producer targets at all, so a shorter list weakens the gate
-/// rather than tripping it, and the reference builds full of findings about a model the producer was never
-/// pointed at. A map added here and not there is quieter still — it builds, it passes, and what that Thing
-/// carries is never checked against the archetype declaring it.
-/// </para>
-/// <para>
-/// Adding an <c>…ArchetypeName</c> tightens the gate rather than weakening it: the producer section reports
-/// only on a model holding every archetype named here, so a model carrying some of them and not the rest
-/// goes silent. That is the intended reading — a submission is composed against the whole set — but it means
-/// a name added here narrows which models the reference says anything about.
-/// </para>
-/// <para>
-/// The vocabularies a submission uses — what an allocation is for, how a boundary was obtained, and what
-/// an assessment is about — are neither named nor listed here, and none is written as a property. A
-/// submitted word is resolved against the Things the model declares (see
-/// <see cref="DeclaredVocabularyReader"/>) and written only as an edge to the one it names, so a project
-/// that adds a term edits the model and deploys nothing, and a reader asking what an allocation is for
-/// follows the edge to a Thing it can ask further questions of.
-/// </para>
-/// </remarks>
+// The shape a submission has to land in: SiteStudy -studies-> Site, the site carrying what is true
+// of the land and the study carrying what an analysis makes of it. It is the shape an imported building
+// model already produces, so no reader has to ask where a site's facts came from, and a study is found by
+// its flag rather than by its source.
+//
+// A tool in the VillageOS repository reads this file as text. It checks what a submission writes against the
+// archetypes that declare those properties, and this file is the only place it can learn that. What it takes
+// from the shape below: the property maps, by the names SiteProperties, StudyProperties,
+// ParcelProperties, ProjectProperties, ContactProperties, AllocationProperties,
+// HazardProperties, DataSourceProperties and SubmissionProperties, one per Thing;
+// each property, from a
+// Write(properties, …) call or a
+// ["name"] = TypedValue.… entry; the archetypes a submission is composed against, from the
+// …ArchetypeName constants; and the predicates it may use, from the …PredicateName constants,
+// matched by name to the fields of vos.Service.Intake.Models.ResolvedPredicates.
+//
+// Renaming any of them compiles and passes every test here, and the failures are not alike. A renamed
+// property map stops the model reference building. A renamed …ArchetypeName is quieter: that list is
+// the gate deciding whether a model is one this producer targets at all, so a shorter list weakens the gate
+// rather than tripping it, and the reference builds full of findings about a model the producer was never
+// pointed at. A map added here and not there is quieter still — it builds, it passes, and what that Thing
+// carries is never checked against the archetype declaring it.
+//
+// Adding an …ArchetypeName tightens the gate rather than weakening it: the producer section reports
+// only on a model holding every archetype named here, so a model carrying some of them and not the rest
+// goes silent. That is the intended reading — a submission is composed against the whole set — but it means
+// a name added here narrows which models the reference says anything about.
+//
+// The vocabularies a submission uses — what an allocation is for, how a boundary was obtained, and what
+// an assessment is about — are neither named nor listed here, and none is written as a property. A
+// submitted word is resolved against the Things the model declares (see
+// DeclaredVocabularyReader) and written only as a relationship to the one it names, so a project
+// that adds a term edits the model and deploys nothing, and a reader asking what an allocation is for
+// follows the relationship to a Thing it can ask further questions of.
 public static class SubmissionFragmentComposer
 {
     public const string SiteStudyFlag = "__IsSiteStudy";
@@ -52,8 +46,8 @@ public static class SubmissionFragmentComposer
     public const string ProposesPredicateName = "proposes";
     public const string ServedAfterPredicateName = "servedAfter";
 
-    /// <summary>What the submission record's identifier is derived under. Public because the service derives
-    /// the same identifier to ask whether the record is already there.</summary>
+    // What the submission record's identifier is derived under. Public because the service derives
+    // the same identifier to ask whether the record is already there.
     public const string SubmissionRole = "submission";
 
     public const string SiteArchetypeName = "Site";
@@ -63,16 +57,15 @@ public static class SubmissionFragmentComposer
     public const string ContactArchetypeName = "Contact";
     public const string ProgrammeAllocationArchetypeName = "ProgrammeAllocation";
     public const string HazardAssessmentArchetypeName = "HazardAssessment";
-    /// <summary>A source a submitter named is that submission's own, minted under an identifier derived
-    /// from it, so it belongs to the group and goes when the submission is cleared. The catalogue's
-    /// archetype is the one that carries the mark ending a prune's walk, and it is not this one — held in
-    /// common they could not be told apart, and a submitter's source outlived the submission that named it
-    /// (platform Bug #6840).</summary>
+    // A source a submitter named is that submission's own, minted under an identifier derived
+    // from it, so it belongs to the group and goes when the submission is cleared. The catalogue's
+    // archetype is the one that carries the mark ending a prune's walk, and it is not this one — held in
+    // common they could not be told apart, and a submitter's source outlived the submission that named it.
     public const string SubmittedSourceArchetypeName = "SubmittedSource";
     public const string SubmissionArchetypeName = "Submission";
 
-    /// <param name="arrivedAt">When this submission reached the service, or null when the model already
-    /// holds its record and its arrival is already recorded.</param>
+    // arrivedAt: When this submission reached the service, or null when the model already
+    // holds its record and its arrival is already recorded.
     public static ComposedSubmission Compose(
         Submission submission, ResolvedPredicates predicates, ResolvedArchetypes archetypes,
         DeclaredVocabulary vocabulary, DateTime? arrivedAt)
@@ -102,7 +95,7 @@ public static class SubmissionFragmentComposer
                 $"{subject.Name} {predicate.Name} {target.Name}", subject.Id, predicate.Id, target.Id));
         }
 
-        // Everything an archetype declares is inherited through this edge, so a correction is an edit to
+        // Everything an archetype declares is inherited through this relationship, so a correction is an edit to
         // the model rather than a redeployment of this service.
         void BeArchetype(NamedThing thing, Guid archetype, string archetypeName) =>
             Relate(thing, predicates.Is, new NamedThing(archetype, archetypeName));
@@ -113,8 +106,8 @@ public static class SubmissionFragmentComposer
 
         // One demand of the study's own per demand the analysis declares. A coverage and a shortfall are
         // properties of one study's demand, so a study sharing the analysis's demands would have nowhere to
-        // hold either. Which demands came before is written here as edges rather than compared at every
-        // recompute, so the reduction that adds up what they took ranges over what those edges reach. The
+        // hold either. Which demands came before is written here as relationships rather than compared at every
+        // recompute, so the reduction that adds up what they took ranges over what those relationships reach. The
         // set comes from the mark the analysis carries, so a third demand costs no change here.
         //
         // Held by `has` rather than by a predicate of their own so that a prune rooted at the site reaches
@@ -135,12 +128,12 @@ public static class SubmissionFragmentComposer
             servedBefore.Add(demandThing);
         }
 
-        // Discovery walks outwards from the site through this edge to find which sources cover it, so a
+        // Discovery walks outwards from the site through this relationship to find which sources cover it, so a
         // site related to no Place reaches none and every source reads as covering nowhere — which is
         // indistinguishable from a model holding no source at all, and reports neither a resolved source
         // nor an unresolved one. The root is enough for a source that covers everything. Narrower Places
         // are not minted from the submitted country: that is an open set nobody enumerates, `country` is
-        // optional, and a term the model does not hold would have to be refused (Task 6684).
+        // optional, and a term the model does not hold would have to be refused.
         Relate(siteThing,
             new PredicateIdentity(
                 vocabulary.PlaceNesting.Predicate.Name, vocabulary.PlaceNesting.Predicate.Id, Minted: false),
@@ -149,7 +142,7 @@ public static class SubmissionFragmentComposer
         // The arrival itself, kept where a reviewer can ask about it. It proposes the site rather than
         // holding it: a promotion carries the group reachable from the site through `has` and `studies`,
         // and this record belongs to intake — it is resolved after the copy has landed, so a copy of it in
-        // a project model would read as waiting for ever. The record asserts the edge and the site does
+        // a project model would read as waiting for ever. The record asserts the relationship and the site does
         // not, which is what leaves it behind when the site travels.
         var submissionThing = new NamedThing(
             StableIdentity.Derive(submissionId, SubmissionRole), $"{siteName} Submission");
@@ -186,9 +179,9 @@ public static class SubmissionFragmentComposer
         Relate(projectThing, predicates.Has, contactThing);
         BeArchetype(contactThing, archetypes.Contact, ContactArchetypeName);
 
-        // An edge to a term the model declares, through the predicate the model marks for that vocabulary.
+        // A relationship to a term the model declares, through the predicate the model marks for that vocabulary.
         // Never minted: the term and the predicate both come from the model, and a predicate invented here
-        // would carry no mark, so the readers that follow it by mark would never find the edge.
+        // would carry no mark, so the readers that follow it by mark would never find the relationship.
         void RelateToTerm(NamedThing subject, DeclaredTerms declared, DeclaredTerm term) =>
             Relate(subject,
                 new PredicateIdentity(declared.Predicate.Name, declared.Predicate.Id, Minted: false),
@@ -285,7 +278,7 @@ public static class SubmissionFragmentComposer
             var hazardThing = AssessmentOf(hazardType);
 
             // What the submitter says they have seen, written where the portal's grading cannot reach it:
-            // `reportedLevel` takes facts and `hazardLevel` takes observations, and the edge goes through a
+            // `reportedLevel` takes facts and `hazardLevel` takes observations, and the relationship goes through a
             // predicate of its own. The two disagreeing is what a reviewer wants to see, not a conflict to
             // settle — somebody who has watched their land flood knows what a regional model does not.
             if (hazard.ReportedLevel is { } reported && !string.IsNullOrWhiteSpace(reported))
@@ -340,7 +333,7 @@ public static class SubmissionFragmentComposer
     }
 
     // What the submission was called where it was filled in, so a group of Things can be traced back to it.
-    // The disposition a reviewer reaches is an edge written later and never a value here: a submission
+    // The disposition a reviewer reaches is a relationship written later and never a value here: a submission
     // arrives with none, which is what reads as waiting.
     private static Dictionary<string, TypedValue> SubmissionProperties(string submissionId, DateTime? arrivedAt)
     {
@@ -378,7 +371,7 @@ public static class SubmissionFragmentComposer
         return properties;
     }
 
-    // What the allocation is for is the edge to the declared term, not a value here.
+    // What the allocation is for is the relationship to the declared term, not a value here.
     //
     // The share is written as given. Shares are normalised across the chosen categories further down the
     // analysis, so a set that does not reach a hundred is a wizard part-filled, and judging whether they add
@@ -387,7 +380,7 @@ public static class SubmissionFragmentComposer
     // An area is not among them and is not on the wire either. The shared analysis declares it as a formula
     // over the allocation's own share and the parcel its site holds, so a submitted one is a second answer
     // to a question the model already answers — and writing it would fail the whole fragment, since a
-    // derived property refuses every value write (Bug #6762). A caller that sends one is told which field
+    // derived property refuses every value write. A caller that sends one is told which field
     // by name, the way this service refuses every field it does not write.
     private static Dictionary<string, TypedValue> AllocationProperties(SubmittedAllocation allocation)
     {
@@ -396,7 +389,7 @@ public static class SubmissionFragmentComposer
         return properties;
     }
 
-    // A submission writes nothing onto an assessment. What it is about is the edge to the declared term;
+    // A submission writes nothing onto an assessment. What it is about is the relationship to the declared term;
     // the level and the date it was assessed on take observations only, written when the source is resolved,
     // and a level a planner remembered would read as an assessment and is not one.
     //
@@ -411,7 +404,7 @@ public static class SubmissionFragmentComposer
         return properties;
     }
 
-    // How the boundary was obtained is the edge to the declared term, not a value here.
+    // How the boundary was obtained is the relationship to the declared term, not a value here.
     private static Dictionary<string, TypedValue> ParcelProperties(SubmittedParcel parcel)
     {
         var boundary = parcel.Boundary

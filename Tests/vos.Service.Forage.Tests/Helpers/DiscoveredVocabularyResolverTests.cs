@@ -6,8 +6,7 @@ using Xunit;
 
 namespace vos.Service.Forage.Tests.Helpers;
 
-// The whole resolution is read from the model's declaration (#6809; the declaration is platform User
-// Story 6773): the marked archetype names the property its word arrives under, and the shape edge
+// The whole resolution is read from the model's declaration: the marked archetype names the property its word arrives under, and the shape relationship
 // names the subject and the predicate. Nothing in the resolver names a vocabulary, so every scenario
 // here declares its own and the resolver has never heard of it.
 public class DiscoveredVocabularyResolverTests
@@ -171,7 +170,7 @@ public class DiscoveredVocabularyResolverTests
         resolution.Unresolved.Should().ContainSingle();
     }
 
-    // Ordered so two runs over one model write their edges the same way twice, which is what makes
+    // Ordered so two runs over one model write their relationships the same way twice, which is what makes
     // the logs of two runs comparable — the same rule the run report is ordered under.
     [Fact]
     public void Planned_edges_arrive_in_one_order_however_the_snapshot_held_them()

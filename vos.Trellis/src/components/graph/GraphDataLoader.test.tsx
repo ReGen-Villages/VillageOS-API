@@ -68,7 +68,6 @@ describe('GraphDataLoader', () => {
 
   it('preserves a settled node position across an incremental update', () => {
     const { rerender } = render(<GraphDataLoader things={[thing('t1'), thing('t2')]} relationships={[]} />);
-    // Simulate the force layout settling t1 somewhere.
     liveGraph.setNodeAttribute('t1', 'x', 123);
     liveGraph.setNodeAttribute('t1', 'y', 456);
 

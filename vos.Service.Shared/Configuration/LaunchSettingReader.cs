@@ -2,7 +2,6 @@ using Microsoft.Extensions.Configuration;
 
 namespace vos.Service.Shared.Configuration;
 
-// Reads one launch setting, taking the command line first and configuration second.
 public sealed class LaunchSettingReader
 {
     private readonly string[] _arguments;

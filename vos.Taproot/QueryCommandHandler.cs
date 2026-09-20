@@ -138,14 +138,12 @@ namespace vos.Taproot
             return inheritedMatch;
         }
 
-        /// <summary>Leaf name of a qualified inherited key: "Device.serialNumber" → "serialNumber".</summary>
         private static string LeafName(string key)
         {
             var dot = key.LastIndexOf('.');
             return dot >= 0 ? key[(dot + 1)..] : key;
         }
 
-        /// <summary>Source path of a qualified inherited key: "Device.serialNumber" → "Device".</summary>
         private static string SourcePrefix(string key)
         {
             var dot = key.LastIndexOf('.');
@@ -291,7 +289,6 @@ namespace vos.Taproot
             _writer.WriteLine($"  Total Properties: {totalProperties}");
             _writer.WriteLine($"  Handlers: {handlerCount}");
 
-            // Top predicates
             if (allRelationships.ValueKind == JsonValueKind.Array && relationshipCount > 0)
             {
                 var predicateCounts = new Dictionary<string, int>();

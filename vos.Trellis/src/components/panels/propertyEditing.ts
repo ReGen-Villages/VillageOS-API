@@ -1,6 +1,6 @@
 /**
  * What a property's declared type means for editing it: which control to offer, and whether the
- * text in that control is something the type can actually hold (#6164).
+ * text in that control is something the type can actually hold.
  *
  * The platform converts an incoming value to the property's stored type and rejects what it cannot
  * convert, and that stays the authority. Checking here is not to make that check redundant — it is

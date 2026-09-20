@@ -1520,10 +1520,11 @@ written `2026-01-15T12:30:00Z`, in universal time, or as `now`.
 | `rename <thing> <new name>` | Rename in place, keeping the identifier and every relationship; the name may contain spaces |
 | `retype <thing> <kind>` | Repoint a Thing's `is` to another kind |
 | `delete thing <thing>`, `delete relationship <id>`, `delete property <thing> <name>` | Remove |
-| `get thing <thing>` | The Thing as structured text |
+| `get thing <thing>`, `get relationship <id>` | The Thing as structured text; a relationship with its properties, by identifier, since a relationship has no name |
 | `set <thing> <name> <value>` | Set a property |
 | `find thing <pattern>`, `find relationships <thing>` | Find by name; a Thing's relationships in both directions |
-| `list things`, `list relations`, `list predicates` | Everything; predicates with how often each is used |
+| `list things [--type=<kind>] [--within=<thing>] [--limit=N] [--properties=a,b] [--name=x,y]` | Things narrowed to a kind, a container, a count, some properties or some names; with no option, all of them |
+| `list relations`, `list predicates` | Every relationship; predicates with how often each is used |
 | `query property <name> <value>`, `query predicate <name>` | Things by property value; relationships by predicate |
 | `query stats` | Counts of Things, relationships, properties and predicates |
 | `temporal snapshot [instant]` | The whole model at an instant |
@@ -1532,13 +1533,19 @@ written `2026-01-15T12:30:00Z`, in universal time, or as `now`.
 | `temporal mutations [thing \| rel <id>] [from] [to]` | Every property change, model-wide or for one object |
 | `range create <thing> <name> <criterion>` | A range, optionally with `--property`, `--bounds-min`, `--bounds-max` |
 | `range list <thing>`, `range get <thing> <name>`, `range delete <thing> <name>` | Own and inherited ranges |
+| `range list relationship <id>`, `state relationship <id>` | The ranges a relationship carries of its own, and its current states |
 | `range validate <criterion>` | Whether a criterion parses, and where it went wrong |
 | `state <thing>` | The states a Thing holds and every range's evaluation |
-| `state query <state>` | Every Thing in a state, kinds left out |
+| `state query <state> [--type=] [--within=] [--limit=] [--properties=] [--name=] [--also-in=a,b] [--not-in=c] [--include-archetypes] [--count]` | Every Thing in a state, narrowed as `list things` is, and further to those also in or not in other states; kinds left out unless asked for; `--count` prints how many alone |
+| `state history <thing> [start] [end]`, `state occurrences <thing> <state> [start] [end]` | Each change of state the platform holds in memory — when, what was entered and left, and the property change that caused it — and each spell spent in one state, an open one named as such; the history reaches back to model load |
 | `engines [ranges \| rollups]` | What the two engines carry, and each reactor in detail |
 | `snapshots` | What subscription snapshots have cost against the writers |
-| `list handlers`, `list services` (`list agents`) | Every connection bound to a service with what the platform resolves for it; every registered service with its health and process |
+| `list handlers`, `list services` (`list agents`) | Every connection bound to a service with what the platform resolves for it; every registered service with its running state, endpoint, health, request statistics (count, average milliseconds, errors, last request) and, while running, its process id, whether it was started outside the Mycelium and its last contact; a failure count when not zero |
 | `start service <service>`, `stop service <service>` | Start a service's process; stop it |
+| `call endpoint <subdomain> <json>`, `call service <handler> <json>` | Post the rest of the line as a JSON body to the endpoint service at that subdomain, or to the handler's daemon (started if needed), and print the answer, formatted when it is JSON; a body that is not JSON is refused before anything is sent |
+| `pipeline list`, `pipeline run <pipeline> [json params] [--wait]`, `pipeline cancel <run-id>`, `pipeline history <pipeline>` | Every pipeline, found by the flag its archetype carries; start a run through the orchestrator (`--wait` prints the per-node result instead of the run id); ask a running pipeline to stop; the runs, newest first |
+| `events watch [--for=SECONDS]` | Each model event as it arrives — time, name, payload — for the given number of seconds (default 30), then return; a watch that received nothing says so |
+| `logs tail [--lines=N] [--service=name]`, `logs follow [--for=SECONDS] [--service=name]`, `logs download [--service=name] [file]` | The last lines of the Mycelium log, or of the named service daemon's log; lines as they are appended for the given number of seconds (default 30); the whole current log file saved into the working directory, under the platform's file name unless one is given |
 | `serialize [file]` (`seed`) | Export the model as a seed, to the screen or a file |
 | `deserialize <file>` | Replace the model from a seed |
 | `plant <file> [mode] [--ringbuffer=N] [--samplerate=N]` | Import a seed and set every property's retention |
@@ -2286,10 +2293,16 @@ Almost every command has an equivalent on the graph page; where one has none, th
 | `find thing` | The search bar, with its three toggles |
 | `find relationships` | The Relationships tab |
 | `query stats` | The Dashboard page's statistics |
-| `list things`, `list relations`, `list predicates` | The graph itself |
+| `list things`, `list relations`, `list predicates` | The graph itself; a page's type filter and container narrowing are `--type` and `--within` on `list things` |
+| `get relationship`, `range list relationship`, `state relationship` | Click a relationship: its panel's properties, and its Ranges tab |
 | `temporal snapshot`, `temporal history`, `temporal mutations` | The Temporal page |
 | `range list`, `range get`, `state` | The Ranges tab |
+| `state history` | The transitions timeline in a Thing's detail window |
 | `list services`, `start service`, `stop service`, `shutdown` | The Dashboard page's services |
+| `call endpoint` | What a page's writing widgets — an action on a row, a form — post to an endpoint |
+| `pipeline list`, `pipeline run`, `pipeline cancel`, `pipeline history` | The Pipelines page: the palette, **Run**, **Cancel** and the history panel |
+| `events watch` | The Dashboard page's activity feed, without the pause, the filters or the colours |
+| `logs tail`, `logs follow`, `logs download` | The Logs page's tail, live stream and download |
 | `submissions list` | The Submissions page; **Show decided** widens it |
 | `submissions reject` | **Reject** on a row |
 | `submissions promote` | **Promote** on a row, with the dialog for the template, what travels, and the name |
@@ -2616,6 +2629,14 @@ property type names the console holds are the ones the platform's write routes a
 change through the model: load a seed, confirm every Thing and relationship draws, search, select a
 Thing and a relationship, create a Thing from the command line and watch it appear without a reload,
 cluster by `is`, open a member's inherited properties, and switch seeds.
+
+A claim about how much the console asks of the platform — one read per completed request, a fetch
+for every Thing the stream already delivered — is settled by counting, and only a tab can count.
+`npm run count-requests -- --url <console> --page / --seconds 60 --out counts.json` signs in, opens
+the page, watches, and writes how many requests the tab made per route (identifiers taken out, so a
+hundred Things read one by one count as one route a hundred times) and how many stream events it
+handled per kind. Point it at a broker that serves the built console, or at `npm run dev`; a scenario
+runs it during a play and keeps the file with its readings.
 
 ---
 

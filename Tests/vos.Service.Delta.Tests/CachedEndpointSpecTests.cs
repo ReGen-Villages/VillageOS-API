@@ -5,7 +5,7 @@ using Xunit;
 
 namespace vos.Service.Delta.Tests;
 
-// Pins the cachesBy role and the DiskCache kind in the catalog vocabulary (#5918). Caching is a
+// Pins the cachesBy role and the DiskCache kind in the catalog vocabulary. Caching is a
 // deployment choice, not part of the canonical tile template, so this spec shows the shape a
 // deployment declares when it wants one: a template reaching DiskCache through cachesBy and
 // supplying the cacheTtl the kind requires.

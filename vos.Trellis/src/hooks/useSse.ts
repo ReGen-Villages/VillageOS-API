@@ -30,7 +30,7 @@ export const SUBSCRIPTION_OPENED = 'SubscriptionOpened';
 type Handler = (...eventArguments: unknown[]) => void;
 type Entry = { event: string; handler: Handler };
 
-// Connection-independent handler registry (re-attached across reconnects, like the old hub).
+// Connection-independent handler registry, re-attached across reconnects.
 const handlers = new Set<Entry>();
 const listeners = new Set<() => void>();
 
@@ -43,7 +43,7 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempt = 0;
 let generation = 0; // bumped on release/reconnect to abort stale async opens
 
-// Highest object-stream sequence (SSE event id) this client has applied (Bug #5943).
+// Highest object-stream sequence (SSE event id) this client has applied.
 // Persists across reconnects so we resume from here — the broker replays committed Facts
 // after it and de-dupes by sequence, closing the disconnect gap precisely instead of
 // re-subscribing at the current head (which skipped everything during the drop). Reset on
@@ -124,7 +124,7 @@ function attachListeners(source: EventSource, trackWatermark = false) {
   }
 }
 
-/** Hand the subscription back. Nothing expires a registry entry (Bug #6562), and a page that
+/** Hand the subscription back. Nothing expires a registry entry, and a page that
  *  declares its own subscription opens one per navigation, so an abandoned entry would go on being
  *  written to for the life of the process. Best effort: a failed release costs one stale entry, and
  *  waiting on it would hold up the stream that replaces it. */
@@ -170,7 +170,7 @@ async function openStreams() {
   // The platform holds a subscription for this open from the moment the request answers, and only
   // an open that goes on to attach its streams records it as the live one. Every other path leaves
   // it here to be handed back — an abandoned entry is one nothing will ever read and nothing will
-  // ever expire (Bug #6562), and a declaration changing mid-open abandons one every time.
+  // ever expire, and a declaration changing mid-open abandons one every time.
   let granted: string | null = null;
   try {
     const token = await apiClient.ensureToken();
@@ -198,7 +198,7 @@ async function openStreams() {
 
     const tokenParameter = `access_token=${encodeURIComponent(streamToken)}`;
 
-    // Resume from where we left off (Bug #5943): on a reconnect the broker replays the
+    // Resume from where we left off: on a reconnect the broker replays the
     // Facts we missed and de-dupes by sequence; on a first connect we have no position, so
     // seed from the fresh snapshot watermark. The stream honours ?lastEventId over the
     // subscription's own watermark, so a fresh subscription still resumes precisely.
@@ -212,7 +212,6 @@ async function openStreams() {
     attachListeners(object, true);
     objectSource = object;
 
-    // System / operational events.
     const sys = new EventSource(`${BASE_URL}/api/events/stream?${tokenParameter}`);
     sys.onerror = () => scheduleReconnect();
     attachListeners(sys);

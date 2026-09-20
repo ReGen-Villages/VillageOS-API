@@ -4,14 +4,12 @@ using System.Linq;
 
 namespace vos.ContinuousIntegration.Tests;
 
-/// <summary>
-/// The services in a checkout, whatever language each is written in.
-///
-/// A service that is renamed or deleted leaves its bin/ and obj/ behind, because both are ignored and
-/// so survive the commit that removes everything else. Counting directories alone reads what is left
-/// as a service, so a guard fails on the machine that once built it while a fresh checkout and the
-/// build agent pass. A directory earns the name only by holding something a person wrote.
-/// </summary>
+// The services in a checkout, whatever language each is written in.
+//
+// A service that is renamed or deleted leaves its bin/ and obj/ behind, because both are ignored and
+// so survive the commit that removes everything else. Counting directories alone reads what is left
+// as a service, so a guard fails on the machine that once built it while a fresh checkout and the
+// build agent pass. A directory earns the name only by holding something a person wrote.
 internal static class ServiceProjects
 {
     public static IEnumerable<DirectoryInfo> Under(string root) =>

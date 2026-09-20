@@ -131,7 +131,7 @@ describe('subscriptionForSpec', () => {
     expect(form.types).toContain('Catchment');
   });
 
-  // A binding narrowed to the selected entity reaches its rows along that entity's edges, so asking
+  // A binding narrowed to the selected entity reaches its rows along that entity's relationships, so asking
   // for its type as well would pull in every other entity's rows for a page showing one.
   it('leaves out a scoped binding\'s type once an entity is selected, and follows its edge instead', () => {
     const scoped = specDrawing({
@@ -181,7 +181,7 @@ describe('subscriptionForSpec', () => {
   });
 
   // The platform applies each rule to everything selected before it, and applies it once. A walk of
-  // two steps is only reproduced if its first edge is asked for before its second.
+  // two steps is only reproduced if its first relationship is asked for before its second.
   it('asks for a walk\'s edges in the order the walk takes them', () => {
     const selector = subscriptionForSpec(
       specDrawing({
@@ -198,7 +198,7 @@ describe('subscriptionForSpec', () => {
     expect(followed.indexOf('studies')).toBeLessThan(followed.indexOf('has'));
   });
 
-  // Bug #6701: a tile saying where its figure came from is useless if the Thing that says so was
+  // A tile saying where its figure came from is useless if the Thing that says so was
   // never sent. The line then drops the source it names, which reads exactly like a figure whose
   // source nobody recorded — the one reading the origin vocabulary exists to refuse.
   it('follows an origin binding to the Thing holding the value and on to what says so', () => {
@@ -260,7 +260,7 @@ describe('subscriptionForSpec', () => {
       SCOPE_ID,
     );
 
-    // The edge is what brings the sources in; the step's archetype narrows what it reached, the way
+    // The relationship is what brings the sources in; the step's archetype narrows what it reached, the way
     // it does for every other walking binding, so it is not asked for as a type of its own.
     expect(selector.traverse!.map((rule) => rule.predicate)).toContain('has');
   });
@@ -335,7 +335,7 @@ describe('subscriptionForSpec', () => {
 });
 
 // A tile reading the newest point of a series holds that series as a nested binding, so what the
-// series narrows by is only reachable through it (Bug #6866).
+// series narrows by is only reachable through it.
 describe('a tile reading the newest point of a series', () => {
   const series = {
     kind: 'timeseries',
@@ -434,8 +434,6 @@ describe('subscriptionForSpec over a rangeBar widget', () => {
   });
 });
 
-// A binding the widget holds and the subscription does not name is a figure that never arrives on a
-// live page, so every one of the widget's bindings has to reach the selector.
 describe('subscriptionForSpec over a lineSeries widget', () => {
   it('asks for every binding the widget holds', () => {
     const selector = subscriptionForSpec(
@@ -451,8 +449,6 @@ describe('subscriptionForSpec over a lineSeries widget', () => {
   });
 });
 
-// A binding the widget holds and the subscription does not name is a figure that never arrives on a
-// live page, so every one of the widget's bindings has to reach the selector.
 describe('subscriptionForSpec over a heatmap widget', () => {
   it('asks for every binding the widget holds', () => {
     const selector = subscriptionForSpec(
@@ -469,8 +465,6 @@ describe('subscriptionForSpec over a heatmap widget', () => {
   });
 });
 
-// A binding the widget holds and the subscription does not name is a figure that never arrives on a
-// live page, so every one of the widget's bindings has to reach the selector.
 describe('subscriptionForSpec over a stackedShares widget', () => {
   it('asks for every binding the widget holds', () => {
     const selector = subscriptionForSpec(
@@ -489,8 +483,6 @@ describe('subscriptionForSpec over a stackedShares widget', () => {
   });
 });
 
-// A binding the widget holds and the subscription does not name is a figure that never arrives on a
-// live page, so every one of the widget's bindings has to reach the selector.
 describe('subscriptionForSpec over a divergingBar widget', () => {
   it('asks for every binding the widget holds', () => {
     const selector = subscriptionForSpec(
@@ -507,8 +499,6 @@ describe('subscriptionForSpec over a divergingBar widget', () => {
   });
 });
 
-// A binding the widget holds and the subscription does not name is a figure that never arrives on a
-// live page, so every one of the widget's bindings has to reach the selector.
 describe('subscriptionForSpec over a smallMultiples widget', () => {
   it('asks for every binding the widget holds', () => {
     const selector = subscriptionForSpec(

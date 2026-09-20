@@ -146,11 +146,19 @@ half-applied fragment. Multiple handled relationships in one fragment are dispat
 }
 ```
 
-Return any 2xx; Mycelium logs non-2xx and continues. A reasonable body:
+Return any 2xx once the work is done. A reasonable body:
 
 ```json
 { "success": true, "service": "YourService", "relationshipId": "<uuid>", "status": "handled" }
 ```
+
+**What your answer costs.** Mycelium judges the handler's outcome, not the transport: a status
+outside 2xx, or a 2xx whose body says `"success": false`, records the dispatch as **failed**, and
+the reconciler sends it again — so answer that way only when a retry could succeed, and keep the
+work behind a claim per `relationshipId` (below) so the retry does not repeat it. A **`400`** is
+different: it says you read the body and turned it down, the same body would earn the same answer,
+so it is recorded as **refused** with your words and is never re-driven. A 2xx with no `success`
+field, or a body that is not JSON, counts as done.
 
 **The same relationship can be delivered more than once.** Dispatch is at-least-once: when Mycelium
 cannot confirm that a handler finished, it sends the relation again, and a handler that reconnects

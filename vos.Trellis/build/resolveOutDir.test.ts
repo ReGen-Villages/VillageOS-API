@@ -4,7 +4,7 @@ import { resolveOutDir } from './resolveOutDir';
 
 // Resolved rather than written out, so these say which directory is meant instead of how a path is
 // spelled: on Windows the same place is drive-qualified and separated by backslashes, and a literal
-// POSIX string matched nothing there — the sibling case failed on the agent and nowhere else (#6166).
+// POSIX string matched nothing there — the sibling case failed on the agent and nowhere else.
 const GUI = resolve('/repos/VillageOS-API/vos.Trellis');
 const SIBLING_WWWROOT = resolve(GUI, '..', '..', 'VillageOS', 'vos.Mycelium', 'wwwroot');
 

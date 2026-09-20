@@ -269,8 +269,8 @@ static async Task DiscoverSite(
         Log.Warning("Source {Source} left {Subject} undiscovered: {Reason}",
             outcome.Source, outcome.Subject ?? $"site {siteId}", outcome.Reason);
 
-    // A fetched word becomes the edge the model declares before the analysis starts, so what the
-    // analysis reads is already resolved (#6809).
+    // A fetched word becomes the relationship the model declares before the analysis starts, so what the
+    // analysis reads is already resolved.
     await vocabularyEdges.ResolveAsync(siteId, report, cancellationToken);
 
     await ledger.StampWorkedOutAsync(siteId, cancellationToken);

@@ -51,8 +51,8 @@ public class HandlerAuthExtensionsTests
         p.ValidAudience.Should().Be("custom-aud");
     }
 
-    /// <summary>The key a handler is given checks a signature and cannot make one, and the checker
-    /// names the one algorithm it accepts rather than honouring whatever the token claims.</summary>
+    // The key a handler is given checks a signature and cannot make one, and the checker
+    // names the one algorithm it accepts rather than honouring whatever the token claims.
     [Fact]
     public void AddMyceliumTokenAuth_ChecksWithAPublicKeyAndOneNamedAlgorithm()
     {
@@ -99,7 +99,7 @@ public class HandlerAuthExtensionsTests
         act.Should().Throw<FormatException>();
     }
 
-    /// <summary>At startup, not on the first call it fails to answer.</summary>
+    // At startup, not on the first call it fails to answer.
     [Fact]
     public void AddMyceliumTokenAuth_RefusesBase64ThatIsNotAPublicKey()
     {

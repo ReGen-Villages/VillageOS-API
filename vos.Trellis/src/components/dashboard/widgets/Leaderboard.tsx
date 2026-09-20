@@ -29,7 +29,6 @@ function score(row: Row, metrics: LeaderMetric[]): number {
   return wsum ? Math.round((total / wsum) * 1000) / 10 : 0;
 }
 
-/** Entity scorecard: ranks compare-entities by a weighted score across metrics. */
 export function Leaderboard({ widget, context }: { widget: LeaderboardWidget; context: ResolveContext }) {
   const { t } = useTranslation();
   const { loading, value } = useBinding(widget.entities, context);

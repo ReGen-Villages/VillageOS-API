@@ -3,45 +3,40 @@ using System.Text;
 
 namespace vos.Service.Intake;
 
-/// <summary>
-/// The codes this service has sent to addresses, and what it will accept back.
-/// </summary>
-/// <remarks>
-/// What it establishes: whoever answered with the code can read mail sent to that address. That is the
-/// whole of it — it says nothing about who they are, and a person can hold as many addresses as they
-/// like.
-/// <para>
-/// Anybody may ask for a code, so every bound here is a bound on what a stranger can make this service
-/// do. A code dies after a fixed period and after a fixed number of wrong answers, so guessing it is
-/// bounded rather than merely unlikely. One address may be sent only so many codes in a window, which is
-/// what keeps the route from being aimed at somebody else's mailbox. What is held is capped, because
-/// what a stranger can add to must not be able to grow without end.
-/// </para>
-/// <para>
-/// Nothing here survives a restart. A code is good for minutes, and the person whose was lost asks for
-/// another; keeping them would mean writing addresses to disk, which is the one thing this flow is meant
-/// to avoid.
-/// </para>
-/// </remarks>
+// The codes this service has sent to addresses, and what it will accept back.
+//
+// What it establishes: whoever answered with the code can read mail sent to that address. That is the
+// whole of it — it says nothing about who they are, and a person can hold as many addresses as they
+// like.
+//
+// Anybody may ask for a code, so every bound here is a bound on what a stranger can make this service
+// do. A code dies after a fixed period and after a fixed number of wrong answers, so guessing it is
+// bounded rather than merely unlikely. One address may be sent only so many codes in a window, which is
+// what keeps the route from being aimed at somebody else's mailbox. What is held is capped, because
+// what a stranger can add to must not be able to grow without end.
+//
+// Nothing here survives a restart. A code is good for minutes, and the person whose was lost asks for
+// another; keeping them would mean writing addresses to disk, which is the one thing this flow is meant
+// to avoid.
 public sealed class AddressVerification(TimeProvider time)
 {
-    /// <summary>Long enough to find the message and read it, short enough that a code left lying in a
-    /// mailbox is not a way in.</summary>
+    // Long enough to find the message and read it, short enough that a code left lying in a
+    // mailbox is not a way in.
     public static readonly TimeSpan ValidFor = TimeSpan.FromMinutes(15);
 
-    /// <summary>A six-figure code guessed at random comes up once in a million, so a handful of answers
-    /// leaves guessing hopeless while a person who mistypes theirs is not locked out.</summary>
+    // A six-figure code guessed at random comes up once in a million, so a handful of answers
+    // leaves guessing hopeless while a person who mistypes theirs is not locked out.
     public const int AnswersAllowed = 5;
 
-    /// <summary>How many codes one address may be sent before it is left alone. Somebody asking again
-    /// because the first did not arrive is ordinary; a dozen is this service being used to post to
-    /// a mailbox its owner never gave us.</summary>
+    // How many codes one address may be sent before it is left alone. Somebody asking again
+    // because the first did not arrive is ordinary; a dozen is this service being used to post to
+    // a mailbox its owner never gave us.
     public const int CodesPerAddress = 3;
 
     public static readonly TimeSpan CodeBudgetWindow = TimeSpan.FromHours(1);
 
-    /// <summary>Beyond this the oldest is dropped, so the room a stranger can take is fixed. Somebody
-    /// whose pending code is dropped asks for another.</summary>
+    // Beyond this the oldest is dropped, so the room a stranger can take is fixed. Somebody
+    // whose pending code is dropped asks for another.
     public const int MostAddressesHeld = 10_000;
 
     private const int CodeDigits = 6;
@@ -53,9 +48,9 @@ public sealed class AddressVerification(TimeProvider time)
     private readonly Dictionary<string, Pending> _pending = [];
     private readonly Lock _gate = new();
 
-    /// <summary>A code to send to this address, or null where it has been sent as many as the window
-    /// allows. Asking again replaces whatever code was outstanding, so the last one sent is the one that
-    /// works.</summary>
+    // A code to send to this address, or null where it has been sent as many as the window
+    // allows. Asking again replaces whatever code was outstanding, so the last one sent is the one that
+    // works.
     public string? CodeFor(string emailAddress)
     {
         var key = Key(emailAddress);
@@ -80,17 +75,15 @@ public sealed class AddressVerification(TimeProvider time)
         }
     }
 
-    /// <summary>
-    /// The one thing a refused code is ever told, and the sameness is the point rather than an economy.
-    /// Answering a code costs a caller nothing and they name the address themselves, so a message that
-    /// distinguished a wrong code from an address nothing was sent to would answer "has somebody just
-    /// started a submission under this address" for any address anybody cared to type.
-    /// </summary>
+    // The one thing a refused code is ever told, and the sameness is the point rather than an economy.
+    // Answering a code costs a caller nothing and they name the address themselves, so a message that
+    // distinguished a wrong code from an address nothing was sent to would answer "has somebody just
+    // started a submission under this address" for any address anybody cared to type.
     public const string NotTheCode =
         "That code is not one this service is waiting for. Check it, or ask for a new one.";
 
-    /// <summary>Why the code was not accepted, or null when it was — in which case it is spent, and a
-    /// ticket is what the caller carries from here on.</summary>
+    // Why the code was not accepted, or null when it was — in which case it is spent, and a
+    // ticket is what the caller carries from here on.
     public string? WhyRefused(string emailAddress, string? answered)
     {
         var key = Key(emailAddress);
@@ -111,9 +104,9 @@ public sealed class AddressVerification(TimeProvider time)
         }
     }
 
-    /// <summary>Takes back a code that never left this service, so a mail server having a bad afternoon
-    /// does not spend an address's budget on codes nobody could read and lock its owner out for the
-    /// hour.</summary>
+    // Takes back a code that never left this service, so a mail server having a bad afternoon
+    // does not spend an address's budget on codes nobody could read and lock its owner out for the
+    // hour.
     public void NothingWasSent(string emailAddress)
     {
         lock (_gate)

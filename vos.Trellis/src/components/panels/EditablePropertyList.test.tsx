@@ -63,7 +63,7 @@ describe('a property reporting a type the platform accepts', () => {
 
 // The display row rounds a reading to the places the model asks for. An edit box holding that
 // rounded text would save the rounding back over the stored value as soon as anything else on the
-// row changed — editing works on the value, not on how the value is presented (#6163).
+// row changed — editing works on the value, not on how the value is presented.
 describe('editing a reading', () => {
   function editableReading() {
     render(
@@ -90,7 +90,7 @@ describe('editing a reading', () => {
   });
 });
 
-// The control a property is edited with follows the type the platform declares for it (#6164).
+// The control a property is edited with follows the type the platform declares for it.
 describe('the control offered for editing', () => {
   function rowFor(type: string, value: unknown) {
     render(

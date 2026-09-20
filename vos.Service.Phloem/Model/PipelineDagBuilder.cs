@@ -34,7 +34,7 @@ public static class PipelineDagBuilder
         var nodes = nodeThings.Select(n => BuildNode(graph, n)).ToList();
 
         // A wire reaches the builder in either of two shapes, and the second is replacing the first: drawn as
-        // an edge, which caps a node pair at one because the model refuses a second edge on one triple, or
+        // a relationship, which caps a node pair at one because the model refuses a second relationship on one triple, or
         // held as a Thing, which does not. Both carry the same port mapping and yield the same DagWire.
         var wires = new List<DagWire>();
         foreach (var nodeThing in nodeThings)
@@ -62,7 +62,7 @@ public static class PipelineDagBuilder
         };
     }
 
-    // An edge and a wire Thing are different types carrying the same five properties, so each hands over its
+    // A relationship and a wire Thing are different types carrying the same five properties, so each hands over its
     // own reader rather than the mapping being written out twice.
     private static DagWire WireFrom(Guid fromNodeId, Guid toNodeId, Func<string, string?> property) =>
         new(fromNodeId,
@@ -75,7 +75,7 @@ public static class PipelineDagBuilder
 
     private static DagNode BuildNode(PipelineGraph graph, GraphThing nodeThing)
     {
-        // Boundary nodes (#5873) bind no Connection/Service: they declare their own ports (has → Port) and
+        // Boundary nodes bind no Connection/Service: they declare their own ports (has → Port) and
         // are an Input source (params → outputs) or an Output sink (inputs → run result).
         if (graph.IsOfArchetypeCarrying(nodeThing, PipelineArchetypes.PipelineInputFlag))
             return BuildBoundaryNode(graph, nodeThing, DagNodeKind.Input);
@@ -108,7 +108,7 @@ public static class PipelineDagBuilder
         };
     }
 
-    // A boundary node (#5873): ports are declared on the node itself (its own has → Port chain),
+    // A boundary node: ports are declared on the node itself (its own has → Port chain),
     // there is no dispatch subdomain, and its DagNodeKind tells the executor to seed from params
     // (Input) or collect into the run result (Output).
     private static DagNode BuildBoundaryNode(PipelineGraph graph, GraphThing nodeThing, DagNodeKind kind)
@@ -126,7 +126,7 @@ public static class PipelineDagBuilder
     }
 
     // Parse the node's paramBindings property — a JSON object mapping input-port name → the
-    // run-param key that fills it (#5647). Malformed/absent → no bindings (never fails a build).
+    // run-param key that fills it. Malformed/absent → no bindings (never fails a build).
     private static IReadOnlyDictionary<string, string> ParseParamBindings(GraphThing nodeThing)
     {
         var raw = nodeThing.PropertyString(ModelNames.ParamBindings);
