@@ -241,9 +241,9 @@ public class MyceliumClientTests
     }
 
     [Fact]
-    public async Task GetSeedStatusAsync_RoutesToSeedStatusEndpoint()
+    public async Task GetSeedStatusAsync_RoutesToStartupStatusEndpoint()
     {
-        await VerifyGetEndpointHit("/api/mycelium/seed-status", c => c.GetSeedStatusAsync());
+        await VerifyGetEndpointHit("/api/mycelium/startup-status", c => c.GetSeedStatusAsync());
     }
 
     [Fact]
