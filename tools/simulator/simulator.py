@@ -2,10 +2,10 @@
 """simulator — replay a timeline of graph changes against a live Mycelium in (accelerated) real time.
 
 A *timeline* is a deterministic, offset-ordered list of `Action`s: each is one intent — create a
-Thing, create a Relationship, post a Fact, adjust a quantity, delete a Thing — carrying the
-simulated-second `offset` at which it comes due. The simulator sleeps to each offset (scaled by
-`--speed`), routes quantity deltas through a `BalanceLedger` so no balance is ever driven negative,
-and POSTs via the Mycelium client. The platform stamps every write `CommittedAt = UtcNow` (no
+Thing, create a Relationship, post a Fact, adjust a quantity, delete a Thing, post to a route outside
+the write API — carrying the simulated-second `offset` at which it comes due. The simulator sleeps to
+each offset (scaled by `--speed`), routes quantity deltas through a `BalanceLedger` so no balance is
+ever driven negative, and POSTs via the Mycelium client. The platform stamps every write `CommittedAt = UtcNow` (no
 backdating), so anything POSTed now is genuinely now and flows reactor → range re-eval → status
 change → SSE — the change animates in Trellis as if a real user or external system had acted.
 
@@ -32,6 +32,7 @@ import collections
 import json
 import os
 import random
+import re
 import sys
 import threading
 import time
@@ -44,10 +45,11 @@ from mycelium import MyceliumClient, typed_properties        # noqa: E402
 @dataclass
 class Action:
     """One paced intent. ``op`` ∈ {apply_fragment, create_thing, create_rel, set_fact, set_observation,
-    increment, decrement, ledger_set, delete_thing}; ``args`` is op-specific; ``key`` is a human-readable natural
-    key carried for logging and for reading a serialized timeline (the checkpoint keys on the action's
-    index, not this); ``seq`` breaks ties so equal-offset actions keep emission order — a Thing is
-    always created before the relationship that references it."""
+    increment, decrement, ledger_set, delete_thing, http_post}; ``args`` is op-specific; ``key`` is a
+    human-readable natural key carried for logging, for reading a serialized timeline (the checkpoint
+    keys on the action's index, not this) and for a later action to read what an ``http_post``
+    answered; ``seq`` breaks ties so equal-offset actions keep emission order — a Thing is always
+    created before the relationship that references it."""
     offset: float
     seq: int
     actor: str
@@ -73,6 +75,10 @@ class Action:
 BATCHED_OPS = frozenset({"create_thing", "create_rel"})
 """The only ops a standing-world batch — a coalesced fragment or a ``--seed-first`` seed document —
 can carry."""
+
+PLACEHOLDER = re.compile(r"\{\{(\w+)\}\}")
+"""Where an ``http_post`` writes a value it ``reads`` from an earlier post's answer: ``{{name}}``
+anywhere in its address, path, headers or body."""
 
 
 def _fragment_thing(args):
@@ -183,6 +189,7 @@ class Simulator:
         self.checkpoint = Checkpoint(checkpoint)
         self._jitter_rng = random.Random(f"{run_id}:jitter")
         self.stats = collections.Counter()
+        self.answers = {}
 
     # ── per-op executors ─────────────────────────────────────────────────
     def _apply(self, action):
@@ -212,9 +219,44 @@ class Simulator:
                 self.stats["shortfalls"] += 1
         elif op == "delete_thing":
             self._guard_duplicate(lambda: self.client.delete_thing(a["thing_id"]))
+        elif op == "http_post":
+            values = self._values_read(action)
+            self.answers[action.key] = self.client.post(
+                self._filled(a["path"], values), self._filled(a.get("body"), values),
+                self._filled(a.get("headers"), values), self._filled(a.get("address"), values))
         else:
             raise ValueError(f"unknown op {op!r}")
         self.stats[op] += 1
+
+    def _values_read(self, action):
+        """What an ``http_post`` declares in ``reads``: a name for each field of an earlier post's
+        answer it writes into itself. An answer is kept for the run and not journaled, so a read of a
+        post committed before a restart is refused here rather than posting a placeholder."""
+        values = {}
+        for name, read in action.args.get("reads", {}).items():
+            if read["from"] not in self.answers:
+                raise RuntimeError(f"reads {name!r} from {read['from']!r}, which no post has answered")
+            answer = self.answers[read["from"]]
+            if read["field"] not in answer:
+                raise RuntimeError(f"reads {name!r} from {read['from']!r}, whose answer holds no "
+                                   f"{read['field']!r}: {json.dumps(answer)[:200]}")
+            values[name] = answer[read["field"]]
+        return values
+
+    def _filled(self, value, values):
+        if isinstance(value, str):
+            return PLACEHOLDER.sub(lambda found: self._value_named(found.group(1), values), value)
+        if isinstance(value, dict):
+            return {name: self._filled(inner, values) for name, inner in value.items()}
+        if isinstance(value, list):
+            return [self._filled(inner, values) for inner in value]
+        return value
+
+    @staticmethod
+    def _value_named(name, values):
+        if name not in values:
+            raise RuntimeError(f"{{{{{name}}}}} names nothing the action reads")
+        return str(values[name])
 
     def _guard_duplicate(self, call):
         """Re-creating an id or edge that already exists is the expected shape of a resumed/replayed
@@ -371,12 +413,19 @@ class Simulator:
             if self.dry_run:
                 self.stats["dry_run"] += 1
             else:
-                self._apply(action)
+                try:
+                    self._apply(action)
+                except RuntimeError as refusal:
+                    raise RuntimeError(f"{self._named(index, action)} refused: {refusal}") from refusal
             self.checkpoint.record(index, action.offset)
             if index % self.log_every == 0:
-                label = action.key or action.args.get("name", "")
-                self.log(f"[{action.offset:9.0f}s] #{index} {action.op} {label}")
+                self.log(self._named(index, action))
         self.log(f"done: {dict(self.stats)}")
+
+    @staticmethod
+    def _named(index, action):
+        label = action.key or action.args.get("name", "")
+        return f"action #{index} [{action.offset:.0f}s] {action.op} {label}"
 
     def log(self, message):
         print(f"[simulator] {message}", flush=True)
