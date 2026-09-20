@@ -131,6 +131,19 @@ public class RangeCommandHandler
         if (args.Length < 1)
         {
             _writer.WriteLine("Usage: range list <thing>");
+            _writer.WriteLine("   or: range list relationship <id>");
+            return;
+        }
+
+        if (args[0].Equals("relationship", StringComparison.OrdinalIgnoreCase))
+        {
+            if (args.Length < 2 || !Guid.TryParse(args[1], out var relationshipId))
+            {
+                _writer.WriteLine("Usage: range list relationship <id>");
+                return;
+            }
+
+            WriteFormattedJson(await _client!.GetRelationshipRangesAsync(relationshipId));
             return;
         }
 
@@ -244,6 +257,9 @@ public class RangeCommandHandler
         _writer.WriteLine();
         _writer.WriteLine("  range list <thing>");
         _writer.WriteLine("    List all ranges for a thing.");
+        _writer.WriteLine();
+        _writer.WriteLine("  range list relationship <id>");
+        _writer.WriteLine("    List the ranges a relationship carries of its own.");
         _writer.WriteLine();
         _writer.WriteLine("  range get <thing> <name>");
         _writer.WriteLine("    Get a specific range by name.");

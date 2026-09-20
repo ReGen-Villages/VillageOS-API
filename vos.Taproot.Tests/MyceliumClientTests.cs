@@ -426,6 +426,35 @@ public class MyceliumClientTests
     }
 
     [Fact]
+    public async Task GetRelationshipRangesAsync_RoutesToTheRelationshipRangesEndpoint()
+    {
+        var relationshipId = Guid.NewGuid();
+        await VerifyGetEndpointHit($"/api/relationships/{relationshipId}/ranges", c => c.GetRelationshipRangesAsync(relationshipId));
+    }
+
+    [Fact]
+    public async Task GetRelationshipStatesAsync_RoutesToTheRelationshipStatesEndpoint()
+    {
+        var relationshipId = Guid.NewGuid();
+        await VerifyGetEndpointHit($"/api/relationships/{relationshipId}/states", c => c.GetRelationshipStatesAsync(relationshipId));
+    }
+
+    [Fact]
+    public async Task GetRelationshipStatesAsync_OnRefusal_ThrowsCarryingThePlatformsReason()
+    {
+        var (client, _) = NewClient(req => req.RequestUri!.AbsolutePath == "/api/auth/token"
+            ? TokenResponse(ServiceToken)
+            : new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+            {
+                Content = new StringContent("{\"error\":\"Reactive range evaluation is not active for this model.\"}")
+            });
+
+        var act = async () => await client.GetRelationshipStatesAsync(Guid.NewGuid());
+
+        await act.Should().ThrowAsync<HttpRequestException>().WithMessage("*not active for this model*");
+    }
+
+    [Fact]
     public async Task GetThingsInStateAsync_RoutesToStatesEndpointWithEscapedName()
     {
         await VerifyGetEndpointHit("/api/states/warm/things", c => c.GetThingsInStateAsync("warm"));

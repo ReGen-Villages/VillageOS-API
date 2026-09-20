@@ -38,6 +38,7 @@ namespace vos.Taproot
             _writer.WriteLine();
             _writer.WriteLine("Querying:");
             _writer.WriteLine("  get thing <thing>                           - Get a thing");
+            _writer.WriteLine("  get relationship <id>                       - Get a relationship, with its properties");
             _writer.WriteLine("  find thing <pattern>                        - Find things by name pattern");
             _writer.WriteLine("  find relationships <thing>                  - Find all relationships for a thing");
             _writer.WriteLine("  list things [--type=<kind>] [--within=<thing>] [--limit=N] [--properties=a,b] [--name=x,y]");
@@ -65,10 +66,12 @@ namespace vos.Taproot
             _writer.WriteLine("Expected Ranges & States:");
             _writer.WriteLine("  range create <thing> <name> <criteria>      - Create an expected range");
             _writer.WriteLine("  range list <thing>                          - List all ranges for a thing");
+            _writer.WriteLine("  range list relationship <id>                - List the ranges a relationship carries");
             _writer.WriteLine("  range get <thing> <name>                    - Get a specific range");
             _writer.WriteLine("  range delete <thing> <name>                 - Delete a range");
             _writer.WriteLine("  range validate <criteria>                   - Validate criteria syntax");
             _writer.WriteLine("  state <thing>                               - Get current states for a thing");
+            _writer.WriteLine("  state relationship <id>                     - Get current states for a relationship");
             _writer.WriteLine("  engines [ranges|rollups]                    - Reactive-engine totals; drill in to per-reactor detail");
             _writer.WriteLine("  snapshots                                   - What snapshot reads cost against the writers");
             _writer.WriteLine("  state query <state-name> [options]          - Find things in a state; narrows like list things, plus");

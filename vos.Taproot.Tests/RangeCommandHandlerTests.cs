@@ -194,6 +194,29 @@ public class RangeCommandHandlerTests
         Assert.Contains("Usage: range list", output);
     }
 
+    [Fact]
+    public async Task List_Relationship_ReadsTheRelationshipRangesRoute()
+    {
+        var relationshipId = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetRelationshipRangesAsync(relationshipId))
+            .ReturnsAsync(JsonDocument.Parse("{\"OwnRanges\":[{\"Name\":\"strained\"}]}").RootElement);
+
+        await ExecuteHandler($"list relationship {relationshipId}", _myceliumMock.Object);
+
+        Assert.Contains("\"strained\"", _writer.ToString());
+        _myceliumMock.Verify(b => b.GetAllThingsAsync(), Times.Never);
+    }
+
+    [Fact]
+    public async Task List_RelationshipWithoutAnId_ShowsUsage()
+    {
+        await ExecuteHandler("list relationship", _myceliumMock.Object);
+        await ExecuteHandler("list relationship not-an-id", _myceliumMock.Object);
+
+        Assert.Contains("Usage: range list relationship <id>", _writer.ToString());
+        _myceliumMock.Verify(b => b.GetRelationshipRangesAsync(It.IsAny<Guid>()), Times.Never);
+    }
+
     #endregion
 
     #region Get Command Tests

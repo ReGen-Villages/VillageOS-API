@@ -23,6 +23,7 @@ public class StateCommandHandler
     private Dictionary<string, Func<string[], Task>> BuildCommandHandlers() => new(StringComparer.OrdinalIgnoreCase)
     {
         ["get"] = HandleGetAsync,
+        ["relationship"] = HandleRelationshipAsync,
         ["query"] = HandleQueryAsync,
         ["find"] = HandleQueryAsync
     };
@@ -71,6 +72,17 @@ public class StateCommandHandler
 
         var result = await _client!.GetStatesAsync(resolveResult.Id);
         WriteFormattedJson(result);
+    }
+
+    private async Task HandleRelationshipAsync(string[] args)
+    {
+        if (args.Length < 1 || !Guid.TryParse(args[0], out var relationshipId))
+        {
+            _writer.WriteLine("Usage: state relationship <id>");
+            return;
+        }
+
+        WriteFormattedJson(await _client!.GetRelationshipStatesAsync(relationshipId));
     }
 
     private async Task HandleQueryAsync(string[] args)
@@ -130,6 +142,9 @@ public class StateCommandHandler
         _writer.WriteLine("  state get <thing>");
         _writer.WriteLine("  state <thing>");
         _writer.WriteLine("    Get current states for a thing (evaluates all ranges).");
+        _writer.WriteLine();
+        _writer.WriteLine("  state relationship <id>");
+        _writer.WriteLine("    Get current states for a relationship (its own ranges).");
         _writer.WriteLine();
         _writer.WriteLine("  state query <state-name> [--type=<kind>] [--also-in=a,b] [--not-in=c] [--within=<thing>]");
         _writer.WriteLine("                           [--limit=N] [--properties=a,b] [--include-archetypes] [--count]");

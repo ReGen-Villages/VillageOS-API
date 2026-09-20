@@ -124,6 +124,29 @@ public class StateCommandHandlerTests
     }
 
     [Fact]
+    public async Task Relationship_ReadsTheRelationshipStatesRoute()
+    {
+        var relationshipId = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetRelationshipStatesAsync(relationshipId))
+            .ReturnsAsync(Parse("{\"States\":[\"strained\"]}"));
+
+        await ExecuteHandler($"relationship {relationshipId}");
+
+        Assert.Contains("\"strained\"", _writer.ToString());
+        _myceliumMock.Verify(b => b.GetAllThingsAsync(), Times.Never);
+    }
+
+    [Fact]
+    public async Task Relationship_WithoutAnId_ShowsUsage()
+    {
+        await ExecuteHandler("relationship");
+        await ExecuteHandler("relationship not-an-id");
+
+        Assert.Contains("Usage: state relationship <id>", _writer.ToString());
+        _myceliumMock.Verify(b => b.GetRelationshipStatesAsync(It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Query_PassesEveryNarrowingOptionToTheRoute()
     {
         var site = Guid.NewGuid();
