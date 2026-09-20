@@ -48,7 +48,6 @@ export const smallButtonClass =
 /** The indent a binding's or a list's parts stand at, under the control that holds them. */
 export const nestedClass = 'mt-1 ml-1 border-l-2 border-zinc-200 dark:border-zinc-700 pl-2 space-y-2';
 
-/** Which family of words a field's label is read from. */
 export type FieldFamily = 'widgetField' | 'bindingField';
 
 export function labelFor(family: FieldFamily, key: string, t: TFunction): string {

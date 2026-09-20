@@ -104,7 +104,6 @@ export function ActionWritesEditor({
   );
 }
 
-/** What a form posts: the act, the route and the archetype minted. */
 export function FormWritesEditor({
   label, value, context, onChange,
 }: { label: string; value: FormWidget['writes'] | undefined; context: BindingContext; onChange: (value: FormWidget['writes']) => void }) {
