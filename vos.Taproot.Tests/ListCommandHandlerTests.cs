@@ -315,6 +315,58 @@ public class ListCommandHandlerTests
     }
 
     [Fact]
+    public async Task ListServices_PrintsStatisticsAndDaemonDetail()
+    {
+        var handlerId = Guid.NewGuid();
+        var json = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"HandlerId\":\"{handlerId}\",\"ServiceName\":\"Metabolism\",\"EndpointUrl\":\"https://localhost:5100\",\"HealthStatus\":\"Healthy\","
+            + "\"Stats\":{\"RequestsForwarded\":12,\"TotalResponseMilliseconds\":300,\"AverageResponseMilliseconds\":25.0,\"ErrorCount\":2,\"LastRequestUtc\":\"2026-09-20T10:15:30Z\"},"
+            + "\"IsRunning\":true,\"ProcessId\":4242,\"IsExternal\":true,\"LastContactTime\":\"2026-09-20T10:16:00Z\",\"ConsecutiveFailures\":3}]");
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(json);
+
+        await ExecuteHandler("services");
+
+        var output = _writer.ToString();
+        Assert.Contains("Requests: 12, average 25 ms, 2 error(s), last 2026-09-20T10:15:30Z", output);
+        Assert.Contains("Process: 4242, external, last contact 2026-09-20T10:16:00Z", output);
+        Assert.Contains("Failures: 3", output);
+    }
+
+    [Fact]
+    public async Task ListServices_WithNothingBeyondTheBasics_PrintsNoPlaceholders()
+    {
+        var handlerId = Guid.NewGuid();
+        var json = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"HandlerId\":\"{handlerId}\",\"ServiceName\":\"Quiet\",\"EndpointUrl\":\"https://localhost:5300\",\"HealthStatus\":\"Unknown\",\"IsRunning\":false,\"ConsecutiveFailures\":0,"
+            + "\"Stats\":{\"RequestsForwarded\":0,\"TotalResponseMilliseconds\":0,\"AverageResponseMilliseconds\":0,\"ErrorCount\":0,\"LastRequestUtc\":null}}]");
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(json);
+
+        await ExecuteHandler("services");
+
+        var output = _writer.ToString();
+        Assert.Contains("Requests: 0", output);
+        Assert.DoesNotContain("last ", output);
+        Assert.DoesNotContain("Process:", output);
+        Assert.DoesNotContain("Failures:", output);
+        Assert.DoesNotContain("N/A", output);
+    }
+
+    [Fact]
+    public async Task ListServices_RunningWithoutAProcessId_PrintsTheProcessLineWithoutOne()
+    {
+        var handlerId = Guid.NewGuid();
+        var json = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"HandlerId\":\"{handlerId}\",\"ServiceName\":\"Adopted\",\"EndpointUrl\":\"https://localhost:5400\",\"HealthStatus\":\"Healthy\",\"IsRunning\":true,\"ProcessId\":null,\"IsExternal\":false,\"LastContactTime\":null}}]");
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(json);
+
+        await ExecuteHandler("services");
+
+        var output = _writer.ToString();
+        Assert.Contains("Process: running", output);
+        Assert.DoesNotContain("external", output);
+    }
+
+    [Fact]
     public async Task List_NoArgs_ShowsUsage()
     {
         await ExecuteHandler("");
