@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { numeral, readDocument, renderGuide } from './build.mjs';
+import { numeral, readDocument, renderGuide, footer, sourceCommit } from './build.mjs';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { lightenForPrint, inlineFigure } from './figures.mjs';
 import { mark, stylesheet } from './brand.mjs';
 
@@ -148,4 +150,36 @@ test('a guide renders to HTML with a cover, a contents page and a divider per pa
   assert.match(html, /class="contents"/);
   assert.match(html, /class="chapter"/);
   assert.doesNotMatch(html, /page: cover/);
+});
+
+test('a minted PDF carries the version it was given, the date and the commit, on the cover and in the footer', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'docs-pdf-'));
+  const input = join(dir, 'guide.md');
+  writeFileSync(input, GUIDE);
+  const o = await renderGuide([input, '--out', join(dir, 'guide.pdf'), '--html-only', '--version', '1.2']);
+  const html = readFileSync(o.html, 'utf8');
+  assert.match(html, /<b>Version<\/b>1\.2/);
+  assert.match(html, /<b>Date<\/b>\d{1,2} \w+ \d{4}/);
+  assert.equal(o.version, '1.2');
+  assert.match(footer('A Guide', o), /A Guide · Version 1\.2/);
+});
+
+test('a guide inside a git checkout names the commit it was rendered from; one outside names none', async () => {
+  const outside = mkdtempSync(join(tmpdir(), 'docs-pdf-'));
+  const input = join(outside, 'guide.md');
+  writeFileSync(input, GUIDE);
+  const o = await renderGuide([input, '--out', join(outside, 'guide.pdf'), '--html-only', '--version', '1.2']);
+  assert.doesNotMatch(readFileSync(o.html, 'utf8'), /<b>Source<\/b>/);
+
+  const here = fileURLToPath(new URL('./README.md', import.meta.url));
+  assert.match(sourceCommit(here), /^[0-9a-f]{7,}$/);
+});
+
+test('a PDF run without a version stops before any browser starts, and names the option', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'docs-pdf-'));
+  const input = join(dir, 'guide.md');
+  writeFileSync(input, GUIDE);
+  const run = spawnSync(process.execPath, [fileURLToPath(new URL('./build.mjs', import.meta.url)), input, '--out', join(dir, 'guide.pdf')]);
+  assert.equal(run.status, 2);
+  assert.match(run.stderr.toString(), /--version/);
 });
