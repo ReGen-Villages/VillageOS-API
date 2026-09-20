@@ -8,7 +8,7 @@ export const THING_SEARCH_SKIP_KEYS = new Set([
 ]);
 
 /** Max own properties shown inline per result row. */
-export const PREVIEW_PROPS = 4;
+export const PREVIEW_PROPERTIES = 4;
 
 export interface ThingMatch {
   id: string;
@@ -20,7 +20,7 @@ export interface ThingMatch {
   relationshipCount: number;
   /** Left unformatted: how a value should read depends on the type the platform declares for it,
    *  which this index does not carry. The page that shows them resolves that and formats (#6163). */
-  previewProps: Array<{ key: string; value: unknown }>;
+  previewProperties: Array<{ key: string; value: unknown }>;
 }
 
 export interface ThingSearchIndex {
@@ -103,7 +103,7 @@ export function searchThings(
     if (score === null) continue;
 
     const ownKeys = Object.keys(thing.Properties).filter((k) => !THING_SEARCH_SKIP_KEYS.has(k));
-    const previewProps = ownKeys.slice(0, PREVIEW_PROPS).map((key) => ({
+    const previewProperties = ownKeys.slice(0, PREVIEW_PROPERTIES).map((key) => ({
       key,
       value: thing.Properties[key],
     }));
@@ -115,7 +115,7 @@ export function searchThings(
       typeName: index.isSubjectToTypeName.get(thing.Id),
       ownPropertyCount: ownKeys.length,
       relationshipCount: index.relationshipCountByThing.get(thing.Id) ?? 0,
-      previewProps,
+      previewProperties,
     });
   }
 

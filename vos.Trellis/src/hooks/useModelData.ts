@@ -155,7 +155,7 @@ export function useModelData(): void {
       thingRemove: new Set<string>(),
       relationshipUpserts: new Map<string, VosRelationship>(),
       relationshipRemove: new Set<string>(),
-      thingProps: new Map<string, Map<string, PropertyChange>>(),
+      thingProperties: new Map<string, Map<string, PropertyChange>>(),
       relationshipProperties: new Map<string, Map<string, PropertyChange>>(),
       thingStates: new Map<string, string[]>(),
     };
@@ -176,7 +176,7 @@ export function useModelData(): void {
       const [thingId, propertyPath] = eventArguments as [string, string | undefined];
       if (!thingId || propertyPath === undefined) return;
       triggerFlashNode(thingId);
-      recordProperty(pending.thingProps, thingId, propertyPath, change);
+      recordProperty(pending.thingProperties, thingId, propertyPath, change);
       schedule();
     };
 
@@ -204,11 +204,11 @@ export function useModelData(): void {
       const relationshipRemovals = [...pending.relationshipRemove]; pending.relationshipRemove.clear();
       const thingPropertyUpdates: { id: string; path: string; value: unknown }[] = [];
       const thingPropertyRemovals: { id: string; path: string }[] = [];
-      for (const [id, properties] of pending.thingProps)
+      for (const [id, properties] of pending.thingProperties)
         for (const [path, change] of properties)
           if (change.deleted) thingPropertyRemovals.push({ id, path });
           else thingPropertyUpdates.push({ id, path, value: change.value });
-      pending.thingProps.clear();
+      pending.thingProperties.clear();
 
       const relationshipPropertyUpdates: { id: string; name: string; value: unknown }[] = [];
       const relationshipPropertyRemovals: { id: string; name: string }[] = [];

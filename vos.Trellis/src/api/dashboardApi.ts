@@ -408,9 +408,9 @@ function passesFilters(thing: VosThing, filters: PropertyFilter[] | undefined, i
  *  spends it. The id is tried first because it is exact: Thing names are not unique in this model
  *  and the index keeps whichever Thing of a name it saw first, so a name is the weaker answer and
  *  belongs in the fallback. */
-export function referencedThing(ref: string | undefined, context: ResolveContext): VosThing | null {
-  if (!ref || ref === SCOPE_REF) return context.scopeId ? (context.index.byId.get(context.scopeId) ?? null) : null;
-  return context.index.byId.get(ref) ?? context.index.byName.get(ref) ?? null;
+export function referencedThing(reference: string | undefined, context: ResolveContext): VosThing | null {
+  if (!reference || reference === SCOPE_REF) return context.scopeId ? (context.index.byId.get(context.scopeId) ?? null) : null;
+  return context.index.byId.get(reference) ?? context.index.byName.get(reference) ?? null;
 }
 
 /** The Things one step of a binding's path reaches from the Things reached so far. */
@@ -516,11 +516,11 @@ function leversFor(
  *  relationship list happened to be in. Narrow with a step's `archetype`, `inState` or `notInState`
  *  when a predicate reaches more than the binding means. */
 async function thingsReached(
-  ref: string | undefined,
+  reference: string | undefined,
   via: RelationStep[] | undefined,
   context: ResolveContext,
 ): Promise<VosThing[]> {
-  const start = referencedThing(ref, context);
+  const start = referencedThing(reference, context);
   if (!start) return [];
   if (!via?.length) return [start];
   let reached = [start.Id];
@@ -835,7 +835,7 @@ export async function resolveBinding(binding: Binding, context: ResolveContext):
       }
       // The row is what the platform sent, not what a local index could be asked for afterwards.
       // Reading it here is what made a table of ten rows cost every Thing in the model.
-      const rows = list.map((ref) => ({ id: ref.Id, name: ref.Name, ...(ref.Properties ?? {}) }) as Row);
+      const rows = list.map((reference) => ({ id: reference.Id, name: reference.Name, ...(reference.Properties ?? {}) }) as Row);
       return withComputedColumns(rows, binding.computed, context);
     }
 

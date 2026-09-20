@@ -21,7 +21,7 @@ function LogView({ service }: { service?: string }) {
   const title = service ? t('log.serviceTitle', { service }) : t('log.brokerTitle');
   const [autoScroll, setAutoScroll] = useState(true);
   const [downloadingFull, setDownloadingFull] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollReference = useRef<HTMLDivElement>(null);
 
   const downloadSnapshot = () =>
     triggerDownload(snapshotBlob(lines), snapshotFileName(service, new Date()));
@@ -41,13 +41,13 @@ function LogView({ service }: { service?: string }) {
   // Stick to the bottom as new lines arrive, unless the user paused auto-scroll.
   useLayoutEffect(() => {
     if (!autoScroll) return;
-    const el = scrollRef.current;
+    const el = scrollReference.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [lines, autoScroll]);
 
   // If the user scrolls up, pause auto-scroll; re-stick when they return to the bottom.
   useEffect(() => {
-    const el = scrollRef.current;
+    const el = scrollReference.current;
     if (!el) return;
     const onScroll = () => {
       const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
@@ -109,7 +109,7 @@ function LogView({ service }: { service?: string }) {
 
       <div className="flex-1 min-h-0 px-6 pb-6">
         <div
-          ref={scrollRef}
+          ref={scrollReference}
           className="h-full overflow-auto rounded-md bg-zinc-950 border border-zinc-800 p-3 font-mono text-xs leading-relaxed text-zinc-300"
         >
           {lines.length === 0 ? (

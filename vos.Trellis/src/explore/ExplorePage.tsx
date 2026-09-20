@@ -90,9 +90,9 @@ export function ExplorePage() {
 
   // What the dial effect and the polls read, so neither re-posts a state a render has already left.
   // Synced in an effect declared before every effect that reads it, so each sees the settled render.
-  const stateRef = useRef(state);
+  const stateReference = useRef(state);
   useEffect(() => {
-    stateRef.current = state;
+    stateReference.current = state;
   });
 
   useEffect(() => {
@@ -179,7 +179,7 @@ export function ExplorePage() {
     const held = ticket.current;
     if (held === null) throw new Error('No ticket is held.');
     const { thingId: _scopedByTheService, ...question } = query;
-    const reduced = await findingsApi.reduceWithTicket(stateRef.current.submissionId, held, question);
+    const reduced = await findingsApi.reduceWithTicket(stateReference.current.submissionId, held, question);
     ticket.current = reduced.ticket;
     return reduced.answer;
   }, []);
@@ -193,7 +193,7 @@ export function ExplorePage() {
     if (held === null) throw new Error('No ticket is held.');
     try {
       const shared = await findingsApi.shareDocumentWithTicket(
-        stateRef.current.submissionId, held, file, description, onProgress);
+        stateReference.current.submissionId, held, file, description, onProgress);
       ticket.current = shared.ticket;
       return shared.document;
     } catch (error) {
@@ -205,7 +205,7 @@ export function ExplorePage() {
   const listSurveys = useCallback(async (): Promise<SharedSurvey[]> => {
     const held = ticket.current;
     if (held === null) return [];
-    const listed = await findingsApi.listDocumentsWithTicket(stateRef.current.submissionId, held);
+    const listed = await findingsApi.listDocumentsWithTicket(stateReference.current.submissionId, held);
     ticket.current = listed.ticket;
     return listed.documents;
   }, []);
@@ -214,7 +214,7 @@ export function ExplorePage() {
     const held = ticket.current;
     if (held === null) return;
     const read = await findingsApi.readWithTicket(
-      stateRef.current.submissionId, stateRef.current.emailAddress.trim(), held);
+      stateReference.current.submissionId, stateReference.current.emailAddress.trim(), held);
     ticket.current = read.ticket;
     setFindings(findingsFrom(read.findings, reduceThroughTheService));
   }, [reduceThroughTheService]);
@@ -265,7 +265,7 @@ export function ExplorePage() {
       const held = ticket.current;
       if (held === null) return;
       try {
-        const posted = await intakeApi.submitWithTicket(documentFrom(stateRef.current), held);
+        const posted = await intakeApi.submitWithTicket(documentFrom(stateReference.current), held);
         ticket.current = posted.ticket;
         await readFindings();
       } catch (error) {

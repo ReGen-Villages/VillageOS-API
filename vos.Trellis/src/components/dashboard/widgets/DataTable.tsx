@@ -66,12 +66,12 @@ export function DataTable({
 }) {
   const { t } = useTranslation();
   const { loading, value } = useBinding(rowsBinding, context);
-  const [headerRef, headerHeight] = useElementHeight();
+  const [headerReference, headerHeight] = useElementHeight();
   /* Measured from whichever row is at the top of the window, and only until a height comes back:
      the row at the top is a different element after every scroll that moves the window, so keeping
      it observed would tear down and rebuild an observer once per row crossed. Rows are one line of
      a fixed size, so one measurement holds for all of them. */
-  const [bodyRowRef, measuredRowHeight] = useElementHeight();
+  const [bodyRowReference, measuredRowHeight] = useElementHeight();
   const [firstVisibleRow, setFirstVisibleRow] = useState(0);
   const resolved = rowsProperty ?? asRows(value);
   const rows = useMemo(() => filterRows(resolved, query, searchKeys), [resolved, query, searchKeys]);
@@ -144,7 +144,7 @@ export function DataTable({
       >
         <table className="w-full border-collapse" style={{ minWidth }}>
           <thead>
-            <tr ref={visibleRows ? headerRef : undefined}>
+            <tr ref={visibleRows ? headerReference : undefined}>
               {columns.map((c) => (
                 <th
                   key={c.key}
@@ -164,7 +164,7 @@ export function DataTable({
             {shown.map((r, i) => (
               <tr
                 key={(r.id as string) ?? i}
-                ref={windowed && i === 0 && !measuredRowHeight ? bodyRowRef : undefined}
+                ref={windowed && i === 0 && !measuredRowHeight ? bodyRowReference : undefined}
                 onClick={onRowClick ? () => onRowClick(r) : undefined}
                 className={`hover:bg-zinc-50 dark:hover:bg-zinc-700/40 ${onRowClick ? 'cursor-pointer' : ''}`}
               >

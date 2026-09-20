@@ -10,7 +10,7 @@ import { toast } from '../common/toastStore';
 // no ingestion service is configured.
 export function IfcUploadDropzone() {
   const { t } = useTranslation();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputReference = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [replace, setReplace] = useState(false);
 
@@ -63,7 +63,7 @@ export function IfcUploadDropzone() {
       className="mt-4 flex flex-col items-center gap-3"
     >
       <input
-        ref={inputRef}
+        ref={inputReference}
         type="file"
         accept=".ifc"
         className="hidden"
@@ -74,7 +74,7 @@ export function IfcUploadDropzone() {
         }}
       />
       <button
-        onClick={() => inputRef.current?.click()}
+        onClick={() => inputReference.current?.click()}
         disabled={busy}
         className="flex items-center gap-2 px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50"
       >

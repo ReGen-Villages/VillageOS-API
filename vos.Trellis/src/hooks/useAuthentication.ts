@@ -40,15 +40,15 @@ export function useAuthenticationState(): AuthenticationState {
   const [availableModels, setAvailableModels] = useState<ModelSummary[] | null>(null);
   const [authenticationFailed, setAuthenticationFailed] = useState(false);
   const [startupProgress, setStartupProgress] = useState<StartupProgress | null>(null);
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollTimerReference = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingCredentialsReference = useRef<{ username: string; password: string } | null>(null);
 
   const isAuthenticated = !authenticationFailed && (apiClient.isAuthenticated() || !!import.meta.env.VITE_API_KEY);
 
   const stopPolling = useCallback(() => {
-    if (pollTimerRef.current) {
-      clearInterval(pollTimerRef.current);
-      pollTimerRef.current = null;
+    if (pollTimerReference.current) {
+      clearInterval(pollTimerReference.current);
+      pollTimerReference.current = null;
     }
     pendingCredentialsReference.current = null;
   }, []);
@@ -88,7 +88,7 @@ export function useAuthenticationState(): AuthenticationState {
 
   const startSeedPolling = useCallback((username: string, password: string) => {
     pendingCredentialsReference.current = { username, password };
-    if (pollTimerRef.current) return;
+    if (pollTimerReference.current) return;
 
     const poll = async () => {
       try {
@@ -121,7 +121,7 @@ export function useAuthenticationState(): AuthenticationState {
     };
 
     poll();
-    pollTimerRef.current = setInterval(poll, 2000);
+    pollTimerReference.current = setInterval(poll, 2000);
   }, [stopPolling]);
 
   const login = useCallback(async (username: string, password: string, selectedModelId?: string) => {

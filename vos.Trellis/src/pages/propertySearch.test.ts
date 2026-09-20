@@ -21,14 +21,14 @@ describe('searchProperties', () => {
   it('surfaces an inherited property the instance never overrode (regression for #5909)', () => {
     // The server keys inherited properties by qualified path and tags them IsInherited with the source.
     // Before the fix, search walked the client override-only tree, which does not contain this value.
-    const effectiveProps = {
+    const effectiveProperties = {
       [INSTANCE_ID]: {
         'Home.energy_rating': effectiveProperty('A+', true, HOME_ID),
       },
     };
 
     const results = searchProperties({
-      effectiveProps, relationships: [], thingNames, query: 'energy_rating', mode: 'name',
+      effectiveProperties, relationships: [], thingNames, query: 'energy_rating', mode: 'name',
     });
 
     expect(results).toHaveLength(1);
@@ -43,10 +43,10 @@ describe('searchProperties', () => {
   });
 
   it('surfaces own properties with no inheritance source', () => {
-    const effectiveProps = { [INSTANCE_ID]: { status: effectiveProperty('active', false) } };
+    const effectiveProperties = { [INSTANCE_ID]: { status: effectiveProperty('active', false) } };
 
     const results = searchProperties({
-      effectiveProps, relationships: [], thingNames, query: 'status', mode: 'name',
+      effectiveProperties, relationships: [], thingNames, query: 'status', mode: 'name',
     });
 
     expect(results).toHaveLength(1);
@@ -55,22 +55,22 @@ describe('searchProperties', () => {
   });
 
   it('matches by value when mode is value', () => {
-    const effectiveProps = {
+    const effectiveProperties = {
       [INSTANCE_ID]: { status: effectiveProperty('active', false), 'Home.energy_rating': effectiveProperty('A+', true, HOME_ID) },
     };
 
     const results = searchProperties({
-      effectiveProps, relationships: [], thingNames, query: 'a+', mode: 'value',
+      effectiveProperties, relationships: [], thingNames, query: 'a+', mode: 'value',
     });
 
     expect(results.map((r) => r.propertyName)).toEqual(['energy_rating']);
   });
 
   it('skips bulky blob property names', () => {
-    const effectiveProps = { [INSTANCE_ID]: { geometry: effectiveProperty('<mesh>', false) } };
+    const effectiveProperties = { [INSTANCE_ID]: { geometry: effectiveProperty('<mesh>', false) } };
 
     const results = searchProperties({
-      effectiveProps, relationships: [], thingNames, query: 'geometry', mode: 'name',
+      effectiveProperties, relationships: [], thingNames, query: 'geometry', mode: 'name',
     });
 
     expect(results).toHaveLength(0);
@@ -83,7 +83,7 @@ describe('searchProperties', () => {
     };
 
     const results = searchProperties({
-      effectiveProps: {}, relationships: [relationship], thingNames, query: 'rate', mode: 'name',
+      effectiveProperties: {}, relationships: [relationship], thingNames, query: 'rate', mode: 'name',
     });
 
     expect(results).toHaveLength(1);
@@ -92,7 +92,7 @@ describe('searchProperties', () => {
 
   it('returns nothing while the effective snapshot is still loading', () => {
     const results = searchProperties({
-      effectiveProps: null, relationships: [], thingNames, query: 'anything', mode: 'name',
+      effectiveProperties: null, relationships: [], thingNames, query: 'anything', mode: 'name',
     });
 
     expect(results).toEqual([]);

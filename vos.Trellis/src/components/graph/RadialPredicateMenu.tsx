@@ -23,7 +23,7 @@ export function RadialPredicateMenu() {
   const togglePredicateId = useUiStore((s) => s.togglePredicateId);
   const clearPredicateIds = useUiStore((s) => s.clearPredicateIds);
   const closeRadialMenu = useUiStore((s) => s.closeRadialMenu);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const menuReference = useRef<HTMLDivElement>(null);
 
   // Close on Escape
   useEffect(() => {
@@ -41,7 +41,7 @@ export function RadialPredicateMenu() {
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      if (menuReference.current && !menuReference.current.contains(e.target as Node)) {
         closeRadialMenu();
       }
     };
@@ -77,7 +77,7 @@ export function RadialPredicateMenu() {
 
   return (
     <div
-      ref={menuRef}
+      ref={menuReference}
       className="absolute z-50 pointer-events-none"
       style={{
         left: position.x,

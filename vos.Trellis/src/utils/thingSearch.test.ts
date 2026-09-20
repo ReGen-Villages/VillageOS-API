@@ -6,7 +6,7 @@ import {
   searchThings,
   buildThingSearchMarkdown,
   THING_SEARCH_SKIP_KEYS,
-  PREVIEW_PROPS,
+  PREVIEW_PROPERTIES,
 } from './thingSearch';
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -312,11 +312,11 @@ describe('searchThings', () => {
 
     it('includes up to PREVIEW_PROPS properties in previewProps', () => {
       const props: Record<string, unknown> = {};
-      for (let i = 0; i < PREVIEW_PROPS + 3; i++) props[`prop${i}`] = i;
+      for (let i = 0; i < PREVIEW_PROPERTIES + 3; i++) props[`prop${i}`] = i;
       const thing = makeThing('t1', 'PropRich', props);
       const localIndex = buildThingSearchIndex([thing], []);
       const results = searchThings('PropRich', [thing], localIndex);
-      expect(results[0].previewProps).toHaveLength(PREVIEW_PROPS);
+      expect(results[0].previewProperties).toHaveLength(PREVIEW_PROPERTIES);
     });
 
     it('does not include skip keys in previewProps', () => {
@@ -328,7 +328,7 @@ describe('searchThings', () => {
       });
       const localIndex = buildThingSearchIndex([thing], []);
       const results = searchThings('GeoThing', [thing], localIndex);
-      const keys = results[0].previewProps.map((p) => p.key);
+      const keys = results[0].previewProperties.map((p) => p.key);
       expect(keys).not.toContain('geometry');
       expect(keys).not.toContain('footprint');
       expect(keys).not.toContain('__geometry_envelope');
@@ -341,7 +341,7 @@ describe('searchThings', () => {
       const thing = makeThing('t1', 'Thing', { count: 42 });
       const localIndex = buildThingSearchIndex([thing], []);
       const results = searchThings('Thing', [thing], localIndex);
-      expect(results[0].previewProps[0]).toEqual({ key: 'count', value: 42 });
+      expect(results[0].previewProperties[0]).toEqual({ key: 'count', value: 42 });
     });
   });
 });
@@ -371,7 +371,7 @@ describe('buildThingSearchMarkdown', () => {
       typeName: 'BuildingType',
       ownPropertyCount: 2,
       relationshipCount: 1,
-      previewProps: [],
+      previewProperties: [],
     },
     {
       id: 's1',
@@ -380,7 +380,7 @@ describe('buildThingSearchMarkdown', () => {
       typeName: undefined,
       ownPropertyCount: 2,
       relationshipCount: 0,
-      previewProps: [],
+      previewProperties: [],
     },
   ];
 

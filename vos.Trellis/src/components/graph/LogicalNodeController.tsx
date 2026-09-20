@@ -18,8 +18,8 @@ export function LogicalNodeController() {
   const sigma = useSigma();
   const expandedLogicalParents = useUiStore((s) => s.expandedLogicalParents);
   const semanticZoomEnabled = useUiStore((s) => s.semanticZoomEnabled);
-  const lastRatioRef = useRef<number | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastRatioReference = useRef<number | null>(null);
+  const debounceReference = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── A) Radial positioning when parents expand ──────────────────────
   useEffect(() => {
@@ -56,11 +56,11 @@ export function LogicalNodeController() {
     const camera = sigma.getCamera();
 
     const handler = () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
+      if (debounceReference.current) clearTimeout(debounceReference.current);
+      debounceReference.current = setTimeout(() => {
         const ratio = camera.getState().ratio;
-        const previous = lastRatioRef.current;
-        lastRatioRef.current = ratio;
+        const previous = lastRatioReference.current;
+        lastRatioReference.current = ratio;
 
         if (previous !== null && Math.abs(ratio - previous) < 0.05) return;
 
@@ -96,7 +96,7 @@ export function LogicalNodeController() {
 
     return () => {
       sigma.off('afterRender', handler);
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (debounceReference.current) clearTimeout(debounceReference.current);
     };
   }, [sigma, semanticZoomEnabled]);
 

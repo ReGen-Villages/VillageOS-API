@@ -74,13 +74,13 @@ function toContainerCoords(event: MouseEvent, container: HTMLElement) {
 export function GraphEvents() {
   const sigma = useSigma();
   const registerEvents = useRegisterEvents();
-  const selectNodeRef = useRef(useUiStore.getState().selectNode);
-  const selectEdgeRef = useRef(useUiStore.getState().selectEdge);
+  const selectNodeReference = useRef(useUiStore.getState().selectNode);
+  const selectEdgeReference = useRef(useUiStore.getState().selectEdge);
 
   useEffect(() => {
     const unsub = useUiStore.subscribe((state) => {
-      selectNodeRef.current = state.selectNode;
-      selectEdgeRef.current = state.selectEdge;
+      selectNodeReference.current = state.selectNode;
+      selectEdgeReference.current = state.selectEdge;
     });
     return unsub;
   }, []);
@@ -94,18 +94,18 @@ export function GraphEvents() {
         if (tryExpandCluster(event.node)) return;
         tryToggleLogicalExpansion(event.node, sigma);
         fanOutOverlappingNodes(event.node, sigma);
-        selectEdgeRef.current(null);
-        selectNodeRef.current(event.node);
+        selectEdgeReference.current(null);
+        selectNodeReference.current(event.node);
       },
 
       clickEdge: (event) => {
-        selectNodeRef.current(null);
-        selectEdgeRef.current(event.edge);
+        selectNodeReference.current(null);
+        selectEdgeReference.current(event.edge);
       },
 
       clickStage: () => {
-        selectNodeRef.current(null);
-        selectEdgeRef.current(null);
+        selectNodeReference.current(null);
+        selectEdgeReference.current(null);
         const state = useUiStore.getState();
         if (state.radialMenuOpen) state.closeRadialMenu();
         if (state.nodeContextMenuOpen) state.closeNodeContextMenu();

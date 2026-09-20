@@ -72,7 +72,7 @@ function RotatingBuilding({
   color: string;
   childElements?: ChildElement[];
 }) {
-  const groupRef = useRef<THREE.Group>(null);
+  const groupReference = useRef<THREE.Group>(null);
 
   const meshEntries = useMemo(() => {
     const entries: MeshEntry[] = [];
@@ -121,8 +121,8 @@ function RotatingBuilding({
 
   // Slow auto-rotation
   useFrame((_, delta) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y += delta * 0.3;
+    if (groupReference.current) {
+      groupReference.current.rotation.y += delta * 0.3;
     }
   });
 
@@ -138,7 +138,7 @@ function RotatingBuilding({
   if (meshEntries.length === 0) return null;
 
   return (
-    <group ref={groupRef}>
+    <group ref={groupReference}>
       {meshEntries.map((entry, i) => (
         <mesh key={i} geometry={entry.geometry}>
           <meshStandardMaterial

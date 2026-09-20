@@ -13,7 +13,7 @@ import {
   buildThingSearchIndex,
   searchThings,
   buildThingSearchMarkdown,
-  PREVIEW_PROPS,
+  PREVIEW_PROPERTIES,
 } from '../utils/thingSearch';
 import clsx from 'clsx';
 
@@ -25,7 +25,7 @@ export function ThingSearchPage() {
   const [inputValue, setInputValue] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const debounceReference = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
@@ -35,14 +35,14 @@ export function ThingSearchPage() {
 
   const onInputChange = useCallback((value: string) => {
     setInputValue(value);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
+    clearTimeout(debounceReference.current);
+    debounceReference.current = setTimeout(() => {
       setDebouncedQuery(value);
       setVisibleCount(PAGE_SIZE);
     }, 250);
   }, []);
 
-  useEffect(() => () => clearTimeout(debounceRef.current), []);
+  useEffect(() => () => clearTimeout(debounceReference.current), []);
 
   const index = useMemo(
     () => buildThingSearchIndex(things, relationships),
@@ -162,9 +162,9 @@ export function ThingSearchPage() {
                     )}
                   </div>
 
-                  {m.previewProps.length > 0 && (
+                  {m.previewProperties.length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5">
-                      {m.previewProps.map((p) => (
+                      {m.previewProperties.map((p) => (
                         <span key={p.key} className="text-xs text-zinc-500">
                           <span className="text-amber-400 font-mono">{p.key}</span>
                           <span className="mx-1 text-zinc-600">=</span>
@@ -173,9 +173,9 @@ export function ThingSearchPage() {
                           </span>
                         </span>
                       ))}
-                      {m.ownPropertyCount > PREVIEW_PROPS && (
+                      {m.ownPropertyCount > PREVIEW_PROPERTIES && (
                         <span className="text-xs text-zinc-600">
-                          {t('thingSearch.moreProps', { count: m.ownPropertyCount - PREVIEW_PROPS })}
+                          {t('thingSearch.moreProperties', { count: m.ownPropertyCount - PREVIEW_PROPERTIES })}
                         </span>
                       )}
                     </div>
@@ -184,7 +184,7 @@ export function ThingSearchPage() {
 
                 <div className="flex-shrink-0 flex gap-3 text-xs text-zinc-500 pt-0.5">
                   <span title={t('thingSearch.ownProperties')}>
-                    <span className="text-zinc-600">{t('thingSearch.propsAbbrev')} </span>
+                    <span className="text-zinc-600">{t('thingSearch.propertiesShort')} </span>
                     <span className="text-zinc-400">{m.ownPropertyCount}</span>
                   </span>
                   <span title={t('thingSearch.relationships')}>

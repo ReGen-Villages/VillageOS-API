@@ -42,12 +42,12 @@ function makeRelationship(
 
 /** Build the standard GUI_Settings type + GUI instance + is relationship. */
 function buildGuiFixture(
-  typeProps: Record<string, unknown>,
-  instanceProps: Record<string, unknown> = {},
+  typeProperties: Record<string, unknown>,
+  instanceProperties: Record<string, unknown> = {},
 ) {
   const isPredicate = makeThing('is');
-  const guiType = makeThing('GUI_Settings', typeProps);
-  const gui = makeThing('GUI', instanceProps);
+  const guiType = makeThing('GUI_Settings', typeProperties);
+  const gui = makeThing('GUI', instanceProperties);
   const relationship = makeRelationship(gui.Id, isPredicate.Id, guiType.Id);
   return {
     things: [isPredicate, guiType, gui],

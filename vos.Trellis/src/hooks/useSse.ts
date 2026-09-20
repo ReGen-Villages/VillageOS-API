@@ -37,7 +37,7 @@ const listeners = new Set<() => void>();
 let objectSource: EventSource | null = null;
 let systemSource: EventSource | null = null;
 let openSubscriptionId: string | null = null;
-let refCount = 0;
+let referenceCount = 0;
 let connectedState = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempt = 0;
@@ -155,7 +155,7 @@ function scheduleReconnect() {
   reconnectAttempt++;
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
-    if (refCount > 0) void openStreams();
+    if (referenceCount > 0) void openStreams();
   }, delay);
 }
 
@@ -166,7 +166,7 @@ async function openStreams() {
   closeStreams();
   const selector = effectiveSelector();
   openedFor = JSON.stringify(selector);
-  const superseded = () => myGeneration !== generation || refCount === 0;
+  const superseded = () => myGeneration !== generation || referenceCount === 0;
   // The platform holds a subscription for this open from the moment the request answers, and only
   // an open that goes on to attach its streams records it as the live one. Every other path leaves
   // it here to be handed back — an abandoned entry is one nothing will ever read and nothing will
@@ -265,7 +265,7 @@ const DECLARATIONS_SETTLE_MILLISECONDS = 300;
  */
 function follow() {
   settling = null;
-  if (refCount === 0) return;
+  if (referenceCount === 0) return;
   if (JSON.stringify(effectiveSelector()) === openedFor) return;
   consumedWatermark = null;
   void openStreams();
@@ -298,7 +298,7 @@ function followDeclarations() {
 /** Open the declared subscription again, from a fresh snapshot. What a subscription covers is
  *  resolved when it opens, so a model replaced under it has to be asked for again. */
 export function resubscribe(): void {
-  if (refCount === 0) return;
+  if (referenceCount === 0) return;
   // A reopen is a reopen: a settle still pending would make a second one for the same declaration.
   if (settling) { clearTimeout(settling); settling = null; }
   consumedWatermark = null;
@@ -343,14 +343,14 @@ export function useDefaultSubscription(selector: SubscriptionSelector): void {
 /** The first open goes through the same settling as any later one, so it is made with what the
  *  mounted pages declared rather than with the whole model they were about to narrow. */
 function acquire() {
-  refCount++;
-  if (refCount === 1) followDeclarations();
+  referenceCount++;
+  if (referenceCount === 1) followDeclarations();
 }
 
 function release() {
-  refCount--;
-  if (refCount <= 0) {
-    refCount = 0;
+  referenceCount--;
+  if (referenceCount <= 0) {
+    referenceCount = 0;
     generation++; // abort any in-flight open
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
     if (settling) { clearTimeout(settling); settling = null; }

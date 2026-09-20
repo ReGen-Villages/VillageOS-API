@@ -11,9 +11,9 @@ import {
   makeActivePredicateWeightGetter,
 } from '../../utils/clusterLayout';
 
-function killSupervisor(ref: React.MutableRefObject<FA2Supervisor | null>) {
-  ref.current?.kill();
-  ref.current = null;
+function killSupervisor(reference: React.MutableRefObject<FA2Supervisor | null>) {
+  reference.current?.kill();
+  reference.current = null;
 }
 
 /** Re-renders only on the empty ↔ populated transition, not once per node. */
@@ -67,14 +67,14 @@ export function LayoutController() {
   const isSpreadActive = useUiStore((s) => s.isSpreadActive);
   const layoutSettings = useUiStore((s) => s.layoutSettings);
 
-  const supervisorRef = useRef<FA2Supervisor | null>(null);
+  const supervisorReference = useRef<FA2Supervisor | null>(null);
 
   const layoutKey = JSON.stringify(layoutSettings);
 
   useEffect(() => {
     const graph = sigma.getGraph();
 
-    killSupervisor(supervisorRef);
+    killSupervisor(supervisorReference);
     if (!isPopulated) return;
 
     const isClustering = activePredicateIds.size > 0;
@@ -96,10 +96,10 @@ export function LayoutController() {
     if (!isLayoutFrozen) {
       supervisor.start();
     }
-    supervisorRef.current = supervisor;
+    supervisorReference.current = supervisor;
 
     return () => {
-      killSupervisor(supervisorRef);
+      killSupervisor(supervisorReference);
       clearFixedFlags(graph);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -107,7 +107,7 @@ export function LayoutController() {
 
   // Stop / start the supervisor when freeze toggle changes.
   useEffect(() => {
-    const supervisor = supervisorRef.current;
+    const supervisor = supervisorReference.current;
     if (!supervisor) return;
 
     if (isLayoutFrozen) {

@@ -5,11 +5,11 @@ import { useElementWidth } from './useElementWidth';
 
 /** The chart a KpiCard measures only appears once its series has resolved. */
 function LateChart({ mounted }: { mounted: boolean }) {
-  const [ref, width] = useElementWidth();
+  const [reference, width] = useElementWidth();
   return (
     <div>
       <span data-testid="width">{width}</span>
-      {mounted && <div ref={ref}>chart</div>}
+      {mounted && <div ref={reference}>chart</div>}
     </div>
   );
 }

@@ -9,10 +9,10 @@ export function useFlashTimer() {
   const addFlashEdge = useUiStore((s) => s.addFlashEdge);
   const removeFlashEdge = useUiStore((s) => s.removeFlashEdge);
 
-  const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const timersReference = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
   const triggerFlashNode = useCallback((thingId: string) => {
-    const timers = timersRef.current;
+    const timers = timersReference.current;
     const key = `n:${thingId}`;
     const previous = timers.get(key);
     if (previous) clearTimeout(previous);
@@ -21,7 +21,7 @@ export function useFlashTimer() {
   }, [addFlashNode, removeFlashNode]);
 
   const triggerFlashEdge = useCallback((edgeId: string) => {
-    const timers = timersRef.current;
+    const timers = timersReference.current;
     const key = `e:${edgeId}`;
     const previous = timers.get(key);
     if (previous) clearTimeout(previous);
@@ -30,7 +30,7 @@ export function useFlashTimer() {
   }, [addFlashEdge, removeFlashEdge]);
 
   useEffect(() => {
-    const timers = timersRef.current;
+    const timers = timersReference.current;
     return () => { timers.forEach((t) => clearTimeout(t)); timers.clear(); };
   }, []);
 

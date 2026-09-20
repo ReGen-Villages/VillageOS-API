@@ -24,7 +24,7 @@ const SKIP_KEYS = new Set(['geometry', 'footprint', '__geometry_envelope']);
 export interface SearchInputs {
   /** Server-resolved effective properties per thing id (own + inherited); null while loading. Own
    *  properties are keyed by plain name, inherited by qualified path ("Home.energy_rating"). */
-  effectiveProps: Record<string, Record<string, EffectiveProperty>> | null;
+  effectiveProperties: Record<string, Record<string, EffectiveProperty>> | null;
   relationships: VosRelationship[];
   thingNames: Map<string, string>;
   query: string;
@@ -35,7 +35,7 @@ export interface SearchInputs {
  * Find property matches across things (from the server-resolved effective set, so inherited values —
  * including archetype defaults the instance never overrode — are searchable) and relationships.
  */
-export function searchProperties({ effectiveProps, relationships, thingNames, query, mode }: SearchInputs): PropertyMatch[] {
+export function searchProperties({ effectiveProperties, relationships, thingNames, query, mode }: SearchInputs): PropertyMatch[] {
   const q = query.trim().toLowerCase();
   if (q.length === 0) return [];
 
@@ -48,7 +48,7 @@ export function searchProperties({ effectiveProps, relationships, thingNames, qu
 
   const matches: PropertyMatch[] = [];
 
-  for (const [thingId, props] of Object.entries(effectiveProps ?? {})) {
+  for (const [thingId, props] of Object.entries(effectiveProperties ?? {})) {
     const ownerName = thingNames.get(thingId) ?? thingId.substring(0, 8);
     for (const [key, effectiveProperty] of Object.entries(props)) {
       const name = effectiveProperty.IsInherited ? key.substring(key.lastIndexOf('.') + 1) : key;

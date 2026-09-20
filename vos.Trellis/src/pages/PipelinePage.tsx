@@ -81,16 +81,16 @@ export function PipelinePage() {
   // and holds the last server-confirmed state as a baseline (rollback on a rejected save). `canUndo`/`dirty`
   // drive the toolbar. A ref mirrors the latest nodes/edges so any handler can snapshot the current state.
   type EditorSnapshot = { nodes: Node[]; edges: Edge[] };
-  const historyRef = useRef(new EditorHistory<EditorSnapshot>({ nodes: [], edges: [] }));
-  const stateRef = useRef<EditorSnapshot>({ nodes, edges });
+  const historyReference = useRef(new EditorHistory<EditorSnapshot>({ nodes: [], edges: [] }));
+  const stateReference = useRef<EditorSnapshot>({ nodes, edges });
   // Mirrored after each commit rather than during render, so a handler that snapshots for undo
   // reads what is on screen — never values from a render React went on to discard.
-  useEffect(() => { stateRef.current = { nodes, edges }; }, [nodes, edges]);
+  useEffect(() => { stateReference.current = { nodes, edges }; }, [nodes, edges]);
   const [canUndo, setCanUndo] = useState(false);
   const [dirty, setDirty] = useState(false);
 
   const recordSnapshot = useCallback(() => {
-    historyRef.current.record(structuredClone(stateRef.current));
+    historyReference.current.record(structuredClone(stateReference.current));
     setCanUndo(true);
     setDirty(true);
   }, []);
@@ -102,16 +102,16 @@ export function PipelinePage() {
 
   // Baseline = the last server-confirmed state; also clears the undo stack (a fresh save/load/new is the floor).
   const commitBaseline = useCallback((s: EditorSnapshot) => {
-    historyRef.current.commit(structuredClone(s));
+    historyReference.current.commit(structuredClone(s));
     setCanUndo(false);
     setDirty(false);
   }, []);
 
   const onUndo = useCallback(() => {
-    const previous = historyRef.current.undo();
+    const previous = historyReference.current.undo();
     if (!previous) return;
     applySnapshot(previous);
-    setCanUndo(historyRef.current.canUndo());
+    setCanUndo(historyReference.current.canUndo());
     setDirty(true);
     setSavedId(null); // an undo leaves the canvas out of step with the last save
   }, [applySnapshot]);
@@ -255,7 +255,7 @@ export function PipelinePage() {
   const onSave = useCallback(async () => {
     // Optimistic rollback (#5872): remember the state we are trying to save so a rejected save can revert
     // the canvas to the last server-confirmed state instead of leaving it out of step with the server.
-    const attempt = structuredClone(stateRef.current);
+    const attempt = structuredClone(stateReference.current);
     setBusy(true);
     setError(null);
     try {
@@ -269,7 +269,7 @@ export function PipelinePage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : t('pipeline.saveFailed'));
       // Revert to the last server-confirmed state, if we have one (a never-saved canvas keeps the user's work).
-      const target = historyRef.current.rollbackTarget();
+      const target = historyReference.current.rollbackTarget();
       if (target) {
         applySnapshot(target);
         setCanUndo(false);

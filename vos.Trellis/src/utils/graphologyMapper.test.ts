@@ -292,7 +292,7 @@ describe('buildGraph', () => {
   });
 
   describe('logical node classification', () => {
-    const geoProps = { latitude: 40.7937, longitude: -73.6612 };
+    const geometryProperties = { latitude: 40.7937, longitude: -73.6612 };
 
     it('marks nodes without lat/lng as isLogical=true', () => {
       const graph = buildGraph(allThings, relationships);
@@ -304,14 +304,14 @@ describe('buildGraph', () => {
     });
 
     it('marks nodes with lat/lng as isLogical=false', () => {
-      const geoNode = makeThing('geo-1', 'Home-1', geoProps);
+      const geoNode = makeThing('geo-1', 'Home-1', geometryProperties);
       const graph = buildGraph([geoNode], []);
       expect(graph.getNodeAttribute('geo-1', 'isLogical')).toBe(false);
       expect(graph.getNodeAttribute('geo-1', 'hasGeometry')).toBe(true);
     });
 
     it('assigns parentGeoNodeId via "has" edge preferentially', () => {
-      const geoParent = makeThing('geo-parent', 'Building-1', geoProps);
+      const geoParent = makeThing('geo-parent', 'Building-1', geometryProperties);
       const logicalChild = makeThing('logical-child', 'SensorType');
       const hasPredicateThing = makeThing('pred-has', 'has');
       const hasRelationship = makeRelationship('r-has', 'geo-parent', 'pred-has', 'logical-child');
@@ -322,7 +322,7 @@ describe('buildGraph', () => {
     });
 
     it('falls back to any geo neighbour when no "has" edge exists', () => {
-      const geoNode = makeThing('geo-1', 'Building-1', geoProps);
+      const geoNode = makeThing('geo-1', 'Building-1', geometryProperties);
       const logicalNode = makeThing('logical-1', 'SomeType');
       const predicateThing = makeThing('pred-monitors', 'monitors');
       const relationship = makeRelationship('r-mon', 'logical-1', 'pred-monitors', 'geo-1');
@@ -341,10 +341,10 @@ describe('buildGraph', () => {
   });
 
   describe('getLogicalChildren / countLogicalChildren', () => {
-    const geoProps = { latitude: 40.7937, longitude: -73.6612 };
+    const geometryProperties = { latitude: 40.7937, longitude: -73.6612 };
 
     it('returns logical children for a geo parent', () => {
-      const geoParent = makeThing('geo-p', 'Building-1', geoProps);
+      const geoParent = makeThing('geo-p', 'Building-1', geometryProperties);
       const childA = makeThing('child-a', 'TypeA');
       const childB = makeThing('child-b', 'TypeB');
       const hasPredicateThing = makeThing('pred-has', 'has');
@@ -360,8 +360,8 @@ describe('buildGraph', () => {
     });
 
     it('returns empty array for a geo node with no logical children', () => {
-      const geoA = makeThing('geo-a', 'Building-A', geoProps);
-      const geoB = makeThing('geo-b', 'Building-B', geoProps);
+      const geoA = makeThing('geo-a', 'Building-A', geometryProperties);
+      const geoB = makeThing('geo-b', 'Building-B', geometryProperties);
       const hasPredicateThing = makeThing('pred-has', 'has');
       // Edge between two geo nodes — no logical children
       const relationship = makeRelationship('r-geo', 'geo-a', 'pred-has', 'geo-b');
@@ -372,8 +372,8 @@ describe('buildGraph', () => {
     });
 
     it('does not return children parented to a different geo node', () => {
-      const geoA = makeThing('geo-a', 'Building-A', geoProps);
-      const geoB = makeThing('geo-b', 'Building-B', geoProps);
+      const geoA = makeThing('geo-a', 'Building-A', geometryProperties);
+      const geoB = makeThing('geo-b', 'Building-B', geometryProperties);
       const childOfA = makeThing('child-of-a', 'SensorA');
       const childOfB = makeThing('child-of-b', 'SensorB');
       const hasPredicateThing = makeThing('pred-has', 'has');

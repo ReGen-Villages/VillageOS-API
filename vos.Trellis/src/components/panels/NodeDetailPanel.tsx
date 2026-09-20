@@ -41,7 +41,7 @@ interface Props {
 export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSelectNode, onDeleteProperty, onDeleteThing, onRenamed, statesVersion }: Props) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<'properties' | 'relationships' | 'ranges' | '3d'>('ranges');
-  const [effectiveProps, setEffectiveProps] = useState<Record<string, EffectiveProperty> | null>(null);
+  const [effectiveProperties, setEffectiveProperties] = useState<Record<string, EffectiveProperty> | null>(null);
   const [expandedValue, setExpandedValue] = useState<{ name: string; value: string } | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [relationshipEditMode, setRelationshipEditMode] = useState(false);
@@ -91,10 +91,10 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
     thing.Id, tab, statesVersion,
   );
 
-  const [propsVersion, setPropsVersion] = useState(0);
+  const [propertiesVersion, setPropertiesVersion] = useState(0);
   const ownProperties = thing.Properties ? Object.entries(thing.Properties) : [];
   const ownPropertyCount = ownProperties.length;
-  const props = withDeclaredTypes(ownProperties, effectiveProps);
+  const props = withDeclaredTypes(ownProperties, effectiveProperties);
 
   // Fetch effective properties (own + inherited with source info)
   useEffect(() => {
@@ -102,16 +102,16 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
     (async () => {
       try {
         const effectiveProperty = await thingApi.getEffectiveProperties(thing.Id);
-        if (!cancelled) setEffectiveProps(effectiveProperty);
+        if (!cancelled) setEffectiveProperties(effectiveProperty);
       } catch {
-        if (!cancelled) setEffectiveProps(null);
+        if (!cancelled) setEffectiveProperties(null);
       }
     })();
     return () => { cancelled = true; };
-  }, [thing.Id, propsVersion]);
+  }, [thing.Id, propertiesVersion]);
 
   const handlePropertySaved = () => {
-    setPropsVersion((v) => v + 1);
+    setPropertiesVersion((v) => v + 1);
   };
 
   const handleExpandValue = (name: string, value: string) => setExpandedValue({ name, value });
@@ -179,7 +179,7 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
                 <h4 className="text-xs font-semibold text-zinc-500">{t('panels.node.own', { count: ownPropertyCount })}</h4>
                 <button
                   onClick={() => setEditMode((v) => !v)}
-                  disabled={!effectiveProps}
+                  disabled={!effectiveProperties}
                   className={`p-0.5 rounded transition-colors disabled:opacity-30 disabled:cursor-default ${
                     editMode
                       ? 'text-blue-400 bg-blue-500/20 hover:bg-blue-500/30'
@@ -201,8 +201,8 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
               />
             </div>
 
-            {effectiveProps && <InheritedPropertiesSection
-              effectiveProps={effectiveProps}
+            {effectiveProperties && <InheritedPropertiesSection
+              effectiveProperties={effectiveProperties}
               allThings={allThings}
               onSelectNode={onSelectNode}
               onExpandValue={handleExpandValue}
@@ -362,8 +362,8 @@ function CollapsiblePropertyGroup({ label, count, onNavigate, expanded, onToggle
 
 // ── Inherited properties from the Thing properties API ──────────────────
 
-function InheritedPropertiesSection({ effectiveProps, allThings, onSelectNode, onExpandValue, editMode, entityId, onSaved }: {
-  effectiveProps: Record<string, EffectiveProperty>;
+function InheritedPropertiesSection({ effectiveProperties, allThings, onSelectNode, onExpandValue, editMode, entityId, onSaved }: {
+  effectiveProperties: Record<string, EffectiveProperty>;
   allThings: Map<string, VosThing>;
   onSelectNode: (id: string) => void;
   onExpandValue: (name: string, value: string) => void;
@@ -376,7 +376,7 @@ function InheritedPropertiesSection({ effectiveProps, allThings, onSelectNode, o
   // Every property resolved through an "is" chain is inherited, whether or not this thing overrode it.
   // The backend tags each effective property with its provenance; own properties are excluded here and
   // shown in the Own section above.
-  const inherited = Object.entries(effectiveProps).filter(([, effectiveProperty]) => effectiveProperty.IsInherited);
+  const inherited = Object.entries(effectiveProperties).filter(([, effectiveProperty]) => effectiveProperty.IsInherited);
   if (inherited.length === 0) return null;
 
   // Group by source thing

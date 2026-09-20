@@ -43,7 +43,7 @@ export function BimFragmentsViewer({
   onPick,
   visibility,
 }: BimFragmentsViewerProps) {
-  const orbitRef = useRef<OrbitControlsImpl | null>(null);
+  const orbitReference = useRef<OrbitControlsImpl | null>(null);
   const [loadState, setLoadState] = useState<LoadState>({ kind: 'loading', stage: 'fetching worker', progress: 0 });
   const [cameraMode, setCameraMode] = useState<CameraMode>('3d');
   const [sectionEnabled, setSectionEnabled] = useState(false);
@@ -70,13 +70,13 @@ export function BimFragmentsViewer({
 
   // Held in a ref because the Fragments worker reads it every frame via
   // getClippingPlanesEvent and must see current state without re-subscribing.
-  const clipPlanesRef = useRef<THREE.Plane[]>([]);
+  const clipPlanesReference = useRef<THREE.Plane[]>([]);
   useEffect(() => {
     if (sectionEnabled) {
       const p = new THREE.Plane(new THREE.Vector3(0, -1, 0), sectionY);
-      clipPlanesRef.current = [p];
+      clipPlanesReference.current = [p];
     } else {
-      clipPlanesRef.current = [];
+      clipPlanesReference.current = [];
     }
   }, [sectionEnabled, sectionY]);
 
@@ -106,7 +106,7 @@ export function BimFragmentsViewer({
             (returned null for every click). Use the single built-in camera; plan mode
             is faked by lifting it overhead and narrowing FOV instead of an ortho camera. */}
         <OrbitControls
-          ref={orbitRef}
+          ref={orbitReference}
           makeDefault
           enableDamping
           dampingFactor={0.08}
@@ -117,13 +117,13 @@ export function BimFragmentsViewer({
 
         <BimFragmentsScene
           bytes={bimFragmentsBytes}
-          orbitRef={orbitRef}
+          orbitReference={orbitReference}
           mapping={mapping}
           onPick={onPick}
           onProgress={onProgress}
           onReady={onReady}
           cameraMode={cameraMode}
-          clipPlanesRef={clipPlanesRef}
+          clipPlanesReference={clipPlanesReference}
           visibility={visibility}
         />
       </Canvas>
@@ -148,13 +148,13 @@ export function BimFragmentsViewer({
 
 interface BimFragmentsSceneProps {
   bytes: ArrayBuffer;
-  orbitRef: React.MutableRefObject<OrbitControlsImpl | null>;
+  orbitReference: React.MutableRefObject<OrbitControlsImpl | null>;
   mapping: BimFragmentsMapping;
   onPick: (vosGuid: string | null) => void;
   onProgress: (stage: string, progress: number) => void;
   onReady: (bounds: ModelBounds) => void;
   cameraMode: CameraMode;
-  clipPlanesRef: React.MutableRefObject<THREE.Plane[]>;
+  clipPlanesReference: React.MutableRefObject<THREE.Plane[]>;
   visibility: SceneVisibility;
 }
 
@@ -169,21 +169,21 @@ const HIGHLIGHT_MATERIAL = {
 
 function BimFragmentsScene({
   bytes,
-  orbitRef,
+  orbitReference,
   mapping,
   onPick,
   onProgress,
   onReady,
   cameraMode,
-  clipPlanesRef,
+  clipPlanesReference,
   visibility,
 }: BimFragmentsSceneProps) {
   const { camera, gl, invalidate } = useThree();
   const [model, setModel] = useState<BimFragmentsModel | null>(null);
-  const bimFragmentsRef = useRef<BimFragmentsModels | null>(null);
-  const boundsRef = useRef<ModelBounds | null>(null);
-  const lastUpdateRef = useRef<number>(0);
-  const highlightedRef = useRef<number | null>(null);
+  const bimFragmentsReference = useRef<BimFragmentsModels | null>(null);
+  const boundsReference = useRef<ModelBounds | null>(null);
+  const lastUpdateReference = useRef<number>(0);
+  const highlightedReference = useRef<number | null>(null);
 
   // Local clipping must be enabled for the section plane to take effect.
   useEffect(() => {
@@ -206,7 +206,7 @@ function BimFragmentsScene({
       if (cancelled) return;
 
       const bimFragments = new BimFragmentsModels(workerURL);
-      bimFragmentsRef.current = bimFragments;
+      bimFragmentsReference.current = bimFragments;
 
       const loaded = await bimFragments.load(bytes, {
         modelId: 'village-os-model',
@@ -220,11 +220,11 @@ function BimFragmentsScene({
         await bimFragments.dispose();
         return;
       }
-      loaded.getClippingPlanesEvent = () => clipPlanesRef.current;
+      loaded.getClippingPlanesEvent = () => clipPlanesReference.current;
 
       const bounds = await computeBounds(loaded);
-      boundsRef.current = bounds;
-      await fitCameraToBounds(cameraMode, camera, bounds, orbitRef.current);
+      boundsReference.current = bounds;
+      await fitCameraToBounds(cameraMode, camera, bounds, orbitReference.current);
       await bimFragments.update(true);
       invalidate();
       setModel(loaded);
@@ -235,8 +235,8 @@ function BimFragmentsScene({
 
     return () => {
       cancelled = true;
-      const bimFragments = bimFragmentsRef.current;
-      bimFragmentsRef.current = null;
+      const bimFragments = bimFragmentsReference.current;
+      bimFragmentsReference.current = null;
       if (bimFragments) void bimFragments.dispose();
     };
     // Load once per bytes instance.
@@ -244,17 +244,17 @@ function BimFragmentsScene({
   }, [bytes]);
 
   useEffect(() => {
-    if (!model || !boundsRef.current) return;
-    void fitCameraToBounds(cameraMode, camera, boundsRef.current, orbitRef.current);
+    if (!model || !boundsReference.current) return;
+    void fitCameraToBounds(cameraMode, camera, boundsReference.current, orbitReference.current);
     invalidate();
-  }, [cameraMode, camera, model, orbitRef, invalidate]);
+  }, [cameraMode, camera, model, orbitReference, invalidate]);
 
   useFrame(({ clock }) => {
-    const bimFragments = bimFragmentsRef.current;
+    const bimFragments = bimFragmentsReference.current;
     if (!bimFragments || !model) return;
     const now = clock.elapsedTime;
-    if (now - lastUpdateRef.current < 1 / 6) return;
-    lastUpdateRef.current = now;
+    if (now - lastUpdateReference.current < 1 / 6) return;
+    lastUpdateReference.current = now;
     void bimFragments.update();
   });
 
@@ -269,7 +269,7 @@ function BimFragmentsScene({
       const toHide = await hiddenSceneItemsFor(visibility, model);
       if (cancelled) { invalidate(); return; }
       if (toHide.length > 0) await model.setVisible(toHide, false);
-      const bimFragments = bimFragmentsRef.current;
+      const bimFragments = bimFragmentsReference.current;
       if (bimFragments && !cancelled) await bimFragments.update(true);
       invalidate();
     })().catch((err) => console.error('Failed to apply type-filter visibility', err));
@@ -331,21 +331,21 @@ function BimFragmentsScene({
     };
 
     const applyHighlight = async (localId: number) => {
-      if (highlightedRef.current === localId) return;
+      if (highlightedReference.current === localId) return;
       // Note: model.highlight(undefined, ...) highlights EVERY item (Bug
       // #5298 follow-up — the whole model turned yellow on the 2nd pick).
       // Use resetHighlight() to clear the previous selection instead.
-      if (highlightedRef.current != null) {
-        await model.resetHighlight([highlightedRef.current]);
+      if (highlightedReference.current != null) {
+        await model.resetHighlight([highlightedReference.current]);
       }
       await model.highlight([localId], HIGHLIGHT_MATERIAL);
-      highlightedRef.current = localId;
+      highlightedReference.current = localId;
     };
 
     const clearHighlight = async () => {
-      if (highlightedRef.current == null) return;
-      await model.resetHighlight([highlightedRef.current]);
-      highlightedRef.current = null;
+      if (highlightedReference.current == null) return;
+      await model.resetHighlight([highlightedReference.current]);
+      highlightedReference.current = null;
     };
 
     canvas.addEventListener('pointerdown', onPointerDown);

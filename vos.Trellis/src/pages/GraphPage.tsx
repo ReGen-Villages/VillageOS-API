@@ -175,7 +175,7 @@ export function GraphPage() {
 
   // Import a fragment file ({ Name, Things, Relationships }) and upsert it into the live model.
   // Idempotent; created Things/edges animate in over SSE, so we only need to trigger a reload.
-  const fragmentInputRef = useRef<HTMLInputElement>(null);
+  const fragmentInputReference = useRef<HTMLInputElement>(null);
   const handleImportFragment = async (file: File) => {
     try {
       const result = await modelApi.applyFragment(await file.text());
@@ -219,7 +219,7 @@ export function GraphPage() {
           obscured the control surface). */}
       <div className="absolute top-3 right-3 z-20 flex items-center gap-2 bg-zinc-800/80 backdrop-blur rounded-lg px-3 py-1.5">
         <input
-          ref={fragmentInputRef}
+          ref={fragmentInputReference}
           type="file"
           accept="application/json,.json"
           className="hidden"
@@ -230,7 +230,7 @@ export function GraphPage() {
           }}
         />
         <button
-          onClick={() => fragmentInputRef.current?.click()}
+          onClick={() => fragmentInputReference.current?.click()}
           title={t('graph.actions.importFragment')}
           className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
         >

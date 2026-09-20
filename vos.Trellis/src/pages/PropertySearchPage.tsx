@@ -42,7 +42,7 @@ export function PropertySearchPage() {
   const [historyTarget, setHistoryTarget] = useState<PropertyMatch | null>(null);
   const [versions, setVersions] = useState<PropertyVersionsResponse | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const debounceReference = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const numbers = useNumberDisplaySettings();
   const things = useModelStore((s) => s.things);
@@ -54,13 +54,13 @@ export function PropertySearchPage() {
   // store only carries own + stored overrides, so search must read the server-resolved effective set.
   // A read-only snapshot — Property Search is not a live surface — and the same read the panels make
   // for the declared types, which is why it comes from the one hook rather than a second fetch.
-  const effectiveProps = useDeclaredPropertyTypes();
+  const effectiveProperties = useDeclaredPropertyTypes();
 
   // Debounce: update the actual search query 250ms after the user stops typing
   const onInputChange = useCallback((value: string) => {
     setInputValue(value);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
+    clearTimeout(debounceReference.current);
+    debounceReference.current = setTimeout(() => {
       setDebouncedQuery(value);
       setVisibleCount(PAGE_SIZE);
       setHistoryTarget(null);
@@ -68,7 +68,7 @@ export function PropertySearchPage() {
     }, 250);
   }, []);
 
-  useEffect(() => () => clearTimeout(debounceRef.current), []);
+  useEffect(() => () => clearTimeout(debounceReference.current), []);
 
   // Build a name lookup for relationship detail display
   const thingNames = useMemo(() => {
@@ -79,8 +79,8 @@ export function PropertySearchPage() {
 
   // Search — runs only when the query, mode, resolved properties, or relationships change
   const results = useMemo(
-    () => searchProperties({ effectiveProps, relationships, thingNames, query: debouncedQuery, mode: searchMode }),
-    [debouncedQuery, searchMode, effectiveProps, relationships, thingNames],
+    () => searchProperties({ effectiveProperties, relationships, thingNames, query: debouncedQuery, mode: searchMode }),
+    [debouncedQuery, searchMode, effectiveProperties, relationships, thingNames],
   );
 
   // Group results by property name, but only materialize what we'll render

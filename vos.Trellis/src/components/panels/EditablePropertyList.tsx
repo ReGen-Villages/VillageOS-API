@@ -153,7 +153,7 @@ function AddPropertyRow({
   const [type, setType] = useState(DEFAULT_PROPERTY_TYPE);
   const [value, setValue] = useState('');
   const [saving, setSaving] = useState(false);
-  const nameRef = useRef<HTMLInputElement>(null);
+  const nameReference = useRef<HTMLInputElement>(null);
 
   const editor = editorForType(type);
   const canSubmit = name.trim().length > 0 && !saving;
@@ -175,7 +175,7 @@ function AddPropertyRow({
       setValue('');
       onSaved?.();
       // Re-focus the name input for quick successive adds
-      nameRef.current?.focus();
+      nameReference.current?.focus();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('panels.properties.addFailed'));
     } finally {
@@ -205,7 +205,7 @@ function AddPropertyRow({
   return (
     <div className="flex items-center gap-1.5 py-1.5 mt-1 border-t border-zinc-700/50">
       <input
-        ref={nameRef}
+        ref={nameReference}
         value={name}
         onChange={(e) => setName(e.target.value)}
         onKeyDown={onKeyDown}
@@ -287,7 +287,7 @@ function EditableRow({
   const [draft, setDraft] = useState(asDraft);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputReference = useRef<HTMLInputElement>(null);
 
   // The row starts over when the stored value changes underneath it — after this save, or someone
   // else's. Adjusted while rendering rather than in an effect: React re-runs the component before
@@ -348,7 +348,7 @@ function EditableRow({
         const f = formatted === '(null)' ? '' : formatted;
         setDraft(f);
         setDirty(false);
-        inputRef.current?.blur();
+        inputReference.current?.blur();
       }
     },
     [save, formatted],
@@ -364,7 +364,7 @@ function EditableRow({
           </span>
         ) : editor === 'checkbox' ? (
           <input
-            ref={inputRef}
+            ref={inputReference}
             type="checkbox"
             checked={draft === 'true'}
             onChange={onChange}
@@ -376,7 +376,7 @@ function EditableRow({
           />
         ) : (
           <input
-            ref={inputRef}
+            ref={inputReference}
             {...inputAttributesFor(editor)}
             value={draft}
             onChange={onChange}
