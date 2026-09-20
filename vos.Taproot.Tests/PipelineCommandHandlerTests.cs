@@ -166,7 +166,7 @@ public class PipelineCommandHandlerTests
 
         var output = _writer.ToString();
         output.Should().StartWith("Runs of Nightly, newest first:");
-        output.IndexOf("run-late".Length > 0 ? LateRunId.ToString() : "", StringComparison.Ordinal)
+        output.IndexOf(LateRunId.ToString(), StringComparison.Ordinal)
             .Should().BeLessThan(output.IndexOf(EarlyRunId.ToString(), StringComparison.Ordinal));
         output.Should().Contain("2026-09-20T11:00:00Z").And.Contain("running").And.Contain("succeeded");
         output.Should().NotContain(OtherRunId.ToString());
