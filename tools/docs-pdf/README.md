@@ -6,14 +6,14 @@ built when somebody wants one and is never committed.
 ```bash
 cd tools/docs-pdf
 npm install                      # once
-node build.mjs ../../docs/FIELD_GUIDE.md --version 1.0
+node build.mjs ../../docs/FIELD_GUIDE.md --version 0.1
 ```
 
 That writes `docs/FIELD_GUIDE.pdf`. A guide in the other repository is rendered the same way, by naming
 it:
 
 ```bash
-node build.mjs ../../../VillageOS/docs/VILLAGEOS_FIELD_GUIDE.md --version 1.0
+node build.mjs ../../../VillageOS/docs/VILLAGEOS_FIELD_GUIDE.md --version 0.1
 ```
 
 **The PDF is the versioned document; the Markdown is not.** A guide changes on every merge, so a
