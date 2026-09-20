@@ -233,15 +233,26 @@ public class MyceliumClient
         return response.IsSuccessStatusCode;
     }
 
-    public virtual async Task<JsonElement> SetPropertyAsync(Guid thingId, string name, string type, object? value)
+    // The platform changes a property a Thing already holds through PUT and adds one through POST on
+    // the same path; a set sent where an add was meant answers 404.
+    public virtual Task<JsonElement> SetPropertyAsync(Guid thingId, string name, string type, object? value)
+        => WritePropertyAsync(HttpMethod.Put, $"{_myceliumUrl}/api/things/{thingId}/properties", name, type, value);
+
+    public virtual Task<JsonElement> AddPropertyAsync(Guid thingId, string name, string type, object? value)
+        => WritePropertyAsync(HttpMethod.Post, $"{_myceliumUrl}/api/things/{thingId}/properties", name, type, value);
+
+    private async Task<JsonElement> WritePropertyAsync(HttpMethod method, string url, string name, string type, object? value)
     {
         await SetAuthHeaderAsync();
-        var content = new StringContent(
-            JsonSerializer.Serialize(new { Name = name, Type = type, Value = value }),
-            Encoding.UTF8,
-            "application/json");
-        var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/things/{thingId}/properties", content);
-        response.EnsureSuccessStatusCode();
+        using var request = new HttpRequestMessage(method, url)
+        {
+            Content = new StringContent(
+                JsonSerializer.Serialize(new { Name = name, Type = PropertyTypeNames.Canonical(type), Value = value }),
+                Encoding.UTF8,
+                "application/json")
+        };
+        var response = await _httpClient.SendAsync(request);
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -305,16 +316,9 @@ public class MyceliumClient
         return response.IsSuccessStatusCode;
     }
 
-    public virtual async Task<JsonElement> SetRelationshipPropertyAsync(Guid relId, string name, string type, object? value)
-    {
-        await SetAuthHeaderAsync();
-        var content = new StringContent(
-            JsonSerializer.Serialize(new { Name = name, Type = type, Value = value }),
-            Encoding.UTF8, "application/json");
-        var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/relationships/{relId}/properties", content);
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<JsonElement>();
-    }
+    // A relationship's property write adds the property when the relationship does not hold it yet.
+    public virtual Task<JsonElement> SetRelationshipPropertyAsync(Guid relId, string name, string type, object? value)
+        => WritePropertyAsync(HttpMethod.Put, $"{_myceliumUrl}/api/relationships/{relId}/properties", name, type, value);
 
     public virtual async Task<bool> DeleteRelationshipPropertyAsync(Guid relId, string propertyName)
     {
