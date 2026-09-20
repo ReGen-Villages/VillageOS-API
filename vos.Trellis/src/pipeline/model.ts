@@ -9,7 +9,7 @@ import type { VosThing, VosRelationship } from '../types/vos';
 export const ARCHETYPE_FLAG = {
   Pipeline: '__IsPipelineArchetype',
   PipelineNode: '__IsPipelineNodeArchetype',
-  // Boundary nodes (#5873): a pipeline's external input ("from the start") and output ("at the end").
+  // Boundary nodes: a pipeline's external input ("from the start") and output ("at the end").
   PipelineInput: '__IsPipelineInputArchetype',
   PipelineOutput: '__IsPipelineOutputArchetype',
   Connection: '__IsConnectionArchetype',
@@ -27,7 +27,7 @@ function carriesFlag(thing: VosThing, roleFlag: string): boolean {
   return thing.Properties[roleFlag] === true;
 }
 
-/** A past or in-flight run of a pipeline, for the run-history panel (#5646). */
+/** A past or in-flight run of a pipeline, for the run-history panel. */
 export interface RunInfo {
   runId: string;
   status: string;
@@ -163,7 +163,7 @@ export class PipelineModel {
     };
   }
 
-  /** Is this thing a boundary node — of the archetype marked as a pipeline's input, or as its output? (#5873) */
+  /** Is this thing a boundary node — of the archetype marked as a pipeline's input, or as its output? */
   boundaryKind(thingId: string): 'input' | 'output' | undefined {
     if (this.isOfArchetypeCarrying(thingId, ARCHETYPE_FLAG.PipelineInput)) return 'input';
     if (this.isOfArchetypeCarrying(thingId, ARCHETYPE_FLAG.PipelineOutput)) return 'output';
@@ -171,7 +171,7 @@ export class PipelineModel {
   }
 
   /** A boundary node's own declared port child-Things, each with its Thing id — the save-diff needs the id
-   * to update a port in place or retract a removed one (#5873). Ports are declared directly on the node. */
+   * to update a port in place or retract a removed one. Ports are declared directly on the node. */
   boundaryPortRels(nodeId: string): { portId: string; port: PortInfo }[] {
     return this.outgoing(nodeId, 'has')
       .filter((t) => this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.Port))
@@ -199,7 +199,7 @@ export class PipelineModel {
   }
 
   /** Outgoing wires from a node, in either shape the model may hold them in, with their port mapping and
-   * the optional field-paths (#5874). `wireId` is what the save edits and removes the wire through, and
+   * the optional field-paths. `wireId` is what the save edits and removes the wire through, and
    * `shape` says which call that is: a relationship for a wire drawn as an edge, a Thing for one held. */
   outgoingWires(subjectId: string): WireRead[] {
     const rels = this.bySubject.get(subjectId);
@@ -246,7 +246,7 @@ export class PipelineModel {
     return this.things.find((t) => carriesFlag(t, roleFlag))?.Id;
   }
 
-  /** Live per-node status for a run, keyed by the node Thing id — the SSE animation source (#5635).
+  /** Live per-node status for a run, keyed by the node Thing id — the SSE animation source.
    * Phloem records each node's progress on a node-run Thing the run `has`, carrying `nodeId` + `status`. Only the
    * node's AGGREGATE record (no `index`) drives the ring; per-item fan-out records are counted separately. */
   nodeRunStatuses(runId: string): Record<string, string> {
@@ -259,7 +259,7 @@ export class PipelineModel {
     return out;
   }
 
-  /** Fan-out progress per node (#5648): from the per-item records (those carrying an `index`), how many have
+  /** Fan-out progress per node: from the per-item records (those carrying an `index`), how many have
    * reached a terminal status out of the total. Empty for non-fan-out nodes. */
   nodeRunProgress(runId: string): Record<string, { done: number; total: number }> {
     const out: Record<string, { done: number; total: number }> = {};
@@ -281,7 +281,7 @@ export class PipelineModel {
     return typeof s === 'string' ? s : undefined;
   }
 
-  /** Past + in-flight runs of a pipeline (a run Thing `of` the pipeline), newest first — the history panel (#5646). */
+  /** Past + in-flight runs of a pipeline (a run Thing `of` the pipeline), newest first — the history panel. */
   runsOf(pipelineId: string): RunInfo[] {
     const runs: RunInfo[] = [];
     for (const t of this.things) {

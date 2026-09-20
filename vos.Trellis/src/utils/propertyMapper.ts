@@ -96,7 +96,7 @@ export interface IsChainLookup {
 // Memoize per (model-index identity, Thing identity). The index is rebuilt whenever the model
 // changes (buildModelIndex is memoized on things+relationships), so a fresh index correctly
 // invalidates every entry — including instances whose inherited defaults changed because an
-// *archetype* changed, which a Thing-only key (Bug #5941) cannot see (Bug #6048). Within a stable
+// *archetype* changed, which a Thing-only key cannot see. Within a stable
 // model the index identity holds, preserving the per-Thing memoization.
 const effectivePropertiesCache = new WeakMap<object, WeakMap<object, Readonly<Record<string, unknown>>>>();
 

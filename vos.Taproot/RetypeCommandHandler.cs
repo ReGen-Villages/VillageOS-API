@@ -3,9 +3,9 @@ using System.Text.Json;
 namespace vos.Taproot;
 
 // Repoint a Thing's type to a different archetype. Multiple inheritance is a first-class feature, so this
-// changes only ONE type edge, never collapses the rest:
+// changes only ONE type relationship, never collapses the rest:
 //   retype <thing> <new>         — swap when the Thing has 0 or 1 type; refuses (asks for <old>) if it has many
-//   retype <thing> <old> <new>   — replace only the <old> type edge, leaving the Thing's other is-edges intact
+//   retype <thing> <old> <new>   — replace only the <old> type relationship, leaving the Thing's other is-relationships intact
 // Uses existing relationship APIs — no broker change.
 public class RetypeCommandHandler
 {
@@ -38,7 +38,7 @@ public class RetypeCommandHandler
 
             var (thingId, isId, newTypeId) = (thing.Id, isPred.Id, newType.Id);
 
-            // The Thing's current type edges: (relationshipId, targetArchetypeId).
+            // The Thing's current type relationships: (relationshipId, targetArchetypeId).
             var typeEdges = new List<(Guid RelId, Guid Target)>();
             var rels = await _mycelium.GetAllRelationshipsAsync();
             if (rels.ValueKind == JsonValueKind.Array)

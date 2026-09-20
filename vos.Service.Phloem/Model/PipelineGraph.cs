@@ -21,7 +21,7 @@ public sealed class GraphThing
         Properties.TryGetValue(name, out var value) && value.ValueKind == JsonValueKind.True;
 }
 
-// A relationship: subject –predicate→ target, with unwrapped edge property values.
+// A relationship: subject –predicate→ target, with unwrapped relationship property values.
 public sealed class GraphRelationship
 {
     public Guid Id { get; init; }
@@ -62,7 +62,7 @@ public sealed class PipelineGraph
 
     // The archetype in this snapshot carrying the given flag, or null when none does. A snapshot
     // asked for the marked archetypes carries them whether or not the pipeline in it uses one, so a null
-    // here says the model marks that role on nothing (#6516).
+    // here says the model marks that role on nothing.
     public GraphThing? ArchetypeCarrying(string roleFlag) =>
         _things.Values.FirstOrDefault(thing => thing.CarriesFlag(roleFlag));
 

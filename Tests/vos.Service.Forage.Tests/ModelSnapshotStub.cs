@@ -7,7 +7,7 @@ namespace vos.Service.Forage.Tests;
 // returns, so a test declares a model rather than a JSON document.
 internal static class ModelSnapshotStub
 {
-    // Id pins the relationship's identity where a test asserts on it — a delete names the edge it
+    // Id pins the relationship's identity where a test asserts on it — a delete names the relationship it
     // removes — and is minted where no test cares.
     internal sealed record Edge(string Subject, string Predicate, string Target, Guid? Id = null);
 

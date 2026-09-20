@@ -86,10 +86,10 @@ internal static class MyceliumStub
     // The scoped snapshot Tributary reads to learn which kinds an endpoint reaches. The predicate
     // Things are included because a real snapshot only carries them when the selector names them —
     // leaving them out here would make every test agree with a resolver that reads nothing.
-    // Derives the edges from the same effective-properties document the test already writes, the way
+    // Derives the relationships from the same effective-properties document the test already writes, the way
     // Delta derives them from a seed. A test keeps declaring its endpoint's shape in one place, and
     // the words it uses there are the ones the old string-valued keys used, so the tests read as they
-    // did before while the service under test sees only edges.
+    // did before while the service under test sees only relationships.
     private static readonly (string Key, string Word, string Role, string Kind)[] DerivedKinds =
     [
         ("responseKind", "binary", EndpointKindRoles.ResponseBody, "BinaryResponse"),
@@ -117,8 +117,8 @@ internal static class MyceliumStub
     internal static HttpResponseMessage? RouteKinds(HttpRequestMessage request, Guid endpointId, params Kind[] kinds) =>
         RouteKindsAndObserved(request, endpointId, [], kinds);
 
-    // The same snapshot, with the `observed` edges the endpoint already carries — what a real read
-    // returns on every run after the first, and what stops a second one writing a parallel edge.
+    // The same snapshot, with the `observed` relationships the endpoint already carries — what a real read
+    // returns on every run after the first, and what stops a second one writing a parallel relationship.
     private static HttpResponseMessage? RouteKindsAndObserved(
         HttpRequestMessage request, Guid endpointId, IReadOnlyCollection<Guid> alreadyObserved, params Kind[] kinds)
     {

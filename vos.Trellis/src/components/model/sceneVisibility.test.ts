@@ -101,7 +101,7 @@ describe('hiddenSceneItemsFor (Bug #5366)', () => {
     expect(scene.calls).toEqual(['getLocalIdsByGuids(2)']);
   });
 
-  // Most of the model's identifiers match no scene item (Bug #6191); the ones
+  // Most of the model's identifiers match no scene item; the ones
   // that resolve to nothing must not reach setVisible as undefined entries.
   it('drops guids the scene cannot resolve', async () => {
     const scene = fakeScene([1], { 'guid-a': 11 });

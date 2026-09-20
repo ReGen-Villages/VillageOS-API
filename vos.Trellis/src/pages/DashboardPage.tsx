@@ -26,7 +26,7 @@ import type { EngineMetricsSummary } from '../types/engineMetrics';
 
 const FEED_COLLAPSED_KEY = 'vos-activity-feed-collapsed';
 
-// Definition writes publish EngineConfigurationChanged (#6227), so the panel refreshes on
+// Definition writes publish EngineConfigurationChanged, so the panel refreshes on
 // events; the poll stays as a fallback for a dropped stream.
 const ENGINE_METRICS_POLL_MS = 15000;
 

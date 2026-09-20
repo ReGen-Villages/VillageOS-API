@@ -5,7 +5,7 @@ using Xunit;
 
 namespace vos.ContinuousIntegration.Tests;
 
-// Trellis, Taproot and the services ship together and say one version (#6467).
+// Trellis, Taproot and the services ship together and say one version.
 //
 // Trellis is a JavaScript application and the rest are .NET projects, so the same version is written
 // in two formats. Nothing but a check keeps two files in step, and a client reporting a version the
@@ -128,7 +128,7 @@ public class ShippedComponentsDeclareOneVersionTests
     // into build output today, so this is a trap disarmed rather than a break fixed.
     //
     // VillageOS carries the same search, and that is where the gap was found. Neither repository can
-    // reference the other: nothing is packed to a feed (#6648), and this one is public while that one
+    // reference the other: nothing is packed to a feed, and this one is public while that one
     // is not. So a rule learned in one is applied to both by hand, the way vos.Auth.Shared is.
     private static IEnumerable<string> FilesUnderTheRepository(string pattern)
     {

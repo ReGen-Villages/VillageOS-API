@@ -6,7 +6,7 @@ import { useUiStore } from '../../stores/uiStore';
 import type { VosThing, VosRelationship } from '../../types/vos';
 
 /**
- * Bug #5388 — see PredicateFilterPanel.test.tsx for context. Mirror guard
+ * See PredicateFilterPanel.test.tsx for context. Mirror guard
  * for the Type panel since both share the filter-cluster layout in
  * GraphPage and were both regressed by the same fixed max-h-[40vh] cap.
  */

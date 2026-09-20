@@ -4,9 +4,9 @@ using Xunit;
 
 namespace vos.Service.Forage.Tests.Helpers;
 
-// Task #6789 — what a run reads about coverage already recorded. A site used to be discovered exactly
-// once ever, because the state a run was dispatched by counted `observed` edges and nothing removes
-// one. The platform now declares a `SourceCoverage` per subject and source (#6779); this is the half
+// What a run reads about coverage already recorded. A site used to be discovered exactly
+// once ever, because the state a run was dispatched by counted `observed` relationships and nothing removes
+// one. The platform now declares a `SourceCoverage` per subject and source; this is the half
 // that reads them, so a run asks only the calls whose answer is not already in.
 //
 // A coverage is about the **subject of a call**, not the site. A source that resolves onto an archetype

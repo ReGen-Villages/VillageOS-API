@@ -8,7 +8,7 @@ namespace vos.Service.Intake.Services;
 // programme allocation is for, how a parcel boundary was obtained, and what a hazard assessment is about.
 //
 // Nothing here names an archetype or a predicate. Each vocabulary is found by the mark its archetype
-// carries and each edge by the mark its predicate carries, so a model that renamed either keeps
+// carries and each relationship by the mark its predicate carries, so a model that renamed either keeps
 // answering — and a model that declares a term this service has never heard of resolves it anyway,
 // which is the whole reason the terms are Things.
 //
@@ -40,7 +40,7 @@ public static class DeclaredVocabularyReader
 
     // Every vocabulary in one read. The terms come from the archetype marks and the predicates
     // from their own, and `is` is named so the walk from an archetype to its terms can recognise the
-    // edges the snapshot carries.
+    // relationships the snapshot carries.
     public static SubscriptionSelector Selector() => new()
     {
         Names = [SubmissionFragmentComposer.IsPredicateName],
@@ -50,7 +50,7 @@ public static class DeclaredVocabularyReader
             HazardLevelArchetypeFlag, WaterDemandComponentArchetypeFlag,
         ],
         // The root Place belongs here beside the predicates rather than with the marked types: it is a
-        // Thing whose id an edge is written to, not an archetype whose members are wanted.
+        // Thing whose id a relationship is written to, not an archetype whose members are wanted.
         MarkedArchetypes =
         [
             AllocationCategoryPredicateFlag, BoundarySourcePredicateFlag, HazardTypePredicateFlag,
@@ -140,7 +140,7 @@ public static class DeclaredVocabularyReader
         TermsMarked(snapshot, AllocationCategoryArchetypeFlag, AllocationCategoryPredicateFlag,
             "what a programme allocation is for");
 
-    // No terms to walk: a submission names no Place, so this reads the two Things an edge is written from
+    // No terms to walk: a submission names no Place, so this reads the two Things a relationship is written from
     // and to. The same one-carrier rule applies — two roots would put a site under a different one on
     // different submissions, and the sources selected for it would differ by run.
     private static DeclaredPlace PlaceNesting(SnapshotDocument snapshot)

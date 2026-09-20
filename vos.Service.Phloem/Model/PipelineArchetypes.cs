@@ -5,7 +5,7 @@ namespace vos.Service.Phloem.Model;
 // The names used to arrive on the command line: the broker held them in a settings section and spelled
 // every one onto the daemon it started, so two repositories agreed about the model by matching text
 // neither of them could check. Renaming an archetype left this orchestrator starting cleanly and finding
-// nothing (#6516).
+// nothing.
 //
 // The flags below are the contract instead. A model calls its pipeline archetype whatever suits it and
 // marks it; the snapshot carries the mark, and nothing here reads a name.

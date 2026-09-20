@@ -32,7 +32,7 @@ export function edgeTouchesNode(
 /**
  * Pure-function decision for an edge's display state given the current
  * filter context. Extracted from <c>NodeReducer</c> so the policy is
- * unit-testable (Feature #5344).
+ * unit-testable.
  *
  * Resolution order:
  *   1. Hover takes precedence  → 'brighten' if the edge touches the hovered node
@@ -41,7 +41,7 @@ export function edgeTouchesNode(
  *   4. Predicate filter active   → 'show' iff this edge's predicate is selected, else 'hide'
  *   5. No filter active          → 'show' (every edge visible by default)
  *
- * Bug #5364 — the previous `showAllByDefault` parameter is removed; the
+ * The previous `showAllByDefault` parameter is removed; the
  * "quiet mode" (hide edges by default) is superseded by the predicate
  * filter panel which gives the same effect with finer control.
  */

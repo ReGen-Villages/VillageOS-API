@@ -223,7 +223,7 @@ public class HandleEndpointTests
     }
 
     // The body Mycelium posts when a site enters the state the discovery connection watches. Every field
-    // beside the subject belongs to the record-edge the dispatch wrote, and a run reads none of them — but
+    // beside the subject belongs to the record-relationship the dispatch wrote, and a run reads none of them — but
     // a service that refused the whole body over them is a service nothing in the platform can dispatch.
     [Fact]
     public async Task Handle_TheBodyADispatchPosts_RunsTheSiteItNames()

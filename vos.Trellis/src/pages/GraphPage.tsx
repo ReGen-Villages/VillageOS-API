@@ -26,7 +26,7 @@ import { Upload } from 'lucide-react';
 import { applyTypeFilter } from '../utils/typeFilter';
 import type { DeletableEntity } from './graphDeletions';
 
-// Feature #5362 — SigmaCanvas is lazy-loaded so the page commits (search bar,
+// SigmaCanvas is lazy-loaded so the page commits (search bar,
 // type filter, top-right controls) BEFORE Sigma's mount-time work
 // (buildGraph + supervisor init + initial render of 30k+ nodes) starves the
 // main thread. The user can interact with the type filter immediately on cold
@@ -57,10 +57,9 @@ export function GraphPage() {
   const statesVersion = useUiStore((s) => s.statesVersion);
   const hiddenTypeIds = useUiStore((s) => s.hiddenTypeIds);
 
-  // Feature #5362 — drop instances of hidden types BEFORE search filtering and
-  // graph build, so render cost scales with visible-only counts. This is the
-  // perf fix for Bug #5361 — at 30k+ Things any per-frame render of the full
-  // set saturates the main thread.
+  // Drop instances of hidden types BEFORE search filtering and
+  // graph build, so render cost scales with visible-only counts: at 30k+ Things any
+  // per-frame render of the full set saturates the main thread.
   const visible = useMemo(
     () => applyTypeFilter(things, relationships, hiddenTypeIds),
     [things, relationships, hiddenTypeIds],
@@ -81,7 +80,7 @@ export function GraphPage() {
     useUiStore.getState().clearPredicateIds();
   }, []);
 
-  // Feature #5362 — defer Sigma mount one tick so the page chrome (search
+  // Defer Sigma mount one tick so the page chrome (search
   // bar + type filter + top-right controls) commits and paints first. On a
   // 30k-node model the synchronous SigmaCanvas mount blocks the main thread
   // for several seconds; without this defer the user can never reach the
@@ -238,7 +237,7 @@ export function GraphPage() {
         </button>
       </div>
 
-      {/* Filter cluster (Feature #5362) — bottom-right, vertically aligned
+      {/* Filter cluster — bottom-right, vertically aligned
           with the toolbar in the bottom-left (both at bottom-3). Type and
           predicate filters live in one region because they're functionally
           related (both control what shows in the graph).
@@ -332,8 +331,8 @@ export function GraphPage() {
   );
 }
 
-/** Lightweight placeholder shown while SigmaCanvas is loading or deferred
- *  (Feature #5362). Plain DOM — no canvas, no WebGL, no JS work — so the
+/** Lightweight placeholder shown while SigmaCanvas is loading or deferred.
+ * Plain DOM — no canvas, no WebGL, no JS work — so the
  *  page chrome can paint and the user can interact with the type filter. */
 function SigmaPlaceholder() {
   return (

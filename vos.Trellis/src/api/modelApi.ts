@@ -45,7 +45,7 @@ export const modelApi = {
     return apiClient.post<FragmentResult>('/api/model/fragment', parsed);
   },
 
-  // Carry a group out of this model into a project model built for it from a template (#6045). The
+  // Carry a group out of this model into a project model built for it from a template. The
   // token names the SOURCE, the opposite way round from a fragment: the receiving model does not
   // exist when the call begins. `followedPredicateNames` says what belongs with the root — this
   // model's own vocabulary, so the caller names it rather than the platform assuming it.

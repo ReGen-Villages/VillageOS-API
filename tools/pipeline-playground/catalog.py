@@ -144,7 +144,7 @@ PIPELINES = [
         ],
     },
 
-    # 4. Two sources land at different to-paths of one input, so JSON Merge deep-merges them (#5874).
+    # 4. Two sources land at different to-paths of one input, so JSON Merge deep-merges them.
     {
         "name": "Field Merge",
         "nodes": [
@@ -160,7 +160,7 @@ PIPELINES = [
         ],
     },
 
-    # 5. A JSONata transform reshapes the upstream output on the wire before it reaches the input (#5875).
+    # 5. A JSONata transform reshapes the upstream output on the wire before it reaches the input.
     {
         "name": "Wire Transform",
         "nodes": [
@@ -212,7 +212,7 @@ PIPELINES = [
         ],
     },
 
-    # 8. Water self-sufficiency: all three inputs param-bound, so a run supplies them (#5805).
+    # 8. Water self-sufficiency: all three inputs param-bound, so a run supplies them.
     {
         "name": "Water Self-Sufficiency",
         "nodes": [
@@ -225,7 +225,7 @@ PIPELINES = [
         "wires": [{"from": "water", "fromPort": "daysOfSupply", "to": "out", "toPort": "daysOfSupply"}],
     },
 
-    # 9. Energy self-sufficiency: every input param-bound (#5806).
+    # 9. Energy self-sufficiency: every input param-bound.
     {
         "name": "Energy Self-Sufficiency",
         "nodes": [

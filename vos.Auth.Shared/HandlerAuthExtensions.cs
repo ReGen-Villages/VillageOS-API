@@ -15,7 +15,7 @@ public static class HandlerAuthExtensions
         string? audience)
     {
         // Fail fast: Mycelium passes both. A missing value used to fall back to a wrong default and
-        // silently 401 every /handle call (Bug #5390). Now that each handler is addressed by its own
+        // silently 401 every /handle call. Now that each handler is addressed by its own
         // name, no shared default could be correct for anyone.
         if (string.IsNullOrEmpty(issuer))
             throw new ArgumentException("JWT issuer is required — Mycelium passes it via --issuer.", nameof(issuer));

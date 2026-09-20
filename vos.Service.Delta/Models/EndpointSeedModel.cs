@@ -7,13 +7,11 @@ namespace vos.Service.Delta.Models;
 // is expressed the model-native way, as is relationships in Relationships
 // (never a scalar field on a thing), matching how Mycelium and CLI serialize a model. References
 // are by template name; Delta resolves them to mycelium GUIDs at realization time.
-// Introduced under Feature #5465 / Task #5466.
 public sealed class EndpointSeedModel
 {
     // Optional document name (the model name); not part of the template graph.
     public string? Name { get; set; }
 
-    // The template things, each a name + flat property bag.
     public List<RegisterEndpointRequest> Things { get; set; } = new();
 
     // The vocabulary an endpoint reaches: how it authenticates, how it pages, how its body reads.
@@ -36,7 +34,6 @@ public sealed class EndpointKind
     public List<string> Requires { get; set; } = new();
 }
 
-// A name-keyed relationship row in an EndpointSeedModel (mirrors a model relationship).
 public sealed class SeedRelationship
 {
     public string Subject { get; set; } = string.Empty;

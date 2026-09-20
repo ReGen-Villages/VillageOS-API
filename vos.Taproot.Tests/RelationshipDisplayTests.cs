@@ -6,7 +6,7 @@ namespace vos.Taproot.Tests;
 
 // How a relationship reads on screen, against the payload the platform actually serves.
 //
-// GET /api/relationships sends the four identifiers and sends a name only for an edge given
+// GET /api/relationships sends the four identifiers and sends a name only for a relationship given
 // one of its own — which nothing in the platform currently does. Everything else is named by the
 // three endpoints, each of which resolves through the Thing name map the handlers already build.
 public class RelationshipDisplayTests
@@ -26,7 +26,7 @@ public class RelationshipDisplayTests
         {{""Id"":""{Sink}"",""Name"":""Sink""}}
     ]";
 
-    // The shape the read route serves: four identifiers, and no Name unless the edge was given one.
+    // The shape the read route serves: four identifiers, and no Name unless the relationship was given one.
     private static string Edge(string? ownName = null) => $@"[
         {{""Id"":""{Guid.NewGuid()}"",
           ""SubjectId"":""{Kitchen}"",""PredicateId"":""{Contains}"",""TargetId"":""{Sink}""

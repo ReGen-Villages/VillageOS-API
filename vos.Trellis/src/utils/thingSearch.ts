@@ -19,7 +19,7 @@ export interface ThingMatch {
   ownPropertyCount: number;
   relationshipCount: number;
   /** Left unformatted: how a value should read depends on the type the platform declares for it,
-   *  which this index does not carry. The page that shows them resolves that and formats (#6163). */
+   *  which this index does not carry. The page that shows them resolves that and formats. */
   previewProps: Array<{ key: string; value: unknown }>;
 }
 

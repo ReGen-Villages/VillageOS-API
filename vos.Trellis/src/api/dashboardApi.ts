@@ -65,12 +65,12 @@ export interface ModelIndex {
   /** predicate name → id, and id → name */
   predicateNameToId: Map<string, string>;
   predicateIdToName: Map<string, string>;
-  /** archetype id → ids of Things directly `is`-linked to it (Bug #5942). */
+  /** archetype id → ids of Things directly `is`-linked to it. */
   isChildren: Map<string, string[]>;
-  /** ids of the Things that declared themselves archetypes (#6218) — read, never inferred from edges. */
+  /** ids of the Things that declared themselves archetypes — read, never inferred from edges. */
   archetypeIds: Set<string>;
   /** Thing id → ids of the archetypes it is directly `is`-linked to (its parents). Used to
-   *  resolve inherited property defaults up the `is`-chain (Bug #6048). */
+   *  resolve inherited property defaults up the `is`-chain. */
   isParents: Map<string, string[]>;
   /** Archetype name → its instance ids, filled the first time each archetype is asked for and
    *  discarded with the index it belongs to. The walk is over a hierarchy that cannot change
@@ -105,7 +105,7 @@ export function buildModelIndex(things: VosThing[], relationships: VosRelationsh
       if (!predicateNameToId.has(p.Name)) predicateNameToId.set(p.Name, r.PredicateId);
     }
   }
-  // Precompute the `is`-hierarchy once (Bug #5942): children-by-archetype for a
+  // Precompute the `is`-hierarchy once: children-by-archetype for a
   // transitive walk. Replaces a per-query scan of every relationship.
   const isId = predicateNameToId.get(IS_PREDICATE);
   const isChildren = new Map<string, string[]>();
@@ -168,13 +168,13 @@ function adjacency(predicateId: string, inbound: boolean, idx: ModelIndex): Map<
 
 /**
  * Ids of the Things that are of the given archetype, **transitively** over the `is`-chain
- * and counting **instances only** (Bug #5942). Archetypes are subtyped (Customer is Party,
+ * and counting **instances only**. Archetypes are subtyped (Customer is Party,
  * PickLocation is Location), so a direct-edge match would miss every real instance under a
  * parent archetype. We descend the is-chain; a Thing that declares itself an archetype is a
  * sub-type and is descended into, not counted. Cycle-guarded.
  *
  * Descending on the declaration rather than on "does anything `is` this Thing" is what makes it
- * right for a type with no members yet: the old rule returned such a type as a row of its own (#6218).
+ * right for a type with no members yet: the old rule returned such a type as a row of its own.
  *
  * The answer is remembered on the index and handed out by reference, so callers read it and
  * never write to it.

@@ -45,7 +45,7 @@ public sealed record DivisionLookup(
     string NameProperty);
 
 // One compute service to start on the site's study: the connection to relate through, and the service
-// prototype the edge points at. The connection is the predicate, which is what makes the edge dispatch.
+// prototype the relationship points at. The connection is the predicate, which is what makes the relationship dispatch.
 public sealed record AnalysisTrigger(string ConnectionName, Guid ConnectionId, Guid ServicePrototypeId);
 
 // The study to compute, and every service that computes part of it.
@@ -76,10 +76,10 @@ public static class CoveringSourceResolver
 
     // The archetype every connection a site analysis dispatches `is`. The connections are found by this
     // mark rather than by name, so adding a balance is an edit to the model: name them here and the two
-    // repositories would agree about the analysis only by spelling, which is what #6516 removed.
+    // repositories would agree about the analysis only by spelling.
     public const string SiteAnalysisConnectionFlag = "__IsSiteAnalysisConnectionArchetype";
 
-    // The archetype every site `is`, marked by the platform (Task #6811) so that a walk reaching Places
+    // The archetype every site `is`, marked by the platform so that a walk reaching Places
     // and sites alike can tell the two apart — and so that a dispatch naming a source is told from one
     // naming a site by the model, never by the name of the connection that dispatched it.
     public const string SiteArchetypeFlag = "__IsSiteArchetype";
@@ -105,8 +105,8 @@ public static class CoveringSourceResolver
     // template chain in Tributary.
     private const int PlaceNestingDepth = 16;
 
-    // The predicate Things are asked for BY NAME, because traversal brings what an edge points at and
-    // the incident pass brings the edges, but neither brings the Thing naming one. The walk below
+    // The predicate Things are asked for BY NAME, because traversal brings what a relationship points at and
+    // the incident pass brings the relationships, but neither brings the Thing naming one. The walk below
     // compares those names, so a predicate left out here reads as "covers nothing" — a wrong answer
     // wearing the shape of a valid one.
     private static readonly string[] PredicatesRead =
@@ -156,12 +156,12 @@ public static class CoveringSourceResolver
         MarkedTypes = [SiteAnalysisConnectionFlag],
         // The coverage archetype is asked for model-wide for a different reason: a run mints against it,
         // so it has to arrive before any coverage exists to traverse from. Alone, though — with its
-        // members, every coverage in the model arrived on every site's read (Bug #6818); the ones about
+        // members, every coverage in the model arrived on every site's read; the ones about
         // this site come through the `appliesTo` traversal below. The two division lookups are asked for
-        // the same way and for the same reason: no edge reaches either, because neither covers a Place.
+        // the same way and for the same reason: no relationship reaches either, because neither covers a Place.
         // The predicate a source provides its variables through is found by its mark rather than its
         // name, and asked for here because the traversal over it below brings the variables and never
-        // the Thing it was followed through — and without that Thing no edge reads as providing anything.
+        // the Thing it was followed through — and without that Thing no relationship reads as providing anything.
         MarkedArchetypes =
         [
             SourceCoverageArchetypeFlag, AreaNameLookupFlag, HazardDivisionLookupFlag,
@@ -170,15 +170,15 @@ public static class CoveringSourceResolver
         Traverse =
         [
             new TraverseRule { Predicate = IsInPredicate, Depth = PlaceNestingDepth },
-            // Incoming: the edge runs source -> place, and the set so far holds the places.
+            // Incoming: the relationship runs source -> place, and the set so far holds the places.
             new TraverseRule { Predicate = CoversPredicate, Direction = "incoming" },
             new TraverseRule { Predicate = ResolvedByPredicate },
             // After covers: the sources are in the set, and what each declares it resolves onto joins it,
-            // as do the variables each provides — by the flag the edge's predicate carries, so a model
+            // as do the variables each provides — by the flag the relationship's predicate carries, so a model
             // may call that predicate what it likes.
             new TraverseRule { Predicate = ResolvesOntoPredicate },
             new TraverseRule { PredicateFlag = ProvidedVariablePredicateFlag },
-            // Incoming: the edge runs study -> site.
+            // Incoming: the relationship runs study -> site.
             new TraverseRule { Predicate = StudiesPredicate, Direction = "incoming" },
             // Reaches each connection's service, and everything the site has — a per-subject call below
             // is addressed with what its subject reaches, so the subjects must be in the set first.
@@ -208,7 +208,7 @@ public static class CoveringSourceResolver
     };
 
     // A site is whatever `is` the marked archetype, directly or through intermediate types. A source is
-    // whatever else covers a Place or is resolved by a registration — the two edges that make it one —
+    // whatever else covers a Place or is resolved by a registration — the two relationships that make it one —
     // rather than anything that is not a site, because anything else taken for a source would be stamped
     // as worked out, and a stamp on the archetype itself is inherited by every site.
     public static SubjectKind KindOf(SnapshotDocument snapshot, Guid subjectId)
@@ -245,7 +245,7 @@ public static class CoveringSourceResolver
             new TraverseRule { Predicate = CoversPredicate },
             new TraverseRule { Predicate = ResolvedByPredicate },
             new TraverseRule { Predicate = ResolvesOntoPredicate },
-            // Incoming and downwards: the edge runs site -> place, and the set so far holds the places.
+            // Incoming and downwards: the relationship runs site -> place, and the set so far holds the places.
             new TraverseRule { Predicate = IsInPredicate, Direction = "incoming", Depth = PlaceNestingDepth },
             // After the nesting: what each site there has, which is what a per-subject source is called about.
             new TraverseRule { Predicate = HasPredicate },
@@ -584,7 +584,7 @@ public static class CoveringSourceResolver
             .ToList();
     }
 
-    // The Things a subject reaches by its own outgoing edges — for an assessment, the type it assesses
+    // The Things a subject reaches by its own outgoing relationships — for an assessment, the type it assesses
     // and the source it hangs off. `is` is not among them: a type's values are defaults for a kind, the
     // same reason inherited values never address a call.
     private static List<Guid> VocabularyOf(
@@ -640,8 +640,8 @@ public static class CoveringSourceResolver
     // reports it and does not treat it as an outage, the same rule a DataSource with no registration is
     // left out under.
     //
-    // The study is the subject of every edge written, never the site: a compute service reads its inputs
-    // off the study, so an edge naming the site would dispatch the service against a Thing holding none
+    // The study is the subject of every relationship written, never the site: a compute service reads its inputs
+    // off the study, so a relationship naming the site would dispatch the service against a Thing holding none
     // of them.
     public static SiteAnalysis? AnalysisOf(SnapshotDocument snapshot, Guid siteId)
     {
@@ -661,7 +661,7 @@ public static class CoveringSourceResolver
                 thingsById[connectionId].Name ?? string.Empty, connectionId, prototypeId));
         }
 
-        // Ordered by name so a run writes its edges the same way twice, which is what makes the log of
+        // Ordered by name so a run writes its relationships the same way twice, which is what makes the log of
         // two runs comparable.
         triggers.Sort((left, right) => string.CompareOrdinal(left.ConnectionName, right.ConnectionName));
         return new SiteAnalysis(studyId, triggers);
@@ -685,7 +685,7 @@ public static class CoveringSourceResolver
         return found;
     }
 
-    // A connection binds its service through `has`, and the service `is` the prototype the analysis edge
+    // A connection binds its service through `has`, and the service `is` the prototype the analysis relationship
     // points at — the shape the site-survey template authors by hand.
     private static Guid? ServicePrototypeOf(
         SnapshotDocument snapshot, IReadOnlyDictionary<Guid, SnapshotThing> thingsById,
@@ -745,7 +745,7 @@ public static class CoveringSourceResolver
         return members;
     }
 
-    // The site's own Place and every Place containing it, grouped by how many isIn edges away each
+    // The site's own Place and every Place containing it, grouped by how many isIn relationships away each
     // stands. The nesting is what makes a source covering the root cover every site under it without
     // naming any of them; the grouping is what lets the nearest Place's value win an address name.
     private static List<List<Guid>> PlacesByDepth(

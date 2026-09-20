@@ -7,7 +7,7 @@ namespace vos.Service.Intake.Services;
 // What a public form needs to draw itself, read out of the model the page cannot read for itself.
 //
 // The categories are found by the mark their archetype carries, as every vocabulary this service reads
-// is. The predicate they are asserted through is required even though a form never writes an edge: a
+// is. The predicate they are asserted through is required even though a form never writes a relationship: a
 // model missing it refuses every submission naming a category, and a form offering choices its own
 // service would then refuse is worse than no form.
 public static class FormOptionsReader

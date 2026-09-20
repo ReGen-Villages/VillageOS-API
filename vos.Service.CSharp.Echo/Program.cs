@@ -44,7 +44,7 @@ builder.Host.UseSerilog();
 builder.WebHost.UseUrls($"http://localhost:{servicePort}");
 builder.Services.AddHttpClient();
 
-// Bug #5391: issuer/audience must come from the CLI so validation matches what Mycelium signed.
+// Issuer/audience must come from the CLI so validation matches what Mycelium signed.
 var authEnabled = !string.IsNullOrEmpty(verificationKey);
 if (authEnabled)
 {

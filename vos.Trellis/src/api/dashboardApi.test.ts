@@ -47,7 +47,7 @@ import {
 
 /** These fixtures are bare graphs, so stamp the declaration a real model carries the way
  *  `vos.SeedValidate --fix` does — on every Thing something `is`. A type with no members cannot be
- *  found that way, so the test covering that case declares it by hand (#6218). */
+ *  found that way, so the test covering that case declares it by hand. */
 function declared(things: VosThing[], relationships: VosRelationship[]): VosThing[] {
   const isId = things.find((x) => x.Name === 'is')?.Id;
   const targets = new Set(
@@ -114,7 +114,7 @@ describe('discovery', () => {
     expect(ents.map((e) => e.name)).toEqual(['V-1', 'V-2']);
   });
 
-  // Story #6477: a spec authored wrong is still addressable, so its author can be told what is
+  // A spec authored wrong is still addressable, so its author can be told what is
   // wrong with it. Ordered by name like any other, so a broken one does not sort to the end.
   it('lists a Dashboard Thing whose spec could not be read, carrying no spec', () => {
     const { things, relationships } = model();
@@ -191,7 +191,7 @@ describe('dashboard order and addresses (Story 6582)', () => {
   });
 });
 
-// Bug #5942: archetypes are subtyped (Resident is Party, GardenPlot is Location),
+// Archetypes are subtyped (Resident is Party, GardenPlot is Location),
 // so membership must be transitive over the is-chain and count instances only.
 describe('thingIdsOfArchetype (transitive, instances-only)', () => {
   const t = (Id: string, Name: string): VosThing => ({ Id, Name, Properties: {} });
@@ -239,7 +239,7 @@ describe('thingIdsOfArchetype (transitive, instances-only)', () => {
   });
 
   // The case the old `is`-target guess got wrong: a type nothing is yet was returned as a row of
-  // its own, permanently for a type declared before the thing it describes exists (#6218).
+  // its own, permanently for a type declared before the thing it describes exists.
   it('excludes a declared archetype that has no members', () => {
     const rosterThings = [
       t('is', 'is'), t('Machine', 'Machine'),
@@ -271,7 +271,7 @@ describe('resolveBinding', () => {
     expect(v).toBeCloseTo((98.9 + 94.1) / 2);
   });
 
-  // Regression (Bug #5932): under lazy inheritance an overridden value lives in
+  // Regression: under lazy inheritance an overridden value lives in
   // InheritedOverrides, not Properties. Bindings must read effective properties.
   it('property $scope resolves a value inherited from an archetype', async () => {
     const child: VosThing = {
@@ -335,7 +335,7 @@ describe('resolveBinding', () => {
     expect(rows[0]).toMatchObject({ id: 'vil1', name: 'V-1', self_sufficiency_rate: 98.9 });
   });
 
-  // Feature (#5933): a State can contain Things of several archetypes (Orders
+  // A State can contain Things of several archetypes (Orders
   // and their OrderLines). `archetype` narrows the count/list to one archetype.
   describe('archetype narrowing', () => {
     // Model: 2 Orders + 1 OrderLine, all is-typed; state "open" holds all three.
@@ -464,7 +464,7 @@ describe('resolveBinding', () => {
     });
   });
 
-  // Feature (#6135): the list-shaped bindings could only reach the members of one derived state
+  // The list-shaped bindings could only reach the members of one derived state
   // or the compare entities. A roster wants every Thing of an archetype whatever condition each
   // is in — a healthy idle machine is in no state at all, so no stateList ever reaches it.
   describe('thingList', () => {
@@ -562,7 +562,7 @@ describe('resolveBinding', () => {
     });
   });
 
-  // Feature (#6140): a row carried only what the row's own Thing stores, so a column whose value
+  // A row carried only what the row's own Thing stores, so a column whose value
   // sits on an edge (the archetype a Thing is, where it stands, what an open command points at)
   // or in the platform's derived condition could not be expressed at all.
   describe('columns an edge or a derived state answers', () => {
@@ -953,7 +953,7 @@ describe('resolveBinding', () => {
   });
 });
 
-// Bug (#6142): a numeric binding took a number from a text property whenever the text happened to
+// A numeric binding took a number from a text property whenever the text happened to
 // read like one, so an identifier stored as text — an order number, a door number, a part code —
 // was summed and ranked as though it were a measurement. The platform already answers the question
 // the parse was guessing at: a text property arrives as text, every numeric type as a number.
@@ -1066,7 +1066,7 @@ describe('service bindings carry the selected scope', () => {
   });
 });
 
-// ---- verdict binding (#6473) --------------------------------------------
+// ---- verdict binding --------------------------------------------
 // The target a balance is judged against comes from the range that judges it, never from the spec:
 // a view restating 14 days says the wrong thing the day the range moves.
 describe('verdict binding', () => {
@@ -1390,7 +1390,7 @@ describe('a Thing reference resolves the same way whichever binding reads it', (
   });
 });
 
-// The platform narrows a state answer on the server (#6234), so the bindings stop reading every
+// The platform narrows a state answer on the server, so the bindings stop reading every
 // Thing in a state and discarding most of it in the browser.
 describe('state bindings ask the server to narrow', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -1683,7 +1683,7 @@ describe('state bindings ask the server to narrow', () => {
   });
 });
 
-// The series a dashboard draws is the platform's bucketed reduction (#6668), asked for at the
+// The series a dashboard draws is the platform's bucketed reduction, asked for at the
 // granularity the widget wants.
 describe('timeseries reads the platform bucketed aggregate', () => {
   const SITE_SCOPE = { viaPredicate: 'contains', direction: 'out' as const };
@@ -1783,7 +1783,7 @@ describe('timeseries reads the platform bucketed aggregate', () => {
   });
 });
 
-// Story #6475 / TC #6480: every input says where it came from, read off the model rather than off
+// Every input says where it came from, read off the model rather than off
 // the property's name.
 describe('the working behind a figure', () => {
   const study = (definitions: Record<string, unknown>, own: Record<string, unknown> = {}) => {
@@ -1866,7 +1866,7 @@ describe('the working behind a figure', () => {
   });
 });
 
-// Story #6476: a balance that falls short names what would have to change to close the gap. The
+// A balance that falls short names what would have to change to close the gap. The
 // levers come out of the model twice over — the definition says which way each input moves the
 // result, and the held state's own comparison says which way the result must move to leave it —
 // so changing the formula in the compute service changes the levers with no client change.
@@ -2241,7 +2241,7 @@ function seriesCtx(): ResolveContext {
   return { idx: buildModelIndex(declared(things, []), []), scopeId: null, reads: brokerModelReads() };
 }
 
-// A point covering several buckets, and the tile that reads the newest one (Bug #6866). The platform
+// A point covering several buckets, and the tile that reads the newest one. The platform
 // reduces onto a fixed grid; a spec that wants an hourly figure plotted every quarter hour asks for
 // quarter-hour buckets and says how many of them each point covers.
 describe('a series whose points cover several buckets', () => {
@@ -2309,7 +2309,7 @@ describe('a series whose points cover several buckets', () => {
 });
 
 // The tile above a line reads the line's newest point, so the two ask the platform one question and
-// the figure cannot drift from the shape beneath it (Bug #6866).
+// the figure cannot drift from the shape beneath it.
 describe('the newest point of a series', () => {
   const series = {
     kind: 'timeseries', archetype: 'Building', happenedAt: 'recorded_at', property: 'volume',

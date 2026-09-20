@@ -8,7 +8,7 @@ using Xunit;
 
 namespace vos.Service.Intake.Tests;
 
-// Task #7060 — the two reads the tile design adds to the public page, proxied by this service because
+// The two reads the tile design adds to the public page, proxied by this service because
 // the page holds no credential and reaches this service alone: a reduction over one of the submission's
 // own site's property series, under the page's ticket; and the satellite basemap's tiles, anonymous like
 // the position lookups, forwarded to the registration the route names through the broker's endpoint

@@ -10,7 +10,7 @@ const mockSetAuthRequiredCallback = vi.fn();
 const mockSetUserUpdatedCallback = vi.fn();
 // Stateful mocks for getUser / isAuthenticated so individual tests can simulate
 // "already logged in" state and exercise the logout flow. The real apiClient
-// reads these from a non-React field — that's exactly the source of Bug #5325.
+// reads these from a non-React field, which is exactly what went wrong before.
 let mockInitialUser: { Id: string; Username: string; Role: string } | null = null;
 let mockIsAuth = false;
 vi.mock('../api/client', () => ({

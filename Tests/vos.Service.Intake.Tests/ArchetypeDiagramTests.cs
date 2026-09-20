@@ -38,7 +38,7 @@ public class ArchetypeDiagramTests
         // these are the land-intake template's spellings rather than this service's. A template that renamed
         // one leaves the drawing describing a spelling the model no longer uses and breaks nothing at
         // runtime, which is why they are kept apart from those above. `resolvedAs` joins them as a spelling
-        // the model owns: no submission writes it, and the edge is drawn because it is what a reviewer's
+        // the model owns: no submission writes it, and the relationship is drawn because it is what a reviewer's
         // decision becomes.
         var spelledByTheTemplate = new[] { "categorizedAs", "obtainedBy", "assesses", "resolvedAs" };
         var mayBeDrawn = namedByTheComposer.Concat(spelledByTheTemplate).ToList();

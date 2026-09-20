@@ -36,7 +36,7 @@ export function formatNumber(value: number | null | undefined, fmt?: NumberForma
  *  The vocabulary is deliberately domain-neutral status wording only: a model's own terms
  *  must not be listed here, since Trellis renders any model. A term it cannot read
  *  generically falls through to the neutral tone until the model supplies its own
- *  mapping (#5962). */
+ *  mapping. */
 export function badgeTone(value: string): string {
   const v = value.toLowerCase();
   if (/crit|overdue|fail|error|out|held|block|below/.test(v))

@@ -444,7 +444,7 @@ describe('useModelData', () => {
     expect(useModelStore.getState().things).toHaveLength(1);
   });
 
-  // Regression (Bug #5930): OperationsPage blocks rendering on the store's
+  // Regression: OperationsPage blocks rendering on the store's
   // `loaded` flag. reloadModelData must flip it, or the page hangs on
   // "Loading model…" forever even though the data arrived.
   it('marks the store loaded after a successful fetch', async () => {
@@ -459,7 +459,7 @@ describe('useModelData', () => {
     expect(useModelStore.getState().loaded).toBe(false);
   });
 
-  // Regression (Bug #5940): a reopened subscription answers with a fresh snapshot, and the changes
+  // Regression: a reopened subscription answers with a fresh snapshot, and the changes
   // missed while the stream was down come back with it — without blind polling.
   it('reads the model again when the subscription reopens, and says nothing about it', async () => {
     await mountLoaded();
@@ -588,7 +588,7 @@ describe('useModelData', () => {
     });
   });
 
-  // Bug #6143 — the panels no longer reload the whole model after a property write, so every case
+  // The panels no longer reload the whole model after a property write, so every case
   // the reload used to cover has to arrive on the stream instead.
   describe('what the removed full reload used to cover', () => {
     const relationship = (Properties: Record<string, unknown>) => ({
@@ -642,7 +642,7 @@ describe('useModelData', () => {
       });
     });
 
-    // Bug #6149 — a retraction used to arrive as a change to null, which is also what setting a
+    // A retraction used to arrive as a change to null, which is also what setting a
     // property to null looks like, so a property another user deleted stayed on screen as an empty
     // row. It now says so, and the two are handled apart.
     it('takes a deleted relationship property out of the store', async () => {

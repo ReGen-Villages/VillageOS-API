@@ -60,7 +60,7 @@ public class StatedValuesTests
 
     // A submitted site states its coordinates over the names its archetype declares, so the
     // model stores them as overrides and its own properties are empty. Read as inherited defaults and
-    // left out, every submitted site addressed its sources with nothing (#6805).
+    // left out, every submitted site addressed its sources with nothing.
     [Fact]
     public void Of_CarriesWhatTheSiteStatesOverItsArchetypesDeclaration()
     {

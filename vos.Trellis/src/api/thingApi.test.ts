@@ -70,7 +70,7 @@ describe('thingApi.getByName', () => {
 });
 
 describe('thingApi.getEffectiveProperties', () => {
-  // Bug #5908 — the backend renamed /effective-properties to /properties (cb6e84e); the caller
+  // The backend renamed /effective-properties to /properties; the caller
   // must track it or the Inherited section renders nothing.
   it('requests the /properties route', async () => {
     mockGet.mockResolvedValue({});
@@ -80,7 +80,7 @@ describe('thingApi.getEffectiveProperties', () => {
 });
 
 describe('thingApi property writes', () => {
-  // Bug #6141 — a Thing has two property routes, and they are not interchangeable: the update one
+  // A Thing has two property routes, and they are not interchangeable: the update one
   // answers "Property does not exist on the thing" for a name it has never seen. Adding through it
   // fails every time.
   it('adds through the create route, not the update route', async () => {

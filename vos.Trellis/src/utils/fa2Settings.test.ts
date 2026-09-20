@@ -10,11 +10,11 @@ import {
 } from './fa2Settings';
 import { LAYOUT_DEFAULTS } from './guiSettings';
 
-describe('resolveFA2Settings (Bug #5338 + Bug #5361)', () => {
-  it('produces the empirically-validated defaults (Bug #5361)', () => {
+describe('resolveFA2Settings', () => {
+  it('produces the empirically-validated defaults', () => {
     const r = resolveFA2Settings(LAYOUT_DEFAULTS, /* isSpreadActive */ false);
-    // scalingRatio: repulsion 0.1 × 100 = 10. Bug #5338 raised this to 50 for
-    // spread on the then-14k-node graph, but Bug #5358 (material composites)
+    // scalingRatio: repulsion 0.1 × 100 = 10. This was raised to 50 for
+    // spread on the then-14k-node graph, but material composites
     // doubled the count to ~30k and at that scale 50 produces unbounded
     // expansion that gravity cannot counteract. Live-browser test confirmed
     // 10 converges in ~12s; 50 never converges.

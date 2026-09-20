@@ -38,7 +38,7 @@ const marked = (roleFlag: string): Record<string, unknown> => ({ [roleFlag]: tru
 
 // The starting graph every fixture below builds on: the built-in predicates, and each archetype named as
 // some model chose and marked as what it is. A fixture that resolves at all therefore proves nothing here
-// is found by name (#6530). `T` and `R` add Things and relationships to it.
+// is found by name. `T` and `R` add Things and relationships to it.
 function graphWithVocabulary() {
   const things: VosThing[] = [];
   const rels: VosRelationship[] = [];
@@ -56,7 +56,7 @@ function graphWithVocabulary() {
   T('arch-service', 'Capability', marked(ARCHETYPE_FLAG.Service));
   T('arch-port', 'Socket', marked(ARCHETYPE_FLAG.Port));
   T('arch-wire', 'Link', marked(ARCHETYPE_FLAG.PipelineWire));
-  // Boundary-node archetypes (#5873); each is-a pipeline node so the node collection picks its instances up.
+  // Boundary-node archetypes; each is-a pipeline node so the node collection picks its instances up.
   T('arch-input', 'Start', marked(ARCHETYPE_FLAG.PipelineInput)); R('arch-input', 'is', 'arch-node');
   T('arch-output', 'Finish', marked(ARCHETYPE_FLAG.PipelineOutput)); R('arch-output', 'is', 'arch-node');
   R('carries', 'is', 'arch-wire');
@@ -176,7 +176,7 @@ describe('savePipeline — update in place (existing pipeline id)', () => {
   });
 });
 
-// Boundary I/O nodes (#5873) --------------------------------------------------------------------------
+// Boundary I/O nodes --------------------------------------------------------------------------
 
 type Frag = {
   Things: { Id: string; Name: string; Properties: Record<string, unknown> }[];
@@ -228,7 +228,7 @@ describe('loadPipeline — boundary nodes (#5873)', () => {
   });
 });
 
-// Field-level wire mapping (#5874) --------------------------------------------------------------------
+// Field-level wire mapping --------------------------------------------------------------------
 
 describe('savePipeline — wire field-paths (#5874)', () => {
   it('persists a new wire’s fromPath and toPath', async () => {
@@ -266,7 +266,7 @@ describe('loadPipeline — wire field-paths (#5874)', () => {
   });
 });
 
-// On-wire JSONata transforms (#5875) ------------------------------------------------------------------
+// On-wire JSONata transforms ------------------------------------------------------------------
 
 describe('savePipeline / loadPipeline — wire transform (#5875)', () => {
   it('persists a new wire’s transform', async () => {

@@ -392,12 +392,12 @@ describe('buildGraph', () => {
   });
 
   describe('phased loading (incremental graph construction)', () => {
-    // Phase 1: surface things — visible buildings with lat/lng
+    // Surface things — visible buildings with lat/lng
     const phase1Things: VosThing[] = [
       makeThing('b1', 'Building-1', { latitude: 40.7937, longitude: -73.6612 }),
     ];
 
-    // Phase 2: remaining things — non-geo + non-surface geo
+    // Remaining things — non-geo + non-surface geo
     const phase2Things: VosThing[] = [
       makeThing('p-is', 'is'),
       makeThing('p-has', 'has'),
@@ -481,11 +481,11 @@ describe('buildGraph', () => {
   });
 });
 
-// Bug #6191: an IFC instance and the type it `is`-relates to both declare
+// An IFC instance and the type it `is`-relates to both declare
 // ifcClass, so the instance's own class is stored as an override. Reading the
 // own bag alone found nothing, and every imported element fell through to the
-// hash palette instead of the curated class colours Feature #5340 added.
-describe('colouring by the classifying property (Bug #6191)', () => {
+// hash palette instead of the curated class colours.
+describe('colouring by the classifying property', () => {
   const wallType = makeThing('t-wall', 'Basic Wall', { ifcClass: 'IfcWallType' });
   const owned = makeThing('i-owned', 'Wall-owns-its-class', { ifcClass: 'IfcWall' });
   const overridden: VosThing = {

@@ -62,7 +62,7 @@ let holdsNarrowedSet = false;
  * are drawn with.
  *
  * `silent` withholds the failure toast, for a read behind a page that is already drawn: an error
- * toast does not auto-dismiss, so a retrying loop would stack un-dismissable ones (Bug #5940).
+ * toast does not auto-dismiss, so a retrying loop would stack un-dismissable ones.
  */
 export async function reloadModelData(opts?: { silent?: boolean }): Promise<void> {
   try {
@@ -72,7 +72,7 @@ export async function reloadModelData(opts?: { silent?: boolean }): Promise<void
     useModelStore.getState().setRelationships(r);
     holdsNarrowedSet = false;
     // Flip the gate that pages (e.g. OperationsPage) block rendering on. Without
-    // this the Operations page sits on "Loading model…" forever (Bug #5930).
+    // this the Operations page sits on "Loading model…" forever.
     useModelStore.getState().markLoaded();
   } catch {
     if (!opts?.silent) toast.error('Failed to load model');
@@ -99,7 +99,7 @@ function loadWhatOpened(opened: SubscriptionOpened): void {
   }
   if (holdsNarrowedSet) useModelStore.getState().clear();
   // A load the user is waiting on says when it failed; a refresh behind an already-drawn page does
-  // not, because an error toast does not auto-dismiss and a retrying loop would stack them (#5940).
+  // not, because an error toast does not auto-dismiss and a retrying loop would stack them.
   const waitedOn = !useModelStore.getState().loaded;
   void reloadModelData({ silent: !waitedOn });
 }
@@ -147,7 +147,7 @@ export function useModelData(): void {
     // Buffered live updates: SSE events accumulate here and flush together, so a burst
     // of structural changes becomes one store write instead of one O(N) rebuild each.
     // Property buffers are keyed by entity AND property name: keying by entity alone kept only the
-    // last change in a window, which the full model reload on save used to hide (#6143).
+    // last change in a window, which the full model reload on save used to hide.
     // Of one window's events for an entity the last word wins: an arrival cancels a pending
     // removal and a removal cancels a pending arrival.
     const pending = {

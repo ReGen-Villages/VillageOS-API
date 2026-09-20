@@ -12,7 +12,7 @@ namespace vos.Service.Forage.Services;
 // afterwards.
 //
 // The service reads its inputs off the study, writes its outputs back, and starts watching the study, so
-// this edge is written once: every later change to an input recomputes without anything calling again.
+// this relationship is written once: every later change to an input recomputes without anything calling again.
 public sealed class AnalysisSpawner
 {
     private readonly MyceliumRelationshipClient _mycelium;

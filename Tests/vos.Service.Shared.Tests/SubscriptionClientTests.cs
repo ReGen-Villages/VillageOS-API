@@ -136,7 +136,7 @@ public class SubscriptionClientTests
     [Fact]
     public async Task SubscribeAsync_sends_the_relationship_rules_under_the_names_the_broker_binds()
     {
-        // A field the broker does not bind is dropped silently, and the read then carries every edge
+        // A field the broker does not bind is dropped silently, and the read then carries every relationship
         // touching the Thing — the whole history the rule was there to leave out.
         HttpRequestMessage? captured = null;
         var body = $$"""

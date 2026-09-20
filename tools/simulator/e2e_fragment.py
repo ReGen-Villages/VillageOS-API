@@ -77,7 +77,7 @@ def main(argv) -> int:
     X = M.stable_id(tag, "instance-X")
 
     # ── timeline: archetype A (setup) + paced instance X that `is` A ──
-    # X carries its OWN code/capacity AND its is-edge at the same paced offset, so the simulator folds
+    # X carries its OWN code/capacity AND its is-relationship at the same paced offset, so the simulator folds
     # them into ONE apply_fragment. The server must turn those into overrides (not owned) — no I1.
     timeline = [
         S.Action(0, 0, "setup", "create_thing",

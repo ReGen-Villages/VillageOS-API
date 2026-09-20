@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 
 namespace vos.Service.Phloem.Execution;
 
-// Field-level wire mapping (#5874): extract a dotted field-path from an upstream output, place it at
+// Field-level wire mapping: extract a dotted field-path from an upstream output, place it at
 // a dotted field-path of a downstream input, and deep-merge several such contributions into one input value.
 // Pure and side-effect free, so it is trivially unit-tested. A dotted path (e.g. user.id) navigates
 // nested JSON objects; an empty path means "the whole value".

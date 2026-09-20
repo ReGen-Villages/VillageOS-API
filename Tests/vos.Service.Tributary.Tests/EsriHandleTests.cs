@@ -7,7 +7,7 @@ using static vos.Service.Tributary.Tests.MyceliumStub;
 
 namespace vos.Service.Tributary.Tests;
 
-// Integration tests for the generic token-exchange + offset-paging handling in /handle (Task #5470),
+// Integration tests for the generic token-exchange + offset-paging handling in /handle,
 // exercised through an ESRI-shaped configuration (and one header-attach variant to show the code
 // carries no source-specific assumptions). The mycelium calls, the token-endpoint call, and the
 // outbound data call all resolve through one MockHttpMessageHandler set per scenario.

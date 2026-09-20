@@ -136,7 +136,7 @@ function detailWalks(relations: RelationSpec[] | undefined): RelationStep[][] {
  * An origin binding walks twice in sequence: `via` to the Thing holding the value, then `source.via`
  * from there to what says where the value came from. Those are one path, not two — the second starts
  * where the first ended, and asked for as a walk of its own the source edge would be applied to the
- * scope entity, reach nothing, and select nothing (Bug #6701).
+ * scope entity, reach nothing, and select nothing.
  */
 function bindingWalk(binding: Binding): RelationStep[] | undefined {
   if (binding.kind === 'origin') return [...(binding.via ?? []), ...(binding.source?.via ?? [])];

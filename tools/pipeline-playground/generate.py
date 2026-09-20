@@ -230,7 +230,7 @@ def build():
                     props[optional] = typed(wire[optional], "vos.String")
             k.rel(node_id[wire["from"]], carries, node_id[wire["to"]], props)
 
-        # Seeded run history (#5646/#5635): a PipelineRun -of-> pipeline, each carrying NodeRuns so the History
+        # Seeded run history: a PipelineRun -of-> pipeline, each carrying NodeRuns so the History
         # panel and node status rings show data with no live Phloem. A fan-out node also gets per-item NodeRuns
         # (carrying index/total) that drive its progress count.
         for run_index, run in enumerate(pipe.get("runs", [])):

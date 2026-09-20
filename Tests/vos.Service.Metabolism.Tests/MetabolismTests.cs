@@ -299,7 +299,7 @@ public class MetabolismTests : IAsyncLifetime
             "a simulation whose start time has already passed activates once its stagger delay ends");
     }
 
-    // Regression (#6512): the running total a tick writes was chosen by comparing the launch word
+    // Regression: the running total a tick writes was chosen by comparing the launch word
     // against a literal, so a misspelling recorded consumption as production and nothing failed.
     [Theory]
     [InlineData("consumes", "total_consumed", "decrements")]

@@ -198,7 +198,7 @@ describe('subscriptionForSpec', () => {
     expect(followed.indexOf('studies')).toBeLessThan(followed.indexOf('has'));
   });
 
-  // Bug #6701: a tile saying where its figure came from is useless if the Thing that says so was
+  // A tile saying where its figure came from is useless if the Thing that says so was
   // never sent. The line then drops the source it names, which reads exactly like a figure whose
   // source nobody recorded — the one reading the origin vocabulary exists to refuse.
   it('follows an origin binding to the Thing holding the value and on to what says so', () => {
@@ -335,7 +335,7 @@ describe('subscriptionForSpec', () => {
 });
 
 // A tile reading the newest point of a series holds that series as a nested binding, so what the
-// series narrows by is only reachable through it (Bug #6866).
+// series narrows by is only reachable through it.
 describe('a tile reading the newest point of a series', () => {
   const series = {
     kind: 'timeseries',

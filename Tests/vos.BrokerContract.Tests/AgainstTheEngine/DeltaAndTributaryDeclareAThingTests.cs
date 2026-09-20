@@ -14,8 +14,8 @@ namespace vos.BrokerContract.Tests.AgainstTheEngine;
 //
 // Both answered a refused create by logging it and carrying on — Delta loses a template and every
 // endpoint beneath it, Tributary loses the reading that first sighted an entity — so nothing but a
-// live run said the writes were wrong, and neither path runs when the Things are already seeded
-// (Bug #6930). Both suites answered the create with a stand-in that accepts any body.
+// live run said the writes were wrong, and neither path runs when the Things are already seeded.
+// Both suites answered the create with a stand-in that accepts any body.
 public class DeltaAndTributaryDeclareAThingTests : IClassFixture<TheEngine>
 {
     private readonly TheEngine _engine;

@@ -69,7 +69,6 @@ public class Metabolism
         var config = entry.Config;
         var verb = _direction.ProgressVerb;
 
-        // Phase 1: Wait for startDelaySeconds before considering startUtc
         if (config.StartDelaySeconds > 0)
         {
             var delayMs = (int)(config.StartDelaySeconds * 1000m);
@@ -80,7 +79,6 @@ public class Metabolism
             catch (OperationCanceledException) { entry.Status = "cancelled"; return; }
         }
 
-        // Phase 2: Wait until startUtc if in the future
         var waitTime = config.StartUtc - DateTime.UtcNow;
         if (waitTime > TimeSpan.Zero)
         {

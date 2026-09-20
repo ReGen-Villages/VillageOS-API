@@ -1,6 +1,6 @@
 namespace vos.Taproot;
 
-// Rename a Thing in place, keeping its Id and all edges:
+// Rename a Thing in place, keeping its Id and all relationships:
 //   rename <thing> <new-name>
 // The <thing> is resolved by name or id; the new name is the rest of the argument (so it may contain
 // spaces). Uses the broker's PUT /api/things/{id}/name — no delete+recreate, so relationships survive.

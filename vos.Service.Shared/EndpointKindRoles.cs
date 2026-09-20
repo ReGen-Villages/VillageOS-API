@@ -1,7 +1,7 @@
 namespace vos.Service.Shared;
 
 // The roles an endpoint fills by reaching a kind Thing: how it authenticates, how it pages, how its
-// body reads, how its responses are kept. Delta writes these edges and Tributary reads them, so the
+// body reads, how its responses are kept. Delta writes these relationships and Tributary reads them, so the
 // two must spell them identically — a role only one side spells right is an endpoint that reaches a
 // kind nobody sees, and that reads as an endpoint with no kind at all rather than as an error. One
 // definition, shared, is what makes that impossible rather than merely unlikely.
@@ -31,7 +31,7 @@ public static class EndpointKindRoles
 
     // The spelling both sides key on, whatever the seed wrote. Without this a role is recognised
     // case-insensitively but then stored and looked up case-sensitively, so a seed that capitalises
-    // it differently provisions an edge nothing can find again.
+    // it differently provisions a relationship nothing can find again.
     public static string Canonical(string predicateName) =>
         All.FirstOrDefault(role => string.Equals(role, predicateName, StringComparison.OrdinalIgnoreCase))
         ?? predicateName;

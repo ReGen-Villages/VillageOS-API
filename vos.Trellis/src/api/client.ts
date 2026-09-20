@@ -117,7 +117,7 @@ class ApiClient {
 
   /**
    * Clear credentials and cancel pending refresh. Must clear the HttpOnly session
-   * cookie too, else restoreSession() silently signs the user back in (Bug #5290).
+   * cookie too, else restoreSession() silently signs the user back in.
    * Best-effort: local state clears even if the network call fails.
    */
   async logout(): Promise<void> {

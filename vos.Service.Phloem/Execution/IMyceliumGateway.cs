@@ -21,19 +21,19 @@ public interface IMyceliumGateway
 
     // Upsert a NodeRun Thing and set its status — running before dispatch, then the terminal
     // status — on one Thing per key (deterministic id) so the SSE view sees a property change, not duplicate
-    // Things (#5635). With index null this is the node's aggregate NodeRun (drives the
-    // ring); with an index it's a per-item NodeRun of a fan-out (#5648), carrying index/total.
+    // Things. With index null this is the node's aggregate NodeRun (drives the
+    // ring); with an index it's a per-item NodeRun of a fan-out, carrying index/total.
     Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken cancellationToken, int? index = null, int total = 0);
 
     // Update the run's status (drives the live SSE animation).
     Task SetRunStatusAsync(Guid runId, string status, CancellationToken cancellationToken);
 
     // Store the pipeline's published result (the Output boundary node's collected inputs) on the
-    // PipelineRun Thing, so it persists in the model and streams over SSE like any other property (#5873).
+    // PipelineRun Thing, so it persists in the model and streams over SSE like any other property.
     Task SetRunResultAsync(Guid runId, JsonElement result, CancellationToken cancellationToken);
 
     // True if the run's cancelRequested flag has been set (by Trellis). Polled between
-    // dispatches for cooperative cancellation (#5635).
+    // dispatches for cooperative cancellation.
     Task<bool> IsCancelRequestedAsync(Guid runId, CancellationToken cancellationToken);
 
     // Invoke a node by forwarding its envelope through Mycelium to the Connection's subdomain.

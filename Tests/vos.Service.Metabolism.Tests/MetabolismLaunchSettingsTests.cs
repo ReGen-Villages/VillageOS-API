@@ -29,7 +29,7 @@ public class MetabolismLaunchSettingsTests
         result!.Direction.LaunchArgument.Should().Be(argument);
     }
 
-    // Regression (#6512): the direction decided the arithmetic through a word each reader compared
+    // Regression: the direction decided the arithmetic through a word each reader compared
     // against its own literal, so a differently-cased argument had to survive as the same direction.
     [Theory]
     [InlineData("CONSUMES")]

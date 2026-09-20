@@ -17,7 +17,7 @@ public sealed record AnsweredPlaces(IReadOnlyList<AnsweredPlace> Places, string?
 
 // A parcel-register registration as the model declares it: the name Tributary is asked to call,
 // the reshape this service applies to the raw body, whose record the answer is, and the bounds it
-// covers — a pair of latitude and longitude spans rather than a covers edge, because a clicked position
+// covers — a pair of latitude and longitude spans rather than a covers relationship, because a clicked position
 // belongs to no site and a coverage walk has nowhere to start.
 public sealed record DeclaredLookup(
     string Name, string Transform, string? Attribution, DeclaredBounds? Bounds)

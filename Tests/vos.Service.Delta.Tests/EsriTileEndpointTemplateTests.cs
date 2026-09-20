@@ -5,14 +5,14 @@ using Xunit;
 
 namespace vos.Service.Delta.Tests;
 
-// Pins the canonical EsriTileEndpoint template contract for Story #5914 (Feature #5779). The
+// Pins the canonical EsriTileEndpoint template contract. The
 // template hierarchy is not a committed file — deployment seed.json stores every template as a
 // thing plus the is relationships between them — so this test is the executable spec for the
 // tile-endpoint shape Delta is expected to resolve.
 // Key design point: a map tile is a plain unauthenticated GET whose body is bytes, not text.
 // "Tile-ness" is therefore pure template config: the EsriTileEndpoint template reaches the
 // BinaryResponse kind through readsBodyAs and declares acceptHeader as an optional blank for
-// content-negotiating upstreams (#5913). It descends from the root directly — public tile
+// content-negotiating upstreams. It descends from the root directly — public tile
 // servers need none of EsriEndpoint's token exchange or offset paging.
 public class EsriTileEndpointTemplateTests
 {

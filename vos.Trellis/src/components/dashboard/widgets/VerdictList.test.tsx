@@ -125,7 +125,7 @@ describe('VerdictList', () => {
     expect(container.querySelectorAll('p')).toHaveLength(0);
   });
 
-  // Story #6476: a shortfall names what would move it. The wording is the spec's, the terms and
+  // A shortfall names what would move it. The wording is the spec's, the terms and
   // directions the model's; the widget only joins them.
   it('names each lever under the shortfall sentence, in the wording the state declares', () => {
     const binding = {

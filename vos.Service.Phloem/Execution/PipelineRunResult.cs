@@ -23,7 +23,7 @@ public sealed record NodeRunResult(
 
 // The synchronous result Phloem returns to whoever spawned the run. Result is the
 // pipeline's published output — the Output boundary node's collected inputs — or null when the pipeline has
-// no Output node or did not succeed (#5873).
+// no Output node or did not succeed.
 public sealed record PipelineRunResult(
     Guid RunId,
     Guid PipelineId,

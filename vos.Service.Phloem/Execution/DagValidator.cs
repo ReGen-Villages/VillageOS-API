@@ -56,7 +56,7 @@ public static class DagValidator
         if (!TypesCompatible(outPort.Type, inPort.Type))
             errors.Add($"Wire {from.Name}.{wire.FromPort} → {to.Name}.{wire.ToPort}: type '{outPort.Type}' is not compatible with '{inPort.Type}'.");
 
-        // A wire's JSONata transform must compile — caught here before dispatch, not as a silent runtime failure (#5875).
+        // A wire's JSONata transform must compile — caught here before dispatch, not as a silent runtime failure.
         if (!string.IsNullOrEmpty(wire.Transform) && JsonataTransform.Validate(wire.Transform) is { } transformError)
             errors.Add($"Wire {from.Name}.{wire.FromPort} → {to.Name}.{wire.ToPort}: invalid transform — {transformError}");
     }

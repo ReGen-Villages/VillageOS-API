@@ -56,7 +56,7 @@ public class InputChangeRecomputeServiceTests
     public async Task A_change_on_a_Thing_the_subject_reads_from_recomputes_the_subject()
     {
         // Land allocation reads the programme split off the allocations beside the study, not off the
-        // study. Watching only what it wrote would leave a planner's edit changing nothing (#6539).
+        // study. Watching only what it wrote would leave a planner's edit changing nothing.
         await using var harness = await Harness.StartedAsync();
         await harness.WatchAsync(Study, ModelOne, alsoOn: [Allocation]);
 

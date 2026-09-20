@@ -40,7 +40,7 @@ public sealed class BrokerSnapshot
 
     // Values written for names an archetype declares, in the store the model actually puts
     // them in: the declaration is cloned under the archetype's id and the value written inside it, so a
-    // submitted value is never an own property. Bug #6908 was a reader looking only at the own map.
+    // submitted value is never an own property, so a reader looking only at the own map finds nothing.
     private static Dictionary<string, object> OverridesUnder(Dictionary<string, object>? overriding) =>
         overriding is null or { Count: 0 }
             ? []
@@ -111,7 +111,7 @@ public sealed class BrokerSnapshot
         while (grew);
 
         // What each reached Thing `is`, and the predicates the selector named, which the platform includes
-        // because a page reads an edge's predicate by looking that Thing up.
+        // because a page reads a relationship's predicate by looking that Thing up.
         foreach (var edge in _edges.Where(edge => edge.PredicateId == IsPredicate && reached.Contains(edge.SubjectId)).ToArray())
             reached.Add(edge.TargetId);
         foreach (var predicate in (Guid[])[IsPredicate, HasPredicate, StudiesPredicate, ObtainedByPredicate])

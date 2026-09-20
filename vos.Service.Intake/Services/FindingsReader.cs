@@ -9,11 +9,11 @@ namespace vos.Service.Intake.Services;
 //
 // Nothing here names a dashboard, an archetype or a predicate. The page is whichever Thing the model
 // marks as the one a submitter may read; the Things that never travel are whichever archetype it marks
-// as carrying personal details; and the edges the reading follows are the ones that page's own spec
+// as carrying personal details; and the relationships the reading follows are the ones that page's own spec
 // walks. So a project may re-author the page, and what a submitter is sent follows it without a change
 // here.
 //
-// The walk is rooted at one site and follows each edge the way the spec follows it. A selector naming
+// The walk is rooted at one site and follows each relationship the way the spec follows it. A selector naming
 // the archetypes instead would answer with every Thing of that kind in the model — which in a staging
 // model is every other submitter's land.
 //
@@ -73,8 +73,8 @@ public static class FindingsReader
         return new SubscriptionSelector
         {
             Ids = [siteId],
-            // A predicate is a Thing, and what draws the reading reads an edge's predicate by looking that
-            // Thing up. Asked for alongside the edges they join, or an `is` edge is one nothing can read
+            // A predicate is a Thing, and what draws the reading reads a relationship's predicate by looking that
+            // Thing up. Asked for alongside the relationships they join, or an `is` relationship is one nothing can read
             // and no Thing can be told what it is.
             Names =
             [
@@ -103,7 +103,7 @@ public static class FindingsReader
         return [.. things.Where(thing => !withheld.Contains(Identifier(thing)))];
     }
 
-    // The edges between the Things being answered with. An edge to one that was withheld is
+    // The relationships between the Things being answered with. A relationship to one that was withheld is
     // withheld with it: it would name an identifier the answer does not carry, and say that the site
     // relates to something the reader is not shown.
     public static List<JsonElement> RelationshipsToAnswerWith(JsonElement snapshot, IEnumerable<JsonElement> things)
@@ -147,7 +147,7 @@ public static class FindingsReader
                 + "Seed the model from the analysis templates.");
     }
 
-    // One edge a spec follows. Both shapes a spec writes a walk in — a step in a binding's
+    // One relationship a spec follows. Both shapes a spec writes a walk in — a step in a binding's
     // via, and the predicate a scope narrows through — are the same question of the model.
     private readonly record struct Walk(string Predicate, bool Inbound);
 
@@ -234,7 +234,7 @@ public static class FindingsReader
     // What the Thing itself states for a name: its own properties first, then the override
     // sets. A value written for a name the Thing's archetype declares is never an own property — the
     // model clones the declaration under that archetype's id and writes the value inside it — so a
-    // reader of the own map alone finds every submitted value absent (Bug #6908). The same rule the
+    // reader of the own map alone finds every submitted value absent. The same rule the
     // shared snapshot reader states; this reader works on the broker's raw envelope rather than on a
     // typed snapshot, so it spells the rule out rather than calling it.
     private static JsonElement? Property(JsonElement thing, string name)

@@ -1,4 +1,4 @@
-// Undo history + optimistic-save baseline for the pipeline editor (US #5872).
+// Undo history + optimistic-save baseline for the pipeline editor.
 //
 // Two jobs, one small structure:
 //  - Undo: `record` the editor state *before* each mutation; `undo` pops the last one back.

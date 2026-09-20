@@ -144,7 +144,7 @@ public class SubmissionFragmentComposerTests
         composed.Fragment.Things.Where(thing =>
             IsEdgeTo(composed, thing.Id, WillowBend.ProgrammeAllocationArchetypeId));
 
-    // Which category a share is for is asked of the edge, because that is the only place it is recorded.
+    // Which category a share is for is asked of the relationship, because that is the only place it is recorded.
     private static FragmentThing AllocationFor(ComposedSubmission composed, string categoryName) =>
         Allocations(composed).Single(thing => Relates(
             composed, thing.Id, WillowBend.CategorizedAsPredicateId, WillowBend.TermId(categoryName)));
@@ -154,7 +154,7 @@ public class SubmissionFragmentComposerTests
     {
         var composed = Compose(WillowBend.Submission());
 
-        // The count is what pins the archetype edge: an allocation is found by it and by nothing else,
+        // The count is what pins the archetype relationship: an allocation is found by it and by nothing else,
         // so one share short of the submitted set means one share reached no archetype.
         var allocations = Allocations(composed).ToList();
         allocations.Should().HaveCount(WillowBend.Submission().Allocations!.Count);
@@ -165,7 +165,7 @@ public class SubmissionFragmentComposerTests
                 && edge.Target == thing.Id));
     }
 
-    // What land allocation reads to work out which footprint a share belongs to. Without this edge every
+    // What land allocation reads to work out which footprint a share belongs to. Without this relationship every
     // allocation reads as uncategorised and the analysis computes nothing, which is what a word beside it
     // could never fix: a word cannot be walked to and carries no flags.
     [Fact]
@@ -189,7 +189,7 @@ public class SubmissionFragmentComposerTests
             WillowBend.TermId("drawn-by-hand")).Should().BeTrue();
     }
 
-    // A term reached by an edge and copied into a property beside it says the same thing twice, and the
+    // A term reached by a relationship and copied into a property beside it says the same thing twice, and the
     // copy is the half no reader can walk from and no range can judge. Two readings of one value can also
     // come to disagree, which nothing would notice.
     [Theory]
@@ -203,7 +203,7 @@ public class SubmissionFragmentComposerTests
     }
 
     // The predicate is the model's own, and the readers on the other side follow it by the mark it carries.
-    // A predicate minted here would carry no mark, so the edge would be written and never followed — the
+    // A predicate minted here would carry no mark, so the relationship would be written and never followed — the
     // silent half of this failure rather than the loud one.
     [Fact]
     public void The_predicates_a_vocabulary_is_reached_through_are_never_minted_into_the_fragment()
@@ -251,7 +251,7 @@ public class SubmissionFragmentComposerTests
     // The shared analysis declares an allocation's area as a formula over its own share and the parcel its
     // site holds, and a derived property refuses every value write — so writing a submitted area would not
     // duplicate the answer, it would fail the whole fragment. An allocation carries its share and nothing
-    // else this service could write (Bug #6762).
+    // else this service could write.
     [Fact]
     public void An_allocation_carries_no_figure_the_model_works_out_for_itself()
     {
@@ -454,7 +454,7 @@ public class SubmissionFragmentComposerTests
         refusal.Message.Should().Contain("hazard.reportedLevel");
     }
 
-    // What the assessment is about, as an edge to the Thing the model declares. A word could name a hazard
+    // What the assessment is about, as a relationship to the Thing the model declares. A word could name a hazard
     // that exists nowhere and nothing would notice; nothing can be asked of it either — not what it means,
     // not which other sites carry it.
     [Fact]
@@ -471,7 +471,7 @@ public class SubmissionFragmentComposerTests
     }
 
     // The predicate comes from the model, like the term. One minted here would carry no mark, so every
-    // reader that follows this vocabulary by mark would miss the edge entirely.
+    // reader that follows this vocabulary by mark would miss the relationship entirely.
     [Fact]
     public void The_edge_to_a_hazard_type_uses_the_predicate_the_model_declares()
     {
@@ -671,8 +671,8 @@ public class SubmissionFragmentComposerTests
         }
     }
 
-    // Which demands came before is written as edges rather than left to be worked out from serving orders
-    // at every recompute, so the reduction that adds up what they took ranges over what these edges reach.
+    // Which demands came before is written as relationships rather than left to be worked out from serving orders
+    // at every recompute, so the reduction that adds up what they took ranges over what these relationships reach.
     [Fact]
     public void Each_demand_relates_to_every_demand_served_before_it()
     {
@@ -770,9 +770,9 @@ public class SubmissionFragmentComposerTests
     }
 
     // A promotion carries the group reachable from the site through `has` and `studies`, and takes with it
-    // every edge a member of that group asserts. The record is resolved after the copy has landed, so a
+    // every relationship a member of that group asserts. The record is resolved after the copy has landed, so a
     // copy of it would read as waiting for ever — it reaches the site through neither predicate, and the
-    // site does not assert the edge that reaches it.
+    // site does not assert the relationship that reaches it.
     [Fact]
     public void The_record_proposes_the_site_rather_than_holding_it()
     {
@@ -949,7 +949,7 @@ public class SubmissionFragmentComposerTests
         Relates(composed, site.Id, WillowBend.IsInPredicateId, WillowBend.RootPlaceId).Should().BeTrue();
     }
 
-    // A source covering the root covers every site, so one edge is all a global source needs. Narrower
+    // A source covering the root covers every site, so one relationship is all a global source needs. Narrower
     // Places are not minted here: a country is an open set nobody enumerates, and `country` stays text.
     [Fact]
     public void No_place_is_created_for_the_country_the_submission_named()
@@ -959,8 +959,8 @@ public class SubmissionFragmentComposerTests
         composed.Fragment.Things.Should().NotContain(thing => thing.Name == "Portugal");
     }
 
-    // The edge is written once however the submission arrives again, the same rule every other edge the
-    // producer writes follows — a fragment upserts, so a second copy would be a second edge to one Place.
+    // The relationship is written once however the submission arrives again, the same rule every other relationship the
+    // producer writes follows — a fragment upserts, so a second copy would be a second relationship to one Place.
     [Fact]
     public void The_site_reaches_the_root_place_exactly_once()
     {

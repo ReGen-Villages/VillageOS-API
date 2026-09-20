@@ -10,10 +10,10 @@ export interface FlashSettings {
 /**
  * ForceAtlas2 layout settings extracted from the GUI_Settings type Thing.
  *
- * Bug #5361 added the FA2 supervisor + node-size + edge-size knobs so the
+ * The FA2 supervisor + node-size + edge-size knobs are here so the
  * perf-critical parameters that used to be hard-coded constants are now
  * runtime-tunable through GUI_Settings, the same way repulsion / gravity
- * already were. Feature #5362 added classifyingProperty so the GUI can run
+ * already were. classifyingProperty lets the GUI run
  * against any domain ontology, not just IFC. Editing the GUI_Settings Thing
  * on Mycelium (or in the seed JSON) overrides any of these without a rebuild.
  */
@@ -24,7 +24,7 @@ export interface LayoutSettings {
   gravity: number;
   clusterRepulsion: number;
 
-  // FA2 supervisor knobs (Bug #5361) — empirically validated against the
+  // FA2 supervisor knobs — empirically validated against the
   // 30k-node MV graph; defaults are in LAYOUT_DEFAULTS below.
   scalingRatioMultiplier: number;
   gravityMultiplier: number;
@@ -32,18 +32,18 @@ export interface LayoutSettings {
   slowDown: number;
   strongGravityMode: boolean;
 
-  // Node sizing (Bug #5361) — incoming-degree → pixel size: clamp to
+  // Node sizing — incoming-degree → pixel size: clamp to
   // [nodeSizeMin, nodeSizeMax] of nodeSizeMin + degree * nodeSizeSlope.
   nodeSizeMin: number;
   nodeSizeMax: number;
   nodeSizeSlope: number;
 
-  // Edge sizing (Bug #5361) — flat width for all edges. Smaller = less visual
+  // Edge sizing — flat width for all edges. Smaller = less visual
   // clutter when many edges share endpoints.
   edgeSize: number;
 
   /**
-   * Feature #5362 — name of the Thing-property whose value drives the per-node
+   * Name of the Thing-property whose value drives the per-node
    * color/bucket lookup and the per-element color in the BuildingDetail3D
    * viewport. The system itself knows nothing about specific ontologies; pick
    * whatever property the loaded model uses to identify class membership.
@@ -77,7 +77,7 @@ export const LAYOUT_DEFAULTS: LayoutSettings = {
 };
 
 /**
- * How many decimal places a number shows, read from the GUI_Settings type Thing (#6163).
+ * How many decimal places a number shows, read from the GUI_Settings type Thing.
  *
  * There is no digit count that suits every model — a model of geometry, a model of money and a
  * model of sensor readings each want a different one, and the client cannot know which it is
@@ -190,7 +190,7 @@ function readLayoutSettings(p: Record<string, unknown>): LayoutSettings {
     repulsion: toNumber(p['LayoutRepulsion'], LAYOUT_DEFAULTS.repulsion),
     gravity: toNumber(p['LayoutGravity'], LAYOUT_DEFAULTS.gravity),
     clusterRepulsion: toNumber(p['ClusterRepulsion'], LAYOUT_DEFAULTS.clusterRepulsion),
-    // Bug #5361 — formerly hardcoded constants, now runtime-tunable
+    // Formerly hardcoded constants, now runtime-tunable
     scalingRatioMultiplier: toNumber(p['LayoutScalingRatioMultiplier'], LAYOUT_DEFAULTS.scalingRatioMultiplier),
     gravityMultiplier: toNumber(p['LayoutGravityMultiplier'], LAYOUT_DEFAULTS.gravityMultiplier),
     barnesHutTheta: toNumber(p['LayoutBarnesHutTheta'], LAYOUT_DEFAULTS.barnesHutTheta),
@@ -200,7 +200,7 @@ function readLayoutSettings(p: Record<string, unknown>): LayoutSettings {
     nodeSizeMax: toNumber(p['NodeSizeMax'], LAYOUT_DEFAULTS.nodeSizeMax),
     nodeSizeSlope: toNumber(p['NodeSizeSlope'], LAYOUT_DEFAULTS.nodeSizeSlope),
     edgeSize: toNumber(p['EdgeSize'], LAYOUT_DEFAULTS.edgeSize),
-    // Feature #5362 — domain-agnostic classifier property name
+    // Domain-agnostic classifier property name
     classifyingProperty: toString(p['ClassifyingProperty'], LAYOUT_DEFAULTS.classifyingProperty),
   };
 }

@@ -11,7 +11,7 @@ using Xunit;
 
 namespace vos.Service.Intake.Tests;
 
-// Task #7059 — a file a submitter shares about their land. The bytes are kept under a folder beside
+// A file a submitter shares about their land. The bytes are kept under a folder beside
 // this service, keyed by submission; the model gets the Thing it declares for a shared file, related
 // to the submission's project through the predicate the model marks; and the files of a submission
 // the model no longer holds are taken out with it.

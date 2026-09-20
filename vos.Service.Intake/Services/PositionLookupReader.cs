@@ -12,7 +12,7 @@ namespace vos.Service.Intake.Services;
 // call is forwarded under, the reshape this service applies to the raw body — under a property of its
 // own, because Tributary ingests a responseTransform and a position that is not yet a site has
 // nothing to ingest onto — whose record the answer is, and for a parcel register the bounds it covers.
-// Bounds are a pair of spans rather than a covers edge: a clicked position belongs to no site,
+// Bounds are a pair of spans rather than a covers relationship: a clicked position belongs to no site,
 // so the coverage walk that selects discovery sources has nowhere to start.
 public static class PositionLookupReader
 {

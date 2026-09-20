@@ -11,7 +11,7 @@ namespace vos.BrokerContract.Tests.AgainstTheEngine;
 //
 // Its unit tests answer every write with 200 whatever the body, so they agreed with the writer about
 // a rule neither of them applied and every case passed while no run in the live system was ever
-// recorded (Bug #6929). These are the cases that could not have.
+// recorded. These are the cases that could not have.
 public class PhloemRecordsARunTests : IClassFixture<TheEngine>
 {
     private readonly TheEngine _engine;

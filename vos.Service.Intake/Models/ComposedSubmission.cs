@@ -33,14 +33,14 @@ public sealed record DeclaredTerm(string Name, Guid Id);
 // one — they are minted for every study whatever was submitted.
 public sealed record DeclaredDemand(string Name, Guid Id, long ServingOrder);
 
-// A vocabulary the model holds as Things: the terms, and the predicate an edge to one of them is
+// A vocabulary the model holds as Things: the terms, and the predicate a relationship to one of them is
 // written with. Both are read from the model rather than held here, so a project that adds a term or
 // renames the predicate changes the model and nothing else.
 public sealed record DeclaredTerms(DeclaredTerm Predicate, IReadOnlyList<DeclaredTerm> Terms);
 
-// Where a site sits: the Place every other Place nests under, and the predicate that edge is
+// Where a site sits: the Place every other Place nests under, and the predicate that relationship is
 // written with. Not a vocabulary — nothing is resolved against it, because a submission names no Place.
-// A source covering the root covers every site, so this one edge is what lets a covering source be
+// A source covering the root covers every site, so this one relationship is what lets a covering source be
 // selected at all.
 public sealed record DeclaredPlace(DeclaredTerm Predicate, DeclaredTerm Root);
 

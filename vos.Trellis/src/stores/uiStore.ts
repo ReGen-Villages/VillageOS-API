@@ -15,7 +15,7 @@ const DEFAULT_TYPE_SORT: SortOrder = 'count-desc';
 const VALID_TYPE_SORTS: readonly SortOrder[] = ['count-desc', 'count-asc', 'name-asc', 'name-desc'];
 
 /**
- * Feature #5362 — load the persisted set of hidden type Thing ids for a model.
+ * Load the persisted set of hidden type Thing ids for a model.
  * Per-model so different models don't share filter state. Returns an empty
  * Set when no model is selected or no persisted state exists.
  */
@@ -42,7 +42,7 @@ function persistHiddenTypeIds(modelId: string | null, ids: Set<string>): void {
 }
 
 /**
- * Feature #5386 — per-model TypeFilterPanel sort order, persisted in
+ * Per-model TypeFilterPanel sort order, persisted in
  * localStorage so the user's preferred view sticks across reloads. Mirrors
  * the hiddenTypeIds pattern; falls back to count-desc on missing / invalid
  * stored values.
@@ -96,7 +96,7 @@ interface UiState {
   statesMoved: (states: string[]) => void;
 
 
-  // ── Type filter (Feature #5362) ───────────────────────────────────
+  // ── Type filter ───────────────────────────────────
   // Set of type Thing ids currently hidden. Domain-agnostic — any Thing
   // that is the target of an `is` relationship is a "type" for purposes
   // of this filter. Both the Graph page (Sigma) and the Model page
@@ -110,11 +110,11 @@ interface UiState {
   setHiddenTypeIds: (ids: Set<string>) => void;
   clearHiddenTypeIds: () => void;
 
-  // Feature #5386 — TypeFilterPanel sort order, persisted per model.
+  // TypeFilterPanel sort order, persisted per model.
   typeSortOrder: SortOrder;
   setTypeSortOrder: (order: SortOrder) => void;
 
-  // ── Predicate edge-visibility filter (Bug #5365) ──────────────────
+  // ── Predicate edge-visibility filter ──────────────────
   // Set of predicate ids whose edges should be HIDDEN. Mirror semantic of
   // hiddenTypeIds: empty set = nothing hidden = all edges show. Driven by
   // PredicateFilterPanel; consumed by NodeReducer.edgeReducer. Independent
@@ -133,7 +133,7 @@ interface UiState {
   expandedNodes: Set<string>;
   radialMenuOpen: boolean;
   radialMenuPosition: { x: number; y: number } | null;
-  // ── Logical node expansion (Phase 3) ─────────────────────────────
+  // ── Logical node expansion ─────────────────────────────
   expandedLogicalParents: Set<string>;
   semanticZoomEnabled: boolean;
   toggleLogicalExpansion: (geoNodeId: string) => void;
@@ -212,7 +212,7 @@ export const useUiStore = create<UiState>((set) => ({
       return { statesVersion: s.statesVersion + 1, stateVersions: moved };
     }),
 
-  // ── Type filter (Feature #5362) ───────────────────────────────────
+  // ── Type filter ───────────────────────────────────
   currentModelId: null,
   hiddenTypeIds: new Set<string>(),
   typeSortOrder: DEFAULT_TYPE_SORT,
@@ -242,7 +242,7 @@ export const useUiStore = create<UiState>((set) => ({
     return { hiddenTypeIds: new Set<string>() };
   }),
 
-  // ── Predicate edge-visibility filter (Bug #5365) ──────────────────
+  // ── Predicate edge-visibility filter ──────────────────
   hiddenPredicateIds: new Set<string>(),
   toggleHiddenPredicate: (predicateId) => set((s) => {
     const next = new Set(s.hiddenPredicateIds);
@@ -265,7 +265,7 @@ export const useUiStore = create<UiState>((set) => ({
   expandedNodes: new Set<string>(),
   radialMenuOpen: false,
   radialMenuPosition: null,
-  // ── Logical node expansion (Phase 3) ────────────────────────────────
+  // ── Logical node expansion ────────────────────────────────
   expandedLogicalParents: new Set<string>(),
   semanticZoomEnabled: true,
 

@@ -488,7 +488,7 @@ public class CoveringSourceResolverTests
     public void Resolve_AnArchetypesValuesDoNotAddressACall()
     {
         // A type's value is a default for a kind, the same reason inherited values never address a
-        // call — so the is edge is not among the edges a subject's address is drawn along.
+        // call — so the is relationship is not among the relationships a subject's address is drawn along.
         var model = ResolvingOnto("HazardPortal", "HazardAssessment", "flood assessment")
             .WithValue("HazardAssessment", "hazardPortalCode", "\"XX\"");
 
@@ -616,7 +616,7 @@ public class CoveringSourceResolverTests
     [Fact]
     public void AnalysisOf_MarkedConnectionBindingNoService_IsNotATrigger()
     {
-        // An edge pointing at nothing to dispatch would be written and never answered, which reads
+        // A relationship pointing at nothing to dispatch would be written and never answered, which reads
         // afterwards as an analysis that started and produced nothing.
         var model = StudyOf("WillowBend")
             .Relate("balancesEnergy", CoveringSourceResolver.IsPredicateName, "SiteAnalysisConnection");
@@ -629,8 +629,8 @@ public class CoveringSourceResolverTests
     [Fact]
     public void AnalysisOf_ServiceTypedByAThingThatIsNotAnArchetype_IsNotATrigger()
     {
-        // A service `is` its prototype, and a prototype is a type. Pointing the analysis edge at an
-        // ordinary Thing that happens to sit on an `is` edge would dispatch against a member.
+        // A service `is` its prototype, and a prototype is a type. Pointing the analysis relationship at an
+        // ordinary Thing that happens to sit on an `is` relationship would dispatch against a member.
         var model = StudyOf("WillowBend")
             .Relate("balancesEnergy", CoveringSourceResolver.IsPredicateName, "SiteAnalysisConnection")
             .Relate("balancesEnergy", CoveringSourceResolver.HasPredicate, "balancesEnergy service")
@@ -675,7 +675,7 @@ public class CoveringSourceResolverTests
     [Fact]
     public void AnalysisOf_TwoMarkedConnections_AreOrderedByName()
     {
-        // A run writes its edges the same way twice, which is what makes the log of two runs comparable.
+        // A run writes its relationships the same way twice, which is what makes the log of two runs comparable.
         var model = StudyOf("WillowBend");
         MarkedConnection(model, "secondBalance", "SecondBalance prototype");
         MarkedConnection(model, "balancesEnergy", "EnergyBalance prototype");
@@ -700,7 +700,7 @@ public class CoveringSourceResolverTests
     [Fact]
     public void AnalysisOf_TheSameStudyRelatedTwice_IsStillThatStudy()
     {
-        // A duplicate edge is one study named twice, not two studies. Refusing it would take an analysis
+        // A duplicate relationship is one study named twice, not two studies. Refusing it would take an analysis
         // away over a redundancy that changes no answer.
         var model = StudyOf("WillowBend")
             .Relate("WillowBendStudy", CoveringSourceResolver.StudiesPredicate, "WillowBend");
@@ -713,7 +713,7 @@ public class CoveringSourceResolverTests
     public void AnalysisOf_IntermediateArchetypeBindingItsOwnService_IsNotATrigger()
     {
         // A type between a connection and the mark may bind a service of its own as a template. It is
-        // still a type, and dispatching it would make the edge's predicate an archetype rather than a
+        // still a type, and dispatching it would make the relationship's predicate an archetype rather than a
         // connection — so only the member below it is a trigger.
         var model = StudyOf("WillowBend")
             .Relate("PlatformAnalysisConnection", CoveringSourceResolver.IsPredicateName, "SiteAnalysisConnection")
@@ -733,7 +733,7 @@ public class CoveringSourceResolverTests
     [Fact]
     public void AnalysisOf_IsEdgeFromAThingOutsideTheSnapshot_IsSkipped()
     {
-        // Incident edges arrive for every Thing in the set, including ones whose other end was not
+        // Incident relationships arrive for every Thing in the set, including ones whose other end was not
         // selected. Reading a connection that is not there would dispatch against a Thing this run
         // knows nothing about.
         var site = Guid.NewGuid();
@@ -810,7 +810,7 @@ public class CoveringSourceResolverTests
 
     // A run mints against the coverage archetype, so it has to arrive before any coverage exists to
     // traverse from — but alone. Asked for with its members, every coverage in the model arrived on every
-    // site's read, one Thing per site and source already recorded anywhere (Bug #6818); the coverages
+    // site's read, one Thing per site and source already recorded anywhere; the coverages
     // about this site already come through the `appliesTo` traversal from the site and its assessments.
     [Fact]
     public void SelectorFor_AsksForTheCoverageArchetypeAlone()
@@ -825,7 +825,7 @@ public class CoveringSourceResolverTests
     public void SelectorFor_WalksPlacesBeforeCoverage()
     {
         // Traverse rules compose over the set built so far, so isIn must come before covers: asking
-        // for the incoming coverage edges before the places exist finds nothing. Only that ordering is
+        // for the incoming coverage relationships before the places exist finds nothing. Only that ordering is
         // pinned — a rule running from the seed set can sit anywhere, and pinning the whole list makes
         // adding one look like a regression.
         var selector = CoveringSourceResolver.SelectorFor(Guid.NewGuid());

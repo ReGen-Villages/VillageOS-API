@@ -3,8 +3,8 @@ using System.Text;
 
 namespace vos.Service.Delta.Tests;
 
-// The read every provisioning run makes before it writes anything: which edges the endpoint
-// template catalog already carries. Answering no edges describes a model where nothing is wired yet,
+// The read every provisioning run makes before it writes anything: which relationships the endpoint
+// template catalog already carries. Answering no relationships describes a model where nothing is wired yet,
 // which is where these tests start — a fake that does not answer at all makes provisioning refuse,
 // which is a different subject entirely.
 internal static class CatalogEdgeRead

@@ -4,7 +4,7 @@ import { PredicateFilterPanel } from './PredicateFilterPanel';
 import { useUiStore } from '../../stores/uiStore';
 
 /**
- * Bug #5388 — the filter cluster on GraphPage put two panels with
+ * The filter cluster on GraphPage put two panels with
  * `max-h-[40vh]` lists in a single bottom-anchored container, which pushed
  * the predicate panel header off-screen on tall lists and trapped scroll
  * inside the inner ul. The fix replaces the fixed 40vh cap with flex-1

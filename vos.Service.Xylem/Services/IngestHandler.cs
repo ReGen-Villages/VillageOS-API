@@ -1,7 +1,7 @@
 namespace vos.Service.Xylem.Services;
 
 // Orchestrates one ingest: validate the request, run ModelIngest via the runner, surface the
-// counts. Kept free of transport/subprocess details so it is fully unit-tested (#5842).
+// counts. Kept free of transport/subprocess details so it is fully unit-tested.
 public class IngestHandler
 {
     private readonly IModelIngestRunner _runner;
@@ -14,7 +14,7 @@ public class IngestHandler
     }
 
     // Ingest an uploaded stream: stream it to a temp file enforcing the size cap as it copies,
-    // run, always clean up. Streaming (not a length check) keeps a very large IFC out of memory (#5845)
+    // run, always clean up. Streaming (not a length check) keeps a very large IFC out of memory
     // and keeps the endpoint a thin form-read so the whole upload path is unit-tested without a web host.
     public async Task<IngestResult> IngestUploadAsync(
         Stream ifc, string modelName, IngestMode mode, long maxBytes, CancellationToken ct)

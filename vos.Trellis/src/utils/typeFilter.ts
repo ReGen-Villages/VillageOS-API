@@ -18,7 +18,7 @@ export interface TypeStat {
 }
 
 /**
- * Bug #5363 — coalesced presentation: one row per Name regardless of how
+ * Coalesced presentation: one row per Name regardless of how
  * many distinct type-Things share that Name. Thing Names are NOT unique in
  * the system (Name is just a display label; identity is the GUID), so an
  * IFC import can legitimately produce N type-Things named e.g.
@@ -94,7 +94,7 @@ export function discoverTypes(
 }
 
 /**
- * Bug #5363 — collapse a TypeStat[] into one entry per Name, summing
+ * Collapse a TypeStat[] into one entry per Name, summing
  * counts and concatenating typeIds. Order: the new groups inherit the sort
  * position of their first member, so the heaviest single-typeId types stay
  * near the top. The synthetic NO_TYPE bucket remains last because its
@@ -121,7 +121,7 @@ export function groupTypesByName(types: readonly TypeStat[]): TypeGroupStat[] {
 }
 
 /**
- * Feature #5386 — sort orderings exposed in the TypeFilterPanel selector.
+ * Sort orderings exposed in the TypeFilterPanel selector.
  *   - count-desc  large buckets first (panel default, matches discoverTypes)
  *   - count-asc   smallest buckets first
  *   - name-asc    A → Z

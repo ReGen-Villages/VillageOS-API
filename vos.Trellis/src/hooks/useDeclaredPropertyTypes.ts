@@ -8,7 +8,7 @@ export type DeclaredPropertyTypes = Record<string, Record<string, EffectivePrope
 
 /**
  * The platform's resolved view of a Thing's properties — each value with the type the platform
- * declares for it and where it was inherited from (#6163). The client model index carries values but
+ * declares for it and where it was inherited from. The client model index carries values but
  * no types, because it is built from the model rather than from the resolved-properties routes.
  *
  * Pass the ids a surface is actually showing and only those are read. Only a surface that

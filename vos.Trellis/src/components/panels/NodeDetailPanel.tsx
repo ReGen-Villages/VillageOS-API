@@ -74,7 +74,7 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
       children.push({
         geometryValue: child.Properties.geometry,
         name: child.Name,
-        // Bug #6191: an IFC child stores its class as an override of its type's.
+        // An IFC child stores its class as an override of its type's.
         colorKey: storedTextOf(child, classifyingProperty) ?? undefined,
       });
     }

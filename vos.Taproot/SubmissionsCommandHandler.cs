@@ -5,10 +5,9 @@ using static vos.Taproot.ModelReading;
 namespace vos.Taproot;
 
 // What has arrived, and what to do with it: list the submissions in this model, reject one, promote one
-// into a project model of its own (VillageOS #6045), or clear the rejections whose period has run
-// (VillageOS #6657).
+// into a project model of its own, or clear the rejections whose period has run.
 //
-// Nothing here names an archetype or a predicate. A submission is whatever asserts an edge through the
+// Nothing here names an archetype or a predicate. A submission is whatever asserts a relationship through the
 // predicate the model marks as reaching a proposed site, and the dispositions are the Things under the
 // archetype the model marks as holding them. A model that spells either differently keeps answering,
 // which is the whole reason both are Things.
@@ -273,9 +272,9 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         if (OneOwning(model, ProposedSitePredicateFlag) is not { } proposes)
             yield break;
 
-        // One submission per edge: a submission is only a submission because it proposes a site, so the
+        // One submission per relationship: a submission is only a submission because it proposes a site, so the
         // walk that finds it is also the walk that says which site travels when it is promoted. A model
-        // declares that predicate by relating its own archetypes, and that edge is asserted through the
+        // declares that predicate by relating its own archetypes, and that relationship is asserted through the
         // same predicate — listed, it offers a reviewer a decision over the declaration itself.
         foreach (var edge in EdgesThrough(model, proposes.Id))
         {

@@ -8,8 +8,7 @@ namespace vos.Service.Metabolism.Services;
 
 // HTTP client for communicating with the VOS Mycelium (Metabolism-specific operations).
 // Adds the resource/quantity write endpoints on top of the shared base. Live property
-// updates now arrive via the SSE Shared.Subscriptions.SubscriptionClient
-// (Phase 5c, #5558).
+// updates now arrive via the SSE Shared.Subscriptions.SubscriptionClient.
 public class MyceliumClient : MyceliumClientBase
 {
     private readonly ResourceDirection _direction;

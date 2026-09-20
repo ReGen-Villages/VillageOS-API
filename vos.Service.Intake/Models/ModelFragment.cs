@@ -10,8 +10,8 @@ public sealed record ModelFragment(
 
 public sealed record FragmentThing(Guid Id, string Name, IReadOnlyDictionary<string, TypedValue> Properties);
 
-// An edge carries no identifier: the endpoint keys an edge on subject, predicate and target, so a
-// re-posted submission finds its own edges rather than adding second copies of them.
+// A relationship carries no identifier: the endpoint keys a relationship on subject, predicate and target, so a
+// re-posted submission finds its own relationships rather than adding second copies of them.
 public sealed record FragmentRelationship(string Name, Guid Subject, Guid Predicate, Guid Target);
 
 // A property value with the type it is written as.

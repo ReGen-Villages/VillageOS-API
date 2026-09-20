@@ -10,7 +10,7 @@ namespace vos.Service.Shared.Tests.Subscriptions;
 // Every other test of a snapshot reader builds the records in memory, which asserts nothing about
 // the names the payload arrives under. These deserialize the payload instead, so a member that binds to
 // nothing fails here rather than on a running broker — which is how a value every submitted site states
-// read as absent to every service while reading back perfectly well over the REST routes (#6805).
+// read as absent to every service while reading back perfectly well over the REST routes.
 //
 // The payload below is what SnapshotBuilder produces for a Thing that wrote a value for a
 // name its archetype declares, serialized as Mycelium's controllers serialize it: property names keep

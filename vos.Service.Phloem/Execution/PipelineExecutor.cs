@@ -72,7 +72,7 @@ public sealed class PipelineExecutor
             foreach (var result in batch)
             {
                 results[result.NodeId] = result;
-                // Succeeded and partial (#5648 collect-partial) both route outputs downstream; only a hard
+                // Succeeded and partial (collect-partial) both route outputs downstream; only a hard
                 // failure halts dependents.
                 if (result.Status is RunStatus.Succeeded or RunStatus.Partial)
                     outputs[result.NodeId] = result.Outputs;
@@ -101,7 +101,7 @@ public sealed class PipelineExecutor
         var success = runStatus == RunStatus.Succeeded;
         var ordered = dag.Nodes.Select(n => results[n.NodeId]).ToList();
 
-        // The pipeline's published result (#5873): the Output boundary node's collected inputs. Persisted on the
+        // The pipeline's published result: the Output boundary node's collected inputs. Persisted on the
         // PipelineRun Thing (so it streams over SSE and is temporally queryable) and returned to the caller.
         JsonElement? runResult = null;
         var outputNode = dag.Nodes.FirstOrDefault(n => n.Kind == DagNodeKind.Output);
@@ -161,7 +161,7 @@ public sealed class PipelineExecutor
         // is written by RunAsync from the value returned here.
         await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, RunStatus.Running, null, cancellationToken), "persist node running");
 
-        // Boundary nodes (#5873) never dispatch: an Input node projects the run's params onto its output ports
+        // Boundary nodes never dispatch: an Input node projects the run's params onto its output ports
         // (which then flow downstream via wires); an Output node is a sink — its inputs are collected as the
         // run result after the sweep (see RunAsync), so here it simply succeeds.
         if (node.Kind == DagNodeKind.Input)
@@ -180,7 +180,7 @@ public sealed class PipelineExecutor
             return new NodeRunResult(node.NodeId, node.Name, RunStatus.Failed, NoOutputs, $"Wire transform failed: {ex.Message}");
         }
 
-        // Fan-out (#5648): if the node has a collection input and it carries a list, run the node once per item.
+        // Fan-out: if the node has a collection input and it carries a list, run the node once per item.
         var collection = node.CollectionInput;
         if (collection != null && inputs.TryGetValue(collection.PortName, out var collValue) && collValue.ValueKind == JsonValueKind.Array)
             return await RunFanOutAsync(node, runId, inputs, collection.PortName, collValue, cancellationToken);
@@ -188,9 +188,9 @@ public sealed class PipelineExecutor
         return await DispatchAndParseAsync(node, runId, inputs, index: null, cancellationToken);
     }
 
-    // Assemble a node's inputs: param-bound inputs first (#5647), then wires. Each wire extracts its
+    // Assemble a node's inputs: param-bound inputs first, then wires. Each wire extracts its
     // from-path of the upstream output and deep-merges it at its to-path into the target input, so several
-    // wires compose one input value; empty paths carry the whole payload and a scalar wire overrides (#5874).
+    // wires compose one input value; empty paths carry the whole payload and a scalar wire overrides.
     private static Dictionary<string, JsonElement> AssembleInputs(
         PipelineDag dag, DagNode node,
         IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, JsonElement runParams)
@@ -207,7 +207,7 @@ public sealed class PipelineExecutor
             if (extracted is null) continue; // the from-path is not present in the upstream output
             var reshaped = string.IsNullOrEmpty(wire.Transform)
                 ? extracted.Value
-                : new JsonataTransform(wire.Transform).Eval(extracted.Value); // #5875 — may throw on a bad expression
+                : new JsonataTransform(wire.Transform).Eval(extracted.Value);
             var placed = PayloadMapping.Place(wire.ToPath, reshaped);
             accumulated[wire.ToPort] = accumulated.TryGetValue(wire.ToPort, out var existing)
                 ? PayloadMapping.Merge(existing, placed)
@@ -220,7 +220,7 @@ public sealed class PipelineExecutor
         return inputs;
     }
 
-    // An Input boundary node's outputs (#5873): each output port is filled from the run param of the
+    // An Input boundary node's outputs: each output port is filled from the run param of the
     // same name, so downstream nodes receive the run's external inputs through ordinary wires.
     private static IReadOnlyDictionary<string, JsonElement> ProjectParamsOntoOutputs(DagNode node, JsonElement runParams)
     {
@@ -232,7 +232,7 @@ public sealed class PipelineExecutor
     }
 
     // Run the node once per item of its collection input (bounded), writing a per-item NodeRun for each,
-    // and gather each output port into a list. onItemError chooses fail-fast vs collect-partial (#5648).
+    // and gather each output port into a list. onItemError chooses fail-fast vs collect-partial.
     private async Task<NodeRunResult> RunFanOutAsync(
         DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> baseInputs,
         string collectionPort, JsonElement items, CancellationToken cancellationToken)
@@ -349,7 +349,7 @@ public sealed class PipelineExecutor
     private static NodeRunResult Failure(DagNode node, string error) =>
         new(node.NodeId, node.Name, RunStatus.Failed, NoOutputs, error);
 
-    // Look up a run-param by key — the spawn's params object (#5647).
+    // Look up a run-param by key — the spawn's params object.
     private static bool TryGetParam(JsonElement runParams, string key, out JsonElement value)
     {
         if (runParams.ValueKind == JsonValueKind.Object && runParams.TryGetProperty(key, out value))

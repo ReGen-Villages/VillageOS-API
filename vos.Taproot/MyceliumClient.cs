@@ -220,7 +220,7 @@ public class MyceliumClient
         return response.IsSuccessStatusCode;
     }
 
-    // Rename a Thing in place — keeps its Id and all edges (unlike delete+recreate). The broker
+    // Rename a Thing in place — keeps its Id and all relationships (unlike delete+recreate). The broker
     // persists a NameSet Fact, so the rename streams over SSE and is temporally reconstructable.
     public virtual async Task<bool> RenameThingAsync(Guid id, string newName)
     {
@@ -336,7 +336,7 @@ public class MyceliumClient
     }
 
     // Every connection the model declares, each with what it resolves to. The platform resolves these —
-    // a value may be held on the Thing, inherited through its `is` chain, or reached by an edge — so
+    // a value may be held on the Thing, inherited through its `is` chain, or reached by a relationship — so
     // reading them here is what keeps this client out of the business of resolving anything itself.
     public virtual async Task<JsonElement> GetAllConnectionsAsync()
     {

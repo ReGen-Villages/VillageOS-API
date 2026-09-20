@@ -186,7 +186,7 @@ namespace vos.Taproot
             var targetName = ResolveName(targetId, nameMap);
             var predicateName = ResolveName(predicateId, nameMap);
 
-            // The platform sends a name only for an edge given one of its own; every other edge is named
+            // The platform sends a name only for a relationship given one of its own; every other relationship is named
             // by the three endpoints, which the payload carries as identifiers.
             var ownName = rel.GetStringOrDefault("Name", "");
             var name = ownName.Length > 0 ? ownName : $"{subjectName} {predicateName} {targetName}";
@@ -247,7 +247,7 @@ namespace vos.Taproot
 
         // The platform says which connections bind a service and what each resolves to. Working that out
         // here — from a payload of Things with no relationships in it — could not read a value the
-        // platform resolves by walking an edge, and would go wrong again the next time one moved.
+        // platform resolves by walking a relationship, and would go wrong again the next time one moved.
         private async Task ListHandlersAsync()
         {
             var connections = await _mycelium.GetAllConnectionsAsync();

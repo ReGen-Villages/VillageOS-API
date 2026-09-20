@@ -36,8 +36,8 @@ interface Props {
   onFocus: () => void;
   onSpread: () => void;
   openDetail: (thingId: string) => void;
-  /** Resolved properties per Thing id, for formatting a value to what the platform says it holds
-   *  (#6163). Null while the read is in flight — values format by shape until it lands. */
+  /** Resolved properties per Thing id, for formatting a value to what the platform says it holds.
+   * Null while the read is in flight — values format by shape until it lands. */
   declaredTypes: DeclaredPropertyTypes | null;
 }
 

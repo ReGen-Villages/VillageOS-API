@@ -3,7 +3,7 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Metabolism.Services;
 
-// Owns Metabolism's single Mycelium subscription (Phase 5c, #5558). Subscribes at startup,
+// Owns Metabolism's single Mycelium subscription. Subscribes at startup,
 // streams relationship-property changes into the engine, and keeps the subscription's
 // membership in step with the engine's simulations — adding a relationship on Register and
 // removing it on Cancel. An open stream is also the

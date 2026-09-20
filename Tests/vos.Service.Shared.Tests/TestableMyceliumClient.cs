@@ -6,7 +6,7 @@ namespace vos.Service.Shared.Tests;
 
 // Thin subclass that exposes the protected CreateAuthenticatedClientAsync so the
 // base class's authenticated-client construction can be exercised directly, plus
-// a settable override of OutboundViolationMode so Phase 3 validation tests pin
+// a settable override of OutboundViolationMode so validation tests pin
 // both Throw and Log paths regardless of the test assembly's build configuration.
 internal sealed class TestableMyceliumClient : MyceliumClientBase
 {

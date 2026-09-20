@@ -30,8 +30,8 @@ public class ObservedEdgesTests
     [Fact]
     public void SelectorFor_AsksForTheObservedPredicateByName()
     {
-        // Left out, every edge the endpoint carries reads as some other predicate and a second run
-        // writes a parallel edge. Same trap the kind roles hit, for the same reason.
+        // Left out, every relationship the endpoint carries reads as some other predicate and a second run
+        // writes a parallel relationship. Same trap the kind roles hit, for the same reason.
         var selector = EndpointKindResolver.SelectorFor(Endpoint);
 
         selector.Names.Should().Contain(ObservedEdges.PredicateName);
@@ -65,8 +65,8 @@ public class ObservedEdgesTests
     [Fact]
     public void Resolve_AnotherEndpointObservedTheSite_IsNotThisEndpointsEdge()
     {
-        // Two registrations writing onto one Site is the ordinary case, and each owes its own edge.
-        // Reading the Site's incoming edges rather than this endpoint's outgoing ones would leave the
+        // Two registrations writing onto one Site is the ordinary case, and each owes its own relationship.
+        // Reading the Site's incoming relationships rather than this endpoint's outgoing ones would leave the
         // second registration silently unrecorded.
         var otherEndpoint = Guid.NewGuid();
         var snapshot = Snapshot(

@@ -4,7 +4,7 @@ import { MOUSE } from 'three';
  * OrbitControls mouseButtons map. Default layout:
  *   left = rotate, middle = dolly (zoom), right = pan.
  *
- * Feature #5385 — when the user holds a pan modifier (Shift, Cmd, or Ctrl),
+ * When the user holds a pan modifier (Shift, Cmd, or Ctrl),
  * left-drag becomes pan while right-drag falls back to rotate. The middle
  * mouse button always dollies. Picking the modifier this way lets touchpad
  * users pan with a single-finger drag (the only gesture they have available

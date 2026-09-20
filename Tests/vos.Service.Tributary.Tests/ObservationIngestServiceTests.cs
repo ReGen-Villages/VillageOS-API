@@ -146,7 +146,7 @@ public class ObservationIngestServiceTests
     [Fact]
     public async Task SuppliedSubjectAndTheEdgeIsRefused_WritesNoValuesEither()
     {
-        // The edge goes in before the values, so a refused edge leaves nothing on the site that
+        // The relationship goes in before the values, so a refused relationship leaves nothing on the site that
         // cannot be walked back to what produced it.
         var subjectId = Guid.NewGuid();
         var observedId = Guid.NewGuid();
@@ -167,7 +167,7 @@ public class ObservationIngestServiceTests
     [Fact]
     public async Task SubjectAlreadyObserved_WritesNoSecondEdge()
     {
-        // Discovery run twice over one site. The values are written again; the edge saying where they
+        // Discovery run twice over one site. The values are written again; the relationship saying where they
         // came from is already there, and a second one beside it says nothing the first did not.
         var endpointThingId = Guid.NewGuid();
         var subjectId = Guid.NewGuid();
@@ -188,7 +188,7 @@ public class ObservationIngestServiceTests
     [Fact]
     public async Task SuppliedSubjectAndTheReadingCarriesNoValues_WritesNoEdge()
     {
-        // A source can answer for a site it holds nothing about. An edge here would say the source
+        // A source can answer for a site it holds nothing about. A relationship here would say the source
         // produced a value for the site when it produced none.
         var client = Substitute.For<IEndpointMyceliumClient>();
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
@@ -542,7 +542,7 @@ public class ObservationIngestServiceTests
         await client.DidNotReceive().CreateRelationshipAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Guid>());
     }
 
-    // The edge goes in before the value, so a refused edge leaves nothing that cannot be walked back.
+    // The relationship goes in before the value, so a refused relationship leaves nothing that cannot be walked back.
     [Fact]
     public async Task ObserveValueAsync_EdgeRefused_WritesNoValueEither()
     {
@@ -582,6 +582,6 @@ public class ObservationIngestServiceTests
     }
 
     // The endpoint is already related to these Things — the ordinary state of every run after the
-    // first. A test about the observations themselves says so rather than stub the edge write.
+    // first. A test about the observations themselves says so rather than stub the relationship write.
     private static ObservedEdges Already(params Guid[] thingIds) => new(Guid.NewGuid(), thingIds.ToHashSet());
 }

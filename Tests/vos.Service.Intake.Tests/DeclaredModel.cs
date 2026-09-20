@@ -4,7 +4,7 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Tests;
 
-// A model as the scoped read returns it: Things, their own properties, and the edges between
+// A model as the scoped read returns it: Things, their own properties, and the relationships between
 // them. Built rather than fetched, so a test can say what a model declares and what it leaves out.
 public sealed class DeclaredModel
 {
@@ -99,7 +99,7 @@ public sealed class DeclaredModel
     }
 
     // A Thing carrying values of its own, for what a reader takes off properties rather than off
-    // the edges under an archetype.
+    // the relationships under an archetype.
     public DeclaredModel Stating(string name, params (string Property, object Value)[] values) =>
         Stating(name, isArchetype: false, values);
 

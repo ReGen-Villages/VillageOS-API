@@ -106,7 +106,7 @@ public class SubmissionIntakeServiceTests
     }
 
     // A model seeded with the archetypes but not the vocabularies would take a submission and write the
-    // words back with no edge, which is the state land allocation reads as every allocation uncategorised.
+    // words back with no relationship, which is the state land allocation reads as every allocation uncategorised.
     [Fact]
     public async Task A_model_holding_the_archetypes_but_not_the_vocabularies_is_refused()
     {
@@ -119,7 +119,7 @@ public class SubmissionIntakeServiceTests
     }
 
     // The name is the contract with the platform's land-intake template, which declares `SubmittedSource`
-    // beside the catalogue's `OpenDataSource` so a prune can tell them apart (platform Bug #6840). Asking
+    // beside the catalogue's `OpenDataSource` so a prune can tell them apart. Asking
     // for a name the template does not declare refuses every submission, and nothing here would say why —
     // so the string is pinned rather than left to be read off a rename someone did in the other
     // repository.

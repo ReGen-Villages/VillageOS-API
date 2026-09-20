@@ -219,7 +219,7 @@ public class DiscoveryRunnerTests
     public async Task RunAsync_TellsEverySourceWhichSubjectTheCallIsAbout()
     {
         // The fetch writes its reading onto the subject the run names. A source called without it
-        // would land its value on whatever Thing the registration's expression names (Bug #6532).
+        // would land its value on whatever Thing the registration's expression names.
         var fetcher = new ScriptedFetcher(source => Task.FromResult(new SourceOutcome(source, true, null)));
         var site = Guid.NewGuid();
         var assessment = Guid.NewGuid();

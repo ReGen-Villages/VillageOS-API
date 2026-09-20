@@ -9,7 +9,7 @@ namespace vos.Service.Tributary.Tests;
 
 // One registration serving many subjects, all the way to where the reading lands. The address half
 // is pinned in AddressParameterHandleTests; this is the other half — which Thing the observation is
-// written onto when the same registration is called for two different sites (Bug #6532).
+// written onto when the same registration is called for two different sites.
 public class PerSiteIngestTests
 {
     // The expression names a site, as the documented examples do. That name is what every call would
@@ -66,8 +66,8 @@ public class PerSiteIngestTests
                 return Json("{\"Id\":\"" + Guid.NewGuid() + "\"}");
             }
             if (req.RequestUri.Host == "api.test") return Json("""{"mm":3.4}""");
-            // The edges written so far come back in the next call's snapshot, the way a real read
-            // returns them — which is what a second call has to see to leave the edge alone.
+            // The relationships written so far come back in the next call's snapshot, the way a real read
+            // returns them — which is what a second call has to see to leave the relationship alone.
             return RouteFindThing(req, endpointId, "EP")
                 ?? RouteEffectiveProperties(req, endpointId, properties)
                 ?? RouteKindsFromProperties(req, endpointId, properties, recorder.RelatedTo)
@@ -109,9 +109,9 @@ public class PerSiteIngestTests
     [Fact]
     public async Task Handle_SubjectSupplied_RelatesTheRegistrationToTheSubjectItWroteOnto()
     {
-        // A discovered value with no edge back to the registration that fetched it cannot be told
-        // apart from one someone typed in. The registration is what the edge names; the source behind
-        // it is one hop further on, through the `resolvedBy` edge the model already holds.
+        // A discovered value with no relationship back to the registration that fetched it cannot be told
+        // apart from one someone typed in. The registration is what the relationship names; the source behind
+        // it is one hop further on, through the `resolvedBy` relationship the model already holds.
         var recorder = new Recorder();
         var subject = Guid.NewGuid();
         await using var factory = FactoryOver(recorder, Guid.NewGuid(), SiteEndpointProperties);
@@ -128,7 +128,7 @@ public class PerSiteIngestTests
     public async Task Handle_CalledTwiceForOneSubject_LeavesOneEdge()
     {
         // Discovery runs whenever a site is submitted again. The values are written each time; the
-        // edge saying where they came from is written once.
+        // relationship saying where they came from is written once.
         var recorder = new Recorder();
         var subject = Guid.NewGuid();
         await using var factory = FactoryOver(recorder, Guid.NewGuid(), SiteEndpointProperties);

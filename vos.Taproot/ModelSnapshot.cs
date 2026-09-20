@@ -18,7 +18,7 @@ public sealed record ModelSnapshot(
         await client.GetAllPropertiesAsync("effective"));
 }
 
-// Reading Things, edges and marks off a ModelSnapshot. Nothing here names an
+// Reading Things, relationships and marks off a ModelSnapshot. Nothing here names an
 // archetype or a predicate: a role is found by the mark the model puts on its own vocabulary.
 public static class ModelReading
 {

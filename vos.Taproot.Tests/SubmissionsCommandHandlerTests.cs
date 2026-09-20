@@ -4,7 +4,7 @@ using Xunit;
 
 namespace vos.Taproot.Tests;
 
-// `submissions` — what has arrived, and what a reviewer does with it (VillageOS #6045, #6621).
+// `submissions` — what has arrived, and what a reviewer does with it.
 //
 // The model these read is built from marks rather than names, so every fixture spells its archetypes and
 // predicates differently from the shipped template. A handler that answered only to the shipped spelling
@@ -135,7 +135,7 @@ public class SubmissionsCommandHandlerTests
         Assert.DoesNotContain("waiting", output);
     }
 
-    // A template declares its proposed-site predicate by relating the two archetypes, so that edge is
+    // A template declares its proposed-site predicate by relating the two archetypes, so that relationship is
     // asserted through the same predicate every real submission is. Listed, it offers a reviewer a
     // decision over the model's own declaration.
     [Fact]

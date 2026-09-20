@@ -64,7 +64,7 @@ describe('KpiCard trace summary', () => {
   });
 });
 
-// Story #6475: a figure a reader cannot place is a figure they have to trust.
+// A figure a reader cannot place is a figure they have to trust.
 describe('KpiCard says where the figure came from', () => {
   function bindOrigin(name: string, rows: BindingResult): Binding {
     const binding = { kind: 'origin', property: name, reads: {} } as unknown as Binding;

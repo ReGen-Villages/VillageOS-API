@@ -522,8 +522,8 @@ class FragmentCarriesInheritorWithItsIsEdge(unittest.TestCase):
         self.assertEqual(x["Properties"]["weight"], {"typeInfo": "vos.Decimal", "value": 2.5})
 
     def test_a_later_offset_is_edge_stays_granular(self):
-        # An `is` edge at a LATER offset than the Thing is a lifecycle edge on an already-existing
-        # Thing; it is not a creation-time edge, so it stays a granular create_rel, not folded in.
+        # An `is` relationship at a LATER offset than the Thing is a lifecycle relationship on an already-existing
+        # Thing; it is not a creation-time relationship, so it stays a granular create_rel, not folded in.
         client = self._run([
             S.Action(0, 0, "setup", "create_thing", {"name": "A", "thing_id": "A"}, "A"),
             S.Action(1, 1, "worker", "create_thing",

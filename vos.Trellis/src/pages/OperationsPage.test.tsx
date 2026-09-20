@@ -299,7 +299,7 @@ describe('OperationsPage section widths (Bug 6671)', () => {
   });
 });
 
-// Story #6477: a spec is model data and can be authored wrong. Every one of these draws something a
+// A spec is model data and can be authored wrong. Every one of these draws something a
 // reader can act on, rather than an empty page that looks like a model with nothing in it.
 describe('OperationsPage on a spec authored wrong', () => {
   function publish(name: string, spec: string) {

@@ -5,7 +5,7 @@ import { retypeThing } from '../../utils/retype';
 import { toast } from '../common/toastStore';
 import type { VosThing, VosRelationship } from '../../types/vos';
 
-// Retype control (#5860): change one of a Thing's types by repointing an is-edge. Multiple inheritance is
+// Retype control: change one of a Thing's types by repointing an is-edge. Multiple inheritance is
 // preserved — when the Thing has more than one type, a "from" picker chooses which one to replace. Thin
 // glue over the tested retypeThing helper; the built-in `is` predicate is resolved from the model by name.
 interface Props {
