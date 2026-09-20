@@ -32,7 +32,8 @@ that the specifics live in the model rather than in code.
 what it means, what it maps to, who may use it — it is a Thing, not a word.
 
 **A value that names another Thing is a relation.** If the model already holds what the value refers
-to, write an edge to it. A name copied into a property cannot be traversed, cannot be checked, and goes
+to, write a relationship to it. A name copied into a property cannot be traversed, cannot be checked,
+and goes
 stale the moment the Thing it names is renamed.
 
 **A string is right for a scalar datum about one Thing** that nothing else needs to reason about: a
@@ -128,9 +129,9 @@ A 2xx means you're registered.
 \* Auth enforced only when a `VerificationKey` was supplied.
 
 **Timing guarantee.** When the trigger relationship arrives inside a `POST /api/model/fragment`
-batch, `/handle` is called only after the whole fragment is applied — every Thing, edge, and
+batch, `/handle` is called only after the whole fragment is applied — every Thing, relationship, and
 property value in the batch is readable, and roll-ups are recomputed. A handler never observes a
-half-applied fragment. Multiple handled edges in one fragment are dispatched in creation order.
+half-applied fragment. Multiple handled relationships in one fragment are dispatched in creation order.
 
 **`POST /handle`** receives (camelCase JSON):
 

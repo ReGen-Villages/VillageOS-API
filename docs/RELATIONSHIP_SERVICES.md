@@ -124,7 +124,7 @@ flowchart TB
 
    The `properties` field contains the relationship's `OwnProperties` so the handler does not need to call back to Mycelium during initial processing.
 
-   When the relationship arrives inside a `POST /api/model/fragment` batch, invocation happens only after the whole fragment is applied — every Thing, edge, and property value in the batch is readable, and roll-ups are recomputed — and multiple handled edges in one fragment are dispatched in creation order. A handler never observes a half-applied fragment.
+   When the relationship arrives inside a `POST /api/model/fragment` batch, invocation happens only after the whole fragment is applied — every Thing, relationship, and property value in the batch is readable, and roll-ups are recomputed — and multiple handled relationships in one fragment are dispatched in creation order. A handler never observes a half-applied fragment.
 
 4. **Registration**: Handlers register with Mycelium on startup; the broker's liveness monitor removes one that has stopped answering. The register / deregister / health-monitoring lifecycle (payloads, health-status state machine, auto-deregistration, error scenarios) is the same for all microservices and is documented in [`SERVICES.md` §8](SERVICES.md) and, on the platform side, in the *Services* chapter of the Field Guide — not repeated here.
 

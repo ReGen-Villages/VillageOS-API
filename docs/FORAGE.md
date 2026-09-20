@@ -11,7 +11,7 @@ services read what discovery wrote. That keeps the compute free of any network d
 a planner adjusting an assumption sees the balances move without touching a public data portal
 again.
 
-## Coverage is edges, not a word
+## Coverage is relationships, not a word
 
 A source declares where it applies by relating to a **Place** Thing, and a site relates to
 the Place it sits in. Places nest, so a source covering a region covers every site within
@@ -41,9 +41,10 @@ Both sources above cover `WillowBend`: one directly, one through the nesting.
 project shares are seed data: `open-data-sources.template.json` in the platform repository, read
 alongside the archetype set (platform User Story #6750). A registration lives in the project's own
 model, so a source every project uses belongs in the seed every project is created from — see
-[`DELTA.md`](DELTA.md#which-model-a-registration-lives-in). **A site's own `isIn` edge is written by
-its producer, not inherited from the archetype.** The submission producer writes one per site, to the
-Place carrying `__IsRootPlace` through the predicate carrying `__IsPlaceNestingPredicate` — both found
+[`DELTA.md`](DELTA.md#which-model-a-registration-lives-in). **A site's own `isIn` relationship is
+written by its producer, not inherited from the archetype.** The submission producer writes one per
+site, to the Place carrying `__IsRootPlace` through the predicate carrying
+`__IsPlaceNestingPredicate` — both found
 by mark, because a producer naming `Earth` would relate nothing, and say nothing, in a model that
 called its root something else (Bug #6752).
 
@@ -62,7 +63,7 @@ would leave a quietly short report.
 **Why not a `coverage` string.** The failure this path exists to prevent is a source that
 does cover the site being silently skipped because a country was written two ways —
 `Portugal` against `PT`, or a difference in case. Matching strings is what causes that;
-walking edges makes it impossible rather than merely reported. Adding a country becomes a
+walking relationships makes it impossible rather than merely reported. Adding a country becomes a
 model edit with no deployment, and a reader can ask what else is true of a Place. This is
 the repository's *things and relations, not strings* rule applied to the one place where
 getting it wrong is invisible: a source that is never selected cannot appear in the
@@ -73,11 +74,11 @@ unresolved list either, because nothing knew to look for it.
 | Predicate | Reads | Why |
 |---|---|---|
 | `isIn` | `Site isIn Place`, `Place isIn Place` | Where the site is, and what contains that. Walked to any depth, so nesting can be as deep as a model wants — upwards from a site, and downwards from the Places a source covers when the source is what was dispatched. |
-| `covers` | `OpenDataSource covers Place` | Where a source applies. Several `covers` edges are fine; the source is still selected once. |
+| `covers` | `OpenDataSource covers Place` | Where a source applies. Several `covers` relationships are fine; the source is still selected once. |
 | `resolvedBy` | `OpenDataSource resolvedBy Endpoint` | Which Tributary registration a call goes through. A relation, not a copied name, so renaming the registration cannot strand the source. |
 | `resolvesOnto` | `OpenDataSource resolvesOnto archetype` | What a source's readings are about, where that is not the site itself. A source naming an archetype is called once per Thing the site `has` of it, with that Thing as the call's subject — the hazard portal grades one assessment per call. |
-| `studies` | `SiteStudy studies Site` | The study the analysis computes. Read incoming, because the edge runs from the study to the site. |
-| `has`, `is` | `Connection has Service`, `Service is prototype`, `Site has HazardAssessment`, `Site is Site` | Which service a connection dispatches, the prototype an analysis edge points at, the Things a per-subject source is called about — and whether a Thing is a site, by the `__IsSiteArchetype` mark on what it `is`. |
+| `studies` | `SiteStudy studies Site` | The study the analysis computes. Read incoming, because the relationship runs from the study to the site. |
+| `has`, `is` | `Connection has Service`, `Service is prototype`, `Site has HazardAssessment`, `Site is Site` | Which service a connection dispatches, the prototype an analysis relationship points at, the Things a per-subject source is called about — and whether a Thing is a site, by the `__IsSiteArchetype` mark on what it `is`. |
 | `assesses` | `HazardAssessment assesses HazardType` | What an assessment is about. The type Thing carries the portal's code for it, and a per-assessment call is addressed with what its subject reaches — a second per-subject source whose vocabulary hangs off a different predicate adds that predicate here. |
 
 Connections are **not** read by name. Every connection a site analysis starts `is` an archetype
@@ -85,7 +86,7 @@ carrying `__IsSiteAnalysisConnectionArchetype`, and they are asked for by that m
 the study is not related to them yet, because relating it is what the read is for. Adding a fourth
 balance is a mark in the model, not a change here.
 
-An `OpenDataSource` with no `resolvedBy` edge is **left out** rather than reported as a failure.
+An `OpenDataSource` with no `resolvedBy` relationship is **left out** rather than reported as a failure.
 It is not a source that failed — it was never callable, and listing it as unresolved would
 blame a provider for a gap in the model. A `Site` with no study, and a model marking no analysis
 connection, are treated the same way: the run reports it in `analysis.reason` and logs nothing,
@@ -105,8 +106,8 @@ have declared the connection that dispatches a source either.
 
 **A site's read** then answers everything about it: the site's Places, then every source whose coverage
 reaches one of them, then those sources' registrations — and, model-wide, the two division lookups, which
-no edge reaches because neither covers a Place. Traverse rules compose over the set built so
-far, so the walk must ask for `isIn` **first** — asking for the incoming `covers` edges before the
+no relationship reaches because neither covers a Place. Traverse rules compose over the set built so
+far, so the walk must ask for `isIn` **first** — asking for the incoming `covers` relationships before the
 Places are in the set finds nothing. That is the same ordering trap the Tributary endpoint kinds hit;
 see [`TRIBUTARY.md`](TRIBUTARY.md). **A source's read** is the same walk from the other end: the Places
 it `covers`, then `isIn` walked *downwards* through their nesting, then what each site there `has` —
@@ -122,7 +123,7 @@ of them.
 **A site entering a state, not a call.** The model declares a range on the `Site` archetype,
 `SiteAwaitingDiscovery` — coordinates known, and either the site's coverage never matched or some
 coverage of it still outstanding — and a connection bound to this service watches it. A site entering
-that state makes the platform write a durable record-edge from the site to the connection and dispatch
+that state makes the platform write a durable record relationship from the site to the connection and dispatch
 it. Nothing in either repository calls Forage, and nothing has to: **what started a run is a fact in
 the model afterwards**, which a call over HTTP would have left only in a log.
 
@@ -181,8 +182,9 @@ declares it with, never by name.
 (Task #6812). A site's run walks from the site up through its Places to the sources covering them; a
 source's run walks from the source through the Places it `covers` and *down* their nesting to every
 site in them. Places and sites arrive by the same walk, and the mark the platform puts on the site
-archetype (`__IsSiteArchetype`, platform Task #6811) is what tells them apart — the `proposes` edge
-could not, because it reaches a submitted site only and a surveyed site has no such edge.
+archetype (`__IsSiteArchetype`, platform Task #6811) is what tells them apart — the `proposes`
+relationship could not, because it reaches a submitted site only and a surveyed site has no such
+relationship.
 
 **One coverage per call those sites would make.** The run works out, for each site it reaches, the
 calls the source would be asked — one about the site, or one per Thing the site has of what the source
@@ -212,7 +214,7 @@ inherited by every site and take all of them out of the state their runs are dis
 ## The run
 
 `POST /handle { subjectId }` **accepts** a run and answers `202` at once; the fetching happens after.
-The body is whatever the platform posts for a dispatch — the record-edge's own fields — and the
+The body is whatever the platform posts for a dispatch — the record relationship's own fields — and the
 subject is read from it through the classifier every dispatched service shares, so this service
 declares no request shape of its own. The subject is a site or a source, and the model says which (see
 [Reading the model](#reading-the-model)); the rest of this section is a site's run.
@@ -255,7 +257,7 @@ what did: a quietly short list is the failure of the tool being replaced.
 **A call is addressed from its subject outward.** Whatever the call's subject carries — coordinates,
 elevation, climate zone — is passed as its address parameters, and behind it, layered so the most
 specific holder of a name decides it: the subject's own values first, then (for a per-subject call)
-the values of the Things it reaches by its own outgoing edges, then the site's, then each Place the
+the values of the Things it reaches by its own outgoing relationships, then the site's, then each Place the
 site is in, nearest first. A source's address takes only the placeholders it names and the fetcher
 ignores the rest, so one set of values serves a source wanting coordinates, one wanting a division
 code, and one wanting neither, with no per-source arrangement here. Inherited values are left out — a
@@ -277,7 +279,7 @@ variables live on the model: a deployment edits the registration or adds a varia
 next call carries it.
 
 **A source that declares what it resolves onto is called once per Thing, not once per site.** The
-hazard portal grades one assessment per call: its `resolvesOnto` edge names the `HazardAssessment`
+hazard portal grades one assessment per call: its `resolvesOnto` relationship names the `HazardAssessment`
 archetype, so a run calls it once for each assessment the site `has`, with that assessment as the
 call's subject — the reading lands on the assessment it grades, and the division and hazard codes
 arrive from the Place and from the type Thing the assessment `assesses`. A declared source on a site
@@ -304,10 +306,11 @@ this service.
 
 **Every source that resolved stays reachable from the site.** The fetch relates the registration to
 the site through `observed`, so a value on the site leads back to the registration and from there to
-the `OpenDataSource` along the `resolvedBy` edge this service already reads. Nothing here writes that edge;
-it is the ingest's, and it is written once per registration per site however often discovery runs —
-see [`TRIBUTARY.md`](TRIBUTARY.md#which-registration-wrote-a-value). A source that did not resolve
-never reaches the ingest, so it leaves no edge suggesting it did.
+the `OpenDataSource` along the `resolvedBy` relationship this service already reads. Nothing here
+writes that relationship; it is the ingest's, and it is written once per registration per site however
+often discovery runs — see [`TRIBUTARY.md`](TRIBUTARY.md#which-registration-wrote-a-value). A source
+that did not resolve
+never reaches the ingest, so it leaves no relationship suggesting it did.
 
 ## Resolving the hazard division
 
@@ -360,22 +363,22 @@ outstanding, the site stays in the state that dispatched the run, and the next r
 
 ## Resolving the fetched words
 
-**A fetched word becomes the edge the model declares, inside the run that fetched it (#6809).** Some
+**A fetched word becomes the relationship the model declares, inside the run that fetched it (#6809).** Some
 vocabularies take their word from a fetch — a site's climate class, an assessment's hazard grade —
-and a fetch writes property values, never edges. So after the fetches, the run resolves each written
+and a fetch writes property values, never relationships. So after the fetches, the run resolves each written
 word against the vocabulary the model declares and relates the subject to the member it names.
 
 **Everything is read from the declaration** (platform User Story 6773): the vocabulary archetype
 carries `__IsDiscoveredVocabularyArchetype` and names, in `resolvedFromProperty`, the property its
-word arrives under; an archetype-level edge — `Site classifiedAs ClimateZone`,
+word arrives under; an archetype-level relationship — `Site classifiedAs ClimateZone`,
 `HazardAssessment gradedAs HazardLevel` — names the Thing the word is written onto and the predicate
-the resolved edge is written through. Nothing here names a vocabulary, an archetype, a predicate or a
+the resolved relationship is written through. Nothing here names a vocabulary, an archetype, a predicate or a
 property of any model, so a project adding a vocabulary edits its model and deploys nothing.
 
-**That edge has to stay the only one from a subject to its vocabulary.** It is how a run learns which
+**That relationship has to stay the only one from a subject to its vocabulary.** It is how a run learns which
 predicate its own resolution writes through, so a second would leave it unable to tell which was its —
 and it could write somebody else's. A vocabulary the submission producer resolves is therefore found by
-a mark and declares no edge, which is why `reportedAs` sits beside `gradedAs` carrying
+a mark and declares no relationship, which is why `reportedAs` sits beside `gradedAs` carrying
 `__IsReportedLevelPredicate` and nothing else. What a submitter reports and what a portal grades are two
 predicates to the same Things, and only one of them is a discovery run's.
 
@@ -384,16 +387,17 @@ accepted into a queue and applied by the drainer after the write returns, so a r
 the call races it; the fetching service reports what each subject call wrote (`written`, see
 [`TRIBUTARY.md`](TRIBUTARY.md)), and that report is what is resolved.
 
-**A changed word moves the edge.** An edge already pointing at the named member is left alone; one
-pointing elsewhere is removed before its replacement is written, so a re-graded assessment never
-carries two levels. A stale edge that will not go blocks its replacement — a reader must never meet
+**A changed word moves the relationship.** A relationship already pointing at the named member is left
+alone; one pointing elsewhere is removed before its replacement is written, so a re-graded assessment
+never carries two levels. A stale relationship that will not go blocks its replacement — a reader must
+never meet
 two answers — and the next run resolves again.
 
-**A word the vocabulary does not hold writes no edge and is reported**, naming the source, the
+**A word the vocabulary does not hold writes no relationship and is reported**, naming the source, the
 subject, the property, the word and the vocabulary. Writing it would invent a member the scheme does
 not hold; refusing the fetch would turn a provider's odd answer into an outage. The word stays on the
 subject's series as the record of what the source answered — for these vocabularies the series is the
-provenance and the edge is the conclusion, which is why no retired-word rule applies to them. A word
+provenance and the relationship is the conclusion, which is why no retired-word rule applies to them. A word
 that matches a member only up to case, and a member name two Things carry, are reported the same way
 rather than guessed at.
 
@@ -404,16 +408,17 @@ until something runs discovery again.
 ## Starting the analysis
 
 **When the run finishes, Forage relates the site's study to each compute service** — one
-`SiteStudy -connection-> prototype` edge per marked connection. A connection bound to a service is a
-handled predicate, so creating that edge is what dispatches it; no compute service is called from
+`SiteStudy -connection-> prototype` relationship per marked connection. A connection bound to a service
+is a handled predicate, so creating that relationship is what dispatches it; no compute service is
+called from
 here. The model carries the trigger, which means there is one way to start an analysis rather than
 two to keep in step, and what started a given analysis is answerable from the model afterwards rather
 than only from a log.
 
 **The subject is the study, never the site.** A compute service reads its inputs off the study, so an
-edge naming the site would dispatch the service against a Thing carrying none of them.
+relationship naming the site would dispatch the service against a Thing carrying none of them.
 
-**The edge is written once.** Dispatch makes the service compute and start watching the study, so
+**The relationship is written once.** Dispatch makes the service compute and start watching the study, so
 every later change to an input recomputes on its own. Discovery does not have to run again for a
 balance to stay current.
 

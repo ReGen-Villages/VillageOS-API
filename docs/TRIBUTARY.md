@@ -41,7 +41,7 @@ flowchart TB
 The shape:
 
 - **How an endpoint authenticates, pages, and reads its body is not a property — it is a
-  kind the endpoint reaches.** A kind is a Thing related through a role edge
+  kind the endpoint reaches.** A kind is a Thing related through a role relationship
   (`authenticatesBy`, `pagesBy`, `readsBodyAs`); its own property keys are what an
   endpoint using it must supply, checked before anything is called. A role reaching no
   kind means the plain behaviour; the nearest declaration up the `is` chain wins; and the
@@ -64,7 +64,7 @@ The shape:
 - Mycelium's resolved view reports a key **once per declaring template**, qualified by the path
   from the endpoint Thing. A key a descendant narrows appears **once**, at the ancestor that
   declares it, holding the narrowed value — Delta writes a narrowing after the template's `is`
-  edge exists, so Mycelium stores it as an override rather than an own property (see
+  relationship exists, so Mycelium stores it as an override rather than an own property (see
   [`DELTA.md`](DELTA.md)), and the platform refuses a Thing owning a name it also inherits.
 - A key therefore reaches Tributary once. Two matches mean two genuinely different declarations
   (`http.url` against `resource.url`), and the call fails with a `conflicts` list rather than
@@ -84,7 +84,7 @@ value and whether it is expected to be overridden.
 
 Which *mechanisms* apply is not in the table because it is not a property: an endpoint
 reaches `TokenExchangeAuth`, `OffsetPaging`, or `BinaryResponse` through its template's
-role edges, and the kinds themselves name the required-structural keys above.
+role relationships, and the kinds themselves name the required-structural keys above.
 
 The `EsriEndpoint` template is the worked example: it restates only the keys it narrows
 (`httpMethod=POST`, form-encoded `requestContentType`), reaches `TokenExchangeAuth` and
@@ -145,7 +145,7 @@ timestamps, attributed to the wrong site. `subjectId` on the request closes that
   resolved, a name matching two Things is refused as ambiguous and reads back as absent, and this
   ingest creates what it cannot find — so a name would answer a duplicate by quietly minting a third.
 - **No Thing is created.** The subject exists already, so nothing is minted from the reading's name.
-  The `observed` edge back to the registration is still written — see *Which registration wrote a
+  The `observed` relationship back to the registration is still written — see *Which registration wrote a
   value* below.
 - **Without it, nothing changes.** A registration serving one subject keeps naming it in the
   expression and is resolved by name exactly as before. A reading that names no subject, on a call
@@ -158,23 +158,26 @@ A number nothing can be walked back from reads exactly as trustworthy as one wit
 it, which is the confusion the intake design exists to remove: an estimate and a measurement must not
 look the same once they are in the model.
 
-- **The edge names the registration, not the provider.** Tributary knows the endpoint it called and
-  nothing about who publishes it. The provider is one hop further along the `OpenDataSource resolvedBy
-  Endpoint` edge the model already holds, so a value still leads to the source, and none of the
+- **The relationship names the registration, not the provider.** Tributary knows the endpoint it
+  called and nothing about who publishes it. The provider is one hop further along the `OpenDataSource
+  resolvedBy Endpoint` relationship the model already holds, so a value still leads to the source, and
+  none of the
   discovery service's terms — `OpenDataSource`, `covers` — has to be read here.
 - **Written on every ingest, not only the one that created the Thing.** A Thing that already exists is
   the ordinary case: every run after the first, and every second registration writing onto a Site some
-  other registration created. An edge written only by whichever fetch happened to be first leaves every
-  value after it with no source at all.
-- **One edge per registration per Thing.** Running discovery twice leaves one. The edges the endpoint
+  other registration created. A relationship written only by whichever fetch happened to be first
+  leaves every value after it with no source at all.
+- **One relationship per registration per Thing.** Running discovery twice leaves one. The
+  relationships the endpoint
   already carries come back in the scoped read the call already makes for its kinds — they are in that
   snapshot whether or not anything reads them — so the check costs no second call.
 - **An ingest that writes nothing relates nothing.** A source answering for a site it holds no values
-  about leaves no edge claiming otherwise. The edge is written before the values, so a refused edge
-  leaves nothing behind that cannot be traced back.
+  about leaves no relationship claiming otherwise. The relationship is written before the values, so a
+  refused relationship leaves nothing behind that cannot be traced back.
 - **Which registration produced a particular property is a different question.** A Site fed rainfall by
-  one source and solar resource by another carries an edge to each, and nothing says which value came
-  from which. A property is not a Thing here, so there is nothing for a per-property edge to point at.
+  one source and solar resource by another carries a relationship to each, and nothing says which value
+  came from which. A property is not a Thing here, so there is nothing for a per-property relationship
+  to point at.
 
 ## Token-exchange auth + offset paging
 
@@ -284,7 +287,7 @@ with `BinaryResponse`: negotiate the format, carry the bytes home.
 
 **The `EsriTileEndpoint` template.** A map tile is a plain unauthenticated GET whose body
 is bytes, so the template descends from the root directly — none of `EsriEndpoint`'s
-token exchange or paging — and adds only the kind edge and the optional negotiation blank:
+token exchange or paging — and adds only the kind relationship and the optional negotiation blank:
 
 ```json
 {
@@ -354,7 +357,7 @@ none of them meaningful to this service:
   fetched. When nothing names the time, the sample is submitted without one and the broker
   stamps the model clock — the same discipline every reading follows.
 
-The write path is the ingest's own: the `observed` provenance edge goes in before the
+The write path is the ingest's own: the `observed` provenance relationship goes in before the
 ticket, so a kept value can be walked back to the registration that produced it like any
 other. A keep the broker refuses — the deposit, the subject resolution, or the ticket
 write — fails the call with a 502 rather than answering as though something was kept.
@@ -411,7 +414,8 @@ Tributary's contract is **fetch-and-shape**:
    whenever a run has anchored time away from real time.
 3. **Ingest** (hybrid ingest) — readings are grouped by entity `name`. Each entity is a
    Thing created **once** (its first reading seeds the observable properties, each bounded to
-   `Sampled` PropertyMode) and related to the endpoint through an `observed` edge — **one per entity**,
+   `Sampled` PropertyMode) and related to the endpoint through an `observed` relationship — **one per
+   entity**,
    written whether this call created it or found it already there;
    every reading's values are then written as **observations** on that entity's property series
    (`POST /api/things/{id}/observations`). So Things scale with the number of entities, not
@@ -462,8 +466,8 @@ The **Energy** slice (#5806) discovers the same way — a solar-resource endpoin
 `hourly.shortwave_radiation` onto the Site (see `SolarResourceEndpointTests`). Its two solar inputs
 come from different sources that meet at the `EnergyBalance` node: the **solar resource** (annualized to
 GTI) is *discovered* here, while the **PV area** is *rolled up* reactively over the classified
-`SolarArray` `is`-edges — an `AggregateBounds` `Sum` over the ingester's classification (#5796) and roll-up
-(#5797). Discovery (fetch a resource) and the ingester's structural knowledge (aggregate the assets) both
+`SolarArray` `is` relationships — an `AggregateBounds` `Sum` over the ingester's classification (#5796)
+and roll-up (#5797). Discovery (fetch a resource) and the ingester's structural knowledge (aggregate the assets) both
 feed the same compute node.
 
 ## Example: a climate zone onto a Site (#6734)
@@ -510,13 +514,13 @@ Three things about it are worth reading off:
 template. Its classes are Things of their own in the platform's intake template (platform Task 6684).
 The discovery run resolves the fetched code against them by the declaration that template carries
 (platform User Story 6773; the resolution is #6809), and the code stays on the Site's series as the
-record of what the provider answered, with the `classifiedAs` edge carrying the classification.
+record of what the provider answered, with the `classifiedAs` relationship carrying the classification.
 
 ## Example: a hazard grading onto an assessment (#6735)
 
 Seed data like the climate source, but its subject is never the site: the portal grades one hazard at
 one administrative division per call, so the discovery run calls it once per assessment the site has,
-naming that assessment as the `subjectId` — the source declares this by a `resolvesOnto` edge to the
+naming that assessment as the `subjectId` — the source declares this by a `resolvesOnto` relationship to the
 assessment archetype, read in [`FORAGE.md`](FORAGE.md#the-predicates-it-reads). An assessment's
 `hazardLevel` and `assessedOn` take observations only, so a fetch is the only thing that can write them.
 Its `reportedLevel` takes facts only, and is what a submitter said they had seen: a fetch cannot reach it,

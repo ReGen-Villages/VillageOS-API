@@ -150,18 +150,18 @@ declared this way.
 ### How a calculation is started and kept current
 
 A calculation is **not** a graph of boxes and wires here. It is a service that reads and writes one
-Thing, started by an edge and kept current by a subscription.
+Thing, started by a relationship and kept current by a subscription.
 
 ```mermaid
 flowchart LR
-  ST["<b>SiteStudy</b><br/>inputs · outputs"] -->|"balancesEnergy<br/><i>(a connection, so the edge dispatches)</i>"| SV["EnergyBalance"]
+  ST["<b>SiteStudy</b><br/>inputs · outputs"] -->|"balancesEnergy<br/><i>(a connection, so the relationship dispatches)</i>"| SV["EnergyBalance"]
   SV -.->|"reads inputs, writes outputs"| ST
 ```
 
 - **Handled predicate** — a predicate Thing bound to a service. Creating a relationship whose
   predicate is one dispatches that service, handing it the subject. The model carries the trigger.
-- **Connection** — the Thing that binds a predicate to a service. It is the predicate in the edge
-  above, which is why relating a study to a service is what starts it.
+- **Connection** — the Thing that binds a predicate to a service. It is the predicate in the
+  relationship above, which is why relating a study to a service is what starts it.
 - **Effective properties** — a Thing's own values plus everything it inherits through its `is` chain.
   A service reads these, so an assumption declared once on a shared archetype reaches every study.
 - **Input-change subscription** — a service watches the Thing it computed and recomputes when one of
@@ -474,7 +474,7 @@ Four parts do the work:
   provider answered nothing, so a site it holds no figure for stays honestly unknown.
 - **`resolvedBy`**, from the source to the registration. The source is the Thing a run selects and
   reports on; the registration is how it is called. Renaming either cannot strand the other.
-- **`covers`**, from the source to a Place. Where a source applies is an edge to a Thing, not a word
+- **`covers`**, from the source to a Place. Where a source applies is a relationship to a Thing, not a word
   on it, and `Earth` is the Place every other Place nests under — so covering it covers every site.
   *The discovery run* below says why that is a walk rather than a name match.
 
@@ -515,7 +515,7 @@ sequenceDiagram
   Mycelium->>Forage: dispatch, naming the site as the subject
   Forage-->>Mycelium: accepted — the fetching has not started
   Forage->>Mycelium: which sources cover this site,<br/>and what does each one's coverage already say?
-  Mycelium-->>Forage: sources reached by walking<br/>isIn and covers edges, and their coverages
+  Mycelium-->>Forage: sources reached by walking<br/>isIn and covers relationships, and their coverages
   Forage->>Mycelium: mint a SourceCoverage per call with none,<br/>appliesTo the Site and sourcedFrom the source
   loop each call whose coverage is outstanding, bounded concurrency
     Forage->>Tributary: call <source> with the site's lat/lng<br/>and the site as the subject
@@ -526,17 +526,17 @@ sequenceDiagram
     Tributary->>Mycelium: write observation onto the Site
   end
   Forage->>Mycelium: resolvedAt on each coverage that answered;<br/>attempts, lastAttemptAt and failureReason on each that did not
-  Forage->>Mycelium: WillowBend classifiedAs Csa<br/>each fetched word becomes its declared edge
+  Forage->>Mycelium: WillowBend classifiedAs Csa<br/>each fetched word becomes its declared relationship
   Forage->>Mycelium: coverageMatchedAt on the Site
   Note over Site: coverage worked out and none outstanding:<br/>the site leaves SiteAwaitingDiscovery for SiteDiscovered
   Note over Site: a coverage left outstanding keeps it in<br/>SiteAwaitingDiscovery, and the next run asks only that source
-  Forage->>Mycelium: WillowBendStudy balancesEnergy EnergyBalance<br/>one edge per marked connection
-  Note over Mycelium: a connection bound to a service is a<br/>handled predicate, so the edge starts it
+  Forage->>Mycelium: WillowBendStudy balancesEnergy EnergyBalance<br/>one relationship per marked connection
+  Note over Mycelium: a connection bound to a service is a<br/>handled predicate, so the relationship starts it
   Note over Mycelium: the site reaching SiteDiscovered is what<br/>closes the dispatch, not the call
 ```
 
 **Nothing calls Forage.** The site entering `SiteAwaitingDiscovery` is what dispatches it, and the
-edge that dispatch writes is what a reader asks afterwards to find out what started a run — see
+relationship that dispatch writes is what a reader asks afterwards to find out what started a run — see
 [FORAGE.md](FORAGE.md#what-starts-a-run).
 
 **A source added to the catalogue reaches the sites already in the model the same way.** The source
@@ -548,7 +548,7 @@ and that site's run asks only the new source — see
 
 The analysis starts whatever mixture resolved, including none — a site whose sources were all
 unavailable is the case a planner most needs an answer about. Forage never calls a compute
-service: it writes the edges and the platform dispatches, so there is one way to start an analysis
+service: it writes the relationships and the platform dispatches, so there is one way to start an analysis
 rather than two. The subject is the study, because that is where a service reads its inputs.
 See [FORAGE.md](FORAGE.md#starting-the-analysis).
 
@@ -594,7 +594,7 @@ cadastre first — and `place-search` turns what somebody typed into positions. 
 the same fetching service, and neither carries a `responseTransform`: there is no Thing to ingest
 onto yet, so each carries its reshape under `lookupTransform` and the intake service applies it to
 the raw body. Where a register applies is a pair of latitude and longitude bounds on the
-registration rather than a `covers` edge, because a bare coordinate is in no Place a walk could
+registration rather than a `covers` relationship, because a bare coordinate is in no Place a walk could
 start from; a click outside every register's bounds is refused before any provider is contacted. A
 further country's register is one more registration — data, not code.
 
@@ -675,7 +675,8 @@ carries — so the condition does what no path reaches.
 
 **Assumptions are inherited, not supplied per run.** Yield per hectare, runoff coefficient, energy per
 person, water per person — these are judgement calls a planner will want to vary, and they live on the
-shared `SiteStudy` archetype. A study inherits them through its `is` edge, so correcting one is an edit
+shared `SiteStudy` archetype. A study inherits them through its `is` relationship, so correcting one is
+an edit
 to the model rather than a redeploy, and a planner varying one sees the balances move without asking
 for anything to run again. That last point is why this shape was chosen over a graph run once per
 request.
@@ -756,16 +757,17 @@ flowchart LR
 three vocabularies are declared in the model, so a project whose programme divides differently, or whose
 hazards differ, adds a Thing rather than changing a service. The composer resolves the submitted word against what the model declares and refuses one that
 matches nothing, naming the terms the model holds. It finds each vocabulary by a mark its archetype
-carries and writes the edge through the predicate the model marks, never by either name — so a model that
-renames one keeps working, and each footprint's reduction narrows by the marks on the Thing at the end of
-the edge. **The edge is the only record**: neither term is also written as a word on the Thing it
-came from, because a copy beside the edge can be read but not walked from, and two readings of one value
+carries and writes the relationship through the predicate the model marks, never by either name — so a
+model that renames one keeps working, and each footprint's reduction narrows by the marks on the Thing
+at the end of the relationship. **The relationship is the only record**: neither term is also written
+as a word on the Thing it came from, because a copy beside the relationship can be read but not walked
+from, and two readings of one value
 can come to disagree with nothing to notice.
 
 **A site is also related to the Place it sits in, and that is not a vocabulary.** Nothing is resolved
 against it — a submission names no Place. The producer relates every site to the one Place marked as the
 root, through the predicate marked as the nesting one, because discovery walks outwards from the site
-through that edge to find which sources cover it. A site related to no Place reaches none, every source
+through that relationship to find which sources cover it. A site related to no Place reaches none, every source
 then reads as covering nowhere, and the run reports neither a resolved source nor an unresolved one — a
 planner is told nothing was found rather than that nothing was looked for.
 
@@ -788,15 +790,16 @@ register's is the other pole — the legal record of the parcel — and it is st
 than a survey, because a register records ownership rather than a measurement on the ground.
 
 **Everything hangs off its holder by the generic `has` predicate.** Nothing binds a service to these
-edges, so a predicate per pair — `hasParcel`, `hasHazard` — would be vocabulary the platform carries for
-no behaviour. A reader tells a parcel from a hazard by what the target `is`. Two predicates are named
+relationships, so a predicate per pair — `hasParcel`, `hasHazard` — would be vocabulary the platform
+carries for no behaviour. A reader tells a parcel from a hazard by what the target `is`. Two predicates are named
 instead: `studies`, which the site survey already uses to relate a study to the site it is about, and
 `proposes`, which the arrival record uses to reach the site — for the reason below.
 
 **The arrival is a Thing of its own, and it does not travel.** A `Submission` holds the identifier the
 wizard sent, the time the service accepted it, and — once someone has dealt with it — when and by whom.
-It reaches its site through `proposes` rather than `has`, and it asserts that edge itself. Promotion
-carries the group reachable from the site through `has` and `studies`, together with every edge a member
+It reaches its site through `proposes` rather than `has`, and it asserts that relationship itself.
+Promotion carries the group reachable from the site through `has` and `studies`, together with every
+relationship a member
 of that group asserts; both halves are what leave this record in the staging model where it belongs. A
 copy of it in a project model would read as waiting for ever, because the record is resolved after the
 copy has landed.
@@ -812,14 +815,14 @@ fixed scale of levels, and modelling each assessment as a Thing lets it carry it
 source that produced it. The current tool stores them as a flat map with no indication where any
 level came from.
 
-**The type is a Thing too, reached by an edge.** The eight above are declared in the model under a
+**The type is a Thing too, reached by a relationship.** The eight above are declared in the model under a
 `HazardType` archetype, and an assessment `assesses` one of them (Bug #6737). A word could name a hazard
 that exists nowhere and nothing would notice; nothing could be asked of it either — what it means, which
 other sites carry it. A project whose hazards differ adds a Thing and deploys nothing.
 
 **A submitter may say what they have seen, and it is kept apart from what the portal graded** (platform
 User Story #6852). `reportedLevel` takes facts where `hazardLevel` takes observations, and `reportedAs`
-carries the edge to the level Thing beside `gradedAs`, so neither can overwrite the other even by
+carries the relationship to the level Thing beside `gradedAs`, so neither can overwrite the other even by
 mistake. Written into the graded one it would join the series a discovery run writes, read as a grading,
 and be gone at the next run — and local knowledge of a parcel is often the better of the two, since
 somebody who has watched their land flood every winter knows what a regional model does not. The two
@@ -858,7 +861,7 @@ Using a synthetic example throughout — **Willow Bend**, a fictional 24-hectare
 | Willow Bend Site Study *(SiteStudy)* | `pctOfConsumption` | 90.8 | Fact — computed |
 | Parcel-01 *(Parcel)* | `boundary` | GeoJSON polygon | Fact |
 | | `measuredAreaHectares` | 23.4 | Fact |
-| | `obtainedBy` → `drawn-by-hand` | an edge to the Thing | Relationship — the only place it is recorded |
+| | `obtainedBy` → `drawn-by-hand` | a relationship to the Thing | Relationship — the only place it is recorded |
 
 The stated area is what the planner asserted. The measured area is what the boundary actually
 encloses. The solar figure is an observation because it was sampled from a provider on a date and
@@ -1075,7 +1078,7 @@ per assessment the site has, with that assessment as the call's subject: the rea
 as the vocabulary word, and `assessedOn` — lands on the assessment it grades. The run then relates
 the assessment to the `HazardLevel` Thing the word names (#6809), reading the declaration the
 platform model carries (platform User Story 6773); a word the vocabulary does not hold writes no
-edge and is reported, and either way the word stays on the series as the record of what the portal
+relationship and is reported, and either way the word stays on the series as the record of what the portal
 answered. A division the
 portal holds no data about for a hazard is answered 404, so nothing is written and that hazard stays
 honestly unassessed. A site that carries no division code and whose position resolved to none has every
@@ -1306,7 +1309,7 @@ to whoever tried one.
 **Three things decide what may travel, and all three are the model's.** Which page a submitter may read
 is the Thing marked `__IsSubmitterFindingsDashboard`; what never leaves the model is whatever `is` the
 archetype marked `__IsPersonalDetailArchetype`, dropped whatever walk reached it rather than by trusting
-that no walk does; and the edges the reading follows are the ones that page's own spec walks. A model
+that no walk does; and the relationships the reading follows are the ones that page's own spec walks. A model
 missing either mark is a deployment that was never seeded for this, answered `503` as an unseeded model
 is — not `200` with a page drawn from a reading nothing was filtered out of.
 
@@ -1550,7 +1553,8 @@ text in a pull request, so a reviewer can see what moved.
 They draw wherever this page is read: Azure DevOps, the wiki generated from it, GitHub, and the PDF.
 
 Written here, a diagram can also be checked. `ArchetypeDiagramTests` reads the archetype diagram in
-§7 out of this file and fails when an edge names a predicate the submission service does not write,
+§7 out of this file and fails when a relationship in it names a predicate the submission service does
+not write,
 so that picture cannot quietly stop describing the model.
 
 ### Reading this as a document

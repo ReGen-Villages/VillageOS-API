@@ -74,9 +74,9 @@ that is not a stream. A daemon can set a header, so it never needs one.
 | `POST` | `/shutdown` | Begin graceful shutdown (stop work, exit) |
 
 **Timing guarantee.** When the trigger relationship arrives inside a `POST /api/model/fragment`
-batch, `/handle` is called only after the whole fragment is applied — every Thing, edge, and
+batch, `/handle` is called only after the whole fragment is applied — every Thing, relationship, and
 property value in the batch is readable, and roll-ups are recomputed. A handler never observes a
-half-applied fragment. Multiple handled edges in one fragment are dispatched in creation order.
+half-applied fragment. Multiple handled relationships in one fragment are dispatched in creation order.
 
 **Delivery is at-least-once.** Mycelium sends a relation again when it cannot confirm the handler
 finished, and a handler that reconnects after a break is sent what it missed. `relationshipId` is the
@@ -111,7 +111,7 @@ Body is a selector:
   "traverse": [ { "predicate": "produces", "direction": "outgoing", "depth": 1 } ],
   "includeIsAncestors": true,         // default true (keeps inherited values correct)
   "includeRelationships": true,
-  "relationships": [ { "predicate": "holds", "direction": "outgoing" } ],  // which edges travel; absent = every incident edge
+  "relationships": [ { "predicate": "holds", "direction": "outgoing" } ],  // which relationships travel; absent = every incident one
   "includeSnapshot": true,            // false = the watermark alone, no closure sent back
   "includeLaterMatches": false        // true = types/markedTypes go on matching after this moment
 }
@@ -135,13 +135,15 @@ you whenever it appears. Three things to know before you rely on it:
 - **Only the type-shaped parts follow.** `ids`, `names` and `traverse` still fix their part of the
   membership when you open. A traversal is a walk of the model, and the match is asked inside every
   commit for every subscriber.
-- **An edge is covered when either of its ends is.** `"includeRelationships": false` turns that off.
-- **A Thing enters when its `is` edge types it, and arrives whole.** A Thing is created before it is
-  typed, so its creation is judged when it has no type and is not delivered; the `is` edge that first
-  makes it match delivers it as `ThingEntered`, whole, before the edge's own `RelationshipCreated`, with
-  any edges it already held as `RelationshipEntered`. This holds whether or not edges travel: a
-  subscription that declined them still enters the Thing. A Thing the rule admitted whose last matching
-  `is` edge is retracted leaves as `ThingLeft`, with the edges it alone held as `RelationshipLeft`, and
+- **A relationship is covered when either of its ends is.** `"includeRelationships": false` turns
+  that off.
+- **A Thing enters when its `is` relationship types it, and arrives whole.** A Thing is created before
+  it is typed, so its creation is judged when it has no type and is not delivered; the `is`
+  relationship that first makes it match delivers it as `ThingEntered`, whole, before that
+  relationship's own `RelationshipCreated`, with any relationships it already held as
+  `RelationshipEntered`. This holds whether or not relationships travel: a subscription that declined
+  them still enters the Thing. A Thing the rule admitted whose last matching `is` relationship is
+  retracted leaves as `ThingLeft`, with the relationships it alone held as `RelationshipLeft`, and
   stops flowing until typed again; a deleted Thing is `ThingDeleted`. The membership you opened with is
   kept as given. A mark withdrawn from an archetype does not make its members leave.
 
@@ -179,7 +181,7 @@ over `is`-ancestors of everything it reached unless a caller turns that off.
 Each Thing also carries `IsArchetype` — whether it is a **type** or a **member** of one (#6218).
 Read it before working over the members of a type. Nothing else in the payload answers the
 question: a type and a member are the same shape, and a type whose members do not exist yet has no
-`is` edge pointing at it, so a handler that guessed would treat that type as a real unit.
+`is` relationship pointing at it, so a handler that guessed would treat that type as a real unit.
 
 ### Selecting a slice (the startup-template replacement)
 
@@ -195,28 +197,30 @@ the slice **by shape** and get exactly that closure. Recipes:
 | Every Thing of a type (transitive `is`) | `{ "types": ["Pump"] }` |
 | The same, without knowing what the model calls the type | `{ "markedTypes": ["__IsPumpArchetype"] }` |
 | Just the archetype playing a role, to write `X is Y` | `{ "markedArchetypes": ["__IsPumpArchetype"] }` |
-| A type **and** its neighbours along an edge | `{ "types": ["Battery"], "traverse": [{ "predicate": "powers", "direction": "outgoing", "depth": 1 }] }` |
+| A type **and** its neighbours along a relationship | `{ "types": ["Battery"], "traverse": [{ "predicate": "powers", "direction": "outgoing", "depth": 1 }] }` |
 | Drop inherited type-default values | add `"includeIsAncestors": false` |
 | Things only, no relationships | add `"includeRelationships": false` |
-| A Thing's own outgoing edges, not the inbound ones made against it | add `"relationships": [{ "direction": "outgoing" }]`, or name the predicates: `[{ "predicate": "holds" }, { "predicateFlag": "__IsAtPredicate", "direction": "incoming" }]` |
+| A Thing's own outgoing relationships, not the inbound ones made against it | add `"relationships": [{ "direction": "outgoing" }]`, or name the predicates: `[{ "predicate": "holds" }, { "predicateFlag": "__IsAtPredicate", "direction": "incoming" }]` |
 | Only the changes — you already read the objects | add `"includeSnapshot": false` |
 | Every Thing of a type, **including ones made later** | add `"includeLaterMatches": true` |
 
-**Naming which relationships travel.** `includeRelationships` alone carries every active edge touching a
-selected Thing, in both directions and over every predicate. A long-lived Thing gains an inbound edge for
-every unit of work drawn against it and keeps them, so a handler that needs only the Thing's own outgoing
-edges would otherwise read the whole history on every call, and pay more for it the longer the run.
-`relationships` is a list of rules — each a `direction` and a predicate by `predicate` or by
-`predicateFlag`, or neither for every predicate — and with it the snapshot carries the edges a selected
-Thing holds in a rule's direction over its predicate, and no others. A subscription with
-`includeLaterMatches` admits later edges under the same rules, so a later match arrives with the edges
-its snapshot would have carried. A rule naming both a predicate and a flag, or rules given beside
-`"includeRelationships": false`, is refused with `400` rather than guessed at.
+**Naming which relationships travel.** `includeRelationships` alone carries every active relationship
+touching a selected Thing, in both directions and over every predicate. A long-lived Thing gains an
+inbound relationship for every unit of work drawn against it and keeps them, so a handler that needs
+only the Thing's own outgoing relationships would otherwise read the whole history on every call, and
+pay more for it the longer the run. `relationships` is a list of rules — each a `direction` and a
+predicate by `predicate` or by `predicateFlag`, or neither for every predicate — and with it the
+snapshot carries the relationships a selected Thing holds in a rule's direction over its predicate,
+and no others. A subscription with `includeLaterMatches` admits later relationships under the same
+rules, so a later match arrives with the relationships its snapshot would have carried. A rule naming
+both a predicate and a flag, or rules given beside `"includeRelationships": false`, is refused with
+`400` rather than guessed at.
 
 **Selecting by mark rather than by name.** An archetype's role is a boolean flag it carries, so a handler
 can ask for the role instead of the name the model happens to have given it — and keep working when that
 model renames it. `markedTypes` returns the archetype and every Thing that `is` it; `markedArchetypes`
-returns the archetype alone, which is what a handler needs when it only has to write an `is` edge to it.
+returns the archetype alone, which is what a handler needs when it only has to write an `is`
+relationship to it.
 Asking for a role with many members through `markedArchetypes` is the difference between one Thing and
 every instance ever recorded. Both scan the Things once, so they cost more than `types`, which answers
 from the name index.
@@ -229,12 +233,12 @@ unsubscribes.
 
 #### What a slice costs
 
-A snapshot carries every relationship **incident to what it selects** — an edge arrives if either of
-its endpoints is in the closure. What resolving a selector costs follows from that:
+A snapshot carries every relationship **incident to what it selects** — a relationship arrives if
+either of its ends is in the closure. What resolving a selector costs follows from that:
 
 | Selector | What it costs |
 |---|---|
-| `ids` | the objects named, and their own edges |
+| `ids` | the objects named, and their own relationships |
 | `traverse` | the same again for each object the walk reaches |
 | `names` | the Things carrying the name |
 | `types` | the members of the type, reached by descending its `is` chain |
@@ -243,7 +247,7 @@ its endpoints is in the closure. What resolving a selector costs follows from th
 Two consequences are worth designing around:
 
 - **Selecting a Thing selects everything pointing at it.** Naming an archetype in a slice that
-  carries relationships brings back an `is` edge for every instance of that archetype — a cost that
+  carries relationships brings back an `is` relationship for every instance of that archetype — a cost that
   keeps growing for as long as the model does. When a handler needs an archetype's *identity* rather
   than its members, ask for it by name with `"includeRelationships": false`.
 - **Read by id wherever the id is known.** A handler that is handed a subject and asks for that
@@ -291,17 +295,17 @@ data: {"Kind":"PropertyChanged","EntityId":"<guid>","PropertyName":"temp","Value
 ```
 
 `id:` is the commit sequence. The stream delivers changes to the subscription's **membership**, so a
-Thing or an edge you meet for the first time arrives whole and you fetch nothing:
+Thing or a relationship you meet for the first time arrives whole and you fetch nothing:
 
 | Kind | `data` beside `Kind` and `EntityId` | When |
 | --- | --- | --- |
-| `ThingCreated` | `Thing`: the Thing in the snapshot's shape (`Id`, `Name`, `IsArchetype`, `Properties`, `RollupProperties`, `InheritedOverrides`, `States`), without the snapshot's `Relationships` list — its edges arrive as events | a Thing created that the subscription covers at its creation |
-| `ThingEntered` | `Thing`, as above | a Thing a later fact brought into a following subscription: the `is` edge that first typed it into a watched type, or a property change on a Thing typed while nothing was watching |
-| `ThingLeft` | — | a Thing the rule admitted whose last matching `is` edge was retracted while the Thing stays |
+| `ThingCreated` | `Thing`: the Thing in the snapshot's shape (`Id`, `Name`, `IsArchetype`, `Properties`, `RollupProperties`, `InheritedOverrides`, `States`), without the snapshot's `Relationships` list — its relationships arrive as events | a Thing created that the subscription covers at its creation |
+| `ThingEntered` | `Thing`, as above | a Thing a later fact brought into a following subscription: the `is` relationship that first typed it into a watched type, or a property change on a Thing typed while nothing was watching |
+| `ThingLeft` | — | a Thing the rule admitted whose last matching `is` relationship was retracted while the Thing stays |
 | `ThingDeleted` | — | |
-| `RelationshipCreated` | `Relationship`: the edge in the snapshot's shape (`Id`, `Name`, `SubjectId`, `PredicateId`, `TargetId`, `Properties`, `InheritedOverrides`, `States`) | |
-| `RelationshipEntered` | `Relationship`, as above | an edge an entering Thing already held |
-| `RelationshipLeft` | — | an edge a leaving Thing alone held in the membership |
+| `RelationshipCreated` | `Relationship`: the relationship in the snapshot's shape (`Id`, `Name`, `SubjectId`, `PredicateId`, `TargetId`, `Properties`, `InheritedOverrides`, `States`) | |
+| `RelationshipEntered` | `Relationship`, as above | a relationship an entering Thing already held |
+| `RelationshipLeft` | — | a relationship a leaving Thing alone held in the membership |
 | `RelationshipDeleted` | — | |
 | `PropertyChanged`, `RelationshipPropertyChanged` | `PropertyName`, `Value` | |
 | `PropertyDeleted`, `RelationshipPropertyDeleted` | `PropertyName` | |
@@ -484,34 +488,36 @@ accept Observations.
 ## Writing structure back: the fragment upsert
 
 The writes above set property **values**. To create or update **structure** — Things, their
-relationships (including the `is` type edge), and their initial values — in one call, POST a
+relationships (including the `is` type relationship), and their initial values — in one call, POST a
 **fragment**: a partial-model `{ "Things", "Relationships" }` batch.
 
 | Route | Body | Success |
 |---|---|---|
 | `POST /api/model/fragment` | `{ "Name", "Things": [ {Id, Name, Properties} ], "Relationships": [ {Name, Subject, Predicate, Target} ] }` | `200 { thingsCreated, thingsUpdated, relationshipsCreated, things }` |
 
-- **Upsert, idempotent.** Existing Things/edges are left in place (values re-applied); re-posting the
-  same fragment neither duplicates nor errors. `ModifyData` (editor/admin/**service**).
-- **Additive-only.** A fragment only *creates or updates*. It never deletes or retracts Things, edges,
-  or properties, and never renames an existing Thing (identity is by `Id`; the `Name` sent for a known
-  `Id` is ignored). Anything in the model but absent from the fragment is left untouched — removing
+- **Upsert, idempotent.** Existing Things and relationships are left in place (values re-applied);
+  re-posting the same fragment neither duplicates nor errors. `ModifyData` (editor/admin/**service**).
+- **Additive-only.** A fragment only *creates or updates*. It never deletes or retracts Things,
+  relationships, or properties, and never renames an existing Thing (identity is by `Id`; the `Name`
+  sent for a known `Id` is ignored). Anything in the model but absent from the fragment is left untouched — removing
   structure is a separate, explicit operation.
 - **All of it or none of it.** References, typed envelopes and computed names are validated up front, so
   those faults fail `400` with **zero** mutation. A failure while the batch is being applied is undone —
-  every Thing, edge, value and roll-up definition the batch applied is reversed before the `400` — so the
+  every Thing, relationship, value and roll-up definition the batch applied is reversed before the
+  `400` — so the
   model a caller reads afterwards is the one they posted against. Re-posting is idempotent either way,
   so a corrected retry still heals.
 - **A computed name cannot be written.** If a roll-up computes a property name for a Thing — through a
   definition it owns, one it inherits from a type it already has, or one a type in the same batch brings —
   writing a value for that name fails `400` with **zero** mutation. Send the members; the value follows.
 - **Server resolves lazy inheritance (I1).** A Thing that carries a value for a name it will *inherit*
-  is created **bare**, gains its `is` edge, then has the value written as an **override** — so you send
+  is created **bare**, gains its `is` relationship, then has the value written as an **override** — so
+  you send
   the natural `{Thing-with-own-Properties} + {Thing is Archetype}` shape and never trip I1 yourself.
   Batches order writes so an `is`-target's own properties land before the subject that inherits them.
 - **Emits the same Facts/SSE** as the per-write endpoints (it goes through the same fact pipeline), so
-  every created Thing/edge/value animates and survives replay. Property values carry a typed envelope
-  (`{ "typeInfo": "vos.Decimal", "value": 2.5 }`) so decimals/measures don't truncate.
+  every created Thing, relationship and value animates and survives replay. Property values carry a
+  typed envelope (`{ "typeInfo": "vos.Decimal", "value": 2.5 }`) so decimals/measures don't truncate.
 - **An envelope can configure the property, not only value it.** Alongside `typeInfo` and `value` it
   may carry `writeKind` (the `AllowedWriteKinds` gating above: `Both` / `FactOnly` / `ObservationOnly`)
   and `mode` / `ringBufferSize` / `sampleRate` (the `PropertyMode` and its size — see
@@ -622,7 +628,8 @@ waiting twice on one Thing places two.
 
 The range is named as a Thing, not as a state's name: a vigil watches a range declared as a Thing of
 its own — one that `is` the archetype carrying `__IsRangeArchetype` and relates to the archetype it
-judges — which is the form a range takes whenever something needs an edge to it. Refusals name what
+judges — which is the form a range takes whenever something needs a relationship to it. Refusals name
+what
 cannot serve: `400` for a range that is not a Thing of that kind, one that judges no archetype the
 subject `is`, or a connection with no bound service; `404` for a Thing the caller may not read; `400`
 naming the missing mark for a model that declares no vigil vocabulary (the archetype carrying
