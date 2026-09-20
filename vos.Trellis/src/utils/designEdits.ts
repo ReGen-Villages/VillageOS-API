@@ -10,6 +10,7 @@ import type { DashboardSection, DashboardSpec, Placement, Widget } from '../type
 
 export type DesignSelection =
   | { on: 'page' }
+  | { on: 'translations' }
   | { on: 'section'; section: number }
   | { on: 'widget'; section: number; widget: number };
 

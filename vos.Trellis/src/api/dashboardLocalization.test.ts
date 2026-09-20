@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { localizeSpec } from './dashboardLocalization';
+import { localizeSpec, displayStringsOf } from './dashboardLocalization';
 import type {
   Binding,
   DashboardSpec,
@@ -581,5 +581,39 @@ describe('localizeSpec over the writing widgets', () => {
     expect(form.submit).toBe('Boek');
     expect(form.preview?.label).toBe('Wat dit dekt');
     expect(form.writes.act).toBe('book');
+  });
+});
+
+describe('displayStringsOf', () => {
+  it('lists every display string the localiser translates, once each, in the order it walks them', () => {
+    const spec: DashboardSpec = {
+      title: 'Springs',
+      subtitle: 'by catchment',
+      compare: { label: 'Catchment', archetype: 'Catchment' },
+      sections: [
+        {
+          title: 'Flow',
+          hint: 'litres a second',
+          widgets: [
+            { type: 'kpi', title: 'Flowing', unit: 'l/s', value: { kind: 'const', value: 1 } },
+            { type: 'table', title: 'Springs', columns: [{ key: 'flow', label: 'Flow' }], rows: { kind: 'const', value: 0 } as never },
+          ],
+        },
+      ],
+      detail: { propertyGroups: [{ label: 'Readings', keys: ['flow'] }], relations: [{ predicate: 'feeds', label: 'Feeds' }] },
+    };
+    expect(displayStringsOf(spec)).toEqual(['Springs', 'by catchment', 'Catchment', 'Flow', 'litres a second', 'Flowing', 'l/s', 'Springs', 'Flow', 'Readings', 'Feeds'].filter((word, at, all) => all.indexOf(word) === at));
+  });
+
+  it('agrees with what a translation reaches: every string it lists is one a translation of that string changes', () => {
+    const spec: DashboardSpec = {
+      title: 'Springs',
+      sections: [{ title: 'Flow', widgets: [{ type: 'kpi', title: 'Flowing', footnote: 'sampled hourly', value: { kind: 'const', value: 1 } }] }],
+    };
+    const translations = { nl: Object.fromEntries(displayStringsOf(spec).map((base) => [base, `${base} (nl)`])) };
+    const localized = localizeSpec({ ...spec, translations }, 'nl');
+    expect(localized.title).toBe('Springs (nl)');
+    expect(localized.sections[0].title).toBe('Flow (nl)');
+    expect((localized.sections[0].widgets[0] as { footnote?: string }).footnote).toBe('sampled hourly (nl)');
   });
 });

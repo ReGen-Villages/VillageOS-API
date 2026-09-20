@@ -299,9 +299,7 @@ function localizeDetail(detail: DetailSpec, tr: SpecTranslator): DetailSpec {
   };
 }
 
-export function localizeSpec(spec: DashboardSpec, locale: string): DashboardSpec {
-  if (!translationsFor(spec, locale)) return spec;
-  const tr = makeSpecTranslator(spec, locale);
+function localizeWith(spec: DashboardSpec, tr: SpecTranslator): DashboardSpec {
   return {
     ...spec,
     title: tr(spec.title),
@@ -310,4 +308,22 @@ export function localizeSpec(spec: DashboardSpec, locale: string): DashboardSpec
     sections: spec.sections.map((section) => localizeSection(section, tr)),
     detail: spec.detail ? localizeDetail(spec.detail, tr) : undefined,
   };
+}
+
+export function localizeSpec(spec: DashboardSpec, locale: string): DashboardSpec {
+  if (!translationsFor(spec, locale)) return spec;
+  return localizeWith(spec, makeSpecTranslator(spec, locale));
+}
+
+/** Every display string the localiser would translate, once each, in the order it walks them —
+ *  the same walk, with a translator that records instead of translating, so a string the localiser
+ *  reads is never one a translations panel forgot to offer. */
+export function displayStringsOf(spec: DashboardSpec): string[] {
+  const seen: string[] = [];
+  const recording = (<T extends string | undefined>(text: T): T => {
+    if (text && !seen.includes(text)) seen.push(text);
+    return text;
+  }) as SpecTranslator;
+  localizeWith(spec, recording);
+  return seen;
 }

@@ -37,6 +37,7 @@ const buttonClass =
 /** What the selection declares — the page, a section or a widget — and where it is changed. */
 export function DesignPropertiesPanel({ spec, selection, context, onEdit, onSelect }: Props) {
   const { t } = useTranslation();
+  if (selection.on === 'translations') return null;
   const heading =
     selection.on === 'page'
       ? t('design.properties.page')
