@@ -72,6 +72,29 @@ public class CommandHandlerTests
     }
 
     [Fact]
+    public async Task HandleCommandAsync_Call_IsDispatchedToTheCallHandler()
+    {
+        var writer = new StringWriter();
+        var handler = CreateHandler(new StringReader(""), writer);
+        _myceliumMock.Setup(c => c.PostToEndpointAsync("echo", "{}")).ReturnsAsync("answered");
+
+        await handler.HandleCommandAsync("call", "endpoint echo {}");
+
+        Assert.DoesNotContain("Unknown command", writer.ToString());
+        Assert.Contains("answered", writer.ToString());
+    }
+
+    [Fact]
+    public void ShowHelp_ListsTheCallCommands()
+    {
+        var writer = new StringWriter();
+        CreateHandler(new StringReader(""), writer).ShowHelp();
+
+        Assert.Contains("call endpoint", writer.ToString());
+        Assert.Contains("call service", writer.ToString());
+    }
+
+    [Fact]
     public async Task HandleCommandAsync_Logs_IsDispatchedToTheLogsHandler()
     {
         var writer = new StringWriter();

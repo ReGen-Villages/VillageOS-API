@@ -87,6 +87,8 @@ namespace vos.Taproot
             _writer.WriteLine("Microservices:");
             _writer.WriteLine("  start service <handler>                     - Start a registered microservice");
             _writer.WriteLine("  stop service <handler>                      - Stop a running microservice");
+            _writer.WriteLine("  call endpoint <subdomain> <json>            - Post a body to an endpoint service and print its answer");
+            _writer.WriteLine("  call service <handler> <json>               - Post a body to a handler's daemon, starting it if needed");
             _writer.WriteLine();
             _writer.WriteLine("Configuration:");
             _writer.WriteLine("  config mode                                 - Show property mode configuration");
@@ -215,6 +217,7 @@ namespace vos.Taproot
             ["submissions"] = async (_, a) => await new SubmissionsCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["logs"] = async (_, a) => await new LogsCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["events"] = async (_, a) => await new EventsCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["call"] = async (_, a) => await new CallCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
         };
 
         public async Task RunAsync()

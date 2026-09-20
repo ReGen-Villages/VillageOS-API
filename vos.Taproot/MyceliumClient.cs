@@ -552,6 +552,20 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
+    public virtual Task<string> PostToEndpointAsync(string subdomain, string bodyJson)
+        => PostBodyAsync($"{_myceliumUrl}/api/endpoints/{Uri.EscapeDataString(subdomain)}", bodyJson);
+
+    public virtual Task<string> RequestServiceAsync(Guid handlerId, string bodyJson)
+        => PostBodyAsync($"{_myceliumUrl}/api/mycelium/services/{handlerId}/request", bodyJson);
+
+    private async Task<string> PostBodyAsync(string url, string bodyJson)
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.PostAsync(url, new StringContent(bodyJson, Encoding.UTF8, "application/json"));
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadAsStringAsync();
+    }
+
     public virtual async Task<JsonElement> GetDefaultPropertyModeAsync()
     {
         await SetAuthHeaderAsync();
