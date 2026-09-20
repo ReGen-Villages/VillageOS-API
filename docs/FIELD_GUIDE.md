@@ -1809,7 +1809,7 @@ Property Mode Configuration:
 
 **Accounts.** An account holds one role — `admin`, `editor` or `viewer` — and enters only the
 models it has been granted; an administrator enters every model and needs no grant. Every `user`
-command but `change-password` goes through the platform's administration route, the same door the
+command but `change-password` goes through the platform's administration route, the same route the
 console's Accounts page uses (chapter 54), so the command line and the console
 say and refuse the same things, and a refusal is written in the route's own words. Every password is
 prompted for rather than taken on the command line, so none is left in the shell's history. Nothing
@@ -2532,7 +2532,7 @@ its rows: the Things a count counted, the members an aggregate reduced with each
 both sides of a ratio, the buckets a window folded. Nothing is resolved until a reader opens it.
 
 ### 93. The widgets that write, and translation
-Two widgets write, both to the door the description names under the console's session — a service
+Two widgets write, both to the route the description names under the console's session — a service
 endpoint by its name through the server's forwarding route, or, written as a path beginning with
 `/`, a route on the platform itself: **`action`** decides about a row it lists — a choice names either the
 Thing the act is about (a reason, a verdict, a disposition), sent as `reason`, or the act itself,
@@ -2541,7 +2541,7 @@ name from a roster, and a row marked `repeatable` can be pressed again, with the
 press shown beside it — and **`form`** records something nothing on the page lists yet, with typed
 or chosen fields and an optional preview act. What is sent is stated purely: a number as a number, a multiple choice as the
 names chosen, an optional field left empty not at all, no field naming an actor. A refusal is
-shown in the endpoint's own words. A press the door took starts a new generation of platform reads,
+shown in the endpoint's own words. A press the route accepted starts a new generation of platform reads,
 so a table on the same page shows what the press changed — a write the platform records outside the
 model, an account, announces nothing on the stream. The platform's own administration route,
 `POST /api/auth/administration`, takes these bodies for its Accounts page; no shipped service
