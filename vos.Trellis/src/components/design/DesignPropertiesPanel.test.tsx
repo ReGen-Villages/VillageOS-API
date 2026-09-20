@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import type { DashboardSpec, Widget } from '../../types/dashboard';
 import type { DesignSelection } from '../../utils/designEdits';
 import { DesignPropertiesPanel } from './DesignPropertiesPanel';
+import { catchmentContext } from './testOffers';
 
 const figure = (title: string): Widget => ({ type: 'kpi', title, value: { kind: 'const', value: 1 }, placement: { column: 0, row: 0, width: 3, height: 3 } });
 
@@ -16,12 +17,13 @@ const page = (): DashboardSpec => ({
 });
 
 /** Renders the panel over a page, applying each edit to the page the way the workbench does. */
-function open(selection: DesignSelection) {
-  let held = page();
+function open(selection: DesignSelection, spec: DashboardSpec = page()) {
+  let held = spec;
   const onEdit = vi.fn((change: (spec: DashboardSpec) => DashboardSpec) => { held = change(held); });
   const onSelect = vi.fn();
-  render(<DesignPropertiesPanel spec={held} selection={selection} onEdit={onEdit} onSelect={onSelect} />);
-  return { edited: () => held, onSelect };
+  const draw = () => <DesignPropertiesPanel spec={held} selection={selection} context={catchmentContext()} onEdit={onEdit} onSelect={onSelect} />;
+  const { rerender } = render(draw());
+  return { edited: () => held, onSelect, redraw: () => rerender(draw()) };
 }
 
 describe('the page', () => {
@@ -52,6 +54,24 @@ describe('a section', () => {
 });
 
 describe('a widget', () => {
+  it('draws its schema: a figure offers its value binding and its format', () => {
+    open({ on: 'widget', section: 0, widget: 0 });
+    expect(screen.getAllByLabelText('Value')[0]).toHaveValue('const');
+    expect(screen.getByLabelText('Number format')).toBeInTheDocument();
+    expect(screen.getByLabelText('Trace')).toHaveValue('');
+  });
+
+  it('writes a field of the schema and takes an emptied one away', () => {
+    const { edited, redraw } = open({ on: 'widget', section: 0, widget: 0 });
+    fireEvent.change(screen.getByLabelText('Unit'), { target: { value: 'litres' } });
+    fireEvent.blur(screen.getByLabelText('Unit'));
+    expect((edited().sections[0].widgets[0] as { unit?: string }).unit).toBe('litres');
+    redraw();
+    fireEvent.change(screen.getByLabelText('Unit'), { target: { value: '' } });
+    fireEvent.blur(screen.getByLabelText('Unit'));
+    expect('unit' in edited().sections[0].widgets[0]).toBe(false);
+  });
+
   it('moves to another section, landing under what that section holds, and the selection follows', () => {
     const { edited, onSelect } = open({ on: 'widget', section: 0, widget: 0 });
     fireEvent.change(screen.getByLabelText('In section'), { target: { value: '1' } });

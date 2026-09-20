@@ -11,6 +11,8 @@ vi.mock('../api/thingApi', () => ({
   thingApi: { setProperty: vi.fn(), remove: vi.fn() },
 }));
 vi.mock('../api/relationshipApi', () => ({ relationshipApi: { remove: vi.fn() } }));
+vi.mock('../api/rangeApi', () => ({ rangeApi: { getAll: vi.fn().mockResolvedValue({ OwnRanges: [{ Name: 'flowing' }], InheritedRanges: [] }) } }));
+vi.mock('../api/endpointApi', () => ({ endpointApi: { getAll: vi.fn().mockResolvedValue([]) } }));
 vi.mock('../api/modelApi', () => ({ modelApi: { applyFragment: vi.fn() } }));
 vi.mock('../api/stateApi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/stateApi')>()),
@@ -64,8 +66,10 @@ function seedStore() {
       thing('dashboard', 'Dashboard', {}, true),
       thing('page-springs', 'Springs', { [DASHBOARD_SPEC_PROPERTY]: JSON.stringify(SEEDED) }),
       thing('page-reservoirs', 'Reservoirs', { [DASHBOARD_SPEC_PROPERTY]: JSON.stringify(DESIGNED) }),
+      thing('spring', 'Spring', {}, true),
+      thing('s1', 'SPRING-1', { flow: 12.5 }),
     ],
-    relationships: [isA('page-springs', 'dashboard'), isA('page-reservoirs', 'dashboard')],
+    relationships: [isA('page-springs', 'dashboard'), isA('page-reservoirs', 'dashboard'), isA('s1', 'spring')],
     loaded: true,
   });
 }
@@ -123,6 +127,7 @@ describe('DesignPage', () => {
     renderAt('/design/reservoirs');
     fireEvent.click(screen.getByRole('button', { name: 'Select Full reservoirs' }));
     fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Reservoirs at capacity' } });
+    fireEvent.blur(screen.getByLabelText('Title'));
     expect(screen.getByRole('button', { name: 'Select Reservoirs at capacity' })).toBeInTheDocument();
   });
 
@@ -185,6 +190,25 @@ describe('DesignPage', () => {
     expect(headings[1]).toHaveTextContent('Levels');
     fireEvent.click(screen.getByRole('button', { name: 'Remove section' }));
     expect(screen.getAllByRole('button', { name: /Select section/ })).toHaveLength(1);
+  });
+
+  it('binds a table to the Things of a kind chosen from the model, draws it, and keeps the keys its columns read', async () => {
+    renderAt('/design/reservoirs');
+    fireEvent.click(screen.getByRole('button', { name: 'Add a Table' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add a column' }));
+    fireEvent.change(screen.getAllByLabelText('Key')[0], { target: { value: 'flow' } });
+    fireEvent.blur(screen.getAllByLabelText('Key')[0]);
+    fireEvent.change(screen.getByLabelText('Rows'), { target: { value: 'stateList' } });
+    fireEvent.change(screen.getByLabelText('Kind'), { target: { value: 'Spring' } });
+    fireEvent.blur(screen.getByLabelText('Kind'));
+    fireEvent.change(screen.getByLabelText('State'), { target: { value: 'flowing' } });
+    fireEvent.blur(screen.getByLabelText('State'));
+    expect(screen.queryByText('Waiting for: rows')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Keep' }));
+    await waitFor(() => expect(thingApi.setProperty).toHaveBeenCalled());
+    const table = written().sections[0].widgets[1];
+    expect(table).toMatchObject({ type: 'table', columns: [{ key: 'flow' }], rows: { kind: 'stateList', archetype: 'Spring', state: 'flowing', properties: ['flow'] } });
   });
 
   it('removes a kept page after asking, and leaves the designer on no page', async () => {
