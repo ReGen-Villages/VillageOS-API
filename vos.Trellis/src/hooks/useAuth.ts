@@ -26,9 +26,9 @@ export interface AuthState {
 export const AuthContext = createContext<AuthState | null>(null);
 
 export function useAuth(): AuthState {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-  return ctx;
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
+  return context;
 }
 
 export function useAuthState(): AuthState {
@@ -96,12 +96,12 @@ export function useAuthState(): AuthState {
         setStartupProgress(status);
         if (!status.IsLoading && status.Phase === 'Done') {
           // Read creds BEFORE stopPolling (which clears pendingCredsRef)
-          const creds = pendingCredsRef.current;
+          const credentials = pendingCredsRef.current;
           stopPolling();
           setStartupProgress(null);
-          if (creds) {
+          if (credentials) {
             try {
-              const u = await apiClient.login(creds.username, creds.password);
+              const u = await apiClient.login(credentials.username, credentials.password);
               setUser(u);
               setModelId(apiClient.getModelId());
               setModelName(apiClient.getModelName());
@@ -148,11 +148,11 @@ export function useAuthState(): AuthState {
           }
         } catch { /* not a models response */ }
       }
-      const msg = err instanceof Error ? err.message : 'Login failed';
+      const message = err instanceof Error ? err.message : 'Login failed';
       // "No models loaded" is ambiguous: a seed loading at startup (poll + retry)
       // vs. an empty library that will never reach Phase=Done (Bug #5324 — surface
       // an actionable error). Disambiguate via SeedLoadingStatus before deciding.
-      if (msg.includes('No models loaded')) {
+      if (message.includes('No models loaded')) {
         try {
           const status = await myceliumApi.getStartupStatus();
           if (status.IsLoading) {
@@ -168,7 +168,7 @@ export function useAuthState(): AuthState {
         );
         throw err;
       }
-      setError(msg);
+      setError(message);
       throw err;
     } finally {
       setLoading(false);
@@ -211,10 +211,10 @@ export function useAuthState(): AuthState {
       const userId = user?.Id;
       if (!userId) throw new Error('No user logged in');
       await apiClient.changePassword(userId, newPassword, currentPassword);
-      setUser(prev => prev ? { ...prev, MustChangePassword: false } : null);
+      setUser(previous => previous ? { ...previous, MustChangePassword: false } : null);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Password change failed';
-      setError(msg);
+      const message = err instanceof Error ? err.message : 'Password change failed';
+      setError(message);
       throw err;
     } finally {
       setLoading(false);

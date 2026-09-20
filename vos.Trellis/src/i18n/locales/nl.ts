@@ -138,7 +138,7 @@ export const nl: PartialResources = {
         '„{{name}}” uit het model terugtrekken? Hiermee wordt de verbinding verwijderd zodat Mycelium er niet meer naartoe routeert. Ze blijft in de seed, dus opnieuw laden van de seed herstelt ze. Gebruik in plaats daarvan Stoppen om alleen het proces te stoppen.',
       confirm: 'Verwijderen',
     },
-    stats: {
+    statistics: {
       title: 'Modelstatistieken',
       things: 'Dingen',
       relationships: 'Relaties',
@@ -161,7 +161,7 @@ export const nl: PartialResources = {
       errors: 'Fouten',
       lastReq: 'Laatste verzoek',
       lastContact: 'Laatste contact',
-      pid: 'PID',
+      processId: 'PID',
       failures: 'Fouten: {{count}}',
       health: {
         Healthy: 'Gezond',
@@ -189,7 +189,7 @@ export const nl: PartialResources = {
       pausedBuffered_other: 'Gepauzeerd — {{count}} nieuwe gebeurtenissen gebufferd',
       filterPlaceholder: 'Gebeurtenissen filteren…',
       none: 'Nog geen activiteit',
-      category: { model: 'Model', things: 'Dingen', rels: 'Rel.', props: 'Eig.', services: 'Diensten' },
+      category: { model: 'Model', things: 'Dingen', relationships: 'Rel.', props: 'Eig.', services: 'Diensten' },
     },
   },
   graph: {
@@ -264,7 +264,7 @@ export const nl: PartialResources = {
       noMatch: 'Geen overeenkomende predicaten.',
     },
   },
-  auth: {
+  authentication: {
     loadSeed: 'Een seed laden',
     searchSeeds: 'Seeds zoeken…',
     colName: 'Naam',
@@ -639,7 +639,7 @@ export const nl: PartialResources = {
       renamed: "Hernoemd",
       renameFailed: "Hernoemen mislukt",
     },
-    rel: {
+    relationship: {
       openEdgeDetail: "Verbindingsdetails openen",
       outgoing: "Uitgaand",
       incoming: "Inkomend",
@@ -710,7 +710,7 @@ export const nl: PartialResources = {
     runHistory: "Uitvoeringsgeschiedenis",
     unsavedChanges: "niet-opgeslagen wijzigingen",
     saved: "opgeslagen",
-    params: "Parameters",
+    parameters: "Parameters",
     closeInspector: "Inspecteur sluiten",
     ports: "Poorten ({{direction}}):",
     outputs: "uitgangen",

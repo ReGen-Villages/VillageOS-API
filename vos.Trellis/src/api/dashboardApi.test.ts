@@ -91,11 +91,11 @@ function model(): { things: VosThing[]; relationships: VosRelationship[] } {
 
 function ctxFor(scopeId: string | null): ResolveContext {
   const { things, relationships } = model();
-  return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId, compareArchetype: 'Village', reads: brokerModelReads() };
+  return { index: buildModelIndex(declared(things, relationships), relationships), scopeId, compareArchetype: 'Village', reads: brokerModelReads() };
 }
 
-async function rowsOf(binding: Binding, ctx: ResolveContext): Promise<Record<string, unknown>[]> {
-  return (await resolveBinding(binding, ctx)) as Record<string, unknown>[];
+async function rowsOf(binding: Binding, context: ResolveContext): Promise<Record<string, unknown>[]> {
+  return (await resolveBinding(binding, context)) as Record<string, unknown>[];
 }
 
 describe('discovery', () => {
@@ -109,9 +109,9 @@ describe('discovery', () => {
 
   it('lists compare entities from the compare archetype', () => {
     const { things, relationships } = model();
-    const idx = buildModelIndex(declared(things, relationships), relationships);
-    const ents = scopeEntities(discoverDashboards(things, relationships)[0].spec!, idx);
-    expect(ents.map((e) => e.name)).toEqual(['V-1', 'V-2']);
+    const index = buildModelIndex(declared(things, relationships), relationships);
+    const entities = scopeEntities(discoverDashboards(things, relationships)[0].spec!, index);
+    expect(entities.map((e) => e.name)).toEqual(['V-1', 'V-2']);
   });
 
   // Story #6477: a spec authored wrong is still addressable, so its author can be told what is
@@ -134,8 +134,8 @@ describe('discovery', () => {
 
   it('resolves archetype membership via is-edges', () => {
     const { things, relationships } = model();
-    const idx = buildModelIndex(declared(things, relationships), relationships);
-    expect(thingsOfArchetype('Village', idx).map((x) => x.Name).sort()).toEqual(['V-1', 'V-2']);
+    const index = buildModelIndex(declared(things, relationships), relationships);
+    expect(thingsOfArchetype('Village', index).map((x) => x.Name).sort()).toEqual(['V-1', 'V-2']);
   });
 });
 
@@ -195,7 +195,7 @@ describe('dashboard order and addresses (Story 6582)', () => {
 // so membership must be transitive over the is-chain and count instances only.
 describe('thingIdsOfArchetype (transitive, instances-only)', () => {
   const t = (Id: string, Name: string): VosThing => ({ Id, Name, Properties: {} });
-  const rel = (SubjectId: string, TargetId: string): VosRelationship => ({
+  const relationship = (SubjectId: string, TargetId: string): VosRelationship => ({
     Id: `${SubjectId}-is-${TargetId}`, Name: `${SubjectId} is ${TargetId}`,
     SubjectId, PredicateId: 'is', TargetId, Properties: {},
   });
@@ -207,30 +207,30 @@ describe('thingIdsOfArchetype (transitive, instances-only)', () => {
     t('AssetClass', 'AssetClass'), t('ASC', 'ASC-SOLAR'), t('Asset', 'Asset'), t('panel', 'PANEL-1'),
   ];
   const chainRelationships = [
-    rel('Resident', 'Party'), rel('c1', 'Resident'), rel('vil1', 'Village'),
-    rel('ASC', 'AssetClass'), rel('panel', 'ASC'), rel('panel', 'Asset'),
+    relationship('Resident', 'Party'), relationship('c1', 'Resident'), relationship('vil1', 'Village'),
+    relationship('ASC', 'AssetClass'), relationship('panel', 'ASC'), relationship('panel', 'Asset'),
   ];
-  const idx = buildModelIndex(declared(chainThings, chainRelationships), chainRelationships);
+  const index = buildModelIndex(declared(chainThings, chainRelationships), chainRelationships);
 
   it('includes instances under a sub-archetype and excludes the sub-archetype node', () => {
-    expect(thingIdsOfArchetype('Party', idx)).toEqual(new Set(['c1'])); // ROWAN, not the Resident type node
+    expect(thingIdsOfArchetype('Party', index)).toEqual(new Set(['c1'])); // ROWAN, not the Resident type node
   });
 
   it('resolves a directly-typed instance', () => {
-    expect(thingIdsOfArchetype('Resident', idx)).toEqual(new Set(['c1']));
+    expect(thingIdsOfArchetype('Resident', index)).toEqual(new Set(['c1']));
   });
 
   it('leaves a leaf archetype unchanged (transitive == direct)', () => {
-    expect(thingIdsOfArchetype('Village', idx)).toEqual(new Set(['vil1']));
+    expect(thingIdsOfArchetype('Village', index)).toEqual(new Set(['vil1']));
   });
 
   it('descends multi-level and multi-parent chains to the instance', () => {
-    expect(thingIdsOfArchetype('AssetClass', idx)).toEqual(new Set(['panel']));
-    expect(thingIdsOfArchetype('Asset', idx)).toEqual(new Set(['panel']));
+    expect(thingIdsOfArchetype('AssetClass', index)).toEqual(new Set(['panel']));
+    expect(thingIdsOfArchetype('Asset', index)).toEqual(new Set(['panel']));
   });
 
   it('terminates on an is-cycle without hanging', () => {
-    const cycleRelationships = [rel('A', 'B'), rel('B', 'A')];
+    const cycleRelationships = [relationship('A', 'B'), relationship('B', 'A')];
     const cyc = buildModelIndex(
       declared([t('is', 'is'), t('A', 'A'), t('B', 'B')], cycleRelationships),
       cycleRelationships,
@@ -246,7 +246,7 @@ describe('thingIdsOfArchetype (transitive, instances-only)', () => {
       { ...t('Sorter', 'Sorter'), IsArchetype: true },
       t('fork1', 'FORKLIFT-1'),
     ];
-    const rosterRelationships = [rel('Sorter', 'Machine'), rel('fork1', 'Machine')];
+    const rosterRelationships = [relationship('Sorter', 'Machine'), relationship('fork1', 'Machine')];
 
     const roster = buildModelIndex(declared(rosterThings, rosterRelationships), rosterRelationships);
 
@@ -287,10 +287,10 @@ describe('resolveBinding', () => {
         },
       },
     };
-    const ctx: ResolveContext = {
-      idx: buildModelIndex([child], []), scopeId: 'vil3', compareArchetype: 'Village', reads: brokerModelReads(),
+    const context: ResolveContext = {
+      index: buildModelIndex([child], []), scopeId: 'vil3', compareArchetype: 'Village', reads: brokerModelReads(),
     };
-    const v = await resolveBinding({ kind: 'property', thing: '$scope', property: 'self_sufficiency_rate' }, ctx);
+    const v = await resolveBinding({ kind: 'property', thing: '$scope', property: 'self_sufficiency_rate' }, context);
     expect(v).toBeCloseTo(88.5);
   });
 
@@ -345,13 +345,13 @@ describe('resolveBinding', () => {
         t('is', 'is'), t('arch-order', 'Order'), t('arch-line', 'OrderLine'),
         t('o1', 'O-1'), t('o2', 'O-2'), t('l1', 'L-1'),
       ];
-      const rel = (SubjectId: string, TargetId: string): VosRelationship => ({
+      const relationship = (SubjectId: string, TargetId: string): VosRelationship => ({
         Id: `${SubjectId}-is-${TargetId}`, Name: `${SubjectId} is ${TargetId}`,
         SubjectId, PredicateId: 'is', TargetId, Properties: {},
       });
-      const relationships = [rel('o1', 'arch-order'), rel('o2', 'arch-order'), rel('l1', 'arch-line')];
+      const relationships = [relationship('o1', 'arch-order'), relationship('o2', 'arch-order'), relationship('l1', 'arch-line')];
       return {
-        idx: buildModelIndex(declared(things, relationships), relationships),
+        index: buildModelIndex(declared(things, relationships), relationships),
         scopeId: null, compareArchetype: 'Order', reads: brokerModelReads(),
       };
     }
@@ -402,19 +402,19 @@ describe('resolveBinding', () => {
         t('leaf1', 'LEAF-1'), t('leaf2', 'LEAF-2'), t('leaf3', 'LEAF-3'),
         t('direct1', 'DIRECT-1'), t('direct2', 'DIRECT-2'),
       ];
-      const rel = (SubjectId: string, PredicateId: string, TargetId: string): VosRelationship => ({
+      const relationship = (SubjectId: string, PredicateId: string, TargetId: string): VosRelationship => ({
         Id: `${SubjectId}-${PredicateId}-${TargetId}`, Name: `${SubjectId} ${PredicateId} ${TargetId}`,
         SubjectId, PredicateId, TargetId, Properties: {},
       });
       const relationships = [
-        rel('root1', 'contains', 'mid1'), rel('mid1', 'contains', 'leaf1'), rel('mid1', 'contains', 'leaf2'),
-        rel('root2', 'contains', 'mid2'), rel('mid2', 'contains', 'leaf3'),
-        rel('root1', 'links', 'direct1'), rel('root2', 'links', 'direct2'),
+        relationship('root1', 'contains', 'mid1'), relationship('mid1', 'contains', 'leaf1'), relationship('mid1', 'contains', 'leaf2'),
+        relationship('root2', 'contains', 'mid2'), relationship('mid2', 'contains', 'leaf3'),
+        relationship('root1', 'links', 'direct1'), relationship('root2', 'links', 'direct2'),
         ...['root1', 'root2', 'mid1', 'mid2', 'leaf1', 'leaf2', 'leaf3', 'direct1', 'direct2']
-          .map((id) => rel(id, 'is', 'arch-node')),
+          .map((id) => relationship(id, 'is', 'arch-node')),
       ];
       return {
-        idx: buildModelIndex(declared(things, relationships), relationships),
+        index: buildModelIndex(declared(things, relationships), relationships),
         scopeId, compareArchetype: 'Root', reads: brokerModelReads(),
       };
     }
@@ -448,16 +448,16 @@ describe('resolveBinding', () => {
     // A cycle is a data error, but the walk must terminate rather than hang the dashboard —
     // and looping back must not smuggle the scope entity into its own scope.
     it('terminates on a cyclic scope graph without counting the scope entity itself', async () => {
-      const ctx = scopeCtx('root1');
+      const context = scopeCtx('root1');
       const cycle = { Id: 'leaf1-contains-root1', Name: 'leaf1 contains root1',
         SubjectId: 'leaf1', PredicateId: 'contains', TargetId: 'root1', Properties: {} };
-      ctx.idx = buildModelIndex(
-        [...ctx.idx.byId.values()],
-        [...ctx.idx.relationships, cycle],
+      context.index = buildModelIndex(
+        [...context.index.byId.values()],
+        [...context.index.relationships, cycle],
       );
       const rows = await rowsOf(
         { kind: 'thingList', archetype: 'Node', scope: { viaPredicate: 'contains', direction: 'out' } },
-        ctx,
+        context,
       );
       // root1 is the scope, not a member of it, however many edges lead back to it.
       expect(rows.map((r) => r.name)).toEqual(['LEAF-1', 'LEAF-2', 'MID-1']);
@@ -481,17 +481,17 @@ describe('resolveBinding', () => {
         t('rbt1', 'RBT-1', { duty_cycle: 0.62 }), t('rbt2', 'RBT-2', { duty_cycle: 0.41 }),
         t('cnv1', 'CNV-1', { duty_cycle: 0.88 }),
       ];
-      const rel = (SubjectId: string, PredicateId: string, TargetId: string): VosRelationship => ({
+      const relationship = (SubjectId: string, PredicateId: string, TargetId: string): VosRelationship => ({
         Id: `${SubjectId}-${PredicateId}-${TargetId}`, Name: `${SubjectId} ${PredicateId} ${TargetId}`,
         SubjectId, PredicateId, TargetId, Properties: {},
       });
       const relationships = [
-        rel('arch-robot', 'is', 'arch-machine'),
-        rel('rbt1', 'is', 'arch-robot'), rel('rbt2', 'is', 'arch-robot'), rel('cnv1', 'is', 'arch-machine'),
-        rel('site1', 'contains', 'rbt1'), rel('site1', 'contains', 'cnv1'), rel('site2', 'contains', 'rbt2'),
+        relationship('arch-robot', 'is', 'arch-machine'),
+        relationship('rbt1', 'is', 'arch-robot'), relationship('rbt2', 'is', 'arch-robot'), relationship('cnv1', 'is', 'arch-machine'),
+        relationship('site1', 'contains', 'rbt1'), relationship('site1', 'contains', 'cnv1'), relationship('site2', 'contains', 'rbt2'),
       ];
       return {
-        idx: buildModelIndex(declared(things, relationships), relationships),
+        index: buildModelIndex(declared(things, relationships), relationships),
         scopeId, compareArchetype: 'Site', reads: brokerModelReads(),
       };
     }
@@ -582,23 +582,23 @@ describe('resolveBinding', () => {
         t('locA', 'LOC-A', { bay_count: 12 }), t('locB', 'LOC-B'), t('locC', 'LOC-C'), t('locD', 'LOC-D'),
         t('zn1', 'ZN-1'), t('cmd1', 'MOVE-1'), t('cmd0', 'MOVE-0'),
       ];
-      const rel = (SubjectId: string, PredicateId: string, TargetId: string): VosRelationship => ({
+      const relationship = (SubjectId: string, PredicateId: string, TargetId: string): VosRelationship => ({
         Id: `${SubjectId}-${PredicateId}-${TargetId}`, Name: `${SubjectId} ${PredicateId} ${TargetId}`,
         SubjectId, PredicateId, TargetId, Properties: {},
       });
       const relationships = [
-        rel('arch-robot', 'is', 'arch-machine'),
-        rel('rbt1', 'is', 'arch-robot'), rel('rbt2', 'is', 'arch-robot'),
-        rel('locA', 'is', 'arch-loc'), rel('locB', 'is', 'arch-loc'),
-        rel('locC', 'is', 'arch-loc'), rel('locD', 'is', 'arch-loc'),
-        rel('zn1', 'is', 'arch-zone'), rel('cmd1', 'is', 'arch-cmd'), rel('cmd0', 'is', 'arch-cmd'),
-        rel('rbt1', 'at', 'locA'), rel('rbt2', 'at', 'locB'),
-        rel('rbt1', 'operates_in', 'zn1'),
-        rel('cmd1', 'targets', 'rbt1'), rel('cmd1', 'references', 'locC'), rel('cmd1', 'references', 'zn1'),
-        rel('cmd0', 'targets', 'rbt1'), rel('cmd0', 'references', 'locD'),
+        relationship('arch-robot', 'is', 'arch-machine'),
+        relationship('rbt1', 'is', 'arch-robot'), relationship('rbt2', 'is', 'arch-robot'),
+        relationship('locA', 'is', 'arch-loc'), relationship('locB', 'is', 'arch-loc'),
+        relationship('locC', 'is', 'arch-loc'), relationship('locD', 'is', 'arch-loc'),
+        relationship('zn1', 'is', 'arch-zone'), relationship('cmd1', 'is', 'arch-cmd'), relationship('cmd0', 'is', 'arch-cmd'),
+        relationship('rbt1', 'at', 'locA'), relationship('rbt2', 'at', 'locB'),
+        relationship('rbt1', 'operates_in', 'zn1'),
+        relationship('cmd1', 'targets', 'rbt1'), relationship('cmd1', 'references', 'locC'), relationship('cmd1', 'references', 'zn1'),
+        relationship('cmd0', 'targets', 'rbt1'), relationship('cmd0', 'references', 'locD'),
       ];
       return {
-        idx: buildModelIndex(declared(things, relationships), relationships),
+        index: buildModelIndex(declared(things, relationships), relationships),
         scopeId, compareArchetype: 'Machine', reads: brokerModelReads(),
       };
     }
@@ -688,13 +688,13 @@ describe('resolveBinding', () => {
       // A relationship can name an id the loaded model has no Thing for; the cell drops it rather
       // than showing a gap among the names.
       it('skips an edge pointing at a Thing the model does not hold', async () => {
-        const ctx = fleet('rbt1');
-        ctx.idx = buildModelIndex(
-          [...ctx.idx.byId.values()],
-          [...ctx.idx.relationships, { Id: 'rbt1-at-ghost', Name: 'rbt1 at ghost',
+        const context = fleet('rbt1');
+        context.index = buildModelIndex(
+          [...context.index.byId.values()],
+          [...context.index.relationships, { Id: 'rbt1-at-ghost', Name: 'rbt1 at ghost',
             SubjectId: 'rbt1', PredicateId: 'at', TargetId: 'ghost', Properties: {} }],
         );
-        expect(await resolveBinding({ kind: 'related', via: [{ predicate: 'at' }] }, ctx)).toBe('LOC-A');
+        expect(await resolveBinding({ kind: 'related', via: [{ predicate: 'at' }] }, context)).toBe('LOC-A');
       });
 
       it('resolves to null when the path reaches nothing', async () => {
@@ -714,9 +714,9 @@ describe('resolveBinding', () => {
       // Derived states nest, so a Thing usually holds several at once; the listed order is what
       // decides which one the cell shows.
       it('returns the first listed state the Thing holds', async () => {
-        const ctx = fleet('rbt1');
-        expect(await resolveBinding({ kind: 'stateOf', states: ['blocked', 'reachable'] }, ctx)).toBe('blocked');
-        expect(await resolveBinding({ kind: 'stateOf', states: ['reachable', 'blocked'] }, ctx)).toBe('reachable');
+        const context = fleet('rbt1');
+        expect(await resolveBinding({ kind: 'stateOf', states: ['blocked', 'reachable'] }, context)).toBe('blocked');
+        expect(await resolveBinding({ kind: 'stateOf', states: ['reachable', 'blocked'] }, context)).toBe('reachable');
       });
 
       it('returns null when the Thing holds none of them', async () => {
@@ -729,8 +729,8 @@ describe('resolveBinding', () => {
       });
 
       it('reads the states of a Thing named in the binding', async () => {
-        const ctx = fleet(null);
-        expect(await resolveBinding({ kind: 'stateOf', states: ['blocked'], thing: 'RBT-1' }, ctx)).toBe('blocked');
+        const context = fleet(null);
+        expect(await resolveBinding({ kind: 'stateOf', states: ['blocked'], thing: 'RBT-1' }, context)).toBe('blocked');
       });
     });
 
@@ -738,11 +738,11 @@ describe('resolveBinding', () => {
     // table's column used to be two requests per refresh.
     describe('state reads shared across a refresh generation', () => {
       it('asks once for a state that several bindings of one generation want', async () => {
-        const ctx: ResolveContext = { ...fleet(null), reads: brokerModelReads() };
+        const context: ResolveContext = { ...fleet(null), reads: brokerModelReads() };
         await Promise.all([
-          resolveBinding({ kind: 'stateList', state: 'reachable' }, ctx),
+          resolveBinding({ kind: 'stateList', state: 'reachable' }, context),
           resolveBinding({ kind: 'thingList', archetype: 'Machine',
-            computed: [{ key: 'condition', value: { kind: 'stateOf', states: ['reachable'] } }] }, ctx),
+            computed: [{ key: 'condition', value: { kind: 'stateOf', states: ['reachable'] } }] }, context),
         ]);
         expect(stateApi.getThingsInState).toHaveBeenCalledTimes(1);
       });
@@ -750,12 +750,12 @@ describe('resolveBinding', () => {
       // A shared read must not share a failure: one hiccup would otherwise stick to every later
       // reader of the generation, with nothing to retry it.
       it('retries a state read that failed instead of sharing the failure', async () => {
-        const ctx: ResolveContext = { ...fleet(null), reads: brokerModelReads() };
+        const context: ResolveContext = { ...fleet(null), reads: brokerModelReads() };
         vi.mocked(stateApi.getThingsInState)
           .mockRejectedValueOnce(new Error('broker unreachable'))
           .mockResolvedValueOnce({ StateName: 'reachable', Count: 1 });
-        await expect(resolveBinding({ kind: 'stateCount', state: 'reachable' }, ctx)).rejects.toThrow();
-        expect(await resolveBinding({ kind: 'stateCount', state: 'reachable' }, ctx)).toBe(1);
+        await expect(resolveBinding({ kind: 'stateCount', state: 'reachable' }, context)).rejects.toThrow();
+        expect(await resolveBinding({ kind: 'stateCount', state: 'reachable' }, context)).toBe(1);
       });
     });
 
@@ -848,17 +848,17 @@ describe('resolveBinding', () => {
         t('locA2', 'LOC-A2', { contained_units: 20, capacity_units: 100 }),
         t('locB1', 'LOC-B1', { contained_units: 90, capacity_units: 100 }),
       ];
-      const rel = (SubjectId: string, PredicateId: string, TargetId: string): VosRelationship => ({
+      const relationship = (SubjectId: string, PredicateId: string, TargetId: string): VosRelationship => ({
         Id: `${SubjectId}-${PredicateId}-${TargetId}`, Name: `${SubjectId} ${PredicateId} ${TargetId}`,
         SubjectId, PredicateId, TargetId, Properties: {},
       });
       const relationships = [
-        rel('vilA', 'is', 'arch-vil'), rel('vilB', 'is', 'arch-vil'),
-        rel('locA1', 'is', 'arch-loc'), rel('locA2', 'is', 'arch-loc'), rel('locB1', 'is', 'arch-loc'),
-        rel('vilA', 'contains', 'znA'), rel('znA', 'contains', 'locA1'), rel('znA', 'contains', 'locA2'),
-        rel('vilB', 'contains', 'znB'), rel('znB', 'contains', 'locB1'),
+        relationship('vilA', 'is', 'arch-vil'), relationship('vilB', 'is', 'arch-vil'),
+        relationship('locA1', 'is', 'arch-loc'), relationship('locA2', 'is', 'arch-loc'), relationship('locB1', 'is', 'arch-loc'),
+        relationship('vilA', 'contains', 'znA'), relationship('znA', 'contains', 'locA1'), relationship('znA', 'contains', 'locA2'),
+        relationship('vilB', 'contains', 'znB'), relationship('znB', 'contains', 'locB1'),
       ];
-      return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId, compareArchetype: 'Village', reads: brokerModelReads() };
+      return { index: buildModelIndex(declared(things, relationships), relationships), scopeId, compareArchetype: 'Village', reads: brokerModelReads() };
     }
 
     const LOCATION_SCOPE = { viaPredicate: 'contains', direction: 'out' as const };
@@ -913,16 +913,16 @@ describe('resolveBinding', () => {
     });
 
     it('leaves a computed column null for a Thing with no members to measure', async () => {
-      const ctx = siteCtx(null);
+      const context = siteCtx(null);
       const empty: VosThing = { Id: 'vilC', Name: 'V-C', Properties: {} };
-      ctx.idx = buildModelIndex(
-        [...ctx.idx.byId.values(), empty],
-        [...ctx.idx.relationships, { Id: 'vilC-is', Name: 'vilC is arch-vil',
+      context.index = buildModelIndex(
+        [...context.index.byId.values(), empty],
+        [...context.index.relationships, { Id: 'vilC-is', Name: 'vilC is arch-vil',
           SubjectId: 'vilC', PredicateId: 'is', TargetId: 'arch-vil', Properties: {} }],
       );
       const rows = (await resolveBinding(
         { kind: 'compareEntities', properties: [], computed: [{ key: 'utilization', value: utilization }] },
-        ctx,
+        context,
       )) as Record<string, unknown>[];
       expect(rows.find((r) => r.name === 'V-C')!.utilization).toBeNull();
     });
@@ -968,12 +968,12 @@ describe('a text property is not a number', () => {
       t('gate3', 'GATE-3', { door_number: '4711', open_ratio: 0.25, powered: true }),
       t('gate7', 'GATE-7', { door_number: '0815', open_ratio: 0.75, powered: false }),
     ];
-    const rel = (SubjectId: string, TargetId: string): VosRelationship => ({
+    const relationship = (SubjectId: string, TargetId: string): VosRelationship => ({
       Id: `${SubjectId}-is-${TargetId}`, Name: `${SubjectId} is ${TargetId}`,
       SubjectId, PredicateId: 'is', TargetId, Properties: {},
     });
     return {
-      idx: buildModelIndex(things, [rel('gate3', 'arch-gate'), rel('gate7', 'arch-gate')]),
+      index: buildModelIndex(things, [relationship('gate3', 'arch-gate'), relationship('gate7', 'arch-gate')]),
       scopeId: null,
       compareArchetype: 'Gate',
       reads: brokerModelReads(),
@@ -981,8 +981,8 @@ describe('a text property is not a number', () => {
   }
 
   it('a property binding on a text property gives a widget no number to show', async () => {
-    const ctx = { ...gateCtx(), scopeId: 'gate3' };
-    const v = await resolveBinding({ kind: 'property', thing: '$scope', property: 'door_number' }, ctx);
+    const context = { ...gateCtx(), scopeId: 'gate3' };
+    const v = await resolveBinding({ kind: 'property', thing: '$scope', property: 'door_number' }, context);
     expect(asNumber(v)).toBeNull();
   });
 
@@ -1107,7 +1107,7 @@ describe('verdict binding', () => {
     const relationships: VosRelationship[] = [
       { Id: 'r1', Name: 'study1 is arch-study', SubjectId: 'study1', PredicateId: 'is', TargetId: 'arch-study', Properties: {} },
     ];
-    return { idx: buildModelIndex(things, relationships), scopeId: 'study1', reads: brokerModelReads() };
+    return { index: buildModelIndex(things, relationships), scopeId: 'study1', reads: brokerModelReads() };
   }
 
   function holding(...states: string[]) {
@@ -1295,7 +1295,7 @@ describe('verdict binding', () => {
           { Id: `${s.name}-studies`, Name: `${s.name} studies site1`, SubjectId: s.name, PredicateId: 'studies', TargetId: 'site1', Properties: {} },
         ]),
       ];
-      return { idx: buildModelIndex(things, relationships), scopeId: 'site1', reads: brokerModelReads() };
+      return { index: buildModelIndex(things, relationships), scopeId: 'site1', reads: brokerModelReads() };
     }
 
     /** The outer `holding` speaks for the study alone; a walk asks about the site and about more
@@ -1367,7 +1367,7 @@ describe('a Thing reference resolves the same way whichever binding reads it', (
       { Id: AMBIGUOUS, Name: 'Identified plot', Properties: { area: 10 } },
       { Id: 'named-plot', Name: AMBIGUOUS, Properties: { area: 20 } },
     ];
-    return { idx: buildModelIndex(things, []), scopeId: null, reads: brokerModelReads() };
+    return { index: buildModelIndex(things, []), scopeId: null, reads: brokerModelReads() };
   }
 
   beforeEach(() => {
@@ -1409,18 +1409,18 @@ describe('state bindings ask the server to narrow', () => {
       t('b1', 'BLD-1', { area: 3 }), t('b2', 'BLD-2', { area: 7 }), t('b3', 'BLD-3', { area: 1 }),
       t('r1', 'RDG-1'), t('r2', 'RDG-2'),
     ];
-    const rel = (SubjectId: string, PredicateId: string, TargetId: string): VosRelationship => ({
+    const relationship = (SubjectId: string, PredicateId: string, TargetId: string): VosRelationship => ({
       Id: `${SubjectId}-${PredicateId}-${TargetId}`, Name: `${SubjectId} ${PredicateId} ${TargetId}`,
       SubjectId, PredicateId, TargetId, Properties: {},
     });
     const relationships = [
-      rel('b1', 'is', 'arch-building'), rel('b2', 'is', 'arch-building'), rel('b3', 'is', 'arch-building'),
-      rel('r1', 'is', 'arch-reading'), rel('r2', 'is', 'arch-reading'),
-      rel('site1', 'contains', 'b1'), rel('site1', 'contains', 'b2'), rel('site2', 'contains', 'b3'),
-      rel('r1', 'feeds', 'spring1'), rel('r2', 'feeds', 'spring2'),
+      relationship('b1', 'is', 'arch-building'), relationship('b2', 'is', 'arch-building'), relationship('b3', 'is', 'arch-building'),
+      relationship('r1', 'is', 'arch-reading'), relationship('r2', 'is', 'arch-reading'),
+      relationship('site1', 'contains', 'b1'), relationship('site1', 'contains', 'b2'), relationship('site2', 'contains', 'b3'),
+      relationship('r1', 'feeds', 'spring1'), relationship('r2', 'feeds', 'spring2'),
     ];
     return {
-      idx: buildModelIndex(declared(things, relationships), relationships),
+      index: buildModelIndex(declared(things, relationships), relationships),
       scopeId,
       compareArchetype: 'Site',
       reads: brokerModelReads(),
@@ -1518,10 +1518,10 @@ describe('state bindings ask the server to narrow', () => {
     vi.mocked(stateApi.getThingsInState).mockImplementation(async (_state: string, narrowing?: { type?: string }) =>
       counted(narrowing?.type === 'Building' ? 1 : 2),
     );
-    const ctx = estateCtx(null);
+    const context = estateCtx(null);
     const [orders, everything] = await Promise.all([
-      resolveBinding({ kind: 'stateCount', state: 'flagged', archetype: 'Building' }, ctx),
-      resolveBinding({ kind: 'stateCount', state: 'flagged' }, ctx),
+      resolveBinding({ kind: 'stateCount', state: 'flagged', archetype: 'Building' }, context),
+      resolveBinding({ kind: 'stateCount', state: 'flagged' }, context),
     ]);
     expect(orders).toBe(1);
     expect(everything).toBe(2);
@@ -1667,16 +1667,16 @@ describe('state bindings ask the server to narrow', () => {
       vi.mocked(stateApi.getThingsInState).mockImplementation(async (state, narrowing) =>
         narrowing?.countOnly ? { StateName: state, Count: 1 } : answered([{ Id: 'b1', Name: 'BLD-1' }]),
       );
-      const ctx = estateCtx(null);
+      const context = estateCtx(null);
       await Promise.all([
-        resolveBinding({ kind: 'stateCount', state: 'flagged', archetype: 'Building' }, ctx),
-        resolveBinding({ kind: 'stateCount', state: 'flagged', archetype: 'Building' }, ctx),
+        resolveBinding({ kind: 'stateCount', state: 'flagged', archetype: 'Building' }, context),
+        resolveBinding({ kind: 'stateCount', state: 'flagged', archetype: 'Building' }, context),
       ]);
       expect(stateApi.getThingsInState).toHaveBeenCalledTimes(1);
 
       await Promise.all([
-        resolveBinding({ kind: 'stateCount', state: 'flagged' }, ctx),
-        resolveBinding({ kind: 'stateList', state: 'flagged' }, ctx),
+        resolveBinding({ kind: 'stateCount', state: 'flagged' }, context),
+        resolveBinding({ kind: 'stateList', state: 'flagged' }, context),
       ]);
       expect(stateApi.getThingsInState).toHaveBeenCalledTimes(3);
     });
@@ -1699,7 +1699,7 @@ describe('timeseries reads the platform bucketed aggregate', () => {
       Id: 'site1-contains-o1', Name: 'site1 contains o1',
       SubjectId: 'site1', PredicateId: 'contains', TargetId: 'b1', Properties: {},
     }];
-    return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId, reads: brokerModelReads() };
+    return { index: buildModelIndex(declared(things, relationships), relationships), scopeId, reads: brokerModelReads() };
   }
 
   const QUARTER_HOUR = 900;
@@ -1798,19 +1798,19 @@ describe('the working behind a figure', () => {
       { Id: 'r1', Name: 'r1', SubjectId: 'study1', PredicateId: 'is', TargetId: 'arch-study', Properties: {} },
       { Id: 'r2', Name: 'r2', SubjectId: 'study1', PredicateId: 'studies', TargetId: 'site1', Properties: {} },
     ] as unknown as VosRelationship[];
-    return { idx: buildModelIndex(things, relationships), scopeId: 'study1', reads: brokerModelReads() };
+    return { index: buildModelIndex(things, relationships), scopeId: 'study1', reads: brokerModelReads() };
   };
 
   const working = (property: string, extra: Record<string, unknown> = {}) =>
     ({ kind: 'working', property, ...extra }) as Binding;
 
   it('reads the formula off the archetype and each input off the Thing computing it', async () => {
-    const ctx = study(
+    const context = study(
       { pctOfConsumption: { Expression: 'generated / consumed * 100', Reads: ['generated', 'consumed'] } },
       { generated: 4420, consumed: 4000 },
     );
 
-    expect(await resolveBinding(working('pctOfConsumption'), ctx as never)).toEqual([
+    expect(await resolveBinding(working('pctOfConsumption'), context as never)).toEqual([
       { formula: 'generated / consumed * 100', term: 'generated', value: 4420 },
       { formula: 'generated / consumed * 100', term: 'consumed', value: 4000 },
     ]);
@@ -1818,20 +1818,20 @@ describe('the working behind a figure', () => {
 
   // A figure a service asserts has no definition, so the page shows its value and no account of it.
   it('resolves to nothing for a figure the model does not derive', async () => {
-    const ctx = study({}, { peopleFed: 120 });
+    const context = study({}, { peopleFed: 120 });
 
-    expect(await resolveBinding(working('peopleFed'), ctx as never)).toEqual([]);
+    expect(await resolveBinding(working('peopleFed'), context as never)).toEqual([]);
   });
 
   // An input the study has not been given reads as absent, never as nought — the same distinction the
   // withheld verdict rests on.
   it('reports an input the Thing does not carry as absent rather than nought', async () => {
-    const ctx = study(
+    const context = study(
       { pctOfConsumption: { Expression: 'generated / consumed * 100', Reads: ['generated', 'consumed'] } },
       { generated: 4420 },
     );
 
-    expect(await resolveBinding(working('pctOfConsumption'), ctx as never)).toEqual([
+    expect(await resolveBinding(working('pctOfConsumption'), context as never)).toEqual([
       { formula: 'generated / consumed * 100', term: 'generated', value: 4420 },
       { formula: 'generated / consumed * 100', term: 'consumed', value: null },
     ]);
@@ -1842,11 +1842,11 @@ describe('the working behind a figure', () => {
   // the row names the archetype those members are of and carries no value — the Thing computing the
   // figure does not hold one, and a value read off it would be some other property of the same name.
   it('names a reduction\'s inputs, the archetype they are read off, and no formula', async () => {
-    const ctx = study(
+    const context = study(
       { solarPvAreaM2: { Function: 'Sum', RelatedType: 'SolarArray', PropertyPath: 'areaM2', Reads: ['areaM2'] } },
     );
 
-    expect(await resolveBinding(working('solarPvAreaM2'), ctx as never)).toEqual([
+    expect(await resolveBinding(working('solarPvAreaM2'), context as never)).toEqual([
       { formula: null, term: 'areaM2', memberArchetype: 'SolarArray' },
     ]);
   });
@@ -1855,12 +1855,12 @@ describe('the working behind a figure', () => {
   // figure is a different property. Reporting it would put a number under the input that never went
   // into it, and a reader has no way to tell that from the input's real value.
   it('does not report a same-named property of the computing Thing as a reduction\'s input', async () => {
-    const ctx = study(
+    const context = study(
       { solarPvAreaM2: { Function: 'Sum', RelatedType: 'SolarArray', PropertyPath: 'areaM2', Reads: ['areaM2'] } },
       { areaM2: 7 },
     );
 
-    expect(await resolveBinding(working('solarPvAreaM2'), ctx as never)).toEqual([
+    expect(await resolveBinding(working('solarPvAreaM2'), context as never)).toEqual([
       { formula: null, term: 'areaM2', memberArchetype: 'SolarArray' },
     ]);
   });
@@ -1923,7 +1923,7 @@ describe('levers under a shortfall', () => {
     const relationships: VosRelationship[] = [
       { Id: 'r1', Name: 'study1 is arch-study', SubjectId: 'study1', PredicateId: 'is', TargetId: 'arch-study', Properties: {} },
     ];
-    return { idx: buildModelIndex(things, relationships), scopeId: 'study1', reads: brokerModelReads() };
+    return { index: buildModelIndex(things, relationships), scopeId: 'study1', reads: brokerModelReads() };
   }
 
   function holding(...states: string[]) {
@@ -2150,7 +2150,7 @@ describe('origin binding', () => {
       edge('parcel-obtained', 'parcel1', 'obtainedBy', 'generated'),
       ...alsoReaching.map((id) => edge(`site-has-${id}`, 'site1', 'has', id)),
     ];
-    return { idx: buildModelIndex(things, relationships), scopeId: 'site1', reads: brokerModelReads() };
+    return { index: buildModelIndex(things, relationships), scopeId: 'site1', reads: brokerModelReads() };
   }
 
   const origin = (property: string, extra: Record<string, unknown> = {}) =>
@@ -2238,7 +2238,7 @@ function seriesCtx(): ResolveContext {
     { Id: 'is', Name: 'is', Properties: {} },
     { Id: 'arch-building', Name: 'Building', Properties: {} },
   ];
-  return { idx: buildModelIndex(declared(things, []), []), scopeId: null, reads: brokerModelReads() };
+  return { index: buildModelIndex(declared(things, []), []), scopeId: null, reads: brokerModelReads() };
 }
 
 // A point covering several buckets, and the tile that reads the newest one (Bug #6866). The platform
@@ -2360,7 +2360,7 @@ describe('history reads the platform reduction over a property series', () => {
       { Id: 'is', Name: 'is', Properties: {} },
       { Id: 'site1', Name: 'SITE-1', Properties: siteProperties },
     ];
-    return { idx: buildModelIndex(things, []), scopeId, reads: brokerModelReads() };
+    return { index: buildModelIndex(things, []), scopeId, reads: brokerModelReads() };
   }
 
   const A_YEAR = 31_536_000;
@@ -2411,9 +2411,9 @@ describe('history reads the platform reduction over a property series', () => {
   });
 
   it('asks one question once however many widgets bind to it in a refresh', async () => {
-    const ctx = siteCtx('site1');
+    const context = siteCtx('site1');
 
-    await Promise.all([resolveBinding(monthlyHigh, ctx), resolveBinding({ ...monthlyHigh }, ctx)]);
+    await Promise.all([resolveBinding(monthlyHigh, context), resolveBinding({ ...monthlyHigh }, context)]);
 
     expect(temporalApi.reduce).toHaveBeenCalledTimes(1);
   });

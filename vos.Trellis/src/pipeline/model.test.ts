@@ -15,7 +15,7 @@ const marked = (roleFlag: string): Record<string, unknown> => ({ [roleFlag]: tru
 // carries, so a fixture that resolves at all proves nothing is found by name (#6530).
 function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchetypeId: string } {
   const things: VosThing[] = [];
-  const rels: VosRelationship[] = [];
+  const relationships: VosRelationship[] = [];
   let n = 0;
   const T = (name: string, props: Record<string, unknown> = {}): VosThing => {
     const t = { Id: `t${++n}`, Name: name, Properties: props };
@@ -23,7 +23,7 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
     return t;
   };
   const R = (s: string, p: string, t: string, props: Record<string, unknown> = {}) =>
-    rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
+    relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
 
   const is = T('is'), has = T('has'), carries = T('carries');
   const pipelineA = T('Workflow', marked(ARCHETYPE_FLAG.Pipeline)),
@@ -64,7 +64,7 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
   R(pipe.Id, has.Id, ech.Id);
   R(gen.Id, carries.Id, ech.Id, { fromPort: 'echo', toPort: 'message' });
 
-  return { model: new PipelineModel(things, rels), pipelineId: pipe.Id, pipelineArchetypeId: pipelineA.Id };
+  return { model: new PipelineModel(things, relationships), pipelineId: pipe.Id, pipelineArchetypeId: pipelineA.Id };
 }
 
 // The same two nodes, wired by Things rather than edges, and wired twice — the case an edge cannot
@@ -73,7 +73,7 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
 // archetype, so anything picking "the first of that archetype" picks a wire here.
 function heldWireModel(): { model: PipelineModel; carriesId: string } {
   const things: VosThing[] = [];
-  const rels: VosRelationship[] = [];
+  const relationships: VosRelationship[] = [];
   let n = 0;
   const T = (name: string, props: Record<string, unknown> = {}): VosThing => {
     const t = { Id: `t${++n}`, Name: name, Properties: props };
@@ -81,7 +81,7 @@ function heldWireModel(): { model: PipelineModel; carriesId: string } {
     return t;
   };
   const R = (s: string, p: string, t: string, props: Record<string, unknown> = {}) =>
-    rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
+    relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
 
   const is = T('is'), has = T('has');
   const nodeA = T('Step', marked(ARCHETYPE_FLAG.PipelineNode));
@@ -104,7 +104,7 @@ function heldWireModel(): { model: PipelineModel; carriesId: string } {
     R(wire.Id, carries.Id, ech.Id);
   }
 
-  return { model: new PipelineModel(things, rels), carriesId: carries.Id };
+  return { model: new PipelineModel(things, relationships), carriesId: carries.Id };
 }
 
 describe('PipelineModel', () => {
@@ -141,7 +141,7 @@ describe('PipelineModel', () => {
 
   it('reaches a marked ancestor by either route, and gives up on an `is` cycle instead of walking forever', () => {
     const things: VosThing[] = [];
-    const rels: VosRelationship[] = [];
+    const relationships: VosRelationship[] = [];
     let n = 0;
     const T = (name: string, props: Record<string, unknown> = {}): VosThing => {
       const t = { Id: `t${++n}`, Name: name, Properties: props };
@@ -149,23 +149,23 @@ describe('PipelineModel', () => {
       return t;
     };
     const is = T('is');
-    const rel = (s: string, t: string) =>
-      rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: is.Id, TargetId: t, Properties: {} });
+    const relationship = (s: string, t: string) =>
+      relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: is.Id, TargetId: t, Properties: {} });
 
     // A node under two archetypes that share one marked ancestor: it is reached twice, answered once.
     const root = T('Step', marked(ARCHETYPE_FLAG.PipelineNode)), left = T('Left'), right = T('Right');
     const node = T('N');
-    rel(left.Id, root.Id);
-    rel(right.Id, root.Id);
-    rel(node.Id, left.Id);
-    rel(node.Id, right.Id);
+    relationship(left.Id, root.Id);
+    relationship(right.Id, root.Id);
+    relationship(node.Id, left.Id);
+    relationship(node.Id, right.Id);
     // A pair of archetypes that `is` each other, which no reader may follow round.
     const loopA = T('LoopA'), loopB = T('LoopB'), inLoop = T('InLoop');
-    rel(loopA.Id, loopB.Id);
-    rel(loopB.Id, loopA.Id);
-    rel(inLoop.Id, loopA.Id);
+    relationship(loopA.Id, loopB.Id);
+    relationship(loopB.Id, loopA.Id);
+    relationship(inLoop.Id, loopA.Id);
 
-    const model = new PipelineModel(things, rels);
+    const model = new PipelineModel(things, relationships);
     expect(model.isOfArchetypeCarrying(node.Id, ARCHETYPE_FLAG.PipelineNode)).toBe(true);
     expect(model.isOfArchetypeCarrying(inLoop.Id, ARCHETYPE_FLAG.PipelineNode)).toBe(false);
   });
@@ -214,7 +214,7 @@ describe('typesCompatible', () => {
 describe('run animation source (#5635)', () => {
   it('reads overall run status and per-node status from the live model', () => {
     const things: VosThing[] = [];
-    const rels: VosRelationship[] = [];
+    const relationships: VosRelationship[] = [];
     let n = 0;
     const T = (name: string, props: Record<string, unknown> = {}): VosThing => {
       const t = { Id: `t${++n}`, Name: name, Properties: props };
@@ -226,10 +226,10 @@ describe('run animation source (#5635)', () => {
     const run = T('PipelineRun abc', { status: 'running' });
     const nr1 = T('NodeRun Generate', { nodeId: 'node-gen', status: 'succeeded' });
     const nr2 = T('NodeRun Echo', { nodeId: 'node-ech', status: 'running' });
-    rels.push({ Id: 'rr1', Name: '', SubjectId: run.Id, PredicateId: has.Id, TargetId: nr1.Id, Properties: {} });
-    rels.push({ Id: 'rr2', Name: '', SubjectId: run.Id, PredicateId: has.Id, TargetId: nr2.Id, Properties: {} });
+    relationships.push({ Id: 'rr1', Name: '', SubjectId: run.Id, PredicateId: has.Id, TargetId: nr1.Id, Properties: {} });
+    relationships.push({ Id: 'rr2', Name: '', SubjectId: run.Id, PredicateId: has.Id, TargetId: nr2.Id, Properties: {} });
 
-    const model = new PipelineModel(things, rels);
+    const model = new PipelineModel(things, relationships);
     expect(model.runStatus(run.Id)).toBe('running');
     expect(model.nodeRunStatuses(run.Id)).toEqual({ 'node-gen': 'succeeded', 'node-ech': 'running' });
     expect(model.runStatus('missing')).toBeUndefined();
@@ -238,7 +238,7 @@ describe('run animation source (#5635)', () => {
 
   it('separates the aggregate ring status from per-item fan-out progress (#5648)', () => {
     const things: VosThing[] = [];
-    const rels: VosRelationship[] = [];
+    const relationships: VosRelationship[] = [];
     let n = 0;
     const T = (name: string, props: Record<string, unknown> = {}): VosThing => {
       const t = { Id: `t${++n}`, Name: name, Properties: props };
@@ -251,17 +251,17 @@ describe('run animation source (#5635)', () => {
     const i0 = T('NodeRun Scorer #0', { nodeId: 'node-score', status: 'succeeded', index: '0', total: '3' });
     const i1 = T('NodeRun Scorer #1', { nodeId: 'node-score', status: 'succeeded', index: '1', total: '3' });
     const i2 = T('NodeRun Scorer #2', { nodeId: 'node-score', status: 'running', index: '2', total: '3' });
-    for (const nr of [agg, i0, i1, i2])
-      rels.push({ Id: `r${++n}`, Name: '', SubjectId: run.Id, PredicateId: has.Id, TargetId: nr.Id, Properties: {} });
+    for (const nodeRun of [agg, i0, i1, i2])
+      relationships.push({ Id: `r${++n}`, Name: '', SubjectId: run.Id, PredicateId: has.Id, TargetId: nodeRun.Id, Properties: {} });
 
-    const model = new PipelineModel(things, rels);
+    const model = new PipelineModel(things, relationships);
     expect(model.nodeRunStatuses(run.Id)).toEqual({ 'node-score': 'running' });        // ring = aggregate only
     expect(model.nodeRunProgress(run.Id)).toEqual({ 'node-score': { done: 2, total: 3 } }); // 2 of 3 items terminal
   });
 
   it('lists a pipeline\'s runs newest-first, scoped to that pipeline', () => {
     const things: VosThing[] = [];
-    const rels: VosRelationship[] = [];
+    const relationships: VosRelationship[] = [];
     let n = 0;
     const T = (name: string, props: Record<string, unknown> = {}): VosThing => {
       const t = { Id: `t${++n}`, Name: name, Properties: props };
@@ -270,19 +270,19 @@ describe('run animation source (#5635)', () => {
     };
     const is = T('is'), of = T('of'), runArch = T('Execution', marked(ARCHETYPE_FLAG.PipelineRun));
     const pipeA = T('Pipeline A'), pipeB = T('Pipeline B');
-    const rel = (s: string, p: string, t: string) =>
-      rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
+    const relationship = (s: string, p: string, t: string) =>
+      relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
 
     // Two runs of A (different times) + one run of B — B must not leak into A's history.
     const a1 = T('PipelineRun a1', { status: 'succeeded', startedUtc: '2026-06-23T10:00:00Z' });
     const a2 = T('PipelineRun a2', { status: 'failed', startedUtc: '2026-06-23T12:00:00Z' });
     const b1 = T('PipelineRun b1', { status: 'succeeded', startedUtc: '2026-06-23T11:00:00Z' });
-    for (const r of [a1, a2, b1]) rel(r.Id, is.Id, runArch.Id);
-    rel(a1.Id, of.Id, pipeA.Id);
-    rel(a2.Id, of.Id, pipeA.Id);
-    rel(b1.Id, of.Id, pipeB.Id);
+    for (const r of [a1, a2, b1]) relationship(r.Id, is.Id, runArch.Id);
+    relationship(a1.Id, of.Id, pipeA.Id);
+    relationship(a2.Id, of.Id, pipeA.Id);
+    relationship(b1.Id, of.Id, pipeB.Id);
 
-    const model = new PipelineModel(things, rels);
+    const model = new PipelineModel(things, relationships);
     const runs = model.runsOf(pipeA.Id);
     expect(runs.map((r) => r.runId)).toEqual([a2.Id, a1.Id]); // newest first, B excluded
     expect(runs[0]).toMatchObject({ status: 'failed', startedUtc: '2026-06-23T12:00:00Z' });
@@ -307,28 +307,28 @@ describe('loadPipeline', () => {
 
   it('parses a node\'s paramBindings property (#5647)', () => {
     const things: VosThing[] = [];
-    const rels: VosRelationship[] = [];
+    const relationships: VosRelationship[] = [];
     let n = 0;
     const T = (name: string, props: Record<string, unknown> = {}): VosThing => {
       const t = { Id: `t${++n}`, Name: name, Properties: props };
       things.push(t);
       return t;
     };
-    const rel = (s: string, p: string, t: string) =>
-      rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
+    const relationship = (s: string, p: string, t: string) =>
+      relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
     const is = T('is'), has = T('has'), pipeArch = T('Workflow', marked(ARCHETYPE_FLAG.Pipeline)),
       nodeArch = T('Step', marked(ARCHETYPE_FLAG.PipelineNode)),
       connArch = T('Endpoint', marked(ARCHETYPE_FLAG.Connection));
     const conn = T('conn', { Subdomain: 'x' });
-    rel(conn.Id, is.Id, connArch.Id);
+    relationship(conn.Id, is.Id, connArch.Id);
     const node = T('N', { paramBindings: '{"message":"greeting"}' });
-    rel(node.Id, is.Id, nodeArch.Id);
-    rel(node.Id, has.Id, conn.Id);
+    relationship(node.Id, is.Id, nodeArch.Id);
+    relationship(node.Id, has.Id, conn.Id);
     const pipe = T('P');
-    rel(pipe.Id, is.Id, pipeArch.Id);
-    rel(pipe.Id, has.Id, node.Id);
+    relationship(pipe.Id, is.Id, pipeArch.Id);
+    relationship(pipe.Id, has.Id, node.Id);
 
-    const loaded = loadPipeline(pipe.Id, new PipelineModel(things, rels))!;
+    const loaded = loadPipeline(pipe.Id, new PipelineModel(things, relationships))!;
     expect(loaded.nodes[0].paramBindings).toEqual({ message: 'greeting' });
   });
 });

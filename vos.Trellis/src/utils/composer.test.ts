@@ -75,21 +75,21 @@ describe('what the seed would refuse', () => {
   function thing(Id: string, Name: string, IsArchetype = false): VosThing {
     return { Id, Name, Properties: {}, IsArchetype };
   }
-  function rel(Id: string, SubjectId: string, PredicateId: string, TargetId: string): VosRelationship {
+  function relationship(Id: string, SubjectId: string, PredicateId: string, TargetId: string): VosRelationship {
     return { Id, SubjectId, PredicateId, TargetId, Properties: {} };
   }
-  const idx = buildModelIndex(
+  const index = buildModelIndex(
     [thing('is', 'is'), thing('feeds', 'feeds'), thing('spring', 'Spring', true), thing('reservoir', 'Reservoir', true), thing('s1', 'SPRING-1')],
-    [rel('i1', 's1', 'is', 'spring')],
+    [relationship('i1', 's1', 'is', 'spring')],
   );
   const declared = new Set(['flowing', 'dry']);
 
   it('passes a composition naming only kinds, links and states the model declares', () => {
-    expect(unresolvedNames(SPRINGS, idx, declared)).toEqual([]);
+    expect(unresolvedNames(SPRINGS, index, declared)).toEqual([]);
   });
 
   it('names a kind the model no longer declares', () => {
-    expect(unresolvedNames({ ...SPRINGS, kind: 'Wellhead' }, idx, declared)).toEqual(['Wellhead']);
+    expect(unresolvedNames({ ...SPRINGS, kind: 'Wellhead' }, index, declared)).toEqual(['Wellhead']);
   });
 
   it('names a link or a far-end kind nothing declares, and a state no range derives', () => {
@@ -101,6 +101,6 @@ describe('what the seed would refuse', () => {
       ],
       inState: 'thawed',
     };
-    expect(unresolvedNames(composition, idx, declared)).toEqual(['drains', 'Basin', 'frozen', 'thawed']);
+    expect(unresolvedNames(composition, index, declared)).toEqual(['drains', 'Basin', 'frozen', 'thawed']);
   });
 });

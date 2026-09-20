@@ -44,7 +44,7 @@ const REDUCTION_WORDS = {
 export function FigurePanel({
   title,
   binding,
-  ctx,
+  context,
   format,
   unit,
   footnote,
@@ -53,7 +53,7 @@ export function FigurePanel({
 }: {
   title?: string;
   binding: Binding;
-  ctx: ResolveContext;
+  context: ResolveContext;
   format?: NumberFormat;
   unit?: string;
   footnote?: string;
@@ -61,7 +61,7 @@ export function FigurePanel({
   openDetail?: (thingId: string) => void;
 }) {
   const { t } = useTranslation();
-  const { loading, breakdown } = useFigureBreakdown(binding, ctx);
+  const { loading, breakdown } = useFigureBreakdown(binding, context);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
@@ -105,7 +105,7 @@ export function FigurePanel({
           {loading ? (
             <div className="py-10 text-center text-xs text-zinc-400">{t('breakdown.reading')}</div>
           ) : breakdown ? (
-            <BreakdownView breakdown={breakdown} ctx={ctx} format={format} openDetail={openDetail} />
+            <BreakdownView breakdown={breakdown} context={context} format={format} openDetail={openDetail} />
           ) : (
             <div className="py-10 text-center text-xs text-zinc-400">{t('breakdown.nothingToList')}</div>
           )}
@@ -117,13 +117,13 @@ export function FigurePanel({
 
 function BreakdownView({
   breakdown,
-  ctx,
+  context,
   format,
   visibleRows = VISIBLE_ROWS,
   openDetail,
 }: {
   breakdown: FigureBreakdown;
-  ctx: ResolveContext;
+  context: ResolveContext;
   format?: NumberFormat;
   visibleRows?: number;
   openDetail?: (thingId: string) => void;
@@ -133,20 +133,20 @@ function BreakdownView({
   return (
     <>
       <TermList terms={breakdown.terms} />
-      <Behind behind={breakdown.behind} ctx={ctx} format={format} visibleRows={visibleRows} openDetail={openDetail} />
+      <Behind behind={breakdown.behind} context={context} format={format} visibleRows={visibleRows} openDetail={openDetail} />
     </>
   );
 }
 
 function Behind({
   behind,
-  ctx,
+  context,
   format,
   visibleRows,
   openDetail,
 }: {
   behind: BehindTheFigure;
-  ctx: ResolveContext;
+  context: ResolveContext;
   format?: NumberFormat;
   visibleRows: number;
   openDetail?: (thingId: string) => void;
@@ -166,7 +166,7 @@ function Behind({
                   reduction: t(REDUCTION_WORDS[behind.reduction]),
                 })}
         </Lead>
-        <ThingsBehind rows={behind.rows} measure={behind.measure} ctx={ctx} visibleRows={visibleRows} openDetail={openDetail} />
+        <ThingsBehind rows={behind.rows} measure={behind.measure} context={context} visibleRows={visibleRows} openDetail={openDetail} />
       </>
     );
   }
@@ -182,8 +182,8 @@ function Behind({
 
   return (
     <div className="grid gap-5 mt-1" style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}>
-      <DivisionSide label={t('breakdown.division.top')} side={behind.numerator} ctx={ctx} openDetail={openDetail} />
-      <DivisionSide label={t('breakdown.division.bottom')} side={behind.denominator} ctx={ctx} openDetail={openDetail} />
+      <DivisionSide label={t('breakdown.division.top')} side={behind.numerator} context={context} openDetail={openDetail} />
+      <DivisionSide label={t('breakdown.division.bottom')} side={behind.denominator} context={context} openDetail={openDetail} />
     </div>
   );
 }
@@ -191,12 +191,12 @@ function Behind({
 function DivisionSide({
   label,
   side,
-  ctx,
+  context,
   openDetail,
 }: {
   label: string;
   side: FigureBreakdown;
-  ctx: ResolveContext;
+  context: ResolveContext;
   openDetail?: (thingId: string) => void;
 }) {
   return (
@@ -205,7 +205,7 @@ function DivisionSide({
         <h4 className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</h4>
         <span className="text-xl font-bold tabular-nums text-zinc-900 dark:text-white">{formatNumber(side.value)}</span>
       </div>
-      <BreakdownView breakdown={side} ctx={ctx} visibleRows={VISIBLE_ROWS_PER_SIDE} openDetail={openDetail} />
+      <BreakdownView breakdown={side} context={context} visibleRows={VISIBLE_ROWS_PER_SIDE} openDetail={openDetail} />
     </section>
   );
 }
@@ -213,13 +213,13 @@ function DivisionSide({
 function ThingsBehind({
   rows,
   measure,
-  ctx,
+  context,
   visibleRows,
   openDetail,
 }: {
   rows: Row[];
   measure: string | null;
-  ctx: ResolveContext;
+  context: ResolveContext;
   visibleRows: number;
   openDetail?: (thingId: string) => void;
 }) {
@@ -241,7 +241,7 @@ function ThingsBehind({
       <DataTable
         columns={columns}
         rows={rows}
-        ctx={ctx}
+        context={context}
         query={query}
         visibleRows={visibleRows}
         sortKey={measure ?? 'name'}

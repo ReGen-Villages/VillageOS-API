@@ -91,8 +91,8 @@ export function NodeReducer({ searchQuery, searchOptions }: Props) {
 
     const matchedNodes = new Set<string>();
     if (searchQuery && labelMatcher) {
-      graph.forEachNode((node, attrs) => {
-        const label = (attrs.label as string) || '';
+      graph.forEachNode((node, attributes) => {
+        const label = (attributes.label as string) || '';
         if (labelMatcher(label)) matchedNodes.add(node);
       });
     }

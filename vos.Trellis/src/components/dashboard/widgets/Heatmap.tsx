@@ -41,7 +41,7 @@ function surfaceOf(): Surface {
   return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
 }
 
-export function Heatmap({ widget, ctx }: { widget: HeatmapWidget; ctx: ResolveContext }) {
+export function Heatmap({ widget, context }: { widget: HeatmapWidget; context: ResolveContext }) {
   const { t, i18n } = useTranslation();
   const [measure, measuredWidth] = useElementWidth();
   const canvas = useRef<HTMLCanvasElement | null>(null);
@@ -49,7 +49,7 @@ export function Heatmap({ widget, ctx }: { widget: HeatmapWidget; ctx: ResolveCo
   const [surface, setSurface] = useState<Surface>(surfaceOf);
 
   const [value, latitude, longitude, offset] = useBindings(
-    [widget.value, widget.sun?.latitude, widget.sun?.longitude, widget.sun?.utcOffsetSeconds], ctx);
+    [widget.value, widget.sun?.latitude, widget.sun?.longitude, widget.sun?.utcOffsetSeconds], context);
   const grid = useMemo(() => gridOf(groupsByKey(value.value)), [value.value]);
   // Fixed once per answer rather than per render: the pointer moving over the grid re-renders the
   // tooltip, and must not walk the cells again or repaint them.

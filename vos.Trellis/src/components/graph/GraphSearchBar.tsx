@@ -5,14 +5,14 @@ interface Props {
   searchQuery: string;
   setSearchQuery: (q: string) => void;
   caseSensitive: boolean;
-  setCaseSensitive: (fn: (prev: boolean) => boolean) => void;
+  setCaseSensitive: (fn: (previous: boolean) => boolean) => void;
   exactMatch: boolean;
-  setExactMatch: (fn: (prev: boolean) => boolean) => void;
+  setExactMatch: (fn: (previous: boolean) => boolean) => void;
   useRegex: boolean;
-  setUseRegex: (fn: (prev: boolean) => boolean) => void;
+  setUseRegex: (fn: (previous: boolean) => boolean) => void;
   matchCount: number;
   showCreateThing: boolean;
-  setShowCreateThing: (fn: (prev: boolean) => boolean) => void;
+  setShowCreateThing: (fn: (previous: boolean) => boolean) => void;
   newThingName: string;
   setNewThingName: (name: string) => void;
   creatingThing: boolean;

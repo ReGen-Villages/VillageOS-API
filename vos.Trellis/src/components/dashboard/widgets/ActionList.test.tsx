@@ -62,7 +62,7 @@ const ADMINISTER: ActionWidget = {
 
 const mockPost = vi.fn();
 const mockWrote = vi.fn();
-const ctx = {
+const context = {
   reads: { fromService: (endpoint: string, body: unknown) => mockPost(endpoint, body) },
   wrote: () => mockWrote(),
 } as unknown as ResolveContext;
@@ -76,7 +76,7 @@ describe('ActionList', () => {
   });
 
   it('tells the page a press was taken, so what the page reads from the broker is read again', async () => {
-    render(<ActionList widget={JUDGE} ctx={ctx} />);
+    render(<ActionList widget={JUDGE} context={context} />);
     fireEvent.click(screen.getByRole('button', { name: 'Potable' }));
 
     await screen.findByText('Verdict recorded for SPRING-1');
@@ -85,7 +85,7 @@ describe('ActionList', () => {
 
   it('tells the page nothing of a press the endpoint refused', async () => {
     mockPost.mockResolvedValueOnce({ error: 'no sample on record' });
-    render(<ActionList widget={JUDGE} ctx={ctx} />);
+    render(<ActionList widget={JUDGE} context={context} />);
     fireEvent.click(screen.getByRole('button', { name: 'Potable' }));
 
     await screen.findByText('no sample on record');
@@ -95,7 +95,7 @@ describe('ActionList', () => {
   it('keeps a row pressable where the acts are repeatable, with the last answer beside it, and posts to a platform route as written', async () => {
     mockRows.mockReturnValue([{ id: 'u1', name: 'ada' }]);
     mockPost.mockResolvedValue({ said: 'ada may now enter Site A' });
-    render(<ActionList widget={ADMINISTER} ctx={ctx} />);
+    render(<ActionList widget={ADMINISTER} context={context} />);
     fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'Ada' } });
     fireEvent.click(screen.getByRole('button', { name: 'Grant' }));
 
@@ -111,14 +111,14 @@ describe('ActionList', () => {
   });
 
   it('offers every choice the spec names, beside what the row shows', () => {
-    render(<ActionList widget={JUDGE} ctx={ctx} />);
+    render(<ActionList widget={JUDGE} context={context} />);
     expect(screen.getByRole('button', { name: 'Potable' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Unfit' })).toBeInTheDocument();
     expect(screen.getByText('12')).toBeInTheDocument();
   });
 
   it('posts the row and the choice to the endpoint the spec names, and nothing naming who asked', async () => {
-    render(<ActionList widget={JUDGE} ctx={ctx} />);
+    render(<ActionList widget={JUDGE} context={context} />);
     fireEvent.click(screen.getByRole('button', { name: 'Potable' }));
 
     await waitFor(() => expect(mockPost).toHaveBeenCalledTimes(1));
@@ -127,7 +127,7 @@ describe('ActionList', () => {
 
   it('shows a refusal in the words the endpoint used, whether it refused with a status or with an answer', async () => {
     mockPost.mockRejectedValueOnce(new ApiError(409, JSON.stringify({ error: 'SPRING-1 was judged an hour ago' })));
-    render(<ActionList widget={JUDGE} ctx={ctx} />);
+    render(<ActionList widget={JUDGE} context={context} />);
     fireEvent.click(screen.getByRole('button', { name: 'Potable' }));
     expect(await screen.findByText('SPRING-1 was judged an hour ago')).toBeInTheDocument();
 
@@ -137,7 +137,7 @@ describe('ActionList', () => {
   });
 
   it('says what the endpoint said once it has taken the press, and offers no second press on the row', async () => {
-    render(<ActionList widget={JUDGE} ctx={ctx} />);
+    render(<ActionList widget={JUDGE} context={context} />);
     fireEvent.click(screen.getByRole('button', { name: 'Potable' }));
 
     expect(await screen.findByText('Verdict recorded for SPRING-1')).toBeInTheDocument();
@@ -145,7 +145,7 @@ describe('ActionList', () => {
   });
 
   it('offers what a row is asked for from the roster the spec names, and waits for it before a press', async () => {
-    render(<ActionList widget={ASSIGN} ctx={ctx} />);
+    render(<ActionList widget={ASSIGN} context={context} />);
     const reader = screen.getByLabelText('Reader');
     expect(screen.getByRole('option', { name: 'Grace' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Assign' })).toBeDisabled();

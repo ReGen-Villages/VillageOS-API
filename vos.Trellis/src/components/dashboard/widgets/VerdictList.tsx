@@ -14,10 +14,10 @@ import { verdictSentence } from './verdictSentence';
  * than filled with a dash: the client has no wording of its own to put there, and a placeholder
  * would read as an answer.
  */
-export function VerdictList({ widget, ctx }: { widget: VerdictWidget; ctx: ResolveContext }) {
+export function VerdictList({ widget, context }: { widget: VerdictWidget; context: ResolveContext }) {
   const results = useBindings(
     widget.rows.map((r) => r.verdicts),
-    ctx,
+    context,
   );
 
   return (

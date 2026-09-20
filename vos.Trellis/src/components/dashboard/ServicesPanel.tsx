@@ -55,36 +55,36 @@ interface ServiceRow {
   deleteThingId?: string;
 }
 
-function fromService(svc: RegisteredService): ServiceRow {
+function fromService(service: RegisteredService): ServiceRow {
   return {
-    key: `svc:${svc.HandlerId}`,
-    name: svc.ServiceName,
+    key: `svc:${service.HandlerId}`,
+    name: service.ServiceName,
     trigger: 'graph',
     routeLabel: 'predicate',
-    requests: svc.Stats.RequestsForwarded,
-    avgMs: svc.Stats.AverageResponseMilliseconds,
-    lastReqUtc: svc.Stats.LastRequestUtc,
-    health: svc.HealthStatus,
-    running: svc.IsRunning,
-    isExternal: svc.IsExternal,
-    processId: svc.ProcessId,
-    lastContactTime: svc.LastContactTime,
-    failureCount: svc.FailureCount,
-    controlId: svc.HandlerId,
+    requests: service.Stats.RequestsForwarded,
+    avgMs: service.Stats.AverageResponseMilliseconds,
+    lastReqUtc: service.Stats.LastRequestUtc,
+    health: service.HealthStatus,
+    running: service.IsRunning,
+    isExternal: service.IsExternal,
+    processId: service.ProcessId,
+    lastContactTime: service.LastContactTime,
+    failureCount: service.FailureCount,
+    controlId: service.HandlerId,
   };
 }
 
-function fromEndpoint(ep: EndpointServiceInfo): ServiceRow {
+function fromEndpoint(effectiveProperty: EndpointServiceInfo): ServiceRow {
   return {
-    key: `ep:${ep.Subdomain}`,
-    name: ep.Name,
+    key: `ep:${effectiveProperty.Subdomain}`,
+    name: effectiveProperty.Name,
     trigger: 'http',
-    routeLabel: `/api/endpoints/${ep.Subdomain}`,
-    requests: ep.Stats.RequestCount,
-    avgMs: ep.Stats.AverageResponseMs,
-    lastReqUtc: ep.Stats.LastRequestUtc,
-    errors: ep.Stats.ErrorCount,
-    deleteThingId: ep.ObjectId,
+    routeLabel: `/api/endpoints/${effectiveProperty.Subdomain}`,
+    requests: effectiveProperty.Stats.RequestCount,
+    avgMs: effectiveProperty.Stats.AverageResponseMs,
+    lastReqUtc: effectiveProperty.Stats.LastRequestUtc,
+    errors: effectiveProperty.Stats.ErrorCount,
+    deleteThingId: effectiveProperty.ObjectId,
   };
 }
 
@@ -174,7 +174,7 @@ export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete, 
               )}
               {row.processId && (
                 <div>
-                  <span className="block text-zinc-400">{t('dashboard.services.pid')}</span>
+                  <span className="block text-zinc-400">{t('dashboard.services.processId')}</span>
                   <span className="font-mono text-zinc-300">{row.processId}</span>
                 </div>
               )}

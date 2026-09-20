@@ -167,11 +167,11 @@ export function buildInstanceTypeIndex(
 ): Map<string, string> {
   const thingNames = new Map(things.map((t) => [t.Id, t.Name]));
   const subjectToType = new Map<string, string>();
-  for (const rel of relationships) {
-    const predName = thingNames.get(rel.PredicateId);
+  for (const relationship of relationships) {
+    const predName = thingNames.get(relationship.PredicateId);
     if (predName?.toLowerCase() !== IS_PREDICATE_NAME) continue;
-    if (!subjectToType.has(rel.SubjectId)) {
-      subjectToType.set(rel.SubjectId, rel.TargetId);
+    if (!subjectToType.has(relationship.SubjectId)) {
+      subjectToType.set(relationship.SubjectId, relationship.TargetId);
     }
   }
   return subjectToType;

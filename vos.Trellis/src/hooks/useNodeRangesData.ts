@@ -62,22 +62,22 @@ export function useNodeRangesData(
           RangeEvaluations: summary.RangeEvaluations,
           OutOfBoundsCount: summary.OutOfBoundsCount,
         });
-        setRelRangesEntries(summary.Relationships.map((rel) => ({
-          relationshipId: rel.RelationshipId,
-          relationshipName: rel.RelationshipName,
-          label: `${rel.SubjectName} → ${rel.PredicateName} → ${rel.TargetName}`,
+        setRelRangesEntries(summary.Relationships.map((relationship) => ({
+          relationshipId: relationship.RelationshipId,
+          relationshipName: relationship.RelationshipName,
+          label: `${relationship.SubjectName} → ${relationship.PredicateName} → ${relationship.TargetName}`,
           rangesData: {
-            ThingId: rel.RelationshipId,
-            ThingName: rel.RelationshipName,
-            OwnRanges: rel.OwnRanges,
+            ThingId: relationship.RelationshipId,
+            ThingName: relationship.RelationshipName,
+            OwnRanges: relationship.OwnRanges,
             InheritedRanges: [],
           },
           statesData: {
-            ThingId: rel.RelationshipId,
-            ThingName: rel.RelationshipName,
-            CurrentStates: rel.CurrentStates,
-            RangeEvaluations: rel.RangeEvaluations,
-            OutOfBoundsCount: rel.OutOfBoundsCount,
+            ThingId: relationship.RelationshipId,
+            ThingName: relationship.RelationshipName,
+            CurrentStates: relationship.CurrentStates,
+            RangeEvaluations: relationship.RangeEvaluations,
+            OutOfBoundsCount: relationship.OutOfBoundsCount,
           },
         })));
       } catch {

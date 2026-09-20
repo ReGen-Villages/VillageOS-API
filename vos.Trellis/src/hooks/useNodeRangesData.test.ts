@@ -11,7 +11,7 @@ const mockGetSummary = vi.fn();
 
 vi.mock('../api/rangeApi', () => ({
   rangeApi: {
-    getSummary: (...args: unknown[]) => mockGetSummary(...args),
+    getSummary: (...callArguments: unknown[]) => mockGetSummary(...callArguments),
   },
 }));
 

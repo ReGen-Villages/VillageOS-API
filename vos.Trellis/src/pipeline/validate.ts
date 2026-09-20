@@ -35,8 +35,8 @@ const key = (nodeId: string, port: string) => `${nodeId} ${port}`;
 export function validatePipeline(nodes: ValNode[], edges: ValEdge[]): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const byId = new Map(nodes.map((n) => [n.id, n]));
-  const hasPort = (n: ValNode, name: string, dir: 'in' | 'out') =>
-    n.ports.some((p) => p.portName === name && p.direction === dir);
+  const hasPort = (n: ValNode, name: string, direction: 'in' | 'out') =>
+    n.ports.some((p) => p.portName === name && p.direction === direction);
 
   // A wire is dangling if either endpoint node, or the named port on it, no longer exists. Only
   // well-formed wires count toward satisfying a required input.

@@ -10,8 +10,8 @@ import { toast } from '../components/common/toastStore';
 /** Live tail of the Mycelium broker log — or a service daemon's log when ?service=<key> is set.
  *  Keyed by service so switching sources remounts the view with fresh state. */
 export function LogPage() {
-  const [params] = useSearchParams();
-  const service = params.get('service') ?? undefined;
+  const [parameters] = useSearchParams();
+  const service = parameters.get('service') ?? undefined;
   return <LogView key={service ?? 'broker'} service={service} />;
 }
 

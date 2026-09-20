@@ -6,7 +6,7 @@ import { useModelStore } from '../stores/modelStore';
 const mockGetAllProperties = vi.fn();
 
 vi.mock('../api/thingApi', () => ({
-  thingApi: { getAllProperties: (...args: unknown[]) => mockGetAllProperties(...args) },
+  thingApi: { getAllProperties: (...callArguments: unknown[]) => mockGetAllProperties(...callArguments) },
 }));
 
 const doorNumber = { 'thing-1': { door_number: { Value: '4711', Type: 'vos.String', IsInherited: false } } };

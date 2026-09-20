@@ -50,8 +50,8 @@ describe('clearFixedFlags', () => {
     const graph = makeGraph();
     applyClusterFixedFlags(graph, new Set(['a']));
     clearFixedFlags(graph);
-    graph.forEachNode((_node, attrs) => {
-      expect(attrs.fixed).toBe(false);
+    graph.forEachNode((_node, attributes) => {
+      expect(attributes.fixed).toBe(false);
     });
   });
 });

@@ -36,12 +36,12 @@ function yearTicks(keys: string[]): { at: number; label: string }[] {
   return ticks;
 }
 
-export function LineSeries({ widget, ctx }: { widget: LineSeriesWidget; ctx: ResolveContext }) {
+export function LineSeries({ widget, context }: { widget: LineSeriesWidget; context: ResolveContext }) {
   const { t } = useTranslation();
   const [measure, measuredWidth] = useElementWidth();
   const [active, setActive] = useState<number | null>(null);
 
-  const resolved = useBindings(widget.series.map((entry) => entry.value), ctx);
+  const resolved = useBindings(widget.series.map((entry) => entry.value), context);
   const series = widget.series
     .map((entry, at) => ({ label: entry.label, slot: at + 1, groups: groupsByKey(resolved[at]?.value ?? null) }))
     .filter((entry) => entry.groups.size > 0 && entry.slot <= PALETTE_SLOTS);

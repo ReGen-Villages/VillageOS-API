@@ -4,7 +4,7 @@ interface LoadingOverlayProps {
 }
 
 export function LoadingOverlay({ stage, progress }: LoadingOverlayProps) {
-  const pct = Math.round(Math.min(Math.max(progress, 0), 1) * 100);
+  const percent = Math.round(Math.min(Math.max(progress, 0), 1) * 100);
   return (
     <div
       role="status"
@@ -19,11 +19,11 @@ export function LoadingOverlay({ stage, progress }: LoadingOverlayProps) {
         <div className="w-full h-2 rounded bg-zinc-800 overflow-hidden">
           <div
             className="h-full bg-blue-500 transition-all"
-            style={{ width: `${pct}%` }}
+            style={{ width: `${percent}%` }}
             data-testid="fragments-loading-bar"
           />
         </div>
-        <p className="text-xs text-zinc-500 mt-2">{pct}%</p>
+        <p className="text-xs text-zinc-500 mt-2">{percent}%</p>
       </div>
     </div>
   );

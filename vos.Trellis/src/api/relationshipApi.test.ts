@@ -42,9 +42,9 @@ describe('relationshipApi.getAll', () => {
 describe('relationshipApi.get', () => {
   it('gets a single relationship from the id URL', async () => {
     mockGet.mockResolvedValue({ Id: 'rel-123', Name: 'is', SubjectId: 's1', PredicateId: 'p1', TargetId: 't1', Properties: {} });
-    const rel = await relationshipApi.get('rel-123');
+    const relationship = await relationshipApi.get('rel-123');
     expect(mockGet).toHaveBeenCalledWith('/api/relationships/rel-123', undefined);
-    expect(rel.Id).toBe('rel-123');
+    expect(relationship.Id).toBe('rel-123');
   });
 
   it("passes the caller's abort signal down to the request", async () => {

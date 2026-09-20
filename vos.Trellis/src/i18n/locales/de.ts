@@ -138,7 +138,7 @@ export const de: PartialResources = {
         '„{{name}}“ aus dem Modell zurückziehen? Dadurch wird die Verbindung entfernt, sodass Mycelium nicht mehr dorthin leitet. Sie bleibt im Seed erhalten, ein Neuladen des Seeds stellt sie wieder her. Um nur den Prozess zu stoppen, verwenden Sie stattdessen „Stoppen“.',
       confirm: 'Löschen',
     },
-    stats: {
+    statistics: {
       title: 'Modellstatistik',
       things: 'Dinge',
       relationships: 'Beziehungen',
@@ -161,7 +161,7 @@ export const de: PartialResources = {
       errors: 'Fehler',
       lastReq: 'Letzte Anfrage',
       lastContact: 'Letzter Kontakt',
-      pid: 'PID',
+      processId: 'PID',
       failures: 'Fehler: {{count}}',
       health: {
         Healthy: 'Gesund',
@@ -189,7 +189,7 @@ export const de: PartialResources = {
       pausedBuffered_other: 'Pausiert — {{count}} neue Ereignisse gepuffert',
       filterPlaceholder: 'Ereignisse filtern…',
       none: 'Noch keine Aktivität',
-      category: { model: 'Modell', things: 'Dinge', rels: 'Bez.', props: 'Eig.', services: 'Dienste' },
+      category: { model: 'Modell', things: 'Dinge', relationships: 'Bez.', props: 'Eig.', services: 'Dienste' },
     },
   },
   graph: {
@@ -264,7 +264,7 @@ export const de: PartialResources = {
       noMatch: 'Keine passenden Prädikate.',
     },
   },
-  auth: {
+  authentication: {
     loadSeed: 'Einen Seed laden',
     searchSeeds: 'Seeds suchen…',
     colName: 'Name',
@@ -639,7 +639,7 @@ export const de: PartialResources = {
       renamed: "Umbenannt",
       renameFailed: "Umbenennen fehlgeschlagen",
     },
-    rel: {
+    relationship: {
       openEdgeDetail: "Kantendetails öffnen",
       outgoing: "Ausgehend",
       incoming: "Eingehend",
@@ -710,7 +710,7 @@ export const de: PartialResources = {
     runHistory: "Ausführungsverlauf",
     unsavedChanges: "ungespeicherte Änderungen",
     saved: "gespeichert",
-    params: "Parameter",
+    parameters: "Parameter",
     closeInspector: "Inspektor schließen",
     ports: "Ports ({{direction}}):",
     outputs: "Ausgänge",

@@ -138,7 +138,7 @@ export const it: PartialResources = {
         'Ritirare «{{name}}» dal modello? Questo rimuove la connessione così che Mycelium non vi instradi più. Rimane nel seed, quindi un ricaricamento del seed la ripristina. Per arrestare solo il processo, usa Arresta.',
       confirm: 'Elimina',
     },
-    stats: {
+    statistics: {
       title: 'Statistiche del modello',
       things: 'Cose',
       relationships: 'Relazioni',
@@ -161,7 +161,7 @@ export const it: PartialResources = {
       errors: 'Errori',
       lastReq: 'Ultima richiesta',
       lastContact: 'Ultimo contatto',
-      pid: 'PID',
+      processId: 'PID',
       failures: 'Errori: {{count}}',
       health: {
         Healthy: 'Integro',
@@ -189,7 +189,7 @@ export const it: PartialResources = {
       pausedBuffered_other: 'In pausa — {{count}} nuovi eventi in buffer',
       filterPlaceholder: 'Filtra eventi…',
       none: 'Ancora nessuna attività',
-      category: { model: 'Modello', things: 'Cose', rels: 'Rel.', props: 'Prop.', services: 'Servizi' },
+      category: { model: 'Modello', things: 'Cose', relationships: 'Rel.', props: 'Prop.', services: 'Servizi' },
     },
   },
   graph: {
@@ -264,7 +264,7 @@ export const it: PartialResources = {
       noMatch: 'Nessun predicato corrispondente.',
     },
   },
-  auth: {
+  authentication: {
     loadSeed: 'Carica un seed',
     searchSeeds: 'Cerca seed…',
     colName: 'Nome',
@@ -639,7 +639,7 @@ export const it: PartialResources = {
       renamed: "Rinominato",
       renameFailed: "Ridenominazione non riuscita",
     },
-    rel: {
+    relationship: {
       openEdgeDetail: "Apri dettaglio arco",
       outgoing: "In uscita",
       incoming: "In entrata",
@@ -710,7 +710,7 @@ export const it: PartialResources = {
     runHistory: "Cronologia esecuzioni",
     unsavedChanges: "modifiche non salvate",
     saved: "salvato",
-    params: "Parametri",
+    parameters: "Parametri",
     closeInspector: "Chiudi ispettore",
     ports: "Porte ({{direction}}):",
     outputs: "uscite",

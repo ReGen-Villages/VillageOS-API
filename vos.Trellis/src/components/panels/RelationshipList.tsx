@@ -26,10 +26,10 @@ export function RelationshipList({ relationships, direction, allThings, onSelect
   return (
     <div>
       <h4 className="text-xs font-semibold text-zinc-500 mb-1">
-        {direction === 'outgoing' ? t('panels.rel.outgoing') : t('panels.rel.incoming')} ({relationships.length})
+        {direction === 'outgoing' ? t('panels.relationship.outgoing') : t('panels.relationship.incoming')} ({relationships.length})
       </h4>
       {relationships.map((r) => {
-        const pred = allThings.get(r.PredicateId);
+        const predicate = allThings.get(r.PredicateId);
         const other = allThings.get(direction === 'outgoing' ? r.TargetId : r.SubjectId);
         const otherId = direction === 'outgoing' ? r.TargetId : r.SubjectId;
         const relProps = r.Properties ? Object.entries(r.Properties) : [];
@@ -40,8 +40,8 @@ export function RelationshipList({ relationships, direction, allThings, onSelect
             <div className="flex items-center py-1 text-xs hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded px-1">
               {relProps.length > 0 && (
                 <button
-                  onClick={() => setExpandedIds((prev) => {
-                    const next = new Set(prev);
+                  onClick={() => setExpandedIds((previous) => {
+                    const next = new Set(previous);
                     if (next.has(r.Id)) next.delete(r.Id); else next.add(r.Id);
                     return next;
                   })}
@@ -56,7 +56,7 @@ export function RelationshipList({ relationships, direction, allThings, onSelect
                 </button>
               )}
               {direction === 'incoming' && <span className="mx-1">{' → '}</span>}
-              <span className="text-blue-400">{pred?.Name || formatGuid(r.PredicateId)}</span>
+              <span className="text-blue-400">{predicate?.Name || formatGuid(r.PredicateId)}</span>
               {direction === 'outgoing' && <span className="mx-1">{' → '}</span>}
               {direction === 'outgoing' && (
                 <button onClick={() => onSelectNode(otherId)} className="text-emerald-400 hover:underline truncate">
@@ -67,7 +67,7 @@ export function RelationshipList({ relationships, direction, allThings, onSelect
                 <button
                   onClick={() => onSelectEdge(r.Id)}
                   className="ml-auto pl-1 text-zinc-500 hover:text-blue-400 shrink-0"
-                  title={t('panels.rel.openEdgeDetail')}
+                  title={t('panels.relationship.openEdgeDetail')}
                 >
                   <ExternalLink size={10} />
                 </button>

@@ -62,7 +62,7 @@ export function useLogTail(service?: string): { lines: string[]; connected: bool
           } catch {
             line = e.data;
           }
-          setLines((prev) => appendLines(prev, [line]));
+          setLines((previous) => appendLines(previous, [line]));
         });
         sourceRef.current = es;
       } catch {

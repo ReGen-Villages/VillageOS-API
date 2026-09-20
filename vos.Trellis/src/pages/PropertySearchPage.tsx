@@ -19,13 +19,13 @@ const PAGE_SIZE = 100;
 
 /** Return a ReactNode with the first occurrence of `query` highlighted in yellow. */
 function highlightMatch(text: string, query: string) {
-  const idx = text.toLowerCase().indexOf(query.toLowerCase());
-  if (idx === -1) return text;
+  const index = text.toLowerCase().indexOf(query.toLowerCase());
+  if (index === -1) return text;
   return (
     <>
-      {text.slice(0, idx)}
-      <span className="bg-amber-500/30 text-amber-200 rounded px-0.5">{text.slice(idx, idx + query.length)}</span>
-      {text.slice(idx + query.length)}
+      {text.slice(0, index)}
+      <span className="bg-amber-500/30 text-amber-200 rounded px-0.5">{text.slice(index, index + query.length)}</span>
+      {text.slice(index + query.length)}
     </>
   );
 }
@@ -132,8 +132,8 @@ export function PropertySearchPage() {
         const type = m.ownerType === 'thing' ? 'Thing' : 'Rel';
         const owner = m.ownerType === 'thing' ? m.ownerName : (m.ownerDetail ?? m.ownerName);
         const via = m.inheritedFrom ?? '';
-        const val = formatPropertyValue(m.value, m.declaredType, numbers).replace(/\|/g, '\\|');
-        lines.push(`| ${type} | ${owner} | ${via} | ${val} |`);
+        const value = formatPropertyValue(m.value, m.declaredType, numbers).replace(/\|/g, '\\|');
+        lines.push(`| ${type} | ${owner} | ${via} | ${value} |`);
       }
       lines.push('');
     }

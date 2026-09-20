@@ -10,9 +10,9 @@ import { ar } from './locales/ar';
 /** Every leaf key path in an object, with i18next plural suffixes stripped so a
  *  `_one` / `_other` pair collapses to its base key. A locale is at parity when it
  *  supplies every base key the English source does. */
-function baseKeys(obj: unknown, prefix = ''): Set<string> {
+function baseKeys(object: unknown, prefix = ''): Set<string> {
   const out = new Set<string>();
-  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+  for (const [key, value] of Object.entries(object as Record<string, unknown>)) {
     const path = prefix ? `${prefix}.${key}` : key;
     if (value !== null && typeof value === 'object') {
       for (const k of baseKeys(value, path)) out.add(k);

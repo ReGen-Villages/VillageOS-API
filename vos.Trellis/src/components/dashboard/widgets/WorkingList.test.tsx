@@ -40,7 +40,7 @@ describe('WorkingList', () => {
       { formula: 'generated / consumed * 100', term: 'consumed', value: 4000 },
     ]);
 
-    render(<WorkingList widget={widgetShowing('Energy')} ctx={anyContext} />);
+    render(<WorkingList widget={widgetShowing('Energy')} context={anyContext} />);
 
     expect(screen.getByText('generated / consumed * 100')).toBeTruthy();
     expect(screen.getByText('generated')).toBeTruthy();
@@ -56,7 +56,7 @@ describe('WorkingList', () => {
     resolved.set('property', 42);
     resolved.set('working', []);
 
-    render(<WorkingList widget={widgetShowing('Food')} ctx={anyContext} />);
+    render(<WorkingList widget={widgetShowing('Food')} context={anyContext} />);
 
     expect(screen.getByText('widgets.working.notDerived')).toBeTruthy();
     expect(screen.queryByText(/\//)).toBeNull();
@@ -68,7 +68,7 @@ describe('WorkingList', () => {
     resolved.set('property', 13500);
     resolved.set('working', [{ formula: null, term: 'areaM2', memberArchetype: 'SolarArray' }]);
 
-    render(<WorkingList widget={widgetShowing('Array area')} ctx={anyContext} />);
+    render(<WorkingList widget={widgetShowing('Array area')} context={anyContext} />);
 
     expect(screen.getByText('areaM2')).toBeTruthy();
     expect(screen.queryByText('widgets.working.notDerived')).toBeNull();
@@ -81,7 +81,7 @@ describe('WorkingList', () => {
     resolved.set('property', 13500);
     resolved.set('working', [{ formula: null, term: 'areaM2', memberArchetype: 'SolarArray' }]);
 
-    render(<WorkingList widget={widgetShowing('Array area')} ctx={anyContext} />);
+    render(<WorkingList widget={widgetShowing('Array area')} context={anyContext} />);
 
     expect(screen.getByText('SolarArray')).toBeTruthy();
     expect(screen.queryByText('—')).toBeNull();
@@ -92,7 +92,7 @@ describe('WorkingList', () => {
   it('says nothing about a figure while its bindings are still resolving', () => {
     stillResolving.value = true;
     try {
-      render(<WorkingList widget={widgetShowing('Energy')} ctx={anyContext} />);
+      render(<WorkingList widget={widgetShowing('Energy')} context={anyContext} />);
       expect(screen.queryByText('widgets.working.notDerived')).toBeNull();
     } finally {
       stillResolving.value = false;
@@ -109,7 +109,7 @@ describe('WorkingList', () => {
       { formula: 'produced / used * 100', term: 'produced', value: 900 },
     ]);
 
-    render(<WorkingList widget={widgetShowing('Energy')} ctx={anyContext} />);
+    render(<WorkingList widget={widgetShowing('Energy')} context={anyContext} />);
 
     expect(screen.getByText('generated / consumed * 100')).toBeTruthy();
     expect(screen.getByText('produced / used * 100')).toBeTruthy();

@@ -245,11 +245,11 @@ describe('unwrapRelationship', () => {
   };
 
   it('unwraps relationship properties', () => {
-    const rel: VosRelationship = {
+    const relationship: VosRelationship = {
       ...baseRel,
       Properties: { weight: { typeInfo: 'vos.Double', value: 0.5 } },
     };
-    const result = unwrapRelationship(rel);
+    const result = unwrapRelationship(relationship);
     expect(result.Properties).toEqual({ weight: 0.5 });
   });
 

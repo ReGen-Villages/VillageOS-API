@@ -138,7 +138,7 @@ export const fr: PartialResources = {
         'Retirer « {{name}} » du modèle ? Cela supprime la connexion pour que Mycelium n’y achemine plus rien. Elle reste dans le seed, un rechargement du seed la restaure donc. Pour arrêter seulement le processus, utilisez Arrêter.',
       confirm: 'Supprimer',
     },
-    stats: {
+    statistics: {
       title: 'Statistiques du modèle',
       things: 'Choses',
       relationships: 'Relations',
@@ -161,7 +161,7 @@ export const fr: PartialResources = {
       errors: 'Erreurs',
       lastReq: 'Dernière requête',
       lastContact: 'Dernier contact',
-      pid: 'PID',
+      processId: 'PID',
       failures: 'Échecs : {{count}}',
       health: {
         Healthy: 'Sain',
@@ -189,7 +189,7 @@ export const fr: PartialResources = {
       pausedBuffered_other: 'En pause — {{count}} nouveaux évènements en mémoire',
       filterPlaceholder: 'Filtrer les évènements…',
       none: 'Aucune activité pour l’instant',
-      category: { model: 'Modèle', things: 'Choses', rels: 'Rel.', props: 'Prop.', services: 'Services' },
+      category: { model: 'Modèle', things: 'Choses', relationships: 'Rel.', props: 'Prop.', services: 'Services' },
     },
   },
   graph: {
@@ -264,7 +264,7 @@ export const fr: PartialResources = {
       noMatch: 'Aucun prédicat correspondant.',
     },
   },
-  auth: {
+  authentication: {
     loadSeed: 'Charger un seed',
     searchSeeds: 'Rechercher des seeds…',
     colName: 'Nom',
@@ -639,7 +639,7 @@ export const fr: PartialResources = {
       renamed: "Renommé",
       renameFailed: "Échec du renommage",
     },
-    rel: {
+    relationship: {
       openEdgeDetail: "Ouvrir le détail de l'arête",
       outgoing: "Sortantes",
       incoming: "Entrantes",
@@ -710,7 +710,7 @@ export const fr: PartialResources = {
     runHistory: "Historique des exécutions",
     unsavedChanges: "modifications non enregistrées",
     saved: "enregistré",
-    params: "Paramètres",
+    parameters: "Paramètres",
     closeInspector: "Fermer l'inspecteur",
     ports: "Ports ({{direction}}) :",
     outputs: "sorties",

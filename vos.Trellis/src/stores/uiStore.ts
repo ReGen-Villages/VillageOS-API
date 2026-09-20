@@ -145,7 +145,7 @@ interface UiState {
   nodeContextMenuOpen: boolean;
   nodeContextMenuPosition: { x: number; y: number } | null;
   nodeContextMenuNodeId: string | null;
-  openNodeContextMenu: (opts: { nodeId: string; position: { x: number; y: number } }) => void;
+  openNodeContextMenu: (options: { nodeId: string; position: { x: number; y: number } }) => void;
   closeNodeContextMenu: () => void;
 
   // ── Layout freeze ────────────────────────────────────────────────
@@ -178,7 +178,7 @@ interface UiState {
   clearPredicateIds: () => void;
   setPredicateIds: (ids: Set<string>) => void;
   setClusterMap: (map: ClusterMap | null) => void;
-  setPredicateStats: (stats: PredicateStats[]) => void;
+  setPredicateStats: (statistics: PredicateStats[]) => void;
   toggleClusterCollapsed: (clusterIndex: number) => void;
   toggleNodeExpanded: (nodeId: string) => void;
   openRadialMenu: (position: { x: number; y: number }) => void;
@@ -376,7 +376,7 @@ export const useUiStore = create<UiState>((set) => ({
     }),
 
   setClusterMap: (map) => set({ clusterMap: map }),
-  setPredicateStats: (stats) => set({ predicateStats: stats }),
+  setPredicateStats: (statistics) => set({ predicateStats: statistics }),
 
   toggleClusterCollapsed: (clusterIndex) =>
     set((state) => {

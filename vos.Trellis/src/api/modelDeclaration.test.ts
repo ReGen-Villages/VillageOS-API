@@ -6,7 +6,7 @@ import { edgesFrom, kindsOffered, propertiesOf, statesOf } from './modelDeclarat
 function thing(Id: string, Name: string, Properties: Record<string, unknown> = {}, IsArchetype = false): VosThing {
   return { Id, Name, Properties, IsArchetype };
 }
-function rel(Id: string, SubjectId: string, PredicateId: string, TargetId: string): VosRelationship {
+function relationship(Id: string, SubjectId: string, PredicateId: string, TargetId: string): VosRelationship {
   return { Id, SubjectId, PredicateId, TargetId, Properties: {} };
 }
 
@@ -33,15 +33,15 @@ function site() {
       thing('c1', 'CATCHMENT-1'),
     ],
     [
-      rel('i1', 'spring', 'is', 'source'),
-      rel('i2', 'source', 'is', 'feature'),
-      rel('i3', 's1', 'is', 'spring'),
-      rel('i4', 's2', 'is', 'spring'),
-      rel('i5', 'r1', 'is', 'reservoir'),
-      rel('i6', 'c1', 'is', 'catchment'),
-      rel('e1', 's1', 'feeds', 'r1'),
-      rel('e2', 's2', 'feeds', 'r1'),
-      rel('e3', 'c1', 'within', 's1'),
+      relationship('i1', 'spring', 'is', 'source'),
+      relationship('i2', 'source', 'is', 'feature'),
+      relationship('i3', 's1', 'is', 'spring'),
+      relationship('i4', 's2', 'is', 'spring'),
+      relationship('i5', 'r1', 'is', 'reservoir'),
+      relationship('i6', 'c1', 'is', 'catchment'),
+      relationship('e1', 's1', 'feeds', 'r1'),
+      relationship('e2', 's2', 'feeds', 'r1'),
+      relationship('e3', 'c1', 'within', 's1'),
     ],
   );
 }

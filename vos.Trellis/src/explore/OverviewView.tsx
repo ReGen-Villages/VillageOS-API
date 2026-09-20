@@ -22,7 +22,7 @@ const WIDE = 720;
 
 export function OverviewView({
   tabs,
-  ctx,
+  context,
   sources,
   centre,
   zoom,
@@ -30,7 +30,7 @@ export function OverviewView({
   onClose,
 }: {
   tabs: DashboardSection[];
-  ctx: ResolveContext;
+  context: ResolveContext;
   sources: BasemapSource[];
   centre: BoundaryPoint;
   zoom: number;
@@ -108,7 +108,7 @@ export function OverviewView({
           {active !== undefined && (
             <DashboardSections
               sections={[active]}
-              ctx={ctx}
+              context={context}
               isWide={width >= WIDE}
               whenEmpty={null}
             />

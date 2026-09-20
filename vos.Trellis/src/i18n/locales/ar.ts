@@ -236,7 +236,7 @@ export const ar: PartialResources & ArabicPlurals = {
         'سحب «{{name}}» من النموذج؟ يؤدي هذا إلى إزالة الاتصال بحيث لا يوجّه Mycelium إليه بعد الآن. يبقى في الـ seed، لذا فإن إعادة تحميل الـ seed تستعيده. لإيقاف العملية فقط، استخدم إيقاف بدلاً من ذلك.',
       confirm: 'حذف',
     },
-    stats: {
+    statistics: {
       title: 'إحصاءات النموذج',
       things: 'الأشياء',
       relationships: 'العلاقات',
@@ -259,7 +259,7 @@ export const ar: PartialResources & ArabicPlurals = {
       errors: 'الأخطاء',
       lastReq: 'آخر طلب',
       lastContact: 'آخر اتصال',
-      pid: 'المعرّف',
+      processId: 'المعرّف',
       failures: 'حالات الفشل: {{count}}',
       health: {
         Healthy: 'سليم',
@@ -287,7 +287,7 @@ export const ar: PartialResources & ArabicPlurals = {
       pausedBuffered_other: 'متوقّف مؤقتًا — {{count}} أحداث جديدة في المخزن المؤقت',
       filterPlaceholder: 'تصفية الأحداث…',
       none: 'لا يوجد نشاط بعد',
-      category: { model: 'النموذج', things: 'الأشياء', rels: 'العلاقات', props: 'الخصائص', services: 'الخدمات' },
+      category: { model: 'النموذج', things: 'الأشياء', relationships: 'العلاقات', props: 'الخصائص', services: 'الخدمات' },
     },
   },
   graph: {
@@ -362,7 +362,7 @@ export const ar: PartialResources & ArabicPlurals = {
       noMatch: 'لا توجد مسندات مطابقة.',
     },
   },
-  auth: {
+  authentication: {
     loadSeed: 'تحميل seed',
     searchSeeds: 'البحث عن seeds…',
     colName: 'الاسم',
@@ -773,7 +773,7 @@ export const ar: PartialResources & ArabicPlurals = {
       renamed: "تمت إعادة التسمية",
       renameFailed: "تعذّرت إعادة التسمية",
     },
-    rel: {
+    relationship: {
       openEdgeDetail: "فتح تفاصيل الحافة",
       outgoing: "صادرة",
       incoming: "واردة",
@@ -852,7 +852,7 @@ export const ar: PartialResources & ArabicPlurals = {
     runHistory: "سجل التشغيل",
     unsavedChanges: "تغييرات غير محفوظة",
     saved: "محفوظ",
-    params: "المعاملات",
+    parameters: "المعاملات",
     closeInspector: "إغلاق المفتّش",
     ports: "المنافذ ({{direction}}):",
     outputs: "المخرجات",

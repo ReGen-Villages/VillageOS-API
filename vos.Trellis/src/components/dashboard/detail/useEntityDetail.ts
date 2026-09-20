@@ -50,32 +50,32 @@ export interface EntityDetail {
  *  is taken promptly, then further changes wait out the window. Unlike a debounce this always
  *  makes progress — a continuously-changing value resets a debounce forever, which here would
  *  silently freeze the window's contents for as long as the model kept changing. */
-function useThrottled(value: number, ms: number): number {
+function useThrottled(value: number, milliseconds: number): number {
   const [throttled, setThrottled] = useState(value);
   const lastRun = useRef(0);
 
   useEffect(() => {
     if (value === throttled) return;
-    const wait = Math.max(0, ms - (Date.now() - lastRun.current));
+    const wait = Math.max(0, milliseconds - (Date.now() - lastRun.current));
     const timer = setTimeout(() => {
       lastRun.current = Date.now();
       setThrottled(value);
     }, wait);
     return () => clearTimeout(timer);
-  }, [value, throttled, ms]);
+  }, [value, throttled, milliseconds]);
 
   return throttled;
 }
 
 export function useEntityDetail(
-  idx: ModelIndex,
+  modelIndex: ModelIndex,
   thingId: string,
   detail: DetailSpec | undefined,
   nonce = 0,
 ): EntityDetail {
-  const relations = useMemo(() => resolveRelations(thingId, idx, detail?.relations), [thingId, idx, detail]);
+  const relations = useMemo(() => resolveRelations(thingId, modelIndex, detail?.relations), [thingId, modelIndex, detail]);
   const statesById = useThingStates();
-  const serviceEdges = useMemo(() => serviceEdgesOn(thingId, idx).slice(0, MAX_RELATED), [thingId, idx]);
+  const serviceEdges = useMemo(() => serviceEdgesOn(thingId, modelIndex).slice(0, MAX_RELATED), [thingId, modelIndex]);
 
   const historyEnabled = detail?.history?.enabled !== false;
   const refreshTick = useThrottled(nonce, REFRESH_THROTTLE_MS);
@@ -131,7 +131,7 @@ export function useEntityDetail(
 
   return {
     loading: resolved.key !== requestKey,
-    root: idx.byId.get(thingId),
+    root: modelIndex.byId.get(thingId),
     relations,
     statesById,
     stateChanges: resolved.stateChanges,

@@ -32,20 +32,20 @@ export interface ResolvedRelation {
 }
 
 /** Archetype name for each Thing, from its direct `is`-edge. First writer wins. */
-function archetypeNames(idx: ModelIndex): Map<string, string> {
-  const isId = idx.predicateNameToId.get(IS_PREDICATE);
+function archetypeNames(index: ModelIndex): Map<string, string> {
+  const isId = index.predicateNameToId.get(IS_PREDICATE);
   const names = new Map<string, string>();
   if (!isId) return names;
-  for (const rel of idx.relationships) {
-    if (rel.PredicateId !== isId || names.has(rel.SubjectId)) continue;
-    names.set(rel.SubjectId, idx.byId.get(rel.TargetId)?.Name ?? rel.TargetId);
+  for (const relationship of index.relationships) {
+    if (relationship.PredicateId !== isId || names.has(relationship.SubjectId)) continue;
+    names.set(relationship.SubjectId, index.byId.get(relationship.TargetId)?.Name ?? relationship.TargetId);
   }
   return names;
 }
 
-function selectProperties(thing: VosThing, which: RelationSpec['properties'], idx: ModelIndex): [string, unknown][] {
+function selectProperties(thing: VosThing, which: RelationSpec['properties'], index: ModelIndex): [string, unknown][] {
   if (!which) return [];
-  const props = effectiveProperties(thing, idx);
+  const props = effectiveProperties(thing, index);
   if (which === '*') return Object.entries(props);
   return which.filter((key) => key in props).map((key) => [key, props[key]] as const);
 }
@@ -58,37 +58,37 @@ function selectProperties(thing: VosThing, which: RelationSpec['properties'], id
  */
 export function resolveRelations(
   rootId: string,
-  idx: ModelIndex,
+  index: ModelIndex,
   specs: RelationSpec[] | undefined,
 ): ResolvedRelation[] {
   if (!specs?.length) return [];
-  const archetypeOf = archetypeNames(idx);
+  const archetypeOf = archetypeNames(index);
 
   const walk = (anchorId: string, relationSpecs: RelationSpec[], visited: Set<string>): ResolvedRelation[] => {
-    const anchorName = idx.byId.get(anchorId)?.Name ?? anchorId;
+    const anchorName = index.byId.get(anchorId)?.Name ?? anchorId;
 
     return relationSpecs.map((spec) => {
       const direction = spec.direction ?? 'out';
-      const predicateId = idx.predicateNameToId.get(spec.predicate);
+      const predicateId = index.predicateNameToId.get(spec.predicate);
       const inlineSpecs = spec.relations?.filter((child) => child.inline) ?? [];
       const nestedSpecs = spec.relations?.filter((child) => !child.inline) ?? [];
       const edges: ResolvedEdge[] = [];
 
       if (predicateId) {
-        for (const rel of idx.relationships) {
-          if (rel.PredicateId !== predicateId) continue;
+        for (const relationship of index.relationships) {
+          if (relationship.PredicateId !== predicateId) continue;
           const relatedId =
             direction === 'out'
-              ? rel.SubjectId === anchorId
-                ? rel.TargetId
+              ? relationship.SubjectId === anchorId
+                ? relationship.TargetId
                 : null
-              : rel.TargetId === anchorId
-                ? rel.SubjectId
+              : relationship.TargetId === anchorId
+                ? relationship.SubjectId
                 : null;
           if (!relatedId || visited.has(relatedId)) continue;
           if (spec.archetype && archetypeOf.get(relatedId) !== spec.archetype) continue;
 
-          const related = idx.byId.get(relatedId);
+          const related = index.byId.get(relatedId);
           const relatedName = related?.Name ?? relatedId;
           const nextVisited = new Set(visited).add(relatedId);
 
@@ -102,7 +102,7 @@ export function resolveRelations(
             subjectName: direction === 'out' ? anchorName : relatedName,
             targetName: direction === 'out' ? relatedName : anchorName,
             relatedName,
-            properties: [...hoisted, ...(related ? selectProperties(related, spec.properties, idx) : [])],
+            properties: [...hoisted, ...(related ? selectProperties(related, spec.properties, index) : [])],
             children: nestedSpecs.length ? walk(relatedId, nestedSpecs, nextVisited) : [],
           });
         }

@@ -20,21 +20,21 @@ class ApiClient {
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private onUserUpdated: ((user: AuthUser) => void) | null = null;
 
-  setUserUpdatedCallback(cb: (user: AuthUser) => void) {
-    this.onUserUpdated = cb;
+  setUserUpdatedCallback(callback: (user: AuthUser) => void) {
+    this.onUserUpdated = callback;
   }
 
-  setAuthRequiredCallback(cb: () => void) {
-    this.onAuthRequired = cb;
+  setAuthRequiredCallback(callback: () => void) {
+    this.onAuthRequired = callback;
   }
 
   async fetchModels(): Promise<ModelSummary[]> {
-    const resp = await fetch(`${BASE_URL}/api/models`, {
+    const response = await fetch(`${BASE_URL}/api/models`, {
       headers: await this.headers(),
       credentials: 'include',
     });
-    if (!resp.ok) throw new ApiError(resp.status, await resp.text());
-    return resp.json();
+    if (!response.ok) throw new ApiError(response.status, await response.text());
+    return response.json();
   }
 
   private applyTokenResponse(data: { token: string; user: AuthUser; model?: { Id: string; Name: string } }) {
@@ -52,17 +52,17 @@ class ApiClient {
     const body: Record<string, string> = { Username: username, Password: password };
     if (modelId) body.ModelId = modelId;
 
-    const resp = await fetch(`${BASE_URL}/api/auth/login`, {
+    const response = await fetch(`${BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify(body),
     });
-    if (!resp.ok) {
-      const text = await resp.text();
-      throw new ApiError(resp.status, text);
+    if (!response.ok) {
+      const text = await response.text();
+      throw new ApiError(response.status, text);
     }
-    const data = await resp.json();
+    const data = await response.json();
     this.applyTokenResponse(data);
     return this.currentUser!;
   }
@@ -70,11 +70,11 @@ class ApiClient {
   /** Restore in-memory state from the HttpOnly session cookie. Returns false if no valid session. */
   async restoreSession(): Promise<boolean> {
     try {
-      const resp = await fetch(`${BASE_URL}/api/auth/restore-session`, {
+      const response = await fetch(`${BASE_URL}/api/auth/restore-session`, {
         credentials: 'include',
       });
-      if (!resp.ok) return false;
-      const data = await resp.json();
+      if (!response.ok) return false;
+      const data = await response.json();
       this.applyTokenResponse(data);
       return true;
     } catch {
@@ -83,14 +83,14 @@ class ApiClient {
   }
 
   async switchModel(modelId: string): Promise<AuthUser> {
-    const resp = await fetch(`${BASE_URL}/api/auth/switch-model`, {
+    const response = await fetch(`${BASE_URL}/api/auth/switch-model`, {
       method: 'POST',
       headers: await this.headers(),
       credentials: 'include',
       body: JSON.stringify({ ModelId: modelId }),
     });
-    if (!resp.ok) throw new ApiError(resp.status, await resp.text());
-    const data = await resp.json();
+    if (!response.ok) throw new ApiError(response.status, await response.text());
+    const data = await response.json();
     this.applyTokenResponse(data);
     return this.currentUser!;
   }
@@ -166,7 +166,7 @@ class ApiClient {
   private async refreshToken(): Promise<void> {
     if (!this.token) throw new Error('No token to refresh');
 
-    const resp = await fetch(`${BASE_URL}/api/auth/refresh`, {
+    const response = await fetch(`${BASE_URL}/api/auth/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -174,9 +174,9 @@ class ApiClient {
       },
       credentials: 'include',
     });
-    if (!resp.ok) throw new Error(`Refresh failed: ${resp.status}`);
+    if (!response.ok) throw new Error(`Refresh failed: ${response.status}`);
 
-    const data = await resp.json();
+    const data = await response.json();
     this.applyTokenResponse(data);
     if (this.onUserUpdated) this.onUserUpdated(this.currentUser!);
   }
@@ -186,13 +186,13 @@ class ApiClient {
     const body: Record<string, string> = { NewPassword: newPassword };
     if (currentPassword) body.CurrentPassword = currentPassword;
 
-    const resp = await fetch(`${BASE_URL}/api/auth/users/${userId}/password`, {
+    const response = await fetch(`${BASE_URL}/api/auth/users/${userId}/password`, {
       method: 'PUT',
       headers: await this.headers(),
       credentials: 'include',
       body: JSON.stringify(body),
     });
-    await this.assertOk(resp);
+    await this.assertOk(response);
     if (this.currentUser) {
       this.currentUser = { ...this.currentUser, MustChangePassword: false };
     }
@@ -224,18 +224,18 @@ class ApiClient {
     }
 
     if (API_KEY) {
-      const params = this.currentModelId ? `?modelId=${this.currentModelId}` : '';
-      const resp = await fetch(`${BASE_URL}/api/auth/token${params}`, {
+      const parameters = this.currentModelId ? `?modelId=${this.currentModelId}` : '';
+      const response = await fetch(`${BASE_URL}/api/auth/token${parameters}`, {
         method: 'POST',
         headers: { 'X-API-Key': API_KEY },
       });
-      if (!resp.ok) {
+      if (!response.ok) {
         this.token = null;
         this.tokenExpiry = null;
         if (this.onAuthRequired) this.onAuthRequired();
         throw new AuthRequiredError();
       }
-      const data = await resp.json();
+      const data = await response.json();
       this.token = data.token;
       this.tokenExpiry = new Date(Date.now() + 4 * 60 * 1000); // API key JWTs are 5min
       return this.token!;
@@ -251,13 +251,13 @@ class ApiClient {
    * reconnects included, so the copy left in a log is stale by the time anyone reads it.
    */
   async mintStreamToken(): Promise<string> {
-    const resp = await fetch(`${BASE_URL}/api/auth/stream-token`, {
+    const response = await fetch(`${BASE_URL}/api/auth/stream-token`, {
       method: 'POST',
       headers: await this.headers(),
       credentials: 'include',
     });
-    await this.assertOk(resp);
-    const data = await resp.json();
+    await this.assertOk(response);
+    const data = await response.json();
     return data.token as string;
   }
 
@@ -269,42 +269,42 @@ class ApiClient {
     };
   }
 
-  private async assertOk(resp: Response): Promise<void> {
-    if (resp.status === 401) {
+  private async assertOk(response: Response): Promise<void> {
+    if (response.status === 401) {
       this.token = null;
       this.tokenExpiry = null;
       if (this.onAuthRequired) this.onAuthRequired();
       throw new AuthRequiredError();
     }
-    if (!resp.ok) throw new ApiError(resp.status, await resp.text());
+    if (!response.ok) throw new ApiError(response.status, await response.text());
   }
 
   /** `signal` lets a caller abandon a superseded round of requests; without it a fan-out
    *  that is already stale keeps competing for connections with the round that replaced it. */
   async get<T>(path: string, signal?: AbortSignal): Promise<T> {
-    const resp = await fetch(`${BASE_URL}${path}`, {
+    const response = await fetch(`${BASE_URL}${path}`, {
       headers: await this.headers(),
       credentials: 'include',
       signal,
     });
-    await this.assertOk(resp);
+    await this.assertOk(response);
     // Guard against empty response bodies (e.g. 200 with 0 bytes) —
     // resp.json() throws SyntaxError on empty input.
-    if (resp.status === 204) return ([] as unknown) as T;
+    if (response.status === 204) return ([] as unknown) as T;
     try {
-      return await resp.json();
+      return await response.json();
     } catch {
       return ([] as unknown) as T;
     }
   }
 
   async getText(path: string): Promise<string> {
-    const resp = await fetch(`${BASE_URL}${path}`, {
+    const response = await fetch(`${BASE_URL}${path}`, {
       headers: await this.headers(),
       credentials: 'include',
     });
-    await this.assertOk(resp);
-    return resp.text();
+    await this.assertOk(response);
+    return response.text();
   }
 
   /**
@@ -313,45 +313,45 @@ class ApiClient {
    */
   async getBytes(path: string): Promise<ArrayBuffer | null> {
     const token = await this.ensureToken();
-    const resp = await fetch(`${BASE_URL}${path}`, {
+    const response = await fetch(`${BASE_URL}${path}`, {
       headers: { Authorization: `Bearer ${token}` },
       credentials: 'include',
     });
-    if (resp.status === 404) return null;
-    await this.assertOk(resp);
-    return resp.arrayBuffer();
+    if (response.status === 404) return null;
+    await this.assertOk(response);
+    return response.arrayBuffer();
   }
 
   async post<T>(path: string, body?: unknown): Promise<T> {
-    const resp = await fetch(`${BASE_URL}${path}`, {
+    const response = await fetch(`${BASE_URL}${path}`, {
       method: 'POST',
       headers: await this.headers(),
       credentials: 'include',
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
-    await this.assertOk(resp);
-    return resp.json();
+    await this.assertOk(response);
+    return response.json();
   }
 
   async put<T>(path: string, body: unknown): Promise<T> {
-    const resp = await fetch(`${BASE_URL}${path}`, {
+    const response = await fetch(`${BASE_URL}${path}`, {
       method: 'PUT',
       headers: await this.headers(),
       credentials: 'include',
       body: JSON.stringify(body),
     });
-    await this.assertOk(resp);
-    return resp.json();
+    await this.assertOk(response);
+    return response.json();
   }
 
   async del<T>(path: string): Promise<T> {
-    const resp = await fetch(`${BASE_URL}${path}`, {
+    const response = await fetch(`${BASE_URL}${path}`, {
       method: 'DELETE',
       headers: await this.headers(),
       credentials: 'include',
     });
-    await this.assertOk(resp);
-    return resp.json();
+    await this.assertOk(response);
+    return response.json();
   }
 
 }
@@ -361,14 +361,14 @@ export class ApiError extends Error {
   body: string;
 
   constructor(status: number, body: string) {
-    let msg: string;
+    let message: string;
     try {
       const parsed = JSON.parse(body);
-      msg = parsed.error || parsed.message || body;
+      message = parsed.error || parsed.message || body;
     } catch {
-      msg = body;
+      message = body;
     }
-    super(msg || `Request failed (${status})`);
+    super(message || `Request failed (${status})`);
     this.name = 'ApiError';
     this.status = status;
     this.body = body;

@@ -18,8 +18,8 @@ export function ClusterComputer() {
   useEffect(() => {
     if (things.length === 0) return;
     const state = useUiStore.getState();
-    const stats = computePredicateStatsFromModel(things, relationships, state.predicateColors);
-    state.setPredicateStats(stats);
+    const statistics = computePredicateStatsFromModel(things, relationships, state.predicateColors);
+    state.setPredicateStats(statistics);
   }, [things, relationships]);
 
   useEffect(() => {

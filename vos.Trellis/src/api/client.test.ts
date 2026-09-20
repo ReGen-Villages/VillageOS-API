@@ -97,8 +97,8 @@ describe('ApiClient', () => {
     });
 
     it('preserves MustChangePassword flag from response', async () => {
-      const resp = { ...tokenResponse, user: { ...tokenResponse.user, MustChangePassword: true } };
-      fetchSpy.mockResolvedValueOnce(mockResponse(200, resp));
+      const response = { ...tokenResponse, user: { ...tokenResponse.user, MustChangePassword: true } };
+      fetchSpy.mockResolvedValueOnce(mockResponse(200, response));
 
       const user = await apiClient.login('testuser', 'pass');
 

@@ -44,7 +44,7 @@ describe('KpiCard trace summary', () => {
       sparkBaselineLabel: '12-hour average',
     };
 
-    render(<KpiCard widget={widget} ctx={{} as ResolveContext} />);
+    render(<KpiCard widget={widget} context={{} as ResolveContext} />);
 
     expect(screen.getByText(/peak 480 · trough 96/)).toBeInTheDocument();
     expect(screen.getByText(/12-hour average 210/)).toBeInTheDocument();
@@ -58,7 +58,7 @@ describe('KpiCard trace summary', () => {
       value: bind('forecast_accuracy', 99.4),
     };
 
-    render(<KpiCard widget={widget} ctx={{} as ResolveContext} />);
+    render(<KpiCard widget={widget} context={{} as ResolveContext} />);
 
     expect(screen.queryByText(/peak/)).toBeNull();
   });
@@ -80,7 +80,7 @@ describe('KpiCard says where the figure came from', () => {
       value: bind('rainfall', 700),
       origin: bindOrigin('rainfall', rows),
     };
-    return render(<KpiCard widget={widget} ctx={{} as ResolveContext} />);
+    return render(<KpiCard widget={widget} context={{} as ResolveContext} />);
   }
 
   it('reads a fetched figure in the model\'s words, naming its source and instant', () => {
@@ -127,7 +127,7 @@ describe('KpiCard says where the figure came from', () => {
 
   it('draws nothing when the widget declares no origin', () => {
     const widget: KpiWidget = { type: 'kpi', title: 'Rainfall', value: bind('rainfall', 700) };
-    const { container } = render(<KpiCard widget={widget} ctx={{} as ResolveContext} />);
+    const { container } = render(<KpiCard widget={widget} context={{} as ResolveContext} />);
     expect(container.querySelectorAll('div').length).toBeGreaterThan(0);
     expect(screen.queryByText(/as submitted/)).toBeNull();
   });
@@ -146,14 +146,14 @@ describe('KpiCard where the widget calls neither direction good', () => {
   });
 
   it('reaches no verdict against a target', () => {
-    render(<KpiCard widget={measuredAgainstStated('neither-good')} ctx={{} as ResolveContext} />);
+    render(<KpiCard widget={measuredAgainstStated('neither-good')} context={{} as ResolveContext} />);
 
     expect(screen.queryByText('on target')).toBeNull();
     expect(screen.queryByText('watch')).toBeNull();
   });
 
   it('still reaches one where the widget names a direction', () => {
-    render(<KpiCard widget={measuredAgainstStated('up-good')} ctx={{} as ResolveContext} />);
+    render(<KpiCard widget={measuredAgainstStated('up-good')} context={{} as ResolveContext} />);
 
     expect(screen.getByText('watch')).toBeInTheDocument();
   });
@@ -169,7 +169,7 @@ describe('the mark that says the model derived a figure', () => {
     };
     values.set(JSON.stringify(widget.value), 3);
 
-    render(<KpiCard widget={widget} ctx={{} as ResolveContext} />);
+    render(<KpiCard widget={widget} context={{} as ResolveContext} />);
     const figure = screen.getByRole('button', { name: /Flooded — What this figure is made of/ });
     fireEvent.click(figure);
 
@@ -181,7 +181,7 @@ describe('the mark that says the model derived a figure', () => {
     const widget: KpiWidget = { type: 'kpi', title: 'Target', format: 'integer', value: { kind: 'const', value: 99 } };
     values.set(JSON.stringify(widget.value), 99);
 
-    render(<KpiCard widget={widget} ctx={{} as ResolveContext} />);
+    render(<KpiCard widget={widget} context={{} as ResolveContext} />);
 
     expect(screen.queryByRole('button')).toBeNull();
     expect(screen.getByText('99')).toBeInTheDocument();

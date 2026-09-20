@@ -48,14 +48,14 @@ export function computePredicateStats(
 ): PredicateStats[] {
   const counts = new Map<string, { name: string; count: number }>();
 
-  graph.forEachEdge((_edge, attrs) => {
-    const pid = attrs.predicateId as string;
-    const label = attrs.label as string;
-    const existing = counts.get(pid);
+  graph.forEachEdge((_edge, attributes) => {
+    const predicateId = attributes.predicateId as string;
+    const label = attributes.label as string;
+    const existing = counts.get(predicateId);
     if (existing) {
       existing.count++;
     } else {
-      counts.set(pid, { name: label || pid, count: 1 });
+      counts.set(predicateId, { name: label || predicateId, count: 1 });
     }
   });
 
@@ -76,14 +76,14 @@ export function computePredicateStatsFromModel(
   const thingNames = new Map(things.map((t) => [t.Id, t.Name]));
   const counts = new Map<string, { name: string; count: number }>();
 
-  for (const rel of relationships) {
-    const pid = rel.PredicateId;
-    const existing = counts.get(pid);
+  for (const relationship of relationships) {
+    const predicateId = relationship.PredicateId;
+    const existing = counts.get(predicateId);
     if (existing) {
       existing.count++;
     } else {
-      const name = thingNames.get(pid) ?? pid;
-      counts.set(pid, { name, count: 1 });
+      const name = thingNames.get(predicateId) ?? predicateId;
+      counts.set(predicateId, { name, count: 1 });
     }
   }
 
@@ -101,8 +101,8 @@ export function computeClusters(graph: Graph, predicateIds: Set<string>): Cluste
   // Build adjacency list for the chosen predicates (union of edges)
   const adj = new Map<string, Set<string>>();
 
-  graph.forEachEdge((_edge, attrs, source, target) => {
-    if (!predicateIds.has(attrs.predicateId as string)) return;
+  graph.forEachEdge((_edge, attributes, source, target) => {
+    if (!predicateIds.has(attributes.predicateId as string)) return;
 
     // Skip predicate-type nodes (they are structural connectors)
     const sourceType = graph.getNodeAttribute(source, 'thingType');

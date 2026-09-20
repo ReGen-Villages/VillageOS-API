@@ -151,18 +151,18 @@ export function modelIndexFor(things: VosThing[], relationships: VosRelationship
 }
 
 /** Thing id → the ids one predicate reaches from it, in the asked-for direction. */
-function adjacency(predicateId: string, inbound: boolean, idx: ModelIndex): Map<string, string[]> {
+function adjacency(predicateId: string, inbound: boolean, index: ModelIndex): Map<string, string[]> {
   const key = `${predicateId}:${inbound ? 'in' : 'out'}`;
-  const built = idx.adjacencyByPredicate.get(key);
+  const built = index.adjacencyByPredicate.get(key);
   if (built) return built;
   const edges = new Map<string, string[]>();
-  for (const r of idx.relationshipsByPredicate.get(predicateId) ?? []) {
+  for (const r of index.relationshipsByPredicate.get(predicateId) ?? []) {
     const [from, to] = inbound ? [r.TargetId, r.SubjectId] : [r.SubjectId, r.TargetId];
     const next = edges.get(from);
     if (next) next.push(to);
     else edges.set(from, [to]);
   }
-  idx.adjacencyByPredicate.set(key, edges);
+  index.adjacencyByPredicate.set(key, edges);
   return edges;
 }
 
@@ -179,12 +179,12 @@ function adjacency(predicateId: string, inbound: boolean, idx: ModelIndex): Map<
  * The answer is remembered on the index and handed out by reference, so callers read it and
  * never write to it.
  */
-export function thingIdsOfArchetype(archetype: string, idx: ModelIndex): Set<string> {
-  const answered = idx.archetypeMembers.get(archetype);
+export function thingIdsOfArchetype(archetype: string, index: ModelIndex): Set<string> {
+  const answered = index.archetypeMembers.get(archetype);
   if (answered) return answered;
-  const archThing = idx.byName.get(archetype);
+  const archThing = index.byName.get(archetype);
   const out = new Set<string>();
-  idx.archetypeMembers.set(archetype, out);
+  index.archetypeMembers.set(archetype, out);
   if (!archThing) return out;
   const seen = new Set<string>();          // archetype nodes already descended (cycle guard)
   const frontier = [archThing.Id];
@@ -192,19 +192,19 @@ export function thingIdsOfArchetype(archetype: string, idx: ModelIndex): Set<str
     const current = frontier.pop()!;
     if (seen.has(current)) continue;
     seen.add(current);
-    for (const childId of idx.isChildren.get(current) ?? []) {
-      if (idx.archetypeIds.has(childId)) frontier.push(childId);  // a sub-archetype — descend
+    for (const childId of index.isChildren.get(current) ?? []) {
+      if (index.archetypeIds.has(childId)) frontier.push(childId);  // a sub-archetype — descend
       else out.add(childId);                                      // a real instance — count it
     }
   }
   return out;
 }
 
-export function thingsOfArchetype(archetype: string, idx: ModelIndex): VosThing[] {
-  const ids = thingIdsOfArchetype(archetype, idx);
+export function thingsOfArchetype(archetype: string, index: ModelIndex): VosThing[] {
+  const ids = thingIdsOfArchetype(archetype, index);
   const out: VosThing[] = [];
   for (const id of ids) {
-    const t = idx.byId.get(id);
+    const t = index.byId.get(id);
     if (t) out.push(t);
   }
   return out;
@@ -218,14 +218,14 @@ export function thingsOfArchetype(archetype: string, idx: ModelIndex): VosThing[
  *
  *  Ordered by name: the archetype walk answers in no order a reader chose, so without this a
  *  dashboard's position in the navigation would move whenever the model changed. */
-export function discoverDashboardsFromIndex(idx: ModelIndex): DashboardDescriptor[] {
-  if (idx.dashboards) return idx.dashboards;
+export function discoverDashboardsFromIndex(index: ModelIndex): DashboardDescriptor[] {
+  if (index.dashboards) return index.dashboards;
   // Every Dashboard Thing is listed, including one whose spec did not read. A spec is model data
   // and can be authored wrong; dropping such a Thing here leaves its author a page that never
   // appears and nothing anywhere saying why.
-  const found = thingsOfArchetype(DASHBOARD_ARCHETYPE, idx).map((thing) => ({
+  const found = thingsOfArchetype(DASHBOARD_ARCHETYPE, index).map((thing) => ({
     thing,
-    spec: parseSpec(effectiveProperties(thing, idx)[DASHBOARD_SPEC_PROPERTY]),
+    spec: parseSpec(effectiveProperties(thing, index)[DASHBOARD_SPEC_PROPERTY]),
   }));
   found.sort((a, b) => a.thing.Name.localeCompare(b.thing.Name));
   const slugs = found.map((d) => slugOf(d.thing.Name));
@@ -237,7 +237,7 @@ export function discoverDashboardsFromIndex(idx: ModelIndex): DashboardDescripto
     routeKey: slugs[i] && bearers.get(slugs[i]) === 1 ? slugs[i] : d.thing.Id,
     spec: d.spec,
   }));
-  idx.dashboards = out;
+  index.dashboards = out;
   return out;
 }
 
@@ -271,24 +271,24 @@ export function discoverDashboards(
 }
 
 export function parseSpec(raw: unknown): DashboardSpec | null {
-  let obj: unknown = raw;
+  let object: unknown = raw;
   if (typeof raw === 'string') {
     try {
-      obj = JSON.parse(raw);
+      object = JSON.parse(raw);
     } catch {
       return null;
     }
   }
-  if (obj && typeof obj === 'object' && Array.isArray((obj as DashboardSpec).sections)) {
-    return obj as DashboardSpec;
+  if (object && typeof object === 'object' && Array.isArray((object as DashboardSpec).sections)) {
+    return object as DashboardSpec;
   }
   return null;
 }
 
 /** Compare entities offered in the scope switcher. */
-export function scopeEntities(spec: DashboardSpec, idx: ModelIndex): ScopeEntity[] {
+export function scopeEntities(spec: DashboardSpec, index: ModelIndex): ScopeEntity[] {
   if (!spec.compare) return [];
-  return thingsOfArchetype(spec.compare.archetype, idx)
+  return thingsOfArchetype(spec.compare.archetype, index)
     .map((t) => ({ id: t.Id, name: t.Name }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -296,7 +296,7 @@ export function scopeEntities(spec: DashboardSpec, idx: ModelIndex): ScopeEntity
 // ---- resolution ---------------------------------------------------------
 
 export interface ResolveContext {
-  idx: ModelIndex;
+  index: ModelIndex;
   /** Selected compare-entity id, or null for "All". */
   scopeId: string | null;
   /** Archetype of compare entities (for `$scope` averaging + compareEntities). */
@@ -326,21 +326,21 @@ export interface ResolveContext {
  *  container, so an inbound scope has no server expression and resolves to nothing here. */
 function containerFor(
   scope: ScopeRef | undefined,
-  ctx: ResolveContext,
+  context: ResolveContext,
 ): { within: string; withinPredicate: string } | null {
-  if (!scope || !ctx.scopeId || scope.direction === 'in') return null;
-  return { within: ctx.scopeId, withinPredicate: scope.viaPredicate };
+  if (!scope || !context.scopeId || scope.direction === 'in') return null;
+  return { within: context.scopeId, withinPredicate: scope.viaPredicate };
 }
 
-async function stateMemberIds(state: string, ctx: ResolveContext): Promise<Set<string>> {
-  return new Set((await ctx.reads.thingsInState(state)).Things?.map((t) => t.Id) ?? []);
+async function stateMemberIds(state: string, context: ResolveContext): Promise<Set<string>> {
+  return new Set((await context.reads.thingsInState(state)).Things?.map((t) => t.Id) ?? []);
 }
 
 /** A cell value as a number, or null where it has none — `num`'s rule about what counts as a number,
  *  kept in one place so a widget reading a resolved row cannot answer that question differently from
  *  the resolver that filled it. */
 export function nullableNumber(value: unknown): number | null {
-  const asNumber = num(value);
+  const asNumber = number(value);
   return isNaN(asNumber) ? null : asNumber;
 }
 
@@ -348,14 +348,14 @@ export function nullableNumber(value: unknown): number | null {
  *  The walk is transitive because a scope predicate can nest: the entity relates to
  *  intermediate Things that in turn relate to the ones a widget counts, and a one-hop walk
  *  would stop at the intermediates. The scope entity is never a member of its own scope. */
-function scopeMemberIds(scope: ScopeRef | undefined, ctx: ResolveContext): Set<string> | null {
-  if (!scope || !ctx.scopeId) return null;
-  const pid = ctx.idx.predicateNameToId.get(scope.viaPredicate);
-  if (!pid) return new Set();
-  const edges = adjacency(pid, scope.direction === 'in', ctx.idx);
+function scopeMemberIds(scope: ScopeRef | undefined, context: ResolveContext): Set<string> | null {
+  if (!scope || !context.scopeId) return null;
+  const predicateId = context.index.predicateNameToId.get(scope.viaPredicate);
+  if (!predicateId) return new Set();
+  const edges = adjacency(predicateId, scope.direction === 'in', context.index);
   const members = new Set<string>();
-  const walked = new Set<string>([ctx.scopeId]);   // seeded so a cycle back to the scope re-adds nothing
-  const frontier = [ctx.scopeId];
+  const walked = new Set<string>([context.scopeId]);   // seeded so a cycle back to the scope re-adds nothing
+  const frontier = [context.scopeId];
   while (frontier.length) {
     for (const next of edges.get(frontier.pop()!) ?? []) {
       if (walked.has(next)) continue;
@@ -376,24 +376,24 @@ function scopeMemberIds(scope: ScopeRef | undefined, ctx: ResolveContext): Set<s
  * characters look, and read an order number or a door number as a measurement. A spec that
  * compares against a number must therefore write it as one, not as quoted text.
  */
-function num(v: unknown): number {
+function number(v: unknown): number {
   if (typeof v === 'number') return v;
   if (typeof v === 'boolean') return v ? 1 : 0;
   return NaN;
 }
 
-function passesFilters(thing: VosThing, filters: PropertyFilter[] | undefined, idx: ModelIndex): boolean {
+function passesFilters(thing: VosThing, filters: PropertyFilter[] | undefined, index: ModelIndex): boolean {
   if (!filters) return true;
-  const properties = effectiveProperties(thing, idx);
+  const properties = effectiveProperties(thing, index);
   for (const f of filters) {
     const v = properties[f.property];
     switch (f.op) {
       case '=': if (v !== f.value) return false; break;
       case '!=': if (v === f.value) return false; break;
-      case '>': if (!(num(v) > num(f.value))) return false; break;
-      case '>=': if (!(num(v) >= num(f.value))) return false; break;
-      case '<': if (!(num(v) < num(f.value))) return false; break;
-      case '<=': if (!(num(v) <= num(f.value))) return false; break;
+      case '>': if (!(number(v) > number(f.value))) return false; break;
+      case '>=': if (!(number(v) >= number(f.value))) return false; break;
+      case '<': if (!(number(v) < number(f.value))) return false; break;
+      case '<=': if (!(number(v) <= number(f.value))) return false; break;
       case 'in': if (!Array.isArray(f.value) || !f.value.includes(v)) return false; break;
     }
   }
@@ -408,31 +408,31 @@ function passesFilters(thing: VosThing, filters: PropertyFilter[] | undefined, i
  *  spends it. The id is tried first because it is exact: Thing names are not unique in this model
  *  and the index keeps whichever Thing of a name it saw first, so a name is the weaker answer and
  *  belongs in the fallback. */
-export function referencedThing(ref: string | undefined, ctx: ResolveContext): VosThing | null {
-  if (!ref || ref === SCOPE_REF) return ctx.scopeId ? (ctx.idx.byId.get(ctx.scopeId) ?? null) : null;
-  return ctx.idx.byId.get(ref) ?? ctx.idx.byName.get(ref) ?? null;
+export function referencedThing(ref: string | undefined, context: ResolveContext): VosThing | null {
+  if (!ref || ref === SCOPE_REF) return context.scopeId ? (context.index.byId.get(context.scopeId) ?? null) : null;
+  return context.index.byId.get(ref) ?? context.index.byName.get(ref) ?? null;
 }
 
 /** The Things one step of a binding's path reaches from the Things reached so far. */
-async function followStep(fromIds: string[], step: RelationStep, ctx: ResolveContext): Promise<string[]> {
-  const pid = ctx.idx.predicateNameToId.get(step.predicate);
-  if (!pid) return [];
-  const edges = adjacency(pid, step.direction === 'in', ctx.idx);
+async function followStep(fromIds: string[], step: RelationStep, context: ResolveContext): Promise<string[]> {
+  const predicateId = context.index.predicateNameToId.get(step.predicate);
+  if (!predicateId) return [];
+  const edges = adjacency(predicateId, step.direction === 'in', context.index);
   const reached = new Set<string>();
   for (const id of fromIds) {
     for (const target of edges.get(id) ?? []) reached.add(target);
   }
   let ids = [...reached];
   if (step.archetype) {
-    const ofArchetype = thingIdsOfArchetype(step.archetype, ctx.idx);
+    const ofArchetype = thingIdsOfArchetype(step.archetype, context.index);
     ids = ids.filter((id) => ofArchetype.has(id));
   }
   if (step.inState && ids.length) {
-    const inState = await stateMemberIds(step.inState, ctx);
+    const inState = await stateMemberIds(step.inState, context);
     ids = ids.filter((id) => inState.has(id));
   }
   if (step.notInState && ids.length) {
-    const excluded = await stateMemberIds(step.notInState, ctx);
+    const excluded = await stateMemberIds(step.notInState, context);
     ids = ids.filter((id) => !excluded.has(id));
   }
   return ids;
@@ -518,18 +518,18 @@ function leversFor(
 async function thingsReached(
   ref: string | undefined,
   via: RelationStep[] | undefined,
-  ctx: ResolveContext,
+  context: ResolveContext,
 ): Promise<VosThing[]> {
-  const start = referencedThing(ref, ctx);
+  const start = referencedThing(ref, context);
   if (!start) return [];
   if (!via?.length) return [start];
   let reached = [start.Id];
   for (const step of via) {
-    reached = await followStep(reached, step, ctx);
+    reached = await followStep(reached, step, context);
     if (!reached.length) return [];
   }
   return reached
-    .map((id) => ctx.idx.byId.get(id))
+    .map((id) => context.index.byId.get(id))
     .filter((t): t is VosThing => !!t)
     .sort((a, b) => a.Name.localeCompare(b.Name));
 }
@@ -545,14 +545,14 @@ async function thingsReached(
 async function recordedSourceOf(
   carrying: VosThing,
   source: OriginSource | undefined,
-  ctx: ResolveContext,
+  context: ResolveContext,
 ): Promise<{ source: string | null; resolvedAt: string | null }> {
   if (!source) return { source: null, resolvedAt: null };
-  const reached = await thingsReached(carrying.Id, source.via, ctx);
+  const reached = await thingsReached(carrying.Id, source.via, context);
   if (!reached.length) return { source: null, resolvedAt: null };
   const named = reached.map((t) => t.Name).join(', ');
   if (reached.length > 1 || !source.resolvedAt) return { source: named, resolvedAt: null };
-  const resolved = effectiveProperties(reached[0], ctx.idx)[source.resolvedAt];
+  const resolved = effectiveProperties(reached[0], context.index)[source.resolvedAt];
   return { source: named, resolvedAt: resolved == null ? null : String(resolved) };
 }
 
@@ -563,12 +563,12 @@ async function recordedSourceOf(
 async function withComputedColumns(
   rows: Row[],
   computed: ComputedColumn[] | undefined,
-  ctx: ResolveContext,
+  context: ResolveContext,
 ): Promise<Row[]> {
   if (!computed?.length) return rows;
   return Promise.all(
     rows.map(async (row) => {
-      const rowCtx: ResolveContext = { ...ctx, scopeId: (row.id as string) ?? null };
+      const rowCtx: ResolveContext = { ...context, scopeId: (row.id as string) ?? null };
       const values = await Promise.all(computed.map((column) => resolveBinding(column.value, rowCtx)));
       computed.forEach((column, i) => (row[column.key] = asCell(values[i])));
       return row;
@@ -591,12 +591,12 @@ function withScope(body: unknown, scopeId: string | null): unknown {
   return body;
 }
 
-function selectPath(obj: unknown, path?: string): unknown {
-  if (!path) return obj;
+function selectPath(object: unknown, path?: string): unknown {
+  if (!path) return object;
   return path.split('.').reduce<unknown>((acc, key) => {
     if (acc && typeof acc === 'object') return (acc as Record<string, unknown>)[key];
     return undefined;
-  }, obj);
+  }, object);
 }
 
 /** The Things an aggregate reduces: the archetype's instances, narrowed to the scope and to the
@@ -608,14 +608,14 @@ function selectPath(obj: unknown, path?: string): unknown {
  *  the page lists. */
 export function aggregateMembers(
   binding: Extract<Binding, { kind: 'aggregate' }>,
-  ctx: ResolveContext,
+  context: ResolveContext,
 ): VosThing[] {
-  const members = scopeMemberIds(binding.scope, ctx);
-  const ofArchetype = thingIdsOfArchetype(binding.archetype, ctx.idx);
+  const members = scopeMemberIds(binding.scope, context);
+  const ofArchetype = thingIdsOfArchetype(binding.archetype, context.index);
   const candidates = members ? [...members].filter((id) => ofArchetype.has(id)) : [...ofArchetype];
   return candidates
-    .map((id) => ctx.idx.byId.get(id))
-    .filter((t): t is VosThing => !!t && passesFilters(t, binding.where, ctx.idx));
+    .map((id) => context.index.byId.get(id))
+    .filter((t): t is VosThing => !!t && passesFilters(t, binding.where, context.index));
 }
 
 /** An aggregate's answer over the members it reduces. A reduction over nothing answers zero, not
@@ -623,11 +623,11 @@ export function aggregateMembers(
 export function aggregateValue(
   binding: Extract<Binding, { kind: 'aggregate' }>,
   members: VosThing[],
-  ctx: ResolveContext,
+  context: ResolveContext,
 ): number {
   if (binding.op === 'count') return members.length;
   const values = members
-    .map((t) => num(effectiveProperties(t, ctx.idx)[binding.property ?? '']))
+    .map((t) => number(effectiveProperties(t, context.index)[binding.property ?? '']))
     .filter((n) => !isNaN(n));
   if (!values.length) return 0;
   switch (binding.op) {
@@ -648,47 +648,47 @@ export function divide(top: number | null, bottom: number | null): number | null
 
 /** One table row for a Thing: its id and name beside the properties it effectively holds, where
  *  the page holds the Thing. A state read answers with an id and a name and nothing else. */
-export function rowOfThing(id: string, name: string, ctx: ResolveContext): Row {
-  const held = ctx.idx.byId.get(id);
-  return { id, name, ...(held ? effectiveProperties(held, ctx.idx) : {}) };
+export function rowOfThing(id: string, name: string, context: ResolveContext): Row {
+  const held = context.index.byId.get(id);
+  return { id, name, ...(held ? effectiveProperties(held, context.index) : {}) };
 }
 
-export async function resolveBinding(binding: Binding, ctx: ResolveContext): Promise<BindingResult> {
+export async function resolveBinding(binding: Binding, context: ResolveContext): Promise<BindingResult> {
   switch (binding.kind) {
     case 'const':
       return binding.value;
 
     case 'property': {
       if (binding.thing === SCOPE_REF) {
-        if (ctx.scopeId) {
-          const t = ctx.idx.byId.get(ctx.scopeId);
-          return t ? num(effectiveProperties(t, ctx.idx)[binding.property]) : null;
+        if (context.scopeId) {
+          const t = context.index.byId.get(context.scopeId);
+          return t ? number(effectiveProperties(t, context.index)[binding.property]) : null;
         }
         // "All" → average across compare entities.
-        const ents = ctx.compareArchetype ? thingsOfArchetype(ctx.compareArchetype, ctx.idx) : [];
-        const vals = ents.map((t) => num(effectiveProperties(t, ctx.idx)[binding.property])).filter((n) => !isNaN(n));
-        return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+        const entities = context.compareArchetype ? thingsOfArchetype(context.compareArchetype, context.index) : [];
+        const values = entities.map((t) => number(effectiveProperties(t, context.index)[binding.property])).filter((n) => !isNaN(n));
+        return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
       }
-      const t = referencedThing(binding.thing, ctx);
-      return t ? num(effectiveProperties(t, ctx.idx)[binding.property]) : null;
+      const t = referencedThing(binding.thing, context);
+      return t ? number(effectiveProperties(t, context.index)[binding.property]) : null;
     }
 
     case 'aggregate':
-      return aggregateValue(binding, aggregateMembers(binding, ctx), ctx);
+      return aggregateValue(binding, aggregateMembers(binding, context), context);
 
     case 'ratio': {
       const [numerator, denominator] = await Promise.all([
-        resolveBinding(binding.numerator, ctx),
-        resolveBinding(binding.denominator, ctx),
+        resolveBinding(binding.numerator, context),
+        resolveBinding(binding.denominator, context),
       ]);
       return divide(asNumber(numerator), asNumber(denominator));
     }
 
     case 'related': {
-      const reached = await thingsReached(binding.thing, binding.via, ctx);
+      const reached = await thingsReached(binding.thing, binding.via, context);
       if (!reached.length) return null;
       const values = reached
-        .map((t) => (binding.property ? effectiveProperties(t, ctx.idx)[binding.property] : t.Name))
+        .map((t) => (binding.property ? effectiveProperties(t, context.index)[binding.property] : t.Name))
         .filter((v) => v != null && v !== '');
       if (!values.length) return null;
       if (values.length === 1 && typeof values[0] === 'number') return values[0];
@@ -698,34 +698,34 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
     }
 
     case 'stateOf': {
-      const t = referencedThing(binding.thing, ctx);
+      const t = referencedThing(binding.thing, context);
       if (!t) return null;
       for (const state of binding.states) {
-        if ((await stateMemberIds(state, ctx)).has(t.Id)) return state;
+        if ((await stateMemberIds(state, context)).has(t.Id)) return state;
       }
       return null;
     }
 
     case 'verdict': {
-      const judged = await thingsReached(binding.thing, binding.via, ctx);
+      const judged = await thingsReached(binding.thing, binding.via, context);
       if (!judged.length) return [];
       // Asked all at once rather than in turn: unlike `stateOf` there is no priority order to stop
       // early on, so asking in turn would cost one round trip per candidate for no answer it changes.
       // One answer per state serves every judged Thing, so a walk reaching several adds no state reads.
-      const membership = await Promise.all(binding.states.map((c) => stateMemberIds(c.state, ctx)));
+      const membership = await Promise.all(binding.states.map((c) => stateMemberIds(c.state, context)));
       const verdictsOf = await Promise.all(judged.map(async (thing) => {
         const held = binding.states.filter((_, i) => membership[i].has(thing.Id));
         if (!held.length) return [];
 
-        const ranges = await ctx.reads.thingRanges(thing.Id);
-        const properties = effectiveProperties(thing, ctx.idx);
+        const ranges = await context.reads.thingRanges(thing.Id);
+        const properties = effectiveProperties(thing, context.index);
         return held.map((candidate) => {
           // The first comparison, because a judge-range tests one value; a range that tests none —
           // the criteria for a balance nobody assessed — leaves the whole sentence without a figure.
           const judgedAgainst = ranges ? findRange(candidate.state, ranges)?.Comparisons?.[0] : undefined;
           const levers = candidate.levers && judgedAgainst
             ? leversFor(judgedAgainst.PropertyName, judgedAgainst.Operator,
-                effectiveDerivedDefinitions(thing, ctx.idx))
+                effectiveDerivedDefinitions(thing, context.index))
             : [];
           return {
             state: candidate.state,
@@ -742,22 +742,22 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
     }
 
     case 'origin': {
-      const carrying = await thingsReached(binding.thing, binding.via, ctx);
+      const carrying = await thingsReached(binding.thing, binding.via, context);
       return Promise.all(carrying.map(async (thing) => {
-        const { origin, assumedFrom } = valueOrigin(thing, binding.property, ctx.idx);
+        const { origin, assumedFrom } = valueOrigin(thing, binding.property, context.index);
         // An assumption already names its source — the archetype it was inherited from — so it needs
         // no path to one. Every other origin asks the model what produced the value.
         const recorded = assumedFrom !== null
           ? { source: assumedFrom, resolvedAt: null }
-          : await recordedSourceOf(thing, binding.source, ctx);
+          : await recordedSourceOf(thing, binding.source, context);
         return { origin, reads: binding.reads[origin] ?? null, ...recorded } as Row;
       }));
     }
 
     case 'working': {
-      const computing = await thingsReached(binding.thing, binding.via, ctx);
+      const computing = await thingsReached(binding.thing, binding.via, context);
       return computing.flatMap((thing) => {
-        const definition = effectiveDerivedDefinitions(thing, ctx.idx)[binding.property];
+        const definition = effectiveDerivedDefinitions(thing, context.index)[binding.property];
         if (!definition) return [];
         const terms = definition.Reads ?? [];
         const formula = definition.Expression;
@@ -772,7 +772,7 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
             memberArchetype: definition.RelatedType ?? null,
           }) as Row);
         }
-        const properties = effectiveProperties(thing, ctx.idx);
+        const properties = effectiveProperties(thing, context.index);
         return terms.map((term) => ({
           formula,
           term,
@@ -782,17 +782,17 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
     }
 
     case 'compareEntities': {
-      const ents = ctx.compareArchetype ? thingsOfArchetype(ctx.compareArchetype, ctx.idx) : [];
-      const rows = ents.map((t) => {
+      const entities = context.compareArchetype ? thingsOfArchetype(context.compareArchetype, context.index) : [];
+      const rows = entities.map((t) => {
         const row: Row = { id: t.Id, name: t.Name };
-        for (const p of binding.properties) row[p] = num(effectiveProperties(t, ctx.idx)[p]);
+        for (const p of binding.properties) row[p] = number(effectiveProperties(t, context.index)[p]);
         return row;
       });
-      return withComputedColumns(rows, binding.computed, ctx);
+      return withComputedColumns(rows, binding.computed, context);
     }
 
     case 'stateCount': {
-      const container = containerFor(binding.scope, ctx);
+      const container = containerFor(binding.scope, context);
       const narrowing: StateNarrowing = {
         type: binding.archetype,
         notIn: binding.excludeState ? [binding.excludeState] : undefined,
@@ -800,20 +800,20 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
       };
       // Only a scope the request cannot carry is narrowed here, and only that path reads the members:
       // the platform's number would be the one before the local walk.
-      const members = container ? null : scopeMemberIds(binding.scope, ctx);
+      const members = container ? null : scopeMemberIds(binding.scope, context);
       if (members) {
-        const resp = await ctx.reads.thingsInState(binding.state, narrowing);
-        return (resp.Things ?? []).filter((t) => members.has(t.Id)).length;
+        const response = await context.reads.thingsInState(binding.state, narrowing);
+        return (response.Things ?? []).filter((t) => members.has(t.Id)).length;
       }
-      const resp = await ctx.reads.thingsInState(binding.state, { ...narrowing, countOnly: true });
-      if (resp.Count === undefined) throw new Error(`The state read for ${binding.state} answered no count.`);
-      return resp.Count;
+      const response = await context.reads.thingsInState(binding.state, { ...narrowing, countOnly: true });
+      if (response.Count === undefined) throw new Error(`The state read for ${binding.state} answered no count.`);
+      return response.Count;
     }
 
     case 'stateList': {
-      const container = containerFor(binding.scope, ctx);
-      const members = container ? null : scopeMemberIds(binding.scope, ctx);
-      const resp = await ctx.reads.thingsInState(binding.state, {
+      const container = containerFor(binding.scope, context);
+      const members = container ? null : scopeMemberIds(binding.scope, context);
+      const response = await context.reads.thingsInState(binding.state, {
         type: binding.archetype,
         // The derived statuses nest — a Thing that reached a later stage still holds the earlier
         // ones — so a plain stateList for an early stage includes every later one. A funnel stage
@@ -828,7 +828,7 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
         properties: binding.properties,
         ...container,
       });
-      let list = resp.Things ?? [];
+      let list = response.Things ?? [];
       if (members) {
         list = list.filter((t) => members.has(t.Id));
         if (binding.limit) list = list.slice(0, binding.limit);
@@ -836,36 +836,36 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
       // The row is what the platform sent, not what a local index could be asked for afterwards.
       // Reading it here is what made a table of ten rows cost every Thing in the model.
       const rows = list.map((ref) => ({ id: ref.Id, name: ref.Name, ...(ref.Properties ?? {}) }) as Row);
-      return withComputedColumns(rows, binding.computed, ctx);
+      return withComputedColumns(rows, binding.computed, context);
     }
 
     case 'thingList': {
-      let list = thingsOfArchetype(binding.archetype, ctx.idx);
-      const members = scopeMemberIds(binding.scope, ctx);
+      let list = thingsOfArchetype(binding.archetype, context.index);
+      const members = scopeMemberIds(binding.scope, context);
       if (members) list = list.filter((t) => members.has(t.Id));
-      if (binding.where) list = list.filter((t) => passesFilters(t, binding.where, ctx.idx));
+      if (binding.where) list = list.filter((t) => passesFilters(t, binding.where, context.index));
       if (binding.inState && list.length) {
-        const inState = new Set(((await ctx.reads.thingsInState(binding.inState, { type: binding.archetype })).Things ?? []).map((t) => t.Id));
+        const inState = new Set(((await context.reads.thingsInState(binding.inState, { type: binding.archetype })).Things ?? []).map((t) => t.Id));
         list = list.filter((t) => inState.has(t.Id));
       }
       list.sort((a, b) => a.Name.localeCompare(b.Name));
       if (binding.limit) list = list.slice(0, binding.limit);
-      const rows = list.map((t) => ({ id: t.Id, name: t.Name, ...effectiveProperties(t, ctx.idx) }) as Row);
-      return withComputedColumns(rows, binding.computed, ctx);
+      const rows = list.map((t) => ({ id: t.Id, name: t.Name, ...effectiveProperties(t, context.index) }) as Row);
+      return withComputedColumns(rows, binding.computed, context);
     }
 
     case 'timeseries':
-      return resolveTimeseries(binding, ctx);
+      return resolveTimeseries(binding, context);
 
     case 'latest': {
-      const points = await seriesPoints(binding.series, ctx);
+      const points = await seriesPoints(binding.series, context);
       return points?.length ? points[points.length - 1] : null;
     }
 
     case 'service': {
       try {
-        const resp = await ctx.reads.fromService(binding.endpoint, withScope(binding.body ?? {}, ctx.scopeId));
-        const picked = selectPath(resp, binding.select);
+        const response = await context.reads.fromService(binding.endpoint, withScope(binding.body ?? {}, context.scopeId));
+        const picked = selectPath(response, binding.select);
         return (picked ?? null) as BindingResult;
       } catch {
         return null;
@@ -873,7 +873,7 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
     }
 
     case 'history':
-      return resolveHistory(binding, ctx);
+      return resolveHistory(binding, context);
   }
 }
 
@@ -900,7 +900,7 @@ const FOLDS: Partial<
  *  empty series, which on a chart reads as "nothing happened". */
 async function seriesPoints(
   binding: Extract<Binding, { kind: 'timeseries' }>,
-  ctx: ResolveContext,
+  context: ResolveContext,
 ): Promise<number[] | null> {
   // The refusals worth saying out loud: every other binding resolving to nothing is a value the
   // model has not got, while these are questions the spec cannot ask, and an author has no other
@@ -923,7 +923,7 @@ async function seriesPoints(
     return null;
   }
   try {
-    const answer = await ctx.reads.aggregate({
+    const answer = await context.reads.aggregate({
       function: REDUCTIONS[binding.op],
       memberType: binding.archetype,
       timestampProperty: binding.happenedAt,
@@ -934,7 +934,7 @@ async function seriesPoints(
       // than the points do.
       windowSeconds: binding.bucketSeconds * (binding.buckets + bucketsPerPoint - 1),
       bucketSeconds: binding.bucketSeconds,
-      ...containerFor(binding.scope, ctx),
+      ...containerFor(binding.scope, context),
     });
     const buckets = answer?.Buckets ?? [];
     const points: number[] = [];
@@ -950,9 +950,9 @@ async function seriesPoints(
  *  shows, so a tile and the trace above it are one question asked at two granularities. */
 async function resolveTimeseries(
   binding: Extract<Binding, { kind: 'timeseries' }>,
-  ctx: ResolveContext,
+  context: ResolveContext,
 ): Promise<number[] | number | null> {
-  const points = await seriesPoints(binding, ctx);
+  const points = await seriesPoints(binding, context);
   if (points === null) return null;
   if (binding.buckets > 1) return points;
   return points.length ? points[0] : null;
@@ -964,16 +964,16 @@ async function resolveTimeseries(
  *  one does. */
 async function resolveHistory(
   binding: Extract<Binding, { kind: 'history' }>,
-  ctx: ResolveContext,
+  context: ResolveContext,
 ): Promise<Row[] | null> {
-  if (!ctx.scopeId) return null;
-  const entity = ctx.idx.byId.get(ctx.scopeId);
-  const offset = entity ? nullableNumber(effectiveProperties(entity, ctx.idx)[UTC_OFFSET_PROPERTY]) : null;
-  const steps = await resolveSteps(binding.steps, ctx);
+  if (!context.scopeId) return null;
+  const entity = context.index.byId.get(context.scopeId);
+  const offset = entity ? nullableNumber(effectiveProperties(entity, context.index)[UTC_OFFSET_PROPERTY]) : null;
+  const steps = await resolveSteps(binding.steps, context);
   if (!steps) return null;
   try {
-    const answer = await ctx.reads.reduce({
-      thingId: ctx.scopeId,
+    const answer = await context.reads.reduce({
+      thingId: context.scopeId,
       property: binding.property,
       windowSeconds: binding.windowSeconds,
       ...(offset !== null ? { utcOffsetSeconds: offset } : {}),
@@ -989,14 +989,14 @@ const STEP_PARAMETERS = ['percentile', 'from', 'to', 'threshold'] as const;
 
 /** The steps with every bound parameter resolved to its number. A parameter the model answers nothing
  *  for is a question with no answer, not one asked with nought: the whole binding resolves to nothing. */
-async function resolveSteps(steps: HistoryStepBinding[], ctx: ResolveContext): Promise<HistoryStep[] | null> {
+async function resolveSteps(steps: HistoryStepBinding[], context: ResolveContext): Promise<HistoryStep[] | null> {
   const resolved: HistoryStep[] = [];
   for (const step of steps) {
     const numeric: HistoryStep = { fold: step.fold, function: step.function };
     for (const name of STEP_PARAMETERS) {
       const given = step[name];
       if (given === undefined) continue;
-      const value = typeof given === 'number' ? given : asNumber(await resolveBinding(given, ctx));
+      const value = typeof given === 'number' ? given : asNumber(await resolveBinding(given, context));
       if (value === null) return null;
       numeric[name] = value;
     }

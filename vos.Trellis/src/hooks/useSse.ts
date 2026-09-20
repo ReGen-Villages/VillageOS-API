@@ -27,7 +27,7 @@ const KNOWN_EVENTS = [
  *  what the page holds. Never sent by the server — this client raises it on itself. */
 export const SUBSCRIPTION_OPENED = 'SubscriptionOpened';
 
-type Handler = (...args: unknown[]) => void;
+type Handler = (...eventArguments: unknown[]) => void;
 type Entry = { event: string; handler: Handler };
 
 // Connection-independent handler registry (re-attached across reconnects, like the old hub).
@@ -98,10 +98,10 @@ function toArgs(kind: string, data: { EntityId?: string; PropertyName?: string; 
 }
 
 function dispatch(kind: string, data: unknown) {
-  const args = toArgs(kind, data);
+  const eventArguments = toArgs(kind, data);
   handlers.forEach((h) => {
     if (h.event !== kind) return;
-    try { h.handler(...args); } catch (err) { console.error(`SSE handler for ${kind} threw:`, err); }
+    try { h.handler(...eventArguments); } catch (err) { console.error(`SSE handler for ${kind} threw:`, err); }
   });
 }
 
@@ -111,10 +111,10 @@ function attachListeners(source: EventSource, trackWatermark = false) {
   for (const kind of KNOWN_EVENTS) {
     source.addEventListener(kind, (e: MessageEvent) => {
       if (trackWatermark && e.lastEventId) {
-        const seq = Number(e.lastEventId);
+        const sequence = Number(e.lastEventId);
         // Monotonic guard: replay/de-dup can re-deliver ≤ our position; never rewind.
-        if (Number.isFinite(seq) && (consumedWatermark === null || seq > consumedWatermark)) {
-          consumedWatermark = seq;
+        if (Number.isFinite(sequence) && (consumedWatermark === null || sequence > consumedWatermark)) {
+          consumedWatermark = sequence;
         }
       }
       let data: unknown;
@@ -177,17 +177,17 @@ async function openStreams() {
     if (superseded()) return;
 
     // The subscription the mounted page declared. Its snapshot watermark anchors the first resume.
-    const resp = await fetch(`${BASE_URL}/api/subscriptions`, {
+    const response = await fetch(`${BASE_URL}/api/subscriptions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(selector),
     });
-    if (!resp.ok) {
+    if (!response.ok) {
       if (!superseded()) scheduleReconnect();
       return;
     }
 
-    const { subscriptionId, watermark, snapshot } = await resp.json();
+    const { subscriptionId, watermark, snapshot } = await response.json();
     granted = subscriptionId;
     if (superseded()) return;
 
@@ -204,13 +204,13 @@ async function openStreams() {
     // subscription's own watermark, so a fresh subscription still resumes precisely.
     const resumeFrom = consumedWatermark ?? watermark;
     consumedWatermark = resumeFrom;
-    const obj = new EventSource(
+    const object = new EventSource(
       `${BASE_URL}/api/subscriptions/${subscriptionId}/stream?${tokenParam}&lastEventId=${resumeFrom}`,
     );
-    obj.onopen = () => { reconnectAttempt = 0; setConnected(true); };
-    obj.onerror = () => scheduleReconnect();
-    attachListeners(obj, true);
-    objectSource = obj;
+    object.onopen = () => { reconnectAttempt = 0; setConnected(true); };
+    object.onerror = () => scheduleReconnect();
+    attachListeners(object, true);
+    objectSource = object;
 
     // System / operational events.
     const sys = new EventSource(`${BASE_URL}/api/events/stream?${tokenParam}`);
@@ -369,7 +369,7 @@ export function useSse() {
   }, []);
 
   const connected = useSyncExternalStore(
-    (cb) => { listeners.add(cb); return () => listeners.delete(cb); },
+    (callback) => { listeners.add(callback); return () => listeners.delete(callback); },
     () => connectedState,
   );
 

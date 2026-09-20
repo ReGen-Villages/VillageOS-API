@@ -183,7 +183,7 @@ export function GraphPage() {
         t('graph.toast.fragmentApplied', {
           created: result.thingsCreated,
           updated: result.thingsUpdated,
-          rels: result.relationshipsCreated,
+          relationships: result.relationshipsCreated,
         }),
       );
       reloadModelData();

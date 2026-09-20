@@ -49,8 +49,8 @@ export function DashboardPage() {
   const { t } = useTranslation();
 
   const toggleFeedCollapsed = useCallback(() => {
-    setFeedCollapsed((prev) => {
-      const next = !prev;
+    setFeedCollapsed((previous) => {
+      const next = !previous;
       localStorage.setItem(FEED_COLLAPSED_KEY, String(next));
       return next;
     });
@@ -58,12 +58,12 @@ export function DashboardPage() {
 
   const loadMyceliumData = useCallback(async () => {
     try {
-      const [s, ep] = await Promise.all([
+      const [s, effectiveProperty] = await Promise.all([
         myceliumApi.getServices(),
         endpointApi.getAll(),
       ]);
       setServices(s);
-      setEndpointServices(ep);
+      setEndpointServices(effectiveProperty);
       setHttpOk(true);
     } catch (err) {
       console.warn('Mycelium services load failed (non-fatal):', err);

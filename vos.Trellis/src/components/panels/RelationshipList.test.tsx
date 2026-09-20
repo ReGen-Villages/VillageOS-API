@@ -9,7 +9,7 @@ const things = new Map<string, VosThing>([
   ['t1', { Id: 't1', Name: 'Target', Properties: {} }],
 ]);
 
-const rel: VosRelationship = {
+const relationship: VosRelationship = {
   Id: 'r1',
   Name: 'rel1',
   SubjectId: 's1',
@@ -25,7 +25,7 @@ describe('RelationshipList', () => {
 
     render(
       <RelationshipList
-        relationships={[rel]}
+        relationships={[relationship]}
         direction="outgoing"
         allThings={things}
         onSelectNode={onSelectNode}
@@ -43,7 +43,7 @@ describe('RelationshipList', () => {
 
     render(
       <RelationshipList
-        relationships={[rel]}
+        relationships={[relationship]}
         direction="outgoing"
         allThings={things}
         onSelectNode={onSelectNode}
@@ -61,7 +61,7 @@ describe('RelationshipList', () => {
 
     render(
       <RelationshipList
-        relationships={[rel]}
+        relationships={[relationship]}
         direction="outgoing"
         allThings={things}
         onSelectNode={onSelectNode}
@@ -76,7 +76,7 @@ describe('RelationshipList', () => {
 
     render(
       <RelationshipList
-        relationships={[rel]}
+        relationships={[relationship]}
         direction="outgoing"
         allThings={things}
         onSelectNode={onSelectNode}
@@ -92,7 +92,7 @@ describe('RelationshipList', () => {
 
     render(
       <RelationshipList
-        relationships={[rel]}
+        relationships={[relationship]}
         direction="incoming"
         allThings={things}
         onSelectNode={onSelectNode}

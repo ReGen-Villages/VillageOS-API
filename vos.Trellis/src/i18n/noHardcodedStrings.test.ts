@@ -34,10 +34,10 @@ const ALLOWED = new Set<string>([
 const VISIBLE_ATTRS = ['placeholder', 'title', 'aria-label', 'alt'];
 const HAS_LETTER = /[A-Za-z]{2,}/;
 
-function tsxFiles(dir: string): string[] {
+function tsxFiles(direction: string): string[] {
   const out: string[] = [];
-  for (const entry of readdirSync(dir)) {
-    const full = join(dir, entry);
+  for (const entry of readdirSync(direction)) {
+    const full = join(direction, entry);
     if (statSync(full).isDirectory()) {
       out.push(...tsxFiles(full));
     } else if (entry.endsWith('.tsx') && !entry.includes('.test.')) {
@@ -77,8 +77,8 @@ function findings(file: string): string[] {
 
 describe('no hardcoded user-visible strings', () => {
   for (const file of tsxFiles(SRC)) {
-    const rel = `${basename(dirname(file))}/${basename(file)}`;
-    it(`${rel} routes visible text through i18n`, () => {
+    const relationship = `${basename(dirname(file))}/${basename(file)}`;
+    it(`${relationship} routes visible text through i18n`, () => {
       expect(findings(file)).toEqual([]);
     });
   }

@@ -25,9 +25,9 @@ describe('brightenColor', () => {
 
 describe('hashStringToIndex', () => {
   it('returns a value within palette bounds', () => {
-    const idx = hashStringToIndex('Building', INSTANCE_PALETTE.length);
-    expect(idx).toBeGreaterThanOrEqual(0);
-    expect(idx).toBeLessThan(INSTANCE_PALETTE.length);
+    const index = hashStringToIndex('Building', INSTANCE_PALETTE.length);
+    expect(index).toBeGreaterThanOrEqual(0);
+    expect(index).toBeLessThan(INSTANCE_PALETTE.length);
   });
 
   it('is deterministic — same input always returns same index', () => {
@@ -44,19 +44,19 @@ describe('hashStringToIndex', () => {
   });
 
   it('handles empty string', () => {
-    const idx = hashStringToIndex('', 8);
-    expect(idx).toBe(0);
+    const index = hashStringToIndex('', 8);
+    expect(index).toBe(0);
   });
 
   it('handles single character', () => {
-    const idx = hashStringToIndex('A', 8);
-    expect(idx).toBeGreaterThanOrEqual(0);
-    expect(idx).toBeLessThan(8);
+    const index = hashStringToIndex('A', 8);
+    expect(index).toBeGreaterThanOrEqual(0);
+    expect(index).toBeLessThan(8);
   });
 
   it('handles palette size of 1', () => {
-    const idx = hashStringToIndex('anything', 1);
-    expect(idx).toBe(0);
+    const index = hashStringToIndex('anything', 1);
+    expect(index).toBe(0);
   });
 
   it('distributes across the palette for similar names', () => {

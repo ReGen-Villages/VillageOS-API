@@ -29,7 +29,7 @@ import { EntityDetailWindow } from './EntityDetailWindow';
 function thing(Id: string, Name: string, Properties: Record<string, unknown> = {}, IsArchetype = false): VosThing {
   return { Id, Name, Properties, IsArchetype };
 }
-function rel(Id: string, SubjectId: string, PredicateId: string, TargetId: string): VosRelationship {
+function relationship(Id: string, SubjectId: string, PredicateId: string, TargetId: string): VosRelationship {
   return { Id, Name: Id, SubjectId, PredicateId, TargetId, Properties: {} };
 }
 
@@ -42,7 +42,7 @@ function index() {
       thing('catchment', 'CATCHMENT-7', { area: 12.5 }),
       thing('reservoir', 'RESERVOIR-1'),
     ],
-    [rel('r1', 'catchment', 'feeds', 'reservoir')],
+    [relationship('r1', 'catchment', 'feeds', 'reservoir')],
   );
 }
 
@@ -60,10 +60,10 @@ function indexWithAService() {
       thing('reservoir', 'RESERVOIR-1'),
     ],
     [
-      rel('w1', 'measures', 'is', 'connectionArchetype'),
-      rel('w2', 'measures', 'runs', 'meteringService'),
-      rel('w3', 'meteringService', 'is', 'serviceArchetype'),
-      rel('e1', 'catchment', 'measures', 'reservoir'),
+      relationship('w1', 'measures', 'is', 'connectionArchetype'),
+      relationship('w2', 'measures', 'runs', 'meteringService'),
+      relationship('w3', 'meteringService', 'is', 'serviceArchetype'),
+      relationship('e1', 'catchment', 'measures', 'reservoir'),
     ],
   );
 }
@@ -73,7 +73,7 @@ const SPEC: DetailSpec = { relations: [{ predicate: 'feeds', direction: 'out' }]
 function open(overrides: Partial<Parameters<typeof EntityDetailWindow>[0]> = {}) {
   render(
     <EntityDetailWindow
-      idx={index()}
+      modelIndex={index()}
       thingId="catchment"
       detail={SPEC}
       offset={0}
@@ -113,7 +113,7 @@ describe('EntityDetailWindow', () => {
   });
 
   it('names every service the platform ran on the Thing, when it ran and how it ended', async () => {
-    open({ idx: indexWithAService() });
+    open({ modelIndex: indexWithAService() });
 
     expect(await screen.findByText('metering service')).toBeInTheDocument();
     expect(screen.getByText('measures')).toBeInTheDocument();
@@ -124,7 +124,7 @@ describe('EntityDetailWindow', () => {
 
   it('opens the service its own card, because a service is a Thing like any other', async () => {
     const openDetail = vi.fn();
-    open({ idx: indexWithAService(), openDetail });
+    open({ modelIndex: indexWithAService(), openDetail });
 
     fireEvent.click(await screen.findByText('metering service'));
     expect(openDetail).toHaveBeenCalledWith('meteringService');
@@ -134,7 +134,7 @@ describe('EntityDetailWindow', () => {
     mockGetRelationship.mockResolvedValue({
       Id: 'e1', SubjectId: 'catchment', PredicateId: 'measures', TargetId: 'reservoir', Properties: {},
     });
-    open({ idx: indexWithAService() });
+    open({ modelIndex: indexWithAService() });
 
     expect(await screen.findByText('metering service')).toBeInTheDocument();
     expect(screen.getByText(/recorded since the platform loaded this model/i)).toBeInTheDocument();

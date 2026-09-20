@@ -4,10 +4,10 @@ import type { Binding } from '../types/dashboard';
 import type { ModelReads } from '../api/modelReads';
 import type { BindingResult, ResolveContext } from '../api/dashboardApi';
 
-const answered = vi.fn<(binding: Binding, ctx: ResolveContext) => Promise<BindingResult>>();
+const answered = vi.fn<(binding: Binding, context: ResolveContext) => Promise<BindingResult>>();
 vi.mock('../api/dashboardApi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/dashboardApi')>()),
-  resolveBinding: (binding: Binding, ctx: ResolveContext) => answered(binding, ctx),
+  resolveBinding: (binding: Binding, context: ResolveContext) => answered(binding, context),
 }));
 
 const { useResolveContext, useBinding } = await import('./useDashboard');
@@ -19,11 +19,11 @@ const { useUiStore } = await import('../stores/uiStore');
 // refresh. What shares those reads is the ModelReads the context carries, so what this asserts
 // is that one generation builds exactly one of them.
 describe('useResolveContext', () => {
-  const idx = buildModelIndex([], []);
+  const index = buildModelIndex([], []);
   const reads = () => ({}) as ModelReads;
 
   it('gives every widget of one refresh generation the same reads', () => {
-    const { result, rerender } = renderHook(({ nonce }) => useResolveContext(idx, null, 'Site', reads, nonce), {
+    const { result, rerender } = renderHook(({ nonce }) => useResolveContext(index, null, 'Site', reads, nonce), {
       initialProps: { nonce: 1 },
     });
     const first = result.current.reads;
@@ -33,7 +33,7 @@ describe('useResolveContext', () => {
   });
 
   it('starts a fresh set of reads when the generation moves on', () => {
-    const { result, rerender } = renderHook(({ nonce }) => useResolveContext(idx, null, 'Site', reads, nonce), {
+    const { result, rerender } = renderHook(({ nonce }) => useResolveContext(index, null, 'Site', reads, nonce), {
       initialProps: { nonce: 1 },
     });
     const first = result.current.reads;

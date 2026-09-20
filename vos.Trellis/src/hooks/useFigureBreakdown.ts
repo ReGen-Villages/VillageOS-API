@@ -11,7 +11,7 @@ import { breakdownOf, type FigureBreakdown } from '../api/figureBreakdown';
  *  moves the figures rather than blanking the table under them. */
 export function useFigureBreakdown(
   binding: Binding,
-  ctx: ResolveContext,
+  context: ResolveContext,
 ): { loading: boolean; breakdown: FigureBreakdown | null } {
   const key = JSON.stringify(binding);
   const [resolved, setResolved] = useState<{ key: string; breakdown: FigureBreakdown | null }>({
@@ -21,7 +21,7 @@ export function useFigureBreakdown(
 
   useEffect(() => {
     let alive = true;
-    breakdownOf(binding, ctx).then(
+    breakdownOf(binding, context).then(
       (breakdown) => alive && setResolved({ key, breakdown }),
       () => alive && setResolved({ key, breakdown: null }),
     );
@@ -29,7 +29,7 @@ export function useFigureBreakdown(
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, ctx]);
+  }, [key, context]);
 
   const matched = resolved.key === key;
   return { loading: !matched, breakdown: matched ? resolved.breakdown : null };

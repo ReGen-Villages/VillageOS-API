@@ -16,8 +16,8 @@ export function collectClusterNodeIds(
   activePredicateIds: Set<string>,
 ): Set<string> {
   const nodeIds = new Set<string>();
-  graph.forEachEdge((_edge, attrs, source, target) => {
-    if (activePredicateIds.has(attrs.predicateId as string)) {
+  graph.forEachEdge((_edge, attributes, source, target) => {
+    if (activePredicateIds.has(attributes.predicateId as string)) {
       nodeIds.add(source);
       nodeIds.add(target);
     }
@@ -48,7 +48,7 @@ export function clearFixedFlags(graph: Graph): void {
  */
 export function makeActivePredicateWeightGetter(
   activePredicateIds: Set<string>,
-): (edge: string, attrs: Record<string, unknown>) => number {
-  return (_edge, attrs) =>
-    activePredicateIds.has(attrs.predicateId as string) ? 1 : 0;
+): (edge: string, attributes: Record<string, unknown>) => number {
+  return (_edge, attributes) =>
+    activePredicateIds.has(attributes.predicateId as string) ? 1 : 0;
 }

@@ -33,8 +33,8 @@ export function buildRelationshipIndex(
 
   for (const r of relationships) {
     predicateIds.add(r.PredicateId);
-    const pred = thingMap.get(r.PredicateId);
-    if (pred && pred.Name.toLowerCase() === 'is') {
+    const predicate = thingMap.get(r.PredicateId);
+    if (predicate && predicate.Name.toLowerCase() === 'is') {
       isTypeTargets.add(r.TargetId);
       if (!isSubjectToTypeName.has(r.SubjectId)) {
         const targetName = thingMap.get(r.TargetId)?.Name;
@@ -221,8 +221,8 @@ export function buildGraph(
   }
 
   // ── Second pass: classify logical nodes & compute parent linkage ───
-  graph.forEachNode((nodeId, attrs) => {
-    if (attrs.hasGeometry) return; // physical node — already classified
+  graph.forEachNode((nodeId, attributes) => {
+    if (attributes.hasGeometry) return; // physical node — already classified
     graph.setNodeAttribute(nodeId, 'isLogical', true);
 
     // Find the first geo-neighbour (via any edge direction) as parent
@@ -270,8 +270,8 @@ function findGeoParent(graph: Graph, logicalNodeId: string): string | null {
  */
 export function getLogicalChildren(graph: Graph, geoNodeId: string): string[] {
   const children: string[] = [];
-  graph.forEachNode((nodeId, attrs) => {
-    if (attrs.isLogical && attrs.parentGeoNodeId === geoNodeId) {
+  graph.forEachNode((nodeId, attributes) => {
+    if (attributes.isLogical && attributes.parentGeoNodeId === geoNodeId) {
       children.push(nodeId);
     }
   });
@@ -283,8 +283,8 @@ export function getLogicalChildren(graph: Graph, geoNodeId: string): string[] {
  */
 export function countLogicalChildren(graph: Graph, geoNodeId: string): number {
   let count = 0;
-  graph.forEachNode((_nodeId, attrs) => {
-    if (attrs.isLogical && attrs.parentGeoNodeId === geoNodeId) {
+  graph.forEachNode((_nodeId, attributes) => {
+    if (attributes.isLogical && attributes.parentGeoNodeId === geoNodeId) {
       count++;
     }
   });

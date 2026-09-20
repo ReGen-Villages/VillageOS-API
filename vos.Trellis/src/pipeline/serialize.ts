@@ -101,18 +101,18 @@ export async function savePipeline(
   // A boundary node's persisted ports, matched by name to reuse ids on update (retract removed ones below).
   const portsToRetract: string[] = [];
   for (const n of nodes) {
-    const tid = nodeThingId.get(n.id)!;
+    const thingId = nodeThingId.get(n.id)!;
     const props: Record<string, unknown> = { x: env(DOUBLE, n.x), y: env(DOUBLE, n.y) };
     if (n.paramBindings && Object.keys(n.paramBindings).length > 0)
       props.paramBindings = env(STRING, JSON.stringify(n.paramBindings));
-    things.push({ Id: tid, Name: n.label, Properties: props });
+    things.push({ Id: thingId, Name: n.label, Properties: props });
     // Boundary nodes are pipeline nodes too (so the run + editor pick them up), plus the archetype marked
     // as the pipeline's input or its output, which is what makes one a param source or a result sink.
-    relationships.push({ Name: 'is', Subject: tid, Predicate: isId, Target: nodeArchetype });
-    relationships.push({ Name: 'has', Subject: pipelineId, Predicate: hasId, Target: tid });
+    relationships.push({ Name: 'is', Subject: thingId, Predicate: isId, Target: nodeArchetype });
+    relationships.push({ Name: 'has', Subject: pipelineId, Predicate: hasId, Target: thingId });
 
     if (n.kind) {
-      relationships.push({ Name: 'is', Subject: tid, Predicate: isId, Target: boundaryArchetype(n.kind)! });
+      relationships.push({ Name: 'is', Subject: thingId, Predicate: isId, Target: boundaryArchetype(n.kind)! });
       // Declared ports become child-Things under the archetype marked as holding ports. Reuse a persisted
       // port's id when the name matches (idempotent update); a port no longer declared is retracted.
       const persisted = new Map(model.boundaryPortRels(n.id).map((r) => [r.port.portName, r.portId]));
@@ -130,11 +130,11 @@ export async function savePipeline(
           },
         });
         relationships.push({ Name: 'is', Subject: portId, Predicate: isId, Target: portArchetype! });
-        relationships.push({ Name: 'has', Subject: tid, Predicate: hasId, Target: portId });
+        relationships.push({ Name: 'has', Subject: thingId, Predicate: hasId, Target: portId });
       }
       for (const staleId of persisted.values()) portsToRetract.push(staleId);
     } else {
-      relationships.push({ Name: 'has', Subject: tid, Predicate: hasId, Target: n.connectionId });
+      relationships.push({ Name: 'has', Subject: thingId, Predicate: hasId, Target: n.connectionId });
     }
   }
   await modelApi.applyFragment(JSON.stringify({ Name: name, Things: things, Relationships: relationships }));

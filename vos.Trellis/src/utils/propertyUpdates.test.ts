@@ -50,29 +50,29 @@ describe('applyThingPropertyUpdate', () => {
 
 describe('applyRelationshipPropertyUpdate', () => {
   it('merges new property while preserving existing', () => {
-    const rel = makeRel();
-    const updated = applyRelationshipPropertyUpdate(rel, 'total_consumed', 100);
+    const relationship = makeRel();
+    const updated = applyRelationshipPropertyUpdate(relationship, 'total_consumed', 100);
     expect(updated.Properties.total_consumed).toBe(100);
     expect(updated.Properties.quantity).toBe(5);
     expect(updated.Properties.unit).toBe('kWh');
   });
 
   it('overwrites existing property value', () => {
-    const rel = makeRel();
-    const updated = applyRelationshipPropertyUpdate(rel, 'quantity', 10);
+    const relationship = makeRel();
+    const updated = applyRelationshipPropertyUpdate(relationship, 'quantity', 10);
     expect(updated.Properties.quantity).toBe(10);
   });
 
   it('handles relationship with empty Properties', () => {
-    const rel = makeRel({ Properties: {} });
-    const updated = applyRelationshipPropertyUpdate(rel, 'quantity', 5);
+    const relationship = makeRel({ Properties: {} });
+    const updated = applyRelationshipPropertyUpdate(relationship, 'quantity', 5);
     expect(updated.Properties.quantity).toBe(5);
   });
 
   it('does not mutate the original relationship', () => {
-    const rel = makeRel();
-    applyRelationshipPropertyUpdate(rel, 'quantity', 999);
-    expect(rel.Properties.quantity).toBe(5);
+    const relationship = makeRel();
+    applyRelationshipPropertyUpdate(relationship, 'quantity', 999);
+    expect(relationship.Properties.quantity).toBe(5);
   });
 });
 
@@ -98,47 +98,47 @@ describe('property removal', () => {
   it('returns the same object when the property is not there, so no render is triggered', () => {
     const thing = makeThing();
     expect(applyThingPropertyRemoval(thing, 'never_existed')).toBe(thing);
-    const rel = makeRel();
-    expect(applyRelationshipPropertyRemoval(rel, 'never_existed')).toBe(rel);
+    const relationship = makeRel();
+    expect(applyRelationshipPropertyRemoval(relationship, 'never_existed')).toBe(relationship);
   });
 });
 
 describe('isVisibleRelationship', () => {
-  const rels = [
+  const relationships = [
     makeRel({ Id: 'rel-1', SubjectId: 'node-A', TargetId: 'node-B' }),
     makeRel({ Id: 'rel-2', SubjectId: 'node-B', TargetId: 'node-C' }),
     makeRel({ Id: 'rel-3', SubjectId: 'node-C', TargetId: 'node-A' }),
   ];
 
   it('returns true when rel subject matches selected node', () => {
-    expect(isVisibleRelationship('rel-1', 'node-A', null, rels)).toBe(true);
+    expect(isVisibleRelationship('rel-1', 'node-A', null, relationships)).toBe(true);
   });
 
   it('returns true when rel target matches selected node', () => {
-    expect(isVisibleRelationship('rel-3', 'node-A', null, rels)).toBe(true);
+    expect(isVisibleRelationship('rel-3', 'node-A', null, relationships)).toBe(true);
   });
 
   it('returns false when rel is not connected to selected node', () => {
-    expect(isVisibleRelationship('rel-2', 'node-A', null, rels)).toBe(false);
+    expect(isVisibleRelationship('rel-2', 'node-A', null, relationships)).toBe(false);
   });
 
   it('returns false when nothing is selected', () => {
-    expect(isVisibleRelationship('rel-1', null, null, rels)).toBe(false);
+    expect(isVisibleRelationship('rel-1', null, null, relationships)).toBe(false);
   });
 
   it('returns false when relId does not exist', () => {
-    expect(isVisibleRelationship('nonexistent', 'node-A', null, rels)).toBe(false);
+    expect(isVisibleRelationship('nonexistent', 'node-A', null, relationships)).toBe(false);
   });
 
   // Bug #6143 — selecting an edge clears the node selection, so asking about the node alone said
   // "not visible" for the very edge whose detail panel was open, and every live change to it was
   // dropped. The full model reload on save was hiding that.
   it('returns true for the selected edge, with no node selected', () => {
-    expect(isVisibleRelationship('rel-2', null, 'rel-2', rels)).toBe(true);
+    expect(isVisibleRelationship('rel-2', null, 'rel-2', relationships)).toBe(true);
   });
 
   it('returns false for an edge that is neither selected nor on the selected node', () => {
-    expect(isVisibleRelationship('rel-2', null, 'rel-1', rels)).toBe(false);
+    expect(isVisibleRelationship('rel-2', null, 'rel-1', relationships)).toBe(false);
   });
 
   it('does not need the relationship to be loaded to recognise the selected edge', () => {

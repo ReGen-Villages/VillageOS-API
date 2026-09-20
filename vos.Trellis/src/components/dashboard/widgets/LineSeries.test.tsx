@@ -50,7 +50,7 @@ const widget: LineSeriesWidget = {
 };
 
 function draw(drawn: LineSeriesWidget = widget) {
-  return render(<LineSeries widget={drawn} ctx={{} as ResolveContext} />);
+  return render(<LineSeries widget={drawn} context={{} as ResolveContext} />);
 }
 
 describe('the multi-line series', () => {

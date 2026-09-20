@@ -53,7 +53,7 @@ function statisticsOf(series: Map<string, number>[], key: string | null): Statis
   return period;
 }
 
-export function RangeBar({ widget, ctx }: { widget: RangeBarWidget; ctx: ResolveContext }) {
+export function RangeBar({ widget, context }: { widget: RangeBarWidget; context: ResolveContext }) {
   const { t, i18n } = useTranslation();
   const [measure, measuredWidth] = useElementWidth();
   const [active, setActive] = useState<number | null>(null);
@@ -61,7 +61,7 @@ export function RangeBar({ widget, ctx }: { widget: RangeBarWidget; ctx: Resolve
   const monthBindings = STATISTICS.map((statistic) => widget.months[statistic]);
   const annualBindings = widget.annual ? STATISTICS.map((statistic) => widget.annual![statistic]) : [];
   const bandBindings = (widget.bands ?? []).flatMap((band) => [band.from, band.to]);
-  const resolved = useBindings([...monthBindings, ...annualBindings, ...bandBindings], ctx);
+  const resolved = useBindings([...monthBindings, ...annualBindings, ...bandBindings], context);
   const monthSeries = resolved.slice(0, STATISTICS.length).map((state) => groupsByKey(state.value));
   const annualSeries = resolved.slice(STATISTICS.length, STATISTICS.length + annualBindings.length)
     .map((state) => groupsByKey(state.value));

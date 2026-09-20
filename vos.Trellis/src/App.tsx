@@ -68,7 +68,7 @@ function AuthenticatedApp() {
 }
 
 export default function App() {
-  const auth = useAuthState();
+  const authentication = useAuthState();
   const theme = useThemeStore((s) => s.theme);
   const { i18n } = useTranslation();
 
@@ -88,33 +88,33 @@ export default function App() {
 
   useEffect(() => attachThemeMediaListener(), []);
 
-  if (!auth.isAuthenticated || auth.availableModels) {
+  if (!authentication.isAuthenticated || authentication.availableModels) {
     return (
       <LoginForm
-        onLogin={auth.login}
-        onSelectModel={auth.selectModel}
-        onSaveSeed={auth.saveSeed}
-        error={auth.error}
-        loading={auth.loading}
-        availableModels={auth.availableModels}
-        startupProgress={auth.startupProgress}
+        onLogin={authentication.login}
+        onSelectModel={authentication.selectModel}
+        onSaveSeed={authentication.saveSeed}
+        error={authentication.error}
+        loading={authentication.loading}
+        availableModels={authentication.availableModels}
+        startupProgress={authentication.startupProgress}
       />
     );
   }
 
-  if (auth.mustChangePassword) {
+  if (authentication.mustChangePassword) {
     return (
       <ChangePasswordForm
-        onChangePassword={auth.changePassword}
-        error={auth.error}
-        loading={auth.loading}
-        username={auth.user?.Username ?? ''}
+        onChangePassword={authentication.changePassword}
+        error={authentication.error}
+        loading={authentication.loading}
+        username={authentication.user?.Username ?? ''}
       />
     );
   }
 
   return (
-    <AuthContext.Provider value={auth}>
+    <AuthContext.Provider value={authentication}>
       <AuthenticatedApp />
     </AuthContext.Provider>
   );

@@ -15,8 +15,8 @@ import { complete, formRequest, type Entered } from './writeRequest';
  * else: no actor, and no Thing built here. The endpoint lays down what the model already
  * understands, so what the write summons is the model's to decide from the edges it now holds.
  */
-export function RecordForm({ widget, ctx }: { widget: FormWidget; ctx: ResolveContext }) {
-  const options = useAskedOptions(widget.fields, ctx);
+export function RecordForm({ widget, context }: { widget: FormWidget; context: ResolveContext }) {
+  const options = useAskedOptions(widget.fields, context);
 
   const [entered, setEntered] = useState<Entered>({});
   const [refusal, setRefusal] = useState('');
@@ -32,7 +32,7 @@ export function RecordForm({ widget, ctx }: { widget: FormWidget; ctx: ResolveCo
     setWriting(true);
     setRefusal('');
     try {
-      return await postToEndpoint(ctx.reads, widget.writes.via, formRequest(widget, entered, act));
+      return await postToEndpoint(context.reads, widget.writes.via, formRequest(widget, entered, act));
     } finally {
       setWriting(false);
     }
@@ -65,7 +65,7 @@ export function RecordForm({ widget, ctx }: { widget: FormWidget; ctx: ResolveCo
     else {
       setTaken(answer.said ?? widget.submit);
       setEntered({});
-      ctx.wrote?.();
+      context.wrote?.();
     }
   }
 

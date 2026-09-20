@@ -8,7 +8,7 @@ const MODES = ['CurrentOnly', 'RingBuffer', 'Sampled', 'FullHistory'] as const;
 
 export function PropertyModePanel() {
   const { t } = useTranslation();
-  const [config, setConfig] = useState<PropertyModeConfig | null>(null);
+  const [configuration, setConfig] = useState<PropertyModeConfig | null>(null);
   const [mode, setMode] = useState('');
   const [ringBufferSize, setRingBufferSize] = useState('');
   const [sampleRate, setSampleRate] = useState('');
@@ -49,10 +49,10 @@ export function PropertyModePanel() {
     }
   };
 
-  const dirty = config && (
-    mode !== config.Mode ||
-    (ringBufferSize || '') !== (config.RingBufferSize?.toString() ?? '') ||
-    (sampleRate || '') !== (config.SampleRate?.toString() ?? '')
+  const dirty = configuration && (
+    mode !== configuration.Mode ||
+    (ringBufferSize || '') !== (configuration.RingBufferSize?.toString() ?? '') ||
+    (sampleRate || '') !== (configuration.SampleRate?.toString() ?? '')
   );
 
   return (
@@ -60,7 +60,7 @@ export function PropertyModePanel() {
       <h3 className="text-sm font-semibold mb-3">{t('dashboard.propertyMode.title')}</h3>
       {loading ? (
         <p className="text-xs text-zinc-500">{t('common.loading')}</p>
-      ) : !config ? (
+      ) : !configuration ? (
         <p className="text-xs text-zinc-500 italic">{t('common.notAvailable')}</p>
       ) : (
         <div className="space-y-3">

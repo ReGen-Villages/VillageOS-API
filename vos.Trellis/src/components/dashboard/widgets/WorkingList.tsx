@@ -14,9 +14,9 @@ import { formatNumber } from './format';
  * would be describing arithmetic it does not run. A figure the model does not derive resolves to no
  * working and shows its value alone: an account invented here would read as the model's own.
  */
-export function WorkingList({ widget, ctx }: { widget: WorkingWidget; ctx: ResolveContext }) {
-  const figures = useBindings(widget.rows.map((r) => r.value), ctx);
-  const workings = useBindings(widget.rows.map((r) => r.working), ctx);
+export function WorkingList({ widget, context }: { widget: WorkingWidget; context: ResolveContext }) {
+  const figures = useBindings(widget.rows.map((r) => r.value), context);
+  const workings = useBindings(widget.rows.map((r) => r.working), context);
 
   return (
     <WidgetCard title={widget.title} hint={widget.hint}>

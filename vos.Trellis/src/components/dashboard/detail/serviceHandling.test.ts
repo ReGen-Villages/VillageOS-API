@@ -6,7 +6,7 @@ import { serviceEdgesOn, dispatchesFrom } from './serviceHandling';
 function thing(Id: string, Name: string, Properties: Record<string, unknown> = {}, IsArchetype = false): VosThing {
   return { Id, Name, Properties, IsArchetype };
 }
-function rel(
+function relationship(
   Id: string,
   SubjectId: string,
   PredicateId: string,
@@ -49,27 +49,27 @@ function site() {
       thing('well', 'WELL-1'),
     ],
     [
-      rel('w1', 'measures', 'is', 'wiring'),
-      rel('w2', 'measures', 'runs', 'meteringService'),
-      rel('w3', 'meteringService', 'is', 'daemon'),
-      rel('w4', 'springWhenDry', 'is', 'wiring'),
-      rel('w5', 'springWhenDry', 'runs', 'springService'),
-      rel('w6', 'springService', 'is', 'daemon'),
-      rel('w7', 'unbound', 'is', 'wiring'),
-      rel('w8', 'watch', 'is', 'lookout'),
-      rel('w9', 'watch', 'tells', 'springWhenDry'),
+      relationship('w1', 'measures', 'is', 'wiring'),
+      relationship('w2', 'measures', 'runs', 'meteringService'),
+      relationship('w3', 'meteringService', 'is', 'daemon'),
+      relationship('w4', 'springWhenDry', 'is', 'wiring'),
+      relationship('w5', 'springWhenDry', 'runs', 'springService'),
+      relationship('w6', 'springService', 'is', 'daemon'),
+      relationship('w7', 'unbound', 'is', 'wiring'),
+      relationship('w8', 'watch', 'is', 'lookout'),
+      relationship('w9', 'watch', 'tells', 'springWhenDry'),
 
-      rel('e1', 'catchment', 'measures', 'reservoir', {
+      relationship('e1', 'catchment', 'measures', 'reservoir', {
         __DispatchState: 'Done',
         __DispatchLastAttemptAt: '2026-08-27T08:09:32Z',
       }),
-      rel('e2', 'spring', 'record', 'springWhenDry', {
+      relationship('e2', 'spring', 'record', 'springWhenDry', {
         __DispatchState: 'Failed',
         __DispatchLastAttemptAt: '2026-08-27T08:10:00Z',
         __DispatchLastError: 'no reading came back',
       }),
-      rel('e3', 'spring', 'record', 'unbound'),
-      rel('e4', 'well', 'record', 'watch', {
+      relationship('e3', 'spring', 'record', 'unbound'),
+      relationship('e4', 'well', 'record', 'watch', {
         __DispatchState: 'Done',
         __DispatchLastAttemptAt: '2026-08-27T08:11:00Z',
       }),
@@ -78,8 +78,8 @@ function site() {
 }
 
 /** The stamps as the platform hands them back, keyed the way the hook keys its reads. */
-function stampsFrom(idx: ReturnType<typeof site>): Map<string, VosRelationship> {
-  return new Map(idx.relationships.map((edge) => [edge.Id, edge]));
+function stampsFrom(index: ReturnType<typeof site>): Map<string, VosRelationship> {
+  return new Map(index.relationships.map((edge) => [edge.Id, edge]));
 }
 
 describe('serviceEdgesOn', () => {
@@ -123,15 +123,15 @@ describe('serviceEdgesOn', () => {
   });
 
   it('finds nothing where the model marks no connection archetype, rather than guessing at one', () => {
-    const idx = buildModelIndex(
+    const index = buildModelIndex(
       [thing('is', 'is'), thing('measures', 'measures'), thing('catchment', 'CATCHMENT-1'), thing('reservoir', 'RESERVOIR-1')],
-      [rel('e1', 'catchment', 'measures', 'reservoir', { __DispatchState: 'Done' })],
+      [relationship('e1', 'catchment', 'measures', 'reservoir', { __DispatchState: 'Done' })],
     );
-    expect(serviceEdgesOn('catchment', idx)).toEqual([]);
+    expect(serviceEdgesOn('catchment', index)).toEqual([]);
   });
 
   it('finds nothing where two archetypes both claim the connection flag, as neither can be the one', () => {
-    const idx = buildModelIndex(
+    const index = buildModelIndex(
       [
         thing('is', 'is'),
         thing('wiring', 'Wiring', { __IsConnectionArchetype: true }, true),
@@ -140,23 +140,23 @@ describe('serviceEdgesOn', () => {
         thing('catchment', 'CATCHMENT-1'),
         thing('reservoir', 'RESERVOIR-1'),
       ],
-      [rel('w1', 'measures', 'is', 'wiring'), rel('e1', 'catchment', 'measures', 'reservoir', { __DispatchState: 'Done' })],
+      [relationship('w1', 'measures', 'is', 'wiring'), relationship('e1', 'catchment', 'measures', 'reservoir', { __DispatchState: 'Done' })],
     );
-    expect(serviceEdgesOn('catchment', idx)).toEqual([]);
+    expect(serviceEdgesOn('catchment', index)).toEqual([]);
   });
 
   it('reads the flag off the archetype that owns it, not off a member that inherited it', () => {
-    const idx = site();
+    const index = site();
     // `measures` is a member of Wiring; were the flag read as inherited, `measures` would contest
     // the archetype's claim and the whole model would answer nothing.
-    expect(serviceEdgesOn('catchment', idx)).toHaveLength(1);
+    expect(serviceEdgesOn('catchment', index)).toHaveLength(1);
   });
 });
 
 describe('dispatchesFrom', () => {
   it('carries the instant, the state and the words a service refused with', () => {
-    const idx = site();
-    const [dispatch] = dispatchesFrom(serviceEdgesOn('spring', idx).slice(0, 1), stampsFrom(idx));
+    const index = site();
+    const [dispatch] = dispatchesFrom(serviceEdgesOn('spring', index).slice(0, 1), stampsFrom(index));
 
     expect(dispatch.at).toBe('2026-08-27T08:10:00Z');
     expect(dispatch.state).toBe('Failed');
@@ -164,10 +164,10 @@ describe('dispatchesFrom', () => {
   });
 
   it('orders by when the platform last ran each, oldest first', () => {
-    const idx = site();
-    const edges = [...serviceEdgesOn('spring', idx), ...serviceEdgesOn('catchment', idx)];
+    const index = site();
+    const edges = [...serviceEdgesOn('spring', index), ...serviceEdgesOn('catchment', index)];
 
-    expect(dispatchesFrom(edges, stampsFrom(idx)).map((d) => d.at)).toEqual([
+    expect(dispatchesFrom(edges, stampsFrom(index)).map((d) => d.at)).toEqual([
       '2026-08-27T08:09:32Z',
       '2026-08-27T08:10:00Z',
       undefined,

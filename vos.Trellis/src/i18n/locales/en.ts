@@ -130,7 +130,7 @@ export const en = {
         'Retract "{{name}}" from the model? This removes the connection so Mycelium no longer routes to it. It stays in the seed, so a seed reload restores it. To only stop the process, use Stop instead.',
       confirm: 'Delete',
     },
-    stats: {
+    statistics: {
       title: 'Model Statistics',
       things: 'Things',
       relationships: 'Relationships',
@@ -153,7 +153,7 @@ export const en = {
       errors: 'Errors',
       lastReq: 'Last Req',
       lastContact: 'Last Contact',
-      pid: 'PID',
+      processId: 'PID',
       failures: 'Failures: {{count}}',
       health: {
         Healthy: 'Healthy',
@@ -184,7 +184,7 @@ export const en = {
       category: {
         model: 'Model',
         things: 'Things',
-        rels: 'Rels',
+        relationships: 'Rels',
         props: 'Props',
         services: 'Services',
       },
@@ -262,7 +262,7 @@ export const en = {
       noMatch: 'No matching predicates.',
     },
   },
-  auth: {
+  authentication: {
     loadSeed: 'Load a seed',
     searchSeeds: 'Search seeds…',
     colName: 'Name',
@@ -637,7 +637,7 @@ export const en = {
       renamed: "Renamed",
       renameFailed: "Failed to rename",
     },
-    rel: {
+    relationship: {
       openEdgeDetail: "Open edge detail",
       outgoing: "Outgoing",
       incoming: "Incoming",
@@ -708,7 +708,7 @@ export const en = {
     runHistory: "Run history",
     unsavedChanges: "unsaved changes",
     saved: "saved",
-    params: "Params",
+    parameters: "Params",
     closeInspector: "Close inspector",
     ports: "Ports ({{direction}}):",
     outputs: "outputs",

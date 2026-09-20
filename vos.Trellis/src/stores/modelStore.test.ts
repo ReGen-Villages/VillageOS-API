@@ -7,7 +7,7 @@ const thing = (id: string, name: string) => ({
   Id: id, Name: name, Properties: {}, InheritedOverrides: {},
 }) as unknown as VosThing;
 
-const rel = (id: string, name: string) => ({
+const relationship = (id: string, name: string) => ({
   Id: id, Name: name, SubjectId: 's', PredicateId: 'p', TargetId: 't',
   SubjectName: 'S', PredicateName: 'P', TargetName: 'T', Properties: {},
 }) as unknown as VosRelationship;
@@ -30,7 +30,7 @@ describe('modelStore', () => {
   });
 
   it('setRelationships replaces the relationships array', () => {
-    useModelStore.getState().setRelationships([rel('r1', 'X')]);
+    useModelStore.getState().setRelationships([relationship('r1', 'X')]);
     expect(useModelStore.getState().relationships).toHaveLength(1);
   });
 
@@ -41,7 +41,7 @@ describe('modelStore', () => {
 
   it('applyBatch upserts, removes, and mutates a property in one write', () => {
     useModelStore.getState().setThings([thing('1', 'A'), thing('2', 'B')]);
-    useModelStore.getState().setRelationships([rel('r1', 'X')]);
+    useModelStore.getState().setRelationships([relationship('r1', 'X')]);
 
     let writes = 0;
     const unsub = useModelStore.subscribe(() => { writes++; });
@@ -49,7 +49,7 @@ describe('modelStore', () => {
       thingUpserts: [thing('3', 'C')],
       thingRemovals: ['1'],
       thingPropertyUpdates: [{ id: '2', path: 'geometry', value: 'g2' }],
-      relationshipUpserts: [rel('r2', 'Y')],
+      relationshipUpserts: [relationship('r2', 'Y')],
       relationshipRemovals: ['r1'],
     });
     unsub();
@@ -64,7 +64,7 @@ describe('modelStore', () => {
   // in the store until the whole model was reloaded.
   it('applyBatch removes a property from a thing and a relationship', () => {
     useModelStore.getState().setThings([{ ...thing('1', 'A'), Properties: { keep: 1, drop: 2 } }]);
-    useModelStore.getState().setRelationships([{ ...rel('r1', 'X'), Properties: { keep: 1, drop: 2 } }]);
+    useModelStore.getState().setRelationships([{ ...relationship('r1', 'X'), Properties: { keep: 1, drop: 2 } }]);
 
     useModelStore.getState().applyBatch({
       thingPropertyRemovals: [{ id: '1', path: 'drop' }],
@@ -83,17 +83,17 @@ describe('modelStore', () => {
   });
 
   it('applyBatch leaves a collection untouched when it has no changes', () => {
-    const rels = [rel('r1', 'X')];
+    const relationships = [relationship('r1', 'X')];
     useModelStore.getState().setThings([thing('1', 'A')]);
-    useModelStore.getState().setRelationships(rels);
+    useModelStore.getState().setRelationships(relationships);
     useModelStore.getState().applyBatch({ thingUpserts: [thing('2', 'B')] });
     // relationships not in the batch → same array reference preserved (no needless rebuild).
-    expect(useModelStore.getState().relationships).toBe(rels);
+    expect(useModelStore.getState().relationships).toBe(relationships);
   });
 
   it('clear resets everything', () => {
     useModelStore.getState().setThings([thing('1', 'A')]);
-    useModelStore.getState().setRelationships([rel('r1', 'X')]);
+    useModelStore.getState().setRelationships([relationship('r1', 'X')]);
     useModelStore.getState().markLoaded();
     useModelStore.getState().clear();
     const { things, relationships, loaded } = useModelStore.getState();
@@ -110,7 +110,7 @@ describe('modelStore', () => {
 describe('a flush costs the size of the batch, not the size of the model', () => {
   const MODEL_SIZE = 50_000;
   const aModelOf = (count: number) => Array.from({ length: count }, (_, i) => thing(`T${i}`, `t${i}`));
-  const edgesOf = (count: number) => Array.from({ length: count }, (_, i) => rel(`R${i}`, `r${i}`));
+  const edgesOf = (count: number) => Array.from({ length: count }, (_, i) => relationship(`R${i}`, `r${i}`));
 
   let indexWrites: ReturnType<typeof vi.spyOn>;
   beforeEach(() => { indexWrites = vi.spyOn(Map.prototype, 'set'); });
@@ -130,10 +130,10 @@ describe('a flush costs the size of the batch, not the size of the model', () =>
 
   it('changes one relationship in a large model without touching the rest of the index', () => {
     useModelStore.getState().setRelationships(edgesOf(MODEL_SIZE));
-    useModelStore.getState().applyBatch({ relationshipUpserts: [rel('R7', 'first')] });
+    useModelStore.getState().applyBatch({ relationshipUpserts: [relationship('R7', 'first')] });
     indexWrites.mockClear();
 
-    useModelStore.getState().applyBatch({ relationshipUpserts: [rel('R7', 'renamed')] });
+    useModelStore.getState().applyBatch({ relationshipUpserts: [relationship('R7', 'renamed')] });
 
     expect(indexWrites).toHaveBeenCalledTimes(1);
     expect(useModelStore.getState().relationships).toHaveLength(MODEL_SIZE);
@@ -168,7 +168,7 @@ describe('a flush costs the size of the batch, not the size of the model', () =>
     expect(cleared).toHaveBeenCalledTimes(1);
 
     useModelStore.getState().setRelationships(edgesOf(3));
-    useModelStore.getState().applyBatch({ relationshipUpserts: [rel('R1', 'first')] });
+    useModelStore.getState().applyBatch({ relationshipUpserts: [relationship('R1', 'first')] });
     cleared.mockClear();
     useModelStore.getState().clear();
     expect(cleared).toHaveBeenCalledTimes(2);

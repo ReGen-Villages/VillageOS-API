@@ -144,10 +144,10 @@ describe('filterGraph', () => {
       const zone = makeThing('z1', 'Zone');
       const monitors = makeThing('p1', 'monitors');
       const isolated = makeThing('x1', 'Isolated');
-      const rel = makeRel('rx', 's1', 'p1', 'z1');
+      const relationship = makeRel('rx', 's1', 'p1', 'z1');
       const allThings = [sensor, zone, monitors, isolated];
 
-      const result = filterGraph('Sensor', allThings, [rel], defaults);
+      const result = filterGraph('Sensor', allThings, [relationship], defaults);
       const ids = result.filteredThings.map((t) => t.Id);
       expect(ids).toContain('p1'); // predicate included
       expect(ids).not.toContain('x1'); // isolated node excluded

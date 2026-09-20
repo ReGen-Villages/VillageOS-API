@@ -59,10 +59,10 @@ export function LogicalNodeController() {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         const ratio = camera.getState().ratio;
-        const prev = lastRatioRef.current;
+        const previous = lastRatioRef.current;
         lastRatioRef.current = ratio;
 
-        if (prev !== null && Math.abs(ratio - prev) < 0.05) return;
+        if (previous !== null && Math.abs(ratio - previous) < 0.05) return;
 
         const graph = sigma.getGraph();
         const state = useUiStore.getState();
@@ -73,10 +73,10 @@ export function LogicalNodeController() {
           const gcy = viewCenter.y;
 
           const searchRadius = 150 * ratio;
-          graph.forEachNode((nodeId, attrs) => {
-            if (!attrs.hasGeometry) return;
-            const dx = (attrs.x as number) - gcx;
-            const dy = (attrs.y as number) - gcy;
+          graph.forEachNode((nodeId, attributes) => {
+            if (!attributes.hasGeometry) return;
+            const dx = (attributes.x as number) - gcx;
+            const dy = (attributes.y as number) - gcy;
             if (dx * dx + dy * dy < searchRadius * searchRadius) {
               const children = getLogicalChildren(graph, nodeId);
               if (children.length > 0 && !state.expandedLogicalParents.has(nodeId)) {

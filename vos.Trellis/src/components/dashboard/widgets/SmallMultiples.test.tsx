@@ -48,7 +48,7 @@ const widget: SmallMultiplesWidget = {
 };
 
 function draw(drawn: SmallMultiplesWidget = widget) {
-  return render(<SmallMultiples widget={drawn} ctx={{} as ResolveContext} />);
+  return render(<SmallMultiples widget={drawn} context={{} as ResolveContext} />);
 }
 
 describe('the small multiples', () => {

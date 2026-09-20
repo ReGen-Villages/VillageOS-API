@@ -14,7 +14,7 @@ import type { VosThing, VosRelationship } from '../types/vos';
 // ── Test helpers ──────────────────────────────────────────────────────
 
 let idCounter = 0;
-function uid() {
+function uniqueId() {
   return `test-${++idCounter}`;
 }
 
@@ -22,7 +22,7 @@ function makeThing(
   name: string,
   props: Record<string, unknown> = {},
 ): VosThing {
-  return { Id: uid(), Name: name, Properties: props };
+  return { Id: uniqueId(), Name: name, Properties: props };
 }
 
 function makeRel(
@@ -31,7 +31,7 @@ function makeRel(
   targetId: string,
 ): VosRelationship {
   return {
-    Id: uid(),
+    Id: uniqueId(),
     Name: '',
     SubjectId: subjectId,
     PredicateId: predicateId,
@@ -48,10 +48,10 @@ function buildGuiFixture(
   const isPred = makeThing('is');
   const guiType = makeThing('GUI_Settings', typeProps);
   const gui = makeThing('GUI', instanceProps);
-  const rel = makeRel(gui.Id, isPred.Id, guiType.Id);
+  const relationship = makeRel(gui.Id, isPred.Id, guiType.Id);
   return {
     things: [isPred, guiType, gui],
-    relationships: [rel],
+    relationships: [relationship],
   };
 }
 

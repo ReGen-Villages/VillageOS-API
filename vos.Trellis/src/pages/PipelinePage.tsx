@@ -108,9 +108,9 @@ export function PipelinePage() {
   }, []);
 
   const onUndo = useCallback(() => {
-    const prev = historyRef.current.undo();
-    if (!prev) return;
-    applySnapshot(prev);
+    const previous = historyRef.current.undo();
+    if (!previous) return;
+    applySnapshot(previous);
     setCanUndo(historyRef.current.canUndo());
     setDirty(true);
     setSavedId(null); // an undo leaves the canvas out of step with the last save
@@ -323,8 +323,8 @@ export function PipelinePage() {
       // Async spawn — get the run id up front and let the SSE animation effect below light up nodes.
       // Param values are parsed as JSON when valid (so a list `["a","b"]` drives fan-out, `42`→number),
       // otherwise passed through as a plain string.
-      const params = Object.fromEntries(paramKeys.map((k) => [k, parseParamValue(runParamValues[k] ?? '')]));
-      const accepted = await pipelineApi.spawnAsync(savedId, params);
+      const parameters = Object.fromEntries(paramKeys.map((k) => [k, parseParamValue(runParamValues[k] ?? '')]));
+      const accepted = await pipelineApi.spawnAsync(savedId, parameters);
       setRunId(accepted.runId);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('pipeline.runFailed'));
@@ -479,7 +479,7 @@ export function PipelinePage() {
         </div>
         {paramKeys.length > 0 && (
           <div className="flex items-center gap-3 px-2 py-1 border-b border-zinc-200 dark:border-zinc-700 text-xs">
-            <span className="text-zinc-500 flex items-center gap-1"><SlidersHorizontal size={12} /> {t('pipeline.params')}</span>
+            <span className="text-zinc-500 flex items-center gap-1"><SlidersHorizontal size={12} /> {t('pipeline.parameters')}</span>
             {paramKeys.map((k) => (
               <label key={k} className="flex items-center gap-1">
                 <span className="font-mono text-zinc-600 dark:text-zinc-300">{k}</span>

@@ -14,7 +14,7 @@ import { FigurePanel } from './FigurePanel';
  */
 export function DerivedFigure({
   binding,
-  ctx,
+  context,
   title,
   format,
   unit,
@@ -23,7 +23,7 @@ export function DerivedFigure({
   children,
 }: {
   binding: Binding;
-  ctx: ResolveContext;
+  context: ResolveContext;
   title?: string;
   format?: NumberFormat;
   unit?: string;
@@ -49,7 +49,7 @@ export function DerivedFigure({
       {opened && (
         <FigurePanel
           binding={binding}
-          ctx={ctx}
+          context={context}
           title={title}
           format={format}
           unit={unit}

@@ -138,7 +138,7 @@ export const es: PartialResources = {
         '¿Retirar «{{name}}» del modelo? Esto elimina la conexión para que Mycelium ya no la enrute. Permanece en el seed, así que recargar el seed la restaura. Para detener solo el proceso, use Detener.',
       confirm: 'Eliminar',
     },
-    stats: {
+    statistics: {
       title: 'Estadísticas del modelo',
       things: 'Cosas',
       relationships: 'Relaciones',
@@ -161,7 +161,7 @@ export const es: PartialResources = {
       errors: 'Errores',
       lastReq: 'Última solicitud',
       lastContact: 'Último contacto',
-      pid: 'PID',
+      processId: 'PID',
       failures: 'Fallos: {{count}}',
       health: {
         Healthy: 'Correcto',
@@ -189,7 +189,7 @@ export const es: PartialResources = {
       pausedBuffered_other: 'En pausa — {{count}} eventos nuevos en búfer',
       filterPlaceholder: 'Filtrar eventos…',
       none: 'Aún no hay actividad',
-      category: { model: 'Modelo', things: 'Cosas', rels: 'Rel.', props: 'Prop.', services: 'Servicios' },
+      category: { model: 'Modelo', things: 'Cosas', relationships: 'Rel.', props: 'Prop.', services: 'Servicios' },
     },
   },
   graph: {
@@ -264,7 +264,7 @@ export const es: PartialResources = {
       noMatch: 'No hay predicados coincidentes.',
     },
   },
-  auth: {
+  authentication: {
     loadSeed: 'Cargar un seed',
     searchSeeds: 'Buscar seeds…',
     colName: 'Nombre',
@@ -639,7 +639,7 @@ export const es: PartialResources = {
       renamed: "Renombrado",
       renameFailed: "Error al renombrar",
     },
-    rel: {
+    relationship: {
       openEdgeDetail: "Abrir detalle de arista",
       outgoing: "Salientes",
       incoming: "Entrantes",
@@ -710,7 +710,7 @@ export const es: PartialResources = {
     runHistory: "Historial de ejecuciones",
     unsavedChanges: "cambios sin guardar",
     saved: "guardado",
-    params: "Parámetros",
+    parameters: "Parámetros",
     closeInspector: "Cerrar inspector",
     ports: "Puertos ({{direction}}):",
     outputs: "salidas",

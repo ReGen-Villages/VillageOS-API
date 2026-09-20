@@ -29,8 +29,8 @@ function tryToggleLogicalExpansion(nodeId: string, sigma: Sigma): void {
   const graph = sigma.getGraph();
   if (!graph.hasNode(nodeId)) return;
 
-  const attrs = graph.getNodeAttributes(nodeId);
-  if (attrs.hasGeometry && countLogicalChildren(graph, nodeId) > 0) {
+  const attributes = graph.getNodeAttributes(nodeId);
+  if (attributes.hasGeometry && countLogicalChildren(graph, nodeId) > 0) {
     state.toggleLogicalExpansion(nodeId);
   }
 }
@@ -66,8 +66,8 @@ function fanOutOverlappingNodes(nodeId: string, sigma: Sigma): void {
 }
 
 function toContainerCoords(event: MouseEvent, container: HTMLElement) {
-  const rect = container.getBoundingClientRect();
-  return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  const rectangle = container.getBoundingClientRect();
+  return { x: event.clientX - rectangle.left, y: event.clientY - rectangle.top };
 }
 
 /** Wires Sigma pointer events to the UI store. Child of <SigmaContainer>. */

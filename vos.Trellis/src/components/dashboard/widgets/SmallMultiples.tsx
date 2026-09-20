@@ -40,12 +40,12 @@ function byMonth(groups: Map<string, number>): Map<number, (number | undefined)[
   return months;
 }
 
-export function SmallMultiples({ widget, ctx }: { widget: SmallMultiplesWidget; ctx: ResolveContext }) {
+export function SmallMultiples({ widget, context }: { widget: SmallMultiplesWidget; context: ResolveContext }) {
   const { i18n } = useTranslation();
   const [measure, measuredWidth] = useElementWidth();
   const [active, setActive] = useState<{ month: number; hour: number } | null>(null);
 
-  const resolved = useBindings([widget.bars.value, widget.line.value, widget.band?.from, widget.band?.to], ctx);
+  const resolved = useBindings([widget.bars.value, widget.line.value, widget.band?.from, widget.band?.to], context);
   const bars = byMonth(groupsByKey(resolved[0]?.value ?? null));
   const line = byMonth(groupsByKey(resolved[1]?.value ?? null));
   const band = widget.band

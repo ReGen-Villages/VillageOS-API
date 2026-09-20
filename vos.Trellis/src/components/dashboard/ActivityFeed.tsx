@@ -34,7 +34,7 @@ type CategoryLabel = (typeof categories)[number]['label'];
 const CATEGORY_KEY = {
   Model: 'dashboard.feed.category.model',
   Things: 'dashboard.feed.category.things',
-  Rels: 'dashboard.feed.category.rels',
+  Rels: 'dashboard.feed.category.relationships',
   Props: 'dashboard.feed.category.props',
   Services: 'dashboard.feed.category.services',
 } as const;
@@ -85,8 +85,8 @@ export function ActivityFeed({ events, onCollapse }: Props) {
   }, [events]);
 
   const toggleCategory = useCallback((label: CategoryLabel) => {
-    setEnabledCategories((prev) => {
-      const next = new Set(prev);
+    setEnabledCategories((previous) => {
+      const next = new Set(previous);
       if (next.has(label)) next.delete(label);
       else next.add(label);
       return next;

@@ -6,14 +6,14 @@ import type { FigureBreakdown } from '../api/figureBreakdown';
 
 const mockBreakdownOf = vi.fn();
 vi.mock('../api/figureBreakdown', () => ({
-  breakdownOf: (binding: Binding, ctx: ResolveContext) => mockBreakdownOf(binding, ctx),
+  breakdownOf: (binding: Binding, context: ResolveContext) => mockBreakdownOf(binding, context),
 }));
 
 const { useFigureBreakdown } = await import('./useFigureBreakdown');
 
 const COUNT: Binding = { kind: 'stateCount', state: 'flooded' };
 const OTHER: Binding = { kind: 'stateCount', state: 'dry' };
-const context = (): ResolveContext => ({ idx: buildModelIndex([], []), scopeId: null }) as ResolveContext;
+const context = (): ResolveContext => ({ index: buildModelIndex([], []), scopeId: null }) as ResolveContext;
 
 function answer(value: number): FigureBreakdown {
   return { value, terms: {}, behind: null };
@@ -35,13 +35,13 @@ describe('useFigureBreakdown', () => {
 
   it('reads again when the context moves on, keeping the answer on screen until the next lands', async () => {
     mockBreakdownOf.mockResolvedValue(answer(4));
-    const ctx = context();
-    const { result, rerender } = renderHook(({ ctx }) => useFigureBreakdown(COUNT, ctx), { initialProps: { ctx } });
+    const first = context();
+    const { result, rerender } = renderHook(({ context }) => useFigureBreakdown(COUNT, context), { initialProps: { context: first } });
     await waitFor(() => expect(result.current.breakdown?.value).toBe(4));
 
     let release!: (value: FigureBreakdown) => void;
     mockBreakdownOf.mockImplementation(() => new Promise((resolve) => { release = resolve; }));
-    rerender({ ctx: context() });
+    rerender({ context: context() });
 
     expect(mockBreakdownOf).toHaveBeenCalledTimes(2);
     expect(result.current.breakdown?.value).toBe(4);
@@ -54,8 +54,8 @@ describe('useFigureBreakdown', () => {
     mockBreakdownOf
       .mockImplementationOnce(() => new Promise((resolve) => { releaseFirst = resolve; }))
       .mockResolvedValueOnce(answer(9));
-    const ctx = context();
-    const { result, rerender } = renderHook(({ binding }) => useFigureBreakdown(binding, ctx), { initialProps: { binding: COUNT } });
+    const held = context();
+    const { result, rerender } = renderHook(({ binding }) => useFigureBreakdown(binding, held), { initialProps: { binding: COUNT } });
 
     rerender({ binding: OTHER });
     await waitFor(() => expect(result.current.breakdown?.value).toBe(9));

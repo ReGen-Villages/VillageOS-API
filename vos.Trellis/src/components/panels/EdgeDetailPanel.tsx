@@ -21,11 +21,11 @@ interface Props {
   statesVersion?: number;
 }
 
-export function EdgeDetailPanel({ relationship: rel, allThings, onClose, onSelectNode, onDeleteRelationship, onDeleteProperty, statesVersion }: Props) {
+export function EdgeDetailPanel({ relationship: relationship, allThings, onClose, onSelectNode, onDeleteRelationship, onDeleteProperty, statesVersion }: Props) {
   const { t } = useTranslation();
-  const subject = allThings.get(rel.SubjectId);
-  const predicate = allThings.get(rel.PredicateId);
-  const target = allThings.get(rel.TargetId);
+  const subject = allThings.get(relationship.SubjectId);
+  const predicate = allThings.get(relationship.PredicateId);
+  const target = allThings.get(relationship.TargetId);
   const [editMode, setEditMode] = useState(false);
   const [tab, setTab] = useState<'properties' | 'ranges'>('ranges');
   const [rangesData, setRangesData] = useState<ThingRangesResponse | null>(null);
@@ -35,14 +35,14 @@ export function EdgeDetailPanel({ relationship: rel, allThings, onClose, onSelec
   // Which request the ranges tab is showing an answer for. Loading is read off that rather than
   // stored: raising a flag from inside the effect renders once without it and once with it, so the
   // panel paints "nothing to show" for a frame before the spinner appears.
-  const rangesRequest = `${rel.Id}:${statesVersion ?? 0}`;
+  const rangesRequest = `${relationship.Id}:${statesVersion ?? 0}`;
   const [answeredRangesRequest, setAnsweredRangesRequest] = useState<string | null>(null);
   const rangesLoading = tab === 'ranges' && answeredRangesRequest !== rangesRequest;
-  const resolvedProperties = useResolvedRelationshipProperties(rel.Id, {
+  const resolvedProperties = useResolvedRelationshipProperties(relationship.Id, {
     version: propertiesVersion,
     enabled: tab === 'properties',
   });
-  const ownProperties = rel.Properties ? Object.entries(rel.Properties) : [];
+  const ownProperties = relationship.Properties ? Object.entries(relationship.Properties) : [];
   const ownPropertyCount = ownProperties.length;
   const props = withDeclaredTypes(ownProperties, resolvedProperties);
 
@@ -57,8 +57,8 @@ export function EdgeDetailPanel({ relationship: rel, allThings, onClose, onSelec
     (async () => {
       try {
         const [rangesResp, statesResp] = await Promise.all([
-          relationshipRangeApi.getAll(rel.Id),
-          relationshipRangeApi.getStates(rel.Id),
+          relationshipRangeApi.getAll(relationship.Id),
+          relationshipRangeApi.getStates(relationship.Id),
         ]);
         if (!cancelled) {
           // Adapt to ThingRangesResponse shape (no inherited ranges for relationships)
@@ -83,11 +83,11 @@ export function EdgeDetailPanel({ relationship: rel, allThings, onClose, onSelec
       }
     })();
     return () => { cancelled = true; };
-  }, [rel.Id, tab, statesVersion, rangesRequest]);
+  }, [relationship.Id, tab, statesVersion, rangesRequest]);
 
   const copyId = () => {
-    navigator.clipboard.writeText(rel.Id);
-    toast.info(t('panels.node.idCopied'));
+    navigator.clipboard.writeText(relationship.Id);
+    toast.information(t('panels.node.idCopied'));
   };
 
   const tabs: Array<{ key: typeof tab; label: string }> = [
@@ -99,9 +99,9 @@ export function EdgeDetailPanel({ relationship: rel, allThings, onClose, onSelec
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="p-3 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
         <div className="min-w-0">
-          <h3 className="font-semibold text-sm truncate">{relationshipLabel(rel, (id) => allThings.get(id)?.Name)}</h3>
+          <h3 className="font-semibold text-sm truncate">{relationshipLabel(relationship, (id) => allThings.get(id)?.Name)}</h3>
           <button onClick={copyId} className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
-            <Copy size={10} /> {formatGuid(rel.Id)}
+            <Copy size={10} /> {formatGuid(relationship.Id)}
           </button>
         </div>
         <button onClick={onClose} className="text-zinc-400 hover:text-zinc-200">
@@ -114,19 +114,19 @@ export function EdgeDetailPanel({ relationship: rel, allThings, onClose, onSelec
           <div className="flex items-center justify-between">
             <span className="text-xs text-zinc-500">{t('panels.edge.subject')}</span>
             <button onClick={() => subject && onSelectNode(subject.Id)} className="text-xs text-emerald-400 hover:underline">
-              {subject?.Name || formatGuid(rel.SubjectId)}
+              {subject?.Name || formatGuid(relationship.SubjectId)}
             </button>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-zinc-500">{t('panels.edge.predicate')}</span>
             <button onClick={() => predicate && onSelectNode(predicate.Id)} className="text-xs text-amber-400 hover:underline">
-              {predicate?.Name || formatGuid(rel.PredicateId)}
+              {predicate?.Name || formatGuid(relationship.PredicateId)}
             </button>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-zinc-500">{t('panels.edge.target')}</span>
             <button onClick={() => target && onSelectNode(target.Id)} className="text-xs text-blue-400 hover:underline">
-              {target?.Name || formatGuid(rel.TargetId)}
+              {target?.Name || formatGuid(relationship.TargetId)}
             </button>
           </div>
         </div>
@@ -165,11 +165,11 @@ export function EdgeDetailPanel({ relationship: rel, allThings, onClose, onSelec
             </div>
             <EditablePropertyList
               properties={props}
-              entityId={rel.Id}
+              entityId={relationship.Id}
               entityType="relationship"
               editMode={editMode}
               onSaved={handlePropertySaved}
-              onDeleteProperty={onDeleteProperty ? (name) => onDeleteProperty(rel.Id, name) : undefined}
+              onDeleteProperty={onDeleteProperty ? (name) => onDeleteProperty(relationship.Id, name) : undefined}
             />
           </div>
         )}
@@ -186,7 +186,7 @@ export function EdgeDetailPanel({ relationship: rel, allThings, onClose, onSelec
 
       <div className="p-2 border-t border-zinc-200 dark:border-zinc-700">
         <button
-          onClick={() => onDeleteRelationship(rel.Id)}
+          onClick={() => onDeleteRelationship(relationship.Id)}
           className="w-full text-center py-1.5 text-xs text-red-400 hover:bg-red-900/20 rounded"
         >
           <Trash2 size={12} className="inline mr-1" /> {t('panels.edge.deleteRelationship')}

@@ -197,10 +197,10 @@ export default function BuildingDetail3D({
   let minZ = Infinity, maxZ = -Infinity;
   let maxHeight = 0;
   for (const m of allMeshes) {
-    const pos = m.positions;
-    for (let i = 0; i < pos.length; i += 3) {
-      const x = pos[i] - cx;
-      const z = pos[i + 2] - cz;
+    const position = m.positions;
+    for (let i = 0; i < position.length; i += 3) {
+      const x = position[i] - cx;
+      const z = position[i + 2] - cz;
       if (x < minX) minX = x;
       if (x > maxX) maxX = x;
       if (z < minZ) minZ = z;

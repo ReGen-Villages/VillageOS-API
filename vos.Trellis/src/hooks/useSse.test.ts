@@ -13,7 +13,7 @@ class FakeEventSource {
   onerror: (() => void) | null = null;
   closed = false;
   constructor(url: string) { this.url = url; FakeEventSource.instances.push(this); }
-  addEventListener(type: string, cb: (e: MessageEvent) => void) { this.listeners.set(type, cb); }
+  addEventListener(type: string, callback: (e: MessageEvent) => void) { this.listeners.set(type, callback); }
   close() { this.closed = true; }
   emit(type: string, data: unknown, id?: number | string) {
     this.listeners.get(type)?.({

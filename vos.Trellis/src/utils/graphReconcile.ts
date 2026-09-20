@@ -49,15 +49,15 @@ export function reconcileGraph(current: Graph, next: Graph): ReconcileResult {
  * predicate clustering pins nodes with, for one).
  */
 function replaceWithTarget(current: Graph, next: Graph): void {
-  next.forEachNode((node, attrs) => {
+  next.forEachNode((node, attributes) => {
     if (!current.hasNode(node)) return;
     const settled = current.getNodeAttributes(node);
-    next.replaceNodeAttributes(node, { ...settled, ...attrs, x: settled.x, y: settled.y });
+    next.replaceNodeAttributes(node, { ...settled, ...attributes, x: settled.x, y: settled.y });
   });
 
-  next.forEachEdge((edge, attrs) => {
+  next.forEachEdge((edge, attributes) => {
     if (!current.hasEdge(edge)) return;
-    next.replaceEdgeAttributes(edge, { ...current.getEdgeAttributes(edge), ...attrs });
+    next.replaceEdgeAttributes(edge, { ...current.getEdgeAttributes(edge), ...attributes });
   });
 
   current.clear();
@@ -66,23 +66,23 @@ function replaceWithTarget(current: Graph, next: Graph): void {
 
 /** Nothing was removed, so every element can be added or patched where it stands. */
 function upsertFromTarget(current: Graph, next: Graph): void {
-  next.forEachNode((node, attrs) => {
+  next.forEachNode((node, attributes) => {
     if (current.hasNode(node)) {
-      for (const [key, value] of Object.entries(attrs)) {
+      for (const [key, value] of Object.entries(attributes)) {
         if (key !== 'x' && key !== 'y') current.setNodeAttribute(node, key, value);
       }
     } else {
-      current.addNode(node, attrs);
+      current.addNode(node, attributes);
     }
   });
 
-  next.forEachEdge((edge, attrs, source, target) => {
+  next.forEachEdge((edge, attributes, source, target) => {
     if (current.hasEdge(edge)) {
-      for (const [key, value] of Object.entries(attrs)) {
+      for (const [key, value] of Object.entries(attributes)) {
         current.setEdgeAttribute(edge, key, value);
       }
     } else {
-      current.addDirectedEdgeWithKey(edge, source, target, attrs);
+      current.addDirectedEdgeWithKey(edge, source, target, attributes);
     }
   });
 }

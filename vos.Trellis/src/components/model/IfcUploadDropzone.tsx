@@ -24,7 +24,7 @@ export function IfcUploadDropzone() {
           file: file.name,
           created: result.thingsCreated,
           updated: result.thingsUpdated,
-          rels: result.relationshipsCreated,
+          relationships: result.relationshipsCreated,
         }));
         reloadModelData();
       } else {

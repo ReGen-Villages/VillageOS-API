@@ -81,7 +81,7 @@ export function BimFragmentsViewer({
   }, [sectionEnabled, sectionY]);
 
   const onProgress = useCallback((stage: string, progress: number) => {
-    setLoadState((prev) => (prev.kind === 'ready' ? prev : { kind: 'loading', stage, progress }));
+    setLoadState((previous) => (previous.kind === 'ready' ? previous : { kind: 'loading', stage, progress }));
   }, []);
 
   const onReady = useCallback((bounds: ModelBounds) => {
@@ -187,13 +187,13 @@ function BimFragmentsScene({
 
   // Local clipping must be enabled for the section plane to take effect.
   useEffect(() => {
-    const prev = gl.localClippingEnabled;
+    const previous = gl.localClippingEnabled;
     // Mutating the three-fiber renderer here is the intended Three.js API; the
     // immutability rule flags it only because `gl` comes from useThree().
     // eslint-disable-next-line react-hooks/immutability
     gl.localClippingEnabled = true;
     return () => {
-      gl.localClippingEnabled = prev;
+      gl.localClippingEnabled = previous;
     };
   }, [gl]);
 

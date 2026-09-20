@@ -14,8 +14,8 @@ export function useFlashTimer() {
   const triggerFlashNode = useCallback((thingId: string) => {
     const timers = timersRef.current;
     const key = `n:${thingId}`;
-    const prev = timers.get(key);
-    if (prev) clearTimeout(prev);
+    const previous = timers.get(key);
+    if (previous) clearTimeout(previous);
     addFlashNode(thingId);
     timers.set(key, setTimeout(() => { removeFlashNode(thingId); timers.delete(key); }, FLASH_DURATION_MS));
   }, [addFlashNode, removeFlashNode]);
@@ -23,8 +23,8 @@ export function useFlashTimer() {
   const triggerFlashEdge = useCallback((edgeId: string) => {
     const timers = timersRef.current;
     const key = `e:${edgeId}`;
-    const prev = timers.get(key);
-    if (prev) clearTimeout(prev);
+    const previous = timers.get(key);
+    if (previous) clearTimeout(previous);
     addFlashEdge(edgeId);
     timers.set(key, setTimeout(() => { removeFlashEdge(edgeId); timers.delete(key); }, FLASH_DURATION_MS));
   }, [addFlashEdge, removeFlashEdge]);

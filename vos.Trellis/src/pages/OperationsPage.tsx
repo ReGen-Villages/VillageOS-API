@@ -50,7 +50,7 @@ export function OperationsPage() {
   const loaded = useModelStore((s) => s.loaded);
   const { on, connected } = useSse();
 
-  const idx = useModelIndex();
+  const index = useModelIndex();
   const dashboards = useDashboards();
   const { dashboardKey } = useParams();
   const dashboard = dashboards.find((d) => d.routeKey === dashboardKey);
@@ -60,7 +60,7 @@ export function OperationsPage() {
     [dashboard, i18n.language],
   );
 
-  const entities = useMemo(() => (spec ? computeScopeEntities(spec, idx) : []), [spec, idx]);
+  const entities = useMemo(() => (spec ? computeScopeEntities(spec, index) : []), [spec, index]);
 
   const [scopeId, setScopeId] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
@@ -68,7 +68,7 @@ export function OperationsPage() {
   // A press taken by a writing widget starts a new generation of broker reads: what it changed is
   // read back, whether or not the change announced itself on the stream.
   const wrote = useCallback(() => setServerRefresh((n) => n + 1), []);
-  const ctx = useResolveContext(idx, scopeId, spec?.compare?.archetype, brokerModelReads, nonce, serverRefresh, wrote);
+  const context = useResolveContext(index, scopeId, spec?.compare?.archetype, brokerModelReads, nonce, serverRefresh, wrote);
 
   // What this page is about, said to the platform: it is sent the Things its widgets read and the
   // later changes to those, instead of every change in a model whose size it does not depend on.
@@ -110,7 +110,7 @@ export function OperationsPage() {
   useEffect(() => on('ModelChanged', () => setServerRefresh((n) => n + 1)), [on]);
 
   const isWide = useIsWide();
-  const { openDetail, windows } = useDetailWindows(idx, spec?.detail, nonce);
+  const { openDetail, windows } = useDetailWindows(index, spec?.detail, nonce);
 
   if (!loaded) {
     return <Centered>{t('modelPage.loading')}</Centered>;
@@ -170,7 +170,7 @@ export function OperationsPage() {
               ))}
             </div>
           )}
-          {dashboard && <ComposedPageControls dashboard={dashboard} idx={idx} />}
+          {dashboard && <ComposedPageControls dashboard={dashboard} index={index} />}
           <div className="text-[11px] text-zinc-400 dark:text-zinc-500 inline-flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-500' : 'bg-zinc-400'}`} />
             {connected ? 'live' : 'offline'}
@@ -181,7 +181,7 @@ export function OperationsPage() {
       <div className="flex-1 overflow-auto px-6 pb-10">
         <DashboardSections
           sections={spec.sections}
-          ctx={ctx}
+          context={context}
           isWide={isWide}
           openDetail={openDetail}
           whenEmpty={<Centered>{t('operationsPage.emptyView')}</Centered>}

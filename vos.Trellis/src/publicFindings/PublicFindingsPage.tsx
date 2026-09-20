@@ -183,7 +183,7 @@ function Drawn({ findings }: { findings: Findings }) {
   const { t, i18n } = useTranslation();
   const [measure, width] = useElementWidth();
   const spec = useMemo(() => localizeSpec(findings.spec, i18n.language), [findings.spec, i18n.language]);
-  const ctx = useResolveContext(findings.index, findings.scopeId, spec.compare?.archetype, () => findings.reads);
+  const context = useResolveContext(findings.index, findings.scopeId, spec.compare?.archetype, () => findings.reads);
 
   return (
     <div ref={measure}>
@@ -191,7 +191,7 @@ function Drawn({ findings }: { findings: Findings }) {
       {spec.subtitle && <p className="text-xs text-zinc-500 dark:text-zinc-400">{spec.subtitle}</p>}
       <DashboardSections
         sections={spec.sections}
-        ctx={ctx}
+        context={context}
         isWide={width >= WIDE}
         whenEmpty={<p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">{t('publicFindings.emptyView')}</p>}
       />

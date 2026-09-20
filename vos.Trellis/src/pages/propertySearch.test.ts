@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { searchProperties } from './propertySearch';
 import type { EffectiveProperty, VosRelationship } from '../types/vos';
 
-const ep = (value: unknown, isInherited: boolean, inheritedFrom?: string): EffectiveProperty => ({
+const effectiveProperty = (value: unknown, isInherited: boolean, inheritedFrom?: string): EffectiveProperty => ({
   Value: value,
   Type: 'vos.String',
   IsInherited: isInherited,
@@ -23,7 +23,7 @@ describe('searchProperties', () => {
     // Before the fix, search walked the client override-only tree, which does not contain this value.
     const effectiveProps = {
       [INSTANCE_ID]: {
-        'Home.energy_rating': ep('A+', true, HOME_ID),
+        'Home.energy_rating': effectiveProperty('A+', true, HOME_ID),
       },
     };
 
@@ -43,7 +43,7 @@ describe('searchProperties', () => {
   });
 
   it('surfaces own properties with no inheritance source', () => {
-    const effectiveProps = { [INSTANCE_ID]: { status: ep('active', false) } };
+    const effectiveProps = { [INSTANCE_ID]: { status: effectiveProperty('active', false) } };
 
     const results = searchProperties({
       effectiveProps, relationships: [], thingNames, query: 'status', mode: 'name',
@@ -56,7 +56,7 @@ describe('searchProperties', () => {
 
   it('matches by value when mode is value', () => {
     const effectiveProps = {
-      [INSTANCE_ID]: { status: ep('active', false), 'Home.energy_rating': ep('A+', true, HOME_ID) },
+      [INSTANCE_ID]: { status: effectiveProperty('active', false), 'Home.energy_rating': effectiveProperty('A+', true, HOME_ID) },
     };
 
     const results = searchProperties({
@@ -67,7 +67,7 @@ describe('searchProperties', () => {
   });
 
   it('skips bulky blob property names', () => {
-    const effectiveProps = { [INSTANCE_ID]: { geometry: ep('<mesh>', false) } };
+    const effectiveProps = { [INSTANCE_ID]: { geometry: effectiveProperty('<mesh>', false) } };
 
     const results = searchProperties({
       effectiveProps, relationships: [], thingNames, query: 'geometry', mode: 'name',
@@ -77,13 +77,13 @@ describe('searchProperties', () => {
   });
 
   it('searches relationship properties from the live store', () => {
-    const rel: VosRelationship = {
+    const relationship: VosRelationship = {
       Id: 'rel-1', Name: 'consumes', SubjectId: INSTANCE_ID, PredicateId: 'p', TargetId: HOME_ID,
       Properties: { rate: 5 },
     };
 
     const results = searchProperties({
-      effectiveProps: {}, relationships: [rel], thingNames, query: 'rate', mode: 'name',
+      effectiveProps: {}, relationships: [relationship], thingNames, query: 'rate', mode: 'name',
     });
 
     expect(results).toHaveLength(1);

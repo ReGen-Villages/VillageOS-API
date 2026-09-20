@@ -161,8 +161,8 @@ describe('buildThingSearchIndex', () => {
       const IS = makeThing('p-IS', 'IS');
       const inst = makeThing('i1', 'Instance');
       const type = makeThing('t1', 'TheType');
-      const rel = makeRel('rx', 'i1', 'p-IS', 't1');
-      const index = buildThingSearchIndex([IS, inst, type], [rel]);
+      const relationship = makeRel('rx', 'i1', 'p-IS', 't1');
+      const index = buildThingSearchIndex([IS, inst, type], [relationship]);
       expect(index.isSubjectToTypeName.get('i1')).toBe('TheType');
     });
   });

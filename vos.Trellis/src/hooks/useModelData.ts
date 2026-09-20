@@ -64,7 +64,7 @@ let holdsNarrowedSet = false;
  * `silent` withholds the failure toast, for a read behind a page that is already drawn: an error
  * toast does not auto-dismiss, so a retrying loop would stack un-dismissable ones (Bug #5940).
  */
-export async function reloadModelData(opts?: { silent?: boolean }): Promise<void> {
+export async function reloadModelData(options?: { silent?: boolean }): Promise<void> {
   try {
     const declared = await declaredModelLoadProperties();
     const [t, r] = await Promise.all([thingApi.getAll(declared), relationshipApi.getAll()]);
@@ -75,7 +75,7 @@ export async function reloadModelData(opts?: { silent?: boolean }): Promise<void
     // this the Operations page sits on "Loading model…" forever (Bug #5930).
     useModelStore.getState().markLoaded();
   } catch {
-    if (!opts?.silent) toast.error('Failed to load model');
+    if (!options?.silent) toast.error('Failed to load model');
   }
 }
 
@@ -172,8 +172,8 @@ export function useModelData(): void {
     };
 
     // Each property event is (entity id, property name, value); a retraction carries no value.
-    const onThingProperty = (args: unknown[], change: PropertyChange) => {
-      const [thingId, propertyPath] = args as [string, string | undefined];
+    const onThingProperty = (eventArguments: unknown[], change: PropertyChange) => {
+      const [thingId, propertyPath] = eventArguments as [string, string | undefined];
       if (!thingId || propertyPath === undefined) return;
       triggerFlashNode(thingId);
       recordProperty(pending.thingProps, thingId, propertyPath, change);
@@ -183,8 +183,8 @@ export function useModelData(): void {
     // Applied only while the relationship is on screen — as the opened edge, or hanging off the
     // opened node. Asking about the node alone dropped every change to the edge whose own panel was
     // in front of the user, because selecting an edge clears the node selection.
-    const onRelationshipProperty = (args: unknown[], change: PropertyChange) => {
-      const [relId, propertyName] = args as [string, string | undefined];
+    const onRelationshipProperty = (eventArguments: unknown[], change: PropertyChange) => {
+      const [relId, propertyName] = eventArguments as [string, string | undefined];
       if (!relId || propertyName === undefined) return;
       triggerFlashEdge(relId);
       const { selectedNodeId, selectedEdgeId } = useUiStore.getState();
@@ -273,11 +273,11 @@ export function useModelData(): void {
       // store, so dropping their updates left it showing stale or blank cells for anything changed
       // after the last full load. The debounced applyBatch coalesces the high rate into one write
       // per window.
-      on('PropertyChanged', (...args) => onThingProperty(args, { deleted: false, value: args[2] })),
-      on('PropertyObserved', (...args) => onThingProperty(args, { deleted: false, value: args[2] })),
-      on('PropertyDeleted', (...args) => onThingProperty(args, { deleted: true })),
-      on('RelationshipPropertyChanged', (...args) => onRelationshipProperty(args, { deleted: false, value: args[2] })),
-      on('RelationshipPropertyDeleted', (...args) => onRelationshipProperty(args, { deleted: true })),
+      on('PropertyChanged', (...eventArguments) => onThingProperty(eventArguments, { deleted: false, value: eventArguments[2] })),
+      on('PropertyObserved', (...eventArguments) => onThingProperty(eventArguments, { deleted: false, value: eventArguments[2] })),
+      on('PropertyDeleted', (...eventArguments) => onThingProperty(eventArguments, { deleted: true })),
+      on('RelationshipPropertyChanged', (...eventArguments) => onRelationshipProperty(eventArguments, { deleted: false, value: eventArguments[2] })),
+      on('RelationshipPropertyDeleted', (...eventArguments) => onRelationshipProperty(eventArguments, { deleted: true })),
       // Every open: the first, a reconnect, and a page changing what the subscription covers.
       on(SUBSCRIPTION_OPENED, (data) => loadWhatOpened(data as SubscriptionOpened)),
       // A replaced model is not the one the subscription resolved against, so it is asked for

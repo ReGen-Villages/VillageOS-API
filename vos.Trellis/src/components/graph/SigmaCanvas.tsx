@@ -14,42 +14,42 @@ import { GraphToolbar } from './GraphToolbar';
 import { WebGLContextGuard } from './WebGLContextGuard';
 
 function drawRoundedPill(
-  ctx: CanvasRenderingContext2D,
+  context: CanvasRenderingContext2D,
   x: number,
   y: number,
   width: number,
   height: number,
   radius: number,
 ): void {
-  ctx.beginPath();
-  ctx.moveTo(x + radius, y);
-  ctx.lineTo(x + width - radius, y);
-  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-  ctx.lineTo(x + width, y + height - radius);
-  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-  ctx.lineTo(x + radius, y + height);
-  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-  ctx.lineTo(x, y + radius);
-  ctx.quadraticCurveTo(x, y, x + radius, y);
-  ctx.closePath();
+  context.beginPath();
+  context.moveTo(x + radius, y);
+  context.lineTo(x + width - radius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + radius);
+  context.lineTo(x + width, y + height - radius);
+  context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  context.lineTo(x + radius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - radius);
+  context.lineTo(x, y + radius);
+  context.quadraticCurveTo(x, y, x + radius, y);
+  context.closePath();
 }
 
 /** Returns null if truncation would leave fewer than 4 chars. */
 function truncateLabel(
-  ctx: CanvasRenderingContext2D,
+  context: CanvasRenderingContext2D,
   text: string,
   maxWidth: number,
 ): string | null {
   let label = text;
-  let textLength = ctx.measureText(label).width;
+  let textLength = context.measureText(label).width;
   if (textLength <= maxWidth) return label;
 
   const ellipsis = '\u2026';
   label = label + ellipsis;
-  textLength = ctx.measureText(label).width;
+  textLength = context.measureText(label).width;
   while (textLength > maxWidth && label.length > 1) {
     label = label.slice(0, -2) + ellipsis;
-    textLength = ctx.measureText(label).width;
+    textLength = context.measureText(label).width;
   }
   if (label.length < 4) return null;
   return label;

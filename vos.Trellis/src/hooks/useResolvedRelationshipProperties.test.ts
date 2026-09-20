@@ -6,7 +6,7 @@ const mockGetEffectiveProperties = vi.fn();
 
 vi.mock('../api/relationshipApi', () => ({
   relationshipApi: {
-    getEffectiveProperties: (...args: unknown[]) => mockGetEffectiveProperties(...args),
+    getEffectiveProperties: (...callArguments: unknown[]) => mockGetEffectiveProperties(...callArguments),
   },
 }));
 

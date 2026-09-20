@@ -66,9 +66,9 @@ export function useDeclaredPropertyTypes(
         const alreadyRead = read.current;
         if (missing === undefined) read.current = 'all';
         else if (alreadyRead !== 'all') missing.forEach((id) => alreadyRead.add(id));
-        setTypes((prev) => ({ ...(prev ?? {}), ...data }));
+        setTypes((previous) => ({ ...(previous ?? {}), ...data }));
       },
-      () => { if (!cancelled) setTypes((prev) => prev ?? {}); },
+      () => { if (!cancelled) setTypes((previous) => previous ?? {}); },
     );
     return () => { cancelled = true; };
   }, [enabled, loaded, wanted]);

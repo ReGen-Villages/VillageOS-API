@@ -12,10 +12,10 @@ import type {
 } from '../types/vos';
 
 function timeParams(start?: string, end?: string): string {
-  const params = new URLSearchParams();
-  if (start) params.set('startTime', start);
-  if (end) params.set('endTime', end);
-  const qs = params.toString();
+  const parameters = new URLSearchParams();
+  if (start) parameters.set('startTime', start);
+  if (end) parameters.set('endTime', end);
+  const qs = parameters.toString();
   return qs ? `?${qs}` : '';
 }
 

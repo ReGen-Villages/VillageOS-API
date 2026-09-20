@@ -64,11 +64,11 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
     if (spatialPredicateIds.size === 0) return [];
 
     const children: ChildElement[] = [];
-    for (const rel of relationships) {
-      if (rel.SubjectId !== thing.Id) continue;
-      if (!spatialPredicateIds.has(rel.PredicateId)) continue;
+    for (const relationship of relationships) {
+      if (relationship.SubjectId !== thing.Id) continue;
+      if (!spatialPredicateIds.has(relationship.PredicateId)) continue;
 
-      const child = allThings.get(rel.TargetId);
+      const child = allThings.get(relationship.TargetId);
       if (!child?.Properties?.geometry) continue;
 
       children.push({
@@ -101,8 +101,8 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
     let cancelled = false;
     (async () => {
       try {
-        const ep = await thingApi.getEffectiveProperties(thing.Id);
-        if (!cancelled) setEffectiveProps(ep);
+        const effectiveProperty = await thingApi.getEffectiveProperties(thing.Id);
+        if (!cancelled) setEffectiveProps(effectiveProperty);
       } catch {
         if (!cancelled) setEffectiveProps(null);
       }
@@ -118,7 +118,7 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
 
   const copyId = () => {
     navigator.clipboard.writeText(thing.Id);
-    toast.info(t('panels.node.idCopied'));
+    toast.information(t('panels.node.idCopied'));
   };
 
   return (
@@ -284,7 +284,7 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
               <button
                 onClick={() => {
                   navigator.clipboard.writeText(expandedValue.value);
-                  toast.info(t('panels.node.valueCopied'));
+                  toast.information(t('panels.node.valueCopied'));
                 }}
                 className="text-zinc-400 hover:text-zinc-200 p-1"
                 title={t('panels.node.copyValue')}
@@ -376,21 +376,21 @@ function InheritedPropertiesSection({ effectiveProps, allThings, onSelectNode, o
   // Every property resolved through an "is" chain is inherited, whether or not this thing overrode it.
   // The backend tags each effective property with its provenance; own properties are excluded here and
   // shown in the Own section above.
-  const inherited = Object.entries(effectiveProps).filter(([, ep]) => ep.IsInherited);
+  const inherited = Object.entries(effectiveProps).filter(([, effectiveProperty]) => effectiveProperty.IsInherited);
   if (inherited.length === 0) return null;
 
   // Group by source thing
   const bySource = new Map<string, { name: string; props: EditableProperty[] }>();
-  for (const [name, ep] of inherited) {
-    const sourceId = ep.InheritedFrom || 'unknown';
+  for (const [name, effectiveProperty] of inherited) {
+    const sourceId = effectiveProperty.InheritedFrom || 'unknown';
     if (!bySource.has(sourceId)) {
       bySource.set(sourceId, { name: allThings.get(sourceId)?.Name || formatGuid(sourceId), props: [] });
     }
-    bySource.get(sourceId)!.props.push({ name, value: ep.Value, type: ep.Type });
+    bySource.get(sourceId)!.props.push({ name, value: effectiveProperty.Value, type: effectiveProperty.Type });
   }
 
-  const toggleSource = (id: string) => setExpandedSources((prev) => {
-    const next = new Set(prev);
+  const toggleSource = (id: string) => setExpandedSources((previous) => {
+    const next = new Set(previous);
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
   });

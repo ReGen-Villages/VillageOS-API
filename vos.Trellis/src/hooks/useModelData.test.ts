@@ -28,7 +28,7 @@ const wireEdge = (Id: string, SubjectId: string, PredicateId: string, TargetId: 
 });
 
 // Capture the SSE handler registry so tests can fire events synthetically.
-type Handler = (...args: unknown[]) => void;
+type Handler = (...callArguments: unknown[]) => void;
 const handlers = new Map<string, Handler>();
 const mockResubscribe = vi.fn();
 vi.mock('./useSse', () => ({
@@ -37,8 +37,8 @@ vi.mock('./useSse', () => ({
   useDefaultSubscription: () => {},
   useSse: () => ({
     connected: true,
-    on: (event: string, cb: Handler) => {
-      handlers.set(event, cb);
+    on: (event: string, callback: Handler) => {
+      handlers.set(event, callback);
       return () => handlers.delete(event);
     },
   }),
@@ -51,7 +51,7 @@ vi.mock('./useFlashTimer', () => ({
 
 // Toast is fire-and-forget; silence it.
 vi.mock('../components/common/toastStore', () => ({
-  toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
+  toast: { error: vi.fn(), success: vi.fn(), information: vi.fn() },
 }));
 
 import { useModelData, reloadModelData } from './useModelData';
@@ -300,11 +300,11 @@ describe('useModelData', () => {
   });
 
   it('RelationshipDeleted removes the relationship locally without a full refetch', async () => {
-    const rel = { Id: 'r1', Name: 'is', SubjectId: 't1', PredicateId: 'p', TargetId: 't2', Properties: {} };
-    useModelStore.setState({ things: [], relationships: [rel] });
+    const relationship = { Id: 'r1', Name: 'is', SubjectId: 't1', PredicateId: 'p', TargetId: 't2', Properties: {} };
+    useModelStore.setState({ things: [], relationships: [relationship] });
     await mountLoaded();
     await waitFor(() => expect(mockGetAllRels).toHaveBeenCalled());
-    useModelStore.setState({ things: [], relationships: [rel] });
+    useModelStore.setState({ things: [], relationships: [relationship] });
     mockGetAllRels.mockClear();
 
     await act(async () => { handlers.get('RelationshipDeleted')!({ EntityId: 'r1' }); });

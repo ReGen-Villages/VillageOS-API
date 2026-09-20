@@ -15,7 +15,7 @@ import { dashboardPages, dashboardWriteContext } from './dashboardPages';
 function thing(Id: string, Name: string, IsArchetype = false): VosThing {
   return { Id, Name, Properties: {}, IsArchetype };
 }
-function rel(Id: string, SubjectId: string, PredicateId: string, TargetId: string): VosRelationship {
+function relationship(Id: string, SubjectId: string, PredicateId: string, TargetId: string): VosRelationship {
   return { Id, SubjectId, PredicateId, TargetId, Properties: {} };
 }
 
@@ -28,7 +28,7 @@ const PAGE: DashboardSpec = {
 function index() {
   return buildModelIndex(
     [thing('is', 'is'), thing('dashboard', 'Dashboard', true), thing('kept', 'Springs by flow'), thing('spring', 'Spring', true)],
-    [rel('i1', 'kept', 'is', 'dashboard'), rel('i2', 'spring', 'is', 'spring')],
+    [relationship('i1', 'kept', 'is', 'dashboard'), relationship('i2', 'spring', 'is', 'spring')],
   );
 }
 

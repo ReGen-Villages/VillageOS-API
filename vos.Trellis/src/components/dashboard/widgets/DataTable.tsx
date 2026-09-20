@@ -36,7 +36,7 @@ export function DataTable({
   columns,
   rowsBinding,
   rows: rowsProp,
-  ctx,
+  context,
   minWidth = 520,
   sortKey,
   sortDir = 'desc',
@@ -51,7 +51,7 @@ export function DataTable({
   columns: TableColumn[];
   rowsBinding?: Binding;
   rows?: Row[];
-  ctx: ResolveContext;
+  context: ResolveContext;
   minWidth?: number;
   sortKey?: string;
   sortDir?: 'asc' | 'desc';
@@ -65,7 +65,7 @@ export function DataTable({
   title?: string;
 }) {
   const { t } = useTranslation();
-  const { loading, value } = useBinding(rowsBinding, ctx);
+  const { loading, value } = useBinding(rowsBinding, context);
   const [headerRef, headerHeight] = useElementHeight();
   /* Measured from whichever row is at the top of the window, and only until a height comes back:
      the row at the top is a different element after every scroll that moves the window, so keeping
@@ -75,9 +75,9 @@ export function DataTable({
   const [firstVisibleRow, setFirstVisibleRow] = useState(0);
   const resolved = rowsProp ?? asRows(value);
   const rows = useMemo(() => filterRows(resolved, query, searchKeys), [resolved, query, searchKeys]);
-  const [sort, setSort] = useState<{ key: string; dir: 1 | -1 }>({
+  const [sort, setSort] = useState<{ key: string; direction: 1 | -1 }>({
     key: sortKey ?? columns[0]?.key ?? '',
-    dir: sortDir === 'asc' ? 1 : -1,
+    direction: sortDir === 'asc' ? 1 : -1,
   });
 
   const sorted = useMemo(() => {
@@ -89,11 +89,11 @@ export function DataTable({
       if (col?.numeric) {
         x = Number(x) || 0;
         y = Number(y) || 0;
-        return ((x as number) - (y as number)) * sort.dir;
+        return ((x as number) - (y as number)) * sort.direction;
       }
       const sx = String(x ?? '').toLowerCase();
       const sy = String(y ?? '').toLowerCase();
-      return (sx < sy ? -1 : sx > sy ? 1 : 0) * sort.dir;
+      return (sx < sy ? -1 : sx > sy ? 1 : 0) * sort.direction;
     });
     return copy;
   }, [rows, sort, columns]);
@@ -124,7 +124,7 @@ export function DataTable({
     : undefined;
 
   function toggleSort(key: string, numeric?: boolean) {
-    setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: numeric ? -1 : 1 }));
+    setSort((s) => (s.key === key ? { key, direction: (s.direction * -1) as 1 | -1 } : { key, direction: numeric ? -1 : 1 }));
   }
 
   if (loading) return <div className="py-6 text-center text-xs text-zinc-400">Loading…</div>;
@@ -154,7 +154,7 @@ export function DataTable({
                   }`}
                 >
                   {c.label}
-                  {sort.key === c.key && <span className="opacity-50 text-[9px] ml-1">{sort.dir > 0 ? '▲' : '▼'}</span>}
+                  {sort.key === c.key && <span className="opacity-50 text-[9px] ml-1">{sort.direction > 0 ? '▲' : '▼'}</span>}
                 </th>
               ))}
             </tr>
