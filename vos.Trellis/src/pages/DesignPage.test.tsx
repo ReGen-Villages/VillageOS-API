@@ -204,11 +204,32 @@ describe('DesignPage', () => {
     fireEvent.change(screen.getByLabelText('State'), { target: { value: 'flowing' } });
     fireEvent.blur(screen.getByLabelText('State'));
     expect(screen.queryByText('Waiting for: rows')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Rows shown'), { target: { value: '8' } });
+    fireEvent.blur(screen.getByLabelText('Rows shown'));
 
     fireEvent.click(screen.getByRole('button', { name: 'Keep' }));
     await waitFor(() => expect(thingApi.setProperty).toHaveBeenCalled());
     const table = written().sections[0].widgets[1];
     expect(table).toMatchObject({ type: 'table', columns: [{ key: 'flow' }], rows: { kind: 'stateList', archetype: 'Spring', state: 'flowing', properties: ['flow'] } });
+  });
+
+  it('refuses to keep a page while a table states no row cap, and says so under the canvas', () => {
+    renderAt('/design/reservoirs');
+    expect(screen.getByText('The page can be kept.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add a Table' }));
+    expect(screen.getByRole('button', { name: /states no row cap/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Keep' })).toBeDisabled();
+  });
+
+  it('opens the words in every language from the header and keeps one written into its locale', async () => {
+    renderAt('/design/reservoirs');
+    fireEvent.click(screen.getByRole('button', { name: 'The words in every language' }));
+    const cell = screen.getByLabelText('Full reservoirs in Nederlands');
+    fireEvent.change(cell, { target: { value: 'Volle reservoirs' } });
+    fireEvent.blur(cell);
+    fireEvent.click(screen.getByRole('button', { name: 'Keep' }));
+    await waitFor(() => expect(thingApi.setProperty).toHaveBeenCalled());
+    expect(written().translations).toEqual({ nl: { 'Full reservoirs': 'Volle reservoirs' } });
   });
 
   it('removes a kept page after asking, and leaves the designer on no page', async () => {

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Settings2, Trash2 } from 'lucide-react';
+import { Languages, Settings2, Trash2 } from 'lucide-react';
 import type { DashboardSpec, Placement, Widget } from '../types/dashboard';
 import { WHOLE_MODEL } from '../types/subscription';
 import { brokerModelReads } from '../api/brokerModelReads';
@@ -16,6 +16,7 @@ import { useEndpoints } from '../hooks/useEndpoints';
 import { DEFAULT_SIZE } from '../utils/gridLayout';
 import { emptyWidget, nextPlacement } from '../utils/designSpec';
 import { readyToKeep } from '../utils/rowProperties';
+import { checkDesign, refusalsIn, type DesignCheckContext } from '../utils/designFindings';
 import { offersFor } from '../components/design/designOffers';
 import type { BindingContext } from '../components/design/bindingContext';
 import { withPlacements, withSectionAdded, withWidgetAdded } from '../utils/designEdits';
@@ -25,6 +26,8 @@ import { DesignPagesPanel, type DesignablePage } from '../components/design/Desi
 import { DesignPalette } from '../components/design/DesignPalette';
 import { DesignCanvas } from '../components/design/DesignCanvas';
 import { DesignPropertiesPanel } from '../components/design/DesignPropertiesPanel';
+import { DesignFindingsBar } from '../components/design/DesignFindingsBar';
+import { TranslationsPanel } from '../components/design/TranslationsPanel';
 
 const DESIGN_PATH = '/design';
 
@@ -108,7 +111,27 @@ function DesignWorkbench({ opened, started, pages }: { opened?: DesignablePage; 
   const nameTaken = pages.some((page) => page.name === trimmed || page.spec.title === trimmed);
   const keepsInPlace = !source.seeded && source.id !== null;
 
-  const sectionForNew = () => (selection && selection.on !== 'page' ? selection.section : 0);
+  const checkContext = useMemo<DesignCheckContext>(() => {
+    const isKind = (kind: string) => {
+      const thing = modelIndex.byName.get(kind);
+      return !!thing && modelIndex.archetypeIds.has(thing.Id);
+    };
+    return {
+      isKind,
+      isPredicate: (predicate) => modelIndex.predicateNameToId.has(predicate),
+      statesOf,
+      propertiesOf: (kind) => (isKind(kind) ? offers.propertiesOf(kind) : undefined),
+      iconsTaken: new Set(pages.filter((page) => page.id !== source.id).map((page) => page.spec.icon).filter((icon): icon is string => !!icon)),
+      compareKind,
+    };
+  }, [modelIndex, offers, statesOf, pages, source.id, compareKind]);
+  const findings = useMemo(
+    () => checkDesign(spec, keepsInPlace ? source.name : trimmed || spec.title, checkContext),
+    [spec, keepsInPlace, source.name, trimmed, checkContext],
+  );
+  const refused = refusalsIn(findings).length > 0;
+
+  const sectionForNew = () => (selection && selection.on !== 'page' && selection.on !== 'translations' ? selection.section : 0);
 
   const add = (kind: Widget['type']) => {
     const withRoom = spec.sections.length === 0 ? withSectionAdded(spec) : spec;
@@ -197,6 +220,15 @@ function DesignWorkbench({ opened, started, pages }: { opened?: DesignablePage; 
           >
             <Settings2 size={13} />
           </button>
+          <button
+            type="button"
+            aria-label={t('design.canvas.translations')}
+            title={t('design.canvas.translations')}
+            onClick={() => select({ on: 'translations' })}
+            className={headerButtonClass}
+          >
+            <Languages size={13} />
+          </button>
           <h2 className="text-lg font-bold text-zinc-900 dark:text-white leading-tight">{spec.title}</h2>
           <span className="text-[10px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
             {source.seeded ? t('design.pages.seeded') : source.id ? t('design.pages.kept') : ''}
@@ -206,7 +238,7 @@ function DesignWorkbench({ opened, started, pages }: { opened?: DesignablePage; 
           <div className="ml-auto flex items-center gap-2 flex-wrap">
             {keepsInPlace ? (
               <>
-                <button type="button" className={headerButtonClass} disabled={busy || !dirty} onClick={() => void keep()}>
+                <button type="button" className={headerButtonClass} disabled={busy || !dirty || refused} title={refused ? t('design.findings.refused') : undefined} onClick={() => void keep()}>
                   {t('design.properties.keep')}
                 </button>
                 <button type="button" className={headerButtonClass} onClick={() => setRemoving(true)}>
@@ -223,7 +255,7 @@ function DesignWorkbench({ opened, started, pages }: { opened?: DesignablePage; 
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                 />
-                <button type="button" className={headerButtonClass} disabled={busy || !trimmed || nameTaken} onClick={() => void keepAs()}>
+                <button type="button" className={headerButtonClass} disabled={busy || !trimmed || nameTaken || refused} title={refused ? t('design.findings.refused') : undefined} onClick={() => void keepAs()}>
                   {t('design.properties.keepAs')}
                 </button>
               </>
@@ -248,9 +280,11 @@ function DesignWorkbench({ opened, started, pages }: { opened?: DesignablePage; 
             select({ on: 'section', section: spec.sections.length });
           }}
         />
+        <DesignFindingsBar findings={findings} onSelect={select} />
       </section>
 
-      {selection && <DesignPropertiesPanel spec={spec} selection={selection} context={bindingContext} onEdit={edit} onSelect={select} />}
+      {selection?.on === 'translations' && <TranslationsPanel spec={spec} onEdit={edit} onClose={() => select(null)} />}
+      {selection && selection.on !== 'translations' && <DesignPropertiesPanel spec={spec} selection={selection} context={bindingContext} onEdit={edit} onSelect={select} />}
 
       <ConfirmDialog
         open={removing}

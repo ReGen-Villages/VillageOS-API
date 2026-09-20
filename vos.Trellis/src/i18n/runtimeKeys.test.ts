@@ -11,6 +11,7 @@ import { STATISTICS } from '../components/dashboard/widgets/RangeBar';
 import { SIDES } from '../components/dashboard/widgets/DivergingBar';
 import { WIDGET_KINDS } from '../utils/gridLayout';
 import { BINDING_FIELD_KEYS, BINDING_KINDS, WIDGET_FIELD_KEYS } from '../utils/widgetSchema';
+import { DESIGN_FINDING_CODES } from '../utils/designFindings';
 
 /**
  * Whether a key the console assembles at run time has anything to say.
@@ -41,6 +42,7 @@ const BUILT_FROM = {
   'design.bindingCost': [...BINDING_KINDS],
   'design.widgetField': [...WIDGET_FIELD_KEYS],
   'design.bindingField': [...BINDING_FIELD_KEYS],
+  'design.finding': [...DESIGN_FINDING_CODES],
 } as Record<string, string[]>;
 
 /** A `t()` call whose key is assembled rather than written out, e.g. t(`intake.step.${step}`). */
