@@ -234,16 +234,12 @@ public class TemporalCommandHandler
         return new TimeRange(start, end);
     }
 
-    private static bool TryParseTimestamp(string input, out DateTime result)
-    {
-        return DateTime.TryParse(input, null,
-            System.Globalization.DateTimeStyles.RoundtripKind, out result);
-    }
+    private static bool TryParseTimestamp(string input, out DateTime result) => Timestamps.TryParse(input, out result);
 
     private void WriteTimestampError(string input)
     {
         _writer.WriteLine($"Invalid timestamp: {input}");
-        _writer.WriteLine("Use ISO 8601 format (e.g., 2026-01-15T12:30:00Z) or 'now'");
+        _writer.WriteLine(Timestamps.ExpectedForm);
     }
 
     private void WriteFormattedJson(JsonElement element) =>

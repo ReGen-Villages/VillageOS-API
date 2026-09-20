@@ -24,6 +24,8 @@ public class StateCommandHandler
     {
         ["get"] = HandleGetAsync,
         ["relationship"] = HandleRelationshipAsync,
+        ["history"] = HandleHistoryAsync,
+        ["occurrences"] = HandleOccurrencesAsync,
         ["query"] = HandleQueryAsync,
         ["find"] = HandleQueryAsync
     };
@@ -85,6 +87,119 @@ public class StateCommandHandler
         WriteFormattedJson(await _client!.GetRelationshipStatesAsync(relationshipId));
     }
 
+    private async Task HandleHistoryAsync(string[] args)
+    {
+        if (args.Length < 1)
+        {
+            _writer.WriteLine("Usage: state history <thing> [start] [end]");
+            _writer.WriteLine("Each change of state the platform holds in memory for the thing: when, what was entered and left, and why.");
+            return;
+        }
+
+        var resolved = await _resolver!.ResolveThingAsync(args[0]);
+        if (!resolved.IsSuccess)
+        {
+            _writer.WriteLine(resolved.ErrorMessage);
+            return;
+        }
+        if (!TryParseWindow(args, 1, out var from, out var to))
+            return;
+
+        var answer = await _client!.GetStateTransitionsAsync(resolved.Id, from, to);
+        WriteCoverage(answer, $"{answer.GetStringOrDefault("ThingName")}: state history");
+        var transitions = Rows(answer, "Transitions");
+        if (transitions.Count == 0)
+        {
+            _writer.WriteLine("No state changes in the window.");
+            return;
+        }
+
+        foreach (var transition in transitions)
+        {
+            var line = $"{transition.GetStringOrDefault("At")}  entered [{Names(transition, "Entered")}]  left [{Names(transition, "Exited")}]";
+            var property = transition.GetStringOrDefault("TriggeringProperty", "");
+            if (property.Length > 0)
+                line += $"  ({property}: {Value(transition, "OldValue")} -> {Value(transition, "NewValue")})";
+            _writer.WriteLine(line);
+        }
+    }
+
+    private async Task HandleOccurrencesAsync(string[] args)
+    {
+        if (args.Length < 2)
+        {
+            _writer.WriteLine("Usage: state occurrences <thing> <state-name> [start] [end]");
+            _writer.WriteLine("Each spell the thing has spent in the state, as the platform holds it in memory.");
+            return;
+        }
+
+        var resolved = await _resolver!.ResolveThingAsync(args[0]);
+        if (!resolved.IsSuccess)
+        {
+            _writer.WriteLine(resolved.ErrorMessage);
+            return;
+        }
+        if (!TryParseWindow(args, 2, out var from, out var to))
+            return;
+
+        var answer = await _client!.GetStateOccurrencesAsync(resolved.Id, args[1], from, to);
+        WriteCoverage(answer, $"{answer.GetStringOrDefault("ThingName")} in '{args[1]}'");
+        var occurrences = Rows(answer, "Occurrences");
+        if (occurrences.Count == 0)
+        {
+            _writer.WriteLine($"Never in '{args[1]}' in the window.");
+            return;
+        }
+
+        foreach (var occurrence in occurrences)
+        {
+            var exited = occurrence.GetStringOrDefault("ExitedAt", "");
+            _writer.WriteLine($"{occurrence.GetStringOrDefault("EnteredAt")} -> {(exited.Length > 0 ? exited : "still in it")}");
+        }
+    }
+
+    private bool TryParseWindow(string[] args, int startIndex, out DateTime? from, out DateTime? to)
+    {
+        from = null;
+        to = null;
+        for (var index = startIndex; index < args.Length && index < startIndex + 2; index++)
+        {
+            if (!Timestamps.TryParse(args[index], out var parsed))
+            {
+                _writer.WriteLine($"Invalid timestamp: {args[index]}");
+                _writer.WriteLine(Timestamps.ExpectedForm);
+                return false;
+            }
+            if (index == startIndex) from = parsed;
+            else to = parsed;
+        }
+        return true;
+    }
+
+    private void WriteCoverage(JsonElement answer, string heading)
+    {
+        if (answer.HasObjectProperty("Coverage"))
+        {
+            var coverage = answer.GetProperty("Coverage");
+            _writer.WriteLine($"{heading}, {coverage.GetStringOrDefault("Source")} from {coverage.GetStringOrDefault("From")} to {coverage.GetStringOrDefault("To")}");
+        }
+        else
+        {
+            _writer.WriteLine(heading);
+        }
+    }
+
+    private static List<JsonElement> Rows(JsonElement answer, string name) =>
+        answer.TryGetProperty(name, out var rows) && rows.ValueKind == JsonValueKind.Array
+            ? rows.EnumerateArray().ToList()
+            : [];
+
+    private static string Names(JsonElement transition, string name) =>
+        string.Join(", ", Rows(transition, name).Select(state => state.GetString()));
+
+    private static string Value(JsonElement transition, string name) =>
+        transition.TryGetProperty(name, out var value) ? value.FormatPropertyValue() : "";
+
     private async Task HandleQueryAsync(string[] args)
     {
         if (args.Length < 1)
@@ -145,6 +260,12 @@ public class StateCommandHandler
         _writer.WriteLine();
         _writer.WriteLine("  state relationship <id>");
         _writer.WriteLine("    Get current states for a relationship (its own ranges).");
+        _writer.WriteLine();
+        _writer.WriteLine("  state history <thing> [start] [end]");
+        _writer.WriteLine("    Each change of state the platform holds in memory: when, what was entered and left, and why.");
+        _writer.WriteLine();
+        _writer.WriteLine("  state occurrences <thing> <state-name> [start] [end]");
+        _writer.WriteLine("    Each spell the thing has spent in the state.");
         _writer.WriteLine();
         _writer.WriteLine("  state query <state-name> [--type=<kind>] [--also-in=a,b] [--not-in=c] [--within=<thing>]");
         _writer.WriteLine("                           [--limit=N] [--properties=a,b] [--include-archetypes] [--count]");
