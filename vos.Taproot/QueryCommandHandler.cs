@@ -203,16 +203,20 @@ namespace vos.Taproot
             if (relationships.ValueKind != JsonValueKind.Array)
                 return new List<JsonElement>();
 
+            var idToName = BuildIdToName(await _mycelium.GetAllThingsAsync());
             return relationships.EnumerateArray()
-                .Where(rel => MatchesPredicate(rel, predicateName))
+                .Where(rel => PredicateNameOf(rel, idToName).Equals(predicateName, StringComparison.OrdinalIgnoreCase))
                 .ToList();
         }
 
-        private static bool MatchesPredicate(JsonElement rel, string predicateName)
-        {
-            var relName = rel.TryGetProperty("Name", out var nameProp) ? nameProp.GetString() : null;
-            return relName?.Equals(predicateName, StringComparison.OrdinalIgnoreCase) == true;
-        }
+        // A relationship carries the predicate's id; the predicate is a Thing, and its name lives there.
+        // The maps this is handed key an id as the platform wrote it or lower-cased, so both are tried.
+        internal static string PredicateNameOf(JsonElement rel, Dictionary<string, string> idToName) =>
+            rel.TryGetProperty("PredicateId", out var predicateId)
+            && predicateId.GetString() is { } id
+            && (idToName.TryGetValue(id, out var name) || idToName.TryGetValue(id.ToLowerInvariant(), out name))
+                ? name
+                : "unknown";
 
         private async Task WritePredicateMatchesAsync(List<JsonElement> matches, string predicateName)
         {
@@ -269,17 +273,14 @@ namespace vos.Taproot
                 }
             }
 
+            var idToName = allThings.ValueKind == JsonValueKind.Array ? BuildIdToName(allThings) : new Dictionary<string, string>();
             var predicates = new HashSet<string>();
             if (allRelationships.ValueKind == JsonValueKind.Array)
             {
                 foreach (var rel in allRelationships.EnumerateArray())
                 {
-                    if (rel.TryGetProperty("Name", out var nameProp))
-                    {
-                        var name = nameProp.GetString();
-                        if (name != null)
-                            predicates.Add(name);
-                    }
+                    if (rel.TryGetProperty("PredicateId", out var predicateId) && predicateId.GetString() is { } id)
+                        predicates.Add(id);
                 }
             }
 
@@ -296,7 +297,7 @@ namespace vos.Taproot
                 var predicateCounts = new Dictionary<string, int>();
                 foreach (var rel in allRelationships.EnumerateArray())
                 {
-                    var name = rel.TryGetProperty("Name", out var nameProp) ? nameProp.GetString() ?? "unknown" : "unknown";
+                    var name = PredicateNameOf(rel, idToName);
                     if (predicateCounts.ContainsKey(name))
                         predicateCounts[name]++;
                     else

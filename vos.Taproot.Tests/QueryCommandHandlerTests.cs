@@ -125,6 +125,7 @@ public class QueryCommandHandlerTests
     public async Task QueryPredicate_WithNoMatches_ShowsNotFoundMessage()
     {
         var emptyArray = JsonSerializer.Deserialize<JsonElement>("[]");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyArray);
         _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyArray);
 
         await ExecuteHandler("predicate likes");
@@ -133,15 +134,28 @@ public class QueryCommandHandlerTests
         Assert.Contains("No relationships found", output);
     }
 
+    // The platform answers a relationship as { Id, SubjectId, PredicateId, TargetId, Properties }; the
+    // predicate is a Thing the PredicateId names (#7168).
+    private static readonly Guid LikesId = Guid.Parse("dddddddd-0000-0000-0000-000000000001");
+    private static readonly Guid OwnsId = Guid.Parse("dddddddd-0000-0000-0000-000000000002");
+
+    private static string PredicateThings() =>
+        $@"[{{""Id"":""{LikesId}"",""Name"":""likes"",""Properties"":{{}}}},{{""Id"":""{OwnsId}"",""Name"":""owns"",""Properties"":{{}}}}]";
+
+    private static string Edge(Guid predicateId) =>
+        $@"{{""Id"":""{Guid.NewGuid()}"",""SubjectId"":""{Guid.NewGuid()}"",""PredicateId"":""{predicateId}"",""TargetId"":""{Guid.NewGuid()}""}}";
+
+    private void SetupPredicateModel(params Guid[] edgePredicates)
+    {
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(PredicateThings()));
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(
+            JsonSerializer.Deserialize<JsonElement>("[" + string.Join(",", edgePredicates.Select(Edge)) + "]"));
+    }
+
     [Fact]
     public async Task QueryPredicate_WithMatches_ShowsResults()
     {
-        var relId = Guid.NewGuid();
-        var subjectId = Guid.NewGuid();
-        var targetId = Guid.NewGuid();
-        var json = $@"[{{""Id"":""{relId}"",""Name"":""likes"",""SubjectId"":""{subjectId}"",""TargetId"":""{targetId}""}}]";
-        var relsArray = JsonSerializer.Deserialize<JsonElement>(json);
-        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
+        SetupPredicateModel(LikesId, OwnsId);
 
         await ExecuteHandler("predicate likes");
 
@@ -153,14 +167,9 @@ public class QueryCommandHandlerTests
     [Fact]
     public async Task QueryPredicate_CaseInsensitive_FindsMatches()
     {
-        var relId = Guid.NewGuid();
-        var subjectId = Guid.NewGuid();
-        var targetId = Guid.NewGuid();
-        var json = $@"[{{""Id"":""{relId}"",""Name"":""Likes"",""SubjectId"":""{subjectId}"",""TargetId"":""{targetId}""}}]";
-        var relsArray = JsonSerializer.Deserialize<JsonElement>(json);
-        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
+        SetupPredicateModel(LikesId);
 
-        await ExecuteHandler("predicate likes");
+        await ExecuteHandler("predicate LIKES");
 
         var output = _writer.ToString();
         Assert.Contains("Found 1 relationship(s)", output);
@@ -210,15 +219,7 @@ public class QueryCommandHandlerTests
     [Fact]
     public async Task QueryStats_ShowsRelationshipCount()
     {
-        var emptyThings = JsonSerializer.Deserialize<JsonElement>("[]");
-        var relsJson = $@"[
-            {{""Id"":""{Guid.NewGuid()}"",""Name"":""likes"",""SubjectId"":""{Guid.NewGuid()}"",""TargetId"":""{Guid.NewGuid()}""}},
-            {{""Id"":""{Guid.NewGuid()}"",""Name"":""owns"",""SubjectId"":""{Guid.NewGuid()}"",""TargetId"":""{Guid.NewGuid()}""}}
-        ]";
-        var relsArray = JsonSerializer.Deserialize<JsonElement>(relsJson);
-
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
-        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
+        SetupPredicateModel(LikesId, OwnsId);
 
         await ExecuteHandler("stats");
 
@@ -227,44 +228,38 @@ public class QueryCommandHandlerTests
     }
 
     [Fact]
-    public async Task QueryStats_ShowsPredicateCount()
+    public async Task QueryStats_CountsDistinctPredicatesThroughTheirId()
     {
-        var emptyThings = JsonSerializer.Deserialize<JsonElement>("[]");
-        var relsJson = $@"[
-            {{""Id"":""{Guid.NewGuid()}"",""Name"":""likes"",""SubjectId"":""{Guid.NewGuid()}"",""TargetId"":""{Guid.NewGuid()}""}},
-            {{""Id"":""{Guid.NewGuid()}"",""Name"":""likes"",""SubjectId"":""{Guid.NewGuid()}"",""TargetId"":""{Guid.NewGuid()}""}},
-            {{""Id"":""{Guid.NewGuid()}"",""Name"":""owns"",""SubjectId"":""{Guid.NewGuid()}"",""TargetId"":""{Guid.NewGuid()}""}}
-        ]";
-        var relsArray = JsonSerializer.Deserialize<JsonElement>(relsJson);
-
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
-        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
+        SetupPredicateModel(LikesId, LikesId, OwnsId);
 
         await ExecuteHandler("stats");
 
         var output = _writer.ToString();
         Assert.Contains("Predicates: 2", output);
+        Assert.DoesNotContain("unknown", output);
     }
 
     [Fact]
-    public async Task QueryStats_ShowsTopPredicates()
+    public async Task QueryStats_ShowsTopPredicatesByName()
     {
-        var emptyThings = JsonSerializer.Deserialize<JsonElement>("[]");
-        var relsJson = $@"[
-            {{""Id"":""{Guid.NewGuid()}"",""Name"":""likes"",""SubjectId"":""{Guid.NewGuid()}"",""TargetId"":""{Guid.NewGuid()}""}},
-            {{""Id"":""{Guid.NewGuid()}"",""Name"":""likes"",""SubjectId"":""{Guid.NewGuid()}"",""TargetId"":""{Guid.NewGuid()}""}},
-            {{""Id"":""{Guid.NewGuid()}"",""Name"":""owns"",""SubjectId"":""{Guid.NewGuid()}"",""TargetId"":""{Guid.NewGuid()}""}}
-        ]";
-        var relsArray = JsonSerializer.Deserialize<JsonElement>(relsJson);
-
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
-        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
+        SetupPredicateModel(LikesId, LikesId, OwnsId);
 
         await ExecuteHandler("stats");
 
         var output = _writer.ToString();
         Assert.Contains("Top Predicates:", output);
         Assert.Contains("likes: 2 relationship(s)", output);
+        Assert.Contains("owns: 1 relationship(s)", output);
+    }
+
+    [Fact]
+    public async Task QueryStats_APredicateTheThingsDoNotName_CountsAsUnknown()
+    {
+        SetupPredicateModel(Guid.NewGuid());
+
+        await ExecuteHandler("stats");
+
+        Assert.Contains("unknown: 1 relationship(s)", _writer.ToString());
     }
 
     // ========== Query Path Tests ==========
@@ -339,8 +334,8 @@ public class QueryCommandHandlerTests
         var subjectId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
         var thingsJson = JsonSerializer.Deserialize<JsonElement>(
-            $"[{{\"Id\":\"{subjectId}\",\"Name\":\"Subject\"}},{{\"Id\":\"{targetId}\",\"Name\":\"Target\"}}]");
-        var relsJson = $@"[{{""Id"":""{relId}"",""Name"":""likes"",""SubjectId"":""{subjectId}"",""TargetId"":""{targetId}""}}]";
+            $"[{{\"Id\":\"{subjectId}\",\"Name\":\"Subject\"}},{{\"Id\":\"{targetId}\",\"Name\":\"Target\"}},{{\"Id\":\"{LikesId}\",\"Name\":\"likes\"}}]");
+        var relsJson = $@"[{{""Id"":""{relId}"",""SubjectId"":""{subjectId}"",""PredicateId"":""{LikesId}"",""TargetId"":""{targetId}""}}]";
         var relsArray = JsonSerializer.Deserialize<JsonElement>(relsJson);
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
         _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
@@ -360,8 +355,8 @@ public class QueryCommandHandlerTests
         var subjectId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
         var thingsJson = JsonSerializer.Deserialize<JsonElement>(
-            $"[{{\"Id\":\"{subjectId}\",\"Name\":\"Subject\"}},{{\"Id\":\"{targetId}\",\"Name\":\"Target\"}}]");
-        var relsJson = $@"[{{""Id"":""{relId}"",""Name"":""likes"",""SubjectId"":""{subjectId}"",""TargetId"":""{targetId}""}}]";
+            $"[{{\"Id\":\"{subjectId}\",\"Name\":\"Subject\"}},{{\"Id\":\"{targetId}\",\"Name\":\"Target\"}},{{\"Id\":\"{LikesId}\",\"Name\":\"likes\"}}]");
+        var relsJson = $@"[{{""Id"":""{relId}"",""SubjectId"":""{subjectId}"",""PredicateId"":""{LikesId}"",""TargetId"":""{targetId}""}}]";
         var relsArray = JsonSerializer.Deserialize<JsonElement>(relsJson);
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
         _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
@@ -565,28 +560,20 @@ public class QueryCommandHandlerTests
     [Fact]
     public async Task QueryStats_MoreThanFivePredicates_ShowsTopFive()
     {
-        var emptyThings = JsonSerializer.Deserialize<JsonElement>("[]");
-        var relsJson = $@"[
-            {{""Id"":""{Guid.NewGuid()}"",""Name"":""p1"",""SubjectId"":""{Guid.NewGuid()}"",""TargetId"":""{Guid.NewGuid()}""}},
-            {{""Id"":""{Guid.NewGuid()}"",""Name"":""p2"",""SubjectId"":""{Guid.NewGuid()}"",""TargetId"":""{Guid.NewGuid()}""}},
-            {{""Id"":""{Guid.NewGuid()}"",""Name"":""p3"",""SubjectId"":""{Guid.NewGuid()}"",""TargetId"":""{Guid.NewGuid()}""}},
-            {{""Id"":""{Guid.NewGuid()}"",""Name"":""p4"",""SubjectId"":""{Guid.NewGuid()}"",""TargetId"":""{Guid.NewGuid()}""}},
-            {{""Id"":""{Guid.NewGuid()}"",""Name"":""p5"",""SubjectId"":""{Guid.NewGuid()}"",""TargetId"":""{Guid.NewGuid()}""}},
-            {{""Id"":""{Guid.NewGuid()}"",""Name"":""p6"",""SubjectId"":""{Guid.NewGuid()}"",""TargetId"":""{Guid.NewGuid()}""}},
-            {{""Id"":""{Guid.NewGuid()}"",""Name"":""p6"",""SubjectId"":""{Guid.NewGuid()}"",""TargetId"":""{Guid.NewGuid()}""}}
-        ]";
-        var relsArray = JsonSerializer.Deserialize<JsonElement>(relsJson);
+        var predicateIds = Enumerable.Range(1, 6).Select(_ => Guid.NewGuid()).ToArray();
+        var thingsJson = "[" + string.Join(",", predicateIds.Select((id, index) => $@"{{""Id"":""{id}"",""Name"":""p{index + 1}""}}")) + "]";
+        var relsJson = "[" + string.Join(",", predicateIds.Append(predicateIds[5]).Select(Edge)) + "]";
 
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
-        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(thingsJson));
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(relsJson));
 
         await ExecuteHandler("stats");
 
         var output = _writer.ToString();
         Assert.Contains("Top Predicates:", output);
         Assert.Contains("Predicates: 6", output);
-        // p6 appears twice so should be first
         Assert.Contains("p6: 2 relationship(s)", output);
+        Assert.Equal(5, output.Split('\n').Count(line => line.Contains(" relationship(s)")));
     }
 
     #endregion

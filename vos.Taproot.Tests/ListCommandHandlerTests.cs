@@ -158,12 +158,17 @@ public class ListCommandHandlerTests
         Assert.Contains("No predicates found", _writer.ToString());
     }
 
+    // The platform answers a relationship as { Id, SubjectId, PredicateId, TargetId, Properties }; the
+    // predicate is a Thing the PredicateId names (#7168).
     [Fact]
-    public async Task ListPredicates_WithRelationships_ShowsPredicates()
+    public async Task ListPredicates_NamesEachPredicateThroughItsIdAndCountsItsUses()
     {
-        var thingsJson = JsonSerializer.Deserialize<JsonElement>("[]");
+        var likes = Guid.NewGuid();
+        var owns = Guid.NewGuid();
+        var thingsJson = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"Id\":\"{likes}\",\"Name\":\"likes\"}},{{\"Id\":\"{owns}\",\"Name\":\"owns\"}}]");
         var relsJson = JsonSerializer.Deserialize<JsonElement>(
-            "[{\"Name\":\"likes\"},{\"Name\":\"owns\"},{\"Name\":\"likes\"}]");
+            $"[{{\"PredicateId\":\"{likes}\"}},{{\"PredicateId\":\"{owns}\"}},{{\"PredicateId\":\"{likes}\"}}]");
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
         _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsJson);
 
@@ -171,8 +176,9 @@ public class ListCommandHandlerTests
 
         var output = _writer.ToString();
         Assert.Contains("Predicates (2)", output);
-        Assert.Contains("likes", output);
-        Assert.Contains("owns", output);
+        Assert.Contains("likes (used in 2 relationship(s))", output);
+        Assert.Contains("owns (used in 1 relationship(s))", output);
+        Assert.DoesNotContain("unknown", output);
     }
 
     private static JsonElement Connections(string body) =>
