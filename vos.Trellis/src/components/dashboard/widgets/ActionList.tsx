@@ -39,7 +39,10 @@ export function ActionList({ widget, ctx }: { widget: ActionWidget; ctx: Resolve
     try {
       const answer = await postToEndpoint(ctx.reads, widget.writes.via, actionRequest(widget, row, choice, entered[id] ?? {}));
       if (answer.error) setRefusal(answer.error);
-      else setDecided((was) => ({ ...was, [id]: answer.said ?? choice.label }));
+      else {
+        setDecided((was) => ({ ...was, [id]: answer.said ?? choice.label }));
+        ctx.wrote?.();
+      }
     } finally {
       setWriting(null);
     }
@@ -53,6 +56,7 @@ export function ActionList({ widget, ctx }: { widget: ActionWidget; ctx: Resolve
           const id = String(row.id ?? '');
           const already = decided[id];
           const asked = entered[id] ?? {};
+          const pressable = !already || widget.writes.repeatable;
           return (
             <div key={id} className="flex flex-wrap items-center gap-2" data-decided={Boolean(already)}>
               <span className="min-w-40 text-sm text-zinc-900 dark:text-zinc-100">{nameOf(widget, row)}</span>
@@ -63,9 +67,8 @@ export function ActionList({ widget, ctx }: { widget: ActionWidget; ctx: Resolve
                   .map((value) => String(value))
                   .join(' · ')}
               </span>
-              {already ? (
-                <span className="text-sm text-zinc-500 dark:text-zinc-400">{already}</span>
-              ) : (
+              {already && <span className="text-sm text-zinc-500 dark:text-zinc-400">{already}</span>}
+              {pressable && (
                 <>
                   {asks.length > 0 && (
                     <AskedFields

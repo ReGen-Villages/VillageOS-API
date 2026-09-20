@@ -9,6 +9,7 @@ vi.mock('../../hooks/useAuth', () => ({
 
 import i18n from '../../i18n';
 import { useModelStore } from '../../stores/modelStore';
+import { usePlatformPagesStore } from '../../stores/platformPagesStore';
 import { Sidebar } from './Sidebar';
 
 interface PublishedDashboard {
@@ -44,6 +45,7 @@ function hrefOf(label: string): string | null {
 describe('Sidebar (Story 6582)', () => {
   beforeEach(() => {
     useModelStore.setState({ things: [], relationships: [], loaded: true });
+    usePlatformPagesStore.setState({ pages: [], loadedFor: null });
   });
 
   afterEach(async () => {
@@ -75,6 +77,19 @@ describe('Sidebar (Story 6582)', () => {
     const labels = entryLabels();
     expect(labels).toContain('Arrays');
     expect(labels).toContain('Springs');
+    expect(labels).not.toContain('Operations');
+  });
+
+  it('lists a page the platform declares before the model’s own, with an address of its own', () => {
+    usePlatformPagesStore.setState({
+      pages: [{ id: 'declared:accounts', name: 'Accounts', routeKey: 'accounts', spec: { title: 'Accounts', icon: 'users', sections: [] } }],
+    });
+    publish([{ name: 'Arrays', spec: { title: 'Arrays', sections: [] } }]);
+    renderSidebar();
+
+    const labels = entryLabels();
+    expect(labels.indexOf('Accounts')).toBeLessThan(labels.indexOf('Arrays'));
+    expect(hrefOf('Accounts')).toBe('/operations/accounts');
     expect(labels).not.toContain('Operations');
   });
 

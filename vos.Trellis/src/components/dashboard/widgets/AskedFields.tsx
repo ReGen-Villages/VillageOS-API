@@ -3,7 +3,7 @@ import type { AskedValue } from '../../../types/dashboard';
 import type { Row } from '../../../api/dashboardApi';
 import type { Entered } from './writeRequest';
 
-const INPUT_TYPES = { text: 'text', number: 'number', datetime: 'datetime-local' } as const;
+const INPUT_TYPES = { text: 'text', number: 'number', datetime: 'datetime-local', secret: 'password' } as const;
 
 const FIELD_CLASS =
   'w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-2 py-1 text-sm text-zinc-900 dark:text-zinc-100';

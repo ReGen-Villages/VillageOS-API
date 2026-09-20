@@ -745,8 +745,9 @@ export interface AskedValue {
   key: string;
   label: string;
   /** How it is entered. 'choice' offers the rows `options` resolves to, by name, and takes one of
-   *  them; 'multichoice' offers the same rows and takes as many as are chosen. Default 'text'. */
-  kind?: 'text' | 'number' | 'datetime' | 'choice' | 'multichoice';
+   *  them; 'multichoice' offers the same rows and takes as many as are chosen; 'secret' is typed
+   *  masked, for a password. Default 'text'. */
+  kind?: 'text' | 'number' | 'datetime' | 'secret' | 'choice' | 'multichoice';
   options?: Binding;
   /** What is drawn beside each name in the roster. A field chosen from a roster draws no columns,
    *  so this is what says which values its rows carry, the way a table's columns do. */
@@ -768,8 +769,9 @@ export interface ActionChoice {
  *  model's to decide from the edge the endpoint lays down — a spec naming a handler would move that
  *  decision into the spec. */
 export interface ActionRecords {
-  /** The endpoint that accepts the act, by the name `POST /api/endpoints/{name}` forwards to. It
-   *  names a door, not an outcome. */
+  /** The endpoint that accepts the act, by the name `POST /api/endpoints/{name}` forwards to — or,
+   *  beginning with `/`, a route on the platform itself, posted to as written. Either names a door,
+   *  not an outcome. */
   via: string;
   /** The archetype the minted Thing `is`, where a press mints one. Declared here rather than left to
    *  the endpoint so the seed rules that check every archetype a page names cover what it writes.
@@ -777,6 +779,10 @@ export interface ActionRecords {
   archetype?: string;
   /** The edge from the minted Thing to the row it is about. */
   predicate?: string;
+  /** Whether a row can be pressed again after an act was recorded against it. Absent, a row is
+   *  decided once. An act that administers rather than decides — a grant, a password — is made as
+   *  often as needed, and the answer to the last press is shown beside the row until the next. */
+  repeatable?: boolean;
   choices: ActionChoice[];
 }
 
@@ -819,8 +825,9 @@ export interface FormWidget {
     via: string;
     /** The name the endpoint accepts this act under, sent as `view`. */
     act: string;
-    /** The archetype the minted Thing `is`. */
-    archetype: string;
+    /** The archetype the minted Thing `is`. Absent where the door mints no Thing — a platform route
+     *  that records an account rather than a Thing. */
+    archetype?: string;
   };
 }
 

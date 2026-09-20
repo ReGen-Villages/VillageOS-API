@@ -17,6 +17,14 @@ describe('postToEndpoint', () => {
     expect(fromService).toHaveBeenCalledWith('/api/endpoints/readings', { view: 'book' });
   });
 
+  it('posts to a platform route as written where the spec names one by its path', async () => {
+    fromService.mockResolvedValue({ said: 'granted' });
+
+    await postToEndpoint(reads, '/api/auth/administration', { view: 'grant' });
+
+    expect(fromService).toHaveBeenCalledWith('/api/auth/administration', { view: 'grant' });
+  });
+
   it('hands a refusal back as the endpoint’s own words rather than throwing', async () => {
     fromService.mockRejectedValue(new Error('already booked'));
 

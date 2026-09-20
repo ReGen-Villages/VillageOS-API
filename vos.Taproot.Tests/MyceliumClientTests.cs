@@ -964,6 +964,45 @@ public class MyceliumClientTests
         body.GetProperty("NewPassword").GetString().Should().Be("new");
     }
 
+    [Fact]
+    public async Task AdministerAccountsAsync_PostsTheActToTheAdministrationRoute()
+    {
+        JsonElement? capturedBody = null;
+        var (client, _) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            req.Method.Should().Be(HttpMethod.Post);
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/auth/administration");
+            capturedBody = ReadJsonBody(req);
+            return JsonResponse("""{"said":"ada may now enter Site A"}""");
+        });
+
+        var answer = await client.AdministerAccountsAsync(new { view = "grant", record = "ada", model = "Site A" });
+
+        answer.GetProperty("said").GetString().Should().Be("ada may now enter Site A");
+        var body = capturedBody!.Value;
+        body.GetProperty("view").GetString().Should().Be("grant");
+        body.GetProperty("record").GetString().Should().Be("ada");
+        body.GetProperty("model").GetString().Should().Be("Site A");
+    }
+
+    [Fact]
+    public async Task AdministerAccountsAsync_OnRefusal_ThrowsWithTheRoutesOwnWords()
+    {
+        var (client, _) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            return new HttpResponseMessage(HttpStatusCode.NotFound)
+            {
+                Content = new StringContent("""{"error":"There is no account named nobody"}""", Encoding.UTF8, "application/json"),
+            };
+        });
+
+        var act = () => client.AdministerAccountsAsync(new { view = "delete", record = "nobody" });
+
+        (await act.Should().ThrowAsync<HttpRequestException>()).Which.Message.Should().Contain("There is no account named nobody");
+    }
+
     // ---- HTTP method patterns: PUT no body → JsonElement ----
 
     [Fact]

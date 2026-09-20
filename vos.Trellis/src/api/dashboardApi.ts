@@ -241,6 +241,16 @@ export function discoverDashboardsFromIndex(idx: ModelIndex): DashboardDescripto
   return out;
 }
 
+/** A page the platform declares, as the same descriptor a model's `Dashboard` Thing becomes, so the
+ *  navigation and the operations page draw both alike. Its id is minted under a prefix no Thing id
+ *  carries, and its address is its name's — a name a segment can carry nothing of falls back to that
+ *  id, as a Thing's does. A spec that could not be read is kept as null, so the page is listed and
+ *  says so rather than going missing. */
+export function declaredPageDescriptor(page: { name: string; spec: unknown }): DashboardDescriptor {
+  const id = `declared:${page.name}`;
+  return { id, name: page.name, routeKey: slugOf(page.name) || id, spec: parseSpec(page.spec) };
+}
+
 /** A Thing's name reduced to what a URL segment can carry: accents folded onto their base letters,
  *  everything else run together with single hyphens. Empty when the name is written in a script
  *  this leaves nothing of, which is why the caller keeps the Thing's id as the fallback. */
@@ -305,6 +315,10 @@ export interface ResolveContext {
    *  widget on it. A binding the broker answers reads the counts of the states its own answer is
    *  made of, and resolves again only when one of those moved. Part of identity only. */
   stateVersions?: Record<string, number>;
+  /** What a writing widget calls once a press was taken, so the page reads again what the press
+   *  changed. A write to the model announces itself on the stream; a write the platform records
+   *  outside the model — an account — does not, and this is the only word the page gets. */
+  wrote?: () => void;
 }
 
 /** The scope as the state and temporal endpoints express it: the selected compare entity as a

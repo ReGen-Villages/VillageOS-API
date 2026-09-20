@@ -65,6 +65,7 @@ export function RecordForm({ widget, ctx }: { widget: FormWidget; ctx: ResolveCo
     else {
       setTaken(answer.said ?? widget.submit);
       setEntered({});
+      ctx.wrote?.();
     }
   }
 

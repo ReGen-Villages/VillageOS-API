@@ -480,6 +480,18 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
+    /// <summary>One act of administering accounts, posted as the platform's Accounts page posts it: the
+    /// act under <c>view</c>, the account under <c>record</c>, the values it asks for beside them. A
+    /// refusal carries the route's own words, which is what an operator is told.</summary>
+    public virtual async Task<JsonElement> AdministerAccountsAsync(object act)
+    {
+        await SetAuthHeaderAsync();
+        var content = new StringContent(JsonSerializer.Serialize(act), Encoding.UTF8, "application/json");
+        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/auth/administration", content);
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
     public virtual async Task<JsonElement> GetDefaultPropertyModeAsync()
     {
         await SetAuthHeaderAsync();

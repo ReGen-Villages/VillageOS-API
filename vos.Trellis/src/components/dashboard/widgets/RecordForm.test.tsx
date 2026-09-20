@@ -25,8 +25,24 @@ const BOOK: FormWidget = {
   writes: { via: 'readings', act: 'book', archetype: 'Reading' },
 };
 
+/** A form on a platform route: a password typed in secret, and no Thing minted. */
+const ADD_ACCOUNT: FormWidget = {
+  type: 'form',
+  title: 'Add an account',
+  fields: [
+    { key: 'username', label: 'Username' },
+    { key: 'password', label: 'First password', kind: 'secret' },
+  ],
+  submit: 'Add',
+  writes: { via: '/api/auth/administration', act: 'create' },
+};
+
 const mockPost = vi.fn();
-const ctx = { reads: { fromService: (endpoint: string, body: unknown) => mockPost(endpoint, body) } } as unknown as ResolveContext;
+const mockWrote = vi.fn();
+const ctx = {
+  reads: { fromService: (endpoint: string, body: unknown) => mockPost(endpoint, body) },
+  wrote: () => mockWrote(),
+} as unknown as ResolveContext;
 
 function fill() {
   fireEvent.change(screen.getByLabelText('Spring'), { target: { value: 'SPRING-1' } });
@@ -37,6 +53,33 @@ describe('RecordForm', () => {
   beforeEach(() => {
     mockOptions.mockReset().mockReturnValue([{ id: 's1', name: 'SPRING-1' }, { id: 's2', name: 'SPRING-2' }]);
     mockPost.mockReset().mockResolvedValue({ said: 'Reading booked for SPRING-1' });
+    mockWrote.mockReset();
+  });
+
+  it('tells the page a press was taken, and nothing of one refused', async () => {
+    mockPost.mockResolvedValueOnce({ error: 'SPRING-1 is dry this month' });
+    render(<RecordForm widget={BOOK} ctx={ctx} />);
+    fill();
+    fireEvent.click(screen.getByRole('button', { name: 'Book' }));
+    await screen.findByText('SPRING-1 is dry this month');
+    expect(mockWrote).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Book' }));
+    await screen.findByText('Reading booked for SPRING-1');
+    expect(mockWrote).toHaveBeenCalledTimes(1);
+  });
+
+  it('draws a secret field masked, and posts to a platform route as written', async () => {
+    mockPost.mockResolvedValue({ said: 'Added ada' });
+    render(<RecordForm widget={ADD_ACCOUNT} ctx={ctx} />);
+    const password = screen.getByLabelText('First password') as HTMLInputElement;
+    expect(password.type).toBe('password');
+
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'ada' } });
+    fireEvent.change(password, { target: { value: 'first-day' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/api/auth/administration', { view: 'create', username: 'ada', password: 'first-day' }));
   });
 
   it('offers the Things a choice field lists by name, with nothing chosen yet, and waits for every required field', () => {

@@ -46,14 +46,68 @@ const ASSIGN: ActionWidget = {
   writes: { via: 'readings', choices: [{ label: 'Assign', act: 'assign' }] },
 };
 
+/** A widget that administers rather than decides: the same row is pressed as often as needed, and
+ *  the door is a platform route named by its path. */
+const ADMINISTER: ActionWidget = {
+  type: 'action',
+  title: 'Model access',
+  rows: { kind: 'stateList', state: 'accounts', archetype: 'Account' },
+  asks: [{ key: 'model', label: 'Model', kind: 'choice', options: { kind: 'thingList', archetype: 'Model' } }],
+  writes: {
+    via: '/api/auth/administration',
+    repeatable: true,
+    choices: [{ label: 'Grant', act: 'grant' }, { label: 'Revoke', act: 'revoke' }],
+  },
+};
+
 const mockPost = vi.fn();
-const ctx = { reads: { fromService: (endpoint: string, body: unknown) => mockPost(endpoint, body) } } as unknown as ResolveContext;
+const mockWrote = vi.fn();
+const ctx = {
+  reads: { fromService: (endpoint: string, body: unknown) => mockPost(endpoint, body) },
+  wrote: () => mockWrote(),
+} as unknown as ResolveContext;
 
 describe('ActionList', () => {
   beforeEach(() => {
     mockRows.mockReset().mockReturnValue([{ id: 's1', name: 'SPRING-1', flow: 12 }]);
     mockOptions.mockReset().mockReturnValue([{ id: 'p1', name: 'Ada' }, { id: 'p2', name: 'Grace' }]);
     mockPost.mockReset().mockResolvedValue({ said: 'Verdict recorded for SPRING-1' });
+    mockWrote.mockReset();
+  });
+
+  it('tells the page a press was taken, so what the page reads from the broker is read again', async () => {
+    render(<ActionList widget={JUDGE} ctx={ctx} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Potable' }));
+
+    await screen.findByText('Verdict recorded for SPRING-1');
+    expect(mockWrote).toHaveBeenCalledTimes(1);
+  });
+
+  it('tells the page nothing of a press the endpoint refused', async () => {
+    mockPost.mockResolvedValueOnce({ error: 'no sample on record' });
+    render(<ActionList widget={JUDGE} ctx={ctx} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Potable' }));
+
+    await screen.findByText('no sample on record');
+    expect(mockWrote).not.toHaveBeenCalled();
+  });
+
+  it('keeps a row pressable where the acts are repeatable, with the last answer beside it, and posts to a platform route as written', async () => {
+    mockRows.mockReturnValue([{ id: 'u1', name: 'ada' }]);
+    mockPost.mockResolvedValue({ said: 'ada may now enter Site A' });
+    render(<ActionList widget={ADMINISTER} ctx={ctx} />);
+    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'Ada' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Grant' }));
+
+    expect(await screen.findByText('ada may now enter Site A')).toBeInTheDocument();
+    expect(mockPost).toHaveBeenCalledWith('/api/auth/administration', { view: 'grant', record: 'ada', model: 'Ada' });
+    expect(screen.getByRole('button', { name: 'Grant' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Revoke' })).toBeInTheDocument();
+
+    mockPost.mockResolvedValue({ said: 'ada may no longer enter Site A' });
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+    expect(await screen.findByText('ada may no longer enter Site A')).toBeInTheDocument();
+    expect(screen.queryByText('ada may now enter Site A')).toBeNull();
   });
 
   it('offers every choice the spec names, beside what the row shows', () => {
