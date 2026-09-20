@@ -10,6 +10,7 @@ import { DELETABLE_ENTITIES } from '../pages/graphDeletions';
 import { STATISTICS } from '../components/dashboard/widgets/RangeBar';
 import { SIDES } from '../components/dashboard/widgets/DivergingBar';
 import { WIDGET_KINDS } from '../utils/gridLayout';
+import { BINDING_FIELD_KEYS, BINDING_KINDS, WIDGET_FIELD_KEYS } from '../utils/widgetSchema';
 
 /**
  * Whether a key the console assembles at run time has anything to say.
@@ -36,6 +37,10 @@ const BUILT_FROM = {
   'widgets.rangeBar': [...STATISTICS],
   'widgets.divergingBar': SIDES.map((side) => side.word),
   'design.palette.kind': [...WIDGET_KINDS],
+  'design.bindingKind': [...BINDING_KINDS],
+  'design.bindingCost': [...BINDING_KINDS],
+  'design.widgetField': [...WIDGET_FIELD_KEYS],
+  'design.bindingField': [...BINDING_FIELD_KEYS],
 } as Record<string, string[]>;
 
 /** A `t()` call whose key is assembled rather than written out, e.g. t(`intake.step.${step}`). */

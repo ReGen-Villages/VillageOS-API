@@ -5,7 +5,8 @@
  *  costs about four tenths of a second locally, so that much load carries it past five seconds with
  *  nothing wrong.
  *
- *  Set well clear of the worst load measured, so a busier agent than that still passes. Raising the
+ *  A body that renders the whole Design page and lays a widget out on it costs the same, and takes the
+ *  same budget. Set well clear of the worst load measured, so a busier agent than that still passes. Raising the
  *  suite-wide `testTimeout` instead would hand the same room to every test in the client, and a test that
  *  genuinely hangs would take this long to say so wherever it was.
  */

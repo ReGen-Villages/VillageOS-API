@@ -11,8 +11,13 @@ import { useModelStore } from '../stores/modelStore';
 import { useModelIndex, useResolveContext } from '../hooks/useDashboard';
 import { useSubscription } from '../hooks/useSse';
 import { useDesign } from '../hooks/useDesign';
+import { useStatesByKind } from '../hooks/useStatesByKind';
+import { useEndpoints } from '../hooks/useEndpoints';
 import { DEFAULT_SIZE } from '../utils/gridLayout';
 import { emptyWidget, nextPlacement } from '../utils/designSpec';
+import { readyToKeep } from '../utils/rowProperties';
+import { offersFor } from '../components/design/designOffers';
+import type { BindingContext } from '../components/design/bindingContext';
 import { withPlacements, withSectionAdded, withWidgetAdded } from '../utils/designEdits';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { toast } from '../components/common/toastStore';
@@ -86,6 +91,14 @@ function DesignWorkbench({ opened, started, pages }: { opened?: DesignablePage; 
   const { design, selection, select, edit, kept } = useDesign({ opened, started });
   const { spec, source, dirty } = design;
   const context = useResolveContext(modelIndex, null, spec.compare?.archetype, brokerModelReads);
+  const statesOf = useStatesByKind(modelIndex);
+  const endpoints = useEndpoints();
+  const compareKind = spec.compare?.archetype;
+  const offers = useMemo(() => offersFor(modelIndex, compareKind), [modelIndex, compareKind]);
+  const bindingContext = useMemo<BindingContext>(
+    () => ({ offers, statesOf: (kind) => statesOf(kind) ?? [], endpoints }),
+    [offers, statesOf, endpoints],
+  );
   const [dragging, setDragging] = useState<Widget['type'] | null>(null);
   const [name, setName] = useState('');
   const [removing, setRemoving] = useState(false);
@@ -119,8 +132,9 @@ function DesignWorkbench({ opened, started, pages }: { opened?: DesignablePage; 
     if (!source.id) return;
     setBusy(true);
     try {
-      await dashboardPages.write(source.id, spec);
-      kept(source.id, source.name, spec);
+      const written = readyToKeep(spec);
+      await dashboardPages.write(source.id, written);
+      kept(source.id, source.name, written);
       toast.success(t('design.toast.written', { name: spec.title }));
     } catch (error) {
       failed(error);
@@ -137,7 +151,7 @@ function DesignWorkbench({ opened, started, pages }: { opened?: DesignablePage; 
     if (!trimmed || nameTaken) return;
     setBusy(true);
     try {
-      const written: DashboardSpec = { ...spec, title: trimmed };
+      const written: DashboardSpec = readyToKeep({ ...spec, title: trimmed });
       const id = await dashboardPages.keep(trimmed, written, writeContext);
       kept(id, trimmed, written);
       setName('');
@@ -236,7 +250,7 @@ function DesignWorkbench({ opened, started, pages }: { opened?: DesignablePage; 
         />
       </section>
 
-      {selection && <DesignPropertiesPanel spec={spec} selection={selection} onEdit={edit} onSelect={select} />}
+      {selection && <DesignPropertiesPanel spec={spec} selection={selection} context={bindingContext} onEdit={edit} onSelect={select} />}
 
       <ConfirmDialog
         open={removing}
