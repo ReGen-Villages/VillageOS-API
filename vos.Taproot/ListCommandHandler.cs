@@ -147,7 +147,6 @@ namespace vos.Taproot
             }
             catch
             {
-                // Ignore errors fetching model
             }
             return "Unknown";
         }

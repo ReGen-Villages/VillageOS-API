@@ -265,8 +265,6 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         }
     }
 
-    // ── Reading the model ────────────────────────────────────────────────────
-
     private static IEnumerable<Submission> SubmissionsIn(ModelSnapshot model)
     {
         if (OneOwning(model, ProposedSitePredicateFlag) is not { } proposes)

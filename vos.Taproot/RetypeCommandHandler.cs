@@ -38,7 +38,6 @@ public class RetypeCommandHandler
 
             var (thingId, isId, newTypeId) = (thing.Id, isPred.Id, newType.Id);
 
-            // The Thing's current type relationships: (relationshipId, targetArchetypeId).
             var typeEdges = new List<(Guid RelId, Guid Target)>();
             var rels = await _mycelium.GetAllRelationshipsAsync();
             if (rels.ValueKind == JsonValueKind.Array)
@@ -52,7 +51,6 @@ public class RetypeCommandHandler
             List<(Guid RelId, Guid Target)> toRemove;
             if (tok.Length >= 3)
             {
-                // retype <thing> <old> <new>: replace only the named type, keep the others.
                 var oldType = await _resolver.ResolveThingAsync(tok[1]);
                 if (!oldType.IsSuccess) { _writer.WriteLine($"Error: {oldType.ErrorMessage}"); return; }
                 toRemove = typeEdges.Where(e => e.Target == oldType.Id).ToList();
@@ -64,7 +62,6 @@ public class RetypeCommandHandler
             }
             else
             {
-                // 0 or 1 existing type — swap the single one (or just add if untyped).
                 toRemove = typeEdges;
             }
 

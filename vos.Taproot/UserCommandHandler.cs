@@ -104,7 +104,6 @@ public class UserCommandHandler
             : new { view = "create", username, password, role, models = new[] { modelName } });
     }
 
-    // Posts one act and writes what the route said on taking it.
     private async Task SayAsync(object act)
     {
         var answer = await _mycelium.AdministerAccountsAsync(act);

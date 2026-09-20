@@ -21,7 +21,6 @@ public class RenameCommandHandler
 
     public async Task ExecuteAsync()
     {
-        // Split off the first token as the target; the remainder is the new name (may contain spaces).
         var trimmed = _arg.Trim();
         var space = trimmed.IndexOf(' ');
         if (space < 0) { ShowUsage(); return; }

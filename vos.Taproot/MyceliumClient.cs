@@ -51,7 +51,6 @@ public class MyceliumClient
     internal static bool IsInsecureTlsEnabled()
         => Environment.GetEnvironmentVariable("VOS_INSECURE_TLS") is "1" or "true" or "TRUE" or "True";
 
-    // Test seam: lets tests inject a mock handler and a virtual clock.
     internal MyceliumClient(string myceliumUrl, string? apiKey, HttpClient httpClient, Func<DateTime>? clock = null)
     {
         _myceliumUrl = myceliumUrl.TrimEnd('/');

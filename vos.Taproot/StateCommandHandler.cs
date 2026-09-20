@@ -2,7 +2,6 @@ using System.Text.Json;
 
 namespace vos.Taproot;
 
-// Handles state query commands for the CLI.
 public class StateCommandHandler
 {
     private readonly TextWriter _writer;
