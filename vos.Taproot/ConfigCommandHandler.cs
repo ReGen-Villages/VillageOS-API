@@ -1,6 +1,5 @@
 namespace vos.Taproot
 {
-    // Handles configuration commands like property mode settings.
     public class ConfigCommandHandler
     {
         private readonly TextWriter _writer;

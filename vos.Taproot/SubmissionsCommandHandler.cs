@@ -4,28 +4,25 @@ using static vos.Taproot.ModelReading;
 
 namespace vos.Taproot;
 
-/// <summary>
-/// What has arrived, and what to do with it: list the submissions in this model, reject one, promote one
-/// into a project model of its own (VillageOS #6045), or clear the rejections whose period has run
-/// (VillageOS #6657).
-///
-/// Nothing here names an archetype or a predicate. A submission is whatever asserts an edge through the
-/// predicate the model marks as reaching a proposed site, and the dispositions are the Things under the
-/// archetype the model marks as holding them. A model that spells either differently keeps answering,
-/// which is the whole reason both are Things.
-/// </summary>
+// What has arrived, and what to do with it: list the submissions in this model, reject one, promote one
+// into a project model of its own, or clear the rejections whose period has run.
+//
+// Nothing here names an archetype or a predicate. A submission is whatever asserts a relationship through the
+// predicate the model marks as reaching a proposed site, and the dispositions are the Things under the
+// archetype the model marks as holding them. A model that spells either differently keeps answering,
+// which is the whole reason both are Things.
 public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumClient? client = null)
 {
     public const string ProposedSitePredicateFlag = "__IsProposedSitePredicate";
     public const string DispositionArchetypeFlag = "__IsSubmissionDispositionArchetype";
     public const string DispositionPredicateFlag = "__IsSubmissionDispositionPredicate";
 
-    /// <summary>The period after which a submission resolved to this disposition goes. Which disposition is
-    /// disposable is read off the model as the one naming it, so a model spelling `rejected` differently
-    /// still says what a rejection means.</summary>
+    // The period after which a submission resolved to this disposition goes. Which disposition is
+    // disposable is read off the model as the one naming it, so a model spelling `rejected` differently
+    // still says what a rejection means.
     private const string ColdStoragePeriodProperty = "daysBeforeColdStorage";
 
-    /// <summary>When a submission was decided about, which is what its period is counted from.</summary>
+    // When a submission was decided about, which is what its period is counted from.
     private const string ResolvedAtProperty = "resolvedAt";
 
     public async Task ExecuteAsync()
@@ -53,8 +50,8 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         }
     }
 
-    /// <summary>One submission as a reviewer needs to judge it: when it arrived, what it proposes, and what
-    /// has been decided about it — or nothing, which is what waiting is.</summary>
+    // One submission as a reviewer needs to judge it: when it arrived, what it proposes, and what
+    // has been decided about it — or nothing, which is what waiting is.
     private sealed record Submission(
         Guid Id, string Name, string? SubmissionId, string? SubmittedAt,
         Guid ProposedSite, string? ProposedSiteName, Guid? Disposition);
@@ -139,18 +136,16 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
             await ResolveAsync(model, submission, promotedTerm);
     }
 
-    /// <summary>
-    /// The retention pass: every rejected submission whose period has run leaves the model, and everything
-    /// it minted goes with it.
-    ///
-    /// The walk starts at the record of the arrival rather than at the site, because that record is intake's
-    /// own and a promotion deliberately leaves it behind. It reaches the site through the predicate the model
-    /// marks, so only what hangs off the site has to be named.
-    ///
-    /// Which submissions are due is the model's answer, not this tool's: the disposition names the period, and
-    /// the submission carries the instant it was decided. A submission nobody has dealt with is kept
-    /// indefinitely, and so is one resolved to a disposition naming no period.
-    /// </summary>
+    // The retention pass: every rejected submission whose period has run leaves the model, and everything
+    // it minted goes with it.
+    //
+    // The walk starts at the record of the arrival rather than at the site, because that record is intake's
+    // own and a promotion deliberately leaves it behind. It reaches the site through the predicate the model
+    // marks, so only what hangs off the site has to be named.
+    //
+    // Which submissions are due is the model's answer, not this tool's: the disposition names the period, and
+    // the submission carries the instant it was decided. A submission nobody has dealt with is kept
+    // indefinitely, and so is one resolved to a disposition naming no period.
     private async Task DisposeAsync(string[] args)
     {
         if (args.Length == 0)
@@ -223,9 +218,8 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
             writer.WriteLine($"{notYetDue} rejected submission(s) not yet due.");
     }
 
-    /// <summary>What a prune says it took, as the broker named it. Read from the answer rather than from what
-    /// was asked for, because the reach is the broker's to decide and a submission may have grown since.
-    /// </summary>
+    // What a prune says it took, as the broker named it. Read from the answer rather than from what
+    // was asked for, because the reach is the broker's to decide and a submission may have grown since.
     private static IEnumerable<string> Removed(JsonElement pruned)
     {
         if (!pruned.TryGetProperty("removed", out var removed) || removed.ValueKind != JsonValueKind.Array)
@@ -235,8 +229,8 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
             yield return one.TryGetProperty("name", out var name) ? name.GetString() ?? "" : "";
     }
 
-    /// <summary>Relate a submission to what was decided about it, and record when. Who decided is the Fact
-    /// the write itself lays down, which is the record that cannot be typed in.</summary>
+    // Relate a submission to what was decided about it, and record when. Who decided is the Fact
+    // the write itself lays down, which is the record that cannot be typed in.
     private async Task ResolveAsync(ModelSnapshot model, Submission submission, (Guid Id, string Name) disposition)
     {
         if (OneOwning(model, DispositionPredicateFlag) is not { } predicate)
@@ -271,16 +265,14 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         }
     }
 
-    // ── Reading the model ────────────────────────────────────────────────────
-
     private static IEnumerable<Submission> SubmissionsIn(ModelSnapshot model)
     {
         if (OneOwning(model, ProposedSitePredicateFlag) is not { } proposes)
             yield break;
 
-        // One submission per edge: a submission is only a submission because it proposes a site, so the
+        // One submission per relationship: a submission is only a submission because it proposes a site, so the
         // walk that finds it is also the walk that says which site travels when it is promoted. A model
-        // declares that predicate by relating its own archetypes, and that edge is asserted through the
+        // declares that predicate by relating its own archetypes, and that relationship is asserted through the
         // same predicate — listed, it offers a reviewer a decision over the declaration itself.
         foreach (var edge in EdgesThrough(model, proposes.Id))
         {
@@ -303,8 +295,8 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
                 .Select(edge => (Guid?)Target(edge)).FirstOrDefault()
             : null;
 
-    /// <summary>The Things under the archetype the model marks as holding what a submission can be resolved
-    /// to. Found by the mark, never by the archetype's name.</summary>
+    // The Things under the archetype the model marks as holding what a submission can be resolved
+    // to. Found by the mark, never by the archetype's name.
     private static IEnumerable<(Guid Id, string Name)> DispositionsIn(ModelSnapshot model)
     {
         if (OneOwning(model, DispositionArchetypeFlag) is not { } archetype)

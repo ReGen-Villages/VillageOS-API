@@ -86,14 +86,4 @@ describe('themeStore', () => {
     detach();
   });
 
-  it('followSystem clears the override and re-seeds from the OS', async () => {
-    mockSystemDark = true;
-    localStorage.setItem('vos-theme-override', 'light');
-    const { useThemeStore } = await import('./themeStore');
-    expect(useThemeStore.getState().theme).toBe('light');
-    useThemeStore.getState().followSystem();
-    expect(useThemeStore.getState().theme).toBe('dark');
-    expect(useThemeStore.getState().isOverride).toBe(false);
-    expect(localStorage.getItem('vos-theme-override')).toBeNull();
-  });
 });

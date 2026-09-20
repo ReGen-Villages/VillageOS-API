@@ -9,7 +9,7 @@ using static vos.Service.Forage.Tests.ModelSnapshotStub;
 
 namespace vos.Service.Forage.Tests;
 
-// Task #6789, driven end to end: a run asks only the calls whose answer is not already in, and records
+// Driven end to end: a run asks only the calls whose answer is not already in, and records
 // what each one came to. The ledger's own decisions are pinned in Services/CoverageLedgerTests; this
 // covers what the endpoint composes from them, which is the whole point of the change — a site used to
 // be discovered exactly once ever, and every source after the first was never called again.

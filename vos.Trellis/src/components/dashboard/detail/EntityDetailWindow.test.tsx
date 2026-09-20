@@ -46,7 +46,7 @@ function index() {
   );
 }
 
-/** The same catchment, on an edge the platform dispatches the metering service through. */
+/** The same catchment, on a relationship the platform dispatches the metering service through. */
 function indexWithAService() {
   return buildModelIndex(
     [

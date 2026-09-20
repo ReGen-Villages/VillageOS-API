@@ -23,7 +23,6 @@ export interface EdgeCandidate {
   direction: 'out' | 'in';
   /** The kind at the far end, read off the instances actually reached. */
   reaches: string;
-  /** How many links of this shape the instances carry. */
   count: number;
 }
 

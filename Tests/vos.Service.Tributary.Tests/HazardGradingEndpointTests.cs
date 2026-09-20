@@ -7,12 +7,12 @@ using Xunit;
 
 namespace vos.Service.Tributary.Tests;
 
-// Task #6735 — the hazard portal a discovery run resolves a site's assessments against. An
+// The hazard portal a discovery run resolves a site's assessments against. An
 // assessment's level takes observations only, so nobody can type it in and only a fetch can write
 // it; the run calls the portal once per assessment, with that assessment as the call's subject.
 //
 // The expression is authored in the platform repository, as the `hazard-grading` registration in
-// open-data-sources.template.json (platform Task #6804). The two agree by this literal and by
+// open-data-sources.template.json. The two agree by this literal and by
 // nothing else, which is why what it has to get right is spelled out here rather than left to the
 // seed.
 public class HazardGradingEndpointTests
@@ -61,7 +61,7 @@ public class HazardGradingEndpointTests
     public void Reshape_writes_the_vocabulary_term_and_not_the_portals_title()
     {
         // "Very low" is the portal's rendering; very-low is the Thing the level names. A title written
-        // as it came would resolve against no vocabulary Thing when the word becomes an edge.
+        // as it came would resolve against no vocabulary Thing when the word becomes a relationship.
         const string veryLow = """
         { "hazard_category": { "hazard_type": "Earthquake", "hazard_level": "Very low" } }
         """;

@@ -139,7 +139,7 @@ describe('DataTable visibleRows cap (Test Case 6123)', () => {
   });
 });
 
-describe('DataTable row window (Bug 6583)', () => {
+describe('DataTable row window', () => {
   let observer: ReturnType<typeof installResizeObserverDouble>;
 
   beforeEach(() => {

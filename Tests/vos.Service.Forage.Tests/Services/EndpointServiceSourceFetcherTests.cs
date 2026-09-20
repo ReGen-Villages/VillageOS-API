@@ -59,7 +59,7 @@ public class EndpointServiceSourceFetcherTests
     {
         // One registration serves every site, so the reading's destination cannot come from the
         // registration. Without this the fetcher's own expression would decide, and every site's
-        // values would land on whichever Thing that expression names (Bug #6532).
+        // values would land on whichever Thing that expression names.
         string? body = null;
         var handler = new MockHttpMessageHandler(req =>
         {

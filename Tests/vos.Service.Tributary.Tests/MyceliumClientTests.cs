@@ -204,7 +204,7 @@ public class MyceliumClientTests
     }
 
     // The broker takes a property with its type on it and refuses a bare value, so what this asserts
-    // is the envelope rather than the reading as it arrived (#6930). Asserting the bare shape is what
+    // is the envelope rather than the reading as it arrived. Asserting the bare shape is what
     // agreed with the writer about a rule neither of them applied; the case that could not is in the
     // broker-contract suite, which writes into the real engine.
     [Fact]

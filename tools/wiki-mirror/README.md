@@ -20,7 +20,9 @@ page:
 - **Rewrites internal links** — `[Delta](/Services/Delta)` →
   `[Delta](https://github.com/ReGen-Villages/VillageOS-API/wiki/Delta)`.
 - **Rewrites DevOps repo links** — `…/_git/VillageOS-API?path=/docs/X.md` →
-  `…/blob/main/docs/X.md`; bare relative `X.md` links → `…/blob/main/docs/X.md`.
+  `…/blob/develop/docs/X.md`; bare relative `X.md` links → `…/blob/develop/docs/X.md`.
+  The branch is the one the build's *Mirror to GitHub* step pushes; a test reads the build file to
+  hold the two together.
 - **Rewrites the DevOps `_wiki` root** → the GitHub wiki root.
 - **Strips private-only `_boards` links** to plain text (no public equivalent).
 - **Converts mermaid** — DevOps `::: mermaid … :::` → GitHub ` ```mermaid … ``` `.

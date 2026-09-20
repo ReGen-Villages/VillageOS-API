@@ -111,7 +111,7 @@ try
             case SpawnKind.Graph:
                 // A `X runs Pipeline` relationship trigger fires during a relationship-create and Mycelium
                 // only waits ~15s — so ACK immediately and run the DAG in the background. The result lands on
-                // the PipelineRun (animated over SSE in #5635). A detached token lets it outlive the request.
+                // the PipelineRun (animated over SSE). A detached token lets it outlive the request.
                 var pipelineId = trigger.PipelineId;
                 var runParams = trigger.Params;
                 _ = Task.Run(async () =>

@@ -4,15 +4,15 @@ import type { PortInformation } from '../../pipeline/model';
 
 export interface PipelineNodeData {
   label: string;
-  /** Boundary node (#5873): 'input' (param source) or 'output' (result sink); absent for service nodes. */
+  /** Boundary node: 'input' (param source) or 'output' (result sink); absent for service nodes. */
   kind?: 'input' | 'output';
   connectionId?: string;
   subdomain?: string;
   ports: PortInformation[];
   status?: string;
-  /** Input-port name → run-param key (#5647). */
+  /** Input-port name → run-param key. */
   paramBindings?: Record<string, string>;
-  /** Fan-out progress (#5648): terminal items / total. */
+  /** Fan-out progress: terminal items / total. */
   progress?: { done: number; total: number };
   [key: string]: unknown;
 }

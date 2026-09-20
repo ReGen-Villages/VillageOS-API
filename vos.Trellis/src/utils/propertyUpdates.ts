@@ -35,9 +35,9 @@ export function applyRelationshipPropertyRemoval(relationship: VosRelationship, 
 /**
  * Whether a relationship is on screen, so a live change to it is worth applying.
  *
- * Two ways it can be: it is the edge the user opened, or it hangs off the node they opened and
- * shows in that node's relationship list. Selecting an edge clears the node selection and the
- * reverse, so both have to be asked — a node-only test drops every change to the very edge whose
+ * Two ways it can be: it is the relationship the user opened, or it hangs off the node they opened and
+ * shows in that node's relationship list. Selecting a relationship clears the node selection and the
+ * reverse, so both have to be asked — a node-only test drops every change to the very relationship whose
  * panel is in front of the user.
  */
 export function isVisibleRelationship(

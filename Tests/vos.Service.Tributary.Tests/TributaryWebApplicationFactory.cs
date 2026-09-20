@@ -12,8 +12,7 @@ namespace vos.Service.Tributary.Tests;
 // Custom WebApplicationFactory for Tributary endpoint tests.
 // Pattern follows vos.Mycelium.Tests.MyceliumWebApplicationFactory from the sibling
 // VillageOS repo, including the IAsyncLifetime workaround for the sync-over-async
-// deadlock in CreateHost under the XPlat Code Coverage collector on Windows CI
-// (VillageOS Bug #5260).
+// deadlock in CreateHost under the XPlat Code Coverage collector on Windows CI.
 // Settings are injected via UseSetting on the host builder; ServiceLaunchSettings.Parse
 // falls back to those when no command-line flags are present, which is always the case here.
 // Tests that need a per-test verification key set VerificationKey / Issuer /
@@ -36,7 +35,7 @@ public class TributaryWebApplicationFactory : WebApplicationFactory<Program>, IA
     public string? Issuer { get; set; }
     public string? Audience { get; set; }
 
-    // Root directory for the DiskCache kind's store (#5918). Null = the service default; cache
+    // Root directory for the DiskCache kind's store. Null = the service default; cache
     // tests point it at a per-test temp directory so runs cannot see each other's files.
     public string? CacheDirectory { get; set; }
 

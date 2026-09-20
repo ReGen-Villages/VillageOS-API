@@ -15,11 +15,8 @@ public sealed record TokenExchangeRequest(
 // (no stampede); distinct keys mint concurrently. Refreshes once ~75% of a token's lifetime has elapsed.
 public sealed class TokenExchangeCache
 {
-    // Expiry is an absolute Unix time in milliseconds (e.g. ArcGIS expires).
     public const string ExpiryUnitEpochMillis = "epochMillis";
-    // Expiry is an absolute Unix time in seconds.
     public const string ExpiryUnitEpochSeconds = "epochSeconds";
-    // Expiry is a lifetime in seconds from now (e.g. OAuth2 expires_in).
     public const string ExpiryUnitSeconds = "seconds";
 
     private const double RefreshAtLifetimeFraction = 0.75;

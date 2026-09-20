@@ -26,12 +26,11 @@ export interface PipelineRunResult {
 }
 
 export const pipelineApi = {
-  /** Spawn a run synchronously through Mycelium's endpoint-forward to Phloem and wait for the result. */
   spawn: (pipelineId: string, parameters: Record<string, unknown> = {}) =>
     apiClient.post<PipelineRunResult>('/api/endpoints/phloem', { pipelineId, parameters }),
 
   /** Spawn a run asynchronously: Phloem returns the run id immediately and runs the DAG in the background,
-   * so the editor animates each node over the model SSE stream rather than blocking for the result (#5635). */
+   * so the editor animates each node over the model SSE stream rather than blocking for the result. */
   spawnAsync: (pipelineId: string, parameters: Record<string, unknown> = {}) =>
     apiClient.post<PipelineSpawnAccepted>('/api/endpoints/phloem', { pipelineId, parameters, async: true }),
 

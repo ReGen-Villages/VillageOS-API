@@ -5,7 +5,7 @@ using vos.Service.Shared.DagNode;
 
 namespace vos.Service.ModelBridge.Services;
 
-// A generic bridge between a pipeline DAG and the model (User Story #5866). It closes the gap that Phloem assembles a
+// A generic bridge between a pipeline DAG and the model. It closes the gap that Phloem assembles a
 // node's inputs only from wires and run params — with no path to read a model property or write one back. With
 // mode = "read" it outputs the value of a Thing's property (GET the Thing's properties); with mode = "write"
 // it writes its value input onto a Thing's property (a Fact). So a compute node can read a roll-up / anchor

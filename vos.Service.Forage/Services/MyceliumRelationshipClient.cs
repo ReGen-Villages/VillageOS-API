@@ -6,8 +6,8 @@ using vos.Service.Shared;
 namespace vos.Service.Forage.Services;
 
 // The writes this service makes to the model: relating a study to a compute service starts the
-// analysis; relating a subject to the vocabulary member a fetched word names — with the stale edge
-// removed — is how a discovered word becomes an edge (#6809); and the coverage Things a run records
+// analysis; relating a subject to the vocabulary member a fetched word names — with the stale relationship
+// removed — is how a discovered word becomes a relationship; and the coverage Things a run records
 // what each call came to on. Separate from the fetcher, which speaks to endpoint services rather than
 // to the model.
 public sealed class MyceliumRelationshipClient : MyceliumClientBase, ICoverageWriter

@@ -5,7 +5,6 @@ internal class Program
 {
     private static async Task Main(string[] args)
     {
-        // Configure Serilog
         var logPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs", "cli-.log");
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Information()

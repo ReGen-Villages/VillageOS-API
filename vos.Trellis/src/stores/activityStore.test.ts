@@ -41,7 +41,6 @@ describe('activityStore', () => {
 
     const events = useActivityStore.getState().events;
     expect(events).toHaveLength(200);
-    // Oldest events should be trimmed — first event should be event-10
     expect(events[0].Description).toBe('event-10');
     expect(events[199].Description).toBe('event-209');
   });

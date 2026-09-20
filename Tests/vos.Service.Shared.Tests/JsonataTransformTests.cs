@@ -5,8 +5,8 @@ using Xunit;
 
 namespace vos.Service.Shared.Tests;
 
-// The one shared JSONata engine wiring (#5875), used by both Tributary (endpoint transforms) and Phloem
-// (on-wire transforms). TC #5887's "one evaluator" is structural — both call this type; these tests cover it.
+// The one shared JSONata engine wiring, used by both Tributary (endpoint transforms) and Phloem
+// (on-wire transforms). Both call this type, so these tests cover the one evaluator.
 public class JsonataTransformTests
 {
     private static JsonElement Json(string s) => JsonDocument.Parse(s).RootElement;
@@ -17,13 +17,13 @@ public class JsonataTransformTests
         JsonataTransform.Validate("{\"name\": firstName & \" \" & lastName}").Should().BeNull();
     }
 
-    [Fact] // TC #5886 at the engine level: a syntax error is reported, not thrown to the caller
+    [Fact] // A syntax error is reported, not thrown to the caller
     public void Validate_returns_the_error_for_an_invalid_expression()
     {
         JsonataTransform.Validate("this is ( not valid").Should().NotBeNullOrEmpty();
     }
 
-    [Fact] // TC #5885 at the engine level: the expression reshapes the input value
+    [Fact] // The expression reshapes the input value
     public void Eval_reshapes_a_json_value()
     {
         var transform = new JsonataTransform("{\"name\": firstName & \" \" & lastName}");

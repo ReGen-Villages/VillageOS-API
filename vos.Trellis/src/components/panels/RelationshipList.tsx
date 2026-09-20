@@ -100,7 +100,7 @@ export function RelationshipList({ relationships, direction, allThings, onSelect
 /**
  * One expanded relationship's properties. Reading the resolved view is what supplies each
  * property's declared type, and it is asked for only when a row is opened — a node with many
- * edges would otherwise read every one of them to show a list nobody expanded.
+ * relationships would otherwise read every one of them to show a list nobody expanded.
  */
 function ExpandedRelationshipProperties({ relationshipId, storedProperties, editMode }: {
   relationshipId: string;

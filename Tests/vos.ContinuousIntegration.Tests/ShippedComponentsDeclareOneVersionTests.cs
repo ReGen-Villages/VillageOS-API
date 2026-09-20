@@ -5,29 +5,26 @@ using Xunit;
 
 namespace vos.ContinuousIntegration.Tests;
 
-/// <summary>
-/// Trellis, Taproot and the services ship together and say one version (#6467).
-///
-/// Trellis is a JavaScript application and the rest are .NET projects, so the same version is written
-/// in two formats. Nothing but a check keeps two files in step, and a client reporting a version the
-/// platform does not is a pair that cannot be spoken about as one release.
-///
-/// The default is that a component must match. Anything exempt is named below with a reason, so a
-/// component added later fails until somebody decides which it is rather than passing by being
-/// unnoticed.
-///
-/// This asserts the repository agrees with itself. That it also agrees with the platform is checked
-/// where both are checked out, which is the platform's own build: there is no platform here to ask,
-/// and there must not be.
-/// </summary>
+// Trellis, Taproot and the services ship together and say one version.
+//
+// Trellis is a JavaScript application and the rest are .NET projects, so the same version is written
+// in two formats. Nothing but a check keeps two files in step, and a client reporting a version the
+// platform does not is a pair that cannot be spoken about as one release.
+//
+// The default is that a component must match. Anything exempt is named below with a reason, so a
+// component added later fails until somebody decides which it is rather than passing by being
+// unnoticed.
+//
+// This asserts the repository agrees with itself. That it also agrees with the platform is checked
+// where both are checked out, which is the platform's own build: there is no platform here to ask,
+// and there must not be.
 public class ShippedComponentsDeclareOneVersionTests
 {
-    /// <summary>Not shipped with the platform, so not held to its version.
-    ///
-    /// The three under tools/ build documentation and mirror a wiki; they run on somebody's machine
-    /// and are never handed to anyone. The echo package is one half of a worked example showing what
-    /// a microservice in another language has to implement, and its version is part of the example.
-    /// </summary>
+    // Not shipped with the platform, so not held to its version.
+    //
+    // The three under tools/ build documentation and mirror a wiki; they run on somebody's machine
+    // and are never handed to anyone. The echo package is one half of a worked example showing what
+    // a microservice in another language has to implement, and its version is part of the example.
     private static readonly string[] NotShipped =
     [
         Path.Combine("tools", "docs-pdf"),
@@ -50,8 +47,8 @@ public class ShippedComponentsDeclareOneVersionTests
         }
     }
 
-    /// <summary>A project declaring its own version inherits none, and leaves the rule true of a file
-    /// nobody builds from.</summary>
+    // A project declaring its own version inherits none, and leaves the rule true of a file
+    // nobody builds from.
     [Fact]
     public void No_project_declares_a_version_of_its_own()
     {
@@ -63,11 +60,11 @@ public class ShippedComponentsDeclareOneVersionTests
             $"these declare a version instead of inheriting one: {string.Join(", ", offenders)}");
     }
 
-    /// <summary>Pre-release is the point of the number, not an accident of it: the suffix is what says
-    /// the platform makes no compatibility promise, and a release version would say the opposite by
-    /// saying nothing.</summary>
-    /// <summary>MSBuild ignores comments, so a version left commented out is not the declared one.
-    /// Reading it as one failed a repository that agreed with itself.</summary>
+    // Pre-release is the point of the number, not an accident of it: the suffix is what says
+    // the platform makes no compatibility promise, and a release version would say the opposite by
+    // saying nothing.
+    // MSBuild ignores comments, so a version left commented out is not the declared one.
+    // Reading it as one failed a repository that agreed with itself.
     [Fact]
     public void A_commented_out_version_is_not_the_declared_one()
     {
@@ -85,9 +82,9 @@ public class ShippedComponentsDeclareOneVersionTests
         Assert.Contains("-", DeclaredByDotNetProjects());
     }
 
-    /// <summary>The version a build would actually use. Comments are removed first, because MSBuild
-    /// ignores them and a version tried and left commented out above the real one would otherwise be
-    /// read as the declared one — failing a repository that agrees with itself.</summary>
+    // The version a build would actually use. Comments are removed first, because MSBuild
+    // ignores them and a version tried and left commented out above the real one would otherwise be
+    // read as the declared one — failing a repository that agrees with itself.
     [Theory]
     [InlineData("*.json")]
     [InlineData("package.json")]
@@ -120,20 +117,19 @@ public class ShippedComponentsDeclareOneVersionTests
 
     private static IEnumerable<string> ProjectFiles() => FilesUnderTheRepository("*.csproj");
 
-    /// <summary>Source under the repository. Skips hidden directories, which is where a git worktree
-    /// keeps a second checkout of everything this would otherwise find twice, and node_modules, which
-    /// carries a version file per dependency.</summary>
-    /// <remarks>
-    /// Build output is skipped because it is a copy, and a copy goes stale: a content file edited in
-    /// source stays as it was under bin until something rebuilds that project, so a check reading it
-    /// reports a file nobody edited and fails a build nobody broke. A workspace reused between builds
-    /// — which is what a self-hosted agent has — is where that bites. Nothing searched here is copied
-    /// into build output today, so this is a trap disarmed rather than a break fixed.
-    ///
-    /// VillageOS carries the same search, and that is where the gap was found. Neither repository can
-    /// reference the other: nothing is packed to a feed (#6648), and this one is public while that one
-    /// is not. So a rule learned in one is applied to both by hand, the way vos.Auth.Shared is.
-    /// </remarks>
+    // Source under the repository. Skips hidden directories, which is where a git worktree
+    // keeps a second checkout of everything this would otherwise find twice, and node_modules, which
+    // carries a version file per dependency.
+    //
+    // Build output is skipped because it is a copy, and a copy goes stale: a content file edited in
+    // source stays as it was under bin until something rebuilds that project, so a check reading it
+    // reports a file nobody edited and fails a build nobody broke. A workspace reused between builds
+    // — which is what a self-hosted agent has — is where that bites. Nothing searched here is copied
+    // into build output today, so this is a trap disarmed rather than a break fixed.
+    //
+    // VillageOS carries the same search, and that is where the gap was found. Neither repository can
+    // reference the other: nothing is packed to a feed, and this one is public while that one
+    // is not. So a rule learned in one is applied to both by hand, the way vos.Auth.Shared is.
     private static IEnumerable<string> FilesUnderTheRepository(string pattern)
     {
         var root = RepositoryRoot.Find();

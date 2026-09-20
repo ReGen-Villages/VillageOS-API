@@ -15,7 +15,7 @@ public static class StatedValues
     // value inherited from an archetype is a default for a kind of site, and calling a provider with a
     // default location would return a confident reading about somewhere else. A submitted site states
     // its coordinates as overrides, because the archetype declares those names, so reading own
-    // properties alone addressed every submitted site with nothing at all (#6805).
+    // properties alone addressed every submitted site with nothing at all.
     public static IReadOnlyDictionary<string, string> Of(SnapshotDocument snapshot, Guid thingId)
     {
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

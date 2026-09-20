@@ -28,7 +28,7 @@ public class WaterReserveNodeTests
         ((double)response.Outputs["emergencyReserveM3"]!).Should().Be(100000);
     }
 
-    // #6549: present-but-null is not absent, and reading it straight through named no port.
+    // Present-but-null is not absent, and reading it straight through named no port.
     [Fact]
     public async Task HandleNodeAsync_null_input_names_the_port()
     {

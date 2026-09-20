@@ -50,7 +50,6 @@ export function EdgeDetailPanel({ relationship: relationship, allThings, onClose
     setPropertiesVersion((v) => v + 1);
   };
 
-  // Fetch ranges and states lazily when ranges tab is active
   useEffect(() => {
     if (tab !== 'ranges') return;
     let cancelled = false;

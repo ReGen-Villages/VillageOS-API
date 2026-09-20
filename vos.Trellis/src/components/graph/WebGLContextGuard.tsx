@@ -40,13 +40,10 @@ export function WebGLContextGuard() {
         const graph = sigma.getGraph();
         const snapshot = graph.export();
 
-        // Clear Sigma's rendering state + graph
         sigma.clear();
 
-        // Re-import the saved graph data
         graph.import(snapshot);
 
-        // Force a full refresh — recreates WebGL programs and buffers
         sigma.refresh();
 
         console.info('[WebGLContextGuard] Sigma rebuild complete');
@@ -83,7 +80,6 @@ export function WebGLContextGuard() {
     const handleContextRestored = () => {
       console.info('[WebGLContextGuard] WebGL context restored — rebuilding sigma renderer');
 
-      // Cancel the fallback timer — normal recovery path
       if (recoveryTimerReference.current) {
         clearTimeout(recoveryTimerReference.current);
         recoveryTimerReference.current = null;
@@ -111,10 +107,8 @@ export function WebGLContextGuard() {
       canvas.removeEventListener('webglcontextrestored', handleContextRestored);
     }
 
-    // Watch all existing canvases (Sigma's 3 canvases)
     container.querySelectorAll('canvas').forEach(watchCanvas);
 
-    // Watch for dynamically-added canvases
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
         for (const node of mutation.addedNodes) {

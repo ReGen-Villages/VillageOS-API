@@ -7,13 +7,11 @@ using Xunit;
 
 namespace vos.ContinuousIntegration.Tests;
 
-/// <summary>
-/// The build runs the tests by handing the runner the solution, so the solution decides what runs. A
-/// test project that nobody added to it is still built, still passes locally under its own project,
-/// and is simply never run on the agent — and a suite that does not run leaves no mark on a green
-/// build. Before, the build matched test projects by wildcard and a new one was picked up by having
-/// been written; this is what replaces that.
-/// </summary>
+// The build runs the tests by handing the runner the solution, so the solution decides what runs. A
+// test project that nobody added to it is still built, still passes locally under its own project,
+// and is simply never run on the agent — and a suite that does not run leaves no mark on a green
+// build. Before, the build matched test projects by wildcard and a new one was picked up by having
+// been written; this is what replaces that.
 public class SolutionListsEveryTestProjectTests
 {
     [Fact]
@@ -32,10 +30,8 @@ public class SolutionListsEveryTestProjectTests
             $"never runs them: {string.Join(", ", missing)}");
     }
 
-    /// <summary>
-    /// Hidden directories are skipped because a git worktree lives under one and holds a second
-    /// checkout of every project this would otherwise find.
-    /// </summary>
+    // Hidden directories are skipped because a git worktree lives under one and holds a second
+    // checkout of every project this would otherwise find.
     private static IEnumerable<string> TestProjectFiles(DirectoryInfo directory)
     {
         foreach (var file in directory.EnumerateFiles("*Tests.csproj")) yield return file.FullName;

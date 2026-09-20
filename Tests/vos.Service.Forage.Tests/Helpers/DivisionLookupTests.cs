@@ -84,7 +84,7 @@ public class DivisionLookupTests
         CoveringSourceResolver.DivisionLookupIn(model).Should().BeNull();
     }
 
-    // No edge reaches either: neither covers a Place, so a coverage walk finds nothing to traverse to them.
+    // No relationship reaches either: neither covers a Place, so a coverage walk finds nothing to traverse to them.
     [Fact]
     public void TheSitesReadAsksForBothMarksModelWide()
     {

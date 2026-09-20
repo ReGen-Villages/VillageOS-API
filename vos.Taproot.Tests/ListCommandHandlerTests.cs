@@ -159,7 +159,7 @@ public class ListCommandHandlerTests
     }
 
     // The platform answers a relationship as { Id, SubjectId, PredicateId, TargetId, Properties }; the
-    // predicate is a Thing the PredicateId names (#7168).
+    // predicate is a Thing the PredicateId names.
     [Fact]
     public async Task ListPredicates_NamesEachPredicateThroughItsIdAndCountsItsUses()
     {
@@ -222,7 +222,7 @@ public class ListCommandHandlerTests
     public async Task ListHandlers_ReportsTheRunModeThePlatformResolved()
     {
         // The run mode may be held on the service, inherited from the prototype it `is`, or reached by an
-        // edge. Which of those it was is the platform's business; this command prints the answer.
+        // relationship. Which of those it was is the platform's business; this command prints the answer.
         var id = Guid.NewGuid();
         _myceliumMock.Setup(b => b.GetAllConnectionsAsync())
             .ReturnsAsync(Connections($"[{Connection(id, "Oneshot", runMode: "oneshot")}]"));
@@ -640,7 +640,7 @@ public class ListCommandHandlerTests
     [Fact]
     public async Task ListThings_WithInheritedProperties_ShowsInheritedSource()
     {
-        // Regression for #6058: serialNumber is inherited (never overridden) so it comes from the
+        // Regression: serialNumber is inherited (never overridden) so it comes from the
         // effective endpoint, keyed by qualified path — the removed InheritedProperties key is gone.
         var thingId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>(

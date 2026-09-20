@@ -8,10 +8,10 @@
  */
 import type { VosThing, VosRelationship } from './vos';
 
-/** Which way an edge is followed from the Things selected so far. */
+/** Which way a relationship is followed from the Things selected so far. */
 export type TraverseDirection = 'outgoing' | 'incoming' | 'both';
 
-/** One edge to follow out from everything the selector has reached by the time the rule runs. */
+/** One relationship to follow out from everything the selector has reached by the time the rule runs. */
 export interface TraverseRule {
   predicate: string;
   direction?: TraverseDirection;
@@ -32,11 +32,11 @@ export interface SubscriptionSelector {
   traverse?: TraverseRule[];
   /** Include what each selected Thing `is`, so the values it inherits resolve. Default true. */
   includeIsAncestors?: boolean;
-  /** Include the edges between the selected Things. Default true. */
+  /** Include the relationships between the selected Things. Default true. */
   includeRelationships?: boolean;
   /** Keep covering what `types` names as it appears, rather than only what it named when the
    *  subscription opened: a Thing typed into a followed type later arrives as `ThingEntered`, and
-   *  one whose last matching `is` edge is retracted leaves as `ThingLeft`. `ids`, `names` and
+   *  one whose last matching `is` relationship is retracted leaves as `ThingLeft`. `ids`, `names` and
    *  `traverse` cannot follow and fix their part of the membership when the subscription opens. */
   includeLaterMatches?: boolean;
   /** Hear the samples that land on the covered Things' observation-only properties, each series held

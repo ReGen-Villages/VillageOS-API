@@ -68,8 +68,8 @@ public class ServiceTokenValidatorTests
         Validating(_mycelium.Token(TestIssuer, ThisHandler, Subject)).Should().NotThrow();
     }
 
-    /// <summary>The handler is addressed by name, so a token minted for a different handler — signed
-    /// by the same Mycelium and otherwise perfectly good — buys nothing here.</summary>
+    // The handler is addressed by name, so a token minted for a different handler — signed
+    // by the same Mycelium and otherwise perfectly good — buys nothing here.
     [Fact]
     public void ValidateToken_RejectsATokenAddressedToAnotherService()
     {
@@ -77,8 +77,8 @@ public class ServiceTokenValidatorTests
             .Should().Throw<SecurityTokenInvalidAudienceException>();
     }
 
-    /// <summary>A signed-in person's browser token names the recipient every user token names, which
-    /// is not this handler's, so a handler no longer answers a call a person could make.</summary>
+    // A signed-in person's browser token names the recipient every user token names, which
+    // is not this handler's, so a handler no longer answers a call a person could make.
     [Fact]
     public void ValidateToken_RejectsAPersonsBrowserToken()
     {
@@ -86,8 +86,8 @@ public class ServiceTokenValidatorTests
             .Should().Throw<SecurityTokenInvalidAudienceException>();
     }
 
-    /// <summary>The whole reason the key is a public half and the algorithm is pinned. Every handler
-    /// holds this key; a checker that honoured the token's own claim would let any of them sign.</summary>
+    // The whole reason the key is a public half and the algorithm is pinned. Every handler
+    // holds this key; a checker that honoured the token's own claim would let any of them sign.
     [Fact]
     public void ValidateToken_RejectsATokenSignedWithTheVerificationKeyAsASharedSecret()
     {

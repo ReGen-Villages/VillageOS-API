@@ -11,7 +11,7 @@ using Xunit;
 
 namespace vos.Service.Intake.Tests;
 
-// Task #7059 — a file a submitter shares about their land. The bytes are kept under a folder beside
+// A file a submitter shares about their land. The bytes are kept under a folder beside
 // this service, keyed by submission; the model gets the Thing it declares for a shared file, related
 // to the submission's project through the predicate the model marks; and the files of a submission
 // the model no longer holds are taken out with it.
@@ -32,8 +32,8 @@ public sealed class SharedDocumentEndpointTests : IDisposable
         if (Directory.Exists(_folder)) Directory.Delete(_folder, recursive: true);
     }
 
-    /// <summary>The submissions model with what the land-intake template declares for a shared file, and
-    /// one file the project already shares.</summary>
+    // The submissions model with what the land-intake template declares for a shared file, and
+    // one file the project already shares.
     private static BrokerSnapshot ModelWithDocuments() =>
         BrokerSnapshot.WithTwoSubmissions()
             .Thing(DocumentArchetype, "SharedDocument", isArchetype: true,

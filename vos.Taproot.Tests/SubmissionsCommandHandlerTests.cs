@@ -4,13 +4,11 @@ using Xunit;
 
 namespace vos.Taproot.Tests;
 
-/// <summary>
-/// `submissions` — what has arrived, and what a reviewer does with it (VillageOS #6045, #6621).
-///
-/// The model these read is built from marks rather than names, so every fixture spells its archetypes and
-/// predicates differently from the shipped template. A handler that answered only to the shipped spelling
-/// would pass against a fixture that copied it and fail against a project that renamed one.
-/// </summary>
+// `submissions` — what has arrived, and what a reviewer does with it.
+//
+// The model these read is built from marks rather than names, so every fixture spells its archetypes and
+// predicates differently from the shipped template. A handler that answered only to the shipped spelling
+// would pass against a fixture that copied it and fail against a project that renamed one.
 public class SubmissionsCommandHandlerTests
 {
     private readonly Mock<MyceliumClient> _mycelium = new("https://localhost:7243") { CallBase = false };
@@ -38,13 +36,13 @@ public class SubmissionsCommandHandlerTests
 
     private static object Held(object value) => new { Value = value, IsInherited = false };
 
-    /// <summary>What a Thing gets from the archetype it `is`. A mark is an ordinary property on the
-    /// archetype, so every term under it reads the mark too — which is what a real seeded model hands
-    /// back, and what a reader counting carriers has to tell apart from the one that declares it.</summary>
+    // What a Thing gets from the archetype it `is`. A mark is an ordinary property on the
+    // archetype, so every term under it reads the mark too — which is what a real seeded model hands
+    // back, and what a reader counting carriers has to tell apart from the one that declares it.
     private static object Inherited(object value) => new { Value = value, IsInherited = true };
 
-    /// <summary>A model holding one submission. Its predicates and its disposition archetype are named
-    /// nothing like the shipped template's, because a reader finds them by their marks.</summary>
+    // A model holding one submission. Its predicates and its disposition archetype are named
+    // nothing like the shipped template's, because a reader finds them by their marks.
     private void AModelWithOneSubmission(Guid? disposition = null, DateTime? resolvedAt = null)
     {
         _mycelium.Setup(client => client.GetAllThingsAsync()).ReturnsAsync(Json(new[]
@@ -137,7 +135,7 @@ public class SubmissionsCommandHandlerTests
         Assert.DoesNotContain("waiting", output);
     }
 
-    // A template declares its proposed-site predicate by relating the two archetypes, so that edge is
+    // A template declares its proposed-site predicate by relating the two archetypes, so that relationship is
     // asserted through the same predicate every real submission is. Listed, it offers a reviewer a
     // decision over the model's own declaration.
     [Fact]
@@ -713,10 +711,10 @@ public class SubmissionsCommandHandlerTests
         Assert.Contains("No submissions in this model.", _writer.ToString());
     }
 
-    /// <summary>Every question the listing asks about a Thing — its name, and whether it is an archetype —
-    /// is asked while walking the submissions. The Things are held by identifier so each is one step;
-    /// searching the list instead would read the whole model once per submission, and the cost of listing
-    /// a queue would then grow with the number of Things standing beside it.</summary>
+    // Every question the listing asks about a Thing — its name, and whether it is an archetype —
+    // is asked while walking the submissions. The Things are held by identifier so each is one step;
+    // searching the list instead would read the whole model once per submission, and the cost of listing
+    // a queue would then grow with the number of Things standing beside it.
     [Fact]
     public void The_things_are_held_by_identifier_rather_than_searched_for()
     {
@@ -731,7 +729,7 @@ public class SubmissionsCommandHandlerTests
         Assert.Equal("Willow Bend", byIdentifier[SiteId].GetProperty("Name").GetString());
     }
 
-    /// <summary>Searching the list answered with the first Thing under an identifier, so indexing does too.</summary>
+    // Searching the list answered with the first Thing under an identifier, so indexing does too.
     [Fact]
     public void A_repeated_identifier_answers_with_the_first_thing_under_it()
     {
@@ -744,8 +742,8 @@ public class SubmissionsCommandHandlerTests
         Assert.Equal("the one the search found", byIdentifier[SiteId].GetProperty("Name").GetString());
     }
 
-    /// <summary>A model is mostly Things a reviewer never sees. The listing has to name its submissions and
-    /// leave out the declaration whatever else the model holds around them.</summary>
+    // A model is mostly Things a reviewer never sees. The listing has to name its submissions and
+    // leave out the declaration whatever else the model holds around them.
     [Fact]
     public async Task A_model_full_of_unrelated_things_still_lists_what_a_reviewer_waits_on()
     {
@@ -773,8 +771,8 @@ public class SubmissionsCommandHandlerTests
         Assert.DoesNotContain("a building nobody is reviewing", output);
     }
 
-    /// <summary>Two archetypes declaring one name is the case the model itself refuses to answer, so the
-    /// reader has to refuse too rather than show whichever the broker serialised first.</summary>
+    // Two archetypes declaring one name is the case the model itself refuses to answer, so the
+    // reader has to refuse too rather than show whichever the broker serialised first.
     [Fact]
     public async Task A_name_inherited_from_two_archetypes_is_refused_rather_than_guessed_at()
     {

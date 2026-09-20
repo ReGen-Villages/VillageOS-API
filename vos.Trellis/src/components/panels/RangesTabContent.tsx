@@ -23,13 +23,9 @@ interface Props {
   statesData: ThingStates | null;
   loading: boolean;
   onSelectNode: (id: string) => void;
-  /** Ranges from the thing's relationships (optional). */
   relationshipRanges?: RelationshipRangesEntry[];
-  /** The entity ID (thing or relationship) — required for range CRUD. */
   entityId?: string;
-  /** Whether CRUD operations are enabled (only for things, not inherited). */
   editable?: boolean;
-  /** Callback after a range is created or deleted. */
   onRangeChanged?: () => void;
 }
 

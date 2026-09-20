@@ -8,7 +8,7 @@ using Xunit;
 namespace vos.Service.Tributary.Tests.Helpers;
 
 // Unit tests for OutboundRequest — pure construction of the outbound REST request from
-// effective properties (Task #5469). Each base capability (headers, query params, content-type,
+// effective properties. Each base capability (headers, query params, content-type,
 // timeout) is pinned in isolation here; end-to-end wiring is covered in HandleEndpointTests.
 public class OutboundRequestTests
 {
@@ -269,7 +269,7 @@ public class OutboundRequestTests
         map["arr"].Should().Be("[1,2]");
     }
 
-    // ---------- Accept header (Task #5913) ----------
+    // ---------- Accept header ----------
 
     [Fact]
     public void Build_AcceptHeader_SetsAcceptOnRequest()

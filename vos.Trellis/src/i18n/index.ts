@@ -29,7 +29,6 @@ i18next.use(initReactI18next).init({
   },
 });
 
-/** Switch the active language and remember the choice for next visit. */
 export function changeLanguage(code: LanguageCode): Promise<unknown> {
   persistLanguage(code);
   return i18next.changeLanguage(code);

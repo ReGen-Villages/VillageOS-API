@@ -19,7 +19,7 @@ export interface ThingMatch {
   ownPropertyCount: number;
   relationshipCount: number;
   /** Left unformatted: how a value should read depends on the type the platform declares for it,
-   *  which this index does not carry. The page that shows them resolves that and formats (#6163). */
+   *  which this index does not carry. The page that shows them resolves that and formats. */
   previewProperties: Array<{ key: string; value: unknown }>;
 }
 
@@ -31,7 +31,7 @@ export interface ThingSearchIndex {
 }
 
 /**
- * Pre-compute indexes from model data so `searchThings` can run in O(N).
+ * Pre-compute indexes from model data so `searchThings` costs one pass over the Things.
  * Call once when `things` or `relationships` change (e.g., in a `useMemo`).
  */
 export function buildThingSearchIndex(

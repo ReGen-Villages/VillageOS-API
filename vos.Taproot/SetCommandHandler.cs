@@ -33,10 +33,8 @@ namespace vos.Taproot
                 var name = tok[1];
                 var value = tok[2];
 
-                // Default to string type for simple set operations
                 await _mycelium.SetPropertyAsync(id, name, "string", value);
 
-                // Resolve thing name for display
                 var thingName = await _resolver.ResolveNameAsync(id);
                 var thingDisplay = _options.FormatIdentifier(thingName, id);
                 _writer.WriteLine($"Set {name} = {value} on {thingDisplay}");
