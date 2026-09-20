@@ -42,7 +42,6 @@ export interface EntityDetail {
   stateChanges: StateChange[];
   /** Null when the model has no active reactive engine to serve state history. */
   coverage: StateHistoryCoverage | null;
-  /** The services the platform dispatched on this Thing, oldest first. */
   dispatches: ServiceDispatch[];
 }
 
@@ -124,7 +123,7 @@ export function useEntityDetail(
     })();
 
     return () => controller.abort();
-    // The edges are read through requestKey, which the throttle paces; naming them here would refire
+    // The relationships are read through requestKey, which the throttle paces; naming them here would refire
     // the round on every model flush.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [thingId, requestKey, historyEnabled]);

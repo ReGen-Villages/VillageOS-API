@@ -16,7 +16,7 @@ import type { VosRelationship, VosThing } from '../types/vos';
 
 /** Coalesce a burst of SSE structural events into one store write. A high-throughput
  *  sim emits hundreds of ThingCreated/RelationshipCreated per second; applying each as
- *  its own O(N) store rebuild saturates the main thread and makes Trellis degrade as the
+ *  its own rebuild of the whole store saturates the main thread and makes Trellis degrade as the
  *  model grows. We buffer events and flush once per window instead. */
 const FLUSH_DEBOUNCE_MS = 150;
 
@@ -104,7 +104,6 @@ function loadWhatOpened(opened: SubscriptionOpened): void {
   void reloadModelData({ silent: !waitedOn });
 }
 
-/** The entity id carried by a structural change event (ThingCreated, etc.). */
 function entityId(data: unknown): string | undefined {
   return (data as { EntityId?: string } | undefined)?.EntityId;
 }
@@ -145,7 +144,7 @@ export function useModelData(): void {
 
   useEffect(() => {
     // Buffered live updates: SSE events accumulate here and flush together, so a burst
-    // of structural changes becomes one store write instead of one O(N) rebuild each.
+    // of structural changes becomes one store write instead of a rebuild of the whole store each.
     // Property buffers are keyed by entity AND property name: keying by entity alone kept only the
     // last change in a window, which the full model reload on save used to hide.
     // Of one window's events for an entity the last word wins: an arrival cancels a pending
@@ -180,9 +179,9 @@ export function useModelData(): void {
       schedule();
     };
 
-    // Applied only while the relationship is on screen — as the opened edge, or hanging off the
-    // opened node. Asking about the node alone dropped every change to the edge whose own panel was
-    // in front of the user, because selecting an edge clears the node selection.
+    // Applied only while the relationship is on screen — as the opened relationship, or hanging off the
+    // opened node. Asking about the node alone dropped every change to the relationship whose own panel was
+    // in front of the user, because selecting a relationship clears the node selection.
     const onRelationshipProperty = (args: unknown[], change: PropertyChange) => {
       const [relId, propertyName] = args as [string, string | undefined];
       if (!relId || propertyName === undefined) return;
@@ -269,7 +268,7 @@ export function useModelData(): void {
       on('RelationshipDeleted', relationshipGone),
       on('RelationshipLeft', relationshipGone),
       // Every property update lands in the store, not just graph-rendering ones. The Operations
-      // dashboard reads live business properties (on-hand, reorder point, KPIs) straight from the
+      // dashboard reads live operational properties (stored quantities, thresholds, KPIs) straight from the
       // store, so dropping their updates left it showing stale or blank cells for anything changed
       // after the last full load. The debounced applyBatch coalesces the high rate into one write
       // per window.

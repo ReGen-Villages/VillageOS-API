@@ -2,8 +2,8 @@ import { relationshipApi } from '../api/relationshipApi';
 import type { VosRelationship } from '../types/vos';
 
 // Repoint ONE of a Thing's types to a different archetype. Multiple inheritance is a first-class
-// feature, so this never collapses the rest: with `fromArchetypeId` it replaces only that type edge; without
-// it (the single-type case) it replaces the Thing's lone type edge. The human-in-the-loop reclassification —
+// feature, so this never collapses the rest: with `fromArchetypeId` it replaces only that type relationship; without
+// it (the single-type case) it replaces the Thing's lone type relationship. The human-in-the-loop reclassification —
 // e.g. a mis-classified element becomes a SolarArray, changing what reactive roll-ups and analysis pick up.
 export async function retypeThing(
   thingId: string,

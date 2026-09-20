@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 
-// ── Mocks ────────────────────────────────────────────────────────────────
 // apiClient is the source of login/auth state. We capture the login mock so
 // each test can shape its rejection (no-models, multi-model picker, etc).
 const mockLogin = vi.fn();
@@ -68,9 +67,7 @@ describe('useAuthState login: no-models-loaded handling (Bug #5324)', () => {
   });
 
   it('surfaces an actionable error when no seed has ever loaded', async () => {
-    // Mycelium rejects login because no models are loaded
     mockLogin.mockRejectedValue(noModelsError());
-    // SeedLoadingStatus default: IsLoading=false, Phase="" (never started)
     mockGetStartupProgress.mockResolvedValue({
       IsLoading: false,
       CurrentFile: '',
@@ -88,10 +85,8 @@ describe('useAuthState login: no-models-loaded handling (Bug #5324)', () => {
     await waitFor(() => {
       expect(result.current.error).not.toBeNull();
     });
-    // The error should mention models / seeds so the user has somewhere to go
     expect(result.current.error?.toLowerCase()).toMatch(/no models|no seeds|seed/);
     expect(result.current.loading).toBe(false);
-    // No silent success — user is still unauthenticated
     expect(result.current.isAuthenticated).toBe(false);
   });
 
@@ -111,7 +106,6 @@ describe('useAuthState login: no-models-loaded handling (Bug #5324)', () => {
       try { await result.current.login('admin', 'admin'); } catch { /* expected */ }
     });
 
-    // Seed-loading path: error suppressed, startupProgress surfaced for the banner
     await waitFor(() => {
       expect(result.current.startupProgress?.IsLoading).toBe(true);
     });

@@ -50,7 +50,7 @@ export interface TypeGroupStat {
  * `is` target, or NO_TYPE_ID). Sum of all `instanceCount`s equals
  * `things.length` — invariant the panel header relies on.
  *
- * Performance: O(N + M) — single pass over relationships plus a Map lookup.
+ * One pass over relationships plus a Map lookup, so the cost grows with the model and not with its square.
  */
 export function discoverTypes(
   things: VosThing[],

@@ -12,7 +12,7 @@ export function ModelStatsCard({ things, relationships }: Props) {
   const totalProperties = things.reduce((sum, t) => sum + (t.Properties ? Object.keys(t.Properties).length : 0), 0);
   const handlers = things.filter((t) => t.Properties && 'ExecutablePath' in t.Properties);
 
-  // Top predicates by usage — use Map lookup to avoid O(things × relationships)
+  // Top predicates by usage, looked up through a Map so the cost does not grow with things times relationships
   const thingMap = new Map(things.map((t) => [t.Id, t]));
   const predCounts = new Map<string, number>();
   for (const r of relationships) {

@@ -416,8 +416,8 @@ describe('useModelData', () => {
     expect(useUiStore.getState().stateVersions).toEqual({ flagged: 1, metered: 1 });
   });
 
-  // A walk step that keeps or drops what is in a state reads an edge's states as readily as a
-  // Thing's, so an edge's move has to reach the same counters.
+  // A walk step that keeps or drops what is in a state reads a relationship's states as readily as a
+  // Thing's, so a relationship's move has to reach the same counters.
   it('moves the counters of the states a RelationshipStatesChanged names', async () => {
     await mountLoaded();
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
@@ -633,12 +633,12 @@ describe('useModelData', () => {
 
       await act(async () => {
         handlers.get('RelationshipPropertyChanged')!('r1', 'quantity', 9);
-        handlers.get('RelationshipPropertyChanged')!('r1', 'unit', 'pallets');
+        handlers.get('RelationshipPropertyChanged')!('r1', 'unit', 'litres');
       });
       await waitFor(() => {
         const properties = useModelStore.getState().relationships[0].Properties;
         expect(properties?.quantity).toBe(9);
-        expect(properties?.unit).toBe('pallets');
+        expect(properties?.unit).toBe('litres');
       });
     });
 

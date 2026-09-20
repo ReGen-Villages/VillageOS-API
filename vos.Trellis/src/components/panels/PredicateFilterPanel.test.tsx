@@ -12,7 +12,7 @@ import { useUiStore } from '../../stores/uiStore';
  *
  * These tests guard against regressing back to the absolute height cap.
  */
-describe('PredicateFilterPanel layout (Bug #5388)', () => {
+describe('PredicateFilterPanel layout', () => {
   beforeEach(() => {
     useUiStore.setState({
       predicateStats: [

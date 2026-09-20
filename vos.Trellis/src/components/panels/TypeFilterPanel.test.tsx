@@ -10,7 +10,7 @@ import type { VosThing, VosRelationship } from '../../types/vos';
  * for the Type panel since both share the filter-cluster layout in
  * GraphPage and were both regressed by the same fixed max-h-[40vh] cap.
  */
-describe('TypeFilterPanel layout (Bug #5388)', () => {
+describe('TypeFilterPanel layout', () => {
   beforeEach(() => {
     const isPred: VosThing = { Id: 'is', Name: 'is', Properties: {} };
     const typeA: VosThing = { Id: 'tA', Name: 'TypeA', Properties: {} };

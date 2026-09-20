@@ -288,7 +288,6 @@ describe('ModelPage', () => {
     mockGetBytes.mockResolvedValue(new Uint8Array([0x01]).buffer);
     seedTwoTypeModel();
 
-    // Hide the wall bucket and the synthetic one; the door bucket still shows.
     const { NO_TYPE_ID } = await import('../utils/typeFilter');
     useUiStore.setState({ hiddenTypeIds: new Set(['type-wall', NO_TYPE_ID]) });
 

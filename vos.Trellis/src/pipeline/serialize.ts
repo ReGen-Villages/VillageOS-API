@@ -5,9 +5,9 @@ import { PipelineModel, ARCHETYPE_FLAG, type PortInfo } from './model';
 import type { VosTypeName } from '../utils/constants';
 
 // Persist / read a pipeline as Things + relationships (the lean-on-model bet): the editor is just CRUD over
-// thingApi / relationshipApi. Save shape mirrors the seed — node -has-> connection, and a wire is an edge
+// thingApi / relationshipApi. Save shape mirrors the seed — node -has-> connection, and a wire is a relationship
 // through the predicate the model marks as holding wires, carrying fromPort/toPort. Every archetype an `is`
-// edge is written to is the one the model marks with that role, never one this file names. Node canvas
+// relationship is written to is the one the model marks with that role, never one this file names. Node canvas
 // position round-trips as x/y properties on the node Thing.
 
 const DOUBLE: VosTypeName = 'vos.Double';
@@ -57,7 +57,7 @@ export interface SavedPipeline {
 
 // Save the editor state to the model. With no existingPipelineId this creates a new pipeline; with one
 // it updates that pipeline IN PLACE — existing node Things keep their Ids (no duplicate pipeline/nodes),
-// removed nodes and wires are retracted. The Thing graph (pipeline + nodes + is/has edges) rides ONE
+// removed nodes and wires are retracted. The Thing graph (pipeline + nodes + is/has relationships) rides ONE
 // idempotent fragment upsert; wires are written per-entity because /api/model/fragment does not
 // carry a relationship's fromPort/toPort properties.
 export async function savePipeline(
@@ -155,7 +155,7 @@ export async function savePipeline(
   const persistedByKey = new Map(persistedWires.map((w) => [w.key, w]));
 
   // A wire persisted in either shape is edited through its own shape's calls: a relationship for one drawn
-  // as an edge, a Thing for one held. A wire that is new is written held, which is the only shape that lets
+  // as a relationship, a Thing for one held. A wire that is new is written held, which is the only shape that lets
   // a node pair carry more than one.
   const writeOn = (shape: 'edge' | 'held') =>
     shape === 'edge' ? relationshipApi.setProperty : thingApi.setProperty;
@@ -215,7 +215,6 @@ function parseParamBindings(raw: unknown): Record<string, string> | undefined {
   }
 }
 
-/** Reconstruct the editor state for an existing pipeline from the loaded model (pure read). */
 export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPipeline | null {
   const pipe = model.thing(pipelineId);
   if (!pipe || !model.isOfArchetypeCarrying(pipelineId, ARCHETYPE_FLAG.Pipeline)) return null;

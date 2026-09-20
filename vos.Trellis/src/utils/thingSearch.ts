@@ -31,7 +31,7 @@ export interface ThingSearchIndex {
 }
 
 /**
- * Pre-compute indexes from model data so `searchThings` can run in O(N).
+ * Pre-compute indexes from model data so `searchThings` costs one pass over the Things.
  * Call once when `things` or `relationships` change (e.g., in a `useMemo`).
  */
 export function buildThingSearchIndex(

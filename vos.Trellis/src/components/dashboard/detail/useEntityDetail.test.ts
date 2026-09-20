@@ -40,7 +40,7 @@ function index() {
   );
 }
 
-/** The same root, with its edge dispatched through a connection the platform flagged. */
+/** The same root, with its relationship dispatched through a connection the platform flagged. */
 function indexWithAService() {
   return buildModelIndex(
     [

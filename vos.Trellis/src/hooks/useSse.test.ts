@@ -343,7 +343,7 @@ describe('useSse', () => {
     unmount();
   });
 
-  /** A platform answering with a snapshot of one Thing and the edge it sits on. */
+  /** A platform answering with a snapshot of one Thing and the relationship it sits on. */
   function answersWithASnapshot() {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,

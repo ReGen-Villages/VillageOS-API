@@ -130,8 +130,8 @@ describe('isVisibleRelationship', () => {
     expect(isVisibleRelationship('nonexistent', 'node-A', null, rels)).toBe(false);
   });
 
-  // Selecting an edge clears the node selection, so asking about the node alone said
-  // "not visible" for the very edge whose detail panel was open, and every live change to it was
+  // Selecting a relationship clears the node selection, so asking about the node alone said
+  // "not visible" for the very relationship whose detail panel was open, and every live change to it was
   // dropped. The full model reload on save was hiding that.
   it('returns true for the selected edge, with no node selected', () => {
     expect(isVisibleRelationship('rel-2', null, 'rel-2', rels)).toBe(true);

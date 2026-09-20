@@ -14,12 +14,10 @@ interface EntityPickerProps<T extends PickerItem> {
   label?: string;
 }
 
-/** Backwards-compatible wrapper — existing callers pass `things` prop. */
 export function ThingPicker({ things, ...rest }: Omit<EntityPickerProps<VosThing>, 'items'> & { things: VosThing[] }) {
   return <EntityPicker items={things} {...rest} />;
 }
 
-/** Generic searchable dropdown picker for any entity with Id and Name. */
 function EntityPicker<T extends PickerItem>({ items, value, onChange, placeholder = 'Search...', label }: EntityPickerProps<T>) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);

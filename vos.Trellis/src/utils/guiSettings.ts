@@ -25,7 +25,7 @@ export interface LayoutSettings {
   clusterRepulsion: number;
 
   // FA2 supervisor knobs — empirically validated against the
-  // 30k-node MV graph; defaults are in LAYOUT_DEFAULTS below.
+  // 30k-node IFC graph; defaults are in LAYOUT_DEFAULTS below.
   scalingRatioMultiplier: number;
   gravityMultiplier: number;
   barnesHutTheta: number;

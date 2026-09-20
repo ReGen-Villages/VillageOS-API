@@ -5,7 +5,7 @@ import { thingApi } from '../../api/thingApi';
 import { toast } from '../common/toastStore';
 
 // Inline rename affordance for the node detail panel header. Click the pencil to edit the name in
-// place; Enter (or blur) commits via thingApi.rename — which keeps the Thing's Id and all edges — and Escape
+// place; Enter (or blur) commits via thingApi.rename — which keeps the Thing's Id and all relationships — and Escape
 // cancels. A blank or unchanged name is a no-op (no broker call). The optional onRenamed lets the parent
 // reflect the new name immediately; the authoritative update also arrives over SSE.
 interface Props {

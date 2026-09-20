@@ -167,7 +167,6 @@ describe('OperationsPage', () => {
   it('ranks sites in the leaderboard with the winner marked', async () => {
     renderAt();
     expect(await screen.findByText('🏆')).toBeInTheDocument();
-    // V-1 / V-2 appear in both the scope switcher and the leaderboard row.
     expect(screen.getAllByText('V-1').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('V-2').length).toBeGreaterThanOrEqual(1);
   });

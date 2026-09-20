@@ -1,22 +1,22 @@
 /**
  * Which services the platform ran on one Thing, and when.
  *
- * A service is reached through a connection: the predicate of a handled edge, or the target of the
- * record edge the platform writes when a Thing enters a watched state. Either way the platform
- * stamps that edge with the state of the dispatch and the instant of its last attempt, and the
+ * A service is reached through a connection: the predicate of a handled relationship, or the target of the
+ * record relationship the platform writes when a Thing enters a watched state. Either way the platform
+ * stamps that relationship with the state of the dispatch and the instant of its last attempt, and the
  * connection reaches the service bound to it. So the model itself says who ran and when — nothing
  * here names a service, a predicate or an archetype, only the flags the platform marks its own
  * wiring with.
  *
  * The stamps live in the running platform's memory and are not written down, so a dispatch from
- * before this model was loaded leaves the edge with no time on it. That is why {@link ServiceDispatch}
+ * before this model was loaded leaves the relationship with no time on it. That is why {@link ServiceDispatch}
  * carries `at` as absent rather than guessing one.
  */
 import { type ModelIndex, thingIdsOfArchetype } from '../../../api/dashboardApi';
 import type { VosRelationship, VosThing } from '../../../types/vos';
 
 /** How the platform marks the wiring it recognises, whatever this model calls the Things carrying it.
- *  A vigil is a service's request to be told once when one Thing enters one state; its record edge
+ *  A vigil is a service's request to be told once when one Thing enters one state; its record relationship
  *  targets the vigil, which names the connection to dispatch through. */
 const WIRING_FLAGS = {
   connection: '__IsConnectionArchetype',
@@ -30,12 +30,12 @@ type WiringRole = keyof typeof WIRING_FLAGS;
 
 const ROLE_FLAGS = Object.entries(WIRING_FLAGS) as [WiringRole, string][];
 
-/** What the platform stamps onto an edge it dispatched a service through. */
+/** What the platform stamps onto a relationship it dispatched a service through. */
 const DISPATCHED_AT = '__DispatchLastAttemptAt';
 const DISPATCH_STATE = '__DispatchState';
 const DISPATCH_ERROR = '__DispatchLastError';
 
-/** An edge on the Thing that a service is dispatched through, and the service it reaches. */
+/** A relationship on the Thing that a service is dispatched through, and the service it reaches. */
 export interface ServiceEdge {
   relationshipId: string;
   /** The service Thing, so the card can open it. Absent where the connection binds none. */
@@ -46,7 +46,7 @@ export interface ServiceEdge {
   connectionName: string;
 }
 
-/** One dispatch, as the platform currently records it on the edge. */
+/** One dispatch, as the platform currently records it on the relationship. */
 export interface ServiceDispatch extends ServiceEdge {
   /** When the platform last dispatched it, or absent where it no longer holds a time. */
   at?: string;
@@ -58,14 +58,12 @@ export interface ServiceDispatch extends ServiceEdge {
 
 interface ServiceWiring {
   connectionIds: Set<string>;
-  /** Connection Thing id → the service it binds. */
   serviceByConnection: Map<string, VosThing>;
-  /** Vigil Thing id → the connection it names. */
   connectionByVigil: Map<string, string>;
   recordPredicateId?: string;
 }
 
-/** Held against the index rather than rebuilt per card: it walks every Thing and every edge, the
+/** Held against the index rather than rebuilt per card: it walks every Thing and every relationship, the
  *  model cannot change without a new index, and several open cards ask the same question. */
 const wiringByIndex = new WeakMap<ModelIndex, ServiceWiring>();
 
@@ -129,9 +127,9 @@ function serviceWiring(modelIndex: ModelIndex): ServiceWiring {
 }
 
 /**
- * Every edge the platform dispatched a service on this Thing through.
+ * Every relationship the platform dispatched a service on this Thing through.
  *
- * The subject of the edge is the Thing the work was done on, and only that end counts. The other
+ * The subject of the relationship is the Thing the work was done on, and only that end counts. The other
  * end is whatever the work pointed at, and reading it as handled would make every hub in a site
  * claim the whole run: a reservoir at the target end of every reading dispatched from a hundred
  * catchments would list a hundred rows naming one service, while nothing was ever run on it.
@@ -143,9 +141,9 @@ export function serviceEdgesOn(thingId: string, modelIndex: ModelIndex): Service
 
   for (const edge of modelIndex.relationships) {
     if (edge.SubjectId !== thingId) continue;
-    // A handled edge carries its connection as the predicate; a record edge, written when the Thing
+    // A handled relationship carries its connection as the predicate; a record relationship, written when the Thing
     // entered a watched state, carries it as the target — or a vigil that names it. Either way it
-    // has to be a connection: an edge reaching anything else is somebody's own bookkeeping, and
+    // has to be a connection: a relationship reaching anything else is somebody's own bookkeeping, and
     // reading it as a dispatch would put a row on the card naming a Thing that never ran.
     const connectionId =
       edge.PredicateId === wiring.recordPredicateId
@@ -172,11 +170,11 @@ function stampedString(properties: Record<string, unknown>, name: string): strin
 }
 
 /**
- * The dispatches these edges carry, oldest first, with one the platform holds no time for last —
+ * The dispatches these relationships carry, oldest first, with one the platform holds no time for last —
  * an undated row sorted among the dated ones would claim a sequence nothing measured.
  *
- * `stamped` holds each edge as it was read back from the platform, keyed by the edge's id. The
- * stamps are written straight onto the edge without becoming Facts, so they reach no client that
+ * `stamped` holds each relationship as it was read back from the platform, keyed by the relationship's id. The
+ * stamps are written straight onto the relationship without becoming Facts, so they reach no client that
  * only follows the change stream: read them, or show a card whose dispatches never move off the
  * state they were created in.
  */

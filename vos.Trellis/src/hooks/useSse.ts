@@ -30,7 +30,7 @@ export const SUBSCRIPTION_OPENED = 'SubscriptionOpened';
 type Handler = (...args: unknown[]) => void;
 type Entry = { event: string; handler: Handler };
 
-// Connection-independent handler registry (re-attached across reconnects, like the old hub).
+// Connection-independent handler registry, re-attached across reconnects.
 const handlers = new Set<Entry>();
 const listeners = new Set<() => void>();
 
@@ -212,7 +212,6 @@ async function openStreams() {
     attachListeners(obj, true);
     objectSource = obj;
 
-    // System / operational events.
     const sys = new EventSource(`${BASE_URL}/api/events/stream?${tokenParam}`);
     sys.onerror = () => scheduleReconnect();
     attachListeners(sys);

@@ -80,8 +80,8 @@ function buildModel(): PipelineModel {
   return new PipelineModel(things, rels);
 }
 
-// The same pipeline, wired by Things instead of edges, and wired twice between one pair — the case an
-// edge cannot express, because the model refuses a second edge on one subject, predicate and target.
+// The same pipeline, wired by Things instead of relationships, and wired twice between one pair — the case an
+// relationship cannot express, because the model refuses a second relationship on one subject, predicate and target.
 function buildModelWithHeldWires(): PipelineModel {
   const { T, R, things, rels } = graphWithVocabulary();
 
@@ -158,7 +158,7 @@ describe('savePipeline — update in place (existing pipeline id)', () => {
 
   it('removes a wire that is gone and creates a wire that is new', async () => {
     const model = buildModel();
-    // Drop the N1->N2 wire (no edges) — the one persisted wire should be removed, and no others.
+    // Drop the N1->N2 wire (no relationships) — the one persisted wire should be removed, and no others.
     await savePipeline('MyPipeline', [node('N1', 'Node1'), node('N2', 'Node2')], [], model, 'P');
     expect(relRemove).toHaveBeenCalledTimes(1);
   });
@@ -176,14 +176,12 @@ describe('savePipeline — update in place (existing pipeline id)', () => {
   });
 });
 
-// Boundary I/O nodes --------------------------------------------------------------------------
-
 type Frag = {
   Things: { Id: string; Name: string; Properties: Record<string, unknown> }[];
   Relationships: { Name: string; Subject: string; Predicate: string; Target: string }[];
 };
 
-describe('savePipeline — boundary nodes (#5873)', () => {
+describe('savePipeline — boundary nodes', () => {
   it('persists an Input node under the archetypes marked as input and as node, with its declared output port and no connection', async () => {
     const model = buildModel();
     const inputNode: EditorNode = {
@@ -199,17 +197,15 @@ describe('savePipeline — boundary nodes (#5873)', () => {
     expect(isTargets).toContain('arch-input');
     expect(isTargets).toContain('arch-node');
 
-    // Declares a port child (has → the marked port archetype, direction out) …
     const portThing = frag.Things.find((t) => t.Name === 'seed')!;
     expect(portThing).toBeTruthy();
     expect(frag.Relationships.some((r) => r.Subject === portThing.Id && r.Name === 'is' && r.Target === 'arch-port')).toBe(true);
     expect(frag.Relationships.some((r) => r.Subject === nodeThing.Id && r.Name === 'has' && r.Target === portThing.Id)).toBe(true);
-    // … and binds NO connection.
     expect(frag.Relationships.some((r) => r.Subject === nodeThing.Id && r.Name === 'has' && r.Target === 'conn')).toBe(false);
   });
 });
 
-describe('loadPipeline — boundary nodes (#5873)', () => {
+describe('loadPipeline — boundary nodes', () => {
   it('reconstructs a boundary node kind and its declared ports', () => {
     // A pipeline BP → an Output boundary node OUT that declares an input port `result`.
     const { T, R, things, rels } = graphWithVocabulary();
@@ -228,9 +224,7 @@ describe('loadPipeline — boundary nodes (#5873)', () => {
   });
 });
 
-// Field-level wire mapping --------------------------------------------------------------------
-
-describe('savePipeline — wire field-paths (#5874)', () => {
+describe('savePipeline — wire field-paths', () => {
   it('persists a new wire’s fromPath and toPath', async () => {
     const model = buildModel();
     const edges = [{ id: 'e', source: 'na', sourceHandle: 'out', target: 'nb', targetHandle: 'in', fromPath: 'user.id', toPath: 'a' }];
@@ -250,7 +244,7 @@ describe('savePipeline — wire field-paths (#5874)', () => {
   });
 });
 
-describe('loadPipeline — wire field-paths (#5874)', () => {
+describe('loadPipeline — wire field-paths', () => {
   it('reconstructs a wire’s fromPath and toPath', () => {
     const { T, R, things, rels } = graphWithVocabulary();
 
@@ -266,9 +260,7 @@ describe('loadPipeline — wire field-paths (#5874)', () => {
   });
 });
 
-// On-wire JSONata transforms ------------------------------------------------------------------
-
-describe('savePipeline / loadPipeline — wire transform (#5875)', () => {
+describe('savePipeline / loadPipeline — wire transform', () => {
   it('persists a new wire’s transform', async () => {
     const model = buildModel();
     const edges = [{ id: 'e', source: 'na', sourceHandle: 'out', target: 'nb', targetHandle: 'in', transform: '{"name": firstName}' }];
@@ -340,16 +332,16 @@ describe('a wire held as a Thing', () => {
   });
 
   it('skips a wire whose Thing has gone, which is the state a removal leaves behind', () => {
-    // Removing a wire retracts its Thing and leaves its `is`, `has` and pointing edges: the platform's
-    // delete does not cascade. The Thing goes from the model and the edges do not, so the reader meets a
-    // `has` edge whose target it cannot find — and must not draw a wire that was removed.
+    // Removing a wire retracts its Thing and leaves its `is`, `has` and pointing relationships: the platform's
+    // delete does not cascade. The Thing goes from the model and the relationships do not, so the reader meets a
+    // `has` relationship whose target it cannot find — and must not draw a wire that was removed.
     const { T, R, things, rels } = graphWithVocabulary();
     T('P', 'MyPipeline'); R('P', 'is', 'arch-pipeline');
     T('N1', 'Node1'); R('N1', 'is', 'arch-node'); R('P', 'has', 'N1');
     T('N2', 'Node2'); R('N2', 'is', 'arch-node'); R('P', 'has', 'N2');
     T('W1', 'w.out.in', { fromPort: 'out', toPort: 'in' });
     R('W1', 'is', 'arch-wire'); R('N1', 'has', 'W1'); R('W1', 'carries', 'N2');
-    // The edges of a wire whose Thing is no longer in the model.
+    // The relationships of a wire whose Thing is no longer in the model.
     R('N1', 'has', 'W-gone'); R('W-gone', 'carries', 'N2');
 
     const loaded = loadPipeline('P', new PipelineModel(things, rels))!;

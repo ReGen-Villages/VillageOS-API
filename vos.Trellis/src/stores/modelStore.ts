@@ -31,7 +31,6 @@ interface ModelState {
    *  for the same reason the index is; the version beside it is what says it moved. */
   thingStates: Map<string, string[]>;
   thingStatesVersion: number;
-  /** True after first successful load (phased or full). */
   loaded: boolean;
 
   setThings: (things: VosThing[]) => void;
@@ -44,9 +43,7 @@ interface ModelState {
    *  the kept index makes a batch cost its own size plus one copy of the array's references,
    *  whatever the size of the model. */
   applyBatch: (batch: ModelBatch) => void;
-  /** Mark the store as loaded after initial fetch completes. */
   markLoaded: () => void;
-  /** Clear all data (e.g., on model clear or logout). */
   clear: () => void;
 }
 

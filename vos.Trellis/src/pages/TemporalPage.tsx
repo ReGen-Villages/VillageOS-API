@@ -54,8 +54,6 @@ export function TemporalPage() {
   );
 }
 
-// ─── Mutations Panel ────────────────────────────────────────────────────────
-
 function MutationsPanel() {
   const { t } = useTranslation();
   const [startTime, setStartTime] = useState('');
@@ -147,8 +145,6 @@ function MutationsPanel() {
     </div>
   );
 }
-
-// ─── Thing Mutations Panel ───────────────────────────────────────────────────
 
 function ThingMutationsPanel() {
   const { t } = useTranslation();
@@ -245,8 +241,6 @@ function ThingMutationsPanel() {
     </div>
   );
 }
-
-// ─── Relationship Mutations Panel ───────────────────────────────────────────
 
 function RelationshipMutationsPanel() {
   const { t } = useTranslation();
@@ -350,8 +344,6 @@ function RelationshipMutationsPanel() {
   );
 }
 
-// ─── Snapshot Panel ──────────────────────────────────────────────────────────
-
 function SnapshotPanel() {
   const { t } = useTranslation();
   const [timestamp, setTimestamp] = useState('');
@@ -434,8 +426,6 @@ function SnapshotPanel() {
   );
 }
 
-// ─── Property History Panel ──────────────────────────────────────────────────
-
 function PropertyHistoryPanel() {
   const { t } = useTranslation();
   const [things, setThings] = useState<VosThing[]>([]);
@@ -450,7 +440,7 @@ function PropertyHistoryPanel() {
     try {
       setThings(await thingApi.getAll());
     } catch {
-      // ignore
+      // A failed read leaves the picker empty; the query below reports its own failure.
     }
   }, []);
 
@@ -565,8 +555,6 @@ function PropertyHistoryPanel() {
     </div>
   );
 }
-
-// ─── State Query Panel ──────────────────────────────────────────────────────
 
 function StateQueryPanel() {
   const { t } = useTranslation();

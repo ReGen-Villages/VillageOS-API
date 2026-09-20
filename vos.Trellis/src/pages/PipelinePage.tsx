@@ -68,11 +68,8 @@ export function PipelinePage() {
   const [editingPipelineId, setEditingPipelineId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Live run: the active run id + the canvas-node-id → Thing-id map so NodeRun statuses (keyed by Thing id)
-  // land on the right canvas node as they stream in over SSE.
   const [runId, setRunId] = useState<string | null>(null);
   const [thingIdByCanvasId, setThingIdByCanvasId] = useState<Record<string, string>>({});
-  // Param routing: the selected node (binding editor) + the values supplied for each bound run param.
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [runParamValues, setRunParamValues] = useState<Record<string, string>>({});
@@ -116,7 +113,6 @@ export function PipelinePage() {
     setSavedId(null); // an undo leaves the canvas out of step with the last save
   }, [applySnapshot]);
 
-  // The distinct run-param keys any node binds an input to — drives the Params form.
   const paramKeys = useMemo(() => {
     const keys = new Set<string>();
     for (const n of nodes) {
@@ -145,7 +141,6 @@ export function PipelinePage() {
   const selectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : undefined;
   const selectedEdge = selectedEdgeId ? edges.find((e) => e.id === selectedEdgeId) : undefined;
 
-  // Edit a wire's field-path: update the edge's data + its label, and mark the canvas dirty.
   const setEdgePath = useCallback((edgeId: string, which: 'fromPath' | 'toPath' | 'transform', value: string) => {
     recordSnapshot();
     setEdges((es) => es.map((e) => {
@@ -158,14 +153,12 @@ export function PipelinePage() {
 
   const liveRunStatus = runId ? model.runStatus(runId) : undefined;
   const runActive = !!runId && (liveRunStatus === undefined || liveRunStatus === 'running');
-  // Past + in-flight runs of the loaded pipeline — the history panel.
   const runs = useMemo(() => (savedId ? model.runsOf(savedId) : []), [savedId, model]);
 
   const clearStatuses = useCallback(() => {
     setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined, progress: undefined } })));
   }, [setNodes]);
 
-  // Replay a past run: point runId at it and the animation effect paints its (terminal) node statuses.
   const onSelectRun = useCallback((id: string) => {
     clearStatuses();
     setRunId(id || null);
@@ -217,7 +210,6 @@ export function PipelinePage() {
     setSavedId(null);
   }, [setNodes, recordSnapshot]);
 
-  // Type-check a wire before accepting it (out-port type must be compatible with in-port type).
   const onConnect = useCallback((c: Connection) => {
     const src = nodes.find((n) => n.id === c.source)?.data as PipelineNodeData | undefined;
     const tgt = nodes.find((n) => n.id === c.target)?.data as PipelineNodeData | undefined;
@@ -289,7 +281,6 @@ export function PipelinePage() {
     setSavedId(pipelineId);
     setEditingPipelineId(pipelineId);
     setRunId(null);
-    // Loaded canvas node ids ARE the Thing ids, so the canvas→Thing map is the identity.
     setThingIdByCanvasId(Object.fromEntries(loaded.nodes.map((n) => [n.id, n.id])));
     const loadedNodes: Node[] = loaded.nodes.map((n) => ({
       id: n.id,
@@ -331,7 +322,6 @@ export function PipelinePage() {
     }
   }, [savedId, setNodes, paramKeys, runParamValues, t]);
 
-  // Bind (or clear) an input port of a node to a run-param key.
   const setBinding = useCallback((nodeId: string, port: string, paramKey: string) => {
     recordSnapshot();
     setNodes((ns) => ns.map((n) => {

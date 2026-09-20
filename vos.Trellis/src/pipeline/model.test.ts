@@ -67,8 +67,8 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
   return { model: new PipelineModel(things, rels), pipelineId: pipe.Id, pipelineArchetypeId: pipelineA.Id };
 }
 
-// The same two nodes, wired by Things rather than edges, and wired twice — the case an edge cannot
-// express, because the model refuses a second edge on one subject, predicate and target. The wires are
+// The same two nodes, wired by Things rather than relationships, and wired twice — the case a relationship cannot
+// express, because the model refuses a second relationship on one subject, predicate and target. The wires are
 // listed before the predicate on purpose: a snapshot's order is arbitrary, and both are of the wire
 // archetype, so anything picking "the first of that archetype" picks a wire here.
 function heldWireModel(): { model: PipelineModel; carriesId: string } {

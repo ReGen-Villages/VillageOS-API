@@ -97,7 +97,6 @@ export function DashboardPage() {
     ? services
     : services.map((s) => ({ ...s, IsRunning: false, ProcessId: undefined, HealthStatus: 'Unreachable' }));
 
-  // Mycelium-specific live updates only; model data is handled at app level.
   useEffect(() => {
     // Under a simulation a service request completes hundreds of times a second, far more often
     // than the registry is worth reading again. The first event after a quiet spell claims the

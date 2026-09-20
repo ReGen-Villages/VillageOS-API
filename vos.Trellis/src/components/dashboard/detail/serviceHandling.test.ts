@@ -21,8 +21,8 @@ function rel(
  * is `Wiring`, the service archetype is `Daemon`, and the predicate binding one to the other is
  * `runs`. Only the flags say which is which, which is the whole point of reading them.
  *
- * `measures` is a handled predicate — an edge on it dispatches the metering daemon. `spring when
- * dry` is a state connection, reached by the record edge the platform writes under `handled-by`.
+ * `measures` is a handled predicate — a relationship on it dispatches the metering daemon. `spring when
+ * dry` is a state connection, reached by the record relationship the platform writes under `handled-by`.
  * `watch` is a vigil naming that same connection through `tells`.
  */
 function site() {

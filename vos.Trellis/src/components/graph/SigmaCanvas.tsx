@@ -82,7 +82,6 @@ function drawDarkNodeHover(
 
   context.font = `${weight} ${size}px ${font}`;
 
-  // Dark background box
   context.fillStyle = '#27272a'; // zinc-800
   context.shadowOffsetX = 0;
   context.shadowOffsetY = 0;
@@ -111,19 +110,16 @@ function drawDarkNodeHover(
     context.closePath();
     context.fill();
   } else {
-    // No label — just draw halo around node
     context.beginPath();
     context.arc(data.x, data.y, data.size + PADDING, 0, Math.PI * 2);
     context.closePath();
     context.fill();
   }
 
-  // Reset shadow before drawing text
   context.shadowOffsetX = 0;
   context.shadowOffsetY = 0;
   context.shadowBlur = 0;
 
-  // Draw the label text in our configured label colour
   if (data.label) {
     const color = settings.labelColor.color || '#ffffff';
     context.fillStyle = color;
@@ -187,7 +183,6 @@ function drawCenteredEdgeLabel(
   let d = Math.sqrt(dx * dx + dy * dy);
   if (d < sSize + tSize) return;
 
-  // Offset by node radii
   sx += (dx * sSize) / d;
   sy += (dy * sSize) / d;
   tx -= (dx * tSize) / d;
@@ -206,7 +201,6 @@ function drawCenteredEdgeLabel(
   const dTarget = Math.sqrt((cx - targetData.x) ** 2 + (cy - targetData.y) ** 2);
   if (dSource < sClearance || dTarget < tClearance) return;
 
-  // Ellipsis for long labels
   const truncated = truncateLabel(context, label, d);
   if (truncated === null) return;
   label = truncated;
@@ -229,7 +223,6 @@ function drawCenteredEdgeLabel(
   context.translate(cx, cy);
   context.rotate(angle);
 
-  // Dark background pill so text is readable over edges and map features
   const pillW = textLength + PAD_X * 2;
   const pillH = size + PAD_Y * 2;
   const pillR = 3; // border-radius
@@ -240,7 +233,6 @@ function drawCenteredEdgeLabel(
   drawRoundedPill(context, pillX, pillY, pillW, pillH, pillR);
   context.fill();
 
-  // Draw text centered on the edge line
   context.fillStyle = highlighted ? '#e4e4e7' : (settings.edgeLabelColor.color || '#a1a1aa');
   context.fillText(label, -textLength / 2, size / 3);
   context.restore();
@@ -276,19 +268,16 @@ function drawNodeLabelWithBackground(
   const pillH = size + PAD_Y * 2 + 1;
   const pillR = 3;
 
-  // Dark semi-transparent background pill
   context.fillStyle = '#09090bcc'; // zinc-950 at 80% opacity
   drawRoundedPill(context, pillX, pillY, pillW, pillH, pillR);
   context.fill();
 
-  // Draw text
   context.fillStyle = settings.labelColor.color || '#ffffff';
   context.fillText(data.label, data.x + data.size + 3, data.y + size / 3);
 }
 
 // Sigma settings — stable reference so SigmaContainer doesn't recreate the instance
 const SIGMA_SETTINGS = {
-  // Rendering
   renderLabels: true,
   renderEdgeLabels: true,
   defaultEdgeType: 'arrow' as const,
@@ -306,16 +295,12 @@ const SIGMA_SETTINGS = {
   edgeLabelColor: { color: '#a1a1aa' },
   edgeLabelSize: 11,
   edgeLabelFont: 'Inter, system-ui, sans-serif',
-  // Node labels with dark background pill so text is readable over edges
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   defaultDrawNodeLabel: drawNodeLabelWithBackground as any,
-  // Edge labels centered on the edge line instead of offset below
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   defaultDrawEdgeLabel: drawCenteredEdgeLabel as any,
-  // Hover — custom dark-themed hover renderer (replaces Sigma's white-box default)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   defaultDrawNodeHover: drawDarkNodeHover as any,
-  // Interaction
   zIndex: true,
   minCameraRatio: 0.02,
   maxCameraRatio: 20,
@@ -337,7 +322,6 @@ const CONTAINER_STYLE: React.CSSProperties = {
   transform: 'translateZ(0)',
   WebkitTransform: 'translateZ(0)',
   willChange: 'transform',
-  // Ensure proper opacity composition
   isolation: 'isolate',
 };
 

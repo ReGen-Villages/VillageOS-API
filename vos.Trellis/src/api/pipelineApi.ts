@@ -26,7 +26,6 @@ export interface PipelineRunResult {
 }
 
 export const pipelineApi = {
-  /** Spawn a run synchronously through Mycelium's endpoint-forward to Phloem and wait for the result. */
   spawn: (pipelineId: string, params: Record<string, unknown> = {}) =>
     apiClient.post<PipelineRunResult>('/api/endpoints/phloem', { pipelineId, params }),
 

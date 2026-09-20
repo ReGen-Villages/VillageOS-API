@@ -5,7 +5,7 @@ import { retypeThing } from '../../utils/retype';
 import { toast } from '../common/toastStore';
 import type { VosThing, VosRelationship } from '../../types/vos';
 
-// Retype control: change one of a Thing's types by repointing an is-edge. Multiple inheritance is
+// Retype control: change one of a Thing's types by repointing an is-relationship. Multiple inheritance is
 // preserved — when the Thing has more than one type, a "from" picker chooses which one to replace. Thin
 // glue over the tested retypeThing helper; the built-in `is` predicate is resolved from the model by name.
 interface Props {
@@ -53,7 +53,6 @@ export function RetypeRow({ thingId, things, relationships }: Props) {
     }
   }, [toId, isPredicateId, needsFrom, fromId, saving, thingId, relationships, t]);
 
-  // Nothing to retype against if the model has no `is` predicate Thing.
   if (!isPredicateId) return null;
 
   return (

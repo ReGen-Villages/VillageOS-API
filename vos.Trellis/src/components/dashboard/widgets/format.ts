@@ -2,7 +2,6 @@ import type { NumberFormat, TableColumn } from '../../../types/dashboard';
 import type { OriginKind } from '../../../types/vos';
 import type { Row } from '../../../api/dashboardApi';
 
-/** Format a numeric value for display per a widget's declared NumberFormat. */
 export function formatNumber(value: number | null | undefined, fmt?: NumberFormat): string {
   if (value === null || value === undefined || isNaN(value)) return '—';
   switch (fmt) {

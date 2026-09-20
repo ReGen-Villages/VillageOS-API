@@ -56,7 +56,6 @@ function declared(things: VosThing[], relationships: VosRelationship[]): VosThin
   return things.map((x) => (targets.has(x.Id) ? { ...x, IsArchetype: true } : x));
 }
 
-// ---- a tiny synthetic model: 2 villages + a Dashboard config ----
 const SPEC = {
   title: 'Ops',
   compare: { label: 'site', archetype: 'Village' },
@@ -459,7 +458,7 @@ describe('resolveBinding', () => {
         { kind: 'thingList', archetype: 'Node', scope: { viaPredicate: 'contains', direction: 'out' } },
         ctx,
       );
-      // root1 is the scope, not a member of it, however many edges lead back to it.
+      // root1 is the scope, not a member of it, however many relationships lead back to it.
       expect(rows.map((r) => r.name)).toEqual(['LEAF-1', 'LEAF-2', 'MID-1']);
     });
   });
@@ -563,7 +562,7 @@ describe('resolveBinding', () => {
   });
 
   // A row carried only what the row's own Thing stores, so a column whose value
-  // sits on an edge (the archetype a Thing is, where it stands, what an open command points at)
+  // sits on a relationship (the archetype a Thing is, where it stands, what an open command points at)
   // or in the platform's derived condition could not be expressed at all.
   describe('columns an edge or a derived state answers', () => {
     // Machine <- Robot <- RBT-1, RBT-2. RBT-1 is at LOC-A and operates_in ZN-1; RBT-2 is at LOC-B.
@@ -630,7 +629,7 @@ describe('resolveBinding', () => {
         expect(await resolveBinding({ kind: 'related', via: [{ predicate: 'at' }] }, fleet('rbt1'))).toBe('LOC-A');
       });
 
-      // The is-edge answers what kind of machine this is — the sub-archetype it was typed with,
+      // The is-relationship answers what kind of machine this is — the sub-archetype it was typed with,
       // which is the word an operator reads, not the parent archetype the roster was listed by.
       it('names the archetype a Thing is, not the archetype it was listed under', async () => {
         expect(await resolveBinding({ kind: 'related', via: [{ predicate: 'is' }] }, fleet('rbt1'))).toBe('Robot');
@@ -1278,7 +1277,7 @@ describe('verdict binding', () => {
   describe('a study the scope reaches rather than the scope itself', () => {
     /** A page scoped to the site, which is where a per-submission view has to be scoped: the
      *  programmes and hazards it lists hang off the site, while the ranges that judge its balances
-     *  sit on the study one edge away. */
+     *  sit on the study one relationship away. */
     function siteContext(studies: { name: string; properties: Record<string, unknown> }[]): ResolveContext {
       const things: VosThing[] = [
         { Id: 'is', Name: 'is', Properties: {} },
@@ -1571,7 +1570,7 @@ describe('state bindings ask the server to narrow', () => {
     expect(rows[0]).toEqual({ id: 'b1', name: 'BLD-1' });
   });
 
-  // A computed column is derived from the row's own Thing by walking edges, which is a question the
+  // A computed column is derived from the row's own Thing by walking relationships, which is a question the
   // state endpoint does not answer — so it still resolves here, beside the columns that arrived.
   it('derives a computed column beside the columns that arrived', async () => {
     vi.mocked(stateApi.getThingsInState).mockResolvedValue({
@@ -2184,7 +2183,7 @@ describe('origin binding', () => {
     expect(rows).toEqual([{ origin: 'unknown', reads: READS.unknown, source: null, resolvedAt: null }]);
   });
 
-  // The area a generated boundary encloses is not a survey, and this edge is the only record of it.
+  // The area a generated boundary encloses is not a survey, and this relationship is the only record of it.
   it('says how a boundary was obtained wherever the area it encloses is shown', async () => {
     const binding = origin('measuredAreaHectares', {
       via: [{ predicate: 'has', archetype: 'Parcel' }],

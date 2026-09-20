@@ -117,8 +117,6 @@ export function emptyDraft(submissionId: string): SubmissionDraft {
   };
 }
 
-// ── The area, and the unit it is being typed in ──────────────────────────────
-
 function toHectares(value: number, unit: AreaUnit): number {
   return unit === 'acres' ? value * HECTARES_PER_ACRE : value;
 }
@@ -159,8 +157,6 @@ export function coordinatesFrom(draft: SubmissionDraft): { latitude: number; lon
   if (latitude === null || longitude === null || !onEarth(latitude, longitude)) return null;
   return { latitude, longitude };
 }
-
-// ── The programme split ──────────────────────────────────────────────────────
 
 const WHOLE_PARCEL = 100;
 
@@ -231,8 +227,6 @@ function scaledTo(shares: ProgrammeShares, total: number): ProgrammeShares {
   );
 }
 
-// ── The parcel boundary ──────────────────────────────────────────────────────
-
 /** A square of the stated area centred on the site, for the planner to drag onto the real boundary —
  *  or nothing, while the position or a positive stated area is still missing. */
 export function boundaryDrafted(draft: SubmissionDraft): Partial<SubmissionDraft> | null {
@@ -255,13 +249,9 @@ export function boundaryCleared(): Partial<SubmissionDraft> {
   return { boundary: [], boundarySource: null };
 }
 
-// ── Moving between steps ─────────────────────────────────────────────────────
-
 export function withStepVisited(draft: SubmissionDraft, step: StepId): SubmissionDraft {
   return draft.visited.includes(step) ? draft : { ...draft, visited: [...draft.visited, step] };
 }
-
-// ── What is posted ───────────────────────────────────────────────────────────
 
 /**
  * The site's name and the project's are what Things are created under, and a submission is reviewed by
@@ -366,8 +356,6 @@ function given<T extends Record<string, string>>(fields: T): Partial<T> {
       .map(([name, value]) => [name, value.trim()]),
   ) as Partial<T>;
 }
-
-// ── Keeping the draft across a closed tab ────────────────────────────────────
 
 const DRAFT_KEY_PREFIX = 'vos-intake-draft:';
 

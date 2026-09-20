@@ -360,8 +360,6 @@ function BimFragmentsScene({
   return <primitive object={model.object} />;
 }
 
-// ── Camera framing + bounds ─────────────────────────────────────────────────
-
 async function computeBounds(model: BimFragmentsModel): Promise<ModelBounds> {
   const boxes = await model.getBoxes();
   const total = boxes.reduce((acc, b) => acc.union(b), new THREE.Box3().makeEmpty());

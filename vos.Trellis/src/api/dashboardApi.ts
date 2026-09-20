@@ -43,31 +43,26 @@ import { effectiveProperties, effectiveDerivedDefinitions } from '../utils/prope
 import { valueOrigin } from '../utils/propertyOrigin';
 import { findRange } from '../utils/rangeHelpers';
 
-/** Row shape returned by stateList / aggregate-list / service table bindings. */
 export type Row = Record<string, unknown>;
-/** A resolved binding value: a scalar, a table, or a series. */
 export type BindingResult = number | string | Row[] | number[] | null;
-
-// ---- model-store indexes ------------------------------------------------
 
 export interface ModelIndex {
   byId: Map<string, VosThing>;
   byName: Map<string, VosThing>;
   relationships: VosRelationship[];
   /** predicate id → the relationships asserting it, so following one predicate reads its own
-   *  edges instead of scanning every edge in the model. */
+   *  relationships instead of scanning every relationship in the model. */
   relationshipsByPredicate: Map<string, VosRelationship[]>;
   /** `predicate id:direction` → Thing id → the ids that predicate reaches from it. Built the
    *  first time a walk asks for it and discarded with the index. A per-row binding walks the same
-   *  predicate once per row, so grouping its edges per row would make a page cost grow with the
+   *  predicate once per row, so grouping its relationships per row would make a page cost grow with the
    *  square of the row count. */
   adjacencyByPredicate: Map<string, Map<string, string[]>>;
-  /** predicate name → id, and id → name */
   predicateNameToId: Map<string, string>;
   predicateIdToName: Map<string, string>;
   /** archetype id → ids of Things directly `is`-linked to it. */
   isChildren: Map<string, string[]>;
-  /** ids of the Things that declared themselves archetypes — read, never inferred from edges. */
+  /** ids of the Things that declared themselves archetypes — read, never inferred from relationships. */
   archetypeIds: Set<string>;
   /** Thing id → ids of the archetypes it is directly `is`-linked to (its parents). Used to
    *  resolve inherited property defaults up the `is`-chain. */
@@ -168,8 +163,8 @@ function adjacency(predicateId: string, inbound: boolean, idx: ModelIndex): Map<
 
 /**
  * Ids of the Things that are of the given archetype, **transitively** over the `is`-chain
- * and counting **instances only**. Archetypes are subtyped (Customer is Party,
- * PickLocation is Location), so a direct-edge match would miss every real instance under a
+ * and counting **instances only**. Archetypes are subtyped (Resident is Party,
+ * GardenPlot is Location), so a direct-relationship match would miss every real instance under a
  * parent archetype. We descend the is-chain; a Thing that declares itself an archetype is a
  * sub-type and is descended into, not counted. Cycle-guarded.
  *
@@ -209,8 +204,6 @@ export function thingsOfArchetype(archetype: string, idx: ModelIndex): VosThing[
   }
   return out;
 }
-
-// ---- discovery ----------------------------------------------------------
 
 /** Discover dashboards from an already-built model index. Prefer this on the hot path
  *  so the caller can share one index across discovery, scope, and binding resolution
@@ -285,15 +278,12 @@ export function parseSpec(raw: unknown): DashboardSpec | null {
   return null;
 }
 
-/** Compare entities offered in the scope switcher. */
 export function scopeEntities(spec: DashboardSpec, idx: ModelIndex): ScopeEntity[] {
   if (!spec.compare) return [];
   return thingsOfArchetype(spec.compare.archetype, idx)
     .map((t) => ({ id: t.Id, name: t.Name }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
-
-// ---- resolution ---------------------------------------------------------
 
 export interface ResolveContext {
   idx: ModelIndex;
@@ -1004,8 +994,6 @@ async function resolveSteps(steps: HistoryStepBinding[], ctx: ResolveContext): P
   }
   return resolved;
 }
-
-// ---- coercion helpers for widgets --------------------------------------
 
 export function asNumber(r: BindingResult): number | null {
   return typeof r === 'number' && !isNaN(r) ? r : null;

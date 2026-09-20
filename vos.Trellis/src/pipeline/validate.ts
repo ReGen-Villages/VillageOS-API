@@ -8,7 +8,6 @@ export interface ValNode {
   id: string;
   label: string;
   ports: PortInfo[];
-  /** Input-port name -> run-param key. */
   paramBindings?: Record<string, string>;
 }
 

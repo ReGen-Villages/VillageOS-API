@@ -71,7 +71,7 @@ export function SubmissionReviewPage() {
   }, [rereadCount]);
 
   // Held against the reading rather than recomputed per render: each of these walks every Thing and
-  // every edge in the model, and a render happens on every click.
+  // every relationship in the model, and a render happens on every click.
   const model = reading ?? NOTHING_READ;
   const submissions = useMemo(() => byArrival(submissionsIn(model)), [model]);
   const predicateNames = useMemo(() => predicateNamesIn(model), [model]);

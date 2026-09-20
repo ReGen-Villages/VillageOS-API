@@ -38,7 +38,7 @@ export const modelApi = {
   },
 
   // Upsert a fragment ({ Name, Things, Relationships }) into the live model. Idempotent: re-applying
-  // the same fragment neither duplicates nor errors; created Things/edges animate over SSE. Contrast
+  // the same fragment neither duplicates nor errors; created Things/relationships animate over SSE. Contrast
   // `set`, which replaces the whole model.
   applyFragment: (fragmentJson: string) => {
     const parsed = JSON.parse(fragmentJson);

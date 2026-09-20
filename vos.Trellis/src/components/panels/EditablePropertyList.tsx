@@ -11,7 +11,6 @@ import type { NumberDisplaySettings } from '../../utils/guiSettings';
 import type { EditableProperty } from './editableProperties';
 import { editorForType, rejectionKeyForType, type EditorKind } from './propertyEditing';
 
-/** Max characters before truncating a property value and showing an expand button. */
 const VALUE_TRUNCATE_LIMIT = 60;
 
 const TYPE_LABELS = new Map<string, string>(PROPERTY_TYPES.map((option) => [option.value, option.label]));
@@ -96,7 +95,6 @@ export function EditablePropertyList({
   );
 }
 
-/** Read-only display row, formatted to what the platform says the property holds. */
 function DisplayRow({
   name,
   value,
@@ -138,7 +136,6 @@ function DisplayRow({
   );
 }
 
-/** Row for adding a brand-new property. Shown at the bottom when edit mode is active. */
 function AddPropertyRow({
   entityId,
   entityType,
@@ -258,7 +255,6 @@ function AddPropertyRow({
   );
 }
 
-/** Inline editable row — shows an input immediately. */
 function EditableRow({
   name,
   value,

@@ -11,7 +11,6 @@ const SEV_TEXT: Record<string, string> = {
 };
 const SEV_BAR: Record<string, string> = { good: 'var(--good)', warn: 'var(--warn)', crit: 'var(--crit)' };
 
-/** Count chips + a stacked proportion bar for an exception / aging breakdown. */
 export function ExceptionBar({ widget, ctx }: { widget: ExceptionWidget; ctx: ResolveContext }) {
   const results = useBindings(
     widget.buckets.map((b) => b.value),

@@ -173,7 +173,7 @@ export function GraphPage() {
   };
 
   // Import a fragment file ({ Name, Things, Relationships }) and upsert it into the live model.
-  // Idempotent; created Things/edges animate in over SSE, so we only need to trigger a reload.
+  // Idempotent; created Things/relationships animate in over SSE, so we only need to trigger a reload.
   const fragmentInputRef = useRef<HTMLInputElement>(null);
   const handleImportFragment = async (file: File) => {
     try {

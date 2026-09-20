@@ -23,7 +23,6 @@ export const stateApi = {
   getStateTransitions: (thingId: string, from?: string, to?: string, signal?: AbortSignal) =>
     apiClient.get<StateTransitionsResponse>(withWindow(`/api/things/${thingId}/state-transitions`, from, to), signal),
 
-  /** Intervals one Thing held one named state. */
   getStateOccurrences: (thingId: string, stateName: string, from?: string, to?: string, signal?: AbortSignal) =>
     apiClient.get<StateOccurrencesResponse>(
       withWindow(`/api/things/${thingId}/states/${encodeURIComponent(stateName)}/occurrences`, from, to),

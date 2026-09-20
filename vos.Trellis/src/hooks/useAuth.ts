@@ -67,7 +67,6 @@ export function useAuthState(): AuthState {
     });
   }, []);
 
-  // Restore a prior session from the HttpOnly cookie if its JWT is still valid.
   useEffect(() => {
     if (apiClient.isAuthenticated()) return;
     apiClient.restoreSession().then((restored) => {
@@ -226,7 +225,6 @@ export function useAuthState(): AuthState {
     setError(null);
     try {
       const result = await myceliumApi.loadSeed(seedName);
-      // Re-scope the JWT to the newly loaded model (works for login and API-key auth).
       await apiClient.rescopeToModel(result.modelId);
       useModelStore.getState().clear();
       setModelId(result.modelId);

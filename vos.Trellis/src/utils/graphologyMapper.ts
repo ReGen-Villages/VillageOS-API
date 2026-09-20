@@ -12,7 +12,7 @@ import { computeNodeSize } from './nodeSize';
 import { LAYOUT_DEFAULTS, type LayoutSettings } from './guiSettings';
 import { resolveClassColor } from './classPalette';
 
-// ── Relationship index (O(n+m) instead of O(n*m)) ────────────────────
+// ── Relationship index: one pass over things and relationships, rather than a scan of every relationship per thing ──
 
 interface RelationshipIndex {
   /** Set of all thing IDs used as predicates in any relationship. */
@@ -137,7 +137,6 @@ export function buildGraph(
     predicateColorMap.set(r.PredicateId, resolvePredicateColor(predName, predicateColors));
   }
 
-  // Pre-compute relationship index (O(m) one-time cost)
   const relIndex = buildRelationshipIndex(relationships, thingMap);
 
   // ── Add nodes ──────────────────────────────────────────────────────

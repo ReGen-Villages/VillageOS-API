@@ -27,7 +27,6 @@ function carriesFlag(thing: VosThing, roleFlag: string): boolean {
   return thing.Properties[roleFlag] === true;
 }
 
-/** A past or in-flight run of a pipeline, for the run-history panel. */
 export interface RunInfo {
   runId: string;
   status: string;
@@ -53,7 +52,7 @@ export interface WireRead {
   transform: string;
 }
 
-/** The five values a wire carries, read the same off an edge and off a wire Thing. */
+/** The five values a wire carries, read the same off a relationship and off a wire Thing. */
 function wireMapping(properties: Record<string, unknown>) {
   return {
     fromPort: String(properties.fromPort ?? ''),
@@ -75,7 +74,7 @@ export interface ConnectionInfo {
 export class PipelineModel {
   private readonly things: VosThing[];
   private readonly byId: Map<string, VosThing>;
-  // Relationships indexed by subject so traversal is O(node degree), not O(all relationships).
+  // Relationships indexed by subject, so a traversal costs a node's own relationships rather than every relationship in the model.
   private readonly bySubject: Map<string, VosRelationship[]>;
   // The Things this model uses as a predicate. A wire held as a Thing is of the wire archetype exactly as
   // the wire predicate is, so being of that archetype no longer tells the two apart — being used as a
@@ -136,7 +135,6 @@ export class PipelineModel {
     return false;
   }
 
-  /** Collect a service's ports by walking its `is`-chain and gathering the port Things it `has` at each level. */
   resolvePorts(serviceId: string): PortInfo[] {
     const ports: PortInfo[] = [];
     const seen = new Set<string>();
@@ -200,13 +198,13 @@ export class PipelineModel {
 
   /** Outgoing wires from a node, in either shape the model may hold them in, with their port mapping and
    * the optional field-paths. `wireId` is what the save edits and removes the wire through, and
-   * `shape` says which call that is: a relationship for a wire drawn as an edge, a Thing for one held. */
+   * `shape` says which call that is: a relationship for a wire drawn as a relationship, a Thing for one held. */
   outgoingWires(subjectId: string): WireRead[] {
     const rels = this.bySubject.get(subjectId);
     if (!rels) return [];
     const out: WireRead[] = [];
     for (const rel of rels) {
-      // Drawn as an edge: the predicate is of the wire archetype and the edge carries the mapping.
+      // Drawn as a relationship: the predicate is of the wire archetype and the relationship carries the mapping.
       if (this.isOfArchetypeCarrying(rel.PredicateId, ARCHETYPE_FLAG.PipelineWire)) {
         out.push({ wireId: rel.Id, shape: 'edge', targetId: rel.TargetId, ...wireMapping(rel.Properties) });
         continue;
@@ -239,7 +237,7 @@ export class PipelineModel {
     )?.Id;
   }
 
-  /** Id of the archetype this model marks with the given role — the Thing an `is` edge is written to.
+  /** Id of the archetype this model marks with the given role — the Thing an `is` relationship is written to.
    *  Undefined when the model marks the role on nothing, which is a model this editor cannot author.
    *  Seed validation refuses a model that marks one role on two archetypes, so the first is the only one. */
   archetypeCarrying(roleFlag: string): string | undefined {
@@ -275,7 +273,6 @@ export class PipelineModel {
     return out;
   }
 
-  /** A run's overall status (running/succeeded/failed/cancelled), if the run Thing is in the model yet. */
   runStatus(runId: string): string | undefined {
     const s = this.byId.get(runId)?.Properties.status;
     return typeof s === 'string' ? s : undefined;
