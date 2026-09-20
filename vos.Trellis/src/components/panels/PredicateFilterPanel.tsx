@@ -7,7 +7,7 @@ import type { PredicateStats } from '../../utils/predicateCluster';
 /**
  * Predicate filter panel, sibling to TypeFilterPanel.
  *
- * Checkbox semantics now mirror the type filter exactly:
+ * Checkbox semantics mirror the type filter exactly:
  *   - Checked = predicate's edges are visible.
  *   - Unchecked = predicate's edges are hidden.
  *   - Default state on a fresh model is all-checked (everything visible).

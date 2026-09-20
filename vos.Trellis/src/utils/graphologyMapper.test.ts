@@ -14,41 +14,34 @@ function makeRel(id: string, subjectId: string, predicateId: string, targetId: s
 
 // ── Test data ──────────────────────────────────────────────────────────
 
-// Predicates
 const isPred = makeThing('p-is', 'is');
 const hasPred = makeThing('p-has', 'has');
 const monitorsPred = makeThing('p-monitors', 'monitors');
 
-// Types
 const zone = makeThing('t-zone', 'Zone', { kind: 'type' });
 const sensor = makeThing('t-sensor', 'Sensor', { kind: 'type' });
 
-// Instances
 const orchardZone = makeThing('i-orchardzone', 'OrchardZone', { capacity: '5000' });
 const reservoirZone = makeThing('i-reservoirzone', 'ReservoirZone', { capacity: '15000' });
 const tempSensor = makeThing('i-temp', 'ReservoirTempSensor', { unit: 'celsius' });
 const motionSensor = makeThing('i-motion', 'OrchardMotionSensor', { unit: 'boolean' });
-const weightSensor = makeThing('i-weight', 'InboundWeightSensor', { unit: 'kg' });
+const weightSensor = makeThing('i-weight', 'GateWeightSensor', { unit: 'kg' });
 const leafNode = makeThing('i-leaf', 'LeafNode', {});
 
 const allThings = [isPred, hasPred, monitorsPred, zone, sensor, orchardZone, reservoirZone, tempSensor, motionSensor, weightSensor, leafNode];
 
-// Relationships
 const rels: VosRelationship[] = [
-  // Type classification
-  makeRel('r1', 'i-orchardzone', 'p-is', 't-zone'),      // OrchardZone is Zone
-  makeRel('r2', 'i-reservoirzone', 'p-is', 't-zone'),       // ReservoirZone is Zone
-  makeRel('r3', 'i-temp', 'p-is', 't-sensor'),          // ReservoirTempSensor is Sensor
-  makeRel('r4', 'i-motion', 'p-is', 't-sensor'),        // OrchardMotionSensor is Sensor
-  makeRel('r5', 'i-weight', 'p-is', 't-sensor'),        // InboundWeightSensor is Sensor
+  makeRel('r1', 'i-orchardzone', 'p-is', 't-zone'),
+  makeRel('r2', 'i-reservoirzone', 'p-is', 't-zone'),
+  makeRel('r3', 'i-temp', 'p-is', 't-sensor'),
+  makeRel('r4', 'i-motion', 'p-is', 't-sensor'),
+  makeRel('r5', 'i-weight', 'p-is', 't-sensor'),
 
-  // Containment
-  makeRel('r6', 'i-reservoirzone', 'p-has', 'i-temp'),       // ReservoirZone has ReservoirTempSensor
-  makeRel('r7', 'i-orchardzone', 'p-has', 'i-motion'),     // OrchardZone has OrchardMotionSensor
+  makeRel('r6', 'i-reservoirzone', 'p-has', 'i-temp'),
+  makeRel('r7', 'i-orchardzone', 'p-has', 'i-motion'),
 
-  // Monitoring
-  makeRel('r8', 'i-temp', 'p-monitors', 'i-reservoirzone'),  // ReservoirTempSensor monitors ReservoirZone
-  makeRel('r9', 'i-motion', 'p-monitors', 'i-orchardzone'), // MotionSensor monitors OrchardZone
+  makeRel('r8', 'i-temp', 'p-monitors', 'i-reservoirzone'),
+  makeRel('r9', 'i-motion', 'p-monitors', 'i-orchardzone'),
 ];
 
 // ── Tests ──────────────────────────────────────────────────────────────

@@ -190,7 +190,6 @@ function readLayoutSettings(p: Record<string, unknown>): LayoutSettings {
     repulsion: toNumber(p['LayoutRepulsion'], LAYOUT_DEFAULTS.repulsion),
     gravity: toNumber(p['LayoutGravity'], LAYOUT_DEFAULTS.gravity),
     clusterRepulsion: toNumber(p['ClusterRepulsion'], LAYOUT_DEFAULTS.clusterRepulsion),
-    // Formerly hardcoded constants, now runtime-tunable
     scalingRatioMultiplier: toNumber(p['LayoutScalingRatioMultiplier'], LAYOUT_DEFAULTS.scalingRatioMultiplier),
     gravityMultiplier: toNumber(p['LayoutGravityMultiplier'], LAYOUT_DEFAULTS.gravityMultiplier),
     barnesHutTheta: toNumber(p['LayoutBarnesHutTheta'], LAYOUT_DEFAULTS.barnesHutTheta),

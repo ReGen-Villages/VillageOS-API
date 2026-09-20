@@ -332,9 +332,8 @@ function BimFragmentsScene({
 
     const applyHighlight = async (localId: number) => {
       if (highlightedRef.current === localId) return;
-      // Note: model.highlight(undefined, ...) highlights EVERY item (the whole model
-      // turned yellow on the 2nd pick).
-      // Use resetHighlight() to clear the previous selection instead.
+      // model.highlight(undefined, ...) highlights EVERY item — the whole model turned yellow on the
+      // second pick — so resetHighlight() clears the previous selection instead.
       if (highlightedRef.current != null) {
         await model.resetHighlight([highlightedRef.current]);
       }

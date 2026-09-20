@@ -114,9 +114,8 @@ describe('ModelPage', () => {
     capturedVisibility = { kind: 'everything' };
     // Reset shared selection state so cross-test bleed-through can't mask bugs.
     useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null, hiddenTypeIds: new Set() });
-    // ModelPage now consumes things from the model store,
-    // populated by the app-shell-level useModelData hook. Tests seed it
-    // directly because they don't mount the AuthenticatedApp shell.
+    // ModelPage reads things from the model store, which the app-shell-level useModelData hook
+    // populates. Tests seed it directly because they don't mount the AuthenticatedApp shell.
     seedThings([]);
   });
 

@@ -243,13 +243,13 @@ describe('thingIdsOfArchetype (transitive, instances-only)', () => {
     const rosterThings = [
       t('is', 'is'), t('Machine', 'Machine'),
       { ...t('Sorter', 'Sorter'), IsArchetype: true },
-      t('fork1', 'FORKLIFT-1'),
+      t('tractor1', 'TRACTOR-1'),
     ];
-    const rosterRelationships = [rel('Sorter', 'Machine'), rel('fork1', 'Machine')];
+    const rosterRelationships = [rel('Sorter', 'Machine'), rel('tractor1', 'Machine')];
 
     const roster = buildModelIndex(declared(rosterThings, rosterRelationships), rosterRelationships);
 
-    expect(thingIdsOfArchetype('Machine', roster)).toEqual(new Set(['fork1']));
+    expect(thingIdsOfArchetype('Machine', roster)).toEqual(new Set(['tractor1']));
   });
 });
 
@@ -467,8 +467,8 @@ describe('resolveBinding', () => {
   // or the compare entities. A roster wants every Thing of an archetype whatever condition each
   // is in — a healthy idle machine is in no state at all, so no stateList ever reaches it.
   describe('thingList', () => {
-    // Machine <- Robot(sub-archetype) <- RBT-1, RBT-2; Machine <- CNV-1 directly.
-    // SITE-1 contains RBT-1 and CNV-1; SITE-2 contains RBT-2.
+    // Machine <- Robot(sub-archetype) <- RBT-1, RBT-2; Machine <- PMP-1 directly.
+    // SITE-1 contains RBT-1 and PMP-1; SITE-2 contains RBT-2.
     function fleetCtx(scopeId: string | null): ResolveContext {
       const t = (Id: string, Name: string, Properties: Record<string, unknown> = {}): VosThing => ({
         Id, Name, Properties,
@@ -478,7 +478,7 @@ describe('resolveBinding', () => {
         t('arch-machine', 'Machine'), t('arch-robot', 'Robot'),
         t('site1', 'SITE-1'), t('site2', 'SITE-2'),
         t('rbt1', 'RBT-1', { duty_cycle: 0.62 }), t('rbt2', 'RBT-2', { duty_cycle: 0.41 }),
-        t('cnv1', 'CNV-1', { duty_cycle: 0.88 }),
+        t('pmp1', 'PMP-1', { duty_cycle: 0.88 }),
       ];
       const rel = (SubjectId: string, PredicateId: string, TargetId: string): VosRelationship => ({
         Id: `${SubjectId}-${PredicateId}-${TargetId}`, Name: `${SubjectId} ${PredicateId} ${TargetId}`,
@@ -486,8 +486,8 @@ describe('resolveBinding', () => {
       });
       const relationships = [
         rel('arch-robot', 'is', 'arch-machine'),
-        rel('rbt1', 'is', 'arch-robot'), rel('rbt2', 'is', 'arch-robot'), rel('cnv1', 'is', 'arch-machine'),
-        rel('site1', 'contains', 'rbt1'), rel('site1', 'contains', 'cnv1'), rel('site2', 'contains', 'rbt2'),
+        rel('rbt1', 'is', 'arch-robot'), rel('rbt2', 'is', 'arch-robot'), rel('pmp1', 'is', 'arch-machine'),
+        rel('site1', 'contains', 'rbt1'), rel('site1', 'contains', 'pmp1'), rel('site2', 'contains', 'rbt2'),
       ];
       return {
         idx: buildModelIndex(declared(things, relationships), relationships),
@@ -497,13 +497,13 @@ describe('resolveBinding', () => {
 
     it('lists every Thing of the archetype, in no state and with no scope selected', async () => {
       const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine' }, fleetCtx(null));
-      expect(rows.map((r) => r.name)).toEqual(['CNV-1', 'RBT-1', 'RBT-2']);
+      expect(rows.map((r) => r.name)).toEqual(['PMP-1', 'RBT-1', 'RBT-2']);
       expect(stateApi.getThingsInState).not.toHaveBeenCalled();
     });
 
     it('carries each Thing effective properties into the row', async () => {
       const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine' }, fleetCtx(null));
-      expect(rows.find((r) => r.name === 'CNV-1')).toMatchObject({ id: 'cnv1', duty_cycle: 0.88 });
+      expect(rows.find((r) => r.name === 'PMP-1')).toMatchObject({ id: 'pmp1', duty_cycle: 0.88 });
     });
 
     // A childless archetype answers `is` exactly like an instance, so a service-side lister has
@@ -518,14 +518,14 @@ describe('resolveBinding', () => {
         { kind: 'thingList', archetype: 'Machine', scope: { viaPredicate: 'contains', direction: 'out' } },
         fleetCtx('site1'),
       );
-      expect(rows.map((r) => r.name)).toEqual(['CNV-1', 'RBT-1']);
+      expect(rows.map((r) => r.name)).toEqual(['PMP-1', 'RBT-1']);
     });
 
     // Order is by name so a capped list is the same list every time, not whatever order the
     // archetype walk happened to produce.
     it('caps the row count at limit, taking the first by name', async () => {
       const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine', limit: 2 }, fleetCtx(null));
-      expect(rows.map((r) => r.name)).toEqual(['CNV-1', 'RBT-1']);
+      expect(rows.map((r) => r.name)).toEqual(['PMP-1', 'RBT-1']);
     });
 
     it('resolves an unknown archetype to an empty list', async () => {
@@ -536,18 +536,18 @@ describe('resolveBinding', () => {
     describe('narrowed', () => {
       beforeEach(() => {
         vi.mocked(stateApi.getThingsInState).mockResolvedValue({
-          StateName: 'busy', Things: [{ Id: 'rbt1', Name: 'RBT-1' }, { Id: 'cnv1', Name: 'CNV-1' }],
+          StateName: 'busy', Things: [{ Id: 'rbt1', Name: 'RBT-1' }, { Id: 'pmp1', Name: 'PMP-1' }],
         });
       });
 
       it('keeps the rows whose property satisfies the comparison and no other', async () => {
         const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine', where: [{ property: 'duty_cycle', op: '>', value: 0.5 }] }, fleetCtx(null));
-        expect(rows.map((r) => r.name)).toEqual(['CNV-1', 'RBT-1']);
+        expect(rows.map((r) => r.name)).toEqual(['PMP-1', 'RBT-1']);
       });
 
       it('keeps the rows the platform lists for the state and no other, asking once for the state', async () => {
         const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine', inState: 'busy' }, fleetCtx(null));
-        expect(rows.map((r) => r.name)).toEqual(['CNV-1', 'RBT-1']);
+        expect(rows.map((r) => r.name)).toEqual(['PMP-1', 'RBT-1']);
         expect(stateApi.getThingsInState).toHaveBeenCalledTimes(1);
         expect(vi.mocked(stateApi.getThingsInState).mock.calls[0][1]).toMatchObject({ type: 'Machine' });
       });

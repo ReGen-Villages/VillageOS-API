@@ -588,9 +588,9 @@ describe('useModelData', () => {
     });
   });
 
-  // The panels no longer reload the whole model after a property write, so every case
-  // the reload used to cover has to arrive on the stream instead.
-  describe('what the removed full reload used to cover', () => {
+  // The panels do not reload the whole model after a property write, so every change a reload
+  // would have carried has to arrive on the stream instead.
+  describe('what arrives on the stream in place of a full reload', () => {
     const relationship = (Properties: Record<string, unknown>) => ({
       Id: 'r1', Name: 'holds', SubjectId: 't1', PredicateId: 'p1', TargetId: 't2', Properties,
     });

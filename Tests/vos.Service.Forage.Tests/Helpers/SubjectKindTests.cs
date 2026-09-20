@@ -4,8 +4,7 @@ using Xunit;
 
 namespace vos.Service.Forage.Tests.Helpers;
 
-// What a dispatch names. A run used to be about a site and nothing else; now a source
-// added to the catalogue is dispatched too, and the two runs are opposites: one fetches and records, the
+// What a dispatch names: a site, or a source added to the catalogue, and the two runs are opposites: one fetches and records, the
 // other mints and fetches nothing. The model says which the subject is, by the mark the platform puts on
 // the archetype every site `is` — never by the name of the connection that
 // dispatched it, which the two repositories would then agree about only by spelling.
