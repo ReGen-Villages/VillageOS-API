@@ -398,7 +398,7 @@ public class MyceliumClient
     public virtual async Task<JsonElement> GetSeedStatusAsync()
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/mycelium/seed-status");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/mycelium/startup-status");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
