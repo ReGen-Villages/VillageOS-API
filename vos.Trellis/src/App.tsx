@@ -8,6 +8,7 @@ import { LoginForm } from './components/auth/LoginForm';
 import { ChangePasswordForm } from './components/auth/ChangePasswordForm';
 import { useModelData } from './hooks/useModelData';
 import { useUiStore } from './stores/uiStore';
+import { loadPlatformPages } from './api/platformPages';
 import { useThemeStore, attachThemeMediaListener } from './stores/themeStore';
 
 const GraphPage = lazy(() => import('./pages/GraphPage').then(m => ({ default: m.GraphPage })));
@@ -29,11 +30,16 @@ function AuthenticatedApp() {
   useModelData();
   // Per-model UI state (e.g. type filter) keys its localStorage entry off
   // the active modelId.
-  const { modelId } = useAuth();
+  const { modelId, user } = useAuth();
   const setCurrentModelId = useUiStore((s) => s.setCurrentModelId);
   useEffect(() => {
     setCurrentModelId(modelId);
   }, [modelId, setCurrentModelId]);
+  // What the platform declares depends on who signed in, not on which model is open.
+  const accountId = user?.Id ?? null;
+  useEffect(() => {
+    if (accountId) void loadPlatformPages(accountId);
+  }, [accountId]);
 
   return (
     <BrowserRouter>

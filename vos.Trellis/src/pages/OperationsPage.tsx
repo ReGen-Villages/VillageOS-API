@@ -6,7 +6,7 @@
  * widgets, and resolves every widget's bindings through the generic resolver.
  * A model with no Dashboard config shows guidance instead.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { LayoutDashboard } from 'lucide-react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useTranslation, Trans } from 'react-i18next';
@@ -65,7 +65,10 @@ export function OperationsPage() {
   const [scopeId, setScopeId] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
   const [serverRefresh, setServerRefresh] = useState(0);
-  const ctx = useResolveContext(idx, scopeId, spec?.compare?.archetype, brokerModelReads, nonce, serverRefresh);
+  // A press taken by a writing widget starts a new generation of broker reads: what it changed is
+  // read back, whether or not the change announced itself on the stream.
+  const wrote = useCallback(() => setServerRefresh((n) => n + 1), []);
+  const ctx = useResolveContext(idx, scopeId, spec?.compare?.archetype, brokerModelReads, nonce, serverRefresh, wrote);
 
   // What this page is about, said to the platform: it is sent the Things its widgets read and the
   // later changes to those, instead of every change in a model whose size it does not depend on.

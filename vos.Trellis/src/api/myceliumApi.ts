@@ -9,7 +9,16 @@ export interface StartupProgress {
   RelationshipsLoaded: number;
 }
 
+/** A page the platform declares for the signed-in caller: a dashboard specification about the
+ *  platform itself rather than about a model, drawn exactly as a model's own `Dashboard` Thing. */
+export interface DeclaredPage {
+  name: string;
+  spec: unknown;
+}
+
 export const myceliumApi = {
+  getPages: () => apiClient.get<DeclaredPage[]>('/api/mycelium/pages'),
+
   /** Unauthenticated — check seed loading progress before login completes. */
   getStartupStatus: async (): Promise<StartupProgress> => {
     const baseUrl = import.meta.env.VITE_BROKER_URL || '';

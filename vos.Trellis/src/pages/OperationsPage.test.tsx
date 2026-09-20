@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { VosThing, VosRelationship } from '../types/vos';
 
@@ -19,8 +19,14 @@ vi.mock('../api/stateApi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/stateApi')>()),
   stateApi: { getThingsInState: vi.fn() },
 }));
+vi.mock('../api/client', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../api/client')>();
+  return { ...original, apiClient: Object.assign(original.apiClient, { post: vi.fn() }) };
+});
 
+import { apiClient } from '../api/client';
 import { stateApi } from '../api/stateApi';
+import { usePlatformPagesStore } from '../stores/platformPagesStore';
 import { subscriptionForSpec } from '../api/dashboardSubscription';
 import type { DashboardSpec } from '../types/dashboard';
 import { useModelStore } from '../stores/modelStore';
@@ -469,5 +475,63 @@ describe('what a live event makes the page ask again', () => {
     await pastTheDebounce();
 
     expect(stateReads()).toBe(before + 1);
+  });
+});
+
+// A page the platform declares is drawn exactly as a model's own: one address, the same renderer,
+// and its bindings and presses on the platform route the spec names.
+describe('a page the platform declares', () => {
+  const ACCOUNTS: DashboardSpec = {
+    title: 'Accounts',
+    sections: [
+      {
+        widgets: [
+          {
+            type: 'table',
+            title: 'Every account',
+            columns: [{ key: 'name', label: 'Account' }],
+            rows: { kind: 'service', endpoint: '/api/auth/administration', body: { view: 'accounts' } },
+          },
+          {
+            type: 'action',
+            title: 'Model access',
+            rows: { kind: 'service', endpoint: '/api/auth/administration', body: { view: 'accounts' } },
+            writes: { via: '/api/auth/administration', repeatable: true, choices: [{ label: 'Grant', act: 'grant' }] },
+          },
+        ],
+      },
+    ],
+  };
+
+  const postsAsking = (view: string) =>
+    vi.mocked(apiClient.post).mock.calls.filter(([, body]) => (body as { view: string }).view === view).length;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    seedStore();
+    usePlatformPagesStore.setState({ pages: [{ id: 'declared:accounts', name: 'Accounts', routeKey: 'accounts', spec: ACCOUNTS }] });
+    vi.mocked(apiClient.post).mockImplementation(async (_path, body) =>
+      (body as { view: string }).view === 'accounts' ? [{ id: 'u1', name: 'ada' }] : { said: 'ada may now enter Site A' });
+  });
+
+  afterEach(() => { usePlatformPagesStore.setState({ pages: [], loadedFor: null }); });
+
+  it('is drawn at its own address from the rows the platform answers', async () => {
+    renderAt('/operations/accounts');
+
+    expect(screen.getByText('Accounts')).toBeInTheDocument();
+    expect(await screen.findAllByText('ada')).not.toHaveLength(0);
+    expect(vi.mocked(apiClient.post)).toHaveBeenCalledWith('/api/auth/administration', { view: 'accounts' });
+  });
+
+  it('reads the page again once a press was taken, so the table shows what the press changed', async () => {
+    renderAt('/operations/accounts');
+    await screen.findAllByText('ada');
+    const before = postsAsking('accounts');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Grant' }));
+    expect(await screen.findByText('ada may now enter Site A')).toBeInTheDocument();
+
+    await waitFor(() => expect(postsAsking('accounts')).toBeGreaterThan(before));
   });
 });

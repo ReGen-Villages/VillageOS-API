@@ -14,6 +14,7 @@ import {
 import { askedOfTheBroker, statesRead } from '../api/bindingRefresh';
 import type { ModelReads } from '../api/modelReads';
 import { useModelStore } from '../stores/modelStore';
+import { usePlatformPagesStore } from '../stores/platformPagesStore';
 import { useUiStore } from '../stores/uiStore';
 import type { Binding, DashboardDescriptor } from '../types/dashboard';
 
@@ -25,9 +26,13 @@ export function useModelIndex(): ModelIndex {
   return modelIndexFor(things, relationships);
 }
 
-/** The dashboards the loaded model publishes, ordered by name. */
+/** The pages the platform declares for the signed-in account, then the dashboards the loaded model
+ *  publishes, ordered by name. The platform's come first because they are the same for every model
+ *  a session opens, and a page that moved when the model changed would be a page a reader loses. */
 export function useDashboards(): DashboardDescriptor[] {
-  return discoverDashboardsFromIndex(useModelIndex());
+  const declared = usePlatformPagesStore((s) => s.pages);
+  const published = discoverDashboardsFromIndex(useModelIndex());
+  return useMemo(() => [...declared, ...published], [declared, published]);
 }
 
 /** Wrap a shared model index + the selected scope into a resolve context.
@@ -47,12 +52,13 @@ export function useResolveContext(
   makeReads: () => ModelReads,
   nonce = 0,
   serverRefresh = 0,
+  wrote?: () => void,
 ): ResolveContext {
   const stateVersions = useUiStore((s) => s.stateVersions);
   return useMemo(
-    () => ({ idx, scopeId, compareArchetype, nonce, serverRefresh, stateVersions, reads: makeReads() }),
+    () => ({ idx, scopeId, compareArchetype, nonce, serverRefresh, stateVersions, reads: makeReads(), wrote }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [idx, scopeId, compareArchetype, nonce, serverRefresh, stateVersions],
+    [idx, scopeId, compareArchetype, nonce, serverRefresh, stateVersions, wrote],
   );
 }
 
