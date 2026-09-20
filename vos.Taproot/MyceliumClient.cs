@@ -784,6 +784,25 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
+    public virtual async Task<JsonElement> GetStateTransitionsAsync(Guid thingId, DateTime? from, DateTime? to)
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.GetAsync(
+            $"{_myceliumUrl}/api/things/{thingId}/state-transitions{Query(("from", from?.ToString("O")), ("to", to?.ToString("O")))}");
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    public virtual async Task<JsonElement> GetStateOccurrencesAsync(Guid thingId, string stateName, DateTime? from, DateTime? to)
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.GetAsync(
+            $"{_myceliumUrl}/api/things/{thingId}/states/{Uri.EscapeDataString(stateName)}/occurrences"
+            + Query(("from", from?.ToString("O")), ("to", to?.ToString("O"))));
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
     public virtual async Task<JsonElement> ValidateCriteriaAsync(string criteria)
     {
         await SetAuthHeaderAsync();

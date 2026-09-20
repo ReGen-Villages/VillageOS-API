@@ -215,7 +215,7 @@ public class TemporalCommandHandler
         if (input.Equals("now", StringComparison.OrdinalIgnoreCase))
             return TimestampResult.Success(null);
 
-        if (TryParseTimestamp(input, out var parsed))
+        if (Timestamps.TryParse(input, out var parsed))
             return TimestampResult.Success(parsed);
 
         return TimestampResult.Error();
@@ -226,24 +226,18 @@ public class TemporalCommandHandler
         DateTime? start = null;
         DateTime? end = null;
 
-        if (args.Length > startIndex && TryParseTimestamp(args[startIndex], out var st))
+        if (args.Length > startIndex && Timestamps.TryParse(args[startIndex], out var st))
             start = st;
-        if (args.Length > startIndex + 1 && TryParseTimestamp(args[startIndex + 1], out var et))
+        if (args.Length > startIndex + 1 && Timestamps.TryParse(args[startIndex + 1], out var et))
             end = et;
 
         return new TimeRange(start, end);
     }
 
-    private static bool TryParseTimestamp(string input, out DateTime result)
-    {
-        return DateTime.TryParse(input, null,
-            System.Globalization.DateTimeStyles.RoundtripKind, out result);
-    }
-
     private void WriteTimestampError(string input)
     {
         _writer.WriteLine($"Invalid timestamp: {input}");
-        _writer.WriteLine("Use ISO 8601 format (e.g., 2026-01-15T12:30:00Z) or 'now'");
+        _writer.WriteLine(Timestamps.ExpectedForm);
     }
 
     private void WriteFormattedJson(JsonElement element) =>

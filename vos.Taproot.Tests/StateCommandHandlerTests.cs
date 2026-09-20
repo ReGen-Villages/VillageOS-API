@@ -146,6 +146,107 @@ public class StateCommandHandlerTests
         _myceliumMock.Verify(b => b.GetRelationshipStatesAsync(It.IsAny<Guid>()), Times.Never);
     }
 
+    private static readonly DateTime Start = new(2026, 9, 20, 8, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime End = new(2026, 9, 20, 12, 0, 0, DateTimeKind.Utc);
+
+    private Guid SetupSensor()
+    {
+        var thingId = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(Parse($"[{{\"Id\":\"{thingId}\",\"Name\":\"Sensor1\"}}]"));
+        return thingId;
+    }
+
+    [Fact]
+    public async Task History_ReadsTheTransitionsInTheWindowAndPrintsEachWithItsCause()
+    {
+        var thingId = SetupSensor();
+        _myceliumMock.Setup(b => b.GetStateTransitionsAsync(thingId, Start, End)).ReturnsAsync(Parse(
+            "{\"ThingName\":\"Sensor1\",\"Coverage\":{\"Source\":\"in-memory\",\"From\":\"2026-09-20T07:00:00Z\",\"To\":\"2026-09-20T12:00:00Z\"},"
+            + "\"Transitions\":[{\"At\":\"2026-09-20T09:00:00Z\",\"Entered\":[\"hot\"],\"Exited\":[\"warm\"],\"States\":[\"hot\"],\"TriggeringProperty\":\"temperature\",\"OldValue\":20,\"NewValue\":31}]}"));
+
+        await ExecuteHandler("history Sensor1 2026-09-20T08:00:00Z 2026-09-20T12:00:00Z");
+
+        Assert.Equal(
+            "Sensor1: state history, in-memory from 2026-09-20T07:00:00Z to 2026-09-20T12:00:00Z\n"
+            + "2026-09-20T09:00:00Z  entered [hot]  left [warm]  (temperature: 20 -> 31)\n",
+            _writer.ToString());
+    }
+
+    [Fact]
+    public async Task History_WithNoWindow_AsksForEverythingAndSaysWhenNothingChanged()
+    {
+        var thingId = SetupSensor();
+        _myceliumMock.Setup(b => b.GetStateTransitionsAsync(thingId, null, null))
+            .ReturnsAsync(Parse("{\"ThingName\":\"Sensor1\",\"Coverage\":{\"Source\":\"in-memory\",\"From\":\"a\",\"To\":\"b\"},\"Transitions\":[]}"));
+
+        await ExecuteHandler("history Sensor1");
+
+        Assert.Contains("No state changes in the window.", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task History_WithATimestampItCannotRead_SaysSoAndAsksNothing()
+    {
+        SetupSensor();
+
+        await ExecuteHandler("history Sensor1 yesterday");
+
+        Assert.Contains("Invalid timestamp: yesterday", _writer.ToString());
+        _myceliumMock.Verify(b => b.GetStateTransitionsAsync(It.IsAny<Guid>(), It.IsAny<DateTime?>(), It.IsAny<DateTime?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Occurrences_ReadsEachSpellInTheStateAndNamesOneStillOpen()
+    {
+        var thingId = SetupSensor();
+        _myceliumMock.Setup(b => b.GetStateOccurrencesAsync(thingId, "hot", Start, null)).ReturnsAsync(Parse(
+            "{\"ThingName\":\"Sensor1\",\"StateName\":\"hot\",\"Coverage\":{\"Source\":\"in-memory\",\"From\":\"2026-09-20T07:00:00Z\",\"To\":\"2026-09-20T12:00:00Z\"},"
+            + "\"Occurrences\":[{\"EnteredAt\":\"2026-09-20T09:00:00Z\",\"ExitedAt\":\"2026-09-20T10:00:00Z\"},{\"EnteredAt\":\"2026-09-20T11:00:00Z\",\"ExitedAt\":null}]}"));
+
+        await ExecuteHandler("occurrences Sensor1 hot 2026-09-20T08:00:00Z");
+
+        Assert.Equal(
+            "Sensor1 in 'hot', in-memory from 2026-09-20T07:00:00Z to 2026-09-20T12:00:00Z\n"
+            + "2026-09-20T09:00:00Z -> 2026-09-20T10:00:00Z\n"
+            + "2026-09-20T11:00:00Z -> still in it\n",
+            _writer.ToString());
+    }
+
+    [Fact]
+    public async Task Occurrences_NeverInTheState_SaysSo()
+    {
+        var thingId = SetupSensor();
+        _myceliumMock.Setup(b => b.GetStateOccurrencesAsync(thingId, "cold", null, null))
+            .ReturnsAsync(Parse("{\"ThingName\":\"Sensor1\",\"StateName\":\"cold\",\"Coverage\":{\"Source\":\"in-memory\",\"From\":\"a\",\"To\":\"b\"},\"Occurrences\":[]}"));
+
+        await ExecuteHandler("occurrences Sensor1 cold");
+
+        Assert.Contains("Never in 'cold' in the window.", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task HistoryAndOccurrences_WithoutTheirArguments_ShowUsage()
+    {
+        await ExecuteHandler("history");
+        await ExecuteHandler("occurrences Sensor1");
+
+        Assert.Contains("Usage: state history <thing> [start] [end]", _writer.ToString());
+        Assert.Contains("Usage: state occurrences <thing> <state-name> [start] [end]", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task History_WhenThePlatformRefuses_WritesItsWords()
+    {
+        var thingId = SetupSensor();
+        _myceliumMock.Setup(b => b.GetStateTransitionsAsync(thingId, null, null))
+            .ThrowsAsync(new HttpRequestException("503 Service Unavailable: {\"error\":\"Reactive range evaluation is not active for this model.\"}"));
+
+        await ExecuteHandler("history Sensor1");
+
+        Assert.Contains("Error:", _writer.ToString());
+        Assert.Contains("not active for this model", _writer.ToString());
+    }
+
     [Fact]
     public async Task Query_PassesEveryNarrowingOptionToTheRoute()
     {

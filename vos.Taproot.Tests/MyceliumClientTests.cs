@@ -455,6 +455,30 @@ public class MyceliumClientTests
     }
 
     [Fact]
+    public async Task GetStateTransitionsAsync_RoutesToStateTransitionsWithTheWindow()
+    {
+        var thingId = Guid.NewGuid();
+        var from = new DateTime(2026, 9, 20, 8, 0, 0, DateTimeKind.Utc);
+
+        var request = await CaptureRequest(c => c.GetStateTransitionsAsync(thingId, from, null));
+
+        request.RequestUri!.AbsolutePath.Should().Be($"/api/things/{thingId}/state-transitions");
+        request.RequestUri.Query.Should().Be("?from=2026-09-20T08%3A00%3A00.0000000Z");
+    }
+
+    [Fact]
+    public async Task GetStateOccurrencesAsync_RoutesToTheStatesOccurrencesWithTheWindow()
+    {
+        var thingId = Guid.NewGuid();
+        var to = new DateTime(2026, 9, 20, 12, 0, 0, DateTimeKind.Utc);
+
+        var request = await CaptureRequest(c => c.GetStateOccurrencesAsync(thingId, "too hot", null, to));
+
+        request.RequestUri!.AbsolutePath.Should().Be($"/api/things/{thingId}/states/too%20hot/occurrences");
+        request.RequestUri.Query.Should().Be("?to=2026-09-20T12%3A00%3A00.0000000Z");
+    }
+
+    [Fact]
     public async Task GetThingsInStateAsync_RoutesToStatesEndpointWithEscapedName()
     {
         await VerifyGetEndpointHit("/api/states/warm/things", c => c.GetThingsInStateAsync("warm"));
