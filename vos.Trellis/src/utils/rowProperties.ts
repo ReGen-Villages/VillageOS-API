@@ -1,4 +1,4 @@
-import type { DashboardSpec, Widget } from '../types/dashboard';
+import type { DashboardSpecification, Widget } from '../types/dashboard';
 
 /**
  * What a state-driven list asks the platform to send beside each row.
@@ -61,11 +61,11 @@ function withListsNaming(node: unknown, wanted: Set<string>): unknown {
 }
 
 /** The specification as it is written: marked as designed, with every row list naming what it carries. */
-export function readyToKeep(spec: DashboardSpec): DashboardSpec {
+export function readyToKeep(specification: DashboardSpecification): DashboardSpecification {
   return {
-    ...spec,
+    ...specification,
     designed: true,
-    sections: spec.sections.map((section) => ({
+    sections: specification.sections.map((section) => ({
       ...section,
       widgets: section.widgets.map((widget) => withListsNaming(widget, keysReadOffARow(widget)) as Widget),
     })),

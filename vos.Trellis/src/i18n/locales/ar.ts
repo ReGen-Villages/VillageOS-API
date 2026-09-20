@@ -1248,8 +1248,8 @@ export const ar: PartialResources & ArabicPlurals = {
   operationsPage: {
     noDashboard: "لا توجد لوحة معلومات مُهيّأة",
     noDashboardBody: "لا يُعرّف هذا النموذج أي إعداد <0>Dashboard</0>. أضِف Thing من النموذج الأصلي <1>Dashboard</1> بخاصية <2>spec</2> لتشغيل هذه الصفحة.",
-    unreadableSpec: "تعذّرت قراءة {{name}}",
-    unreadableSpecBody: "خاصية spec في Thing لوحة المعلومات هذه لا تحمل مواصفة يستطيع هذا التطبيق قراءتها. صحّحها في النموذج ثم أعِد التحميل.",
+    unreadableSpecification: "تعذّرت قراءة {{name}}",
+    unreadableSpecificationBody: "خاصية spec في Thing لوحة المعلومات هذه لا تحمل مواصفة يستطيع هذا التطبيق قراءتها. صحّحها في النموذج ثم أعِد التحميل.",
     emptyView: "مواصفة لوحة المعلومات هذه لا تذكر أي أقسام، فليس هناك ما يُرسم.",
   },
   palette: {

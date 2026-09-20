@@ -25,7 +25,7 @@ describe('loadPlatformPages', () => {
     const pages = usePlatformPagesStore.getState().pages;
     expect(pages.map((page) => page.routeKey)).toEqual(['accounts', 'signing-keys']);
     expect(pages[0].name).toBe('Accounts');
-    expect(pages[0].spec?.title).toBe('Accounts');
+    expect(pages[0].specification?.title).toBe('Accounts');
     expect(pages[0].id).not.toBe(pages[1].id);
   });
 
@@ -46,7 +46,7 @@ describe('loadPlatformPages', () => {
     await loadPlatformPages('user-1');
 
     expect(usePlatformPagesStore.getState().pages).toHaveLength(1);
-    expect(usePlatformPagesStore.getState().pages[0].spec).toBeNull();
+    expect(usePlatformPagesStore.getState().pages[0].specification).toBeNull();
   });
 
   it('holds no page when the platform could not be asked, and asks again next time', async () => {

@@ -16,18 +16,18 @@ export function ComposedPageControls({ dashboard, index }: { dashboard: Dashboar
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [renaming, setRenaming] = useState(false);
-  const [title, setTitle] = useState(dashboard.spec?.title ?? '');
+  const [title, setTitle] = useState(dashboard.specification?.title ?? '');
   const [busy, setBusy] = useState(false);
 
-  if (!dashboard.spec?.composed) return null;
-  const spec = dashboard.spec;
+  if (!dashboard.specification?.composed) return null;
+  const specification = dashboard.specification;
 
   const rename = async () => {
     const next = title.trim();
     if (!next) return;
     setBusy(true);
     try {
-      await dashboardPages.retitle(dashboard.id, spec, next);
+      await dashboardPages.retitle(dashboard.id, specification, next);
       setRenaming(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('composer.renameFailed'));
@@ -38,7 +38,7 @@ export function ComposedPageControls({ dashboard, index }: { dashboard: Dashboar
 
   const remove = async () => {
     const context = dashboardWriteContext(index);
-    if (!context || !window.confirm(t('composer.removeConfirm', { name: spec.title }))) return;
+    if (!context || !window.confirm(t('composer.removeConfirm', { name: specification.title }))) return;
     setBusy(true);
     try {
       await dashboardPages.remove(dashboard.id, context);

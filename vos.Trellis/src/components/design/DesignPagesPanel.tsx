@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { Plus } from 'lucide-react';
-import type { DashboardDescriptor, DashboardSpec } from '../../types/dashboard';
+import type { DashboardDescriptor, DashboardSpecification } from '../../types/dashboard';
 import { isKeptPage } from '../../utils/designSpec';
 
 /** A page the model holds whose specification could be read; one that could not is not offered,
  *  since there is nothing to lay out. */
-export type DesignablePage = DashboardDescriptor & { spec: DashboardSpec };
+export type DesignablePage = DashboardDescriptor & { specification: DashboardSpecification };
 
 interface Props {
   pages: DesignablePage[];
@@ -36,7 +36,7 @@ export function DesignPagesPanel({ pages, openedId, onOpen, onStart }: Props) {
           <li key={page.id}>
             <button
               type="button"
-              aria-label={t('design.pages.open', { name: page.spec.title })}
+              aria-label={t('design.pages.open', { name: page.specification.title })}
               onClick={() => onOpen(page)}
               className={clsx(
                 'w-full text-left rounded-md px-2.5 py-2 text-sm',
@@ -45,9 +45,9 @@ export function DesignPagesPanel({ pages, openedId, onOpen, onStart }: Props) {
                   : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800',
               )}
             >
-              <span className="block break-words">{page.spec.title}</span>
+              <span className="block break-words">{page.specification.title}</span>
               <span className="block text-[10px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                {isKeptPage(page.spec) ? t('design.pages.kept') : t('design.pages.seeded')}
+                {isKeptPage(page.specification) ? t('design.pages.kept') : t('design.pages.seeded')}
               </span>
             </button>
           </li>

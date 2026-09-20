@@ -118,9 +118,9 @@ describe('what a widget asks for that this build cannot answer', () => {
 
     for (const value of malformed) {
       const widget = tileShowing(value);
-      const spec = JSON.stringify(widget);
+      const specification = JSON.stringify(widget);
       for (const word of unimplementedWordsIn(widget)) {
-        expect(spec, `"${word}" is not in the spec it was reported for`).toContain(word);
+        expect(specification, `"${word}" is not in the spec it was reported for`).toContain(word);
       }
     }
   });

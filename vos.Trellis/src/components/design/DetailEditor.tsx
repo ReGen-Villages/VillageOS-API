@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
-import type { DetailSpec, RelationSpec } from '../../types/dashboard';
+import type { DetailSpecification, RelationSpecification } from '../../types/dashboard';
 import { STEP_DIRECTIONS } from '../../utils/widgetSchema';
 import { kindReachedBy } from './designOffers';
 import type { BindingContext } from './bindingContext';
@@ -16,10 +16,10 @@ import { Removable } from './Removable';
  */
 export function DetailEditor({
   label, value, context, kind, onChange,
-}: { label: string; value: DetailSpec | undefined; context: BindingContext; kind?: string; onChange: (value: unknown) => void }) {
+}: { label: string; value: DetailSpecification | undefined; context: BindingContext; kind?: string; onChange: (value: unknown) => void }) {
   const { t } = useTranslation();
   const held = value ?? {};
-  const write = (key: keyof DetailSpec, next: unknown) => {
+  const write = (key: keyof DetailSpecification, next: unknown) => {
     const written = withKey(held as Record<string, unknown>, key, next);
     onChange(Object.keys(written).length ? written : undefined);
   };
@@ -56,7 +56,7 @@ export function DetailEditor({
   );
 }
 
-function RelationsEditor({ value, context, kind, onChange }: { value: RelationSpec[]; context: BindingContext; kind?: string; onChange: (value: RelationSpec[]) => void }) {
+function RelationsEditor({ value, context, kind, onChange }: { value: RelationSpecification[]; context: BindingContext; kind?: string; onChange: (value: RelationSpecification[]) => void }) {
   const { t } = useTranslation();
   const edges = kind ? context.offers.edgesFrom(kind) : [];
   return (
@@ -65,7 +65,7 @@ function RelationsEditor({ value, context, kind, onChange }: { value: RelationSp
         <div className="mt-1 space-y-2">
           {value.map((relation, index) => {
             const reached = kindReachedBy(kind, [relation], context.offers);
-            const set = (key: keyof RelationSpec, next: unknown) => onChange(replaceAt(value, index, withKey(relation as unknown as Record<string, unknown>, key, next) as unknown as RelationSpec));
+            const set = (key: keyof RelationSpecification, next: unknown) => onChange(replaceAt(value, index, withKey(relation as unknown as Record<string, unknown>, key, next) as unknown as RelationSpecification));
             return (
               <Removable key={index} name={relation.predicate || t('design.list.item', { position: index + 1 })} onRemove={() => onChange(dropAt(value, index))}>
                 <OfferedField

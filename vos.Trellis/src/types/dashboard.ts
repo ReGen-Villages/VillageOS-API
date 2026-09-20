@@ -14,10 +14,10 @@ import type { HistoryFold, HistoryFunction, OriginKind } from './vos';
 /** The archetype a model-resident dashboard configuration Thing must be `is`-linked to. */
 export const DASHBOARD_ARCHETYPE = 'Dashboard';
 /** The Thing property holding the JSON-encoded {@link DashboardSpec}. */
-export const DASHBOARD_SPEC_PROPERTY = 'spec';
+export const DASHBOARD_SPECIFICATION_PROPERTY = 'spec';
 /** The spec's reference to "the compare entity currently selected in the scope switcher", which
  *  inside a computed column is the row's own Thing. */
-export const SCOPE_REF = '$scope';
+export const SCOPE_REFERENCE = '$scope';
 /** The edge saying what a Thing is. Every reader here follows it to resolve a type's members and
  *  the values they inherit, so both the walk and the subscription that has to carry it name the
  *  same predicate. */
@@ -66,7 +66,7 @@ export type Binding =
    *  four hundred costs what a figure of four costs. `archetype` narrows the count to Things of that
    *  archetype; `excludeState` drops Things also in that state, so a funnel stage counts only Things
    *  that reached it and no further. */
-  | { kind: 'stateCount'; state: string; scope?: ScopeRef; archetype?: string; excludeState?: string }
+  | { kind: 'stateCount'; state: string; scope?: ScopeReference; archetype?: string; excludeState?: string }
   /** Rows of Things currently in a State, enriched with their properties for a table.
    *  `excludeState` drops Things also in that state — for a funnel stage, set it to the next
    *  stage's state so the list shows only Things that reached this stage and no further. */
@@ -74,7 +74,7 @@ export type Binding =
       kind: 'stateList';
       state: string;
       excludeState?: string;
-      scope?: ScopeRef;
+      scope?: ScopeReference;
       limit?: number;
       archetype?: string;
       /** The stored properties each row carries, which the platform sends beside the id so a row
@@ -95,7 +95,7 @@ export type Binding =
   | {
       kind: 'thingList';
       archetype: string;
-      scope?: ScopeRef;
+      scope?: ScopeReference;
       limit?: number;
       computed?: ComputedColumn[];
       /** Keep only the rows the platform lists for this derived state, asked once for the roster.
@@ -113,7 +113,7 @@ export type Binding =
       op: 'count' | 'sum' | 'avg' | 'min' | 'max';
       property?: string;
       where?: PropertyFilter[];
-      scope?: ScopeRef;
+      scope?: ScopeReference;
     }
   /** A single property of a named/id'd Thing, or of the selected scope entity (`$scope`). */
   | { kind: 'property'; thing: string; property: string }
@@ -235,7 +235,7 @@ export type Binding =
       buckets: number;
       /** Omitted means one, which is the platform's own grid. */
       bucketsPerPoint?: number;
-      scope?: ScopeRef;
+      scope?: ScopeReference;
     }
   /** The newest point of a series, as the number a tile shows. The tile and the line beneath it then
    *  ask the platform one question — each answer costs a walk over every instance of the archetype —
@@ -369,7 +369,7 @@ export interface PropertyFilter {
 }
 
 /** Narrows a count/aggregate to Things related to the selected scope entity. */
-export interface ScopeRef {
+export interface ScopeReference {
   /** Predicate name linking the scope entity to the counted Things. */
   viaPredicate: string;
   /** 'out' = scope is the Subject, 'in' = scope is the Target. Default 'out'. */
@@ -897,7 +897,7 @@ export interface DashboardSection {
 }
 
 /** Declares the entity type compared in the scope switcher + leaderboard. */
-export interface CompareConfig {
+export interface CompareConfiguration {
   /** Human label for one entity, as the spec words it. */
   label: string;
   /** Archetype of the entities being compared. */
@@ -909,7 +909,7 @@ export interface CompareConfig {
  * which related Thing to keep, and what of it to show. `relations` nest, so a card can walk
  * Order → line → allocation. Array order is the display order at every level.
  */
-export interface RelationSpec {
+export interface RelationSpecification {
   /** Predicate name to follow from the current Thing. */
   predicate: string;
   /**
@@ -937,7 +937,7 @@ export interface RelationSpec {
    */
   inline?: boolean;
   /** Relations to follow from each matched Thing in turn. */
-  relations?: RelationSpec[];
+  relations?: RelationSpecification[];
 }
 
 /**
@@ -945,7 +945,7 @@ export interface RelationSpec {
  * vocabulary — Trellis reads the shape, the model supplies the property keys and predicate
  * names (like {@link ScopeRef.viaPredicate}). Absent → rows aren't clickable.
  */
-export interface DetailSpec {
+export interface DetailSpecification {
   /** Property whose value titles the window. Falls back to the Thing's name. */
   titleProperty?: string;
   /** Property shown as a subtitle under the title. */
@@ -953,7 +953,7 @@ export interface DetailSpec {
   /** Curated property groups. Omit to show all own properties in one group. */
   propertyGroups?: { label: string; keys: string[] }[];
   /** Ordered relations to surface on the card, each optionally nesting further. */
-  relations?: RelationSpec[];
+  relations?: RelationSpecification[];
   /** Handling history — the root Thing's own derived-state changes over time. */
   history?: { enabled?: boolean };
 }
@@ -968,25 +968,25 @@ export interface DetailSpec {
  * See `localizeSpec` in src/api/dashboardLocalization.ts and the authoring
  * contract in docs/FIELD_GUIDE.md, Part IX.
  */
-export type SpecTranslations = Record<string, Record<string, string>>;
+export type SpecificationTranslations = Record<string, Record<string, string>>;
 
-export interface DashboardSpec {
+export interface DashboardSpecification {
   title: string;
   subtitle?: string;
   /** Name of the icon the navigation entry draws, from the set Trellis renders with — the same
    *  presentation vocabulary the spec already carries as colours and number formats. A spec that
    *  names none, or names one Trellis cannot draw, gets a generic icon rather than no entry. */
   icon?: string;
-  compare?: CompareConfig;
+  compare?: CompareConfiguration;
   sections: DashboardSection[];
   /** Re-resolve every binding on this cadence, on top of the live-event refresh. Time-anchored
    *  widgets (a trailing-window trace) move even when nothing in the model changed. Omitted or 0
    *  leaves the page purely event-driven. */
   refreshSeconds?: number;
   /** Enables clickable rows that open a generic Thing detail window. */
-  detail?: DetailSpec;
+  detail?: DetailSpecification;
   /** Optional per-locale translations of this spec's display strings. */
-  translations?: SpecTranslations;
+  translations?: SpecificationTranslations;
   /** The choices a composed page was made from. Present only on a page the console kept, which is
    *  what lets it offer to rename or remove the page and leave a seeded one alone. */
   composed?: Composition;
@@ -1005,7 +1005,7 @@ export interface DashboardDescriptor {
   routeKey: string;
   /** Null where the Thing carries a spec that could not be read. Such a dashboard is still listed
    *  and still addressable, so the author sees the fault rather than a page that is simply missing. */
-  spec: DashboardSpec | null;
+  specification: DashboardSpecification | null;
 }
 
 /** A compare entity offered in the scope switcher. */

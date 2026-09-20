@@ -27,14 +27,14 @@ vi.mock('../api/client', async (importOriginal) => {
 import { apiClient } from '../api/client';
 import { stateApi } from '../api/stateApi';
 import { usePlatformPagesStore } from '../stores/platformPagesStore';
-import { subscriptionForSpec } from '../api/dashboardSubscription';
-import type { DashboardSpec } from '../types/dashboard';
+import { subscriptionForSpecification } from '../api/dashboardSubscription';
+import type { DashboardSpecification } from '../types/dashboard';
 import { useModelStore } from '../stores/modelStore';
 import { useUiStore } from '../stores/uiStore';
 import { OperationsPage } from './OperationsPage';
 import { act } from '@testing-library/react';
 
-const SPEC = {
+const SPECIFICATION = {
   title: 'Ops',
   subtitle: 'test',
   compare: { label: 'site', archetype: 'Village' },
@@ -88,7 +88,7 @@ function seedStore() {
     t('is', 'is'),
     t('arch-dash', 'Dashboard'),
     t('arch-vil', 'Village'),
-    t('dash1', 'Operations Dashboard', { spec: JSON.stringify(SPEC) }),
+    t('dash1', 'Operations Dashboard', { spec: JSON.stringify(SPECIFICATION) }),
     t('vil1', 'V-1', { self_sufficiency_rate: 98.9 }),
     t('vil2', 'V-2', { self_sufficiency_rate: 94.1 }),
   ];
@@ -183,7 +183,7 @@ describe('OperationsPage', () => {
   it('declares the subscription its spec describes', () => {
     renderAt();
 
-    expect(declaredSubscriptions).toContainEqual(subscriptionForSpec(SPEC as DashboardSpec, null));
+    expect(declaredSubscriptions).toContainEqual(subscriptionForSpecification(SPECIFICATION as DashboardSpecification, null));
   });
 
   it('names the selected entity in what it declares', async () => {
@@ -192,18 +192,18 @@ describe('OperationsPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'V-1' }));
 
-    expect(declaredSubscriptions).toContainEqual(subscriptionForSpec(SPEC as DashboardSpec, 'vil1'));
+    expect(declaredSubscriptions).toContainEqual(subscriptionForSpecification(SPECIFICATION as DashboardSpecification, 'vil1'));
   });
 });
 
 describe('OperationsPage addressing (Story 6582)', () => {
-  const ROSTER_SPEC = { title: 'Roster', sections: [{ title: 'Rows', widgets: [] }] };
+  const ROSTER_SPECIFICATION = { title: 'Roster', sections: [{ title: 'Rows', widgets: [] }] };
 
   beforeEach(() => {
     vi.clearAllMocks();
     seedStore();
     useModelStore.setState((s) => ({
-      things: [...s.things, { Id: 'dash2', Name: 'Roster', Properties: { spec: JSON.stringify(ROSTER_SPEC) } }],
+      things: [...s.things, { Id: 'dash2', Name: 'Roster', Properties: { spec: JSON.stringify(ROSTER_SPECIFICATION) } }],
       relationships: [
         ...s.relationships,
         { Id: 'dash2-is', Name: 'dash2 is arch-dash', SubjectId: 'dash2', PredicateId: 'is', TargetId: 'arch-dash', Properties: {} },
@@ -234,7 +234,7 @@ describe('OperationsPage addressing (Story 6582)', () => {
 });
 
 describe('OperationsPage section widths (Bug 6671)', () => {
-  const WIDTH_SPEC = {
+  const WIDTH_SPECIFICATION = {
     title: 'Widths',
     sections: [
       {
@@ -266,7 +266,7 @@ describe('OperationsPage section widths (Bug 6671)', () => {
       things: [
         { Id: 'is', Name: 'is', Properties: {} },
         { Id: 'arch-dash', Name: 'Dashboard', Properties: {} },
-        { Id: 'dash1', Name: 'Widths', Properties: { spec: JSON.stringify(WIDTH_SPEC) } },
+        { Id: 'dash1', Name: 'Widths', Properties: { spec: JSON.stringify(WIDTH_SPECIFICATION) } },
       ],
       relationships: [
         { Id: 'dash1-is', Name: 'dash1 is arch-dash', SubjectId: 'dash1', PredicateId: 'is', TargetId: 'arch-dash', Properties: {} },
@@ -302,9 +302,9 @@ describe('OperationsPage section widths (Bug 6671)', () => {
 // Story #6477: a spec is model data and can be authored wrong. Every one of these draws something a
 // reader can act on, rather than an empty page that looks like a model with nothing in it.
 describe('OperationsPage on a spec authored wrong', () => {
-  function publish(name: string, spec: string) {
+  function publish(name: string, specification: string) {
     useModelStore.setState((s) => ({
-      things: [...s.things, { Id: name, Name: name, Properties: { spec } }],
+      things: [...s.things, { Id: name, Name: name, Properties: { spec: specification } }],
       relationships: [
         ...s.relationships,
         { Id: `${name}-is`, Name: `${name} is arch-dash`, SubjectId: name, PredicateId: 'is', TargetId: 'arch-dash', Properties: {} },
@@ -396,7 +396,7 @@ describe('what a live event makes the page ask again', () => {
   function withCadence(): void {
     useModelStore.setState((s) => ({
       things: s.things.map((thing) =>
-        thing.Id === 'dash1' ? { ...thing, Properties: { spec: JSON.stringify({ ...SPEC, refreshSeconds: 15 }) } } : thing),
+        thing.Id === 'dash1' ? { ...thing, Properties: { spec: JSON.stringify({ ...SPECIFICATION, refreshSeconds: 15 }) } } : thing),
     }));
   }
 
@@ -481,7 +481,7 @@ describe('what a live event makes the page ask again', () => {
 // A page the platform declares is drawn exactly as a model's own: one address, the same renderer,
 // and its bindings and presses on the platform route the spec names.
 describe('a page the platform declares', () => {
-  const ACCOUNTS: DashboardSpec = {
+  const ACCOUNTS: DashboardSpecification = {
     title: 'Accounts',
     sections: [
       {
@@ -509,7 +509,7 @@ describe('a page the platform declares', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     seedStore();
-    usePlatformPagesStore.setState({ pages: [{ id: 'declared:accounts', name: 'Accounts', routeKey: 'accounts', spec: ACCOUNTS }] });
+    usePlatformPagesStore.setState({ pages: [{ id: 'declared:accounts', name: 'Accounts', routeKey: 'accounts', specification: ACCOUNTS }] });
     vi.mocked(apiClient.post).mockImplementation(async (_path, body) =>
       (body as { view: string }).view === 'accounts' ? [{ id: 'u1', name: 'ada' }] : { said: 'ada may now enter Site A' });
   });

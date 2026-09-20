@@ -15,7 +15,7 @@ import type { ModelIndex } from '../../../api/dashboardApi';
 import { relationshipApi } from '../../../api/relationshipApi';
 import { stateApi } from '../../../api/stateApi';
 import { useThingStates } from '../../../stores/modelStore';
-import type { DetailSpec } from '../../../types/dashboard';
+import type { DetailSpecification } from '../../../types/dashboard';
 import type { StateHistoryCoverage, VosRelationship, VosThing } from '../../../types/vos';
 import {
   resolveRelations,
@@ -70,7 +70,7 @@ function useThrottled(value: number, milliseconds: number): number {
 export function useEntityDetail(
   modelIndex: ModelIndex,
   thingId: string,
-  detail: DetailSpec | undefined,
+  detail: DetailSpecification | undefined,
   nonce = 0,
 ): EntityDetail {
   const relations = useMemo(() => resolveRelations(thingId, modelIndex, detail?.relations), [thingId, modelIndex, detail]);

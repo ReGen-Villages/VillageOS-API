@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
-import type { Binding, ComputedColumn, PropertyFilter, RelationStep, ScopeRef } from '../../types/dashboard';
+import type { Binding, ComputedColumn, PropertyFilter, RelationStep, ScopeReference } from '../../types/dashboard';
 import { BINDING_SCHEMAS, FILTER_OPERATORS, STEP_DIRECTIONS, kindsForShape, type BindingShape, type FieldSpecification } from '../../utils/widgetSchema';
 import type { EdgeCandidate } from '../../api/modelDeclaration';
 import { rowKindOf } from '../../utils/rowKind';
@@ -99,7 +99,7 @@ function BindingPart({
   const label = labelFor('bindingField', field.key, t);
   switch (field.kind) {
     case 'scope':
-      return <ScopeEditor label={label} value={held as ScopeRef | undefined} context={context} onChange={(next) => onWrite(field.key, next)} />;
+      return <ScopeEditor label={label} value={held as ScopeReference | undefined} context={context} onChange={(next) => onWrite(field.key, next)} />;
     case 'steps':
       return (
         <StepsEditor
@@ -142,7 +142,7 @@ function captionOf(edges: EdgeCandidate[]): string {
  * only where it is open — a predicate running both ways from the kind, or one the model holds no
  * link under.
  */
-function ScopeEditor({ label, value, context, onChange }: { label: string; value: ScopeRef | undefined; context: BindingContext; onChange: (value: ScopeRef | undefined) => void }) {
+function ScopeEditor({ label, value, context, onChange }: { label: string; value: ScopeReference | undefined; context: BindingContext; onChange: (value: ScopeReference | undefined) => void }) {
   const { t } = useTranslation();
   const compared = context.offers.compareKind;
   const carried = edgesByPredicate(compared ? context.offers.edgesFrom(compared) : []);

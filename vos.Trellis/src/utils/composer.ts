@@ -1,5 +1,5 @@
 import type {
-  Binding, ComposedColumn, Composition, ComputedColumn, DashboardSpec, RelationStep, TableColumn, TableWidget,
+  Binding, ComposedColumn, Composition, ComputedColumn, DashboardSpecification, RelationStep, TableColumn, TableWidget,
 } from '../types/dashboard';
 import type { ModelIndex } from '../api/dashboardApi';
 
@@ -100,7 +100,7 @@ export function tableOf(chosen: Composition, title: string): TableWidget {
 
 /** A composed table kept as a page: one section holding the table, under the name the page was
  *  given, carrying the composition it was made from. */
-export function pageOf(composition: Composition, name: string): DashboardSpec {
+export function pageOf(composition: Composition, name: string): DashboardSpecification {
   return {
     title: name,
     icon: PAGE_ICON,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Binding, DashboardSpec, Widget } from '../types/dashboard';
+import type { Binding, DashboardSpecification, Widget } from '../types/dashboard';
 import { checkDesign, refusalsIn, type DesignCheckContext, type DesignFindingCode } from './designFindings';
 
 /** A catchment: springs (flow, a long note) and reservoirs (capacity), springs feed reservoirs. */
@@ -17,9 +17,9 @@ const context: DesignCheckContext = {
   compareKind: 'Reservoir',
 };
 
-const page = (...widgets: Widget[]): DashboardSpec => ({ title: 'Springs', icon: 'waves', sections: [{ layout: 'grid', widgets }] });
+const page = (...widgets: Widget[]): DashboardSpecification => ({ title: 'Springs', icon: 'waves', sections: [{ layout: 'grid', widgets }] });
 const figure = (title: string, value: Binding): Widget => ({ type: 'kpi', title, value });
-const codes = (spec: DashboardSpec, name = 'Springs') => checkDesign(spec, name, context).map((finding) => `${finding.severity}:${finding.code}${finding.named ? ':' + finding.named : ''}`);
+const codes = (specification: DashboardSpecification, name = 'Springs') => checkDesign(specification, name, context).map((finding) => `${finding.severity}:${finding.code}${finding.named ? ':' + finding.named : ''}`);
 
 describe('the page', () => {
   it('is kept as it is when it breaks no rule', () => {
@@ -35,7 +35,7 @@ describe('the page', () => {
 });
 
 describe('a widget', () => {
-  const each = (code: DesignFindingCode, spec: DashboardSpec) => expect(codes(spec).some((found) => found.includes(code)), code).toBe(true);
+  const each = (code: DesignFindingCode, specification: DashboardSpecification) => expect(codes(specification).some((found) => found.includes(code)), code).toBe(true);
 
   it('is warned about when bound to nothing', () => {
     each('widgetBoundToNothing', page({ type: 'kpi', title: 'Empty', value: undefined as never }));

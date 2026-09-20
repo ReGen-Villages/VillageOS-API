@@ -29,13 +29,13 @@ const composed: DashboardDescriptor = {
   id: 'kept',
   name: 'Springs by flow',
   routeKey: 'springs-by-flow',
-  spec: { title: 'Springs by flow', sections: [{ widgets: [] }], composed: { kind: 'Spring', columns: [] } },
+  specification: { title: 'Springs by flow', sections: [{ widgets: [] }], composed: { kind: 'Spring', columns: [] } },
 };
 const seeded: DashboardDescriptor = {
   id: 'seeded',
   name: 'Water overview',
   routeKey: 'water-overview',
-  spec: { title: 'Water overview', sections: [{ widgets: [] }] },
+  specification: { title: 'Water overview', sections: [{ widgets: [] }] },
 };
 
 function show(dashboard: DashboardDescriptor) {
@@ -72,7 +72,7 @@ describe('ComposedPageControls', () => {
     fireEvent.change(screen.getByLabelText('New title'), { target: { value: 'Springs, fastest first' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-    await waitFor(() => expect(dashboardPages.retitle).toHaveBeenCalledWith('kept', composed.spec, 'Springs, fastest first'));
+    await waitFor(() => expect(dashboardPages.retitle).toHaveBeenCalledWith('kept', composed.specification, 'Springs, fastest first'));
   });
 
   it('asks before removing, and then takes the page out of the model', async () => {

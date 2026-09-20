@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Languages, Settings2, Trash2 } from 'lucide-react';
-import type { DashboardSpec, Placement, Widget } from '../types/dashboard';
+import type { DashboardSpecification, Placement, Widget } from '../types/dashboard';
 import { WHOLE_MODEL } from '../types/subscription';
 import { brokerModelReads } from '../api/brokerModelReads';
 import { discoverDashboardsFromIndex } from '../api/dashboardApi';
@@ -48,7 +48,7 @@ export function DesignPage() {
   const loaded = useModelStore((state) => state.loaded);
   const modelIndex = useModelIndex();
   const pages = useMemo(
-    () => discoverDashboardsFromIndex(modelIndex).filter((page): page is DesignablePage => page.spec !== null),
+    () => discoverDashboardsFromIndex(modelIndex).filter((page): page is DesignablePage => page.specification !== null),
     [modelIndex],
   );
   const [started, setStarted] = useState<string | null>(null);
@@ -92,11 +92,11 @@ function DesignWorkbench({ opened, started, pages }: { opened?: DesignablePage; 
   const modelIndex = useModelIndex();
   const writeContext = useMemo(() => dashboardWriteContext(modelIndex), [modelIndex]);
   const { design, selection, select, edit, kept } = useDesign({ opened, started });
-  const { spec, source, dirty } = design;
-  const context = useResolveContext(modelIndex, null, spec.compare?.archetype, brokerModelReads);
+  const { specification, source, dirty } = design;
+  const context = useResolveContext(modelIndex, null, specification.compare?.archetype, brokerModelReads);
   const statesOf = useStatesByKind(modelIndex);
   const endpoints = useEndpoints();
-  const compareKind = spec.compare?.archetype;
+  const compareKind = specification.compare?.archetype;
   const offers = useMemo(() => offersFor(modelIndex, compareKind), [modelIndex, compareKind]);
   const bindingContext = useMemo<BindingContext>(
     () => ({ offers, statesOf: (kind) => statesOf(kind) ?? [], endpoints }),
@@ -108,7 +108,7 @@ function DesignWorkbench({ opened, started, pages }: { opened?: DesignablePage; 
   const [busy, setBusy] = useState(false);
 
   const trimmed = name.trim();
-  const nameTaken = pages.some((page) => page.name === trimmed || page.spec.title === trimmed);
+  const nameTaken = pages.some((page) => page.name === trimmed || page.specification.title === trimmed);
   const keepsInPlace = !source.seeded && source.id !== null;
 
   const checkContext = useMemo<DesignCheckContext>(() => {
@@ -121,20 +121,20 @@ function DesignWorkbench({ opened, started, pages }: { opened?: DesignablePage; 
       isPredicate: (predicate) => modelIndex.predicateNameToId.has(predicate),
       statesOf,
       propertiesOf: (kind) => (isKind(kind) ? offers.propertiesOf(kind) : undefined),
-      iconsTaken: new Set(pages.filter((page) => page.id !== source.id).map((page) => page.spec.icon).filter((icon): icon is string => !!icon)),
+      iconsTaken: new Set(pages.filter((page) => page.id !== source.id).map((page) => page.specification.icon).filter((icon): icon is string => !!icon)),
       compareKind,
     };
   }, [modelIndex, offers, statesOf, pages, source.id, compareKind]);
   const findings = useMemo(
-    () => checkDesign(spec, keepsInPlace ? source.name : trimmed || spec.title, checkContext),
-    [spec, keepsInPlace, source.name, trimmed, checkContext],
+    () => checkDesign(specification, keepsInPlace ? source.name : trimmed || specification.title, checkContext),
+    [specification, keepsInPlace, source.name, trimmed, checkContext],
   );
   const refused = refusalsIn(findings).length > 0;
 
   const sectionForNew = () => (selection && selection.on !== 'page' && selection.on !== 'translations' ? selection.section : 0);
 
   const add = (kind: Widget['type']) => {
-    const withRoom = spec.sections.length === 0 ? withSectionAdded(spec) : spec;
+    const withRoom = specification.sections.length === 0 ? withSectionAdded(specification) : specification;
     const section = Math.min(sectionForNew(), withRoom.sections.length - 1);
     const at = withRoom.sections[section].widgets.length;
     const placement = nextPlacement(withRoom.sections[section], DEFAULT_SIZE[kind]);
@@ -143,7 +143,7 @@ function DesignWorkbench({ opened, started, pages }: { opened?: DesignablePage; 
   };
 
   const drop = (section: number, kind: Widget['type'], placement: Placement) => {
-    const at = spec.sections[section].widgets.length;
+    const at = specification.sections[section].widgets.length;
     edit((held) => withWidgetAdded(held, section, emptyWidget(kind, t('design.canvas.untitledWidget')), placement));
     select({ on: 'widget', section, widget: at });
     setDragging(null);
@@ -155,10 +155,10 @@ function DesignWorkbench({ opened, started, pages }: { opened?: DesignablePage; 
     if (!source.id) return;
     setBusy(true);
     try {
-      const written = readyToKeep(spec);
+      const written = readyToKeep(specification);
       await dashboardPages.write(source.id, written);
       kept(source.id, source.name, written);
-      toast.success(t('design.toast.written', { name: spec.title }));
+      toast.success(t('design.toast.written', { name: specification.title }));
     } catch (error) {
       failed(error);
     } finally {
@@ -174,7 +174,7 @@ function DesignWorkbench({ opened, started, pages }: { opened?: DesignablePage; 
     if (!trimmed || nameTaken) return;
     setBusy(true);
     try {
-      const written: DashboardSpec = readyToKeep({ ...spec, title: trimmed });
+      const written: DashboardSpecification = readyToKeep({ ...specification, title: trimmed });
       const id = await dashboardPages.keep(trimmed, written, writeContext);
       kept(id, trimmed, written);
       setName('');
@@ -229,7 +229,7 @@ function DesignWorkbench({ opened, started, pages }: { opened?: DesignablePage; 
           >
             <Languages size={13} />
           </button>
-          <h2 className="text-lg font-bold text-zinc-900 dark:text-white leading-tight">{spec.title}</h2>
+          <h2 className="text-lg font-bold text-zinc-900 dark:text-white leading-tight">{specification.title}</h2>
           <span className="text-[10px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
             {source.seeded ? t('design.pages.seeded') : source.id ? t('design.pages.kept') : ''}
           </span>
@@ -268,7 +268,7 @@ function DesignWorkbench({ opened, started, pages }: { opened?: DesignablePage; 
         </header>
 
         <DesignCanvas
-          spec={spec}
+          specification={specification}
           selection={selection}
           dragging={dragging}
           context={context}
@@ -277,19 +277,19 @@ function DesignWorkbench({ opened, started, pages }: { opened?: DesignablePage; 
           onDrop={drop}
           onAddSection={() => {
             edit((held) => withSectionAdded(held));
-            select({ on: 'section', section: spec.sections.length });
+            select({ on: 'section', section: specification.sections.length });
           }}
         />
         <DesignFindingsBar findings={findings} onSelect={select} />
       </section>
 
-      {selection?.on === 'translations' && <TranslationsPanel spec={spec} onEdit={edit} onClose={() => select(null)} />}
-      {selection && selection.on !== 'translations' && <DesignPropertiesPanel spec={spec} selection={selection} context={bindingContext} onEdit={edit} onSelect={select} />}
+      {selection?.on === 'translations' && <TranslationsPanel specification={specification} onEdit={edit} onClose={() => select(null)} />}
+      {selection && selection.on !== 'translations' && <DesignPropertiesPanel specification={specification} selection={selection} context={bindingContext} onEdit={edit} onSelect={select} />}
 
       <ConfirmDialog
         open={removing}
         title={t('design.removeDialog.title')}
-        message={t('design.removeDialog.message', { name: spec.title })}
+        message={t('design.removeDialog.message', { name: specification.title })}
         confirmLabel={t('design.removeDialog.confirm')}
         danger
         onConfirm={() => void remove()}

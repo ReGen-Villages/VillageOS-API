@@ -4,7 +4,7 @@ import { imagerySource, tabSections } from './overviewState';
 
 describe('the tabs of the closing view', () => {
   it('are the sections carrying a tab, in the order the page lists them', () => {
-    const spec = {
+    const specification = {
       sections: [
         { title: 'The land', facts: true, widgets: [] },
         { title: 'Location', tab: 'location', widgets: [] },
@@ -13,7 +13,7 @@ describe('the tabs of the closing view', () => {
       ],
     };
 
-    expect(tabSections(spec).map((section) => section.tab)).toEqual(['location', 'water']);
+    expect(tabSections(specification).map((section) => section.tab)).toEqual(['location', 'water']);
   });
 });
 

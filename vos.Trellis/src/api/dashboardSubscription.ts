@@ -9,13 +9,13 @@
 import {
   DASHBOARD_ARCHETYPE,
   IS_PREDICATE,
-  SCOPE_REF,
+  SCOPE_REFERENCE,
   type Binding,
   type ComputedColumn,
-  type DashboardSpec,
-  type RelationSpec,
+  type DashboardSpecification,
+  type RelationSpecification,
   type RelationStep,
-  type ScopeRef,
+  type ScopeReference,
   type Widget,
 } from '../types/dashboard';
 import { GUI_SETTINGS_TYPE_NAME } from '../utils/guiSettings';
@@ -115,13 +115,13 @@ export function bindingsOf(widget: Widget): Binding[] {
     .flatMap(withNested);
 }
 
-function specBindings(spec: DashboardSpec): Binding[] {
-  return spec.sections.flatMap((section) => section.widgets).flatMap(bindingsOf);
+function specificationBindings(specification: DashboardSpecification): Binding[] {
+  return specification.sections.flatMap((section) => section.widgets).flatMap(bindingsOf);
 }
 
 /** Each root-to-leaf path through a detail card's nested relations. A card walks them one after the
  *  other, so each path is a walk in its own right. */
-function detailWalks(relations: RelationSpec[] | undefined): RelationStep[][] {
+function detailWalks(relations: RelationSpecification[] | undefined): RelationStep[][] {
   if (!relations?.length) return [];
   return relations.flatMap((relation) => {
     const step: RelationStep = { predicate: relation.predicate, direction: relation.direction };
@@ -144,19 +144,19 @@ function bindingWalk(binding: Binding): RelationStep[] | undefined {
 }
 
 /** The walks the spec's bindings take, each as its ordered steps. */
-function specWalks(spec: DashboardSpec): RelationStep[][] {
-  const fromBindings = specBindings(spec)
+function specificationWalks(specification: DashboardSpecification): RelationStep[][] {
+  const fromBindings = specificationBindings(specification)
     .map(bindingWalk)
     .filter((via): via is RelationStep[] => !!via?.length);
-  return [...fromBindings, ...detailWalks(spec.detail?.relations)];
+  return [...fromBindings, ...detailWalks(specification.detail?.relations)];
 }
 
 /** The scope predicates the spec narrows by, each followed as far as it reaches. */
-function scopeRules(spec: DashboardSpec): TraverseRule[] {
+function scopeRules(specification: DashboardSpecification): TraverseRule[] {
   const seen = new Set<string>();
   const rules: TraverseRule[] = [];
-  for (const binding of specBindings(spec)) {
-    const scope = ('scope' in binding ? binding.scope : undefined) as ScopeRef | undefined;
+  for (const binding of specificationBindings(specification)) {
+    const scope = ('scope' in binding ? binding.scope : undefined) as ScopeReference | undefined;
     if (!scope) continue;
     const key = `${scope.viaPredicate}:${scope.direction ?? 'out'}`;
     if (seen.has(key)) continue;
@@ -211,10 +211,10 @@ const READS_ITS_TYPE_LOCALLY = new Set(['thingList', 'aggregate', 'stateList']);
  *  A binding that narrows to the selected entity reaches its rows by that entity's edges, so its
  *  type is asked for only while no entity is selected — when "All" is showing, the binding does run
  *  over every member of the type. */
-function drawnTypes(spec: DashboardSpec, scopeId: string | null): string[] {
+function drawnTypes(specification: DashboardSpecification, scopeId: string | null): string[] {
   const types = new Set<string>(NAVIGATION_AND_SETTINGS.types);
-  if (spec.compare) types.add(spec.compare.archetype);
-  for (const binding of specBindings(spec)) {
+  if (specification.compare) types.add(specification.compare.archetype);
+  for (const binding of specificationBindings(specification)) {
     if (!READS_ITS_TYPE_LOCALLY.has(binding.kind)) continue;
     const archetype = 'archetype' in binding ? binding.archetype : undefined;
     if (!archetype) continue;
@@ -226,11 +226,11 @@ function drawnTypes(spec: DashboardSpec, scopeId: string | null): string[] {
 
 /** The Things the spec names outright, split into the identifiers and the names the platform reads
  *  as two different questions. */
-function namedThings(spec: DashboardSpec): { ids: string[]; names: string[] } {
+function namedThings(specification: DashboardSpecification): { ids: string[]; names: string[] } {
   const referenced = new Set<string>();
-  for (const binding of specBindings(spec)) {
+  for (const binding of specificationBindings(specification)) {
     const thing = 'thing' in binding ? binding.thing : undefined;
-    if (thing && thing !== SCOPE_REF) referenced.add(thing);
+    if (thing && thing !== SCOPE_REFERENCE) referenced.add(thing);
   }
   return {
     ids: [...referenced].filter((reference) => IDENTIFIER.test(reference)),
@@ -243,13 +243,13 @@ function namedThings(spec: DashboardSpec): { ids: string[]; names: string[] } {
  * scope switcher currently shows — or null for "All", which is the page reading across every
  * compared entity rather than one.
  */
-export function subscriptionForSpec(spec: DashboardSpec, scopeId: string | null): SubscriptionSelector {
-  const named = namedThings(spec);
-  const traverse = [...scopeRules(spec), ...walkRules(specWalks(spec))];
+export function subscriptionForSpecification(specification: DashboardSpecification, scopeId: string | null): SubscriptionSelector {
+  const named = namedThings(specification);
+  const traverse = [...scopeRules(specification), ...walkRules(specificationWalks(specification))];
   // A Thing is created before it is typed, so only a subscription that keeps following its types is
   // sent the Thing when its `is` edge admits it — which is what lets a roster grow on a page left open.
   const selector: SubscriptionSelector = {
-    types: drawnTypes(spec, scopeId),
+    types: drawnTypes(specification, scopeId),
     names: [...new Set([
       ...NAVIGATION_AND_SETTINGS.names ?? [],
       ...traverse.map((rule) => rule.predicate),

@@ -1,4 +1,4 @@
-import type { Binding, DashboardSpec } from '../types/dashboard';
+import type { Binding, DashboardSpecification } from '../types/dashboard';
 import type { PropertyCandidate } from '../api/modelDeclaration';
 import { unboundSlots } from './designSpec';
 import { BINDING_KINDS } from './widgetSchema';
@@ -132,17 +132,17 @@ function namedPropertiesOf(binding: Binding): string[] {
   }
 }
 
-export function checkDesign(spec: DashboardSpec, name: string, context: DesignCheckContext): DesignFinding[] {
+export function checkDesign(specification: DashboardSpecification, name: string, context: DesignCheckContext): DesignFinding[] {
   const findings: DesignFinding[] = [];
   const refuse = (code: DesignFindingCode, where: Where, named?: string) => findings.push({ severity: 'refusal', code, ...where, ...(named ? { named } : {}) });
   const warn = (code: DesignFindingCode, where: Where, named?: string) => findings.push({ severity: 'warning', code, ...where, ...(named ? { named } : {}) });
 
-  if (!spec.icon) refuse('pageWithoutAnIcon', {});
-  else if (context.iconsTaken.has(spec.icon)) refuse('iconAlreadyTaken', {}, spec.icon);
-  if (name.includes(WORD_THE_NAVIGATION_DROPS) || spec.title.includes(WORD_THE_NAVIGATION_DROPS)) refuse('nameCarriesDashboard', {}, name);
-  if (spec.compare && !context.isKind(spec.compare.archetype)) refuse('namesAnUnknownKind', {}, spec.compare.archetype);
+  if (!specification.icon) refuse('pageWithoutAnIcon', {});
+  else if (context.iconsTaken.has(specification.icon)) refuse('iconAlreadyTaken', {}, specification.icon);
+  if (name.includes(WORD_THE_NAVIGATION_DROPS) || specification.title.includes(WORD_THE_NAVIGATION_DROPS)) refuse('nameCarriesDashboard', {}, name);
+  if (specification.compare && !context.isKind(specification.compare.archetype)) refuse('namesAnUnknownKind', {}, specification.compare.archetype);
 
-  spec.sections.forEach((section, sectionIndex) => {
+  specification.sections.forEach((section, sectionIndex) => {
     section.widgets.forEach((widget, widgetIndex) => {
       const where = { section: sectionIndex, widget: widgetIndex };
       const rows = rowsBindingOf(widget);

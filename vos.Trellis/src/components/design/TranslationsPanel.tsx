@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
-import type { DashboardSpec } from '../../types/dashboard';
+import type { DashboardSpecification } from '../../types/dashboard';
 import { displayStringsOf } from '../../api/dashboardLocalization';
 import { BASE_LANGUAGE, SUPPORTED_LANGUAGES, primarySubtag } from '../../i18n/languages';
 import { useWrittenWhenLeft } from '../../hooks/useWrittenWhenLeft';
@@ -11,16 +11,16 @@ import { useWrittenWhenLeft } from '../../hooks/useWrittenWhenLeft';
  * blanks. The rows are the localiser's own walk, so nothing it reads is missing here.
  */
 export function TranslationsPanel({
-  spec,
+  specification,
   onEdit,
   onClose,
 }: {
-  spec: DashboardSpec;
-  onEdit: (change: (spec: DashboardSpec) => DashboardSpec) => void;
+  specification: DashboardSpecification;
+  onEdit: (change: (specification: DashboardSpecification) => DashboardSpecification) => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const strings = displayStringsOf(spec);
+  const strings = displayStringsOf(specification);
   const languages = localeBlocks();
 
   const write = (locale: string, base: string, text: string) =>
@@ -64,7 +64,7 @@ export function TranslationsPanel({
                   <td key={language.code} className="pr-2 py-1">
                     <TranslationCell
                       label={t('design.translations.cell', { base, language: language.name })}
-                      value={spec.translations?.[language.code]?.[base] ?? ''}
+                      value={specification.translations?.[language.code]?.[base] ?? ''}
                       onCommit={(text) => write(language.code, base, text)}
                     />
                   </td>

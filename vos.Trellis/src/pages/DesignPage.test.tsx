@@ -25,7 +25,7 @@ import { modelApi } from '../api/modelApi';
 import { useModelStore } from '../stores/modelStore';
 import { WIDGET_KINDS } from '../utils/gridLayout';
 import { en } from '../i18n/locales/en';
-import { DASHBOARD_SPEC_PROPERTY } from '../types/dashboard';
+import { DASHBOARD_SPECIFICATION_PROPERTY } from '../types/dashboard';
 import { DesignPage } from './DesignPage';
 
 const SEEDED = {
@@ -64,8 +64,8 @@ function seedStore() {
     things: [
       thing('is', 'is'),
       thing('dashboard', 'Dashboard', {}, true),
-      thing('page-springs', 'Springs', { [DASHBOARD_SPEC_PROPERTY]: JSON.stringify(SEEDED) }),
-      thing('page-reservoirs', 'Reservoirs', { [DASHBOARD_SPEC_PROPERTY]: JSON.stringify(DESIGNED) }),
+      thing('page-springs', 'Springs', { [DASHBOARD_SPECIFICATION_PROPERTY]: JSON.stringify(SEEDED) }),
+      thing('page-reservoirs', 'Reservoirs', { [DASHBOARD_SPECIFICATION_PROPERTY]: JSON.stringify(DESIGNED) }),
       thing('spring', 'Spring', {}, true),
       thing('s1', 'SPRING-1', { flow: 12.5 }),
     ],
@@ -154,7 +154,7 @@ describe('DesignPage', () => {
     expect(thingApi.setProperty).not.toHaveBeenCalled();
     const fragment = JSON.parse(vi.mocked(modelApi.applyFragment).mock.calls[0][0] as string);
     expect(fragment.Things[0].Name).toBe('Springs copy');
-    const copy = JSON.parse(fragment.Things[0].Properties[DASHBOARD_SPEC_PROPERTY].value as string);
+    const copy = JSON.parse(fragment.Things[0].Properties[DASHBOARD_SPECIFICATION_PROPERTY].value as string);
     expect(copy).toMatchObject({ title: 'Springs copy', designed: true });
     expect(copy.sections[0].layout).toBe('grid');
     expect(copy.sections[0].widgets.map((widget: { placement: unknown }) => widget.placement)).toEqual([

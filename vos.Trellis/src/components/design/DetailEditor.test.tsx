@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import type { DetailSpec } from '../../types/dashboard';
+import type { DetailSpecification } from '../../types/dashboard';
 import { DetailEditor } from './DetailEditor';
 import { catchmentContext } from './testOffers';
 
@@ -12,8 +12,8 @@ function commit(label: string, text: string) {
 
 describe('DetailEditor', () => {
   it('writes what titles the card, a group of properties, a relation followed from the kind, and the history switch', () => {
-    let held: DetailSpec | undefined;
-    const onChange = vi.fn((next: unknown) => { held = next as DetailSpec | undefined; });
+    let held: DetailSpecification | undefined;
+    const onChange = vi.fn((next: unknown) => { held = next as DetailSpecification | undefined; });
     const draw = () => <DetailEditor label="Card" value={held} context={catchmentContext()} kind="Reservoir" onChange={onChange} />;
     const { rerender } = render(draw());
 
@@ -44,8 +44,8 @@ describe('DetailEditor', () => {
   });
 
   it('takes the card away when its last key goes', () => {
-    let held: DetailSpec | undefined = { titleProperty: 'capacity' };
-    const onChange = vi.fn((next: unknown) => { held = next as DetailSpec | undefined; });
+    let held: DetailSpecification | undefined = { titleProperty: 'capacity' };
+    const onChange = vi.fn((next: unknown) => { held = next as DetailSpecification | undefined; });
     render(<DetailEditor label="Card" value={held} context={catchmentContext()} kind="Reservoir" onChange={onChange} />);
     commit('Titled by', '');
     expect(held).toBeUndefined();

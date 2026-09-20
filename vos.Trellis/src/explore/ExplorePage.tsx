@@ -12,7 +12,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type
 import { Compass, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { findingsApi } from '../api/findingsApi';
-import { localizeSpec } from '../api/dashboardLocalization';
+import { localizeSpecification } from '../api/dashboardLocalization';
 import { asNumber, asRows, type ResolveContext } from '../api/dashboardApi';
 import { intakeApi, type FormOptions, type FoundPlace } from '../api/intakeApi';
 import { LanguageSwitcher } from '../components/common/LanguageSwitcher';
@@ -844,15 +844,15 @@ function Drawn({
 }) {
   const { t, i18n } = useTranslation();
   const [measure, width] = useElementWidth();
-  const spec = useMemo(() => localizeSpec(findings.spec, i18n.language), [findings.spec, i18n.language]);
-  const context = useResolveContext(findings.index, findings.scopeId, spec.compare?.archetype, () => findings.reads);
-  const facts = spec.sections
+  const specification = useMemo(() => localizeSpecification(findings.specification, i18n.language), [findings.specification, i18n.language]);
+  const context = useResolveContext(findings.index, findings.scopeId, specification.compare?.archetype, () => findings.reads);
+  const facts = specification.sections
     .filter((section) => section.facts)
     .flatMap((section) => section.widgets)
     .filter((widget): widget is KpiWidget => widget.type === 'kpi');
-  const listed = spec.sections.filter(
+  const listed = specification.sections.filter(
     (section: DashboardSection) => !section.facts && section.theme === undefined && section.tab === undefined);
-  const tabs = tabSections(spec);
+  const tabs = tabSections(specification);
   const [overviewOpen, setOverviewOpen] = useState(false);
 
   return (
@@ -860,8 +860,8 @@ function Drawn({
       <ReportMap options={options} state={state} drawnArea={drawnArea} reference={reference}>
         {facts.map((widget, at) => <ModelFact key={at} widget={widget} context={context} />)}
       </ReportMap>
-      <ThemedTiles sections={spec.sections} themes={options?.themes ?? []} context={context} />
-      {(listed.length > 0 || spec.sections.length === 0) && (
+      <ThemedTiles sections={specification.sections} themes={options?.themes ?? []} context={context} />
+      {(listed.length > 0 || specification.sections.length === 0) && (
         <div className="mt-4">
           <DashboardSections
             sections={listed}

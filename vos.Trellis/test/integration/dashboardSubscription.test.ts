@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { subscriptionForSpec } from '../../src/api/dashboardSubscription';
-import { DASHBOARD_SPEC_PROPERTY, type DashboardSpec } from '../../src/types/dashboard';
+import { subscriptionForSpecification } from '../../src/api/dashboardSubscription';
+import { DASHBOARD_SPECIFICATION_PROPERTY, type DashboardSpecification } from '../../src/types/dashboard';
 import type { SubscriptionSelector } from '../../src/types/subscription';
 import type { VosThing } from '../../src/types/vos';
 
@@ -81,15 +81,15 @@ function release(subscriptionId: string, token: string) {
 }
 
 /** The specs the model publishes, read the way the client reads them: JSON in a property. */
-function specsIn(things: VosThing[]): { name: string; spec: DashboardSpec }[] {
-  const found: { name: string; spec: DashboardSpec }[] = [];
+function specsIn(things: VosThing[]): { name: string; specification: DashboardSpecification }[] {
+  const found: { name: string; specification: DashboardSpecification }[] = [];
   for (const thing of things) {
-    const raw = (thing.Properties ?? {})[DASHBOARD_SPEC_PROPERTY];
+    const raw = (thing.Properties ?? {})[DASHBOARD_SPECIFICATION_PROPERTY];
     const value = raw && typeof raw === 'object' && 'value' in raw ? (raw as { value: unknown }).value : raw;
     if (typeof value !== 'string') continue;
     try {
-      const spec = JSON.parse(value) as DashboardSpec;
-      if (Array.isArray(spec.sections)) found.push({ name: thing.Name, spec });
+      const specification = JSON.parse(value) as DashboardSpecification;
+      if (Array.isArray(specification.sections)) found.push({ name: thing.Name, specification });
     } catch { /* a property called `spec` that is not one */ }
   }
   return found;
@@ -97,7 +97,7 @@ function specsIn(things: VosThing[]): { name: string; spec: DashboardSpec }[] {
 
 describe('the subscription a dashboard opens', () => {
   let token: string;
-  let published: { name: string; spec: DashboardSpec }[];
+  let published: { name: string; specification: DashboardSpecification }[];
   let modelSize: number;
 
   beforeAll(async () => {
@@ -113,8 +113,8 @@ describe('the subscription a dashboard opens', () => {
   });
 
   it('is one the platform reads, and answers with less than the whole model', async () => {
-    for (const { name, spec } of published) {
-      const opened = await open(subscriptionForSpec(spec, null), token);
+    for (const { name, specification } of published) {
+      const opened = await open(subscriptionForSpecification(specification, null), token);
       try {
         expect(opened.snapshot.things.length, `${name} was sent nothing`).toBeGreaterThan(0);
         expect(opened.snapshot.things.length, `${name} was sent the whole model`).toBeLessThan(modelSize);
@@ -127,8 +127,8 @@ describe('the subscription a dashboard opens', () => {
   // A binding that names a Thing outright is the one case a walk cannot rescue: the page reads that
   // Thing's properties out of what it was sent, and reads nothing if it was not sent.
   it('carries every Thing the specs name', async () => {
-    for (const { name, spec } of published) {
-      const selector = subscriptionForSpec(spec, null);
+    for (const { name, specification } of published) {
+      const selector = subscriptionForSpecification(specification, null);
       const opened = await open(selector, token);
       try {
         const sent = new Set(opened.snapshot.things.flatMap((thing) => [thing.Id, thing.Name]));

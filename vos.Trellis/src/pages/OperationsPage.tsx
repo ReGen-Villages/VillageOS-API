@@ -15,8 +15,8 @@ import { useSse, useSubscription } from '../hooks/useSse';
 import { useDashboards, useModelIndex, useResolveContext } from '../hooks/useDashboard';
 import { scopeEntities as computeScopeEntities } from '../api/dashboardApi';
 import { brokerModelReads } from '../api/brokerModelReads';
-import { NAVIGATION_AND_SETTINGS, subscriptionForSpec } from '../api/dashboardSubscription';
-import { localizeSpec } from '../api/dashboardLocalization';
+import { NAVIGATION_AND_SETTINGS, subscriptionForSpecification } from '../api/dashboardSubscription';
+import { localizeSpecification } from '../api/dashboardLocalization';
 import { DashboardSections } from '../components/dashboard/DashboardSections';
 import { useDetailWindows } from '../components/dashboard/detail/DetailWindowManager';
 import { ComposedPageControls } from '../components/dashboard/ComposedPageControls';
@@ -55,12 +55,12 @@ export function OperationsPage() {
   const { dashboardKey } = useParams();
   const dashboard = dashboards.find((d) => d.routeKey === dashboardKey);
   const { t, i18n } = useTranslation();
-  const spec = useMemo(
-    () => (dashboard?.spec ? localizeSpec(dashboard.spec, i18n.language) : undefined),
+  const specification = useMemo(
+    () => (dashboard?.specification ? localizeSpecification(dashboard.specification, i18n.language) : undefined),
     [dashboard, i18n.language],
   );
 
-  const entities = useMemo(() => (spec ? computeScopeEntities(spec, index) : []), [spec, index]);
+  const entities = useMemo(() => (specification ? computeScopeEntities(specification, index) : []), [specification, index]);
 
   const [scopeId, setScopeId] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
@@ -68,19 +68,19 @@ export function OperationsPage() {
   // A press taken by a writing widget starts a new generation of broker reads: what it changed is
   // read back, whether or not the change announced itself on the stream.
   const wrote = useCallback(() => setServerRefresh((n) => n + 1), []);
-  const context = useResolveContext(index, scopeId, spec?.compare?.archetype, brokerModelReads, nonce, serverRefresh, wrote);
+  const context = useResolveContext(index, scopeId, specification?.compare?.archetype, brokerModelReads, nonce, serverRefresh, wrote);
 
   // What this page is about, said to the platform: it is sent the Things its widgets read and the
   // later changes to those, instead of every change in a model whose size it does not depend on.
   // Until a dashboard is chosen there is nothing to narrow to, so the shell's own declaration stands.
   useSubscription(
-    useMemo(() => (spec ? subscriptionForSpec(spec, scopeId) : NAVIGATION_AND_SETTINGS), [spec, scopeId]),
+    useMemo(() => (specification ? subscriptionForSpecification(specification, scopeId) : NAVIGATION_AND_SETTINGS), [specification, scopeId]),
   );
 
   // A trailing-window widget slides with the clock, and the event that takes a Thing out of a state
   // names the states it still holds rather than the one it left — so a figure the broker answers
   // falls back on the cadence the spec states.
-  const refreshSeconds = spec?.refreshSeconds ?? 0;
+  const refreshSeconds = specification?.refreshSeconds ?? 0;
 
   // A live event starts a new generation. What each widget does with it is its own to decide: a
   // figure the broker answers waits on the states it is made of, so a burst of property changes
@@ -110,7 +110,7 @@ export function OperationsPage() {
   useEffect(() => on('ModelChanged', () => setServerRefresh((n) => n + 1)), [on]);
 
   const isWide = useIsWide();
-  const { openDetail, windows } = useDetailWindows(index, spec?.detail, nonce);
+  const { openDetail, windows } = useDetailWindows(index, specification?.detail, nonce);
 
   if (!loaded) {
     return <Centered>{t('modelPage.loading')}</Centered>;
@@ -122,14 +122,14 @@ export function OperationsPage() {
   }
   // A Thing that declares itself a dashboard and carries a spec nothing can read. Named, so the
   // author knows which one to open, and told apart from a model that publishes no dashboard at all.
-  if (dashboard && !dashboard.spec) {
+  if (dashboard && !dashboard.specification) {
     return (
-      <Guidance title={t('operationsPage.unreadableSpec', { name: dashboard.name })}>
-        {t('operationsPage.unreadableSpecBody')}
+      <Guidance title={t('operationsPage.unreadableSpecification', { name: dashboard.name })}>
+        {t('operationsPage.unreadableSpecificationBody')}
       </Guidance>
     );
   }
-  if (!spec) {
+  if (!specification) {
     return (
       <Guidance title={t('operationsPage.noDashboard')}>
         <Trans
@@ -149,19 +149,19 @@ export function OperationsPage() {
       <header className="flex-shrink-0 flex items-center justify-between gap-4 flex-wrap px-6 pt-6 pb-4">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg grid place-items-center text-white font-extrabold bg-gradient-to-br from-blue-600 to-violet-500">
-            {(spec.title[0] ?? 'D').toUpperCase()}
+            {(specification.title[0] ?? 'D').toUpperCase()}
           </div>
           <div>
-            <h2 className="text-xl font-bold text-zinc-900 dark:text-white leading-tight">{spec.title}</h2>
-            {spec.subtitle && <div className="text-xs text-zinc-400 dark:text-zinc-500">{spec.subtitle}</div>}
+            <h2 className="text-xl font-bold text-zinc-900 dark:text-white leading-tight">{specification.title}</h2>
+            {specification.subtitle && <div className="text-xs text-zinc-400 dark:text-zinc-500">{specification.subtitle}</div>}
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          {spec.compare && entities.length > 0 && (
+          {specification.compare && entities.length > 0 && (
             <div className="inline-flex bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg p-0.5">
               <ScopeButton active={scopeId === null} onClick={() => setScopeId(null)}>
-                All {spec.compare.label}s
+                All {specification.compare.label}s
               </ScopeButton>
               {entities.map((e) => (
                 <ScopeButton key={e.id} active={scopeId === e.id} onClick={() => setScopeId(e.id)}>
@@ -180,7 +180,7 @@ export function OperationsPage() {
 
       <div className="flex-1 overflow-auto px-6 pb-10">
         <DashboardSections
-          sections={spec.sections}
+          sections={specification.sections}
           context={context}
           isWide={isWide}
           openDetail={openDetail}

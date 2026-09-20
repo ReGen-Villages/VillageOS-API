@@ -1,46 +1,46 @@
 import { describe, it, expect } from 'vitest';
-import { NAVIGATION_AND_SETTINGS, subscriptionForSpec } from './dashboardSubscription';
-import type { DashboardSpec } from '../types/dashboard';
+import { NAVIGATION_AND_SETTINGS, subscriptionForSpecification } from './dashboardSubscription';
+import type { DashboardSpecification } from '../types/dashboard';
 
 const SCOPE_ID = '11111111-2222-3333-4444-555555555555';
 
-function specWith(over: Partial<DashboardSpec>): DashboardSpec {
+function specificationWith(over: Partial<DashboardSpecification>): DashboardSpecification {
   return { title: 'Ops', sections: [], ...over };
 }
 
 /** A spec whose one widget carries the binding under test. */
-function specDrawing(value: DashboardSpec['sections'][number]['widgets'][number]): DashboardSpec {
-  return specWith({ sections: [{ widgets: [value] }] });
+function specificationDrawing(value: DashboardSpecification['sections'][number]['widgets'][number]): DashboardSpecification {
+  return specificationWith({ sections: [{ widgets: [value] }] });
 }
 
 describe('subscriptionForSpec', () => {
   it('keeps asking for what the navigation and the display settings are read from', () => {
-    const selector = subscriptionForSpec(specWith({}), null);
+    const selector = subscriptionForSpecification(specificationWith({}), null);
 
     expect(selector.types).toEqual(expect.arrayContaining(NAVIGATION_AND_SETTINGS.types!));
     expect(selector.names).toEqual(expect.arrayContaining(NAVIGATION_AND_SETTINGS.names!));
   });
 
   it('asks to keep following the types it names, as the navigation does', () => {
-    expect(subscriptionForSpec(specWith({}), null).includeLaterMatches).toBe(true);
+    expect(subscriptionForSpecification(specificationWith({}), null).includeLaterMatches).toBe(true);
   });
 
   // A reading is written as an observation, which the platform delivers only to a subscription
   // that asked; the navigation reads no readings and asks for none.
   it('asks for observations, so a figure bound to a reading moves without a reload', () => {
-    expect(subscriptionForSpec(specWith({}), null).includeObservations).toBe(true);
+    expect(subscriptionForSpecification(specificationWith({}), null).includeObservations).toBe(true);
     expect(NAVIGATION_AND_SETTINGS.includeObservations).toBeUndefined();
     expect(NAVIGATION_AND_SETTINGS.includeLaterMatches).toBe(true);
   });
 
   it('asks for the entities the scope switcher offers', () => {
-    const selector = subscriptionForSpec(specWith({ compare: { label: 'site', archetype: 'Site' } }), null);
+    const selector = subscriptionForSpecification(specificationWith({ compare: { label: 'site', archetype: 'Site' } }), null);
 
     expect(selector.types).toContain('Site');
   });
 
   it('names the selected entity as an identifier', () => {
-    const selector = subscriptionForSpec(specWith({ compare: { label: 'site', archetype: 'Site' } }), SCOPE_ID);
+    const selector = subscriptionForSpecification(specificationWith({ compare: { label: 'site', archetype: 'Site' } }), SCOPE_ID);
 
     expect(selector.ids).toEqual([SCOPE_ID]);
   });
@@ -49,8 +49,8 @@ describe('subscriptionForSpec', () => {
   // members would arrive only to be counted again and thrown away — and a type with a member per
   // event is exactly where that is worst.
   it('leaves out the type of a binding the platform answers', () => {
-    const selector = subscriptionForSpec(
-      specWith({
+    const selector = subscriptionForSpecification(
+      specificationWith({
         sections: [{
           widgets: [
             { type: 'kpi', title: 'open', value: { kind: 'stateCount', state: 'open', archetype: 'Delivery' } },
@@ -80,8 +80,8 @@ describe('subscriptionForSpec', () => {
   // leaves every computed column on the table empty and every detail card opened from it titled
   // with a bare identifier — quietly, with nothing on screen to say why.
   it('keeps the type of a state-driven table, which its rows are still read against', () => {
-    const selector = subscriptionForSpec(
-      specDrawing({
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
         type: 'table',
         columns: [{ key: 'reference', label: 'Reference' }],
         rows: {
@@ -99,8 +99,8 @@ describe('subscriptionForSpec', () => {
   });
 
   it('asks for the type a roster draws', () => {
-    const selector = subscriptionForSpec(
-      specDrawing({ type: 'table', columns: [], rows: { kind: 'thingList', archetype: 'Parcel' } }),
+    const selector = subscriptionForSpecification(
+      specificationDrawing({ type: 'table', columns: [], rows: { kind: 'thingList', archetype: 'Parcel' } }),
       null,
     );
 
@@ -108,8 +108,8 @@ describe('subscriptionForSpec', () => {
   });
 
   it('asks for the rows a writing widget lists and the rosters its fields are chosen from', () => {
-    const selector = subscriptionForSpec(
-      specDrawing({
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
         type: 'action',
         rows: { kind: 'thingList', archetype: 'Spring' },
         asks: [{ key: 'reader', label: 'Reader', kind: 'choice', options: { kind: 'thingList', archetype: 'Person' } }],
@@ -119,8 +119,8 @@ describe('subscriptionForSpec', () => {
     );
     expect(selector.types).toEqual(expect.arrayContaining(['Spring', 'Person']));
 
-    const form = subscriptionForSpec(
-      specDrawing({
+    const form = subscriptionForSpecification(
+      specificationDrawing({
         type: 'form',
         fields: [{ key: 'catchment', label: 'Catchment', kind: 'multichoice', options: { kind: 'thingList', archetype: 'Catchment' } }],
         submit: 'Book',
@@ -134,22 +134,22 @@ describe('subscriptionForSpec', () => {
   // A binding narrowed to the selected entity reaches its rows along that entity's edges, so asking
   // for its type as well would pull in every other entity's rows for a page showing one.
   it('leaves out a scoped binding\'s type once an entity is selected, and follows its edge instead', () => {
-    const scoped = specDrawing({
+    const scoped = specificationDrawing({
       type: 'table',
       columns: [],
       rows: { kind: 'thingList', archetype: 'Parcel', scope: { viaPredicate: 'has' } },
     });
 
-    expect(subscriptionForSpec(scoped, SCOPE_ID).types).not.toContain('Parcel');
-    expect(subscriptionForSpec(scoped, SCOPE_ID).traverse)
+    expect(subscriptionForSpecification(scoped, SCOPE_ID).types).not.toContain('Parcel');
+    expect(subscriptionForSpecification(scoped, SCOPE_ID).traverse)
       .toContainEqual({ predicate: 'has', direction: 'outgoing', depth: expect.any(Number) });
   });
 
   // With no entity selected the binding does run over every member of the type, so the page holds
   // them all — the same answer the resolver gives.
   it('asks for a scoped binding\'s type while every entity is being shown', () => {
-    const selector = subscriptionForSpec(
-      specDrawing({
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
         type: 'table',
         columns: [],
         rows: { kind: 'thingList', archetype: 'Parcel', scope: { viaPredicate: 'has' } },
@@ -162,8 +162,8 @@ describe('subscriptionForSpec', () => {
 
   // A scope walk is transitive: the entity relates to Things that in turn relate to the rows.
   it('follows a scope predicate as far as it reaches, and a binding\'s step one hop', () => {
-    const selector = subscriptionForSpec(
-      specWith({
+    const selector = subscriptionForSpecification(
+      specificationWith({
         sections: [{
           widgets: [
             { type: 'kpi', title: 'a', value: { kind: 'aggregate', archetype: 'Parcel', op: 'count', scope: { viaPredicate: 'contains' } } },
@@ -183,8 +183,8 @@ describe('subscriptionForSpec', () => {
   // The platform applies each rule to everything selected before it, and applies it once. A walk of
   // two steps is only reproduced if its first edge is asked for before its second.
   it('asks for a walk\'s edges in the order the walk takes them', () => {
-    const selector = subscriptionForSpec(
-      specDrawing({
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
         type: 'verdict',
         rows: [{
           label: 'Water',
@@ -202,8 +202,8 @@ describe('subscriptionForSpec', () => {
   // never sent. The line then drops the source it names, which reads exactly like a figure whose
   // source nobody recorded — the one reading the origin vocabulary exists to refuse.
   it('follows an origin binding to the Thing holding the value and on to what says so', () => {
-    const selector = subscriptionForSpec(
-      specDrawing({
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
         type: 'kpi',
         title: 'Drawn area',
         value: { kind: 'related', via: [{ predicate: 'has', archetype: 'Parcel' }], property: 'measuredAreaHectares' },
@@ -224,8 +224,8 @@ describe('subscriptionForSpec', () => {
   // The source walk starts from what `via` reached, not from the scope. Asked for first it would be
   // applied to the scope entity, reach nothing, and select nothing.
   it('asks for the source edge after the edge that reaches the Thing holding the value', () => {
-    const selector = subscriptionForSpec(
-      specDrawing({
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
         type: 'kpi',
         title: 'Rainfall',
         value: { kind: 'property', thing: '$scope', property: 'rainfallMillimetresPerYear' },
@@ -245,8 +245,8 @@ describe('subscriptionForSpec', () => {
   });
 
   it('follows a source walk taken straight from the scope entity', () => {
-    const selector = subscriptionForSpec(
-      specDrawing({
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
         type: 'kpi',
         title: 'Rainfall',
         value: { kind: 'property', thing: '$scope', property: 'rainfallMillimetresPerYear' },
@@ -268,8 +268,8 @@ describe('subscriptionForSpec', () => {
   // A detail window walks the same way a binding does, and it opens on a row of a page that has
   // already narrowed — so what it reaches has to be in the page's own set.
   it('follows the edges a detail card walks, root first', () => {
-    const selector = subscriptionForSpec(
-      specWith({
+    const selector = subscriptionForSpecification(
+      specificationWith({
         detail: { relations: [{ predicate: 'has', relations: [{ predicate: 'categorizedAs' }] }] },
       }),
       SCOPE_ID,
@@ -280,8 +280,8 @@ describe('subscriptionForSpec', () => {
   });
 
   it('finds the bindings nested inside a ratio and a computed column', () => {
-    const selector = subscriptionForSpec(
-      specWith({
+    const selector = subscriptionForSpecification(
+      specificationWith({
         sections: [{
           widgets: [
             {
@@ -315,8 +315,8 @@ describe('subscriptionForSpec', () => {
   // A spec's Thing reference is an id or a name, and the platform reads the two as different
   // questions: a name sent as an id is refused rather than looked up.
   it('tells a named Thing apart from one referred to by identifier', () => {
-    const selector = subscriptionForSpec(
-      specWith({
+    const selector = subscriptionForSpecification(
+      specificationWith({
         sections: [{
           widgets: [
             { type: 'kpi', title: 'a', value: { kind: 'property', thing: 'Reservoir', property: 'volume' } },
@@ -350,8 +350,8 @@ describe('a tile reading the newest point of a series', () => {
   } as const;
 
   it('follows the edge its nested series narrows by', () => {
-    const selector = subscriptionForSpec(
-      specDrawing({ type: 'kpi', title: 'flow', value: { kind: 'latest', series } }),
+    const selector = subscriptionForSpecification(
+      specificationDrawing({ type: 'kpi', title: 'flow', value: { kind: 'latest', series } }),
       SCOPE_ID,
     );
 
@@ -361,8 +361,8 @@ describe('a tile reading the newest point of a series', () => {
   // The platform answers the reduction, so the members would arrive only to be reduced again and
   // thrown away — the same reason the series itself is left out.
   it('leaves out the type its nested series reduces', () => {
-    const selector = subscriptionForSpec(
-      specDrawing({ type: 'kpi', title: 'flow', value: { kind: 'latest', series } }),
+    const selector = subscriptionForSpecification(
+      specificationDrawing({ type: 'kpi', title: 'flow', value: { kind: 'latest', series } }),
       null,
     );
 
@@ -375,8 +375,8 @@ describe('a tile reading the newest point of a series', () => {
 // re-asks the question.
 describe('a history binding whose step parameter is bound', () => {
   it('follows the edge the bound parameter walks and names the Thing it reads', () => {
-    const selector = subscriptionForSpec(
-      specDrawing({
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
         type: 'kpi', title: 'degree days',
         value: {
           kind: 'history', property: 'temperatureCelsius', windowSeconds: 31536000,
@@ -393,8 +393,8 @@ describe('a history binding whose step parameter is bound', () => {
   });
 
   it('names the class Thing a stacked share colours by', () => {
-    const selector = subscriptionForSpec(
-      specDrawing({
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
         type: 'stackedShares', title: 'stress',
         classes: [{
           label: 'no stress',
@@ -413,8 +413,8 @@ describe('a history binding whose step parameter is bound', () => {
 // live page, so every one of the widget's bindings has to reach the selector.
 describe('subscriptionForSpec over a rangeBar widget', () => {
   it('asks for every binding the widget holds', () => {
-    const selector = subscriptionForSpec(
-      specDrawing({
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
               type: 'rangeBar',
               title: 'Temperature',
               hint: 'by month',
@@ -438,8 +438,8 @@ describe('subscriptionForSpec over a rangeBar widget', () => {
 // live page, so every one of the widget's bindings has to reach the selector.
 describe('subscriptionForSpec over a lineSeries widget', () => {
   it('asks for every binding the widget holds', () => {
-    const selector = subscriptionForSpec(
-      specDrawing({
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
               type: 'lineSeries',
               title: 'Rain',
               series: [{ label: 'This year', value: { kind: 'aggregate', archetype: 'ThisYear', op: 'count' } }, { label: 'Last year', value: { kind: 'aggregate', archetype: 'LastYear', op: 'count' } }],
@@ -455,8 +455,8 @@ describe('subscriptionForSpec over a lineSeries widget', () => {
 // live page, so every one of the widget's bindings has to reach the selector.
 describe('subscriptionForSpec over a heatmap widget', () => {
   it('asks for every binding the widget holds', () => {
-    const selector = subscriptionForSpec(
-      specDrawing({
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
               type: 'heatmap',
               title: 'Sun',
               value: { kind: 'aggregate', archetype: 'Reading', op: 'count' },
@@ -473,8 +473,8 @@ describe('subscriptionForSpec over a heatmap widget', () => {
 // live page, so every one of the widget's bindings has to reach the selector.
 describe('subscriptionForSpec over a stackedShares widget', () => {
   it('asks for every binding the widget holds', () => {
-    const selector = subscriptionForSpec(
-      specDrawing({
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
               type: 'stackedShares',
               title: 'Cover',
               classes: [
@@ -493,8 +493,8 @@ describe('subscriptionForSpec over a stackedShares widget', () => {
 // live page, so every one of the widget's bindings has to reach the selector.
 describe('subscriptionForSpec over a divergingBar widget', () => {
   it('asks for every binding the widget holds', () => {
-    const selector = subscriptionForSpec(
-      specDrawing({
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
               type: 'divergingBar',
               title: 'Balance',
               up: { label: 'Gain', value: { kind: 'aggregate', archetype: 'Gain', op: 'count' }, threshold: { kind: 'aggregate', archetype: 'GainLine', op: 'count' } },
@@ -511,8 +511,8 @@ describe('subscriptionForSpec over a divergingBar widget', () => {
 // live page, so every one of the widget's bindings has to reach the selector.
 describe('subscriptionForSpec over a smallMultiples widget', () => {
   it('asks for every binding the widget holds', () => {
-    const selector = subscriptionForSpec(
-      specDrawing({
+    const selector = subscriptionForSpecification(
+      specificationDrawing({
               type: 'smallMultiples',
               title: 'Months',
               bars: { label: 'Rain', value: { kind: 'aggregate', archetype: 'Rain', op: 'count' } },

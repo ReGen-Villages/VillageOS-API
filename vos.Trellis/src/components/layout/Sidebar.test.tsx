@@ -14,14 +14,14 @@ import { Sidebar } from './Sidebar';
 
 interface PublishedDashboard {
   name: string;
-  spec: Record<string, unknown>;
+  specification: Record<string, unknown>;
 }
 
 function publish(dashboards: PublishedDashboard[]) {
   const things: VosThing[] = [
     { Id: 'is', Name: 'is', Properties: {} },
     { Id: 'arch-dash', Name: 'Dashboard', Properties: {}, IsArchetype: true },
-    ...dashboards.map((d, i) => ({ Id: `dash-${i}`, Name: d.name, Properties: { spec: JSON.stringify(d.spec) } })),
+    ...dashboards.map((d, i) => ({ Id: `dash-${i}`, Name: d.name, Properties: { spec: JSON.stringify(d.specification) } })),
   ];
   const relationships: VosRelationship[] = dashboards.map((_, i) => ({
     Id: `dash-${i}-is`,
@@ -69,8 +69,8 @@ describe('Sidebar (Story 6582)', () => {
 
   it('lists one entry per published dashboard in place of the built-in one', () => {
     publish([
-      { name: 'Springs', spec: { title: 'Springs', icon: 'droplet', sections: [] } },
-      { name: 'Arrays', spec: { title: 'Arrays', icon: 'grid-3x3', sections: [] } },
+      { name: 'Springs', specification: { title: 'Springs', icon: 'droplet', sections: [] } },
+      { name: 'Arrays', specification: { title: 'Arrays', icon: 'grid-3x3', sections: [] } },
     ]);
     renderSidebar();
 
@@ -82,9 +82,9 @@ describe('Sidebar (Story 6582)', () => {
 
   it('lists a page the platform declares before the model’s own, with an address of its own', () => {
     usePlatformPagesStore.setState({
-      pages: [{ id: 'declared:accounts', name: 'Accounts', routeKey: 'accounts', spec: { title: 'Accounts', icon: 'users', sections: [] } }],
+      pages: [{ id: 'declared:accounts', name: 'Accounts', routeKey: 'accounts', specification: { title: 'Accounts', icon: 'users', sections: [] } }],
     });
-    publish([{ name: 'Arrays', spec: { title: 'Arrays', sections: [] } }]);
+    publish([{ name: 'Arrays', specification: { title: 'Arrays', sections: [] } }]);
     renderSidebar();
 
     const labels = entryLabels();
@@ -94,7 +94,7 @@ describe('Sidebar (Story 6582)', () => {
   });
 
   it('gives each entry an address of its own', () => {
-    publish([{ name: 'Site catchments', spec: { title: 'Catchments', sections: [] } }]);
+    publish([{ name: 'Site catchments', specification: { title: 'Catchments', sections: [] } }]);
     renderSidebar();
 
     expect(hrefOf('Catchments')).toBe('/operations/site-catchments');
@@ -102,7 +102,7 @@ describe('Sidebar (Story 6582)', () => {
 
   it('labels an entry with the dashboard title in the active language', async () => {
     publish([
-      { name: 'Springs', spec: { title: 'Springs', sections: [], translations: { nl: { Springs: 'Bronnen' } } } },
+      { name: 'Springs', specification: { title: 'Springs', sections: [], translations: { nl: { Springs: 'Bronnen' } } } },
     ]);
     await i18n.changeLanguage('nl');
     renderSidebar();
@@ -111,14 +111,14 @@ describe('Sidebar (Story 6582)', () => {
   });
 
   it('still lists a dashboard whose spec names no icon', () => {
-    publish([{ name: 'Reservoirs', spec: { title: 'Reservoirs', sections: [] } }]);
+    publish([{ name: 'Reservoirs', specification: { title: 'Reservoirs', sections: [] } }]);
     renderSidebar();
 
     expect(entryLabels()).toContain('Reservoirs');
   });
 
   it('still lists a dashboard naming an icon the set does not have', () => {
-    publish([{ name: 'Reservoirs', spec: { title: 'Reservoirs', icon: 'not-an-icon-name', sections: [] } }]);
+    publish([{ name: 'Reservoirs', specification: { title: 'Reservoirs', icon: 'not-an-icon-name', sections: [] } }]);
     renderSidebar();
 
     expect(entryLabels()).toContain('Reservoirs');

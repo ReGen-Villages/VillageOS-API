@@ -10,7 +10,7 @@
  * Nothing here names a domain. The words in {@link FigureTerms} are the model's own and reach the
  * reader untranslated, exactly as state names, archetypes and property keys do everywhere else.
  */
-import { SCOPE_REF, type Binding, type PropertyFilter } from '../types/dashboard';
+import { SCOPE_REFERENCE, type Binding, type PropertyFilter } from '../types/dashboard';
 import {
   type ResolveContext,
   type Row,
@@ -139,7 +139,7 @@ export async function breakdownOf(binding: Binding, context: ResolveContext): Pr
       // With nothing selected, `$scope` reads as the average across the compared entities — so the
       // rows behind such a figure are those entities, each with the value it contributed.
       const averaged =
-        !named && binding.thing === SCOPE_REF && context.compareArchetype
+        !named && binding.thing === SCOPE_REFERENCE && context.compareArchetype
           ? thingsOfArchetype(context.compareArchetype, context.index)
           : [];
       const holders = named ? [named] : averaged;
