@@ -124,6 +124,43 @@ public class StateCommandHandlerTests
     }
 
     [Fact]
+    public async Task Query_PassesEveryNarrowingOptionToTheRoute()
+    {
+        var site = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(Parse($"[{{\"Id\":\"{site}\",\"Name\":\"Site-1\"}}]"));
+        _myceliumMock.Setup(b => b.GetThingsInStateAsync("warm", It.Is<StateListNarrowing>(n =>
+                n.Type == "Home" && n.AlsoIn == "lit,open" && n.NotIn == "empty" && n.Within == site
+                && n.Limit == 3 && n.Properties == "area" && n.IncludeArchetypes && !n.CountOnly)))
+            .ReturnsAsync(Parse("{\"StateName\":\"warm\",\"Things\":[{\"Id\":\"a\"}]}"));
+
+        await ExecuteHandler("query warm --type=Home --also-in=lit,open --not-in=empty --within=Site-1 --limit=3 --properties=area --include-archetypes");
+
+        Assert.Contains("\"Things\"", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task Query_WithCount_AsksForTheCountAloneAndPrintsTheNumber()
+    {
+        _myceliumMock.Setup(b => b.GetThingsInStateAsync("warm", It.Is<StateListNarrowing>(n => n.CountOnly && n.Type == "Home")))
+            .ReturnsAsync(Parse("{\"StateName\":\"warm\",\"Count\":7}"));
+
+        await ExecuteHandler("query warm --type=Home --count");
+
+        Assert.Equal("7 thing(s) in state 'warm'.\n", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task Query_WithinANameTheModelDoesNotHold_SaysSoAndAsksNothing()
+    {
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(Parse("[]"));
+
+        await ExecuteHandler("query warm --within=Nowhere");
+
+        Assert.Contains("Error:", _writer.ToString());
+        _myceliumMock.Verify(b => b.GetThingsInStateAsync(It.IsAny<string>(), It.IsAny<StateListNarrowing>()), Times.Never);
+    }
+
+    [Fact]
     public async Task UnknownSubcommand_TreatedAsThingForGet()
     {
         // The default branch in ExecuteSubcommandAsync re-routes the unknown subcommand

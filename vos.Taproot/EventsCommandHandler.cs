@@ -27,7 +27,7 @@ public class EventsCommandHandler
             return;
         }
 
-        var seconds = WindowSeconds(tokens.Skip(1));
+        var seconds = CommandOptions.Number(tokens.Skip(1), "--for") ?? DefaultWatchSeconds;
         var received = 0;
         using var window = new CancellationTokenSource(TimeSpan.FromSeconds(seconds));
         try
@@ -50,17 +50,6 @@ public class EventsCommandHandler
         _writer.WriteLine(received == 0
             ? $"Nothing happened in {seconds} s."
             : $"Watched {received} event(s) in {seconds} s.");
-    }
-
-    private static int WindowSeconds(IEnumerable<string> tokens)
-    {
-        foreach (var token in tokens)
-        {
-            if (token.StartsWith("--for=", StringComparison.OrdinalIgnoreCase)
-                && int.TryParse(token["--for=".Length..], out var seconds))
-                return seconds;
-        }
-        return DefaultWatchSeconds;
     }
 
     private void ShowUsage()

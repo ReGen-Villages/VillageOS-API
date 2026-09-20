@@ -40,7 +40,8 @@ namespace vos.Taproot
             _writer.WriteLine("  get thing <thing>                           - Get a thing");
             _writer.WriteLine("  find thing <pattern>                        - Find things by name pattern");
             _writer.WriteLine("  find relationships <thing>                  - Find all relationships for a thing");
-            _writer.WriteLine("  list things                                 - List all things");
+            _writer.WriteLine("  list things [--type=<kind>] [--within=<thing>] [--limit=N] [--properties=a,b] [--name=x,y]");
+            _writer.WriteLine("                                              - List things, narrowed as the options say");
             _writer.WriteLine("  list relations                              - List all relationships");
             _writer.WriteLine("  list predicates                             - List all predicates");
             _writer.WriteLine("  list services                               - List all registered services (with daemon state)");
@@ -70,7 +71,8 @@ namespace vos.Taproot
             _writer.WriteLine("  state <thing>                               - Get current states for a thing");
             _writer.WriteLine("  engines [ranges|rollups]                    - Reactive-engine totals; drill in to per-reactor detail");
             _writer.WriteLine("  snapshots                                   - What snapshot reads cost against the writers");
-            _writer.WriteLine("  state query <state-name>                    - Find things in a state");
+            _writer.WriteLine("  state query <state-name> [options]          - Find things in a state; narrows like list things, plus");
+            _writer.WriteLine("                                                --also-in=a,b --not-in=c --include-archetypes --count");
             _writer.WriteLine();
             _writer.WriteLine("File Operations:");
             _writer.WriteLine("  serialize [file]                            - Serialize model to JSON");

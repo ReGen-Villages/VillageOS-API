@@ -77,15 +77,47 @@ public class StateCommandHandler
     {
         if (args.Length < 1)
         {
-            _writer.WriteLine("Usage: state query <state-name>");
+            _writer.WriteLine("Usage: state query <state-name> [--type=<kind>] [--also-in=a,b] [--not-in=c] [--within=<thing>]");
+            _writer.WriteLine("                                [--limit=N] [--properties=a,b] [--include-archetypes] [--count]");
             _writer.WriteLine();
             _writer.WriteLine("Find the things currently in the specified state.");
-            _writer.WriteLine("The kinds those things are — the archetypes — are left out.");
+            _writer.WriteLine("The kinds those things are — the archetypes — are left out unless --include-archetypes asks for them.");
+            _writer.WriteLine("--count answers how many, and none of the things themselves.");
             return;
         }
 
-        var result = await _client!.GetThingsInStateAsync(args[0]);
-        WriteFormattedJson(result);
+        var options = args.Skip(1).ToArray();
+        StateListNarrowing? narrowing = null;
+        if (options.Length > 0)
+        {
+            Guid? within = null;
+            if (CommandOptions.Value(options, "--within") is { } container)
+            {
+                var resolved = await _resolver!.ResolveThingAsync(container);
+                if (!resolved.IsSuccess)
+                {
+                    _writer.WriteLine($"Error: {resolved.ErrorMessage}");
+                    return;
+                }
+                within = resolved.Id;
+            }
+
+            narrowing = new StateListNarrowing(
+                AlsoIn: CommandOptions.Value(options, "--also-in"),
+                NotIn: CommandOptions.Value(options, "--not-in"),
+                Type: CommandOptions.Value(options, "--type"),
+                Within: within,
+                IncludeArchetypes: CommandOptions.Has(options, "--include-archetypes"),
+                Limit: CommandOptions.Number(options, "--limit"),
+                Properties: CommandOptions.Value(options, "--properties"),
+                CountOnly: CommandOptions.Has(options, "--count"));
+        }
+
+        var result = await _client!.GetThingsInStateAsync(args[0], narrowing);
+        if (result.ValueKind == JsonValueKind.Object && result.TryGetProperty("Count", out var count) && count.ValueKind == JsonValueKind.Number)
+            _writer.WriteLine($"{count.GetInt32()} thing(s) in state '{args[0]}'.");
+        else
+            WriteFormattedJson(result);
     }
 
     private void WriteFormattedJson(JsonElement element) =>
@@ -99,10 +131,11 @@ public class StateCommandHandler
         _writer.WriteLine("  state <thing>");
         _writer.WriteLine("    Get current states for a thing (evaluates all ranges).");
         _writer.WriteLine();
-        _writer.WriteLine("  state query <state-name>");
+        _writer.WriteLine("  state query <state-name> [--type=<kind>] [--also-in=a,b] [--not-in=c] [--within=<thing>]");
+        _writer.WriteLine("                           [--limit=N] [--properties=a,b] [--include-archetypes] [--count]");
         _writer.WriteLine("  state find <state-name>");
-        _writer.WriteLine("    Find the things currently in the specified state.");
-        _writer.WriteLine("    The kinds those things are — the archetypes — are left out.");
+        _writer.WriteLine("    Find the things currently in the specified state, narrowed as the options say.");
+        _writer.WriteLine("    The kinds those things are — the archetypes — are left out unless asked for; --count answers how many.");
         _writer.WriteLine();
         _writer.WriteLine("Note: <thing> can be a GUID or a unique name.");
     }

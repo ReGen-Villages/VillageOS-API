@@ -113,29 +113,11 @@ public class LogsCommandHandler
         _writer.WriteLine($"A follow ends after --for seconds (default {DefaultFollowSeconds}).");
     }
 
-    private sealed class LogOptions
+    private sealed class LogOptions(IEnumerable<string> tokens)
     {
-        public int? Lines { get; }
-        public int? ForSeconds { get; }
-        public string? Service { get; }
-        public string? File { get; }
-
-        public LogOptions(IEnumerable<string> tokens)
-        {
-            foreach (var token in tokens)
-            {
-                if (TryNumber(token, "--lines=", out var lines)) Lines = lines;
-                else if (TryNumber(token, "--for=", out var seconds)) ForSeconds = seconds;
-                else if (token.StartsWith("--service=", StringComparison.OrdinalIgnoreCase)) Service = token["--service=".Length..];
-                else if (!token.StartsWith("--")) File = token;
-            }
-        }
-
-        private static bool TryNumber(string token, string prefix, out int value)
-        {
-            value = 0;
-            return token.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-                && int.TryParse(token[prefix.Length..], out value);
-        }
+        public int? Lines { get; } = CommandOptions.Number(tokens, "--lines");
+        public int? ForSeconds { get; } = CommandOptions.Number(tokens, "--for");
+        public string? Service { get; } = CommandOptions.Value(tokens, "--service");
+        public string? File { get; } = CommandOptions.Positional(tokens).FirstOrDefault();
     }
 }

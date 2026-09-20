@@ -25,7 +25,7 @@ namespace vos.Taproot
                 switch (cmd)
                 {
                     case "things":
-                        await ListThingsAsync();
+                        await ListThingsAsync(tok.Skip(1).ToArray());
                         break;
 
                     case "relations":
@@ -59,9 +59,15 @@ namespace vos.Taproot
             }
         }
 
-        private async Task ListThingsAsync()
+        private async Task ListThingsAsync(string[] options)
         {
-            var things = await _mycelium.GetAllThingsAsync();
+            var narrowing = await ParseNarrowingAsync(options);
+            if (narrowing is null)
+                return;
+
+            var things = narrowing.IsEmpty
+                ? await _mycelium.GetAllThingsAsync()
+                : await _mycelium.GetThingsAsync(narrowing);
 
             if (things.ValueKind != JsonValueKind.Array || things.GetArrayLength() == 0)
             {
@@ -71,7 +77,8 @@ namespace vos.Taproot
 
             // Inherited properties are resolved server-side; the per-Thing map is keyed by id and each
             // inherited entry carries a qualified path key ("Device.serialNumber") and IsInherited.
-            var effective = await _mycelium.GetAllPropertiesAsync();
+            // A caller that named the properties it wants has them on each Thing already.
+            var effective = narrowing.Properties is null ? await _mycelium.GetAllPropertiesAsync() : default;
             var modelName = await GetModelNameAsync();
             _writer.WriteLine($"Model: {modelName}");
             _writer.WriteLine($"Things ({things.GetArrayLength()}):");
@@ -80,6 +87,29 @@ namespace vos.Taproot
             {
                 WriteThingEntry(thing, effective);
             }
+        }
+
+        // Null when --within named something the model does not hold, which has been written out.
+        private async Task<ThingListNarrowing?> ParseNarrowingAsync(string[] options)
+        {
+            Guid? within = null;
+            if (CommandOptions.Value(options, "--within") is { } container)
+            {
+                var resolved = await _resolver.ResolveThingAsync(container);
+                if (!resolved.IsSuccess)
+                {
+                    _writer.WriteLine($"Error: {resolved.ErrorMessage}");
+                    return null;
+                }
+                within = resolved.Id;
+            }
+
+            return new ThingListNarrowing(
+                Type: CommandOptions.Value(options, "--type"),
+                Within: within,
+                Limit: CommandOptions.Number(options, "--limit"),
+                Properties: CommandOptions.Value(options, "--properties"),
+                Names: CommandOptions.Value(options, "--name"));
         }
 
         private void WriteThingEntry(JsonElement thing, JsonElement effective)
@@ -330,7 +360,8 @@ namespace vos.Taproot
 
         private void ShowUsage()
         {
-            _writer.WriteLine("Usage: list things [--showguids]    - List all things");
+            _writer.WriteLine("Usage: list things [--showguids] [--type=<kind>] [--within=<thing>] [--limit=N] [--properties=a,b] [--name=x,y]");
+            _writer.WriteLine("                                    - List things, narrowed to a kind, a container, a count, some properties or some names");
             _writer.WriteLine("       list relations [--showguids] - List all relationships");
             _writer.WriteLine("       list predicates              - List all predicates");
             _writer.WriteLine("       list handlers [--showguids]  - List all handlers");
