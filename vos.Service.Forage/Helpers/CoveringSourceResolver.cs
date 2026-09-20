@@ -159,15 +159,25 @@ public static class CoveringSourceResolver
         // members, every coverage in the model arrived on every site's read (Bug #6818); the ones about
         // this site come through the `appliesTo` traversal below. The two division lookups are asked for
         // the same way and for the same reason: no edge reaches either, because neither covers a Place.
-        MarkedArchetypes = [SourceCoverageArchetypeFlag, AreaNameLookupFlag, HazardDivisionLookupFlag],
+        // The predicate a source provides its variables through is found by its mark rather than its
+        // name, and asked for here because the traversal over it below brings the variables and never
+        // the Thing it was followed through — and without that Thing no edge reads as providing anything.
+        MarkedArchetypes =
+        [
+            SourceCoverageArchetypeFlag, AreaNameLookupFlag, HazardDivisionLookupFlag,
+            ProvidedVariablePredicateFlag,
+        ],
         Traverse =
         [
             new TraverseRule { Predicate = IsInPredicate, Depth = PlaceNestingDepth },
             // Incoming: the edge runs source -> place, and the set so far holds the places.
             new TraverseRule { Predicate = CoversPredicate, Direction = "incoming" },
             new TraverseRule { Predicate = ResolvedByPredicate },
-            // After covers: the sources are in the set, and what each declares it resolves onto joins it.
+            // After covers: the sources are in the set, and what each declares it resolves onto joins it,
+            // as do the variables each provides — by the flag the edge's predicate carries, so a model
+            // may call that predicate what it likes.
             new TraverseRule { Predicate = ResolvesOntoPredicate },
+            new TraverseRule { PredicateFlag = ProvidedVariablePredicateFlag },
             // Incoming: the edge runs study -> site.
             new TraverseRule { Predicate = StudiesPredicate, Direction = "incoming" },
             // Reaches each connection's service, and everything the site has — a per-subject call below
