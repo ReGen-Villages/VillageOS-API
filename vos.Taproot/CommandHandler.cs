@@ -114,6 +114,7 @@ namespace vos.Taproot
             _writer.WriteLine("  logs tail [--lines=N] [--service=<name>]    - The last lines of the Mycelium log, or a service daemon's");
             _writer.WriteLine("  logs follow [--for=SECONDS] [--service=<name>] - Print lines as they are appended, then return (default 30 s)");
             _writer.WriteLine("  logs download [--service=<name>] [file]     - Save the whole current log file");
+            _writer.WriteLine("  events watch [--for=SECONDS]                - Print each model event as it arrives, then return (default 30 s)");
             _writer.WriteLine();
             _writer.WriteLine("Submissions:");
             _writer.WriteLine("  submissions list                            - What has arrived, and its state");
@@ -213,6 +214,7 @@ namespace vos.Taproot
             ["user"] = async (_, a) => await new UserCommandHandler(a, _reader, _writer, _mycelium).ExecuteAsync(),
             ["submissions"] = async (_, a) => await new SubmissionsCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["logs"] = async (_, a) => await new LogsCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["events"] = async (_, a) => await new EventsCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
         };
 
         public async Task RunAsync()

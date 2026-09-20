@@ -331,6 +331,26 @@ public class MyceliumClientTests
     }
 
     [Fact]
+    public async Task WatchEventsAsync_RoutesToEventsStreamWithABearerTokenAndYieldsEachEvent()
+    {
+        var (client, handler) = NewClient(req => req.RequestUri!.AbsolutePath == "/api/auth/token"
+            ? TokenResponse(ServiceToken)
+            : new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(": stream open\n\nevent: ThingCreated\ndata: {\"Id\":\"a\"}\n\n")
+            });
+
+        var received = new List<ServerSentEvent>();
+        await foreach (var one in client.WatchEventsAsync(CancellationToken.None))
+            received.Add(one);
+
+        var request = handler.Requests.Last();
+        request.RequestUri!.PathAndQuery.Should().Be("/api/events/stream");
+        request.Headers.Authorization!.Parameter.Should().Be(ServiceToken);
+        received.Should().ContainSingle().Which.Should().Be(new ServerSentEvent("ThingCreated", "{\"Id\":\"a\"}"));
+    }
+
+    [Fact]
     public async Task GetDefaultPropertyModeAsync_RoutesToConfigPropertyModeEndpoint()
     {
         await VerifyGetEndpointHit("/api/config/property-mode", c => c.GetDefaultPropertyModeAsync());

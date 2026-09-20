@@ -120,6 +120,9 @@ public class MyceliumClient
     public virtual IAsyncEnumerable<ServerSentEvent> FollowLogAsync(int? tail, string? service, CancellationToken cancellationToken)
         => StreamAsync($"{_myceliumUrl}/api/logs/stream{Query(("tail", tail?.ToString()), ("service", service))}", cancellationToken);
 
+    public virtual IAsyncEnumerable<ServerSentEvent> WatchEventsAsync(CancellationToken cancellationToken)
+        => StreamAsync($"{_myceliumUrl}/api/events/stream", cancellationToken);
+
     // A stream stays open as long as the caller listens, so it cannot go through the client whose
     // timeout bounds every request.
     private async IAsyncEnumerable<ServerSentEvent> StreamAsync(
