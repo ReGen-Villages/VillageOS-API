@@ -215,8 +215,8 @@ class ApiClient {
   }
 
   /**
-   * Ensure we have a valid token. Auth modes: existing login token used directly;
-   * else VITE_API_KEY exchanged for a short-lived JWT; else auth is required.
+   * Ensure we have a valid token. Authentication modes: existing login token used directly;
+   * else VITE_API_KEY exchanged for a short-lived JWT; else authentication is required.
    */
   async ensureToken(): Promise<string> {
     if (this.token && this.tokenExpiry && new Date() < this.tokenExpiry) {
@@ -289,7 +289,7 @@ class ApiClient {
     });
     await this.assertOk(response);
     // Guard against empty response bodies (e.g. 200 with 0 bytes) —
-    // resp.json() throws SyntaxError on empty input.
+    // response.json() throws SyntaxError on empty input.
     if (response.status === 204) return ([] as unknown) as T;
     try {
       return await response.json();

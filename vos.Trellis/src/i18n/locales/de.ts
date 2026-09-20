@@ -157,7 +157,7 @@ export const de: PartialResources = {
       downloadLog: 'Protokoll herunterladen',
       deleteRetract: 'Löschen (aus dem Modell zurückziehen)',
       requests: 'Anfragen',
-      avgTime: 'Ø-Zeit',
+      averageTime: 'Ø-Zeit',
       errors: 'Fehler',
       lastRequest: 'Letzte Anfrage',
       lastContact: 'Letzter Kontakt',

@@ -157,7 +157,7 @@ export const es: PartialResources = {
       downloadLog: 'Descargar registro',
       deleteRetract: 'Eliminar (retirar del modelo)',
       requests: 'Solicitudes',
-      avgTime: 'Tiempo medio',
+      averageTime: 'Tiempo medio',
       errors: 'Errores',
       lastRequest: 'Última solicitud',
       lastContact: 'Último contacto',

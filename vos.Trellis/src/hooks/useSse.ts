@@ -86,7 +86,7 @@ const PROPERTY_EVENTS = new Set([
   'PropertyObserved',
 ]);
 
-// Map an SSE event's data object to the positional args the handlers expect.
+// Map an SSE event's data object to the positional arguments the handlers expect.
 // A property event is (id, name, value), with no value on a retraction; everything else passes the
 // data object through.
 function toArguments(kind: string, data: { EntityId?: string; PropertyName?: string; Value?: unknown } | unknown): unknown[] {

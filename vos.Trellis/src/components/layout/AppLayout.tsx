@@ -13,7 +13,7 @@ export function AppLayout() {
   useEffect(() => {
     return on('ActivityEvent', (event: unknown) => {
       // The SSE stream may send camelCase or PascalCase depending on Mycelium's
-      // AddJsonProtocol config — accept both.
+      // AddJsonProtocol configuration — accept both.
       const raw = event as Record<string, unknown>;
       const normalised: ActivityEvent = {
         Type: (raw.Type ?? raw.type) as string,

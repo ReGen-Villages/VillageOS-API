@@ -42,7 +42,7 @@ interface ServiceRow {
   trigger: 'graph' | 'http';
   routeLabel: string;
   requests: number;
-  avgMs: number;
+  averageMilliseconds: number;
   lastRequestUtc?: string;
   errors?: number;
   health?: string;
@@ -62,7 +62,7 @@ function fromService(service: RegisteredService): ServiceRow {
     trigger: 'graph',
     routeLabel: 'predicate',
     requests: service.Stats.RequestsForwarded,
-    avgMs: service.Stats.AverageResponseMilliseconds,
+    averageMilliseconds: service.Stats.AverageResponseMilliseconds,
     lastRequestUtc: service.Stats.LastRequestUtc,
     health: service.HealthStatus,
     running: service.IsRunning,
@@ -81,7 +81,7 @@ function fromEndpoint(effectiveProperty: EndpointServiceInformation): ServiceRow
     trigger: 'http',
     routeLabel: `/api/endpoints/${effectiveProperty.Subdomain}`,
     requests: effectiveProperty.Stats.RequestCount,
-    avgMs: effectiveProperty.Stats.AverageResponseMs,
+    averageMilliseconds: effectiveProperty.Stats.AverageResponseMs,
     lastRequestUtc: effectiveProperty.Stats.LastRequestUtc,
     errors: effectiveProperty.Stats.ErrorCount,
     deleteThingId: effectiveProperty.ObjectId,
@@ -153,8 +153,8 @@ export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete, 
                 <span className="font-mono text-zinc-300">{row.requests}</span>
               </div>
               <div>
-                <span className="block text-zinc-400">{t('dashboard.services.avgTime')}</span>
-                <span className="font-mono text-zinc-300">{formatMilliseconds(row.avgMs)}</span>
+                <span className="block text-zinc-400">{t('dashboard.services.averageTime')}</span>
+                <span className="font-mono text-zinc-300">{formatMilliseconds(row.averageMilliseconds)}</span>
               </div>
               {row.errors !== undefined && (
                 <div>

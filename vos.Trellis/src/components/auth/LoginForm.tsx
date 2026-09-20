@@ -19,7 +19,7 @@ type SortKey = 'name' | 'size';
 type SortDirection = 'asc' | 'desc';
 
 function parseSeedInformation(name: string): { label: string; sizeMb: number | null } {
-  // Name format from useAuth: "seedName  (12.3 MB)"
+  // Name format from useAuthentication: "seedName  (12.3 MB)"
   const match = name.match(/^(.+?)\s{2}\(([0-9.]+)\s*MB\)$/);
   if (match) return { label: match[1], sizeMb: parseFloat(match[2]) };
   return { label: name, sizeMb: null };

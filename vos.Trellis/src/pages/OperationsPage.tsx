@@ -1,10 +1,10 @@
 /**
- * Generic, config-driven operations dashboard.
+ * Generic, configuration-driven operations dashboard.
  *
  * Contains NO domain vocabulary. It discovers a model-resident `Dashboard`
- * config Thing (see src/types/dashboard.ts), renders its sections of generic
+ * configuration Thing (see src/types/dashboard.ts), renders its sections of generic
  * widgets, and resolves every widget's bindings through the generic resolver.
- * A model with no Dashboard config shows guidance instead.
+ * A model with no Dashboard configuration shows guidance instead.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { LayoutDashboard } from 'lucide-react';

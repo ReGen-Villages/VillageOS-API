@@ -149,7 +149,7 @@ export const en = {
       downloadLog: 'Download log',
       deleteRetract: 'Delete (retract from model)',
       requests: 'Requests',
-      avgTime: 'Avg Time',
+      averageTime: 'Avg Time',
       errors: 'Errors',
       lastRequest: 'Last Req',
       lastContact: 'Last Contact',

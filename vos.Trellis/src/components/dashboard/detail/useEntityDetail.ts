@@ -46,7 +46,7 @@ export interface EntityDetail {
   dispatches: ServiceDispatch[];
 }
 
-/** Follow `value` at most once per `ms`, leading-edge: the first change after a quiet period
+/** Follow `value` at most once per `milliseconds`, leading-edge: the first change after a quiet period
  *  is taken promptly, then further changes wait out the window. Unlike a debounce this always
  *  makes progress — a continuously-changing value resets a debounce forever, which here would
  *  silently freeze the window's contents for as long as the model kept changing. */

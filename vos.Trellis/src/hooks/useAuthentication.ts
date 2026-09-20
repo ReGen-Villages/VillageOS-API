@@ -95,7 +95,7 @@ export function useAuthenticationState(): AuthenticationState {
         const status = await myceliumApi.getStartupStatus();
         setStartupProgress(status);
         if (!status.IsLoading && status.Phase === 'Done') {
-          // Read creds BEFORE stopPolling (which clears pendingCredsRef)
+          // Read the credentials before stopPolling, which clears them.
           const credentials = pendingCredentialsReference.current;
           stopPolling();
           setStartupProgress(null);
@@ -226,7 +226,7 @@ export function useAuthenticationState(): AuthenticationState {
     setError(null);
     try {
       const result = await myceliumApi.loadSeed(seedName);
-      // Re-scope the JWT to the newly loaded model (works for login and API-key auth).
+      // Re-scope the JWT to the newly loaded model (works for login and API-key authentication).
       await apiClient.rescopeToModel(result.modelId);
       useModelStore.getState().clear();
       setModelId(result.modelId);

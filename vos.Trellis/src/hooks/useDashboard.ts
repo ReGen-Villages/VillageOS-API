@@ -1,5 +1,5 @@
 /**
- * Hooks that drive the config-driven dashboard: build a resolve context from the live model store
+ * Hooks that drive the configuration-driven dashboard: build a resolve context from the live model store
  * and the selected scope, and resolve each binding again when what its own answer is made of moves.
  */
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';

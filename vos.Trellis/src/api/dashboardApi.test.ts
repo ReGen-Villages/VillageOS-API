@@ -56,7 +56,7 @@ function declared(things: VosThing[], relationships: VosRelationship[]): VosThin
   return things.map((x) => (targets.has(x.Id) ? { ...x, IsArchetype: true } : x));
 }
 
-// ---- a tiny synthetic model: 2 villages + a Dashboard config ----
+// ---- a tiny synthetic model: 2 villages + a Dashboard configuration ----
 const SPEC = {
   title: 'Ops',
   compare: { label: 'site', archetype: 'Village' },

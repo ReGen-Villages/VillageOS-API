@@ -22,7 +22,7 @@ export interface ClusterMap {
 
 // ── Predicate statistics ──────────────────────────────────────────────
 
-/** Convert an accumulated counts map into a sorted PredicateStats array. */
+/** Convert an accumulated counts map into a sorted PredicateStatistics array. */
 function buildPredicateStatisticsArray(
   counts: Map<string, { name: string; count: number }>,
   predicateColors: Record<string, string>,

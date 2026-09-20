@@ -82,7 +82,7 @@ export function discoverTypes(
     if (!name) continue;
     out.push({ typeId, name, instanceCount: members.size });
   }
-  // Real types sort by count desc then name asc; the synthetic no-type bucket
+  // Real types sort by count descending then name ascending; the synthetic no-type bucket
   // always sorts to the end so it doesn't displace meaningful types in the
   // panel even when its count is high.
   out.sort((a, b) => {

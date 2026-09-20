@@ -157,7 +157,7 @@ export const fr: PartialResources = {
       downloadLog: 'Télécharger le journal',
       deleteRetract: 'Supprimer (retirer du modèle)',
       requests: 'Requêtes',
-      avgTime: 'Temps moyen',
+      averageTime: 'Temps moyen',
       errors: 'Erreurs',
       lastRequest: 'Dernière requête',
       lastContact: 'Dernier contact',

@@ -237,7 +237,7 @@ describe('computeClusters — edge cases', () => {
     graph.addDirectedEdgeWithKey('e2', 'a', 'b', { predicateId: 'p1' });
 
     const result = computeClusters(graph, new Set(['p1']));
-    // pred should not be in any cluster
+    // the predicate should not be in any cluster
     expect(result.nodeCluster.get('pred')).toBe(-1);
     // a and b should be clustered together
     const cluster = result.clusters.find((c) => c.has('a') && c.has('b'));

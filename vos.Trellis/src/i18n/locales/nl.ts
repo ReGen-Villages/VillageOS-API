@@ -157,7 +157,7 @@ export const nl: PartialResources = {
       downloadLog: 'Logboek downloaden',
       deleteRetract: 'Verwijderen (terugtrekken uit model)',
       requests: 'Verzoeken',
-      avgTime: 'Gem. tijd',
+      averageTime: 'Gem. tijd',
       errors: 'Fouten',
       lastRequest: 'Laatste verzoek',
       lastContact: 'Laatste contact',

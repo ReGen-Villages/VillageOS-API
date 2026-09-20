@@ -26,80 +26,80 @@ const SOURCE_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 /** Each clipped form and the word it stands for. `min` and `max` are absent on purpose: they are how
  *  a bound is written in arithmetic, not clipped words. */
 const SPELLED_OUT: Record<string, string> = {
-  abbrev: 'abbreviated',
-  arch: 'archetype',
-  args: 'arguments',
-  attr: 'attribute',
-  attrs: 'attributes',
-  auth: 'authentication',
-  avg: 'average',
-  cb: 'callback',
-  cfg: 'configuration',
-  cls: 'class',
-  col: 'column',
-  cols: 'columns',
-  config: 'configuration',
-  cred: 'credential',
-  creds: 'credentials',
-  ctx: 'context',
-  desc: 'description',
-  dir: 'direction or directory',
-  dirs: 'directories',
-  ents: 'entities',
-  ep: 'endpoint',
-  exec: 'execute',
-  gw: 'gateway',
-  idx: 'index',
-  info: 'information',
-  init: 'initialise',
-  kv: 'key and value',
-  loc: 'location',
-  locs: 'locations',
-  ms: 'milliseconds',
-  msg: 'message',
-  msgs: 'messages',
-  nav: 'navigation',
-  nr: 'number',
-  num: 'number',
-  obj: 'object',
-  op: 'operation',
-  opts: 'options',
-  param: 'parameter',
-  params: 'parameters',
-  pct: 'percent',
-  pid: 'process id',
-  pos: 'position',
-  pred: 'predicate',
-  prev: 'previous',
-  prop: 'property',
-  props: 'properties',
-  qty: 'quantity',
-  rect: 'rectangle',
-  ref: 'reference',
-  refs: 'references',
-  rel: 'relationship',
-  rels: 'relationships',
-  req: 'request',
-  reqs: 'requests',
-  resp: 'response',
-  rng: 'random',
-  seq: 'sequence',
-  spec: 'specification',
-  specs: 'specifications',
-  src: 'source',
-  stats: 'statistics',
-  subj: 'subject',
-  svc: 'service',
-  targ: 'target',
-  tid: 'thing id',
-  tmp: 'temporary',
-  tok: 'token',
-  toks: 'tokens',
-  uid: 'unique id',
-  util: 'utility',
-  utils: 'utilities',
-  val: 'value',
-  vals: 'values',
+  'abbrev': 'abbreviated',
+  'arch': 'archetype',
+  'args': 'arguments',
+  'attr': 'attribute',
+  'attrs': 'attributes',
+  'auth': 'authentication',
+  'avg': 'average',
+  'cb': 'callback',
+  'cfg': 'configuration',
+  'cls': 'class',
+  'col': 'column',
+  'cols': 'columns',
+  'config': 'configuration',
+  'cred': 'credential',
+  'creds': 'credentials',
+  'ctx': 'context',
+  'desc': 'description',
+  'dir': 'direction or directory',
+  'dirs': 'directories',
+  'ents': 'entities',
+  'ep': 'endpoint',
+  'exec': 'execute',
+  'gw': 'gateway',
+  'idx': 'index',
+  'info': 'information',
+  'init': 'initialise',
+  'kv': 'key and value',
+  'loc': 'location',
+  'locs': 'locations',
+  'ms': 'milliseconds',
+  'msg': 'message',
+  'msgs': 'messages',
+  'nav': 'navigation',
+  'nr': 'number',
+  'num': 'number',
+  'obj': 'object',
+  'op': 'operation',
+  'opts': 'options',
+  'param': 'parameter',
+  'params': 'parameters',
+  'pct': 'percent',
+  'pid': 'process id',
+  'pos': 'position',
+  'pred': 'predicate',
+  'prev': 'previous',
+  'prop': 'property',
+  'props': 'properties',
+  'qty': 'quantity',
+  'rect': 'rectangle',
+  'ref': 'reference',
+  'refs': 'references',
+  'rel': 'relationship',
+  'rels': 'relationships',
+  'req': 'request',
+  'reqs': 'requests',
+  'resp': 'response',
+  'rng': 'random',
+  'seq': 'sequence',
+  'spec': 'specification',
+  'specs': 'specifications',
+  'src': 'source',
+  'stats': 'statistics',
+  'subj': 'subject',
+  'svc': 'service',
+  'targ': 'target',
+  'tid': 'thing id',
+  'tmp': 'temporary',
+  'tok': 'token',
+  'toks': 'tokens',
+  'uid': 'unique id',
+  'util': 'utility',
+  'utils': 'utilities',
+  'val': 'value',
+  'vals': 'values',
 };
 
 /** Every name kept short on purpose, and why. A name here is one nobody here chose: a language's
@@ -119,7 +119,44 @@ function keptIn(where: string, reason: string, ...names: string[]): void {
   for (const name of names) KEPT_IN.set(`${where}::${name}`, reason);
 }
 
+/** Clipped words held whole under a work item, because the identifiers carrying them are JSON keys a
+ *  page specification shares with the platform's templates and change together with those. */
+const HELD_WORDS = new Set<string>();
+
+function held(reason: string, words: string[], ...names: string[]): void {
+  for (const word of words) HELD_WORDS.add(word);
+  kept(reason, ...names);
+}
+
+kept("React's word for a component's inputs, and the type naming them; `properties` here are a Thing's",
+  'props', 'Props', 'baseProps', 'orbitControlsProps', 'StepProps', 'EntityPickerProps', 'NodeProps',
+  'BimFragmentsSceneProps', 'BimFragmentsViewerProps', 'BuildingDetail3DProps', 'ChangePasswordFormProps',
+  'LoadingOverlayProps', 'LoginFormProps', 'MapViewProps', 'RegenLogoProps', 'ViewerToolbarProps');
+kept("React's holder for a value that outlives a render, and the attribute that fills one", 'useRef', 'RefObject', 'MutableRefObject', 'ref=');
+kept("React's report handed to an error boundary", 'ErrorInfo');
+kept("react-router's hooks and link", 'useParams', 'useSearchParams', 'NavLink');
+kept("react-three-fiber's constructor arguments on an element", 'args=');
+kept("Testing Library's first inputs to a rendered hook", 'initialProps');
+kept("lucide's icon", 'Info');
+kept("the browser's own names: the request shape, the query string, a bounding box, a canvas call, a table cell, a pattern match, a console level, a link relation",
+  'RequestInit', 'HeadersInit', 'URLSearchParams', 'getBoundingClientRect', 'DOMRect', 'contentRect',
+  'clearRect', 'fillRect', 'strokeRect', 'colSpan', '.exec', '.info', 'rel=');
+kept('markup tags', '<rect', '<nav');
+kept("i18next's start-up", 'initReactI18next', '.init');
+kept("vitest's runtime setting", '.setConfig');
+kept("the platform's wire: the property envelope, a pipeline node's bindings, the service registry's figures",
+  'typeInfo', 'paramBindings', 'Stats', 'AverageResponseMs', 'TotalResponseMs');
+kept("property names the platform's templates declare; renaming them is a model change, listed on Task 7123",
+  'pctOfConsumption', 'sharePct');
+keptIn('components/map/MapView.tsx', "maplibre's export, aliased on import", 'config');
+keptIn('components/map/MapView.test.tsx', "the mocked maplibre module exports maplibre's name", 'config');
+held("the page specification's clipped names and their JSON keys, shared with the platform's templates; Task 7123 renames them together",
+  ['spec', 'specs'], 'op', 'avg', 'sortDir', 'setSortDir', 'ScopeRef', 'SCOPE_REF', 'CompareConfig');
+
 const IDENTIFIER = /[A-Za-z_$][A-Za-z0-9_$]*/g;
+
+/** Own keys only: `constructor` is in every object's prototype and is not a clipped word. */
+const isClipped = (word: string): boolean => Object.hasOwn(SPELLED_OUT, word.toLowerCase());
 
 /** `text` with its comments and string literals blanked, keeping every line and column. Read one
  *  character at a time rather than by pattern, so the scan always knows where it stands: a pattern
@@ -188,7 +225,7 @@ function clippedNames(): { path: string; line: number; identifier: string; word:
       for (const written of line.matchAll(IDENTIFIER)) {
         const identifier = written[0];
         if (allowed(identifier, path, line.slice(0, written.index), line.slice(written.index! + identifier.length))) continue;
-        const clipped = wordsIn(identifier).find((word) => word.toLowerCase() in SPELLED_OUT);
+        const clipped = wordsIn(identifier).find((word) => isClipped(word) && !HELD_WORDS.has(word.toLowerCase()));
         if (clipped) found.push({ path, line: index + 1, identifier, word: clipped.toLowerCase() });
       }
     });
@@ -212,7 +249,7 @@ describe('the names the console writes', () => {
 
   it('a kept name carries a clipped word, or the entry is idle', () => {
     const every = [...KEPT.keys(), ...[...KEPT_IN.keys()].map((key) => key.split('::')[1])];
-    const idle = every.filter((name) => !wordsIn(name.replace(/^[.<]|=$/g, '')).some((word) => word.toLowerCase() in SPELLED_OUT));
+    const idle = every.filter((name) => !wordsIn(name.replace(/^[.<]|=$/g, '')).some(isClipped));
     expect(idle).toEqual([]);
   });
 });

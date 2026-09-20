@@ -182,7 +182,7 @@ describe('buildThingSearchIndex', () => {
 
     it('counts both outgoing and incoming for a thing with multiple relationships', () => {
       // sensor is subject of relHasSensor (outgoing to zone)
-      // Add another rel where sensor is target
+      // Add another relationship where sensor is target
       const other = makeThing('o1', 'Other');
       const relationshipToSensor = makeRelationship('r3', 'o1', 'p-has', 's1');
       const index = buildThingSearchIndex(

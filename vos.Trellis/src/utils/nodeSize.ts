@@ -13,7 +13,7 @@ import { LAYOUT_DEFAULTS } from './guiSettings';
 
 /**
  * Re-exported defaults — back-compat for tests and any caller that doesn't have
- * a LayoutSettings handy. Runtime path uses <c>computeNodeSize(degree, opts)</c>
+ * a LayoutSettings handy. Runtime path uses <c>computeNodeSize(degree, options)</c>
  * with overrides drawn from LayoutSettings.
  */
 export const NODE_SIZE_MIN = LAYOUT_DEFAULTS.nodeSizeMin;
@@ -34,7 +34,7 @@ const DEFAULT_OPTIONS: NodeSizeOptions = {
 
 /**
  * Map an incoming-relationship count (or full degree) to a sigma node size.
- * Pure function — overrides are read from <c>opts</c> when provided, otherwise
+ * Pure function — overrides are read from <c>options</c> when provided, otherwise
  * fall back to the LAYOUT_DEFAULTS-sourced module constants.
  */
 export function computeNodeSize(degree: number, options: NodeSizeOptions = DEFAULT_OPTIONS): number {

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 
 // ── Mocks ────────────────────────────────────────────────────────────────
-// apiClient is the source of login/auth state. We capture the login mock so
+// apiClient is the source of login and authentication state. We capture the login mock so
 // each test can shape its rejection (no-models, multi-model picker, etc).
 const mockLogin = vi.fn();
 const mockRestoreSession = vi.fn().mockResolvedValue(false);

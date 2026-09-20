@@ -255,7 +255,7 @@ export const ar: PartialResources & ArabicPlurals = {
       downloadLog: 'تنزيل السجل',
       deleteRetract: 'حذف (سحب من النموذج)',
       requests: 'الطلبات',
-      avgTime: 'متوسط الوقت',
+      averageTime: 'متوسط الوقت',
       errors: 'الأخطاء',
       lastRequest: 'آخر طلب',
       lastContact: 'آخر اتصال',

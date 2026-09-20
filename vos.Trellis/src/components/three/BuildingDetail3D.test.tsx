@@ -47,7 +47,7 @@ describe('BuildingDetail3D', () => {
 
   // The user guide (Section 6.2) states this view does not pan — the element
   // stays centered while orbiting. Guard the flag so the docs can't silently
-  // go stale if OrbitControls config changes.
+  // go stale if the OrbitControls configuration changes.
   it('disables panning', () => {
     render(<BuildingDetail3D geometryValue="VALID" />);
     expect(orbitControlsProps.enablePan).toBe(false);

@@ -44,7 +44,7 @@ function persistHiddenTypeIds(modelId: string | null, ids: Set<string>): void {
 /**
  * Feature #5386 — per-model TypeFilterPanel sort order, persisted in
  * localStorage so the user's preferred view sticks across reloads. Mirrors
- * the hiddenTypeIds pattern; falls back to count-desc on missing / invalid
+ * the hiddenTypeIds pattern; falls back to count-descending on missing / invalid
  * stored values.
  */
 function loadTypeSort(modelId: string | null): SortOrder {
