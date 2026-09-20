@@ -37,18 +37,18 @@ describe('posting a submission', () => {
 
     const accepted = await intakeApi.submit(SUBMISSION, '314159');
 
-    const [ticketUrl, ticketInit] = fetchMock.mock.calls[0];
+    const [ticketUrl, ticketRequest] = fetchMock.mock.calls[0];
     expect(ticketUrl).toBe('http://localhost:6200/submissions/ticket');
-    expect(JSON.parse(ticketInit.body)).toEqual({
+    expect(JSON.parse(ticketRequest.body)).toEqual({
       emailAddress: 'ana.ferreira@example.pt',
       code: '314159',
     });
-    const [url, init] = fetchMock.mock.calls[1];
+    const [url, requestOptions] = fetchMock.mock.calls[1];
     expect(url).toBe('http://localhost:6200/submissions');
-    expect(init.method).toBe('POST');
-    expect(init.headers['X-Submission-Ticket']).toBe('ticket-1');
-    expect(init.headers['Content-Type']).toBe('application/json');
-    expect(JSON.parse(init.body)).toEqual(SUBMISSION);
+    expect(requestOptions.method).toBe('POST');
+    expect(requestOptions.headers['X-Submission-Ticket']).toBe('ticket-1');
+    expect(requestOptions.headers['Content-Type']).toBe('application/json');
+    expect(JSON.parse(requestOptions.body)).toEqual(SUBMISSION);
     expect(accepted.reference).toBe('sub-ref-1');
   });
 
@@ -129,11 +129,11 @@ describe('asking for a code', () => {
 
     await intakeApi.askForCode('ana.ferreira@example.pt');
 
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url, requestOptions] = fetchMock.mock.calls[0];
     expect(url).toBe('http://localhost:6200/submissions/verification');
-    expect(init.method).toBe('POST');
-    expect(JSON.parse(init.body)).toEqual({ emailAddress: 'ana.ferreira@example.pt' });
-    expect(init.headers.Authorization).toBeUndefined();
+    expect(requestOptions.method).toBe('POST');
+    expect(JSON.parse(requestOptions.body)).toEqual({ emailAddress: 'ana.ferreira@example.pt' });
+    expect(requestOptions.headers.Authorization).toBeUndefined();
   });
 
   it('raises what the service said was wrong', async () => {
@@ -156,9 +156,9 @@ describe('what the form draws itself with', () => {
 
     const options = await intakeApi.formOptions();
 
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url, requestOptions] = fetchMock.mock.calls[0];
     expect(url).toBe('http://localhost:6200/submissions/form');
-    expect(init).toBeUndefined();
+    expect(requestOptions).toBeUndefined();
     expect(options.allocationCategories).toEqual(['residential']);
   });
 

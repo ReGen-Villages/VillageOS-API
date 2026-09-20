@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useUiStore } from '../stores/uiStore';
 
-const FLASH_DURATION_MS = 500;
+const FLASH_DURATION_MILLISECONDS = 500;
 
 export function useFlashTimer() {
   const addFlashNode = useUiStore((s) => s.addFlashNode);
@@ -17,7 +17,7 @@ export function useFlashTimer() {
     const previous = timers.get(key);
     if (previous) clearTimeout(previous);
     addFlashNode(thingId);
-    timers.set(key, setTimeout(() => { removeFlashNode(thingId); timers.delete(key); }, FLASH_DURATION_MS));
+    timers.set(key, setTimeout(() => { removeFlashNode(thingId); timers.delete(key); }, FLASH_DURATION_MILLISECONDS));
   }, [addFlashNode, removeFlashNode]);
 
   const triggerFlashEdge = useCallback((edgeId: string) => {
@@ -26,7 +26,7 @@ export function useFlashTimer() {
     const previous = timers.get(key);
     if (previous) clearTimeout(previous);
     addFlashEdge(edgeId);
-    timers.set(key, setTimeout(() => { removeFlashEdge(edgeId); timers.delete(key); }, FLASH_DURATION_MS));
+    timers.set(key, setTimeout(() => { removeFlashEdge(edgeId); timers.delete(key); }, FLASH_DURATION_MILLISECONDS));
   }, [addFlashEdge, removeFlashEdge]);
 
   useEffect(() => {

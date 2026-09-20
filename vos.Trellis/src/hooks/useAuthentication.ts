@@ -1,12 +1,12 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import { apiClient, type AuthUser } from '../api/client';
+import { apiClient, type AuthenticatedUser } from '../api/client';
 import { myceliumApi, type StartupProgress } from '../api/myceliumApi';
 import { useModelStore } from '../stores/modelStore';
 import type { ModelSummary } from '../types/vos';
 
-export interface AuthState {
+export interface AuthenticationState {
   isAuthenticated: boolean;
-  user: AuthUser | null;
+  user: AuthenticatedUser | null;
   role: string | null;
   modelId: string | null;
   modelName: string | null;
@@ -23,27 +23,27 @@ export interface AuthState {
   loading: boolean;
 }
 
-export const AuthContext = createContext<AuthState | null>(null);
+export const AuthenticationContext = createContext<AuthenticationState | null>(null);
 
-export function useAuth(): AuthState {
-  const context = useContext(AuthContext);
+export function useAuthentication(): AuthenticationState {
+  const context = useContext(AuthenticationContext);
   if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 }
 
-export function useAuthState(): AuthState {
-  const [user, setUser] = useState<AuthUser | null>(apiClient.getUser());
+export function useAuthenticationState(): AuthenticationState {
+  const [user, setUser] = useState<AuthenticatedUser | null>(apiClient.getUser());
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [modelId, setModelId] = useState<string | null>(apiClient.getModelId());
   const [modelName, setModelName] = useState<string | null>(apiClient.getModelName());
   const [availableModels, setAvailableModels] = useState<ModelSummary[] | null>(null);
-  const [authFailed, setAuthFailed] = useState(false);
+  const [authenticationFailed, setAuthenticationFailed] = useState(false);
   const [startupProgress, setStartupProgress] = useState<StartupProgress | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingCredentialsReference = useRef<{ username: string; password: string } | null>(null);
 
-  const isAuthenticated = !authFailed && (apiClient.isAuthenticated() || !!import.meta.env.VITE_API_KEY);
+  const isAuthenticated = !authenticationFailed && (apiClient.isAuthenticated() || !!import.meta.env.VITE_API_KEY);
 
   const stopPolling = useCallback(() => {
     if (pollTimerRef.current) {
@@ -56,11 +56,11 @@ export function useAuthState(): AuthState {
   useEffect(() => stopPolling, [stopPolling]);
 
   useEffect(() => {
-    apiClient.setAuthRequiredCallback(() => {
+    apiClient.setAuthenticationRequiredCallback(() => {
       setUser(null);
       setModelId(null);
       setModelName(null);
-      setAuthFailed(true);
+      setAuthenticationFailed(true);
     });
     apiClient.setUserUpdatedCallback((updatedUser) => {
       setUser(updatedUser);
@@ -75,7 +75,7 @@ export function useAuthState(): AuthState {
         setUser(apiClient.getUser());
         setModelId(apiClient.getModelId());
         setModelName(apiClient.getModelName());
-        setAuthFailed(false);
+        setAuthenticationFailed(false);
       }
     }).catch(() => {});
   }, []);
@@ -106,7 +106,7 @@ export function useAuthState(): AuthState {
               setModelId(apiClient.getModelId());
               setModelName(apiClient.getModelName());
               setAvailableModels(null);
-              setAuthFailed(false);
+              setAuthenticationFailed(false);
               setError(null);
               setLoading(false);
             } catch {
@@ -135,7 +135,7 @@ export function useAuthState(): AuthState {
       setModelId(apiClient.getModelId());
       setModelName(apiClient.getModelName());
       setAvailableModels(null);
-      setAuthFailed(false);
+      setAuthenticationFailed(false);
     } catch (err: unknown) {
       // A multi-model login with no selection returns the available models in the error body.
       if (err instanceof Error && 'body' in err) {
@@ -186,7 +186,7 @@ export function useAuthState(): AuthState {
     setModelName(null);
     setAvailableModels(null);
     setError(null);
-    setAuthFailed(true);
+    setAuthenticationFailed(true);
     await apiClient.logout();
   }, []);
 

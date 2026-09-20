@@ -173,8 +173,8 @@ describe('useSse', () => {
   /** The bodies of every subscription this test opened, oldest first. */
   const subscriptionsOpened = () =>
     vi.mocked(globalThis.fetch).mock.calls
-      .filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST')
-      .map(([, init]) => JSON.parse((init as RequestInit).body as string));
+      .filter(([, requestOptions]) => (requestOptions as RequestInit | undefined)?.method === 'POST')
+      .map(([, requestOptions]) => JSON.parse((requestOptions as RequestInit).body as string));
 
   /** A page arriving with a declaration of its own. Unmounting it is that page leaving. */
   const mountPage = (selector: SubscriptionSelector) => renderHook(() => useSubscription(selector));
@@ -273,7 +273,7 @@ describe('useSse', () => {
     const page = mountPage({ types: ['Site'] });
     await waitFor(() =>
       expect(vi.mocked(globalThis.fetch).mock.calls.some(
-        ([url, init]) => (init as RequestInit | undefined)?.method === 'DELETE' && String(url).endsWith('/api/subscriptions/s1'),
+        ([url, requestOptions]) => (requestOptions as RequestInit | undefined)?.method === 'DELETE' && String(url).endsWith('/api/subscriptions/s1'),
       )).toBe(true));
 
     page.unmount();
@@ -285,8 +285,8 @@ describe('useSse', () => {
   // are never attached, so it has to be handed back on the way out.
   it('hands back a subscription the open that asked for it abandoned', async () => {
     let answer: (body: unknown) => void = () => {};
-    globalThis.fetch = vi.fn().mockImplementation((_url, init?: RequestInit) => {
-      if (init?.method === 'DELETE') return Promise.resolve({ ok: true });
+    globalThis.fetch = vi.fn().mockImplementation((_url, requestOptions?: RequestInit) => {
+      if (requestOptions?.method === 'DELETE') return Promise.resolve({ ok: true });
       return new Promise((resolve) => {
         answer = (body) => resolve({ ok: true, json: async () => body } as Response);
       });
@@ -299,7 +299,7 @@ describe('useSse', () => {
 
     await waitFor(() =>
       expect(vi.mocked(globalThis.fetch).mock.calls.some(
-        ([url, init]) => (init as RequestInit | undefined)?.method === 'DELETE'
+        ([url, requestOptions]) => (requestOptions as RequestInit | undefined)?.method === 'DELETE'
           && String(url).endsWith('/api/subscriptions/abandoned'),
       )).toBe(true));
     page.unmount();
@@ -321,7 +321,7 @@ describe('useSse', () => {
 
     expect(subscriptionsOpened().length).toBe(2);
     expect(vi.mocked(globalThis.fetch).mock.calls
-      .some(([, init]) => (init as RequestInit | undefined)?.method === 'DELETE')).toBe(false);
+      .some(([, requestOptions]) => (requestOptions as RequestInit | undefined)?.method === 'DELETE')).toBe(false);
     unmount();
   });
 

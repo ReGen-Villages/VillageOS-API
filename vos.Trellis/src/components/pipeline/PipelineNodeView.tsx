@@ -1,6 +1,6 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import clsx from 'clsx';
-import type { PortInfo } from '../../pipeline/model';
+import type { PortInformation } from '../../pipeline/model';
 
 export interface PipelineNodeData {
   label: string;
@@ -8,7 +8,7 @@ export interface PipelineNodeData {
   kind?: 'input' | 'output';
   connectionId?: string;
   subdomain?: string;
-  ports: PortInfo[];
+  ports: PortInformation[];
   status?: string;
   /** Input-port name → run-param key (#5647). */
   paramBindings?: Record<string, string>;

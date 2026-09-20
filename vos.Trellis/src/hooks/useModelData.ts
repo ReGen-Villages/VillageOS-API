@@ -18,7 +18,7 @@ import type { VosRelationship, VosThing } from '../types/vos';
  *  sim emits hundreds of ThingCreated/RelationshipCreated per second; applying each as
  *  its own O(N) store rebuild saturates the main thread and makes Trellis degrade as the
  *  model grows. We buffer events and flush once per window instead. */
-const FLUSH_DEBOUNCE_MS = 150;
+const FLUSH_DEBOUNCE_MILLISECONDS = 150;
 
 /** What happened to one property in a flush window: it was given a value, or it was retracted. */
 type PropertyChange = { deleted: false; value: unknown } | { deleted: true };
@@ -194,7 +194,7 @@ export function useModelData(): void {
     };
 
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const schedule = () => { if (!timer) timer = setTimeout(flush, FLUSH_DEBOUNCE_MS); };
+    const schedule = () => { if (!timer) timer = setTimeout(flush, FLUSH_DEBOUNCE_MILLISECONDS); };
 
     function flush(): void {
       timer = null;

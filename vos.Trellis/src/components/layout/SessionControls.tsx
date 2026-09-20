@@ -1,7 +1,7 @@
 import { LogOut, ArrowLeftRight } from 'lucide-react';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthentication } from '../../hooks/useAuthentication';
 import { ThemeToggleButton } from '../common/ThemeToggleButton';
 import { LanguageSwitcher } from '../common/LanguageSwitcher';
 
@@ -11,7 +11,7 @@ import { LanguageSwitcher } from '../common/LanguageSwitcher';
  *  controls out in a row when the sidebar is expanded and stacks them when it
  *  collapses to icon width. */
 export function SessionControls({ isCollapsed }: { isCollapsed: boolean }) {
-  const { logout, switchModel } = useAuth();
+  const { logout, switchModel } = useAuthentication();
   const { t } = useTranslation();
 
   const buttonClass =

@@ -1,6 +1,6 @@
 import { apiClient } from './client';
-import type { EndpointServiceInfo } from '../types/mycelium';
+import type { EndpointServiceInformation } from '../types/mycelium';
 
 export const endpointApi = {
-  getAll: () => apiClient.get<EndpointServiceInfo[]>('/api/endpoints'),
+  getAll: () => apiClient.get<EndpointServiceInformation[]>('/api/endpoints'),
 };

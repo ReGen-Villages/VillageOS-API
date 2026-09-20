@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, Eye, EyeOff, X } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
-import type { PredicateStats } from '../../utils/predicateCluster';
+import type { PredicateStatistics } from '../../utils/predicateCluster';
 
 /**
  * Feature #5362 — predicate filter panel, sibling to TypeFilterPanel.
@@ -21,7 +21,7 @@ import type { PredicateStats } from '../../utils/predicateCluster';
  */
 export function PredicateFilterPanel() {
   const { t } = useTranslation();
-  const predicateStats = useUiStore((s) => s.predicateStats);
+  const predicateStatistics = useUiStore((s) => s.predicateStatistics);
   const hiddenPredicateIds = useUiStore((s) => s.hiddenPredicateIds);
   const toggleHiddenPredicate = useUiStore((s) => s.toggleHiddenPredicate);
   const setHiddenPredicateIds = useUiStore((s) => s.setHiddenPredicateIds);
@@ -30,11 +30,11 @@ export function PredicateFilterPanel() {
   const [collapsed, setCollapsed] = useState(false);
   const [search, setSearch] = useState('');
 
-  const sorted = useMemo<PredicateStats[]>(
-    () => [...predicateStats].sort(
+  const sorted = useMemo<PredicateStatistics[]>(
+    () => [...predicateStatistics].sort(
       (a, b) => b.edgeCount - a.edgeCount || a.predicateName.localeCompare(b.predicateName),
     ),
-    [predicateStats],
+    [predicateStatistics],
   );
 
   const filtered = useMemo(() => {
@@ -44,22 +44,22 @@ export function PredicateFilterPanel() {
   }, [sorted, search]);
 
   const totalEdges = useMemo(
-    () => predicateStats.reduce((sum, s) => sum + s.edgeCount, 0),
-    [predicateStats],
+    () => predicateStatistics.reduce((sum, s) => sum + s.edgeCount, 0),
+    [predicateStatistics],
   );
 
   const hiddenEdges = useMemo(() => {
     let sum = 0;
-    for (const s of predicateStats) if (hiddenPredicateIds.has(s.predicateId)) sum += s.edgeCount;
+    for (const s of predicateStatistics) if (hiddenPredicateIds.has(s.predicateId)) sum += s.edgeCount;
     return sum;
-  }, [predicateStats, hiddenPredicateIds]);
+  }, [predicateStatistics, hiddenPredicateIds]);
 
   const visibleEdges = totalEdges - hiddenEdges;
 
   const showAll = () => clearHiddenPredicateIds();
-  const hideAll = () => setHiddenPredicateIds(new Set(predicateStats.map((s) => s.predicateId)));
+  const hideAll = () => setHiddenPredicateIds(new Set(predicateStatistics.map((s) => s.predicateId)));
 
-  if (predicateStats.length === 0) return null;
+  if (predicateStatistics.length === 0) return null;
 
   return (
     <div className={`border border-zinc-700/60 rounded-lg bg-zinc-800/60 backdrop-blur text-zinc-200 text-xs overflow-hidden flex flex-col ${collapsed ? 'flex-shrink-0' : 'flex-1 min-h-0'}`}>

@@ -196,7 +196,7 @@ async function openStreams() {
     const streamToken = await apiClient.mintStreamToken();
     if (superseded()) return;
 
-    const tokenParam = `access_token=${encodeURIComponent(streamToken)}`;
+    const tokenParameter = `access_token=${encodeURIComponent(streamToken)}`;
 
     // Resume from where we left off (Bug #5943): on a reconnect the broker replays the
     // Facts we missed and de-dupes by sequence; on a first connect we have no position, so
@@ -205,7 +205,7 @@ async function openStreams() {
     const resumeFrom = consumedWatermark ?? watermark;
     consumedWatermark = resumeFrom;
     const object = new EventSource(
-      `${BASE_URL}/api/subscriptions/${subscriptionId}/stream?${tokenParam}&lastEventId=${resumeFrom}`,
+      `${BASE_URL}/api/subscriptions/${subscriptionId}/stream?${tokenParameter}&lastEventId=${resumeFrom}`,
     );
     object.onopen = () => { reconnectAttempt = 0; setConnected(true); };
     object.onerror = () => scheduleReconnect();
@@ -213,7 +213,7 @@ async function openStreams() {
     objectSource = object;
 
     // System / operational events.
-    const sys = new EventSource(`${BASE_URL}/api/events/stream?${tokenParam}`);
+    const sys = new EventSource(`${BASE_URL}/api/events/stream?${tokenParameter}`);
     sys.onerror = () => scheduleReconnect();
     attachListeners(sys);
     systemSource = sys;
@@ -254,7 +254,7 @@ function announceOpened(
 /** How long an arriving page is given to make its declaration. Long enough for its code to be
  *  fetched and mounted; a page slower than this costs one snapshot built for no reader, and
  *  nothing else — the subscription still settles on what that page asked for. */
-const DECLARATIONS_SETTLE_MS = 300;
+const DECLARATIONS_SETTLE_MILLISECONDS = 300;
 
 /**
  * Reopen when what the mounted pages ask the subscription to cover has changed.
@@ -290,7 +290,7 @@ function followDeclarations() {
   following = true;
   queueMicrotask(() => {
     following = false;
-    if (openedFor !== null && declared.length === 0) settling = setTimeout(follow, DECLARATIONS_SETTLE_MS);
+    if (openedFor !== null && declared.length === 0) settling = setTimeout(follow, DECLARATIONS_SETTLE_MILLISECONDS);
     else follow();
   });
 }

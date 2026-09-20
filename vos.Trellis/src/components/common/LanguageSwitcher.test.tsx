@@ -4,9 +4,9 @@ import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { LanguageSwitcher } from './LanguageSwitcher';
 
-function NavLabel() {
+function NavigationLabel() {
   const { t } = useTranslation();
-  return <span data-testid="nav-label">{t('nav.logs')}</span>;
+  return <span data-testid="nav-label">{t('navigation.logs')}</span>;
 }
 
 function openMenu() {
@@ -60,7 +60,7 @@ describe('LanguageSwitcher', () => {
     render(
       <>
         <LanguageSwitcher />
-        <NavLabel />
+        <NavigationLabel />
       </>,
     );
 
@@ -84,7 +84,7 @@ describe('LanguageSwitcher', () => {
     render(
       <>
         <LanguageSwitcher />
-        <NavLabel />
+        <NavigationLabel />
       </>,
     );
 

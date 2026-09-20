@@ -44,8 +44,8 @@ export function useLogTail(service?: string): { lines: string[]; connected: bool
       try {
         const streamToken = await apiClient.mintStreamToken();
         if (released) return;
-        const serviceParam = service ? `&service=${encodeURIComponent(service)}` : '';
-        const url = `${BASE_URL}/api/logs/stream?tail=${TAIL_LINES}${serviceParam}&access_token=${encodeURIComponent(streamToken)}`;
+        const serviceParameter = service ? `&service=${encodeURIComponent(service)}` : '';
+        const url = `${BASE_URL}/api/logs/stream?tail=${TAIL_LINES}${serviceParameter}&access_token=${encodeURIComponent(streamToken)}`;
         const es = new EventSource(url);
         es.onopen = () => {
           attemptRef.current = 0;

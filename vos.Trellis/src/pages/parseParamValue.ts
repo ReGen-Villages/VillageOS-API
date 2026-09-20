@@ -1,6 +1,6 @@
 /** Parse a Params-bar value as JSON when it is valid JSON (lists, numbers, booleans, objects); otherwise keep
  * it as the raw string. Lets a user type `["a","b","c"]` to drive a fan-out, or `42` for a number param. */
-export function parseParamValue(raw: string): unknown {
+export function parseParameterValue(raw: string): unknown {
   const trimmed = raw.trim();
   if (trimmed === '') return '';
   try {

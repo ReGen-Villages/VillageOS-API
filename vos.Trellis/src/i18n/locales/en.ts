@@ -1,5 +1,5 @@
 export const en = {
-  nav: {
+  navigation: {
     appName: 'VILLAGEOS',
     subtitle: 'Temporal Graph GUI',
     collapseSidebar: 'Collapse sidebar',
@@ -719,7 +719,7 @@ export const en = {
     noInputPorts: "No input ports.",
     bindInput: "Bind an input to a run parameter:",
     wired: "wired",
-    fromParam: "from param…",
+    fromParameter: "from param…",
     wire: "Wire",
     mapField: "Map a field (blank = whole payload):",
     fromPath: "from-path",

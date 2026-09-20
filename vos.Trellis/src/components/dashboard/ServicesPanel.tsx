@@ -1,12 +1,12 @@
 import { useTranslation } from 'react-i18next';
-import type { RegisteredService, EndpointServiceInfo, HealthStatus } from '../../types/mycelium';
+import type { RegisteredService, EndpointServiceInformation, HealthStatus } from '../../types/mycelium';
 import { Badge } from '../common/Badge';
-import { formatMs, formatRelativeTime } from '../../utils/formatters';
+import { formatMilliseconds, formatRelativeTime } from '../../utils/formatters';
 import { Play, Square, Workflow, Globe, Trash2, ScrollText, HardDriveDownload } from 'lucide-react';
 
 interface Props {
   services: RegisteredService[];
-  endpoints: EndpointServiceInfo[];
+  endpoints: EndpointServiceInformation[];
   onStart: (id: string) => void;
   onStop: (id: string) => void;
   /** Retract a connection from the model (only offered for rows with a model Thing id). */
@@ -74,7 +74,7 @@ function fromService(service: RegisteredService): ServiceRow {
   };
 }
 
-function fromEndpoint(effectiveProperty: EndpointServiceInfo): ServiceRow {
+function fromEndpoint(effectiveProperty: EndpointServiceInformation): ServiceRow {
   return {
     key: `ep:${effectiveProperty.Subdomain}`,
     name: effectiveProperty.Name,
@@ -154,7 +154,7 @@ export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete, 
               </div>
               <div>
                 <span className="block text-zinc-400">{t('dashboard.services.avgTime')}</span>
-                <span className="font-mono text-zinc-300">{formatMs(row.avgMs)}</span>
+                <span className="font-mono text-zinc-300">{formatMilliseconds(row.avgMs)}</span>
               </div>
               {row.errors !== undefined && (
                 <div>

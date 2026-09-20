@@ -1,7 +1,7 @@
 import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { modelApi } from '../api/modelApi';
-import { PipelineModel, ARCHETYPE_FLAG, type PortInfo } from './model';
+import { PipelineModel, ARCHETYPE_FLAG, type PortInformation } from './model';
 import type { VosTypeName } from '../utils/constants';
 
 // Persist / read a pipeline as Things + relationships (the lean-on-model bet): the editor is just CRUD over
@@ -20,7 +20,7 @@ export interface EditorNode {
   label: string;
   x: number;
   y: number;
-  ports: PortInfo[];
+  ports: PortInformation[];
   /** Input-port name → run-param key (#5647). Persisted as a JSON `paramBindings` property on the node. */
   paramBindings?: Record<string, string>;
   /** Boundary node (#5873): 'input' (a param source) or 'output' (the run's result sink). A boundary node
@@ -202,7 +202,7 @@ export async function savePipeline(
 }
 
 /** Parse a node's persisted `paramBindings` JSON property (input-port → run-param key); tolerant of junk. */
-function parseParamBindings(raw: unknown): Record<string, string> | undefined {
+function parseParameterBindings(raw: unknown): Record<string, string> | undefined {
   if (typeof raw !== 'string' || raw.trim() === '') return undefined;
   try {
     const parsed = JSON.parse(raw);
@@ -230,7 +230,7 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
       label: t.Name,
       x: Number(t.Properties.x ?? i * 280),
       y: Number(t.Properties.y ?? 80),
-      paramBindings: parseParamBindings(t.Properties.paramBindings),
+      paramBindings: parseParameterBindings(t.Properties.paramBindings),
     };
     // Boundary node (#5873): its ports are declared on the node itself, and it binds no connection.
     const kind = model.boundaryKind(t.Id);

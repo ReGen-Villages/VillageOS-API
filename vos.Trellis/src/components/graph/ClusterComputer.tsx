@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useSigma } from '@react-sigma/core';
 import { useUiStore } from '../../stores/uiStore';
 import { useModelStore } from '../../stores/modelStore';
-import { computePredicateStatsFromModel, computeClusters } from '../../utils/predicateCluster';
+import { computePredicateStatisticsFromModel, computeClusters } from '../../utils/predicateCluster';
 
 /** Renderless; runs inside <SigmaContainer> to access the graphology graph. */
 export function ClusterComputer() {
@@ -18,8 +18,8 @@ export function ClusterComputer() {
   useEffect(() => {
     if (things.length === 0) return;
     const state = useUiStore.getState();
-    const statistics = computePredicateStatsFromModel(things, relationships, state.predicateColors);
-    state.setPredicateStats(statistics);
+    const statistics = computePredicateStatisticsFromModel(things, relationships, state.predicateColors);
+    state.setPredicateStatistics(statistics);
   }, [things, relationships]);
 
   useEffect(() => {

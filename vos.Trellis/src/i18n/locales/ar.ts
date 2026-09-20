@@ -97,7 +97,7 @@ type ArabicPlurals = {
 };
 
 export const ar: PartialResources & ArabicPlurals = {
-  nav: {
+  navigation: {
     appName: 'VILLAGEOS',
     subtitle: 'واجهة الرسم البياني الزمني',
     collapseSidebar: 'طيّ الشريط الجانبي',
@@ -863,7 +863,7 @@ export const ar: PartialResources & ArabicPlurals = {
     noInputPorts: "لا توجد منافذ إدخال.",
     bindInput: "اربط مدخلًا بمعامل تشغيل:",
     wired: "موصول",
-    fromParam: "من معامل…",
+    fromParameter: "من معامل…",
     wire: "توصيل",
     mapField: "عيّن حقلًا (فارغ = الحمولة كاملة):",
     fromPath: "المسار-المصدر",

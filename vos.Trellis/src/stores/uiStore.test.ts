@@ -29,7 +29,7 @@ beforeEach(() => {
     hoveredNodeId: null,
     activePredicateIds: new Set<string>(),
     clusterMap: null,
-    predicateStats: [],
+    predicateStatistics: [],
     collapsedClusters: new Set<number>(),
     expandedNodes: new Set<string>(),
     radialMenuOpen: false,

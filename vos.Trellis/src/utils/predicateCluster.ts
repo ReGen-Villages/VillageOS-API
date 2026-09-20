@@ -4,7 +4,7 @@ import type { VosThing, VosRelationship } from '../types/vos';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
-export interface PredicateStats {
+export interface PredicateStatistics {
   predicateId: string;
   predicateName: string;
   edgeCount: number;
@@ -23,10 +23,10 @@ export interface ClusterMap {
 // ── Predicate statistics ──────────────────────────────────────────────
 
 /** Convert an accumulated counts map into a sorted PredicateStats array. */
-function buildPredicateStatsArray(
+function buildPredicateStatisticsArray(
   counts: Map<string, { name: string; count: number }>,
   predicateColors: Record<string, string>,
-): PredicateStats[] {
+): PredicateStatistics[] {
   return [...counts.entries()]
     .map(([predicateId, { name, count }]) => ({
       predicateId,
@@ -42,10 +42,10 @@ function buildPredicateStatsArray(
  * Colors are resolved via `resolvePredicateColor` — explicit overrides
  * from GUI_Settings take priority, with hash-based fallback.
  */
-export function computePredicateStats(
+export function computePredicateStatistics(
   graph: Graph,
   predicateColors: Record<string, string> = {},
-): PredicateStats[] {
+): PredicateStatistics[] {
   const counts = new Map<string, { name: string; count: number }>();
 
   graph.forEachEdge((_edge, attributes) => {
@@ -59,7 +59,7 @@ export function computePredicateStats(
     }
   });
 
-  return buildPredicateStatsArray(counts, predicateColors);
+  return buildPredicateStatisticsArray(counts, predicateColors);
 }
 
 /**
@@ -68,11 +68,11 @@ export function computePredicateStats(
  * filtered by map-mode surface reduction), this operates on all relationships
  * so predicates like consumes/produces always appear in the radial menu.
  */
-export function computePredicateStatsFromModel(
+export function computePredicateStatisticsFromModel(
   things: VosThing[],
   relationships: VosRelationship[],
   predicateColors: Record<string, string> = {},
-): PredicateStats[] {
+): PredicateStatistics[] {
   const thingNames = new Map(things.map((t) => [t.Id, t.Name]));
   const counts = new Map<string, { name: string; count: number }>();
 
@@ -87,7 +87,7 @@ export function computePredicateStatsFromModel(
     }
   }
 
-  return buildPredicateStatsArray(counts, predicateColors);
+  return buildPredicateStatisticsArray(counts, predicateColors);
 }
 
 // ── Cluster computation via BFS ───────────────────────────────────────

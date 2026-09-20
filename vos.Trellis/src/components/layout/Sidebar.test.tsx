@@ -3,8 +3,8 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { VosThing, VosRelationship } from '../../types/vos';
 
-vi.mock('../../hooks/useAuth', () => ({
-  useAuth: () => ({ modelName: 'test-model', logout: vi.fn(), switchModel: vi.fn() }),
+vi.mock('../../hooks/useAuthentication', () => ({
+  useAuthentication: () => ({ modelName: 'test-model', logout: vi.fn(), switchModel: vi.fn() }),
 }));
 
 import i18n from '../../i18n';

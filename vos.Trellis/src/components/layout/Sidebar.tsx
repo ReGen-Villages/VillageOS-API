@@ -4,7 +4,7 @@ import { Network, LayoutDashboard, Gauge, Clock, Search, Boxes, Box, ClipboardLi
 import { DynamicIcon, iconNames, type IconName } from 'lucide-react/dynamic';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthentication } from '../../hooks/useAuthentication';
 import { useDashboards } from '../../hooks/useDashboard';
 import { makeSpecTranslator } from '../../api/dashboardLocalization';
 import { SessionControls } from './SessionControls';
@@ -15,23 +15,23 @@ import { ModelStatement } from './ModelStatement';
 const OPERATIONS_PATH = '/operations';
 
 const links = [
-  { to: '/', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
-  { to: OPERATIONS_PATH, icon: Gauge, labelKey: 'nav.operations' },
-  { to: '/compose', icon: Table2, labelKey: 'nav.compose' },
-  { to: '/intake', icon: ClipboardList, labelKey: 'nav.intake' },
-  { to: '/submissions', icon: Inbox, labelKey: 'nav.submissions' },
-  { to: '/graph', icon: Network, labelKey: 'nav.graph' },
-  { to: '/model', icon: Box, labelKey: 'nav.model' },
-  { to: '/pipelines', icon: Workflow, labelKey: 'nav.pipelines' },
-  { to: '/temporal', icon: Clock, labelKey: 'nav.temporal' },
-  { to: '/things', icon: Boxes, labelKey: 'nav.things' },
-  { to: '/properties', icon: Search, labelKey: 'nav.properties' },
-  { to: '/logs', icon: Terminal, labelKey: 'nav.logs' },
+  { to: '/', icon: LayoutDashboard, labelKey: 'navigation.dashboard' },
+  { to: OPERATIONS_PATH, icon: Gauge, labelKey: 'navigation.operations' },
+  { to: '/compose', icon: Table2, labelKey: 'navigation.compose' },
+  { to: '/intake', icon: ClipboardList, labelKey: 'navigation.intake' },
+  { to: '/submissions', icon: Inbox, labelKey: 'navigation.submissions' },
+  { to: '/graph', icon: Network, labelKey: 'navigation.graph' },
+  { to: '/model', icon: Box, labelKey: 'navigation.model' },
+  { to: '/pipelines', icon: Workflow, labelKey: 'navigation.pipelines' },
+  { to: '/temporal', icon: Clock, labelKey: 'navigation.temporal' },
+  { to: '/things', icon: Boxes, labelKey: 'navigation.things' },
+  { to: '/properties', icon: Search, labelKey: 'navigation.properties' },
+  { to: '/logs', icon: Terminal, labelKey: 'navigation.logs' },
 ] as const;
 
 export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const { modelName } = useAuth();
+  const { modelName } = useAuthentication();
   const { t, i18n } = useTranslation();
   const dashboards = useDashboards();
 
@@ -45,18 +45,18 @@ export function Sidebar() {
       <div className="p-4 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
         {!isCollapsed && (
           <div>
-            <h1 className="text-lg font-bold text-zinc-900 dark:text-white tracking-wide">{t('nav.appName')}</h1>
+            <h1 className="text-lg font-bold text-zinc-900 dark:text-white tracking-wide">{t('navigation.appName')}</h1>
             {modelName ? (
               <span className="text-xs text-blue-500 dark:text-blue-400">{modelName}</span>
             ) : (
-              <span className="text-xs text-zinc-500 dark:text-zinc-400">{t('nav.subtitle')}</span>
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">{t('navigation.subtitle')}</span>
             )}
           </div>
         )}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
-          aria-label={isCollapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')}
+          aria-label={isCollapsed ? t('navigation.expandSidebar') : t('navigation.collapseSidebar')}
         >
           {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
         </button>
@@ -65,7 +65,7 @@ export function Sidebar() {
         {links.map(({ to, icon: Icon, labelKey }) =>
           to === OPERATIONS_PATH && dashboards.length > 0 ? (
             dashboards.map((dashboard) => (
-              <NavItem
+              <NavigationItem
                 key={dashboard.routeKey}
                 to={`${OPERATIONS_PATH}/${dashboard.routeKey}`}
                 label={
@@ -78,7 +78,7 @@ export function Sidebar() {
               />
             ))
           ) : (
-            <NavItem key={to} to={to} label={t(labelKey)} icon={<Icon size={18} />} isCollapsed={isCollapsed} />
+            <NavigationItem key={to} to={to} label={t(labelKey)} icon={<Icon size={18} />} isCollapsed={isCollapsed} />
           ),
         )}
       </nav>
@@ -90,7 +90,7 @@ export function Sidebar() {
   );
 }
 
-function NavItem({
+function NavigationItem({
   to,
   label,
   icon,

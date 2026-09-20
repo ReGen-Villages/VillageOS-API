@@ -16,9 +16,9 @@ interface LoginFormProps {
 }
 
 type SortKey = 'name' | 'size';
-type SortDir = 'asc' | 'desc';
+type SortDirection = 'asc' | 'desc';
 
-function parseSeedInfo(name: string): { label: string; sizeMb: number | null } {
+function parseSeedInformation(name: string): { label: string; sizeMb: number | null } {
   // Name format from useAuth: "seedName  (12.3 MB)"
   const match = name.match(/^(.+?)\s{2}\(([0-9.]+)\s*MB\)$/);
   if (match) return { label: match[1], sizeMb: parseFloat(match[2]) };
@@ -33,7 +33,7 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
   const [saveName, setSaveName] = useState('');
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('name');
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -60,16 +60,16 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+      setSortDirection(d => d === 'asc' ? 'desc' : 'asc');
     } else {
       setSortKey(key);
-      setSortDir('asc');
+      setSortDirection('asc');
     }
   };
 
   const sortArrow = (key: SortKey) => {
     if (sortKey !== key) return '⇅';
-    return sortDir === 'asc' ? '↑' : '↓';
+    return sortDirection === 'asc' ? '↑' : '↓';
   };
 
   const filteredModels = useMemo(() => {
@@ -80,18 +80,18 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
       : [...availableModels];
 
     filtered.sort((a, b) => {
-      const infoA = parseSeedInfo(a.Name);
-      const infoB = parseSeedInfo(b.Name);
+      const informationA = parseSeedInformation(a.Name);
+      const informationB = parseSeedInformation(b.Name);
       let cmp = 0;
       if (sortKey === 'name') {
-        cmp = infoA.label.localeCompare(infoB.label);
+        cmp = informationA.label.localeCompare(informationB.label);
       } else {
-        cmp = (infoA.sizeMb ?? 0) - (infoB.sizeMb ?? 0);
+        cmp = (informationA.sizeMb ?? 0) - (informationB.sizeMb ?? 0);
       }
-      return sortDir === 'asc' ? cmp : -cmp;
+      return sortDirection === 'asc' ? cmp : -cmp;
     });
     return filtered;
-  }, [availableModels, search, sortKey, sortDir]);
+  }, [availableModels, search, sortKey, sortDirection]);
 
   // Model/seed picker — shown after credentials validated OR during model switch
   if (availableModels && availableModels.length > 0 && (onSelectModel || (username && password))) {
@@ -146,7 +146,7 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
               </p>
             ) : (
               filteredModels.map((model) => {
-                const { label, sizeMb } = parseSeedInfo(model.Name);
+                const { label, sizeMb } = parseSeedInformation(model.Name);
                 return (
                   <button
                     key={model.Id}

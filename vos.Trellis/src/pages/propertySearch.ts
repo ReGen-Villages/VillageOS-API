@@ -71,16 +71,16 @@ export function searchProperties({ effectiveProps, relationships, thingNames, qu
     for (const key of Object.keys(relationship.Properties)) {
       if (SKIP_KEYS.has(key)) continue;
       if (matchFn(key, relationship.Properties[key])) {
-        const subj = thingNames.get(relationship.SubjectId) ?? relationship.SubjectId.substring(0, 8);
+        const subject = thingNames.get(relationship.SubjectId) ?? relationship.SubjectId.substring(0, 8);
         const predicate = thingNames.get(relationship.PredicateId) ?? relationship.PredicateId.substring(0, 8);
-        const targ = thingNames.get(relationship.TargetId) ?? relationship.TargetId.substring(0, 8);
+        const target = thingNames.get(relationship.TargetId) ?? relationship.TargetId.substring(0, 8);
         matches.push({
           propertyName: key,
           value: relationship.Properties[key],
           ownerType: 'relationship',
           ownerId: relationship.Id,
           ownerName: relationshipLabel(relationship, (id) => thingNames.get(id)),
-          ownerDetail: `${subj} --[${predicate}]--> ${targ}`,
+          ownerDetail: `${subject} --[${predicate}]--> ${target}`,
         });
       }
     }

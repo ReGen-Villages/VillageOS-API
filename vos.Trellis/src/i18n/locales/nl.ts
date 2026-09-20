@@ -7,7 +7,7 @@ import type { PartialResources } from './types';
  * English base locale, which is the expected behaviour for an incomplete draft.
  */
 export const nl: PartialResources = {
-  nav: {
+  navigation: {
     appName: 'VILLAGEOS',
     subtitle: 'Temporele grafiek-interface',
     collapseSidebar: 'Zijbalk inklappen',
@@ -721,7 +721,7 @@ export const nl: PartialResources = {
     noInputPorts: "Geen ingangspoorten.",
     bindInput: "Koppel een ingang aan een uitvoeringsparameter:",
     wired: "bedraad",
-    fromParam: "van param…",
+    fromParameter: "van param…",
     wire: "Draad",
     mapField: "Wijs een veld toe (leeg = volledige payload):",
     fromPath: "van-pad",

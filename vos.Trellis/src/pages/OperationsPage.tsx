@@ -31,7 +31,7 @@ const REFRESH_EVENTS = [
 
 /** Coalesce a burst of live events into one refresh generation. Widgets resolving together then
  *  share one read per question, and a reader is not shown a page assembled from two moments. */
-const REFRESH_DEBOUNCE_MS = 400;
+const REFRESH_DEBOUNCE_MILLISECONDS = 400;
 
 function useIsWide(minWidth = 1024): boolean {
   const supported = typeof window !== 'undefined' && typeof window.matchMedia === 'function';
@@ -94,7 +94,7 @@ export function OperationsPage() {
         timer = null;
         setNonce((n) => n + 1);
         if (refreshSeconds <= 0) setServerRefresh((n) => n + 1);
-      }, REFRESH_DEBOUNCE_MS);
+      }, REFRESH_DEBOUNCE_MILLISECONDS);
     };
     const unsubs = REFRESH_EVENTS.map((ev) => on(ev, bump));
     return () => { if (timer) clearTimeout(timer); unsubs.forEach((u) => u()); };

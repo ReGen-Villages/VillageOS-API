@@ -3,7 +3,7 @@ import { act, renderHook } from '@testing-library/react';
 import { useFlashTimer } from './useFlashTimer';
 import { useUiStore } from '../stores/uiStore';
 
-const FLASH_DURATION_MS = 500;
+const FLASH_DURATION_MILLISECONDS = 500;
 
 function flashedNodes(): string[] {
   return [...useUiStore.getState().flashingNodeIds];
@@ -29,7 +29,7 @@ describe('useFlashTimer', () => {
     act(() => result.current.triggerFlashNode('thing-1'));
     expect(flashedNodes()).toEqual(['thing-1']);
 
-    act(() => vi.advanceTimersByTime(FLASH_DURATION_MS));
+    act(() => vi.advanceTimersByTime(FLASH_DURATION_MILLISECONDS));
     expect(flashedNodes()).toEqual([]);
   });
 
@@ -39,7 +39,7 @@ describe('useFlashTimer', () => {
     act(() => result.current.triggerFlashEdge('edge-1'));
     expect(flashedEdges()).toEqual(['edge-1']);
 
-    act(() => vi.advanceTimersByTime(FLASH_DURATION_MS));
+    act(() => vi.advanceTimersByTime(FLASH_DURATION_MILLISECONDS));
     expect(flashedEdges()).toEqual([]);
   });
 
@@ -47,10 +47,10 @@ describe('useFlashTimer', () => {
     const { result } = renderHook(() => useFlashTimer());
 
     act(() => result.current.triggerFlashNode('thing-1'));
-    act(() => vi.advanceTimersByTime(FLASH_DURATION_MS - 100));
+    act(() => vi.advanceTimersByTime(FLASH_DURATION_MILLISECONDS - 100));
 
     act(() => result.current.triggerFlashNode('thing-1'));
-    act(() => vi.advanceTimersByTime(FLASH_DURATION_MS - 100));
+    act(() => vi.advanceTimersByTime(FLASH_DURATION_MILLISECONDS - 100));
 
     // The first flash's timer would have fired by now; restarting it keeps the node lit.
     expect(flashedNodes()).toEqual(['thing-1']);
@@ -94,7 +94,7 @@ describe('useFlashTimer', () => {
     act(() => result.current.triggerFlashNode('thing-1'));
     unmount();
 
-    act(() => vi.advanceTimersByTime(FLASH_DURATION_MS * 2));
+    act(() => vi.advanceTimersByTime(FLASH_DURATION_MILLISECONDS * 2));
 
     expect(vi.getTimerCount()).toBe(0);
   });

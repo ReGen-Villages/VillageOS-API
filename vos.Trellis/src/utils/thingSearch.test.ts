@@ -324,7 +324,7 @@ describe('searchThings', () => {
         geometry: '{}',
         footprint: '{}',
         __geometry_envelope: '{}',
-        realProp: 'visible',
+        realProperty: 'visible',
       });
       const localIndex = buildThingSearchIndex([thing], []);
       const results = searchThings('GeoThing', [thing], localIndex);
@@ -332,7 +332,7 @@ describe('searchThings', () => {
       expect(keys).not.toContain('geometry');
       expect(keys).not.toContain('footprint');
       expect(keys).not.toContain('__geometry_envelope');
-      expect(keys).toContain('realProp');
+      expect(keys).toContain('realProperty');
     });
 
     // Left unformatted on purpose: how a value should read depends on the type the platform

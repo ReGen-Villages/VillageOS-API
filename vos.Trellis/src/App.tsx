@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { directionFor } from './i18n/languages';
 import { AppLayout } from './components/layout/AppLayout';
-import { AuthContext, useAuthState, useAuth } from './hooks/useAuth';
+import { AuthenticationContext, useAuthenticationState, useAuthentication } from './hooks/useAuthentication';
 import { LoginForm } from './components/auth/LoginForm';
 import { ChangePasswordForm } from './components/auth/ChangePasswordForm';
 import { useModelData } from './hooks/useModelData';
@@ -30,7 +30,7 @@ function AuthenticatedApp() {
   useModelData();
   // Per-model UI state (e.g. type filter) keys its localStorage entry off
   // the active modelId.
-  const { modelId, user } = useAuth();
+  const { modelId, user } = useAuthentication();
   const setCurrentModelId = useUiStore((s) => s.setCurrentModelId);
   useEffect(() => {
     setCurrentModelId(modelId);
@@ -68,7 +68,7 @@ function AuthenticatedApp() {
 }
 
 export default function App() {
-  const authentication = useAuthState();
+  const authentication = useAuthenticationState();
   const theme = useThemeStore((s) => s.theme);
   const { i18n } = useTranslation();
 
@@ -114,8 +114,8 @@ export default function App() {
   }
 
   return (
-    <AuthContext.Provider value={authentication}>
+    <AuthenticationContext.Provider value={authentication}>
       <AuthenticatedApp />
-    </AuthContext.Provider>
+    </AuthenticationContext.Provider>
   );
 }

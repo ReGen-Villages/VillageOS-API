@@ -7,7 +7,7 @@ import type { PartialResources } from './types';
  * English base locale, which is the expected behaviour for an incomplete draft.
  */
 export const de: PartialResources = {
-  nav: {
+  navigation: {
     appName: 'VILLAGEOS',
     subtitle: 'Oberfläche für temporale Graphen',
     collapseSidebar: 'Seitenleiste einklappen',
@@ -721,7 +721,7 @@ export const de: PartialResources = {
     noInputPorts: "Keine Eingangsports.",
     bindInput: "Einen Eingang an einen Ausführungsparameter binden:",
     wired: "verdrahtet",
-    fromParam: "aus Param…",
+    fromParameter: "aus Param…",
     wire: "Verbindung",
     mapField: "Ein Feld zuordnen (leer = gesamte Nutzlast):",
     fromPath: "Von-Pfad",

@@ -6,13 +6,13 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 // each test can shape its rejection (no-models, multi-model picker, etc).
 const mockLogin = vi.fn();
 const mockRestoreSession = vi.fn().mockResolvedValue(false);
-const mockSetAuthRequiredCallback = vi.fn();
+const mockSetAuthenticationRequiredCallback = vi.fn();
 const mockSetUserUpdatedCallback = vi.fn();
 // Stateful mocks for getUser / isAuthenticated so individual tests can simulate
 // "already logged in" state and exercise the logout flow. The real apiClient
 // reads these from a non-React field — that's exactly the source of Bug #5325.
 let mockInitialUser: { Id: string; Username: string; Role: string } | null = null;
-let mockIsAuth = false;
+let mockIsAuthenticated = false;
 vi.mock('../api/client', () => ({
   apiClient: {
     login: (u: string, p: string, m?: string) => mockLogin(u, p, m),
@@ -20,14 +20,14 @@ vi.mock('../api/client', () => ({
     getUser: () => mockInitialUser,
     getModelId: () => null,
     getModelName: () => null,
-    isAuthenticated: () => mockIsAuth,
-    setAuthRequiredCallback: (callback: () => void) => mockSetAuthRequiredCallback(callback),
+    isAuthenticated: () => mockIsAuthenticated,
+    setAuthenticationRequiredCallback: (callback: () => void) => mockSetAuthenticationRequiredCallback(callback),
     setUserUpdatedCallback: (callback: (u: unknown) => void) => mockSetUserUpdatedCallback(callback),
     restoreSession: () => mockRestoreSession(),
     ensureToken: vi.fn().mockResolvedValue(undefined),
     rescopeToModel: vi.fn().mockResolvedValue(undefined),
   },
-  AuthRequiredError: class extends Error {},
+  AuthenticationRequiredError: class extends Error {},
 }));
 
 const mockGetStartupProgress = vi.fn();
@@ -44,7 +44,7 @@ vi.mock('../stores/modelStore', () => ({
   useModelStore: { getState: () => ({ clear: vi.fn() }) },
 }));
 
-import { useAuthState } from './useAuth';
+import { useAuthenticationState } from './useAuthentication';
 
 // Helper: shape an ApiError-ish rejection that matches what apiClient.login
 // surfaces when Mycelium returns 400 { error: "No models loaded" }.
@@ -60,7 +60,7 @@ describe('useAuthState login: no-models-loaded handling (Bug #5324)', () => {
     mockGetStartupProgress.mockReset();
     mockRestoreSession.mockReset().mockResolvedValue(false);
     mockInitialUser = null;
-    mockIsAuth = false;
+    mockIsAuthenticated = false;
     vi.useFakeTimers({ shouldAdvanceTime: true });
   });
   afterEach(() => {
@@ -79,7 +79,7 @@ describe('useAuthState login: no-models-loaded handling (Bug #5324)', () => {
       RelationshipsLoaded: 0,
     });
 
-    const { result } = renderHook(() => useAuthState());
+    const { result } = renderHook(() => useAuthenticationState());
 
     await act(async () => {
       try { await result.current.login('admin', 'admin'); } catch { /* expected */ }
@@ -105,7 +105,7 @@ describe('useAuthState login: no-models-loaded handling (Bug #5324)', () => {
       RelationshipsLoaded: 56,
     });
 
-    const { result } = renderHook(() => useAuthState());
+    const { result } = renderHook(() => useAuthenticationState());
 
     await act(async () => {
       try { await result.current.login('admin', 'admin'); } catch { /* expected */ }
@@ -129,11 +129,11 @@ describe('useAuthState logout: forces a re-render gate (Bug #5325)', () => {
     // isAuthenticated() at every render. The latter mirrors apiClient.token,
     // a non-React field whose changes don't trigger re-renders by themselves.
     mockInitialUser = { Id: 'u1', Username: 'admin', Role: 'admin' };
-    mockIsAuth = true;
+    mockIsAuthenticated = true;
   });
 
   it('flips isAuthenticated to false synchronously when logout is called', async () => {
-    const { result } = renderHook(() => useAuthState());
+    const { result } = renderHook(() => useAuthenticationState());
     expect(result.current.isAuthenticated).toBe(true);
 
     await act(async () => {

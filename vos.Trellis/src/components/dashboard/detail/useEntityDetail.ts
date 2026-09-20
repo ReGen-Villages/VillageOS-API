@@ -32,7 +32,7 @@ const MAX_RELATED = 60;
 /** The window refreshes on its own cadence rather than following the dashboard's `nonce`.
  *  A round costs a history request, and `nonce` bumps every 400 ms while a sim runs — following it
  *  would issue a request per open window on every flush. */
-const REFRESH_THROTTLE_MS = 5000;
+const REFRESH_THROTTLE_MILLISECONDS = 5000;
 
 export interface EntityDetail {
   loading: boolean;
@@ -78,7 +78,7 @@ export function useEntityDetail(
   const serviceEdges = useMemo(() => serviceEdgesOn(thingId, modelIndex).slice(0, MAX_RELATED), [thingId, modelIndex]);
 
   const historyEnabled = detail?.history?.enabled !== false;
-  const refreshTick = useThrottled(nonce, REFRESH_THROTTLE_MS);
+  const refreshTick = useThrottled(nonce, REFRESH_THROTTLE_MILLISECONDS);
   const dispatchKey = serviceEdges.map((edge) => edge.relationshipId).join(',');
   const requestKey = `${thingId}|${dispatchKey}|${refreshTick}`;
   const [resolved, setResolved] = useState<{

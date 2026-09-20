@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import Graph from 'graphology';
 import {
-  computePredicateStats,
+  computePredicateStatistics,
   computeClusters,
   pickClusterRepresentatives,
 } from './predicateCluster';
@@ -33,20 +33,20 @@ function makeGraph(): Graph {
 describe('computePredicateStats', () => {
   it('counts edges per predicate', () => {
     const graph = makeGraph();
-    const statistics = computePredicateStats(graph);
+    const statistics = computePredicateStatistics(graph);
 
-    const hasStats = statistics.find((s) => s.predicateId === 'p-has');
-    expect(hasStats).toBeDefined();
-    expect(hasStats!.edgeCount).toBe(2);
+    const hasStatistics = statistics.find((s) => s.predicateId === 'p-has');
+    expect(hasStatistics).toBeDefined();
+    expect(hasStatistics!.edgeCount).toBe(2);
 
-    const monStats = statistics.find((s) => s.predicateId === 'p-monitors');
-    expect(monStats).toBeDefined();
-    expect(monStats!.edgeCount).toBe(1);
+    const monitorsStatistics = statistics.find((s) => s.predicateId === 'p-monitors');
+    expect(monitorsStatistics).toBeDefined();
+    expect(monitorsStatistics!.edgeCount).toBe(1);
   });
 
   it('sorts by descending edge count', () => {
     const graph = makeGraph();
-    const statistics = computePredicateStats(graph);
+    const statistics = computePredicateStatistics(graph);
 
     // "has" has 2 edges, should be first
     expect(statistics[0].predicateId).toBe('p-has');
@@ -55,47 +55,47 @@ describe('computePredicateStats', () => {
 
   it('assigns colors via resolvePredicateColor (hash fallback)', () => {
     const graph = makeGraph();
-    const statistics = computePredicateStats(graph);
+    const statistics = computePredicateStatistics(graph);
 
     // Each predicate gets its hash-based color
-    const hasStats = statistics.find((s) => s.predicateName === 'has');
-    expect(hasStats!.color).toBe(resolvePredicateColor('has', {}));
-    const monStats = statistics.find((s) => s.predicateName === 'monitors');
-    expect(monStats!.color).toBe(resolvePredicateColor('monitors', {}));
+    const hasStatistics = statistics.find((s) => s.predicateName === 'has');
+    expect(hasStatistics!.color).toBe(resolvePredicateColor('has', {}));
+    const monitorsStatistics = statistics.find((s) => s.predicateName === 'monitors');
+    expect(monitorsStatistics!.color).toBe(resolvePredicateColor('monitors', {}));
   });
 
   it('uses explicit overrides when provided', () => {
     const graph = makeGraph();
     const overrides = { has: '#ff0000', monitors: '#00ff00' };
-    const statistics = computePredicateStats(graph, overrides);
+    const statistics = computePredicateStatistics(graph, overrides);
 
-    const hasStats = statistics.find((s) => s.predicateName === 'has');
-    expect(hasStats!.color).toBe('#ff0000');
-    const monStats = statistics.find((s) => s.predicateName === 'monitors');
-    expect(monStats!.color).toBe('#00ff00');
+    const hasStatistics = statistics.find((s) => s.predicateName === 'has');
+    expect(hasStatistics!.color).toBe('#ff0000');
+    const monitorsStatistics = statistics.find((s) => s.predicateName === 'monitors');
+    expect(monitorsStatistics!.color).toBe('#00ff00');
   });
 
   it('falls back to hash for predicates not in overrides', () => {
     const graph = makeGraph();
     const overrides = { has: '#ff0000' }; // monitors not overridden
-    const statistics = computePredicateStats(graph, overrides);
+    const statistics = computePredicateStatistics(graph, overrides);
 
-    const monStats = statistics.find((s) => s.predicateName === 'monitors');
-    expect(monStats!.color).toBe(resolvePredicateColor('monitors', {}));
+    const monitorsStatistics = statistics.find((s) => s.predicateName === 'monitors');
+    expect(monitorsStatistics!.color).toBe(resolvePredicateColor('monitors', {}));
   });
 
   it('uses edge label as predicate name', () => {
     const graph = makeGraph();
-    const statistics = computePredicateStats(graph);
+    const statistics = computePredicateStatistics(graph);
 
-    const hasStats = statistics.find((s) => s.predicateId === 'p-has');
-    expect(hasStats!.predicateName).toBe('has');
+    const hasStatistics = statistics.find((s) => s.predicateId === 'p-has');
+    expect(hasStatistics!.predicateName).toBe('has');
   });
 
   it('returns empty array for graph with no edges', () => {
     const graph = new Graph({ multi: true, type: 'directed' });
     graph.addNode('x', {});
-    expect(computePredicateStats(graph)).toEqual([]);
+    expect(computePredicateStatistics(graph)).toEqual([]);
   });
 });
 
@@ -218,7 +218,7 @@ describe('computePredicateStats — edge cases', () => {
     graph.addNode('b', {});
     graph.addDirectedEdgeWithKey('e1', 'a', 'b', { predicateId: 'p-feed', label: '' });
 
-    const statistics = computePredicateStats(graph);
+    const statistics = computePredicateStatistics(graph);
     expect(statistics).toHaveLength(1);
     // Empty label → falls back to predicateId
     expect(statistics[0].predicateName).toBe('p-feed');

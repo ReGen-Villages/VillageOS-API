@@ -6,7 +6,7 @@ interface Props {
   relationships: VosRelationship[];
 }
 
-export function ModelStatsCard({ things, relationships }: Props) {
+export function ModelStatisticsCard({ things, relationships }: Props) {
   const { t } = useTranslation();
   const predicateIds = new Set(relationships.map((r) => r.PredicateId));
   const totalProperties = things.reduce((sum, t) => sum + (t.Properties ? Object.keys(t.Properties).length : 0), 0);

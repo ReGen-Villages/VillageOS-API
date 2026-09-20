@@ -3,7 +3,7 @@ import type { ModelSummary } from '../types/vos';
 const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
 const API_KEY = import.meta.env.VITE_API_KEY || '';
 
-export interface AuthUser {
+export interface AuthenticatedUser {
   Id: string;
   Username: string;
   Role: string;
@@ -13,19 +13,19 @@ export interface AuthUser {
 class ApiClient {
   private token: string | null = null;
   private tokenExpiry: Date | null = null;
-  private currentUser: AuthUser | null = null;
+  private currentUser: AuthenticatedUser | null = null;
   private currentModelId: string | null = null;
   private currentModelName: string | null = null;
-  private onAuthRequired: (() => void) | null = null;
+  private onAuthenticationRequired: (() => void) | null = null;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
-  private onUserUpdated: ((user: AuthUser) => void) | null = null;
+  private onUserUpdated: ((user: AuthenticatedUser) => void) | null = null;
 
-  setUserUpdatedCallback(callback: (user: AuthUser) => void) {
+  setUserUpdatedCallback(callback: (user: AuthenticatedUser) => void) {
     this.onUserUpdated = callback;
   }
 
-  setAuthRequiredCallback(callback: () => void) {
-    this.onAuthRequired = callback;
+  setAuthenticationRequiredCallback(callback: () => void) {
+    this.onAuthenticationRequired = callback;
   }
 
   async fetchModels(): Promise<ModelSummary[]> {
@@ -37,10 +37,10 @@ class ApiClient {
     return response.json();
   }
 
-  private applyTokenResponse(data: { token: string; user: AuthUser; model?: { Id: string; Name: string } }) {
+  private applyTokenResponse(data: { token: string; user: AuthenticatedUser; model?: { Id: string; Name: string } }) {
     this.token = data.token;
     this.tokenExpiry = new Date(Date.now() + 25 * 60 * 1000);
-    this.currentUser = data.user as AuthUser;
+    this.currentUser = data.user as AuthenticatedUser;
     if (data.model) {
       this.currentModelId = data.model.Id;
       this.currentModelName = data.model.Name;
@@ -48,7 +48,7 @@ class ApiClient {
     this.scheduleRefresh();
   }
 
-  async login(username: string, password: string, modelId?: string): Promise<AuthUser> {
+  async login(username: string, password: string, modelId?: string): Promise<AuthenticatedUser> {
     const body: Record<string, string> = { Username: username, Password: password };
     if (modelId) body.ModelId = modelId;
 
@@ -82,7 +82,7 @@ class ApiClient {
     }
   }
 
-  async switchModel(modelId: string): Promise<AuthUser> {
+  async switchModel(modelId: string): Promise<AuthenticatedUser> {
     const response = await fetch(`${BASE_URL}/api/auth/switch-model`, {
       method: 'POST',
       headers: await this.headers(),
@@ -150,15 +150,15 @@ class ApiClient {
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     if (!this.tokenExpiry) return;
 
-    const msUntilExpiry = this.tokenExpiry.getTime() - Date.now();
-    const refreshAt = Math.max(msUntilExpiry * 0.8, 10_000); // at least 10s from now
+    const millisecondsUntilExpiry = this.tokenExpiry.getTime() - Date.now();
+    const refreshAt = Math.max(millisecondsUntilExpiry * 0.8, 10_000); // at least 10s from now
 
     this.refreshTimer = setTimeout(async () => {
       try {
         await this.refreshToken();
       } catch {
         void this.logout();
-        if (this.onAuthRequired) this.onAuthRequired();
+        if (this.onAuthenticationRequired) this.onAuthenticationRequired();
       }
     }, refreshAt);
   }
@@ -198,7 +198,7 @@ class ApiClient {
     }
   }
 
-  getUser(): AuthUser | null {
+  getUser(): AuthenticatedUser | null {
     return this.currentUser;
   }
 
@@ -232,8 +232,8 @@ class ApiClient {
       if (!response.ok) {
         this.token = null;
         this.tokenExpiry = null;
-        if (this.onAuthRequired) this.onAuthRequired();
-        throw new AuthRequiredError();
+        if (this.onAuthenticationRequired) this.onAuthenticationRequired();
+        throw new AuthenticationRequiredError();
       }
       const data = await response.json();
       this.token = data.token;
@@ -241,8 +241,8 @@ class ApiClient {
       return this.token!;
     }
 
-    if (this.onAuthRequired) this.onAuthRequired();
-    throw new AuthRequiredError();
+    if (this.onAuthenticationRequired) this.onAuthenticationRequired();
+    throw new AuthenticationRequiredError();
   }
 
   /**
@@ -273,8 +273,8 @@ class ApiClient {
     if (response.status === 401) {
       this.token = null;
       this.tokenExpiry = null;
-      if (this.onAuthRequired) this.onAuthRequired();
-      throw new AuthRequiredError();
+      if (this.onAuthenticationRequired) this.onAuthenticationRequired();
+      throw new AuthenticationRequiredError();
     }
     if (!response.ok) throw new ApiError(response.status, await response.text());
   }
@@ -375,7 +375,7 @@ export class ApiError extends Error {
   }
 }
 
-export class AuthRequiredError extends Error {
+export class AuthenticationRequiredError extends Error {
   constructor() {
     super('Authentication required');
     this.name = 'AuthRequiredError';

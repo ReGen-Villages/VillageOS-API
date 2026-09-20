@@ -28,13 +28,13 @@ function carriesFlag(thing: VosThing, roleFlag: string): boolean {
 }
 
 /** A past or in-flight run of a pipeline, for the run-history panel (#5646). */
-export interface RunInfo {
+export interface RunInformation {
   runId: string;
   status: string;
   startedUtc: string;
 }
 
-export interface PortInfo {
+export interface PortInformation {
   portName: string;
   direction: 'in' | 'out';
   type: string;
@@ -64,12 +64,12 @@ function wireMapping(properties: Record<string, unknown>) {
   };
 }
 
-export interface ConnectionInfo {
+export interface ConnectionInformation {
   connectionId: string;
   name: string;
   subdomain: string;
   serviceId: string;
-  ports: PortInfo[];
+  ports: PortInformation[];
 }
 
 export class PipelineModel {
@@ -137,8 +137,8 @@ export class PipelineModel {
   }
 
   /** Collect a service's ports by walking its `is`-chain and gathering the port Things it `has` at each level. */
-  resolvePorts(serviceId: string): PortInfo[] {
-    const ports: PortInfo[] = [];
+  resolvePorts(serviceId: string): PortInformation[] {
+    const ports: PortInformation[] = [];
     const seen = new Set<string>();
     const stack = [serviceId];
     while (stack.length) {
@@ -153,7 +153,7 @@ export class PipelineModel {
     return ports;
   }
 
-  private toPort(t: VosThing): PortInfo {
+  private toPort(t: VosThing): PortInformation {
     const p = t.Properties;
     return {
       portName: String(p.portName ?? t.Name),
@@ -172,15 +172,15 @@ export class PipelineModel {
 
   /** A boundary node's own declared port child-Things, each with its Thing id — the save-diff needs the id
    * to update a port in place or retract a removed one (#5873). Ports are declared directly on the node. */
-  boundaryPortRelationships(nodeId: string): { portId: string; port: PortInfo }[] {
+  boundaryPortRelationships(nodeId: string): { portId: string; port: PortInformation }[] {
     return this.outgoing(nodeId, 'has')
       .filter((t) => this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.Port))
       .map((t) => ({ portId: t.Id, port: this.toPort(t) }));
   }
 
   /** Every dispatchable connection (carries a Subdomain and binds a service) — the editor palette. */
-  connections(): ConnectionInfo[] {
-    const result: ConnectionInfo[] = [];
+  connections(): ConnectionInformation[] {
+    const result: ConnectionInformation[] = [];
     for (const t of this.things) {
       if (!this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.Connection)) continue;
       const subdomain = t.Properties.Subdomain;
@@ -282,8 +282,8 @@ export class PipelineModel {
   }
 
   /** Past + in-flight runs of a pipeline (a run Thing `of` the pipeline), newest first — the history panel (#5646). */
-  runsOf(pipelineId: string): RunInfo[] {
-    const runs: RunInfo[] = [];
+  runsOf(pipelineId: string): RunInformation[] {
+    const runs: RunInformation[] = [];
     for (const t of this.things) {
       if (!this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.PipelineRun)) continue;
       if (!this.outgoing(t.Id, 'of').some((p) => p.Id === pipelineId)) continue;

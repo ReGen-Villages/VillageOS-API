@@ -18,7 +18,7 @@ export function RadialPredicateMenu() {
   const { t } = useTranslation();
   const open = useUiStore((s) => s.radialMenuOpen);
   const position = useUiStore((s) => s.radialMenuPosition);
-  const predicateStats = useUiStore((s) => s.predicateStats);
+  const predicateStatistics = useUiStore((s) => s.predicateStatistics);
   const activePredicateIds = useUiStore((s) => s.activePredicateIds);
   const togglePredicateId = useUiStore((s) => s.togglePredicateId);
   const clearPredicateIds = useUiStore((s) => s.clearPredicateIds);
@@ -68,11 +68,11 @@ export function RadialPredicateMenu() {
     closeRadialMenu();
   }, [clearPredicateIds, closeRadialMenu]);
 
-  if (!open || !position || predicateStats.length === 0) return null;
+  if (!open || !position || predicateStatistics.length === 0) return null;
 
   const RADIUS = 130; // distance from centre to each button
   const BUTTON_SIZE = 56; // px, button diameter
-  const count = predicateStats.length;
+  const count = predicateStatistics.length;
   const hasActive = activePredicateIds.size > 0;
 
   return (
@@ -103,7 +103,7 @@ export function RadialPredicateMenu() {
       </button>
 
       {/* Predicate slices arranged radially */}
-      {predicateStats.map((stat, i) => {
+      {predicateStatistics.map((stat, i) => {
         // Angle: start at -90deg (12 o'clock), go clockwise
         const angle = ((2 * Math.PI) / count) * i - Math.PI / 2;
         const x = Math.cos(angle) * RADIUS;

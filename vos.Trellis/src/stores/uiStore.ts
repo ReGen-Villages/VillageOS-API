@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { PredicateStats, ClusterMap } from '../utils/predicateCluster';
+import type { PredicateStatistics, ClusterMap } from '../utils/predicateCluster';
 import { FLASH_DEFAULTS, LAYOUT_DEFAULTS } from '../utils/guiSettings';
 import type { FlashSettings, LayoutSettings } from '../utils/guiSettings';
 import type { SortOrder } from '../utils/typeFilter';
@@ -128,7 +128,7 @@ interface UiState {
   // ── Predicate clustering ───────────────────────────────────────────
   activePredicateIds: Set<string>;
   clusterMap: ClusterMap | null;
-  predicateStats: PredicateStats[];
+  predicateStatistics: PredicateStatistics[];
   collapsedClusters: Set<number>;
   expandedNodes: Set<string>;
   radialMenuOpen: boolean;
@@ -178,7 +178,7 @@ interface UiState {
   clearPredicateIds: () => void;
   setPredicateIds: (ids: Set<string>) => void;
   setClusterMap: (map: ClusterMap | null) => void;
-  setPredicateStats: (statistics: PredicateStats[]) => void;
+  setPredicateStatistics: (statistics: PredicateStatistics[]) => void;
   toggleClusterCollapsed: (clusterIndex: number) => void;
   toggleNodeExpanded: (nodeId: string) => void;
   openRadialMenu: (position: { x: number; y: number }) => void;
@@ -260,7 +260,7 @@ export const useUiStore = create<UiState>((set) => ({
   // ── Predicate clustering ─────────────────────────────────────────────
   activePredicateIds: new Set<string>(),
   clusterMap: null,
-  predicateStats: [],
+  predicateStatistics: [],
   collapsedClusters: new Set<number>(),
   expandedNodes: new Set<string>(),
   radialMenuOpen: false,
@@ -376,7 +376,7 @@ export const useUiStore = create<UiState>((set) => ({
     }),
 
   setClusterMap: (map) => set({ clusterMap: map }),
-  setPredicateStats: (statistics) => set({ predicateStats: statistics }),
+  setPredicateStatistics: (statistics) => set({ predicateStatistics: statistics }),
 
   toggleClusterCollapsed: (clusterIndex) =>
     set((state) => {

@@ -41,7 +41,7 @@ export function formatBytes(bytes: number): string {
   return `${value.toFixed(1)} ${unit}`;
 }
 
-export function formatMs(milliseconds: number): string {
+export function formatMilliseconds(milliseconds: number): string {
   if (milliseconds < 1) return '<1ms';
   if (milliseconds < 1000) return `${Math.round(milliseconds)}ms`;
   return `${(milliseconds / 1000).toFixed(1)}s`;
