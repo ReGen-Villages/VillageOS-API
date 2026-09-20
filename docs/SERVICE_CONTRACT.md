@@ -25,6 +25,7 @@ Mycelium launches a daemon with these flags (a service ignores ones it doesn't n
 | `--port` | Port the service listens on |
 | `--myceliumUrl` | Mycelium base URL |
 | `--issuer` / `--audience` | Expected JWT issuer/audience (validation must match what Mycelium signs) |
+| `--scheme=https` | Passed only when Mycelium runs with `Https:Only` on. It then addresses the daemon at `https://localhost:<port>`, so a service given this flag must answer `/handle`, `/health`, `/stats` and `/shutdown` over TLS; a self-registration naming an `http://` address is refused with `400`. The shared C# host does not yet act on the flag |
 
 Plain service-specific flags (e.g. `--mode=consumes`) are passed through verbatim.
 
@@ -83,6 +84,13 @@ finished, and a handler that reconnects after a break is sent what it missed. `r
 same on every delivery of one relation, so a handler in any language recognises a repeat by that key,
 does the work once, and answers 2xx to the repeat. C# handlers have a shared helper for this — see
 [Authoring a service](SERVICE_AUTHORING.md).
+
+**A failure answer is a dispatch to be sent again.** Mycelium judges the handler's outcome, not the
+transport: a status outside 2xx, or a 2xx whose body carries `"success": false`, records the
+dispatch as failed and the reconciler re-drives it. A `400` alone is a refusal — the handler read the
+body and turned it down, and the same body would earn the same answer — recorded once with the
+handler's own words and never re-driven. A 2xx with no `success` field, or with a body that is not
+JSON, counts as done.
 
 ## Registration
 
@@ -535,10 +543,12 @@ relationships (including the `is` type relationship), and their initial values �
   asserts nothing, which is how you set up one that only ever receives observations. The settings
   land on the property the Thing **owns**; for a name it only inherits, the archetype's declaration
   governs.
-- **Batch-scale reactive work.** Each write still re-evaluates its own affected ranges, but the O(model)
-  roll-up recompute is **deferred and run once** for the whole batch (not per write), so applying a large
-  fragment is ~O(model), not O((things + rels) × model). Send big graphs as one fragment rather than many
-  single writes: a standing-world batch that would otherwise be quadratic completes in one recompute pass.
+- **Batch-scale reactive work.** Each write still re-evaluates its own affected ranges, but the
+  roll-up recompute, whose cost grows with the size of the model, is **deferred and run once** for
+  the whole batch (not per write), so applying a large fragment costs one pass over the model rather
+  than one pass per Thing and relationship it carries. Send big graphs as one fragment rather than
+  many single writes: a standing-world batch that would otherwise cost the size of the batch times
+  the size of the model completes in one recompute pass.
 
 Contrast `POST /api/model`, which **replaces** the whole model (admin-only, bulk load); the fragment
 endpoint merges incrementally into the live model.

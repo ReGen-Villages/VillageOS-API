@@ -18,7 +18,7 @@ const SPECIFICATION_TYPE = 'vos.String';
 export interface DashboardWriteContext {
   dashboardArchetypeId: string;
   isPredicateId: string;
-  /** The model as it stands, for finding the edges a removal takes. */
+  /** The model as it stands, for finding the relationships a removal takes. */
   relationships: VosRelationship[];
 }
 
@@ -41,7 +41,7 @@ export const dashboardPages = {
   /** Keeps a page as one fragment — the Thing, what it is and its spec together — so a page the
    *  model refuses leaves nothing behind. Written as three requests, a refusal after the first would
    *  leave a Thing of no kind that no discovery lists and nobody could see to remove. Answers the
-   *  id, which the browser mints because the fragment points its own edge at the Thing it creates. */
+   *  id, which the browser mints because the fragment points its own relationship at the Thing it creates. */
   async keep(name: string, specification: DashboardSpecification, context: DashboardWriteContext): Promise<string> {
     const written = asTheDiscoveryReadsIt(specification);
     const id = crypto.randomUUID();
@@ -63,7 +63,7 @@ export const dashboardPages = {
     await dashboardPages.write(id, { ...specification, title });
   },
 
-  /** Retracts a page. Edges first: a Thing still named by one is a Thing something can still be
+  /** Retracts a page. Relationships first: a Thing still named by one is a Thing something can still be
    *  pointed at through. */
   async remove(id: string, context: DashboardWriteContext): Promise<void> {
     const onThePage = context.relationships.filter((edge) => edge.SubjectId === id || edge.TargetId === id);

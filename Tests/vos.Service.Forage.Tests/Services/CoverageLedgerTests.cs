@@ -6,9 +6,9 @@ using Xunit;
 
 namespace vos.Service.Forage.Tests.Services;
 
-// Task #6789 — what a run records about each call, and which calls it makes at all.
+// What a run records about each call, and which calls it makes at all.
 //
-// A site was discovered exactly once ever while the dispatching state counted `observed` edges: the
+// A site was discovered exactly once ever while the dispatching state counted `observed` relationships: the
 // first source to answer ended the occupancy for every source, so a partial failure was never retried
 // and a source added later never reached an existing site. The coverage Things replace that count, and
 // this decides what goes on them.

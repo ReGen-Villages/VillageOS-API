@@ -504,7 +504,7 @@ describe('the boundary on the map', () => {
     expect(maps[0].layers).toEqual([]);
   });
 
-  // Bug #6909. A page that opens on the whole world and closes in on a picked position changes the
+  // A page that opens on the whole world and closes in on a picked position changes the
   // zoom it opens at. That is the zoom the map *opens* at, so it moves the map rather than replacing
   // it — a replaced map is built with no style, and the style is applied when the source changes,
   // which a zoom change is not.
@@ -533,7 +533,7 @@ describe('the boundary on the map', () => {
   });
 });
 
-// Feature #6912 — land rather than a diagram, from what the model declares and nothing else. A source
+// Land rather than a diagram, from what the model declares and nothing else. A source
 // saying nothing about the ground draws exactly as every source does today, which is what keeps this
 // from being a change every deployment has to opt out of.
 describe('drawing the land in three dimensions', () => {
@@ -655,7 +655,7 @@ describe('drawing the land in three dimensions', () => {
   });
 });
 
-// The rest of Feature #6912: the land is drawn on a globe under a sky wherever the library can draw
+// The land is drawn on a globe under a sky wherever the library can draw
 // one, which is every map this client builds, and the camera's heading is shown and given back.
 describe('the globe, the sky and the heading', () => {
   const LIBRARY_PITCH_CEILING = 60;

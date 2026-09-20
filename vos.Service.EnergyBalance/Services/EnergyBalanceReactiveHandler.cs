@@ -2,7 +2,7 @@ using vos.Service.Shared;
 
 namespace vos.Service.EnergyBalance.Services;
 
-// The reactive (model-driven) form of the energy analysis (User Story #5839). Instead of running as a DAG node with
+// The reactive (model-driven) form of the energy analysis. Instead of running as a DAG node with
 // wired ports, it reacts to a graph relationship whose subject is the SiteStudy: it reads its inputs straight off
 // the study's effective properties and computes with EnergyBalanceCalculator.
 //

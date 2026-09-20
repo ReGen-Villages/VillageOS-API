@@ -3,25 +3,24 @@ using System.Text.Json;
 
 namespace vos.Service.Shared;
 
-/// <summary>The numeric inputs a reactive handler reads off one study's effective properties, bound to the
-/// service doing the reading so every refusal and every wait can name itself and the input.
-///
-/// <para>A handler reads several inputs, and the platform can now answer a property with no value at all — a
-/// roll-up whose member type resolves to nothing withholds its number rather than reporting zero. A refusal
-/// that says only "not numeric" leaves an operator to guess which of them it meant.</para>
-///
-/// <para>Shared rather than copied into each handler: this pair sat in two services, identical but for the
-/// name in the message, which is how one gets fixed and the other is left as it was.</para></summary>
+// The numeric inputs a reactive handler reads off one study's effective properties, bound to the
+// service doing the reading so every refusal and every wait can name itself and the input.
+//
+// A handler reads several inputs, and the platform can now answer a property with no value at all — a
+// roll-up whose member type resolves to nothing withholds its number rather than reporting zero. A refusal
+// that says only "not numeric" leaves an operator to guess which of them it meant.
+//
+// Shared rather than copied into each handler: this pair sat in two services, identical but for the
+// name in the message, which is how one gets fixed and the other is left as it was.
 public readonly struct StudyInputs(JsonElement properties, string serviceName)
 {
-    /// <summary>One input's value, refused by name when the study does not carry it or it is not a number.
-    ///
-    /// <para>The route answers a study's own properties under their bare name and every inherited one
-    /// under a key qualified by the set it came from — <c>SiteStudy.perCapitaConsumptionM3</c>. Since the
-    /// shared archetype took over the assumptions, that is where nearly every input now lives, so a name
-    /// is resolved against the last segment of a key as well as the whole of it. An own value wins, as it
-    /// does in the model; two inherited ones under one leaf name are refused rather than guessed at.</para>
-    /// </summary>
+    // One input's value, refused by name when the study does not carry it or it is not a number.
+    //
+    // The route answers a study's own properties under their bare name and every inherited one
+    // under a key qualified by the set it came from — SiteStudy.perCapitaConsumptionM3. Since the
+    // shared archetype took over the assumptions, that is where nearly every input now lives, so a name
+    // is resolved against the last segment of a key as well as the whole of it. An own value wins, as it
+    // does in the model; two inherited ones under one leaf name are refused rather than guessed at.
     public double Number(string name) => Carried(name) switch
     {
         null => throw new KeyNotFoundException($"{serviceName} input '{name}' is not on the study."),
@@ -31,13 +30,13 @@ public readonly struct StudyInputs(JsonElement properties, string serviceName)
         { } value => AsNumber(value, name),
     };
 
-    /// <summary>Which of these names the study holds no number under — one it does not carry at all, and one
-    /// carried with its number withheld. Both mean the same to a handler: the figure has not arrived.
-    ///
-    /// <para>A study a submission built describes land and a programme and nothing else, so a reservoir
-    /// capacity or a panel area is absent and stays absent until a building model exists. That is a figure
-    /// to wait for rather than a fault, which is why a handler asks this before it reads
-    /// (<see cref="RecomputeAnswer{TOutputs}"/>).</para></summary>
+    // Which of these names the study holds no number under — one it does not carry at all, and one
+    // carried with its number withheld. Both mean the same to a handler: the figure has not arrived.
+    //
+    // A study a submission built describes land and a programme and nothing else, so a reservoir
+    // capacity or a panel area is absent and stays absent until a building model exists. That is a figure
+    // to wait for rather than a fault, which is why a handler asks this before it reads
+    // (RecomputeAnswer{TOutputs}).
     public IReadOnlyList<string> WaitingFor(IEnumerable<string> names)
     {
         var waiting = new List<string>();

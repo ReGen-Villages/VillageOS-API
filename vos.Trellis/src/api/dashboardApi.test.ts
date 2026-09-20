@@ -47,7 +47,7 @@ import {
 
 /** These fixtures are bare graphs, so stamp the declaration a real model carries the way
  *  `vos.SeedValidate --fix` does — on every Thing something `is`. A type with no members cannot be
- *  found that way, so the test covering that case declares it by hand (#6218). */
+ *  found that way, so the test covering that case declares it by hand. */
 function declared(things: VosThing[], relationships: VosRelationship[]): VosThing[] {
   const isId = things.find((x) => x.Name === 'is')?.Id;
   const targets = new Set(
@@ -56,7 +56,6 @@ function declared(things: VosThing[], relationships: VosRelationship[]): VosThin
   return things.map((x) => (targets.has(x.Id) ? { ...x, IsArchetype: true } : x));
 }
 
-// ---- a tiny synthetic model: 2 villages + a Dashboard configuration ----
 const SPECIFICATION = {
   title: 'Ops',
   compare: { label: 'site', archetype: 'Village' },
@@ -114,7 +113,7 @@ describe('discovery', () => {
     expect(entities.map((e) => e.name)).toEqual(['V-1', 'V-2']);
   });
 
-  // Story #6477: a spec authored wrong is still addressable, so its author can be told what is
+  // A spec authored wrong is still addressable, so its author can be told what is
   // wrong with it. Ordered by name like any other, so a broken one does not sort to the end.
   it('lists a Dashboard Thing whose spec could not be read, carrying no spec', () => {
     const { things, relationships } = model();
@@ -163,7 +162,7 @@ function routeKeys(names: string[]): string[] {
   return discoverDashboards(things, relationships).map((d) => d.routeKey);
 }
 
-describe('dashboard order and addresses (Story 6582)', () => {
+describe('dashboard order and addresses', () => {
   it('orders dashboards by name, whatever order the archetype walk answered in', () => {
     const { things, relationships } = dashboardModel(['Reserves', 'Arrays', 'Springs']);
 
@@ -191,7 +190,7 @@ describe('dashboard order and addresses (Story 6582)', () => {
   });
 });
 
-// Bug #5942: archetypes are subtyped (Resident is Party, GardenPlot is Location),
+// Archetypes are subtyped (Resident is Party, GardenPlot is Location),
 // so membership must be transitive over the is-chain and count instances only.
 describe('thingIdsOfArchetype (transitive, instances-only)', () => {
   const t = (Id: string, Name: string): VosThing => ({ Id, Name, Properties: {} });
@@ -239,18 +238,18 @@ describe('thingIdsOfArchetype (transitive, instances-only)', () => {
   });
 
   // The case the old `is`-target guess got wrong: a type nothing is yet was returned as a row of
-  // its own, permanently for a type declared before the thing it describes exists (#6218).
+  // its own, permanently for a type declared before the thing it describes exists.
   it('excludes a declared archetype that has no members', () => {
     const rosterThings = [
       t('is', 'is'), t('Machine', 'Machine'),
       { ...t('Sorter', 'Sorter'), IsArchetype: true },
-      t('fork1', 'FORKLIFT-1'),
+      t('tractor1', 'TRACTOR-1'),
     ];
-    const rosterRelationships = [relationship('Sorter', 'Machine'), relationship('fork1', 'Machine')];
+    const rosterRelationships = [relationship('Sorter', 'Machine'), relationship('tractor1', 'Machine')];
 
     const roster = buildModelIndex(declared(rosterThings, rosterRelationships), rosterRelationships);
 
-    expect(thingIdsOfArchetype('Machine', roster)).toEqual(new Set(['fork1']));
+    expect(thingIdsOfArchetype('Machine', roster)).toEqual(new Set(['tractor1']));
   });
 });
 
@@ -271,7 +270,7 @@ describe('resolveBinding', () => {
     expect(v).toBeCloseTo((98.9 + 94.1) / 2);
   });
 
-  // Regression (Bug #5932): under lazy inheritance an overridden value lives in
+  // Regression: under lazy inheritance an overridden value lives in
   // InheritedOverrides, not Properties. Bindings must read effective properties.
   it('property $scope resolves a value inherited from an archetype', async () => {
     const child: VosThing = {
@@ -335,7 +334,7 @@ describe('resolveBinding', () => {
     expect(rows[0]).toMatchObject({ id: 'vil1', name: 'V-1', self_sufficiency_rate: 98.9 });
   });
 
-  // Feature (#5933): a State can contain Things of several archetypes (Orders
+  // A State can contain Things of several archetypes (Orders
   // and their OrderLines). `archetype` narrows the count/list to one archetype.
   describe('archetype narrowing', () => {
     // Model: 2 Orders + 1 OrderLine, all is-typed; state "open" holds all three.
@@ -459,17 +458,17 @@ describe('resolveBinding', () => {
         { kind: 'thingList', archetype: 'Node', scope: { viaPredicate: 'contains', direction: 'out' } },
         context,
       );
-      // root1 is the scope, not a member of it, however many edges lead back to it.
+      // root1 is the scope, not a member of it, however many relationships lead back to it.
       expect(rows.map((r) => r.name)).toEqual(['LEAF-1', 'LEAF-2', 'MID-1']);
     });
   });
 
-  // Feature (#6135): the list-shaped bindings could only reach the members of one derived state
+  // The list-shaped bindings could only reach the members of one derived state
   // or the compare entities. A roster wants every Thing of an archetype whatever condition each
   // is in — a healthy idle machine is in no state at all, so no stateList ever reaches it.
   describe('thingList', () => {
-    // Machine <- Robot(sub-archetype) <- RBT-1, RBT-2; Machine <- CNV-1 directly.
-    // SITE-1 contains RBT-1 and CNV-1; SITE-2 contains RBT-2.
+    // Machine <- Robot(sub-archetype) <- RBT-1, RBT-2; Machine <- PMP-1 directly.
+    // SITE-1 contains RBT-1 and PMP-1; SITE-2 contains RBT-2.
     function fleetContext(scopeId: string | null): ResolveContext {
       const t = (Id: string, Name: string, Properties: Record<string, unknown> = {}): VosThing => ({
         Id, Name, Properties,
@@ -479,7 +478,7 @@ describe('resolveBinding', () => {
         t('arch-machine', 'Machine'), t('arch-robot', 'Robot'),
         t('site1', 'SITE-1'), t('site2', 'SITE-2'),
         t('rbt1', 'RBT-1', { duty_cycle: 0.62 }), t('rbt2', 'RBT-2', { duty_cycle: 0.41 }),
-        t('cnv1', 'CNV-1', { duty_cycle: 0.88 }),
+        t('pmp1', 'PMP-1', { duty_cycle: 0.88 }),
       ];
       const relationship = (SubjectId: string, PredicateId: string, TargetId: string): VosRelationship => ({
         Id: `${SubjectId}-${PredicateId}-${TargetId}`, Name: `${SubjectId} ${PredicateId} ${TargetId}`,
@@ -487,8 +486,8 @@ describe('resolveBinding', () => {
       });
       const relationships = [
         relationship('arch-robot', 'is', 'arch-machine'),
-        relationship('rbt1', 'is', 'arch-robot'), relationship('rbt2', 'is', 'arch-robot'), relationship('cnv1', 'is', 'arch-machine'),
-        relationship('site1', 'contains', 'rbt1'), relationship('site1', 'contains', 'cnv1'), relationship('site2', 'contains', 'rbt2'),
+        relationship('rbt1', 'is', 'arch-robot'), relationship('rbt2', 'is', 'arch-robot'), relationship('pmp1', 'is', 'arch-machine'),
+        relationship('site1', 'contains', 'rbt1'), relationship('site1', 'contains', 'pmp1'), relationship('site2', 'contains', 'rbt2'),
       ];
       return {
         index: buildModelIndex(declared(things, relationships), relationships),
@@ -498,13 +497,13 @@ describe('resolveBinding', () => {
 
     it('lists every Thing of the archetype, in no state and with no scope selected', async () => {
       const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine' }, fleetContext(null));
-      expect(rows.map((r) => r.name)).toEqual(['CNV-1', 'RBT-1', 'RBT-2']);
+      expect(rows.map((r) => r.name)).toEqual(['PMP-1', 'RBT-1', 'RBT-2']);
       expect(stateApi.getThingsInState).not.toHaveBeenCalled();
     });
 
     it('carries each Thing effective properties into the row', async () => {
       const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine' }, fleetContext(null));
-      expect(rows.find((r) => r.name === 'CNV-1')).toMatchObject({ id: 'cnv1', duty_cycle: 0.88 });
+      expect(rows.find((r) => r.name === 'PMP-1')).toMatchObject({ id: 'pmp1', duty_cycle: 0.88 });
     });
 
     // A childless archetype answers `is` exactly like an instance, so a service-side lister has
@@ -519,14 +518,14 @@ describe('resolveBinding', () => {
         { kind: 'thingList', archetype: 'Machine', scope: { viaPredicate: 'contains', direction: 'out' } },
         fleetContext('site1'),
       );
-      expect(rows.map((r) => r.name)).toEqual(['CNV-1', 'RBT-1']);
+      expect(rows.map((r) => r.name)).toEqual(['PMP-1', 'RBT-1']);
     });
 
     // Order is by name so a capped list is the same list every time, not whatever order the
     // archetype walk happened to produce.
     it('caps the row count at limit, taking the first by name', async () => {
       const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine', limit: 2 }, fleetContext(null));
-      expect(rows.map((r) => r.name)).toEqual(['CNV-1', 'RBT-1']);
+      expect(rows.map((r) => r.name)).toEqual(['PMP-1', 'RBT-1']);
     });
 
     it('resolves an unknown archetype to an empty list', async () => {
@@ -537,18 +536,18 @@ describe('resolveBinding', () => {
     describe('narrowed', () => {
       beforeEach(() => {
         vi.mocked(stateApi.getThingsInState).mockResolvedValue({
-          StateName: 'busy', Things: [{ Id: 'rbt1', Name: 'RBT-1' }, { Id: 'cnv1', Name: 'CNV-1' }],
+          StateName: 'busy', Things: [{ Id: 'rbt1', Name: 'RBT-1' }, { Id: 'pmp1', Name: 'PMP-1' }],
         });
       });
 
       it('keeps the rows whose property satisfies the comparison and no other', async () => {
         const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine', where: [{ property: 'duty_cycle', op: '>', value: 0.5 }] }, fleetContext(null));
-        expect(rows.map((r) => r.name)).toEqual(['CNV-1', 'RBT-1']);
+        expect(rows.map((r) => r.name)).toEqual(['PMP-1', 'RBT-1']);
       });
 
       it('keeps the rows the platform lists for the state and no other, asking once for the state', async () => {
         const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine', inState: 'busy' }, fleetContext(null));
-        expect(rows.map((r) => r.name)).toEqual(['CNV-1', 'RBT-1']);
+        expect(rows.map((r) => r.name)).toEqual(['PMP-1', 'RBT-1']);
         expect(stateApi.getThingsInState).toHaveBeenCalledTimes(1);
         expect(vi.mocked(stateApi.getThingsInState).mock.calls[0][1]).toMatchObject({ type: 'Machine' });
       });
@@ -562,8 +561,8 @@ describe('resolveBinding', () => {
     });
   });
 
-  // Feature (#6140): a row carried only what the row's own Thing stores, so a column whose value
-  // sits on an edge (the archetype a Thing is, where it stands, what an open command points at)
+  // A row carried only what the row's own Thing stores, so a column whose value
+  // sits on a relationship (the archetype a Thing is, where it stands, what an open command points at)
   // or in the platform's derived condition could not be expressed at all.
   describe('columns an edge or a derived state answers', () => {
     // Machine <- Robot <- RBT-1, RBT-2. RBT-1 is at LOC-A and operates_in ZN-1; RBT-2 is at LOC-B.
@@ -630,7 +629,7 @@ describe('resolveBinding', () => {
         expect(await resolveBinding({ kind: 'related', via: [{ predicate: 'at' }] }, fleet('rbt1'))).toBe('LOC-A');
       });
 
-      // The is-edge answers what kind of machine this is — the sub-archetype it was typed with,
+      // The is-relationship answers what kind of machine this is — the sub-archetype it was typed with,
       // which is the word an operator reads, not the parent archetype the roster was listed by.
       it('names the archetype a Thing is, not the archetype it was listed under', async () => {
         expect(await resolveBinding({ kind: 'related', via: [{ predicate: 'is' }] }, fleet('rbt1'))).toBe('Robot');
@@ -953,7 +952,7 @@ describe('resolveBinding', () => {
   });
 });
 
-// Bug (#6142): a numeric binding took a number from a text property whenever the text happened to
+// A numeric binding took a number from a text property whenever the text happened to
 // read like one, so an identifier stored as text — an order number, a door number, a part code —
 // was summed and ranked as though it were a measurement. The platform already answers the question
 // the parse was guessing at: a text property arrives as text, every numeric type as a number.
@@ -1066,7 +1065,7 @@ describe('service bindings carry the selected scope', () => {
   });
 });
 
-// ---- verdict binding (#6473) --------------------------------------------
+// ---- verdict binding --------------------------------------------
 // The target a balance is judged against comes from the range that judges it, never from the spec:
 // a view restating 14 days says the wrong thing the day the range moves.
 describe('verdict binding', () => {
@@ -1278,7 +1277,7 @@ describe('verdict binding', () => {
   describe('a study the scope reaches rather than the scope itself', () => {
     /** A page scoped to the site, which is where a per-submission view has to be scoped: the
      *  programmes and hazards it lists hang off the site, while the ranges that judge its balances
-     *  sit on the study one edge away. */
+     *  sit on the study one relationship away. */
     function siteContext(studies: { name: string; properties: Record<string, unknown> }[]): ResolveContext {
       const things: VosThing[] = [
         { Id: 'is', Name: 'is', Properties: {} },
@@ -1390,7 +1389,7 @@ describe('a Thing reference resolves the same way whichever binding reads it', (
   });
 });
 
-// The platform narrows a state answer on the server (#6234), so the bindings stop reading every
+// The platform narrows a state answer on the server, so the bindings stop reading every
 // Thing in a state and discarding most of it in the browser.
 describe('state bindings ask the server to narrow', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -1571,7 +1570,7 @@ describe('state bindings ask the server to narrow', () => {
     expect(rows[0]).toEqual({ id: 'b1', name: 'BLD-1' });
   });
 
-  // A computed column is derived from the row's own Thing by walking edges, which is a question the
+  // A computed column is derived from the row's own Thing by walking relationships, which is a question the
   // state endpoint does not answer — so it still resolves here, beside the columns that arrived.
   it('derives a computed column beside the columns that arrived', async () => {
     vi.mocked(stateApi.getThingsInState).mockResolvedValue({
@@ -1683,7 +1682,7 @@ describe('state bindings ask the server to narrow', () => {
   });
 });
 
-// The series a dashboard draws is the platform's bucketed reduction (#6668), asked for at the
+// The series a dashboard draws is the platform's bucketed reduction, asked for at the
 // granularity the widget wants.
 describe('timeseries reads the platform bucketed aggregate', () => {
   const SITE_SCOPE = { viaPredicate: 'contains', direction: 'out' as const };
@@ -1783,7 +1782,7 @@ describe('timeseries reads the platform bucketed aggregate', () => {
   });
 });
 
-// Story #6475 / TC #6480: every input says where it came from, read off the model rather than off
+// Every input says where it came from, read off the model rather than off
 // the property's name.
 describe('the working behind a figure', () => {
   const study = (definitions: Record<string, unknown>, own: Record<string, unknown> = {}) => {
@@ -1866,7 +1865,7 @@ describe('the working behind a figure', () => {
   });
 });
 
-// Story #6476: a balance that falls short names what would have to change to close the gap. The
+// A balance that falls short names what would have to change to close the gap. The
 // levers come out of the model twice over — the definition says which way each input moves the
 // result, and the held state's own comparison says which way the result must move to leave it —
 // so changing the formula in the compute service changes the levers with no client change.
@@ -2184,7 +2183,7 @@ describe('origin binding', () => {
     expect(rows).toEqual([{ origin: 'unknown', reads: READS.unknown, source: null, resolvedAt: null }]);
   });
 
-  // The area a generated boundary encloses is not a survey, and this edge is the only record of it.
+  // The area a generated boundary encloses is not a survey, and this relationship is the only record of it.
   it('says how a boundary was obtained wherever the area it encloses is shown', async () => {
     const binding = origin('measuredAreaHectares', {
       via: [{ predicate: 'has', archetype: 'Parcel' }],
@@ -2241,7 +2240,7 @@ function seriesContext(): ResolveContext {
   return { index: buildModelIndex(declared(things, []), []), scopeId: null, reads: brokerModelReads() };
 }
 
-// A point covering several buckets, and the tile that reads the newest one (Bug #6866). The platform
+// A point covering several buckets, and the tile that reads the newest one. The platform
 // reduces onto a fixed grid; a spec that wants an hourly figure plotted every quarter hour asks for
 // quarter-hour buckets and says how many of them each point covers.
 describe('a series whose points cover several buckets', () => {
@@ -2309,7 +2308,7 @@ describe('a series whose points cover several buckets', () => {
 });
 
 // The tile above a line reads the line's newest point, so the two ask the platform one question and
-// the figure cannot drift from the shape beneath it (Bug #6866).
+// the figure cannot drift from the shape beneath it.
 describe('the newest point of a series', () => {
   const series = {
     kind: 'timeseries', archetype: 'Building', happenedAt: 'recorded_at', property: 'volume',
@@ -2351,7 +2350,7 @@ describe('the newest point of a series', () => {
 });
 
 // The history reduction is the platform's, over one property's observation series on the page's own
-// scope entity; the client folds nothing (Feature 7038, platform Task 7043).
+// scope entity; the client folds nothing.
 describe('history reads the platform reduction over a property series', () => {
   const UTC_OFFSET_PROPERTY = 'utcOffsetSeconds';
 

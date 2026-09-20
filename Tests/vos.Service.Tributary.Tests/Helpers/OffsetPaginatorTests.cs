@@ -5,7 +5,7 @@ using Xunit;
 
 namespace vos.Service.Tributary.Tests.Helpers;
 
-// Unit tests for the source-agnostic offset paginator (Task #5470). The field names (has-more flag,
+// Unit tests for the source-agnostic offset paginator. The field names (has-more flag,
 // items array, offset/size params) are all config, so an ArcGIS FeatureServer and a generic
 // offset/limit list API are two configurations of the same loop. Delegate-driven — no HTTP.
 public class OffsetPaginatorTests

@@ -27,17 +27,18 @@ Everything talks to **Mycelium**, the VillageOS server that stores the graph and
 - Server-Sent Events (SSE) real-time updates with flash effects
 - Zustand state management
 - Config-driven **Operations** dashboard — a model supplies a JSON spec and Trellis renders KPI, chart, funnel, table, and leaderboard widgets against it (the GUI stays domain-agnostic)
-- Dashboard, Operations, Compose, Intake, Submissions, Graph, Temporal, Things, Properties, Model, Pipelines and Logs pages
+- Dashboard, Operations, Compose, Intake, Submissions, Graph, Temporal, Things, Properties, Model, Pipelines and Logs pages, plus every page the platform declares for the signed-in account (Accounts, for an administrator), drawn like a model's own
 
 ### Taproot (CLI)
 
 **vos.Taproot** — Command-line interface for the Mycelium.
 
 - Interactive shell with command history and line editing
-- CRUD commands (create, get, list, delete, set, query, find)
+- CRUD commands (create, get, list, delete, set, query, find), with narrowed lists
+- Ranges and states, including each Thing's state history
 - Temporal queries (snapshot, at, history, mutations)
-- Service management (start service, stop service)
-- Seed export (serialize command)
+- Service management (list, start and stop a service; call an endpoint or a handler), pipelines, the event stream and the logs
+- Seeds, models and fragments (serialize, deserialize, plant, apply, ingest), submissions and accounts
 
 ### Microservices
 

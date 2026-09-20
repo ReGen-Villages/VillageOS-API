@@ -37,7 +37,7 @@ try
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
     builder.Services.AddHttpClient();
 
-    // Issuer/audience must match what Mycelium signed, hence taken from CLI (Bug #5391).
+    // Issuer/audience must match what Mycelium signed, hence taken from CLI.
     var authEnabled = !string.IsNullOrEmpty(verificationKey);
     if (authEnabled)
     {
@@ -56,7 +56,7 @@ try
             myceliumUrl,
             serviceToken, apiKey: apiKey));
 
-    // Reads the edges the template catalog already carries. A scoped snapshot, not a property read,
+    // Reads the relationships the template catalog already carries. A scoped snapshot, not a property read,
     // because what provisioning needs to know is which relationships exist.
     builder.Services.AddSingleton<ISubscriptionClient>(sp =>
         new SubscriptionClient(

@@ -79,7 +79,6 @@ class MyceliumClient:
         self._ssl = (ssl._create_unverified_context()
                      if insecure or environment.get("VOS_TLS_NOVERIFY") else None)
 
-    # -- auth -------------------------------------------------------------
     def token(self) -> str:
         """Return the bearer JWT, minting one from the API key if only that was supplied.
 
@@ -99,12 +98,13 @@ class MyceliumClient:
                                  headers={"X-API-Key": self._api_key}).get("token", "")
         return self._token
 
-    def _json(self, method, path, body=None, headers=None, _retry=True):
-        url = self.url + path
+    def _json(self, method, path, body=None, headers=None, address=None, _retry=True):
+        own = address is None or address.rstrip("/") == self.url
+        url = (self.url if own else address.rstrip("/")) + path
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(url, data=data, method=method)
         req.add_header("Content-Type", "application/json")
-        authed = not path.startswith("/api/auth/token")
+        authed = own and not path.startswith("/api/auth/token")
         if authed:
             req.add_header("Authorization", "Bearer " + self.token())
         for name, value in (headers or {}).items():
@@ -118,10 +118,17 @@ class MyceliumClient:
             # a long scenario survives instead of dying with 401 on the first write past the token's TTL.
             if e.code == 401 and authed and self._api_key and _retry:
                 self._token = None
-                return self._json(method, path, body, headers, _retry=False)
+                return self._json(method, path, body, headers, address, _retry=False)
             raise RuntimeError(f"{method} {path} -> {e.code} {e.read().decode()[:200]}")
 
-    # -- writes -----------------------------------------------------------
+    def post(self, path, body=None, headers=None, address=None):
+        """A post to a route outside the write API, on this host or on ``address`` — a service served
+        beside the broker. It takes the same request path as every write, so a post here is re-minted
+        and retried when the token expires mid-run. The bearer rides only to this client's own address:
+        another service is never handed the broker's credential, and a caller that needs one there puts
+        it in ``headers``."""
+        return self._json("POST", path, body, headers=headers, address=address)
+
     def create_thing(self, name, properties=None, thing_id=None):
         body = {"Name": name, "Properties": properties or {}}
         if thing_id is not None:
@@ -205,7 +212,6 @@ class MyceliumClient:
         return self._json("POST", "/api/model/fragment",
                           {"Name": name, "Things": things, "Relationships": relationships})
 
-    # -- fragment builders ------------------------------------------------
     @staticmethod
     def fragment_thing(thing_id, name, properties=None):
         """Build a ThingDto: id, name, and plain scalars wrapped in typed envelopes."""
@@ -217,7 +223,6 @@ class MyceliumClient:
         return {"Name": name or "rel", "Subject": subject_id,
                 "Predicate": predicate_id, "Target": target_id}
 
-    # -- subscriptions ----------------------------------------------------
     def subscribe(self, selector: dict):
         return self._json("POST", "/api/subscriptions", selector)
 

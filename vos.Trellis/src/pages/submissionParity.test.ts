@@ -9,8 +9,8 @@ import { fileURLToPath } from 'node:url';
  * command-line table, naming the page element that does the same thing — or saying it has none, and why.
  *
  * A command added on one branch and a table edited on another merge cleanly, because they touch
- * different lines. That is how `dispose` came to be missing from a table headed as complete
- * (Bug #6661). The table is read from the handler rather than remembered.
+ * different lines. That is how `dispose` came to be missing from a table headed as complete.
+ * The table is read from the handler rather than remembered.
  */
 
 const REPOSITORY = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');

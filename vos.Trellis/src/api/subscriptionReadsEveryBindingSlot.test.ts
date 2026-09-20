@@ -8,8 +8,7 @@ import { fileURLToPath } from 'node:url';
  * A widget slot that takes a binding but is not collected by the subscription is a page asking for
  * less than it draws — and nothing says so. The widget resolves its binding against whatever the
  * page happens to hold, so the figure renders empty, or renders without the Thing it names, and
- * reads as a value the model does not have (Bug #6701, where the KPI's `origin` slot was the one
- * left out).
+ * reads as a value the model does not have (the KPI's `origin` slot was the one left out).
  *
  * TypeScript cannot catch it: the collector is a hand-written switch returning an array, and a
  * missing element is a shorter array, not a type error. So this reads both files as source text and

@@ -34,7 +34,6 @@ export function AskedFields({
   inline,
 }: {
   fields: AskedValue[];
-  /** The rows each field's `options` resolved to, in the order of `fields`. */
   options: Row[][];
   entered: Entered;
   onChange: (entered: Entered) => void;

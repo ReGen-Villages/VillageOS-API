@@ -139,7 +139,6 @@ export function useBinding(binding: Binding | undefined, context: ResolveContext
   return { loading: !matched, value: matched ? resolved.value : null, error: matched && resolved.error };
 }
 
-/** Resolve a list of bindings in parallel (e.g. funnel stage counts). */
 export function useBindings(bindings: (Binding | undefined)[], context: ResolveContext): BindingState[] {
   const key = JSON.stringify(bindings);
   const waiting = waitFor(bindings, context);

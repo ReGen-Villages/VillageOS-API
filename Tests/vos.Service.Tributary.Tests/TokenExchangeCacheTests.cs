@@ -9,7 +9,7 @@ using Xunit;
 
 namespace vos.Service.Tributary.Tests;
 
-// Unit tests for the source-agnostic token-exchange cache (Task #5470). The cache POSTs the configured
+// Unit tests for the source-agnostic token-exchange cache. The cache POSTs the configured
 // form fields to a token endpoint, reads the token/expiry by simple dotted path, caches per
 // (url, fields), and refreshes at ~75% of lifetime. ESRI generateToken and OAuth2 client-credentials
 // are exercised as two configurations of the same code. A FakeTimeProvider drives the clock.

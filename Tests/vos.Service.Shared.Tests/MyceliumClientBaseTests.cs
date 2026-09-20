@@ -90,7 +90,7 @@ public class MyceliumClientBaseTests
         token.Should().BeNull();
     }
 
-    // Regression (#5894 / #5895): a daemon shared by several models must call back on the model
+    // Regression: a daemon shared by several models must call back on the model
     // of the current /handle request. The inbound bearer overrides the launch-time startup token.
     [Fact]
     public async Task GetTokenAsync_PrefersInboundRequestToken_OverStartupToken()

@@ -9,8 +9,7 @@ namespace vos.Service.Metabolism.Tests;
 // Custom WebApplicationFactory for Metabolism endpoint tests.
 // Pattern follows vos.Mycelium.Tests.MyceliumWebApplicationFactory from the sibling
 // VillageOS repo, including the IAsyncLifetime workaround for the sync-over-async
-// deadlock in CreateHost under the XPlat Code Coverage collector on Windows CI
-// (VillageOS Bug #5260).
+// deadlock in CreateHost under the XPlat Code Coverage collector on Windows CI.
 // Settings are injected via UseSetting on the host builder; MetabolismLaunchSettings.Parse
 // falls back to those when no command-line flags are present, which is always the case here.
 // The Testing environment guard in Program.cs already skips Serilog file logging
@@ -26,7 +25,7 @@ public class MetabolismWebApplicationFactory : WebApplicationFactory<Program>, I
 {
     // Optional per-test service substitutions, applied via ConfigureTestServices
     // after the production registrations land. Set before the first CreateClient().
-    // Used by Task #5456's DependencyInjectionTests to swap Metabolism via
+    // Used by DependencyInjectionTests to swap Metabolism via
     // services.RemoveAll<Metabolism>() + services.AddSingleton(stub).
     public Action<IServiceCollection>? ConfigureServices { get; set; }
 

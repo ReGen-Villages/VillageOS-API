@@ -24,8 +24,8 @@ import type { BoundaryPoint } from '../../utils/parcelGeometry';
 //
 // Asked for as a worker rather than as a file, because the library splits it in two and the worker
 // imports the other half by name. Asked for as a file, the bundler copies the one it was named and
-// nothing it imports, so every built map answered 404 for the half nobody emitted and parsed no tile
-// (Bug #6910). `ci/every-worker-carries-its-imports.mjs` fails a build that emits one that way again.
+// nothing it imports, so every built map answered 404 for the half nobody emitted and parsed no tile.
+// `ci/every-worker-carries-its-imports.mjs` fails a build that emits one that way again.
 maplibreConfiguration.WORKER_URL = maplibreWorkerUrl;
 
 const DEFAULT_ZOOM = 15;
@@ -139,7 +139,7 @@ export function MapView({
   // The zoom the map opens at, read here rather than watched: it is an opening value, and a caller
   // that changes it — a page opening on the world and closing in on a picked position — means move the
   // map, not replace it. Watched, the rebuilt map came up with the empty style it is built with and
-  // the swap below, which watches the source, had no reason to run (Bug #6909).
+  // the swap below, which watches the source, had no reason to run.
   const openingZoom = useRef(initialZoom);
   // Kept current ahead of the build below, which is declared after this and so sees the settled value.
   useEffect(() => {
@@ -192,8 +192,8 @@ export function MapView({
     // Changing a style maplibre has not finished loading throws, and a throw in an effect takes the
     // whole page down with it. Leaving this step and coming back builds a second map with the
     // boundary already in hand, which is how a draw arrives that early. Every styledata a live map
-    // fires can come while its sources are still loading, and none need follow once they are in
-    // (Bug #6913), so the idle below is what draws it once the style is in.
+    // fires can come while its sources are still loading, and none need follow once they are in,
+    // so the idle below is what draws it once the style is in.
     const draw = () => {
       if (!current.isStyleLoaded()) return;
       const drawn = current.getSource(BOUNDARY_SOURCE_ID) !== undefined;

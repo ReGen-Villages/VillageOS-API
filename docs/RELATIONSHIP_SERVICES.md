@@ -29,12 +29,15 @@ Passive predicates are created as regular predicate things without `ExecutablePa
 A dispatched predicate is a **PlatformServiceConnection** that **has** a **Service**; the Service carries the launch config. Both are ordinary model Things related by the generic `is`/`has` predicates — Mycelium resolves them by walking the `is`-chain and never hardcodes type names: the connection archetype is whichever Thing carries the mark `__IsConnectionArchetype`, the service archetype whichever carries `__IsServiceArchetype`, so a model may call them what it likes.
 
 ```text
-PlatformServiceConnection {__IsConnectionArchetype, trigger}   ← archetype: a routed connection (graph, http, or state)
-  ← is ─ consumes {trigger: graph} ─has→ consumes service ─is→ Metabolism prototype
-  ← is ─ produces {trigger: graph} ─has→ produces service ─is→ Metabolism prototype
+PlatformServiceConnection {__IsConnectionArchetype}   ← archetype: a routed connection
+  ← is ─ consumes ─has→ consumes service ─is→ Metabolism prototype
+  ← is ─ produces ─has→ produces service ─is→ Metabolism prototype
+  consumes ─triggeredBy→ graph          ← a ConnectionTrigger Thing: graph, http, or state
+  produces ─triggeredBy→ graph
 
-Service {__IsServiceArchetype, ExecutablePath, ServicePort, ServiceArgs, AutoStart, RunMode, TokenScope}  ← archetype: the process
-  ← is ─ Metabolism prototype {ExecutablePath, RunMode, TokenScope}   ← shared definition (one binary)
+Service {__IsServiceArchetype, ExecutablePathTemplate, ServicePort, ServiceArgs, AutoStart}  ← archetype: the process
+  Service ─runsAs→ daemon               ← a ServiceRunMode Thing; daemon is the only mode implemented
+  ← is ─ Metabolism prototype {ServiceAssembly, TokenScope}         ← shared definition (one binary)
             ← is ─ consumes service {ServicePort, ServiceArgs, AutoStart}   ← per-instance overrides
             ← is ─ produces service {ServicePort, ServiceArgs, AutoStart}
 
@@ -42,9 +45,9 @@ is                                          ← built-in; in-process, not a Plat
 has, feeds, powers, ...                     ← passive predicates (not PlatformServiceConnections)
 ```
 
-- **PlatformServiceConnection** (archetype): a Thing that routes to a service. `trigger` is `graph` (a predicate, fired when a relationship is created), `http` (a subdomain, reached via `POST /api/endpoints/{subdomain}`), or `state` (fired when a Thing enters a state: the connection relates to the range Thing it watches through the predicate carrying `__IsStateWatchPredicate`, the range relates to the archetype it judges, and every Thing that `is` that archetype fires it; subtypes inherit the trigger through the `is` chain). A dispatched predicate like `consumes` `is PlatformServiceConnection`. A service that needs to be told once about one Thing entering one state, rather than about every Thing of an archetype, places a **vigil** instead — see [Being told once: vigils](SERVICE_CONTRACT.md#being-told-once-vigils).
-- **Service** (archetype): the microservice process. Carries `ExecutablePath`, `ServicePort`, `ServiceArgs`, `AutoStart` (was `onLoad`), `RunMode`, and `TokenScope`.
-- **Shared prototype** (e.g. `Metabolism prototype`): a Service holding one binary's shared values (`ExecutablePath`, `RunMode`, `TokenScope`); concrete services `is` it and override only per-instance values (`ServicePort`, `ServiceArgs`, `AutoStart`). So `consumes` and `produces` share one binary definition but bind two distinct services.
+- **PlatformServiceConnection** (archetype): a Thing that routes to a service. Its **trigger** is a Thing it relates to through the predicate carrying `__IsTriggerPredicate` (`triggeredBy` above), never a word on the connection — a seed still carrying a `trigger` property is refused. The trigger is `graph` (a predicate, fired when a relationship is created), `http` (a subdomain, reached via `POST /api/endpoints/{subdomain}`), or `state` (fired when a Thing enters a state: the connection relates to the range Thing it watches through the predicate carrying `__IsStateWatchPredicate`, the range relates to the archetype it judges, and every Thing that `is` that archetype fires it). A connection with no trigger of its own takes the nearest one up its `is` chain. A dispatched predicate like `consumes` `is PlatformServiceConnection`. A service that needs to be told once about one Thing entering one state, rather than about every Thing of an archetype, places a **vigil** instead — see [Being told once: vigils](SERVICE_CONTRACT.md#being-told-once-vigils).
+- **Service** (archetype): the microservice process. Carries `ExecutablePathTemplate` (or a stated `ExecutablePath`), `ServicePort`, `ServiceArgs` and `AutoStart` (was `onLoad`), and reaches its **run mode** through the predicate carrying `__IsRunModePredicate` (`runsAs` above) — a Thing, not a word, and `daemon` is the only one the platform implements.
+- **Shared prototype** (e.g. `Metabolism prototype`): a Service holding one binary's shared values — its `ServiceAssembly`, which the archetype's `ExecutablePathTemplate` composes into a path by replacing `{service}`, and its `TokenScope`; concrete services `is` it and override only per-instance values (`ServicePort`, `ServiceArgs`, `AutoStart`). So `consumes` and `produces` share one binary definition but bind two distinct services.
 - **PlatformServiceConnection `has` Service**: the generic `has` relation; the service is identified as the related Thing that is (transitively) a `Service`, never by predicate name.
 - **Built-in `is`**: in-process (Mycelium's `is`-inheritance + the range engine); not a PlatformServiceConnection.
 - **Passive predicates** (`contains`, `aggregates`, `has`, …): not PlatformServiceConnections; no service.
@@ -95,11 +98,11 @@ flowchart TB
 
 ### How Relationship Services Work
 
-1. **PlatformServiceConnection + Service definition**: A dispatched predicate `is PlatformServiceConnection` (`trigger: graph`) and `has` a Service Thing carrying the handler configuration properties (typically inherited from a shared prototype):
-   - `ExecutablePath` -- path to the handler executable (`.dll` files are run via `dotnet`). A relative path resolves from the folder Mycelium runs in, not from the seed file, so a service built in another repository needs a path that climbs out of Mycelium's own.
+1. **PlatformServiceConnection + Service definition**: A dispatched predicate `is PlatformServiceConnection`, is `triggeredBy` the `graph` trigger, and `has` a Service Thing carrying the handler configuration properties (typically inherited from a shared prototype):
+   - `ExecutablePathTemplate` -- on the `Service` archetype, a path with a `{service}` placeholder that each prototype's `ServiceAssembly` fills; a stated `ExecutablePath` wins where both are present. `.dll` files are run via `dotnet`. A relative path resolves from the folder Mycelium runs in, not from the seed file, so a service built in another repository needs a path that climbs out of Mycelium's own; a composed path naming no file refuses the seed at load.
    - `ServicePort` -- port for the daemon to listen on
    - `ServiceArgs` -- extra CLI arguments (e.g., `--mode=consumes`) passed verbatim to the daemon.
-   - `RunMode` -- execution mode (only `"daemon"` is supported; defaults to `"daemon"` if unset)
+   - the run mode -- a Thing reached through `runsAs`, declared on the `Service` archetype and inherited; `daemon` is the only one implemented
    - `TokenScope` -- a label describing the reach this handler is *meant* to have, minted into its service JWT as the `vos:scope` claim (defaults to `"{connectionName}:*"`). **It records intent and restricts nothing.** Mycelium authorises by role: a service token reads and writes every Thing in the model it names, whatever its scope says. The one boundary a service token does carry is that model — a handler cannot reach another one.
    - `AutoStart` -- boolean (default `false`). When `true`, Mycelium registers the handler at seed load and invokes it for all existing relationships using this connection. When `false` or absent, the handler is invoked lazily when new relationships are created at runtime
 
@@ -116,8 +119,8 @@ flowchart TB
      "relationshipId": "guid",
      "subjectId": "guid",
      "targetId": "guid",
-     "subjectName": "Chemistry-Test-Run-1",
-     "targetName": "Reagent-Lot-A",
+     "subjectName": "Cottage-01",
+     "targetName": "VillageElectricityPool",
      "properties": { "quantity": 0.01, "unit": "kWh", "frequencySeconds": 30 }
    }
    ```
@@ -149,7 +152,7 @@ The `is` predicate is VillageOS's type system. Linking a thing to a type with an
 - **The first write makes a per-instance override.** When an instance sets a value for an inherited property, VillageOS records a per-instance copy (an *override*) on that instance and leaves the type untouched. Reads then return the override; the type's default still flows to every other instance. This is **write isolation** — one instance can never change the value another instance sees.
 - **Retracting the name gives the type's value back.** Deleting that property on the instance removes the override, and the instance resolves the type's live value again. The type is untouched either way.
 - **Ranges resolve the same way.** A type's ranges apply to its instances by walking the `is` chain at evaluation time; they are not stored on the instance. When an inherited value changes, the affected ranges re-evaluate.
-- **Transitive.** Resolution follows the whole chain (`Dog is Mammal is Animal`), and type-membership tests walk it too.
+- **Transitive.** Resolution follows the whole chain (`Cottage-01 is Cottage is Dwelling`), and type-membership tests walk it too.
 - **Classification.** The GUI uses `is` relationships to determine node types and colors.
 
 ### Reading properties: own, inherited, effective
@@ -184,13 +187,13 @@ A name resolves to one property, so a few rules keep resolution unambiguous. A l
 ### Example
 
 ```text
-Patient-123 --[is]--> MalePatient-Type
+Cottage-01 --[is]--> Cottage
 ```
 
-- `Patient-123` immediately resolves `MalePatient-Type`'s property values and ranges — no copy is made.
-- Setting a value on `Patient-123` for one of those properties stores an override on `Patient-123`; `MalePatient-Type` is unchanged, and its default still reaches every other patient.
-- `Patient-123`'s ranges evaluate against its resolved values and re-evaluate when those values change.
-- `Patient-123` is classified as `MalePatient-Type` in the GUI.
+- `Cottage-01` immediately resolves `Cottage`'s property values and ranges — no copy is made.
+- Setting a value on `Cottage-01` for one of those properties stores an override on `Cottage-01`; `Cottage` is unchanged, and its default still reaches every other cottage.
+- `Cottage-01`'s ranges evaluate against its resolved values and re-evaluate when those values change.
+- `Cottage-01` is classified as a `Cottage` in the GUI.
 
 ### Predicate configuration
 
@@ -218,7 +221,7 @@ Both `consumes` and `produces` are handled by a single `Metabolism` binary, diff
 - **Continuous Simulation**: Registers relationships for ongoing resource flow (not one-shot)
 - **Configurable Frequency**: Each relationship ticks at its own interval
 - **Staggered Startup**: Initial ticks are offset by `(registrationOrder * 200ms) + random(0..500ms)` to prevent thundering herd
-- **Mode-based Operation**: `consumes` mode calls `decrement-quantity`, `produces` mode calls `increment-quantity`
+- **Mode-based Operation**: `consumes` mode posts to the target property's `decrements` route, `produces` mode to its `increments` route
 - **Per-relationship Tracking**: Each tick also increments `total_consumed` or `total_produced` on the relationship itself. Increments are durable, exactly-once `PropertyValueAsserted` Facts (applied under the commit lock), so the running total survives restart and never loses a tick — see [Write model: everything is a Fact](#write-model-everything-is-a-fact).
 
 ### Relationship Properties
@@ -233,42 +236,53 @@ Both `consumes` and `produces` are handled by a single `Metabolism` binary, diff
 | `startUtc` | string (ISO 8601) | now | When to begin simulation (evaluated after `startDelaySeconds`) |
 | `endUtc` | string (ISO 8601) | 2099-12-31 | When to stop simulation |
 
-> **Typed envelopes in seed files**: When defining metabolism properties in seed JSON, numeric properties (`quantity`, `frequencySeconds`, `startDelaySeconds`, `reorder_point`) **must** use typed envelopes: `{"typeInfo": "vos.Decimal", "value": 5.0}`. Plain numeric values are stored as `vos.Integer`, which truncates decimal increments to 0.
+> **Typed envelopes, everywhere**: every property value the platform reads — in a seed, a fragment or a write route — is a typed envelope, `{"typeInfo": "vos.Decimal", "value": 5.0}`; a bare value is refused. Use `vos.Decimal` for `quantity`, `frequencySeconds` and `startDelaySeconds`, since an integer type truncates a decimal increment to nothing.
 
 ### PlatformServiceConnection + Service Configuration
 
-Each dispatched predicate is a graph `PlatformServiceConnection` that `has` a `Service`; the Service `is` a shared
-prototype carrying the binary. The predicate Things hold only `trigger`:
+Each dispatched predicate is a `PlatformServiceConnection` that is `triggeredBy` the `graph` trigger and
+`has` a `Service`; the Service `is` a shared prototype carrying the binary. The predicate Things hold
+nothing of their own:
 
 ```json
-{ "Name": "consumes", "Properties": { "trigger": "graph" } }
-{ "Name": "produces", "Properties": { "trigger": "graph" } }
+{ "Name": "consumes", "Properties": { } }
+{ "Name": "produces", "Properties": { } }
+{ "Name": "graph", "Properties": { } }
 ```
 
-One shared prototype carries the binary and the token scope, which describes what this handler is
-for and does not restrict it (both services `is` it):
+with `graph is ConnectionTrigger`, `consumes triggeredBy graph` and `produces triggeredBy graph`, the
+`triggeredBy` predicate carrying `__IsTriggerPredicate`. One shared prototype names the binary and the
+token scope, which describes what this handler is for and does not restrict it (both services `is` it):
 
 ```json
 {
   "Name": "Metabolism prototype",
+  "IsArchetype": true,
   "Properties": {
-    "ExecutablePath": "../vos.Service.Metabolism/bin/Debug/net10.0/vos.Service.Metabolism.dll",
-    "RunMode": "daemon",
-    "TokenScope": "metabolism:quantity,read"
+    "ServiceAssembly": { "typeInfo": "vos.String", "value": "vos.Service.Metabolism" },
+    "TokenScope": { "typeInfo": "vos.String", "value": "metabolism:quantity,read" }
   }
 }
 ```
 
-Each concrete service holds only per-instance overrides:
+The `Service` archetype above it carries the `ExecutablePathTemplate` the assembly name is composed
+into, and relates through `runsAs` to the `daemon` run mode. Each concrete service holds only
+per-instance overrides:
 
 ```json
-{ "Name": "consumes service", "Properties": { "ServicePort": 7102, "ServiceArgs": "--mode=consumes", "AutoStart": true } }
-{ "Name": "produces service", "Properties": { "ServicePort": 7103, "ServiceArgs": "--mode=produces", "AutoStart": true } }
+{ "Name": "consumes service", "Properties": {
+    "ServicePort": { "typeInfo": "vos.LongInteger", "value": 7102 },
+    "ServiceArgs": { "typeInfo": "vos.String", "value": "--mode=consumes" },
+    "AutoStart":   { "typeInfo": "vos.Boolean", "value": true } } }
+{ "Name": "produces service", "Properties": {
+    "ServicePort": { "typeInfo": "vos.LongInteger", "value": 7103 },
+    "ServiceArgs": { "typeInfo": "vos.String", "value": "--mode=produces" },
+    "AutoStart":   { "typeInfo": "vos.Boolean", "value": true } } }
 ```
 
 Relationships wire them (per predicate): `consumes is PlatformServiceConnection`, `consumes has "consumes service"`,
 `"consumes service" is "Metabolism prototype"`, `"Metabolism prototype" is Service`. `tools/seed-migrate`
-produces exactly this shape from the old format.
+in the platform repository produces this shape from the old format.
 
 ### Metabolism
 
@@ -323,155 +337,123 @@ When this relationship is registered:
 
 ---
 
-## Usage Example: Laboratory Workflow Simulation
+## Usage Example: a home drawing on the village's electricity
 
-> **Note on predicate config.** The walkthrough below puts `ExecutablePath`/`ServicePort` directly on the predicate to keep the focus on relationship mechanics. Current seeds instead give the predicate only `trigger` and put the launch config on a bound **Service** — see [PlatformServiceConnection + Service Configuration](#platformserviceconnection--service-configuration) for the shape to use in real seeds.
+The seed the platform ships declares the `consumes` and `produces` connections in the shape above,
+so a worked example needs only the Things that take part and the relationships between them. Every
+value is a typed envelope, because a bare value is refused on every route.
 
 ### Setup
 
-1. **Create Predicate Things**:
+1. **Create the pool and the home**:
 
 ```json
 POST https://localhost:7243/api/things
 {
-  "Name": "consumes",
+  "Name": "VillageElectricityPool",
   "Properties": {
-    "ExecutablePath": "vos.Service.Metabolism",
-    "ServicePort": 7102,
-    "ServiceArgs": "--mode=consumes"
+    "quantity": { "typeInfo": "vos.Decimal", "value": 1000.0 },
+    "unit":     { "typeInfo": "vos.String",  "value": "kWh" }
   }
 }
 
 POST https://localhost:7243/api/things
 {
-  "Name": "produces",
+  "Name": "Cottage-01",
   "Properties": {
-    "ExecutablePath": "vos.Service.Metabolism",
-    "ServicePort": 7103,
-    "ServiceArgs": "--mode=produces"
+    "requiredQuantity": { "typeInfo": "vos.Decimal", "value": 0.5 }
   }
 }
 ```
 
-1. **Create Resource Things**:
+1. **Create a generator**:
 
 ```json
 POST https://localhost:7243/api/things
 {
-  "Name": "Reagent-Lot-A",
-  "Properties": {
-    "quantity": 1000.0,
-    "unit": "mL",
-    "lotNumber": "LOT-2024-001"
-  }
-}
-
-POST https://localhost:7243/api/things
-{
-  "Name": "Plasma-Sample-Pool",
-  "Properties": {
-    "quantity": 0.0,
-    "unit": "mL"
-  }
-}
-```
-
-1. **Create Process Things**:
-
-```json
-POST https://localhost:7243/api/things
-{
-  "Name": "Chemistry-Test-Run-1"
-}
-
-POST https://localhost:7243/api/things
-{
-  "Name": "Centrifuge-Process-1"
+  "Name": "SolarArray-South"
 }
 ```
 
 ### Workflow Execution
 
-1. **Test consumes reagent**:
+1. **The home consumes from the pool**:
 
 ```json
 POST https://localhost:7243/api/relationships
 {
-  "SubjectId": "{Chemistry-Test-Run-1-Id}",
+  "SubjectId": "{Cottage-01-Id}",
   "PredicateId": "{consumes-predicate-Id}",
-  "TargetId": "{Reagent-Lot-A-Id}",
+  "TargetId": "{VillageElectricityPool-Id}",
   "Properties": {
-    "quantity": 5.0
+    "quantity": { "typeInfo": "vos.Decimal", "value": 0.5 }
   }
 }
 ```
 
-**Result**: `Reagent-Lot-A.quantity` decrements by 5.0 every 60 seconds (default frequency)
+**Result**: `VillageElectricityPool.quantity` decrements by 0.5 every 60 seconds (default frequency)
 
-1. **Process produces plasma**:
+1. **The array produces into the pool**:
 
 ```json
 POST https://localhost:7243/api/relationships
 {
-  "SubjectId": "{Centrifuge-Process-1-Id}",
+  "SubjectId": "{SolarArray-South-Id}",
   "PredicateId": "{produces-predicate-Id}",
-  "TargetId": "{Plasma-Sample-Pool-Id}",
+  "TargetId": "{VillageElectricityPool-Id}",
   "Properties": {
-    "quantity": 3.5
+    "quantity": { "typeInfo": "vos.Decimal", "value": 3.5 }
   }
 }
 ```
 
-**Result**: `Plasma-Sample-Pool.quantity` increments by 3.5 every 60 seconds (default frequency)
+**Result**: `VillageElectricityPool.quantity` increments by 3.5 every 60 seconds (default frequency)
 
 ### Query Results
 
 ```bash
-GET https://localhost:7243/api/things/{Reagent-Lot-A-Id}
-# Returns: { "quantity": 995.0, ... }
-
-GET https://localhost:7243/api/things/{Plasma-Sample-Pool-Id}
-# Returns: { "quantity": 3.5, ... }
+GET https://localhost:7243/api/things/{VillageElectricityPool-Id}
+# Returns: { "quantity": 1003.0, ... }
 ```
 
 ---
 
 ## Integration with Ranges / Expected Values
 
-Predicate handlers enable powerful range definitions for simulation monitoring. Ranges evaluate criteria across the graph, and handler-modified properties participate in those evaluations automatically.
+Predicate handlers enable powerful range definitions for simulation monitoring. Ranges evaluate criteria across the graph, and handler-modified properties participate in those evaluations automatically. A criterion is written in the criteria language — the platform Field Guide has the grammar on one page.
 
-### Low Reagent Alert
-
-```json
-{
-  "Name": "Low Reagent Alert",
-  "Criteria": "[reagent].quantity < [reagent].reorder_point"
-}
-```
-
-Creates an alert state when consumable quantities drop below reorder thresholds.
-
-### Process Ready Check
+### Low Reserve Alert
 
 ```json
 {
-  "Name": "Process Ready",
-  "Criteria": "ALL([process]--[consumes]-->[resource]).quantity >= required_qty"
+  "Name": "LowReserve",
+  "Criteria": "quantity IS KNOWN AND quantity < reorderPoint"
 }
 ```
 
-Validates all required resources are available before starting a process.
+On the pool, creates an alert state when the reserve drops below its reorder threshold.
 
-### Quality Inheritance
+### Supply Check
 
 ```json
 {
-  "Name": "Derived Quality Failure",
-  "Criteria": "ANY([product]--[derived_from]-->[material]).quality_flag == 'defective'"
+  "Name": "Supplied",
+  "Criteria": "ALL [consumes].quantity >= requiredQuantity"
 }
 ```
 
-Propagates quality issues through production chains.
+On a home, holds while every pool it draws on holds at least what the home requires.
+
+### Failure Reaching Through a Chain
+
+```json
+{
+  "Name": "FedByAFailedSource",
+  "Criteria": "ANY [consumes].state HAS 'Depleted'"
+}
+```
+
+On a home, holds while any pool it draws on is in the `Depleted` state a range on the pool produces.
 
 ### Two-phase Evaluation
 
@@ -499,7 +481,7 @@ Relationship behaviors are a **platform extension point**, not a fixed set. This
 
 The platform side of adding a relationship service is purely declarative — you register the behavior with the graph, and Mycelium does the rest:
 
-1. **Declare the connection + service.** Create a predicate that `is PlatformServiceConnection` (`trigger: graph`) and `has` a Service Thing carrying the handler configuration (`ExecutablePath`, `ServicePort`, optional `ServiceArgs`, `TokenScope`, `AutoStart`) — typically inherited from a shared prototype. See [How Relationship Services Work](#how-relationship-services-work) for each property's meaning. This is the entire contract the platform needs in order to find and launch the handler.
+1. **Declare the connection + service.** Create a predicate that `is PlatformServiceConnection`, relate it to the `graph` trigger through the predicate carrying `__IsTriggerPredicate`, and give it a Service Thing through `has` carrying the handler configuration (`ServicePort`, optional `ServiceArgs`, `AutoStart`, and through its prototype the `ServiceAssembly` and `TokenScope`) — typically inherited from a shared prototype. See [How Relationship Services Work](#how-relationship-services-work) for each property's meaning. This is the entire contract the platform needs in order to find and launch the handler.
 2. **Discovery.** At seed load, Mycelium discovers connections by walking the `is`-chain and registers them with the service broker; those whose Service has `AutoStart: true` are invoked for existing relationships immediately.
 3. **Dispatch.** When a relationship using the predicate is created, the service broker delegates to the shared daemon lifecycle manager, which lazily launches the daemon (if needed), waits for health, and POSTs the relationship to the handler's `/handle` endpoint. (The daemon register/deregister/health lifecycle is documented in the broker's service-lifecycle flow — see the note below.)
 
@@ -537,13 +519,13 @@ Mycelium-launched daemons receive a pre-minted service JWT through the `Token` e
 
 ### Quantity Endpoint Payload
 
-Both `increment-quantity` and `decrement-quantity` accept:
+Both the increments and the decrements route accept:
 
 ```json
 {
   "amount": 5.0,
-  "subjectName": "Chemistry-Test-Run-1",
-  "unit": "mL"
+  "subjectName": "Cottage-01",
+  "unit": "kWh"
 }
 ```
 
@@ -564,7 +546,7 @@ Every model mutation is a durable, sequenced **Fact** in the per-tenant Commit L
 | Add / remove a range | `RangeCreated` / `RangeRetracted` | thing or relationship |
 | Clear the model | `ModelCleared` | replay drops all things/relationships |
 
-On replay, the model's current value for a property is reconstructed from the **latest** `PropertyValueAsserted` for it, so a stream of increment Facts sums to the correct total. Observations remain a separate, deliberately lossy/coalesced telemetry channel (sampled values; history-only, not replayed into authoritative state) — never used for cumulative deltas. See the persistence design in the platform architecture notes (private).
+On replay, the model's current value for a property is reconstructed from the **latest** `PropertyValueAsserted` for it, so a stream of increment Facts sums to the correct total. Observations remain a separate, deliberately lossy/coalesced telemetry channel (sampled values; history-only, not replayed into authoritative state) — never used for cumulative deltas. The platform Field Guide's write-path chapter has the whole of it.
 
 ---
 
@@ -705,7 +687,7 @@ dotnet run --project vos.Service.Metabolism -- \
 
 | Problem | Cause | Fix |
 |---------|-------|-----|
-| Handler not starting | Missing `ExecutablePath` or `ServicePort` on the Service the connection `has` (or on the prototype it `is`) | Add the missing property to the Service |
+| Handler not starting | No `ServiceAssembly` on the prototype (or `ExecutablePath` on the Service) or no `ServicePort` on the Service the connection `has` | Add the missing property; a composed path naming no file refuses the seed at load, naming the service |
 | "Connection refused" in Mycelium logs | Daemon not running and auto-start failed | Check `ExecutablePath` is correct; check `logs/` for startup errors |
 | Daemon enters cooldown | 3+ consecutive startup failures | Wait 5 minutes or restart Mycelium; check handler logs |
 | Simulations not ticking | `startUtc` is in the future | Check the relationship's `startUtc` property |
@@ -785,10 +767,5 @@ Built-in relationship services give VillageOS powerful semantic capabilities:
 - **Temporal Simulation**: Track resource flows through time with per-relationship cumulative totals
 - **Integration**: Works seamlessly with ranges, bindings, and temporal queries
 
-This architecture makes VillageOS ideal for:
-
-- Laboratory workflow simulation
-- Supply chain modeling
-- Manufacturing process tracking
-- Clinical data provenance
-- Any domain requiring resource flow semantics
+This architecture is what lets a village's energy, water and food be simulated as flows between the
+Things that hold them, judged by the same ranges that will judge the real readings once it is built.

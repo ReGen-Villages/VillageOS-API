@@ -5,9 +5,6 @@ using vos.Service.Delta.Models;
 
 namespace vos.Service.Delta.Services;
 
-// HTTP client for communicating with the VOS Mycelium.
-// Extends MyceliumClientBase for shared token management.
-// Adds Delta-specific operations (thing/relationship CRUD).
 public class MyceliumClient : MyceliumClientBase
 {
     public MyceliumClient(IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, string? serviceToken = null, string? apiKey = null)
@@ -45,7 +42,7 @@ public class MyceliumClient : MyceliumClientBase
             var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
             // Not the request as it arrived: a caller states a template's keys as bare values, and the
             // broker takes each one with its type on it. The rest of the request is what the create
-            // route reads — it works relationships out from the edges Delta writes afterwards.
+            // route reads — it works relationships out from the relationships Delta writes afterwards.
             var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/things",
                 new { dto.Name, Properties = TypedProperties.Typed(dto.Properties) });
             if (!response.IsSuccessStatusCode)

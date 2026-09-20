@@ -8,18 +8,16 @@ using Xunit;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
-/// <summary>
-/// The real engine, started once for a test class, with a service's own client pointed at it.
-///
-/// A service client reaches the broker over <see cref="IHttpClientFactory"/> and a URL, so nothing
-/// about it has to change to be tested this way: the factory hands out clients over the host's
-/// in-memory transport, and the service presents the administrator's bearer as the credential it was
-/// launched with. What is under test is the client the service ships, not a stand-in for it.
-/// </summary>
+// The real engine, started once for a test class, with a service's own client pointed at it.
+//
+// A service client reaches the broker over IHttpClientFactory and a URL, so nothing
+// about it has to change to be tested this way: the factory hands out clients over the host's
+// in-memory transport, and the service presents the administrator's bearer as the credential it was
+// launched with. What is under test is the client the service ships, not a stand-in for it.
 public sealed class TheEngine : IAsyncLifetime
 {
-    /// <summary>The in-memory transport has no address of its own, and the clients build their URLs
-    /// by concatenation, so this is a base without a trailing slash rather than a host to reach.</summary>
+    // The in-memory transport has no address of its own, and the clients build their URLs
+    // by concatenation, so this is a base without a trailing slash rather than a host to reach.
     public const string Url = "http://localhost";
 
     private MyceliumTestHost _host = null!;
@@ -28,8 +26,8 @@ public sealed class TheEngine : IAsyncLifetime
 
     public IHttpClientFactory ClientFactory { get; private set; } = null!;
 
-    /// <summary>Signed in as the administrator, for a test to arrange a model with and to read back
-    /// what a service wrote.</summary>
+    // Signed in as the administrator, for a test to arrange a model with and to read back
+    // what a service wrote.
     public HttpClient Admin { get; private set; } = null!;
 
     public async Task InitializeAsync()
@@ -56,8 +54,8 @@ public sealed class TheEngine : IAsyncLifetime
         return Task.CompletedTask;
     }
 
-    /// <summary>A Thing, written the way the engine takes one. Tests arrange with this so that an
-    /// arrangement cannot be refused for the reason a case is looking for in the service.</summary>
+    // A Thing, written the way the engine takes one. Tests arrange with this so that an
+    // arrangement cannot be refused for the reason a case is looking for in the service.
     public async Task<Guid> DeclareAsync(
         string name, bool isArchetype = false, IReadOnlyDictionary<string, object?>? properties = null)
     {
@@ -74,15 +72,22 @@ public sealed class TheEngine : IAsyncLifetime
         return identifier;
     }
 
-    /// <summary>The same, for a Thing the model may already hold. A host lives for a whole test class,
-    /// so an arrangement every case in it needs is written by whichever case runs first.</summary>
+    // A relationship, written the way the engine takes one, for the same reason as a Thing.
+    public async Task RelateAsync(Guid subjectId, Guid predicateId, Guid targetId)
+    {
+        var related = await Admin.PostAsJsonAsync("/api/relationships", new { subjectId, predicateId, targetId });
+        related.EnsureSuccessStatusCode();
+    }
+
+    // The same, for a Thing the model may already hold. A host lives for a whole test class,
+    // so an arrangement every case in it needs is written by whichever case runs first.
     public async Task<Guid> DeclareOnceAsync(
         string name, bool isArchetype = false, IReadOnlyDictionary<string, object?>? properties = null) =>
         await FindAsync(name) ?? await DeclareAsync(name, isArchetype, properties);
 
-    /// <summary>The Thing of that name, or null. Names are not unique in a model, and the route
-    /// refuses an ambiguous one rather than picking — which is a failure worth surfacing here too,
-    /// because an arrangement that made two is an arrangement that is wrong.</summary>
+    // The Thing of that name, or null. Names are not unique in a model, and the route
+    // refuses an ambiguous one rather than picking — which is a failure worth surfacing here too,
+    // because an arrangement that made two is an arrangement that is wrong.
     public async Task<Guid?> FindAsync(string name)
     {
         var found = await Admin.GetAsync($"/api/things?name={Uri.EscapeDataString(name)}");
@@ -98,9 +103,9 @@ public sealed class TheEngine : IAsyncLifetime
     public async Task<JsonElement> ReadAsync(Guid identifier) =>
         await Admin.GetFromJsonAsync<JsonElement>($"/api/things/{identifier}");
 
-    /// <summary>The own value of one property, or null where the Thing carries the property with
-    /// nothing in it. A property the Thing does not carry at all throws, because the difference
-    /// between "declared empty" and "never written" is what several of these cases are about.</summary>
+    // The own value of one property, or null where the Thing carries the property with
+    // nothing in it. A property the Thing does not carry at all throws, because the difference
+    // between "declared empty" and "never written" is what several of these cases are about.
     public async Task<string?> ValueOfAsync(Guid identifier, string property)
     {
         var value = (await ReadAsync(identifier)).GetProperty("Properties").GetProperty(property)

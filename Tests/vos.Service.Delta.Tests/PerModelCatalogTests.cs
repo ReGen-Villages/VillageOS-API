@@ -11,7 +11,7 @@ namespace vos.Service.Delta.Tests;
 
 // One Delta process answers every project, and a registration is written to the model of whoever
 // called. These cover the catalog following the caller rather than the token Delta was launched with,
-// and the edges that follow from provisioning being something a request does: doing it once per model
+// and the relationships that follow from provisioning being something a request does: doing it once per model
 // however many requests arrive together, not doing it for a request that is about to be refused, and
 // noticing when what was provisioned has since gone.
 public class PerModelCatalogTests

@@ -13,7 +13,7 @@ namespace vos.Service.Tributary.Tests;
 // wrote either, so the rainwater harvest and everything judged over it read unassessed on every site.
 //
 // The expression is authored in the platform repository, as the `climate-averages` registration in
-// open-data-sources.template.json (Bug #6825). The two agree by this literal and by nothing else, which is
+// open-data-sources.template.json. The two agree by this literal and by nothing else, which is
 // why what it has to get right is spelled out here rather than left to the seed.
 public class ClimateAveragesEndpointTests
 {

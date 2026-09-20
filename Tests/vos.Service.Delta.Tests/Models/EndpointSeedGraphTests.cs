@@ -5,7 +5,7 @@ using Xunit;
 namespace vos.Service.Delta.Tests.Models;
 
 // Unit tests for EndpointSeedGraph.Build — structural validation of the
-// endpoint-template graph (Feature #5465 / Task #5466). Parentage is derived from the seed's
+// endpoint-template graph. Parentage is derived from the seed's
 // is relationships, not a scalar field. Each test crafts an input that violates exactly one
 // rule so the failure reason is unambiguous.
 public class EndpointSeedGraphTests

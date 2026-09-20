@@ -5,7 +5,7 @@ using Xunit;
 
 namespace vos.Service.Delta.Tests;
 
-// Pins the canonical EsriEndpoint template contract for Task #5470. The template hierarchy is not a
+// Pins the canonical EsriEndpoint template contract. The template hierarchy is not a
 // committed file — deployment seed.json stores every template as a thing plus the is
 // relationships between them — so this test is the executable spec for the EsriEndpoint shape Delta
 // is expected to resolve.
@@ -26,7 +26,7 @@ public class EsriEndpointTemplateTests
         new() { Subject = subject, Predicate = role, Target = kind };
 
     // The canonical Endpoint -> EsriEndpoint hierarchy. The root carries the base-capability keys
-    // (Task #5469) as blank structural keys and reaches no kind; EsriEndpoint restates the narrowed
+    // as blank structural keys and reaches no kind; EsriEndpoint restates the narrowed
     // keys, reaches its two kinds, and sets the generic token-exchange / offset-paging keys to the
     // ArcGIS field names.
     private static EndpointSeedGraph Graph() => EndpointSeedGraph.Build(new EndpointSeedModel

@@ -1,10 +1,10 @@
-// Bug #5361 — node-size formula extracted from graphologyMapper so it can be
+// Node-size formula extracted from graphologyMapper so it can be
 // tuned at runtime via GUI_Settings (NodeSizeMin / NodeSizeMax / NodeSizeSlope)
 // and unit-tested independently.
 //
 // Sigma's `size` attribute is in graph coordinates (NOT pixels). At
 // cameraRatio = 1 it maps roughly 1:1 to device pixels at the default zoom-out
-// level. With ~30k nodes packed into a tight disc (the post-Bug #5358 reality
+// level. With ~30k nodes packed into a tight disc (the reality
 // for an IFC model), large nodes overlap so heavily that no internal structure
 // is readable. Live-browser test against the MV jehrlich seed confirmed that
 // dropping max from 15 → 6 reveals the color-bucketed cluster structure.

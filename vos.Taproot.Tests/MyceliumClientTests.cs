@@ -952,7 +952,7 @@ public class MyceliumClientTests
         result.Should().Be("response-payload");
     }
 
-    // ---- Fragment upsert (US #5814) ----
+    // ---- Fragment upsert ----
 
     [Fact]
     public async Task ApplyFragmentAsync_PostsFragmentToModelFragmentEndpointAndReturnsCounts()
@@ -976,7 +976,7 @@ public class MyceliumClientTests
         result.GetProperty("thingsCreated").GetInt32().Should().Be(1);
     }
 
-    // ---- Promotion into a project model (VillageOS #6045) ----
+    // ---- Promotion into a project model ----
 
     [Fact]
     public async Task PromoteAsync_PostsWhatTravelsAndWhatToBuildItFrom()
@@ -1017,7 +1017,7 @@ public class MyceliumClientTests
         await refused.Should().ThrowAsync<HttpRequestException>();
     }
 
-    // ---- Taking a group out of a model (VillageOS #6656) ----
+    // ---- Taking a group out of a model ----
 
     [Fact]
     public async Task PruneAsync_PostsTheRootAndWhatTheWalkFollows()
@@ -1056,7 +1056,7 @@ public class MyceliumClientTests
         await refused.Should().ThrowAsync<HttpRequestException>();
     }
 
-    // ---- IFC ingestion via the Xylem service (US #5843) ----
+    // ---- IFC ingestion via the Xylem service ----
 
     [Fact]
     public async Task IngestIfcAsync_PostsMultipartToTheIngestServiceWithBearer()
@@ -1112,7 +1112,7 @@ public class MyceliumClientTests
         capturedBody.Value.GetProperty("Value").GetString().Should().Be("red");
     }
 
-    // Regression (#7167): adding a property is POST on the same path; PUT answers 404 for one the
+    // Regression: adding a property is POST on the same path; PUT answers 404 for one the
     // Thing does not hold yet, and the short type names the guide lists were sent unmapped.
     [Fact]
     public async Task AddPropertyAsync_PostsTheTypedValueUnderThePlatformsTypeName()
@@ -1696,7 +1696,7 @@ public class MyceliumClientTests
     private static HttpResponseMessage TokenResponse(string token)
         => JsonResponse($"{{\"token\":\"{token}\"}}");
 
-    // Regression (#6513): the platform answers a refused mode with the modes it accepts, and the
+    // Regression: the platform answers a refused mode with the modes it accepts, and the
     // default status-code check discards that body — leaving the operator a bare "400 (Bad Request)".
     [Fact]
     public async Task EnsureSuccessCarryingTheReason_OnRefusal_KeepsWhatThePlatformSaid()

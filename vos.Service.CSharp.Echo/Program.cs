@@ -44,7 +44,7 @@ builder.Host.UseSerilog();
 builder.WebHost.UseUrls($"http://localhost:{servicePort}");
 builder.Services.AddHttpClient();
 
-// Bug #5391: issuer/audience must come from the CLI so validation matches what Mycelium signed.
+// Issuer/audience must come from the CLI so validation matches what Mycelium signed.
 var authEnabled = !string.IsNullOrEmpty(verificationKey);
 if (authEnabled)
 {
@@ -113,8 +113,6 @@ var handleEndpoint = app.MapPost("/handle", async (HttpContext ctx, EchoNode nod
     if (!request.IsJson)
         return Results.BadRequest(new { error = "Echo expects a JSON body." });
 
-    // Additive DAG-node path: an orchestrator invocation carries runId+nodeId. Everything else
-    // is a legacy echo request and is handled exactly as before.
     if (request.Kind == HandleRequestKind.NodeEnvelope)
     {
         Log.Information("Echo node invocation #{Count}", count);

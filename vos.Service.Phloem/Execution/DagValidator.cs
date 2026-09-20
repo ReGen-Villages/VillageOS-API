@@ -3,7 +3,6 @@ using vos.Service.Shared;
 
 namespace vos.Service.Phloem.Execution;
 
-// The result of validating a DAG: a topological order when valid, or the reasons it isn't.
 public sealed record DagValidationResult(bool IsValid, IReadOnlyList<Guid> Order, IReadOnlyList<string> Errors)
 {
     public static DagValidationResult Invalid(IReadOnlyList<string> errors) =>
@@ -56,7 +55,7 @@ public static class DagValidator
         if (!TypesCompatible(outPort.Type, inPort.Type))
             errors.Add($"Wire {from.Name}.{wire.FromPort} → {to.Name}.{wire.ToPort}: type '{outPort.Type}' is not compatible with '{inPort.Type}'.");
 
-        // A wire's JSONata transform must compile — caught here before dispatch, not as a silent runtime failure (#5875).
+        // A wire's JSONata transform must compile — caught here before dispatch, not as a silent runtime failure.
         if (!string.IsNullOrEmpty(wire.Transform) && JsonataTransform.Validate(wire.Transform) is { } transformError)
             errors.Add($"Wire {from.Name}.{wire.FromPort} → {to.Name}.{wire.ToPort}: invalid transform — {transformError}");
     }
@@ -68,8 +67,6 @@ public static class DagValidator
         || string.Equals(inType, "any", StringComparison.OrdinalIgnoreCase)
         || string.Equals(outType, inType, StringComparison.OrdinalIgnoreCase);
 
-    // Kahn topological sort. Returns the ordered node ids; any nodes left unscheduled (in a cycle)
-    // are returned via cyclic.
     public static IReadOnlyList<Guid> TopoSort(PipelineDag dag, out IReadOnlyList<Guid> cyclic)
     {
         var indeg = dag.Nodes.ToDictionary(n => n.NodeId, _ => 0);

@@ -8,7 +8,7 @@ public sealed record ResolvedKind(string Name, IReadOnlyList<string> Requires);
 
 // Reads which kinds an endpoint reaches, from one scoped snapshot.
 //
-// The edges live on the template, not on the registration that `is` it, and the selector applies its
+// The relationships live on the template, not on the registration that `is` it, and the selector applies its
 // traverse rules BEFORE it closes over `is` ancestors — so asking for the role predicates alone finds
 // nothing. Traverse rules compose over the set built so far, so walking `is` first and the roles
 // after reaches the kinds in a single call.
@@ -20,7 +20,7 @@ public static class EndpointKindResolver
     private const int TemplateChainDepth = 16;
 
     // The predicate Things are asked for BY NAME. Nothing else brings them: traversal adds the Things
-    // an edge points at, and the incident pass adds the edges, but the Thing naming an edge is neither.
+    // a relationship points at, and the incident pass adds the relationships, but the Thing naming a relationship is neither.
     // The walk below compares that name, so a predicate left out here is a role that matches nothing
     // and reads as "reaches no kind" — a wrong answer that looks like a valid one.
     private static readonly string[] PredicatesRead = ["is", .. EndpointKindRoles.All];
@@ -29,7 +29,7 @@ public static class EndpointKindResolver
     {
         Ids = [endpointId],
         // `observed` is named for the provenance read rather than for any kind. The endpoint's own
-        // edges are in this snapshot already, and without the Thing naming them every one of them
+        // relationships are in this snapshot already, and without the Thing naming them every one of them
         // reads as some other predicate — so one read answers both questions.
         Names = [.. PredicatesRead, ObservedEdges.PredicateName],
         Traverse =

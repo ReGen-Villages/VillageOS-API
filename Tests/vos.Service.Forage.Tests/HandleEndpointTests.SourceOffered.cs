@@ -12,7 +12,7 @@ using static vos.Service.Forage.Tests.ModelSnapshotStub;
 
 namespace vos.Service.Forage.Tests;
 
-// Task #6812, driven end to end: a dispatch naming a source offers it to every site under the Places it
+// Driven end to end: a dispatch naming a source offers it to every site under the Places it
 // covers — a coverage minted per call those sites would make, nothing fetched, and the source stamped as
 // worked out. The walk itself is pinned in Helpers/SourceReachTests and the choice of run in
 // Helpers/SubjectKindTests; this covers what the endpoint composes from them.

@@ -8,7 +8,7 @@ namespace vos.Service.Forage.Services;
 //
 // SubjectId and Written are what the fetcher learned from the fetch response: which Thing the call
 // was about, and the values the call put onto it. They are what the run resolves discovered words
-// from (#6809) — the response rather than a read-back, because an observation is applied by the
+// from — the response rather than a read-back, because an observation is applied by the
 // drainer after the write returns.
 //
 // SubjectId and SourceId together identify which call an outcome came from, where Source and Subject

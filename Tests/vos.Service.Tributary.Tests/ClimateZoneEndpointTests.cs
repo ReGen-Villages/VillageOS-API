@@ -7,12 +7,12 @@ using Xunit;
 
 namespace vos.Service.Tributary.Tests;
 
-// Task #6734 — the climate source a discovery run resolves a site against. A site's climate zone takes
+// The climate source a discovery run resolves a site against. A site's climate zone takes
 // observations only, so nobody can type it in and only a fetch can write it; until this registration
 // existed the property had never been written at all.
 //
 // The expression is authored in the platform repository, as the `climate-classification` registration in
-// open-data-sources.template.json (User Story #6750). The two agree by this literal and by nothing else,
+// open-data-sources.template.json. The two agree by this literal and by nothing else,
 // which is why what it has to get right is spelled out here rather than left to the seed.
 public class ClimateZoneEndpointTests
 {

@@ -14,12 +14,12 @@ namespace vos.Service.Forage.Tests;
 // path a caller triggers rather than two a caller has to sequence.
 //
 // The analysis is started by relating the site's STUDY to each compute service, never by calling one.
-// A connection bound to a service is a handled predicate, so the edge is the trigger — and every test
+// A connection bound to a service is a handled predicate, so the relationship is the trigger — and every test
 // here asserts on the relationships written rather than on any call to a service, because a second way
 // to start an analysis is what these are meant to keep from appearing.
 //
 // The subject is the study rather than the site because a compute service reads its inputs off the
-// study. An edge naming the site would dispatch against a Thing carrying none of them.
+// study. A relationship naming the site would dispatch against a Thing carrying none of them.
 public class AnalysisSpawnTests
 {
     private const string FetchRoute = "/api/endpoints/tributary";
@@ -30,7 +30,7 @@ public class AnalysisSpawnTests
     private static HttpResponseMessage Ok(string body) =>
         new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 
-    // The archetype the connections are found by, and the prototypes the analysis edges point at.
+    // The archetype the connections are found by, and the prototypes the analysis relationships point at.
     private static Archetype[] AnalysisArchetypes() =>
     [
         new("SiteAnalysisConnection", CoveringSourceResolver.SiteAnalysisConnectionFlag),

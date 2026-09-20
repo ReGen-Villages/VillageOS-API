@@ -23,7 +23,6 @@ function bind(name: string, value: BindingResult): Binding {
 }
 
 function bar(label: string): HTMLElement {
-  // The coloured value bar is the div whose inline width is a percentage of the track.
   const row = screen.getByText(label).closest('.grid') as HTMLElement;
   const bars = Array.from(row.querySelectorAll<HTMLElement>('div[style*="width"]'));
   return bars[bars.length - 1];
@@ -48,9 +47,7 @@ describe('BulletChart up-good self-sufficiency rows', () => {
 
     render(<BulletChart widget={widget} context={{} as ResolveContext} />);
 
-    // The real percentage is shown, not a 0..1 fraction.
     expect(screen.getByText('112%')).toBeInTheDocument();
-    // 112 of a 200 track is 56% wide — not clamped to the right edge.
     expect(parseFloat(bar('Energy — net positive').style.width)).toBeCloseTo(56, 5);
     // At/above target on an up-good row is healthy (green), never the utilization "over" red.
     expect(bar('Energy — net positive').style.background).toContain('--good');
@@ -92,7 +89,6 @@ describe('BulletChart up-good self-sufficiency rows', () => {
     const bandEl = Array.from(row.querySelectorAll<HTMLElement>('div[style*="color-mix"]'))[0];
     const left = parseFloat(bandEl.style.left);
     const width = parseFloat(bandEl.style.width);
-    // Right edge stays within the track — no overflow into the label column.
     expect(left + width).toBeLessThanOrEqual(100);
   });
 

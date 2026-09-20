@@ -2,34 +2,31 @@ using vos.Service.Shared.Configuration;
 
 namespace vos.Service.Intake;
 
-/// <summary>
-/// How a verification code leaves this service.
-/// </summary>
-/// <remarks>
-/// A deployment hands it to a mail server. A developer has no relay to hand — and on a domain whose policy
-/// forbids application passwords cannot obtain one at all — so they may have the code written where they
-/// can read it instead, which is the only way to run the exchange the submission route rests on without
-/// one.
-/// <para>
-/// That second way verifies nobody: a code written down was received by nobody, so the route would accept
-/// a submission naming any address at all. It is refused anywhere but a development machine, and
-/// <see cref="WhyRefusedIn"/> is where that is decided.
-/// </para>
-/// </remarks>
-/// <param name="Server">The server to relay through, or null where the code is written rather than sent.</param>
+// How a verification code leaves this service.
+//
+// A deployment hands it to a mail server. A developer has no relay to hand — and on a domain whose policy
+// forbids application passwords cannot obtain one at all — so they may have the code written where they
+// can read it instead, which is the only way to run the exchange the submission route rests on without
+// one.
+//
+// That second way verifies nobody: a code written down was received by nobody, so the route would accept
+// a submission naming any address at all. It is refused anywhere but a development machine, and
+// WhyRefusedIn is where that is decided.
+//
+// Server: The server to relay through, or null where the code is written rather than sent.
 public sealed record MailDelivery(MailSettings? Server)
 {
     public const string ToAServer = "server";
     public const string ToTheConsole = "console";
 
-    /// <summary>The one environment a code nobody received is allowed in. The host's own name for it,
-    /// rather than a literal that could drift from what it actually matches.</summary>
+    // The one environment a code nobody received is allowed in. The host's own name for it,
+    // rather than a literal that could drift from what it actually matches.
     private static readonly string DevelopmentMachine = Environments.Development;
 
     public bool IsToTheConsole => Server is null;
 
-    /// <summary>The settings, or null where they say nothing this service can do. The caller says what is
-    /// missing and stops.</summary>
+    // The settings, or null where they say nothing this service can do. The caller says what is
+    // missing and stops.
     public static MailDelivery? Parse(string[] arguments, IConfiguration configuration)
     {
         var asked = new LaunchSettingReader(arguments, configuration).Read("mailDelivery") ?? ToAServer;
@@ -47,7 +44,7 @@ public sealed record MailDelivery(MailSettings? Server)
         return MailSettings.Parse(arguments, configuration) is { } server ? new MailDelivery(server) : null;
     }
 
-    /// <summary>Why this service may not start delivering this way here, or null where it may.</summary>
+    // Why this service may not start delivering this way here, or null where it may.
     public string? WhyRefusedIn(string environmentName) =>
         IsToTheConsole && !string.Equals(environmentName, DevelopmentMachine, StringComparison.OrdinalIgnoreCase)
             ? $"--mailDelivery={ToTheConsole} writes each code where whoever runs this service can read it "

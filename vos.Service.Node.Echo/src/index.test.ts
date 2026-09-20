@@ -140,7 +140,6 @@ test("verifyJwt: rejects malformed token", () => {
   assert.equal(verifyJwt("not-a-jwt", PUBLIC_KEY, "VillageOS", THIS_HANDLER), false);
 });
 
-// ---- Write kinds (Fact / Observation / Sediment) ----
 import {
   setFact,
   recordObservation,
@@ -271,7 +270,6 @@ test("depositSediment: empty batch throws", async () => {
   await assert.rejects(depositSediment(CFG, []), /at least one reading/);
 });
 
-// ---- Snapshot selector ---- (reuses Config/CFG/Captured from the write-kinds block above)
 import { subscribe, unsubscribe, sliceByTypeAndTraverse, demoSubscribe } from "./index.js";
 
 function stubSelectorFetch(): { calls: Captured[]; restore: () => void } {

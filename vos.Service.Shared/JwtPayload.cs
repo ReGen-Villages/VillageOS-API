@@ -9,9 +9,9 @@ internal static class JwtPayload
 {
     private const string ExpiryClaim = "exp";
 
-    /// <summary>When the token says it stops being usable, or null when it says nothing readable. An
-    /// expiry too far from now for a <see cref="DateTimeOffset"/> to hold reads as saying nothing, so a
-    /// caller reading a credential never has to catch.</summary>
+    // When the token says it stops being usable, or null when it says nothing readable. An
+    // expiry too far from now for a DateTimeOffset to hold reads as saying nothing, so a
+    // caller reading a credential never has to catch.
     internal static DateTimeOffset? ExpiryOf(JsonElement payload)
     {
         if (!payload.TryGetProperty(ExpiryClaim, out var expiry) || !expiry.TryGetInt64(out var secondsSinceEpoch))

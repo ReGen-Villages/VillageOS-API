@@ -21,9 +21,9 @@ public class FindingsEndpointTests
     private static readonly Guid ThisSite = BrokerSnapshot.SiteOf(WillowBend.SubmissionId);
     private static readonly Guid OtherSite = BrokerSnapshot.SiteOf(BrokerSnapshot.OtherSubmissionId);
 
-    /// <summary>A broker holding two submissions. The declaration read is answered whole; the findings
-    /// read is answered with what a walk rooted at the site the selector names would have reached, which
-    /// is what the platform does with the selector this service sends.</summary>
+    // A broker holding two submissions. The declaration read is answered whole; the findings
+    // read is answered with what a walk rooted at the site the selector names would have reached, which
+    // is what the platform does with the selector this service sends.
     private static IntakeWebApplicationFactory Holding(BrokerSnapshot? model = null) => new()
     {
         HandlerCallback = request => Answer(request, model ?? BrokerSnapshot.WithTwoSubmissions()),

@@ -26,18 +26,16 @@ interface Props {
   detail: DetailSpecification;
   nonce?: number;
   offset: number;
-  /** This window's position among the open set, and the total, for tiling on spread. */
   index: number;
   total: number;
-  /** Bumped by the manager when any window's spread button is clicked; re-tiles this window. */
   spreadTick: number;
   zIndex: number;
   onClose: () => void;
   onFocus: () => void;
   onSpread: () => void;
   openDetail: (thingId: string) => void;
-  /** Resolved properties per Thing id, for formatting a value to what the platform says it holds
-   *  (#6163). Null while the read is in flight — values format by shape until it lands. */
+  /** Resolved properties per Thing id, for formatting a value to what the platform says it holds.
+   * Null while the read is in flight — values format by shape until it lands. */
   declaredTypes: DeclaredPropertyTypes | null;
 }
 
@@ -133,7 +131,7 @@ function ServiceDispatches({
   );
 }
 
-/** The configured relations, rendered as ordered groups; each edge names its subject and target,
+/** The configured relations, rendered as ordered groups; each relationship names its subject and target,
  *  shows the related Thing's chosen properties and derived states, and nests its own relations. */
 function RelationGroups({
   relations,
@@ -214,7 +212,6 @@ export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset,
     ? detail.propertyGroups.map((g) => ({ label: g.label, entries: g.keys.filter((k) => k in props).map((k) => [k, props[k]] as const) }))
     : [{ label: t('entityDetail.properties'), entries: Object.entries(props) }];
 
-  // ── Drag & layout ─────────────────────────────────────────────────────────
   const [position, setPosition] = useState({ x: 120 + offset * 28, y: 90 + offset * 28 });
   // Re-tile when the spread button is clicked, using React's "adjust state during render"
   // pattern (a guarded render-phase update) rather than an effect: spreadTick only advances on

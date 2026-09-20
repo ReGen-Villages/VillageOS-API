@@ -55,7 +55,6 @@ def main(argv) -> int:
         except urllib.error.HTTPError as e:
             return e.code, {"_err": e.read().decode()[:300]}
 
-    # ── resolve the built-in `is` predicate Thing id (any Thing named "is") ──
     is_pred = args.is_predicate
     if not is_pred:
         st, rels = get("/api/relationships")
@@ -77,7 +76,7 @@ def main(argv) -> int:
     X = M.stable_id(tag, "instance-X")
 
     # ── timeline: archetype A (setup) + paced instance X that `is` A ──
-    # X carries its OWN code/capacity AND its is-edge at the same paced offset, so the simulator folds
+    # X carries its OWN code/capacity AND its is-relationship at the same paced offset, so the simulator folds
     # them into ONE apply_fragment. The server must turn those into overrides (not owned) — no I1.
     timeline = [
         S.Action(0, 0, "setup", "create_thing",
@@ -116,7 +115,6 @@ def main(argv) -> int:
         "decimal capacity intact (250.5)": eff_val("capacity") == 250.5,
     }
 
-    # ── cleanup ──
     for tid in (X, A):
         try:
             client.delete_thing(tid)

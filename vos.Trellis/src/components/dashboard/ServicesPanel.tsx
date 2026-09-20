@@ -9,11 +9,8 @@ interface Props {
   endpoints: EndpointServiceInformation[];
   onStart: (id: string) => void;
   onStop: (id: string) => void;
-  /** Retract a connection from the model (only offered for rows with a model Thing id). */
   onDelete?: (thingId: string, name: string) => void;
-  /** Open the live tail of a daemon's log (its watch-<serviceKey>.log). */
   onViewLogs?: (serviceKey: string) => void;
-  /** Download a daemon's whole log file without navigating to its tail. */
   onDownloadLogs?: (serviceKey: string) => void;
 }
 

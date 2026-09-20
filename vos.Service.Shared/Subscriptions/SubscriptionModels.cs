@@ -3,7 +3,6 @@ using System.Text.Json.Serialization;
 
 namespace vos.Service.Shared.Subscriptions;
 
-// Selector for POST /api/subscriptions resolving the object closure to snapshot and stream.
 public sealed class SubscriptionSelector
 {
     // Cover the whole model plus all future objects.
@@ -13,11 +12,11 @@ public sealed class SubscriptionSelector
     public List<string>? Types { get; set; }
 
     // Every Thing that `is` an archetype carrying one of these flags. Reaches Things the traversal cannot,
-    // which is what a reader needs when it is about to create the edge the traversal would have followed.
+    // which is what a reader needs when it is about to create the relationship the traversal would have followed.
     public List<string>? MarkedTypes { get; set; }
 
     // The Things carrying one of these flags and none of their members. What a caller wants when it needs
-    // an id to write an edge with — a predicate, or an archetype to point `is` at — and would otherwise
+    // an id to write a relationship with — a predicate, or an archetype to point `is` at — and would otherwise
     // have to take the whole membership to reach it.
     public List<string>? MarkedArchetypes { get; set; }
     public List<TraverseRule>? Traverse { get; set; }
@@ -25,9 +24,9 @@ public sealed class SubscriptionSelector
     public bool IncludeRelationships { get; set; } = true;
 
     // Which relationships the snapshot carries and the stream admits. Without rules, IncludeRelationships
-    // carries every active edge touching a selected Thing in both directions — for a long-lived Thing,
-    // every edge ever made against it. Each rule names a direction and a predicate by name or by flag
-    // (neither means every predicate); only the edges a selected Thing holds that way travel. Rules beside
+    // carries every active relationship touching a selected Thing in both directions — for a long-lived Thing,
+    // every relationship ever made against it. Each rule names a direction and a predicate by name or by flag
+    // (neither means every predicate); only the relationships a selected Thing holds that way travel. Rules beside
     // IncludeRelationships = false are refused by the broker as undecided.
     public List<RelationshipRule>? Relationships { get; set; }
 }
@@ -46,7 +45,7 @@ public sealed class TraverseRule
 {
     public string Predicate { get; set; } = "";
 
-    // The predicate to follow, by a flag it carries rather than by the name a model chose (#6551). Set
+    // The predicate to follow, by a flag it carries rather than by the name a model chose. Set
     // this or Predicate, never both: the broker refuses a rule that gives both, because preferring one
     // silently would make a typo in the other read as an ordinary empty result.
     public string? PredicateFlag { get; set; }
@@ -79,10 +78,10 @@ public sealed record InheritedPropertySet(
 // InheritedOverrides is named as Mycelium serializes it. A member named anything else binds to nothing,
 // and since that is where every value a Thing states over its archetype's declaration is carried, a
 // reader of Properties alone finds each of them absent. Read both through
-// <see cref="SnapshotValues.StatedValue(SnapshotThing, string)"/> rather than either directly.
+// SnapshotValues.StatedValue rather than either directly.
 //
-// Relationships is the closure's edges incident to the Thing, which only a snapshot can say anything
-// about; the same shape on the change stream carries none, since a Thing's edges arrive as events.
+// Relationships is the closure's relationships incident to the Thing, which only a snapshot can say anything
+// about; the same shape on the change stream carries none, since a Thing's relationships arrive as events.
 public sealed record SnapshotThing(
     Guid Id,
     string? Name,
@@ -103,10 +102,10 @@ public sealed record SnapshotRelationship(
     string[] States);
 
 // Sequence is the commit sequence (the SSE event id) used for Last-Event-ID resume. An entry or a
-// departure — a Thing or edge a following subscription brought in or let go — rides beside the change
+// departure — a Thing or relationship a following subscription brought in or let go — rides beside the change
 // that caused it and carries no id, so its Sequence is 0; the change after it carries the sequence.
 //
-// A Thing or an edge met for the first time arrives whole under Thing or Relationship, in the
+// A Thing or a relationship met for the first time arrives whole under Thing or Relationship, in the
 // snapshot's shape, so a consumer applies it without a read.
 public sealed record ModelChangeEvent
 {

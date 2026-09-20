@@ -47,7 +47,6 @@ namespace vos.Taproot
                 return;
             }
 
-            // Try to resolve by name first
             var result = await _resolver.ResolveThingAsync(tok[0]);
             Guid handlerId;
             string handlerName;
@@ -59,7 +58,6 @@ namespace vos.Taproot
             }
             else if (Guid.TryParse(tok[0], out handlerId))
             {
-                // Direct GUID provided
                 handlerName = await _resolver.ResolveNameAsync(handlerId);
             }
             else

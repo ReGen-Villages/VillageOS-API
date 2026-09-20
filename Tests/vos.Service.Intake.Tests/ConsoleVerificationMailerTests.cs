@@ -5,9 +5,9 @@ using Xunit;
 
 namespace vos.Service.Intake.Tests;
 
-/// <summary>The mailer for a developer with nowhere to send. It writes down the two things §12 of
-/// docs/LAND_INTAKE.md keeps out of a log — an address somebody typed, and the code that would let
-/// anybody submit under it — which is the whole reason it is refused off a development machine.</summary>
+// The mailer for a developer with nowhere to send. It writes down the two things §12 of
+// docs/LAND_INTAKE.md keeps out of a log — an address somebody typed, and the code that would let
+// anybody submit under it — which is the whole reason it is refused off a development machine.
 public class ConsoleVerificationMailerTests
 {
     [Fact]

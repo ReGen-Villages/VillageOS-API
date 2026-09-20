@@ -3,9 +3,9 @@ using System.Text.Json;
 namespace vos.Taproot;
 
 // Repoint a Thing's type to a different archetype. Multiple inheritance is a first-class feature, so this
-// changes only ONE type edge, never collapses the rest:
+// changes only ONE type relationship, never collapses the rest:
 //   retype <thing> <new>         — swap when the Thing has 0 or 1 type; refuses (asks for <old>) if it has many
-//   retype <thing> <old> <new>   — replace only the <old> type edge, leaving the Thing's other is-edges intact
+//   retype <thing> <old> <new>   — replace only the <old> type relationship, leaving the Thing's other is-relationships intact
 // Uses existing relationship APIs — no broker change.
 public class RetypeCommandHandler
 {
@@ -38,7 +38,6 @@ public class RetypeCommandHandler
 
             var (thingId, isId, newTypeId) = (thing.Id, isPred.Id, newType.Id);
 
-            // The Thing's current type edges: (relationshipId, targetArchetypeId).
             var typeEdges = new List<(Guid RelId, Guid Target)>();
             var rels = await _mycelium.GetAllRelationshipsAsync();
             if (rels.ValueKind == JsonValueKind.Array)
@@ -52,7 +51,6 @@ public class RetypeCommandHandler
             List<(Guid RelId, Guid Target)> toRemove;
             if (tok.Length >= 3)
             {
-                // retype <thing> <old> <new>: replace only the named type, keep the others.
                 var oldType = await _resolver.ResolveThingAsync(tok[1]);
                 if (!oldType.IsSuccess) { _writer.WriteLine($"Error: {oldType.ErrorMessage}"); return; }
                 toRemove = typeEdges.Where(e => e.Target == oldType.Id).ToList();
@@ -64,7 +62,6 @@ public class RetypeCommandHandler
             }
             else
             {
-                // 0 or 1 existing type — swap the single one (or just add if untyped).
                 toRemove = typeEdges;
             }
 

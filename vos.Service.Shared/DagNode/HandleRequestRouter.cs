@@ -2,7 +2,6 @@ using System.Text.Json;
 
 namespace vos.Service.Shared.DagNode;
 
-// What a service should do with a body posted to /handle.
 public enum HandleRequestKind
 {
     // A pipeline run invoking this service as a node: hand it to the DAG-node path.

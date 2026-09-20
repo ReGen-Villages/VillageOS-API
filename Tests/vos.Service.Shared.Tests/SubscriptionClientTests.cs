@@ -136,7 +136,7 @@ public class SubscriptionClientTests
     [Fact]
     public async Task SubscribeAsync_sends_the_relationship_rules_under_the_names_the_broker_binds()
     {
-        // A field the broker does not bind is dropped silently, and the read then carries every edge
+        // A field the broker does not bind is dropped silently, and the read then carries every relationship
         // touching the Thing — the whole history the rule was there to leave out.
         HttpRequestMessage? captured = null;
         var body = $$"""
@@ -198,8 +198,8 @@ public class SubscriptionClientTests
         got.Value!.Value.GetInt32().Should().Be(92);
     }
 
-    /// <summary>An entry rides beside the change that caused it and carries no id, so its sequence is
-    /// none; the change after it carries the sequence and is what moves the resume position.</summary>
+    // An entry rides beside the change that caused it and carries no id, so its sequence is
+    // none; the change after it carries the sequence and is what moves the resume position.
     [Fact]
     public async Task StreamAsync_yields_an_entry_delivered_beside_a_change_and_resumes_from_the_change()
     {

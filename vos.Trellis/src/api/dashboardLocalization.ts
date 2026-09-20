@@ -41,7 +41,6 @@ import type {
 } from '../types/dashboard';
 import { primarySubtag } from '../i18n/languages';
 
-/** Translates a single base string into the active locale, or returns it unchanged. */
 export type SpecificationTranslator = <T extends string | undefined>(text: T) => T;
 
 /** The strings a locale reads: the primary-subtag block overlaid with the exact-tag
@@ -311,7 +310,6 @@ function localizeWith(specification: DashboardSpecification, tr: SpecificationTr
   };
 }
 
-/** A copy of the specification with every display string rendered in the active locale. */
 export function localizeSpecification(specification: DashboardSpecification, locale: string): DashboardSpecification {
   if (!translationsFor(specification, locale)) return specification;
   return localizeWith(specification, makeSpecificationTranslator(specification, locale));

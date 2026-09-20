@@ -53,7 +53,7 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
   // Gather child elements with geometry via spatial-containment predicates.
   // The system has no fixed vocabulary — we identify children purely by the
   // generic `__IsMapContainmentPredicate` flag on the predicate Thing
-  // (any predicate the importer marks as a containment edge qualifies).
+  // (any predicate the importer marks as a containment relationship qualifies).
   // Each child's per-mesh color key is read from the user-configured
   // classifying property (default 'ifcClass' for IFC seeds).
   const childElements = useMemo<ChildElement[]>(() => {
@@ -74,7 +74,7 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
       children.push({
         geometryValue: child.Properties.geometry,
         name: child.Name,
-        // Bug #6191: an IFC child stores its class as an override of its type's.
+        // An IFC child stores its class as an override of its type's.
         colorKey: storedTextOf(child, classifyingProperty) ?? undefined,
       });
     }
@@ -96,7 +96,6 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
   const ownPropertyCount = ownProperties.length;
   const props = withDeclaredTypes(ownProperties, effectiveProperties);
 
-  // Fetch effective properties (own + inherited with source info)
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -312,8 +311,6 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
   );
 }
 
-// ── Shared collapsible header for inherited property groups ──────────────
-
 function CollapsiblePropertyGroup({ label, count, onNavigate, expanded, onToggle, editMode, entityId, properties, onSaved, onExpandValue, className }: {
   label: string;
   count: number;
@@ -360,8 +357,6 @@ function CollapsiblePropertyGroup({ label, count, onNavigate, expanded, onToggle
   );
 }
 
-// ── Inherited properties from the Thing properties API ──────────────────
-
 function InheritedPropertiesSection({ effectiveProperties, allThings, onSelectNode, onExpandValue, editMode, entityId, onSaved }: {
   effectiveProperties: Record<string, EffectiveProperty>;
   allThings: Map<string, VosThing>;
@@ -379,7 +374,6 @@ function InheritedPropertiesSection({ effectiveProperties, allThings, onSelectNo
   const inherited = Object.entries(effectiveProperties).filter(([, effectiveProperty]) => effectiveProperty.IsInherited);
   if (inherited.length === 0) return null;
 
-  // Group by source thing
   const bySource = new Map<string, { name: string; props: EditableProperty[] }>();
   for (const [name, effectiveProperty] of inherited) {
     const sourceId = effectiveProperty.InheritedFrom || 'unknown';
@@ -417,8 +411,6 @@ function InheritedPropertiesSection({ effectiveProperties, allThings, onSelectNo
     </div>
   );
 }
-
-// ── Logical children (non-geo nodes linked to a geo node) ───────────────
 
 function LogicalChildrenSection({ thingId, relationships, allThings, hasGeometry, onSelectNode }: {
   thingId: string;

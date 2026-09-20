@@ -24,7 +24,7 @@ public class UserCommandHandlerTests
 
     private static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement;
 
-    /// <summary>The act the handler posted, as the route would read it.</summary>
+    // The act the handler posted, as the route would read it.
     private object? _posted;
 
     private void AnswerAdministration(string json)

@@ -4,19 +4,17 @@ using Microsoft.Extensions.Logging;
 
 namespace vos.Service.Shared.Subscriptions;
 
-/// <summary>Trades a bearer a daemon already holds for one that outlives the request it arrived on.</summary>
+// Trades a bearer a daemon already holds for one that outlives the request it arrived on.
 public interface IServiceTokenExchange
 {
-    /// <summary>The longer-lived bearer for the same model, or null when Mycelium would not issue one.</summary>
+    // The longer-lived bearer for the same model, or null when Mycelium would not issue one.
     Task<ModelScopedBearer?> ExchangeAsync(string bearer, CancellationToken cancellationToken = default);
 }
 
-/// <summary>
-/// The bearer forwarded with a /handle call names the caller's model but expires in minutes, and a change
-/// subscription has to outlast that. Mycelium mints a full-lifetime replacement for whoever already holds a
-/// valid one, reading the model from the token rather than the request — so this asks for nothing and can
-/// reach no project the caller could not already.
-/// </summary>
+// The bearer forwarded with a /handle call names the caller's model but expires in minutes, and a change
+// subscription has to outlast that. Mycelium mints a full-lifetime replacement for whoever already holds a
+// valid one, reading the model from the token rather than the request — so this asks for nothing and can
+// reach no project the caller could not already.
 public sealed class ServiceTokenExchange : IServiceTokenExchange
 {
     private const string Route = "/api/auth/service-token";

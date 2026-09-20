@@ -51,7 +51,6 @@ public class MyceliumClient
     internal static bool IsInsecureTlsEnabled()
         => Environment.GetEnvironmentVariable("VOS_INSECURE_TLS") is "1" or "true" or "TRUE" or "True";
 
-    // Test seam: lets tests inject a mock handler and a virtual clock.
     internal MyceliumClient(string myceliumUrl, string? apiKey, HttpClient httpClient, Func<DateTime>? clock = null)
     {
         _myceliumUrl = myceliumUrl.TrimEnd('/');
@@ -220,7 +219,7 @@ public class MyceliumClient
         return response.IsSuccessStatusCode;
     }
 
-    // Rename a Thing in place — keeps its Id and all edges (unlike delete+recreate). The broker
+    // Rename a Thing in place — keeps its Id and all relationships (unlike delete+recreate). The broker
     // persists a NameSet Fact, so the rename streams over SSE and is temporally reconstructable.
     public virtual async Task<bool> RenameThingAsync(Guid id, string newName)
     {
@@ -336,7 +335,7 @@ public class MyceliumClient
     }
 
     // Every connection the model declares, each with what it resolves to. The platform resolves these —
-    // a value may be held on the Thing, inherited through its `is` chain, or reached by an edge — so
+    // a value may be held on the Thing, inherited through its `is` chain, or reached by a relationship — so
     // reading them here is what keeps this client out of the business of resolving anything itself.
     public virtual async Task<JsonElement> GetAllConnectionsAsync()
     {
@@ -572,9 +571,9 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    /// <summary>One act of administering accounts, posted as the platform's Accounts page posts it: the
-    /// act under <c>view</c>, the account under <c>record</c>, the values it asks for beside them. A
-    /// refusal carries the route's own words, which is what an operator is told.</summary>
+    // One act of administering accounts, posted as the platform's Accounts page posts it: the
+    // act under view, the account under record, the values it asks for beside them. A
+    // refusal carries the route's own words, which is what an operator is told.
     public virtual async Task<JsonElement> AdministerAccountsAsync(object act)
     {
         await SetAuthHeaderAsync();

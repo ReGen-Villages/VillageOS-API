@@ -1,5 +1,5 @@
 // Endpoint-level tests for Metabolism's MapMetabolismEndpoints via WebApplicationFactory<Program>,
-// per the canonical pattern in docs/SERVICES.md §10. Phase 2B landed first.
+// per the canonical pattern in docs/SERVICES.md §10.
 // Sibling reference: vos.Mycelium.Tests.MyceliumWebApplicationFactory.
 
 using System.Net;
@@ -125,7 +125,7 @@ public class EndpointMapperTests : IAsyncLifetime
     [Fact]
     public async Task Handle_MissingSubjectAndTargetIds_ReturnsBadRequestFromContractMiddleware()
     {
-        // After Task #5429 wired UseRequestContractValidation() into Metabolism, empty
+        // With UseRequestContractValidation() wired into Metabolism, empty
         // subjectId/targetId trip the schema's minLength:1 rule and the middleware rejects
         // the request before HandleRequestProcessor runs. Response is the contract envelope
         // {schemaId, errors[]} rather than the legacy {error} from the processor.

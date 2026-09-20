@@ -3,19 +3,17 @@ using Microsoft.Extensions.Logging;
 
 namespace vos.Service.Shared;
 
-/// <summary>
-/// The bearer a service holds when it was given an API key instead of a token.
-///
-/// A key does not expire, but the token it is exchanged for lasts minutes — so the token is held and
-/// the exchange repeated shortly before it runs out, rather than on every call, which would double
-/// the traffic of every write. A token stating no expiry is never held: it would be trusted forever
-/// and fail only once something depended on it.
-///
-/// An exchange that produced no usable token is remembered for a few seconds. One attempt runs at a
-/// time, so without that memory every caller waiting on a broker that is refusing or unreachable
-/// would take its turn at the full exchange timeout, and the last of them would wait for all the
-/// others first.
-/// </summary>
+// The bearer a service holds when it was given an API key instead of a token.
+//
+// A key does not expire, but the token it is exchanged for lasts minutes — so the token is held and
+// the exchange repeated shortly before it runs out, rather than on every call, which would double
+// the traffic of every write. A token stating no expiry is never held: it would be trusted forever
+// and fail only once something depended on it.
+//
+// An exchange that produced no usable token is remembered for a few seconds. One attempt runs at a
+// time, so without that memory every caller waiting on a broker that is refusing or unreachable
+// would take its turn at the full exchange timeout, and the last of them would wait for all the
+// others first.
 public sealed class ApiKeyTokenSource
 {
     public const string Header = "X-API-Key";

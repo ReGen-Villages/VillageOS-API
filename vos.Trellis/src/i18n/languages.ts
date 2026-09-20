@@ -46,7 +46,6 @@ export function isRightToLeft(code: string): boolean {
   return RIGHT_TO_LEFT_SUBTAGS.has(primarySubtag(code));
 }
 
-/** The `dir` attribute value for a language code. */
 export function directionFor(code: string): 'rtl' | 'ltr' {
   return isRightToLeft(code) ? 'rtl' : 'ltr';
 }

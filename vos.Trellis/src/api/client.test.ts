@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ApiError, AuthenticationRequiredError, apiClient } from './client';
 
-// Helper to create a mock Response
 function mockResponse(status: number, body: unknown): Response {
   const text = typeof body === 'string' ? body : JSON.stringify(body);
   return {
@@ -129,7 +128,6 @@ describe('ApiClient', () => {
       await apiClient.login('testuser', 'pass');
       expect(apiClient.isAuthenticated()).toBe(true);
 
-      // Logout also calls Mycelium to clear the session cookie.
       fetchSpy.mockResolvedValueOnce(mockResponse(200, '{}'));
       await apiClient.logout();
 
@@ -167,7 +165,6 @@ describe('ApiClient', () => {
     });
 
     it('skips Mycelium call when no token is stored', async () => {
-      // Fresh client, never logged in — logout should be a pure no-op.
       fetchSpy.mockClear();
       await apiClient.logout();
 
@@ -182,7 +179,6 @@ describe('ApiClient', () => {
 
       const token = await apiClient.ensureToken();
       expect(token).toBe('test-jwt-token');
-      // Should NOT have made a second fetch call
       expect(fetchSpy).toHaveBeenCalledTimes(1);
     });
 
@@ -249,7 +245,6 @@ describe('ApiClient', () => {
 
       expect(apiClient.getUser()!.MustChangePassword).toBe(false);
 
-      // Verify the PUT request body
       const putCall = fetchSpy.mock.calls[1];
       expect(putCall[0]).toContain('/api/auth/users/user-1/password');
       expect(putCall[1]?.method).toBe('PUT');
@@ -302,13 +297,11 @@ describe('ApiClient', () => {
       // Advance past 80% of the 25-minute expiry (20 minutes)
       await vi.advanceTimersByTimeAsync(20 * 60 * 1000 + 1000);
 
-      // Refresh should have been called
       expect(fetchSpy).toHaveBeenCalledTimes(2);
       const refreshCall = fetchSpy.mock.calls[1];
       expect(refreshCall[0]).toContain('/api/auth/refresh');
       expect(refreshCall[1]?.method).toBe('POST');
 
-      // Token should be updated
       expect(apiClient.isAuthenticated()).toBe(true);
     });
 
@@ -324,7 +317,6 @@ describe('ApiClient', () => {
 
       await apiClient.login('testuser', 'pass');
 
-      // Advance past 80% of expiry
       await vi.advanceTimersByTimeAsync(20 * 60 * 1000 + 1000);
 
       expect(callback).toHaveBeenCalledTimes(1);
@@ -363,10 +355,8 @@ describe('ApiClient', () => {
       await apiClient.login('testuser', 'pass');
       await apiClient.logout();
 
-      // Advance past when refresh would fire — should NOT call fetch again
       await vi.advanceTimersByTimeAsync(25 * 60 * 1000);
 
-      // Login + logout, no refresh call
       expect(fetchSpy).toHaveBeenCalledTimes(2);
       const urls = fetchSpy.mock.calls.map((c: unknown[]) => String(c[0]));
       expect(urls.some((u: string) => u.endsWith('/api/auth/refresh'))).toBe(false);

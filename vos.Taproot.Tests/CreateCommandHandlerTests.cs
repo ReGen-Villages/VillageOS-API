@@ -117,7 +117,7 @@ public class CreateCommandHandlerTests
         Assert.Contains("Usage:", _writer.ToString());
     }
 
-    // Regression (#7167): adding went through the set-existing request, which answers 404 for a
+    // Regression: adding went through the set-existing request, which answers 404 for a
     // property the Thing does not hold yet.
     [Fact]
     public async Task CreateProperty_ValidArgs_AddsThePropertyRatherThanSettingAnExistingOne()

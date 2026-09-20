@@ -4,12 +4,12 @@ using Xunit;
 
 namespace vos.Service.Forage.Tests.Helpers;
 
-// Task #6812 — the walk in the other direction: from a source, through the Places it covers and down
+// The walk in the other direction: from a source, through the Places it covers and down
 // their nesting, to every site in them. A source added to the catalogue reached no existing site while
 // the only walk ran from a site outward, and a site already discovered was never dispatched again.
 //
 // The sites are told from the Places around them by the mark the platform puts on the archetype every
-// site `is` (platform Task #6811). Nothing here names an archetype: named, a model calling its sites
+// site `is`. Nothing here names an archetype: named, a model calling its sites
 // something else would offer every source to nothing, and the only sign would be a catalogue nobody
 // fetched.
 public class SourceReachTests

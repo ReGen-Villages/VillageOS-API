@@ -12,14 +12,14 @@ import {
 } from '../../utils/typeFilter';
 
 /**
- * Feature #5362 — shared type-filter panel rendered inside both the Graph
+ * Shared type-filter panel rendered inside both the Graph
  * page and the Model page sidebars. Lists every type Thing in the loaded
  * model (any Thing that's the target of an `is` relationship from another
  * Thing) with an instance count and a checkbox. Toggling immediately drops
  * those instances from BOTH visualizations because both consume
  * `useUiStore.hiddenTypeIds`.
  *
- * Bug #5363 — rows are grouped by Name. Multiple type-Things may legitimately
+ * Rows are grouped by Name. Multiple type-Things may legitimately
  * share a Name (Name is a display label, not a unique key); the user thinks
  * of them as one category. The row's checkbox controls every underlying
  * typeId in the group together; mixed underlying state renders as
@@ -167,7 +167,7 @@ export function TypeFilterPanel() {
             )}
           </div>
 
-          {/* Feature #5386 — sort selector. Persisted per model via uiStore. */}
+          {/* Sort selector. Persisted per model via uiStore. */}
           <div className="px-3 pb-2 flex items-center gap-2 flex-shrink-0">
             <label htmlFor="type-filter-sort" className="text-[10px] text-zinc-400 uppercase tracking-wide">
               {t('graph.typeFilter.sort')}

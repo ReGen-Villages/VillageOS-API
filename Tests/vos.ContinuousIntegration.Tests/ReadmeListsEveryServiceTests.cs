@@ -7,17 +7,15 @@ using Xunit;
 
 namespace vos.ContinuousIntegration.Tests;
 
-/// <summary>
-/// The README's microservice table is the first list of what this repository runs that anyone reads,
-/// and a service missing from it is invisible to a reader who has no reason to open the solution.
-///
-/// Nothing kept it in step with the projects on disk, so services were added over several releases
-/// without a row and the table quietly became a partial list that still read as a complete one.
-///
-/// Every service has a row whatever language it is written in — the echo services in Go, Node,
-/// Python and Rust are rows in the same table. A service that belongs somewhere other than the
-/// table is named below with why.
-/// </summary>
+// The README's microservice table is the first list of what this repository runs that anyone reads,
+// and a service missing from it is invisible to a reader who has no reason to open the solution.
+//
+// Nothing kept it in step with the projects on disk, so services were added over several releases
+// without a row and the table quietly became a partial list that still read as a complete one.
+//
+// Every service has a row whatever language it is written in — the echo services in Go, Node,
+// Python and Rust are rows in the same table. A service that belongs somewhere other than the
+// table is named below with why.
 public class ReadmeListsEveryServiceTests
 {
     private const string ReadmeFileName = "README.md";

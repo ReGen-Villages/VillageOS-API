@@ -1,6 +1,6 @@
 import type { PortInformation } from './model';
 
-// Pure pre-run validation for the pipeline editor (#5829): explains why a DAG will not run before the
+// Pure pre-run validation for the pipeline editor: explains why a DAG will not run before the
 // user hits Run, instead of a silent dispatch failure. Kept pure so it is trivially unit-tested and can
 // drive both a canvas marker and the Run button's enabled state.
 
@@ -8,7 +8,6 @@ export interface ValidationNode {
   id: string;
   label: string;
   ports: PortInformation[];
-  /** Input-port name -> run-param key (#5647). */
   paramBindings?: Record<string, string>;
 }
 
