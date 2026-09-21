@@ -43,6 +43,18 @@ describe('RegenLogo', () => {
     expect(css).toContain('prefers-reduced-motion: reduce');
     expect(container.querySelector('.regen-mark')).not.toBeNull();
   });
+
+  it('keeps the artwork placed once the bloom has ended: the group that animates carries no transform of its own', () => {
+    // A CSS transform overrides an SVG transform attribute on the same element, and the bloom's
+    // last keyframe is kept after it ends — so a placing transform on the animated group is lost
+    // the moment the bloom finishes, and the mark is drawn ten times too large and off the canvas.
+    const { container } = render(<RegenLogo />);
+    const blooming = container.querySelector('.regen-mark')!;
+    expect(blooming.getAttribute('transform')).toBeNull();
+    const placed = blooming.closest(`[transform="${regenMark.transform}"]`);
+    expect(placed).not.toBeNull();
+    expect(placed!.querySelectorAll('path')).toHaveLength(regenMark.paths.length);
+  });
 });
 
 describe('regenMark', () => {

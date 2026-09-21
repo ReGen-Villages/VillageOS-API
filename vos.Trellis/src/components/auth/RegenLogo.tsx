@@ -42,10 +42,14 @@ export function RegenLogo({ className }: RegenLogoProps) {
           .regen-mark { animation: none; }
         }
       `}</style>
-      <g className="regen-mark" transform={regenMark.transform} fill={REGEN_TEAL} stroke="none">
-        {regenMark.paths.map((d, index) => (
-          <path key={index} d={d} />
-        ))}
+      {/* The placing transform sits on its own group: the bloom animates a CSS transform, which
+          overrides an SVG transform attribute on the same element and is kept once the bloom ends. */}
+      <g transform={regenMark.transform} fill={REGEN_TEAL} stroke="none">
+        <g className="regen-mark">
+          {regenMark.paths.map((d, index) => (
+            <path key={index} d={d} />
+          ))}
+        </g>
       </g>
     </svg>
   );
