@@ -4,6 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const os = require('node:os');
 const {
   convert,
   convertMermaid,
@@ -11,11 +12,13 @@ const {
   flatName,
   pageSlug,
   decodeName,
+  mirror,
   REPO_BRANCH,
 } = require('./sync-wiki');
 
 const WIKI = 'https://github.com/ReGen-Villages/VillageOS-API/wiki';
 const BLOB = 'https://github.com/ReGen-Villages/VillageOS-API/blob/develop';
+const RAW_WIKI = 'https://raw.githubusercontent.com/wiki/ReGen-Villages/VillageOS-API';
 
 // A file link on the public wiki answers 404 unless it names the branch the repository mirror pushes,
 // and nothing but the pipeline says which branch that is — so the pipeline is read rather than remembered.
@@ -87,6 +90,54 @@ test('already-absolute https .md links are left untouched', () => {
 test('GitHub wiki URLs produced earlier are not double-rewritten', () => {
   // /GUI -> wiki URL; that URL must survive the later relative-.md pass etc.
   assert.equal(convert('[a](/GUI) [b](/CLI)'), `[a](${WIKI}/GUI) [b](${WIKI}/CLI)`);
+});
+
+// The wiki generator attaches every image and links it by an absolute wiki path, which GitHub would
+// resolve against github.com itself. A diagram is fetched raw from the wiki repository the mirror pushes.
+test('an attachment image link points at the raw file on the GitHub wiki repository', () => {
+  assert.equal(
+    convert('![A kind and a member](/.attachments/field-guide-three-ideas.svg)'),
+    `![A kind and a member](${RAW_WIKI}/.attachments/field-guide-three-ideas.svg)`
+  );
+});
+
+test('a screenshot attachment is rewritten the same way as a diagram', () => {
+  assert.equal(
+    convert('![The Dashboard](/.attachments/trellis-dashboard.png)'),
+    `![The Dashboard](${RAW_WIKI}/.attachments/trellis-dashboard.png)`
+  );
+});
+
+test('an attachment link is not mistaken for a wiki page', () => {
+  const output = convert('![x](/.attachments/a.svg) and [GUI](/GUI)');
+  assert.equal(output, `![x](${RAW_WIKI}/.attachments/a.svg) and [GUI](${WIKI}/GUI)`);
+});
+
+test('the mirror copies the attachments folder beside the pages', () => {
+  const source = fs.mkdtempSync(path.join(os.tmpdir(), 'devops-wiki-'));
+  const output = fs.mkdtempSync(path.join(os.tmpdir(), 'github-wiki-'));
+  fs.writeFileSync(path.join(source, 'Field Guide.md'), '![x](/.attachments/a.svg)');
+  fs.mkdirSync(path.join(source, '.attachments'));
+  fs.writeFileSync(path.join(source, '.attachments', 'a.svg'), '<svg/>');
+  fs.mkdirSync(path.join(source, '.git'));
+  fs.writeFileSync(path.join(source, '.git', 'HEAD'), 'ref: refs/heads/wikiMaster');
+
+  mirror(source, output);
+
+  assert.equal(fs.readFileSync(path.join(output, '.attachments', 'a.svg'), 'utf8'), '<svg/>');
+  assert.equal(
+    fs.readFileSync(path.join(output, 'Field Guide.md'), 'utf8'),
+    `![x](${RAW_WIKI}/.attachments/a.svg)`
+  );
+  assert.ok(!fs.existsSync(path.join(output, '.git')));
+});
+
+// The pipeline step, not this script, carries the output into the GitHub wiki clone.
+test('the pipeline carries the whole mirror output into the GitHub wiki clone', () => {
+  const pipeline = fs.readFileSync(path.join(__dirname, '..', '..', 'azure-pipelines.yml'), 'utf8');
+  const step = pipeline.slice(pipeline.indexOf('node tools/wiki-mirror/sync-wiki.js'));
+  assert.ok(step.includes('cp -R "$OUT"/. "$DEST"/'), 'the mirror step copies only part of the output');
+  assert.ok(step.includes('rm -rf "$DEST"/.attachments'), 'a removed or renamed attachment would linger');
 });
 
 test('mermaid container blocks become fenced code blocks', () => {

@@ -428,7 +428,8 @@ jobs:
       }
 
       find "$DEST" -maxdepth 1 -name '*.md' -delete
-      cp "$OUT"/*.md "$DEST"/
+      rm -rf "$DEST"/.attachments
+      cp -R "$OUT"/. "$DEST"/
 
       # GitHub wikis use the master branch.
       git -C "$DEST" add -A
