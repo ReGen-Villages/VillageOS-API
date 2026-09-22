@@ -10,14 +10,18 @@
 //
 // Usage: node sync-wiki.js <devops-wiki-dir> <output-dir>
 //
-// The pure transforms (convert, buildSidebar, flatName) are exported for unit tests;
-// the file-walking CLI runs only when invoked directly.
+// The transforms (convert, buildSidebar, flatName) and the file walk (mirror) are exported for unit
+// tests; the CLI runs only when invoked directly.
 
 const fs = require('fs');
 const path = require('path');
 
 const REPO = 'https://github.com/ReGen-Villages/VillageOS-API';
 const WIKI = `${REPO}/wiki`;
+// Where a file committed to the GitHub wiki repository is served raw, with its own content type.
+const RAW_WIKI = 'https://raw.githubusercontent.com/wiki/ReGen-Villages/VillageOS-API';
+// The folder the wiki generator attaches every image to, on both wikis.
+const ATTACHMENTS = '.attachments';
 // The branch GitHub file links point at: the one the repository mirror pushes, which the build file
 // names in its "Mirror to GitHub" step. A link against any other branch answers 404, and the test
 // beside this reads the build file so the two cannot drift apart again.
@@ -66,14 +70,21 @@ function convert(content) {
     WIKI
   );
 
-  // 4. Internal wiki links: [text](/Page) or [text](/Folder/Page) -> absolute
+  // 4. Attached images: [text](/.attachments/name) -> the raw file on the GitHub wiki repository.
+  //    Left alone, GitHub resolves the absolute path against github.com itself.
+  out = out.replace(
+    /\]\(\/\.attachments\/([^)\s]+)\)/g,
+    (_m, name) => `](${RAW_WIKI}/${ATTACHMENTS}/${name})`
+  );
+
+  // 5. Internal wiki links: [text](/Page) or [text](/Folder/Page) -> absolute
   //    GitHub wiki URL. Folders are flattened, so only the last segment is used.
   out = out.replace(
     /\]\((\/[A-Za-z0-9%][^)\s]*)\)/g,
     (_m, p) => `](${WIKI}/${pageSlug(p)})`
   );
 
-  // 5. Stray relative repo-doc links: [text](Foo.md) or [text](docs/Foo.md)
+  // 6. Stray relative repo-doc links: [text](Foo.md) or [text](docs/Foo.md)
   //    -> GitHub blob link. A bare name is assumed to live under docs/.
   out = out.replace(
     /\]\((?!https?:\/\/|\/|#)([^)\s]+\.md)\)/g,
@@ -84,7 +95,7 @@ function convert(content) {
     }
   );
 
-  // 6. Mermaid: DevOps ":::​ mermaid ... :::" -> GitHub "```mermaid ... ```".
+  // 7. Mermaid: DevOps ":::​ mermaid ... :::" -> GitHub "```mermaid ... ```".
   out = convertMermaid(out);
 
   return out;
@@ -145,15 +156,14 @@ function listMarkdown(dir, base = dir) {
   return out;
 }
 
-function main(argv) {
-  const [srcDir, outDir] = argv;
-  if (!srcDir || !outDir) {
-    console.error('Usage: node sync-wiki.js <devops-wiki-dir> <output-dir>');
-    process.exit(2);
-  }
-
+function mirror(srcDir, outDir) {
   fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(outDir, { recursive: true });
+
+  const attachments = path.join(srcDir, ATTACHMENTS);
+  if (fs.existsSync(attachments)) {
+    fs.cpSync(attachments, path.join(outDir, ATTACHMENTS), { recursive: true });
+  }
 
   const seen = new Map();
   for (const rel of listMarkdown(srcDir)) {
@@ -180,11 +190,22 @@ function main(argv) {
   };
   fs.writeFileSync(path.join(outDir, '_Sidebar.md'), buildSidebar(readOrder));
 
-  console.log(`Wrote ${seen.size} page(s) + _Sidebar.md to ${outDir}`);
+  return seen.size;
+}
+
+function main(argv) {
+  const [srcDir, outDir] = argv;
+  if (!srcDir || !outDir) {
+    console.error('Usage: node sync-wiki.js <devops-wiki-dir> <output-dir>');
+    process.exit(2);
+  }
+
+  const pages = mirror(srcDir, outDir);
+  console.log(`Wrote ${pages} page(s) + _Sidebar.md to ${outDir}`);
 }
 
 if (require.main === module) {
   main(process.argv.slice(2));
 }
 
-module.exports = { convert, convertMermaid, buildSidebar, flatName, pageSlug, decodeName, REPO_BRANCH };
+module.exports = { convert, convertMermaid, buildSidebar, flatName, pageSlug, decodeName, mirror, REPO_BRANCH };
