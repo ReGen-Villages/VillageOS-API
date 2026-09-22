@@ -328,6 +328,32 @@ Tests prove this with `TestCulture` from `vos.Tests.Shared`: `CommaDecimal` forc
 comma-decimal region around a parse so the test fails on any machine rather than only on one
 already configured that way, and `Display` pins a rendering assertion to a named culture.
 
+### 6.2 Stamp model values with the model's clock, not the machine's
+
+An instant a service writes into the model — when a submission arrived, when a source answered —
+comes from `ModelClock`, never from `DateTime.UtcNow` or `TimeProvider.System`. The platform's clock
+can be anchored: a simulation runs a village day through in minutes, and everything the platform
+writes carries the instant the model has reached. A service stamping its own wall clock puts a
+different year on the same run, and a reading that compares the two is comparing two clocks.
+
+```csharp
+builder.Services.AddModelClock<IntakeMyceliumClient>("Intake");   // in Program.cs
+public sealed class SubmissionIntakeService(…, ModelClock time)   // where a model value is stamped
+```
+
+`AddModelClock` registers the clock and a follower that asks the broker what time the model thinks it
+is, and how fast that runs against real time, every few seconds. Between readings the clock needs
+nothing: it maps elapsed real time through the rate it was given. Where the broker cannot be reached
+it stays on the wall clock, which is what the model's clock is when nothing has simulated it. The
+first reading is logged with the distance between the two clocks, so a run's logs say plainly which
+year the service is stamping.
+
+**A real duration a service measures for itself is not model time.** How long a verification code
+stays good, when a token is due for replacement, how long a cached answer lives — these keep
+`TimeProvider.System`, because a simulation running sixty times real speed must not expire a person's
+code in ten seconds. That is why the model clock is its own registration rather than the injected
+`TimeProvider`.
+
 ## 7. Program.cs — the same steps, most of them shared
 
 `Program.cs` is wiring. Anything that makes a decision belongs outside it, where

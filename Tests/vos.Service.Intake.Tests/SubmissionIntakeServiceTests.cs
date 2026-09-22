@@ -9,6 +9,7 @@ using vos.Service.Shared.Subscriptions;
 using vos.Tests.Shared;
 using Xunit;
 using static vos.Service.Intake.Tests.ModelStub;
+using vos.Service.Shared;
 
 namespace vos.Service.Intake.Tests;
 
@@ -63,7 +64,7 @@ public class SubmissionIntakeServiceTests
                 "test-token"),
             read,
             NullLogger<SubmissionIntakeService>.Instance,
-            new FakeTimeProvider(WillowBend.ArrivedAt));
+            new ModelClock(new FakeTimeProvider(WillowBend.ArrivedAt)));
 
     // A clock that does not move, so an arrival time can be asserted rather than bounded.
     private sealed class FakeTimeProvider(DateTime now) : TimeProvider

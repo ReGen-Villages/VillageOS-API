@@ -80,6 +80,7 @@ try
             serviceToken, apiKey: apiKey));
     builder.Services.AddSingleton<ICoverageWriter>(sp => sp.GetRequiredService<MyceliumRelationshipClient>());
     builder.Services.AddSingleton(TimeProvider.System);
+    builder.Services.AddModelClock<MyceliumRelationshipClient>("Forage");
     builder.Services.AddSingleton<CoverageLedger>();
     builder.Services.AddSingleton<DivisionResolver>();
     builder.Services.AddSingleton<AnalysisSpawner>();

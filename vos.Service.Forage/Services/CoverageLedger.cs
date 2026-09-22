@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using vos.Service.Forage.Helpers;
+using vos.Service.Shared;
 
 namespace vos.Service.Forage.Services;
 
@@ -31,10 +32,10 @@ public sealed class CoverageLedger
     public const string CoverageMatchedAtProperty = "coverageMatchedAt";
 
     private readonly ICoverageWriter _writer;
-    private readonly TimeProvider _clock;
+    private readonly ModelClock _clock;
     private readonly ILogger<CoverageLedger> _logger;
 
-    public CoverageLedger(ICoverageWriter writer, TimeProvider clock, ILogger<CoverageLedger> logger)
+    public CoverageLedger(ICoverageWriter writer, ModelClock clock, ILogger<CoverageLedger> logger)
     {
         _writer = writer;
         _clock = clock;

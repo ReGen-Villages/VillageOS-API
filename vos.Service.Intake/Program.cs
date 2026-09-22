@@ -121,6 +121,7 @@ try
             apiKey: apiKey));
 
     builder.Services.AddSingleton(TimeProvider.System);
+    builder.Services.AddModelClock<IntakeMyceliumClient>("Intake");
     if (mailDelivery.Server is { } mailServer)
     {
         builder.Services.AddSingleton(mailServer);
