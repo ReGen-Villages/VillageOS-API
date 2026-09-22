@@ -259,6 +259,37 @@ public abstract class MyceliumClientBase
             doc.TryGetProperty("samples", out var sm) ? sm.GetInt64() : 0L);
     }
 
+    /// <summary>What time the model thinks it is, and how fast that runs against real time — null
+    /// where the broker could not be asked. A service stamping a model value reads this rather than its
+    /// own wall clock, so an instant it writes and one the platform writes come off the same clock.</summary>
+    public async Task<ModelTimeReading?> ReadModelTimeAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var client = await CreateAuthenticatedClientAsync();
+            var response = await client.GetAsync($"{MyceliumUrl}/api/time", cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                Logger.LogWarning("Reading the model clock answered {Status}", (int)response.StatusCode);
+                return null;
+            }
+
+            var answer = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
+            if (!TryGetPropertyCaseInsensitive(answer, "now", out var now)
+                || !now.TryGetDateTimeOffset(out var instant))
+                return null;
+
+            var rate = TryGetPropertyCaseInsensitive(answer, "rate", out var stated)
+                       && stated.TryGetDouble(out var read) ? read : 1.0;
+            return new ModelTimeReading(instant, rate);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            Logger.LogWarning(exception, "Could not read the model clock");
+            return null;
+        }
+    }
+
     private static async Task<HttpRequestException> FailureAsync(string op, HttpResponseMessage response)
     {
         var error = await response.Content.ReadAsStringAsync();

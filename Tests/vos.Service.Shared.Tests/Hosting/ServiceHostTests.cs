@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Builder;
@@ -22,7 +23,8 @@ public class ServiceHostTests
 
     private static WebApplication BuildApp(
         Func<HttpRequestMessage, HttpResponseMessage>? respond = null,
-        bool withMyceliumRegistration = false)
+        bool withMyceliumRegistration = false,
+        bool withModelClock = false)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
@@ -39,7 +41,37 @@ public class ServiceHostTests
         if (withMyceliumRegistration)
             builder.Services.AddMyceliumRegistration(ServiceName, port: 7100);
 
+        if (withModelClock)
+            builder.Services.AddModelClock<EndpointServiceMyceliumClient>(ServiceName);
+
         return builder.Build();
+    }
+
+    // The fault this guards: every service registered the wall clock, so an instant a service wrote
+    // into a simulated run carried the year of the machine playing it rather than the year the model
+    // had reached.
+    [Fact]
+    public async Task AddModelClock_LeavesTheServiceStampingWhatTheBrokerSaysTheTimeIs()
+    {
+        var modelInstant = new DateTimeOffset(2025, 9, 20, 3, 0, 0, TimeSpan.Zero);
+        var answer = "{\"now\":\"" + modelInstant.ToString("o") + "\",\"rate\":60}";
+        await using var app = BuildApp(request => request.RequestUri!.AbsolutePath == "/api/time"
+            ? new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(answer, Encoding.UTF8, "application/json")
+            }
+            : new HttpResponseMessage(HttpStatusCode.OK), withModelClock: true);
+        await app.StartAsync();
+
+        var clock = app.Services.GetRequiredService<ModelClock>();
+        for (var attempt = 0; attempt < 50 && !clock.IsAnchored; attempt++)
+            await Task.Delay(20);
+
+        clock.IsAnchored.Should().BeTrue();
+        clock.Rate.Should().Be(60);
+        clock.GetUtcNow().Should().BeCloseTo(modelInstant, TimeSpan.FromSeconds(5));
+        clock.OffsetFromWallClock().Should().BeCloseTo(
+            modelInstant - DateTimeOffset.UtcNow, TimeSpan.FromSeconds(5));
     }
 
     [Fact]
