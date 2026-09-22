@@ -1,12 +1,13 @@
 using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Models;
 using vos.Service.Shared.Subscriptions;
+using vos.Service.Shared;
 
 namespace vos.Service.Intake.Services;
 
 public sealed class SubmissionIntakeService(
     IntakeMyceliumClient mycelium, ISubscriptionClient subscriptions, ILogger<SubmissionIntakeService> logger,
-    TimeProvider time)
+    ModelClock time)
 {
     // Every archetype a submission points its Things at. Order matters only to the refusal, which reports
     // missing names in it.

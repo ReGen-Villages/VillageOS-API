@@ -2,6 +2,7 @@ using System.Globalization;
 using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Models;
 using vos.Service.Shared.Subscriptions;
+using vos.Service.Shared;
 
 namespace vos.Service.Intake.Services;
 
@@ -17,7 +18,7 @@ public sealed class SharedDocumentService(
     IntakeMyceliumClient mycelium,
     ISubscriptionClient subscriptions,
     DocumentStore store,
-    TimeProvider time,
+    ModelClock time,
     ILogger<SharedDocumentService> logger)
 {
     public const long MaximumFileBytes = 25 * 1024 * 1024;
