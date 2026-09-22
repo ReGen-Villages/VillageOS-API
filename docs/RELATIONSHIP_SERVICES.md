@@ -1,0 +1,771 @@
+# VillageOS Relationship Services
+
+## Overview
+
+VillageOS supports **built-in predicates** with special semantics through a microservice handler architecture. When a relationship is created using a predicate that has a registered handler, Mycelium automatically launches (or contacts) a persistent daemon process that performs the predicate's custom behavior.
+
+All handlers run as **daemon-mode** microservices -- persistent processes that stay alive across multiple relationship invocations. This eliminates per-request startup overhead and enables continuous operations like resource simulation. Mycelium manages the full daemon lifecycle: lazy startup on first use, health monitoring, and graceful shutdown.
+
+The **active** relationship services currently in the seed are:
+
+| Predicate | Handler | Behavior |
+|-----------|---------|----------|
+| `consumes` | `vos.Service.Metabolism --mode=consumes` | Continuous resource decrement simulation |
+| `produces` | `vos.Service.Metabolism --mode=produces` | Continuous resource increment simulation |
+
+> **Built-in: `is`.** Type inheritance (property + range **resolution**) is handled in-process by Mycelium, not by a microservice. See [Built-in `is` inheritance](#built-in-is-inheritance) below. Previously this was a microservice (`vos.Service.IsHandler`); the round-trip added latency and complexity for what is purely an in-memory graph operation, so it was inlined.
+
+Additionally, VillageOS has **passive (structural) predicates** that have no handler daemon:
+
+| Predicate | Behavior |
+|-----------|----------|
+| `contains` | Structural containment (e.g., IfcBuilding contains IfcStorey). No handler — relationships are purely structural. Used by the GUI to discover child elements for 3D rendering |
+| `aggregates` | Structural aggregation (e.g., IfcSite aggregates IfcBuilding). Same as `contains` — no handler, purely structural |
+
+Passive predicates are created as regular predicate things without `ExecutablePath` or `ServicePort` properties. They participate in graph queries and GUI rendering but do not trigger any microservice behavior.
+
+### PlatformServiceConnection / Service model
+
+A dispatched predicate is a **PlatformServiceConnection** that **has** a **Service**; the Service carries the launch config. Both are ordinary model Things related by the generic `is`/`has` predicates — Mycelium resolves them by walking the `is`-chain and never hardcodes type names: the connection archetype is whichever Thing carries the mark `__IsConnectionArchetype`, the service archetype whichever carries `__IsServiceArchetype`, so a model may call them what it likes.
+
+```text
+PlatformServiceConnection {__IsConnectionArchetype}   ← archetype: a routed connection
+  ← is ─ consumes ─has→ consumes service ─is→ Metabolism prototype
+  ← is ─ produces ─has→ produces service ─is→ Metabolism prototype
+  consumes ─triggeredBy→ graph          ← a ConnectionTrigger Thing: graph, http, or state
+  produces ─triggeredBy→ graph
+
+Service {__IsServiceArchetype, ExecutablePathTemplate, ServicePort, ServiceArgs, AutoStart}  ← archetype: the process
+  Service ─runsAs→ daemon               ← a ServiceRunMode Thing; daemon is the only mode implemented
+  ← is ─ Metabolism prototype {ServiceAssembly, TokenScope}         ← shared definition (one binary)
+            ← is ─ consumes service {ServicePort, ServiceArgs, AutoStart}   ← per-instance overrides
+            ← is ─ produces service {ServicePort, ServiceArgs, AutoStart}
+
+is                                          ← built-in; in-process, not a PlatformServiceConnection
+has, feeds, powers, ...                     ← passive predicates (not PlatformServiceConnections)
+```
+
+- **PlatformServiceConnection** (archetype): a Thing that routes to a service. Its **trigger** is a Thing it relates to through the predicate carrying `__IsTriggerPredicate` (`triggeredBy` above), never a word on the connection — a seed still carrying a `trigger` property is refused. The trigger is `graph` (a predicate, fired when a relationship is created), `http` (a subdomain, reached via `POST /api/endpoints/{subdomain}`), or `state` (fired when a Thing enters a state: the connection relates to the range Thing it watches through the predicate carrying `__IsStateWatchPredicate`, the range relates to the archetype it judges, and every Thing that `is` that archetype fires it). A connection with no trigger of its own takes the nearest one up its `is` chain. A dispatched predicate like `consumes` `is PlatformServiceConnection`. A service that needs to be told once about one Thing entering one state, rather than about every Thing of an archetype, places a **vigil** instead — see [Being told once: vigils](SERVICE_CONTRACT.md#being-told-once-vigils).
+- **Service** (archetype): the microservice process. Carries `ExecutablePathTemplate` (or a stated `ExecutablePath`), `ServicePort`, `ServiceArgs` and `AutoStart` (was `onLoad`), and reaches its **run mode** through the predicate carrying `__IsRunModePredicate` (`runsAs` above) — a Thing, not a word, and `daemon` is the only one the platform implements.
+- **Shared prototype** (e.g. `Metabolism prototype`): a Service holding one binary's shared values — its `ServiceAssembly`, which the archetype's `ExecutablePathTemplate` composes into a path by replacing `{service}`, and its `TokenScope`; concrete services `is` it and override only per-instance values (`ServicePort`, `ServiceArgs`, `AutoStart`). So `consumes` and `produces` share one binary definition but bind two distinct services.
+- **PlatformServiceConnection `has` Service**: the generic `has` relation; the service is identified as the related Thing that is (transitively) a `Service`, never by predicate name.
+- **Built-in `is`**: in-process (Mycelium's `is`-inheritance + the range engine); not a PlatformServiceConnection.
+- **Passive predicates** (`contains`, `aggregates`, `has`, …): not PlatformServiceConnections; no service.
+
+At seed load, Mycelium discovers connections by transitive `is`-membership of the archetype marked `__IsConnectionArchetype` and registers graph connections whose bound Service has `AutoStart: true` for auto-invocation. At runtime, the service broker resolves the bound Service to build the daemon config (including `TokenScope`).
+
+---
+
+## Architecture
+
+### System Diagram
+
+```mermaid
+flowchart TB
+    subgraph Mycelium["VillageOS Mycelium (https://localhost:7243)"]
+        API[REST API + SSE streams]
+        DSB[the service broker]
+        DLM[the daemon lifecycle manager]
+        DST[daemon state tracking]
+        ESF[the endpoint forwarder]
+    end
+
+    subgraph Handlers["Relationship Service Daemons"]
+        CONS["Metabolism\n--mode=consumes\n(port 7102)"]
+        PROD["Metabolism\n--mode=produces\n(port 7103)"]
+    end
+
+    subgraph EndpointSvcs["Endpoint Service Daemons"]
+        ECHO["Echo\n(port 7200)"]
+    end
+
+    Client([Client / GUI]) -->|"POST /api/relationships"| API
+    Client -->|"POST /api/endpoints/{subdomain}"| API
+    API -->|"is predicate: in-process"| VRS["is-resolution + range engine"]
+    API -->|"other predicates"| DSB
+    API -->|"endpoint request"| ESF
+    DSB -->|"lazy-start + POST /handle"| DLM
+    ESF -->|"lazy-start + forward"| DLM
+    DLM -->|"health check + launch"| DST
+    DST -->|"launch process"| CONS & PROD & ECHO
+    DLM -->|"POST /handle"| CONS & PROD & ECHO
+
+    CONS -->|"POST /api/things/{id}/properties/{propertyName}/decrements"| API
+    PROD -->|"POST /api/things/{id}/properties/{propertyName}/increments"| API
+
+    CONS & PROD & ECHO -->|"POST /api/mycelium/register"| API
+```
+
+### How Relationship Services Work
+
+1. **PlatformServiceConnection + Service definition**: A dispatched predicate `is PlatformServiceConnection`, is `triggeredBy` the `graph` trigger, and `has` a Service Thing carrying the handler configuration properties (typically inherited from a shared prototype):
+   - `ExecutablePathTemplate` -- on the `Service` archetype, a path with a `{service}` placeholder that each prototype's `ServiceAssembly` fills; a stated `ExecutablePath` wins where both are present. `.dll` files are run via `dotnet`. A relative path resolves from the folder Mycelium runs in, not from the seed file, so a service built in another repository needs a path that climbs out of Mycelium's own; a composed path naming no file refuses the seed at load.
+   - `ServicePort` -- port for the daemon to listen on
+   - `ServiceArgs` -- extra CLI arguments (e.g., `--mode=consumes`) passed verbatim to the daemon.
+   - the run mode -- a Thing reached through `runsAs`, declared on the `Service` archetype and inherited; `daemon` is the only one implemented
+   - `TokenScope` -- a label describing the reach this handler is *meant* to have, minted into its service JWT as the `vos:scope` claim (defaults to `"{connectionName}:*"`). **It records intent and restricts nothing.** Mycelium authorises by role: a service token reads and writes every Thing in the model it names, whatever its scope says. The one boundary a service token does carry is that model — a handler cannot reach another one.
+   - `AutoStart` -- boolean (default `false`). When `true`, Mycelium registers the handler at seed load and invokes it for all existing relationships using this connection. When `false` or absent, the handler is invoked lazily when new relationships are created at runtime
+
+2. **Lazy Startup**: When a relationship using a handler predicate is created, the service broker delegates to the shared daemon lifecycle manager:
+   - Attempts to POST to the daemon's `/handle` endpoint
+   - If connection is refused, launches the daemon process automatically
+   - Polls the `/health` endpoint with exponential backoff until healthy
+   - Retries the original `/handle` call once the daemon is ready
+
+3. **Handler Invocation**: Mycelium POSTs to `/handle` with relationship details:
+
+   ```json
+   {
+     "relationshipId": "guid",
+     "subjectId": "guid",
+     "targetId": "guid",
+     "subjectName": "Cottage-01",
+     "targetName": "VillageElectricityPool",
+     "properties": { "quantity": 0.01, "unit": "kWh", "frequencySeconds": 30 }
+   }
+   ```
+
+   The `properties` field contains the relationship's `OwnProperties` so the handler does not need to call back to Mycelium during initial processing.
+
+   When the relationship arrives inside a `POST /api/model/fragment` batch, invocation happens only after the whole fragment is applied — every Thing, relationship, and property value in the batch is readable, and roll-ups are recomputed — and multiple handled relationships in one fragment are dispatched in creation order. A handler never observes a half-applied fragment.
+
+4. **Registration**: Handlers register with Mycelium on startup; the broker's liveness monitor removes one that has stopped answering. The register / deregister / health-monitoring lifecycle (payloads, health-status state machine, auto-deregistration, error scenarios) is the same for all microservices and is documented in [`SERVICES.md` §8](SERVICES.md) and, on the platform side, in the *Services* chapter of the Field Guide — not repeated here.
+
+### Handler startup context
+
+`ServiceArgs` carries plain CLI flags (e.g. `--mode=consumes`) passed verbatim to the daemon.
+A handler obtains the objects it operates on by **subscribing** — snapshot + live SSE stream
+(see [`SERVICE_CONTRACT.md`](SERVICE_CONTRACT.md) § Subscriptions) — rather than receiving resolved IDs
+at launch. (An earlier `{{…}}` template mechanism for injecting startup IDs was never adopted
+and was removed once subscriptions superseded it.)
+
+> **Handler lifecycle internals** — how Mycelium supervises the daemon and invokes the handler
+> per relationship — live in the platform's Field Guide (the *Services* chapter), on the VillageOS repository's wiki.
+
+## Built-in `is` inheritance
+
+The `is` predicate is VillageOS's type system. Linking a thing to a type with an `is` relationship copies **nothing**: inheritance is **resolved on read** by walking the `is` chain in-process. No daemon, no HTTP round-trip, and nothing duplicated in memory or on disk.
+
+### How it resolves
+
+- **Inherited properties are live defaults.** An inherited property the instance hasn't set resolves, on read, to the type's *current* value. Change a value on the type and every instance that hasn't set its own sees the new value immediately — there is nothing to re-copy.
+- **The first write makes a per-instance override.** When an instance sets a value for an inherited property, VillageOS records a per-instance copy (an *override*) on that instance and leaves the type untouched. Reads then return the override; the type's default still flows to every other instance. This is **write isolation** — one instance can never change the value another instance sees.
+- **Retracting the name gives the type's value back.** Deleting that property on the instance removes the override, and the instance resolves the type's live value again. The type is untouched either way.
+- **Ranges resolve the same way.** A type's ranges apply to its instances by walking the `is` chain at evaluation time; they are not stored on the instance. When an inherited value changes, the affected ranges re-evaluate.
+- **Transitive.** Resolution follows the whole chain (`Cottage-01 is Cottage is Dwelling`), and type-membership tests walk it too.
+- **Classification.** The GUI uses `is` relationships to determine node types and colors.
+
+### Reading properties: own, inherited, effective
+
+Every property a thing exposes falls into one view. To a consumer a thing simply **has properties** — the distinction is provenance carried on each one, not a separate list:
+
+- **Own** — stored directly on the thing.
+- **Inherited** — resolved from an ancestor via the `is` chain; a live default the thing never set.
+- **Override** — an inherited *name* the thing set its own value for. On read it wins and reads back as own; write isolation keeps the ancestor's default flowing to every other instance.
+- **Effective** — the resolved set a read returns: own + inherited, own/overrides winning. This is what a consumer should read.
+
+Two endpoints serve the resolved (effective) view. Both tag each property with `IsInherited` and `InheritedFrom` (the source id), and key inherited properties by qualified path (`Home.energy_rating`) so the lineage is visible:
+
+| Endpoint | Scope | Use |
+|----------|-------|-----|
+| `GET /api/things/{id}/properties` | one thing | a selected thing's full resolved view (e.g. a detail panel) |
+| `GET /api/things/properties?scope={effective\|own\|inherited}` | all things, one call | bulk read-only surfaces (property search) that need the full inherited view without a request per thing. `effective` (default) includes overrides as the winning value. Add `?ids=` with a comma-separated list to narrow the answer to those things. |
+
+Do **not** reconstruct the effective view from a thing's raw stored own + overrides — that misses inherited defaults the instance never set. Read it from these endpoints, which resolve the `is` chain server-side.
+
+`?ids=` pairs with a narrowed model load: a client that asked `GET /api/things` for only the properties it draws with fills in the rest for the things it is actually showing, rather than re-reading the whole model. An identifier matching no thing is absent from the answer rather than failing the call — the set usually comes from a selection, and one deleted thing should not lose the others.
+
+### Naming rules (checked on write)
+
+A name resolves to one property, so a few rules keep resolution unambiguous. A live API write that would break one is rejected:
+
+- A property name may contain **letters, digits and underscore only**. Every other character is read as structure by the criteria language, so a name containing one would be stored where no criteria, roll-up or reference path could name it. A dot is the sharpest case: it separates the parts of a qualified `Type.property` path, so a dotted name and a dotted path would be indistinguishable. Producers that build a name out of source data (the IFC importer, for one) sanitize it — `Dimensions` + `Area` is stored as `Dimensions_Area`.
+- A thing may not **own** a property whose name it already **inherits** — set a value instead, which creates an override.
+- Establishing `is` may not pull in an inherited property whose name the thing already owns.
+- A property name may not equal the name of a type it inherits from (that would make a qualified `Type.property` path ambiguous).
+
+### Example
+
+```text
+Cottage-01 --[is]--> Cottage
+```
+
+- `Cottage-01` immediately resolves `Cottage`'s property values and ranges — no copy is made.
+- Setting a value on `Cottage-01` for one of those properties stores an override on `Cottage-01`; `Cottage` is unchanged, and its default still reaches every other cottage.
+- `Cottage-01`'s ranges evaluate against its resolved values and re-evaluate when those values change.
+- `Cottage-01` is classified as a `Cottage` in the GUI.
+
+### Predicate configuration
+
+```json
+{ "Name": "is", "Properties": {} }
+```
+
+No `ExecutablePath` or `ServicePort` — `is` is a plain thing; Mycelium recognizes its name and resolves inheritance in-process.
+
+### Seed load
+
+A seed stores only **overrides** in each thing's inherited-property set; unset defaults resolve through the `is` chain at read time. Loading a seed therefore wires the `is` relationships and applies any overrides — it does not copy defaults onto instances, and ranges likewise resolve from the chain.
+
+---
+
+## `consumes` / `produces` Handlers -- Resource Simulation
+
+**Location**: `vos.Service.Metabolism/` in the **VillageOS-API** repo (unified handler). Implementation details live in that repo's `docs/METABOLISM.md`.
+**Default Ports**: 7102 (`consumes`), 7103 (`produces`)
+
+Both `consumes` and `produces` are handled by a single `Metabolism` binary, differentiated by the `--mode=consumes` or `--mode=produces` CLI argument. The predicate thing's `ServiceArgs` property passes this mode to Mycelium, which appends it when launching the daemon.
+
+### Built-in Behaviors
+
+- **Continuous Simulation**: Registers relationships for ongoing resource flow (not one-shot)
+- **Configurable Frequency**: Each relationship ticks at its own interval
+- **Staggered Startup**: Initial ticks are offset by `(registrationOrder * 200ms) + random(0..500ms)` to prevent thundering herd
+- **Mode-based Operation**: `consumes` mode posts to the target property's `decrements` route, `produces` mode to its `increments` route
+- **Per-relationship Tracking**: Each tick also increments `total_consumed` or `total_produced` on the relationship itself. Increments are durable, exactly-once `PropertyValueAsserted` Facts (applied under the commit lock), so the running total survives restart and never loses a tick — see [Write model: everything is a Fact](#write-model-everything-is-a-fact).
+
+### Relationship Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `quantity` | number | 1.0 | Amount per tick |
+| `propertyPath` | string | `"quantity"` | Property path to modify on the target |
+| `unit` | string | `""` | Unit label for logging |
+| `frequencySeconds` | number | 60 | Seconds between ticks |
+| `startDelaySeconds` | number | 0 | Initial delay in seconds before `startUtc` is considered. The first tick will not fire until this delay has elapsed |
+| `startUtc` | string (ISO 8601) | now | When to begin simulation (evaluated after `startDelaySeconds`) |
+| `endUtc` | string (ISO 8601) | 2099-12-31 | When to stop simulation |
+
+> **Typed envelopes, everywhere**: every property value the platform reads — in a seed, a fragment or a write route — is a typed envelope, `{"typeInfo": "vos.Decimal", "value": 5.0}`; a bare value is refused. Use `vos.Decimal` for `quantity`, `frequencySeconds` and `startDelaySeconds`, since an integer type truncates a decimal increment to nothing.
+
+### PlatformServiceConnection + Service Configuration
+
+Each dispatched predicate is a `PlatformServiceConnection` that is `triggeredBy` the `graph` trigger and
+`has` a `Service`; the Service `is` a shared prototype carrying the binary. The predicate Things hold
+nothing of their own:
+
+```json
+{ "Name": "consumes", "Properties": { } }
+{ "Name": "produces", "Properties": { } }
+{ "Name": "graph", "Properties": { } }
+```
+
+with `graph is ConnectionTrigger`, `consumes triggeredBy graph` and `produces triggeredBy graph`, the
+`triggeredBy` predicate carrying `__IsTriggerPredicate`. One shared prototype names the binary and the
+token scope, which describes what this handler is for and does not restrict it (both services `is` it):
+
+```json
+{
+  "Name": "Metabolism prototype",
+  "IsArchetype": true,
+  "Properties": {
+    "ServiceAssembly": { "typeInfo": "vos.String", "value": "vos.Service.Metabolism" },
+    "TokenScope": { "typeInfo": "vos.String", "value": "metabolism:quantity,read" }
+  }
+}
+```
+
+The `Service` archetype above it carries the `ExecutablePathTemplate` the assembly name is composed
+into, and relates through `runsAs` to the `daemon` run mode. Each concrete service holds only
+per-instance overrides:
+
+```json
+{ "Name": "consumes service", "Properties": {
+    "ServicePort": { "typeInfo": "vos.LongInteger", "value": 7102 },
+    "ServiceArgs": { "typeInfo": "vos.String", "value": "--mode=consumes" },
+    "AutoStart":   { "typeInfo": "vos.Boolean", "value": true } } }
+{ "Name": "produces service", "Properties": {
+    "ServicePort": { "typeInfo": "vos.LongInteger", "value": 7103 },
+    "ServiceArgs": { "typeInfo": "vos.String", "value": "--mode=produces" },
+    "AutoStart":   { "typeInfo": "vos.Boolean", "value": true } } }
+```
+
+Relationships wire them (per predicate): `consumes is PlatformServiceConnection`, `consumes has "consumes service"`,
+`"consumes service" is "Metabolism prototype"`, `"Metabolism prototype" is Service`. `tools/seed-migrate`
+in the platform repository produces this shape from the old format.
+
+### Metabolism
+
+The `Metabolism` class manages all active simulation loops using a `ConcurrentDictionary<string, SimulationEntry>`. Each registered relationship gets its own async loop:
+
+1. **Start delay**: If `startDelaySeconds > 0`, the loop waits for that duration first (status: `delayed`). No ticks fire during this phase
+2. **Wait for start time**: After the delay, if `startUtc` is still in the future, the loop delays until then (status: `waiting`)
+3. **Stagger initial tick**: If `startUtc` is already past, waits `(order * 200ms) + jitter` to prevent all simulations from firing simultaneously
+4. **Tick loop**: Calls `MyceliumClient.ApplyQuantityAsync()` at the configured frequency (status: `active`)
+5. **Completion**: Loop exits when `endUtc` is reached or the simulation is cancelled
+6. **Re-registration**: If a relationship is registered again, the previous simulation is cancelled and replaced
+
+Simulation states: `delayed` -> `waiting` -> `active` -> `completed` (or `cancelled`). The `delayed` state is skipped when `startDelaySeconds` is 0.
+
+### Live Configuration Hot-Reload via SSE
+
+The Metabolism service subscribes to Mycelium's model-change SSE stream
+(`GET /api/subscriptions/{id}/stream`) for `RelationshipPropertyChanged` events — via
+`MetabolismSubscriptionService`, built on the shared `Subscriptions.SubscriptionClient`. This enables
+**live hot-reload of simulation parameters** without restarting the handler:
+
+1. **Connection**: the client opens an SSE subscription with `Authorization: Bearer` auth and automatic reconnection, resuming via `Last-Event-ID` so no change is missed across drops
+2. **Event subscription**: listens for `RelationshipPropertyChanged(relId, propertyName, newValue)` and raises a C# event
+3. **Metabolism integration**: the engine subscribes to the event and updates running simulation loops when `quantity`, `frequencySeconds`, `startDelaySeconds`, `unit`, or `propertyPath` changes
+4. **User workflow**: change a relationship property in the GUI (e.g., increase `frequencySeconds` from 30 to 60) → the handler picks up the change in real-time and adjusts the tick interval
+
+The SSE subscription is independent of handler registration — if registration fails (e.g., Mycelium temporarily unreachable), the stream connection retries separately.
+
+### Handler Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/handle` | POST | Register a relationship for continuous simulation |
+| `/simulations` | GET | List all simulations with tick counts and status |
+| `/simulations/{relationshipId}` | DELETE | Cancel a specific simulation |
+| `/health` | GET | Health check with active/total simulation counts |
+| `/stats` | GET | Service statistics |
+| `/shutdown` | POST | Stop all simulations and exit |
+
+### Example
+
+```text
+Home-1 --[consumes quantity=0.01, frequencySeconds=30]--> VillageElectricityPool
+```
+
+When this relationship is registered:
+
+1. Handler registers it as a continuous simulation
+2. Every 30 seconds, decrements `VillageElectricityPool.quantity` by 0.01
+3. Simultaneously increments `total_consumed` on the relationship itself
+4. Simulation runs until `endUtc` or handler shutdown
+
+---
+
+## Usage Example: a home drawing on the village's electricity
+
+The seed the platform ships declares the `consumes` and `produces` connections in the shape above,
+so a worked example needs only the Things that take part and the relationships between them. Every
+value is a typed envelope, because a bare value is refused on every route.
+
+### Setup
+
+1. **Create the pool and the home**:
+
+```json
+POST https://localhost:7243/api/things
+{
+  "Name": "VillageElectricityPool",
+  "Properties": {
+    "quantity": { "typeInfo": "vos.Decimal", "value": 1000.0 },
+    "unit":     { "typeInfo": "vos.String",  "value": "kWh" }
+  }
+}
+
+POST https://localhost:7243/api/things
+{
+  "Name": "Cottage-01",
+  "Properties": {
+    "requiredQuantity": { "typeInfo": "vos.Decimal", "value": 0.5 }
+  }
+}
+```
+
+1. **Create a generator**:
+
+```json
+POST https://localhost:7243/api/things
+{
+  "Name": "SolarArray-South"
+}
+```
+
+### Workflow Execution
+
+1. **The home consumes from the pool**:
+
+```json
+POST https://localhost:7243/api/relationships
+{
+  "SubjectId": "{Cottage-01-Id}",
+  "PredicateId": "{consumes-predicate-Id}",
+  "TargetId": "{VillageElectricityPool-Id}",
+  "Properties": {
+    "quantity": { "typeInfo": "vos.Decimal", "value": 0.5 }
+  }
+}
+```
+
+**Result**: `VillageElectricityPool.quantity` decrements by 0.5 every 60 seconds (default frequency)
+
+1. **The array produces into the pool**:
+
+```json
+POST https://localhost:7243/api/relationships
+{
+  "SubjectId": "{SolarArray-South-Id}",
+  "PredicateId": "{produces-predicate-Id}",
+  "TargetId": "{VillageElectricityPool-Id}",
+  "Properties": {
+    "quantity": { "typeInfo": "vos.Decimal", "value": 3.5 }
+  }
+}
+```
+
+**Result**: `VillageElectricityPool.quantity` increments by 3.5 every 60 seconds (default frequency)
+
+### Query Results
+
+```bash
+GET https://localhost:7243/api/things/{VillageElectricityPool-Id}
+# Returns: { "quantity": 1003.0, ... }
+```
+
+---
+
+## Integration with Ranges / Expected Values
+
+Predicate handlers enable powerful range definitions for simulation monitoring. Ranges evaluate criteria across the graph, and handler-modified properties participate in those evaluations automatically. A criterion is written in the criteria language — the platform Field Guide has the grammar on one page.
+
+### Low Reserve Alert
+
+```json
+{
+  "Name": "LowReserve",
+  "Criteria": "quantity IS KNOWN AND quantity < reorderPoint"
+}
+```
+
+On the pool, creates an alert state when the reserve drops below its reorder threshold.
+
+### Supply Check
+
+```json
+{
+  "Name": "Supplied",
+  "Criteria": "ALL [consumes].quantity >= requiredQuantity"
+}
+```
+
+On a home, holds while every pool it draws on holds at least what the home requires.
+
+### Failure Reaching Through a Chain
+
+```json
+{
+  "Name": "FedByAFailedSource",
+  "Criteria": "ANY [consumes].state HAS 'Depleted'"
+}
+```
+
+On a home, holds while any pool it draws on is in the `Depleted` state a range on the pool produces.
+
+### Two-phase Evaluation
+
+VillageOS's evaluation engine runs in two phases:
+
+1. **Phase 1** -- Range criteria evaluate to equilibrium, producing states
+2. **Phase 2** -- Binding guards evaluate, referencing states from Phase 1
+
+This prevents circular dependencies: a binding guard can reference a state produced by a range, but ranges cannot reference binding results.
+
+---
+
+## Adding New Relationship Services
+
+Relationship behaviors are a **platform extension point**, not a fixed set. This section explains the platform-side machinery — why it exists and how Mycelium dispatches to a handler. For the actual handler **authoring contract** (project layout, required endpoints, `MyceliumClient`, startup registration), see the API repo's SERVICE_AUTHORING.md:
+
+- **DevOps:** <https://dev.azure.com/ReGenVillages/VillageOS-API/_git/VillageOS-API?path=/docs/SERVICE_AUTHORING.md>
+- **Wiki:** <https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FServices%2FAuthoring>
+
+### Why the handled-predicate machinery exists
+
+`is` is the only predicate whose semantics are built into Mycelium in-process (see [Built-in `is` inheritance](#built-in-is-inheritance)). Every other behaving predicate is a **plug-in**: its semantics live in an out-of-process microservice that Mycelium discovers and dispatches to. This keeps the platform core minimal — Mycelium owns the graph, the registry, and the dispatch contract, while domain behavior (resource simulation, future predicates) ships independently as daemons. Adding a behavior is therefore a matter of authoring a handler and declaring a predicate that points at it; no change to Mycelium itself is required.
+
+### How the platform dispatches to a handler
+
+The platform side of adding a relationship service is purely declarative — you register the behavior with the graph, and Mycelium does the rest:
+
+1. **Declare the connection + service.** Create a predicate that `is PlatformServiceConnection`, relate it to the `graph` trigger through the predicate carrying `__IsTriggerPredicate`, and give it a Service Thing through `has` carrying the handler configuration (`ServicePort`, optional `ServiceArgs`, `AutoStart`, and through its prototype the `ServiceAssembly` and `TokenScope`) — typically inherited from a shared prototype. See [How Relationship Services Work](#how-relationship-services-work) for each property's meaning. This is the entire contract the platform needs in order to find and launch the handler.
+2. **Discovery.** At seed load, Mycelium discovers connections by walking the `is`-chain and registers them with the service broker; those whose Service has `AutoStart: true` are invoked for existing relationships immediately.
+3. **Dispatch.** When a relationship using the predicate is created, the service broker delegates to the shared daemon lifecycle manager, which lazily launches the daemon (if needed), waits for health, and POSTs the relationship to the handler's `/handle` endpoint. (The daemon register/deregister/health lifecycle is documented in the broker's service-lifecycle flow — see the note below.)
+
+The handler's own obligations — implementing `/handle`, `/health`, `/shutdown`, and the registration handshake — are the authoring contract documented in the API repo's SERVICE_AUTHORING.md linked above. The register/deregister/health lifecycle itself is documented in the broker's service registration & lifecycle flow (private Mycelium docs).
+
+---
+
+## Mycelium API for Handlers
+
+### Authentication
+
+All handler-to-Mycelium communication authenticates with a short-lived JWT:
+
+```csharp
+// Fetch a short-lived JWT (5 min)
+var request = new HttpRequestMessage(HttpMethod.Post, $"{myceliumUrl}/api/auth/token");
+var token = /* extract .token from response */;
+client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+```
+
+Mycelium-launched daemons receive a pre-minted service JWT through the `Token` environment setting, so they can authenticate immediately without a token-exchange step. Manually-started services that leave `Token` unset fetch a JWT via `POST /api/auth/token`. In both cases, JWTs are short-lived (5 minutes), cached for 4 minutes, and refreshed automatically.
+
+### Available Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `https://localhost:7243/api/auth/token` | POST | Fetch a short-lived JWT |
+| `https://localhost:7243/api/things/{id}` | GET | Get thing with all properties |
+| `https://localhost:7243/api/things/{id}/properties/{propertyName}/increments` | POST | Increment numeric property (used by `produces`) |
+| `https://localhost:7243/api/things/{id}/properties/{propertyName}/decrements` | POST | Decrement numeric property (used by `consumes`) |
+| `https://localhost:7243/api/things/{id}/properties/by-path/{path}` | GET | Get property by path |
+| `https://localhost:7243/api/relationships/{id}/properties/{propertyName}/increments` | POST | Increment a relationship property |
+| `https://localhost:7243/api/mycelium/register` | POST | Register handler with Mycelium |
+| `https://localhost:7243/api/mycelium/services/{handlerId}` | DELETE | Remove a handler's registration (admin-only) |
+
+### Quantity Endpoint Payload
+
+Both the increments and the decrements route accept:
+
+```json
+{
+  "amount": 5.0,
+  "subjectName": "Cottage-01",
+  "unit": "kWh"
+}
+```
+
+The property path is carried in the URL (`.../properties/{propertyName}/{increments|decrements}`), not the body.
+
+---
+
+## Write model: everything is a Fact
+
+Every model mutation is a durable, sequenced **Fact** in the per-tenant Commit Log — there are no ephemeral in-memory writes. This is what lets a handler's effects (and the rest of the model) survive a Mycelium restart and lets the snapshot/stream subscription replay deterministically.
+
+| Mutation | Fact | Notes |
+|----------|------|-------|
+| Create / delete thing or relationship | `EntityCreated` / `RelationshipCreated` / `…Retracted` | via the commit coordinator |
+| Set / add a property (thing or relationship) | `PropertyValueAsserted` | absolute value; replay applies the latest |
+| **Increment / decrement** (`produces` / `consumes`, `total_*`) | `PropertyValueAsserted` (absolute) | **exactly-once**: the read-modify-write runs under the commit lock, so concurrent ticks never lose an update; a decrement that would go negative is rejected *before* any record is written |
+| Retract a property | `PropertyValueRetracted` | |
+| Add / remove a range | `RangeCreated` / `RangeRetracted` | thing or relationship |
+| Clear the model | `ModelCleared` | replay drops all things/relationships |
+
+On replay, the model's current value for a property is reconstructed from the **latest** `PropertyValueAsserted` for it, so a stream of increment Facts sums to the correct total. Observations remain a separate, deliberately lossy/coalesced telemetry channel (sampled values; history-only, not replayed into authoritative state) — never used for cumulative deltas. The platform Field Guide's write-path chapter has the whole of it.
+
+---
+
+## Debugging and Troubleshooting
+
+### Log Files
+
+Handlers write to daily rolling log files in a `logs/` directory four levels above the service's build output — the repository root, when the service runs from its own `bin/` folder:
+
+- `consumes` handler: `logs/metabolism-consumes-YYYYMMDD.log`
+- `produces` handler: `logs/metabolism-produces-YYYYMMDD.log`
+
+`is` runs in-process inside Mycelium, so its diagnostics appear in Mycelium's own log stream rather than a separate handler log.
+
+Log format: `{Timestamp} [{Level}] [{SourceContext}] {Message}`
+
+### Manual Startup
+
+Normally Mycelium auto-starts handler daemons via the daemon lifecycle manager. For development and debugging you can start them manually from the command line.
+
+#### CLI Arguments
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `--port=<port>` | Yes | Port for the service to listen on |
+| `--myceliumUrl=<url>` | Yes | URL of the VillageOS Mycelium (e.g., `https://localhost:7243`) |
+| `--issuer=<issuer>` | No | JWT issuer Mycelium signs with. Must match for `/handle` authentication |
+| `--audience=<audience>` | No | JWT audience Mycelium signs with. Must match for `/handle` authentication |
+| `--mode=<mode>` | Metabolism only | `consumes` or `produces` |
+
+#### Credential settings
+
+The two credentials are **not** command-line arguments. An argument list is visible to every process on the host and is recorded by anything that logs the line a service was started with, so both are read from configuration — which includes environment variables — and nowhere else.
+
+| Setting | Environment variable | Required | Description |
+|---------|----------------------|----------|-------------|
+| `Token` | `Token` | No | Service JWT for authenticating outbound requests to Mycelium. If omitted, the service attempts to fetch one via `POST /api/auth/token` |
+| `VerificationKey` | `VerificationKey` | No | Base64 of Mycelium's **public** signing key. Lets the service check inbound `/handle` requests from Mycelium. It cannot produce a signature, only check one. If omitted, inbound auth is disabled |
+
+Mycelium sets both on the environment of every daemon it launches. You only need them when starting a service by hand.
+
+#### Obtaining `VerificationKey`
+
+Mycelium's key pair is stored in `data/vos-signing-key.json`, which holds the **private** half. The
+setting expects the **public** half, so derive it:
+
+```bash
+# Take the private half out of Mycelium's key file
+python3 - <<'EOF'
+import base64, json
+open('/tmp/vos-signing-key.der', 'wb').write(
+    base64.b64decode(json.load(open('data/vos-signing-key.json'))['PrivateKey']))
+EOF
+
+# Derive the public half (this is what VerificationKey expects)
+export VerificationKey=$(openssl pkey -inform DER -in /tmp/vos-signing-key.der \
+    -pubout -outform DER | base64 | tr -d '\n')
+rm /tmp/vos-signing-key.der
+```
+
+With `VOS_MASTER_KEY` set, the key file is encrypted at rest and the first step will not read it —
+take the value from a Mycelium started without a master key, or from the deployment's own key
+material. If Mycelium was given its key through `Jwt__PrivateKey` or `Jwt:PrivateKey`, derive the
+public half from that value instead.
+
+You also need `--audience` set to this service's own recipient name, and `--issuer` set to what
+Mycelium signs with. Mycelium passes both when it launches a daemon; starting one by hand means
+supplying them, and a service given a verification key without them refuses to start.
+
+#### Obtaining `Token`
+
+**Option A — Omit it.** The service will call `POST /api/auth/token` on Mycelium at startup to fetch a JWT.
+
+**Option B — Fetch a JWT manually:**
+
+```bash
+export Token=$(curl -s -X POST "https://localhost:7243/api/auth/token" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+```
+
+#### Example: Start Metabolism (consumes)
+
+```bash
+dotnet run --project vos.Service.Metabolism -- \
+  --port=7102 \
+  --myceliumUrl=https://localhost:7243 \
+  --mode=consumes
+```
+
+#### Example: Start Metabolism (produces)
+
+```bash
+dotnet run --project vos.Service.Metabolism -- \
+  --port=7103 \
+  --myceliumUrl=https://localhost:7243 \
+  --mode=produces
+```
+
+#### Example: Start Echo Endpoint Service
+
+```bash
+dotnet run --project vos.Service.CSharp.Echo -- \
+  --port=7200 \
+  --myceliumUrl=https://localhost:7243
+```
+
+#### Quick Development Start (minimal auth)
+
+For local development where security is not a concern, you can start with just the required arguments. The service will attempt to bootstrap authentication automatically:
+
+```bash
+dotnet run --project vos.Service.Metabolism -- \
+  --port=7102 --myceliumUrl=https://localhost:7243 --mode=consumes
+```
+
+### Manual Testing
+
+1. **Check health**:
+
+   ```bash
+   curl http://localhost:7102/health
+   # {"status":"Healthy","service":"Metabolism-consumes","requestsProcessed":0,"activeSimulations":0,"totalSimulations":0,"uptime":"active"}
+   ```
+
+2. **List active simulations** (Metabolism):
+
+   ```bash
+   curl http://localhost:7102/simulations
+   ```
+
+3. **Cancel a simulation** (Metabolism):
+
+   ```bash
+   curl -X DELETE http://localhost:7102/simulations/{relationshipId}
+   ```
+
+### Common Issues
+
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| Handler not starting | No `ServiceAssembly` on the prototype (or `ExecutablePath` on the Service) or no `ServicePort` on the Service the connection `has` | Add the missing property; a composed path naming no file refuses the seed at load, naming the service |
+| "Connection refused" in Mycelium logs | Daemon not running and auto-start failed | Check `ExecutablePath` is correct; check `logs/` for startup errors |
+| Daemon enters cooldown | 3+ consecutive startup failures | Wait 5 minutes or restart Mycelium; check handler logs |
+| Simulations not ticking | `startUtc` is in the future | Check the relationship's `startUtc` property |
+| Simulation stuck in "delayed" | `startDelaySeconds` is set | Wait for the delay to elapse, or set `startDelaySeconds` to 0 |
+| Inherited property not resolving | The `is` relationship isn't wired | Check both subject and target things exist and the `is` relationship was created; check the Mycelium log for range-evaluation errors |
+| Status events missing | daemon status events not firing | Ensure the client is connected to `GET /api/events/stream` (system-events SSE) and the system-events SSE stream is wired up |
+| Daemon hangs on startup | `Console.WriteLine` fills stdout pipe buffer | Mycelium does **not** redirect stdout (`RedirectStandardOutput = false`), so handler console output goes directly to Mycelium's own console (or nowhere if Mycelium has no visible console). This means `Console.WriteLine` won't cause pipe-buffer hangs, but the output may be lost. **Use file-based logging only (Serilog `WriteTo.File`) for reliable diagnostics** |
+
+### Verifying Daemon State
+
+Mycelium tracks daemon state internally via its daemon state tracking. Key fields per daemon:
+
+- `Process` -- reference to the OS process (null for external daemons)
+- `Port` -- the port the daemon listens on
+- `IsExternal` -- true if the daemon was already running when Mycelium first contacted it
+- `ConsecutiveFailures` -- failure count for cooldown logic
+- `LastContactTime` -- last successful health check or handle response
+
+---
+
+## Performance Considerations
+
+1. **Daemon Mode**: All handlers run as persistent daemons -- no per-request process startup overhead
+2. **Async Invocation**: Relationship creation returns immediately; the handler runs in the background
+3. **Health Check Timeout**: Initial health probe uses 1-second timeout to quickly detect running daemons
+4. **Connection Pooling**: Handlers use `IHttpClientFactory` for efficient HTTP connection reuse
+5. **Staggered Simulation Ticks**: Resource handlers offset initial ticks by `(order * 200ms) + jitter` to spread load
+6. **Concurrent Dictionary**: `Metabolism` uses `ConcurrentDictionary` for thread-safe simulation management
+
+---
+
+## Security
+
+1. **Bidirectional Auth**: Handler → Mycelium uses a short-lived JWT (pre-minted via the `Token` setting, or fetched via `POST /api/auth/token`); Mycelium → handler signs each `/handle` call with a short-lived, model-scoped service JWT carrying the request's `vos:model_id`, validated via `vos.Auth.Shared`
+2. **Short-lived JWTs**: Handlers authenticate with 5-minute JWTs, cached for 4 minutes and refreshed automatically
+3. **Per-request model scope**: Mycelium signs each `/handle` call with a 5-minute service JWT carrying the requesting user's `vos:model_id`. The handler reuses this inbound token for its callbacks into Mycelium (via the shared `UseMyceliumModelToken` middleware), so a daemon shared by several models acts on the model of the current request — never the model that first launched it. The startup JWT from the `Token` setting is used only for the daemon's own registration, and as the model of last resort for work that begins outside any request.
+4. **Localhost Only**: Handlers bind to `http://localhost:{port}` (not exposed externally)
+5. **Mycelium Control**: Only Mycelium can launch and stop handler daemons
+6. **No Direct Access**: GUI and external users cannot call handler endpoints directly
+7. **Startup Lock**: `SemaphoreSlim` prevents race conditions during concurrent daemon startup
+
+---
+
+## Future Predicate Ideas
+
+### Temporal Predicates
+
+- **`supersedes`**: Versioning/replacement with automatic temporal validity
+- **`snapshot_of`**: Point-in-time immutable copy
+
+### Structural Predicates
+
+- **`contains`** and **`aggregates`** already exist as passive predicates (see above)
+- **`part_of`**: Transitive composition with automatic aggregation
+- **`depends_on`**: Dependency tracking with cycle detection
+- **`connects`**: Port/flow connectivity (IFC: `IfcRelConnectsPortToElement`)
+
+### Access Control Predicates
+
+- **`can_access`**: Permission propagation (transitive)
+- **`delegates_to`**: Authority transfer
+
+### Constraint Predicates
+
+- **`requires`**: Mandatory relationship validation
+- **`excludes`**: Mutual exclusion enforcement
+
+---
+
+## Summary
+
+Built-in relationship services give VillageOS powerful semantic capabilities:
+
+- **Type System** (`is`): Runtime inheritance and classification with serialized state
+- **Resource Management** (`consumes`, `produces`): Continuous inventory tracking via unified Metabolism service
+- **Extensibility**: New predicates follow a clear pattern -- implement `/handle`, `/health`, `/shutdown`
+- **Temporal Simulation**: Track resource flows through time with per-relationship cumulative totals
+- **Integration**: Works seamlessly with ranges, bindings, and temporal queries
+
+This architecture is what lets a village's energy, water and food be simulated as flows between the
+Things that hold them, judged by the same ranges that will judge the real readings once it is built.

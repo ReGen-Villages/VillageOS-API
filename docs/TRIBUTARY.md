@@ -1,0 +1,563 @@
+# Tributary
+
+Tributary is VillageOS's generic outbound HTTP fetcher. Given an endpoint registered
+in Mycelium, it resolves that endpoint's effective properties, performs the HTTP call
+(with optional auth and pagination), optionally reshapes the response with a JSONata
+expression, and ingests the readings as time-series observations on each entity's series.
+
+It is deliberately **source-agnostic** — there is no per-API code. A specific source
+(ArcGIS/ESRI, an OAuth2 REST API, a plain JSON endpoint, a map-tile server) is expressed
+entirely as an endpoint *template* plus a registration, never as a branch in Tributary.
+This page is the canonical reference for the token-exchange, offset-paging, and
+non-text-payload *mechanics* and the `EsriEndpoint` / `EsriTileEndpoint` templates,
+alongside the model the service sits on and the boundary it respects. `SERVICES.md`
+section 14 summarizes how Mycelium hosts Tributary as an endpoint service and points
+back here.
+
+## The endpoint-template graph
+
+Endpoints are not free-form. Delta provisions a **single-rooted template hierarchy**
+into a model on its first registration, and validates every registration against it (see
+[`DELTA.md`](DELTA.md) and `SERVICES.md`). A registration `is` a template, which `is` the
+root — admissible properties are the union of keys along that chain, and a value
+resolves to the closest ancestor that declares it:
+
+```mermaid
+flowchart TB
+    Endpoint["<b>Endpoint</b> (root)<br/>reaches no kind"]
+    Esri["<b>EsriEndpoint</b> (source type)<br/>ArcGIS field names fixed as canonical-defaults"]
+    Tile["<b>EsriTileEndpoint</b> (source type)"]
+    Reg["<b>a registration</b><br/>supplies the required-structural blanks:<br/>url, tokenUrl, tokenRequest"]
+    Auth["<b>TokenExchangeAuth</b> (kind)<br/>requires tokenUrl, tokenRequest, tokenPath"]
+    Page["<b>OffsetPaging</b> (kind)<br/>requires offsetParam, hasMorePath, itemsPath"]
+    Bin["<b>BinaryResponse</b> (kind)<br/>requires nothing"]
+    Reg -->|is| Esri -->|is| Endpoint
+    Tile -->|is| Endpoint
+    Esri -->|authenticatesBy| Auth
+    Esri -->|pagesBy| Page
+    Tile -->|readsBodyAs| Bin
+```
+
+The shape:
+
+- **How an endpoint authenticates, pages, and reads its body is not a property — it is a
+  kind the endpoint reaches.** A kind is a Thing related through a role relationship
+  (`authenticatesBy`, `pagesBy`, `readsBodyAs`); its own property keys are what an
+  endpoint using it must supply, checked before anything is called. A role reaching no
+  kind means the plain behaviour; the nearest declaration up the `is` chain wins; and the
+  superseded property spellings (`authKind`, `pagingKind`, `responseKind`) are refused at
+  provisioning (see [`DELTA.md`](DELTA.md)).
+
+- Templates are Things; inheritance is expressed model-natively as `is` relationships
+  (`EsriEndpoint is Endpoint`), never a scalar field.
+- The graph is single-rooted (`Endpoint`), acyclic, and closed. A registration nominates
+  a template via an `is` relationship (or defaults to the root); its admissible
+  properties are the **union of property keys along that template's chain**
+  (`AllowedKeys`).
+- A property's effective value is **closest-ancestor-wins**: the nearest template in the
+  chain that declares a non-blank value for the key. A blank value is *structural* — it
+  makes the key admissible without supplying an inherited default.
+- Tributary never walks the template graph itself. It reads the **resolved properties** for
+  the endpoint Thing (Mycelium merges the `is`-chain) and resolves each property by
+  suffix-aware name match (`EffectivePropertyResolver`, so a Mycelium key like
+  `Esri.itemsPath` matches a lookup for `itemsPath`).
+- Mycelium's resolved view reports a key **once per declaring template**, qualified by the path
+  from the endpoint Thing. A key a descendant narrows appears **once**, at the ancestor that
+  declares it, holding the narrowed value — Delta writes a narrowing after the template's `is`
+  relationship exists, so Mycelium stores it as an override rather than an own property (see
+  [`DELTA.md`](DELTA.md)), and the platform refuses a Thing owning a name it also inherits.
+- A key therefore reaches Tributary once. Two matches mean two genuinely different declarations
+  (`http.url` against `resource.url`), and the call fails with a `conflicts` list rather than
+  picking one arbitrarily.
+
+## The field taxonomy
+
+Every endpoint property falls into one of four roles. The role says who supplies the
+value and whether it is expected to be overridden.
+
+| Role | Meaning | Examples |
+|------|---------|----------|
+| **required-structural** | A structural key (declared blank on a template) that a registration MUST fill. Admissible via `AllowedKeys`; rejected if missing at use. | `url`; `tokenUrl`, `tokenRequest` (when minting a token); `assetProperty`, `assetSubject` (when keeping retrievals) |
+| **canonical-default** | A value a *child* template fixes to define a source type's identity — not normally overridden per registration. | `tokenPath`, `expiryPath`, `expiryUnit`; `offsetParam`, `pageSizeParam`, `hasMorePath`, `itemsPath` |
+| **sensible-default** | Has a built-in fallback (in code or a generic template default); commonly overridden per endpoint. | `httpMethod` (GET), `requestContentType` (application/json), `timeout` (30s), `tokenParam` (token) |
+| **optional** | May be absent entirely; the feature is simply off. | `responseTransform` (absent → the body is returned unchanged, nothing is ingested), `headers`, `queryParams`, `acceptHeader`, `token` (pre-minted), `tokenHeader` / `tokenScheme`, `pageSize`, `observedAtParameter` |
+
+Which *mechanisms* apply is not in the table because it is not a property: an endpoint
+reaches `TokenExchangeAuth`, `OffsetPaging`, or `BinaryResponse` through its template's
+role relationships, and the kinds themselves name the required-structural keys above.
+
+The `EsriEndpoint` template is the worked example: it restates only the keys it narrows
+(`httpMethod=POST`, form-encoded `requestContentType`), reaches `TokenExchangeAuth` and
+`OffsetPaging`, and fixes the ArcGIS field names as canonical-defaults
+(`tokenPath=token`, `expiryUnit=epochMillis`, `hasMorePath=exceededTransferLimit`,
+`itemsPath=features`, …). A registration then supplies only the required-structural
+blanks (`url`, `tokenUrl`, `tokenRequest`). The full template JSON is below.
+
+## Per-call address parameters
+
+A `url` may carry named placeholders in braces, which the caller fills through
+`addressParameters` on the `/handle` request. One registration then serves every address in a
+set — a tile pyramid, or a point query at each site's coordinates — instead of one registration
+per address:
+
+```jsonc
+// registration:  "url": "https://tiles.example/tile/{z}/{y}/{x}.png"
+{ "endpointName": "ExampleTiles",
+  "addressParameters": { "z": "9", "y": "271", "x": "301" } }
+// called:  https://tiles.example/tile/9/271/301.png
+```
+
+The substitution is **generic**: it knows the placeholder names only as text, so nothing about
+tiles, zoom levels or coordinates appears in the code. The rules:
+
+- A placeholder with no supplied value **refuses the call before the source is contacted**, naming
+  every unfilled placeholder rather than the first. An address still carrying a placeholder is
+  never called — the fill runs before the address is parsed, so it cannot become a URL that merely
+  looks valid.
+- A supplied value that no placeholder names is **ignored**. One caller passes a shared set of
+  values to sources whose addresses take different placeholders, so an unused value is ordinary
+  rather than a mistake.
+- Names match case-insensitively, like every other property map here.
+- Values are **escaped as they are substituted**, so a value carrying a reserved character cannot
+  add a query parameter or a path segment of its own.
+- Like the reshape override, parameters belong to **that call alone** — nothing is written back, and
+  the catalogue does not grow a registration per address.
+- Paging walks the *filled* address, so placeholders compose with `OffsetPaging`.
+
+## Naming the subject a call is about
+
+**A call that varies its address must also say whose reading it is fetching.** The address is
+per-call, but a reshape expression belongs to the registration, so the entity name it produces is
+fixed. Left there, one registration reaches every site's coordinates correctly and then writes every
+site's reading onto whichever Thing its expression happens to name — plausible values, plausible
+timestamps, attributed to the wrong site. `subjectId` on the request closes that:
+
+```jsonc
+{ "endpointName": "SolarResource",
+  "subjectId": "3f0e…",                         // the Thing this call is about
+  "addressParameters": { "lat": "39.4", "lon": "-8.2" } }
+```
+
+- **Every reading from that call is observed onto that Thing**, and the reading's own `name` is not
+  used to find or create anything. A registration serving many subjects can therefore stop carrying
+  a name that fits only one of them — `{"properties": {…}}` with no `name` is enough.
+- **An id, not a name.** The caller already holds the Thing it asked about. A name would have to be
+  resolved, a name matching two Things is refused as ambiguous and reads back as absent, and this
+  ingest creates what it cannot find — so a name would answer a duplicate by quietly minting a third.
+- **No Thing is created.** The subject exists already, so nothing is minted from the reading's name.
+  The `observed` relationship back to the registration is still written — see *Which registration wrote a
+  value* below.
+- **Without it, nothing changes.** A registration serving one subject keeps naming it in the
+  expression and is resolved by name exactly as before. A reading that names no subject, on a call
+  that names none either, is refused rather than written onto a guess.
+
+## Which registration wrote a value
+
+**Every ingest that puts values on a Thing relates the registration to that Thing through `observed`.**
+A number nothing can be walked back from reads exactly as trustworthy as one with a provider behind
+it, which is the confusion the intake design exists to remove: an estimate and a measurement must not
+look the same once they are in the model.
+
+- **The relationship names the registration, not the provider.** Tributary knows the endpoint it
+  called and nothing about who publishes it. The provider is one hop further along the `OpenDataSource
+  resolvedBy Endpoint` relationship the model already holds, so a value still leads to the source, and
+  none of the
+  discovery service's terms — `OpenDataSource`, `covers` — has to be read here.
+- **Written on every ingest, not only the one that created the Thing.** A Thing that already exists is
+  the ordinary case: every run after the first, and every second registration writing onto a Site some
+  other registration created. A relationship written only by whichever fetch happened to be first
+  leaves every value after it with no source at all.
+- **One relationship per registration per Thing.** Running discovery twice leaves one. The
+  relationships the endpoint
+  already carries come back in the scoped read the call already makes for its kinds — they are in that
+  snapshot whether or not anything reads them — so the check costs no second call.
+- **An ingest that writes nothing relates nothing.** A source answering for a site it holds no values
+  about leaves no relationship claiming otherwise. The relationship is written before the values, so a
+  refused relationship leaves nothing behind that cannot be traced back.
+- **Which registration produced a particular property is a different question.** A Site fed rainfall by
+  one source and solar resource by another carries a relationship to each, and nothing says which value
+  came from which. A property is not a Thing here, so there is nothing for a per-property relationship
+  to point at.
+
+## Token-exchange auth + offset paging
+
+Tributary stays source-agnostic: it has **generic** capabilities — a token-exchange
+auth provider, an offset paginator, and a binary body reader — each selected by the
+kind an endpoint reaches and driven entirely by endpoint-template config. There is no
+ArcGIS vocabulary in the code; ESRI is just one configuration (see *The `EsriEndpoint`
+template* below).
+
+**Authentication.** An endpoint that reaches no kind through `authenticatesBy` makes a
+plain REST call (a *static* key needs no auth kind — configure it directly as a
+`queryParams` entry or header). Reaching **`TokenExchangeAuth`** selects the
+token-exchange mechanism:
+
+- a pre-minted `token` is used directly; otherwise a token is minted
+  by POSTing the configured `tokenRequest` form fields to `tokenUrl`, reading the token
+  out at the simple dotted `tokenPath` (and optional `expiryPath` + `expiryUnit` of
+  `epochMillis`/`epochSeconds`/`seconds`). Tokens live in a per-process
+  `TokenExchangeCache` keyed by `(tokenUrl, request-fields)`, reused until ~75% of
+  lifetime elapses (`TimeProvider`-driven), then refreshed. The credential attaches as a
+  query param (`tokenParam`, default `token`) or, if `tokenHeader` is set, a request
+  header (`tokenScheme` + value). Missing mint config is a 400; a token-endpoint failure
+  surfaces as a **generic** 502 (the upstream message may name the credential and is not
+  echoed to the caller — it is logged).
+
+**Offset paging.** When the endpoint reaches **`OffsetPaging`** through `pagesBy`,
+`OffsetPaginator` loops the query
+advancing `offsetParam` (by `pageSize` via `pageSizeParam`, else by the returned item
+count) while the page's `hasMorePath` boolean is true, and concatenates every page's
+array at `itemsPath` into the first page's body. Aggregation happens **before** the
+JSONata `responseTransform` runs, so the transform sees the complete result, not page
+one. Paths are simple dotted keys (e.g. `data.features`). A page answered outside 2xx ends
+the walk and is what the caller gets, status and body — see below.
+
+**The `EsriEndpoint` template.** Seeds are deployment-supplied runtime data (not
+committed; `seed.json` stores every template as a thing plus the `is` relationships
+between them), so the canonical shape lives here. ESRI is expressed purely as config on
+a child template that extends `Endpoint` and restates only the keys it narrows:
+
+```json
+{
+  "things": [
+    { "name": "Endpoint", "properties": {
+        "url": "", "httpMethod": "GET", "responseTransform": "",
+        "headers": "", "queryParams": "", "requestContentType": "",
+        "timeout": "" } },
+    { "name": "EsriEndpoint", "properties": {
+        "httpMethod": "POST", "requestContentType": "application/x-www-form-urlencoded",
+        "token": "", "tokenUrl": "", "tokenRequest": "",
+        "tokenPath": "token", "expiryPath": "expires", "expiryUnit": "epochMillis",
+        "offsetParam": "resultOffset",
+        "pageSizeParam": "resultRecordCount", "hasMorePath": "exceededTransferLimit",
+        "itemsPath": "features", "pageSize": "" } }
+  ],
+  "kinds": [
+    { "name": "TokenExchangeAuth", "requires": ["tokenUrl", "tokenRequest", "tokenPath"] },
+    { "name": "OffsetPaging", "requires": ["offsetParam", "hasMorePath", "itemsPath"] }
+  ],
+  "relationships": [
+    { "subject": "EsriEndpoint", "predicate": "is", "target": "Endpoint" },
+    { "subject": "EsriEndpoint", "predicate": "authenticatesBy", "target": "TokenExchangeAuth" },
+    { "subject": "EsriEndpoint", "predicate": "pagesBy", "target": "OffsetPaging" }
+  ]
+}
+```
+
+A registration under `EsriEndpoint` supplies the blanks (`url`, `tokenUrl`,
+`tokenRequest` = `{username, password, referer, f, client}`, optional `pageSize`). An
+OAuth2 source reuses the same code with `tokenPath=access_token`,
+`expiryPath=expires_in`, `expiryUnit=seconds`, `tokenHeader=Authorization`,
+`tokenScheme=Bearer`. Blank values are structural keys — admissible for a registration
+but supplying no inherited default. Graph composition is pinned by
+`EsriEndpointTemplateTests` (Delta); behavior by `EsriHandleTests`,
+`TokenExchangeCacheTests`, and `OffsetPaginatorTests` (Tributary).
+
+## Non-text payloads and map tiles
+
+Endpoints are not all JSON. ESRI/ArcGIS map tiles and imagery — PNG/JPEG cached tiles,
+`image/tiff` from an ImageServer, LERC elevation, PBF vector tiles, WebP — are binary
+payloads a text read would destroy: decoding non-UTF-8 bytes to a string replaces byte
+sequences with U+FFFD, which is lossy and irreversible. An endpoint whose body is bytes
+therefore reaches the **`BinaryResponse`** kind through `readsBodyAs`, which selects a
+byte-level read (`ReadAsByteArrayAsync`) wrapped in a base64 JSON envelope:
+
+```json
+{ "contentType": "image/jpeg", "dataBase64": "/9j/4AAQSkZJRg…", "byteLength": 14401 }
+```
+
+- The upstream `Content-Type` is carried through verbatim (absent → `application/octet-stream`),
+  and `byteLength` equals the decoded length — the bytes round-trip exactly.
+- The envelope itself stays `application/json`, so it flows through Mycelium's
+  pass-through endpoint proxying with **no broker change**. Decoding is the caller's move
+  (`Convert.FromBase64String` and write the file).
+- Combinations that presuppose a decodable string body are rejected up front with a 400:
+  a binary body cannot be combined with a `responseTransform` (declared on the endpoint
+  or supplied on the request), nor with `OffsetPaging`. The root template leaves
+  `responseTransform` blank, so a tile registration inherits no expression to clash with.
+- Reaching no kind through `readsBodyAs` keeps the plain text body; `JsonResponse` is the
+  explicit spelling of the same default.
+
+**Accept negotiation.** The optional `acceptHeader` key sets the outbound `Accept`
+header for upstreams that content-negotiate (an ImageServer answering `image/tiff`, or
+`https://httpbin.org/image` answering with the format the caller asks for). The dedicated
+key wins over any `Accept` in the generic `headers` map — exactly one value goes on the
+wire — and q-value lists (`image/tiff, image/png;q=0.8`) are carried intact. It composes
+with `BinaryResponse`: negotiate the format, carry the bytes home.
+
+**The `EsriTileEndpoint` template.** A map tile is a plain unauthenticated GET whose body
+is bytes, so the template descends from the root directly — none of `EsriEndpoint`'s
+token exchange or paging — and adds only the kind relationship and the optional negotiation blank:
+
+```json
+{
+  "things": [
+    { "name": "EsriTileEndpoint", "properties": { "acceptHeader": "" } }
+  ],
+  "kinds": [ { "name": "BinaryResponse", "requires": [] } ],
+  "relationships": [
+    { "subject": "EsriTileEndpoint", "predicate": "is", "target": "Endpoint" },
+    { "subject": "EsriTileEndpoint", "predicate": "readsBodyAs", "target": "BinaryResponse" }
+  ]
+}
+```
+
+`BinaryResponse` requires nothing — reading bytes needs no configuration — so a
+registration owes only the `url`, whose `{z}/{y}/{x}` placeholders the caller fills per
+request (see *Per-call address parameters*), so one registration serves the whole
+pyramid. Tile **metadata** endpoints (`f=json` service descriptions) are ordinary JSON
+endpoints and need none of this.
+
+**Model placement: transient passthrough — the default.** A tile is a stateless fetch
+response. Reaching no kind through `keepsBy`, it is never persisted as a Thing, an
+observation, or a Fact — binary cannot be a scalar observation, and a base64 Fact would
+bloat the replay log. The model keeps nothing by default; when a deployment wants repeated
+fetches answered without contacting the source again, that is the `DiskCache` kind below —
+a file on the service's disk, not model state — and when the model itself must remember
+what was retrieved, that is the `ModelAsset` kind below, which persists a reference and
+never the bytes, exactly because of those two constraints.
+
+**Caching to local disk.** An endpoint that reaches the **`DiskCache`** kind through
+`cachesBy` serves a repeated fetch from the service's disk while the entry is younger
+than **`cacheTtl`** (seconds — the kind requires it, so caching without a stated
+retention is refused; the TTL is also where Esri's terms-of-use retention limit lives).
+The cache key is the fully-resolved address — placeholders filled, query attached — plus
+the Accept header, since the same address can answer with different formats. Entries are
+**real files with real extensions** under `cache/{endpointName}/` (`.png`, `.jpg`,
+`.webp`, `.tif`, `.pbf`, `.json` via a generic media-type map; an unknown type falls back
+to `.bin` plus a `.meta.json` sidecar carrying the exact Content-Type), so a cached tile
+opens in any viewer. Expired entries simply miss and are overwritten by the next fetch —
+no sweeper. Combinations the cache cannot answer honestly are refused up front: offset
+paging, a credentialed (`TokenExchangeAuth`) call, and a request with an outbound body
+(none of which are part of the key). The cache root is deployment configuration
+(`CacheDirectory`, default `cache/` under the service's working directory).
+
+**Keeping what was retrieved: `keepsBy` → `ModelAsset`.** The cache above is a speed layer
+the model cannot see; an endpoint that reaches the **`ModelAsset`** kind through `keepsBy`
+gives the model memory of the retrieval itself. On a real upstream fetch answered 2xx,
+Tributary deposits the response bytes — Content-Type and all — in the broker's
+content-addressed asset store (`POST /api/assets`, answering `{ "hash": "sha256:<64-hex>" }`,
+idempotent because the name is the content), then writes that ticket string onto the model
+through the ordinary observation lane. The bytes never enter the model: the ticket is an
+ordinary ~71-character scalar on a property series, so property history and as-of reads work
+unchanged — and because assets are immutable, an as-of read resolves to the exact bytes that
+were true then. Content identity, not a location pointer, is what
+[`TEMPORAL_READS.md`](TEMPORAL_READS.md)'s no-stubs rule permits: the key IS the address.
+
+The kind requires two keys and may name a third — all of them names the model supplies,
+none of them meaningful to this service:
+
+- **`assetProperty`** (required) — the property that receives tickets.
+- **`assetSubject`** (required) — the name of the Thing that carries them, resolved when
+  the ticket is written.
+- **`observedAtParameter`** (optional) — the name of an `addressParameters` key whose value
+  is the time the content is *about* (valid time, not save time): the value that selected a
+  historical image also timestamps it, so depositing a 1998 archive today lands a point at
+  1998. A supplied value that cannot be read as a time is refused before anything is
+  fetched. When nothing names the time, the sample is submitted without one and the broker
+  stamps the model clock — the same discipline every reading follows.
+
+The write path is the ingest's own: the `observed` provenance relationship goes in before the
+ticket, so a kept value can be walked back to the registration that produced it like any
+other. A keep the broker refuses — the deposit, the subject resolution, or the ticket
+write — fails the call with a 502 rather than answering as though something was kept.
+
+It composes with the kinds above. `readsBodyAs → BinaryResponse` supplies the bytes
+verbatim (the ordinary pairing for imagery); a plain text body deposits its UTF-8 bytes.
+`cachesBy → DiskCache` serves repeats locally, and **a cache hit deposits nothing** — no
+new retrieval happened, and the store's content addressing makes the re-deposit after an
+expiry idempotent anyway. `OffsetPaging` is refused: the aggregate is assembled by this
+service, so keeping it would deposit bytes the provider never served. Reaching no kind
+through `keepsBy` is the transient default above, unchanged. The store itself — the
+`GET /api/assets/{hash}` serving lane, retention, GC — is broker-side and lives outside
+this service.
+
+Graph composition is pinned by `EsriTileEndpointTemplateTests` and
+`ModelAssetEndpointSpecTests` (Delta); behavior by `BinaryResponseKindTests`,
+`AcceptHeaderTests`, `DiskCacheHandleTests`, and `ModelAssetHandleTests` (Tributary).
+
+## What the caller gets when the provider does not answer with a reading
+
+**A refusal is carried out with the provider's own status and words.** A call answered
+anything outside 2xx — other than the one case below — comes back to the caller with that
+status and that body, and nothing is reshaped or ingested. One rule for all three paths:
+a plain call, a binary one, and a paged walk, where any page outside 2xx ends the walk and
+is the answer the caller gets. Answering 200 with a refusal inside it is what lets a run
+count a call resolved, stamp its coverage and move on, leaving a reading unassessed for a
+reason nobody was told (Bug #6831).
+
+**404 is the exception, because it is an answer.** A portal holding no entry for a
+division answers 404 (see the hazard grading below): the reshape is skipped, nothing is
+written, the subject stays honestly unassessed, and the call counts as done — asking again
+every quarter of an hour would never get a different answer. **A page answering 404 is not
+that**, and is carried out like any other refusal: the caller asked for the whole walk, and
+a walk that cannot reach its last page has no aggregate to reshape. Which page it was goes
+to the log — that is about the walk, not about the provider, and the caller gets the
+provider's words undisturbed.
+
+**Every call names the caller.** Some providers answer 403 to a request carrying no
+`User-Agent`, in a tenth of the time a real answer takes, so Tributary sends one on every
+outbound call. A registration naming its own in the `headers` map wins over it, so a
+provider that issues per-caller identifiers is served from the model with no change here.
+
+## Fetch-and-shape, not derive — the Metabolism boundary
+
+Tributary's contract is **fetch-and-shape**:
+
+1. **Fetch** — one outbound HTTP call (auth + pagination as configured), aggregating any
+   pages into a single body.
+2. **Shape** — an optional JSONata `responseTransform` projects the response into the
+   reading shape (`[{ name, properties, observedAt? }]`). JSONata here is *structural* —
+   selecting, renaming, and restructuring fields — not a place to compute new domain quantities.
+   A reading that names no `observedAt` is forwarded without one, so Mycelium stamps the batch
+   from the model clock. Tributary never supplies its own: its wall clock is not the model's
+   whenever a run has anchored time away from real time.
+3. **Ingest** (hybrid ingest) — readings are grouped by entity `name`. Each entity is a
+   Thing created **once** (its first reading seeds the observable properties, each bounded to
+   `Sampled` PropertyMode) and related to the endpoint through an `observed` relationship — **one per
+   entity**,
+   written whether this call created it or found it already there;
+   every reading's values are then written as **observations** on that entity's property series
+   (`POST /api/things/{id}/observations`). So Things scale with the number of entities, not
+   readings — the readings live in the time-series tier (Canopy → Sapwood), not the structural graph.
+
+**What decides ingest** is the expression *in effect*: the one on the registration, or the one it
+inherits from its template. An endpoint with none fetches and returns the body unchanged — a plain
+pass-through registration is a legitimate use, not a misconfiguration. A `responseTransform` on the
+`/handle` request reshapes **that call only** and is never written back to the endpoint Thing, so one
+caller's reshape cannot change what a later caller of the same source receives. Either way the
+expression is compiled before the outbound call, so one that cannot parse costs the source nothing.
+
+Every step runs under one token, so the endpoint Thing and the entities its readings name are always
+in the same model. That is why a registration belongs to the project that fetches against it, and why
+there is no catalogue shared between projects — see
+[`DELTA.md`](DELTA.md#which-model-a-registration-lives-in).
+
+Tributary keeps **no state about the data** and computes **no derived values**. Anything
+time-evolving or calculated — simulations, rates, accumulations, consumes/produces
+dynamics — is **Metabolism's** job: a stateful daemon running persistent loops over
+relationships (see `METABOLISM.md`). The dividing line: if it can be expressed as "fetch
+this URL and rename its fields," it is Tributary; if it requires remembering prior values
+or computing over time, it is Metabolism. That is why Tributary is stateless and
+idempotent per call, and why the JSONata step is constrained to reshaping — derived
+calculation deliberately lives on the other side of the boundary.
+
+## Example: precipitation onto a Site (#5805)
+
+Plane A of the site-analysis Water slice. A weather endpoint (e.g. Open-Meteo) is registered
+with a `responseTransform` that reshapes the hourly response into a reading on the Site Thing —
+no Tributary code changes, just config:
+
+```jsonc
+// endpoint registration (descends from the root Endpoint template)
+{ "name": "ExamplePrecipitation",
+  "properties": {
+    "url": "https://api.open-meteo.com/v1/forecast?latitude=<lat>&longitude=<lon>&hourly=precipitation",
+    "responseTransform":
+      "{\"name\": \"ExampleSite\", \"properties\": {\"precipitation\": hourly.precipitation[0]}, \"observedAt\": hourly.time[0]}"
+  } }
+```
+
+Tributary fetches it and ingests `precipitation` (mm) as an observation on `ExampleSite` at the
+observed time (see `PrecipitationEndpointTests`). That rainfall series feeds the catchment the study
+works out for itself — real discovered data instead of a run param.
+
+The **Energy** slice (#5806) discovers the same way — a solar-resource endpoint reshaping
+`hourly.shortwave_radiation` onto the Site (see `SolarResourceEndpointTests`). Its two solar inputs
+come from different sources that meet at the `EnergyBalance` node: the **solar resource** (annualized to
+GTI) is *discovered* here, while the **PV area** is *rolled up* reactively over the classified
+`SolarArray` `is` relationships — an `AggregateBounds` `Sum` over the ingester's classification (#5796)
+and roll-up (#5797). Discovery (fetch a resource) and the ingester's structural knowledge (aggregate the assets) both
+feed the same compute node.
+
+## Example: a climate zone onto a Site (#6734)
+
+The two examples above are per-address registrations written by hand. This one ships as **seed data**:
+`open-data-sources.template.json` in the platform repository declares it, so every project created from
+that seed can resolve a site against it without registering anything. A site's `climateZone` takes
+observations only, so nobody can type it in and a fetch is the only thing that can write it.
+
+```jsonc
+// registration: climate-classification
+{ "name": "climate-classification",
+  "properties": {
+    "url": "https://climate.mapresso.com/api/koeppen/?lat={latitude}&lon={longitude}",
+    "httpMethod": "GET",
+    "responseTransform": "{\"properties\": {\"climateZone\": data[short='KG' and text].code}}"
+  } }
+```
+
+Three things about it are worth reading off:
+
+- **The placeholders are the Site's own property names.** `{latitude}` and `{longitude}` are filled per
+  call from the site's values, so one registration serves every site. Forage passes a site's whole
+  value set to every source and the fill takes only the names the address uses.
+- **The reading names no Thing.** The discovery run supplies `subjectId`, so a name here would fit one
+  site and be wrong for every other — see *Naming the subject a call is about* above.
+- **The expression selects its classification scheme.** The provider answers with a code from every
+  scheme it holds — Köppen-Geiger, Trewartha, Cannon, Whittaker and more — so `data[0].code` returns
+  whichever happens to lead. `short='KG'` picks Köppen-Geiger, which is the scheme the codes on a Site
+  belong to. A zone read against the wrong scheme is a plausible value nothing can tell apart from the
+  right one.
+- **And it takes only a class the provider was sure of.** That entry is itself read from three variants
+  of the scheme, and where they disagree it answers with both codes joined — `As/Aw` — and **no
+  description**. The missing description is the provider's own signal, so testing that field is what
+  separates a class from a hedge — rather than anything this platform infers about the shape of a code.
+  It is a plain truth test and not `$exists`, because a description present but empty is not a
+  description, and `$exists` would let that hedge through.
+  A hedge writes nothing, the same answer a coordinate the provider cannot classify already gets:
+  writing either half would invent precision the source explicitly withheld, and writing the pair would
+  put a value that is no class at all onto the Site (Bug #6772, see `ClimateZoneEndpointTests`).
+
+**Köppen-Geiger is the scheme, and it is recorded where a reader of the intake design finds it too** —
+[`LAND_INTAKE.md`](LAND_INTAKE.md#what-the-catalogue-fetches), beside the registration's own comment in the
+template. Its classes are Things of their own in the platform's intake template (platform Task 6684).
+The discovery run resolves the fetched code against them by the declaration that template carries
+(platform User Story 6773; the resolution is #6809), and the code stays on the Site's series as the
+record of what the provider answered, with the `classifiedAs` relationship carrying the classification.
+
+## Example: a hazard grading onto an assessment (#6735)
+
+Seed data like the climate source, but its subject is never the site: the portal grades one hazard at
+one administrative division per call, so the discovery run calls it once per assessment the site has,
+naming that assessment as the `subjectId` — the source declares this by a `resolvesOnto` relationship to the
+assessment archetype, read in [`FORAGE.md`](FORAGE.md#the-predicates-it-reads). An assessment's
+`hazardLevel` and `assessedOn` take observations only, so a fetch is the only thing that can write them.
+Its `reportedLevel` takes facts only, and is what a submitter said they had seen: a fetch cannot reach it,
+so a grading never overwrites somebody's own account of their land, and the two disagreeing stays
+readable rather than being settled by whichever was written last.
+
+```jsonc
+// registration: hazard-grading
+{ "name": "hazard-grading",
+  "properties": {
+    "url": "https://www.thinkhazard.org/en/report/{hazardPortalDivision}/{hazardPortalCode}.json",
+    "httpMethod": "GET",
+    "responseTransform": "($level := hazard_category[hazard_level and $lowercase(hazard_level) != 'no data'].hazard_level; $level ? {\"properties\": {\"hazardLevel\": $replace($lowercase($level), \" \", \"-\"), \"assessedOn\": $now()}} : {\"properties\": {}})"
+  } }
+```
+
+- **Neither placeholder is a value the subject itself carries.** `{hazardPortalDivision}` sits on the
+  site or on a Place it is in, `{hazardPortalCode}` on the `HazardType` Thing the assessment `assesses` —
+  the run layers a call's address from its subject outward, so both arrive with no per-source code. A
+  site whose model carries no division code has one worked out from its position before the fetches, and
+  written onto it — see [`FORAGE.md`](FORAGE.md#resolving-the-hazard-division).
+- **The grade is written as the vocabulary term.** `High` becomes `high`, `Very low` becomes
+  `very-low` — the names of the `HazardLevel` Things the model declares, so the word resolves against
+  the vocabulary when a later step relates it instead.
+- **"No data" writes nothing.** The portal answers 404 for a division it holds nothing about, which
+  never reaches the expression; a body carrying the grade anyway is refused by the filter. Either way
+  the assessment stays honestly unassessed — no level, and no date suggesting one was read.
+- **The date is the fetch's own.** The portal publishes no assessment date, so `assessedOn` records
+  when the grade was read, and only beside a grade (see `HazardGradingEndpointTests`).
+
+## Pointers
+
+- `SERVICES.md` section 14 — how Mycelium hosts Tributary as an endpoint service
+  (auto-discovery, daemon lifecycle, pass-through proxying).
+- [`DELTA.md`](DELTA.md) — how the template catalog is provisioned and how
+  registrations are validated against it.
+- `METABOLISM.md` — the derived-calculation engine on the other side of the
+  fetch-and-shape boundary.
+- [`TEMPORAL_READS.md`](TEMPORAL_READS.md) — the tiered time-series store the ingested
+  observations land in, and how historical / as-of reads are served from it.

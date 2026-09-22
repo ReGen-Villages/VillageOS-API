@@ -1,0 +1,170 @@
+using System.Text.Json;
+
+namespace vos.Taproot;
+
+public class PlantCommandHandler
+{
+    private readonly TextWriter _writer;
+    private readonly string _arg;
+    private readonly MyceliumClient _mycelium;
+
+    public PlantCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
+    {
+        _arg = arg ?? string.Empty;
+        _writer = writer;
+        _mycelium = mycelium;
+    }
+
+    public async Task ExecuteAsync()
+    {
+        var (filePath, mode, ringBufferSize, sampleRate) = ParseArguments();
+
+        if (string.IsNullOrEmpty(filePath))
+        {
+            ShowHelp();
+            return;
+        }
+
+        try
+        {
+            await PlantSeedAsync(filePath, mode, ringBufferSize, sampleRate);
+        }
+        catch (Exception ex)
+        {
+            _writer.WriteLine($"Error: {OperatorMessage.For(ex)}");
+        }
+    }
+
+    private async Task PlantSeedAsync(string filePath, string? mode, int? ringBufferSize, int? sampleRate)
+    {
+        if (!Path.HasExtension(filePath))
+            filePath += ".json";
+
+        if (!File.Exists(filePath))
+        {
+            _writer.WriteLine($"Error: File not found: {filePath}");
+            return;
+        }
+
+        var modelJson = await File.ReadAllTextAsync(filePath);
+        await _mycelium.SetModelAsync(modelJson);
+        _writer.WriteLine($"Model loaded from {filePath}");
+
+        if (string.IsNullOrEmpty(mode))
+            return;
+
+        await SetAllPropertyModesAsync(mode, ringBufferSize, sampleRate);
+    }
+
+    private async Task SetAllPropertyModesAsync(string mode, int? ringBufferSize, int? sampleRate)
+    {
+        _writer.WriteLine($"Setting all properties to {mode} mode...");
+
+        var things = await _mycelium.GetAllThingsAsync();
+        var propertyCount = 0;
+        var thingCount = 0;
+
+        foreach (var thing in things.EnumerateArray())
+        {
+            if (!thing.TryGetProperty("Id", out var idProp))
+                continue;
+
+            var thingId = Guid.Parse(idProp.GetString()!);
+            var thingName = GetStringProperty(thing, "Name");
+            var thingPropertyCount = 0;
+
+            if (thing.TryGetProperty("Properties", out var props) && props.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var prop in props.EnumerateObject())
+                {
+                    try
+                    {
+                        await _mycelium.SetPropertyModeAsync(thingId, prop.Name, mode, ringBufferSize, sampleRate);
+                        propertyCount++;
+                        thingPropertyCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        _writer.WriteLine($"  Warning: Could not set mode for {thingName}.{prop.Name}: {OperatorMessage.For(ex)}");
+                    }
+                }
+            }
+
+            if (thingPropertyCount > 0)
+                thingCount++;
+        }
+
+        _writer.WriteLine($"Configured {propertyCount} properties across {thingCount} things to {mode} mode");
+
+        if (mode.Equals("ringbuffer", StringComparison.OrdinalIgnoreCase) && ringBufferSize.HasValue)
+            _writer.WriteLine($"  Ring buffer size: {ringBufferSize}");
+        else if (mode.Equals("sampled", StringComparison.OrdinalIgnoreCase) && sampleRate.HasValue)
+            _writer.WriteLine($"  Sample rate: 1 in {sampleRate}");
+    }
+
+    private (string? filePath, string? mode, int? ringBufferSize, int? sampleRate) ParseArguments()
+    {
+        var tokens = _arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        string? filePath = null;
+        string? mode = null;
+        int? ringBufferSize = null;
+        int? sampleRate = null;
+
+        foreach (var token in tokens)
+        {
+            if (TryParseNamedArg(token, "--ringbuffer=", out var rbSize))
+            {
+                ringBufferSize = rbSize;
+            }
+            else if (TryParseNamedArg(token, "--samplerate=", out var sr))
+            {
+                sampleRate = sr;
+            }
+            else if (filePath == null)
+            {
+                filePath = token;
+            }
+            // The second positional word is the mode, whatever it says: the platform decides.
+            else if (mode == null)
+            {
+                mode = token;
+            }
+        }
+
+        return (filePath, mode, ringBufferSize, sampleRate);
+    }
+
+    private static bool TryParseNamedArg(string arg, string prefix, out int value)
+    {
+        value = 0;
+        return arg.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+               int.TryParse(arg.Substring(prefix.Length), out value);
+    }
+
+    private static string GetStringProperty(JsonElement element, string name)
+    {
+        if (element.TryGetProperty(name, out var prop))
+            return prop.GetString() ?? "";
+        return "";
+    }
+
+    private void ShowHelp()
+    {
+        _writer.WriteLine("Usage: plant <file> [mode] [options]");
+        _writer.WriteLine();
+        _writer.WriteLine("Arguments:");
+        _writer.WriteLine("  <file>              Path to the seed JSON file");
+        _writer.WriteLine("  [mode]              Optional temporal mode for all properties.");
+        _writer.WriteLine("                      Run 'config mode' to see the modes this platform accepts.");
+        _writer.WriteLine();
+        _writer.WriteLine("Options:");
+        _writer.WriteLine("  --ringbuffer=N      Ring buffer size (for RingBuffer mode, default: 100)");
+        _writer.WriteLine("  --samplerate=N      Sample rate (for Sampled mode, default: 100)");
+        _writer.WriteLine();
+        _writer.WriteLine("Examples:");
+        _writer.WriteLine("  plant mymodel.json                         Load seed with default mode");
+        _writer.WriteLine("  plant mymodel.json FullHistory             Load and enable full history");
+        _writer.WriteLine("  plant mymodel.json RingBuffer --ringbuffer=50   Load with ring buffer of 50");
+    }
+}

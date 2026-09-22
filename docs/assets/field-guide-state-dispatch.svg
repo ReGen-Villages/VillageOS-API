@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 394" width="840" height="394" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" role="img" aria-label="A Thing entering a state starts a service, and leaving the completion state proves the work done.">
+<rect width="840" height="394" fill="#ffffff"/>
+<path d="M 97.7,36.0 V 384.0" stroke="#d6ddd2" stroke-dasharray="4 4" fill="none"/>
+<path d="M 376.3,36.0 V 384.0" stroke="#d6ddd2" stroke-dasharray="4 4" fill="none"/>
+<path d="M 722.1,36.0 V 384.0" stroke="#d6ddd2" stroke-dasharray="4 4" fill="none"/>
+<path d="M 97.7,70.0 L 376.3,70.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(376.3,70.0) rotate(0.0)"/>
+<text x="237.0" y="64.0" font-size="11" fill="#74857a" text-anchor="middle">its coordinates are written</text>
+<path d="M 376.3,170.0 L 722.1,170.0" fill="none" stroke="#46497e" stroke-width="1.7"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#46497e" transform="translate(722.1,170.0) rotate(0.0)"/>
+<text x="549.2" y="151.0" font-size="11" fill="#46497e" text-anchor="middle">a durable dispatch record is written,</text>
+<text x="549.2" y="164.0" font-size="11" fill="#46497e" text-anchor="middle">then the service is called</text>
+<path d="M 722.1,205.0 L 376.3,205.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(376.3,205.0) rotate(180.0)"/>
+<text x="549.2" y="199.0" font-size="11" fill="#74857a" text-anchor="middle">accepted; the fetching goes on</text>
+<path d="M 722.1,240.0 L 376.3,240.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(376.3,240.0) rotate(180.0)"/>
+<text x="549.2" y="234.0" font-size="11" fill="#74857a" text-anchor="middle">readings and coverage written onto the site</text>
+<rect x="60.0" y="10.0" width="75.5" height="26.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="97.7" y="27.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">A site</text>
+<rect x="330.0" y="10.0" width="92.6" height="26.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="376.3" y="27.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">Mycelium</text>
+<rect x="620.0" y="10.0" width="204.2" height="26.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="722.1" y="27.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">The discovery service</text>
+<rect x="236.7" y="90.0" width="279.2" height="42.0" rx="2" fill="#dbeade" stroke="#1f6047"/>
+<text x="376.3" y="107.0" font-size="11" font-weight="normal" fill="#1f6047" text-anchor="middle">the site enters SiteAwaitingDiscovery;</text>
+<text x="376.3" y="123.0" font-size="11" font-weight="normal" fill="#1f6047" text-anchor="middle">a connection watches that state</text>
+<rect x="10.0" y="265.0" width="340.5" height="42.0" rx="2" fill="#dbeade" stroke="#1f6047"/>
+<text x="180.3" y="282.0" font-size="11" font-weight="normal" fill="#1f6047" text-anchor="middle">the run's last write takes the site out of that</text>
+<text x="180.3" y="298.0" font-size="11" font-weight="normal" fill="#1f6047" text-anchor="middle">state and into SiteDiscovered</text>
+<rect x="192.4" y="320.0" width="367.8" height="58.0" rx="2" fill="#dbeade" stroke="#1f6047"/>
+<text x="376.3" y="337.0" font-size="11" font-weight="normal" fill="#1f6047" text-anchor="middle">SiteDiscovered is the completion range:</text>
+<text x="376.3" y="353.0" font-size="11" font-weight="normal" fill="#1f6047" text-anchor="middle">the record is marked done. A run that stalls is</text>
+<text x="376.3" y="369.0" font-size="11" font-weight="normal" fill="#1f6047" text-anchor="middle">presumed dead after its time limit and driven again</text>
+</svg>

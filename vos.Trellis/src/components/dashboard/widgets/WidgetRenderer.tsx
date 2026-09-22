@@ -1,0 +1,136 @@
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TableWidget, Widget } from '../../../types/dashboard';
+import type { ResolveContext, Row } from '../../../api/dashboardApi';
+import { unimplementedWordsIn } from '../../../api/bindingVocabulary';
+import { KpiCard } from './KpiCard';
+import { Funnel } from './Funnel';
+import { BulletChart } from './BulletChart';
+import { Gantt } from './Gantt';
+import { Leaderboard } from './Leaderboard';
+import { VerdictList } from './VerdictList';
+import { WorkingList } from './WorkingList';
+import { ExceptionBar } from './ExceptionBar';
+import { ActionList } from './ActionList';
+import { RecordForm } from './RecordForm';
+import { DataTable } from './DataTable';
+import { RangeBar } from './RangeBar';
+import { LineSeries } from './LineSeries';
+import { Heatmap } from './Heatmap';
+import { StackedShares } from './StackedShares';
+import { DivergingBar } from './DivergingBar';
+import { SmallMultiples } from './SmallMultiples';
+import { SearchBox } from './SearchBox';
+import { WidgetCard } from './WidgetCard';
+
+/** Renders a single widget by its `type`. The only place that knows the widget union.
+ *  `openDetail`, when provided, lets row-clickable widgets open a Thing detail window. */
+export function WidgetRenderer({
+  widget,
+  context,
+  openDetail,
+}: {
+  widget: Widget;
+  context: ResolveContext;
+  openDetail?: (thingId: string) => void;
+}) {
+  // Asked before anything resolves, because a widget drawn from a question this build only half
+  // understands shows a figure rather than a gap — and a figure is read as an answer.
+  const unanswered = unimplementedWordsIn(widget);
+  if (unanswered.length > 0) return <UnknownWidget reason={{ unanswered }} />;
+
+  switch (widget.type) {
+    case 'kpi':
+      return <KpiCard widget={widget} context={context} openDetail={openDetail} />;
+    case 'funnel':
+      return <Funnel widget={widget} context={context} openDetail={openDetail} />;
+    case 'bullet':
+      return <BulletChart widget={widget} context={context} />;
+    case 'gantt':
+      return <Gantt widget={widget} context={context} />;
+    case 'leaderboard':
+      return <Leaderboard widget={widget} context={context} />;
+    case 'verdict':
+      return <VerdictList widget={widget} context={context} />;
+    case 'working':
+      return <WorkingList widget={widget} context={context} />;
+    case 'exceptionBar':
+      return <ExceptionBar widget={widget} context={context} />;
+    case 'table':
+      return <TableWidgetView widget={widget} context={context} openDetail={openDetail} />;
+    case 'rangeBar':
+      return <RangeBar widget={widget} context={context} />;
+    case 'lineSeries':
+      return <LineSeries widget={widget} context={context} />;
+    case 'heatmap':
+      return <Heatmap widget={widget} context={context} />;
+    case 'stackedShares':
+      return <StackedShares widget={widget} context={context} />;
+    case 'divergingBar':
+      return <DivergingBar widget={widget} context={context} />;
+    case 'smallMultiples':
+      return <SmallMultiples widget={widget} context={context} />;
+    case 'action':
+      return <ActionList widget={widget} context={context} />;
+    case 'form':
+      return <RecordForm widget={widget} context={context} />;
+    default:
+      return <UnknownWidget reason={{ unknownType: (widget as { type?: unknown }).type }} />;
+  }
+}
+
+/** A widget this build did not draw, and which of the two reasons it was. The spec is model data, so
+ *  it can name a kind that was misspelled or added after this client shipped, and it can ask a
+ *  question in vocabulary this client has no answer for; the view draws everything else and says
+ *  what it left out, rather than leaving a silent hole an author cannot account for. */
+function UnknownWidget({ reason }: { reason: { unknownType: unknown } | { unanswered: string[] } }) {
+  const { t } = useTranslation();
+  // A spec can leave the word out as easily as misspell it, and either way the reader is owed a
+  // sentence in their own language rather than a gap where the word would be.
+  const named = (word: unknown) =>
+    typeof word === 'string' && word !== '' ? word : t('widgets.unknown.noKind');
+  const body = 'unanswered' in reason
+    ? t('widgets.unknown.unanswerable', { words: reason.unanswered.map(named).join(', ') })
+    : t('widgets.unknown.body', { kind: named(reason.unknownType) });
+  return (
+    <WidgetCard title={t('widgets.unknown.title')}>
+      <p className="mt-2 text-[13px] leading-relaxed text-zinc-500 dark:text-zinc-400">{body}</p>
+    </WidgetCard>
+  );
+}
+
+function TableWidgetView({
+  widget,
+  context,
+  openDetail,
+}: {
+  widget: TableWidget;
+  context: ResolveContext;
+  openDetail?: (thingId: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [query, setQuery] = useState('');
+  const onRowClick = widget.rowDetail && openDetail ? (row: Row) => openDetail(String(row.id)) : undefined;
+
+  const searchBox = widget.searchable ? (
+    <SearchBox value={query} onChange={setQuery} placeholder={t('widgets.table.searchPlaceholder')} className="bg-zinc-100 dark:bg-zinc-900/50 w-44" />
+  ) : undefined;
+
+  return (
+    <WidgetCard title={widget.title} hint={widget.hint} right={searchBox}>
+      <DataTable
+        columns={widget.columns}
+        rowsBinding={widget.rows}
+        context={context}
+        minWidth={widget.minWidth}
+        sortKey={widget.sortKey}
+        sortDir={widget.sortDir}
+        visibleRows={widget.visibleRows}
+        query={widget.searchable ? query : undefined}
+        searchKeys={widget.searchKeys}
+        onRowClick={onRowClick}
+        title={widget.title}
+      />
+    </WidgetCard>
+  );
+}

@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+/*
+ * Switch Tailwind's dark variant from prefers-color-scheme media to a
+ * class on the document root, so themeStore can override the OS theme.
+ * The store seeds itself from prefers-color-scheme on first load — see
+ * src/stores/themeStore.ts (Feature #5328).
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * @react-sigma/core ships its own stylesheet that hardcodes
+ * `.react-sigma { background: rgb(255, 255, 255); }`. That paints
+ * solid white over AppLayout's themed bg, so the Graph page never
+ * darkens when the user toggles the theme (Bug #5330). Make the
+ * wrapper transparent so AppLayout's bg-white / dark:bg-zinc-950
+ * shows through.
+ */
+.react-sigma {
+  background: transparent !important;
+}
+
+/*
+ * Semantic status tokens + surface refs used by the config-driven dashboard
+ * widgets (src/components/dashboard/widgets/*). Defined here (not inline) so the
+ * dark variants can key off the .dark class. These are generic UI tokens — no
+ * domain meaning — mirroring Tailwind's emerald/amber/red status scale.
+ */
+:root {
+  --good: #059669;
+  --warn: #d97706;
+  --crit: #dc2626;
+  --card-bg: #ffffff;
+  --spark: #2563eb;
+}
+.dark {
+  --good: #34d399;
+  --warn: #fbbf24;
+  --crit: #f87171;
+  --card-bg: #27272a;
+  --spark: #60a5fa;
+}
+
+/*
+ * The chart palette the hand-drawn history widgets draw with, stepped for each surface and validated
+ * as a set: the categorical slots in their fixed order, the two arms of the diverging scale a range
+ * bar stacks about its mean (the far step deeper, the near step paler), and the recessive chrome.
+ * What a band, a class or a threshold is coloured comes from the model, never from here.
+ */
+:root {
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #4a3aa7;
+  --series-8: #e34948;
+  --chart-cool-far: #2a78d6;
+  --chart-cool-near: #86b6ef;
+  --chart-warm-near: #ee9695;
+  --chart-warm-far: #e34948;
+  --chart-ink: #0b0b0b;
+  --chart-ink-muted: #898781;
+  --chart-grid: #e1e0d9;
+  --chart-axis: #c3c2b7;
+}
+.dark {
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --series-7: #9085e9;
+  --series-8: #e66767;
+  --chart-cool-far: #3987e5;
+  --chart-cool-near: #86b6ef;
+  --chart-warm-near: #f1a4a3;
+  --chart-warm-far: #e66767;
+  --chart-ink: #ffffff;
+  --chart-ink-muted: #898781;
+  --chart-grid: #2c2c2a;
+  --chart-axis: #383835;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}

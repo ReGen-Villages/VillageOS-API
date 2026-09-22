@@ -1,0 +1,459 @@
+using vos.Service.Intake.Helpers;
+using vos.Service.Intake.Models;
+
+namespace vos.Service.Intake.Services;
+
+// The shape a submission has to land in: SiteStudy -studies-> Site, the site carrying what is true
+// of the land and the study carrying what an analysis makes of it. It is the shape an imported building
+// model already produces, so no reader has to ask where a site's facts came from, and a study is found by
+// its flag rather than by its source.
+//
+// A tool in the VillageOS repository reads this file as text. It checks what a submission writes against the
+// archetypes that declare those properties, and this file is the only place it can learn that. What it takes
+// from the shape below: the property maps, by the names SiteProperties, StudyProperties,
+// ParcelProperties, ProjectProperties, ContactProperties, AllocationProperties,
+// HazardProperties, DataSourceProperties and SubmissionProperties, one per Thing;
+// each property, from a
+// Write(properties, …) call or a
+// ["name"] = TypedValue.… entry; the archetypes a submission is composed against, from the
+// …ArchetypeName constants; and the predicates it may use, from the …PredicateName constants,
+// matched by name to the fields of vos.Service.Intake.Models.ResolvedPredicates.
+//
+// Renaming any of them compiles and passes every test here, and the failures are not alike. A renamed
+// property map stops the model reference building. A renamed …ArchetypeName is quieter: that list is
+// the gate deciding whether a model is one this producer targets at all, so a shorter list weakens the gate
+// rather than tripping it, and the reference builds full of findings about a model the producer was never
+// pointed at. A map added here and not there is quieter still — it builds, it passes, and what that Thing
+// carries is never checked against the archetype declaring it.
+//
+// Adding an …ArchetypeName tightens the gate rather than weakening it: the producer section reports
+// only on a model holding every archetype named here, so a model carrying some of them and not the rest
+// goes silent. That is the intended reading — a submission is composed against the whole set — but it means
+// a name added here narrows which models the reference says anything about.
+//
+// The vocabularies a submission uses — what an allocation is for, how a boundary was obtained, and what
+// an assessment is about — are neither named nor listed here, and none is written as a property. A
+// submitted word is resolved against the Things the model declares (see
+// DeclaredVocabularyReader) and written only as a relationship to the one it names, so a project
+// that adds a term edits the model and deploys nothing, and a reader asking what an allocation is for
+// follows the relationship to a Thing it can ask further questions of.
+public static class SubmissionFragmentComposer
+{
+    public const string SiteStudyFlag = "__IsSiteStudy";
+    public const string StudiesPredicateName = "studies";
+    public const string HasPredicateName = "has";
+    public const string IsPredicateName = "is";
+    public const string ProposesPredicateName = "proposes";
+    public const string ServedAfterPredicateName = "servedAfter";
+
+    // What the submission record's identifier is derived under. Public because the service derives
+    // the same identifier to ask whether the record is already there.
+    public const string SubmissionRole = "submission";
+
+    public const string SiteArchetypeName = "Site";
+    public const string SiteStudyArchetypeName = "SiteStudy";
+    public const string ParcelArchetypeName = "Parcel";
+    public const string ProjectArchetypeName = "Project";
+    public const string ContactArchetypeName = "Contact";
+    public const string ProgrammeAllocationArchetypeName = "ProgrammeAllocation";
+    public const string HazardAssessmentArchetypeName = "HazardAssessment";
+    // A source a submitter named is that submission's own, minted under an identifier derived
+    // from it, so it belongs to the group and goes when the submission is cleared. The catalogue's
+    // archetype is the one that carries the mark ending a prune's walk, and it is not this one — held in
+    // common they could not be told apart, and a submitter's source outlived the submission that named it.
+    public const string SubmittedSourceArchetypeName = "SubmittedSource";
+    public const string SubmissionArchetypeName = "Submission";
+
+    // arrivedAt: When this submission reached the service, or null when the model already
+    // holds its record and its arrival is already recorded.
+    public static ComposedSubmission Compose(
+        Submission submission, ResolvedPredicates predicates, ResolvedArchetypes archetypes,
+        DeclaredVocabulary vocabulary, DateTime? arrivedAt)
+    {
+        var submissionId = Required(submission.SubmissionId, "submissionId",
+            "every identifier derives from it, so a submission posted twice without one would build a second site");
+        var site = submission.Site
+            ?? throw new SubmissionError("'site' is missing: a submission is a site and what is known about it.");
+        var siteName = Required(site.Name, "site.name", "a Thing is created under a name");
+
+        var siteThing = new NamedThing(StableIdentity.Derive(submissionId, "site"), siteName);
+        var studyThing = new NamedThing(StableIdentity.Derive(submissionId, "study"), $"{siteName} Site Study");
+
+        var things = new List<FragmentThing>
+        {
+            new(siteThing.Id, siteThing.Name, SiteProperties(site)),
+            new(studyThing.Id, studyThing.Name, StudyProperties()),
+        };
+        var relationships = new List<FragmentRelationship>();
+        var mintedPredicates = new Dictionary<Guid, FragmentThing>();
+
+        void Relate(NamedThing subject, PredicateIdentity predicate, NamedThing target)
+        {
+            if (predicate.Minted)
+                mintedPredicates[predicate.Id] = new FragmentThing(predicate.Id, predicate.Name, new Dictionary<string, TypedValue>());
+            relationships.Add(new FragmentRelationship(
+                $"{subject.Name} {predicate.Name} {target.Name}", subject.Id, predicate.Id, target.Id));
+        }
+
+        // Everything an archetype declares is inherited through this relationship, so a correction is an edit to
+        // the model rather than a redeployment of this service.
+        void BeArchetype(NamedThing thing, Guid archetype, string archetypeName) =>
+            Relate(thing, predicates.Is, new NamedThing(archetype, archetypeName));
+
+        Relate(studyThing, predicates.Studies, siteThing);
+        BeArchetype(siteThing, archetypes.Site, SiteArchetypeName);
+        BeArchetype(studyThing, archetypes.SiteStudy, SiteStudyArchetypeName);
+
+        // One demand of the study's own per demand the analysis declares. A coverage and a shortfall are
+        // properties of one study's demand, so a study sharing the analysis's demands would have nowhere to
+        // hold either. Which demands came before is written here as relationships rather than compared at every
+        // recompute, so the reduction that adds up what they took ranges over what those relationships reach. The
+        // set comes from the mark the analysis carries, so a third demand costs no change here.
+        //
+        // Held by `has` rather than by a predicate of their own so that a prune rooted at the site reaches
+        // them: the walk follows the predicates it is given, and a demand hanging off anything else would
+        // stay behind when the submission it belongs to is cleared.
+        var servedBefore = new List<NamedThing>();
+        foreach (var demand in vocabulary.WaterDemands)
+        {
+            var demandThing = new NamedThing(
+                StableIdentity.Derive(submissionId, $"demand:{demand.Name}"),
+                $"{studyThing.Name} {demand.Name}");
+            things.Add(new FragmentThing(
+                demandThing.Id, demandThing.Name, new Dictionary<string, TypedValue>()));
+            Relate(studyThing, predicates.Has, demandThing);
+            BeArchetype(demandThing, demand.Id, demand.Name);
+            foreach (var earlier in servedBefore)
+                Relate(demandThing, predicates.ServedAfter, earlier);
+            servedBefore.Add(demandThing);
+        }
+
+        // Discovery walks outwards from the site through this relationship to find which sources cover it, so a
+        // site related to no Place reaches none and every source reads as covering nowhere — which is
+        // indistinguishable from a model holding no source at all, and reports neither a resolved source
+        // nor an unresolved one. The root is enough for a source that covers everything. Narrower Places
+        // are not minted from the submitted country: that is an open set nobody enumerates, `country` is
+        // optional, and a term the model does not hold would have to be refused.
+        Relate(siteThing,
+            new PredicateIdentity(
+                vocabulary.PlaceNesting.Predicate.Name, vocabulary.PlaceNesting.Predicate.Id, Minted: false),
+            new NamedThing(vocabulary.PlaceNesting.Root.Id, vocabulary.PlaceNesting.Root.Name));
+
+        // The arrival itself, kept where a reviewer can ask about it. It proposes the site rather than
+        // holding it: a promotion carries the group reachable from the site through `has` and `studies`,
+        // and this record belongs to intake — it is resolved after the copy has landed, so a copy of it in
+        // a project model would read as waiting for ever. The record asserts the relationship and the site does
+        // not, which is what leaves it behind when the site travels.
+        var submissionThing = new NamedThing(
+            StableIdentity.Derive(submissionId, SubmissionRole), $"{siteName} Submission");
+        things.Add(new FragmentThing(
+            submissionThing.Id, submissionThing.Name, SubmissionProperties(submissionId, arrivedAt)));
+        Relate(submissionThing, predicates.Proposes, siteThing);
+        BeArchetype(submissionThing, archetypes.Submission, SubmissionArchetypeName);
+
+        // The project holds the site rather than the other way round: a submission is one planner's
+        // undertaking, and the site is what it is about. A contact is required because a submission is
+        // reviewed and the decision has to reach somebody, and the project with it because that is what
+        // the contact hangs off.
+        var project = submission.Project ?? throw new SubmissionError(
+            "'project' is missing: a submission is one planner's undertaking, and it is what the contact "
+            + "to answer hangs off.");
+        var contact = submission.Contact ?? throw new SubmissionError(
+            "'contact' is missing: a submission is reviewed, and whoever made it has to be told what was "
+            + "decided about it.");
+
+        var projectThing = new NamedThing(
+            StableIdentity.Derive(submissionId, "project"),
+            Required(project.Name, "project.name", "a Thing is created under a name"));
+        things.Add(new FragmentThing(projectThing.Id, projectThing.Name, ProjectProperties(project)));
+        Relate(projectThing, predicates.Has, siteThing);
+        BeArchetype(projectThing, archetypes.Project, ProjectArchetypeName);
+
+        var contactThing = new NamedThing(
+            StableIdentity.Derive(submissionId, "contact"),
+            Required(contact.Name, "contact.name", "a Thing is created under a name"));
+        var emailAddress = Required(contact.EmailAddress, "contact.emailAddress",
+            "it is where what was decided about the submission is sent").Trim();
+        things.Add(new FragmentThing(
+            contactThing.Id, contactThing.Name, ContactProperties(contact, emailAddress)));
+        Relate(projectThing, predicates.Has, contactThing);
+        BeArchetype(contactThing, archetypes.Contact, ContactArchetypeName);
+
+        // A relationship to a term the model declares, through the predicate the model marks for that vocabulary.
+        // Never minted: the term and the predicate both come from the model, and a predicate invented here
+        // would carry no mark, so the readers that follow it by mark would never find the relationship.
+        void RelateToTerm(NamedThing subject, DeclaredTerms declared, DeclaredTerm term) =>
+            Relate(subject,
+                new PredicateIdentity(declared.Predicate.Name, declared.Predicate.Id, Minted: false),
+                new NamedThing(term.Id, term.Name));
+
+        // The land the submission is about. Without it the analysis has no area to divide, so nothing is
+        // ever worked out and the submitter is answered with a reference and silence. It does not have to
+        // be drawn — a square generated from the stated area satisfies this, and says so in its source.
+        var parcel = submission.Parcel
+            ?? throw new SubmissionError(
+                "'parcel' is missing: a submission is a piece of land, and an analysis divides its area. "
+                + "Draw the boundary, or generate one from the stated area.");
+
+        var obtainedBy = Resolve(vocabulary.BoundarySources, "parcel.boundarySource",
+            Required(parcel.BoundarySource, "parcel.boundarySource",
+                "a square generated from a stated area is not evidence and must not read as a surveyed boundary"));
+
+        var parcelThing = new NamedThing(StableIdentity.Derive(submissionId, "parcel"), $"{siteName} Parcel-01");
+        var parcelId = parcelThing.Id;
+        things.Add(new FragmentThing(parcelThing.Id, parcelThing.Name, ParcelProperties(parcel)));
+        Relate(siteThing, predicates.Has, parcelThing);
+        BeArchetype(parcelThing, archetypes.Parcel, ParcelArchetypeName);
+        RelateToTerm(parcelThing, vocabulary.BoundarySources, obtainedBy);
+
+        var categoriesAlreadyGiven = new Dictionary<Guid, string>();
+        foreach (var allocation in submission.Allocations ?? [])
+        {
+            var submitted = Required(allocation.Category, "allocation.category",
+                "an allocation is a share of the land put to some named use").Trim();
+            var category = Resolve(vocabulary.AllocationCategories, "allocation.category", submitted);
+
+            // Identity comes from the category rather than from a position in the list, so a wizard that
+            // reorders them re-posts onto the same Things. It comes from the resolved term rather than the
+            // word submitted, so two spellings of one category are one share and not two.
+            if (categoriesAlreadyGiven.TryGetValue(category.Id, out var alreadyGiven))
+                throw new SubmissionError(
+                    $"'allocations' gives '{alreadyGiven}' and '{submitted}' as separate shares of one "
+                    + "category: they disagree about it and nothing here can say which was meant.");
+            categoriesAlreadyGiven[category.Id] = submitted;
+
+            var allocationThing = new NamedThing(
+                StableIdentity.Derive(submissionId, $"allocation:{Key(category.Name)}"),
+                $"{siteName} {category.Name}");
+            things.Add(new FragmentThing(allocationThing.Id, allocationThing.Name,
+                AllocationProperties(allocation)));
+            Relate(siteThing, predicates.Has, allocationThing);
+            BeArchetype(allocationThing, archetypes.ProgrammeAllocation, ProgrammeAllocationArchetypeName);
+            RelateToTerm(allocationThing, vocabulary.AllocationCategories, category);
+        }
+
+        // A source named by two hazards is one Thing both hang off, not one each. Identity comes from the
+        // source's name for the same reason an allocation's comes from its category.
+        var sourcesAlreadyMinted = new Dictionary<string, NamedThing>();
+        var coverageAlreadyGiven = new Dictionary<string, string?>();
+        var hazardsAlreadyGiven = new Dictionary<Guid, string>();
+        var assessments = new Dictionary<Guid, NamedThing>();
+        var assessedProperties = new Dictionary<Guid, Dictionary<string, TypedValue>>();
+
+        // The assessment for one hazard of this site, made once however it is arrived at. A discovery run
+        // grades one hazard per assessment the site has, so an assessment is what asks the question — and
+        // every hazard the model knows of gets one below, whether or not the submitter raised it. A
+        // submitter who raises one is telling us what they have seen, not choosing what is looked into.
+        NamedThing AssessmentOf(DeclaredTerm hazardType)
+        {
+            if (assessments.TryGetValue(hazardType.Id, out var alreadyMade)) return alreadyMade;
+
+            var made = new NamedThing(
+                StableIdentity.Derive(submissionId, $"hazard:{Key(hazardType.Name)}"),
+                $"{siteName} {hazardType.Name}");
+            assessments[hazardType.Id] = made;
+            assessedProperties[made.Id] = HazardProperties();
+            things.Add(new FragmentThing(made.Id, made.Name, assessedProperties[made.Id]));
+            Relate(siteThing, predicates.Has, made);
+            BeArchetype(made, archetypes.HazardAssessment, HazardAssessmentArchetypeName);
+            RelateToTerm(made, vocabulary.HazardTypes, hazardType);
+            return made;
+        }
+
+        foreach (var hazardType in vocabulary.HazardTypes.Terms) AssessmentOf(hazardType);
+        foreach (var hazard in submission.Hazards ?? [])
+        {
+            var submittedType = Required(hazard.HazardType, "hazard.hazardType",
+                "an assessment is about one named hazard").Trim();
+            var hazardType = Resolve(vocabulary.HazardTypes, "hazard.hazardType", submittedType);
+
+            // Identity comes from the resolved term rather than the word submitted, for the same reason an
+            // allocation's comes from its category: two spellings of one hazard are one assessment.
+            if (hazardsAlreadyGiven.TryGetValue(hazardType.Id, out var alreadyGiven))
+                throw new SubmissionError(
+                    $"'hazards' gives '{alreadyGiven}' and '{submittedType}' as separate assessments of one "
+                    + "hazard: they disagree about it and nothing here can say which was meant.");
+            hazardsAlreadyGiven[hazardType.Id] = submittedType;
+
+            var hazardThing = AssessmentOf(hazardType);
+
+            // What the submitter says they have seen, written where the portal's grading cannot reach it:
+            // `reportedLevel` takes facts and `hazardLevel` takes observations, and the relationship goes through a
+            // predicate of its own. The two disagreeing is what a reviewer wants to see, not a conflict to
+            // settle — somebody who has watched their land flood knows what a regional model does not.
+            if (hazard.ReportedLevel is { } reported && !string.IsNullOrWhiteSpace(reported))
+            {
+                var level = Resolve(vocabulary.HazardLevels, "hazard.reportedLevel", reported.Trim());
+                Write(assessedProperties[hazardThing.Id], "reportedLevel", VosTypeNames.String, level.Name);
+                RelateToTerm(hazardThing, vocabulary.HazardLevels, level);
+            }
+
+            if (hazard.Source is not { } source)
+                continue;
+
+            var sourceName = Required(source.Name, "hazard.source.name", "a Thing is created under a name").Trim();
+            var sourceKey = Key(sourceName);
+            if (!sourcesAlreadyMinted.TryGetValue(sourceKey, out var sourceThing))
+            {
+                sourceThing = new NamedThing(StableIdentity.Derive(submissionId, $"source:{sourceKey}"), sourceName);
+                sourcesAlreadyMinted[sourceKey] = sourceThing;
+                coverageAlreadyGiven[sourceKey] = source.CoverageDescription;
+                things.Add(new FragmentThing(sourceThing.Id, sourceThing.Name, DataSourceProperties(source)));
+                Relate(siteThing, predicates.Has, sourceThing);
+                BeArchetype(sourceThing, archetypes.SubmittedSource, SubmittedSourceArchetypeName);
+            }
+            else if (source.CoverageDescription is { } coverage
+                     && coverageAlreadyGiven[sourceKey] is { } first && coverage != first)
+            {
+                // One source is one Thing, so the second mention's description has nowhere to go. Taking the
+                // first silently would leave the planner believing the second was recorded.
+                throw new SubmissionError(
+                    $"'{sourceName}' is described two ways: '{first}' and '{coverage}'. One source is one "
+                    + "Thing, so give the description once or give it the same both times.");
+            }
+
+            Relate(hazardThing, predicates.Has, sourceThing);
+        }
+
+        var fragment = new ModelFragment($"{siteName} submission", [.. mintedPredicates.Values, .. things], relationships);
+        return new ComposedSubmission(fragment, submissionId, siteThing.Id, studyThing.Id, parcelId);
+    }
+
+    private readonly record struct NamedThing(Guid Id, string Name);
+
+    private static Dictionary<string, TypedValue> SiteProperties(SubmittedSite site)
+    {
+        var properties = new Dictionary<string, TypedValue>();
+        Write(properties, "latitude", VosTypeNames.Double, site.Latitude);
+        Write(properties, "longitude", VosTypeNames.Double, site.Longitude);
+        Write(properties, "statedAreaHectares", VosTypeNames.Double, site.StatedAreaHectares);
+        Write(properties, "population", VosTypeNames.LongInteger, site.Population);
+        Write(properties, "householdSize", VosTypeNames.Double, site.HouseholdSize);
+        return properties;
+    }
+
+    // What the submission was called where it was filled in, so a group of Things can be traced back to it.
+    // The disposition a reviewer reaches is a relationship written later and never a value here: a submission
+    // arrives with none, which is what reads as waiting.
+    private static Dictionary<string, TypedValue> SubmissionProperties(string submissionId, DateTime? arrivedAt)
+    {
+        var properties = new Dictionary<string, TypedValue>();
+        Write(properties, "submissionId", VosTypeNames.String, submissionId);
+        Write(properties, "submittedAt", VosTypeNames.DateTime, arrivedAt);
+        return properties;
+    }
+
+    // Only the flag readers locate a study by. Every computed output is declared on the archetype, and a
+    // declaration here could only disagree with it.
+    private static Dictionary<string, TypedValue> StudyProperties() => new()
+    {
+        [SiteStudyFlag] = TypedValue.Written(VosTypeNames.Boolean, true),
+    };
+
+    private static Dictionary<string, TypedValue> ProjectProperties(SubmittedProject project)
+    {
+        var properties = new Dictionary<string, TypedValue>();
+        Write(properties, "country", VosTypeNames.String, project.Country);
+        Write(properties, "nearestCity", VosTypeNames.String, project.NearestCity);
+        Write(properties, "existingDataNotes", VosTypeNames.String, project.ExistingDataNotes);
+        return properties;
+    }
+
+    // The address comes in separately because it is required and trimmed where the contact is built: it
+    // is what a decision is sent to, not something only read back.
+    private static Dictionary<string, TypedValue> ContactProperties(
+        SubmittedContact contact, string emailAddress)
+    {
+        var properties = new Dictionary<string, TypedValue>();
+        Write(properties, "relationshipToProject", VosTypeNames.String, contact.RelationshipToProject);
+        Write(properties, "emailAddress", VosTypeNames.String, emailAddress);
+        Write(properties, "phoneNumber", VosTypeNames.String, contact.PhoneNumber);
+        return properties;
+    }
+
+    // What the allocation is for is the relationship to the declared term, not a value here.
+    //
+    // The share is written as given. Shares are normalised across the chosen categories further down the
+    // analysis, so a set that does not reach a hundred is a wizard part-filled, and judging whether they add
+    // up is a range's work on the study rather than this service's.
+    //
+    // An area is not among them and is not on the wire either. The shared analysis declares it as a formula
+    // over the allocation's own share and the parcel its site holds, so a submitted one is a second answer
+    // to a question the model already answers — and writing it would fail the whole fragment, since a
+    // derived property refuses every value write. A caller that sends one is told which field
+    // by name, the way this service refuses every field it does not write.
+    private static Dictionary<string, TypedValue> AllocationProperties(SubmittedAllocation allocation)
+    {
+        var properties = new Dictionary<string, TypedValue>();
+        Write(properties, "sharePct", VosTypeNames.Double, allocation.SharePct);
+        return properties;
+    }
+
+    // A submission writes nothing onto an assessment. What it is about is the relationship to the declared term;
+    // the level and the date it was assessed on take observations only, written when the source is resolved,
+    // and a level a planner remembered would read as an assessment and is not one.
+    //
+    // The empty map is not an omission: the model reference finds these by name, so a map that vanished
+    // could not be told from one that was renamed.
+    private static Dictionary<string, TypedValue> HazardProperties() => [];
+
+    private static Dictionary<string, TypedValue> DataSourceProperties(SubmittedDataSource source)
+    {
+        var properties = new Dictionary<string, TypedValue>();
+        Write(properties, "coverageDescription", VosTypeNames.String, source.CoverageDescription);
+        return properties;
+    }
+
+    // How the boundary was obtained is the relationship to the declared term, not a value here.
+    private static Dictionary<string, TypedValue> ParcelProperties(SubmittedParcel parcel)
+    {
+        var boundary = parcel.Boundary
+            ?? throw new SubmissionError("'parcel.boundary' is missing: a parcel is the boundary it encloses. "
+                                       + "Leave 'parcel' out until one has been drawn.");
+        if (boundary.Count < 3)
+            throw new SubmissionError(
+                $"'parcel.boundary' has {boundary.Count} corner(s): a boundary needs at least three.");
+
+        return new Dictionary<string, TypedValue>
+        {
+            ["measuredAreaHectares"] = TypedValue.Written(VosTypeNames.Double, BoundaryGeometry.MeasureHectares(boundary)),
+            ["boundary"] = TypedValue.Written(VosTypeNames.GeoJson, BoundaryGeometry.ToGeoJson(boundary)),
+        };
+    }
+
+    // A word the model does not declare is refused by naming what the model does declare, so a planner is
+    // corrected by the vocabulary the analysis will actually read rather than by whatever list this service
+    // was compiled with. A term added to the model needs no change here.
+    private static DeclaredTerm Resolve(DeclaredTerms declared, string field, string submitted)
+    {
+        var byKey = new Dictionary<string, DeclaredTerm>();
+        foreach (var term in declared.Terms)
+            if (!byKey.TryAdd(Key(term.Name), term))
+                throw new ModelNotSeededError(
+                    $"this model declares '{byKey[Key(term.Name)].Name}' and '{term.Name}' as separate terms, "
+                    + $"and a submitted '{field}' cannot say which of them it means.");
+
+        if (byKey.TryGetValue(Key(submitted), out var found))
+            return found;
+
+        throw new SubmissionError(declared.Terms.Count == 0
+            ? $"'{field}' is '{submitted}', and this model declares no term to resolve it against."
+            : $"'{field}' is '{submitted}': the model declares "
+              + string.Join(", ", declared.Terms.Select(term => $"'{term.Name}'")) + ".");
+    }
+
+    private static void Write(IDictionary<string, TypedValue> properties, string name, string typeInfo, object? value)
+    {
+        if (value is not null)
+            properties[name] = TypedValue.Written(typeInfo, value);
+    }
+
+    // What a planner named, as against how they happened to type it — which is both what a submitted word is
+    // matched to a declared term by and what identifies the Thing it mints. Case and surrounding
+    // space are not part of what they meant, so a wizard that re-posts with either changed lands on the Thing
+    // it landed on before rather than building a second beside it.
+    private static string Key(string named) => named.Trim().ToLowerInvariant();
+
+    private static string Required(string? value, string field, string why) =>
+        string.IsNullOrWhiteSpace(value) ? throw new SubmissionError($"'{field}' is missing: {why}.") : value;
+}

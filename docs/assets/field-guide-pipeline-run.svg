@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 907 411" width="907" height="411" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" role="img" aria-label="What happens when a pipeline runs.">
+<rect width="907" height="411" fill="#ffffff"/>
+<path d="M 109.2,36.0 V 401.0" stroke="#d6ddd2" stroke-dasharray="4 4" fill="none"/>
+<path d="M 316.3,36.0 V 401.0" stroke="#d6ddd2" stroke-dasharray="4 4" fill="none"/>
+<path d="M 537.7,36.0 V 401.0" stroke="#d6ddd2" stroke-dasharray="4 4" fill="none"/>
+<path d="M 810.6,36.0 V 401.0" stroke="#d6ddd2" stroke-dasharray="4 4" fill="none"/>
+<path d="M 109.2,60.0 L 316.3,60.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(316.3,60.0) rotate(0.0)"/>
+<text x="212.8" y="54.0" font-size="11" fill="#74857a" text-anchor="middle">run this pipeline, with these parameters</text>
+<path d="M 316.3,95.0 L 537.7,95.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(537.7,95.0) rotate(0.0)"/>
+<text x="427.0" y="89.0" font-size="11" fill="#74857a" text-anchor="middle">start it if needed, forward</text>
+<path d="M 537.7,145.0 L 316.3,145.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(316.3,145.0) rotate(180.0)"/>
+<text x="427.0" y="126.0" font-size="11" fill="#74857a" text-anchor="middle">read the pipeline: nodes, wires,</text>
+<text x="427.0" y="139.0" font-size="11" fill="#74857a" text-anchor="middle">ports, in one snapshot</text>
+<path d="M 537.7,235.0 L 316.3,235.0" fill="none" stroke="#46497e" stroke-width="1.7"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#46497e" transform="translate(316.3,235.0) rotate(180.0)"/>
+<text x="427.0" y="229.0" font-size="11" fill="#46497e" text-anchor="middle">run this node: inputs by port name</text>
+<path d="M 316.3,265.0 L 810.6,265.0" fill="none" stroke="#46497e" stroke-width="1.7"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#46497e" transform="translate(810.6,265.0) rotate(0.0)"/>
+<text x="563.5" y="259.0" font-size="11" fill="#46497e" text-anchor="middle">start if needed, forward</text>
+<path d="M 810.6,300.0 L 537.7,300.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(537.7,300.0) rotate(180.0)"/>
+<text x="674.2" y="294.0" font-size="11" fill="#74857a" text-anchor="middle">outputs by port name</text>
+<path d="M 537.7,385.0 L 109.2,385.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(109.2,385.0) rotate(180.0)"/>
+<text x="323.5" y="379.0" font-size="11" fill="#74857a" text-anchor="middle">the run: every node's status and outputs</text>
+<rect x="50.0" y="10.0" width="118.4" height="26.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="109.2" y="27.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">The console</text>
+<rect x="270.0" y="10.0" width="92.6" height="26.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="316.3" y="27.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">Mycelium</text>
+<rect x="500.0" y="10.0" width="75.5" height="26.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="537.7" y="27.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">Phloem</text>
+<rect x="730.0" y="10.0" width="161.3" height="26.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="810.6" y="27.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">A node's service</text>
+<rect x="408.4" y="165.0" width="258.7" height="42.0" rx="2" fill="#dbeade" stroke="#1f6047"/>
+<text x="537.7" y="182.0" font-size="11" font-weight="normal" fill="#1f6047" text-anchor="middle">order the nodes; check every wire's</text>
+<text x="537.7" y="198.0" font-size="11" font-weight="normal" fill="#1f6047" text-anchor="middle">types; refuse a cycle</text>
+<rect x="364.1" y="320.0" width="347.4" height="42.0" rx="2" fill="#dbeade" stroke="#1f6047"/>
+<text x="537.7" y="337.0" font-size="11" font-weight="normal" fill="#1f6047" text-anchor="middle">each node's status is written to the model as it</text>
+<text x="537.7" y="353.0" font-size="11" font-weight="normal" fill="#1f6047" text-anchor="middle">runs; the console animates from the live stream</text>
+</svg>

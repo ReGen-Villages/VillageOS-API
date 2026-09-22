@@ -1,0 +1,384 @@
+using System.Net;
+using System.Text.Json;
+using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
+using vos.Service.Intake.Helpers;
+using vos.Service.Intake.Models;
+using vos.Service.Intake.Services;
+using vos.Service.Shared.Subscriptions;
+using vos.Tests.Shared;
+using Xunit;
+using static vos.Service.Intake.Tests.ModelStub;
+using vos.Service.Shared;
+
+namespace vos.Service.Intake.Tests;
+
+public class SubmissionIntakeServiceTests
+{
+    private const string DocumentText = $$"""
+        {
+          "submissionId": "{{WillowBend.SubmissionId}}",
+          "project": { "name": "Willow Bend Regeneration" },
+          "contact": { "name": "Ana Ferreira", "emailAddress": "ana.ferreira@example.pt" },
+          "site": { "name": "Willow Bend", "statedAreaHectares": 24.0, "population": 320 },
+          "parcel": {
+            "boundarySource": "generated-from-stated-area",
+            "boundary": [
+              { "latitude": 39.4988, "longitude": -8.4168 },
+              { "latitude": 39.5036, "longitude": -8.4168 },
+              { "latitude": 39.5036, "longitude": -8.4106 },
+              { "latitude": 39.4988, "longitude": -8.4106 }
+            ]
+          }
+        }
+        """;
+
+    // What the route hands this service. Reading a posted document is the route's, because the
+    // ticket is checked against the address in it before anything is written.
+    private static Submission Document => SubmissionReader.Read(DocumentText);
+
+    // A service talking to a model seeded from the analysis templates: the archetypes answer, and
+    // the test says what happens to everything else. ServiceOfAnUnseededModel is the one
+    // that does not.
+    private static SubmissionIntakeService Service(Func<HttpRequestMessage, HttpResponseMessage> respond) =>
+        ServiceOfAnUnseededModel(Seeded(respond));
+
+    private static SubmissionIntakeService ServiceOfAnUnseededModel(
+        Func<HttpRequestMessage, HttpResponseMessage> respond) =>
+        ServiceAnswering(new MockHttpMessageHandler(respond), ReadingASeededModel());
+
+    // For a test whose answers must be able to overlap; a handler answering synchronously runs
+    // each call to completion before the next starts, whatever the caller did.
+    private static SubmissionIntakeService ServiceOfAnUnseededModel(
+        Func<HttpRequestMessage, Task<HttpResponseMessage>> respond) =>
+        ServiceAnswering(MockHttpMessageHandler.AnsweringAsynchronously(respond), ReadingASeededModel());
+
+    private static StubSubscriptions ReadingASeededModel() => new(DeclaredModel.Seeded().Build());
+
+    private static SubmissionIntakeService ServiceAnswering(
+        HttpMessageHandler answers, ISubscriptionClient read) =>
+        new(new IntakeMyceliumClient(
+                new PerCallHttpClientFactory(answers),
+                NullLogger<IntakeMyceliumClient>.Instance,
+                "http://localhost",
+                "test-token"),
+            read,
+            NullLogger<SubmissionIntakeService>.Instance,
+            new ModelClock(new FakeTimeProvider(WillowBend.ArrivedAt)));
+
+    // A clock that does not move, so an arrival time can be asserted rather than bounded.
+    private sealed class FakeTimeProvider(DateTime now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => new(now, TimeSpan.Zero);
+    }
+
+    // A service reading its vocabularies out of the model a test built, against archetypes that
+    // answer.
+    private static (SubmissionIntakeService Service, StubSubscriptions Read) ServiceReading(DeclaredModel model)
+    {
+        var read = new StubSubscriptions(model.Build());
+        return (ServiceAnswering(new MockHttpMessageHandler(Seeded(Holds)), read), read);
+    }
+
+    // A subscription left open per submission is a subscription per wizard save, and a wizard saves as the
+    // planner types.
+    [Fact]
+    public async Task The_vocabulary_read_releases_its_subscription()
+    {
+        var (service, read) = ServiceReading(DeclaredModel.Seeded());
+
+        await service.SubmitAsync(Document, CancellationToken.None);
+
+        read.Released.Should().Be(1);
+    }
+
+    // The vocabulary was already read by the time the release runs, so a broker that cannot release the
+    // subscription must not take the submission down with it — the planner would see a failure for work
+    // that had succeeded.
+    [Fact]
+    public async Task A_release_that_fails_does_not_lose_the_submission()
+    {
+        var (service, read) = ServiceReading(DeclaredModel.Seeded());
+        read.FailRelease = true;
+
+        var composed = await service.SubmitAsync(Document, CancellationToken.None);
+
+        composed.SiteId.Should().Be(StableIdentity.Derive(WillowBend.SubmissionId, "site"));
+    }
+
+    // A model seeded with the archetypes but not the vocabularies would take a submission and write the
+    // words back with no relationship, which is the state land allocation reads as every allocation uncategorised.
+    [Fact]
+    public async Task A_model_holding_the_archetypes_but_not_the_vocabularies_is_refused()
+    {
+        var (service, _) = ServiceReading(DeclaredModel.Seeded().Without("AllocationCategory"));
+
+        var refusal = await Assert.ThrowsAsync<ModelNotSeededError>(
+            () => service.SubmitAsync(Document, CancellationToken.None));
+
+        refusal.Message.Should().Contain(DeclaredVocabularyReader.AllocationCategoryArchetypeFlag);
+    }
+
+    // The name is the contract with the platform's land-intake template, which declares `SubmittedSource`
+    // beside the catalogue's `OpenDataSource` so a prune can tell them apart. Asking
+    // for a name the template does not declare refuses every submission, and nothing here would say why —
+    // so the string is pinned rather than left to be read off a rename someone did in the other
+    // repository.
+    [Fact]
+    public void The_archetype_a_submitted_source_hangs_off_is_the_one_the_template_declares()
+    {
+        SubmissionFragmentComposer.SubmittedSourceArchetypeName.Should().Be("SubmittedSource");
+    }
+
+    // Both gates refuse an unseeded model. Read after the archetypes rather than beside them, so which
+    // refusal a planner sees is settled here rather than by which call answered first.
+    [Fact]
+    public async Task A_model_missing_everything_is_refused_by_naming_the_archetypes()
+    {
+        // The vocabulary is missing too, so both gates would refuse. That is what makes the refusal below
+        // an ordering test rather than an assertion that only one gate exists.
+        var read = new StubSubscriptions(DeclaredModel.Seeded().Without("AllocationCategory").Build());
+        var service = ServiceAnswering(
+            new MockHttpMessageHandler(request => IsFragment(request)
+                ? Json("{}")
+                : new HttpResponseMessage(HttpStatusCode.NotFound)),
+            read);
+
+        var refusal = await Assert.ThrowsAsync<ModelNotSeededError>(
+            () => service.SubmitAsync(Document, CancellationToken.None));
+
+        refusal.Message.Should().Contain(SubmissionFragmentComposer.SiteArchetypeName)
+            .And.NotContain(DeclaredVocabularyReader.AllocationCategoryArchetypeFlag);
+        read.AskedFor.Should().BeNull("the archetype gate refuses before anything is read");
+    }
+
+    // The posted document is read inside the responder: the client disposes the request content once the
+    // call returns, so reading it afterwards finds nothing.
+    private static (SubmissionIntakeService Service, Func<string?> PostedFragment) ServiceCapturingFragment()
+    {
+        string? captured = null;
+        var service = Service(request =>
+        {
+            if (IsFragment(request))
+                captured = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return Holds(request);
+        });
+        return (service, () => captured);
+    }
+
+    // A fragment upserts, so a wizard posts the whole submission again on every save. None of the name
+    // lookups reads another's answer, and awaiting them one after another spends a round trip each on every
+    // save — one more again for every archetype added later.
+    [Fact]
+    public async Task The_name_lookups_run_together_rather_than_one_after_another()
+    {
+        var counting = new object();
+        var inFlight = 0;
+        var mostAtOnce = 0;
+        // Completes as soon as a second lookup is in flight. Awaited one after another there is never a
+        // second one waiting here, so the count stays at one however long each call takes.
+        var aSecondArrived = new TaskCompletionSource();
+
+        var service = ServiceOfAnUnseededModel(async request =>
+        {
+            if (IsFragment(request)) return Json("{}");
+
+            lock (counting)
+            {
+                inFlight++;
+                mostAtOnce = Math.Max(mostAtOnce, inFlight);
+                if (inFlight >= 2) aSecondArrived.TrySetResult();
+            }
+            await Task.WhenAny(aSecondArrived.Task, Task.Delay(TimeSpan.FromSeconds(2)));
+            lock (counting) inFlight--;
+
+            return SeededAnswer(request);
+        });
+
+        await service.SubmitAsync(Document, CancellationToken.None);
+
+        mostAtOnce.Should().BeGreaterThan(1,
+            "the lookups do not depend on one another, so they should not wait for one another");
+    }
+
+    [Fact]
+    public async Task The_whole_submission_is_applied_as_one_fragment()
+    {
+        var applications = 0;
+        var service = Service(request =>
+        {
+            if (IsFragment(request)) applications++;
+            return Holds(request);
+        });
+
+        await service.SubmitAsync(Document, CancellationToken.None);
+
+        applications.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task A_predicate_the_model_holds_is_related_through_rather_than_built_again()
+    {
+        var studies = Guid.NewGuid();
+        var service = Service(request => IsFragment(request)
+            ? Json("{}")
+            : Json($$"""{"Id":"{{studies}}","Name":"studies"}"""));
+
+        var composed = await service.SubmitAsync(Document, CancellationToken.None);
+
+        composed.Fragment.Relationships.Should().Contain(edge => edge.Predicate == studies);
+        composed.Fragment.Things.Should().NotContain(thing => thing.Id == studies,
+            "a predicate the model already holds must not be built a second time beside it");
+    }
+
+    [Fact]
+    public async Task A_predicate_the_model_lacks_is_minted_under_a_derived_identifier()
+    {
+        var service = Service(request => IsFragment(request)
+            ? Json("{}")
+            : new HttpResponseMessage(HttpStatusCode.NotFound));
+
+        var composed = await service.SubmitAsync(Document, CancellationToken.None);
+
+        composed.Fragment.Relationships.Should()
+            .Contain(edge => edge.Predicate == StableIdentity.DerivePredicate("studies"),
+                "two submissions into a model that holds no `studies` yet must agree on which Thing it is");
+        composed.Fragment.Things.Should().Contain(thing => thing.Name == "studies");
+    }
+
+    [Fact]
+    public async Task A_lookup_that_failed_is_not_read_as_a_predicate_the_model_lacks()
+    {
+        var service = Service(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
+
+        await Assert.ThrowsAsync<HttpRequestException>(
+            () => service.SubmitAsync(Document, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task The_model_refusal_reaches_the_caller_in_its_own_words()
+    {
+        var service = Service(request => IsFragment(request)
+            ? new HttpResponseMessage(HttpStatusCode.BadRequest)
+            {
+                Content = new StringContent("""{"error":"Property 'statedAreaHectares' on 'Willow Bend' is computed."}"""),
+            }
+            : Holds(request));
+
+        var refusal = await Assert.ThrowsAsync<SubmissionError>(
+            () => service.SubmitAsync(Document, CancellationToken.None));
+
+        refusal.Message.Should().Contain("statedAreaHectares").And.Contain("Willow Bend");
+    }
+
+    [Fact]
+    public async Task A_lookup_that_answers_with_no_thing_is_read_as_a_predicate_the_model_lacks()
+    {
+        var service = Service(request => IsFragment(request) ? Json("{}") : Json("null"));
+
+        var composed = await service.SubmitAsync(Document, CancellationToken.None);
+
+        composed.Fragment.Relationships.Should()
+            .Contain(edge => edge.Predicate == StableIdentity.DerivePredicate("studies"),
+                "the model answers a name it does not hold with an empty body as readily as with a 404");
+    }
+
+    // The record this submission's arrival is kept on, under the identifier the service derives to
+    // ask whether it is already there.
+    private static Guid RecordIdentity() =>
+        StableIdentity.Derive(WillowBend.SubmissionId, SubmissionFragmentComposer.SubmissionRole);
+
+    private static JsonElement PostedRecord(string fragment) =>
+        JsonDocument.Parse(fragment).RootElement.GetProperty("Things").EnumerateArray()
+            .Single(thing => thing.GetProperty("Id").GetGuid() == RecordIdentity())
+            .GetProperty("Properties");
+
+    // Whether the model already holds the record is the whole difference between an arrival and a save, and
+    // only the service can ask. A wizard saves as the planner fills the form in, and a fragment upserts, so
+    // a time written on every save would record the last save rather than the arrival.
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task The_arrival_time_is_written_only_when_the_model_does_not_already_hold_the_record(
+        bool alreadyHeld, bool expectTheTime)
+    {
+        string? captured = null;
+        var service = Service(request =>
+        {
+            if (IsFragment(request))
+                captured = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            if (IsThingLookupById(request) && alreadyHeld)
+                return Json($$"""{"Id":"{{RecordIdentity()}}","Name":"Willow Bend Submission"}""");
+            return Holds(request);
+        });
+
+        await service.SubmitAsync(Document, CancellationToken.None);
+
+        var record = PostedRecord(captured!);
+        record.TryGetProperty("submissionId", out _).Should().BeTrue();
+        record.TryGetProperty("submittedAt", out var stamped).Should().Be(expectTheTime);
+        if (expectTheTime)
+            stamped.GetProperty("value").GetDateTime().Should().Be(WillowBend.ArrivedAt);
+    }
+
+    [Fact]
+    public async Task The_posted_study_is_the_archetype_that_declares_what_the_analysis_writes()
+    {
+        var (service, fragment) = ServiceCapturingFragment();
+
+        await service.SubmitAsync(Document, CancellationToken.None);
+
+        var posted = JsonDocument.Parse(fragment()!).RootElement;
+        var study = posted.GetProperty("Things").EnumerateArray().Single(thing =>
+            thing.GetProperty("Properties").TryGetProperty(SubmissionFragmentComposer.SiteStudyFlag, out _));
+        study.GetProperty("Properties").EnumerateObject().Select(property => property.Name)
+            .Should().Equal([SubmissionFragmentComposer.SiteStudyFlag],
+                "everything the analysis writes is declared on the archetype the study is");
+
+        var archetype = StableArchetypeId(SubmissionFragmentComposer.SiteStudyArchetypeName);
+        posted.GetProperty("Relationships").EnumerateArray().Should().Contain(edge =>
+            edge.GetProperty("Subject").GetGuid() == study.GetProperty("Id").GetGuid()
+            && edge.GetProperty("Target").GetGuid() == archetype);
+    }
+
+    // The archetypes are the model's, not this service's: it relates Things to them and never mints one,
+    // so a model that was never seeded is refused instead of quietly filling with Things nothing can tell
+    // apart. Not a SubmissionError: the document was well formed, and whoever sent it cannot seed a model.
+    [Fact]
+    public async Task A_model_that_was_never_seeded_is_refused_as_a_fault_of_the_deployment()
+    {
+        var service = ServiceOfAnUnseededModel(request => IsFragment(request)
+            ? Json("{}")
+            : new HttpResponseMessage(HttpStatusCode.NotFound));
+
+        var refusal = await Assert.ThrowsAsync<ModelNotSeededError>(
+            () => service.SubmitAsync(Document, CancellationToken.None));
+
+        // Every missing name, not whichever lookup answered first. They run together, so naming one would
+        // name a different one from run to run, and an unseeded model is missing all of them anyway.
+        refusal.Message.Should().ContainAll(
+            SubmissionFragmentComposer.SiteArchetypeName,
+            SubmissionFragmentComposer.SiteStudyArchetypeName,
+            SubmissionFragmentComposer.ParcelArchetypeName,
+            SubmissionFragmentComposer.ProjectArchetypeName,
+            SubmissionFragmentComposer.ContactArchetypeName,
+            SubmissionFragmentComposer.ProgrammeAllocationArchetypeName);
+        refusal.Message.Should().Contain("Seed the model from the analysis templates");
+        refusal.Should().NotBeAssignableTo<SubmissionError>(
+            "a 400 would tell the submitter to correct something they cannot reach");
+    }
+
+    [Fact]
+    public async Task The_posted_fragment_names_the_things_by_the_keys_the_model_reads()
+    {
+        var (service, fragment) = ServiceCapturingFragment();
+
+        await service.SubmitAsync(Document, CancellationToken.None);
+
+        var posted = JsonDocument.Parse(fragment()!).RootElement;
+        posted.GetProperty("Things").EnumerateArray().First().TryGetProperty("Id", out _).Should().BeTrue();
+        var edge = posted.GetProperty("Relationships").EnumerateArray().First();
+        foreach (var key in new[] { "Subject", "Predicate", "Target" })
+            edge.TryGetProperty(key, out _).Should().BeTrue($"the model reads an edge's {key} under that name");
+    }
+}

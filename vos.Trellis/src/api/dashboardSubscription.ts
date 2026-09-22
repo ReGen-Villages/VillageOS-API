@@ -1,0 +1,263 @@
+/**
+ * The subscription a dashboard opens: the Things its widgets read, and nothing else.
+ *
+ * A spec already says what the page is about — the entity it compares, the types its lists draw, the
+ * relationships its bindings walk. This turns that statement into the one the platform reads, so the page is
+ * sent what it draws instead of the whole model. Nothing here names a domain: every type, predicate
+ * and Thing name comes out of the spec.
+ */
+import {
+  DASHBOARD_ARCHETYPE,
+  IS_PREDICATE,
+  SCOPE_REFERENCE,
+  type Binding,
+  type ComputedColumn,
+  type DashboardSpecification,
+  type RelationSpecification,
+  type RelationStep,
+  type ScopeReference,
+  type Widget,
+} from '../types/dashboard';
+import { GUI_SETTINGS_TYPE_NAME } from '../utils/guiSettings';
+import type { SubscriptionSelector, TraverseDirection, TraverseRule } from '../types/subscription';
+
+/**
+ * What every page reads whatever it shows: the dashboards the navigation lists, the Thing the model
+ * states its display settings on, and the `is` relationship's predicate. A page that needs no more than
+ * this is the cheapest subscription the app opens, and it is what the shell holds until a page says
+ * otherwise.
+ *
+ * A predicate is a Thing, and the client reads a relationship's predicate by looking that Thing up, so an
+ * relationship whose predicate is missing is one nothing can name — which for `is` means no Thing can be
+ * told what it is. Every predicate a page follows is asked for alongside the Things it joins.
+ *
+ * Each is asked for by name as well as by type, because a type with no members is a Thing nothing
+ * `is` and would otherwise be selected by neither.
+ */
+export const NAVIGATION_AND_SETTINGS: SubscriptionSelector = {
+  types: [DASHBOARD_ARCHETYPE, GUI_SETTINGS_TYPE_NAME],
+  names: [DASHBOARD_ARCHETYPE, GUI_SETTINGS_TYPE_NAME, IS_PREDICATE],
+  includeLaterMatches: true,
+};
+
+/** A scope walk is transitive — the selected entity relates to Things that in turn relate to the
+ *  ones a widget reads — and the platform stops a walk as soon as it reaches nothing new. The
+ *  largest depth it accepts is therefore how a caller says "follow this relationship as far as it goes". */
+const UNBOUNDED_DEPTH = 2147483647;
+
+/** The shape the platform's `ids` field reads. A spec's Thing reference may be either an id or a
+ *  name, and a name sent as an id is refused rather than looked up, so the two are told apart here.
+ *  Shape only, whichever way an id was minted: the platform decides that, not this. */
+const IDENTIFIER = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function ruleFor(predicate: string, direction: 'out' | 'in' | undefined, depth: number): TraverseRule {
+  const followed: TraverseDirection = direction === 'in' ? 'incoming' : 'outgoing';
+  return { predicate, direction: followed, depth };
+}
+
+function widgetBindings(widget: Widget): (Binding | undefined)[] {
+  switch (widget.type) {
+    case 'kpi': return [widget.value, widget.delta, widget.spark, widget.sparkBaseline, widget.origin];
+    case 'funnel': return widget.stages.flatMap((stage) => [stage.count, stage.drill]);
+    case 'bullet': return widget.rows.map((row) => row.value);
+    case 'table': return [widget.rows];
+    case 'gantt': return [widget.rows];
+    case 'leaderboard': return [widget.entities];
+    case 'verdict': return widget.rows.map((row) => row.verdicts);
+    case 'working': return widget.rows.flatMap((row) => [row.value, row.working]);
+    case 'exceptionBar': return widget.buckets.map((bucket) => bucket.value);
+    case 'rangeBar': return [
+      ...[widget.months, widget.annual].flatMap((period) => period
+        ? [period.recordedHigh, period.designHigh, period.averageHigh, period.mean,
+          period.averageLow, period.designLow, period.recordedLow]
+        : []),
+      ...(widget.bands ?? []).flatMap((band) => [band.from, band.to]),
+    ];
+    case 'lineSeries': return widget.series.map((entry) => entry.value);
+    case 'heatmap': return [widget.value, widget.sun?.latitude, widget.sun?.longitude, widget.sun?.utcOffsetSeconds];
+    case 'stackedShares': return widget.classes.flatMap((entry) => [entry.share, typeof entry.colour === 'object' ? entry.colour : undefined]);
+    case 'divergingBar': return [widget.up.value, widget.up.threshold, widget.down.value, widget.down.threshold];
+    case 'smallMultiples': return [widget.bars.value, widget.line.value, widget.band?.from, widget.band?.to];
+    case 'action': return [widget.rows, ...(widget.asks ?? []).map((field) => field.options)];
+    case 'form': return widget.fields.map((field) => field.options);
+  }
+}
+
+/** A binding and everything nested in it: a ratio's two halves, the series a tile reads its newest
+ *  point from, and the columns a row-producing binding derives per row. A nested binding reads the
+ *  model as much as the one holding it. */
+function withNested(binding: Binding): Binding[] {
+  const inner: (Binding | undefined)[] = [];
+  if (binding.kind === 'ratio') inner.push(binding.numerator, binding.denominator);
+  if (binding.kind === 'latest') inner.push(binding.series);
+  // A step's parameter may be bound to the model — a setpoint, a class's bound — and is read like the
+  // series it shapes.
+  if (binding.kind === 'history') {
+    for (const step of binding.steps)
+      for (const parameter of [step.percentile, step.from, step.to, step.threshold])
+        if (typeof parameter === 'object') inner.push(parameter);
+  }
+  if ('computed' in binding) {
+    for (const column of (binding.computed ?? []) as ComputedColumn[]) inner.push(column?.value);
+  }
+  // A spec can name a nested binding and then not write it. Reading what a widget asks for happens
+  // on the way to drawing it, so a slot left empty here would take the whole view down rather than
+  // the one widget that is wrong.
+  return [binding, ...inner.filter((nested): nested is Binding => !!nested).flatMap(withNested)];
+}
+
+/** Every binding one widget holds: the slots it declares, and everything nested inside them. A
+ *  widget of a kind this build has no arm for holds none that can be found this way. */
+export function bindingsOf(widget: Widget): Binding[] {
+  return (widgetBindings(widget) ?? [])
+    .filter((binding): binding is Binding => !!binding)
+    .flatMap(withNested);
+}
+
+function specificationBindings(specification: DashboardSpecification): Binding[] {
+  return specification.sections.flatMap((section) => section.widgets).flatMap(bindingsOf);
+}
+
+/** Each root-to-leaf path through a detail card's nested relations. A card walks them one after the
+ *  other, so each path is a walk in its own right. */
+function detailWalks(relations: RelationSpecification[] | undefined): RelationStep[][] {
+  if (!relations?.length) return [];
+  return relations.flatMap((relation) => {
+    const step: RelationStep = { predicate: relation.predicate, direction: relation.direction };
+    const below = detailWalks(relation.relations);
+    return below.length ? below.map((path) => [step, ...path]) : [[step]];
+  });
+}
+
+/**
+ * The steps one binding walks, as a single path.
+ *
+ * An origin binding walks twice in sequence: `via` to the Thing holding the value, then `source.via`
+ * from there to what says where the value came from. Those are one path, not two — the second starts
+ * where the first ended, and asked for as a walk of its own the source relationship would be applied to the
+ * scope entity, reach nothing, and select nothing.
+ */
+function bindingWalk(binding: Binding): RelationStep[] | undefined {
+  if (binding.kind === 'origin') return [...(binding.via ?? []), ...(binding.source?.via ?? [])];
+  return 'via' in binding ? binding.via : undefined;
+}
+
+function specificationWalks(specification: DashboardSpecification): RelationStep[][] {
+  const fromBindings = specificationBindings(specification)
+    .map(bindingWalk)
+    .filter((via): via is RelationStep[] => !!via?.length);
+  return [...fromBindings, ...detailWalks(specification.detail?.relations)];
+}
+
+/** The scope predicates the spec narrows by, each followed as far as it reaches. */
+function scopeRules(specification: DashboardSpecification): TraverseRule[] {
+  const seen = new Set<string>();
+  const rules: TraverseRule[] = [];
+  for (const binding of specificationBindings(specification)) {
+    const scope = ('scope' in binding ? binding.scope : undefined) as ScopeReference | undefined;
+    if (!scope) continue;
+    const key = `${scope.viaPredicate}:${scope.direction ?? 'out'}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rules.push(ruleFor(scope.viaPredicate, scope.direction, UNBOUNDED_DEPTH));
+  }
+  return rules;
+}
+
+/**
+ * The walks' steps as traversal rules, asked for in the order the walks take them.
+ *
+ * The platform applies each rule to everything selected before it and applies it once, so a walk of
+ * two steps is reproduced by asking for its first step's relationship before its second's — not by asking
+ * for both relationships in whatever order the spec happened to mention them.
+ */
+function walkRules(walks: RelationStep[][]): TraverseRule[] {
+  const deepest = walks.reduce((longest, walk) => Math.max(longest, walk.length), 0);
+  const rules: TraverseRule[] = [];
+  for (let position = 0; position < deepest; position++) {
+    const seen = new Set<string>();
+    for (const walk of walks) {
+      const step = walk[position];
+      if (!step) continue;
+      const key = `${step.predicate}:${step.direction ?? 'out'}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rules.push(ruleFor(step.predicate, step.direction, 1));
+    }
+  }
+  return rules;
+}
+
+/**
+ * The binding kinds that read a type's members out of what the page holds.
+ *
+ * Naming them rather than taking every binding with an `archetype` is what keeps the page from
+ * asking for Things it never reads: `stateCount` and `timeseries` also name a type, and the
+ * platform answers both — the count from the state endpoint, the series from the reduction — so
+ * their members would arrive to be counted a second time and thrown away. A type with a member per
+ * event is exactly where that is worst.
+ *
+ * `stateList` stays even though its rows now arrive complete, because two things still read the
+ * row's own Thing out of the page's set: a `computed` column resolves with that Thing as its scope
+ * and walks its relationships, and a detail card opened on the row reads its properties and relations.
+ * Dropping it needs both of those to ask for what the page does not hold.
+ */
+const READS_ITS_TYPE_LOCALLY = new Set(['thingList', 'aggregate', 'stateList']);
+
+/** The types the page's list-shaped bindings draw.
+ *
+ *  A binding that narrows to the selected entity reaches its rows by that entity's relationships, so its
+ *  type is asked for only while no entity is selected — when "All" is showing, the binding does run
+ *  over every member of the type. */
+function drawnTypes(specification: DashboardSpecification, scopeId: string | null): string[] {
+  const types = new Set<string>(NAVIGATION_AND_SETTINGS.types);
+  if (specification.compare) types.add(specification.compare.archetype);
+  for (const binding of specificationBindings(specification)) {
+    if (!READS_ITS_TYPE_LOCALLY.has(binding.kind)) continue;
+    const archetype = 'archetype' in binding ? binding.archetype : undefined;
+    if (!archetype) continue;
+    const narrowed = 'scope' in binding && !!binding.scope;
+    if (!narrowed || scopeId === null) types.add(archetype);
+  }
+  return [...types];
+}
+
+/** The Things the spec names outright, split into the identifiers and the names the platform reads
+ *  as two different questions. */
+function namedThings(specification: DashboardSpecification): { ids: string[]; names: string[] } {
+  const referenced = new Set<string>();
+  for (const binding of specificationBindings(specification)) {
+    const thing = 'thing' in binding ? binding.thing : undefined;
+    if (thing && thing !== SCOPE_REFERENCE) referenced.add(thing);
+  }
+  return {
+    ids: [...referenced].filter((reference) => IDENTIFIER.test(reference)),
+    names: [...referenced].filter((reference) => !IDENTIFIER.test(reference)),
+  };
+}
+
+/**
+ * What one dashboard needs the platform to send it, with `scopeId` naming the compare entity the
+ * scope switcher currently shows — or null for "All", which is the page reading across every
+ * compared entity rather than one.
+ */
+export function subscriptionForSpecification(specification: DashboardSpecification, scopeId: string | null): SubscriptionSelector {
+  const named = namedThings(specification);
+  const traverse = [...scopeRules(specification), ...walkRules(specificationWalks(specification))];
+  // A Thing is created before it is typed, so only a subscription that keeps following its types is
+  // sent the Thing when its `is` relationship admits it — which is what lets a roster grow on a page left open.
+  const selector: SubscriptionSelector = {
+    types: drawnTypes(specification, scopeId),
+    names: [...new Set([
+      ...NAVIGATION_AND_SETTINGS.names ?? [],
+      ...traverse.map((rule) => rule.predicate),
+      ...named.names,
+    ])],
+    includeLaterMatches: true,
+    includeObservations: true,
+  };
+  const ids = scopeId ? [...new Set([scopeId, ...named.ids])] : named.ids;
+  if (ids.length) selector.ids = ids;
+  if (traverse.length) selector.traverse = traverse;
+  return selector;
+}

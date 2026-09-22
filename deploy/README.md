@@ -1,0 +1,126 @@
+# Deployment routing
+
+**The intake service answers on its own hostname; the API and the GUI stay on the main one. The
+split lives in the reverse proxy and nowhere else.**
+
+## What the Caddyfile does
+
+- `app.example.org` — `/api/*` goes to the broker on `localhost:7243`; every other path serves the
+  built GUI (`vos.Trellis`'s build output).
+- `intake.example.org` — everything goes to the intake service on `localhost:7300`.
+- TLS terminates at the proxy for both hosts. Caddy provisions and renews the certificates itself.
+
+Replace the hostnames and the intake port with the deployment's own, put the GUI's build output
+where `root` points, and run `caddy run --config deploy/Caddyfile`.
+
+## Reaching the hosts through a tunnel
+
+**A machine with no public address — a laptop behind a router, a workstation on an office network —
+serves the same hostnames through a Cloudflare Tunnel. Nothing on the router is opened.**
+
+A connector program on the machine keeps an outgoing connection to Cloudflare. A request for the
+hostname arrives at Cloudflare and is sent down that connection, so the machine's address is never
+published, the certificate a visitor sees is Cloudflare's, and a flood of requests stops at
+Cloudflare's network rather than at the machine. The hostnames stay the same when the deployment later
+moves to a machine with a public address: the connector is installed there, and nothing else changes.
+
+What each side does:
+
+| Side | What it configures |
+|---|---|
+| The Cloudflare account that holds the domain | Authorises the machine once, in the browser, against the domain's zone; hosts the public pages on a static site; optionally a sign-in gate (Cloudflare Access) in front of the main host, so only listed email addresses reach the GUI's own login. [TUNNEL.md](TUNNEL.md) walks the account holder through it. |
+| The machine | Creates the tunnel under that authorisation and writes its own routing — one public hostname per host, `app.example.org` and `intake.example.org`, each to where that host is served on loopback — and the hostnames' DNS records. The connector is started and stopped with the services; the tunnel's credentials are written by `cloudflared` under the serving user's home, never on a command line. |
+
+Where the public hostname points depends on what runs:
+
+- **The broker alone** — `https://localhost:7243`, with the tunnel told not to verify the server's
+  certificate. The broker presents the development certificate, redirects plain HTTP to HTTPS, and
+  marks its session cookie secure; the connector must therefore speak HTTPS to it, and a visitor is
+  on HTTPS to Cloudflare regardless. The Caddyfile is not needed.
+- **Both hosts** — the proxy, over plain HTTP on the machine, which then splits the hostnames as above.
+  TLS between the proxy and the outside world is Cloudflare's job in this arrangement, so the proxy's
+  own certificate provisioning is switched off.
+
+The intake service's rate limit keeps working: the connector and the proxy both pass the caller's
+address on, and the service reads it from loopback only, as before. The broker's event streams send a
+heartbeat every fifteen seconds, which is inside Cloudflare's idle limit for a response, and the GUI
+reconnects with replay if a stream is ever cut.
+
+## What the services must do
+
+- **Bind loopback.** Every service listens on this machine only and is unreachable except through
+  the proxy. Write the binding whichever way the language allows — `localhost`, `127.0.0.1` or a
+  Kestrel listen call are all read the same.
+  `Tests/vos.ContinuousIntegration.Tests/ServicesBindLoopbackTests` pins it: no service in any
+  language may name an address reaching past this machine, and every managed service must state a
+  binding, all of which must be loopback.
+- **The broker stays unaware of hostnames.** Nothing in it reads the request's host name, and that
+  is deliberate — see the "On subdomain" note in [`../docs/LAND_INTAKE.md`](../docs/LAND_INTAKE.md).
+- **The intake service names the form's origin.** The public form is served from a public site of its
+  own — not from the main host and not by this service — so it posts across origins. Start the intake
+  service with `--publicFormOrigin=https://villageos.ai,https://regenvillages.com`, naming every site
+  the form is served from. With none configured the service refuses every cross-origin caller.
+- **The intake service sends mail, and will not start without somewhere to send it.** A submission is
+  accepted only from somebody who answered a code sent to the address on it, so the service is
+  launched with `--mailHost=<host> --mailFrom=<address>`, optionally `--mailPort` (587 by default)
+  and `--mailUser`. The password is `MailPassword` in configuration or the environment and is never
+  a command-line argument, because the command line is visible to every process on the host. With
+  none of this configured the service prints what is missing and stops, rather than starting and
+  refusing every submission.
+- **`--mailDelivery=console` is not for a deployment.** It writes each code to the log instead of
+  sending it, so a developer with no relay to hand can run the whole exchange. Nobody has to receive
+  a code that way, so no address is verified and a submission may name any address at all — which is
+  why the service refuses to start with it anywhere but Development, and says so loudly in the log on
+  the startup it does allow. The default, `--mailDelivery=server`, is the behaviour above.
+- **The intake service keeps the files submitters share on its own disk.** `--documentDirectory=<path>`
+  names the folder; the default is `documents` beside the service. Only the bytes live there, keyed by
+  submission — what a file is called and what it is about are in the model. The folder of a submission
+  the retention pass has taken out goes within the hour.
+- **The intake service holds an API key** (`ApiKey` in configuration or the environment) created
+  against the intake model, so its credential does not expire and reaches no project model — see
+  "Giving a service an API key" in [`../docs/SERVICES.md`](../docs/SERVICES.md).
+- **The proxy passes the caller's address on.** The submission route is anonymous and rate limited per
+  source, and every caller reaches the service from loopback, so the address the limit partitions on is
+  the one in `X-Forwarded-For`. Caddy's `reverse_proxy` sets it; a different proxy has to be configured
+  to. Without it every submitter on the internet shares one budget. The service reads the header only
+  from loopback, which is the only place it can be reached from.
+
+## The public pages
+
+**Three pages are a build of their own, served from a public site, and their only correspondent is the
+intake service:** the submission form, the findings page a submitter opens to read what the platform
+worked out about the land they submitted, and the plot-first explore page that runs beside the form —
+see [`../docs/LAND_INTAKE.md`](../docs/LAND_INTAKE.md#the-plot-first-page). None carries sign-in, a
+broker client or any part of the signed-in application;
+`vos.Trellis/src/publicForm/noSignedInCode.test.ts` walks every entry and fails
+if an import ever leads back to one.
+
+```
+cd vos.Trellis
+VITE_INTAKE_URL=https://intake.example.org npm run build:public
+```
+
+`dist-public/` is the whole deliverable, addressed relatively so the directory can be placed at any path
+on the site: `index.html` is the form, `findings.html` is the page a submitter reads their own findings
+on, `explore.html` is the plot-first page, and the three share their assets. The explore page leans on
+two lookups the model registers — the parcel boundary at a position and a place search — and draws
+neither where the model registers none; the calls go out through the broker's fetching service, on the
+routing label the intake service is told with `--fetcherSubdomain` (the shipped template's label by
+default). `VITE_INTAKE_URL` is read at build time, not at run time — a form
+built without it collects answers it cannot post, and says so instead of offering the button.
+
+Two things have to agree for the pages to work:
+
+| What | Where it is set |
+|---|---|
+| The address the form posts to | `VITE_INTAKE_URL` when the form is built |
+| The origins the service answers | `--publicFormOrigin` when the service is started |
+
+**What the form is drawn with comes from the model, over `GET /submissions/form`.** The page holds no
+credential, so it cannot read the model; the service reads it under its own and answers with the
+programme categories a submission may name and the basemap sources a map may draw on, and nothing else.
+
+**A basemap address the model holds is published by this.** The form is open to anybody, so a tile or
+style address carrying a key in it is readable by anybody who opens the page. That was already true of
+every browser signed in to the GUI; what changes is who can open it. A deployment whose imagery is
+behind a key should put a proxy in front of the provider rather than a key in the model.

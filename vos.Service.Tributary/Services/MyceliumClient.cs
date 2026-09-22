@@ -1,0 +1,261 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
+using vos.Service.Shared;
+
+namespace vos.Service.Tributary.Services;
+
+public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
+{
+    public MyceliumClient(IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, string? serviceToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey) { }
+
+    public readonly record struct MyceliumThing(Guid Id, string Name);
+
+    public async Task<MyceliumThing?> FindThingByNameAsync(string name)
+    {
+        try
+        {
+            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+            var encodedName = Uri.EscapeDataString(name);
+            var response = await client.GetAsync($"{MyceliumUrl}/api/things?name={encodedName}");
+            if (!response.IsSuccessStatusCode)
+            {
+                Logger.LogWarning("Failed to find thing by name {Name}. Status: {StatusCode}", name, response.StatusCode);
+                return null;
+            }
+
+            var root = await response.Content.ReadFromJsonAsync<JsonElement>();
+            return TryParseThing(root, out var thing) ? thing : null;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error finding thing by name {Name}", name);
+            return null;
+        }
+    }
+
+    public async Task<MyceliumThing?> CreateThingAsync(string name, Dictionary<string, object?>? properties = null)
+    {
+        try
+        {
+            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+            // Not the reading as it arrived: a source states its values bare, and the broker takes each
+            // one with its type on it — worked out from the value, because only the caller's JSON says
+            // what a reading is.
+            var payload = new
+            {
+                Name = name,
+                Properties = TypedProperties.Typed(properties)
+            };
+
+            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/things", payload);
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Logger.LogWarning("Failed to create thing {ThingName}. Status: {StatusCode}. Error: {Error}", name, response.StatusCode, error);
+                return null;
+            }
+
+            var root = await response.Content.ReadFromJsonAsync<JsonElement>();
+            return TryParseThing(root, out var thing) ? thing : null;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error creating thing {ThingName}", name);
+            return null;
+        }
+    }
+
+    public async Task<bool> CreateRelationshipAsync(Guid subjectId, Guid predicateId, Guid targetId)
+    {
+        try
+        {
+            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+            var payload = new { subjectId, predicateId, targetId };
+
+            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/relationships", payload);
+            if (response.IsSuccessStatusCode)
+                return true;
+
+            var error = await response.Content.ReadAsStringAsync();
+            Logger.LogWarning(
+                "Failed to create relationship {Subject} -[{Predicate}]-> {Target}. Status: {Status}. Error: {Error}",
+                subjectId, predicateId, targetId, response.StatusCode, error);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex,
+                "Error creating relationship {Subject} -[{Predicate}]-> {Target}",
+                subjectId, predicateId, targetId);
+            return false;
+        }
+    }
+
+    public async Task<bool> SubmitObservationsAsync(Guid thingId, IReadOnlyList<ObservationSample> samples)
+    {
+        if (samples.Count == 0) return true;
+        try
+        {
+            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
+            // A sample with no time of its own leaves observedAt out entirely, so Mycelium stamps
+            // the whole batch once from the model clock rather than this process's wall clock.
+            var payload = samples.Select(s =>
+            {
+                var value = ResolveObservationValue(s.Value);
+                return s.ObservedAt is { } at
+                    ? (object)new { property = s.Property, value, observedAt = at }
+                    : new { property = s.Property, value };
+            });
+
+            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/things/{thingId}/observations", payload);
+            if (response.IsSuccessStatusCode)
+                return true;
+
+            var error = await response.Content.ReadAsStringAsync();
+            Logger.LogWarning("Failed to submit {Count} observations to thing {ThingId}. Status: {StatusCode}. Error: {Error}",
+                samples.Count, thingId, response.StatusCode, error);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error submitting observations to thing {ThingId}", thingId);
+            return false;
+        }
+    }
+
+    // Deposits response bytes into the broker's content-addressed asset store and answers with the
+    // ticket naming them, or null when the store did not accept them. The store owns the hashing —
+    // a ticket is whatever the store answered, never computed here, so the two can never disagree
+    // about a name. The Content-Type rides with the bytes because the store serves them back
+    // verbatim under the same type.
+    public async Task<string?> DepositAssetAsync(byte[] bytes, string contentType)
+    {
+        try
+        {
+            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
+            using var content = new ByteArrayContent(bytes);
+            content.Headers.ContentType = MediaTypeHeaderValue.Parse(contentType);
+
+            var response = await client.PostAsync($"{MyceliumUrl}/api/assets", content);
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Logger.LogWarning("Failed to deposit {ByteLength} bytes to the asset store. Status: {StatusCode}. Error: {Error}",
+                    bytes.Length, response.StatusCode, error);
+                return null;
+            }
+
+            var root = await response.Content.ReadFromJsonAsync<JsonElement>();
+            if (root.ValueKind == JsonValueKind.Object
+                && TryGetPropertyCaseInsensitive(root, "hash", out var hash)
+                && hash.ValueKind == JsonValueKind.String
+                && !string.IsNullOrWhiteSpace(hash.GetString()))
+                return hash.GetString();
+
+            Logger.LogWarning("The asset store accepted {ByteLength} bytes but answered no hash.", bytes.Length);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error depositing {ByteLength} bytes to the asset store", bytes.Length);
+            return null;
+        }
+    }
+
+    public async Task<bool> SetPropertyModeAsync(Guid thingId, string property, string mode)
+    {
+        try
+        {
+            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+            var encoded = Uri.EscapeDataString(property);
+            var response = await client.PutAsJsonAsync(
+                $"{MyceliumUrl}/api/things/{thingId}/properties/{encoded}/mode", new { Mode = mode });
+            if (response.IsSuccessStatusCode)
+                return true;
+
+            var error = await response.Content.ReadAsStringAsync();
+            Logger.LogWarning("Failed to set mode {Mode} on {ThingId}.{Property}. Status: {StatusCode}. Error: {Error}",
+                mode, thingId, property, response.StatusCode, error);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error setting mode on {ThingId}.{Property}", thingId, property);
+            return false;
+        }
+    }
+
+    public async Task<Dictionary<string, JsonElement>?> GetEffectivePropertiesAsync(Guid thingId)
+    {
+        try
+        {
+            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+            var response = await client.GetAsync($"{MyceliumUrl}{MyceliumRoutes.ThingProperties(thingId)}");
+            if (!response.IsSuccessStatusCode)
+            {
+                Logger.LogWarning("Failed to get effective properties for thing {ThingId}. Status: {StatusCode}",
+                    thingId, response.StatusCode);
+                return null;
+            }
+
+            var root = await response.Content.ReadFromJsonAsync<JsonElement>();
+            if (root.ValueKind != JsonValueKind.Object)
+                return null;
+
+            var result = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+            foreach (var property in root.EnumerateObject())
+            {
+                if (TryGetPropertyCaseInsensitive(property.Value, "Value", out var valueElement))
+                    result[property.Name] = valueElement;
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error getting effective properties for thing {ThingId}", thingId);
+            return null;
+        }
+    }
+
+    private static bool TryParseThing(JsonElement element, out MyceliumThing? thing)
+    {
+        thing = null;
+
+        if (element.ValueKind != JsonValueKind.Object)
+            return false;
+
+        if (!TryGetPropertyCaseInsensitive(element, "Id", out var idProp) || idProp.ValueKind != JsonValueKind.String)
+            return false;
+
+        if (!Guid.TryParse(idProp.GetString(), out var id))
+            return false;
+
+        if (!TryGetPropertyCaseInsensitive(element, "Name", out var nameProp) || nameProp.ValueKind != JsonValueKind.String)
+            return false;
+
+        thing = new MyceliumThing(id, nameProp.GetString() ?? string.Empty);
+        return true;
+    }
+
+    // A reshaped reading carries whatever the source's JSON held. Unwrap the element to the scalar
+    // the observation route stores; a shape it has no scalar for keeps its own JSON text.
+    private static object? ResolveObservationValue(object? value)
+    {
+        if (value is not JsonElement element)
+            return value;
+
+        return element.ValueKind switch
+        {
+            JsonValueKind.String => element.GetString(),
+            JsonValueKind.Number when element.TryGetInt64(out var whole) => whole,
+            JsonValueKind.Number => element.GetDouble(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Null => null,
+            _ => element.GetRawText()
+        };
+    }
+}

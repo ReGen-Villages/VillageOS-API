@@ -1,0 +1,580 @@
+using System.Text.Json;
+using Moq;
+using Xunit;
+
+namespace vos.Taproot.Tests;
+
+public class QueryCommandHandlerTests
+{
+    private readonly Mock<MyceliumClient> _myceliumMock;
+    private readonly StringWriter _writer;
+
+    public QueryCommandHandlerTests()
+    {
+        _myceliumMock = new Mock<MyceliumClient>("https://localhost:7243") { CallBase = false };
+        _writer = new StringWriter();
+    }
+
+    private async Task ExecuteHandler(string arg)
+    {
+        var handler = new QueryCommandHandler(arg, _writer, _myceliumMock.Object);
+        await handler.ExecuteAsync();
+    }
+
+    // Mock the bulk properties endpoint the handler resolves matches against.
+    private void SetupEffective(string effectiveJson) =>
+        _myceliumMock.Setup(b => b.GetAllPropertiesAsync(It.IsAny<string>()))
+            .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(effectiveJson));
+
+    // ========== Execute Tests ==========
+
+    [Fact]
+    public async Task Execute_WithNoArguments_ShowsUsage()
+    {
+        await ExecuteHandler("");
+
+        var output = _writer.ToString();
+        Assert.Contains("Usage:", output);
+        Assert.Contains("query", output);
+    }
+
+    [Fact]
+    public async Task Execute_WithUnknownCommand_ShowsUsage()
+    {
+        await ExecuteHandler("unknown");
+
+        var output = _writer.ToString();
+        Assert.Contains("Usage:", output);
+    }
+
+    // ========== Query Property Tests ==========
+
+    [Fact]
+    public async Task QueryProperty_WithInsufficientArguments_ShowsUsage()
+    {
+        await ExecuteHandler("property");
+
+        var output = _writer.ToString();
+        Assert.Contains("Usage: query property", output);
+    }
+
+    [Fact]
+    public async Task QueryProperty_WithNoMatches_ShowsNotFoundMessage()
+    {
+        var emptyArray = JsonSerializer.Deserialize<JsonElement>("[]");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyArray);
+
+        await ExecuteHandler("property Status Active");
+
+        var output = _writer.ToString();
+        Assert.Contains("No things found", output);
+    }
+
+    [Fact]
+    public async Task QueryProperty_WithMatches_ShowsResults()
+    {
+        var thingId = Guid.NewGuid();
+        var json = $@"[{{""Id"":""{thingId}"",""Name"":""TestThing""}}]";
+        var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        SetupEffective($@"{{""{thingId}"":{{""Status"":{{""Value"":""Active"",""IsInherited"":false}}}}}}");
+
+        await ExecuteHandler("property Status Active");
+
+        var output = _writer.ToString();
+        Assert.Contains("Found 1 thing(s)", output);
+        Assert.Contains("TestThing", output);
+    }
+
+    [Fact]
+    public async Task QueryProperty_MultipleMatches_ShowsAllResults()
+    {
+        var thing1Id = Guid.NewGuid();
+        var thing2Id = Guid.NewGuid();
+        var json = $@"[
+            {{""Id"":""{thing1Id}"",""Name"":""Alice""}},
+            {{""Id"":""{thing2Id}"",""Name"":""Bob""}}
+        ]";
+        var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        SetupEffective($@"{{
+            ""{thing1Id}"":{{""Status"":{{""Value"":""Active"",""IsInherited"":false}}}},
+            ""{thing2Id}"":{{""Status"":{{""Value"":""Active"",""IsInherited"":false}}}}
+        }}");
+
+        await ExecuteHandler("property Status Active");
+
+        var output = _writer.ToString();
+        Assert.Contains("Found 2 thing(s)", output);
+        Assert.Contains("Alice", output);
+        Assert.Contains("Bob", output);
+    }
+
+    // ========== Query Predicate Tests ==========
+
+    [Fact]
+    public async Task QueryPredicate_WithNoArguments_ShowsUsage()
+    {
+        await ExecuteHandler("predicate");
+
+        var output = _writer.ToString();
+        Assert.Contains("Usage: query predicate", output);
+    }
+
+    [Fact]
+    public async Task QueryPredicate_WithNoMatches_ShowsNotFoundMessage()
+    {
+        var emptyArray = JsonSerializer.Deserialize<JsonElement>("[]");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyArray);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyArray);
+
+        await ExecuteHandler("predicate likes");
+
+        var output = _writer.ToString();
+        Assert.Contains("No relationships found", output);
+    }
+
+    // The platform answers a relationship as { Id, SubjectId, PredicateId, TargetId, Properties }; the
+    // predicate is a Thing the PredicateId names.
+    private static readonly Guid LikesId = Guid.Parse("dddddddd-0000-0000-0000-000000000001");
+    private static readonly Guid OwnsId = Guid.Parse("dddddddd-0000-0000-0000-000000000002");
+
+    private static string PredicateThings() =>
+        $@"[{{""Id"":""{LikesId}"",""Name"":""likes"",""Properties"":{{}}}},{{""Id"":""{OwnsId}"",""Name"":""owns"",""Properties"":{{}}}}]";
+
+    private static string Edge(Guid predicateId) =>
+        $@"{{""Id"":""{Guid.NewGuid()}"",""SubjectId"":""{Guid.NewGuid()}"",""PredicateId"":""{predicateId}"",""TargetId"":""{Guid.NewGuid()}""}}";
+
+    private void SetupPredicateModel(params Guid[] edgePredicates)
+    {
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(PredicateThings()));
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(
+            JsonSerializer.Deserialize<JsonElement>("[" + string.Join(",", edgePredicates.Select(Edge)) + "]"));
+    }
+
+    [Fact]
+    public async Task QueryPredicate_WithMatches_ShowsResults()
+    {
+        SetupPredicateModel(LikesId, OwnsId);
+
+        await ExecuteHandler("predicate likes");
+
+        var output = _writer.ToString();
+        Assert.Contains("Found 1 relationship(s)", output);
+        Assert.Contains("likes", output);
+    }
+
+    [Fact]
+    public async Task QueryPredicate_CaseInsensitive_FindsMatches()
+    {
+        SetupPredicateModel(LikesId);
+
+        await ExecuteHandler("predicate LIKES");
+
+        var output = _writer.ToString();
+        Assert.Contains("Found 1 relationship(s)", output);
+    }
+
+    // ========== Query Stats Tests ==========
+
+    [Fact]
+    public async Task QueryStats_ShowsModelStatistics()
+    {
+        var thingId = Guid.NewGuid();
+        var thingsJson = $@"[{{""Id"":""{thingId}"",""Name"":""TestThing"",""Properties"":{{}}}}]";
+        var thingsArray = JsonSerializer.Deserialize<JsonElement>(thingsJson);
+        var emptyRels = JsonSerializer.Deserialize<JsonElement>("[]");
+
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyRels);
+
+        await ExecuteHandler("stats");
+
+        var output = _writer.ToString();
+        Assert.Contains("Model Statistics:", output);
+        Assert.Contains("Things:", output);
+        Assert.Contains("Relationships:", output);
+    }
+
+    [Fact]
+    public async Task QueryStats_ShowsThingCount()
+    {
+        var json = $@"[
+            {{""Id"":""{Guid.NewGuid()}"",""Name"":""Thing1"",""Properties"":{{}}}},
+            {{""Id"":""{Guid.NewGuid()}"",""Name"":""Thing2"",""Properties"":{{}}}},
+            {{""Id"":""{Guid.NewGuid()}"",""Name"":""Thing3"",""Properties"":{{}}}}
+        ]";
+        var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
+        var emptyRels = JsonSerializer.Deserialize<JsonElement>("[]");
+
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyRels);
+
+        await ExecuteHandler("stats");
+
+        var output = _writer.ToString();
+        Assert.Contains("Things: 3", output);
+    }
+
+    [Fact]
+    public async Task QueryStats_ShowsRelationshipCount()
+    {
+        SetupPredicateModel(LikesId, OwnsId);
+
+        await ExecuteHandler("stats");
+
+        var output = _writer.ToString();
+        Assert.Contains("Relationships: 2", output);
+    }
+
+    [Fact]
+    public async Task QueryStats_CountsDistinctPredicatesThroughTheirId()
+    {
+        SetupPredicateModel(LikesId, LikesId, OwnsId);
+
+        await ExecuteHandler("stats");
+
+        var output = _writer.ToString();
+        Assert.Contains("Predicates: 2", output);
+        Assert.DoesNotContain("unknown", output);
+    }
+
+    [Fact]
+    public async Task QueryStats_ShowsTopPredicatesByName()
+    {
+        SetupPredicateModel(LikesId, LikesId, OwnsId);
+
+        await ExecuteHandler("stats");
+
+        var output = _writer.ToString();
+        Assert.Contains("Top Predicates:", output);
+        Assert.Contains("likes: 2 relationship(s)", output);
+        Assert.Contains("owns: 1 relationship(s)", output);
+    }
+
+    [Fact]
+    public async Task QueryStats_APredicateTheThingsDoNotName_CountsAsUnknown()
+    {
+        SetupPredicateModel(Guid.NewGuid());
+
+        await ExecuteHandler("stats");
+
+        Assert.Contains("unknown: 1 relationship(s)", _writer.ToString());
+    }
+
+    // ========== Query Path Tests ==========
+
+    [Fact]
+    public async Task QueryPath_ShowsNotAvailableMessage()
+    {
+        await ExecuteHandler("path");
+
+        var output = _writer.ToString();
+        Assert.Contains("not available in remote mode", output);
+    }
+
+    [Fact]
+    public async Task QueryPath_WithArguments_ShowsNotAvailableMessage()
+    {
+        var fromId = Guid.NewGuid();
+        var toId = Guid.NewGuid();
+        await ExecuteHandler($"path {fromId} {toId}");
+
+        var output = _writer.ToString();
+        Assert.Contains("not available in remote mode", output);
+    }
+
+    [Fact]
+    public async Task QueryPath_ExplainsReason()
+    {
+        await ExecuteHandler("path");
+
+        var output = _writer.ToString();
+        Assert.Contains("local graph traversal", output);
+    }
+
+    // ========== --showguids Flag Tests ==========
+
+    [Fact]
+    public async Task QueryProperty_WithShowGuidsFlag_ShowsGuids()
+    {
+        var thingId = Guid.NewGuid();
+        var json = $@"[{{""Id"":""{thingId}"",""Name"":""TestThing""}}]";
+        var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        SetupEffective($@"{{""{thingId}"":{{""Status"":{{""Value"":""Active"",""IsInherited"":false}}}}}}");
+
+        await ExecuteHandler("property Status Active --showguids");
+
+        var output = _writer.ToString();
+        Assert.Contains("TestThing", output);
+        Assert.Contains(thingId.ToString(), output);
+    }
+
+    [Fact]
+    public async Task QueryProperty_WithoutShowGuidsFlag_HidesGuids()
+    {
+        var thingId = Guid.NewGuid();
+        var json = $@"[{{""Id"":""{thingId}"",""Name"":""TestThing""}}]";
+        var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        SetupEffective($@"{{""{thingId}"":{{""Status"":{{""Value"":""Active"",""IsInherited"":false}}}}}}");
+
+        await ExecuteHandler("property Status Active");
+
+        var output = _writer.ToString();
+        Assert.Contains("TestThing", output);
+        Assert.DoesNotContain(thingId.ToString(), output);
+    }
+
+    [Fact]
+    public async Task QueryPredicate_WithShowGuidsFlag_ShowsGuids()
+    {
+        var relId = Guid.NewGuid();
+        var subjectId = Guid.NewGuid();
+        var targetId = Guid.NewGuid();
+        var thingsJson = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"Id\":\"{subjectId}\",\"Name\":\"Subject\"}},{{\"Id\":\"{targetId}\",\"Name\":\"Target\"}},{{\"Id\":\"{LikesId}\",\"Name\":\"likes\"}}]");
+        var relsJson = $@"[{{""Id"":""{relId}"",""SubjectId"":""{subjectId}"",""PredicateId"":""{LikesId}"",""TargetId"":""{targetId}""}}]";
+        var relsArray = JsonSerializer.Deserialize<JsonElement>(relsJson);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
+
+        await ExecuteHandler("predicate likes --showguids");
+
+        var output = _writer.ToString();
+        Assert.Contains("likes", output);
+        Assert.Contains(relId.ToString(), output);
+        Assert.Contains(subjectId.ToString(), output);
+    }
+
+    [Fact]
+    public async Task QueryPredicate_WithoutShowGuidsFlag_HidesGuids()
+    {
+        var relId = Guid.NewGuid();
+        var subjectId = Guid.NewGuid();
+        var targetId = Guid.NewGuid();
+        var thingsJson = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"Id\":\"{subjectId}\",\"Name\":\"Subject\"}},{{\"Id\":\"{targetId}\",\"Name\":\"Target\"}},{{\"Id\":\"{LikesId}\",\"Name\":\"likes\"}}]");
+        var relsJson = $@"[{{""Id"":""{relId}"",""SubjectId"":""{subjectId}"",""PredicateId"":""{LikesId}"",""TargetId"":""{targetId}""}}]";
+        var relsArray = JsonSerializer.Deserialize<JsonElement>(relsJson);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
+
+        await ExecuteHandler("predicate likes");
+
+        var output = _writer.ToString();
+        Assert.Contains("likes", output);
+        Assert.Contains("Subject", output);
+        Assert.Contains("Target", output);
+        Assert.DoesNotContain(relId.ToString(), output);
+    }
+
+    #region FindPropertyMatch Tests
+
+    [Fact]
+    public async Task QueryProperty_InheritedProperty_ShowsInheritedSource()
+    {
+        // Regression: the value lives only on the archetype (inherited, never overridden),
+        // so it comes from the effective endpoint keyed by qualified path — not the removed key.
+        var thingId = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetAllThingsAsync())
+            .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>($@"[{{""Id"":""{thingId}"",""Name"":""Motor""}}]"));
+        SetupEffective($@"{{""{thingId}"":{{
+            ""localProp"":{{""Value"":""localValue"",""IsInherited"":false}},
+            ""Device.serialNumber"":{{""Value"":""SN-1234"",""IsInherited"":true,""InheritedFrom"":""{Guid.NewGuid()}""}}
+        }}}}");
+
+        await ExecuteHandler("property serialNumber SN-1234");
+
+        var output = _writer.ToString();
+        Assert.Contains("Found 1 thing(s)", output);
+        Assert.Contains("Motor", output);
+        Assert.Contains("inherited from Device", output);
+    }
+
+    [Fact]
+    public async Task QueryProperty_OwnPropertyPreferredOverInherited()
+    {
+        var thingId = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetAllThingsAsync())
+            .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>($@"[{{""Id"":""{thingId}"",""Name"":""Motor""}}]"));
+        SetupEffective($@"{{""{thingId}"":{{
+            ""status"":{{""Value"":""active"",""IsInherited"":false}},
+            ""Device.status"":{{""Value"":""inactive"",""IsInherited"":true,""InheritedFrom"":""{Guid.NewGuid()}""}}
+        }}}}");
+
+        await ExecuteHandler("property status active");
+
+        var output = _writer.ToString();
+        Assert.Contains("Found 1 thing(s)", output);
+        Assert.Contains("Motor", output);
+        // Own value matches, so no inheritance suffix.
+        Assert.DoesNotContain("inherited from", output);
+    }
+
+    [Fact]
+    public async Task QueryProperty_NestedInheritance_ReportsSourceChain()
+    {
+        // A transitively-inherited value is keyed by its full source path; the source label is that path.
+        var thingId = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetAllThingsAsync())
+            .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>($@"[{{""Id"":""{thingId}"",""Name"":""Motor""}}]"));
+        SetupEffective($@"{{""{thingId}"":{{
+            ""Device.Component.serialNumber"":{{""Value"":""SN-1234"",""IsInherited"":true,""InheritedFrom"":""{Guid.NewGuid()}""}}
+        }}}}");
+
+        await ExecuteHandler("property serialNumber SN-1234");
+
+        var output = _writer.ToString();
+        Assert.Contains("Found 1 thing(s)", output);
+        Assert.Contains("inherited from Device.Component", output);
+    }
+
+    [Fact]
+    public async Task QueryProperty_OwnOnly_MatchesWithNoSource()
+    {
+        var thingId = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetAllThingsAsync())
+            .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>($@"[{{""Id"":""{thingId}"",""Name"":""Motor""}}]"));
+        SetupEffective($@"{{""{thingId}"":{{""status"":{{""Value"":""active"",""IsInherited"":false}}}}}}");
+
+        await ExecuteHandler("property status active");
+
+        var output = _writer.ToString();
+        Assert.Contains("Found 1 thing(s)", output);
+        Assert.DoesNotContain("inherited from", output);
+    }
+
+    #endregion
+
+    #region ShowStatsAsync Tests
+
+    [Fact]
+    public async Task QueryStats_EmptyModel_ShowsZeros()
+    {
+        var emptyThings = JsonSerializer.Deserialize<JsonElement>("[]");
+        var emptyRels = JsonSerializer.Deserialize<JsonElement>("[]");
+
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyRels);
+
+        await ExecuteHandler("stats");
+
+        var output = _writer.ToString();
+        Assert.Contains("Things: 0", output);
+        Assert.Contains("Relationships: 0", output);
+        Assert.Contains("Properties: 0", output);
+        Assert.DoesNotContain("Top Predicates:", output); // No relationships = no top predicates section
+    }
+
+    [Fact]
+    public async Task QueryStats_ThingsWithProperties_CountsProperties()
+    {
+        var json = $@"[
+            {{""Id"":""{Guid.NewGuid()}"",""Name"":""Sensor"",""Properties"":{{""temp"":100,""status"":""active""}}}},
+            {{""Id"":""{Guid.NewGuid()}"",""Name"":""Motor"",""Properties"":{{""rpm"":3000}}}}
+        ]";
+        var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
+        var emptyRels = JsonSerializer.Deserialize<JsonElement>("[]");
+
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyRels);
+
+        await ExecuteHandler("stats");
+
+        var output = _writer.ToString();
+        Assert.Contains("Things: 2", output);
+        Assert.Contains("Properties: 3", output); // 2 + 1
+    }
+
+    [Fact]
+    public async Task QueryStats_HandlerThings_CountsHandlers()
+    {
+        var json = $@"[
+            {{""Id"":""{Guid.NewGuid()}"",""Name"":""Sensor"",""Properties"":{{""temp"":100}}}},
+            {{""Id"":""{Guid.NewGuid()}"",""Name"":""IsHandler"",""Properties"":{{""ExecutablePath"":""/path/to/exec""}}}}
+        ]";
+        var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
+        var emptyRels = JsonSerializer.Deserialize<JsonElement>("[]");
+
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyRels);
+
+        await ExecuteHandler("stats");
+
+        var output = _writer.ToString();
+        Assert.Contains("Handlers: 1", output);
+    }
+
+    [Fact]
+    public async Task QueryStats_NonArrayThingsResponse_HandleGracefully()
+    {
+        var notArray = JsonSerializer.Deserialize<JsonElement>("{}");
+        var emptyRels = JsonSerializer.Deserialize<JsonElement>("[]");
+
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(notArray);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyRels);
+
+        await ExecuteHandler("stats");
+
+        var output = _writer.ToString();
+        Assert.Contains("Things: 0", output);
+    }
+
+    [Fact]
+    public async Task QueryStats_NonArrayRelsResponse_HandleGracefully()
+    {
+        var emptyThings = JsonSerializer.Deserialize<JsonElement>("[]");
+        var notArray = JsonSerializer.Deserialize<JsonElement>("{}");
+
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(notArray);
+
+        await ExecuteHandler("stats");
+
+        var output = _writer.ToString();
+        Assert.Contains("Relationships: 0", output);
+    }
+
+    [Fact]
+    public async Task QueryStats_RelationshipsWithNullNames_HandlesGracefully()
+    {
+        var emptyThings = JsonSerializer.Deserialize<JsonElement>("[]");
+        var relsJson = $@"[
+            {{""Id"":""{Guid.NewGuid()}"",""Name"":null,""SubjectId"":""{Guid.NewGuid()}"",""TargetId"":""{Guid.NewGuid()}""}},
+            {{""Id"":""{Guid.NewGuid()}"",""Name"":""likes"",""SubjectId"":""{Guid.NewGuid()}"",""TargetId"":""{Guid.NewGuid()}""}}
+        ]";
+        var relsArray = JsonSerializer.Deserialize<JsonElement>(relsJson);
+
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
+
+        await ExecuteHandler("stats");
+
+        var output = _writer.ToString();
+        Assert.Contains("Relationships: 2", output);
+        Assert.Contains("Top Predicates:", output);
+    }
+
+    [Fact]
+    public async Task QueryStats_MoreThanFivePredicates_ShowsTopFive()
+    {
+        var predicateIds = Enumerable.Range(1, 6).Select(_ => Guid.NewGuid()).ToArray();
+        var thingsJson = "[" + string.Join(",", predicateIds.Select((id, index) => $@"{{""Id"":""{id}"",""Name"":""p{index + 1}""}}")) + "]";
+        var relsJson = "[" + string.Join(",", predicateIds.Append(predicateIds[5]).Select(Edge)) + "]";
+
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(thingsJson));
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(relsJson));
+
+        await ExecuteHandler("stats");
+
+        var output = _writer.ToString();
+        Assert.Contains("Top Predicates:", output);
+        Assert.Contains("Predicates: 6", output);
+        Assert.Contains("p6: 2 relationship(s)", output);
+        Assert.Equal(5, output.Split('\n').Count(line => line.Contains(" relationship(s)")));
+    }
+
+    #endregion
+}

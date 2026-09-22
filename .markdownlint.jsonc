@@ -1,0 +1,14 @@
+{
+  // VillageOS-API markdown lint config.
+  "default": true,
+  // Prose and tables wrap intentionally; line length is not enforced.
+  "MD013": false,
+  // Table pipe spacing is cosmetic and inconsistent across the existing docs;
+  // enforcing one style would churn every table for no real benefit.
+  "MD060": false,
+  // Allow the same heading text under different parent sections
+  // (e.g. "Trellis (GUI)" appearing in both Projects and Getting Started).
+  "MD024": { "siblings_only": true },
+  // Mermaid/HTML snippets appear in some docs.
+  "MD033": false
+}

@@ -1,0 +1,249 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
+using FluentAssertions;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using vos.Service.Shared;
+using vos.Service.Shared.Hosting;
+using vos.Tests.Shared;
+using Xunit;
+
+namespace vos.Service.Shared.Tests.Hosting;
+
+public class ServiceHostTests
+{
+    private const string ServiceName = "Echo";
+    private const string MyceliumUrl = "http://localhost:7243";
+
+    private static WebApplication BuildApp(
+        Func<HttpRequestMessage, HttpResponseMessage>? respond = null,
+        bool withMyceliumRegistration = false,
+        bool withModelClock = false)
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseTestServer();
+        builder.Logging.ClearProviders();
+
+        var handler = new MockHttpMessageHandler(respond ?? (_ => new HttpResponseMessage(HttpStatusCode.OK)));
+        builder.Services.AddSingleton(new EndpointServiceMyceliumClient(
+            new PerCallHttpClientFactory(handler),
+            NullLogger<EndpointServiceMyceliumClient>.Instance,
+            ServiceName,
+            MyceliumUrl,
+            "svc-token"));
+
+        if (withMyceliumRegistration)
+            builder.Services.AddMyceliumRegistration(ServiceName, port: 7100);
+
+        if (withModelClock)
+            builder.Services.AddModelClock<EndpointServiceMyceliumClient>(ServiceName);
+
+        return builder.Build();
+    }
+
+    // The fault this guards: every service registered the wall clock, so an instant a service wrote
+    // into a simulated run carried the year of the machine playing it rather than the year the model
+    // had reached.
+    [Fact]
+    public async Task AddModelClock_LeavesTheServiceStampingWhatTheBrokerSaysTheTimeIs()
+    {
+        var modelInstant = new DateTimeOffset(2025, 9, 20, 3, 0, 0, TimeSpan.Zero);
+        var answer = "{\"now\":\"" + modelInstant.ToString("o") + "\",\"rate\":60}";
+        await using var app = BuildApp(request => request.RequestUri!.AbsolutePath == "/api/time"
+            ? new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(answer, Encoding.UTF8, "application/json")
+            }
+            : new HttpResponseMessage(HttpStatusCode.OK), withModelClock: true);
+        await app.StartAsync();
+
+        var clock = app.Services.GetRequiredService<ModelClock>();
+        for (var attempt = 0; attempt < 50 && !clock.IsAnchored; attempt++)
+            await Task.Delay(20);
+
+        clock.IsAnchored.Should().BeTrue();
+        clock.Rate.Should().Be(60);
+        clock.GetUtcNow().Should().BeCloseTo(modelInstant, TimeSpan.FromSeconds(5));
+        clock.OffsetFromWallClock().Should().BeCloseTo(
+            modelInstant - DateTimeOffset.UtcNow, TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task MapHealthAndStats_ReportsTheServiceAsHealthy()
+    {
+        await using var app = BuildApp();
+        app.MapHealthAndStats(ServiceName, MyceliumUrl);
+        await app.StartAsync();
+
+        var body = await app.GetTestClient().GetFromJsonAsync<JsonElement>("/health");
+
+        body.GetProperty("status").GetString().Should().Be("Healthy");
+        body.GetProperty("service").GetString().Should().Be(ServiceName);
+    }
+
+    // The platform reads a daemon it did not launch through the process the daemon reports here: it
+    // holds no handle to one it never started, and the health probe is where it already visits every
+    // daemon each interval.
+    [Fact]
+    public async Task MapHealth_ReportsTheProcessTheServiceIsRunningAs()
+    {
+        await using var app = BuildApp();
+        app.MapHealth(ServiceName);
+        await app.StartAsync();
+
+        var body = await app.GetTestClient().GetFromJsonAsync<JsonElement>("/health");
+
+        body.GetProperty("processId").GetInt32().Should().Be(Environment.ProcessId);
+    }
+
+    [Fact]
+    public async Task MapHealthAndStats_ReportsTheHandlerIdentityAndBrokerAddress()
+    {
+        await using var app = BuildApp();
+        app.MapHealthAndStats(ServiceName, MyceliumUrl);
+        await app.StartAsync();
+
+        var expectedHandlerId = app.Services.GetRequiredService<EndpointServiceMyceliumClient>().HandlerId;
+
+        var body = await app.GetTestClient().GetFromJsonAsync<JsonElement>("/stats");
+
+        body.GetProperty("service").GetString().Should().Be(ServiceName);
+        body.GetProperty("handlerId").GetString().Should().Be(expectedHandlerId.ToString());
+        body.GetProperty("myceliumUrl").GetString().Should().Be(MyceliumUrl);
+        body.GetProperty("version").GetString().Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task MapShutdown_AnswersBeforeStoppingSoTheCallerSeesTheAcknowledgement()
+    {
+        await using var app = BuildApp();
+        app.MapShutdown(ServiceName);
+        await app.StartAsync();
+
+        var response = await app.GetTestClient().PostAsync("/shutdown", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("message").GetString().Should().Contain(ServiceName);
+    }
+
+    [Fact]
+    public async Task MapShutdown_StopsTheService()
+    {
+        await using var app = BuildApp();
+        app.MapShutdown(ServiceName);
+        await app.StartAsync();
+
+        var stopping = new TaskCompletionSource();
+        app.Lifetime.ApplicationStopping.Register(stopping.SetResult);
+
+        await app.GetTestClient().PostAsync("/shutdown", content: null);
+
+        var stopped = await Task.WhenAny(stopping.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        stopped.Should().Be(stopping.Task, "the shutdown endpoint should stop the host");
+    }
+
+    [Fact]
+    public async Task AddMyceliumRegistration_AnnouncesTheServiceOnceItIsUp()
+    {
+        var registered = new TaskCompletionSource<HttpRequestMessage>();
+        await using var app = BuildApp(request =>
+        {
+            if (request.RequestUri!.AbsolutePath == "/api/mycelium/register")
+                registered.TrySetResult(request);
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        }, withMyceliumRegistration: true);
+
+        await app.StartAsync();
+
+        var completed = await Task.WhenAny(registered.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        completed.Should().Be(registered.Task, "startup should announce the service to the broker");
+        (await registered.Task).Method.Should().Be(HttpMethod.Post);
+    }
+
+    // The deregistration route is admin-only, so a service asking to withdraw itself is refused on
+    // every shutdown. The broker's liveness monitor removes a registration whose service stops
+    // answering, so shutdown must not ask at all.
+    [Fact]
+    public async Task AddMyceliumRegistration_DoesNotAskTheBrokerToWithdrawOnShutdown()
+    {
+        var deleted = new TaskCompletionSource<HttpRequestMessage>();
+        await using var app = BuildApp(request =>
+        {
+            if (request.Method == HttpMethod.Delete)
+                deleted.TrySetResult(request);
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        }, withMyceliumRegistration: true);
+
+        await app.StartAsync();
+        await app.StopAsync();
+
+        deleted.Task.IsCompleted.Should().BeFalse("a service cannot deregister itself, so shutdown must not try");
+    }
+
+    // A broker that is slow, absent or refusing must not stop the service coming up.
+    [Fact]
+    public async Task AddMyceliumRegistration_WhenTheBrokerFails_TheServiceStillServes()
+    {
+        await using var app = BuildApp(
+            _ => throw new HttpRequestException("mycelium is unreachable"),
+            withMyceliumRegistration: true);
+        app.MapHealthAndStats(ServiceName, MyceliumUrl);
+
+        await app.StartAsync();
+
+        var response = await app.GetTestClient().GetAsync("/health");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    // Mirrors the path ConfigureLogging builds — a shared folder four levels above the binary.
+    private static DirectoryInfo LogDirectory() => new(
+        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs"));
+
+    private static FileInfo[] LogFilesNamed(string prefix)
+    {
+        var directory = LogDirectory();
+        return directory.Exists ? directory.GetFiles($"{prefix}*.log") : [];
+    }
+
+    [Fact]
+    public void ConfigureLogging_WithoutTheFileSink_WritesNoLogFile()
+    {
+        const string prefix = "service-host-no-file-test-";
+        var before = LogFilesNamed(prefix).Length;
+
+        ServiceHost.ConfigureLogging("ServiceHostTest", $"{prefix}.log", writeToFile: false);
+        Serilog.Log.Information("a message that must not reach a file");
+        Serilog.Log.CloseAndFlush();
+
+        LogFilesNamed(prefix).Should().HaveCount(before);
+    }
+
+    [Fact]
+    public void ConfigureLogging_WithTheFileSink_WritesTheMessageAndNamesTheService()
+    {
+        const string prefix = "service-host-file-test-";
+        foreach (var stale in LogFilesNamed(prefix)) stale.Delete();
+
+        try
+        {
+            ServiceHost.ConfigureLogging("ServiceHostFileTest", $"{prefix}.log");
+            Serilog.Log.Information("a message that must reach the file");
+            Serilog.Log.CloseAndFlush();
+
+            var written = LogFilesNamed(prefix);
+            written.Should().ContainSingle();
+            File.ReadAllText(written[0].FullName).Should().Contain("a message that must reach the file");
+        }
+        finally
+        {
+            foreach (var file in LogFilesNamed(prefix)) file.Delete();
+        }
+    }
+}

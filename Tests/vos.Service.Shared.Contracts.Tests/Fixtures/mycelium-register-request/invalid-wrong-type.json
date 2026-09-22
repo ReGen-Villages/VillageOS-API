@@ -1,0 +1,8 @@
+{
+  "handlerId": "not-a-uuid",
+  "serviceName": "Echo",
+  "endpointUrl": "http://localhost:7101",
+  "startCommand": "echo-service",
+  "stopEndpoint": "http://localhost:7101/shutdown",
+  "healthEndpoint": "http://localhost:7101/health"
+}

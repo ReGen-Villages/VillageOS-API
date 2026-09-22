@@ -1,0 +1,306 @@
+import { describe, it, expect } from 'vitest';
+import {
+  discoverTypes,
+  groupTypesByName,
+  buildInstanceTypeIndex,
+  applyTypeFilter,
+  sortTypeGroups,
+  NO_TYPE_ID,
+  NO_TYPE_NAME,
+  type TypeStat,
+  type TypeGroupStat,
+} from './typeFilter';
+import type { VosThing, VosRelationship } from '../types/vos';
+
+function thing(id: string, name: string): VosThing {
+  return { Id: id, Name: name, Properties: {} };
+}
+function relationship(id: string, s: string, p: string, t: string): VosRelationship {
+  return { Id: id, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} };
+}
+
+// Standard fixture: two type Things (Wall, Door), three Wall instances, one
+// Door instance, plus an "is" predicate Thing.
+const isP = thing('p-is', 'is');
+const wallType = thing('t-wall', 'Wall');
+const doorType = thing('t-door', 'Door');
+const w1 = thing('w1', 'Wall-1');
+const w2 = thing('w2', 'Wall-2');
+const w3 = thing('w3', 'Wall-3');
+const d1 = thing('d1', 'Door-1');
+
+const things = [isP, wallType, doorType, w1, w2, w3, d1];
+
+const relationships: VosRelationship[] = [
+  relationship('r1', 'w1', 'p-is', 't-wall'),
+  relationship('r2', 'w2', 'p-is', 't-wall'),
+  relationship('r3', 'w3', 'p-is', 't-wall'),
+  relationship('r4', 'd1', 'p-is', 't-door'),
+];
+
+describe('discoverTypes (Feature #5362)', () => {
+  // Standard fixture has 7 Things: isP, wallType, doorType, w1..w3, d1.
+  // Bucketing — each Thing in exactly one bucket (its `is`-target or no-type):
+  //   Wall (t-wall): w1, w2, w3 → 3
+  //   Door (t-door): d1 → 1
+  //   no-type: isP, wallType, doorType → 3 (none has its own `is` relation)
+  it('returns one entry per type Thing PLUS the synthetic no-type bucket (no-type pinned last)', () => {
+    const result = discoverTypes(things, relationships);
+    expect(result).toEqual([
+      { typeId: 't-wall', name: 'Wall', instanceCount: 3 },
+      { typeId: 't-door', name: 'Door', instanceCount: 1 },
+      { typeId: NO_TYPE_ID, name: NO_TYPE_NAME, instanceCount: 3 },
+    ]);
+  });
+
+  it('sum of all instanceCounts equals things.length (every Thing counted exactly once)', () => {
+    const result = discoverTypes(things, relationships);
+    const sum = result.reduce((s, t) => s + t.instanceCount, 0);
+    expect(sum).toBe(things.length);
+  });
+
+  it('real types sort by count desc then name asc; no-type bucket pinned last', () => {
+    const extraType = thing('t-z', 'Zonal');
+    const extraInst = thing('z1', 'Zonal-1');
+    const extraRelationship = relationship('r5', 'z1', 'p-is', 't-z');
+    const r = discoverTypes([...things, extraType, extraInst], [...relationships, extraRelationship]);
+    // Real types: Wall(3), Door(1), Zonal(1) → Wall, Door, Zonal (Door < Zonal alphabetically)
+    // no-type pinned last regardless of its count
+    expect(r.map((x) => x.name)).toEqual(['Wall', 'Door', 'Zonal', NO_TYPE_NAME]);
+  });
+
+  it('deduplicates duplicate `is` relationships from the same subject', () => {
+    const dupe = relationship('rdup', 'w1', 'p-is', 't-wall');
+    const r = discoverTypes(things, [...relationships, dupe]);
+    expect(r.find((x) => x.typeId === 't-wall')!.instanceCount).toBe(3);
+  });
+
+  it('ignores non-is relationships', () => {
+    const hasP = thing('p-has', 'has');
+    const containsRelationship = relationship('rh', 'w1', 'p-has', 'd1');
+    const r = discoverTypes([...things, hasP], [...relationships, containsRelationship]);
+    // Bucket totals: Wall(3), Door(1), no-type(4 — isP, wallType, doorType, hasP)
+    expect(r.find((x) => x.typeId === NO_TYPE_ID)!.instanceCount).toBe(4);
+  });
+
+  it('is case-insensitive on the predicate name', () => {
+    const isUpperPredicate = thing('p-IS', 'IS');
+    const upperRelationship = relationship('rU', 'w1', 'p-IS', 't-wall');
+    const r = discoverTypes([...things, isUpperPredicate], [...relationships, upperRelationship]);
+    // w1 already classified by 'is' (lowercase) — first-seen wins — count unchanged.
+    expect(r.find((x) => x.typeId === 't-wall')!.instanceCount).toBe(3);
+  });
+
+  it('treats Things with dangling `is` references as no-type (skips the missing target)', () => {
+    const w4 = thing('w4', 'Wall-4');
+    const danglingRelationship = relationship('rd', 'w4', 'p-is', 't-missing');
+    const r = discoverTypes([...things, w4], [...relationships, danglingRelationship]);
+    expect(r.find((x) => x.typeId === 't-missing')).toBeUndefined();
+    // w4's dangling `is` collapses to no-type bucket — was 3 (isP, wallType, doorType) + w4 = 4
+    expect(r.find((x) => x.typeId === NO_TYPE_ID)!.instanceCount).toBe(4);
+  });
+
+  it('returns [] for empty input', () => {
+    expect(discoverTypes([], [])).toEqual([]);
+  });
+
+  it('returns one no-type entry when there are Things but no `is` relationships', () => {
+    const r = discoverTypes(things, []);
+    expect(r).toEqual([{ typeId: NO_TYPE_ID, name: NO_TYPE_NAME, instanceCount: things.length }]);
+  });
+});
+
+describe('buildInstanceTypeIndex (Feature #5362)', () => {
+  it('maps each instance to its first-seen type', () => {
+    const index = buildInstanceTypeIndex(things, relationships);
+    expect(index.get('w1')).toBe('t-wall');
+    expect(index.get('w2')).toBe('t-wall');
+    expect(index.get('d1')).toBe('t-door');
+  });
+
+  it('first-seen wins on multiple is relationships', () => {
+    const second = relationship('r2nd', 'w1', 'p-is', 't-door');
+    const index = buildInstanceTypeIndex(things, [...relationships, second]);
+    expect(index.get('w1')).toBe('t-wall');
+  });
+});
+
+describe('applyTypeFilter (Feature #5362)', () => {
+  it('returns inputs unchanged when hiddenTypeIds is empty', () => {
+    const result = applyTypeFilter(things, relationships, new Set());
+    expect(result.things).toBe(things);
+    expect(result.relationships).toBe(relationships);
+  });
+
+  it('hides instances AND the type Thing itself when its bucket is hidden', () => {
+    const result = applyTypeFilter(things, relationships, new Set(['t-wall']));
+    const ids = result.things.map((t) => t.Id);
+    expect(ids).not.toContain('w1');
+    expect(ids).not.toContain('w2');
+    expect(ids).not.toContain('w3');
+    expect(ids).not.toContain('t-wall');  // type Thing also gone
+    // Other buckets untouched
+    expect(ids).toContain('t-door');
+    expect(ids).toContain('d1');
+    expect(ids).toContain('p-is');        // no-type bucket not hidden
+  });
+
+  it('hides only no-type Things when only NO_TYPE_ID is hidden', () => {
+    const result = applyTypeFilter(things, relationships, new Set([NO_TYPE_ID]));
+    const ids = result.things.map((t) => t.Id);
+    // No-type bucket = isP, wallType, doorType (all Things without an `is`)
+    expect(ids).not.toContain('p-is');
+    expect(ids).not.toContain('t-wall');
+    expect(ids).not.toContain('t-door');
+    // Classified instances survive — they have an `is` to a not-hidden type
+    expect(ids).toContain('w1');
+    expect(ids).toContain('d1');
+  });
+
+  it('drops relationships whose endpoints became hidden', () => {
+    const hasP = thing('p-has', 'has');
+    const contains = relationship('rContains', 'w1', 'p-has', 'w2');
+    const allRelationships = [...relationships, contains];
+    const result = applyTypeFilter([...things, hasP], allRelationships, new Set(['t-wall']));
+    const relationshipIds = result.relationships.map((r) => r.Id);
+    expect(relationshipIds).not.toContain('rContains');  // both walls hidden
+    expect(relationshipIds).not.toContain('r1');         // is-rel to hidden t-wall
+    expect(relationshipIds).toContain('r4');             // d1 → t-door, both still visible
+  });
+
+  it('hiding ALL discovered types AND no-type yields an empty graph', () => {
+    // The "None" action in the panel computes this set: every typeId from
+    // discoverTypes including NO_TYPE_ID. Result must be zero Things and zero
+    // relationships — matches user expectation that "None" means "show
+    // nothing".
+    const allTypeIds = new Set(discoverTypes(things, relationships).map((t) => t.typeId));
+    const result = applyTypeFilter(things, relationships, allTypeIds);
+    expect(result.things).toEqual([]);
+    expect(result.relationships).toEqual([]);
+  });
+
+  it('hides multiple types at once', () => {
+    const result = applyTypeFilter(things, relationships, new Set(['t-wall', 't-door']));
+    const ids = result.things.map((t) => t.Id);
+    expect(ids).not.toContain('w1');
+    expect(ids).not.toContain('w2');
+    expect(ids).not.toContain('d1');
+    // Both type Things now also hidden (changed from prior behavior)
+    expect(ids).not.toContain('t-wall');
+    expect(ids).not.toContain('t-door');
+    // No-type bucket survives
+    expect(ids).toContain('p-is');
+  });
+});
+
+describe('groupTypesByName (Bug #5363 — coalesce same-named types)', () => {
+  it('returns the same shape when every Name is unique', () => {
+    const statistics: TypeStat[] = [
+      { typeId: 't-wall', name: 'Wall', instanceCount: 3 },
+      { typeId: 't-door', name: 'Door', instanceCount: 1 },
+      { typeId: NO_TYPE_ID, name: NO_TYPE_NAME, instanceCount: 3 },
+    ];
+    const groups = groupTypesByName(statistics);
+    expect(groups).toEqual([
+      { name: 'Wall', typeIds: ['t-wall'], instanceCount: 3 },
+      { name: 'Door', typeIds: ['t-door'], instanceCount: 1 },
+      { name: NO_TYPE_NAME, typeIds: [NO_TYPE_ID], instanceCount: 3 },
+    ]);
+  });
+
+  it('coalesces same-named entries into one group with all typeIds + summed counts', () => {
+    // The MV IFC seed reproducer: five distinct type-Things share a Name.
+    const statistics: TypeStat[] = [
+      { typeId: 't-sp1', name: 'Solar_Panel-Tesla:Solar Panel', instanceCount: 1014 },
+      { typeId: 't-sp2', name: 'Solar_Panel-Tesla:Solar Panel', instanceCount: 295 },
+      { typeId: 't-sp3', name: 'Solar_Panel-Tesla:Solar Panel', instanceCount: 69 },
+      { typeId: 't-sp4', name: 'Solar_Panel-Tesla:Solar Panel', instanceCount: 69 },
+      { typeId: 't-sp5', name: 'Solar_Panel-Tesla:Solar Panel', instanceCount: 69 },
+      { typeId: 't-door', name: 'Door', instanceCount: 12 },
+    ];
+    const groups = groupTypesByName(statistics);
+    expect(groups).toHaveLength(2);
+    const sp = groups[0];
+    expect(sp.name).toBe('Solar_Panel-Tesla:Solar Panel');
+    expect(sp.typeIds).toEqual(['t-sp1', 't-sp2', 't-sp3', 't-sp4', 't-sp5']);
+    expect(sp.instanceCount).toBe(1014 + 295 + 69 + 69 + 69);
+    expect(groups[1]).toEqual({ name: 'Door', typeIds: ['t-door'], instanceCount: 12 });
+  });
+
+  it('preserves first-appearance order from the input', () => {
+    // Input order is what discoverTypes returns (count desc, no-type last).
+    // groupTypesByName should not re-sort; the first appearance of each Name
+    // determines the group's position.
+    const statistics: TypeStat[] = [
+      { typeId: 't-zonal', name: 'Zonal', instanceCount: 100 },
+      { typeId: 't-wall1', name: 'Wall', instanceCount: 80 },
+      { typeId: 't-door', name: 'Door', instanceCount: 50 },
+      { typeId: 't-wall2', name: 'Wall', instanceCount: 5 },
+    ];
+    const groups = groupTypesByName(statistics);
+    expect(groups.map((g) => g.name)).toEqual(['Zonal', 'Wall', 'Door']);
+    // Wall group inherits Wall's first appearance (between Zonal and Door)
+    expect(groups[1].instanceCount).toBe(85);
+    expect(groups[1].typeIds).toEqual(['t-wall1', 't-wall2']);
+  });
+
+  it('returns empty for empty input', () => {
+    expect(groupTypesByName([])).toEqual([]);
+  });
+
+  it('sum invariant — total instanceCount unchanged after grouping', () => {
+    const statistics: TypeStat[] = [
+      { typeId: 'a', name: 'X', instanceCount: 7 },
+      { typeId: 'b', name: 'X', instanceCount: 3 },
+      { typeId: 'c', name: 'Y', instanceCount: 11 },
+    ];
+    const before = statistics.reduce((s, t) => s + t.instanceCount, 0);
+    const after = groupTypesByName(statistics).reduce((s, g) => s + g.instanceCount, 0);
+    expect(after).toBe(before);
+  });
+});
+
+describe('sortTypeGroups (Feature #5386)', () => {
+  const groups: TypeGroupStat[] = [
+    { name: 'Beam',  typeIds: ['t-beam'],     instanceCount: 50 },
+    { name: 'Wall',  typeIds: ['t-wall'],     instanceCount: 100 },
+    { name: 'Door',  typeIds: ['t-door'],     instanceCount: 100 },
+    { name: 'Floor', typeIds: ['t-floor'],    instanceCount: 1 },
+    { name: NO_TYPE_NAME, typeIds: [NO_TYPE_ID], instanceCount: 9000 },
+  ];
+
+  it('count-desc puts the heaviest real types first, NO_TYPE last', () => {
+    const sorted = sortTypeGroups(groups, 'count-desc').map((g) => g.name);
+    // Door and Wall both have 100 — tied on count, fall through to name asc.
+    expect(sorted).toEqual(['Door', 'Wall', 'Beam', 'Floor', NO_TYPE_NAME]);
+  });
+
+  it('count-asc puts the smallest real types first, NO_TYPE last', () => {
+    const sorted = sortTypeGroups(groups, 'count-asc').map((g) => g.name);
+    expect(sorted).toEqual(['Floor', 'Beam', 'Door', 'Wall', NO_TYPE_NAME]);
+  });
+
+  it('name-asc orders alphabetically, NO_TYPE last', () => {
+    const sorted = sortTypeGroups(groups, 'name-asc').map((g) => g.name);
+    expect(sorted).toEqual(['Beam', 'Door', 'Floor', 'Wall', NO_TYPE_NAME]);
+  });
+
+  it('name-desc reverses alphabetic, NO_TYPE still last (not first)', () => {
+    const sorted = sortTypeGroups(groups, 'name-desc').map((g) => g.name);
+    expect(sorted).toEqual(['Wall', 'Floor', 'Door', 'Beam', NO_TYPE_NAME]);
+  });
+
+  it('does not mutate the input array', () => {
+    const before = groups.map((g) => g.name);
+    sortTypeGroups(groups, 'name-asc');
+    expect(groups.map((g) => g.name)).toEqual(before);
+  });
+
+  it('handles a list with only NO_TYPE', () => {
+    expect(sortTypeGroups([groups[4]], 'count-asc')).toEqual([groups[4]]);
+  });
+
+  it('handles an empty list', () => {
+    expect(sortTypeGroups([], 'count-desc')).toEqual([]);
+  });
+});

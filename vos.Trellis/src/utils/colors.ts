@@ -1,0 +1,140 @@
+export const ROLE_COLORS = {
+  predicate: '#fbbf24', // amber
+  type: '#60a5fa',      // blue
+  noType: '#94a3b8',    // slate — instances with no "is" relationship
+};
+
+// Type name hashed into this palette so instances of a type share a colour.
+export const INSTANCE_PALETTE = [
+  '#f87171', // red-400
+  '#fb923c', // orange-400
+  '#fbbf24', // amber-400
+  '#a3e635', // lime-400
+  '#4ade80', // green-400
+  '#2dd4bf', // teal-400
+  '#22d3ee', // cyan-400
+  '#38bdf8', // sky-400
+  '#818cf8', // indigo-400
+  '#a78bfa', // violet-400
+  '#c084fc', // purple-400
+  '#e879f9', // fuchsia-400
+  '#f472b6', // pink-400
+  '#fb7185', // rose-400
+  '#34d399', // emerald-400
+  '#facc15', // yellow-400
+];
+
+// Pastel palette for logical (non-geo) nodes, distinct from the vibrant physical ones.
+export const LOGICAL_PALETTE = [
+  '#fca5a5', // red-300
+  '#fdba74', // orange-300
+  '#fcd34d', // amber-300
+  '#bef264', // lime-300
+  '#86efac', // green-300
+  '#5eead4', // teal-300
+  '#67e8f9', // cyan-300
+  '#7dd3fc', // sky-300
+  '#a5b4fc', // indigo-300
+  '#c4b5fd', // violet-300
+  '#d8b4fe', // purple-300
+  '#f0abfc', // fuchsia-300
+  '#f9a8d4', // pink-300
+  '#fda4af', // rose-300
+  '#6ee7b7', // emerald-300
+  '#fde047', // yellow-300
+];
+
+// Muted palette for 3D building/IFC elements (by name hash).
+export const ELEMENT_COLORS = [
+  '#6d8ea8', // steel blue
+  '#7a9b6d', // sage
+  '#a8846d', // sandstone
+  '#8b7da8', // lavender
+  '#6da89b', // teal
+  '#a88b6d', // copper
+  '#6d7fa8', // slate blue
+  '#8da86d', // moss
+];
+
+export const PREDICATE_PALETTE = [
+  '#818cf8', // indigo-400
+  '#fb7185', // rose-400
+  '#34d399', // emerald-400
+  '#fbbf24', // amber-400
+  '#a78bfa', // violet-400
+  '#22d3ee', // cyan-400
+  '#f472b6', // pink-400
+  '#fb923c', // orange-400
+];
+
+/**
+ * Lighten a hex colour by mixing it toward white.
+ * @param hex  7-char hex string, e.g. "#f87171"
+ * @param t    0 = unchanged, 1 = pure white
+ */
+export function brightenColor(hex: string, t: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const mix = (c: number) => Math.round(c + (255 - c) * t);
+  return `#${mix(r).toString(16).padStart(2, '0')}${mix(g).toString(16).padStart(2, '0')}${mix(b).toString(16).padStart(2, '0')}`;
+}
+
+/** Which ink reads on a face of this colour: dark on a pale face, light on a deep one, judged by the
+ *  face's relative luminance. A colour that is not a hex triplet — a name, an `rgb()` — takes light
+ *  ink, which reads on every face the model is likely to declare. */
+export function inkFor(colour: string): 'light' | 'dark' {
+  const channels = hexChannels(colour);
+  if (!channels) return 'light';
+  const linear = (channel: number) => {
+    const fraction = channel / 255;
+    return fraction <= 0.03928 ? fraction / 12.92 : ((fraction + 0.055) / 1.055) ** 2.4;
+  };
+  const [red, green, blue] = channels.map(linear);
+  const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+  return luminance > PALE_FACE_LUMINANCE ? 'dark' : 'light';
+}
+
+/** Above this the face is pale enough that white ink washes out. */
+const PALE_FACE_LUMINANCE = 0.55;
+
+function hexChannels(colour: string): [number, number, number] | null {
+  const hex = colour.trim();
+  const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex);
+  if (!match) return null;
+  const digits = match[1].length === 3 ? [...match[1]].map((digit) => digit + digit).join('') : match[1];
+  return [0, 2, 4].map((at) => parseInt(digits.slice(at, at + 2), 16)) as [number, number, number];
+}
+
+/** Deterministic hash of a string into a palette index. */
+export function hashStringToIndex(s: string, paletteSize: number): number {
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) {
+    hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % paletteSize;
+}
+
+import { CURATED_PREDICATE_COLORS } from './predicatePalette';
+
+/**
+ * Resolve a predicate's edge color. Three-tier priority chain:
+ *
+ *   1. User override from GUI_Settings.PredicateColors (per-deployment
+ *      customization — Mycelium-stored, fetched on login)
+ *   2. Curated default from CURATED_PREDICATE_COLORS (semantic grouping
+ *      so material edges read as a family, MEP connectivity stands out, etc.)
+ *   3. Hash fallback into PREDICATE_PALETTE (deterministic per name —
+ *      anything not curated still gets a stable color)
+ *
+ * @param name       Predicate name (e.g. "hasPort", "consumes")
+ * @param overrides  Name→hex map from GUI_Settings.PredicateColors
+ */
+export function resolvePredicateColor(
+  name: string,
+  overrides: Record<string, string>,
+): string {
+  if (overrides[name]) return overrides[name];
+  if (CURATED_PREDICATE_COLORS[name]) return CURATED_PREDICATE_COLORS[name];
+  return PREDICATE_PALETTE[hashStringToIndex(name, PREDICATE_PALETTE.length)];
+}

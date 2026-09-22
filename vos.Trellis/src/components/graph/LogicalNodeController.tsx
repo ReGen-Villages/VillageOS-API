@@ -1,0 +1,102 @@
+import { useEffect, useRef } from 'react';
+import { useSigma } from '@react-sigma/core';
+import { useUiStore } from '../../stores/uiStore';
+import { getLogicalChildren } from '../../utils/graphologyMapper';
+
+/**
+ * Renderless Sigma child component handling two responsibilities:
+ *
+ * A) **Radial positioning** — when a geo parent is expanded, positions its
+ *    logical children in a circle around the parent's current (x, y).
+ *
+ * B) **Semantic zoom** — watches camera ratio and auto-expands nearby
+ *    geo parents when zoomed in, collapses all when zoomed out.
+ *
+ * Must be rendered as a child of <SigmaContainer>.
+ */
+export function LogicalNodeController() {
+  const sigma = useSigma();
+  const expandedLogicalParents = useUiStore((s) => s.expandedLogicalParents);
+  const semanticZoomEnabled = useUiStore((s) => s.semanticZoomEnabled);
+  const lastRatioReference = useRef<number | null>(null);
+  const debounceReference = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const graph = sigma.getGraph();
+
+    for (const parentId of expandedLogicalParents) {
+      if (!graph.hasNode(parentId)) continue;
+
+      const children = getLogicalChildren(graph, parentId);
+      if (children.length === 0) continue;
+
+      const parentAttributes = graph.getNodeAttributes(parentId);
+      const px = parentAttributes.x as number;
+      const py = parentAttributes.y as number;
+
+      // Radius scales with child count so they don't overlap
+      const radius = Math.max(30, children.length * 5);
+      const angleStep = (2 * Math.PI) / children.length;
+
+      children.forEach((childId, i) => {
+        if (!graph.hasNode(childId)) return;
+        const angle = angleStep * i - Math.PI / 2;
+        graph.setNodeAttribute(childId, 'x', px + radius * Math.cos(angle));
+        graph.setNodeAttribute(childId, 'y', py + radius * Math.sin(angle));
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [[...expandedLogicalParents].sort().join(','), sigma]);
+
+  useEffect(() => {
+    if (!semanticZoomEnabled) return;
+
+    const camera = sigma.getCamera();
+
+    const handler = () => {
+      if (debounceReference.current) clearTimeout(debounceReference.current);
+      debounceReference.current = setTimeout(() => {
+        const ratio = camera.getState().ratio;
+        const previous = lastRatioReference.current;
+        lastRatioReference.current = ratio;
+
+        if (previous !== null && Math.abs(ratio - previous) < 0.05) return;
+
+        const graph = sigma.getGraph();
+        const state = useUiStore.getState();
+
+        if (ratio < 0.3) {
+          const viewCenter = sigma.viewportToGraph({ x: sigma.getContainer().clientWidth / 2, y: sigma.getContainer().clientHeight / 2 });
+          const gcx = viewCenter.x;
+          const gcy = viewCenter.y;
+
+          const searchRadius = 150 * ratio;
+          graph.forEachNode((nodeId, attributes) => {
+            if (!attributes.hasGeometry) return;
+            const dx = (attributes.x as number) - gcx;
+            const dy = (attributes.y as number) - gcy;
+            if (dx * dx + dy * dy < searchRadius * searchRadius) {
+              const children = getLogicalChildren(graph, nodeId);
+              if (children.length > 0 && !state.expandedLogicalParents.has(nodeId)) {
+                state.expandLogicalParent(nodeId);
+              }
+            }
+          });
+        }
+
+        if (ratio > 1.5 && state.expandedLogicalParents.size > 0) {
+          state.clearLogicalExpansions();
+        }
+      }, 200);
+    };
+
+    sigma.on('afterRender', handler);
+
+    return () => {
+      sigma.off('afterRender', handler);
+      if (debounceReference.current) clearTimeout(debounceReference.current);
+    };
+  }, [sigma, semanticZoomEnabled]);
+
+  return null;
+}

@@ -1,0 +1,150 @@
+using System.Globalization;
+using System.Text.Json;
+using vos.Auth.Shared;
+using vos.Service.Tributary.Helpers;
+using vos.Service.Tributary.Models;
+using vos.Service.Tributary.Services;
+using vos.Service.Shared;
+using vos.Service.Shared.Hosting;
+using vos.Service.Shared.Configuration;
+using vos.Service.Shared.Subscriptions;
+using vos.Service.Shared.Validation;
+using Serilog;
+
+
+var builder = WebApplication.CreateBuilder(args);
+
+var launchSettings = ServiceLaunchSettings.Parse(args, builder.Configuration);
+if (launchSettings == null)
+{
+    Console.WriteLine(ServiceLaunchSettings.UsageMessage);
+    Environment.Exit(1);
+    return;
+}
+
+var servicePort = launchSettings.Port;
+var myceliumUrl = launchSettings.MyceliumUrl;
+var serviceToken = launchSettings.Token;
+var apiKey = launchSettings.ApiKey;
+var verificationKey = launchSettings.VerificationKey;
+
+var isTestingEnv = builder.Environment.IsEnvironment("Testing");
+ServiceHost.ConfigureLogging("Tributary", "tributary-.log", writeToFile: !isTestingEnv);
+
+try
+{
+    Log.Information("VillageOS Tributary Service - Port: {Port}, Mycelium: {MyceliumUrl}", servicePort, myceliumUrl);
+
+    builder.Host.UseSerilog();
+    builder.WebHost.UseUrls($"http://localhost:{servicePort}");
+    builder.Services.AddHttpClient();
+
+    // Validate with the issuer and audience Mycelium passes on the command line, so validation
+    // matches what Mycelium signed.
+    var authEnabled = !string.IsNullOrEmpty(verificationKey);
+    if (authEnabled)
+    {
+        builder.AddMyceliumTokenAuth(
+            verificationKey!,
+            issuer: launchSettings.Issuer,
+            audience: launchSettings.Audience);
+        Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",
+            launchSettings.Issuer, launchSettings.Audience);
+    }
+
+    builder.Services.AddSingleton(sp =>
+        new MyceliumClient(
+            sp.GetRequiredService<IHttpClientFactory>(),
+            sp.GetRequiredService<ILogger<MyceliumClient>>(),
+            myceliumUrl,
+            serviceToken, apiKey: apiKey));
+    builder.Services.AddSingleton<IEndpointMyceliumClient>(sp => sp.GetRequiredService<MyceliumClient>());
+    // Reads which kinds an endpoint reaches. A scoped snapshot, not a property read, because a kind
+    // is a Thing the endpoint relates to rather than a word it carries.
+    builder.Services.AddSingleton<ISubscriptionClient>(sp =>
+        new SubscriptionClient(
+            sp.GetRequiredService<IHttpClientFactory>(),
+            sp.GetRequiredService<ILogger<SubscriptionClient>>(),
+            myceliumUrl,
+            serviceToken, apiKey: apiKey));
+    builder.Services.AddSingleton<ObservationIngestService>();
+    // Per-process token-exchange cache. TimeProvider.System drives its refresh threshold;
+    // tests substitute a fake clock. Singleton so the cache survives across /handle requests.
+    builder.Services.AddSingleton(TimeProvider.System);
+    builder.Services.AddSingleton<TokenExchangeCache>();
+    // The DiskCache kind's store. One root for the process; entries live under one
+    // directory per endpoint. The root is deployment configuration, not endpoint config.
+    var cacheDirectory = builder.Configuration["CacheDirectory"]
+        ?? Path.Combine(Directory.GetCurrentDirectory(), "cache");
+    builder.Services.AddSingleton(sp =>
+        new DiskResponseCache(cacheDirectory, sp.GetRequiredService<TimeProvider>()));
+    builder.Services.AddSingleton<EndpointCallService>();
+
+    var app = builder.Build();
+
+    if (authEnabled)
+    {
+        app.UseAuthentication();
+        app.UseAuthorization();
+        app.UseMyceliumModelToken();
+    }
+
+    var handleEndpoint = app.MapPost("/handle", async (
+        EndpointCallRequest request,
+        EndpointCallService endpointCallService,
+        HttpContext httpContext) =>
+    {
+        var result = await endpointCallService.ExecuteAsync(request, httpContext.RequestAborted);
+        return ToHttpResult(result);
+    });
+    if (authEnabled) handleEndpoint.RequireAuthorization();
+
+    app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "Tributary" }));
+
+    var shutdownEndpoint = app.MapPost("/shutdown", (IHostApplicationLifetime lifetime) =>
+    {
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(300);
+            lifetime.StopApplication();
+        });
+
+        return Results.Ok(new { message = "Shutting down Tributary" });
+    });
+    if (authEnabled) shutdownEndpoint.RequireAuthorization();
+
+    app.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Tributary terminated unexpectedly");
+}
+finally
+{
+    Log.CloseAndFlush();
+}
+
+static IResult ToHttpResult(EndpointCallResult result)
+{
+    if (result.Error is ProblemError problem)
+        return Results.Problem(detail: problem.Detail, statusCode: problem.StatusCode, title: problem.Title);
+    if (result.Error is JsonError jsonError)
+        return Results.Json(jsonError.Body, statusCode: jsonError.StatusCode);
+    if (result.Ingest is { } ingest)
+        return Results.Ok(new
+        {
+            success = true,
+            endpointThingId = ingest.EndpointThingId,
+            entitiesTouched = ingest.EntitiesTouched,
+            observationsSubmitted = ingest.ObservationsSubmitted,
+            written = ingest.Written,
+            message = "Readings ingested as observations on entity series."
+        });
+    return Results.Content(result.Content!, result.ContentType ?? "application/json",
+        statusCode: result.StatusCode);
+}
+
+// Exposed to WebApplicationFactory<Program> in the test project per docs/SERVICES.md.
+// Top-level statements compile to a `Program` class that is internal by default — this empty
+// partial declaration just elevates it to public so the test factory can name it.
+public partial class Program { }

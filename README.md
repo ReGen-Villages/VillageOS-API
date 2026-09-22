@@ -1,1 +1,166 @@
-# VillageOS%20API
+# VillageOS API
+
+> ⚠️ **Prerelease — work in progress. Not production ready.**
+> This is pre-1.0 software under active development. APIs, data shapes, seed formats, and behaviour can
+> change without notice or backward compatibility, and interfaces marked "Production" in the table below
+> describe intended scope, not a stability or support guarantee. Expect rough edges, incomplete features,
+> and breaking changes. Do not rely on it for production workloads.
+
+This repository holds the **client-facing tools** for [VillageOS](https://dev.azure.com/ReGenVillages/VillageOS), a *temporal graph platform* — a database that stores everything as connected "Things" and remembers how they change over time.
+
+Three kinds of tool live here:
+
+- **Trellis** — a web GUI for exploring and monitoring a model in the browser.
+- **Taproot** — a command-line interface for the same operations.
+- **Microservices** — small networked services that extend the platform (ingesting data, running simulations, orchestrating pipelines).
+
+Everything talks to **Mycelium**, the VillageOS server that stores the graph and exposes the REST API and real-time event streams. (Mycelium itself lives in a separate repository.)
+
+## Projects
+
+### Trellis (GUI)
+
+**vos.Trellis** — React application for graph visualization and interaction.
+
+- Sigma.js v3 + graphology for graph rendering
+- Three.js + `@thatopen/fragments` for the IFC Model viewer (loader, picking, plan/section toolbar, and shared `NodeDetailPanel`)
+- Server-Sent Events (SSE) real-time updates with flash effects
+- Zustand state management
+- Config-driven **Operations** dashboard — a model supplies a JSON spec and Trellis renders KPI, chart, funnel, table, and leaderboard widgets against it (the GUI stays domain-agnostic)
+- Dashboard, Operations, Compose, Intake, Submissions, Graph, Temporal, Things, Properties, Model, Pipelines and Logs pages, plus every page the platform declares for the signed-in account (Accounts, for an administrator), drawn like a model's own
+
+### Taproot (CLI)
+
+**vos.Taproot** — Command-line interface for the Mycelium.
+
+- Interactive shell with command history and line editing
+- CRUD commands (create, get, list, delete, set, query, find), with narrowed lists
+- Ranges and states, including each Thing's state history
+- Temporal queries (snapshot, at, history, mutations)
+- Service management (list, start and stop a service; call an endpoint or a handler), pipelines, the event stream and the logs
+- Seeds, models and fragments (serialize, deserialize, plant, apply, ingest), submissions and accounts
+
+### Microservices
+
+| Service | Type | Description |
+|---------|------|-------------|
+| vos.Service.Delta | Production | Registers data sources against a single-rooted endpoint-template graph (`is`-inheritance), with schema discovery and saga compensation |
+| vos.Service.Tributary | Production | HTTP endpoint calling with JSONata response transforms; config-driven token-exchange auth + offset pagination (e.g. ESRI/ArcGIS) |
+| vos.Service.Metabolism | Production | Consume/produce simulation — decrements/increments a target property's quantity at a configured rate; backs the `consumes`/`produces` Handled Predicates |
+| vos.Service.Phloem | Production | Pipeline/DAG orchestrator — runs a user-authored DAG of microservice nodes; spawned synchronously through Mycelium, dispatches each node via endpoint-forward (see [SERVICES.md §16](docs/SERVICES.md)) |
+| vos.Service.Xylem | Production | IFC ingestion — accepts an `.ifc` upload (`POST /ingest`, merge or new-model), runs the `vos.Tools.ModelIngest` tool, and applies the graph to Mycelium; frees clients from a local ingest toolchain. Large files: `?async=true` returns a job id (poll `GET /ingest/jobs/{id}`) and the upload is streamed with a configurable cap |
+| vos.Service.Forage | Production | Resolves a site against every data source covering it, calls Tributary for each, and starts the site's analysis by relating its study to each marked compute connection (see [FORAGE.md](docs/FORAGE.md)) |
+| vos.Service.Intake | Production | Takes a land-intake submission and composes the Site, Parcel and study it becomes, applied as one all-or-nothing fragment; registers with nothing and holds its own credential (see [LAND_INTAKE.md](docs/LAND_INTAKE.md)) |
+| vos.Service.EnergyBalance | Production | Site energy-balance simulation — sums generation (e.g. solar: PV area × resource × efficiency) against demand; a Handled-Predicate service in the same family as Metabolism |
+| vos.Service.WaterReserve | Production | Water-reserve simulation — tracks stored water against consumption (e.g. an emergency reserve under a supply failure). A pipeline node only: a site study declares all four of its figures as formulas, so nothing dispatches it against a study |
+| vos.Service.ModelBridge | Production | Generic bridge between a pipeline DAG and the model — reads a property off a Thing or writes a computed result back (see [MODELBRIDGE.md](docs/MODELBRIDGE.md)) |
+| vos.Service.CSharp.Echo | Example (C#) | Minimal managed microservice demonstrating the lifecycle — the canonical reference; also the reference pipeline DAG node |
+| vos.Service.Go.Echo | Example (Go) | The same handler in Go (standard library, zero deps) |
+| vos.Service.Node.Echo | Example (Node/TS) | The same handler in TypeScript (Node built-ins, zero runtime deps) |
+| vos.Service.Python.Echo | Example (Python) | The same handler in FastAPI |
+| vos.Service.Rust.Echo | Example (Rust) | The same handler in Axum |
+
+Writing your own handler in any language? See **[docs/SERVICE_AUTHORING.md](docs/SERVICE_AUTHORING.md)** — the language-agnostic contract (HTTP + one JWT signed on the P-256 elliptic curve) that every example above implements.
+
+## Prerequisites
+
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+- [Node.js 22](https://nodejs.org/) (for Trellis; Vite 7 accepts 20.19 or later, and the build uses 22)
+
+## Getting Started
+
+### .NET projects (Taproot, microservices)
+
+```bash
+dotnet restore
+dotnet build
+dotnet test
+```
+
+### Trellis (GUI)
+
+```bash
+cd vos.Trellis
+npm ci
+npm run dev      # Development server on :5173 (proxies /api to https://localhost:7243)
+npm run build    # Production build into ./dist (type-checks first)
+npm test         # Run tests
+npm run test:integration   # Tests that need a running Mycelium (see below)
+npm run lint     # Lint
+```
+
+The build runs `npm run lint`, `npm test` and `npm run build`, so a failure in any of them fails the
+build — and on `develop` stops the wiki publish and the GitHub mirror. It runs when `develop` or
+`main` moves and when a pull request into `develop` is validated; a push to a branch with no pull
+request open builds nothing. Run them before pushing rather than finding out from the build.
+
+A build **against `main`** compiles Release — a merge to it, and a pull request targeting it, since
+a merge is too late to learn that Release does not compile. Every other build compiles Debug, which
+is what you run locally. The difference is not only optimization here: `MyceliumClientBase` throws
+on an outbound contract violation in Debug and logs it in Release. `develop` is the branch that
+publishes: the documentation to the project wiki, and the repository and that wiki to GitHub, so
+what is public is what has been integrated rather than what was last promoted.
+
+`npm test` runs offline. `npm run test:integration` covers what only a live
+platform can answer — currently that the property type names Trellis holds are
+the ones the platform's write routes accept, so a type added on one side and not
+the other is caught rather than surfacing later as a property the GUI
+mishandles. It needs a Mycelium running, so it is not part of the build above;
+the VillageOS pipeline runs it in every build it does, because that build can
+start one. Point it elsewhere with `VOS_INTEGRATION_URL`,
+`VOS_INTEGRATION_USERNAME` and `VOS_INTEGRATION_PASSWORD`.
+
+Trellis connects to the Mycelium at `https://localhost:7243` by default.
+
+### Testing a service against the real platform
+
+`Tests/vos.BrokerContract.Tests` runs a service's own broker client against a **real Mycelium started
+inside the test process** — real routes, real inheritance, real write semantics, over no network.
+Every other service suite answers the platform with a stand-in it wrote itself, which encodes what
+its author believed the platform does; three services turned out to be writing a shape the platform
+refuses, and every one of their cases passed.
+
+It needs the platform's engine, which lives in the VillageOS repository, so it does not run from a
+plain `dotnet test` here. Stage one and run it:
+
+```bash
+./ci/stage-the-engine.sh                 # from a VillageOS checkout beside this one
+./ci/stage-the-engine.sh /path/to/VillageOS   # or name it
+dotnet test Tests/vos.BrokerContract.Tests
+```
+
+With nothing staged the project still builds, and its suite reports one skipped case saying so
+rather than a green run over nothing. The VillageOS pipeline runs it in every build it does, because
+that build has the engine to stage; point it at a staged engine elsewhere with `-p:VosRelease=`.
+
+#### Building directly into a Mycelium's wwwroot
+
+Set `VOS_MYCELIUM_WWWROOT` to an absolute path to have `npm run build` emit the
+bundle straight into a Mycelium's static file directory, e.g.:
+
+```bash
+VOS_MYCELIUM_WWWROOT=/absolute/path/to/VillageOS/vos.Mycelium/wwwroot npm run build
+```
+
+When the env var is unset, the build lands in `vos.Trellis/dist/` as a normal
+local artifact.
+
+## Documentation
+
+In-repo docs live in **[docs/](docs/README.md)** — an indexed map grouped by client tools, platform concepts, and microservice authoring.
+
+The same documentation is published to the [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki), which is **generated from the files in `docs/`** on every build of `develop` — edit the file, never the wiki page. See [tools/docs-to-wiki](tools/docs-to-wiki/).
+
+Key pages:
+
+- [Field Guide](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FField%20Guide) — the whole platform for every reader: the console page by page, the command line command by command, and the page-authoring contract
+- [Services](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FServices) — the service host, the wire contract, and each service
+
+## License
+
+Copyright (c) ReGen Villages BV.
+
+This project is dual-licensed:
+
+- **AGPL v3** — Free for open source use. Derivative works must be open source and attribute ReGen Villages BV. See [LICENSE](LICENSE).
+- **Commercial License** — Available from ReGen Villages BV for proprietary use. See [LICENSE-COMMERCIAL](LICENSE-COMMERCIAL.md).

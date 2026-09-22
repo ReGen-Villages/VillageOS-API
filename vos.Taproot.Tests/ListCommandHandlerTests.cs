@@ -1,0 +1,700 @@
+using System.Text.Json;
+using vos.Taproot;
+using Moq;
+using Xunit;
+
+namespace vos.Taproot.Tests;
+
+public class ListCommandHandlerTests
+{
+    private readonly Mock<MyceliumClient> _myceliumMock;
+    private readonly StringWriter _writer;
+
+    public ListCommandHandlerTests()
+    {
+        _myceliumMock = new Mock<MyceliumClient>("https://localhost:7243") { CallBase = false };
+        _writer = new StringWriter();
+    }
+
+    private async Task ExecuteHandler(string arg)
+    {
+        var handler = new ListCommandHandler(arg, _writer, _myceliumMock.Object);
+        await handler.ExecuteAsync();
+    }
+
+    // Mock the bulk properties endpoint `list` reads inherited properties from.
+    private void SetupEffective(string effectiveJson) =>
+        _myceliumMock.Setup(b => b.GetAllPropertiesAsync(It.IsAny<string>()))
+            .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(effectiveJson));
+
+    private static JsonElement Json(string text) => JsonSerializer.Deserialize<JsonElement>(text);
+
+    [Fact]
+    public async Task ListThings_PassesEveryNarrowingOptionToTheRoute()
+    {
+        var site = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(Json($"[{{\"Id\":\"{site}\",\"Name\":\"Site-1\"}}]"));
+        _myceliumMock.Setup(b => b.GetThingsAsync(It.Is<ThingListNarrowing>(n =>
+                n.Type == "Home" && n.Within == site && n.Limit == 5 && n.Properties == "area,storeys" && n.Names == "Home-1,Home-2")))
+            .ReturnsAsync(Json("[{\"Id\":\"a\",\"Name\":\"Home-1\",\"Properties\":{\"area\":120}}]"));
+
+        await ExecuteHandler("things --type=Home --within=Site-1 --limit=5 --properties=area,storeys --name=Home-1,Home-2");
+
+        var output = _writer.ToString();
+        Assert.Contains("Things (1)", output);
+        Assert.Contains("Home-1", output);
+        _myceliumMock.Verify(b => b.GetAllPropertiesAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ListThings_NarrowedWithoutNamingProperties_StillReadsTheInheritedOnes()
+    {
+        _myceliumMock.Setup(b => b.GetThingsAsync(It.Is<ThingListNarrowing>(n => n.Type == "Home" && n.Within == null)))
+            .ReturnsAsync(Json("[{\"Id\":\"a\",\"Name\":\"Home-1\"}]"));
+        SetupEffective("{\"a\":{\"Building.storeys\":{\"Value\":2,\"IsInherited\":true}}}");
+
+        await ExecuteHandler("things --type=Home");
+
+        Assert.Contains("Building.storeys: 2 (inherited)", _writer.ToString());
+        _myceliumMock.Verify(b => b.GetAllThingsAsync(), Times.Never);
+    }
+
+    [Fact]
+    public async Task ListThings_WithNoOptions_ReadsTheWholeModelAsBefore()
+    {
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(Json("[{\"Id\":\"a\",\"Name\":\"Home-1\"}]"));
+
+        await ExecuteHandler("things");
+
+        Assert.Contains("Home-1", _writer.ToString());
+        _myceliumMock.Verify(b => b.GetThingsAsync(It.IsAny<ThingListNarrowing>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ListThings_WithinANameTheModelDoesNotHold_SaysSoAndReadsNothing()
+    {
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(Json("[]"));
+
+        await ExecuteHandler("things --within=Nowhere");
+
+        Assert.Contains("Error:", _writer.ToString());
+        _myceliumMock.Verify(b => b.GetThingsAsync(It.IsAny<ThingListNarrowing>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ListUsage_NamesTheNarrowingOptions()
+    {
+        await ExecuteHandler("");
+
+        Assert.Contains("--type=", _writer.ToString());
+        Assert.Contains("--within=", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task ListThings_WithNoThings_ShowsNoThings()
+    {
+        var json = JsonSerializer.Deserialize<JsonElement>("[]");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+
+        await ExecuteHandler("things");
+
+        Assert.Contains("No things found", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task ListThings_WithThings_ListsThings()
+    {
+        var thingId = Guid.NewGuid();
+        var json = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{thingId}\",\"Name\":\"TestThing\"}}]");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+
+        await ExecuteHandler("things");
+
+        var output = _writer.ToString();
+        Assert.Contains("Things (1)", output);
+        Assert.DoesNotContain(thingId.ToString(), output);
+        Assert.Contains("TestThing", output);
+    }
+
+    [Fact]
+    public async Task ListRelations_WithNoRelationships_ShowsNoRelationships()
+    {
+        var json = JsonSerializer.Deserialize<JsonElement>("[]");
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(json);
+
+        await ExecuteHandler("relations");
+
+        Assert.Contains("No relationships found", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task ListRelations_WithRelationships_ListsRelationships()
+    {
+        var relId = Guid.NewGuid();
+        var subjectId = Guid.NewGuid();
+        var predicateId = Guid.NewGuid();
+        var targetId = Guid.NewGuid();
+        var json = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"Id\":\"{relId}\",\"Name\":\"likes\",\"SubjectId\":\"{subjectId}\",\"PredicateId\":\"{predicateId}\",\"TargetId\":\"{targetId}\"}}]");
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(json);
+
+        await ExecuteHandler("relations");
+
+        var output = _writer.ToString();
+        Assert.Contains("Relationships (1)", output);
+        Assert.Contains("likes", output);
+    }
+
+    [Fact]
+    public async Task ListPredicates_WithNoRelationships_ShowsNoPredicates()
+    {
+        var thingsJson = JsonSerializer.Deserialize<JsonElement>("[]");
+        var relsJson = JsonSerializer.Deserialize<JsonElement>("[]");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsJson);
+
+        await ExecuteHandler("predicates");
+
+        Assert.Contains("No predicates found", _writer.ToString());
+    }
+
+    // The platform answers a relationship as { Id, SubjectId, PredicateId, TargetId, Properties }; the
+    // predicate is a Thing the PredicateId names.
+    [Fact]
+    public async Task ListPredicates_NamesEachPredicateThroughItsIdAndCountsItsUses()
+    {
+        var likes = Guid.NewGuid();
+        var owns = Guid.NewGuid();
+        var thingsJson = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"Id\":\"{likes}\",\"Name\":\"likes\"}},{{\"Id\":\"{owns}\",\"Name\":\"owns\"}}]");
+        var relsJson = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"PredicateId\":\"{likes}\"}},{{\"PredicateId\":\"{owns}\"}},{{\"PredicateId\":\"{likes}\"}}]");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsJson);
+
+        await ExecuteHandler("predicates");
+
+        var output = _writer.ToString();
+        Assert.Contains("Predicates (2)", output);
+        Assert.Contains("likes (used in 2 relationship(s))", output);
+        Assert.Contains("owns (used in 1 relationship(s))", output);
+        Assert.DoesNotContain("unknown", output);
+    }
+
+    private static JsonElement Connections(string body) =>
+        JsonSerializer.Deserialize<JsonElement>(body);
+
+    private static string Connection(Guid id, string name, bool bindsService = true,
+        string executablePath = "/path/to/exec", string? runMode = "daemon", string? trigger = "graph")
+    {
+        string Field(string field, string? value) => value is null ? $"\"{field}\":null" : $"\"{field}\":\"{value}\"";
+        return $"{{\"ConnectionId\":\"{id}\",\"Name\":\"{name}\"," +
+               $"{Field("Trigger", trigger)},\"BindsService\":{bindsService.ToString().ToLowerInvariant()}," +
+               $"{Field("ExecutablePath", bindsService ? executablePath : null)},{Field("RunMode", runMode)}}}";
+    }
+
+    [Fact]
+    public async Task ListHandlers_WithNoHandlers_ShowsNoHandlers()
+    {
+        _myceliumMock.Setup(b => b.GetAllConnectionsAsync()).ReturnsAsync(Connections("[]"));
+
+        await ExecuteHandler("handlers");
+
+        Assert.Contains("No handlers found", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task ListHandlers_WithHandlers_ShowsHandlers()
+    {
+        var handlerId = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetAllConnectionsAsync())
+            .ReturnsAsync(Connections($"[{Connection(handlerId, "MyHandler")}]"));
+
+        await ExecuteHandler("handlers");
+
+        var output = _writer.ToString();
+        Assert.Contains("Handlers (1)", output);
+        Assert.Contains("MyHandler", output);
+        Assert.Contains("/path/to/exec", output);
+    }
+
+    [Fact]
+    public async Task ListHandlers_ReportsTheRunModeThePlatformResolved()
+    {
+        // The run mode may be held on the service, inherited from the prototype it `is`, or reached by an
+        // relationship. Which of those it was is the platform's business; this command prints the answer.
+        var id = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetAllConnectionsAsync())
+            .ReturnsAsync(Connections($"[{Connection(id, "Oneshot", runMode: "oneshot")}]"));
+
+        await ExecuteHandler("handlers");
+
+        Assert.Contains("Mode: oneshot", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task ListHandlers_ARunModeNothingStates_SaysSoRatherThanPrintingADefault()
+    {
+        // It printed "daemon" whenever the property was absent, so a model that said nothing and a model
+        // that said daemon read identically — and after the platform moves the value, every model would
+        // have read as daemon whatever it declared.
+        var id = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetAllConnectionsAsync())
+            .ReturnsAsync(Connections($"[{Connection(id, "Unstated", runMode: null)}]"));
+
+        await ExecuteHandler("handlers");
+
+        var output = _writer.ToString();
+        Assert.Contains("Mode: not stated", output);
+        Assert.DoesNotContain("Mode: daemon", output);
+    }
+
+    [Fact]
+    public async Task ListHandlers_AConnectionBindingNoService_IsNotAHandler()
+    {
+        // It is declared and cannot run. Listing it as a handler would claim it has something to launch.
+        var id = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetAllConnectionsAsync())
+            .ReturnsAsync(Connections($"[{Connection(id, "Unbound", bindsService: false, runMode: null)}]"));
+
+        await ExecuteHandler("handlers");
+
+        var output = _writer.ToString();
+        Assert.Contains("No handlers found", output);
+        Assert.DoesNotContain("Unbound", output);
+    }
+
+    [Fact]
+    public async Task ListHandlers_ShowsHowEachHandlerIsReached()
+    {
+        var id = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetAllConnectionsAsync())
+            .ReturnsAsync(Connections($"[{Connection(id, "Echo", trigger: "http")}]"));
+
+        await ExecuteHandler("handlers");
+
+        Assert.Contains("Reached by: http", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task ListServices_WithNoServices_ShowsNoServices()
+    {
+        var json = JsonSerializer.Deserialize<JsonElement>("[]");
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(json);
+
+        await ExecuteHandler("services");
+
+        Assert.Contains("No running microservices found", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task ListServices_WithServices_ShowsServices()
+    {
+        var handlerId = Guid.NewGuid();
+        var json = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"HandlerId\":\"{handlerId}\",\"ServiceName\":\"IsHandler\",\"EndpointUrl\":\"https://localhost:5100\",\"HealthStatus\":\"Healthy\",\"IsRunning\":true}}]");
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(json);
+
+        await ExecuteHandler("services");
+
+        var output = _writer.ToString();
+        Assert.Contains("Microservices (1)", output);
+        Assert.Contains("IsHandler", output);
+        Assert.Contains("Running", output);
+        Assert.Contains("https://localhost:5100", output);
+        Assert.Contains("Healthy", output);
+    }
+
+    [Fact]
+    public async Task ListServices_WithStoppedService_ShowsStopped()
+    {
+        var handlerId = Guid.NewGuid();
+        var json = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"HandlerId\":\"{handlerId}\",\"ServiceName\":\"StoppedService\",\"EndpointUrl\":\"https://localhost:5200\",\"HealthStatus\":\"Unknown\",\"IsRunning\":false}}]");
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(json);
+
+        await ExecuteHandler("services");
+
+        var output = _writer.ToString();
+        Assert.Contains("Stopped", output);
+        Assert.Contains("StoppedService", output);
+    }
+
+    [Fact]
+    public async Task ListServices_PrintsStatisticsAndDaemonDetail()
+    {
+        var handlerId = Guid.NewGuid();
+        var json = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"HandlerId\":\"{handlerId}\",\"ServiceName\":\"Metabolism\",\"EndpointUrl\":\"https://localhost:5100\",\"HealthStatus\":\"Healthy\","
+            + "\"Stats\":{\"RequestsForwarded\":12,\"TotalResponseMilliseconds\":300,\"AverageResponseMilliseconds\":25.0,\"ErrorCount\":2,\"LastRequestUtc\":\"2026-09-20T10:15:30Z\"},"
+            + "\"IsRunning\":true,\"ProcessId\":4242,\"IsExternal\":true,\"LastContactTime\":\"2026-09-20T10:16:00Z\",\"ConsecutiveFailures\":3}]");
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(json);
+
+        await ExecuteHandler("services");
+
+        var output = _writer.ToString();
+        Assert.Contains("Requests: 12, average 25 ms, 2 error(s), last 2026-09-20T10:15:30Z", output);
+        Assert.Contains("Process: 4242, external, last contact 2026-09-20T10:16:00Z", output);
+        Assert.Contains("Failures: 3", output);
+    }
+
+    [Fact]
+    public async Task ListServices_WithNothingBeyondTheBasics_PrintsNoPlaceholders()
+    {
+        var handlerId = Guid.NewGuid();
+        var json = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"HandlerId\":\"{handlerId}\",\"ServiceName\":\"Quiet\",\"EndpointUrl\":\"https://localhost:5300\",\"HealthStatus\":\"Unknown\",\"IsRunning\":false,\"ConsecutiveFailures\":0,"
+            + "\"Stats\":{\"RequestsForwarded\":0,\"TotalResponseMilliseconds\":0,\"AverageResponseMilliseconds\":0,\"ErrorCount\":0,\"LastRequestUtc\":null}}]");
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(json);
+
+        await ExecuteHandler("services");
+
+        var output = _writer.ToString();
+        Assert.Contains("Requests: 0", output);
+        Assert.DoesNotContain("last ", output);
+        Assert.DoesNotContain("Process:", output);
+        Assert.DoesNotContain("Failures:", output);
+        Assert.DoesNotContain("N/A", output);
+    }
+
+    [Fact]
+    public async Task ListServices_RunningWithoutAProcessId_PrintsTheProcessLineWithoutOne()
+    {
+        var handlerId = Guid.NewGuid();
+        var json = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"HandlerId\":\"{handlerId}\",\"ServiceName\":\"Adopted\",\"EndpointUrl\":\"https://localhost:5400\",\"HealthStatus\":\"Healthy\",\"IsRunning\":true,\"ProcessId\":null,\"IsExternal\":false,\"LastContactTime\":null}}]");
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(json);
+
+        await ExecuteHandler("services");
+
+        var output = _writer.ToString();
+        Assert.Contains("Process: running", output);
+        Assert.DoesNotContain("external", output);
+    }
+
+    [Fact]
+    public async Task List_NoArgs_ShowsUsage()
+    {
+        await ExecuteHandler("");
+
+        Assert.Contains("Usage:", _writer.ToString());
+    }
+
+    // --showguids flag tests
+
+    [Fact]
+    public async Task ListThings_WithShowGuidsFlag_ShowsGuids()
+    {
+        var thingId = Guid.NewGuid();
+        var json = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{thingId}\",\"Name\":\"TestThing\"}}]");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+
+        await ExecuteHandler("things --showguids");
+
+        var output = _writer.ToString();
+        Assert.Contains("TestThing", output);
+        Assert.Contains(thingId.ToString(), output);
+    }
+
+    [Fact]
+    public async Task ListThings_WithoutShowGuidsFlag_HidesGuids()
+    {
+        var thingId = Guid.NewGuid();
+        var json = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{thingId}\",\"Name\":\"TestThing\"}}]");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+
+        await ExecuteHandler("things");
+
+        var output = _writer.ToString();
+        Assert.Contains("TestThing", output);
+        Assert.DoesNotContain(thingId.ToString(), output);
+    }
+
+    [Fact]
+    public async Task ListThings_WithShortFlag_ShowsGuids()
+    {
+        var thingId = Guid.NewGuid();
+        var json = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{thingId}\",\"Name\":\"TestThing\"}}]");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+
+        await ExecuteHandler("things -g");
+
+        var output = _writer.ToString();
+        Assert.Contains("TestThing", output);
+        Assert.Contains(thingId.ToString(), output);
+    }
+
+    [Fact]
+    public async Task ListRelations_WithShowGuidsFlag_ShowsGuids()
+    {
+        var relId = Guid.NewGuid();
+        var subjectId = Guid.NewGuid();
+        var predicateId = Guid.NewGuid();
+        var targetId = Guid.NewGuid();
+        var thingsJson = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"Id\":\"{subjectId}\",\"Name\":\"Subject\"}},{{\"Id\":\"{predicateId}\",\"Name\":\"IsA\"}},{{\"Id\":\"{targetId}\",\"Name\":\"Target\"}}]");
+        var relsJson = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"Id\":\"{relId}\",\"Name\":\"likes\",\"SubjectId\":\"{subjectId}\",\"PredicateId\":\"{predicateId}\",\"TargetId\":\"{targetId}\"}}]");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsJson);
+
+        await ExecuteHandler("relations --showguids");
+
+        var output = _writer.ToString();
+        Assert.Contains("likes", output);
+        Assert.Contains(relId.ToString(), output);
+        Assert.Contains(subjectId.ToString(), output);
+        Assert.Contains(targetId.ToString(), output);
+    }
+
+    [Fact]
+    public async Task ListRelations_WithoutShowGuidsFlag_ShowsNamesOnly()
+    {
+        var relId = Guid.NewGuid();
+        var subjectId = Guid.NewGuid();
+        var predicateId = Guid.NewGuid();
+        var targetId = Guid.NewGuid();
+        var thingsJson = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"Id\":\"{subjectId}\",\"Name\":\"Subject\"}},{{\"Id\":\"{predicateId}\",\"Name\":\"IsA\"}},{{\"Id\":\"{targetId}\",\"Name\":\"Target\"}}]");
+        var relsJson = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"Id\":\"{relId}\",\"Name\":\"likes\",\"SubjectId\":\"{subjectId}\",\"PredicateId\":\"{predicateId}\",\"TargetId\":\"{targetId}\"}}]");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsJson);
+
+        await ExecuteHandler("relations");
+
+        var output = _writer.ToString();
+        Assert.Contains("likes", output);
+        Assert.Contains("Subject", output);
+        Assert.Contains("Target", output);
+        Assert.DoesNotContain(relId.ToString(), output);
+        Assert.DoesNotContain(subjectId.ToString(), output);
+    }
+
+    [Fact]
+    public async Task ListHandlers_WithShowGuidsFlag_ShowsGuids()
+    {
+        var handlerId = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetAllConnectionsAsync())
+            .ReturnsAsync(Connections($"[{Connection(handlerId, "MyHandler")}]"));
+
+        await ExecuteHandler("handlers --showguids");
+
+        var output = _writer.ToString();
+        Assert.Contains("MyHandler", output);
+        Assert.Contains(handlerId.ToString(), output);
+    }
+
+    [Fact]
+    public async Task ListHandlers_WithoutShowGuidsFlag_HidesGuids()
+    {
+        var handlerId = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetAllConnectionsAsync())
+            .ReturnsAsync(Connections($"[{Connection(handlerId, "MyHandler")}]"));
+
+        await ExecuteHandler("handlers");
+
+        var output = _writer.ToString();
+        Assert.Contains("MyHandler", output);
+        Assert.DoesNotContain(handlerId.ToString(), output);
+    }
+
+    [Fact]
+    public async Task ListServices_WithShowGuidsFlag_ShowsGuids()
+    {
+        var handlerId = Guid.NewGuid();
+        var thingsJson = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"Id\":\"{handlerId}\",\"Name\":\"IsHandler\"}}]");
+        var servicesJson = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"HandlerId\":\"{handlerId}\",\"ServiceName\":\"IsHandler\",\"EndpointUrl\":\"https://localhost:5100\",\"HealthStatus\":\"Healthy\",\"IsRunning\":true}}]");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(servicesJson);
+
+        await ExecuteHandler("services --showguids");
+
+        var output = _writer.ToString();
+        Assert.Contains("IsHandler", output);
+        Assert.Contains(handlerId.ToString(), output);
+    }
+
+    [Fact]
+    public async Task ListServices_WithoutShowGuidsFlag_HidesGuids()
+    {
+        var handlerId = Guid.NewGuid();
+        var thingsJson = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"Id\":\"{handlerId}\",\"Name\":\"IsHandler\"}}]");
+        var servicesJson = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"HandlerId\":\"{handlerId}\",\"ServiceName\":\"IsHandler\",\"EndpointUrl\":\"https://localhost:5100\",\"HealthStatus\":\"Healthy\",\"IsRunning\":true}}]");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(servicesJson);
+
+        await ExecuteHandler("services");
+
+        var output = _writer.ToString();
+        Assert.Contains("IsHandler", output);
+        Assert.DoesNotContain(handlerId.ToString(), output);
+    }
+
+    // Agents = alias for services (each service carries its daemon state inline)
+
+    [Fact]
+    public async Task ListAgents_WithNone_ShowsNoAgents()
+    {
+        var emptyJson = JsonSerializer.Deserialize<JsonElement>("[]");
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(emptyJson);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyJson);
+
+        await ExecuteHandler("agents");
+
+        Assert.Contains("No agents found", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task ListAgents_WithServices_ShowsServices()
+    {
+        var handlerId = Guid.NewGuid();
+        var thingsJson = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"Id\":\"{handlerId}\",\"Name\":\"IsHandler\"}}]");
+        var servicesJson = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"HandlerId\":\"{handlerId}\",\"ServiceName\":\"IsHandler\",\"EndpointUrl\":\"https://localhost:5100\",\"HealthStatus\":\"Healthy\",\"IsRunning\":true}}]");
+
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(servicesJson);
+
+        await ExecuteHandler("agents");
+
+        var output = _writer.ToString();
+        Assert.Contains("Registered Services (1)", output);
+        Assert.Contains("IsHandler", output);
+    }
+
+    [Fact]
+    public async Task ListAgents_WithShowGuidsFlag_ShowsGuids()
+    {
+        var handlerId = Guid.NewGuid();
+        var thingsJson = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"Id\":\"{handlerId}\",\"Name\":\"IsHandler\"}}]");
+        var servicesJson = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"HandlerId\":\"{handlerId}\",\"ServiceName\":\"IsHandler\",\"EndpointUrl\":\"https://localhost:5100\",\"HealthStatus\":\"Healthy\",\"IsRunning\":true}}]");
+
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(servicesJson);
+
+        await ExecuteHandler("agents --showguids");
+
+        var output = _writer.ToString();
+        Assert.Contains("IsHandler", output);
+        Assert.Contains(handlerId.ToString(), output);
+    }
+
+    #region Unknown Command and Edge Cases
+
+    [Fact]
+    public async Task List_UnknownSubcommand_ShowsUsage()
+    {
+        await ExecuteHandler("unknown");
+
+        var output = _writer.ToString();
+        Assert.Contains("Usage:", output);
+    }
+
+    [Fact]
+    public async Task ListThings_ApiThrowsException_ShowsError()
+    {
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ThrowsAsync(new HttpRequestException("Connection failed"));
+
+        await ExecuteHandler("things");
+
+        var output = _writer.ToString();
+        Assert.Contains("Error:", output);
+        Assert.Contains("Connection failed", output);
+    }
+
+    [Fact]
+    public async Task ListRelations_ApiThrowsException_ShowsError()
+    {
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ThrowsAsync(new HttpRequestException("Connection failed"));
+
+        await ExecuteHandler("relations");
+
+        var output = _writer.ToString();
+        Assert.Contains("Error:", output);
+    }
+
+    [Fact]
+    public async Task ListThings_WithProperties_ShowsProperties()
+    {
+        var thingId = Guid.NewGuid();
+        var json = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"Id\":\"{thingId}\",\"Name\":\"Sensor\",\"Properties\":{{\"temp\":100,\"status\":\"active\"}}}}]");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+
+        await ExecuteHandler("things");
+
+        var output = _writer.ToString();
+        Assert.Contains("Sensor", output);
+        Assert.Contains("temp", output);
+        Assert.Contains("100", output);
+    }
+
+    [Fact]
+    public async Task ListThings_WithInheritedProperties_ShowsInheritedSource()
+    {
+        // Regression: serialNumber is inherited (never overridden) so it comes from the
+        // effective endpoint, keyed by qualified path — the removed InheritedProperties key is gone.
+        var thingId = Guid.NewGuid();
+        var json = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"Id\":\"{thingId}\",\"Name\":\"Motor\",\"Properties\":{{\"temp\":50}}}}]");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+        SetupEffective($@"{{""{thingId}"":{{
+            ""temp"":{{""Value"":50,""IsInherited"":false}},
+            ""Device.serialNumber"":{{""Value"":""SN-1234"",""IsInherited"":true,""InheritedFrom"":""{Guid.NewGuid()}""}}
+        }}}}");
+
+        await ExecuteHandler("things");
+
+        var output = _writer.ToString();
+        Assert.Contains("Motor", output);
+        Assert.Contains("temp", output);
+        Assert.Contains("Device.serialNumber", output);
+        Assert.Contains("(inherited)", output);
+    }
+
+    [Fact]
+    public async Task ListServices_NonArrayResponse_ShowsError()
+    {
+        var json = JsonSerializer.Deserialize<JsonElement>("{}"); // Not an array
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(json);
+
+        await ExecuteHandler("services");
+
+        var output = _writer.ToString();
+        Assert.Contains("No running microservices found", output);
+    }
+
+    #endregion
+
+    #region Nested-inheritance traversal
+
+    [Fact]
+    public async Task ListThings_NestedInheritedProperties_TraversesAllLevels()
+    {
+        // A transitively-inherited value is keyed by its full source path (parent.grandparent.leaf),
+        // so both the immediate parent and the nested grandparent surface in the rendered output.
+        var thingId = "00000000-0000-0000-0000-000000000001";
+        var things = JsonDocument.Parse($@"[{{""Id"":""{thingId}"",""Name"":""child"",""Properties"":{{}}}}]").RootElement;
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        SetupEffective($@"{{""{thingId}"":{{
+            ""parent.p1"":{{""Value"":""v1"",""IsInherited"":true,""InheritedFrom"":""00000000-0000-0000-0000-000000000002""}},
+            ""parent.grandparent.g1"":{{""Value"":""v2"",""IsInherited"":true,""InheritedFrom"":""00000000-0000-0000-0000-000000000003""}}
+        }}}}");
+
+        await ExecuteHandler("things");
+
+        var output = _writer.ToString();
+        Assert.Contains("parent.p1", output);
+        Assert.Contains("parent.grandparent.g1", output);
+    }
+
+    #endregion
+}

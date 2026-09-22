@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1780 740" font-family="'Segoe UI',Helvetica,Arial,sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0f1c17"/><stop offset="1" stop-color="#16241d"/></linearGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000" flood-opacity="0.35"/></filter>
+    <marker id="aT" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#22d3ee"/></marker>
+    <marker id="aG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/></marker>
+    <marker id="aE" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#34d399"/></marker>
+    <marker id="aP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#818cf8"/></marker>
+  </defs>
+
+  <rect width="1780" height="740" fill="url(#bg)"/>
+
+  <text x="56" y="54" fill="#ecfdf5" font-size="30" font-weight="700">VillageOS</text>
+  <text x="225" y="54" fill="#5eead4" font-size="30" font-weight="300">— Tributary Ingest Path</text>
+  <text x="58" y="82" fill="#9fb3ab" font-size="14">How an external data source becomes time-series observations on the model — end to end. Sediment ≈ "observations, sourced &amp; shaped by Tributary."</text>
+
+  <!-- ===================== ① SETUP ===================== -->
+  <text x="56" y="120" fill="#86efac" font-size="13" font-weight="700">①  SETUP — one-time · structural (Facts)</text>
+  <g filter="url(#sh)"><rect x="56" y="132" width="300" height="74" rx="12" fill="#13301e" stroke="#22c55e" stroke-width="1.4"/></g>
+  <text x="74" y="156" fill="#86efac" font-size="13" font-weight="700">Delta — register source</text>
+  <text x="74" y="176" fill="#bfe9d4" font-size="10.5">Provisions an endpoint from a template;</text>
+  <text x="74" y="192" fill="#bfe9d4" font-size="10.5">creates the Endpoint Thing + config props.</text>
+
+  <g filter="url(#sh)"><rect x="430" y="132" width="500" height="74" rx="12" fill="#13301e" stroke="#22c55e" stroke-width="1.4"/></g>
+  <text x="448" y="156" fill="#86efac" font-size="13" font-weight="700">Endpoint Thing — lives in the model</text>
+  <text x="448" y="176" fill="#bfe9d4" font-size="10.5">config props: url · query · responseTransform (JSONata)</text>
+  <text x="448" y="192" fill="#bfe9d4" font-size="10.5">· PropertyMode = Sampled · is → template</text>
+  <path d="M356,169 L430,169" fill="none" stroke="#34d399" stroke-width="2" marker-end="url(#aE)"/>
+  <text x="360" y="162" fill="#6ee7b7" font-size="9.5">creates</text>
+
+  <!-- ===================== ② RUNTIME ===================== -->
+  <text x="56" y="248" fill="#7dd3fc" font-size="13" font-weight="700">②  RUNTIME — per trigger (Tributary is source-agnostic: fetch &amp; shape)</text>
+
+  <!-- External source -->
+  <g filter="url(#sh)"><rect x="56" y="300" width="208" height="150" rx="12" fill="#16252e" stroke="#5b8aa0" stroke-width="1.4"/></g>
+  <text x="160" y="356" fill="#bcd5da" font-size="26" text-anchor="middle">🌐</text>
+  <text x="160" y="386" fill="#cfe2e8" font-size="12.5" font-weight="700" text-anchor="middle">External source</text>
+  <text x="160" y="406" fill="#9fb3ab" font-size="10.5" text-anchor="middle">HTTP / JSON API</text>
+  <text x="160" y="422" fill="#9fb3ab" font-size="10.5" text-anchor="middle">(e.g. Esri / ArcGIS REST)</text>
+
+  <!-- Tributary engine -->
+  <g filter="url(#sh)"><rect x="304" y="268" width="612" height="372" rx="14" fill="#0c2630" stroke="#22d3ee" stroke-width="1.6"/></g>
+  <text x="322" y="294" fill="#7dd3fc" font-size="14.5" font-weight="700">🌊 Tributary — endpoint service · POST /handle</text>
+  <text x="322" y="312" fill="#6f9aa6" font-size="10">invoked by: client / scheduler → endpoint subdomain → Mycelium EndpointServiceForwarder → /handle</text>
+
+  <g filter="url(#sh)"><rect x="322" y="324" width="576" height="64" rx="10" fill="#0e2f38" stroke="#22d3ee" stroke-width="1.2"/></g>
+  <text x="338" y="346" fill="#a5e9f2" font-size="12.5" font-weight="700">② Fetch</text>
+  <text x="338" y="366" fill="#bfe9ec" font-size="10.5">resolve the Endpoint Thing's effective props → outbound HTTP GET</text>
+  <text x="338" y="381" fill="#7fb8c0" font-size="10">to the source URL → raw JSON response</text>
+
+  <g filter="url(#sh)"><rect x="322" y="400" width="576" height="64" rx="10" fill="#0e2f38" stroke="#22d3ee" stroke-width="1.2"/></g>
+  <text x="338" y="422" fill="#a5e9f2" font-size="12.5" font-weight="700">③ Shape</text>
+  <text x="338" y="442" fill="#bfe9ec" font-size="10.5">apply the JSONata responseTransform → normalized readings:</text>
+  <text x="338" y="457" fill="#7fb8c0" font-size="10">each reading = { entity, { property: value, … }, observedAt }</text>
+
+  <g filter="url(#sh)"><rect x="322" y="476" width="576" height="82" rx="10" fill="#0e2f38" stroke="#22d3ee" stroke-width="1.2"/></g>
+  <text x="338" y="498" fill="#a5e9f2" font-size="12.5" font-weight="700">④ Ingest <tspan fill="#7fb8c0" font-size="10" font-weight="400">— ObservationIngestService</tspan></text>
+  <text x="338" y="518" fill="#bfe9ec" font-size="10.5">per entity: ensure the entity Thing exists (created once), then</text>
+  <text x="338" y="533" fill="#bfe9ec" font-size="10.5">batch its samples — cost scales with entities, not readings.</text>
+  <text x="338" y="550" fill="#7fb8c0" font-size="10">default PropertyMode = Sampled (bounded memory for high-volume series)</text>
+
+  <text x="322" y="596" fill="#6f9aa6" font-size="10">returns { entitiesAffected, observationsSubmitted } · "Readings ingested as observations on entity series."</text>
+  <text x="322" y="616" fill="#6f9aa6" font-size="10">entities created via Delta/structural Facts; readings never create Facts — only observations.</text>
+
+  <!-- Mycelium observations endpoint -->
+  <g filter="url(#sh)"><rect x="956" y="300" width="268" height="96" rx="12" fill="#1c1f3a" stroke="#818cf8" stroke-width="1.4"/></g>
+  <text x="974" y="324" fill="#c7d2fe" font-size="13" font-weight="700">⑤ Mycelium — batch endpoint</text>
+  <text x="974" y="346" fill="#aab3ea" font-size="10.5">POST /api/things/{id}/observations</text>
+  <text x="974" y="363" fill="#aab3ea" font-size="10.5">→ 202 Accepted { accepted: N }</text>
+  <text x="974" y="383" fill="#8b93cf" font-size="10">FactOnly properties ⇒ 405 (gated by AllowedWriteKinds)</text>
+
+  <!-- Cambium + Commit Log -->
+  <g filter="url(#sh)"><rect x="956" y="416" width="268" height="140" rx="12" fill="#1c1f3a" stroke="#818cf8" stroke-width="1.4"/></g>
+  <text x="974" y="440" fill="#c7d2fe" font-size="13" font-weight="700">⑥ Cambium → Commit Log</text>
+  <text x="974" y="462" fill="#aab3ea" font-size="10.5">SubmitObservations → lock-free queue</text>
+  <text x="974" y="478" fill="#aab3ea" font-size="10.5">→ DrainLoop coalesces a batch</text>
+  <text x="974" y="494" fill="#aab3ea" font-size="10.5">→ ObservationCommit appended</text>
+  <text x="974" y="510" fill="#8b93cf" font-size="10">one fsync per batch · one sequence space</text>
+  <text x="974" y="532" fill="#8b93cf" font-size="10">durable in the append-only log; replay on</text>
+  <text x="974" y="546" fill="#8b93cf" font-size="10">restart rebuilds current values</text>
+
+  <!-- Downstream -->
+  <g filter="url(#sh)"><rect x="1256" y="300" width="468" height="256" rx="12" fill="#13301e" stroke="#22c55e" stroke-width="1.4"/></g>
+  <text x="1274" y="326" fill="#86efac" font-size="13.5" font-weight="700">⑦ ObservationsCommitted — fan-out</text>
+  <text x="1274" y="354" fill="#bfe9d4" font-size="11">🪵 Rings: Canopy (hot) → Sapwood (sealed),</text>
+  <text x="1274" y="370" fill="#9fb3ab" font-size="10.5">retained per PropertyMode (Sampled here)</text>
+  <text x="1274" y="398" fill="#bfe9d4" font-size="11">🌿 VosModel: current value updated</text>
+  <text x="1274" y="414" fill="#9fb3ab" font-size="10.5">latest-by-observed-time</text>
+  <text x="1274" y="442" fill="#bfe9d4" font-size="11">🍄 Hyphae: coalesced cascade → StatesChanged</text>
+  <text x="1274" y="470" fill="#bfe9d4" font-size="11">📡 streamed to clients over SSE</text>
+  <text x="1274" y="486" fill="#9fb3ab" font-size="10.5">(Facts-only model-change stream is separate)</text>
+  <text x="1274" y="522" fill="#6f857c" font-size="10" font-style="italic">This stage is the shared observation path —</text>
+  <text x="1274" y="537" fill="#6f857c" font-size="10" font-style="italic">see the main Data Flow diagram for detail.</text>
+
+  <!-- ===================== connectors ===================== -->
+  <!-- config feeder: Endpoint Thing → Tributary -->
+  <path d="M640,206 C640,236 640,250 640,266" fill="none" stroke="#4f7d68" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#aT)"/>
+  <text x="650" y="244" fill="#6e8f84" font-size="9.5">Tributary reads url + transform + mode</text>
+
+  <!-- source → fetch -->
+  <path d="M264,372 C286,372 286,356 322,356" fill="none" stroke="#22d3ee" stroke-width="2.2" marker-end="url(#aT)"/>
+  <text x="262" y="338" fill="#7fb8c0" font-size="9.5">GET / JSON</text>
+
+  <!-- internal step arrows -->
+  <g fill="none" stroke="#22d3ee" stroke-width="2.2">
+    <path d="M610,388 L610,400" marker-end="url(#aT)"/>
+    <path d="M610,464 L610,476" marker-end="url(#aT)"/>
+  </g>
+
+  <!-- ingest → mycelium obs endpoint -->
+  <path d="M898,512 C928,512 926,360 956,352" fill="none" stroke="#22d3ee" stroke-width="2.4" marker-end="url(#aT)"/>
+  <text x="906" y="430" fill="#7fb8c0" font-size="9.5">POST batch</text>
+
+  <!-- obs endpoint → cambium -->
+  <path d="M1090,396 L1090,416" fill="none" stroke="#818cf8" stroke-width="2.2" marker-end="url(#aP)"/>
+
+  <!-- cambium → downstream -->
+  <path d="M1224,470 C1242,470 1240,430 1256,424" fill="none" stroke="#818cf8" stroke-width="2.4" marker-end="url(#aP)"/>
+  <text x="1232" y="462" fill="#8b93cf" font-size="9.5">event</text>
+
+  <!-- ===================== HOW TO READ + footer ===================== -->
+  <rect x="40" y="660" width="1700" height="28" rx="8" fill="#0e1a15" stroke="#24382f" stroke-width="1"/>
+  <g transform="translate(60,678)" font-size="11">
+    <text x="0" y="0" fill="#cbd5cd" font-weight="700">PATH</text>
+    <line x1="48" y1="-4" x2="74" y2="-4" stroke="#34d399" stroke-width="3" marker-end="url(#aE)"/><text x="82" y="0" fill="#bfe9d4">structural (Facts)</text>
+    <line x1="196" y1="-4" x2="222" y2="-4" stroke="#22d3ee" stroke-width="3" marker-end="url(#aT)"/><text x="230" y="0" fill="#c5e9ec">fetch / observations</text>
+    <line x1="356" y1="-4" x2="382" y2="-4" stroke="#818cf8" stroke-width="3" marker-end="url(#aP)"/><text x="390" y="0" fill="#c7d2fe">persistence event</text>
+    <text x="520" y="0" fill="#7c948b">·  one-time setup registers the source; each trigger fetches, shapes, and ingests readings as batched observations.</text>
+  </g>
+  <text x="48" y="716" fill="#5a6f66" font-size="11">Dual-licensed: AGPL-3.0 or commercial — see LICENSE</text>
+  <text x="890" y="716" fill="#5a6f66" font-size="11" text-anchor="middle">© 2026 ReGen Villages BV · All rights reserved.</text>
+  <text x="1732" y="716" fill="#5a6f66" font-size="11" text-anchor="end">VillageOS · Tributary Ingest Path · v1.0 · 2026-06-20</text>
+</svg>

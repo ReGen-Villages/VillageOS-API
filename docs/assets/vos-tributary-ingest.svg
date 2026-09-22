@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1780 780" font-family="'Segoe UI',Helvetica,Arial,sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0f1c17"/><stop offset="1" stop-color="#16241d"/></linearGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000" flood-opacity="0.35"/></filter>
+    <marker id="aE" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#34d399"/></marker>
+    <marker id="aT" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#22d3ee"/></marker>
+    <marker id="aG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/></marker>
+  </defs>
+  <rect width="1780" height="780" fill="url(#bg)"/>
+
+  <text x="56" y="52" fill="#ecfdf5" font-size="29" font-weight="700">VillageOS</text>
+  <text x="222" y="52" fill="#5eead4" font-size="29" font-weight="300">— Tributary Ingest: Facts vs Observations</text>
+  <text x="58" y="80" fill="#9fb3ab" font-size="14">A fetched reading is routed by entity. The <tspan fill="#86efac" font-weight="700">first sighting</tspan> of an entity seeds structural <tspan fill="#86efac" font-weight="700">Facts</tspan>; every reading after is an <tspan fill="#7dd3fc" font-weight="700">Observation</tspan>.</text>
+
+  <!-- ===================== INPUT (worked example) ===================== -->
+  <g filter="url(#sh)"><rect x="56" y="118" width="420" height="330" rx="12" fill="#101a22" stroke="#5b8aa0" stroke-width="1.4"/></g>
+  <text x="74" y="142" fill="#cfe2e8" font-size="12.5" font-weight="700">Transformed readings (JSONata output)</text>
+  <text x="74" y="159" fill="#8aa0a8" font-size="10.5">example: entity "sensor-12" — not seen before</text>
+  <g font-family="Menlo,'SF Mono',monospace" font-size="11">
+    <text x="74" y="186" fill="#9fb3ab">[</text>
+    <text x="86" y="205" fill="#cbd5cd">{ "name":"sensor-12",</text>
+    <text x="86" y="222" fill="#cbd5cd">  "properties":{"temp":22.7,"flow":3.1},</text>
+    <text x="86" y="239" fill="#cbd5cd">  "observedAt":"14:00" },</text>
+    <text x="86" y="266" fill="#cbd5cd">{ "name":"sensor-12",</text>
+    <text x="86" y="283" fill="#cbd5cd">  "properties":{"temp":22.9},</text>
+    <text x="86" y="300" fill="#cbd5cd">  "observedAt":"14:05" },</text>
+    <text x="86" y="327" fill="#cbd5cd">{ "name":"sensor-12",</text>
+    <text x="86" y="344" fill="#cbd5cd">  "properties":{"temp":23.1},</text>
+    <text x="86" y="361" fill="#cbd5cd">  "observedAt":"14:10" }</text>
+    <text x="74" y="378" fill="#9fb3ab">]</text>
+  </g>
+  <!-- per-reading routing tags -->
+  <rect x="352" y="194" width="120" height="50" rx="7" fill="#11271b" stroke="#34d399" stroke-width="1"/>
+  <text x="412" y="213" fill="#86efac" font-size="10" text-anchor="middle" font-weight="700">reading[0] · seed</text>
+  <text x="412" y="229" fill="#6ee7b7" font-size="9.5" text-anchor="middle">→ FACTS</text>
+  <rect x="352" y="258" width="120" height="32" rx="7" fill="#0c2730" stroke="#22d3ee" stroke-width="1"/>
+  <text x="412" y="278" fill="#7dd3fc" font-size="10" text-anchor="middle" font-weight="700">→ OBSERVATION</text>
+  <rect x="352" y="319" width="120" height="32" rx="7" fill="#0c2730" stroke="#22d3ee" stroke-width="1"/>
+  <text x="412" y="339" fill="#7dd3fc" font-size="10" text-anchor="middle" font-weight="700">→ OBSERVATION</text>
+  <text x="74" y="404" fill="#7c948b" font-size="10">Each reading = { name, properties:{p:v,…}, observedAt }.</text>
+  <text x="74" y="420" fill="#7c948b" font-size="10">Readings are grouped by entity name; structure is touched once.</text>
+  <text x="74" y="436" fill="#6f857c" font-size="10" font-style="italic">An existing entity skips the Facts step — all readings observe.</text>
+
+  <!-- ===================== ROUTER ===================== -->
+  <g filter="url(#sh)"><rect x="520" y="150" width="210" height="44" rx="10" fill="#1a2733" stroke="#94a3b8" stroke-width="1.3"/></g>
+  <text x="625" y="177" fill="#cbd5cd" font-size="12" font-weight="700" text-anchor="middle">GroupBy(name)</text>
+
+  <g filter="url(#sh)"><rect x="512" y="250" width="226" height="92" rx="14" fill="#16252e" stroke="#cbd5cd" stroke-width="1.4"/></g>
+  <text x="625" y="280" fill="#e6edf2" font-size="12.5" font-weight="700" text-anchor="middle">First sighting?</text>
+  <text x="625" y="300" fill="#9fb3ab" font-size="10.5" text-anchor="middle">FindThingByName(name)</text>
+  <text x="560" y="328" fill="#86efac" font-size="11" font-weight="700">NEW ↑</text>
+  <text x="648" y="328" fill="#7dd3fc" font-size="11" font-weight="700">always ↓</text>
+
+  <!-- ===================== FACTS LANE (green) ===================== -->
+  <g filter="url(#sh)"><rect x="784" y="118" width="660" height="232" rx="14" fill="#0f2417" stroke="#34d399" stroke-width="1.6"/></g>
+  <text x="804" y="144" fill="#86efac" font-size="14" font-weight="700">① FACTS — structural · written once per NEW entity</text>
+
+  <g filter="url(#sh)"><rect x="804" y="156" width="500" height="52" rx="10" fill="#11301f" stroke="#34d399" stroke-width="1.1"/></g>
+  <text x="820" y="176" fill="#bbf7d0" font-size="11.5" font-weight="700">CreateThing(name, reading[0].properties)</text>
+  <text x="820" y="194" fill="#9be8b4" font-size="10">→ EntityCreated + PropertyValueAsserted × each seeded property</text>
+
+  <g filter="url(#sh)"><rect x="804" y="218" width="500" height="44" rx="10" fill="#11301f" stroke="#34d399" stroke-width="1.1"/></g>
+  <text x="820" y="237" fill="#bbf7d0" font-size="11.5" font-weight="700">SetPropertyMode(prop, "Sampled")</text>
+  <text x="820" y="253" fill="#9be8b4" font-size="10">→ PropertyModeSet — bounds retention for the series</text>
+
+  <g filter="url(#sh)"><rect x="804" y="272" width="500" height="56" rx="10" fill="#11301f" stroke="#34d399" stroke-width="1.1"/></g>
+  <text x="820" y="292" fill="#bbf7d0" font-size="11.5" font-weight="700">CreateRelationship(endpoint —observed→ entity)</text>
+  <text x="820" y="310" fill="#9be8b4" font-size="10">→ RelationshipCreated — records provenance (the source</text>
+  <text x="820" y="323" fill="#9be8b4" font-size="10">that observed this entity)</text>
+
+  <g filter="url(#sh)"><rect x="1322" y="180" width="104" height="120" rx="10" fill="#10261a" stroke="#34d399" stroke-width="1.3"/></g>
+  <text x="1374" y="232" fill="#86efac" font-size="11" font-weight="700" text-anchor="middle">Commit</text>
+  <text x="1374" y="248" fill="#86efac" font-size="11" font-weight="700" text-anchor="middle">Log</text>
+  <text x="1374" y="268" fill="#9be8b4" font-size="9.5" text-anchor="middle">FactCommit</text>
+
+  <!-- ===================== OBSERVATIONS LANE (cyan) ===================== -->
+  <g filter="url(#sh)"><rect x="784" y="404" width="660" height="246" rx="14" fill="#0b2329" stroke="#22d3ee" stroke-width="1.6"/></g>
+  <text x="804" y="430" fill="#7dd3fc" font-size="14" font-weight="700">② OBSERVATIONS — one sample per (reading × property)</text>
+
+  <g filter="url(#sh)"><rect x="804" y="442" width="500" height="56" rx="10" fill="#0e2d36" stroke="#22d3ee" stroke-width="1.1"/></g>
+  <text x="820" y="462" fill="#a5e9f2" font-size="11.5" font-weight="700">Select readings to observe</text>
+  <text x="820" y="480" fill="#bfe9ec" font-size="10">NEW entity: skip reading[0] (it seeded the Facts) → observe the rest.</text>
+  <text x="820" y="493" fill="#bfe9ec" font-size="10">EXISTING entity: observe ALL readings.</text>
+
+  <g filter="url(#sh)"><rect x="804" y="508" width="500" height="48" rx="10" fill="#0e2d36" stroke="#22d3ee" stroke-width="1.1"/></g>
+  <text x="820" y="528" fill="#a5e9f2" font-size="11.5" font-weight="700">Flatten → ObservationSample(property, value, observedAt)</text>
+  <text x="820" y="544" fill="#bfe9ec" font-size="10">a reading with 3 properties becomes 3 samples</text>
+
+  <g filter="url(#sh)"><rect x="804" y="566" width="500" height="68" rx="10" fill="#0e2d36" stroke="#22d3ee" stroke-width="1.1"/></g>
+  <text x="820" y="586" fill="#a5e9f2" font-size="11.5" font-weight="700">One batch POST per entity</text>
+  <text x="820" y="604" fill="#bfe9ec" font-size="10">POST /api/things/{id}/observations  →  Cambium.SubmitObservations</text>
+  <text x="820" y="620" fill="#bfe9ec" font-size="10">→ DrainLoop coalesces → ObservationCommit (1 fsync / batch)</text>
+
+  <g filter="url(#sh)"><rect x="1322" y="450" width="104" height="150" rx="10" fill="#0d2730" stroke="#22d3ee" stroke-width="1.3"/></g>
+  <text x="1374" y="500" fill="#7dd3fc" font-size="10.5" font-weight="700" text-anchor="middle">Rings</text>
+  <text x="1374" y="516" fill="#9fc7cf" font-size="9" text-anchor="middle">Canopy→</text>
+  <text x="1374" y="528" fill="#9fc7cf" font-size="9" text-anchor="middle">Sapwood</text>
+  <text x="1374" y="544" fill="#9fc7cf" font-size="9" text-anchor="middle">(Sampled)</text>
+  <text x="1374" y="566" fill="#9fc7cf" font-size="9" text-anchor="middle">current value</text>
+  <text x="1374" y="582" fill="#9fc7cf" font-size="9" text-anchor="middle">Hyphae → SSE</text>
+
+  <!-- ===================== connectors ===================== -->
+  <g fill="none">
+    <path d="M476,232 C496,232 500,172 520,172" stroke="#94a3b8" stroke-width="2" marker-end="url(#aG)"/>
+    <path d="M625,194 L625,250" stroke="#94a3b8" stroke-width="2" marker-end="url(#aG)"/>
+    <!-- decision → facts lane (NEW) -->
+    <path d="M700,272 C752,250 760,182 804,182" stroke="#34d399" stroke-width="2.4" marker-end="url(#aE)"/>
+    <text x="700" y="210" fill="#6ee7b7" font-size="10">new entity → seed from reading[0]</text>
+    <!-- decision → observations lane (always) -->
+    <path d="M700,320 C752,360 760,470 804,470" stroke="#22d3ee" stroke-width="2.4" marker-end="url(#aT)"/>
+    <text x="700" y="404" fill="#7dd3fc" font-size="10">always → observe readings</text>
+    <!-- facts lane internal -->
+    <path d="M1054,208 L1054,218" stroke="#34d399" stroke-width="2" marker-end="url(#aE)"/>
+    <path d="M1054,262 L1054,272" stroke="#34d399" stroke-width="2" marker-end="url(#aE)"/>
+    <path d="M1304,234 L1322,234" stroke="#34d399" stroke-width="2.2" marker-end="url(#aE)"/>
+    <!-- observations lane internal -->
+    <path d="M1054,498 L1054,508" stroke="#22d3ee" stroke-width="2" marker-end="url(#aT)"/>
+    <path d="M1054,556 L1054,566" stroke="#22d3ee" stroke-width="2" marker-end="url(#aT)"/>
+    <path d="M1304,600 C1314,600 1314,520 1322,520" stroke="#22d3ee" stroke-width="2.2" marker-end="url(#aT)"/>
+    <!-- bridge: a NEW entity feeds BOTH lanes -->
+    <path d="M1054,328 C1054,360 1054,400 1054,440" stroke="#34d399" stroke-width="1.6" stroke-dasharray="4 4" marker-end="url(#aT)"/>
+    <text x="1062" y="392" fill="#6e8f84" font-size="9.5">then its later readings observe ↓</text>
+  </g>
+
+  <!-- ===================== takeaway + footer ===================== -->
+  <rect x="56" y="470" width="420" height="240" rx="12" fill="#0e1a15" stroke="#24382f" stroke-width="1"/>
+  <text x="74" y="496" fill="#cbd5cd" font-size="12.5" font-weight="700">Worked example — sensor-12 (new)</text>
+  <circle cx="82" cy="520" r="5" fill="#34d399"/>
+  <text x="96" y="524" fill="#bfe9d4" font-size="11">reading[0] → <tspan font-weight="700">3 Facts</tspan>: EntityCreated, temp=22.7,</text>
+  <text x="96" y="540" fill="#9fb3ab" font-size="11">flow=3.1 (+ Sampled mode + observed relationship)</text>
+  <circle cx="82" cy="566" r="5" fill="#22d3ee"/>
+  <text x="96" y="570" fill="#c5e9ec" font-size="11">reading[1] → <tspan font-weight="700">1 Observation</tspan> (temp 22.9 @ 14:05)</text>
+  <circle cx="82" cy="592" r="5" fill="#22d3ee"/>
+  <text x="96" y="596" fill="#c5e9ec" font-size="11">reading[2] → <tspan font-weight="700">1 Observation</tspan> (temp 23.1 @ 14:10)</text>
+  <text x="74" y="632" fill="#7c948b" font-size="10.5">Result: 1 batch POST with 2 samples; the entity's</text>
+  <text x="74" y="648" fill="#7c948b" font-size="10.5">structure (Thing, properties, mode, relationship)</text>
+  <text x="74" y="664" fill="#7c948b" font-size="10.5">was written once, as Facts.</text>
+  <text x="74" y="694" fill="#6f857c" font-size="10" font-style="italic">A 2nd fetch of sensor-12 writes 0 Facts — all observations.</text>
+
+  <rect x="496" y="678" width="1248" height="28" rx="8" fill="#0e1a15" stroke="#24382f" stroke-width="1"/>
+  <g transform="translate(516,696)" font-size="11">
+    <line x1="0" y1="-4" x2="26" y2="-4" stroke="#34d399" stroke-width="3" marker-end="url(#aE)"/><text x="34" y="0" fill="#bfe9d4">Facts (structural · once per new entity)</text>
+    <line x1="320" y1="-4" x2="346" y2="-4" stroke="#22d3ee" stroke-width="3" marker-end="url(#aT)"/><text x="354" y="0" fill="#c5e9ec">Observations (per reading × property)</text>
+    <text x="650" y="0" fill="#7c948b">·  entities scale the graph; readings scale the time-series — never the other way around.</text>
+  </g>
+  <text x="56" y="744" fill="#5a6f66" font-size="11">Dual-licensed: AGPL-3.0 or commercial — see LICENSE</text>
+  <text x="890" y="744" fill="#5a6f66" font-size="11" text-anchor="middle">© 2026 ReGen Villages BV · All rights reserved.</text>
+  <text x="1732" y="744" fill="#5a6f66" font-size="11" text-anchor="end">VillageOS · Tributary Ingest (Facts vs Observations) · v1.0 · 2026-06-20</text>
+</svg>

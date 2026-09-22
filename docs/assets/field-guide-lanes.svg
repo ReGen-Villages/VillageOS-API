@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 937 290" width="937" height="290" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" role="img" aria-label="Three ways a value arrives, one durable record, and where each comes to rest.">
+<rect width="937" height="290" fill="#ffffff"/>
+<path d="M 301.0,53.0 L 330.0,53.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(330.0,53.0) rotate(0.0)"/>
+<path d="M 219.1,149.0 L 330.0,149.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(330.0,149.0) rotate(0.0)"/>
+<path d="M 211.7,245.0 L 330.0,245.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(330.0,245.0) rotate(0.0)"/>
+<path d="M 569.8,51.0 L 640.0,51.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(640.0,51.0) rotate(0.0)"/>
+<path d="M 569.8,51.0 L 590.0,51.0 L 590.0,157.0 L 640.0,157.0" fill="none" stroke="#47574d" stroke-width="1.2" stroke-dasharray="2 3"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(640.0,157.0) rotate(0.0)"/>
+<text x="582.0" y="112.0" font-size="11" fill="#74857a" text-anchor="end">history kept</text>
+<path d="M 554.9,147.0 L 615.0,147.0 L 615.0,61.0 L 640.0,61.0" fill="none" stroke="#47574d" stroke-width="1.2" stroke-dasharray="2 3"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(640.0,61.0) rotate(0.0)"/>
+<text x="619.0" y="91.0" font-size="11" fill="#74857a" text-anchor="start">current value</text>
+<path d="M 554.9,147.0 L 597.4,147.0 L 597.4,169.0 L 640.0,169.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(640.0,169.0) rotate(0.0)"/>
+<path d="M 540.0,243.0 L 590.0,243.0 L 590.0,181.0 L 640.0,181.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(640.0,181.0) rotate(0.0)"/>
+<rect x="24.0" y="24.0" width="277.0" height="58.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="162.5" y="41.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">A Fact</text>
+<text x="162.5" y="57.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">a person, an importer,</text>
+<text x="162.5" y="73.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">a service correcting what it knows</text>
+<rect x="24.0" y="120.0" width="195.1" height="58.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="121.6" y="137.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">An Observation</text>
+<text x="121.6" y="153.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">a sensor, a simulation,</text>
+<text x="121.6" y="169.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">a fetched reading</text>
+<rect x="24.0" y="216.0" width="187.7" height="58.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="117.8" y="233.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Bulk history</text>
+<text x="117.8" y="249.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">a one-time backfill of</text>
+<text x="117.8" y="265.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">readings from the past</text>
+<rect x="330.0" y="30.0" width="239.8" height="42.0" rx="2" fill="#dbeade" stroke="#1f6047"/>
+<text x="449.9" y="47.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">Written to the durable record</text>
+<text x="449.9" y="63.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">and answered only then</text>
+<rect x="330.0" y="126.0" width="224.9" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="442.4" y="143.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Queued, written in batches,</text>
+<text x="442.4" y="159.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">answered in microseconds</text>
+<rect x="330.0" y="222.0" width="210.0" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="435.0" y="239.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Written as sealed files</text>
+<text x="435.0" y="255.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">straight into the history</text>
+<rect x="640.0" y="30.0" width="161.3" height="42.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="720.6" y="47.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">The live model</text>
+<text x="720.6" y="63.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">what is true now</text>
+<rect x="640.0" y="140.0" width="281.4" height="58.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="780.7" y="157.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">Rings: every value over time</text>
+<text x="780.7" y="173.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">recent in memory, older on</text>
+<text x="780.7" y="189.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">disk, oldest in a cold archive</text>
+</svg>

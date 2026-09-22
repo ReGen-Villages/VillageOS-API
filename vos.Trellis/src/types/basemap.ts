@@ -1,0 +1,90 @@
+/**
+ * Generic, model-agnostic basemap contract.
+ *
+ * Trellis ships the map; the model supplies what it draws. A model declares one
+ * or more Things of archetype `BasemapSource`, each carrying the address of a
+ * vector style or a raster tile template plus the attribution its licence
+ * requires. No provider is named in this file or anywhere else in the client —
+ * changing which imagery a deployment shows is a change to the model.
+ */
+
+/** The archetype a model-resident basemap source Thing must be `is`-linked to. */
+export const BASEMAP_SOURCE_ARCHETYPE = 'BasemapSource';
+/** Address of a vector style document the map loads whole. */
+export const BASEMAP_STYLE_URL_PROPERTY = 'styleUrl';
+/** Address template of a raster tile pyramid, carrying `{z}`, `{x}` and `{y}`. */
+export const BASEMAP_TILE_URL_PROPERTY = 'tileUrl';
+/** The credit the source's licence requires the map to display. */
+export const BASEMAP_ATTRIBUTION_PROPERTY = 'attribution';
+/** Deepest zoom level a raster source has tiles for. */
+export const BASEMAP_MAXIMUM_ZOOM_PROPERTY = 'maximumZoom';
+/** Address template of an elevation tile pyramid, which is what shapes the ground. */
+export const BASEMAP_TERRAIN_URL_PROPERTY = 'terrainTileUrl';
+/** How those tiles pack a height into a pixel. Stated rather than assumed: the schemes in common use
+ *  pack the same three channels differently, and one read as the other raises hills out of flat land. */
+export const BASEMAP_TERRAIN_ENCODING_PROPERTY = 'terrainEncoding';
+/** How far to exaggerate what the elevation tiles describe — a presentation choice, because real
+ *  slopes read as flat from the distance a map looks at them from. */
+export const BASEMAP_TERRAIN_EXAGGERATION_PROPERTY = 'terrainExaggeration';
+/** The layer inside the source's own tiles that holds building footprints, which is what the map
+ *  raises buildings from. */
+export const BASEMAP_BUILDING_LAYER_PROPERTY = 'buildingSourceLayer';
+
+/** A source as the model states it, before anything has judged whether it can be drawn. This is what the
+ *  intake service hands a public form, which cannot read the model for itself. */
+export interface DeclaredBasemapSource {
+  id: string;
+  name: string;
+  attribution?: string | null;
+  styleUrl?: string | null;
+  tileUrl?: string | null;
+  maximumZoom?: number | null;
+  terrainTileUrl?: string | null;
+  terrainEncoding?: string | null;
+  terrainExaggeration?: number | null;
+  buildingSourceLayer?: string | null;
+}
+
+/** The schemes a map can read a height under: the style specification's own vocabulary, not the
+ *  model's, so it belongs here rather than in a Thing — the same standing as the building-model type
+ *  names. Its third, `custom`, is left out because it needs four decoding factors the model does not
+ *  state, and drawing it under the default four is the guess the encoding is declared to avoid. */
+export const TERRAIN_ENCODINGS = ['terrarium', 'mapbox'] as const;
+export type TerrainEncoding = (typeof TERRAIN_ENCODINGS)[number];
+
+/** What a source says about drawing land rather than a diagram. Absent where the model declares none,
+ *  which draws flat — the same map every deployment has today. */
+export interface RaisedGround {
+  /** Present where the source states an elevation pyramid and a scheme a map can read it under;
+   *  without both, a height cannot be read off a tile and no terrain is raised. */
+  terrain?: { tileUrl: string; encoding: TerrainEncoding; exaggeration: number };
+  /** The layer footprints are raised from, where the source names one. */
+  buildingSourceLayer?: string;
+}
+
+/** A source the model holds, ready for the layer switch to offer by name. */
+export type BasemapSource = RaisedGround &
+  (
+    | {
+        id: string;
+        name: string;
+        attribution: string;
+        kind: 'style';
+        styleUrl: string;
+      }
+    | {
+        id: string;
+        name: string;
+        attribution: string;
+        kind: 'raster';
+        tileUrl: string;
+        maximumZoom: number;
+      }
+  );
+
+/** How far to raise what the elevation tiles describe when the model states no figure of its own. */
+export const DEFAULT_TERRAIN_EXAGGERATION = 1.4;
+
+/** Where a raster source stops when the model does not say. Beyond this the map keeps the
+ *  deepest tiles it has rather than requesting addresses the pyramid cannot answer. */
+export const DEFAULT_RASTER_MAXIMUM_ZOOM = 19;

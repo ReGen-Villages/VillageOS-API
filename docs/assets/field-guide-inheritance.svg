@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 561 386" width="561" height="386" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" role="img" aria-label="A member resolves what it inherits on read; a value of its own is an override.">
+<rect width="561" height="386" fill="#ffffff"/>
+<path d="M 80.6,110.0 L 80.6,78.0 L 97.8,78.0 L 97.8,46.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(97.8,46.0) rotate(-90.0)"/>
+<text x="88.6" y="98.0" font-size="11" fill="#74857a" text-anchor="start">is</text>
+<path d="M 86.6,200.0 L 86.6,136.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(86.6,136.0) rotate(-90.0)"/>
+<text x="94.6" y="172.0" font-size="11" fill="#74857a" text-anchor="start">is</text>
+<path d="M 86.6,226.0 L 86.6,280.0" fill="none" stroke="#47574d" stroke-width="1.2" stroke-dasharray="2 3"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(86.6,280.0) rotate(90.0)"/>
+<text x="94.6" y="257.0" font-size="11" fill="#74857a" text-anchor="start">resolved on read; nothing is copied</text>
+<rect x="30.0" y="20.0" width="135.5" height="26.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="97.8" y="37.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">PhysicalThing</text>
+<text x="200.0" y="41.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">lifetimeYears: 40</text>
+<rect x="30.0" y="110.0" width="101.2" height="26.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="80.6" y="127.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">Reservoir</text>
+<text x="200.0" y="123.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">capacityM3: 2 000  (a default for every member)</text>
+<text x="200.0" y="139.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">quantity: takes readings only</text>
+<rect x="30.0" y="200.0" width="113.3" height="26.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="86.6" y="217.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Reservoir-01</text>
+<text x="200.0" y="213.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">capacityM3: 3 000  (its own value, an override)</text>
+<text x="200.0" y="229.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">quantity: 2 412  (a reading)</text>
+<rect x="30.0" y="280.0" width="314.2" height="90.0" rx="2" fill="#dbeade" stroke="#1f6047"/>
+<text x="187.1" y="297.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">What a read of Reservoir-01 answers</text>
+<text x="187.1" y="313.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle"></text>
+<text x="187.1" y="329.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">capacityM3   3 000   its own override</text>
+<text x="187.1" y="345.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">quantity     2 412   its own reading</text>
+<text x="187.1" y="361.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">lifetimeYears   40   from PhysicalThing</text>
+</svg>

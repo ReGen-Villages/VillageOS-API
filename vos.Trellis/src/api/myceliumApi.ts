@@ -1,0 +1,55 @@
+import { apiClient } from './client';
+import type { RegisteredService } from '../types/mycelium';
+
+export interface StartupProgress {
+  IsLoading: boolean;
+  CurrentFile: string;
+  Phase: string;
+  ThingsLoaded: number;
+  RelationshipsLoaded: number;
+}
+
+/** A page the platform declares for the signed-in caller: a dashboard specification about the
+ *  platform itself rather than about a model, drawn exactly as a model's own `Dashboard` Thing. */
+export interface DeclaredPage {
+  name: string;
+  spec: unknown;
+}
+
+export const myceliumApi = {
+  getPages: () => apiClient.get<DeclaredPage[]>('/api/mycelium/pages'),
+
+  /** Unauthenticated — check seed loading progress before login completes. */
+  getStartupStatus: async (): Promise<StartupProgress> => {
+    const baseUrl = import.meta.env.VITE_BROKER_URL || '';
+    const res = await fetch(`${baseUrl}/api/mycelium/startup-status`);
+    if (!res.ok) throw new Error('Failed to fetch seed status');
+    return res.json();
+  },
+  getServices: () => apiClient.get<RegisteredService[]>('/api/mycelium/services'),
+
+  getService: (id: string) => apiClient.get<RegisteredService>(`/api/mycelium/services/${id}`),
+
+  startService: (id: string) =>
+    apiClient.post<{ message: string }>(`/api/mycelium/services/${id}/start`),
+
+  stopService: (id: string) =>
+    apiClient.post<{ message: string }>(`/api/mycelium/services/${id}/stop`),
+
+  shutdown: () => apiClient.post<{ message: string }>('/api/mycelium/shutdown'),
+
+  getLibrarySeeds: () =>
+    apiClient.get<{ name: string; sizeMb: number }[]>('/api/mycelium/library-seeds'),
+
+  loadSeed: (name: string) =>
+    apiClient.post<{ message: string; modelId: string; modelName: string }>(`/api/mycelium/library-seeds/${encodeURIComponent(name)}/load`),
+
+  saveSeed: (name: string) =>
+    apiClient.put<{ message: string; name: string; sizeMb: number }>(
+      `/api/mycelium/library-seeds/${encodeURIComponent(name)}`,
+      {},
+    ),
+
+  reloadSeeds: () =>
+    apiClient.post<{ message: string }>('/api/mycelium/seeds/reload'),
+};

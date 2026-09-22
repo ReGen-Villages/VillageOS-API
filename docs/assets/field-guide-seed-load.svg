@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 752 482" width="752" height="482" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" role="img" aria-label="What happens the first time a seed loads.">
+<rect width="752" height="482" fill="#ffffff"/>
+<path d="M 168.5,46.0 L 168.5,63.0 L 198.2,63.0 L 198.2,80.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(198.2,80.0) rotate(90.0)"/>
+<path d="M 198.2,106.0 L 198.2,140.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(198.2,140.0) rotate(90.0)"/>
+<path d="M 205.7,182.0 L 205.7,215.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(205.7,215.0) rotate(90.0)"/>
+<path d="M 213.1,257.0 L 213.1,273.5 L 194.5,273.5 L 194.5,290.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(194.5,290.0) rotate(90.0)"/>
+<path d="M 194.5,332.0 L 194.5,365.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(194.5,365.0) rotate(90.0)"/>
+<path d="M 198.2,407.0 L 198.2,423.5 L 239.3,423.5 L 239.3,440.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(239.3,440.0) rotate(90.0)"/>
+<rect x="30.0" y="20.0" width="277.0" height="26.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="168.5" y="37.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">A seed file in the seeds directory</text>
+<rect x="30.0" y="80.0" width="336.5" height="26.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="198.2" y="97.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Read by the same reader the validator uses</text>
+<rect x="30.0" y="140.0" width="351.4" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="205.7" y="157.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Every Thing, relationship and range created;</text>
+<text x="205.7" y="173.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">writing and judging held back for the bulk</text>
+<rect x="30.0" y="215.0" width="366.2" height="42.0" rx="2" fill="#dbeade" stroke="#1f6047"/>
+<text x="213.1" y="232.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">The model's structure recorded as one durable</text>
+<text x="213.1" y="248.0" font-size="12" font-weight="normal" fill="#1f6047" text-anchor="middle">commit: from here on, the seed file is history</text>
+<rect x="30.0" y="290.0" width="329.0" height="42.0" rx="2" fill="#e3e4f2" stroke="#46497e"/>
+<text x="194.5" y="307.0" font-size="12" font-weight="normal" fill="#46497e" text-anchor="middle">Every derived value computed; every range</text>
+<text x="194.5" y="323.0" font-size="12" font-weight="normal" fill="#46497e" text-anchor="middle">evaluated until nothing changes</text>
+<rect x="30.0" y="365.0" width="336.5" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="198.2" y="382.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Connections found by their marks; services</text>
+<text x="198.2" y="398.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">marked to start automatically are launched</text>
+<rect x="30.0" y="440.0" width="418.7" height="26.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="239.3" y="457.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">Ready: requests answered, live streams flowing</text>
+<text x="460.0" y="232.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">On every later start the model is</text>
+<text x="460.0" y="248.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">rebuilt from its durable record and</text>
+<text x="460.0" y="264.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">the seed file is skipped. Editing the</text>
+<text x="460.0" y="280.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">file afterwards changes nothing.</text>
+</svg>

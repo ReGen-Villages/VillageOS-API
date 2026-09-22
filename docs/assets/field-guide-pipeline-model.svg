@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 778 258" width="778" height="258" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" role="img" aria-label="A pipeline is Things and relationships: nodes bound to services, joined by typed wires.">
+<rect width="778" height="258" fill="#ffffff"/>
+<path d="M 159.5,121.0 L 209.8,121.0 L 209.8,41.0 L 260.0,41.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(260.0,41.0) rotate(0.0)"/>
+<text x="217.8" y="85.0" font-size="11" fill="#74857a" text-anchor="start">has</text>
+<path d="M 159.5,121.0 L 260.0,121.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(260.0,121.0) rotate(0.0)"/>
+<text x="209.8" y="115.0" font-size="11" fill="#74857a" text-anchor="middle">has</text>
+<path d="M 159.5,121.0 L 209.8,121.0 L 209.8,221.0 L 260.0,221.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(260.0,221.0) rotate(0.0)"/>
+<text x="217.8" y="175.0" font-size="11" fill="#74857a" text-anchor="start">has</text>
+<path d="M 327.8,62.0 L 327.8,110.0" fill="none" stroke="#1f6047" stroke-width="1.7"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#1f6047" transform="translate(327.8,110.0) rotate(90.0)"/>
+<text x="335.8" y="90.0" font-size="11" fill="#1f6047" text-anchor="start">wire: population → population</text>
+<path d="M 324.1,152.0 L 324.1,176.0 L 301.8,176.0 L 301.8,200.0" fill="none" stroke="#1f6047" stroke-width="1.7"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#1f6047" transform="translate(301.8,200.0) rotate(90.0)"/>
+<text x="332.1" y="168.0" font-size="11" fill="#1f6047" text-anchor="start">wire: pctOfConsumption → value</text>
+<path d="M 388.2,131.0 L 520.0,131.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(520.0,131.0) rotate(0.0)"/>
+<text x="454.1" y="125.0" font-size="11" fill="#74857a" text-anchor="middle">has</text>
+<path d="M 584.1,152.0 L 584.1,200.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
+<path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(584.1,200.0) rotate(90.0)"/>
+<text x="592.1" y="180.0" font-size="11" fill="#74857a" text-anchor="start">has</text>
+<rect x="24.0" y="100.0" width="135.5" height="42.0" rx="2" fill="#e7ebe3" stroke="#74857a"/>
+<text x="91.8" y="117.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">Site analysis</text>
+<text x="91.8" y="133.0" font-size="13" font-weight="700" fill="#16201a" text-anchor="middle">(a pipeline)</text>
+<rect x="260.0" y="20.0" width="135.6" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="327.8" y="37.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Site parameters</text>
+<text x="327.8" y="53.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">(a node)</text>
+<rect x="260.0" y="110.0" width="128.2" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="324.1" y="127.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Energy balance</text>
+<text x="324.1" y="143.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">(a node)</text>
+<rect x="260.0" y="200.0" width="83.5" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="301.8" y="217.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Publish</text>
+<text x="301.8" y="233.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">(a node)</text>
+<rect x="520.0" y="110.0" width="128.2" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="584.1" y="127.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">energy-balance</text>
+<text x="584.1" y="143.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">(a connection)</text>
+<rect x="520.0" y="200.0" width="128.2" height="42.0" rx="2" fill="#ffffff" stroke="#d6ddd2"/>
+<text x="584.1" y="217.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">Energy Balance</text>
+<text x="584.1" y="233.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">(a service)</text>
+<text x="520.0" y="37.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">ports it declares:</text>
+<text x="520.0" y="53.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">in  population, solarResource, …</text>
+<text x="520.0" y="69.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">out pctOfConsumption</text>
+</svg>
