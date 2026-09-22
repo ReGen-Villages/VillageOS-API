@@ -73,8 +73,8 @@ function convert(content) {
   // 4. Attached images: [text](/.attachments/name) -> the raw file on the GitHub wiki repository.
   //    Left alone, GitHub resolves the absolute path against github.com itself.
   out = out.replace(
-    /\]\(\/\.attachments\/([^)\s]+)\)/g,
-    (_m, name) => `](${RAW_WIKI}/${ATTACHMENTS}/${name})`
+    /\]\((\/\.attachments\/[^)\s]+)\)/g,
+    (_m, attachment) => `](${RAW_WIKI}${attachment})`
   );
 
   // 5. Internal wiki links: [text](/Page) or [text](/Folder/Page) -> absolute

@@ -132,8 +132,7 @@ test('the mirror copies the attachments folder beside the pages', () => {
   assert.ok(!fs.existsSync(path.join(output, '.git')));
 });
 
-// The pipeline step, not this script, carries the output into the GitHub wiki clone. It once copied
-// the pages alone, and the attachments the script wrote went nowhere.
+// The pipeline step, not this script, carries the output into the GitHub wiki clone.
 test('the pipeline carries the whole mirror output into the GitHub wiki clone', () => {
   const pipeline = fs.readFileSync(path.join(__dirname, '..', '..', 'azure-pipelines.yml'), 'utf8');
   const step = pipeline.slice(pipeline.indexOf('node tools/wiki-mirror/sync-wiki.js'));
