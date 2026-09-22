@@ -30,7 +30,7 @@ public sealed class PipelineExecutor
         _logger = logger;
         _maxConcurrency = Math.Max(1, maxConcurrency);
         // Un-anchored where none is registered, which is this machine's clock — what the model's own is
-        // until something simulates it.
+        // until a simulation anchors it.
         _clock = clock ?? new ModelClock();
     }
 

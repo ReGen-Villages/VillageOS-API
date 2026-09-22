@@ -47,7 +47,7 @@ public class ObservationIngestService
         _myceliumClient = myceliumClient;
         _logger = logger;
         // Un-anchored where none is registered, which is this machine's clock — what the model's own is
-        // until something simulates it.
+        // until a simulation anchors it.
         _clock = clock ?? new ModelClock();
     }
 

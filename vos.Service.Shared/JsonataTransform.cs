@@ -31,7 +31,7 @@ public sealed class JsonataTransform
     }
 
     public string Eval(string inputJson, TimeProvider clock) =>
-        _query.Eval(JToken.Parse(inputJson), EvaluationReading(clock)).ToIndentedString();
+        _query.Eval(JToken.Parse(inputJson), EnvironmentReadingTheClock(clock)).ToIndentedString();
 
     // Evaluate against a JSON value, returning the reshaped value. An empty/whitespace result (JSONata
     // "nothing") becomes a JSON null.
@@ -49,7 +49,7 @@ public sealed class JsonataTransform
     // answered from the clock the caller stamps with — which in a simulated run stands years from this
     // machine's. Bound without arguments, so $now(picture) is refused rather than answered off the wrong
     // clock; a transform wanting a picture writes $fromMillis($millis(), picture).
-    private static EvaluationEnvironment EvaluationReading(TimeProvider clock)
+    private static EvaluationEnvironment EnvironmentReadingTheClock(TimeProvider clock)
     {
         var environment = new EvaluationEnvironment();
         environment.BindFunction("now", () => clock.GetUtcNow().UtcDateTime
