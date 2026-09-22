@@ -59,7 +59,7 @@ class RoleFlagTests(unittest.TestCase):
 
     def test_every_archetype_carries_the_flag_for_its_role(self):
         kit = G.build()
-        self.assertEqual(set(kit.role_flag.values()), set(G.ROLE_FLAG.values()))
+        self.assertEqual(set(kit.role_flag.values()), set(G.ROLE_FLAG.values()) | set(G.PREDICATE_FLAG.values()))
         for tid, flag in kit.role_flag.items():
             self.assertEqual(kit.things[tid]["Properties"][flag], {"typeInfo": "vos.Boolean", "value": True})
 
@@ -99,3 +99,64 @@ class RoleFlagTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CatalystVocabularyTests(unittest.TestCase):
+    """The rails of the Pipeline page read external systems, kinds of message and what a boundary node
+    stands for off marks, so the kit declares each once and relates through marked predicates."""
+
+    def setUp(self):
+        G.set_namespace(None)
+        self.kit = G.build()
+
+    def carriers(self, flag):
+        return [tid for tid, t in self.kit.things.items()
+                if G._prop(t.get("Properties"), flag) is True]
+
+    def test_each_new_role_is_marked_on_one_thing(self):
+        for flag in ("__IsExternalSystemArchetype", "__IsMessageKindArchetype", "__IsTriggerPredicate", "__IsSendsPredicate",
+                     "__IsToldPredicate", "__IsArrivesAtPredicate", "__IsStandsForPredicate"):
+            self.assertEqual(len(self.carriers(flag)), 1, flag)
+
+    def test_a_marked_predicate_reconciles_onto_a_target_that_holds_it_by_name(self):
+        seed = {"Name": "Target",
+                "Things": [{"Id": "target-stands-for", "Name": "standsFor", "Properties": {}}],
+                "Relationships": []}
+        G.merge_into(self.kit, seed)
+        stands_for = [t for t in seed["Things"] if t["Name"] == "standsFor"]
+        self.assertEqual(len(stands_for), 1)
+        self.assertEqual(stands_for[0]["Id"], "target-stands-for")
+        self.assertIs(G._prop(stands_for[0]["Properties"], "__IsStandsForPredicate"), True)
+
+    def test_every_sent_kind_arrives_at_a_door_and_every_told_kind_is_a_kind(self):
+        [sends] = self.carriers("__IsSendsPredicate")
+        [told] = self.carriers("__IsToldPredicate")
+        [arrives_at] = self.carriers("__IsArrivesAtPredicate")
+        [kind_archetype] = self.carriers("__IsMessageKindArchetype")
+        [is_] = [tid for tid, t in self.kit.things.items() if t["Name"] == "is"]
+        rels = list(self.kit.rels.values())
+        kinds = {r["Subject"] for r in rels if r["Predicate"] == is_ and r["Target"] == kind_archetype}
+        sent = [r["Target"] for r in rels if r["Predicate"] == sends]
+        told_kinds = [r["Target"] for r in rels if r["Predicate"] == told]
+        self.assertTrue(sent and told_kinds)
+        self.assertTrue(set(sent + told_kinds) <= kinds)
+        for kind in sent:
+            doors = [r["Target"] for r in rels if r["Subject"] == kind and r["Predicate"] == arrives_at]
+            self.assertEqual(len(doors), 1, self.kit.things[kind]["Name"])
+            self.assertIn("Subdomain", self.kit.things[doors[0]]["Properties"])
+
+    def test_every_connection_is_reached_over_http(self):
+        [triggered_by] = self.carriers("__IsTriggerPredicate")
+        [connection_archetype] = self.carriers("__IsConnectionArchetype")
+        [is_] = [tid for tid, t in self.kit.things.items() if t["Name"] == "is"]
+        rels = list(self.kit.rels.values())
+        connections = {r["Subject"] for r in rels if r["Predicate"] == is_ and r["Target"] == connection_archetype}
+        for connection in connections:
+            triggers = [self.kit.things[r["Target"]]["Name"] for r in rels if r["Subject"] == connection and r["Predicate"] == triggered_by]
+            self.assertEqual(triggers, ["http"], self.kit.things[connection]["Name"])
+
+    def test_the_two_pipelines_drawn_from_outside_stand_for_their_ends(self):
+        [stands_for] = self.carriers("__IsStandsForPredicate")
+        stood = {(self.kit.things[r["Subject"]]["Name"], self.kit.things[r["Target"]]["Name"])
+                 for r in self.kit.rels.values() if r["Predicate"] == stands_for}
+        self.assertEqual(stood, {("A reading batch arrives", "reading batch"), ("The office is told", "Reporting office")})

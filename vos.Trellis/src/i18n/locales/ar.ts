@@ -82,18 +82,6 @@ type ArabicPlurals = {
       activeBindings_many?: string;
     };
   };
-  pipeline?: {
-    issues_zero?: string;
-    issues_two?: string;
-    issues_few?: string;
-    issues_many?: string;
-  };
-  palette?: {
-    portCount_zero?: string;
-    portCount_two?: string;
-    portCount_few?: string;
-    portCount_many?: string;
-  };
 };
 
 export const ar: PartialResources & ArabicPlurals = {
@@ -1192,7 +1180,6 @@ export const ar: PartialResources & ArabicPlurals = {
     save: "حفظ",
     cancel: "إلغاء",
     run: "تشغيل",
-    loadPipeline: "تحميل خط معالجة…",
     history: "السجل…",
     runHistory: "سجل التشغيل",
     unsavedChanges: "تغييرات غير محفوظة",
@@ -1200,7 +1187,6 @@ export const ar: PartialResources & ArabicPlurals = {
     parameters: "المعاملات",
     closeInspector: "إغلاق المفتّش",
     ports: "المنافذ ({{direction}}):",
-    outputs: "المخرجات",
     inputs: "المدخلات",
     portName: "اسم المنفذ {{index}}",
     removePort: "إزالة المنفذ {{name}}",
@@ -1226,21 +1212,82 @@ export const ar: PartialResources & ArabicPlurals = {
     saveFailed: "فشل الحفظ.",
     runFailed: "فشل التشغيل.",
     cancelFailed: "فشل الإلغاء.",
-    issues_one: "{{count}} مشكلة",
-    issues_other: "{{count}} مشكلات",
-    issues_zero: 'لا مشكلات',
-    issues_two: 'مشكلتان',
-    issues_few: '{{count}} مشكلات',
-    issues_many: '{{count}} مشكلة',
     runStatus: "التشغيل {{status}}",
     nodeStatus: "{{label}}: {{status}}",
     boundaryInput: "إدخال",
     boundaryOutput: "إخراج",
     wireLabel: "توصيل · {{from}} ← {{to}}",
-    startBody: "انقر على خدمة في لوحة الخدمات على اليسار لإسقاط أول عقدة، ثم اسحب بين المنافذ لتوصيلها.",
     noServicesBody: "حمّل نموذجًا يحتوي على اتصالات مُسجّلة (مثل بذرة العرض التوضيحي لخط المعالجة) — تظهر في اللوحة كعُقد يمكنك إضافتها.",
-    servicesWord: "الخدمات",
-    connectionsWord: "الاتصالات",
+    findings: "ما يمنع خط الأنابيب هذا من التشغيل",
+    startBody: "ضع مصدر التشغيل من المحفّزات على اليسار، وما يتركه خلفه من المخرجات على اليمين، والخدمات بينهما؛ ثم اسحب بين المنافذ لتوصيلها.",
+    catalysts: {
+      title: "المحفّزات",
+      expand: "إظهار المحفّزات",
+      collapse: "إخفاء المحفّزات",
+      resize: "تغيير حجم المحفّزات",
+      external: "من الخارج",
+      internal: "من النموذج",
+      byHand: "يدويًا",
+      byHandBody: "تشغيل يبدأ بزر «تشغيل» من المعاملات المكتوبة فوق اللوحة",
+      placeByHand: "وضع بداية يدوية",
+      none: "لا شيء معلن",
+      anybody: "أي جهة",
+      starts: "يبدأ {{pipeline}}",
+      today: "اليوم: يُرسل إلى {{service}}",
+      nothingToday: "لا يحدث شيء اليوم",
+      everySeconds: "كل {{count}} ث",
+      placeTitle: "وضع عقدة بداية تمثّل {{what}}",
+      openTitle: "فتح {{pipeline}}",
+      kind: {
+        message: "تصل رسالة",
+        state: "يُدخَل في حالة",
+        relationship: "تُكتب علاقة",
+        clock: "تعيد الساعة التحقق",
+      },
+    },
+    roster: {
+      title: "خطوط الأنابيب",
+      expand: "إظهار خطوط الأنابيب",
+      collapse: "إخفاء خطوط الأنابيب",
+      resize: "تغيير حجم خطوط الأنابيب",
+      none: "لا توجد خطوط أنابيب بعد",
+      nodes_one: "عقدة واحدة",
+      nodes_other: "{{count}} عقدة",
+      newPipeline: "تسمية خط أنابيب جديد",
+      addPipeline: "إضافة خط الأنابيب",
+    },
+    outputs: {
+      title: "المخرجات",
+      expand: "إظهار المخرجات",
+      collapse: "إخفاء المخرجات",
+      resize: "تغيير حجم المخرجات",
+      word: "المخرجات",
+      answer: "الجواب",
+      answerBody: "ما يجيب به التشغيل لمن بدأه",
+      pipelines: "خطوط أنابيب أخرى",
+      systems: "أنظمة خارجية",
+      told: "يُبلَّغ بـ {{kinds}}",
+      toldNothing: "لا يُبلَّغ بشيء بعد",
+      placeTitle: "وضع عقدة نهاية تمثّل {{what}}",
+      services: "الخدمات",
+      noConnections: "لا توجد اتصالات في النموذج. حمّل بذرة خط الأنابيب.",
+      portCount_one: "منفذ واحد",
+      portCount_other: "{{count}} منافذ",
+    },
+    endKind: {
+      messageKind: "رسالة",
+      externalSystem: "نظام",
+      door: "باب",
+      state: "حالة",
+      relationship: "علاقة",
+      pipeline: "خط أنابيب",
+      other: "",
+    },
+    note: {
+      startNotDispatched: "رسم مصدر التشغيل ليس ما يبدؤه: يعمل خط الأنابيب هذا عند الضغط على «تشغيل» أو عند إرسال طلب إلى المنسّق.",
+      endNotSent: "لا شيء يرسل إلى {{name}} بعد؛ ما يصل إلى هذه العقدة يبقى في سجل التشغيل.",
+      endNotStarted: "لا شيء يبدأ {{name}} من هذا التشغيل بعد.",
+    },
   },
   viewerToolbar: {
     sectionHeight: "ارتفاع المقطع",
@@ -1251,21 +1298,6 @@ export const ar: PartialResources & ArabicPlurals = {
     unreadableSpecification: "تعذّرت قراءة {{name}}",
     unreadableSpecificationBody: "خاصية spec في Thing لوحة المعلومات هذه لا تحمل مواصفة يستطيع هذا التطبيق قراءتها. صحّحها في النموذج ثم أعِد التحميل.",
     emptyView: "مواصفة لوحة المعلومات هذه لا تذكر أي أقسام، فليس هناك ما يُرسم.",
-  },
-  palette: {
-    inputTitle: "مدخل خط المعالجة — من البداية",
-    outputTitle: "مخرج خط المعالجة — في النهاية",
-    noConnections: "لا توجد اتصالات في النموذج. حمّل بذرة خط المعالجة.",
-    input: "إدخال",
-    output: "إخراج",
-    boundary: "الحدود",
-    services: "الخدمات",
-    portCount_one: "{{count}} منفذ",
-    portCount_other: "{{count}} منافذ",
-    portCount_zero: "لا منافذ",
-    portCount_two: "منفذان",
-    portCount_few: "{{count}} منافذ",
-    portCount_many: "{{count}} منفذًا",
   },
   ifcUpload: {
     ingested: "تم استيراد {{file}}: {{created}} منشأة، {{updated}} محدّثة، {{rels}} علاقات.",

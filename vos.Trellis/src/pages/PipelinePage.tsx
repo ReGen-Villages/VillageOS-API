@@ -15,17 +15,23 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import clsx from 'clsx';
-import { Play, Save, FolderOpen, FilePlus, MousePointerClick, Ban, History, SlidersHorizontal, AlertTriangle, Undo2 } from 'lucide-react';
+import { Play, Save, FilePlus, MousePointerClick, Ban, History, SlidersHorizontal, AlertTriangle, Undo2 } from 'lucide-react';
 import { useModelStore } from '../stores/modelStore';
+import { useThemeStore } from '../stores/themeStore';
 import { useSubscription } from '../hooks/useSse';
 import { WHOLE_MODEL } from '../types/subscription';
 import { PipelineModel, ARCHETYPE_FLAG, typesCompatible, type ConnectionInformation, type PortInformation } from '../pipeline/model';
 import { savePipeline, loadPipeline, type EditorNode, type EditorEdge } from '../pipeline/serialize';
-import { validatePipeline } from '../pipeline/validate';
+import { validatePipeline, validateEnds } from '../pipeline/validate';
+import { catalystRail, outputRail, type CatalystRow, type OutputRow } from '../pipeline/catalysts';
 import { EditorHistory } from '../pipeline/history';
 import { pipelineApi } from '../api/pipelineApi';
 import { PipelineNodeView, type PipelineNodeData } from '../components/pipeline/PipelineNodeView';
-import { Palette } from '../components/pipeline/Palette';
+import { CatalystRail } from '../components/pipeline/CatalystRail';
+import { OutputRail } from '../components/pipeline/OutputRail';
+import { PipelineRoster } from '../components/pipeline/PipelineRoster';
+import { NodeInspector } from '../components/pipeline/NodeInspector';
+import { WireInspector, type WirePaths } from '../components/pipeline/WireInspector';
 
 const nodeTypes: NodeTypes = { pipelineNode: PipelineNodeView };
 
@@ -47,16 +53,33 @@ function pathLabel(fromPath?: string, toPath?: string, transform?: string): stri
   return transform ? `${paths} ƒ`.trim() : paths;
 }
 
+/**
+ * Drawing the pipelines the orchestrator runs, around what sets each one off and what it leaves behind.
+ *
+ * A pipeline is model data — nodes, the connections they dispatch, and the wires between their ports — so
+ * this page is Thing and relationship work with a canvas over it. The rail on the left lists every
+ * catalyst the model holds, the roster every pipeline, and the rail on the right every outcome and every
+ * service a node may dispatch. A boundary node stands for the catalyst or the outcome it was placed from.
+ */
 export function PipelinePage() {
   useSubscription(WHOLE_MODEL);
   const { t } = useTranslation();
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
+  const loaded = useModelStore((s) => s.loaded);
+  // The canvas paints its own controls and background and has to be told which lighting it is in.
+  const theme = useThemeStore((s) => s.theme);
   const model = useMemo(() => new PipelineModel(things, relationships), [things, relationships]);
   const connections = useMemo(() => model.connections(), [model]);
   const pipelines = useMemo(
-    () => things.filter((t) => model.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.Pipeline)),
-    [things, model],
+    () => model.thingsOfArchetypeCarrying(ARCHETYPE_FLAG.Pipeline)
+      .map((pipeline) => ({
+        id: pipeline.Id,
+        name: pipeline.Name,
+        nodeCount: model.outgoing(pipeline.Id, 'has').filter((held) => model.isOfArchetypeCarrying(held.Id, ARCHETYPE_FLAG.PipelineNode)).length,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    [model],
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -73,6 +96,11 @@ export function PipelinePage() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [runParameterValues, setRunParameterValues] = useState<Record<string, string>>({});
+
+  // Everything that sets a run off and everything one may leave behind, read again on every model flush,
+  // because each group is a walk of the model.
+  const catalysts = useMemo(() => catalystRail(model), [model]);
+  const outputs = useMemo(() => outputRail(model, editingPipelineId), [model, editingPipelineId]);
 
   // Undo + optimistic rollback. The history records the editor state *before* each mutation (undo),
   // and holds the last server-confirmed state as a baseline (rollback on a rejected save). `canUndo`/`dirty`
@@ -122,12 +150,17 @@ export function PipelinePage() {
     return [...keys].sort();
   }, [nodes]);
 
-  // Pre-run validation: why the DAG will not run — required inputs neither wired nor param-bound,
-  // and dangling wires. Surfaced in the toolbar and gates Run so a broken pipeline fails loud, not silent.
+  // Pre-run validation: why the DAG will not run — required inputs neither wired nor param-bound, dangling
+  // wires, and an end standing for something a run cannot come from or leave behind. Surfaced under the
+  // canvas and gates Run so a broken pipeline fails loud, not silent.
   const validationIssues = useMemo(() => {
     const validationNodes = nodes.map((n) => {
       const d = n.data as unknown as PipelineNodeData;
-      return { id: n.id, label: d.label, ports: d.ports, paramBindings: d.paramBindings };
+      const stood = d.standsForId ? model.endInformation(d.standsForId) : undefined;
+      return {
+        id: n.id, label: d.label, ports: d.ports, paramBindings: d.paramBindings, kind: d.kind,
+        ...(stood ? { standsFor: { name: stood.name, mayStart: stood.mayStart, mayEnd: stood.mayEnd } } : {}),
+      };
     });
     const validationEdges = edges.map((e) => ({
       source: e.source,
@@ -135,17 +168,34 @@ export function PipelinePage() {
       target: e.target,
       targetHandle: e.targetHandle ?? '',
     }));
-    return validatePipeline(validationNodes, validationEdges);
-  }, [nodes, edges]);
+    return [...validatePipeline(validationNodes, validationEdges), ...validateEnds(validationNodes, validationEdges)];
+  }, [nodes, edges, model]);
+
+  // The drawing as the canvas paints it: a boundary node says what it stands for, read off the model so a
+  // rename reaches it, and what really happens at that end today — placing a node where a run comes from
+  // is not what dispatches it, and nothing sends to a system a run ends at yet.
+  const canvasNodes = useMemo(() => nodes.map((n) => {
+    const d = n.data as unknown as PipelineNodeData;
+    if (!d.kind || !d.standsForId) return n;
+    const standsFor = model.endInformation(d.standsForId);
+    const note = d.kind === 'input'
+      ? t('pipeline.note.startNotDispatched')
+      : standsFor.kind === 'externalSystem'
+        ? t('pipeline.note.endNotSent', { name: standsFor.name })
+        : standsFor.kind === 'pipeline'
+          ? t('pipeline.note.endNotStarted', { name: standsFor.name })
+          : undefined;
+    return { ...n, data: { ...n.data, standsFor, note } };
+  }), [nodes, model, t]);
 
   const selectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : undefined;
   const selectedEdge = selectedEdgeId ? edges.find((e) => e.id === selectedEdgeId) : undefined;
 
-  const setEdgePath = useCallback((edgeId: string, which: 'fromPath' | 'toPath' | 'transform', value: string) => {
+  const setEdgePath = useCallback((edgeId: string, which: keyof WirePaths, value: string) => {
     recordSnapshot();
     setEdges((es) => es.map((e) => {
       if (e.id !== edgeId) return e;
-      const data = { ...(e.data as { fromPath?: string; toPath?: string; transform?: string } | undefined), [which]: value || undefined };
+      const data = { ...(e.data as WirePaths | undefined), [which]: value || undefined };
       return { ...e, data, label: pathLabel(data.fromPath, data.toPath, data.transform) };
     }));
     setSavedId(null);
@@ -164,9 +214,8 @@ export function PipelinePage() {
     setRunId(id || null);
   }, [clearStatuses]);
 
-  const addNode = useCallback((c: ConnectionInformation) => {
+  const place = useCallback((data: PipelineNodeData) => {
     recordSnapshot();
-    const data: PipelineNodeData = { label: c.name, connectionId: c.connectionId, subdomain: c.subdomain, ports: c.ports };
     setNodes((ns) => [
       ...ns,
       {
@@ -179,28 +228,33 @@ export function PipelinePage() {
     setSavedId(null);
   }, [setNodes, recordSnapshot]);
 
-  // Drop a boundary node: an Input source (one output port) or an Output sink (one input port). Its
-  // ports are user-declared — editable in the inspector — and the run fills an Input's outputs from the run
-  // parameters and collects an Output's inputs as the pipeline result.
-  const addBoundaryNode = useCallback((kind: 'input' | 'output') => {
-    recordSnapshot();
-    const direction = kind === 'input' ? 'out' : 'in';
-    const data: PipelineNodeData = {
-      label: kind === 'input' ? t('pipeline.boundaryInput') : t('pipeline.boundaryOutput'),
-      kind,
-      ports: [{ portName: 'value', direction, type: 'any', required: kind === 'output' }],
-    };
-    setNodes((ns) => [
-      ...ns,
-      {
-        id: `n${++nodeSequence}`,
-        type: 'pipelineNode',
-        position: { x: 80 + ns.length * 60, y: 80 + ns.length * 40 },
-        data: data as unknown as Record<string, unknown>,
-      },
-    ]);
-    setSavedId(null);
-  }, [setNodes, recordSnapshot, t]);
+  const addNode = useCallback((c: ConnectionInformation) => {
+    place({ label: c.name, connectionId: c.connectionId, subdomain: c.subdomain, ports: c.ports });
+  }, [place]);
+
+  // Where the run comes from: a start node standing for the catalyst it was placed from, whose out port
+  // is the run's parameter — the message that arrived, or the Thing that entered the state or the
+  // relationship. Placed from nothing, it is a start by hand, filled from the parameters typed above.
+  const placeStart = useCallback((row: CatalystRow | undefined) => {
+    const portName = row === undefined || row.kind === 'message' ? 'payload' : 'subject';
+    place({
+      label: row ? (row.who ? `${row.who} · ${row.what}` : row.what) : t('pipeline.boundaryInput'),
+      kind: 'input',
+      ports: [{ portName, direction: 'out', type: 'any', required: false }],
+      ...(row ? { standsForId: row.standsForId } : {}),
+    });
+  }, [place, t]);
+
+  // What the run leaves behind: the answer to whoever started it, another pipeline, or a system told.
+  const placeOutput = useCallback((row: OutputRow) => {
+    const portName = row.kind === 'answer' ? 'value' : row.kind === 'pipeline' ? 'subject' : 'payload';
+    place({
+      label: row.kind === 'answer' ? t('pipeline.boundaryOutput') : row.name,
+      kind: 'output',
+      ports: [{ portName, direction: 'in', type: 'any', required: true }],
+      ...(row.kind === 'answer' ? {} : { standsForId: row.id }),
+    });
+  }, [place, t]);
 
   // Add / rename / remove a port on a boundary node (its ports are user-declared). Direction is fixed by the
   // node kind (Input → output ports, Output → input ports).
@@ -229,7 +283,7 @@ export function PipelinePage() {
   const toEditorNodes = (): EditorNode[] =>
     nodes.map((n) => {
       const d = n.data as unknown as PipelineNodeData;
-      return { id: n.id, connectionId: d.connectionId ?? '', label: d.label, x: n.position.x, y: n.position.y, ports: d.ports, paramBindings: d.paramBindings, kind: d.kind };
+      return { id: n.id, connectionId: d.connectionId ?? '', label: d.label, x: n.position.x, y: n.position.y, ports: d.ports, paramBindings: d.paramBindings, kind: d.kind, standsForId: d.standsForId };
     });
 
   const toEditorEdges = (): EditorEdge[] =>
@@ -239,9 +293,9 @@ export function PipelinePage() {
       sourceHandle: e.sourceHandle ?? '',
       target: e.target,
       targetHandle: e.targetHandle ?? '',
-      fromPath: (e.data as { fromPath?: string } | undefined)?.fromPath,
-      transform: (e.data as { transform?: string } | undefined)?.transform,
-      toPath: (e.data as { toPath?: string } | undefined)?.toPath,
+      fromPath: (e.data as WirePaths | undefined)?.fromPath,
+      transform: (e.data as WirePaths | undefined)?.transform,
+      toPath: (e.data as WirePaths | undefined)?.toPath,
     }));
 
   const onSave = useCallback(async () => {
@@ -275,29 +329,31 @@ export function PipelinePage() {
   }, [name, nodes, edges, model, editingPipelineId, commitBaseline, applySnapshot, t]);
 
   const onLoad = useCallback((pipelineId: string) => {
-    const loaded = loadPipeline(pipelineId, model);
-    if (!loaded) return;
-    setName(loaded.name);
+    const loadedPipeline = loadPipeline(pipelineId, model);
+    if (!loadedPipeline) return;
+    setName(loadedPipeline.name);
     setSavedId(pipelineId);
     setEditingPipelineId(pipelineId);
     setRunId(null);
-    setThingIdByCanvasId(Object.fromEntries(loaded.nodes.map((n) => [n.id, n.id])));
-    const loadedNodes: Node[] = loaded.nodes.map((n) => ({
+    setSelectedNodeId(null);
+    setSelectedEdgeId(null);
+    setThingIdByCanvasId(Object.fromEntries(loadedPipeline.nodes.map((n) => [n.id, n.id])));
+    const loadedNodes: Node[] = loadedPipeline.nodes.map((n) => ({
       id: n.id,
       type: 'pipelineNode',
       position: { x: n.x, y: n.y },
-      data: { label: n.label, kind: n.kind, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, paramBindings: n.paramBindings } as unknown as Record<string, unknown>,
+      data: { label: n.label, kind: n.kind, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, paramBindings: n.paramBindings, standsForId: n.standsForId } as unknown as Record<string, unknown>,
     }));
-    const loadedEdges: Edge[] = loaded.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle, label: pathLabel(e.fromPath, e.toPath, e.transform), data: { fromPath: e.fromPath, toPath: e.toPath, transform: e.transform } }));
+    const loadedEdges: Edge[] = loadedPipeline.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle, label: pathLabel(e.fromPath, e.toPath, e.transform), data: { fromPath: e.fromPath, toPath: e.toPath, transform: e.transform } }));
     setNodes(loadedNodes);
     setEdges(loadedEdges);
     commitBaseline({ nodes: loadedNodes, edges: loadedEdges }); // a freshly loaded pipeline is the undo/rollback floor
   }, [model, connections, setNodes, setEdges, commitBaseline]);
 
-  const onNew = useCallback(() => {
+  const onNew = useCallback((newName?: string) => {
     setNodes([]);
     setEdges([]);
-    setName(t('pipeline.newPipelineName'));
+    setName(newName ?? t('pipeline.newPipelineName'));
     setSavedId(null);
     setEditingPipelineId(null);
     setRunId(null);
@@ -305,6 +361,15 @@ export function PipelinePage() {
     setError(null);
     commitBaseline({ nodes: [], edges: [] }); // empty canvas is the floor; nothing to undo/roll back to
   }, [setNodes, setEdges, commitBaseline, t]);
+
+  // The first pipeline opens on arrival, once the model has loaded; a model holding none leaves the
+  // empty canvas, where naming a new one still works.
+  const openedOnArrival = useRef(false);
+  useEffect(() => {
+    if (openedOnArrival.current || !loaded || pipelines.length === 0) return;
+    openedOnArrival.current = true;
+    onLoad(pipelines[0].id);
+  }, [loaded, pipelines, onLoad]);
 
   const onRun = useCallback(async () => {
     if (!savedId) return;
@@ -383,12 +448,18 @@ export function PipelinePage() {
     }));
   }, [runId, model, thingIdByCanvasId, setNodes]);
 
+  const wiredInputs = useMemo(
+    () => new Set(selectedNode ? edges.filter((e) => e.target === selectedNode.id).map((e) => e.targetHandle ?? '') : []),
+    [selectedNode, edges],
+  );
+
   return (
     <div className="flex h-full">
-      <Palette connections={connections} onAdd={addNode} onAddBoundary={addBoundaryNode} />
-      <div className="flex-1 flex flex-col">
+      <CatalystRail groups={catalysts} onPlace={placeStart} onOpenPipeline={onLoad} />
+      <PipelineRoster pipelines={pipelines} openedPipelineId={editingPipelineId} onOpen={onLoad} onCreate={onNew} />
+      <div className="flex-1 min-w-0 flex flex-col">
         <div className="flex items-center gap-2 p-2 border-b border-zinc-200 dark:border-zinc-700">
-          <button onClick={onNew} className="flex items-center gap-1 px-3 py-1 text-sm rounded border border-zinc-300 dark:border-zinc-600 hover:border-blue-400">
+          <button onClick={() => onNew()} className="flex items-center gap-1 px-3 py-1 text-sm rounded border border-zinc-300 dark:border-zinc-600 hover:border-blue-400">
             <FilePlus size={14} /> {t('pipeline.new')}
           </button>
           <button
@@ -423,25 +494,6 @@ export function PipelinePage() {
               <Play size={14} /> {t('pipeline.run')}
             </button>
           )}
-          {validationIssues.length > 0 && (
-            <span
-              className="flex items-center gap-1 text-xs text-amber-600"
-              title={validationIssues.map((i) => i.message).join('\n')}
-            >
-              <AlertTriangle size={12} /> {t('pipeline.issues', { count: validationIssues.length })}
-            </span>
-          )}
-          <div className="flex items-center gap-1 ml-2">
-            <FolderOpen size={14} className="text-zinc-400" />
-            <select
-              onChange={(e) => e.target.value && onLoad(e.target.value)}
-              value={savedId ?? ''}
-              className="px-2 py-1 text-sm rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800"
-            >
-              <option value="">{t('pipeline.loadPipeline')}</option>
-              {pipelines.map((p) => <option key={p.Id} value={p.Id}>{p.Name}</option>)}
-            </select>
-          </div>
           {savedId && runs.length > 0 && (
             <div className="flex items-center gap-1 ml-2">
               <History size={14} className="text-zinc-400" />
@@ -484,7 +536,7 @@ export function PipelinePage() {
         )}
         <div className="flex-1 relative">
           <ReactFlow
-            nodes={nodes}
+            nodes={canvasNodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
@@ -496,120 +548,32 @@ export function PipelinePage() {
             onEdgeClick={(_, edge) => { setSelectedEdgeId(edge.id); setSelectedNodeId(null); }}
             onPaneClick={() => { setSelectedNodeId(null); setSelectedEdgeId(null); }}
             nodeTypes={nodeTypes}
+            colorMode={theme}
             fitView
           >
             <Background />
             <Controls />
           </ReactFlow>
-          {selectedNode && (() => {
-            const d = selectedNode.data as unknown as PipelineNodeData;
-            const inputs = d.ports.filter((p) => p.direction === 'in');
-            const wired = new Set(edges.filter((e) => e.target === selectedNode.id).map((e) => e.targetHandle));
-            const bindings = d.paramBindings ?? {};
-            return (
-              <div className="absolute top-2 right-2 w-64 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded shadow-lg p-2 text-xs z-10">
-                <div className="font-semibold mb-1.5 flex items-center justify-between gap-2">
-                  <span className="truncate">{d.label}</span>
-                  <button onClick={() => setSelectedNodeId(null)} aria-label={t('pipeline.closeInspector')} className="text-zinc-400 hover:text-zinc-600">×</button>
-                </div>
-                {d.kind ? (
-                  <div className="flex flex-col gap-1">
-                    <div className="text-zinc-400">{t('pipeline.ports', { direction: d.kind === 'input' ? t('pipeline.outputs') : t('pipeline.inputs') })}</div>
-                    {d.ports.map((p, i) => (
-                      <div key={i} className="flex items-center gap-1">
-                        <input
-                          aria-label={t('pipeline.portName', { index: i + 1 })}
-                          value={p.portName}
-                          onChange={
-                            // eslint-disable-next-line react-hooks/refs -- an event handler, which the rule's own guidance names as the right place to read a ref; it cannot tell one written inline in JSX from code running during render
-                            (e) => setBoundaryPorts(selectedNode.id, d.ports.map((q, j) => (j === i ? { ...q, portName: e.target.value } : q)))
-                          }
-                          className="flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900"
-                        />
-                        <button
-                          onClick={() => setBoundaryPorts(selectedNode.id, d.ports.filter((_, j) => j !== i))}
-                          aria-label={t('pipeline.removePort', { name: p.portName })}
-                          className="text-zinc-400 hover:text-red-400 px-1"
-                        >×</button>
-                      </div>
-                    ))}
-                    <button
-                      onClick={() => setBoundaryPorts(selectedNode.id, [...d.ports, { portName: `port${d.ports.length + 1}`, direction: d.kind === 'input' ? 'out' : 'in', type: 'any', required: d.kind === 'output' }])}
-                      className="mt-1 text-blue-500 hover:text-blue-600 text-left"
-                    >{t('pipeline.addPort')}</button>
-                  </div>
-                ) : inputs.length === 0 ? (
-                  <div className="text-zinc-400">{t('pipeline.noInputPorts')}</div>
-                ) : (
-                  <div className="flex flex-col gap-1">
-                    <div className="text-zinc-400">{t('pipeline.bindInput')}</div>
-                    {inputs.map((p) => (
-                      <label key={p.portName} className="flex items-center gap-1">
-                        <span className="w-16 truncate text-zinc-600 dark:text-zinc-300">{p.portName}</span>
-                        {wired.has(p.portName) ? (
-                          <span className="flex-1 italic text-zinc-400">{t('pipeline.wired')}</span>
-                        ) : (
-                          <input
-                            placeholder={t('pipeline.fromParameter')}
-                            value={bindings[p.portName] ?? ''}
-                            onChange={
-                              // eslint-disable-next-line react-hooks/refs -- an event handler, which the rule's own guidance names as the right place to read a ref; it cannot tell one written inline in JSX from code running during render
-                              (e) => setBinding(selectedNode.id, p.portName, e.target.value)
-                            }
-                            className="flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900"
-                          />
-                        )}
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-          {selectedEdge && (() => {
-            const data = (selectedEdge.data as { fromPath?: string; toPath?: string; transform?: string } | undefined) ?? {};
-            return (
-              <div className="absolute top-2 right-2 w-64 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded shadow-lg p-2 text-xs z-10">
-                <div className="font-semibold mb-1.5 flex items-center justify-between gap-2">
-                  <span className="truncate">{t('pipeline.wireLabel', { from: selectedEdge.sourceHandle, to: selectedEdge.targetHandle })}</span>
-                  <button onClick={() => setSelectedEdgeId(null)} aria-label={t('pipeline.closeInspector')} className="text-zinc-400 hover:text-zinc-600">×</button>
-                </div>
-                <div className="text-zinc-400 mb-1">{t('pipeline.mapField')}</div>
-                <label className="flex items-center gap-1 mb-1">
-                  <span className="w-16 truncate text-zinc-600 dark:text-zinc-300">{t('pipeline.fromPath')}</span>
-                  <input
-                    aria-label={t('pipeline.wireFromPath')}
-                    placeholder="e.g. user.id"
-                    value={data.fromPath ?? ''}
-                    onChange={
-                      // eslint-disable-next-line react-hooks/refs -- an event handler, which the rule's own guidance names as the right place to read a ref; it cannot tell one written inline in JSX from code running during render
-                      (e) => setEdgePath(selectedEdge.id, 'fromPath', e.target.value)
-                    }
-                    className="flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900"
-                  />
-                </label>
-                <label className="flex items-center gap-1">
-                  <span className="w-16 truncate text-zinc-600 dark:text-zinc-300">{t('pipeline.toPath')}</span>
-                  <input
-                    aria-label={t('pipeline.wireToPath')}
-                    placeholder="e.g. a"
-                    value={data.toPath ?? ''}
-                    onChange={(e) => setEdgePath(selectedEdge.id, 'toPath', e.target.value)}
-                    className="flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900"
-                  />
-                </label>
-                <div className="text-zinc-400 mt-2 mb-1">{t('pipeline.transformLabel')}</div>
-                <textarea
-                  aria-label={t('pipeline.wireTransform')}
-                  placeholder='e.g. {"name": firstName & " " & lastName}'
-                  value={data.transform ?? ''}
-                  onChange={(e) => setEdgePath(selectedEdge.id, 'transform', e.target.value)}
-                  rows={2}
-                  className="w-full px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 font-mono"
-                />
-              </div>
-            );
-          })()}
+          {selectedNode && (
+            <NodeInspector
+              nodeId={selectedNode.id}
+              data={selectedNode.data as unknown as PipelineNodeData}
+              wiredInputs={wiredInputs}
+              onSetPorts={setBoundaryPorts}
+              onSetBinding={setBinding}
+              onClose={() => setSelectedNodeId(null)}
+            />
+          )}
+          {selectedEdge && (
+            <WireInspector
+              wireId={selectedEdge.id}
+              fromPort={selectedEdge.sourceHandle ?? ''}
+              toPort={selectedEdge.targetHandle ?? ''}
+              paths={(selectedEdge.data as WirePaths | undefined) ?? {}}
+              onSetPath={setEdgePath}
+              onClose={() => setSelectedEdgeId(null)}
+            />
+          )}
           {nodes.length === 0 && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="text-center text-sm text-zinc-500 dark:text-zinc-400 max-w-xs">
@@ -629,22 +593,36 @@ export function PipelinePage() {
             </div>
           )}
         </div>
-        {runId && (
+        {(validationIssues.length > 0 || runId) && (
           <div className="border-t border-zinc-200 dark:border-zinc-700 p-2 text-xs max-h-40 overflow-auto">
-            <div className={clsx('font-semibold', RUN_STATUS_COLOR[liveRunStatus ?? 'running'] ?? 'text-blue-600')}>
-              {t('pipeline.runStatus', { status: liveRunStatus ?? t('pipeline.starting') })}{runActive ? '…' : ''}
-            </div>
-            {nodes.map((n) => {
-              const d = n.data as unknown as PipelineNodeData;
-              return (
-                <div key={n.id} className="font-mono">
-                  {t('pipeline.nodeStatus', { label: d.label, status: d.status ?? t('pipeline.pending') })}
+            {validationIssues.length > 0 && (
+              <ul aria-label={t('pipeline.findings')} className="mb-1 space-y-0.5">
+                {validationIssues.map((issue, i) => (
+                  <li key={i} className="flex items-start gap-1 text-amber-700 dark:text-amber-400">
+                    <AlertTriangle size={12} className="mt-0.5 shrink-0" /> <span>{issue.message}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {runId && (
+              <>
+                <div className={clsx('font-semibold', RUN_STATUS_COLOR[liveRunStatus ?? 'running'] ?? 'text-blue-600')}>
+                  {t('pipeline.runStatus', { status: liveRunStatus ?? t('pipeline.starting') })}{runActive ? '…' : ''}
                 </div>
-              );
-            })}
+                {nodes.map((n) => {
+                  const d = n.data as unknown as PipelineNodeData;
+                  return (
+                    <div key={n.id} className="font-mono">
+                      {t('pipeline.nodeStatus', { label: d.label, status: d.status ?? t('pipeline.pending') })}
+                    </div>
+                  );
+                })}
+              </>
+            )}
           </div>
         )}
       </div>
+      <OutputRail outputs={outputs} connections={connections} onPlaceOutput={placeOutput} onAddService={addNode} />
     </div>
   );
 }
