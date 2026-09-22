@@ -282,6 +282,27 @@ test('every mapped document exists and every page path is unique', () => {
   }
 });
 
+// A wiki page's ground follows the reader's colour scheme, and an image cannot see the page it sits
+// on. A diagram that paints its own ground is a white slab on a dark page; one that carries a
+// dark-scheme stylesheet and no ground reads on either.
+test('every diagram a published page attaches follows the reader\'s colour scheme', () => {
+  const diagrams = new Set();
+  for (const { doc } of manifest.pages) {
+    const markdown = fs.readFileSync(path.join(REPO_ROOT, doc), 'utf8');
+    for (const [, file] of markdown.matchAll(/!\[[^\]]*\]\(([^)\s]+\.svg)\)/g)) {
+      diagrams.add(path.join(path.dirname(doc), file));
+    }
+  }
+  assert.ok(diagrams.size > 0, 'no published page attaches a diagram');
+  for (const diagram of diagrams) {
+    const svg = fs.readFileSync(path.join(REPO_ROOT, diagram), 'utf8');
+    const [, width, height] = /viewBox="\s*[-\d.]+\s+[-\d.]+\s+([\d.]+)\s+([\d.]+)/.exec(svg);
+    const ground = new RegExp(`<rect\\b[^>]*width="${width}"[^>]*height="${height}"[^>]*fill="(?!none)`);
+    assert.doesNotMatch(svg, ground, `${diagram} paints its own ground`);
+    assert.match(svg, /@media \(prefers-color-scheme: dark\)/, `${diagram} has no dark-scheme stylesheet`);
+  }
+});
+
 test('a diagram fence becomes the wiki diagram block', () => {
   assert.equal(convertMermaid('```mermaid\ngraph TD;\nA-->B;\n```'), '::: mermaid\ngraph TD;\nA-->B;\n:::');
 });
