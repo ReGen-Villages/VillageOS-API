@@ -18,12 +18,20 @@ public sealed class PipelineExecutor
     private readonly IMyceliumGateway _gateway;
     private readonly ILogger<PipelineExecutor> _logger;
     private readonly int _maxConcurrency;
+    private readonly ModelClock _clock;
 
-    public PipelineExecutor(IMyceliumGateway gateway, ILogger<PipelineExecutor> logger, int maxConcurrency = 4)
+    public PipelineExecutor(
+        IMyceliumGateway gateway,
+        ILogger<PipelineExecutor> logger,
+        int maxConcurrency = 4,
+        ModelClock? clock = null)
     {
         _gateway = gateway;
         _logger = logger;
         _maxConcurrency = Math.Max(1, maxConcurrency);
+        // Un-anchored where none is registered, which is this machine's clock — what the model's own is
+        // until something simulates it.
+        _clock = clock ?? new ModelClock();
     }
 
     // runId: Pre-generated run id for an async spawn (the editor already holds it to animate over
@@ -190,7 +198,7 @@ public sealed class PipelineExecutor
     // Assemble a node's inputs: param-bound inputs first, then wires. Each wire extracts its
     // from-path of the upstream output and deep-merges it at its to-path into the target input, so several
     // wires compose one input value; empty paths carry the whole payload and a scalar wire overrides.
-    private static Dictionary<string, JsonElement> AssembleInputs(
+    private Dictionary<string, JsonElement> AssembleInputs(
         PipelineDag dag, DagNode node,
         IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, JsonElement runParams)
     {
@@ -206,7 +214,7 @@ public sealed class PipelineExecutor
             if (extracted is null) continue; // the from-path is not present in the upstream output
             var reshaped = string.IsNullOrEmpty(wire.Transform)
                 ? extracted.Value
-                : new JsonataTransform(wire.Transform).Eval(extracted.Value);
+                : new JsonataTransform(wire.Transform).Eval(extracted.Value, _clock);
             var placed = PayloadMapping.Place(wire.ToPath, reshaped);
             accumulated[wire.ToPort] = accumulated.TryGetValue(wire.ToPort, out var existing)
                 ? PayloadMapping.Merge(existing, placed)
