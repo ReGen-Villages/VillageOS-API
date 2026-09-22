@@ -12,7 +12,7 @@ namespace vos.Service.Shared;
 // from the elapsed real time. Left un-anchored — the state a service starts in, and the state it
 // stays in wherever the broker cannot be reached — it is the wall clock, which is what the model's
 // own clock is when nothing has simulated it.
-public class ModelClock : TimeProvider
+public sealed class ModelClock : TimeProvider
 {
     private sealed record Mapping(DateTimeOffset ModelInstant, DateTimeOffset RealInstant, double Rate);
 
@@ -50,6 +50,4 @@ public class ModelClock : TimeProvider
         if (rate < 0) throw new ArgumentOutOfRangeException(nameof(rate), "model time cannot run backwards");
         _anchor = new Mapping(modelInstant, _real.GetUtcNow(), rate);
     }
-
-    public void Reset() => _anchor = null;
 }

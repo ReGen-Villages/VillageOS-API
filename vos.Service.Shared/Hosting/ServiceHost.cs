@@ -47,8 +47,7 @@ public static class ServiceHost
     /// <see cref="ModelClock"/> rather than as the injected <c>TimeProvider</c>, because a service also
     /// measures real durations of its own — how long a verification code stays good, when a token is due
     /// for replacement — and those are not the model's business however fast a simulation runs.</summary>
-    public static IServiceCollection AddModelClock<TClient>(
-        this IServiceCollection services, string serviceName, TimeSpan? interval = null)
+    public static IServiceCollection AddModelClock<TClient>(this IServiceCollection services, string serviceName)
         where TClient : MyceliumClientBase
     {
         services.AddSingleton<ModelClock>();
@@ -56,7 +55,7 @@ public static class ServiceHost
             provider.GetRequiredService<ModelClock>(),
             cancellationToken => provider.GetRequiredService<TClient>().ReadModelTimeAsync(cancellationToken),
             serviceName,
-            interval ?? ModelClockInterval));
+            ModelClockInterval));
     }
 
     // Short enough that a service launched before a simulation anchors the clock is stamping model

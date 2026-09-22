@@ -69,7 +69,35 @@ public class ModelClockFollowerTests
         }
 
         captured.Lines.Should().ContainSingle()
-            .Which.Should().Contain("Intake").And.Contain("60").And.Contain(ModelInstant.Year.ToString());
+            .Which.Should().Contain("Intake").And.Contain("60").And.Contain(ModelInstant.Year.ToString())
+            .And.Contain("behind it by", "a model anchored in the past is behind this machine, not ahead of it");
+    }
+
+    [Fact]
+    public async Task A_Broker_That_Stays_Away_Is_Said_Once_And_Its_Return_Is_Said_Too()
+    {
+        var captured = new Captured();
+        var before = Log.Logger;
+        Log.Logger = new LoggerConfiguration().WriteTo.Sink(captured).CreateLogger();
+        try
+        {
+            var answering = false;
+            var follower = NewFollower(new ModelClock(), _ => Task.FromResult(
+                answering ? new ModelTimeReading(ModelInstant, 1) : null));
+
+            await FollowOnceAsync(follower);
+            await FollowOnceAsync(follower);
+            await FollowOnceAsync(follower);
+            answering = true;
+            await FollowOnceAsync(follower);
+        }
+        finally
+        {
+            Log.Logger = before;
+        }
+
+        captured.Lines.Should().ContainSingle(line => line.Contains("cannot read the model clock"));
+        captured.Lines.Should().ContainSingle(line => line.Contains("reading the model clock again"));
     }
 
     [Fact]

@@ -17,6 +17,7 @@ internal sealed class ModelClockFollower : BackgroundService
     private readonly string _serviceName;
     private readonly TimeSpan _interval;
     private TimeSpan? _said;
+    private bool _unreachable;
 
     public ModelClockFollower(
         ModelClock clock,
@@ -46,11 +47,22 @@ internal sealed class ModelClockFollower : BackgroundService
         }
     }
 
-    // Internal so a test drives one reading without a timer.
     internal async Task FollowOnceAsync(CancellationToken cancellationToken)
     {
         if (await _read(cancellationToken) is not { } reading)
+        {
+            // Once, not once an interval: a broker away for an hour would otherwise write the same
+            // warning several hundred times, and the clock goes on answering from its last reading.
+            if (!_unreachable)
+                Log.Warning("{Service} cannot read the model clock; it stamps the last reading it took "
+                            + "until the broker answers again", _serviceName);
+            _unreachable = true;
             return;
+        }
+
+        if (_unreachable)
+            Log.Information("{Service} is reading the model clock again", _serviceName);
+        _unreachable = false;
 
         _clock.AnchorTo(reading.Now, reading.Rate);
         Say(reading);
@@ -68,7 +80,16 @@ internal sealed class ModelClockFollower : BackgroundService
         _said = offset;
         Log.Information(
             "{Service} stamps the model clock: model {ModelInstant:o}, this machine {WallInstant:o}, "
-            + "model ahead by {Offset} at {Rate}× real time",
-            _serviceName, reading.Now, DateTimeOffset.UtcNow, offset, reading.Rate);
+            + "model {Standing} at {Rate}× real time",
+            _serviceName, reading.Now, DateTimeOffset.UtcNow, Standing(offset), reading.Rate);
     }
+
+    // Which way round the two clocks stand, in words: a run of a past day is a model behind this
+    // machine, and a figure that can be negative is read wrong as often as right.
+    private static string Standing(TimeSpan offset) => offset switch
+    {
+        _ when offset > TimeSpan.Zero => $"ahead of it by {offset}",
+        _ when offset < TimeSpan.Zero => $"behind it by {offset.Duration()}",
+        _ => "level with it",
+    };
 }

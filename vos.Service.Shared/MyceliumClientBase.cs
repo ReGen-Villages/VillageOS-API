@@ -270,7 +270,7 @@ public abstract class MyceliumClientBase
             var response = await client.GetAsync($"{MyceliumUrl}/api/time", cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                Logger.LogWarning("Reading the model clock answered {Status}", (int)response.StatusCode);
+                Logger.LogDebug("Reading the model clock answered {Status}", (int)response.StatusCode);
                 return null;
             }
 
@@ -285,7 +285,9 @@ public abstract class MyceliumClientBase
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            Logger.LogWarning(exception, "Could not read the model clock");
+            // Said at debug, and by the caller once rather than once an interval: a broker that is
+            // away for an hour would otherwise write the same warning several hundred times.
+            Logger.LogDebug(exception, "Could not read the model clock");
             return null;
         }
     }

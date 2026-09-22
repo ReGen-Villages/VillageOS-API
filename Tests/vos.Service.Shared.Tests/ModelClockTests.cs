@@ -61,16 +61,4 @@ public class ModelClockTests
 
         refused.Should().Throw<ArgumentOutOfRangeException>();
     }
-
-    [Fact]
-    public void Reset_Puts_It_Back_On_The_Wall_Clock()
-    {
-        var clock = new ModelClock(new SteppingClock(WallClock));
-        clock.AnchorTo(ModelInstant, rate: 60);
-
-        clock.Reset();
-
-        clock.GetUtcNow().Should().Be(WallClock);
-        clock.IsAnchored.Should().BeFalse();
-    }
 }
