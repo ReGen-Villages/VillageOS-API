@@ -43,8 +43,8 @@ public sealed class SlicedWindowFetcher : ISourceFetcher
             return await _inner.FetchAsync(subjectId, sourceName, endpointName, addressParameters, cancellationToken);
 
         _logger.LogInformation(
-            "Source {Source} reaches back {Days} day(s) for {Subject}: fetching it in {Slices} slices",
-            sourceName, Span(addressParameters), subjectId, slices.Count);
+            "Source {Source} reaches from {From} to {To} for {Subject}: fetching it in {Slices} slices",
+            sourceName, slices[0].Start, slices[^1].End, subjectId, slices.Count);
 
         var written = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var (start, end) in slices)
@@ -61,8 +61,9 @@ public sealed class SlicedWindowFetcher : ISourceFetcher
                              + $"{end.ToString(DateFormat, CultureInfo.InvariantCulture)}: {outcome.Reason}",
                 };
 
-            foreach (var (name, value) in outcome.Written ?? new Dictionary<string, string>())
-                written[name] = value;
+            if (outcome.Written is { } wrote)
+                foreach (var (name, value) in wrote)
+                    written[name] = value;
         }
 
         return new SourceOutcome(sourceName, true, null, SubjectId: subjectId, Written: written);
@@ -86,9 +87,6 @@ public sealed class SlicedWindowFetcher : ISourceFetcher
         }
         return slices;
     }
-
-    private static int Span(IReadOnlyDictionary<string, string> addressParameters) =>
-        TryReadWindow(addressParameters, out var start, out var end) ? end.DayNumber - start.DayNumber + 1 : 0;
 
     private static bool TryReadWindow(
         IReadOnlyDictionary<string, string> addressParameters, out DateOnly start, out DateOnly end)
