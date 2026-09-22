@@ -1,5 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 394" width="840" height="394" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" role="img" aria-label="A Thing entering a state starts a service, and leaving the completion state proves the work done.">
-<rect width="840" height="394" fill="#ffffff"/>
+<style>
+@media (prefers-color-scheme: dark) {
+  [fill="#16201a"] { fill: #e6edf3; }
+  [fill="#47574d"] { fill: #b9c4bd; } [stroke="#47574d"] { stroke: #b9c4bd; }
+  [fill="#74857a"] { fill: #8fa097; } [stroke="#74857a"] { stroke: #8fa097; }
+  [fill="#1f6047"] { fill: #6cc9a0; } [stroke="#1f6047"] { stroke: #6cc9a0; }
+  [fill="#46497e"] { fill: #a3a5e6; } [stroke="#46497e"] { stroke: #a3a5e6; }
+  [fill="#9a3a20"] { fill: #e8825f; } [stroke="#9a3a20"] { stroke: #e8825f; }
+  [stroke="#d6ddd2"] { stroke: #3b463f; }
+  [fill="#ffffff"] { fill: #161b22; }
+  [fill="#f5f7f3"] { fill: #11161c; }
+  [fill="#e7ebe3"] { fill: #252c27; }
+  [fill="#dbeade"] { fill: #1b3126; }
+  [fill="#e3e4f2"] { fill: #26273d; }
+}
+</style>
 <path d="M 97.7,36.0 V 384.0" stroke="#d6ddd2" stroke-dasharray="4 4" fill="none"/>
 <path d="M 376.3,36.0 V 384.0" stroke="#d6ddd2" stroke-dasharray="4 4" fill="none"/>
 <path d="M 722.1,36.0 V 384.0" stroke="#d6ddd2" stroke-dasharray="4 4" fill="none"/>
