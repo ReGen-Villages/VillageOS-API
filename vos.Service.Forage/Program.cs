@@ -65,7 +65,10 @@ try
             launchSettings.FetcherSubdomain,
             launchSettings.SourceTimeout,
             apiKey));
-    builder.Services.AddSingleton<ISourceFetcher>(sp => sp.GetRequiredService<EndpointServiceSourceFetcher>());
+    builder.Services.AddSingleton<ISourceFetcher>(sp => new SlicedWindowFetcher(
+        sp.GetRequiredService<EndpointServiceSourceFetcher>(),
+        launchSettings.SourceWindowDays,
+        sp.GetRequiredService<ILogger<SlicedWindowFetcher>>()));
     builder.Services.AddSingleton<IEndpointBodyReader>(sp => sp.GetRequiredService<EndpointServiceSourceFetcher>());
     builder.Services.AddSingleton(sp =>
         new DiscoveryRunner(
