@@ -37,11 +37,18 @@ public class ObservationIngestService
 
     private readonly IEndpointMyceliumClient _myceliumClient;
     private readonly ILogger<ObservationIngestService> _logger;
+    private readonly ModelClock _clock;
 
-    public ObservationIngestService(IEndpointMyceliumClient myceliumClient, ILogger<ObservationIngestService> logger)
+    public ObservationIngestService(
+        IEndpointMyceliumClient myceliumClient,
+        ILogger<ObservationIngestService> logger,
+        ModelClock? clock = null)
     {
         _myceliumClient = myceliumClient;
         _logger = logger;
+        // Un-anchored where none is registered, which is this machine's clock — what the model's own is
+        // until a simulation anchors it.
+        _clock = clock ?? new ModelClock();
     }
 
     public bool TryTransform(string body, JsonataTransform query, out string transformed, out string error)
@@ -61,7 +68,7 @@ public class ObservationIngestService
                 return false;
             }
 
-            var rawResult = query.Eval(body);
+            var rawResult = query.Eval(body, _clock);
             if (string.IsNullOrWhiteSpace(rawResult))
             {
                 transformed = "null";

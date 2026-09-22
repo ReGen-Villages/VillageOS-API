@@ -67,6 +67,7 @@ try
             sp.GetRequiredService<ILogger<SubscriptionClient>>(),
             myceliumUrl,
             serviceToken, apiKey: apiKey));
+    builder.Services.AddModelClock<MyceliumClient>("Tributary");
     builder.Services.AddSingleton<ObservationIngestService>();
     // Per-process token-exchange cache. TimeProvider.System drives its refresh threshold;
     // tests substitute a fake clock. Singleton so the cache survives across /handle requests.

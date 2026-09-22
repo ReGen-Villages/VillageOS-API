@@ -194,7 +194,7 @@ public class EndpointCallChecksTests
             .Should().BeTrue();
 
         reshape!.Registered.Should().Be("$.x");
-        reshape.Transform!.Eval("""{"x":1,"y":2}""").Should().Be("2");
+        reshape.Transform!.Eval("""{"x":1,"y":2}""", TimeProvider.System).Should().Be("2");
     }
 
     [Fact]

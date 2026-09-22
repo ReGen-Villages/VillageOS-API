@@ -9,6 +9,7 @@ using vos.Service.Intake;
 using vos.Service.Intake.Configuration;
 using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
+using vos.Service.Shared;
 using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Subscriptions;
 
@@ -154,7 +155,8 @@ try
         provider.GetRequiredService<IntakeMyceliumClient>(),
         provider.GetRequiredService<ISubscriptionClient>(),
         launchSettings.FetcherSubdomain,
-        provider.GetRequiredService<ILogger<PositionLookupService>>()));
+        provider.GetRequiredService<ILogger<PositionLookupService>>(),
+        provider.GetRequiredService<ModelClock>()));
 
     var app = builder.Build();
 
