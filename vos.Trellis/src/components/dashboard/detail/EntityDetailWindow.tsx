@@ -17,6 +17,8 @@ import { badgeTone } from '../widgets/format';
 import type { DetailSpecification } from '../../../types/dashboard';
 import type { StateHistoryCoverage } from '../../../types/vos';
 import { useEntityDetail } from './useEntityDetail';
+import { useDecisionExplanations } from './useDecisionExplanations';
+import { DecisionExplanations } from './DecisionExplanations';
 import type { ResolvedRelation } from './entityDetail';
 import type { ServiceDispatch } from './serviceHandling';
 
@@ -202,6 +204,7 @@ function RelationGroups({
 export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset, index, total, spreadTick, zIndex, onClose, onFocus, onSpread, openDetail, declaredTypes }: Props) {
   const { t } = useTranslation();
   const { loading, root, relations, statesById, stateChanges, coverage, dispatches } = useEntityDetail(modelIndex, thingId, detail, nonce);
+  const { decisions, readings, settled } = useDecisionExplanations(thingId, modelIndex);
   const numbers = useNumberDisplaySettings();
 
   const props = root ? effectiveProperties(root, modelIndex) : {};
@@ -322,6 +325,18 @@ export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset,
           <section>
             <SectionTitle>{t('entityDetail.handledBy')}</SectionTitle>
             <ServiceDispatches dispatches={dispatches} openDetail={openDetail} />
+          </section>
+        )}
+
+        {decisions.length > 0 && (
+          <section>
+            <SectionTitle>{t('entityDetail.decisions')}</SectionTitle>
+            <DecisionExplanations
+              decisions={decisions}
+              readings={readings}
+              settled={settled}
+              openDetail={openDetail}
+            />
           </section>
         )}
 
