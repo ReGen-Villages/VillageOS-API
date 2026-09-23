@@ -30,6 +30,23 @@ export const thingApi = {
     return unwrapThing(thing);
   },
 
+  /** The Thing as it stood at one instant: the values it held then and nothing worked out from what
+   *  the model holds now. Null where the platform answers nothing for that instant — the Thing did not
+   *  exist yet, or the past it would take to answer has been reclaimed. A Thing retracted since then
+   *  still answers, because this route resolves before the active filter. */
+  getAtInstant: async (id: string, instant: string, signal?: AbortSignal) => {
+    try {
+      const thing = await apiClient.get<VosThing>(
+        `/api/things/${id}?timestamp=${encodeURIComponent(instant)}`,
+        signal,
+      );
+      return unwrapThing(thing);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) return null;
+      throw error;
+    }
+  },
+
   create: async (name: string) => {
     const thing = await apiClient.post<VosThing>('/api/things', { Name: name });
     return unwrapThing(thing);
