@@ -36,7 +36,8 @@ public class ModelClockFollowerTests
 
         clock.IsAnchored.Should().BeTrue();
         clock.Rate.Should().Be(60);
-        clock.GetUtcNow().Should().BeCloseTo(ModelInstant, TimeSpan.FromSeconds(5));
+        clock.GetUtcNow().Should().BeOnOrAfter(ModelInstant, "the clock runs on from the reading it took")
+            .And.BeBefore(ModelInstant.AddDays(1), "from that reading, not from this machine's clock");
     }
 
     [Fact]
