@@ -1,7 +1,5 @@
 using FluentAssertions;
-using Serilog;
-using Serilog.Core;
-using Serilog.Events;
+using Microsoft.Extensions.Logging;
 using vos.Service.Shared;
 using vos.Service.Shared.Hosting;
 using Xunit;
@@ -12,16 +10,36 @@ public class ModelClockFollowerTests
 {
     private static readonly DateTimeOffset ModelInstant = new(2025, 9, 20, 3, 0, 0, TimeSpan.Zero);
 
-    private sealed class Captured : ILogEventSink
+    // Its own logger, handed to the follower: the static one belongs to every service in the process,
+    // and two tests that each swapped it raced over what the other captured.
+    private sealed class Captured : ILogger
     {
         public List<string> Lines { get; } = [];
 
-        public void Emit(LogEvent logEvent) => Lines.Add(logEvent.RenderMessage());
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel level) => true;
+
+        public void Log<TState>(
+            LogLevel level, EventId eventId, TState state, Exception? failure,
+            Func<TState, Exception?, string> formatter) => Lines.Add(formatter(state, failure));
+    }
+
+    // A clock this test moves by hand, so "has it moved against this machine" is a question about the
+    // readings rather than about how long the agent took between two calls.
+    private sealed class SteppingClock(DateTimeOffset now) : TimeProvider
+    {
+        private DateTimeOffset _now = now;
+
+        public override DateTimeOffset GetUtcNow() => _now;
+
+        public void Advance(TimeSpan elapsed) => _now += elapsed;
     }
 
     private static ModelClockFollower NewFollower(
-        ModelClock clock, Func<CancellationToken, Task<ModelTimeReading?>> read, string serviceName = "Forage") =>
-        new(clock, read, serviceName, TimeSpan.FromSeconds(5));
+        ModelClock clock, Func<CancellationToken, Task<ModelTimeReading?>> read,
+        ILogger? logger = null, string serviceName = "Forage") =>
+        new(clock, read, logger ?? new Captured(), serviceName, TimeSpan.FromSeconds(5));
 
     private static Task FollowOnceAsync(ModelClockFollower follower) =>
         follower.FollowOnceAsync(CancellationToken.None);
@@ -55,19 +73,10 @@ public class ModelClockFollowerTests
     public async Task Anchoring_Says_How_Far_The_Model_Stands_From_This_Machine()
     {
         var captured = new Captured();
-        var before = Log.Logger;
-        Log.Logger = new LoggerConfiguration().WriteTo.Sink(captured).CreateLogger();
-        try
-        {
-            var follower = NewFollower(
-                new ModelClock(), _ => Task.FromResult<ModelTimeReading?>(new(ModelInstant, 60)), "Intake");
+        var follower = NewFollower(
+            new ModelClock(), _ => Task.FromResult<ModelTimeReading?>(new(ModelInstant, 60)), captured, "Intake");
 
-            await FollowOnceAsync(follower);
-        }
-        finally
-        {
-            Log.Logger = before;
-        }
+        await FollowOnceAsync(follower);
 
         captured.Lines.Should().ContainSingle()
             .Which.Should().Contain("Intake").And.Contain("60").And.Contain(ModelInstant.Year.ToString())
@@ -78,24 +87,15 @@ public class ModelClockFollowerTests
     public async Task A_Broker_That_Stays_Away_Is_Said_Once_And_Its_Return_Is_Said_Too()
     {
         var captured = new Captured();
-        var before = Log.Logger;
-        Log.Logger = new LoggerConfiguration().WriteTo.Sink(captured).CreateLogger();
-        try
-        {
-            var answering = false;
-            var follower = NewFollower(new ModelClock(), _ => Task.FromResult(
-                answering ? new ModelTimeReading(ModelInstant, 1) : null));
+        var answering = false;
+        var follower = NewFollower(new ModelClock(), _ => Task.FromResult(
+            answering ? new ModelTimeReading(ModelInstant, 1) : null), captured);
 
-            await FollowOnceAsync(follower);
-            await FollowOnceAsync(follower);
-            await FollowOnceAsync(follower);
-            answering = true;
-            await FollowOnceAsync(follower);
-        }
-        finally
-        {
-            Log.Logger = before;
-        }
+        await FollowOnceAsync(follower);
+        await FollowOnceAsync(follower);
+        await FollowOnceAsync(follower);
+        answering = true;
+        await FollowOnceAsync(follower);
 
         captured.Lines.Should().ContainSingle(line => line.Contains("cannot read the model clock"));
         captured.Lines.Should().ContainSingle(line => line.Contains("reading the model clock again"));
@@ -105,20 +105,15 @@ public class ModelClockFollowerTests
     public async Task A_Clock_That_Has_Not_Moved_Against_This_Machine_Is_Said_Once()
     {
         var captured = new Captured();
-        var before = Log.Logger;
-        Log.Logger = new LoggerConfiguration().WriteTo.Sink(captured).CreateLogger();
-        try
-        {
-            var follower = NewFollower(
-                new ModelClock(), _ => Task.FromResult<ModelTimeReading?>(new(ModelInstant, 1)));
+        // The same reading twice, with this machine's clock held still between them: the follower says
+        // the standing again only where it changed, and whether it changed must not depend on how long
+        // the agent took.
+        var follower = NewFollower(
+            new ModelClock(new SteppingClock(DateTimeOffset.UtcNow)),
+            _ => Task.FromResult<ModelTimeReading?>(new(ModelInstant, 1)), captured);
 
-            await FollowOnceAsync(follower);
-            await FollowOnceAsync(follower);
-        }
-        finally
-        {
-            Log.Logger = before;
-        }
+        await FollowOnceAsync(follower);
+        await FollowOnceAsync(follower);
 
         captured.Lines.Should().ContainSingle();
     }

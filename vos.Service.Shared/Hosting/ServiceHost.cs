@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Events;
 
@@ -54,6 +55,7 @@ public static class ServiceHost
         return services.AddHostedService(provider => new ModelClockFollower(
             provider.GetRequiredService<ModelClock>(),
             cancellationToken => provider.GetRequiredService<TClient>().ReadModelTimeAsync(cancellationToken),
+            provider.GetRequiredService<ILogger<ModelClockFollower>>(),
             serviceName,
             ModelClockInterval));
     }
