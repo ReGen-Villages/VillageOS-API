@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Hosting;
-using Serilog;
+using Microsoft.Extensions.Logging;
 
 namespace vos.Service.Shared.Hosting;
 
@@ -14,19 +14,24 @@ internal sealed class ModelClockFollower : BackgroundService
 {
     private readonly ModelClock _clock;
     private readonly Func<CancellationToken, Task<ModelTimeReading?>> _read;
+    private readonly ILogger _logger;
     private readonly string _serviceName;
     private readonly TimeSpan _interval;
     private TimeSpan? _said;
     private bool _unreachable;
 
+    // Its own logger rather than the static one every service writes through: two tests that each
+    // swapped that static raced, and what one captured depended on what another was emitting.
     public ModelClockFollower(
         ModelClock clock,
         Func<CancellationToken, Task<ModelTimeReading?>> read,
+        ILogger logger,
         string serviceName,
         TimeSpan interval)
     {
         _clock = clock;
         _read = read;
+        _logger = logger;
         _serviceName = serviceName;
         _interval = interval;
     }
@@ -54,14 +59,14 @@ internal sealed class ModelClockFollower : BackgroundService
             // Once, not once an interval: a broker away for an hour would otherwise write the same
             // warning several hundred times, and the clock goes on answering from its last reading.
             if (!_unreachable)
-                Log.Warning("{Service} cannot read the model clock; it stamps the last reading it took "
-                            + "until the broker answers again", _serviceName);
+                _logger.LogWarning("{Service} cannot read the model clock; it stamps the last reading it "
+                                   + "took until the broker answers again", _serviceName);
             _unreachable = true;
             return;
         }
 
         if (_unreachable)
-            Log.Information("{Service} is reading the model clock again", _serviceName);
+            _logger.LogInformation("{Service} is reading the model clock again", _serviceName);
         _unreachable = false;
 
         _clock.AnchorTo(reading.Now, reading.Rate);
@@ -78,7 +83,7 @@ internal sealed class ModelClockFollower : BackgroundService
             return;
 
         _said = offset;
-        Log.Information(
+        _logger.LogInformation(
             "{Service} stamps the model clock: model {ModelInstant:o}, this machine {WallInstant:o}, "
             + "model {Standing} at {Rate}× real time",
             _serviceName, reading.Now, DateTimeOffset.UtcNow, Standing(offset), reading.Rate);
