@@ -7,11 +7,12 @@
  * card explaining this morning's decision shows this morning's values; a value the platform cannot
  * answer for that instant reads as not recorded rather than as today's.
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { formatDateTime, formatPropertyValue } from '../../../utils/formatters';
 import { useNumberDisplaySettings } from '../../../hooks/useNumberDisplaySettings';
+import { useDecisionExplanations } from './useDecisionExplanations';
 import {
   comparisonsOf,
   type Comparison,
@@ -23,8 +24,6 @@ import {
 
 interface Props {
   decisions: DecisionExplanation[];
-  readings: InstantReadings;
-  settled: boolean;
   openDetail: (thingId: string) => void;
 }
 
@@ -229,10 +228,12 @@ function DecisionBlock({
   );
 }
 
-export function DecisionExplanations({ decisions, readings, settled, openDetail }: Props) {
+export function DecisionExplanations({ decisions, openDetail }: Props) {
   const { t } = useTranslation();
   const [earlierShown, setEarlierShown] = useState(false);
   const [latest, ...earlier] = decisions;
+  const onScreen = useMemo(() => (earlierShown ? decisions : decisions.slice(0, 1)), [decisions, earlierShown]);
+  const { readings, settled } = useDecisionExplanations(onScreen);
 
   return (
     <div className="space-y-1.5">

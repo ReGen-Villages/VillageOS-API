@@ -19,8 +19,9 @@ function relationship(Id: string, SubjectId: string, PredicateId: string, Target
 const INSTANT = '2026-09-22T09:14:03Z';
 const EARLIER = '2026-09-21T09:14:03Z';
 
-/** The vocabulary a shipped template declares, under names of this model's own choosing. */
-const VOCABULARY: VosThing[] = [
+/** The vocabulary a shipped template declares, under names of this model's own choosing. Built per
+ *  call, because a test that takes a mark away would otherwise take it away from every test after it. */
+const vocabulary = (): VosThing[] => [
   thing('is', 'is'),
   thing('decisionArchetype', 'Decision', { __IsDecisionArchetype: true }, true),
   thing('considerationArchetype', 'Consideration', { __IsConsiderationArchetype: true }, true),
@@ -48,7 +49,7 @@ function sourcing(overrides: { constraint?: Record<string, unknown>; cites?: str
   };
 
   const things: VosThing[] = [
-    ...VOCABULARY,
+    ...vocabulary(),
     thing('sourcingKind', 'Sourcing'),
     thing('decision', 'sourcing-1', { decidedAt: INSTANT, score: 0.31, candidatesConsidered: 4 }),
     thing('reservoir', 'RESERVOIR-1', { requestedCubicMetres: 999, capacityCubicMetres: 999 }),
@@ -125,7 +126,7 @@ describe('the decisions on a Thing', () => {
   it('puts the latest first and settles a tie on the instant by the identifier, as the retirement does', () => {
     const index = buildModelIndex(
       [
-        ...VOCABULARY,
+        ...vocabulary(),
         thing('subject', 'RESERVOIR-1'),
         thing('a', 'a', { decidedAt: INSTANT }),
         thing('b', 'b', { decidedAt: INSTANT }),
@@ -153,7 +154,7 @@ describe('what a decision asks to be read at its instant', () => {
   it('asks for nothing where no cause is a constraint', () => {
     const index = buildModelIndex(
       [
-        ...VOCABULARY,
+        ...vocabulary(),
         thing('subject', 'RESERVOIR-1'),
         thing('decision', 'sourcing-1', { decidedAt: INSTANT }),
         thing('consideration', 'support-1'),
@@ -348,5 +349,23 @@ describe('what a decision leaves unanswered', () => {
     index.isParents.set('ruleA', ['ruleA']);
 
     expect(decisionsOn('reservoir', index)[0].refusals[0].constraint).toBeUndefined();
+  });
+});
+
+describe('how the marks are read', () => {
+  it('remembers the wiring against the index rather than reading the marks once per card', () => {
+    const index = sourcing();
+    expect(decisionsOn('reservoir', index)).toHaveLength(1);
+
+    index.byId.get('about')!.Properties = {};
+
+    expect(decisionsOn('reservoir', index)).toHaveLength(1);
+  });
+
+  it('passes over a predicate the read did not carry, rather than reading a mark off nothing', () => {
+    const index = sourcing();
+    index.byId.delete('chose');
+
+    expect(decisionsOn('reservoir', index)[0].chose).toBeUndefined();
   });
 });

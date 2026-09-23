@@ -12,7 +12,7 @@ vi.mock('../../../api/thingApi', () => ({
 import { buildModelIndex } from '../../../api/dashboardApi';
 import type { VosRelationship, VosThing } from '../../../types/vos';
 import { useDecisionExplanations } from './useDecisionExplanations';
-import { instantReadKey } from './decisionExplanation';
+import { decisionsOn, instantReadKey } from './decisionExplanation';
 
 function thing(Id: string, Name: string, Properties: Record<string, unknown> = {}, IsArchetype = false): VosThing {
   return { Id, Name, Properties, IsArchetype };
@@ -22,9 +22,12 @@ function relationship(Id: string, SubjectId: string, PredicateId: string, Target
 }
 
 const INSTANT = '2026-09-22T09:14:03Z';
+const EARLIER = '2026-09-21T09:14:03Z';
 
-function index() {
-  return buildModelIndex(
+/** A reservoir decided about once, or twice where an earlier decision is asked for. Each decision
+ *  reads a property off the subject and one off what it chose. */
+function decisions(andAnEarlierOne = false) {
+  const index = buildModelIndex(
     [
       thing('is', 'is'),
       thing('constraintArchetype', 'Constraint', { __IsConstraintArchetype: true }, true),
@@ -41,6 +44,13 @@ function index() {
         limitSubjectProperty: 'capacityCubicMetres',
         unit: 'm3',
       }),
+      ...(andAnEarlierOne
+        ? [
+            thing('earlier', 'sourcing-0', { decidedAt: EARLIER }),
+            thing('supportZero', 'support-0'),
+            thing('springs', 'SPRING-2'),
+          ]
+        : []),
     ],
     [
       relationship('k1', 'capacity', 'is', 'constraintArchetype'),
@@ -48,30 +58,38 @@ function index() {
       relationship('e2', 'decision', 'chose', 'catchment'),
       relationship('e3', 'decision', 'support', 'supportOne'),
       relationship('e4', 'supportOne', 'because', 'capacity'),
+      ...(andAnEarlierOne
+        ? [
+            relationship('e5', 'earlier', 'about', 'reservoir'),
+            relationship('e6', 'earlier', 'chose', 'springs'),
+            relationship('e7', 'earlier', 'support', 'supportZero'),
+            relationship('e8', 'supportZero', 'because', 'capacity'),
+          ]
+        : []),
     ],
   );
+  return decisionsOn('reservoir', index);
 }
 
 describe('useDecisionExplanations', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetAtInstant.mockResolvedValue(thing('reservoir', 'RESERVOIR-1', { capacityCubicMetres: 500 }));
+    mockGetAtInstant.mockImplementation(async (id: string) => thing(id, id, { capacityCubicMetres: 500 }));
   });
 
   it('reads every Thing a constraint names against the decision’s own instant', async () => {
-    const { result } = renderHook(() => useDecisionExplanations('reservoir', index()));
+    const { result } = renderHook(() => useDecisionExplanations(decisions()));
 
     await waitFor(() => expect(result.current.settled).toBe(true));
     expect(mockGetAtInstant.mock.calls.map(([id, instant]) => [id, instant])).toEqual([
       ['reservoir', INSTANT],
       ['catchment', INSTANT],
     ]);
-    expect(result.current.readings.has(instantReadKey('catchment', INSTANT))).toBe(true);
   });
 
   it('reads each value once however often the model changes, because a decision cannot be rewritten', async () => {
-    const model = index();
-    const { result, rerender } = renderHook(() => useDecisionExplanations('reservoir', model));
+    const asked = decisions();
+    const { result, rerender } = renderHook(() => useDecisionExplanations(asked));
 
     await waitFor(() => expect(result.current.settled).toBe(true));
     rerender();
@@ -80,19 +98,41 @@ describe('useDecisionExplanations', () => {
     expect(mockGetAtInstant).toHaveBeenCalledTimes(2);
   });
 
+  it('reads only what an earlier decision adds when it is opened, and keeps what it already holds', async () => {
+    const both = decisions(true);
+    const { result, rerender } = renderHook(({ shown }) => useDecisionExplanations(shown), {
+      initialProps: { shown: [both[0]] },
+    });
+
+    await waitFor(() => expect(result.current.settled).toBe(true));
+    expect(mockGetAtInstant).toHaveBeenCalledTimes(2);
+
+    rerender({ shown: both });
+    await waitFor(() => expect(result.current.settled).toBe(true));
+
+    // The subject is read again because the earlier decision names a different instant; what the
+    // later decision already answered is not asked for a second time.
+    expect(mockGetAtInstant.mock.calls.map(([id, instant]) => [id, instant])).toEqual([
+      ['reservoir', INSTANT],
+      ['catchment', INSTANT],
+      ['reservoir', EARLIER],
+      ['springs', EARLIER],
+    ]);
+    expect(result.current.readings.get(instantReadKey('catchment', INSTANT))).not.toBeUndefined();
+  });
+
   it('holds a refused read as answering nothing, so the card says not recorded instead of failing', async () => {
     mockGetAtInstant.mockRejectedValue(new Error('the model is gone'));
-    const { result } = renderHook(() => useDecisionExplanations('reservoir', index()));
+    const { result } = renderHook(() => useDecisionExplanations(decisions()));
 
     await waitFor(() => expect(result.current.settled).toBe(true));
     expect(result.current.readings.get(instantReadKey('catchment', INSTANT))).toBeNull();
   });
 
-  it('asks for nothing where the Thing carries no decision', async () => {
-    const { result } = renderHook(() => useDecisionExplanations('capacity', index()));
+  it('asks for nothing where no decision names a property to read', async () => {
+    const { result } = renderHook(() => useDecisionExplanations([]));
 
-    await waitFor(() => expect(result.current.settled).toBe(true));
-    expect(result.current.decisions).toEqual([]);
+    expect(result.current.settled).toBe(true);
     expect(mockGetAtInstant).not.toHaveBeenCalled();
   });
 
@@ -104,7 +144,7 @@ describe('useDecisionExplanations', () => {
       return new Promise((resolve) => holding.push(resolve));
     });
 
-    const { result, unmount } = renderHook(() => useDecisionExplanations('reservoir', index()));
+    const { result, unmount } = renderHook(() => useDecisionExplanations(decisions()));
     unmount();
 
     expect(handed?.aborted).toBe(true);
@@ -112,5 +152,28 @@ describe('useDecisionExplanations', () => {
       holding.forEach((release) => release(null));
     });
     expect(result.current.settled).toBe(false);
+  });
+});
+
+describe('what a card holds while it is open', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetAtInstant.mockImplementation(async (id: string) => thing(id, id, { capacityCubicMetres: 500 }));
+  });
+
+  it('lets go of what a decision no longer on screen cited, rather than holding every read forever', async () => {
+    const both = decisions(true);
+    const { result, rerender } = renderHook(({ shown }) => useDecisionExplanations(shown), {
+      initialProps: { shown: [both[0]] },
+    });
+
+    await waitFor(() => expect(result.current.settled).toBe(true));
+    expect(result.current.readings.has(instantReadKey('catchment', INSTANT))).toBe(true);
+
+    rerender({ shown: [both[1]] });
+    await waitFor(() => expect(result.current.settled).toBe(true));
+
+    expect(result.current.readings.has(instantReadKey('catchment', INSTANT))).toBe(false);
+    expect(result.current.readings.has(instantReadKey('springs', EARLIER))).toBe(true);
   });
 });

@@ -4,7 +4,7 @@
  * ordered relations to surface, and the state-change history. Several can be open at once (see
  * DetailWindowManager). Clicking a related Thing opens another window.
  */
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, GripHorizontal, LayoutGrid } from 'lucide-react';
 import type { ModelIndex } from '../../../api/dashboardApi';
@@ -17,8 +17,8 @@ import { badgeTone } from '../widgets/format';
 import type { DetailSpecification } from '../../../types/dashboard';
 import type { StateHistoryCoverage } from '../../../types/vos';
 import { useEntityDetail } from './useEntityDetail';
-import { useDecisionExplanations } from './useDecisionExplanations';
 import { DecisionExplanations } from './DecisionExplanations';
+import { decisionsOn } from './decisionExplanation';
 import type { ResolvedRelation } from './entityDetail';
 import type { ServiceDispatch } from './serviceHandling';
 
@@ -204,7 +204,7 @@ function RelationGroups({
 export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset, index, total, spreadTick, zIndex, onClose, onFocus, onSpread, openDetail, declaredTypes }: Props) {
   const { t } = useTranslation();
   const { loading, root, relations, statesById, stateChanges, coverage, dispatches } = useEntityDetail(modelIndex, thingId, detail, nonce);
-  const { decisions, readings, settled } = useDecisionExplanations(thingId, modelIndex);
+  const decisions = useMemo(() => decisionsOn(thingId, modelIndex), [thingId, modelIndex]);
   const numbers = useNumberDisplaySettings();
 
   const props = root ? effectiveProperties(root, modelIndex) : {};
@@ -331,12 +331,7 @@ export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset,
         {decisions.length > 0 && (
           <section>
             <SectionTitle>{t('entityDetail.decisions')}</SectionTitle>
-            <DecisionExplanations
-              decisions={decisions}
-              readings={readings}
-              settled={settled}
-              openDetail={openDetail}
-            />
+            <DecisionExplanations decisions={decisions} openDetail={openDetail} />
           </section>
         )}
 

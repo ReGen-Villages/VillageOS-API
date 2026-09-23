@@ -93,8 +93,8 @@ export interface DecisionExplanation {
 
 type DecisionWiring = Record<DecisionRole, Set<string>>;
 
-/** Held against the index rather than rebuilt per card: it walks every Thing once, the model cannot
- *  change without a new index, and several open cards ask the same question. */
+/** Held against the index rather than rebuilt per card: the model cannot change without a new index,
+ *  and several open cards ask the same question of it. */
 const wiringByIndex = new WeakMap<ModelIndex, DecisionWiring>();
 
 /**
@@ -115,6 +115,8 @@ function decisionWiring(modelIndex: ModelIndex): DecisionWiring {
 
   const wiring = Object.fromEntries(ROLE_FLAGS.map(([role]) => [role, new Set<string>()])) as DecisionWiring;
   for (const predicateId of modelIndex.relationshipsByPredicate.keys()) {
+    // A relationship can name a predicate the read did not carry, because what a caller may read is
+    // narrowed by the grants it holds while the relationships naming it are not.
     const predicate = modelIndex.byId.get(predicateId);
     if (!predicate) continue;
     for (const [role, flag] of ROLE_FLAGS) {
@@ -150,9 +152,9 @@ function subjectsOf(targetId: string, predicateIds: Set<string>, modelIndex: Mod
   return subjects;
 }
 
-/** Whether the Thing is of an archetype owning the flag, walking the `is`-chain upward. The archetype
- *  itself is not one of its own members, so a Thing owning the flag is the declaration and not a
- *  constraint. */
+/** Whether the Thing is of an archetype owning the flag, walking the `is`-chain upward. The walk
+ *  starts above the Thing, because an archetype is not one of its own members: a Thing owning the
+ *  flag is the declaration rather than something declared by it. */
 function isOfArchetypeCarrying(thingId: string, flag: string, modelIndex: ModelIndex): boolean {
   const seen = new Set<string>([thingId]);
   const frontier = [...(modelIndex.isParents.get(thingId) ?? [])];
