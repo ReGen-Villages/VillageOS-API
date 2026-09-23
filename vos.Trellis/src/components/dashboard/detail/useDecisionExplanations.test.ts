@@ -98,20 +98,19 @@ describe('useDecisionExplanations', () => {
 
   it('abandons a round when the card closes, so a read it no longer needs cannot land', async () => {
     let handed: AbortSignal | undefined;
-    let release: ((thing: null) => void) | undefined;
+    const holding: ((thing: null) => void)[] = [];
     mockGetAtInstant.mockImplementation((_id: string, _instant: string, signal?: AbortSignal) => {
       handed = signal;
-      return new Promise((resolve) => {
-        release = resolve;
-      });
+      return new Promise((resolve) => holding.push(resolve));
     });
 
-    const { unmount } = renderHook(() => useDecisionExplanations('reservoir', index()));
+    const { result, unmount } = renderHook(() => useDecisionExplanations('reservoir', index()));
     unmount();
 
     expect(handed?.aborted).toBe(true);
     await act(async () => {
-      release?.(null);
+      holding.forEach((release) => release(null));
     });
+    expect(result.current.settled).toBe(false);
   });
 });

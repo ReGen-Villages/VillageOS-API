@@ -13,9 +13,10 @@
 import type { ModelIndex } from '../../../api/dashboardApi';
 import type { VosThing } from '../../../types/vos';
 
-/** How the platform marks the vocabulary, whatever this model calls the Things carrying it. */
+const IS_CONSTRAINT_ARCHETYPE = '__IsConstraintArchetype';
+
+/** How the platform marks each predicate of the vocabulary, whatever this model calls them. */
 const DECISION_FLAGS = {
-  constraintArchetype: '__IsConstraintArchetype',
   subject: '__IsDecisionSubjectPredicate',
   chosen: '__IsChosenPredicate',
   decidedUnder: '__IsDecidedUnderPredicate',
@@ -97,21 +98,27 @@ type DecisionWiring = Record<DecisionRole, Set<string>>;
 const wiringByIndex = new WeakMap<ModelIndex, DecisionWiring>();
 
 /**
- * The Things owning each flag.
+ * The predicates owning each flag.
  *
- * Read from what a Thing owns, never from what it inherited: a role flag is handed down to every
- * instance, which would make every decision look like a predicate. Several Things may own one flag —
- * a model is free to declare two words for turning a candidate away — and all of them count, because
- * the platform reads the mark rather than the word.
+ * Only the predicates that assert something are looked at, rather than every Thing in the model: one
+ * asserting nothing reaches nothing, and a card open while a model runs would otherwise pay a walk
+ * over the whole model on every flush.
+ *
+ * Read from what a predicate owns, never from what it inherited: a role flag is handed down to every
+ * instance, which would make every decision look like a predicate. Several may own one flag — a model
+ * is free to declare two words for turning a candidate away — and all of them count, because the
+ * platform reads the mark rather than the word.
  */
 function decisionWiring(modelIndex: ModelIndex): DecisionWiring {
   const remembered = wiringByIndex.get(modelIndex);
   if (remembered) return remembered;
 
   const wiring = Object.fromEntries(ROLE_FLAGS.map(([role]) => [role, new Set<string>()])) as DecisionWiring;
-  for (const thing of modelIndex.byId.values()) {
+  for (const predicateId of modelIndex.relationshipsByPredicate.keys()) {
+    const predicate = modelIndex.byId.get(predicateId);
+    if (!predicate) continue;
     for (const [role, flag] of ROLE_FLAGS) {
-      if (thing.Properties[flag] === true) wiring[role].add(thing.Id);
+      if (predicate.Properties[flag] === true) wiring[role].add(predicateId);
     }
   }
 
@@ -146,14 +153,14 @@ function subjectsOf(targetId: string, predicateIds: Set<string>, modelIndex: Mod
 /** Whether the Thing is of an archetype owning the flag, walking the `is`-chain upward. The archetype
  *  itself is not one of its own members, so a Thing owning the flag is the declaration and not a
  *  constraint. */
-function isOfArchetypeCarrying(thingId: string, archetypeIds: Set<string>, modelIndex: ModelIndex): boolean {
+function isOfArchetypeCarrying(thingId: string, flag: string, modelIndex: ModelIndex): boolean {
   const seen = new Set<string>([thingId]);
   const frontier = [...(modelIndex.isParents.get(thingId) ?? [])];
   while (frontier.length) {
     const current = frontier.pop()!;
     if (seen.has(current)) continue;
     seen.add(current);
-    if (archetypeIds.has(current)) return true;
+    if (modelIndex.byId.get(current)?.Properties[flag] === true) return true;
     frontier.push(...(modelIndex.isParents.get(current) ?? []));
   }
   return false;
@@ -202,7 +209,7 @@ function considerationOf(
     measured: numberOf(properties, MEASURED),
     limit: numberOf(properties, LIMIT),
     constraint:
-      cause && isOfArchetypeCarrying(cause.Id, wiring.constraintArchetype, modelIndex)
+      cause && isOfArchetypeCarrying(cause.Id, IS_CONSTRAINT_ARCHETYPE, modelIndex)
         ? constraintOf(cause)
         : undefined,
   };
