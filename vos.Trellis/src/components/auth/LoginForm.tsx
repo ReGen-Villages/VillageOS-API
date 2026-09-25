@@ -4,6 +4,7 @@ import type { ModelSummary } from '../../types/vos';
 import type { StartupProgress } from '../../api/myceliumApi';
 import { RegenLogo } from './RegenLogo';
 import { LanguageSwitcher } from '../common/LanguageSwitcher';
+import { ThemeToggleButton } from '../common/ThemeToggleButton';
 
 interface LoginFormProps {
   onLogin: (username: string, password: string, modelId?: string) => Promise<void>;
@@ -95,17 +96,18 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
 
   if (availableModels && availableModels.length > 0 && (onSelectModel || (username && password))) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <div className="fixed top-3 right-3 z-10">
+      <div className="min-h-screen flex items-center justify-center bg-zinc-100 dark:bg-zinc-900">
+        <div className="fixed top-3 right-3 z-10 flex items-center gap-1">
+          <ThemeToggleButton />
           <LanguageSwitcher openDirection="down" align="right" />
         </div>
-        <div className="w-full max-w-lg bg-gray-800 rounded-lg shadow-lg p-8">
+        <div className="w-full max-w-lg bg-white dark:bg-zinc-800 rounded-lg shadow-lg p-8">
           <div className="flex justify-center mb-2">
             <RegenLogo className="w-40 h-40" />
           </div>
-          <p className="text-sm text-gray-400 text-center mb-4">{t('authentication.loadSeed')}</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400 text-center mb-4">{t('authentication.loadSeed')}</p>
           {error && error !== 'Please select a model' && (
-            <div className="bg-red-900/50 border border-red-500 text-red-200 px-3 py-2 rounded text-sm mb-4">
+            <div className="bg-red-100 dark:bg-red-900/50 border border-red-400 dark:border-red-500 text-red-800 dark:text-red-200 px-3 py-2 rounded text-sm mb-4">
               {error}
             </div>
           )}
@@ -117,21 +119,21 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t('authentication.searchSeeds')}
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 text-sm"
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-blue-500 text-sm"
             />
           </div>
 
           {/* Column headers */}
-          <div className="flex items-center text-xs text-gray-400 px-3 py-1 mb-1 border-b border-gray-700">
+          <div className="flex items-center text-xs text-zinc-600 dark:text-zinc-400 px-3 py-1 mb-1 border-b border-zinc-200 dark:border-zinc-700">
             <button
               onClick={() => toggleSort('name')}
-              className="flex-1 text-left hover:text-gray-200 transition-colors"
+              className="flex-1 text-left hover:text-zinc-900 dark:hover:text-zinc-200 transition-colors"
             >
               {t('authentication.columnName')} {sortArrow('name')}
             </button>
             <button
               onClick={() => toggleSort('size')}
-              className="w-20 text-right hover:text-gray-200 transition-colors"
+              className="w-20 text-right hover:text-zinc-900 dark:hover:text-zinc-200 transition-colors"
             >
               {t('authentication.columnSize')} {sortArrow('size')}
             </button>
@@ -140,7 +142,7 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
           {/* Scrollable seed list */}
           <div className="max-h-80 overflow-y-auto space-y-1 pr-1">
             {filteredModels.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-4">
+              <p className="text-sm text-zinc-500 text-center py-4">
                 {search ? t('authentication.noMatch') : t('authentication.noneAvailable')}
               </p>
             ) : (
@@ -151,11 +153,11 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
                     key={model.Id}
                     onClick={() => handleModelSelect(model.Id)}
                     disabled={loading}
-                    className="w-full flex items-center px-3 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-left rounded transition-colors text-sm"
+                    className="w-full flex items-center px-3 py-2 bg-zinc-50 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-600 disabled:cursor-not-allowed text-zinc-900 dark:text-white text-left rounded transition-colors text-sm"
                   >
                     <span className="flex-1 font-medium truncate">{label}</span>
                     {sizeMb !== null && (
-                      <span className="text-gray-400 text-xs ml-2 w-20 text-right shrink-0">
+                      <span className="text-zinc-600 dark:text-zinc-400 text-xs ml-2 w-20 text-right shrink-0">
                         {sizeMb} MB
                       </span>
                     )}
@@ -166,13 +168,13 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
           </div>
 
           {/* Result count */}
-          <p className="text-xs text-gray-500 mt-2 px-1">
+          <p className="text-xs text-zinc-500 mt-2 px-1">
             {t('authentication.seedCount', { shown: filteredModels.length, total: availableModels.length })}
           </p>
 
           {onSaveSeed && (
-            <div className="mt-4 pt-4 border-t border-gray-700">
-              <p className="text-sm text-gray-400 mb-2">{t('authentication.saveModel')}</p>
+            <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-700">
+              <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">{t('authentication.saveModel')}</p>
               <form
                 onSubmit={async (e) => {
                   e.preventDefault();
@@ -186,12 +188,12 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
                   onChange={(e) => setSaveName(e.target.value)}
                   placeholder={t('authentication.seedNamePlaceholder')}
                   disabled={loading}
-                  className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 text-sm"
+                  className="flex-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-blue-500 text-sm"
                 />
                 <button
                   type="submit"
                   disabled={loading || !saveName.trim()}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded transition-colors"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-300 dark:disabled:bg-zinc-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded transition-colors"
                 >
                   {t('authentication.save')}
                 </button>
@@ -204,22 +206,23 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900">
-      <div className="fixed top-3 right-3 z-10">
+    <div className="min-h-screen flex items-center justify-center bg-zinc-100 dark:bg-zinc-900">
+      <div className="fixed top-3 right-3 z-10 flex items-center gap-1">
+        <ThemeToggleButton />
         <LanguageSwitcher openDirection="down" align="right" />
       </div>
-      <div className="w-full max-w-sm bg-gray-800 rounded-lg shadow-lg p-8">
+      <div className="w-full max-w-sm bg-white dark:bg-zinc-800 rounded-lg shadow-lg p-8">
         <div className="flex justify-center mb-6">
           <RegenLogo className="w-40 h-40" />
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && error !== 'Please select a model' && (
-            <div className="bg-red-900/50 border border-red-500 text-red-200 px-3 py-2 rounded text-sm">
+            <div className="bg-red-100 dark:bg-red-900/50 border border-red-400 dark:border-red-500 text-red-800 dark:text-red-200 px-3 py-2 rounded text-sm">
               {error}
             </div>
           )}
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-300 mb-1">
+            <label htmlFor="username" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
               {t('authentication.username')}
             </label>
             <input
@@ -227,7 +230,7 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-blue-500"
               placeholder={t('authentication.usernamePlaceholder')}
               autoComplete="username"
               autoFocus
@@ -235,7 +238,7 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
             />
           </div>
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-1">
+            <label htmlFor="password" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
               {t('authentication.password')}
             </label>
             <input
@@ -243,27 +246,27 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-blue-500"
               placeholder={t('authentication.passwordPlaceholder')}
               autoComplete="current-password"
               disabled={loading}
             />
           </div>
           {startupProgress?.IsLoading && (
-            <div className="bg-blue-900/40 border border-blue-700 text-blue-200 px-3 py-3 rounded text-sm space-y-1">
+            <div className="bg-blue-50 dark:bg-blue-900/40 border border-blue-300 dark:border-blue-700 text-blue-900 dark:text-blue-200 px-3 py-3 rounded text-sm space-y-1">
               <div className="flex items-center gap-2">
-                <svg className="animate-spin h-4 w-4 text-blue-400" viewBox="0 0 24 24">
+                <svg className="animate-spin h-4 w-4 text-blue-600 dark:text-blue-400" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
                 <span className="font-medium">{t('authentication.loadingSeed', { file: startupProgress.CurrentFile })}</span>
               </div>
-              <div className="text-xs text-blue-300 pl-6">
+              <div className="text-xs text-blue-700 dark:text-blue-300 pl-6">
                 {startupProgress.Phase}
                 {startupProgress.ThingsLoaded > 0 && ` — ${t('authentication.thingsLoaded', { n: startupProgress.ThingsLoaded.toLocaleString() })}`}
                 {startupProgress.RelationshipsLoaded > 0 && `, ${t('authentication.relationshipsLoaded', { n: startupProgress.RelationshipsLoaded.toLocaleString() })}`}
               </div>
-              <div className="text-xs text-blue-400 pl-6">
+              <div className="text-xs text-blue-600 dark:text-blue-400 pl-6">
                 {t('authentication.autoSignIn')}
               </div>
             </div>
@@ -271,7 +274,7 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
           <button
             type="submit"
             disabled={loading || !username || !password || !!startupProgress?.IsLoading}
-            className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium rounded transition-colors"
+            className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-600 disabled:cursor-not-allowed text-white font-medium rounded transition-colors"
           >
             {startupProgress?.IsLoading ? t('authentication.waitingForSeed') : loading ? t('authentication.signingIn') : t('authentication.signIn')}
           </button>
