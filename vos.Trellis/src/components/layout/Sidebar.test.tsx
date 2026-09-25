@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { VosThing, VosRelationship } from '../../types/vos';
 
@@ -11,6 +11,7 @@ import i18n from '../../i18n';
 import { useModelStore } from '../../stores/modelStore';
 import { usePlatformPagesStore } from '../../stores/platformPagesStore';
 import { Sidebar } from './Sidebar';
+import { stubScreenWidth } from '../../testScreenWidth';
 
 interface PublishedDashboard {
   name: string;
@@ -49,6 +50,7 @@ describe('Sidebar', () => {
   });
 
   afterEach(async () => {
+    vi.unstubAllGlobals();
     await i18n.changeLanguage('en');
   });
 
@@ -125,12 +127,7 @@ describe('Sidebar', () => {
   });
   describe('on a screen narrower than a tablet', () => {
     beforeEach(() => {
-      vi.stubGlobal('matchMedia', (media: string) => ({
-        matches: false,
-        media,
-        addEventListener: () => {},
-        removeEventListener: () => {},
-      }));
+      stubScreenWidth(false);
     });
 
     afterEach(() => {
@@ -168,17 +165,7 @@ describe('Sidebar', () => {
   });
 
   it('collapses when the window is narrowed below a tablet, and opens again when widened', () => {
-    const query = { matches: true, listeners: [] as (() => void)[] };
-    vi.stubGlobal('matchMedia', (media: string) => ({
-      get matches() { return query.matches; },
-      media,
-      addEventListener: (_: string, listener: () => void) => query.listeners.push(listener),
-      removeEventListener: () => {},
-    }));
-    const resize = (wide: boolean) => act(() => {
-      query.matches = wide;
-      query.listeners.forEach((listener) => listener());
-    });
+    const { resize } = stubScreenWidth(true);
     renderSidebar();
 
     resize(false);
@@ -186,6 +173,5 @@ describe('Sidebar', () => {
 
     resize(true);
     expect(screen.getByRole('button', { name: 'Collapse sidebar' })).toBeInTheDocument();
-    vi.unstubAllGlobals();
   });
 });

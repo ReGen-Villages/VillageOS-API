@@ -34,6 +34,9 @@ const REFRESH_EVENTS = [
  *  share one read per question, and a reader is not shown a page assembled from two moments. */
 const REFRESH_DEBOUNCE_MILLISECONDS = 400;
 
+/** The width above which a section lays its widgets out in tracks. */
+const WIDE = 1024;
+
 export function OperationsPage() {
   const loaded = useModelStore((s) => s.loaded);
   const { on, connected } = useSse();
@@ -97,7 +100,7 @@ export function OperationsPage() {
   // A reloaded model re-asks every broker-answered figure at once.
   useEffect(() => on('ModelChanged', () => setServerRefresh((n) => n + 1)), [on]);
 
-  const isWide = useIsWide(1024);
+  const isWide = useIsWide(WIDE);
   const { openDetail, windows } = useDetailWindows(index, specification?.detail, nonce);
 
   if (!loaded) {

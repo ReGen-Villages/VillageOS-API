@@ -4,6 +4,7 @@ import { TypeFilterPanel } from './TypeFilterPanel';
 import { useModelStore } from '../../stores/modelStore';
 import { useUiStore } from '../../stores/uiStore';
 import type { VosThing, VosRelationship } from '../../types/vos';
+import { stubScreenWidth } from '../../testScreenWidth';
 
 /**
  * See PredicateFilterPanel.test.tsx for context. Mirror guard
@@ -50,12 +51,7 @@ describe('TypeFilterPanel layout', () => {
 
   describe('on a screen narrower than a tablet', () => {
     beforeEach(() => {
-      vi.stubGlobal('matchMedia', (media: string) => ({
-        matches: false,
-        media,
-        addEventListener: () => {},
-        removeEventListener: () => {},
-      }));
+      stubScreenWidth(false);
     });
 
     afterEach(() => {

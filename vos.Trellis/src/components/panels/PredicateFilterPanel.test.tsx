@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { PredicateFilterPanel } from './PredicateFilterPanel';
 import { useUiStore } from '../../stores/uiStore';
+import { stubScreenWidth } from '../../testScreenWidth';
 
 /**
  * The filter cluster on GraphPage put two panels with
@@ -45,12 +46,7 @@ describe('PredicateFilterPanel layout', () => {
 
   describe('on a screen narrower than a tablet', () => {
     beforeEach(() => {
-      vi.stubGlobal('matchMedia', (media: string) => ({
-        matches: false,
-        media,
-        addEventListener: () => {},
-        removeEventListener: () => {},
-      }));
+      stubScreenWidth(false);
     });
 
     afterEach(() => {

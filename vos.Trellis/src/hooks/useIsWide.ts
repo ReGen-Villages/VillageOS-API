@@ -11,10 +11,10 @@ export function useIsWide(minWidth: number): boolean {
   const [wide, setWide] = useState(() => (supported ? window.matchMedia(`(min-width:${minWidth}px)`).matches : true));
   useEffect(() => {
     if (!supported) return;
-    const mq = window.matchMedia(`(min-width:${minWidth}px)`);
-    const on = () => setWide(mq.matches);
-    mq.addEventListener('change', on);
-    return () => mq.removeEventListener('change', on);
+    const mediaQuery = window.matchMedia(`(min-width:${minWidth}px)`);
+    const follow = () => setWide(mediaQuery.matches);
+    mediaQuery.addEventListener('change', follow);
+    return () => mediaQuery.removeEventListener('change', follow);
   }, [minWidth, supported]);
   return wide;
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, fireEvent, waitFor, act } from '@testing-library/react';
 
 vi.mock('../../api/ingestApi', () => ({ ingestApi: { configured: vi.fn(() => true), upload: vi.fn() } }));
@@ -17,6 +17,10 @@ const fileInput = (c: HTMLElement) => c.querySelector('input[type="file"]') as H
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(ingestApi.configured).mockReturnValue(true);
+});
+
+afterEach(async () => {
+  await act(() => i18n.changeLanguage('en'));
 });
 
 describe('IfcUploadDropzone (US #5844)', () => {
@@ -56,6 +60,5 @@ describe('IfcUploadDropzone (US #5844)', () => {
 
     expect(container.textContent).toContain('ingest <file.ifc>');
     expect(container.textContent).not.toContain('&lt;');
-    await act(() => i18n.changeLanguage('en'));
   });
 });
