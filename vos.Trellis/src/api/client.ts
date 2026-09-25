@@ -236,6 +236,11 @@ class ApiClient {
     return !!(this.token && this.tokenExpiry && new Date() < this.tokenExpiry);
   }
 
+  /** The sign-in for a request this client does not make itself, such as a map's tile request. */
+  authorizationHeaders(): Record<string, string> {
+    return this.token ? { Authorization: `Bearer ${this.token}` } : {};
+  }
+
   /**
    * Ensure we have a valid token. Authentication modes: existing login token used directly;
    * else VITE_API_KEY exchanged for a short-lived JWT; else authentication is required.

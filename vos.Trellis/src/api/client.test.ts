@@ -122,6 +122,19 @@ describe('ApiClient', () => {
     });
   });
 
+  describe('authorizationHeaders', () => {
+    it('names the token a signed-in session holds', async () => {
+      fetchSpy.mockResolvedValueOnce(mockResponse(200, tokenResponse));
+      await apiClient.login('testuser', 'pass');
+
+      expect(apiClient.authorizationHeaders()).toEqual({ Authorization: `Bearer ${tokenResponse.token}` });
+    });
+
+    it('names nothing once signed out', async () => {
+      expect(apiClient.authorizationHeaders()).toEqual({});
+    });
+  });
+
   describe('logout', () => {
     it('clears all auth state', async () => {
       fetchSpy.mockResolvedValueOnce(mockResponse(200, tokenResponse));
