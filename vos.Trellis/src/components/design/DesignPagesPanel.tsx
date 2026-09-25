@@ -29,7 +29,7 @@ export function DesignPagesPanel({ pages, openedId, onOpen, onStart }: Props) {
   };
 
   return (
-    <aside className="w-56 flex-shrink-0 flex flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+    <aside className="w-full max-h-40 md:w-56 md:max-h-none flex-shrink-0 flex flex-col border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
       <h2 className="px-3 pt-3 pb-1 text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{t('design.pages.title')}</h2>
       <ul className="flex-1 overflow-y-auto p-2 space-y-0.5">
         {pages.map((page) => (

@@ -295,6 +295,14 @@ open a burst of connections that reads as abuse. Any one source is bounded by
 than one that refuses outright, and it must not hold up the run. A run cancelled by its caller is
 never reported as a timeout — that would put a fabricated outage in front of a planner.
 
+**A source reaching back years is asked for a slice of that reach at a time**, `--sourceWindowDays`
+of it per call, and the outcome is reported when every slice has answered. The reach is the model's
+to declare and a long one is legitimate; what one pass can carry is a fact about the deployment. A
+whole reach in one call makes the provider's answer, the reshape that follows it and the write it
+becomes each as large as the reach — at a decade of hourly readings, millions of readings in each,
+which exhausted the fetching service while it reshaped and was refused as a single write. The
+per-source bound then applies to a slice rather than to the decade.
+
 **Fetching is not done here.** Forage asks Mycelium to forward each call to the endpoint service
 named by `--fetcherSubdomain`, which resolves the registration, fills the address placeholders,
 reshapes the response and writes the observation onto the Site. **Each call names the site as its

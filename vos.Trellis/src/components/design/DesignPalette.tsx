@@ -15,7 +15,7 @@ export function DesignPalette({ onLift, onSettle, onAdd }: Props) {
   const { t } = useTranslation();
 
   return (
-    <aside className="w-40 flex-shrink-0 flex flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+    <aside className="w-full max-h-32 md:w-40 md:max-h-none flex-shrink-0 flex flex-col border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
       <h2 className="px-3 pt-3 pb-1 text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{t('design.palette.title')}</h2>
       <div className="flex-1 p-2 space-y-1.5 overflow-y-auto">
         {WIDGET_KINDS.map((kind) => {

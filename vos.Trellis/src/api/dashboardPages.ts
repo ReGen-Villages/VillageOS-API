@@ -4,6 +4,7 @@ import { modelApi } from './modelApi';
 import { parseSpecification, type ModelIndex } from './dashboardApi';
 import type { VosRelationship } from '../types/vos';
 import { DASHBOARD_ARCHETYPE, DASHBOARD_SPECIFICATION_PROPERTY, IS_PREDICATE, type DashboardSpecification } from '../types/dashboard';
+import i18n from '../i18n';
 
 /**
  * Writing a page back to the model.
@@ -33,7 +34,7 @@ export function dashboardWriteContext(modelIndex: ModelIndex): DashboardWriteCon
 
 function asTheDiscoveryReadsIt(specification: DashboardSpecification): string {
   const written = JSON.stringify(specification);
-  if (!parseSpecification(written)) throw new Error('The console could not read this page back, so it was not written.');
+  if (!parseSpecification(written)) throw new Error(i18n.t('design.toast.notReadBack'));
   return written;
 }
 

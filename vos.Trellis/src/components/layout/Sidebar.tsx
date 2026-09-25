@@ -6,6 +6,7 @@ import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { useAuthentication } from '../../hooks/useAuthentication';
 import { useDashboards } from '../../hooks/useDashboard';
+import { TABLET_WIDTH, useIsWide } from '../../hooks/useIsWide';
 import { makeSpecificationTranslator } from '../../api/dashboardLocalization';
 import { SessionControls } from './SessionControls';
 import { ModelStatement } from './ModelStatement';
@@ -31,63 +32,91 @@ const links = [
 ] as const;
 
 export function Sidebar() {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const wide = useIsWide(TABLET_WIDTH);
+  const [isCollapsed, setIsCollapsed] = useState(!wide);
+  const [laidOutWide, setLaidOutWide] = useState(wide);
+  if (laidOutWide !== wide) {
+    setLaidOutWide(wide);
+    setIsCollapsed(!wide);
+  }
+  const overlaid = !wide && !isCollapsed;
   const { modelName } = useAuthentication();
   const { t, i18n } = useTranslation();
   const dashboards = useDashboards();
+  const collapseOnNarrowScreen = () => {
+    if (!wide) setIsCollapsed(true);
+  };
 
   return (
-    <aside
-      className={clsx(
-        'flex-shrink-0 bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-700 flex flex-col transition-all duration-300',
-        isCollapsed ? 'w-16' : 'w-56'
-      )}
-    >
-      <div className="p-4 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
-        {!isCollapsed && (
-          <div>
-            <h1 className="text-lg font-bold text-zinc-900 dark:text-white tracking-wide">{t('navigation.appName')}</h1>
-            {modelName ? (
-              <span className="text-xs text-blue-500 dark:text-blue-400">{modelName}</span>
-            ) : (
-              <span className="text-xs text-zinc-500 dark:text-zinc-400">{t('navigation.subtitle')}</span>
-            )}
-          </div>
-        )}
+    <div className={clsx('flex-shrink-0 flex', overlaid && 'w-16')}>
+      {overlaid && (
         <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
-          aria-label={isCollapsed ? t('navigation.expandSidebar') : t('navigation.collapseSidebar')}
-        >
-          {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-        </button>
-      </div>
-      <nav className="flex-1 p-2 space-y-1">
-        {links.map(({ to, icon: Icon, labelKey }) =>
-          to === OPERATIONS_PATH && dashboards.length > 0 ? (
-            dashboards.map((dashboard) => (
-              <NavigationItem
-                key={dashboard.routeKey}
-                to={`${OPERATIONS_PATH}/${dashboard.routeKey}`}
-                label={
-                  dashboard.specification
-                    ? makeSpecificationTranslator(dashboard.specification, i18n.language)(dashboard.specification.title)
-                    : dashboard.name
-                }
-                icon={<SpecificationIcon name={dashboard.specification?.icon} />}
-                isCollapsed={isCollapsed}
-              />
-            ))
-          ) : (
-            <NavigationItem key={to} to={to} label={t(labelKey)} icon={<Icon size={18} />} isCollapsed={isCollapsed} />
-          ),
+          type="button"
+          aria-label={t('navigation.collapseSidebar')}
+          onClick={() => setIsCollapsed(true)}
+          className="fixed inset-0 z-30 bg-black/30"
+        />
+      )}
+      <aside
+        className={clsx(
+          'flex-shrink-0 bg-zinc-50 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-700 flex flex-col transition-all duration-300',
+          overlaid ? 'fixed inset-y-0 start-0 z-40 w-56 shadow-xl' : isCollapsed ? 'w-16' : 'w-56'
         )}
-      </nav>
-      <div className="p-2 border-t border-zinc-200 dark:border-zinc-700 space-y-1">
-        <ModelStatement isCollapsed={isCollapsed} />
-        <SessionControls isCollapsed={isCollapsed} />
-      </div>
-    </aside>
+      >
+        <div className="p-4 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
+          {!isCollapsed && (
+            <div>
+              <h1 className="text-lg font-bold text-zinc-900 dark:text-white tracking-wide">{t('navigation.appName')}</h1>
+              {modelName ? (
+                <span className="text-xs text-blue-500 dark:text-blue-400">{modelName}</span>
+              ) : (
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">{t('navigation.subtitle')}</span>
+              )}
+            </div>
+          )}
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+            aria-label={isCollapsed ? t('navigation.expandSidebar') : t('navigation.collapseSidebar')}
+          >
+            {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+          </button>
+        </div>
+        <nav className="flex-1 p-2 space-y-1">
+          {links.map(({ to, icon: Icon, labelKey }) =>
+            to === OPERATIONS_PATH && dashboards.length > 0 ? (
+              dashboards.map((dashboard) => (
+                <NavigationItem
+                  key={dashboard.routeKey}
+                  to={`${OPERATIONS_PATH}/${dashboard.routeKey}`}
+                  label={
+                    dashboard.specification
+                      ? makeSpecificationTranslator(dashboard.specification, i18n.language)(dashboard.specification.title)
+                      : dashboard.name
+                  }
+                  icon={<SpecificationIcon name={dashboard.specification?.icon} />}
+                  isCollapsed={isCollapsed}
+                  onChosen={collapseOnNarrowScreen}
+                />
+              ))
+            ) : (
+              <NavigationItem
+                key={to}
+                to={to}
+                label={t(labelKey)}
+                icon={<Icon size={18} />}
+                isCollapsed={isCollapsed}
+                onChosen={collapseOnNarrowScreen}
+              />
+            ),
+          )}
+        </nav>
+        <div className="p-2 border-t border-zinc-200 dark:border-zinc-700 space-y-1">
+          <ModelStatement isCollapsed={isCollapsed} />
+          <SessionControls isCollapsed={isCollapsed} />
+        </div>
+      </aside>
+    </div>
   );
 }
 
@@ -96,15 +125,18 @@ function NavigationItem({
   label,
   icon,
   isCollapsed,
+  onChosen,
 }: {
   to: string;
   label: string;
   icon: ReactNode;
   isCollapsed: boolean;
+  onChosen: () => void;
 }) {
   return (
     <NavLink
       to={to}
+      onClick={onChosen}
       className={({ isActive }) =>
         clsx(
           'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',

@@ -2,7 +2,10 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { pagePathOf, parentsFirst, pagesToRemove, flattenPages, attachmentBody, isAlreadyAttached } = require('./publish-wiki');
+const {
+  pagePathOf, parentsFirst, pagesToRemove, flattenPages, attachmentBody, isAlreadyAttached,
+  tokenFault, usableToken, wikiCallFailure, answeredTheApi,
+} = require('./publish-wiki');
 const { pageFileName } = require('./docs-to-wiki');
 
 test('a generated file name maps back to its wiki page path', () => {
@@ -91,4 +94,63 @@ test('a real attachment failure still fails the run', () => {
     'a create that failed for another reason must not be read as already there',
   );
   assert.equal(isAlreadyAttached(500, 'already exists'), false, 'the message alone is not enough — the wiki has to name the failure');
+});
+
+// The run authenticates with a pipeline variable. A variable the pipeline did not substitute
+// arrives as the literal '$(NAME)' — non-empty, so an emptiness check passes it, and it is then
+// sent as a credential and refused. Naming it before the first call is the difference between a
+// build that says which variable is missing and one that blames a diagram.
+test('a token the pipeline never substituted is refused before anything is sent', () => {
+  assert.match(tokenFault('$(AZURE_DEVOPS_PAT)'), /never substituted|\$\(AZURE_DEVOPS_PAT\)/);
+  assert.match(tokenFault('  $(SOME_OTHER_NAME)  '), /\$\(SOME_OTHER_NAME\)/);
+});
+
+test('a missing token is refused, and says so rather than failing as a credential', () => {
+  assert.match(tokenFault(undefined), /no value/i);
+  assert.match(tokenFault(''), /no value/i);
+  assert.match(tokenFault('   '), /no value/i);
+});
+
+// Surrounding whitespace survives a paste into a pipeline variable and makes a good token a bad
+// one. Nothing is gained by refusing the run over it.
+test('a usable token passes, and is read without the whitespace around it', () => {
+  assert.equal(tokenFault('abc123'), null);
+  assert.equal(tokenFault('  abc123\n'), null);
+  assert.equal(usableToken('  abc123\n'), 'abc123');
+});
+
+// A wiki that refuses the credential says nothing about what was being sent when it did. Reporting
+// the file reads as a fault in that file, which is where a reader starts looking.
+test('a refused credential is reported as one, whatever call met it', () => {
+  const refusal = wikiCallFailure('PUT', 'attachments', 401, '');
+  assert.match(refusal, /token|credential/i);
+  assert.doesNotMatch(refusal, /attachments/);
+  assert.match(wikiCallFailure('PUT', 'attachments', 403, ''), /token|credential/i);
+});
+
+test('a failure that is about the call still names the call', () => {
+  const failure = wikiCallFailure('PUT', 'attachments', 400, 'The input is not a valid Base-64 string');
+  assert.match(failure, /attachments/);
+  assert.match(failure, /Base-64/);
+});
+
+// The wiki answers a write it will not accept with a redirect to sign-in. Following it lands on a
+// page, and a page is a 200 — so a run that asks only whether the response was ok publishes
+// nothing and says it published everything.
+test('a sign-in page is not a published page, whatever status it carries', () => {
+  const signInPage = { ok: true, status: 200, headers: new Map([['content-type', 'text/html; charset=utf-8']]) };
+  signInPage.headers.get = Map.prototype.get.bind(signInPage.headers);
+  assert.equal(answeredTheApi(signInPage), false);
+});
+
+test('a real API answer is one the run may believe', () => {
+  const answer = { ok: true, status: 200, headers: new Map([['content-type', 'application/json; charset=utf-8']]) };
+  answer.headers.get = Map.prototype.get.bind(answer.headers);
+  assert.equal(answeredTheApi(answer), true);
+});
+
+test('a run sent to sign-in says nothing was published, rather than naming a file', () => {
+  const refusal = wikiCallFailure('PUT', 'attachment a-diagram.svg', 200, '<!DOCTYPE html>', 'text/html');
+  assert.match(refusal, /sign-in page|nothing was published/i);
+  assert.match(refusal, /AZURE_DEVOPS_PAT/);
 });

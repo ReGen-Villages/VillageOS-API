@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render } from '@testing-library/react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
 import { TypeFilterPanel } from './TypeFilterPanel';
 import { useModelStore } from '../../stores/modelStore';
 import { useUiStore } from '../../stores/uiStore';
 import type { VosThing, VosRelationship } from '../../types/vos';
+import { stubScreenWidth } from '../../testScreenWidth';
 
 /**
  * See PredicateFilterPanel.test.tsx for context. Mirror guard
@@ -46,5 +47,21 @@ describe('TypeFilterPanel layout', () => {
     expect(root.className).toContain('flex-col');
     expect(root.className).toContain('flex-1');
     expect(root.className).toContain('min-h-0');
+  });
+
+  describe('on a screen narrower than a tablet', () => {
+    beforeEach(() => {
+      stubScreenWidth(false);
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('starts closed, so it does not cover the graph', () => {
+      render(<TypeFilterPanel />);
+
+      expect(screen.getByRole('button', { expanded: false })).toBeInTheDocument();
+    });
   });
 });

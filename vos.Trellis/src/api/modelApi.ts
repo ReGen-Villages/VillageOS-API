@@ -34,7 +34,7 @@ export const modelApi = {
 
   set: (modelJson: string) => {
     const parsed = JSON.parse(modelJson);
-    return apiClient.post<unknown>('/api/model', parsed);
+    return apiClient.action('replace the whole model', () => apiClient.post<unknown>('/api/model', parsed));
   },
 
   // Upsert a fragment ({ Name, Things, Relationships }) into the live model. Idempotent: re-applying
@@ -42,7 +42,10 @@ export const modelApi = {
   // `set`, which replaces the whole model.
   applyFragment: (fragmentJson: string) => {
     const parsed = JSON.parse(fragmentJson);
-    return apiClient.post<FragmentResult>('/api/model/fragment', parsed);
+    return apiClient.action(
+      `apply fragment "${parsed.Name ?? 'unnamed'}"`,
+      () => apiClient.post<FragmentResult>('/api/model/fragment', parsed),
+    );
   },
 
   // Carry a group out of this model into a project model built for it from a template. The
@@ -55,12 +58,14 @@ export const modelApi = {
     template: string,
     projectName: string,
   ) =>
-    apiClient.post<PromotionResult>('/api/model/promote', {
-      RootThingId: rootThingId,
-      FollowedPredicateNames: followedPredicateNames,
-      Template: template,
-      ProjectName: projectName,
-    }),
+    apiClient.action(`promote Thing ${rootThingId} into project "${projectName}"`, () =>
+      apiClient.post<PromotionResult>('/api/model/promote', {
+        RootThingId: rootThingId,
+        FollowedPredicateNames: followedPredicateNames,
+        Template: template,
+        ProjectName: projectName,
+      }),
+    ),
 
-  clear: () => apiClient.del<{ message: string }>('/api/model'),
+  clear: () => apiClient.action('clear the model', () => apiClient.del<{ message: string }>('/api/model')),
 };

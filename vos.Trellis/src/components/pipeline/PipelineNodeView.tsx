@@ -1,10 +1,11 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import clsx from 'clsx';
-import type { PortInformation } from '../../pipeline/model';
+import { useTranslation } from 'react-i18next';
+import type { EndInformation, EndKind, PortInformation } from '../../pipeline/model';
 
 export interface PipelineNodeData {
   label: string;
-  /** Boundary node: 'input' (param source) or 'output' (result sink); absent for service nodes. */
+  /** Boundary node: 'input' (where the run comes from) or 'output' (what it leaves behind); absent for service nodes. */
   kind?: 'input' | 'output';
   connectionId?: string;
   subdomain?: string;
@@ -14,6 +15,11 @@ export interface PipelineNodeData {
   paramBindings?: Record<string, string>;
   /** Fan-out progress: terminal items / total. */
   progress?: { done: number; total: number };
+  /** The Thing a boundary node stands for, held by id on the drawing and read off the model for display. */
+  standsForId?: string;
+  standsFor?: EndInformation;
+  /** What really happens at this end today, where drawing it is not what makes it happen. */
+  note?: string;
   [key: string]: unknown;
 }
 
@@ -26,8 +32,20 @@ const STATUS_RING: Record<string, string> = {
   partial: 'ring-2 ring-orange-400',
 };
 
-/** A pipeline DAG node: one Handle per typed port (inputs on the left, outputs on the right). */
+const END_KIND_LABEL_KEY = {
+  messageKind: 'pipeline.endKind.messageKind',
+  externalSystem: 'pipeline.endKind.externalSystem',
+  door: 'pipeline.endKind.door',
+  state: 'pipeline.endKind.state',
+  relationship: 'pipeline.endKind.relationship',
+  pipeline: 'pipeline.endKind.pipeline',
+  other: 'pipeline.endKind.other',
+} as const satisfies Record<EndKind, string>;
+
+/** A pipeline DAG node: one Handle per typed port (inputs on the left, outputs on the right). A boundary
+ *  node also says what it stands for, and what really happens there today. */
 export function PipelineNodeView({ data }: NodeProps) {
+  const { t } = useTranslation();
   const d = data as PipelineNodeData;
   const inputs = d.ports.filter((p) => p.direction === 'in');
   const outputs = d.ports.filter((p) => p.direction === 'out');
@@ -35,7 +53,7 @@ export function PipelineNodeView({ data }: NodeProps) {
   return (
     <div
       className={clsx(
-        'rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 shadow-sm min-w-[180px]',
+        'rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 shadow-sm min-w-[180px] max-w-[260px]',
         d.status && STATUS_RING[d.status],
       )}
     >
@@ -50,6 +68,12 @@ export function PipelineNodeView({ data }: NodeProps) {
           <span className="text-[10px] font-mono text-zinc-400">{d.kind ? d.kind : d.subdomain}</span>
         </span>
       </div>
+      {d.standsFor && (
+        <div className="px-3 py-1 border-b border-zinc-200 dark:border-zinc-700 text-[11px] text-zinc-600 dark:text-zinc-300 break-words">
+          <span className="uppercase tracking-wide text-[9px] text-zinc-400">{t(END_KIND_LABEL_KEY[d.standsFor.kind])}</span>{' '}
+          {d.standsFor.name}
+        </div>
+      )}
       <div className="flex justify-between gap-4 py-2 text-xs">
         <div className="flex flex-col gap-2">
           {inputs.map((p) => (
@@ -79,6 +103,9 @@ export function PipelineNodeView({ data }: NodeProps) {
           ))}
         </div>
       </div>
+      {d.note && (
+        <p className="px-3 pb-2 text-[10px] leading-snug text-zinc-400 break-words">{d.note}</p>
+      )}
     </div>
   );
 }

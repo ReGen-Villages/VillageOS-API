@@ -36,4 +36,18 @@ describe('postToEndpoint', () => {
 
     expect(await postToEndpoint(reads, 'readings', {})).toEqual({});
   });
+
+  it('reports a press as where it went and whether it was taken, never what was in it (TC #7270)', async () => {
+    const recordAction = vi.fn();
+    fromService.mockResolvedValueOnce({ said: 'taken' }).mockRejectedValueOnce(new Error('already booked'));
+    const reporting = { fromService, recordAction } as unknown as ModelReads;
+
+    await postToEndpoint(reporting, 'readings', { email: 'someone@example.org' });
+    await postToEndpoint(reporting, 'readings', { email: 'someone@example.org' });
+
+    expect(recordAction.mock.calls).toEqual([
+      ['send a form to readings', true],
+      ['send a form to readings', false],
+    ]);
+  });
 });

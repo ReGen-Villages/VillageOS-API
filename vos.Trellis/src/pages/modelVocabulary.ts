@@ -9,6 +9,7 @@
  */
 
 import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos';
+import { wordingIn, type TermWording } from '../i18n/termWording';
 
 /** What a programme allocation is for. The intake service resolves a submitted word against the Things
  *  under whichever archetype carries this. */
@@ -35,6 +36,26 @@ export interface ModelReading {
  *  read — two carriers leave no way to say which one a term belongs to, so it answers with none rather
  *  than picking. */
 export function termsMarked(reading: ModelReading, archetypeFlag: string): string[] {
+  return termThingsMarked(reading, archetypeFlag).map((term) => term.Name);
+}
+
+/** The property a term states its words in, as JSON text of words by language. */
+const WORDING_PROPERTY = 'wording';
+
+/** What each term under the given marks is called in each language, read from the term's own `wording`
+ *  property. A term stating none is left out, and is shown by its name. */
+export function termWordingMarked(reading: ModelReading, archetypeFlags: readonly string[]): TermWording {
+  const wording: Record<string, Record<string, string>> = {};
+  for (const flag of archetypeFlags) {
+    for (const term of termThingsMarked(reading, flag)) {
+      const words = wordingIn(reading.properties[term.Id]?.[WORDING_PROPERTY]?.Value);
+      if (words && !(term.Name in wording)) wording[term.Name] = words;
+    }
+  }
+  return wording;
+}
+
+function termThingsMarked(reading: ModelReading, archetypeFlag: string): VosThing[] {
   const archetype = ownCarrierOf(reading, archetypeFlag);
   if (!archetype) return [];
 
@@ -47,7 +68,7 @@ export function termsMarked(reading: ModelReading, archetypeFlag: string): strin
   // so a project grouping its categories under one of its own still has them offered.
   const reached = new Set([archetype]);
   const frontier = [archetype];
-  const terms: string[] = [];
+  const terms: VosThing[] = [];
   while (frontier.length > 0) {
     const current = frontier.pop()!;
     for (const edge of reading.relationships) {
@@ -57,10 +78,10 @@ export function termsMarked(reading: ModelReading, archetypeFlag: string): strin
       reached.add(edge.SubjectId);
       frontier.push(edge.SubjectId);
       const term = names.get(edge.SubjectId);
-      if (term && !term.IsArchetype) terms.push(term.Name);
+      if (term && !term.IsArchetype) terms.push(term);
     }
   }
-  return terms.sort((left, right) => left.localeCompare(right));
+  return terms.sort((left, right) => left.Name.localeCompare(right.Name));
 }
 
 /**

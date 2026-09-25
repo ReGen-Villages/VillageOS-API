@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Intake;
+using vos.Service.Intake.Models;
 using vos.Tests.Shared;
 using Xunit;
 using static vos.Service.Intake.Tests.ModelStub;
@@ -137,6 +138,7 @@ public class SubmissionEndpointTests
 
         response.StatusCode.Should().Be(HttpStatusCode.RequestEntityTooLarge,
             "a submission is a form's worth of answers and a boundary; anything larger must not be read into memory first");
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.SubmissionTooLarge);
     }
 
     // A refusal is not a partial write. Every bound is checked before the fragment is composed, so a
@@ -236,6 +238,7 @@ public class SubmissionEndpointTests
 
         refused.StatusCode.Should().Be(HttpStatusCode.Forbidden,
             "the code is the whole of what says this address can be read by whoever is submitting");
+        (await RefusalReading.ReadAsync(refused)).Code.Should().Be(RefusalCode.CodeNotAccepted);
     }
 
     // The ticket says which address it was issued against, so it cannot be spent on a submission naming
@@ -280,6 +283,7 @@ public class SubmissionEndpointTests
         var refused = await AskForACodeAsync(client, AnasAddress);
 
         refused.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        (await RefusalReading.ReadAsync(refused)).Code.Should().Be(RefusalCode.CodesExhausted);
         factory.Mailer.Sent.Should().HaveCount(AddressVerification.CodesPerAddress,
             "a route that sends on demand is a way to post to a mailbox its owner never gave us");
     }
@@ -319,6 +323,9 @@ public class SubmissionEndpointTests
 
         refused.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await refused.Content.ReadAsStringAsync()).Should().Contain("contact");
+        var (code, values) = await RefusalReading.ReadAsync(refused);
+        code.Should().Be(RefusalCode.FieldMissing);
+        values.GetProperty("field").GetString().Should().StartWith("contact");
     }
 
     // Three failures nobody saw would otherwise leave the address unable to be sent anything for the hour,
@@ -350,6 +357,7 @@ public class SubmissionEndpointTests
 
         response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
         (await response.Content.ReadAsStringAsync()).Should().NotContain("relay access denied");
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.CodeSendingUnavailable);
         factory.Log.Lines.Should().Contain(line => line.Contains("relay access denied"),
             "what is wrong with the deployment belongs where whoever runs it reads it");
     }
@@ -364,6 +372,7 @@ public class SubmissionEndpointTests
 
         refused.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await refused.Content.ReadAsStringAsync()).Should().Contain("emailAddress").And.NotContain("ana ferreira");
+        (await RefusalReading.ReadAsync(refused)).Code.Should().Be(RefusalCode.EmailAddressMalformed);
         factory.Mailer.Sent.Should().BeEmpty();
     }
 
@@ -391,6 +400,7 @@ public class SubmissionEndpointTests
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
             "a post that never asked this service for anything first did not come from the form");
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.TicketMissing);
     }
 
     // Whatever a caller puts in the header, the service answers rather than falling over: a ticket is

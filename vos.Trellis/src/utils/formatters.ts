@@ -1,4 +1,6 @@
-import { format, formatDistanceToNow, parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
+import i18n from '../i18n';
+import { numberIn, relativeTimeIn } from '../i18n/numbers';
 import { NUMBER_DISPLAY_DEFAULTS, type NumberDisplaySettings } from './guiSettings';
 
 export function formatGuid(guid: string): string {
@@ -22,12 +24,11 @@ export function formatDateTime(iso: string): string {
 }
 
 export function formatRelativeTime(iso: string): string {
-  try {
-    return formatDistanceToNow(parseISO(iso), { addSuffix: true });
-  } catch {
-    return iso;
-  }
+  const at = parseISO(iso);
+  return Number.isNaN(at.getTime()) ? iso : relativeTimeIn(at);
 }
+
+const ONE_DECIMAL: Intl.NumberFormatOptions = { minimumFractionDigits: 1, maximumFractionDigits: 1 };
 
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -38,13 +39,13 @@ export function formatBytes(bytes: number): string {
     value /= 1024;
     unit = next;
   }
-  return `${value.toFixed(1)} ${unit}`;
+  return `${numberIn(value, ONE_DECIMAL)} ${unit}`;
 }
 
 export function formatMilliseconds(milliseconds: number): string {
   if (milliseconds < 1) return '<1ms';
   if (milliseconds < 1000) return `${Math.round(milliseconds)}ms`;
-  return `${(milliseconds / 1000).toFixed(1)}s`;
+  return `${numberIn(milliseconds / 1000, ONE_DECIMAL)}s`;
 }
 
 /**
@@ -92,9 +93,11 @@ function formatToPrecision(value: unknown, maximumDecimals: number): string {
  *  coordinates themselves are for the 3D viewer, not for a cell in a side panel. */
 function summariseMesh(value: unknown): string {
   const mesh = value as { positions?: unknown[]; indices?: unknown[] };
-  if (!Array.isArray(mesh?.positions)) return 'mesh';
-  const triangles = Array.isArray(mesh.indices) ? `, ${mesh.indices.length / 3} triangles` : '';
-  return `mesh (${mesh.positions.length / 3} vertices${triangles})`;
+  if (!Array.isArray(mesh?.positions)) return i18n.t('common.mesh');
+  const vertices = mesh.positions.length / 3;
+  return Array.isArray(mesh.indices)
+    ? i18n.t('common.meshSizeWithTriangles', { vertices, triangles: mesh.indices.length / 3 })
+    : i18n.t('common.meshSize', { vertices });
 }
 
 /** The shape's own type word — data rather than prose, and the one thing a reader wants from a

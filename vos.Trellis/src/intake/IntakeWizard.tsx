@@ -45,6 +45,7 @@ import {
   withHazardReported,
   type SubmissionDraft,
 } from './submissionDraft';
+import { useTermWords, type TermWording } from '../i18n/termWording';
 
 const MapView = lazy(() => import('../components/map/MapView').then((m) => ({ default: m.MapView })));
 
@@ -53,6 +54,7 @@ export function IntakeWizard({
   basemapSources,
   hazardTypes,
   hazardLevels,
+  wording,
   draftOwner,
 }: {
   categories: readonly string[];
@@ -62,10 +64,14 @@ export function IntakeWizard({
    *  person who reached it should be told why there is nothing there. */
   hazardTypes: readonly string[];
   hazardLevels: readonly string[];
+  /** What each category, hazard and level is called in each language. Each is still submitted by its
+   *  name, which is what the service resolves against. */
+  wording: TermWording;
   /** What the half-finished submission is kept under, or null while that is still being established. */
   draftOwner: string | null;
 }) {
   const { t } = useTranslation();
+  const wordsFor = useTermWords(wording);
   const [draft, setDraft] = useState<SubmissionDraft | null>(null);
   const [step, setStep] = useState<StepId>('project');
   const [submitting, setSubmitting] = useState(false);
@@ -174,10 +180,10 @@ export function IntakeWizard({
         {step === 'project' && <ProjectStep draft={draft} onChange={change} />}
         {step === 'contact' && <ContactStep draft={draft} onChange={change} />}
         {step === 'location' && <LocationStep draft={draft} sources={basemapSources} onChange={change} />}
-        {step === 'programme' && <ProgrammeStep draft={draft} categories={categories} onChange={change} />}
+        {step === 'programme' && <ProgrammeStep draft={draft} categories={categories} wordsFor={wordsFor} onChange={change} />}
         {step === 'parcel' && <ParcelStep draft={draft} sources={basemapSources} onChange={change} />}
         {step === 'hazards' && (
-          <HazardsStep draft={draft} types={hazardTypes} levels={hazardLevels} onChange={change} />
+          <HazardsStep draft={draft} types={hazardTypes} levels={hazardLevels} wordsFor={wordsFor} onChange={change} />
         )}
       </div>
       <Navigation
@@ -267,12 +273,12 @@ function Navigation({
         {t('intake.back')}
       </button>
 
-      <div className="flex items-center gap-3">
+      <div className="min-w-0 flex flex-wrap items-center justify-end gap-3">
         {last && !configured && (
-          <span className="text-xs text-amber-600 dark:text-amber-400">{t('intake.notConfigured')}</span>
+          <span className="basis-full text-end text-xs text-amber-600 dark:text-amber-400">{t('intake.notConfigured')}</span>
         )}
         {last && configured && !ready && (
-          <span className="text-xs text-amber-600 dark:text-amber-400">{t('intake.fieldsNeeded')}</span>
+          <span className="basis-full text-end text-xs text-amber-600 dark:text-amber-400">{t('intake.fieldsNeeded')}</span>
         )}
         {last && awaitingCode && (
           <input
@@ -280,13 +286,15 @@ function Navigation({
             value={code}
             onChange={(event) => onCodeChange(event.target.value)}
             placeholder={t('intake.codePlaceholder')}
+            inputMode="numeric"
+            autoComplete="one-time-code"
             className="w-28 px-2 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
           />
         )}
         <button
           onClick={() => (last ? onSubmit() : onGoTo(STEPS[index + 1]))}
           disabled={heldBack}
-          className="px-3 py-1.5 text-sm rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-40"
+          className="px-3 py-1.5 text-sm whitespace-nowrap rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-40"
         >
           {!last ? t('intake.next') : awaitingCode ? t('intake.submit') : t('intake.sendCode')}
         </button>
@@ -317,14 +325,29 @@ function ContactStep({ draft, onChange }: StepProps) {
   return (
     <>
       <StepHeading step="contact" />
-      <Field labelKey="intake.contactName" value={draft.contactName} onChange={(contactName) => onChange({ contactName })} />
+      <Field
+        labelKey="intake.contactName"
+        autoComplete="name"
+        value={draft.contactName}
+        onChange={(contactName) => onChange({ contactName })}
+      />
       <Field
         labelKey="intake.relationshipToProject"
         value={draft.relationshipToProject}
         onChange={(relationshipToProject) => onChange({ relationshipToProject })}
       />
-      <Field labelKey="intake.emailAddress" value={draft.emailAddress} onChange={(emailAddress) => onChange({ emailAddress })} />
-      <Field labelKey="intake.phoneNumber" value={draft.phoneNumber} onChange={(phoneNumber) => onChange({ phoneNumber })} />
+      <Field
+        labelKey="intake.emailAddress"
+        autoComplete="email"
+        value={draft.emailAddress}
+        onChange={(emailAddress) => onChange({ emailAddress })}
+      />
+      <Field
+        labelKey="intake.phoneNumber"
+        autoComplete="tel"
+        value={draft.phoneNumber}
+        onChange={(phoneNumber) => onChange({ phoneNumber })}
+      />
     </>
   );
 }
@@ -403,8 +426,9 @@ function SiteMap({
 function ProgrammeStep({
   draft,
   categories,
+  wordsFor,
   onChange,
-}: StepProps & { categories: readonly string[] }) {
+}: StepProps & { categories: readonly string[]; wordsFor: (term: string) => string }) {
   const { t, i18n } = useTranslation();
   const hectares = statedAreaHectares(draft);
   const shown = wholePercentages(draft.shares);
@@ -467,7 +491,7 @@ function ProgrammeStep({
           {categories.map((category) => (
             <CategoryRow
               key={category}
-              category={category}
+              label={wordsFor(category)}
               chosen={category in draft.shares}
               share={shown[category]}
               percentage={percentage}
@@ -568,14 +592,14 @@ function ParcelStep({ draft, sources, onChange }: StepProps & { sources: Basemap
 }
 
 function CategoryRow({
-  category,
+  label,
   chosen,
   share,
   percentage,
   onToggle,
   onShare,
 }: {
-  category: string;
+  label: string;
   chosen: boolean;
   /** A whole percentage, from a set that adds to a hundred across the chosen categories, so what is on
    *  screen and what the split claims to describe are the same thing. */
@@ -593,7 +617,7 @@ function CategoryRow({
           onChange={(event) => onToggle(event.target.checked)}
           className="accent-emerald-600"
         />
-        {category}
+        {label}
       </label>
       <input
         type="range"
@@ -647,8 +671,9 @@ function HazardsStep({
   draft,
   types,
   levels,
+  wordsFor,
   onChange,
-}: StepProps & { types: readonly string[]; levels: readonly string[] }) {
+}: StepProps & { types: readonly string[]; levels: readonly string[]; wordsFor: (term: string) => string }) {
   const { t } = useTranslation();
 
   if (types.length === 0 || levels.length === 0) {
@@ -666,9 +691,9 @@ function HazardsStep({
       <div className="flex flex-col gap-2">
         {types.map((hazardType) => (
           <label key={hazardType} className="flex items-center justify-between gap-3">
-            <span className="text-sm text-zinc-700 dark:text-zinc-300">{hazardType}</span>
+            <span className="text-sm text-zinc-700 dark:text-zinc-300">{wordsFor(hazardType)}</span>
             <select
-              aria-label={hazardType}
+              aria-label={wordsFor(hazardType)}
               value={draft.reportedHazards[hazardType] ?? ''}
               onChange={(event) =>
                 onChange(withHazardReported(draft, hazardType, event.target.value))
@@ -678,7 +703,7 @@ function HazardsStep({
               <option value="">{t('intake.notReported')}</option>
               {levels.map((level) => (
                 <option key={level} value={level}>
-                  {level}
+                  {wordsFor(level)}
                 </option>
               ))}
             </select>
@@ -710,12 +735,15 @@ function Field({
   value,
   onChange,
   lines,
+  autoComplete,
 }: {
   labelKey: ParseKeys;
   hintKey?: ParseKeys;
   value: string;
   onChange: (value: string) => void;
   lines?: number;
+  /** What the browser may fill the field from; an address or a number also brings up the phone keyboard for it. */
+  autoComplete?: 'name' | 'email' | 'tel';
 }) {
   const { t } = useTranslation();
   const shared =
@@ -730,7 +758,13 @@ function Field({
         {lines ? (
           <textarea rows={lines} value={value} onChange={(event) => onChange(event.target.value)} className={shared} />
         ) : (
-          <input value={value} onChange={(event) => onChange(event.target.value)} className={shared} />
+          <input
+            type={autoComplete === 'email' || autoComplete === 'tel' ? autoComplete : 'text'}
+            autoComplete={autoComplete}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            className={shared}
+          />
         )}
       </label>
       {hintKey && <p className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500">{t(hintKey)}</p>}

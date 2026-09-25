@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Text.Json;
 using Jsonata.Net.Native;
+using Jsonata.Net.Native.Json;
 
 namespace vos.Service.Shared;
 
@@ -28,16 +30,31 @@ public sealed class JsonataTransform
         }
     }
 
-    public string Eval(string inputJson) => _query.Eval(inputJson);
+    public string Eval(string inputJson, TimeProvider clock) =>
+        _query.Eval(JToken.Parse(inputJson), EnvironmentReadingTheClock(clock)).ToIndentedString();
 
     // Evaluate against a JSON value, returning the reshaped value. An empty/whitespace result (JSONata
     // "nothing") becomes a JSON null.
-    public JsonElement Eval(JsonElement input)
+    public JsonElement Eval(JsonElement input, TimeProvider clock)
     {
-        var result = _query.Eval(input.GetRawText());
+        var result = Eval(input.GetRawText(), clock);
         if (string.IsNullOrWhiteSpace(result))
             return JsonSerializer.SerializeToElement((object?)null);
         using var document = JsonDocument.Parse(result);
         return document.RootElement.Clone();
+    }
+
+    // $now() and $millis() are where a transform reads a clock, and the engine answers both from the
+    // process's own. An expression the model carries stamps values the model will hold, so both are
+    // answered from the clock the caller stamps with — which in a simulated run stands years from this
+    // machine's. Bound without arguments, so $now(picture) is refused rather than answered off the wrong
+    // clock; a transform wanting a picture writes $fromMillis($millis(), picture).
+    private static EvaluationEnvironment EnvironmentReadingTheClock(TimeProvider clock)
+    {
+        var environment = new EvaluationEnvironment();
+        environment.BindFunction("now", () => clock.GetUtcNow().UtcDateTime
+            .ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture));
+        environment.BindFunction("millis", () => clock.GetUtcNow().ToUnixTimeMilliseconds());
+        return environment;
     }
 }

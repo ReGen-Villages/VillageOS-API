@@ -194,4 +194,48 @@ public class FormOptionsReaderTests
 
         reading.Should().Throw<ModelNotSeededError>();
     }
+
+    // A term is submitted by its name, and shown in words a reader understands: its wording in each language
+    // travels beside the lists, under the name the list offers.
+    [Fact]
+    public void A_terms_wording_travels_under_its_name()
+    {
+        var hazardType = WillowBend.HazardTypeNames[0];
+        var level = WillowBend.HazardLevelNames[0];
+        var category = WillowBend.AllocationCategoryNames[0];
+        var model = DeclaredModel.Seeded()
+            .Stating(hazardType, (FormOptionsReader.WordingProperty, """{"en": "River flood", "de": "Flusshochwasser"}"""))
+            .Stating(level, (FormOptionsReader.WordingProperty, """{"en": "High", "ar": "مرتفع"}"""))
+            .Stating(category, (FormOptionsReader.WordingProperty, """{"en": "Housing"}"""));
+
+        var options = FormOptionsReader.Read(model.Build());
+
+        options.Wording[hazardType].Should().Equal(new Dictionary<string, string> { ["en"] = "River flood", ["de"] = "Flusshochwasser" });
+        options.Wording[level]["ar"].Should().Be("مرتفع");
+        options.Wording[category]["en"].Should().Be("Housing");
+    }
+
+    [Fact]
+    public void A_term_stating_no_wording_is_left_to_its_name()
+    {
+        var options = FormOptionsReader.Read(DeclaredModel.Seeded().Build());
+
+        options.Wording.Should().BeEmpty();
+    }
+
+    // Wording is shown, never resolved against, so wording that cannot be read costs a reader the words and
+    // nothing else — the form still answers, and the term is shown by its name.
+    [Theory]
+    [InlineData("River flood")]
+    [InlineData("""["River flood"]""")]
+    [InlineData("""{"en": 3}""")]
+    public void Wording_that_is_not_words_by_language_is_left_out_rather_than_refusing_the_form(string stated)
+    {
+        var hazardType = WillowBend.HazardTypeNames[0];
+        var model = DeclaredModel.Seeded().Stating(hazardType, (FormOptionsReader.WordingProperty, stated));
+
+        var options = FormOptionsReader.Read(model.Build());
+
+        options.Wording.Should().NotContainKey(hazardType);
+    }
 }

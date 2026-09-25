@@ -22,7 +22,9 @@ import {
   HAZARD_LEVEL_ARCHETYPE_FLAG,
   HAZARD_TYPE_ARCHETYPE_FLAG,
   termsMarked,
+  termWordingMarked,
 } from './modelVocabulary';
+import type { TermWording } from '../i18n/termWording';
 
 export function IntakeWizardPage() {
   const { t } = useTranslation();
@@ -31,6 +33,7 @@ export function IntakeWizardPage() {
   const [basemapSources, setBasemapSources] = useState<BasemapSource[]>([]);
   const [hazardTypes, setHazardTypes] = useState<readonly string[]>([]);
   const [hazardLevels, setHazardLevels] = useState<readonly string[]>([]);
+  const [wording, setWording] = useState<TermWording>({});
 
   useEffect(() => {
     let abandoned = false;
@@ -42,6 +45,9 @@ export function IntakeWizardPage() {
         const read = { things, relationships, properties };
         setHazardTypes(termsMarked(read, HAZARD_TYPE_ARCHETYPE_FLAG));
         setHazardLevels(termsMarked(read, HAZARD_LEVEL_ARCHETYPE_FLAG));
+        setWording(termWordingMarked(read, [
+          ALLOCATION_CATEGORY_ARCHETYPE_FLAG, HAZARD_TYPE_ARCHETYPE_FLAG, HAZARD_LEVEL_ARCHETYPE_FLAG,
+        ]));
       })
       .catch(() => {
         if (abandoned) return;
@@ -49,6 +55,7 @@ export function IntakeWizardPage() {
         setBasemapSources([]);
         setHazardTypes([]);
         setHazardLevels([]);
+        setWording({});
       });
     return () => {
       abandoned = true;
@@ -74,6 +81,7 @@ export function IntakeWizardPage() {
             basemapSources={basemapSources}
             hazardTypes={hazardTypes}
             hazardLevels={hazardLevels}
+            wording={wording}
             draftOwner={modelId}
           />
         </div>

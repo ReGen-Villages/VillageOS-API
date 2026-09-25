@@ -1,15 +1,18 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, Eye, EyeOff, X } from 'lucide-react';
 import { useModelStore } from '../../stores/modelStore';
 import { useUiStore } from '../../stores/uiStore';
+import { TABLET_WIDTH, useIsWide } from '../../hooks/useIsWide';
 import {
   discoverTypes,
   groupTypesByName,
   sortTypeGroups,
+  NO_TYPE_ID,
   type SortOrder,
   type TypeGroupStat,
 } from '../../utils/typeFilter';
+import { numberIn } from '../../i18n/numbers';
 
 /**
  * Shared type-filter panel rendered inside both the Graph
@@ -37,7 +40,8 @@ export function TypeFilterPanel() {
   const sortOrder = useUiStore((s) => s.typeSortOrder);
   const setSortOrder = useUiStore((s) => s.setTypeSortOrder);
 
-  const [collapsed, setCollapsed] = useState(false);
+  const wide = useIsWide(TABLET_WIDTH);
+  const [collapsed, setCollapsed] = useState(!wide);
   const [search, setSearch] = useState('');
 
   const allGroups = useMemo<TypeGroupStat[]>(
@@ -45,11 +49,16 @@ export function TypeFilterPanel() {
     [things, relationships, sortOrder],
   );
 
+  const shownName = useCallback(
+    (g: TypeGroupStat) => (g.name === NO_TYPE_ID ? t('graph.typeFilter.noType') : g.name),
+    [t],
+  );
+
   const filtered = useMemo(() => {
     if (!search) return allGroups;
     const q = search.toLowerCase();
-    return allGroups.filter((g) => g.name.toLowerCase().includes(q));
-  }, [allGroups, search]);
+    return allGroups.filter((g) => shownName(g).toLowerCase().includes(q));
+  }, [allGroups, search, shownName]);
 
   const totalInstances = useMemo(
     () => allGroups.reduce((sum, g) => sum + g.instanceCount, 0),
@@ -206,10 +215,10 @@ export function TypeFilterPanel() {
                           className="accent-violet-500"
                         />
                         <span className="truncate text-zinc-200">
-                          {g.name}
+                          {shownName(g)}
                         </span>
                       </div>
-                      <span className="text-[10px] font-mono text-zinc-400">{g.instanceCount.toLocaleString()}</span>
+                      <span className="text-[10px] font-mono text-zinc-400">{numberIn(g.instanceCount)}</span>
                     </label>
                   </li>
                 );

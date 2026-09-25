@@ -68,10 +68,14 @@ public class ServiceHostTests
             await Task.Delay(20);
 
         clock.IsAnchored.Should().BeTrue();
-        clock.Rate.Should().Be(60);
-        clock.GetUtcNow().Should().BeCloseTo(modelInstant, TimeSpan.FromSeconds(5));
-        clock.OffsetFromWallClock().Should().BeCloseTo(
-            modelInstant - DateTimeOffset.UtcNow, TimeSpan.FromSeconds(5));
+        clock.Rate.Should().Be(60, "the rate the broker answered with, not a default");
+        // A day of model time, not five seconds: at sixty times real speed a tolerance in model time is
+        // that tolerance divided by sixty on the agent's clock, and five seconds of it is eighty-three
+        // milliseconds of a machine that is also building. A day leaves the assertion about the clock.
+        clock.GetUtcNow().Should().BeOnOrAfter(modelInstant, "the clock runs on from what the broker said")
+            .And.BeBefore(modelInstant.AddDays(1), "it runs on from that instant, not from this machine's");
+        clock.OffsetFromWallClock().Should().BeLessThan(TimeSpan.FromDays(-1),
+            "a model anchored a year back stands a year behind this machine");
     }
 
     [Fact]

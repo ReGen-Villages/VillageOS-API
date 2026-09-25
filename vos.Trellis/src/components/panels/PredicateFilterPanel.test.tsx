@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render } from '@testing-library/react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
 import { PredicateFilterPanel } from './PredicateFilterPanel';
 import { useUiStore } from '../../stores/uiStore';
+import { stubScreenWidth } from '../../testScreenWidth';
 
 /**
  * The filter cluster on GraphPage put two panels with
@@ -41,5 +42,21 @@ describe('PredicateFilterPanel layout', () => {
     expect(root.className).toContain('flex-col');
     expect(root.className).toContain('flex-1');
     expect(root.className).toContain('min-h-0');
+  });
+
+  describe('on a screen narrower than a tablet', () => {
+    beforeEach(() => {
+      stubScreenWidth(false);
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('starts closed, so it does not cover the graph', () => {
+      render(<PredicateFilterPanel />);
+
+      expect(screen.getByRole('button', { expanded: false })).toBeInTheDocument();
+    });
   });
 });

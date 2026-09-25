@@ -13,7 +13,8 @@ public sealed record ForageLaunchSettings(
     // can only be pointed elsewhere by editing and redeploying it.
     string FetcherSubdomain,
     int MaxConcurrentSources,
-    TimeSpan SourceTimeout)
+    TimeSpan SourceTimeout,
+    int SourceWindowDays)
 {
     public const string DefaultFetcherSubdomain = "tributary";
 
@@ -25,6 +26,12 @@ public sealed record ForageLaunchSettings(
     // refuses outright, and it is the failure most likely to be met in production. Longer than a
     // healthy source needs, short enough that one silent provider cannot hold up the run.
     public static readonly TimeSpan DefaultSourceTimeout = TimeSpan.FromSeconds(60);
+
+    // How much of a source's window one fetch asks for. A year of hourly readings is a body of a
+    // megabyte or so, reshaped in under a second and written as one set — the size a run was already
+    // proven to carry. The reach itself is the model's to declare; how much of it this deployment
+    // takes in one pass is not.
+    public const int DefaultSourceWindowDays = 365;
 
     public static ForageLaunchSettings? Parse(string[]? arguments, IConfiguration? configuration = null)
     {
@@ -38,7 +45,8 @@ public sealed record ForageLaunchSettings(
             service,
             ReadFetcherSubdomain(reader),
             ReadMaxConcurrentSources(reader),
-            ReadSourceTimeout(reader));
+            ReadSourceTimeout(reader),
+            ReadSourceWindowDays(reader));
     }
 
     private static string ReadFetcherSubdomain(LaunchSettingReader reader)
@@ -63,9 +71,19 @@ public sealed record ForageLaunchSettings(
             : DefaultSourceTimeout;
     }
 
+    private static int ReadSourceWindowDays(LaunchSettingReader reader)
+    {
+        var raw = reader.Read("sourceWindowDays");
+        return raw is not null && int.TryParse(raw, out var days) && days > 0
+            ? days
+            : DefaultSourceWindowDays;
+    }
+
     public static string UsageMessage => ServiceLaunchSettings.BuildUsageMessage(
-        " [--fetcherSubdomain=<name>] [--maxConcurrentSources=<n>] [--sourceTimeoutSeconds=<n>]",
+        " [--fetcherSubdomain=<name>] [--maxConcurrentSources=<n>] [--sourceTimeoutSeconds=<n>]"
+        + " [--sourceWindowDays=<n>]",
         "\n  --fetcherSubdomain      Endpoint service Mycelium forwards each fetch to" +
         "\n  --maxConcurrentSources  Sources in flight at once during one run" +
-        "\n  --sourceTimeoutSeconds  Longest any one source may take before it is recorded unresolved");
+        "\n  --sourceTimeoutSeconds  Longest any one source may take before it is recorded unresolved" +
+        "\n  --sourceWindowDays      How much of a source's window one fetch asks for");
 }

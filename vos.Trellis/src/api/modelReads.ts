@@ -28,4 +28,7 @@ export interface ModelReads {
   aggregate(query: TemporalAggregateQuery): Promise<TemporalAggregateResponse>;
   reduce(query: TemporalReduceQuery): Promise<TemporalReduceResponse>;
   fromService(endpoint: string, body: unknown): Promise<unknown>;
+  /** Tells the broker a person asked for a change through a widget. Absent where the page holds no
+   *  credential and so has nobody to tell. */
+  recordAction?(description: string, succeeded: boolean): void;
 }

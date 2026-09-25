@@ -8,6 +8,7 @@
  */
 
 import type { FormOptions } from '../api/intakeApi';
+import i18n from '../i18n';
 import type {
   ProgrammeShares,
   ReportedHazards,
@@ -92,7 +93,7 @@ export function withPosition(
 /** What the land is called until somebody says otherwise. The position spelled out, because it is the
  *  one thing genuinely known — a made-up word would read as an answer where this reads as a default. */
 function defaultSiteName(position: BoundaryPoint): string {
-  return `Site at ${position.latitude.toFixed(4)}, ${position.longitude.toFixed(4)}`;
+  return i18n.t('explore.defaultSiteName', { latitude: position.latitude.toFixed(4), longitude: position.longitude.toFixed(4) });
 }
 
 export function withFetchedBoundary(

@@ -6,10 +6,12 @@
  * the same pair the service checks — this mailbox, and the submission that names it — because a
  * reference is known to whoever submitted and to anybody who guessed one.
  */
-import { intakeApi, intakeServiceAddress, refusalFrom, refusalIn, TICKET_HEADER } from './intakeApi';
+import { intakeApi, intakeServiceAddress, TICKET_HEADER } from './intakeApi';
+import { refusalFrom, refusalIn } from './refusals';
 import type { SharedSurvey } from '../explore/sharedSurveys';
 import type { FindingsAnswer } from '../publicFindings/answeredFindings';
 import type { TemporalReduceQuery, TemporalReduceResponse } from '../types/vos';
+import i18n from '../i18n';
 
 /** The history reduction as the page asks it: the platform's question without the Thing, which the
  *  service supplies as the submission's own site. */
@@ -41,7 +43,7 @@ export const findingsApi = {
       body: JSON.stringify({ submissionId, emailAddress }),
     });
 
-    if (!response.ok) throw new Error(await refusalFrom(response));
+    if (!response.ok) throw await refusalFrom(response);
     return {
       findings: await response.json(),
       ticket: response.headers.get(TICKET_HEADER) ?? ticket,
@@ -62,7 +64,7 @@ export const findingsApi = {
       body: JSON.stringify(question),
     });
 
-    if (!response.ok) throw new Error(await refusalFrom(response));
+    if (!response.ok) throw await refusalFrom(response);
     return {
       answer: await response.json(),
       ticket: response.headers.get(TICKET_HEADER) ?? ticket,
@@ -87,10 +89,10 @@ export const findingsApi = {
       request.upload.onprogress = (event) => {
         if (event.lengthComputable && event.total > 0) onProgress(event.loaded / event.total);
       };
-      request.onerror = () => reject(new Error('The file could not be sent.'));
+      request.onerror = () => reject(new Error(i18n.t('publicFindings.fileNotSent')));
       request.onload = () => {
         if (request.status < 200 || request.status >= 300) {
-          reject(new Error(refusalIn(parsedOrNull(request.responseText), request.status)));
+          reject(refusalIn(parsedOrNull(request.responseText), request.status));
           return;
         }
         resolve({
@@ -113,7 +115,7 @@ export const findingsApi = {
       headers: { [TICKET_HEADER]: ticket },
     });
 
-    if (!response.ok) throw new Error(await refusalFrom(response));
+    if (!response.ok) throw await refusalFrom(response);
     const answered = (await response.json()) as { documents?: SharedSurvey[] };
     return {
       documents: answered.documents ?? [],

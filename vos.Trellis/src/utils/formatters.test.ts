@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import i18n from '../i18n';
 import { formatGuid, formatTimestamp, formatDateTime, formatRelativeTime, formatMilliseconds, formatBytes, formatPropertyValue } from './formatters';
 
 describe('formatGuid', () => {
@@ -44,6 +45,15 @@ describe('formatRelativeTime', () => {
 
   it('returns the original string on invalid input', () => {
     expect(formatRelativeTime('not-a-date')).toBe('not-a-date');
+  });
+
+  it('says how long ago in the chosen language', async () => {
+    await i18n.changeLanguage('de');
+    try {
+      expect(formatRelativeTime(new Date(Date.now() - 3 * 3600 * 1000).toISOString())).toBe('vor 3 Stunden');
+    } finally {
+      await i18n.changeLanguage('en');
+    }
   });
 });
 

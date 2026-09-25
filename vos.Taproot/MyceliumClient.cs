@@ -36,6 +36,18 @@ public class MyceliumClient
         {
             Timeout = Timeout.InfiniteTimeSpan
         };
+        NameThisProgram(_httpClient);
+        NameThisProgram(_streamClient);
+    }
+
+    public const string ProgramHeader = "X-Vos-Client";
+    public const string ProgramName = "Taproot";
+
+    // So the broker can say which program a person was using when it tells the model's recipients.
+    private static void NameThisProgram(HttpClient client)
+    {
+        if (!client.DefaultRequestHeaders.Contains(ProgramHeader))
+            client.DefaultRequestHeaders.Add(ProgramHeader, ProgramName);
     }
 
     // TLS certificates are validated by default. Validation is bypassed only when VOS_INSECURE_TLS
@@ -58,6 +70,18 @@ public class MyceliumClient
         _httpClient = httpClient;
         _streamClient = httpClient;
         _clock = clock ?? (() => DateTime.UtcNow);
+        NameThisProgram(_httpClient);
+    }
+
+    // Tells the broker what the person did, so it can tell the people the model names. Kind is
+    // "sign-in", "sign-out" or "action".
+    public virtual async Task ReportActivityAsync(string kind, string? description = null, bool? succeeded = null)
+    {
+        await SetAuthHeaderAsync();
+        using var response = await _httpClient.PostAsJsonAsync(
+            $"{_myceliumUrl}/api/operator-activity",
+            new { Kind = kind, Description = description, Succeeded = succeeded });
+        await EnsureSuccessCarryingTheReasonAsync(response);
     }
 
     public virtual async Task<string> GetTokenAsync()

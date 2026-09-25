@@ -24,6 +24,8 @@ import { formatNumber } from '../components/dashboard/widgets/format';
 import { OriginLines } from '../components/dashboard/widgets/KpiCard';
 import { useElementWidth } from '../hooks/useElementWidth';
 import { useBinding, useResolveContext } from '../hooks/useDashboard';
+import { isTicketRefusal } from '../api/refusals';
+import { useTermWords } from '../i18n/termWording';
 import { useStandalonePageDocument } from '../hooks/useStandalonePageDocument';
 import { fromHectares, withShareSet, wholePercentages } from '../intake/submissionDraft';
 import { findingsFrom, type Findings } from '../publicFindings/answeredFindings';
@@ -71,7 +73,7 @@ const WIDE = 720;
 
 export function ExplorePage() {
   const { t } = useTranslation();
-  useStandalonePageDocument();
+  useStandalonePageDocument('explore.title');
 
   const [options, setOptions] = useState<FormOptions | null>(null);
   const [unreachable, setUnreachable] = useState(false);
@@ -177,12 +179,12 @@ export function ExplorePage() {
   // to the Thing the submission is about, so the one the resolver named is dropped here.
   const reduceThroughTheService = useCallback(async (query: TemporalReduceQuery) => {
     const held = ticket.current;
-    if (held === null) throw new Error('No ticket is held.');
+    if (held === null) throw new Error(t('explore.noTicket'));
     const { thingId: _scopedByTheService, ...question } = query;
     const reduced = await findingsApi.reduceWithTicket(stateReference.current.submissionId, held, question);
     ticket.current = reduced.ticket;
     return reduced.answer;
-  }, []);
+  }, [t]);
 
   // A survey goes up under the same ticket and the renewal is kept the same way. A ticket that aged out
   // is the one refusal the person mends here rather than reads beside the file.
@@ -190,7 +192,7 @@ export function ExplorePage() {
     file: File, description: string, onProgress: (fraction: number) => void,
   ): Promise<SharedSurvey> => {
     const held = ticket.current;
-    if (held === null) throw new Error('No ticket is held.');
+    if (held === null) throw new Error(t('explore.noTicket'));
     try {
       const shared = await findingsApi.shareDocumentWithTicket(
         stateReference.current.submissionId, held, file, description, onProgress);
@@ -200,7 +202,7 @@ export function ExplorePage() {
       if (isTicketRefusal(error)) setExpired(true);
       throw error;
     }
-  }, []);
+  }, [t]);
 
   const listSurveys = useCallback(async (): Promise<SharedSurvey[]> => {
     const held = ticket.current;
@@ -377,12 +379,6 @@ export function ExplorePage() {
 
 function reasonOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-/** Whether a refusal is the ticket's rather than the submission's — the wording the service uses for
- *  every ticket refusal invites re-verification, which is the one mend a person can make here. */
-function isTicketRefusal(error: unknown): boolean {
-  return error instanceof Error && error.message.includes('Verify the address again');
 }
 
 function PlotStep({
@@ -660,17 +656,29 @@ function ClaimStep({
 
       <Field labelKey="explore.siteName" value={state.siteName} onChange={(siteName) => onChange({ siteName })} />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field labelKey="explore.yourName" value={state.contactName} onChange={(contactName) => onChange({ contactName })} />
-        <Field labelKey="explore.emailAddress" value={state.emailAddress} onChange={(emailAddress) => onChange({ emailAddress })} />
+        <Field
+          labelKey="explore.yourName"
+          autoComplete="name"
+          value={state.contactName}
+          onChange={(contactName) => onChange({ contactName })}
+        />
+        <Field
+          labelKey="explore.emailAddress"
+          autoComplete="email"
+          value={state.emailAddress}
+          onChange={(emailAddress) => onChange({ emailAddress })}
+        />
       </div>
 
-      <div className="mt-3 flex items-center gap-3">
+      <div className="mt-3 flex flex-wrap items-center gap-3">
         {awaitingCode && (
           <input
             aria-label={t('explore.code')}
             value={code}
             onChange={(event) => onCodeChange(event.target.value)}
             placeholder={t('explore.codePlaceholder')}
+            inputMode="numeric"
+            autoComplete="one-time-code"
             className="w-28 px-2 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
           />
         )}
@@ -678,7 +686,7 @@ function ClaimStep({
           type="button"
           onClick={onSubmit}
           disabled={heldBack}
-          className="px-3 py-1.5 text-sm rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-40"
+          className="px-3 py-1.5 text-sm whitespace-nowrap rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-40"
         >
           {awaitingCode ? t('explore.seeReport') : t('explore.sendCode')}
         </button>
@@ -744,7 +752,7 @@ function ReportStep({
         {expired && (
           <div className="mt-3 rounded-md border border-amber-300 dark:border-amber-700 p-3">
             <p className="text-sm text-amber-700 dark:text-amber-400">{t('explore.sessionExpired')}</p>
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={onResumeAskForCode}
@@ -758,6 +766,8 @@ function ReportStep({
                 value={code}
                 onChange={(event) => onCodeChange(event.target.value)}
                 placeholder={t('explore.codePlaceholder')}
+                inputMode="numeric"
+                autoComplete="one-time-code"
                 className="w-28 px-2 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
               />
               <button
@@ -905,6 +915,7 @@ function Dials({
   onDial: (patch: Partial<ExploreState>) => void;
 }) {
   const { t, i18n } = useTranslation();
+  const wordsFor = useTermWords(options?.wording ?? {});
   const percentage = useMemo(
     () => new Intl.NumberFormat(i18n.language, { style: 'percent' }),
     [i18n.language],
@@ -965,7 +976,7 @@ function Dials({
       <div className="mt-2 space-y-2">
         {Object.keys(state.shares).map((category) => (
           <div key={category} className="flex items-center gap-3">
-            <span className="w-64 text-sm text-zinc-700 dark:text-zinc-200">{category}</span>
+            <span className="w-64 text-sm text-zinc-700 dark:text-zinc-200">{wordsFor(category)}</span>
             <input
               type="range"
               min={0}
@@ -989,9 +1000,9 @@ function Dials({
           <div className="mt-2 flex flex-col gap-2">
             {options.hazardTypes.map((hazardType) => (
               <label key={hazardType} className="flex items-center justify-between gap-3">
-                <span className="text-sm text-zinc-700 dark:text-zinc-300">{hazardType}</span>
+                <span className="text-sm text-zinc-700 dark:text-zinc-300">{wordsFor(hazardType)}</span>
                 <select
-                  aria-label={hazardType}
+                  aria-label={wordsFor(hazardType)}
                   value={state.reportedHazards[hazardType] ?? ''}
                   onChange={(event) => {
                     const reported = { ...state.reportedHazards };
@@ -1003,7 +1014,7 @@ function Dials({
                 >
                   <option value="">{t('explore.notReported')}</option>
                   {options.hazardLevels.map((level) => (
-                    <option key={level} value={level}>{level}</option>
+                    <option key={level} value={level}>{wordsFor(level)}</option>
                   ))}
                 </select>
               </label>
@@ -1019,10 +1030,13 @@ function Field({
   labelKey,
   value,
   onChange,
+  autoComplete,
 }: {
   labelKey: string;
   value: string;
   onChange: (value: string) => void;
+  /** What the browser may fill the field from; an address also brings up the phone keyboard for one. */
+  autoComplete?: 'name' | 'email';
 }) {
   const { t } = useTranslation();
   return (
@@ -1031,6 +1045,8 @@ function Field({
         {t(labelKey as never) as string}
       </span>
       <input
+        type={autoComplete === 'email' ? 'email' : 'text'}
+        autoComplete={autoComplete}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className="mt-1 w-full px-2 py-1.5 text-sm rounded-md bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100"

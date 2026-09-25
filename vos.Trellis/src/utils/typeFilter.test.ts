@@ -6,7 +6,6 @@ import {
   applyTypeFilter,
   sortTypeGroups,
   NO_TYPE_ID,
-  NO_TYPE_NAME,
   type TypeStat,
   type TypeGroupStat,
 } from './typeFilter';
@@ -49,7 +48,7 @@ describe('discoverTypes (Feature #5362)', () => {
     expect(result).toEqual([
       { typeId: 't-wall', name: 'Wall', instanceCount: 3 },
       { typeId: 't-door', name: 'Door', instanceCount: 1 },
-      { typeId: NO_TYPE_ID, name: NO_TYPE_NAME, instanceCount: 3 },
+      { typeId: NO_TYPE_ID, name: NO_TYPE_ID, instanceCount: 3 },
     ]);
   });
 
@@ -66,7 +65,7 @@ describe('discoverTypes (Feature #5362)', () => {
     const r = discoverTypes([...things, extraType, extraInst], [...relationships, extraRelationship]);
     // Real types: Wall(3), Door(1), Zonal(1) → Wall, Door, Zonal (Door < Zonal alphabetically)
     // no-type pinned last regardless of its count
-    expect(r.map((x) => x.name)).toEqual(['Wall', 'Door', 'Zonal', NO_TYPE_NAME]);
+    expect(r.map((x) => x.name)).toEqual(['Wall', 'Door', 'Zonal', NO_TYPE_ID]);
   });
 
   it('deduplicates duplicate `is` relationships from the same subject', () => {
@@ -106,7 +105,7 @@ describe('discoverTypes (Feature #5362)', () => {
 
   it('returns one no-type entry when there are Things but no `is` relationships', () => {
     const r = discoverTypes(things, []);
-    expect(r).toEqual([{ typeId: NO_TYPE_ID, name: NO_TYPE_NAME, instanceCount: things.length }]);
+    expect(r).toEqual([{ typeId: NO_TYPE_ID, name: NO_TYPE_ID, instanceCount: things.length }]);
   });
 });
 
@@ -198,13 +197,13 @@ describe('groupTypesByName (Bug #5363 — coalesce same-named types)', () => {
     const statistics: TypeStat[] = [
       { typeId: 't-wall', name: 'Wall', instanceCount: 3 },
       { typeId: 't-door', name: 'Door', instanceCount: 1 },
-      { typeId: NO_TYPE_ID, name: NO_TYPE_NAME, instanceCount: 3 },
+      { typeId: NO_TYPE_ID, name: NO_TYPE_ID, instanceCount: 3 },
     ];
     const groups = groupTypesByName(statistics);
     expect(groups).toEqual([
       { name: 'Wall', typeIds: ['t-wall'], instanceCount: 3 },
       { name: 'Door', typeIds: ['t-door'], instanceCount: 1 },
-      { name: NO_TYPE_NAME, typeIds: [NO_TYPE_ID], instanceCount: 3 },
+      { name: NO_TYPE_ID, typeIds: [NO_TYPE_ID], instanceCount: 3 },
     ]);
   });
 
@@ -266,28 +265,28 @@ describe('sortTypeGroups (Feature #5386)', () => {
     { name: 'Wall',  typeIds: ['t-wall'],     instanceCount: 100 },
     { name: 'Door',  typeIds: ['t-door'],     instanceCount: 100 },
     { name: 'Floor', typeIds: ['t-floor'],    instanceCount: 1 },
-    { name: NO_TYPE_NAME, typeIds: [NO_TYPE_ID], instanceCount: 9000 },
+    { name: NO_TYPE_ID, typeIds: [NO_TYPE_ID], instanceCount: 9000 },
   ];
 
   it('count-desc puts the heaviest real types first, NO_TYPE last', () => {
     const sorted = sortTypeGroups(groups, 'count-desc').map((g) => g.name);
     // Door and Wall both have 100 — tied on count, fall through to name asc.
-    expect(sorted).toEqual(['Door', 'Wall', 'Beam', 'Floor', NO_TYPE_NAME]);
+    expect(sorted).toEqual(['Door', 'Wall', 'Beam', 'Floor', NO_TYPE_ID]);
   });
 
   it('count-asc puts the smallest real types first, NO_TYPE last', () => {
     const sorted = sortTypeGroups(groups, 'count-asc').map((g) => g.name);
-    expect(sorted).toEqual(['Floor', 'Beam', 'Door', 'Wall', NO_TYPE_NAME]);
+    expect(sorted).toEqual(['Floor', 'Beam', 'Door', 'Wall', NO_TYPE_ID]);
   });
 
   it('name-asc orders alphabetically, NO_TYPE last', () => {
     const sorted = sortTypeGroups(groups, 'name-asc').map((g) => g.name);
-    expect(sorted).toEqual(['Beam', 'Door', 'Floor', 'Wall', NO_TYPE_NAME]);
+    expect(sorted).toEqual(['Beam', 'Door', 'Floor', 'Wall', NO_TYPE_ID]);
   });
 
   it('name-desc reverses alphabetic, NO_TYPE still last (not first)', () => {
     const sorted = sortTypeGroups(groups, 'name-desc').map((g) => g.name);
-    expect(sorted).toEqual(['Wall', 'Floor', 'Door', 'Beam', NO_TYPE_NAME]);
+    expect(sorted).toEqual(['Wall', 'Floor', 'Door', 'Beam', NO_TYPE_ID]);
   });
 
   it('does not mutate the input array', () => {

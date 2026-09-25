@@ -1,3 +1,4 @@
+using System.Text.Json;
 using vos.Service.Shared;
 using vos.Service.Tributary.Helpers;
 using vos.Service.Tributary.Services;
@@ -572,6 +573,34 @@ public class ObservationIngestServiceTests
             Guid.NewGuid(), subjectId, "surfaceMap", "sha256:abc", null, Already(subjectId));
 
         failure.Should().NotBeNull();
+    }
+
+    // A source declaring "assessedOn": $now() in its responseTransform is stamping a value the model will
+    // hold, so the instant has to be the model's — not the instant on whichever machine is playing the run.
+    [Fact]
+    public async Task AnInstantTheTransformNames_IsTheModelsAndNotThisMachines()
+    {
+        var modelInstant = new DateTimeOffset(2019, 4, 1, 9, 0, 0, TimeSpan.Zero);
+        var clock = new ModelClock();
+        clock.AnchorTo(modelInstant, rate: 0);
+
+        var subjectId = Guid.NewGuid();
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        IReadOnlyList<ObservationSample>? submitted = null;
+        client.SubmitObservationsAsync(subjectId, Arg.Do<IReadOnlyList<ObservationSample>>(s => submitted = s))
+            .Returns(true);
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), clock);
+
+        var result = await sut.CreateObservationsAsync(
+            Guid.NewGuid(),
+            new JsonataTransform("{\"properties\":{\"assessedOn\":$now()}}"),
+            "{\"x\":1}",
+            subjectId,
+            Already(subjectId));
+
+        result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
+        var stamped = (JsonElement)submitted.Should().ContainSingle().Which.Value!;
+        stamped.GetString().Should().Be("2019-04-01T09:00:00.000Z");
     }
 
     private static ObservationIngestService CreateService()

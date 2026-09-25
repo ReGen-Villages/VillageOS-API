@@ -13,6 +13,7 @@ import { useTranslation, Trans } from 'react-i18next';
 import { useModelStore } from '../stores/modelStore';
 import { useSse, useSubscription } from '../hooks/useSse';
 import { useDashboards, useModelIndex, useResolveContext } from '../hooks/useDashboard';
+import { useIsWide } from '../hooks/useIsWide';
 import { scopeEntities as computeScopeEntities } from '../api/dashboardApi';
 import { brokerModelReads } from '../api/brokerModelReads';
 import { NAVIGATION_AND_SETTINGS, subscriptionForSpecification } from '../api/dashboardSubscription';
@@ -33,18 +34,8 @@ const REFRESH_EVENTS = [
  *  share one read per question, and a reader is not shown a page assembled from two moments. */
 const REFRESH_DEBOUNCE_MILLISECONDS = 400;
 
-function useIsWide(minWidth = 1024): boolean {
-  const supported = typeof window !== 'undefined' && typeof window.matchMedia === 'function';
-  const [wide, setWide] = useState(() => (supported ? window.matchMedia(`(min-width:${minWidth}px)`).matches : true));
-  useEffect(() => {
-    if (!supported) return;
-    const mq = window.matchMedia(`(min-width:${minWidth}px)`);
-    const on = () => setWide(mq.matches);
-    mq.addEventListener('change', on);
-    return () => mq.removeEventListener('change', on);
-  }, [minWidth, supported]);
-  return wide;
-}
+/** The width above which a section lays its widgets out in tracks. */
+const WIDE = 1024;
 
 export function OperationsPage() {
   const loaded = useModelStore((s) => s.loaded);
@@ -109,7 +100,7 @@ export function OperationsPage() {
   // A reloaded model re-asks every broker-answered figure at once.
   useEffect(() => on('ModelChanged', () => setServerRefresh((n) => n + 1)), [on]);
 
-  const isWide = useIsWide();
+  const isWide = useIsWide(WIDE);
   const { openDetail, windows } = useDetailWindows(index, specification?.detail, nonce);
 
   if (!loaded) {
@@ -161,7 +152,7 @@ export function OperationsPage() {
           {specification.compare && entities.length > 0 && (
             <div className="inline-flex bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg p-0.5">
               <ScopeButton active={scopeId === null} onClick={() => setScopeId(null)}>
-                All {specification.compare.label}s
+                {t('operationsPage.all')}
               </ScopeButton>
               {entities.map((e) => (
                 <ScopeButton key={e.id} active={scopeId === e.id} onClick={() => setScopeId(e.id)}>
@@ -173,7 +164,7 @@ export function OperationsPage() {
           {dashboard && <ComposedPageControls dashboard={dashboard} index={index} />}
           <div className="text-[11px] text-zinc-400 dark:text-zinc-500 inline-flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-500' : 'bg-zinc-400'}`} />
-            {connected ? 'live' : 'offline'}
+            {connected ? t('operationsPage.live') : t('operationsPage.offline')}
           </div>
         </div>
       </header>

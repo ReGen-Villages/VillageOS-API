@@ -25,7 +25,8 @@ public sealed class PositionLookupService(
     IntakeMyceliumClient mycelium,
     ISubscriptionClient subscriptions,
     string fetcherSubdomain,
-    ILogger<PositionLookupService> logger)
+    ILogger<PositionLookupService> logger,
+    ModelClock clock)
 {
     // One wording for a register nothing registered, none covering the position, and none
     // holding a parcel there: the caller does the same thing in all three — draws the boundary — and
@@ -151,7 +152,7 @@ public sealed class PositionLookupService(
         string answered;
         try
         {
-            answered = new JsonataTransform(lookup.Transform).Eval(body);
+            answered = new JsonataTransform(lookup.Transform).Eval(body, clock);
         }
         catch (Exception error)
         {

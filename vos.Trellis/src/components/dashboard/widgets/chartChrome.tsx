@@ -66,23 +66,27 @@ export function SeriesTable({
   columns: string[];
   rows: { name: string; cells: string[] }[];
 }) {
+  // The hiding class sits on a block rather than on the table: a table never lays out narrower than its
+  // cells, so a one-pixel table is still as wide as its values and widens the page on a phone.
   return (
-    <table className="sr-only">
-      <caption>{caption}</caption>
-      <thead>
-        <tr>
-          <th scope="col" />
-          {columns.map((column) => <th key={column} scope="col">{column}</th>)}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={row.name}>
-            <th scope="row">{row.name}</th>
-            {row.cells.map((cell, at) => <td key={at}>{cell}</td>)}
+    <div className="sr-only">
+      <table>
+        <caption>{caption}</caption>
+        <thead>
+          <tr>
+            <th scope="col" />
+            {columns.map((column) => <th key={column} scope="col">{column}</th>)}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.name}>
+              <th scope="row">{row.name}</th>
+              {row.cells.map((cell, at) => <td key={at}>{cell}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

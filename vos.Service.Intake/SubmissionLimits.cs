@@ -100,9 +100,10 @@ public static class SubmissionLimits
     {
         if (submissionId is null || Guid.TryParse(submissionId, out _)) return;
 
-        throw new SubmissionError(
+        throw new SubmissionError(RefusalCode.IdentifierInvalid,
             "'submissionId' is not a unique identifier: every Thing a submission mints derives its identity "
-            + "from it, so it has to be one nobody else could arrive at.");
+            + "from it, so it has to be one nobody else could arrive at.",
+            Refusal.With(("field", "submissionId")));
     }
 
     private static void Boundary(IReadOnlyList<BoundaryPoint>? boundary)
@@ -124,9 +125,10 @@ public static class SubmissionLimits
     {
         if (value is null || CouldBeWrittenTo(value.Trim())) return;
 
-        throw new SubmissionError(
+        throw new SubmissionError(RefusalCode.EmailAddressMalformed,
             $"'{field}' is not the shape of an email address: a mailbox, an '@', "
-            + "and a host with a dot in it.");
+            + "and a host with a dot in it.",
+            Refusal.With(("field", field)));
     }
 
     private static bool CouldBeWrittenTo(string address)
@@ -148,20 +150,26 @@ public static class SubmissionLimits
     {
         if (value is null || value.Length <= longest) return;
 
-        throw new SubmissionError($"'{field}' is longer than the {longest} characters it holds.");
+        throw new SubmissionError(RefusalCode.FieldTooLong,
+            $"'{field}' is longer than the {longest} characters it holds.",
+            Refusal.With(("field", field), ("most", longest)));
     }
 
     private static void AtMost(int? given, int most, string field, string ofWhat)
     {
         if (given is null || given <= most) return;
 
-        throw new SubmissionError($"'{field}' holds at most {most} {ofWhat}.");
+        throw new SubmissionError(RefusalCode.FieldTooMany,
+            $"'{field}' holds at most {most} {ofWhat}.",
+            Refusal.With(("field", field), ("most", most)));
     }
 
     private static void Between(double? value, double least, double most, string field, string ofWhat)
     {
         if (value is null || (value >= least && value <= most)) return;
 
-        throw new SubmissionError($"'{field}' is outside the range it takes, {least} to {most} {ofWhat}.");
+        throw new SubmissionError(RefusalCode.FieldOutOfRange,
+            $"'{field}' is outside the range it takes, {least} to {most} {ofWhat}.",
+            Refusal.With(("field", field), ("least", least), ("most", most)));
     }
 }

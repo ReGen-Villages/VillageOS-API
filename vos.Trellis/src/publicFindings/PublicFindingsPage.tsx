@@ -30,7 +30,7 @@ const WIDE = 720;
 
 export function PublicFindingsPage() {
   const { t } = useTranslation();
-  useStandalonePageDocument();
+  useStandalonePageDocument('publicFindings.title');
   const [findings, setFindings] = useState<Findings | null>(null);
 
   return (
@@ -87,12 +87,12 @@ function AskForFindings({ onRead }: { onRead: (findings: Findings) => void }) {
   const ticket = useRef<string | null>(null);
   const reduceThroughTheService = useCallback(async (query: TemporalReduceQuery) => {
     const held = ticket.current;
-    if (held === null) throw new Error('No ticket is held.');
+    if (held === null) throw new Error(t('publicFindings.noTicket'));
     const { thingId: _scopedByTheService, ...question } = query;
     const reduced = await findingsApi.reduceWithTicket(submissionId.trim(), held, question);
     ticket.current = reduced.ticket;
     return reduced.answer;
-  }, [submissionId]);
+  }, [submissionId, t]);
 
   const canAsk = submissionId.trim().length > 0 && emailAddress.trim().length > 0;
 

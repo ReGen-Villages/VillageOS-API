@@ -120,12 +120,19 @@ export function PropertySearchPage() {
       arr.push(m);
       g.set(m.propertyName, arr);
     }
-    const lines: string[] = [`# Property Search (by ${searchMode}): "${debouncedQuery}"`, ''];
+    const mode = searchMode === 'name' ? t('propertySearch.byName') : t('propertySearch.byValue');
+    const lines: string[] = [`# ${t('propertySearch.title')} (${mode}): "${debouncedQuery}"`, ''];
     for (const [propertyName, matches] of g) {
       lines.push(`## ${propertyName}`, '');
-      lines.push('| Type | Owner | Inherited From | Value |', '|------|-------|----------------|-------|');
+      const headings = [
+        t('propertySearch.markdown.type'),
+        t('propertySearch.markdown.owner'),
+        t('propertySearch.markdown.inheritedFrom'),
+        t('propertySearch.markdown.value'),
+      ];
+      lines.push(`| ${headings.join(' | ')} |`, `|${headings.map(() => '---').join('|')}|`);
       for (const m of matches) {
-        const type = m.ownerType === 'thing' ? 'Thing' : 'Rel';
+        const type = m.ownerType === 'thing' ? t('propertySearch.markdown.thing') : t('propertySearch.markdown.relationship');
         const owner = m.ownerType === 'thing' ? m.ownerName : (m.ownerDetail ?? m.ownerName);
         const via = m.inheritedFrom ?? '';
         const value = formatPropertyValue(m.value, m.declaredType, numbers).replace(/\|/g, '\\|');
@@ -134,7 +141,7 @@ export function PropertySearchPage() {
       lines.push('');
     }
     return lines.join('\n');
-  }, [results, debouncedQuery, searchMode, numbers]);
+  }, [results, debouncedQuery, searchMode, numbers, t]);
 
   const copyAsMarkdown = useCallback(() => {
     if (results.length === 0) return;

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { SignInScreenControls } from './SignInScreenControls';
 import { RegenLogo } from './RegenLogo';
 
 interface ChangePasswordFormProps {
@@ -43,23 +44,24 @@ export function ChangePasswordForm({ onChangePassword, error, loading, username 
   const canSubmit = !loading && !!currentPassword && !!newPassword && !!confirmPassword;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900">
-      <div className="w-full max-w-sm bg-gray-800 rounded-lg shadow-lg p-8">
+    <div className="min-h-screen flex items-center justify-center bg-zinc-100 dark:bg-zinc-900">
+      <SignInScreenControls />
+      <div className="w-full max-w-sm bg-white dark:bg-zinc-800 rounded-lg shadow-lg p-8">
         <div className="flex justify-center mb-2">
           <RegenLogo className="w-40 h-40" />
         </div>
-        <p className="text-sm text-gray-400 text-center mb-1">{t('changePassword.required')}</p>
-        <p className="text-xs text-gray-500 text-center mb-6">
-          {t('changePassword.loggedInAs')} <span className="text-gray-300 font-medium">{username}</span>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400 text-center mb-1">{t('changePassword.required')}</p>
+        <p className="text-xs text-zinc-500 text-center mb-6">
+          {t('changePassword.loggedInAs')} <span className="text-zinc-700 dark:text-zinc-300 font-medium">{username}</span>
         </p>
         <form onSubmit={handleSubmit} className="space-y-4">
           {displayError && (
-            <div className="bg-red-900/50 border border-red-500 text-red-200 px-3 py-2 rounded text-sm">
+            <div className="bg-red-100 dark:bg-red-900/50 border border-red-400 dark:border-red-500 text-red-800 dark:text-red-200 px-3 py-2 rounded text-sm">
               {displayError}
             </div>
           )}
           <div>
-            <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-300 mb-1">
+            <label htmlFor="currentPassword" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
               {t('changePassword.currentPassword')}
             </label>
             <input
@@ -67,7 +69,7 @@ export function ChangePasswordForm({ onChangePassword, error, loading, username 
               type="password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-blue-500"
               placeholder={t('changePassword.currentPlaceholder')}
               autoComplete="current-password"
               autoFocus
@@ -75,7 +77,7 @@ export function ChangePasswordForm({ onChangePassword, error, loading, username 
             />
           </div>
           <div>
-            <label htmlFor="newPassword" className="block text-sm font-medium text-gray-300 mb-1">
+            <label htmlFor="newPassword" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
               {t('changePassword.newPassword')}
             </label>
             <input
@@ -83,14 +85,14 @@ export function ChangePasswordForm({ onChangePassword, error, loading, username 
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-blue-500"
               placeholder={t('changePassword.newPlaceholder')}
               autoComplete="new-password"
               disabled={loading}
             />
           </div>
           <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-1">
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
               {t('changePassword.confirmPassword')}
             </label>
             <input
@@ -98,7 +100,7 @@ export function ChangePasswordForm({ onChangePassword, error, loading, username 
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-blue-500"
               placeholder={t('changePassword.confirmPlaceholder')}
               autoComplete="new-password"
               disabled={loading}
@@ -107,7 +109,7 @@ export function ChangePasswordForm({ onChangePassword, error, loading, username 
           <button
             type="submit"
             disabled={!canSubmit}
-            className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium rounded transition-colors"
+            className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-600 disabled:cursor-not-allowed text-white font-medium rounded transition-colors"
           >
             {loading ? t('changePassword.changing') : t('changePassword.submit')}
           </button>

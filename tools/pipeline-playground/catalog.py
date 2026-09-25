@@ -79,8 +79,28 @@ SERVICES = [
 ]
 
 
+# The systems outside the platform it hears from and tells, and the kinds of message that cross that
+# boundary. A kind a system sends arrives at a door — one of SERVICES, reached over HTTP at its subdomain —
+# and is what a pipeline drawn for it starts from; a kind a system is told is what a pipeline may end at.
+# Both stand on the Pipeline page's rails: the senders on the left among the catalysts, the told on the
+# right among the outputs.
+#
+# message kind = (key, label, the service key it arrives at or None)
+MESSAGE_KINDS = [
+    ("reading-batch", "reading batch", "enrich"),
+    ("daily-report", "daily report", None),
+]
+
+EXTERNAL_SYSTEMS = [
+    {"key": "sensor-gateway", "label": "Sensor gateway", "sends": ["reading-batch"], "told": []},
+    {"key": "reporting-office", "label": "Reporting office", "sends": [], "told": ["daily-report"]},
+]
+
+
 # A pipeline node is either a service node ("service": <catalog key>) or a boundary node
-# ("input"/"output": [port specs]). Node "at" is the canvas grid cell (column, row) — the generator turns it
+# ("input"/"output": [port specs]). A boundary node may say what it "standsFor": ("messageKind", key) at
+# the start for the kind of message the run comes from, ("externalSystem", key) at the end for the system
+# the run tells, or ("pipeline", name) for a pipeline a run starts or is started by. Node "at" is the canvas grid cell (column, row) — the generator turns it
 # into x/y. "params" binds an input port to a run-parameter key (Params bar on the Pipeline page); "onItemError"
 # = "continue" collects partial fan-out results instead of failing the run.
 #
@@ -291,6 +311,37 @@ PIPELINES = [
         "wires": [
             {"from": "in", "fromPort": "records", "to": "enrich", "toPort": "record"},
             {"from": "enrich", "fromPort": "enriched", "to": "publish", "toPort": "payload"},
+        ],
+    },
+
+    # 13. A run that comes from outside: the start node stands for the kind of message the sensor gateway
+    #     sends, and the end node is the answer to whoever posted it.
+    {
+        "name": "Readings Arrive",
+        "nodes": [
+            {"key": "in", "input": [("payload", "any")], "at": col(0), "label": "A reading batch arrives",
+             "standsFor": ("messageKind", "reading-batch")},
+            {"key": "enrich", "service": "enrich", "at": col(1), "onItemError": "continue"},
+            {"key": "out", "output": [("enriched", "any", True)], "at": col(2), "label": "The answer"},
+        ],
+        "wires": [
+            {"from": "in", "fromPort": "payload", "to": "enrich", "toPort": "record"},
+            {"from": "enrich", "fromPort": "enriched", "to": "out", "toPort": "enriched"},
+        ],
+    },
+
+    # 14. A run that ends outside: the end node stands for the system told the report.
+    {
+        "name": "Daily Report",
+        "nodes": [
+            {"key": "site", "service": "site-params", "at": col(0)},
+            {"key": "report", "service": "format-report", "at": col(1)},
+            {"key": "out", "output": [("payload", "any", True)], "at": col(2), "label": "The office is told",
+             "standsFor": ("externalSystem", "reporting-office")},
+        ],
+        "wires": [
+            {"from": "site", "fromPort": "population", "to": "report", "toPort": "data"},
+            {"from": "report", "fromPort": "text", "to": "out", "toPort": "payload"},
         ],
     },
 ]

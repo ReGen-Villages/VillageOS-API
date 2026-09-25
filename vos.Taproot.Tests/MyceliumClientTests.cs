@@ -1734,6 +1734,48 @@ public class MyceliumClientTests
         await act.Should().NotThrowAsync();
     }
 
+    [Fact]
+    public async Task ReportActivity_PostsWhatThePersonDidToTheActivityRoute()
+    {
+        HttpRequestMessage? captured = null;
+        JsonElement body = default;
+        var (client, _) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            captured = req;
+            body = ReadJsonBody(req);
+            return new HttpResponseMessage(HttpStatusCode.Accepted);
+        });
+
+        await client.ReportActivityAsync("action", "list things", succeeded: true);
+
+        captured!.Method.Should().Be(HttpMethod.Post);
+        captured.RequestUri!.AbsolutePath.Should().Be("/api/operator-activity");
+        body.GetProperty("kind").GetString().Should().Be("action");
+        body.GetProperty("description").GetString().Should().Be("list things");
+        body.GetProperty("succeeded").GetBoolean().Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task EveryRequest_NamesTaprootAsTheProgram()
+    {
+        var captured = await CaptureRequest(client => client.GetAllThingsAsync());
+
+        captured.Headers.GetValues(MyceliumClient.ProgramHeader).Should().ContainSingle(MyceliumClient.ProgramName);
+    }
+
+    [Fact]
+    public async Task ReportActivity_ARefusalIsAnError()
+    {
+        var (client, _) = NewClient(req => req.RequestUri!.AbsolutePath == "/api/auth/token"
+            ? TokenResponse(ServiceToken)
+            : new HttpResponseMessage(HttpStatusCode.Forbidden));
+
+        var reporting = () => client.ReportActivityAsync("sign-in");
+
+        await reporting.Should().ThrowAsync<HttpRequestException>();
+    }
+
     private static JsonElement ReadJsonBody(HttpRequestMessage req)
     {
         var raw = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();

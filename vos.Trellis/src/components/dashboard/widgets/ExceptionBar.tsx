@@ -3,6 +3,7 @@ import type { ResolveContext } from '../../../api/dashboardApi';
 import { asNumber } from '../../../api/dashboardApi';
 import { useBindings } from '../../../hooks/useDashboard';
 import { WidgetCard } from './WidgetCard';
+import { formatNumber } from './format';
 
 const SEV_TEXT: Record<string, string> = {
   good: 'text-emerald-600 dark:text-emerald-400',
@@ -24,7 +25,7 @@ export function ExceptionBar({ widget, context }: { widget: ExceptionWidget; con
       <div className="flex gap-2.5 mt-3 mb-1">
         {widget.buckets.map((b, i) => (
           <div key={b.label} className="flex-1 text-center py-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-700/40 border border-zinc-200 dark:border-zinc-700">
-            <div className={`text-[22px] font-bold tabular-nums ${SEV_TEXT[b.severity]}`}>{values[i].toLocaleString('en-US')}</div>
+            <div className={`text-[22px] font-bold tabular-nums ${SEV_TEXT[b.severity]}`}>{formatNumber(values[i], 'integer')}</div>
             <div className="text-[10.5px] uppercase tracking-wide text-zinc-400 dark:text-zinc-500">{b.label}</div>
           </div>
         ))}

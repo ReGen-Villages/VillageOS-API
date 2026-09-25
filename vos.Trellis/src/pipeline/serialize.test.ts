@@ -375,3 +375,36 @@ describe('a wire held as a Thing', () => {
     expect(relationshipSetProperty).not.toHaveBeenCalled();
   });
 });
+
+describe('savePipeline / loadPipeline — what a boundary node stands for', () => {
+  it('reconstructs the Thing a boundary node stands for on load', async () => {
+    const { catalystFixture } = await import('./catalysts.test.fixture');
+    const { model, id } = catalystFixture();
+    const loaded = loadPipeline(id.readingsArrive, model)!;
+    expect(loaded.nodes.find((node) => node.id === id.readingsStart)?.standsForId).toBe(id.hourlyReading);
+    expect(loaded.nodes.find((node) => node.id === id.readingsEnd)?.standsForId).toBeUndefined();
+  });
+
+  it('writes the stands-for relationship through the predicate marked for it, and retracts the one it replaces', async () => {
+    const { catalystFixture } = await import('./catalysts.test.fixture');
+    const { model, id } = catalystFixture();
+    const loaded = loadPipeline(id.readingsArrive, model)!;
+    const nodes = loaded.nodes.map((node) => (node.id === id.readingsStart ? { ...node, standsForId: id.intakeDoor } : node));
+    await savePipeline(loaded.name, nodes, loaded.edges, model, id.readingsArrive);
+
+    const fragment = JSON.parse(vi.mocked(modelApi.applyFragment).mock.calls[0][0]);
+    const written = fragment.Relationships.filter((relationship: { Predicate: string }) => relationship.Predicate === id.standsFor);
+    expect(written).toEqual([{ Name: 'standsFor', Subject: id.readingsStart, Predicate: id.standsFor, Target: id.intakeDoor }]);
+    expect(vi.mocked(relationshipApi.remove)).toHaveBeenCalledWith(model.standsFor(id.readingsStart)!.relationshipId);
+  });
+
+  it('refuses a node standing for something when the model marks no predicate for it', async () => {
+    const { catalystFixture } = await import('./catalysts.test.fixture');
+    const { model, id, things, relationships } = catalystFixture();
+    const unmarked = things.map((thing) => (thing.Id === id.standsFor ? { ...thing, Properties: {} } : thing));
+    const { PipelineModel } = await import('./model');
+    const loaded = loadPipeline(id.readingsArrive, model)!;
+    await expect(savePipeline(loaded.name, loaded.nodes, loaded.edges, new PipelineModel(unmarked, relationships), id.readingsArrive))
+      .rejects.toThrow(/stands for/);
+  });
+});

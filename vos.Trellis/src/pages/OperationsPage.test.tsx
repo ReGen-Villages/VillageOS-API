@@ -141,7 +141,7 @@ describe('OperationsPage', () => {
 
   it('offers a scope switcher for the compare archetype', () => {
     renderAt();
-    expect(screen.getByText('All sites')).toBeInTheDocument();
+    expect(screen.getByText('All')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'V-1' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'V-2' })).toBeInTheDocument();
   });

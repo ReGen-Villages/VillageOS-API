@@ -56,17 +56,7 @@ try
             myceliumUrl,
             serviceToken, apiKey: apiKey));
     builder.Services.AddSingleton<CoveringSourceService>();
-    builder.Services.AddSingleton(sp =>
-        new EndpointServiceSourceFetcher(
-            sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<EndpointServiceSourceFetcher>>(),
-            myceliumUrl,
-            serviceToken,
-            launchSettings.FetcherSubdomain,
-            launchSettings.SourceTimeout,
-            apiKey));
-    builder.Services.AddSingleton<ISourceFetcher>(sp => sp.GetRequiredService<EndpointServiceSourceFetcher>());
-    builder.Services.AddSingleton<IEndpointBodyReader>(sp => sp.GetRequiredService<EndpointServiceSourceFetcher>());
+    builder.Services.AddSourceFetching(launchSettings, myceliumUrl, serviceToken, apiKey);
     builder.Services.AddSingleton(sp =>
         new DiscoveryRunner(
             sp.GetRequiredService<ISourceFetcher>(),

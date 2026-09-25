@@ -3,6 +3,7 @@ import { apiClient, type AuthenticatedUser } from '../api/client';
 import { myceliumApi, type StartupProgress } from '../api/myceliumApi';
 import { useModelStore } from '../stores/modelStore';
 import type { ModelSummary } from '../types/vos';
+import i18n from '../i18n';
 
 export interface AuthenticationState {
   isAuthenticated: boolean;
@@ -109,7 +110,7 @@ export function useAuthenticationState(): AuthenticationState {
               setError(null);
               setLoading(false);
             } catch {
-              setError('Seed loaded. Please sign in again.');
+              setError(i18n.t('authentication.seedLoadedSignInAgain'));
               setLoading(false);
             }
           }
@@ -142,12 +143,12 @@ export function useAuthenticationState(): AuthenticationState {
           const parsed = JSON.parse((err as { body: string }).body);
           if (parsed.models) {
             setAvailableModels(parsed.models as ModelSummary[]);
-            setError('Please select a model');
+            setError(null);
             return;
           }
         } catch { /* not a models response */ }
       }
-      const message = err instanceof Error ? err.message : 'Login failed';
+      const message = err instanceof Error ? err.message : i18n.t('authentication.loginFailed');
       // "No models loaded" is ambiguous: a seed loading at startup (poll + retry)
       // vs. an empty library that will never reach Phase=Done (surface
       // an actionable error). Disambiguate via SeedLoadingStatus before deciding.
@@ -161,10 +162,7 @@ export function useAuthenticationState(): AuthenticationState {
             return;
           }
         } catch { /* fall through to actionable error */ }
-        setError(
-          'No models on Mycelium. Drop a .seed.json into vos.Mycelium/seeds-library/ and reload, '
-          + 'or POST /api/mycelium/library-seeds/<name>/load.',
-        );
+        setError(i18n.t('authentication.emptyLibrary'));
         throw err;
       }
       setError(message);
@@ -199,7 +197,7 @@ export function useAuthenticationState(): AuthenticationState {
       }));
       setAvailableModels(asModels);
     } catch {
-      setError('Failed to fetch library seeds');
+      setError(i18n.t('authentication.librarySeedsFailed'));
     }
   }, []);
 
@@ -212,7 +210,7 @@ export function useAuthenticationState(): AuthenticationState {
       await apiClient.changePassword(userId, newPassword, currentPassword);
       setUser(previous => previous ? { ...previous, MustChangePassword: false } : null);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Password change failed';
+      const message = err instanceof Error ? err.message : i18n.t('changePassword.failed');
       setError(message);
       throw err;
     } finally {
@@ -231,7 +229,7 @@ export function useAuthenticationState(): AuthenticationState {
       setModelName(result.modelName);
       setAvailableModels(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load seed');
+      setError(err instanceof Error ? err.message : i18n.t('authentication.loadSeedFailed'));
     } finally {
       setLoading(false);
     }
@@ -249,7 +247,7 @@ export function useAuthenticationState(): AuthenticationState {
       }));
       setAvailableModels(asModels);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save seed');
+      setError(err instanceof Error ? err.message : i18n.t('authentication.saveSeedFailed'));
     } finally {
       setLoading(false);
     }

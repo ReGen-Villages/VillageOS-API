@@ -2,6 +2,9 @@ import type { SubmissionDocument } from '../intake/submissionDraft';
 import type { BasemapSource, DeclaredBasemapSource } from '../types/basemap';
 import type { DeclaredTheme } from '../types/dashboard';
 import { basemapSourcesFrom } from '../utils/basemapSources';
+import type { TermWording } from '../i18n/termWording';
+import i18n from '../i18n';
+import { refusalFrom } from './refusals';
 
 /** What the intake service answered a submission with: something the submitter can quote to whoever
  *  reviews it. What the model called the Things it composed the submission into stays inside the service —
@@ -47,6 +50,9 @@ export interface FormOptions {
   /** The themes a dashboard section may name, as the model declares them — what faces a tile on the
    *  report. Empty where the model declares none, which draws every section as a list. */
   themes: DeclaredTheme[];
+  /** Each offered term's words by language, under the name the lists above offer. A term the model
+   *  words in no language is absent, and is shown by its name. */
+  wording: TermWording;
 }
 
 /** The legal parcel a register holds at a position, as named pairs, with the register's own credit
@@ -69,7 +75,7 @@ export const intakeApi = {
 
   formOptions: async (): Promise<FormOptions> => {
     const response = await fetch(`${intakeServiceAddress()}/submissions/form`);
-    if (!response.ok) throw new Error(await refusalFrom(response));
+    if (!response.ok) throw await refusalFrom(response);
 
     const answered = (await response.json()) as {
       allocationCategories?: string[];
@@ -80,6 +86,7 @@ export const intakeApi = {
       parcelLookup?: boolean;
       placeSearch?: boolean;
       themes?: Partial<DeclaredTheme>[];
+      wording?: TermWording;
     };
     return {
       allocationCategories: answered.allocationCategories ?? [],
@@ -89,6 +96,7 @@ export const intakeApi = {
       defaultProgramme: answered.defaultProgramme ?? [],
       parcelLookup: answered.parcelLookup ?? false,
       placeSearch: answered.placeSearch ?? false,
+      wording: answered.wording ?? {},
       themes: (answered.themes ?? []).map((theme) => ({
         name: theme.name ?? '',
         colour: theme.colour ?? null,
@@ -109,7 +117,7 @@ export const intakeApi = {
       body: JSON.stringify({ latitude, longitude }),
     });
     if (response.status === 404) return null;
-    if (!response.ok) throw new Error(await refusalFrom(response));
+    if (!response.ok) throw await refusalFrom(response);
 
     const answered = (await response.json()) as FetchedParcel;
     return { boundary: answered.boundary ?? [], attribution: answered.attribution ?? null };
@@ -123,7 +131,7 @@ export const intakeApi = {
       body: JSON.stringify({ query }),
     });
     if (response.status === 404) return [];
-    if (!response.ok) throw new Error(await refusalFrom(response));
+    if (!response.ok) throw await refusalFrom(response);
 
     const answered = (await response.json()) as { places?: FoundPlace[] };
     return answered.places ?? [];
@@ -138,7 +146,7 @@ export const intakeApi = {
       body: JSON.stringify({ emailAddress }),
     });
 
-    if (!response.ok) throw new Error(await refusalFrom(response));
+    if (!response.ok) throw await refusalFrom(response);
   },
 
   /** The code is spent on a ticket and the ticket on the submission, in one act: a ticket lasts minutes
@@ -156,7 +164,7 @@ export const intakeApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ emailAddress, code }),
     });
-    if (!exchanged.ok) throw new Error(await refusalFrom(exchanged));
+    if (!exchanged.ok) throw await refusalFrom(exchanged);
     return (await exchanged.json()).ticket;
   },
 
@@ -173,7 +181,7 @@ export const intakeApi = {
       body: JSON.stringify(submission),
     });
 
-    if (!response.ok) throw new Error(await refusalFrom(response));
+    if (!response.ok) throw await refusalFrom(response);
     return {
       accepted: await response.json(),
       ticket: response.headers.get(TICKET_HEADER) ?? ticket,
@@ -192,21 +200,7 @@ function servedByTheService(source: BasemapSource): BasemapSource {
 
 export function intakeServiceAddress(): string {
   const base = intakeUrl().replace(/\/$/, '');
-  if (!base) throw new Error('The intake service address is not configured (set VITE_INTAKE_URL).');
+  if (!base) throw new Error(i18n.t('intake.serviceNotConfigured', { setting: 'VITE_INTAKE_URL' }));
   return base;
 }
 
-/** What the service said, rather than the status code it said it under. A refused submission names the
- *  field to correct, and that is the whole value of the answer to whoever filled the form in. */
-export async function refusalFrom(response: Response): Promise<string> {
-  try {
-    return refusalIn(await response.json(), response.status);
-  } catch {
-    return refusalIn(null, response.status);
-  }
-}
-
-/** The service's own words for a refusal where it gave any, else the status. */
-export function refusalIn(body: { error?: string; detail?: string; title?: string } | null, status: number): string {
-  return body?.error ?? body?.detail ?? body?.title ?? `The submission was refused (${status}).`;
-}

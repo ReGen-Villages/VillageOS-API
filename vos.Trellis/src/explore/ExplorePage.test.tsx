@@ -58,6 +58,7 @@ vi.mock('../publicFindings/answeredFindings', () => ({
 
 import { intakeApi } from '../api/intakeApi';
 import { findingsApi } from '../api/findingsApi';
+import { refusalIn } from '../api/refusals';
 import { localizeSpecification } from '../api/dashboardLocalization';
 import { findingsFrom } from '../publicFindings/answeredFindings';
 import { DashboardSections } from '../components/dashboard/DashboardSections';
@@ -84,6 +85,7 @@ beforeEach(() => {
     ],
     parcelLookup: true,
     placeSearch: true,
+    wording: {},
     themes: [{ name: 'Temperature', colour: '#F0A840', icon: 'thermometer', order: 1 }],
   });
   vi.mocked(localizeSpecification).mockReturnValue({ title: 'Site submission', sections: [] });
@@ -384,7 +386,8 @@ describe('the surveys asked for after the report', () => {
   });
 
   it('asks for the mailbox again when the ticket aged out before a file was sent', async () => {
-    vi.mocked(findingsApi.shareDocumentWithTicket).mockRejectedValue(new Error('The ticket has expired. Verify the address again.'));
+    vi.mocked(findingsApi.shareDocumentWithTicket).mockRejectedValue(
+      refusalIn({ code: 'ticketExpired', error: 'The form this was submitted from has been open too long.' }, 403));
     await reachTheReport();
     fireEvent.click(screen.getByRole('button', { name: 'Yes, share files' }));
     chooseFiles(new File(['soil'], 'soil.pdf', { type: 'application/pdf' }));
@@ -462,5 +465,29 @@ describe('the overview over the land', () => {
     await reachTheReport();
 
     expect(screen.queryByRole('button', { name: 'See it on the land' })).toBeNull();
+  });
+});
+
+describe('the page on a phone', () => {
+  it('asks the phone for the keyboard each claim field needs, and offers the code the mail brought', async () => {
+    await pickTheLand();
+
+    expect(await screen.findByLabelText('Your name')).toHaveAttribute('autocomplete', 'name');
+    expect(screen.getByLabelText('Email address')).toHaveAttribute('type', 'email');
+    expect(screen.getByLabelText('Email address')).toHaveAttribute('autocomplete', 'email');
+
+    fireEvent.change(screen.getByLabelText('Your name'), { target: { value: 'Ana Ferreira' } });
+    fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'ana.ferreira@example.pt' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send a code' }));
+
+    const code = await screen.findByLabelText('Code');
+    expect(code).toHaveAttribute('inputmode', 'numeric');
+    expect(code).toHaveAttribute('autocomplete', 'one-time-code');
+  });
+
+  it('keeps the send-code label on one line beside what is still missing', async () => {
+    await pickTheLand();
+
+    expect(await screen.findByRole('button', { name: 'Send a code' })).toHaveClass('whitespace-nowrap');
   });
 });

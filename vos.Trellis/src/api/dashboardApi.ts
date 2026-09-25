@@ -42,6 +42,7 @@ import type { StateNarrowing } from './stateQuery';
 import { effectiveProperties, effectiveDerivedDefinitions } from '../utils/propertyMapper';
 import { valueOrigin } from '../utils/propertyOrigin';
 import { findRange } from '../utils/rangeHelpers';
+import i18n from '../i18n';
 
 export type Row = Record<string, unknown>;
 export type BindingResult = number | string | Row[] | number[] | null;
@@ -796,7 +797,7 @@ export async function resolveBinding(binding: Binding, context: ResolveContext):
         return (response.Things ?? []).filter((t) => members.has(t.Id)).length;
       }
       const response = await context.reads.thingsInState(binding.state, { ...narrowing, countOnly: true });
-      if (response.Count === undefined) throw new Error(`The state read for ${binding.state} answered no count.`);
+      if (response.Count === undefined) throw new Error(i18n.t('widgets.stateCountMissing', { state: binding.state }));
       return response.Count;
     }
 

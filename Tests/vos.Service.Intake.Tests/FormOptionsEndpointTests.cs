@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Intake;
+using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
 using vos.Service.Shared.Subscriptions;
 using Xunit;
@@ -45,6 +46,24 @@ public class FormOptionsEndpointTests
         answered.GetProperty("basemapSources").EnumerateArray()
             .Select(source => source.GetProperty("name").GetString()).Should()
             .Contain(WillowBend.VectorBasemapName);
+    }
+
+    // The words travel under the name the list offers, exactly as the model spells it: a key recased on the
+    // way out would match no term, and every term would be shown by its bare name.
+    [Fact]
+    public async Task It_answers_each_terms_wording_under_the_name_as_the_model_spells_it()
+    {
+        var model = new DeclaredModel()
+            .WithArchetype("LandUse", DeclaredVocabularyReader.AllocationCategoryArchetypeFlag)
+            .With("putTo", DeclaredVocabularyReader.AllocationCategoryPredicateFlag)
+            .Relate("Orchard", "is", "LandUse")
+            .Stating("Orchard", (FormOptionsReader.WordingProperty, """{"en": "Orchard", "fr": "Verger"}"""));
+        await using var factory = AnsweringWith(model.Build());
+        using var client = factory.CreateClient();
+
+        var answered = await client.GetFromJsonAsync<JsonElement>("/submissions/form");
+
+        answered.GetProperty("wording").GetProperty("Orchard").GetProperty("fr").GetString().Should().Be("Verger");
     }
 
     [Fact]
@@ -151,6 +170,9 @@ public class FormOptionsEndpointTests
             refused = await client.GetAsync("/submissions/form");
 
         refused!.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        var (code, values) = await RefusalReading.ReadAsync(refused);
+        code.Should().Be(RefusalCode.TooManyRequests);
+        values.GetProperty("seconds").GetInt32().Should().BePositive();
     }
 
     // A model nobody seeded is a fault in the deployment rather than in the request, and this route
@@ -166,6 +188,7 @@ public class FormOptionsEndpointTests
         response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
         (await response.Content.ReadAsStringAsync()).Should()
             .NotContain(DeclaredVocabularyReader.AllocationCategoryArchetypeFlag);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.ServiceUnavailable);
         factory.Log.Lines.Should().Contain(line =>
             line.Contains(DeclaredVocabularyReader.AllocationCategoryArchetypeFlag));
     }

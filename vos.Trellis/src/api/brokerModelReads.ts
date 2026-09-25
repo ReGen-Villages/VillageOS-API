@@ -70,5 +70,9 @@ export function brokerModelReads(): ModelReads {
       request.then(() => services.delete(question), () => services.delete(question));
       return request;
     },
+
+    recordAction(description, succeeded) {
+      void apiClient.reportAction(description, succeeded);
+    },
   };
 }

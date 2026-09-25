@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('./client', () => ({
   apiClient: {
+    action: <T>(_description: string, request: () => Promise<T>) => request(),
     get: vi.fn(),
     put: vi.fn(),
   },

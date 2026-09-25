@@ -7,6 +7,7 @@ using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Services;
+using vos.Service.Intake.Models;
 using Xunit;
 
 namespace vos.Service.Intake.Tests;
@@ -168,6 +169,9 @@ public sealed class SharedDocumentEndpointTests : IDisposable
 
         response.StatusCode.Should().Be(HttpStatusCode.RequestEntityTooLarge);
         (await response.Content.ReadAsStringAsync()).Should().Contain("25 MB");
+        var (code, values) = await RefusalReading.ReadAsync(response);
+        code.Should().Be(RefusalCode.FileTooLarge);
+        values.GetProperty("megabytes").GetInt32().Should().Be(25);
         Directory.Exists(Path.Combine(_folder, WillowBend.SubmissionId)).Should().BeFalse();
         broker.Fragments.Should().BeEmpty();
     }

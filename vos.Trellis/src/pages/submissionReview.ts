@@ -10,6 +10,7 @@
  */
 
 import type { VosThing } from '../types/vos';
+import i18n from '../i18n';
 import { IS_PREDICATE_NAME, ownCarrierOf, type ModelReading } from './modelVocabulary';
 
 export const PROPOSED_SITE_PREDICATE_FLAG = '__IsProposedSitePredicate';
@@ -160,10 +161,7 @@ function valueOf(reading: ModelReading, thingId: string, property: string): stri
   const held = reading.properties[thingId] ?? {};
   const keys = Object.keys(held).filter((name) => declaredName(name) === property);
   if (keys.length > 1) {
-    throw new Error(
-      `'${property}' is inherited from more than one archetype on ${thingId}, so reading it by that ` +
-        `name alone says nothing: ${keys.join(', ')}. Read it by its full path.`,
-    );
+    throw new Error(i18n.t('submissionReview.ambiguousProperty', { property, thing: thingId, paths: keys.join(', ') }));
   }
 
   const value = keys.length === 0 ? undefined : held[keys[0]]?.Value;

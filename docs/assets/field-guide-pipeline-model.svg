@@ -1,5 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 778 258" width="778" height="258" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" role="img" aria-label="A pipeline is Things and relationships: nodes bound to services, joined by typed wires.">
-<rect width="778" height="258" fill="#ffffff"/>
+<style>
+@media (prefers-color-scheme: dark) {
+  [fill="#16201a"] { fill: #e6edf3; }
+  [fill="#47574d"] { fill: #b9c4bd; } [stroke="#47574d"] { stroke: #b9c4bd; }
+  [fill="#74857a"] { fill: #8fa097; } [stroke="#74857a"] { stroke: #8fa097; }
+  [fill="#1f6047"] { fill: #6cc9a0; } [stroke="#1f6047"] { stroke: #6cc9a0; }
+  [fill="#46497e"] { fill: #a3a5e6; } [stroke="#46497e"] { stroke: #a3a5e6; }
+  [fill="#9a3a20"] { fill: #e8825f; } [stroke="#9a3a20"] { stroke: #e8825f; }
+  [stroke="#d6ddd2"] { stroke: #3b463f; }
+  [fill="#ffffff"] { fill: #161b22; }
+  [fill="#f5f7f3"] { fill: #11161c; }
+  [fill="#e7ebe3"] { fill: #252c27; }
+  [fill="#dbeade"] { fill: #1b3126; }
+  [fill="#e3e4f2"] { fill: #26273d; }
+}
+</style>
 <path d="M 159.5,121.0 L 209.8,121.0 L 209.8,41.0 L 260.0,41.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
 <path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(260.0,41.0) rotate(0.0)"/>
 <text x="217.8" y="85.0" font-size="11" fill="#74857a" text-anchor="start">has</text>

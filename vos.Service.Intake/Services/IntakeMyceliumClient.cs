@@ -184,6 +184,7 @@ public sealed class IntakeMyceliumClient(
         // The model's refusal names the Thing and the property it could not accept; a bare status code
         // throws that away and leaves the planner with nothing to correct.
         var refusal = await response.Content.ReadAsStringAsync(cancellation);
-        throw new SubmissionError($"The model refused the submission: {refusal}");
+        throw new SubmissionError(RefusalCode.ModelRefused, $"The model refused the submission: {refusal}",
+            Refusal.With(("refusal", refusal)));
     }
 }

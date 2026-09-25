@@ -31,6 +31,7 @@ const options: FormOptions = {
   ],
   parcelLookup: true,
   placeSearch: true,
+  wording: {},
   themes: [],
 };
 

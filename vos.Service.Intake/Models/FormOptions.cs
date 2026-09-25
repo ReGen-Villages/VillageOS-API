@@ -2,14 +2,15 @@ namespace vos.Service.Intake.Models;
 
 // What a form draws itself with, for a page that holds no credential and so cannot read the
 // model for itself: the programme categories a submission may name, the imagery a map may draw on,
-// the split a page offers before anybody has stated a programme, and whether the position lookups —
+// the split a page offers before anybody has stated a programme, whether the position lookups —
 // the parcel boundary at a point, and place names for a typed search — are registered, so a page draws
-// only what the model can honour.
+// only what the model can honour, and what each offered term is called in each language the model
+// states.
 public sealed record FormOptions(
     IReadOnlyList<string> AllocationCategories, IReadOnlyList<DeclaredBasemapSource> BasemapSources,
     IReadOnlyList<string> HazardTypes, IReadOnlyList<string> HazardLevels,
     IReadOnlyList<DeclaredShare> DefaultProgramme, bool ParcelLookup, bool PlaceSearch,
-    IReadOnlyList<DeclaredTheme> Themes);
+    IReadOnlyList<DeclaredTheme> Themes, IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Wording);
 
 // A theme a section of the report may name, as the model declares it: the colour that faces
 // its tile, the icon the page draws on it, and its place in the grid. Each is absent where the model

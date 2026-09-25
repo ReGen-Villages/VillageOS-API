@@ -18,6 +18,12 @@ SERVICE = "__IsServiceArchetype"
 CONNECTION = "__IsConnectionArchetype"
 PIPELINE_WIRE = "__IsPipelineWireArchetype"
 PIPELINE_RUN = "__IsPipelineRunArchetype"
+EXTERNAL_SYSTEM = "__IsExternalSystemArchetype"
+MESSAGE_KIND = "__IsMessageKindArchetype"
+SENDS = "__IsSendsPredicate"
+TOLD = "__IsToldPredicate"
+ARRIVES_AT = "__IsArrivesAtPredicate"
+STANDS_FOR = "__IsStandsForPredicate"
 
 # The roles a DAG is resolved from. Marked on no archetype, every question below answers "no" and a model
 # full of pipelines reads as empty — which is why Phloem refuses such a model outright.
@@ -101,6 +107,12 @@ class Model:
             res.append({"id": t["Id"], "name": t["Name"], "subdomain": sub, "ports": self.resolve_ports(svc["Id"])})
         return res
 
+    def reached_along(self, subj, flag):
+        """Targets reached from a Thing along any predicate carrying the mark — how the console reads what a
+        system sends, where a kind arrives, and what a boundary node stands for."""
+        return [self.things[r["Target"]] for r in self.bysubj.get(subj, [])
+                if self.carries(r["Predicate"], flag) and r["Target"] in self.things]
+
     def wires(self, subj):
         out = []
         for r in self.bysubj.get(subj, []):
@@ -175,9 +187,48 @@ def main():
                     if (n["id"], p["portName"]) not in wired and not n["bindings"].get(p["portName"]):
                         problems.append(f"[{pipe['Name']}] required input '{p['portName']}' on '{n['name']}' unwired/unbound")
 
+        # What each boundary node stands for (model.ts endInformation): a start may stand for a kind some
+        # system sends, a system that sends, a door or a pipeline; an end for a kind some system is told, a
+        # system, or a pipeline. Standing for nothing is fine at either end.
+        stands = []
+        for t in node_things:
+            for stood in m.reached_along(t["Id"], STANDS_FOR):
+                is_start = m.is_of(t["Id"], PIPELINE_INPUT)
+                sid = stood["Id"]
+                if m.is_of(sid, MESSAGE_KIND):
+                    may = any(sid in [k["Id"] for k in m.reached_along(s["Id"], SENDS if is_start else TOLD)]
+                              for s in m.things.values() if m.is_of(s["Id"], EXTERNAL_SYSTEM))
+                elif m.is_of(sid, EXTERNAL_SYSTEM):
+                    may = bool(m.reached_along(sid, SENDS)) if is_start else True
+                elif m.is_of(sid, PIPELINE):
+                    may = True
+                elif m.is_of(sid, CONNECTION):
+                    may = is_start
+                else:
+                    may = False
+                if not may:
+                    end = "starts" if is_start else "ends"
+                    problems.append(f"[{pipe['Name']}] '{t['Name']}' {end} at '{stood['Name']}', which a run cannot {'come from' if is_start else 'leave behind'}")
+                stands.append(f"{t['Name']} -> {stood['Name']}")
+
         runs = [t for t in m.things.values() if m.is_of(t["Id"], PIPELINE_RUN)
                 and any(x["Id"] == pipe["Id"] for x in m.outgoing(t["Id"], "of"))]
-        print(f"  - {pipe['Name']:26} nodes={len(nodes):2} edges={len(edges):2} runs={len(runs)}")
+        print(f"  - {pipe['Name']:26} nodes={len(nodes):2} edges={len(edges):2} runs={len(runs)}"
+              + (f"  stands for: {'; '.join(stands)}" if stands else ""))
+
+    systems = [t for t in m.things.values() if m.is_of(t["Id"], EXTERNAL_SYSTEM)]
+    print(f"\nExternal systems: {len(systems)}")
+    for system in sorted(systems, key=lambda t: t["Name"]):
+        sent = m.reached_along(system["Id"], SENDS)
+        told = m.reached_along(system["Id"], TOLD)
+        for kind in sent + told:
+            if not m.is_of(kind["Id"], MESSAGE_KIND):
+                problems.append(f"system '{system['Name']}' reaches '{kind['Name']}', which is not a kind of message")
+        for kind in sent:
+            doors = [d for d in m.reached_along(kind["Id"], ARRIVES_AT) if d["Id"] in conn_by_id]
+            if not doors:
+                problems.append(f"'{kind['Name']}' is sent by '{system['Name']}' and arrives at no door")
+        print(f"  - {system['Name']:22} sends[{','.join(k['Name'] for k in sent)}] told[{','.join(k['Name'] for k in told)}]")
 
     if problems:
         print("\nPROBLEMS:")

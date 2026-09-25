@@ -1,5 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 752 482" width="752" height="482" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" role="img" aria-label="What happens the first time a seed loads.">
-<rect width="752" height="482" fill="#ffffff"/>
+<style>
+@media (prefers-color-scheme: dark) {
+  [fill="#16201a"] { fill: #e6edf3; }
+  [fill="#47574d"] { fill: #b9c4bd; } [stroke="#47574d"] { stroke: #b9c4bd; }
+  [fill="#74857a"] { fill: #8fa097; } [stroke="#74857a"] { stroke: #8fa097; }
+  [fill="#1f6047"] { fill: #6cc9a0; } [stroke="#1f6047"] { stroke: #6cc9a0; }
+  [fill="#46497e"] { fill: #a3a5e6; } [stroke="#46497e"] { stroke: #a3a5e6; }
+  [fill="#9a3a20"] { fill: #e8825f; } [stroke="#9a3a20"] { stroke: #e8825f; }
+  [stroke="#d6ddd2"] { stroke: #3b463f; }
+  [fill="#ffffff"] { fill: #161b22; }
+  [fill="#f5f7f3"] { fill: #11161c; }
+  [fill="#e7ebe3"] { fill: #252c27; }
+  [fill="#dbeade"] { fill: #1b3126; }
+  [fill="#e3e4f2"] { fill: #26273d; }
+}
+</style>
 <path d="M 168.5,46.0 L 168.5,63.0 L 198.2,63.0 L 198.2,80.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
 <path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(198.2,80.0) rotate(90.0)"/>
 <path d="M 198.2,106.0 L 198.2,140.0" fill="none" stroke="#47574d" stroke-width="1.2"/>

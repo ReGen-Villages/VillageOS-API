@@ -4,7 +4,9 @@ import type { VosTypeName } from '../utils/constants';
 import { unwrapRelationship } from '../utils/propertyMapper';
 
 async function writeProperty(id: string, name: string, type: VosTypeName, value: unknown) {
-  const relationship = await apiClient.put<VosRelationship>(`/api/relationships/${id}/properties`, { Name: name, Type: type, Value: value });
+  const relationship = await apiClient.action(`set property "${name}" on relationship ${id}`, () =>
+    apiClient.put<VosRelationship>(`/api/relationships/${id}/properties`, { Name: name, Type: type, Value: value }),
+  );
   return unwrapRelationship(relationship);
 }
 
@@ -20,15 +22,18 @@ export const relationshipApi = {
   },
 
   create: async (subjectId: string, predicateId: string, targetId: string) => {
-    const relationship = await apiClient.post<VosRelationship>('/api/relationships', {
-      SubjectId: subjectId,
-      PredicateId: predicateId,
-      TargetId: targetId,
-    });
+    const relationship = await apiClient.action(`relate Thing ${subjectId} to Thing ${targetId}`, () =>
+      apiClient.post<VosRelationship>('/api/relationships', {
+        SubjectId: subjectId,
+        PredicateId: predicateId,
+        TargetId: targetId,
+      }),
+    );
     return unwrapRelationship(relationship);
   },
 
-  remove: (id: string) => apiClient.del<{ message: string }>(`/api/relationships/${id}`),
+  remove: (id: string) =>
+    apiClient.action(`delete relationship ${id}`, () => apiClient.del<{ message: string }>(`/api/relationships/${id}`)),
 
   setProperty: writeProperty,
 
@@ -38,7 +43,9 @@ export const relationshipApi = {
   addProperty: writeProperty,
 
   deleteProperty: (id: string, name: string) =>
-    apiClient.del<{ message: string }>(`/api/relationships/${id}/properties/${encodeURIComponent(name)}`),
+    apiClient.action(`delete property "${name}" from relationship ${id}`, () =>
+      apiClient.del<{ message: string }>(`/api/relationships/${id}/properties/${encodeURIComponent(name)}`),
+    ),
 
   // Own and inherited resolved together, each carrying its declared type and where it came from —
   // the same shape, served by the same handler, as the Thing route of the same name.
