@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, fireEvent, waitFor } from '@testing-library/react';
+import { render, fireEvent, waitFor, act } from '@testing-library/react';
 
 vi.mock('../../api/ingestApi', () => ({ ingestApi: { configured: vi.fn(() => true), upload: vi.fn() } }));
 vi.mock('../../hooks/useModelData', () => ({ reloadModelData: vi.fn() }));
 vi.mock('../common/toastStore', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+import i18n from '../../i18n';
+import { SUPPORTED_LANGUAGES } from '../../i18n/languages';
 import { IfcUploadDropzone } from './IfcUploadDropzone';
 import { ingestApi } from '../../api/ingestApi';
 import { reloadModelData } from '../../hooks/useModelData';
@@ -45,5 +47,15 @@ describe('IfcUploadDropzone (US #5844)', () => {
     const { container, getByText } = render(<IfcUploadDropzone />);
     expect(fileInput(container)).toBeNull();
     expect(getByText(/VITE_INGEST_URL/)).toBeTruthy();
+  });
+
+  it.each(SUPPORTED_LANGUAGES.map((language) => language.code))('names the file to ingest in angle brackets in %s', async (code) => {
+    vi.mocked(ingestApi.configured).mockReturnValue(false);
+    await act(() => i18n.changeLanguage(code));
+    const { container } = render(<IfcUploadDropzone />);
+
+    expect(container.textContent).toContain('ingest <file.ifc>');
+    expect(container.textContent).not.toContain('&lt;');
+    await act(() => i18n.changeLanguage('en'));
   });
 });
