@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('./client', () => ({
   apiClient: {
+    action: <T>(_description: string, request: () => Promise<T>) => request(),
     get: vi.fn(),
     post: vi.fn(),
     put: vi.fn(),
@@ -103,5 +104,39 @@ describe('thingApi property writes', () => {
       Value: '13',
     });
     expect(mockPost).not.toHaveBeenCalled();
+  });
+});
+
+describe('thingApi.getAtInstant', () => {
+  it('asks the things route for the instant, which resolves before the active filter', async () => {
+    mockGet.mockResolvedValue({ Id: 'thing-1', Name: 'One', Properties: {} });
+    await thingApi.getAtInstant('thing-1', '2026-09-22T09:14:03Z');
+    expect(mockGet).toHaveBeenCalledWith('/api/things/thing-1?timestamp=2026-09-22T09%3A14%3A03Z', undefined);
+  });
+
+  it('answers nothing where the platform has nothing to say for that instant', async () => {
+    mockGet.mockRejectedValue(new ApiError(404, 'not found'));
+    await expect(thingApi.getAtInstant('thing-1', '2026-09-22T09:14:03Z')).resolves.toBeNull();
+  });
+
+  // Only a 404 is an answer. Swallowing the rest would have a card read "not recorded" for a read the
+  // caller was never allowed to make, or for a platform that never replied.
+  it('raises a failure that is not the platform saying it has nothing', async () => {
+    mockGet.mockRejectedValue(new ApiError(500, 'the model is loading'));
+    await expect(thingApi.getAtInstant('thing-1', '2026-09-22T09:14:03Z')).rejects.toThrow('the model is loading');
+  });
+
+  it('carries the values an instance held under a name its archetype declares', async () => {
+    mockGet.mockResolvedValue({
+      Id: 'thing-1',
+      Name: 'One',
+      Properties: {},
+      InheritedOverrides: {
+        archetype: { SourceId: 'archetype', SourceName: 'Catchment', InheritedAt: '2026-09-22T09:14:03Z', Properties: { storedCubicMetres: 306 } },
+      },
+    });
+
+    const answered = await thingApi.getAtInstant('thing-1', '2026-09-22T09:14:03Z');
+    expect(answered?.InheritedOverrides?.archetype.Properties.storedCubicMetres).toBe(306);
   });
 });

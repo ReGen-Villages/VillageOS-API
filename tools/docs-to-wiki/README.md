@@ -102,6 +102,22 @@ The trade is page ordering: the wiki keeps that in `.order` files that only the 
 write, so the wiki orders pages itself and this tool does not generate them. Content, images
 and removals are unaffected.
 
+### When the token is refused
+
+The run stops and says so, naming `AZURE_DEVOPS_PAT` rather than whatever it was sending at the
+time. Three refusals read differently because they need different fixes:
+
+| What the run says | What to do |
+| --- | --- |
+| `AZURE_DEVOPS_PAT has no value` | The variable is not set on this pipeline. |
+| `AZURE_DEVOPS_PAT was never substituted` | The variable is not defined, **or the run predates its definition** — a run resolves its variables when it is queued, so re-running a job cannot pick up a value saved since. Queue a new run. |
+| `the wiki refused the token` / `answered with a sign-in page` | The token is wrong, expired, scoped without Wiki: Read & Write, or was created in another organisation. |
+
+The last of these is why a write is checked for more than a success status. Azure answers a write it
+will not accept with a redirect to sign-in; following it lands on an HTML page, and a page is a 200.
+A run that asked only whether the response was ok would publish nothing and report that it had
+published everything, leaving the wiki frozen while the build stayed green.
+
 ## Related
 
 [`tools/wiki-mirror`](../wiki-mirror/) does the next hop: DevOps wiki → GitHub wiki.

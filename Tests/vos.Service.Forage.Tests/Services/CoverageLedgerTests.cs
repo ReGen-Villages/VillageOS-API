@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Forage.Helpers;
 using vos.Service.Forage.Services;
 using Xunit;
+using vos.Service.Shared;
 
 namespace vos.Service.Forage.Tests.Services;
 
@@ -21,7 +22,7 @@ public class CoverageLedgerTests
     private static readonly DateTimeOffset Now = new(2026, 8, 27, 9, 0, 0, TimeSpan.Zero);
 
     private readonly RecordingWriter _writer = new();
-    private readonly TimeProvider _clock = new FixedClock(Now);
+    private readonly ModelClock _clock = new(new FixedClock(Now));
 
     // The instants a run stamps come from the clock it is given, never from the machine's: a stamp read
     // off DateTime.UtcNow is one no test can pin and no replay can reproduce.
@@ -199,6 +200,23 @@ public class CoverageLedgerTests
 
         _writer.Facts.Should().Contain((coverageId, "resolvedAt", Now.UtcDateTime));
         _writer.Facts.Should().NotContain(fact => fact.Property == "failureReason");
+    }
+
+    // A run of a simulated day stands a year from the machine playing it. What the ledger writes is
+    // read beside what the platform wrote, so it is the model's instant or the two cannot be compared.
+    [Fact]
+    public async Task AStampIsTheModelsInstant_NotTheMachinesWallClock()
+    {
+        var modelInstant = new DateTimeOffset(2025, 9, 20, 3, 0, 0, TimeSpan.Zero);
+        var clock = new ModelClock(new FixedClock(Now));
+        clock.AnchorTo(modelInstant, rate: 60);
+        var coverageId = Guid.NewGuid();
+        var call = new OutstandingCall(SourceCalling(Guid.NewGuid(), SiteId), Call(SiteId), coverageId, 0);
+
+        await new CoverageLedger(_writer, clock, NullLogger<CoverageLedger>.Instance)
+            .RecordAsync(call, new SourceOutcome("ThinkHazard", true, null), default);
+
+        _writer.Facts.Should().Contain((coverageId, "resolvedAt", modelInstant.UtcDateTime));
     }
 
     // The provider's own words, kept where a planner reaches them from the gap they explain — the report

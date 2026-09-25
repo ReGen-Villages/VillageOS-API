@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Builder;
@@ -22,7 +23,8 @@ public class ServiceHostTests
 
     private static WebApplication BuildApp(
         Func<HttpRequestMessage, HttpResponseMessage>? respond = null,
-        bool withMyceliumRegistration = false)
+        bool withMyceliumRegistration = false,
+        bool withModelClock = false)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
@@ -39,7 +41,41 @@ public class ServiceHostTests
         if (withMyceliumRegistration)
             builder.Services.AddMyceliumRegistration(ServiceName, port: 7100);
 
+        if (withModelClock)
+            builder.Services.AddModelClock<EndpointServiceMyceliumClient>(ServiceName);
+
         return builder.Build();
+    }
+
+    // The fault this guards: every service registered the wall clock, so an instant a service wrote
+    // into a simulated run carried the year of the machine playing it rather than the year the model
+    // had reached.
+    [Fact]
+    public async Task AddModelClock_LeavesTheServiceStampingWhatTheBrokerSaysTheTimeIs()
+    {
+        var modelInstant = new DateTimeOffset(2025, 9, 20, 3, 0, 0, TimeSpan.Zero);
+        var answer = "{\"now\":\"" + modelInstant.ToString("o") + "\",\"rate\":60}";
+        await using var app = BuildApp(request => request.RequestUri!.AbsolutePath == "/api/time"
+            ? new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(answer, Encoding.UTF8, "application/json")
+            }
+            : new HttpResponseMessage(HttpStatusCode.OK), withModelClock: true);
+        await app.StartAsync();
+
+        var clock = app.Services.GetRequiredService<ModelClock>();
+        for (var attempt = 0; attempt < 50 && !clock.IsAnchored; attempt++)
+            await Task.Delay(20);
+
+        clock.IsAnchored.Should().BeTrue();
+        clock.Rate.Should().Be(60, "the rate the broker answered with, not a default");
+        // A day of model time, not five seconds: at sixty times real speed a tolerance in model time is
+        // that tolerance divided by sixty on the agent's clock, and five seconds of it is eighty-three
+        // milliseconds of a machine that is also building. A day leaves the assertion about the clock.
+        clock.GetUtcNow().Should().BeOnOrAfter(modelInstant, "the clock runs on from what the broker said")
+            .And.BeBefore(modelInstant.AddDays(1), "it runs on from that instant, not from this machine's");
+        clock.OffsetFromWallClock().Should().BeLessThan(TimeSpan.FromDays(-1),
+            "a model anchored a year back stands a year behind this machine");
     }
 
     [Fact]

@@ -13,6 +13,7 @@ import { useTranslation, Trans } from 'react-i18next';
 import { useModelStore } from '../stores/modelStore';
 import { useSse, useSubscription } from '../hooks/useSse';
 import { useDashboards, useModelIndex, useResolveContext } from '../hooks/useDashboard';
+import { useIsWide } from '../hooks/useIsWide';
 import { scopeEntities as computeScopeEntities } from '../api/dashboardApi';
 import { brokerModelReads } from '../api/brokerModelReads';
 import { NAVIGATION_AND_SETTINGS, subscriptionForSpecification } from '../api/dashboardSubscription';
@@ -33,18 +34,8 @@ const REFRESH_EVENTS = [
  *  share one read per question, and a reader is not shown a page assembled from two moments. */
 const REFRESH_DEBOUNCE_MILLISECONDS = 400;
 
-function useIsWide(minWidth = 1024): boolean {
-  const supported = typeof window !== 'undefined' && typeof window.matchMedia === 'function';
-  const [wide, setWide] = useState(() => (supported ? window.matchMedia(`(min-width:${minWidth}px)`).matches : true));
-  useEffect(() => {
-    if (!supported) return;
-    const mq = window.matchMedia(`(min-width:${minWidth}px)`);
-    const on = () => setWide(mq.matches);
-    mq.addEventListener('change', on);
-    return () => mq.removeEventListener('change', on);
-  }, [minWidth, supported]);
-  return wide;
-}
+/** The width above which a section lays its widgets out in tracks. */
+const WIDE = 1024;
 
 export function OperationsPage() {
   const loaded = useModelStore((s) => s.loaded);
@@ -109,7 +100,7 @@ export function OperationsPage() {
   // A reloaded model re-asks every broker-answered figure at once.
   useEffect(() => on('ModelChanged', () => setServerRefresh((n) => n + 1)), [on]);
 
-  const isWide = useIsWide();
+  const isWide = useIsWide(WIDE);
   const { openDetail, windows } = useDetailWindows(index, specification?.detail, nonce);
 
   if (!loaded) {

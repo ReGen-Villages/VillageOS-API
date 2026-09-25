@@ -454,11 +454,11 @@ export function PipelinePage() {
   );
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full flex-col md:flex-row">
       <CatalystRail groups={catalysts} onPlace={placeStart} onOpenPipeline={onLoad} />
       <PipelineRoster pipelines={pipelines} openedPipelineId={editingPipelineId} onOpen={onLoad} onCreate={onNew} />
-      <div className="flex-1 min-w-0 flex flex-col">
-        <div className="flex items-center gap-2 p-2 border-b border-zinc-200 dark:border-zinc-700">
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+        <div className="flex flex-wrap items-center gap-2 p-2 border-b border-zinc-200 dark:border-zinc-700">
           <button onClick={() => onNew()} className="flex items-center gap-1 px-3 py-1 text-sm rounded border border-zinc-300 dark:border-zinc-600 hover:border-blue-400">
             <FilePlus size={14} /> {t('pipeline.new')}
           </button>

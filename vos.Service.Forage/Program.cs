@@ -56,17 +56,7 @@ try
             myceliumUrl,
             serviceToken, apiKey: apiKey));
     builder.Services.AddSingleton<CoveringSourceService>();
-    builder.Services.AddSingleton(sp =>
-        new EndpointServiceSourceFetcher(
-            sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<EndpointServiceSourceFetcher>>(),
-            myceliumUrl,
-            serviceToken,
-            launchSettings.FetcherSubdomain,
-            launchSettings.SourceTimeout,
-            apiKey));
-    builder.Services.AddSingleton<ISourceFetcher>(sp => sp.GetRequiredService<EndpointServiceSourceFetcher>());
-    builder.Services.AddSingleton<IEndpointBodyReader>(sp => sp.GetRequiredService<EndpointServiceSourceFetcher>());
+    builder.Services.AddSourceFetching(launchSettings, myceliumUrl, serviceToken, apiKey);
     builder.Services.AddSingleton(sp =>
         new DiscoveryRunner(
             sp.GetRequiredService<ISourceFetcher>(),
@@ -80,6 +70,7 @@ try
             serviceToken, apiKey: apiKey));
     builder.Services.AddSingleton<ICoverageWriter>(sp => sp.GetRequiredService<MyceliumRelationshipClient>());
     builder.Services.AddSingleton(TimeProvider.System);
+    builder.Services.AddModelClock<MyceliumRelationshipClient>("Forage");
     builder.Services.AddSingleton<CoverageLedger>();
     builder.Services.AddSingleton<DivisionResolver>();
     builder.Services.AddSingleton<AnalysisSpawner>();

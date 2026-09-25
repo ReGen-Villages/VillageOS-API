@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Events;
 
@@ -42,6 +43,27 @@ public static class ServiceHost
         this IServiceCollection services, string serviceName, int port) =>
         services.AddHostedService(provider => new MyceliumRegistration(
             provider.GetRequiredService<EndpointServiceMyceliumClient>(), serviceName, port));
+
+    /// <summary>The clock this service stamps model values with, kept on the broker's. Registered as
+    /// <see cref="ModelClock"/> rather than as the injected <c>TimeProvider</c>, because a service also
+    /// measures real durations of its own — how long a verification code stays good, when a token is due
+    /// for replacement — and those are not the model's business however fast a simulation runs.</summary>
+    public static IServiceCollection AddModelClock<TClient>(this IServiceCollection services, string serviceName)
+        where TClient : MyceliumClientBase
+    {
+        services.AddSingleton<ModelClock>();
+        return services.AddHostedService(provider => new ModelClockFollower(
+            provider.GetRequiredService<ModelClock>(),
+            cancellationToken => provider.GetRequiredService<TClient>().ReadModelTimeAsync(cancellationToken),
+            provider.GetRequiredService<ILogger<ModelClockFollower>>(),
+            serviceName,
+            ModelClockInterval));
+    }
+
+    // Short enough that a service launched before a simulation anchors the clock is stamping model
+    // instants within seconds of the anchor, and one local request either way is nothing beside what
+    // a service does for a single call it handles.
+    private static readonly TimeSpan ModelClockInterval = TimeSpan.FromSeconds(5);
 
     // Returns nothing to gate on, unlike MapShutdown: the broker polls /health to decide whether the
     // service is alive, and it cannot do that behind authentication. The process id is how the broker

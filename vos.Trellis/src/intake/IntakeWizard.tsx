@@ -267,12 +267,12 @@ function Navigation({
         {t('intake.back')}
       </button>
 
-      <div className="flex items-center gap-3">
+      <div className="min-w-0 flex flex-wrap items-center justify-end gap-3">
         {last && !configured && (
-          <span className="text-xs text-amber-600 dark:text-amber-400">{t('intake.notConfigured')}</span>
+          <span className="basis-full text-end text-xs text-amber-600 dark:text-amber-400">{t('intake.notConfigured')}</span>
         )}
         {last && configured && !ready && (
-          <span className="text-xs text-amber-600 dark:text-amber-400">{t('intake.fieldsNeeded')}</span>
+          <span className="basis-full text-end text-xs text-amber-600 dark:text-amber-400">{t('intake.fieldsNeeded')}</span>
         )}
         {last && awaitingCode && (
           <input
@@ -280,13 +280,15 @@ function Navigation({
             value={code}
             onChange={(event) => onCodeChange(event.target.value)}
             placeholder={t('intake.codePlaceholder')}
+            inputMode="numeric"
+            autoComplete="one-time-code"
             className="w-28 px-2 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
           />
         )}
         <button
           onClick={() => (last ? onSubmit() : onGoTo(STEPS[index + 1]))}
           disabled={heldBack}
-          className="px-3 py-1.5 text-sm rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-40"
+          className="px-3 py-1.5 text-sm whitespace-nowrap rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-40"
         >
           {!last ? t('intake.next') : awaitingCode ? t('intake.submit') : t('intake.sendCode')}
         </button>
@@ -317,14 +319,29 @@ function ContactStep({ draft, onChange }: StepProps) {
   return (
     <>
       <StepHeading step="contact" />
-      <Field labelKey="intake.contactName" value={draft.contactName} onChange={(contactName) => onChange({ contactName })} />
+      <Field
+        labelKey="intake.contactName"
+        autoComplete="name"
+        value={draft.contactName}
+        onChange={(contactName) => onChange({ contactName })}
+      />
       <Field
         labelKey="intake.relationshipToProject"
         value={draft.relationshipToProject}
         onChange={(relationshipToProject) => onChange({ relationshipToProject })}
       />
-      <Field labelKey="intake.emailAddress" value={draft.emailAddress} onChange={(emailAddress) => onChange({ emailAddress })} />
-      <Field labelKey="intake.phoneNumber" value={draft.phoneNumber} onChange={(phoneNumber) => onChange({ phoneNumber })} />
+      <Field
+        labelKey="intake.emailAddress"
+        autoComplete="email"
+        value={draft.emailAddress}
+        onChange={(emailAddress) => onChange({ emailAddress })}
+      />
+      <Field
+        labelKey="intake.phoneNumber"
+        autoComplete="tel"
+        value={draft.phoneNumber}
+        onChange={(phoneNumber) => onChange({ phoneNumber })}
+      />
     </>
   );
 }
@@ -710,12 +727,15 @@ function Field({
   value,
   onChange,
   lines,
+  autoComplete,
 }: {
   labelKey: ParseKeys;
   hintKey?: ParseKeys;
   value: string;
   onChange: (value: string) => void;
   lines?: number;
+  /** What the browser may fill the field from; an address or a number also brings up the phone keyboard for it. */
+  autoComplete?: 'name' | 'email' | 'tel';
 }) {
   const { t } = useTranslation();
   const shared =
@@ -730,7 +750,13 @@ function Field({
         {lines ? (
           <textarea rows={lines} value={value} onChange={(event) => onChange(event.target.value)} className={shared} />
         ) : (
-          <input value={value} onChange={(event) => onChange(event.target.value)} className={shared} />
+          <input
+            type={autoComplete === 'email' || autoComplete === 'tel' ? autoComplete : 'text'}
+            autoComplete={autoComplete}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            className={shared}
+          />
         )}
       </label>
       {hintKey && <p className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500">{t(hintKey)}</p>}

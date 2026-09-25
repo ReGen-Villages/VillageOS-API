@@ -30,17 +30,39 @@ export const thingApi = {
     return unwrapThing(thing);
   },
 
+  /** The Thing as it stood at one instant: the values it held then and nothing worked out from what
+   *  the model holds now. Null where the platform answers nothing for that instant — the Thing did not
+   *  exist yet, or the past it would take to answer has been reclaimed. A Thing retracted since then
+   *  still answers, because this route resolves before the active filter. */
+  getAtInstant: async (id: string, instant: string, signal?: AbortSignal) => {
+    try {
+      const thing = await apiClient.get<VosThing>(
+        `/api/things/${id}?timestamp=${encodeURIComponent(instant)}`,
+        signal,
+      );
+      return unwrapThing(thing);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) return null;
+      throw error;
+    }
+  },
+
   create: async (name: string) => {
-    const thing = await apiClient.post<VosThing>('/api/things', { Name: name });
+    const thing = await apiClient.action(`create Thing "${name}"`, () =>
+      apiClient.post<VosThing>('/api/things', { Name: name }),
+    );
     return unwrapThing(thing);
   },
 
-  remove: (id: string) => apiClient.del<{ message: string }>(`/api/things/${id}`),
+  remove: (id: string) =>
+    apiClient.action(`delete Thing ${id}`, () => apiClient.del<{ message: string }>(`/api/things/${id}`)),
 
   // Rename a Thing in place — keeps its Id and all relationships (unlike delete+recreate). The broker
   // persists a NameSet Fact, so the change streams over SSE and is temporally reconstructable.
   rename: async (id: string, name: string) => {
-    const thing = await apiClient.put<VosThing>(`/api/things/${id}/name`, { Name: name });
+    const thing = await apiClient.action(`rename Thing ${id} to "${name}"`, () =>
+      apiClient.put<VosThing>(`/api/things/${id}/name`, { Name: name }),
+    );
     return unwrapThing(thing);
   },
 
@@ -48,17 +70,23 @@ export const thingApi = {
   // absent, and keeps the type the property already has whatever `type` says. Use addProperty to
   // create one — that is the call whose `type` decides what the property will hold.
   setProperty: async (id: string, name: string, type: VosTypeName, value: unknown) => {
-    const thing = await apiClient.put<VosThing>(`/api/things/${id}/properties`, { Name: name, Type: type, Value: value });
+    const thing = await apiClient.action(`set property "${name}" on Thing ${id}`, () =>
+      apiClient.put<VosThing>(`/api/things/${id}/properties`, { Name: name, Type: type, Value: value }),
+    );
     return unwrapThing(thing);
   },
 
   addProperty: async (id: string, name: string, type: VosTypeName, value: unknown) => {
-    const thing = await apiClient.post<VosThing>(`/api/things/${id}/properties`, { Name: name, Type: type, Value: value });
+    const thing = await apiClient.action(`add property "${name}" to Thing ${id}`, () =>
+      apiClient.post<VosThing>(`/api/things/${id}/properties`, { Name: name, Type: type, Value: value }),
+    );
     return unwrapThing(thing);
   },
 
   deleteProperty: (id: string, name: string) =>
-    apiClient.del<{ message: string }>(`/api/things/${id}/properties/${encodeURIComponent(name)}`),
+    apiClient.action(`delete property "${name}" from Thing ${id}`, () =>
+      apiClient.del<{ message: string }>(`/api/things/${id}/properties/${encodeURIComponent(name)}`),
+    ),
 
   getEffectiveProperties: (id: string) =>
     apiClient.get<Record<string, EffectiveProperty>>(`/api/things/${id}/properties`),

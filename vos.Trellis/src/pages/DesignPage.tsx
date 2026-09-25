@@ -59,7 +59,7 @@ export function DesignPage() {
   const workbenchKey = opened ? `page:${opened.id}` : started ? `new:${started}` : null;
 
   return (
-    <div className="h-full flex">
+    <div className="h-full flex flex-col md:flex-row">
       <DesignPagesPanel
         pages={pages}
         openedId={opened?.id ?? null}
@@ -209,7 +209,7 @@ function DesignWorkbench({ opened, started, pages }: { opened?: DesignablePage; 
         onAdd={add}
       />
 
-      <section className="flex-1 min-w-0 flex flex-col bg-zinc-50 dark:bg-zinc-950">
+      <section className="flex-1 min-w-0 min-h-0 flex flex-col bg-zinc-50 dark:bg-zinc-950">
         <header className="flex-shrink-0 flex items-center gap-3 flex-wrap px-6 pt-4 pb-2 border-b border-zinc-200 dark:border-zinc-800">
           <button
             type="button"

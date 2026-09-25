@@ -67,6 +67,59 @@ function attachmentBody(bytes) {
   return bytes.toString('base64');
 }
 
+/** A pipeline variable the run never received arrives as the literal '$(NAME)'. It is a non-empty
+ *  string, so an emptiness check passes it, and it is then sent as a credential and refused — which
+ *  the wiki reports as a bare 401 with no body, against whatever file happened to be first. Naming
+ *  the variable here is the difference between a run that says what is missing and one that reports
+ *  a status code against a file that is not at fault. */
+const UNSUBSTITUTED = /^\$\([^)]*\)$/;
+
+/** Why this token cannot be used, or null when it can. */
+function tokenFault(raw) {
+  const token = (raw ?? '').trim();
+  if (token === '') return 'AZURE_DEVOPS_PAT has no value. It is a secret pipeline variable holding a token with Wiki: Read & Write.';
+  if (UNSUBSTITUTED.test(token)) {
+    return `AZURE_DEVOPS_PAT was never substituted — it arrived as the literal ${token}. `
+      + 'The variable is not defined on this pipeline, or the run predates its definition: a run resolves '
+      + 'its variables when it is queued, so re-running a job cannot pick up a value saved since.';
+  }
+  return null;
+}
+
+/** The token as it will be sent. Whitespace survives a paste into a pipeline variable and makes a
+ *  good token a bad one; nothing is gained by refusing the run over it. */
+function usableToken(raw) {
+  return (raw ?? '').trim();
+}
+
+/** Whether the wiki actually answered, rather than sending the caller to a sign-in page.
+ *
+ *  A write the wiki will not accept is answered with a redirect to sign-in, and following it lands
+ *  on a page that is HTML and, being a page, is a 200. So a run that only asks whether the response
+ *  was ok reports every page and every attachment as published and writes nothing — the wiki stops
+ *  being updated and the build stays green. The API answers JSON; anything else is not the API.
+ *
+ *  Reads are not covered by this on a public project, where the wiki answers an unauthenticated GET
+ *  with real JSON. Only a write tells a rejected credential from an accepted one. */
+function answeredTheApi(response) {
+  return response.ok && (response.headers.get('content-type') ?? '').includes('application/json');
+}
+
+/** How a failed wiki call should read. A refused credential says nothing about what was being sent
+ *  when it was refused, so naming that — a file, a page — points the reader at something that is
+ *  not wrong. Every other failure is about the call, and names it. */
+function wikiCallFailure(method, resource, status, body, contentType = 'application/json') {
+  if (!contentType.includes('application/json')) {
+    return `the wiki answered ${method} ${resource} with a sign-in page rather than with the API. `
+      + 'AZURE_DEVOPS_PAT was not accepted, so nothing was published.';
+  }
+  if (status === 401 || status === 403) {
+    return `the wiki refused the token (${status}). AZURE_DEVOPS_PAT needs the Wiki scope, Read & Write, `
+      + 'on this organisation. Nothing is wrong with what was being published.';
+  }
+  return `${method} ${resource} -> ${status} ${body}`;
+}
+
 /**
  * Whether an attachment upload was refused only because that name is already on the wiki.
  *
@@ -76,7 +129,8 @@ function attachmentBody(bytes) {
  * the run treats an attachment that is already there as the desired state.
  *
  * The API creates, it does not replace — re-running with different bytes under a name that exists
- * cannot update it. Changing an image means giving it a new file name.
+ * cannot update it. The generator names each attachment by its content, so a changed image arrives
+ * under a new name and the old one is simply never linked again.
  */
 function isAlreadyAttached(status, body) {
   if (status === 409) return true;
@@ -91,11 +145,16 @@ function flattenPages(page, into = []) {
 
 async function main() {
   const [manifestPath, generatedDirectory] = process.argv.slice(2);
-  const token = process.env.AZURE_DEVOPS_PAT;
-  if (!manifestPath || !generatedDirectory || !token) {
+  if (!manifestPath || !generatedDirectory) {
     console.error('Usage: node publish-wiki.js <manifest> <generated-dir> (needs AZURE_DEVOPS_PAT)');
     process.exit(2);
   }
+  const fault = tokenFault(process.env.AZURE_DEVOPS_PAT);
+  if (fault) {
+    console.error(fault);
+    process.exit(2);
+  }
+  const token = usableToken(process.env.AZURE_DEVOPS_PAT);
 
   const wiki = JSON.parse(fs.readFileSync(manifestPath, 'utf8')).wiki;
   const authorization = `Basic ${Buffer.from(`:${token}`).toString('base64')}`;
@@ -104,8 +163,10 @@ async function main() {
 
   const send = async (url, options = {}) => {
     const response = await fetch(url, { ...options, headers: { Authorization: authorization, ...options.headers } });
-    if (!response.ok) {
-      throw new Error(`${options.method ?? 'GET'} ${url.split('?')[0]} -> ${response.status} ${await response.text()}`);
+    if (!answeredTheApi(response)) {
+      throw new Error(wikiCallFailure(
+        options.method ?? 'GET', url.split('?')[0], response.status,
+        await response.text(), response.headers.get('content-type') ?? ''));
     }
     return response;
   };
@@ -118,10 +179,12 @@ async function main() {
         headers: { Authorization: authorization, 'Content-Type': 'application/octet-stream' },
         body: attachmentBody(fs.readFileSync(path.join(attachmentDirectory, name))),
       });
-      const failure = response.ok ? '' : await response.text();
-      const alreadyThere = !response.ok && isAlreadyAttached(response.status, failure);
-      if (!response.ok && !alreadyThere) {
-        throw new Error(`attachment ${name} -> ${response.status} ${failure}`);
+      const answered = answeredTheApi(response);
+      const failure = answered ? '' : await response.text();
+      const alreadyThere = !answered && isAlreadyAttached(response.status, failure);
+      if (!answered && !alreadyThere) {
+        throw new Error(wikiCallFailure(
+          'PUT', `attachment ${name}`, response.status, failure, response.headers.get('content-type') ?? ''));
       }
       console.log(`attachment ${name}${alreadyThere ? ' (already there)' : ''}`);
     }
@@ -159,7 +222,10 @@ async function main() {
   console.log(`${written} written, ${unchanged} already current, ${generated.size} pages total`);
 }
 
-module.exports = { pagePathOf, parentsFirst, pagesToRemove, flattenPages, markdownFiles, attachmentBody, isAlreadyAttached };
+module.exports = {
+  pagePathOf, parentsFirst, pagesToRemove, flattenPages, markdownFiles, attachmentBody, isAlreadyAttached,
+  tokenFault, usableToken, wikiCallFailure, answeredTheApi,
+};
 
 if (require.main === module) {
   main().catch((error) => {
