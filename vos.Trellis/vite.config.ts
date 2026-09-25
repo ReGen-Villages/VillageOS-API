@@ -63,6 +63,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/basemaps': {
+        target: 'https://localhost:7243',
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
 })

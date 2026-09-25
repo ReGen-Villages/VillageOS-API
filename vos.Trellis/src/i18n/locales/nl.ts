@@ -1171,7 +1171,7 @@ export const nl: PartialResources = {
     boundaryInput: "Invoer",
     boundaryOutput: "Uitvoer",
     wireLabel: "Draad · {{from}} → {{to}}",
-    noServicesBody: "Laad een model met geregistreerde verbindingen (bijv. de pijplijn-demoseed) — ze verschijnen in het palet als knopen die je kunt toevoegen.",
+    noServicesBody: "Laad een model met geregistreerde verbindingen (bijv. de pijplijn-demoseed) — ze verschijnen in de uitkomsten rechts, onder Diensten, als knopen die je kunt toevoegen.",
     findings: "Wat deze pijplijn tegenhoudt",
     startBody: "Plaats waar de run vandaan komt vanuit de aanleidingen links, wat hij achterlaat vanuit de uitkomsten rechts en de diensten daartussen; sleep dan tussen poorten om ze te verbinden.",
     catalysts: {

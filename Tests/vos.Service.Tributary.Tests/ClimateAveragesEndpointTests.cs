@@ -2,6 +2,7 @@ using System.Text.Json;
 using vos.Service.Tributary.Services;
 using FluentAssertions;
 using JsonataTransform = vos.Service.Shared.JsonataTransform;
+using ModelClock = vos.Service.Shared.ModelClock;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
@@ -64,7 +65,8 @@ public class ClimateAveragesEndpointTests
 
     private static ObservationIngestService Ingest() => new(
         Substitute.For<IEndpointMyceliumClient>(),
-        Substitute.For<ILogger<ObservationIngestService>>());
+        Substitute.For<ILogger<ObservationIngestService>>(),
+        new ModelClock());
 
     private static JsonElement Reading(string providerAnswer)
     {

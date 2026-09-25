@@ -42,7 +42,7 @@ const END_KIND_LABEL_KEY = {
   other: 'pipeline.endKind.other',
 } as const satisfies Record<EndKind, string>;
 
-/** A pipeline DAG node: one Handle per typed port (inputs on the left, outputs on the right). A boundary
+/** A node on the pipeline canvas: one handle per port (inputs on the left, outputs on the right). A boundary
  *  node also says what it stands for, and what really happens there today. */
 export function PipelineNodeView({ data }: NodeProps) {
   const { t } = useTranslation();

@@ -1171,7 +1171,7 @@ export const it: PartialResources = {
     boundaryInput: "Ingresso",
     boundaryOutput: "Uscita",
     wireLabel: "Collegamento · {{from}} → {{to}}",
-    noServicesBody: "Carica un modello con connessioni registrate (es. il seed dimostrativo della pipeline): compaiono nella tavolozza come nodi da aggiungere.",
+    noServicesBody: "Carica un modello con connessioni registrate (es. il seed dimostrativo della pipeline): compaiono nelle uscite a destra, sotto Servizi, come nodi da aggiungere.",
     findings: "Ciò che impedisce a questa pipeline di eseguirsi",
     startBody: "Posiziona da dove arriva l'esecuzione dai catalizzatori a sinistra, ciò che lascia dietro di sé dalle uscite a destra e i servizi nel mezzo; poi trascina tra le porte per collegarle.",
     catalysts: {

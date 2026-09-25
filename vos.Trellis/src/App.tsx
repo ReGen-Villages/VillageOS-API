@@ -10,6 +10,10 @@ import { useModelData } from './hooks/useModelData';
 import { useUiStore } from './stores/uiStore';
 import { loadPlatformPages } from './api/platformPages';
 import { useThemeStore, attachThemeMediaListener } from './stores/themeStore';
+import { apiClient } from './api/client';
+import { OwnServerRequestHeaders } from './components/map/ownServerRequests';
+
+const signedInHeaders = () => apiClient.authorizationHeaders();
 
 const GraphPage = lazy(() => import('./pages/GraphPage').then(m => ({ default: m.GraphPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
@@ -118,7 +122,9 @@ export default function App() {
 
   return (
     <AuthenticationContext.Provider value={authentication}>
-      <AuthenticatedApp />
+      <OwnServerRequestHeaders.Provider value={signedInHeaders}>
+        <AuthenticatedApp />
+      </OwnServerRequestHeaders.Provider>
     </AuthenticationContext.Provider>
   );
 }

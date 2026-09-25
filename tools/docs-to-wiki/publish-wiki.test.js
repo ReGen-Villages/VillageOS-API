@@ -96,10 +96,6 @@ test('a real attachment failure still fails the run', () => {
   assert.equal(isAlreadyAttached(500, 'already exists'), false, 'the message alone is not enough — the wiki has to name the failure');
 });
 
-// The run authenticates with a pipeline variable. A variable the pipeline did not substitute
-// arrives as the literal '$(NAME)' — non-empty, so an emptiness check passes it, and it is then
-// sent as a credential and refused. Naming it before the first call is the difference between a
-// build that says which variable is missing and one that blames a diagram.
 test('a token the pipeline never substituted is refused before anything is sent', () => {
   assert.match(tokenFault('$(AZURE_DEVOPS_PAT)'), /never substituted|\$\(AZURE_DEVOPS_PAT\)/);
   assert.match(tokenFault('  $(SOME_OTHER_NAME)  '), /\$\(SOME_OTHER_NAME\)/);
@@ -111,16 +107,12 @@ test('a missing token is refused, and says so rather than failing as a credentia
   assert.match(tokenFault('   '), /no value/i);
 });
 
-// Surrounding whitespace survives a paste into a pipeline variable and makes a good token a bad
-// one. Nothing is gained by refusing the run over it.
 test('a usable token passes, and is read without the whitespace around it', () => {
   assert.equal(tokenFault('abc123'), null);
   assert.equal(tokenFault('  abc123\n'), null);
   assert.equal(usableToken('  abc123\n'), 'abc123');
 });
 
-// A wiki that refuses the credential says nothing about what was being sent when it did. Reporting
-// the file reads as a fault in that file, which is where a reader starts looking.
 test('a refused credential is reported as one, whatever call met it', () => {
   const refusal = wikiCallFailure('PUT', 'attachments', 401, '');
   assert.match(refusal, /token|credential/i);
@@ -134,9 +126,6 @@ test('a failure that is about the call still names the call', () => {
   assert.match(failure, /Base-64/);
 });
 
-// The wiki answers a write it will not accept with a redirect to sign-in. Following it lands on a
-// page, and a page is a 200 — so a run that asks only whether the response was ok publishes
-// nothing and says it published everything.
 test('a sign-in page is not a published page, whatever status it carries', () => {
   const signInPage = { ok: true, status: 200, headers: new Map([['content-type', 'text/html; charset=utf-8']]) };
   signInPage.headers.get = Map.prototype.get.bind(signInPage.headers);

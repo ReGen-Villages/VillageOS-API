@@ -1171,7 +1171,7 @@ export const es: PartialResources = {
     boundaryInput: "Entrada",
     boundaryOutput: "Salida",
     wireLabel: "Cable · {{from}} → {{to}}",
-    noServicesBody: "Carga un modelo que tenga conexiones registradas (p. ej. la semilla de demostración de la canalización): aparecen en la paleta como nodos que puedes añadir.",
+    noServicesBody: "Carga un modelo que tenga conexiones registradas (p. ej. la semilla de demostración de la canalización): aparecen en las salidas de la derecha, bajo Servicios, como nodos que puedes añadir.",
     findings: "Lo que impide que esta canalización se ejecute",
     startBody: "Coloque de dónde viene la ejecución desde los catalizadores de la izquierda, lo que deja atrás desde las salidas de la derecha y los servicios entre medias; luego arrastre entre puertos para conectarlos.",
     catalysts: {

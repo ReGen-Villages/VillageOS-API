@@ -394,8 +394,6 @@ test('an image becomes a wiki attachment under the name the generator gives it, 
   assert.deepEqual([...imagesSeen], ['docs/assets/a-diagram.png']);
 });
 
-// The wiki's attachment API creates and never replaces, so an image that keeps its name keeps the
-// bytes it was first uploaded with. Naming it by its content makes a change a new attachment.
 test('an attachment is named by its content, so a changed image is a new attachment', () => {
   const before = attachmentName('docs/assets/diagram.svg', Buffer.from('<svg/>'));
   const after = attachmentName('docs/assets/diagram.svg', Buffer.from('<svg><style/></svg>'));

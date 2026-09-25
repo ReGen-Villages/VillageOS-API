@@ -6,10 +6,6 @@ using Xunit;
 
 namespace vos.Service.Forage.Tests.Services;
 
-// A source reaching back years is asked for a slice at a time: the provider's answer, the reshape
-// that follows it and the write it becomes all carry a whole window, and the shipped ten-year reach
-// made each of those millions of readings — the fetching service ran out of memory reshaping one and
-// the broker refused the write.
 public class SlicedWindowFetcherTests
 {
     private const string Source = "Open-Meteo climate history";

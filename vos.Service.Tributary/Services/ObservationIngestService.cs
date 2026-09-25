@@ -42,13 +42,11 @@ public class ObservationIngestService
     public ObservationIngestService(
         IEndpointMyceliumClient myceliumClient,
         ILogger<ObservationIngestService> logger,
-        ModelClock? clock = null)
+        ModelClock clock)
     {
         _myceliumClient = myceliumClient;
         _logger = logger;
-        // Un-anchored where none is registered, which is this machine's clock — what the model's own is
-        // until a simulation anchors it.
-        _clock = clock ?? new ModelClock();
+        _clock = clock;
     }
 
     public bool TryTransform(string body, JsonataTransform query, out string transformed, out string error)

@@ -150,9 +150,9 @@ export function PipelinePage() {
     return [...keys].sort();
   }, [nodes]);
 
-  // Pre-run validation: why the DAG will not run — required inputs neither wired nor param-bound, dangling
-  // wires, and an end standing for something a run cannot come from or leave behind. Surfaced under the
-  // canvas and gates Run so a broken pipeline fails loud, not silent.
+  // Checked before a run and shown under the canvas: an input nothing fills, a wire to nowhere, or an end
+  // standing for something a run cannot come from or leave behind. Run stays off until the list is empty,
+  // so a broken pipeline is refused where it is drawn rather than failing once it runs.
   const validationIssues = useMemo(() => {
     const validationNodes = nodes.map((n) => {
       const d = n.data as unknown as PipelineNodeData;

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Map as MapLibreMap,
@@ -11,6 +11,7 @@ import {
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+import { carryingOwnServerHeaders, OwnServerRequestHeaders } from './ownServerRequests';
 import { Navigation2 } from 'lucide-react';
 import type { Feature } from 'geojson';
 import { styleForSource } from '../../utils/basemapSources';
@@ -112,6 +113,7 @@ export function MapView({
   showMarker = true,
 }: MapViewProps) {
   const { t } = useTranslation();
+  const ownServerHeaders = useContext(OwnServerRequestHeaders);
   const container = useRef<HTMLDivElement | null>(null);
   const map = useRef<MapLibreMap | null>(null);
   const marker = useRef<Marker | null>(null);
@@ -156,6 +158,7 @@ export function MapView({
       container: container.current,
       center: centre,
       zoom: openingZoom.current,
+      transformRequest: carryingOwnServerHeaders(window.location.origin, ownServerHeaders),
     });
     created.on('error', reportTilesUnreachable);
     marker.current = new Marker().setLngLat(centre).addTo(created);
@@ -166,7 +169,7 @@ export function MapView({
       map.current = null;
       marker.current = null;
     };
-  }, [hasSource, reportTilesUnreachable]);
+  }, [hasSource, reportTilesUnreachable, ownServerHeaders]);
 
   // Swapping the style instead of rebuilding the map leaves the reader where they had panned to,
   // which is why the map above is built without one. What was drawn is remembered as the pair it is —

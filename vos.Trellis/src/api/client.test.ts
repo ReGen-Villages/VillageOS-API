@@ -122,6 +122,19 @@ describe('ApiClient', () => {
     });
   });
 
+  describe('authorizationHeaders', () => {
+    it('names the token a signed-in session holds', async () => {
+      fetchSpy.mockResolvedValueOnce(mockResponse(200, tokenResponse));
+      await apiClient.login('testuser', 'pass');
+
+      expect(apiClient.authorizationHeaders()).toEqual({ Authorization: `Bearer ${tokenResponse.token}` });
+    });
+
+    it('names nothing once signed out', async () => {
+      expect(apiClient.authorizationHeaders()).toEqual({});
+    });
+  });
+
   describe('logout', () => {
     it('clears all auth state', async () => {
       fetchSpy.mockResolvedValueOnce(mockResponse(200, tokenResponse));
@@ -265,6 +278,41 @@ describe('ApiClient', () => {
       const body = JSON.parse(putCall[1]?.body as string);
       expect(body.NewPassword).toBe('newpass');
       expect(body.CurrentPassword).toBeUndefined();
+    });
+
+    it('sends the token the change answered with, since the sign-in token still says the password must change', async () => {
+      const loginResponse = { ...tokenResponse, user: { ...tokenResponse.user, MustChangePassword: true } };
+      fetchSpy
+        .mockResolvedValueOnce(mockResponse(200, loginResponse))
+        .mockResolvedValueOnce(mockResponse(200, { message: 'Password changed', token: 'replacement-jwt-token' }))
+        .mockResolvedValue(mockResponse(200, {}));
+
+      await apiClient.login('testuser', 'pass');
+      await apiClient.changePassword('user-1', 'newpass', 'oldpass');
+      await apiClient.get('/api/things');
+
+      const requestsAfterTheChange = fetchSpy.mock.calls.slice(2);
+      expect(requestsAfterTheChange.length).toBeGreaterThan(0);
+      for (const [, requestOptions] of requestsAfterTheChange) {
+        expect((requestOptions?.headers as Record<string, string>).Authorization).toBe('Bearer replacement-jwt-token');
+      }
+    });
+
+    it('asks for a new sign-in when the change answers with no token, rather than send the refused one', async () => {
+      const loginResponse = { ...tokenResponse, user: { ...tokenResponse.user, MustChangePassword: true } };
+      fetchSpy
+        .mockResolvedValueOnce(mockResponse(200, loginResponse))
+        .mockResolvedValueOnce(mockResponse(200, { message: 'Password changed', token: null }))
+        .mockResolvedValue(mockResponse(200, {}));
+      const authenticationRequired = vi.fn();
+      apiClient.setAuthenticationRequiredCallback(authenticationRequired);
+
+      await apiClient.login('testuser', 'pass');
+      await apiClient.changePassword('user-1', 'newpass', 'oldpass');
+
+      await expect(apiClient.get('/api/things')).rejects.toThrow(AuthenticationRequiredError);
+      expect(authenticationRequired).toHaveBeenCalled();
+      expect(fetchSpy.mock.calls.slice(2)).toHaveLength(0);
     });
 
     it('throws AuthRequiredError on 401', async () => {
