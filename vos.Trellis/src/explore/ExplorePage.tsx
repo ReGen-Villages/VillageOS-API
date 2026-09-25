@@ -24,6 +24,7 @@ import { formatNumber } from '../components/dashboard/widgets/format';
 import { OriginLines } from '../components/dashboard/widgets/KpiCard';
 import { useElementWidth } from '../hooks/useElementWidth';
 import { useBinding, useResolveContext } from '../hooks/useDashboard';
+import { isTicketRefusal } from '../api/refusals';
 import { useTermWords } from '../i18n/termWording';
 import { useStandalonePageDocument } from '../hooks/useStandalonePageDocument';
 import { fromHectares, withShareSet, wholePercentages } from '../intake/submissionDraft';
@@ -378,12 +379,6 @@ export function ExplorePage() {
 
 function reasonOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-/** Whether a refusal is the ticket's rather than the submission's — the wording the service uses for
- *  every ticket refusal invites re-verification, which is the one mend a person can make here. */
-function isTicketRefusal(error: unknown): boolean {
-  return error instanceof Error && error.message.includes('Verify the address again');
 }
 
 function PlotStep({

@@ -20,11 +20,11 @@ public static class SubmissionReader
         try
         {
             submission = JsonSerializer.Deserialize<Submission>(document, SubmissionFormat)
-                ?? throw new SubmissionError("The submission is empty.");
+                ?? throw new SubmissionError(RefusalCode.SubmissionEmpty, "The submission is empty.");
         }
         catch (JsonException error)
         {
-            throw new SubmissionError($"The submission could not be read: {error.Message}");
+            throw new SubmissionError(RefusalCode.SubmissionUnreadable, $"The submission could not be read: {error.Message}");
         }
 
         SubmissionLimits.Enforce(submission);

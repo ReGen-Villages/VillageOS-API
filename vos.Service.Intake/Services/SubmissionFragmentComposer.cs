@@ -73,7 +73,8 @@ public static class SubmissionFragmentComposer
         var submissionId = Required(submission.SubmissionId, "submissionId",
             "every identifier derives from it, so a submission posted twice without one would build a second site");
         var site = submission.Site
-            ?? throw new SubmissionError("'site' is missing: a submission is a site and what is known about it.");
+            ?? throw new SubmissionError(RefusalCode.FieldMissing,
+                "'site' is missing: a submission is a site and what is known about it.", Refusal.With(("field", "site")));
         var siteName = Required(site.Name, "site.name", "a Thing is created under a name");
 
         var siteThing = new NamedThing(StableIdentity.Derive(submissionId, "site"), siteName);
@@ -155,12 +156,12 @@ public static class SubmissionFragmentComposer
         // undertaking, and the site is what it is about. A contact is required because a submission is
         // reviewed and the decision has to reach somebody, and the project with it because that is what
         // the contact hangs off.
-        var project = submission.Project ?? throw new SubmissionError(
+        var project = submission.Project ?? throw new SubmissionError(RefusalCode.FieldMissing,
             "'project' is missing: a submission is one planner's undertaking, and it is what the contact "
-            + "to answer hangs off.");
-        var contact = submission.Contact ?? throw new SubmissionError(
+            + "to answer hangs off.", Refusal.With(("field", "project")));
+        var contact = submission.Contact ?? throw new SubmissionError(RefusalCode.FieldMissing,
             "'contact' is missing: a submission is reviewed, and whoever made it has to be told what was "
-            + "decided about it.");
+            + "decided about it.", Refusal.With(("field", "contact")));
 
         var projectThing = new NamedThing(
             StableIdentity.Derive(submissionId, "project"),
@@ -191,9 +192,9 @@ public static class SubmissionFragmentComposer
         // ever worked out and the submitter is answered with a reference and silence. It does not have to
         // be drawn — a square generated from the stated area satisfies this, and says so in its source.
         var parcel = submission.Parcel
-            ?? throw new SubmissionError(
+            ?? throw new SubmissionError(RefusalCode.FieldMissing,
                 "'parcel' is missing: a submission is a piece of land, and an analysis divides its area. "
-                + "Draw the boundary, or generate one from the stated area.");
+                + "Draw the boundary, or generate one from the stated area.", Refusal.With(("field", "parcel")));
 
         var obtainedBy = Resolve(vocabulary.BoundarySources, "parcel.boundarySource",
             Required(parcel.BoundarySource, "parcel.boundarySource",
@@ -217,9 +218,10 @@ public static class SubmissionFragmentComposer
             // reorders them re-posts onto the same Things. It comes from the resolved term rather than the
             // word submitted, so two spellings of one category are one share and not two.
             if (categoriesAlreadyGiven.TryGetValue(category.Id, out var alreadyGiven))
-                throw new SubmissionError(
+                throw new SubmissionError(RefusalCode.SharesDisagree,
                     $"'allocations' gives '{alreadyGiven}' and '{submitted}' as separate shares of one "
-                    + "category: they disagree about it and nothing here can say which was meant.");
+                    + "category: they disagree about it and nothing here can say which was meant.",
+                    Refusal.With(("first", alreadyGiven), ("second", submitted)));
             categoriesAlreadyGiven[category.Id] = submitted;
 
             var allocationThing = new NamedThing(
@@ -270,9 +272,10 @@ public static class SubmissionFragmentComposer
             // Identity comes from the resolved term rather than the word submitted, for the same reason an
             // allocation's comes from its category: two spellings of one hazard are one assessment.
             if (hazardsAlreadyGiven.TryGetValue(hazardType.Id, out var alreadyGiven))
-                throw new SubmissionError(
+                throw new SubmissionError(RefusalCode.HazardsDisagree,
                     $"'hazards' gives '{alreadyGiven}' and '{submittedType}' as separate assessments of one "
-                    + "hazard: they disagree about it and nothing here can say which was meant.");
+                    + "hazard: they disagree about it and nothing here can say which was meant.",
+                    Refusal.With(("first", alreadyGiven), ("second", submittedType)));
             hazardsAlreadyGiven[hazardType.Id] = submittedType;
 
             var hazardThing = AssessmentOf(hazardType);
@@ -307,9 +310,10 @@ public static class SubmissionFragmentComposer
             {
                 // One source is one Thing, so the second mention's description has nowhere to go. Taking the
                 // first silently would leave the planner believing the second was recorded.
-                throw new SubmissionError(
+                throw new SubmissionError(RefusalCode.SourceDescribedTwice,
                     $"'{sourceName}' is described two ways: '{first}' and '{coverage}'. One source is one "
-                    + "Thing, so give the description once or give it the same both times.");
+                    + "Thing, so give the description once or give it the same both times.",
+                    Refusal.With(("source", sourceName)));
             }
 
             Relate(hazardThing, predicates.Has, sourceThing);
@@ -408,11 +412,13 @@ public static class SubmissionFragmentComposer
     private static Dictionary<string, TypedValue> ParcelProperties(SubmittedParcel parcel)
     {
         var boundary = parcel.Boundary
-            ?? throw new SubmissionError("'parcel.boundary' is missing: a parcel is the boundary it encloses. "
-                                       + "Leave 'parcel' out until one has been drawn.");
+            ?? throw new SubmissionError(RefusalCode.FieldMissing,
+                "'parcel.boundary' is missing: a parcel is the boundary it encloses. Leave 'parcel' out until one has been drawn.",
+                Refusal.With(("field", "parcel.boundary")));
         if (boundary.Count < 3)
-            throw new SubmissionError(
-                $"'parcel.boundary' has {boundary.Count} corner(s): a boundary needs at least three.");
+            throw new SubmissionError(RefusalCode.BoundaryTooFewCorners,
+                $"'parcel.boundary' has {boundary.Count} corner(s): a boundary needs at least three.",
+                Refusal.With(("corners", boundary.Count)));
 
         return new Dictionary<string, TypedValue>
         {
@@ -436,10 +442,11 @@ public static class SubmissionFragmentComposer
         if (byKey.TryGetValue(Key(submitted), out var found))
             return found;
 
-        throw new SubmissionError(declared.Terms.Count == 0
+        throw new SubmissionError(RefusalCode.TermUnknown, declared.Terms.Count == 0
             ? $"'{field}' is '{submitted}', and this model declares no term to resolve it against."
             : $"'{field}' is '{submitted}': the model declares "
-              + string.Join(", ", declared.Terms.Select(term => $"'{term.Name}'")) + ".");
+              + string.Join(", ", declared.Terms.Select(term => $"'{term.Name}'")) + ".",
+            Refusal.With(("field", field), ("value", submitted)));
     }
 
     private static void Write(IDictionary<string, TypedValue> properties, string name, string typeInfo, object? value)
@@ -455,5 +462,7 @@ public static class SubmissionFragmentComposer
     private static string Key(string named) => named.Trim().ToLowerInvariant();
 
     private static string Required(string? value, string field, string why) =>
-        string.IsNullOrWhiteSpace(value) ? throw new SubmissionError($"'{field}' is missing: {why}.") : value;
+        string.IsNullOrWhiteSpace(value)
+            ? throw new SubmissionError(RefusalCode.FieldMissing, $"'{field}' is missing: {why}.", Refusal.With(("field", field)))
+            : value;
 }

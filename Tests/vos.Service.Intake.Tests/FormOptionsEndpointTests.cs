@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Intake;
+using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
 using vos.Service.Shared.Subscriptions;
 using Xunit;
@@ -169,6 +170,9 @@ public class FormOptionsEndpointTests
             refused = await client.GetAsync("/submissions/form");
 
         refused!.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        var (code, values) = await RefusalReading.ReadAsync(refused);
+        code.Should().Be(RefusalCode.TooManyRequests);
+        values.GetProperty("seconds").GetInt32().Should().BePositive();
     }
 
     // A model nobody seeded is a fault in the deployment rather than in the request, and this route
@@ -184,6 +188,7 @@ public class FormOptionsEndpointTests
         response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
         (await response.Content.ReadAsStringAsync()).Should()
             .NotContain(DeclaredVocabularyReader.AllocationCategoryArchetypeFlag);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.ServiceUnavailable);
         factory.Log.Lines.Should().Contain(line =>
             line.Contains(DeclaredVocabularyReader.AllocationCategoryArchetypeFlag));
     }

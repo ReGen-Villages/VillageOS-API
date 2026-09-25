@@ -4,6 +4,7 @@ import type { DeclaredTheme } from '../types/dashboard';
 import { basemapSourcesFrom } from '../utils/basemapSources';
 import type { TermWording } from '../i18n/termWording';
 import i18n from '../i18n';
+import { refusalFrom } from './refusals';
 
 /** What the intake service answered a submission with: something the submitter can quote to whoever
  *  reviews it. What the model called the Things it composed the submission into stays inside the service —
@@ -74,7 +75,7 @@ export const intakeApi = {
 
   formOptions: async (): Promise<FormOptions> => {
     const response = await fetch(`${intakeServiceAddress()}/submissions/form`);
-    if (!response.ok) throw new Error(await refusalFrom(response));
+    if (!response.ok) throw await refusalFrom(response);
 
     const answered = (await response.json()) as {
       allocationCategories?: string[];
@@ -116,7 +117,7 @@ export const intakeApi = {
       body: JSON.stringify({ latitude, longitude }),
     });
     if (response.status === 404) return null;
-    if (!response.ok) throw new Error(await refusalFrom(response));
+    if (!response.ok) throw await refusalFrom(response);
 
     const answered = (await response.json()) as FetchedParcel;
     return { boundary: answered.boundary ?? [], attribution: answered.attribution ?? null };
@@ -130,7 +131,7 @@ export const intakeApi = {
       body: JSON.stringify({ query }),
     });
     if (response.status === 404) return [];
-    if (!response.ok) throw new Error(await refusalFrom(response));
+    if (!response.ok) throw await refusalFrom(response);
 
     const answered = (await response.json()) as { places?: FoundPlace[] };
     return answered.places ?? [];
@@ -145,7 +146,7 @@ export const intakeApi = {
       body: JSON.stringify({ emailAddress }),
     });
 
-    if (!response.ok) throw new Error(await refusalFrom(response));
+    if (!response.ok) throw await refusalFrom(response);
   },
 
   /** The code is spent on a ticket and the ticket on the submission, in one act: a ticket lasts minutes
@@ -163,7 +164,7 @@ export const intakeApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ emailAddress, code }),
     });
-    if (!exchanged.ok) throw new Error(await refusalFrom(exchanged));
+    if (!exchanged.ok) throw await refusalFrom(exchanged);
     return (await exchanged.json()).ticket;
   },
 
@@ -180,7 +181,7 @@ export const intakeApi = {
       body: JSON.stringify(submission),
     });
 
-    if (!response.ok) throw new Error(await refusalFrom(response));
+    if (!response.ok) throw await refusalFrom(response);
     return {
       accepted: await response.json(),
       ticket: response.headers.get(TICKET_HEADER) ?? ticket,
@@ -203,17 +204,3 @@ export function intakeServiceAddress(): string {
   return base;
 }
 
-/** What the service said, rather than the status code it said it under. A refused submission names the
- *  field to correct, and that is the whole value of the answer to whoever filled the form in. */
-export async function refusalFrom(response: Response): Promise<string> {
-  try {
-    return refusalIn(await response.json(), response.status);
-  } catch {
-    return refusalIn(null, response.status);
-  }
-}
-
-/** The service's own words for a refusal where it gave any, else the status. */
-export function refusalIn(body: { error?: string; detail?: string; title?: string } | null, status: number): string {
-  return body?.error ?? body?.detail ?? body?.title ?? i18n.t('intake.refusedWithStatus', { status });
-}

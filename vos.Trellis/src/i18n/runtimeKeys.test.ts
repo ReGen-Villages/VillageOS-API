@@ -13,6 +13,7 @@ import { WIDGET_KINDS } from '../utils/gridLayout';
 import { BINDING_FIELD_KEYS, BINDING_KINDS, WIDGET_FIELD_KEYS } from '../utils/widgetSchema';
 import { DESIGN_FINDING_CODES } from '../utils/designFindings';
 import { LOADING_STAGES } from '../components/model/LoadingOverlay';
+import { REFUSAL_CODES } from '../api/refusals';
 
 /**
  * Whether a key the console assembles at run time has anything to say.
@@ -45,6 +46,7 @@ const BUILT_FROM = {
   'design.bindingField': [...BINDING_FIELD_KEYS],
   'design.finding': [...DESIGN_FINDING_CODES],
   'modelPage.stage': [...LOADING_STAGES],
+  refusal: [...REFUSAL_CODES],
 } as Record<string, string[]>;
 
 /** A `t()` call whose key is assembled rather than written out, e.g. t(`intake.step.${step}`). */

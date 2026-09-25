@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Text;
+using vos.Service.Intake.Models;
 
 namespace vos.Service.Intake;
 
@@ -57,16 +58,18 @@ public sealed class SubmissionTicket(TimeProvider time)
 
     // Why the ticket was not accepted, or null when it was. The wording is what a person whose
     // form sat open too long needs, because that is the only way this refuses a legitimate submission.
-    public string? WhyRefused(string? presented)
+    public Refusal? WhyRefused(string? presented)
     {
         const string askAgain = "Verify the address again and submit.";
 
         if (!TryReadSigned(presented, out var signed))
-            return $"This submission did not carry a ticket this service issued. {askAgain}";
+            return new Refusal(RefusalCode.TicketMissing,
+                $"This submission did not carry a ticket this service issued. {askAgain}");
 
         var issuedAt = DateTimeOffset.FromUnixTimeSeconds(BinaryPrimitives.ReadInt64BigEndian(signed));
         return time.GetUtcNow() - issuedAt > ValidFor
-            ? $"The form this was submitted from has been open too long. {askAgain}"
+            ? new Refusal(RefusalCode.TicketExpired,
+                $"The form this was submitted from has been open too long. {askAgain}")
             : null;
     }
 

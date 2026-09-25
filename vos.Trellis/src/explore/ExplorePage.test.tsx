@@ -58,6 +58,7 @@ vi.mock('../publicFindings/answeredFindings', () => ({
 
 import { intakeApi } from '../api/intakeApi';
 import { findingsApi } from '../api/findingsApi';
+import { refusalIn } from '../api/refusals';
 import { localizeSpecification } from '../api/dashboardLocalization';
 import { findingsFrom } from '../publicFindings/answeredFindings';
 import { DashboardSections } from '../components/dashboard/DashboardSections';
@@ -385,7 +386,8 @@ describe('the surveys asked for after the report', () => {
   });
 
   it('asks for the mailbox again when the ticket aged out before a file was sent', async () => {
-    vi.mocked(findingsApi.shareDocumentWithTicket).mockRejectedValue(new Error('The ticket has expired. Verify the address again.'));
+    vi.mocked(findingsApi.shareDocumentWithTicket).mockRejectedValue(
+      refusalIn({ code: 'ticketExpired', error: 'The form this was submitted from has been open too long.' }, 403));
     await reachTheReport();
     fireEvent.click(screen.getByRole('button', { name: 'Yes, share files' }));
     chooseFiles(new File(['soil'], 'soil.pdf', { type: 'application/pdf' }));

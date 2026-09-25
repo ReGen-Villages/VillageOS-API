@@ -86,7 +86,8 @@ try
             context.HttpContext.Response.Headers.RetryAfter = comeBackIn.ToString();
             LogRefusal(context.HttpContext, "the source has spent its budget");
             await context.HttpContext.Response.WriteAsJsonAsync(
-                new { error = $"Too many requests. Try again in {comeBackIn} seconds." }, cancellation);
+                new Refusal(RefusalCode.TooManyRequests, $"Too many requests. Try again in {comeBackIn} seconds.",
+                    Refusal.With(("seconds", comeBackIn))), cancellation);
         };
     });
 
@@ -196,7 +197,7 @@ try
                                           && !context.RequestAborted.IsCancellationRequested))
         {
             logger.LogError(error, "A form could not be answered: {Reason}", error.Message);
-            return Results.Problem("This service cannot answer at the moment.", statusCode: 503);
+            return Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment.");
         }
     }).RequireRateLimiting(SubmissionRate.PolicyName);
 
@@ -210,8 +211,7 @@ try
         if (asked?.Latitude is not { } latitude || asked.Longitude is not { } longitude
             || latitude is < -90 or > 90 || longitude is < -180 or > 180)
             return Refused(context, "the position was missing or not one",
-                Results.BadRequest(new
-                    { error = "'latitude' and 'longitude' are both needed, in degrees." }));
+                Results.BadRequest(new Refusal(RefusalCode.PositionMissing, "'latitude' and 'longitude' are both needed, in degrees.")));
 
         try
         {
@@ -224,9 +224,9 @@ try
                     attribution = answered.Parcel.Attribution,
                 }),
                 LookupOutcome.NothingAvailable => Results.Json(
-                    new { error = PositionLookupService.NoParcelAvailable },
+                    new Refusal(RefusalCode.NoParcel, PositionLookupService.NoParcelAvailable),
                     statusCode: StatusCodes.Status404NotFound),
-                _ => Results.Problem("This service cannot answer at the moment.", statusCode: 503),
+                _ => Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment."),
             };
         }
         catch (Exception error) when (error is ModelNotSeededError or HttpRequestException
@@ -234,7 +234,7 @@ try
                                           && !context.RequestAborted.IsCancellationRequested))
         {
             logger.LogError(error, "A parcel lookup could not be answered: {Reason}", error.Message);
-            return Results.Problem("This service cannot answer at the moment.", statusCode: 503);
+            return Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment.");
         }
     }).RequireRateLimiting(SubmissionRate.PolicyName);
 
@@ -247,7 +247,7 @@ try
         var query = asked?.Query?.Trim();
         if (string.IsNullOrEmpty(query) || query.Length > SubmissionLimits.LongestText)
             return Refused(context, "the search had no query a place could be found for",
-                Results.BadRequest(new { error = "'query' is missing: there is nothing to search for." }));
+                Results.BadRequest(new Refusal(RefusalCode.QueryMissing, "'query' is missing: there is nothing to search for.")));
 
         try
         {
@@ -260,9 +260,9 @@ try
                     attribution = answered.Places.Attribution,
                 }),
                 LookupOutcome.NothingAvailable => Results.Json(
-                    new { error = PositionLookupService.NoSearchAvailable },
+                    new Refusal(RefusalCode.NoSearch, PositionLookupService.NoSearchAvailable),
                     statusCode: StatusCodes.Status404NotFound),
-                _ => Results.Problem("This service cannot answer at the moment.", statusCode: 503),
+                _ => Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment."),
             };
         }
         catch (Exception error) when (error is ModelNotSeededError or HttpRequestException
@@ -270,7 +270,7 @@ try
                                           && !context.RequestAborted.IsCancellationRequested))
         {
             logger.LogError(error, "A place search could not be answered: {Reason}", error.Message);
-            return Results.Problem("This service cannot answer at the moment.", statusCode: 503);
+            return Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment.");
         }
     }).RequireRateLimiting(SubmissionRate.PolicyName);
 
@@ -286,7 +286,7 @@ try
         var asked = await ReadAsync<VerificationAsked>(context);
         if (asked?.EmailAddress is not { } emailAddress)
             return Refused(context, "no address was given to verify",
-                Results.BadRequest(new { error = "'emailAddress' is missing: there is nowhere to send a code." }));
+                Results.BadRequest(new Refusal(RefusalCode.EmailAddressMissing, "'emailAddress' is missing: there is nowhere to send a code.")));
 
         try
         {
@@ -294,13 +294,13 @@ try
         }
         catch (SubmissionError error)
         {
-            return Refused(context, error.Message, Results.BadRequest(new { error = error.Message }));
+            return Refused(context, error.Message, Results.BadRequest(error.AsRefusal()));
         }
 
         if (verification.CodeFor(emailAddress) is not { } code)
             return Refused(context, "the address has been sent as many codes as the window allows",
                 Results.Json(
-                    new { error = "That address has been sent as many codes as it can be for now." },
+                    new Refusal(RefusalCode.CodesExhausted, "That address has been sent as many codes as it can be for now."),
                     statusCode: StatusCodes.Status429TooManyRequests));
 
         try
@@ -315,7 +315,7 @@ try
             // The budget goes back, or three failures nobody saw would lock the address out for the hour.
             verification.NothingWasSent(emailAddress);
             logger.LogError(error, "A verification code could not be sent: {Reason}", error.Message);
-            return Results.Problem("This service cannot send a code at the moment.", statusCode: 503);
+            return Unavailable(RefusalCode.CodeSendingUnavailable, "This service cannot send a code at the moment.");
         }
 
         return Results.Accepted();
@@ -327,11 +327,11 @@ try
         var answered = await ReadAsync<VerificationAnswered>(context);
         if (answered?.EmailAddress is not { } emailAddress)
             return Refused(context, "no address was given with the code",
-                Results.BadRequest(new { error = "'emailAddress' is missing: a ticket is issued against one." }));
+                Results.BadRequest(new Refusal(RefusalCode.EmailAddressMissing, "'emailAddress' is missing: a ticket is issued against one.")));
 
         if (verification.WhyRefused(emailAddress, answered.Code) is { } wrongCode)
             return Refused(context, "the code was not accepted",
-                Results.Json(new { error = wrongCode }, statusCode: StatusCodes.Status403Forbidden));
+                Results.Json(new Refusal(RefusalCode.CodeNotAccepted, wrongCode), statusCode: StatusCodes.Status403Forbidden));
 
         return Results.Ok(new
         {
@@ -348,12 +348,14 @@ try
     {
         if (context.Request.ContentLength > SubmissionLimits.MaximumBodyBytes)
             return Refused(context, "the body is beyond the cap",
-                Results.StatusCode(StatusCodes.Status413PayloadTooLarge));
+                Results.Json(
+                    new Refusal(RefusalCode.SubmissionTooLarge, "The submission is larger than this service takes."),
+                    statusCode: StatusCodes.Status413PayloadTooLarge));
 
         var presented = context.Request.Headers[SubmissionTicket.HeaderName].ToString();
         if (tickets.WhyRefused(presented) is { } notFromAForm)
             return Refused(context, "the ticket was not accepted",
-                Results.Json(new { error = notFromAForm }, statusCode: StatusCodes.Status403Forbidden));
+                Results.Json(notFromAForm, statusCode: StatusCodes.Status403Forbidden));
 
         using var reader = new StreamReader(context.Request.Body);
         var document = await reader.ReadToEndAsync(context.RequestAborted);
@@ -368,7 +370,7 @@ try
                 && !tickets.WasIssuedFor(presented, claimed))
                 return Refused(context, "the ticket was issued against a different address",
                     Results.Json(
-                        new { error = "This submission names an address that was not the one verified." },
+                        new Refusal(RefusalCode.AddressNotVerified, "This submission names an address that was not the one verified."),
                         statusCode: StatusCodes.Status403Forbidden));
 
             var accepted = await intake.SubmitAsync(submission, context.RequestAborted);
@@ -386,7 +388,7 @@ try
         // quoting what was in it.
         catch (SubmissionError error)
         {
-            return Refused(context, error.Message, Results.BadRequest(new { error = error.Message }));
+            return Refused(context, error.Message, Results.BadRequest(error.AsRefusal()));
         }
         // The submission was well formed and the deployment was not ready for it. Answering 400 would tell
         // whoever filled the form in to correct something they cannot reach, and this route takes anonymous
@@ -396,7 +398,7 @@ try
                                           && !context.RequestAborted.IsCancellationRequested))
         {
             logger.LogError(error, "A submission could not be accepted: {Reason}", error.Message);
-            return Results.Problem("This service cannot accept submissions at the moment.", statusCode: 503);
+            return Unavailable(RefusalCode.SubmissionsUnavailable, "This service cannot accept submissions at the moment.");
         }
     }).RequireRateLimiting(SubmissionRate.PolicyName);
 
@@ -417,21 +419,19 @@ try
         var presented = context.Request.Headers[SubmissionTicket.HeaderName].ToString();
         if (tickets.WhyRefused(presented) is { } notFromAForm)
             return Refused(context, "the ticket was not accepted",
-                Results.Json(new { error = notFromAForm }, statusCode: StatusCodes.Status403Forbidden));
+                Results.Json(notFromAForm, statusCode: StatusCodes.Status403Forbidden));
 
         var asked = await ReadAsync<FindingsAsked>(context);
         if (asked?.EmailAddress is not { } emailAddress || asked.SubmissionId is not { } submissionId)
             return Refused(context, "the reference or the address was missing",
-                Results.BadRequest(new
-                {
-                    error = "'submissionId' and 'emailAddress' are both needed: one names the submission, "
-                            + "the other is what the ticket was issued against.",
-                }));
+                Results.BadRequest(new Refusal(RefusalCode.ReferenceAndAddressNeeded,
+                    "'submissionId' and 'emailAddress' are both needed: one names the submission, "
+                    + "the other is what the ticket was issued against.")));
 
         if (!tickets.WasIssuedFor(presented, emailAddress))
             return Refused(context, "the ticket was issued against a different address",
                 Results.Json(
-                    new { error = "This request names an address that was not the one verified." },
+                    new Refusal(RefusalCode.AddressNotVerified, "This request names an address that was not the one verified."),
                     statusCode: StatusCodes.Status403Forbidden));
 
         try
@@ -440,7 +440,7 @@ try
             if (read is null)
                 return Refused(context, "the reference and the address name no submission",
                     Results.Json(
-                        new { error = SubmissionFindingsService.NotYourSubmission },
+                        new Refusal(RefusalCode.NotYourSubmission, SubmissionFindingsService.NotYourSubmission),
                         statusCode: StatusCodes.Status404NotFound));
 
             // As on a submission: a fresh ticket on every act performed with a live one, so a page a
@@ -455,7 +455,7 @@ try
                                           && !context.RequestAborted.IsCancellationRequested))
         {
             logger.LogError(error, "Findings could not be answered: {Reason}", error.Message);
-            return Results.Problem("This service cannot answer at the moment.", statusCode: 503);
+            return Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment.");
         }
     }).RequireRateLimiting(SubmissionRate.PolicyName);
 
@@ -473,7 +473,7 @@ try
         var presented = context.Request.Headers[SubmissionTicket.HeaderName].ToString();
         if (tickets.WhyRefused(presented) is { } notFromAForm)
             return Refused(context, "the ticket was not accepted",
-                Results.Json(new { error = notFromAForm }, statusCode: StatusCodes.Status403Forbidden));
+                Results.Json(notFromAForm, statusCode: StatusCodes.Status403Forbidden));
 
         JsonElement question;
         try
@@ -486,7 +486,7 @@ try
         }
         if (question.ValueKind != JsonValueKind.Object)
             return Refused(context, "the question was not a JSON object",
-                Results.BadRequest(new { error = "The body is the history reduction's request: 'property', 'windowSeconds' and 'steps'." }));
+                Results.BadRequest(new Refusal(RefusalCode.ReductionMalformed, "The body is the history reduction's request: 'property', 'windowSeconds' and 'steps'.")));
 
         try
         {
@@ -494,9 +494,9 @@ try
                 submissionId, address => tickets.WasIssuedFor(presented, address), question, context.RequestAborted);
             if (answered is not { } answer)
                 return Refused(context, "the reference and the ticket name no submission",
-                    Results.Json(new { error = SubmissionFindingsService.NotYourSubmission }, statusCode: StatusCodes.Status404NotFound));
+                    Results.Json(new Refusal(RefusalCode.NotYourSubmission, SubmissionFindingsService.NotYourSubmission), statusCode: StatusCodes.Status404NotFound));
             if (answer.Status >= 500)
-                return Results.Problem("This service cannot answer at the moment.", statusCode: 503);
+                return Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment.");
 
             context.Response.Headers[SubmissionTicket.HeaderName] = tickets.Issue(answer.Address);
             return Results.Content(answer.Body, "application/json", statusCode: answer.Status);
@@ -506,7 +506,7 @@ try
                                           && !context.RequestAborted.IsCancellationRequested))
         {
             logger.LogError(error, "A reduction could not be answered: {Reason}", error.Message);
-            return Results.Problem("This service cannot answer at the moment.", statusCode: 503);
+            return Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment.");
         }
     }).RequireRateLimiting(SubmissionRate.PolicyName);
 
@@ -524,9 +524,9 @@ try
                     return Results.Bytes(served.Bytes!, served.ContentType);
                 case TileOutcome.NoSuchBasemap:
                     return Refused(context, "no basemap of that name is served",
-                        Results.Json(new { error = "No basemap of that name is served here." }, statusCode: StatusCodes.Status404NotFound));
+                        Results.Json(new Refusal(RefusalCode.NoBasemap, "No basemap of that name is served here."), statusCode: StatusCodes.Status404NotFound));
                 default:
-                    return Results.Problem("This service cannot answer at the moment.", statusCode: 503);
+                    return Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment.");
             }
         }
         catch (Exception error) when (error is ModelNotSeededError or HttpRequestException
@@ -534,7 +534,7 @@ try
                                           && !context.RequestAborted.IsCancellationRequested))
         {
             logger.LogError(error, "A tile could not be answered: {Reason}", error.Message);
-            return Results.Problem("This service cannot answer at the moment.", statusCode: 503);
+            return Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment.");
         }
     }).RequireRateLimiting(TileRate.PolicyName);
 
@@ -548,24 +548,28 @@ try
         var presented = context.Request.Headers[SubmissionTicket.HeaderName].ToString();
         if (tickets.WhyRefused(presented) is { } notFromAForm)
             return Refused(context, "the ticket was not accepted",
-                Results.Json(new { error = notFromAForm }, statusCode: StatusCodes.Status403Forbidden));
+                Results.Json(notFromAForm, statusCode: StatusCodes.Status403Forbidden));
         if (!context.Request.HasFormContentType)
             return Refused(context, "the body was not a form",
-                Results.BadRequest(new { error = "A file is sent as a form: 'file' and, beside it, 'description'." }));
+                Results.BadRequest(new Refusal(RefusalCode.FileNotAForm, "A file is sent as a form: 'file' and, beside it, 'description'.")));
 
         var form = await context.Request.ReadFormAsync(context.RequestAborted);
         var file = form.Files.GetFile("file");
         if (file is null || file.Length == 0)
             return Refused(context, "no file was sent",
-                Results.BadRequest(new { error = "The form carries no 'file', or an empty one." }));
+                Results.BadRequest(new Refusal(RefusalCode.NoFile, "The form carries no 'file', or an empty one.")));
         if (file.Length > SharedDocumentService.MaximumFileBytes)
             return Refused(context, "the file was too large",
-                Results.Json(new { error = $"A file may be at most {SharedDocumentService.MaximumFileBytes / (1024 * 1024)} MB." },
+                Results.Json(new Refusal(RefusalCode.FileTooLarge,
+                    $"A file may be at most {SharedDocumentService.MaximumFileBytes / (1024 * 1024)} MB.",
+                    Refusal.With(("megabytes", SharedDocumentService.MaximumFileBytes / (1024 * 1024)))),
                     statusCode: StatusCodes.Status413PayloadTooLarge));
         var description = form["description"].ToString();
         if (description.Length > SubmissionLimits.LongestProse)
             return Refused(context, "the description was too long",
-                Results.BadRequest(new { error = $"A description is at most {SubmissionLimits.LongestProse} characters." }));
+                Results.BadRequest(new Refusal(RefusalCode.DescriptionTooLong,
+                    $"A description is at most {SubmissionLimits.LongestProse} characters.",
+                    Refusal.With(("characters", SubmissionLimits.LongestProse)))));
 
         try
         {
@@ -580,11 +584,11 @@ try
                     return Results.Json(shared.Document, statusCode: StatusCodes.Status201Created);
                 case ShareOutcome.NotTakenHere:
                     return Refused(context, "this model takes no shared file",
-                        Results.Json(new { error = "Files are not taken here: the model declares no place for one." },
+                        Results.Json(new Refusal(RefusalCode.FilesNotTaken, "Files are not taken here: the model declares no place for one."),
                             statusCode: StatusCodes.Status404NotFound));
                 default:
                     return Refused(context, "the reference and the ticket name no submission",
-                        Results.Json(new { error = SubmissionFindingsService.NotYourSubmission }, statusCode: StatusCodes.Status404NotFound));
+                        Results.Json(new Refusal(RefusalCode.NotYourSubmission, SubmissionFindingsService.NotYourSubmission), statusCode: StatusCodes.Status404NotFound));
             }
         }
         catch (Exception error) when (error is ModelNotSeededError or HttpRequestException or SubmissionError
@@ -592,7 +596,7 @@ try
                                           && !context.RequestAborted.IsCancellationRequested))
         {
             logger.LogError(error, "A shared file could not be taken: {Reason}", error.Message);
-            return Results.Problem("This service cannot take a file at the moment.", statusCode: 503);
+            return Unavailable(RefusalCode.FilesUnavailable, "This service cannot take a file at the moment.");
         }
     }).RequireRateLimiting(SubmissionRate.PolicyName)
       // The service-wide body limit is a form's; a file is allowed what a file is allowed, and the
@@ -606,14 +610,14 @@ try
         var presented = context.Request.Headers[SubmissionTicket.HeaderName].ToString();
         if (tickets.WhyRefused(presented) is { } notFromAForm)
             return Refused(context, "the ticket was not accepted",
-                Results.Json(new { error = notFromAForm }, statusCode: StatusCodes.Status403Forbidden));
+                Results.Json(notFromAForm, statusCode: StatusCodes.Status403Forbidden));
         try
         {
             var listed = await documents.ListAsync(
                 submissionId, address => tickets.WasIssuedFor(presented, address), context.RequestAborted);
             if (listed is not { } answer)
                 return Refused(context, "the reference and the ticket name no submission",
-                    Results.Json(new { error = SubmissionFindingsService.NotYourSubmission }, statusCode: StatusCodes.Status404NotFound));
+                    Results.Json(new Refusal(RefusalCode.NotYourSubmission, SubmissionFindingsService.NotYourSubmission), statusCode: StatusCodes.Status404NotFound));
             context.Response.Headers[SubmissionTicket.HeaderName] = tickets.Issue(answer.Address);
             return Results.Ok(new { documents = answer.Documents });
         }
@@ -622,7 +626,7 @@ try
                                           && !context.RequestAborted.IsCancellationRequested))
         {
             logger.LogError(error, "Shared files could not be listed: {Reason}", error.Message);
-            return Results.Problem("This service cannot answer at the moment.", statusCode: 503);
+            return Unavailable(RefusalCode.ServiceUnavailable, "This service cannot answer at the moment.");
         }
     }).RequireRateLimiting(SubmissionRate.PolicyName);
 
@@ -638,6 +642,11 @@ finally
 {
     Log.CloseAndFlush();
 }
+
+// Not the requester's to correct, so nothing is logged as a refusal: whatever went wrong was logged where
+// it was caught.
+static IResult Unavailable(string code, string error) =>
+    Results.Json(new Refusal(code, error), statusCode: StatusCodes.Status503ServiceUnavailable);
 
 static IResult Refused(HttpContext context, string reason, IResult answer)
 {
