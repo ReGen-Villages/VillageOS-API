@@ -71,7 +71,7 @@ const WIDE = 720;
 
 export function ExplorePage() {
   const { t } = useTranslation();
-  useStandalonePageDocument();
+  useStandalonePageDocument('explore.title');
 
   const [options, setOptions] = useState<FormOptions | null>(null);
   const [unreachable, setUnreachable] = useState(false);
@@ -177,12 +177,12 @@ export function ExplorePage() {
   // to the Thing the submission is about, so the one the resolver named is dropped here.
   const reduceThroughTheService = useCallback(async (query: TemporalReduceQuery) => {
     const held = ticket.current;
-    if (held === null) throw new Error('No ticket is held.');
+    if (held === null) throw new Error(t('explore.noTicket'));
     const { thingId: _scopedByTheService, ...question } = query;
     const reduced = await findingsApi.reduceWithTicket(stateReference.current.submissionId, held, question);
     ticket.current = reduced.ticket;
     return reduced.answer;
-  }, []);
+  }, [t]);
 
   // A survey goes up under the same ticket and the renewal is kept the same way. A ticket that aged out
   // is the one refusal the person mends here rather than reads beside the file.
@@ -190,7 +190,7 @@ export function ExplorePage() {
     file: File, description: string, onProgress: (fraction: number) => void,
   ): Promise<SharedSurvey> => {
     const held = ticket.current;
-    if (held === null) throw new Error('No ticket is held.');
+    if (held === null) throw new Error(t('explore.noTicket'));
     try {
       const shared = await findingsApi.shareDocumentWithTicket(
         stateReference.current.submissionId, held, file, description, onProgress);
@@ -200,7 +200,7 @@ export function ExplorePage() {
       if (isTicketRefusal(error)) setExpired(true);
       throw error;
     }
-  }, []);
+  }, [t]);
 
   const listSurveys = useCallback(async (): Promise<SharedSurvey[]> => {
     const held = ticket.current;

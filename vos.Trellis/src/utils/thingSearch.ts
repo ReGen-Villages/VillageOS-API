@@ -1,4 +1,5 @@
 import type { VosThing, VosRelationship } from '../types/vos';
+import i18n from '../i18n';
 
 /** Property keys excluded from the preview and own-property count. */
 export const THING_SEARCH_SKIP_KEYS = new Set([
@@ -125,11 +126,14 @@ export function searchThings(
 
 /** Build a markdown table from a set of search results. */
 export function buildThingSearchMarkdown(query: string, results: ThingMatch[]): string {
-  const lines: string[] = [`# Thing Search: "${query}"`, ''];
-  lines.push(
-    '| Name | Type | Properties | Relationships |',
-    '|------|------|------------|---------------|',
-  );
+  const lines: string[] = [`# ${i18n.t('thingSearch.title')}: "${query}"`, ''];
+  const headings = [
+    i18n.t('thingSearch.markdown.name'),
+    i18n.t('thingSearch.markdown.type'),
+    i18n.t('thingSearch.markdown.properties'),
+    i18n.t('thingSearch.markdown.relationships'),
+  ];
+  lines.push(`| ${headings.join(' | ')} |`, `|${headings.map(() => '---').join('|')}|`);
   for (const m of results) {
     lines.push(`| ${m.name} | ${m.typeName ?? '—'} | ${m.ownPropertyCount} | ${m.relationshipCount} |`);
   }

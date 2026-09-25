@@ -152,7 +152,7 @@ export function OperationsPage() {
           {specification.compare && entities.length > 0 && (
             <div className="inline-flex bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg p-0.5">
               <ScopeButton active={scopeId === null} onClick={() => setScopeId(null)}>
-                All {specification.compare.label}s
+                {t('operationsPage.all')}
               </ScopeButton>
               {entities.map((e) => (
                 <ScopeButton key={e.id} active={scopeId === e.id} onClick={() => setScopeId(e.id)}>
@@ -164,7 +164,7 @@ export function OperationsPage() {
           {dashboard && <ComposedPageControls dashboard={dashboard} index={index} />}
           <div className="text-[11px] text-zinc-400 dark:text-zinc-500 inline-flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-500' : 'bg-zinc-400'}`} />
-            {connected ? 'live' : 'offline'}
+            {connected ? t('operationsPage.live') : t('operationsPage.offline')}
           </div>
         </div>
       </header>

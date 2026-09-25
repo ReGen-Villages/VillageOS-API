@@ -1,4 +1,5 @@
 import type { PortInformation } from './model';
+import i18n from '../i18n';
 
 // Pure pre-run validation for the pipeline editor: explains why a DAG will not run before the
 // user hits Run, instead of a silent dispatch failure. Kept pure so it is trivially unit-tested and can
@@ -55,7 +56,7 @@ export function validatePipeline(nodes: ValidationNode[], edges: ValidationEdge[
         sourceHandle: e.sourceHandle,
         target: e.target,
         targetHandle: e.targetHandle,
-        message: `Dangling wire ${e.source}.${e.sourceHandle} → ${e.target}.${e.targetHandle}`,
+        message: i18n.t('pipeline.danglingWire', { from: `${e.source}.${e.sourceHandle}`, to: `${e.target}.${e.targetHandle}` }),
       });
       continue;
     }
@@ -72,7 +73,7 @@ export function validatePipeline(nodes: ValidationNode[], edges: ValidationEdge[
           kind: 'unbound-required-input',
           nodeId: n.id,
           port: p.portName,
-          message: `Required input '${p.portName}' on '${n.label}' is neither wired nor bound to a run param`,
+          message: i18n.t('pipeline.requiredInputUnbound', { port: p.portName, node: n.label }),
         });
       }
     }

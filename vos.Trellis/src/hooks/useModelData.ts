@@ -10,6 +10,7 @@ import { SUBSCRIPTION_OPENED, resubscribe, useSse, useDefaultSubscription } from
 import { useFlashTimer } from './useFlashTimer';
 import { toast } from '../components/common/toastStore';
 import { isVisibleRelationship } from '../utils/propertyUpdates';
+import i18n from '../i18n';
 import { unwrapRelationship, unwrapThing } from '../utils/propertyMapper';
 import { GUI_SETTINGS_TYPE_NAME, readModelLoadProperties } from '../utils/guiSettings';
 import type { VosRelationship, VosThing } from '../types/vos';
@@ -75,7 +76,7 @@ export async function reloadModelData(options?: { silent?: boolean }): Promise<v
     // this the Operations page sits on "Loading model…" forever.
     useModelStore.getState().markLoaded();
   } catch {
-    if (!options?.silent) toast.error('Failed to load model');
+    if (!options?.silent) toast.error(i18n.t('modelPage.loadFailed'));
   }
 }
 

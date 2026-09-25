@@ -4,7 +4,7 @@ import { OrbitControls } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import { FragmentsModels as BimFragmentsModels, type FragmentsModel as BimFragmentsModel } from '@thatopen/fragments';
-import { LoadingOverlay } from './LoadingOverlay';
+import { LoadingOverlay, type LoadingStage } from './LoadingOverlay';
 import { ViewerToolbar, type CameraMode } from './ViewerToolbar';
 import { orbitMouseButtonsFor } from '../../utils/orbitMouseButtons';
 import { hiddenSceneItemsFor, type SceneVisibility } from './sceneVisibility';
@@ -21,7 +21,7 @@ interface ModelBounds {
 }
 
 type LoadState =
-  | { kind: 'loading'; stage: string; progress: number }
+  | { kind: 'loading'; stage: LoadingStage; progress: number }
   | { kind: 'ready'; bounds: ModelBounds };
 
 interface BimFragmentsViewerProps {
@@ -44,7 +44,7 @@ export function BimFragmentsViewer({
   visibility,
 }: BimFragmentsViewerProps) {
   const orbitReference = useRef<OrbitControlsImpl | null>(null);
-  const [loadState, setLoadState] = useState<LoadState>({ kind: 'loading', stage: 'fetching worker', progress: 0 });
+  const [loadState, setLoadState] = useState<LoadState>({ kind: 'loading', stage: 'fetchingWorker', progress: 0 });
   const [cameraMode, setCameraMode] = useState<CameraMode>('3d');
   const [sectionEnabled, setSectionEnabled] = useState(false);
   const [sectionY, setSectionY] = useState<number>(0);
@@ -80,7 +80,7 @@ export function BimFragmentsViewer({
     }
   }, [sectionEnabled, sectionY]);
 
-  const onProgress = useCallback((stage: string, progress: number) => {
+  const onProgress = useCallback((stage: LoadingStage, progress: number) => {
     setLoadState((previous) => (previous.kind === 'ready' ? previous : { kind: 'loading', stage, progress }));
   }, []);
 
@@ -151,7 +151,7 @@ interface BimFragmentsSceneProps {
   orbitReference: React.MutableRefObject<OrbitControlsImpl | null>;
   mapping: BimFragmentsMapping;
   onPick: (vosGuid: string | null) => void;
-  onProgress: (stage: string, progress: number) => void;
+  onProgress: (stage: LoadingStage, progress: number) => void;
   onReady: (bounds: ModelBounds) => void;
   cameraMode: CameraMode;
   clipPlanesReference: React.MutableRefObject<THREE.Plane[]>;
@@ -201,7 +201,7 @@ function BimFragmentsScene({
     let cancelled = false;
 
     (async () => {
-      onProgress('fetching worker', 0.05);
+      onProgress('fetchingWorker', 0.05);
       const workerURL = await BimFragmentsModels.getWorker();
       if (cancelled) return;
 

@@ -9,6 +9,7 @@
  * string to put in `colorKey` — the viewer is domain-agnostic.
  */
 import { useMemo, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -153,6 +154,7 @@ export default function BuildingDetail3D({
   color = '#6d8ea8',
   childElements,
 }: BuildingDetail3DProps) {
+  const { t } = useTranslation();
   const allMeshes = useMemo(() => {
     const meshes: SolidMeshData[] = [];
     const primary = parseSolidMesh(geometryValue);
@@ -173,7 +175,7 @@ export default function BuildingDetail3D({
   if (allMeshes.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-zinc-500 text-sm">
-        Unable to parse 3D geometry.
+        {t('modelPage.geometryUnreadable')}
       </div>
     );
   }

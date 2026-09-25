@@ -392,7 +392,7 @@ describe('buildThingSearchMarkdown', () => {
   it('includes a markdown table header', () => {
     const md = buildThingSearchMarkdown('B', sampleResults);
     expect(md).toContain('| Name | Type | Properties | Relationships |');
-    expect(md).toContain('|------|------|------------|---------------|');
+    expect(md).toContain('|---|---|---|---|');
   });
 
   it('includes a row for each result', () => {

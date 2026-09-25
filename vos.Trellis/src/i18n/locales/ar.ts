@@ -1,4 +1,4 @@
-import type { PartialResources } from './types';
+import type { Resources } from './en';
 
 /**
  * DRAFT — machine-drafted Modern Standard Arabic. Not reviewed by a human
@@ -7,96 +7,19 @@ import type { PartialResources } from './types';
  * through i18next's `ar-XX → ar` language fallback, and any key absent here
  * falls back further to the English base locale.
  *
- * Arabic pluralisation has six CLDR categories, so `log.lineCount` carries all
- * of them (English needs only one/other). The extra suffixes sit outside the
+ * Arabic pluralisation has six CLDR categories, so every counted phrase carries
+ * all of them (English needs only one/other). The extra suffixes sit outside the
  * base `Resources` shape, hence the widened annotation below.
  */
-type ArabicPlurals = {
-  log?: {
-    lineCount_zero?: string;
-    lineCount_two?: string;
-    lineCount_few?: string;
-    lineCount_many?: string;
-  };
-  common?: {
-    showMore_zero?: string;
-    showMore_two?: string;
-    showMore_few?: string;
-    showMore_many?: string;
-  };
-  temporal?: {
-    mutationCount_zero?: string;
-    mutationCount_two?: string;
-    mutationCount_few?: string;
-    mutationCount_many?: string;
-    versionCount_zero?: string;
-    versionCount_two?: string;
-    versionCount_few?: string;
-    versionCount_many?: string;
-    thingsCount_zero?: string;
-    thingsCount_two?: string;
-    thingsCount_few?: string;
-    thingsCount_many?: string;
-    relationshipsCount_zero?: string;
-    relationshipsCount_two?: string;
-    relationshipsCount_few?: string;
-    relationshipsCount_many?: string;
-  };
-  widgets?: {
-    history?: {
-      lastYears_zero?: string;
-      lastYears_two?: string;
-      lastYears_few?: string;
-      lastYears_many?: string;
-      lastDays_zero?: string;
-      lastDays_two?: string;
-      lastDays_few?: string;
-      lastDays_many?: string;
-    };
-  };
-  thingSearch?: {
-    foundCount_zero?: string;
-    foundCount_two?: string;
-    foundCount_few?: string;
-    foundCount_many?: string;
-  };
-  propertySearch?: {
-    matchCount_zero?: string;
-    matchCount_two?: string;
-    matchCount_few?: string;
-    matchCount_many?: string;
-    acrossNames_zero?: string;
-    acrossNames_two?: string;
-    acrossNames_few?: string;
-    acrossNames_many?: string;
-  };
-  panels?: {
-    ranges?: {
-      bindingsOutOfBounds_zero?: string;
-      bindingsOutOfBounds_two?: string;
-      bindingsOutOfBounds_few?: string;
-      bindingsOutOfBounds_many?: string;
-      activeBindings_zero?: string;
-      activeBindings_two?: string;
-      activeBindings_few?: string;
-      activeBindings_many?: string;
-    };
-  };
-  pipeline?: {
-    issues_zero?: string;
-    issues_two?: string;
-    issues_few?: string;
-    issues_many?: string;
-  };
-  palette?: {
-    portCount_zero?: string;
-    portCount_two?: string;
-    portCount_few?: string;
-    portCount_many?: string;
-  };
+
+/** Every counted phrase may also carry the four forms English has no use for. */
+type WithArabicPluralForms<T> = {
+  [Key in keyof T]?: T[Key] extends object ? WithArabicPluralForms<T[Key]> : T[Key];
+} & {
+  [Key in keyof T as Key extends `${infer Base}_other` ? `${Base}_${'zero' | 'two' | 'few' | 'many'}` : never]?: string;
 };
 
-export const ar: PartialResources & ArabicPlurals = {
+export const ar: WithArabicPluralForms<Resources> = {
   navigation: {
     appName: 'VILLAGEOS',
     subtitle: 'واجهة الرسم البياني الزمني',
@@ -123,10 +46,18 @@ export const ar: PartialResources & ArabicPlurals = {
     live: 'مباشر',
     notLive: 'غير مباشر',
     reading: 'جارٍ قراءة النموذج…',
-    things_one: '{{count}} شيء',
-    things_other: '{{count}} أشياء',
-    relationships_one: '{{count}} علاقة',
-    relationships_other: '{{count}} علاقات',
+    things_zero: "لا أشياء",
+    things_one: "شيء واحد",
+    things_two: "شيئان",
+    things_few: "{{count}} أشياء",
+    things_many: "{{count}} شيئًا",
+    things_other: "{{count}} شيء",
+    relationships_zero: "لا علاقات",
+    relationships_one: "علاقة واحدة",
+    relationships_two: "علاقتان",
+    relationships_few: "{{count}} علاقات",
+    relationships_many: "{{count}} علاقةً",
+    relationships_other: "{{count}} علاقة",
     lastMoved: 'آخر حركة {{at}}',
     nothingYet: 'لم يتحرك شيء بعد',
   },
@@ -165,6 +96,14 @@ export const ar: PartialResources & ArabicPlurals = {
     downloadFailed: 'تعذّر تنزيل السجل الكامل.',
   },
   common: {
+    requestFailed: "فشل الطلب ({{status}}).",
+    megabytes: "{{value}} ميغابايت",
+    close: "إغلاق",
+    searchPlaceholder: "بحث…",
+    typeToSearchMore: "اكتب للبحث عن عناصر أخرى…",
+    mesh: "شبكة",
+    meshSize: "شبكة ({{vertices}} رأس)",
+    meshSizeWithTriangles: "شبكة ({{vertices}} رأس، {{triangles}} مثلث)",
     start: 'تشغيل',
     stop: 'إيقاف',
     delete: 'حذف',
@@ -284,8 +223,12 @@ export const ar: PartialResources & ArabicPlurals = {
       pause: 'إيقاف مؤقت',
       resume: 'استئناف',
       collapse: 'طيّ اللوحة',
-      pausedBuffered_one: 'متوقّف مؤقتًا — حدث جديد واحد ({{count}}) في المخزن المؤقت',
-      pausedBuffered_other: 'متوقّف مؤقتًا — {{count}} أحداث جديدة في المخزن المؤقت',
+      pausedBuffered_zero: "متوقّف مؤقتًا — لا أحداث جديدة في المخزن المؤقت",
+      pausedBuffered_one: "متوقّف مؤقتًا — حدث جديد واحد في المخزن المؤقت",
+      pausedBuffered_two: "متوقّف مؤقتًا — حدثان جديدان في المخزن المؤقت",
+      pausedBuffered_few: "متوقّف مؤقتًا — {{count}} أحداث جديدة في المخزن المؤقت",
+      pausedBuffered_many: "متوقّف مؤقتًا — {{count}} حدثًا جديدًا في المخزن المؤقت",
+      pausedBuffered_other: "متوقّف مؤقتًا — {{count}} حدث جديد في المخزن المؤقت",
       filterPlaceholder: 'تصفية الأحداث…',
       none: 'لا يوجد نشاط بعد',
       category: { model: 'النموذج', things: 'الأشياء', relationships: 'العلاقات', properties: 'الخصائص', services: 'الخدمات' },
@@ -347,6 +290,7 @@ export const ar: PartialResources & ArabicPlurals = {
     radial: { clearAll: 'مسح جميع المسندات', slice: '{{name}} ({{edges}} حواف)' },
     filter: { all: 'الكل', none: 'لا شيء', hidden: '{{count}} مخفية', clearSearch: 'مسح البحث' },
     typeFilter: {
+      noType: "(بلا نوع)",
       title: 'التصفية حسب النوع',
       search: 'البحث عن الأنواع…',
       sort: 'الترتيب',
@@ -364,6 +308,14 @@ export const ar: PartialResources & ArabicPlurals = {
     },
   },
   authentication: {
+    required: "سجّل الدخول مرة أخرى للمتابعة.",
+    seedStatusFailed: "تعذّر معرفة ما إذا كان يجري تحميل seed.",
+    seedLoadedSignInAgain: "تم تحميل الـ seed. يُرجى تسجيل الدخول مرة أخرى.",
+    loginFailed: "فشل تسجيل الدخول.",
+    emptyLibrary: "لا توجد نماذج على Mycelium. ضع ملف .seed.json في vos.Mycelium/seeds-library/ ثم أعد التحميل، أو أرسل POST /api/mycelium/library-seeds/<name>/load.",
+    librarySeedsFailed: "تعذّر عرض الـ seeds الموجودة في المكتبة.",
+    loadSeedFailed: "تعذّر تحميل الـ seed.",
+    saveSeedFailed: "تعذّر حفظ الـ seed.",
     loadSeed: 'تحميل seed',
     searchSeeds: 'البحث عن seeds…',
     columnName: 'الاسم',
@@ -387,6 +339,20 @@ export const ar: PartialResources & ArabicPlurals = {
     signIn: 'تسجيل الدخول',
   },
   widgets: {
+    stateCountMissing: "تعذّرت قراءة عدد الأشياء في «{{state}}».",
+    funnel: {
+      rows: "الصفوف",
+      stage: "المرحلة",
+      thing: "الشيء",
+      searchStage: "البحث في {{stage}}…",
+      searchAll: "البحث في كل {{noun}}…",
+      kept: "يبقى {{percent}}٪",
+      entry: "الدخول",
+      allMatching: "كل {{noun}} المطابقة لـ «{{query}}»",
+    },
+    gantt: {
+      empty: "لا تتوفر بيانات جدولة لهذا المخطط الزمني.",
+    },
     history: {
       series: "سلاسل",
       lastYears_zero: "آخر {{count}} سنة",
@@ -426,9 +392,13 @@ export const ar: PartialResources & ArabicPlurals = {
     kpi: { onTarget: 'ضمن الهدف', watch: 'مراقبة', peak: 'الذروة', trough: 'القاع' },
     working: { notDerived: 'هذا الرقم يُعطى للنموذج ولا يحسبه بنفسه' },
     leaderboard: {
+      entity: "الكيان",
+      score: "النتيجة",
       none: "لا توجد كيانات للمقارنة.",
     },
     table: {
+      noRows: "لا توجد صفوف.",
+      noMatches: "لا توجد نتائج لـ «{{query}}».",
       searchPlaceholder: "بحث…",
     },
     sparkline: {
@@ -447,6 +417,7 @@ export const ar: PartialResources & ArabicPlurals = {
     tryAgain: "أعد المحاولة",
   },
   changePassword: {
+    failed: "تعذّر تغيير كلمة المرور.",
     required: "يلزم تغيير كلمة المرور",
     loggedInAs: "تسجيل الدخول باسم",
     currentPassword: "كلمة المرور الحالية",
@@ -461,6 +432,16 @@ export const ar: PartialResources & ArabicPlurals = {
     tooShort: "يجب أن تتكوّن كلمة المرور الجديدة من 4 أحرف على الأقل",
   },
   modelPage: {
+    loadingModel: "جارٍ تحميل النموذج",
+    loadingStage: "جارٍ تحميل النموذج: {{stage}}",
+    geometryUnreadable: "تعذّرت قراءة الهندسة ثلاثية الأبعاد.",
+    stage: {
+      fetchingWorker: "تشغيل عملية المعالجة",
+      decompressing: "فك الضغط",
+      parsing: "قراءة الملف",
+      generating: "بناء الهندسة",
+      done: "اكتمل",
+    },
     title: "النموذج",
     subtitle: "عارض ثلاثي الأبعاد لعنصر Fragments المشتق من IFC. انقر على عنصر لفحصه.",
     loading: "جارٍ تحميل النموذج…",
@@ -559,6 +540,12 @@ export const ar: PartialResources & ArabicPlurals = {
     },
   },
   thingSearch: {
+    markdown: {
+      name: "الاسم",
+      type: "النوع",
+      properties: "الخصائص",
+      relationships: "العلاقات",
+    },
     title: "بحث الأشياء",
     intro: "ابحث عن الأشياء بالاسم. تُرتَّب المطابقات التامة أولًا، ثم مطابقات البادئة، ثم السلاسل الجزئية. انقر على اسم لفتحه في الرسم البياني.",
     placeholder: "اكتب اسم شيء (مثال: Patient-123، Building-A، MalePatient-Type)…",
@@ -578,6 +565,14 @@ export const ar: PartialResources & ArabicPlurals = {
     typeLabel: "النوع: {{type}}",
   },
   propertySearch: {
+    markdown: {
+      type: "النوع",
+      owner: "المالك",
+      inheritedFrom: "موروث من",
+      value: "القيمة",
+      thing: "شيء",
+      relationship: "علاقة",
+    },
     title: "بحث الخصائص",
     introByName: "ابحث عن الخصائص بالاسم عبر جميع الأشياء والعلاقات. المطابقات الجزئية مدعومة.",
     introByValue: "ابحث عن الخصائص بالقيمة عبر جميع الأشياء والعلاقات. المطابقات الجزئية مدعومة.",
@@ -615,8 +610,12 @@ export const ar: PartialResources & ArabicPlurals = {
     nothingToList: "لا يمكن سرد ما وراء هذا الرقم.",
     empty: "لا شيء وراء هذا الرقم في الوقت الحالي.",
     name: "الاسم",
+    rowsBehind_zero: "لا أشياء وراء هذا الرقم",
     rowsBehind_one: "شيء واحد وراء هذا الرقم",
-    rowsBehind_other: "{{count}} أشياء وراء هذا الرقم",
+    rowsBehind_two: "شيئان وراء هذا الرقم",
+    rowsBehind_few: "{{count}} أشياء وراء هذا الرقم",
+    rowsBehind_many: "{{count}} شيئًا وراء هذا الرقم",
+    rowsBehind_other: "{{count}} شيء وراء هذا الرقم",
     openRow: "انقر صفًّا لفتح بطاقته",
     alsoHeld: "كل صف يحوي أكثر مما يعرضه هذا الجدول: {{properties}}. افتح صفًّا لعرضه كاملًا.",
     lead: {
@@ -729,8 +728,12 @@ export const ar: PartialResources & ArabicPlurals = {
       notInState: 'استبعاد ما في الحالة',
       reaches: 'يصل إلى {{kind}}',
       reachesNothingKnown: 'لا يصل إلى أي نوع يعلنه النموذج',
-      hops_one: '{{count}} قفزة لكل صف',
-      hops_other: '{{count}} قفزات لكل صف',
+      hops_zero: "لا قفزات لكل صف",
+      hops_one: "قفزة واحدة لكل صف",
+      hops_two: "قفزتان لكل صف",
+      hops_few: "{{count}} قفزات لكل صف",
+      hops_many: "{{count}} قفزةً لكل صف",
+      hops_other: "{{count}} قفزة لكل صف",
       add: 'إضافة قفزة',
     },
     filters: { property: 'الخاصية', operator: 'المقارنة', value: 'القيمة', add: 'إضافة مقارنة' },
@@ -968,6 +971,7 @@ export const ar: PartialResources & ArabicPlurals = {
       resolvedAt: 'تم الحل في (خاصية)',
     },
     toast: {
+      notReadBack: "تعذّر على وحدة التحكم قراءة هذه الصفحة مرة أخرى، لذا لم تُكتب.",
       written: 'تم حفظ «{{name}}».',
       kept: 'تم حفظ «{{name}}» كصفحة؛ وهي في الشريط الجانبي للجميع.',
       removed: 'تمت إزالة الصفحة.',
@@ -992,8 +996,12 @@ export const ar: PartialResources & ArabicPlurals = {
     edges: "الروابط",
     reachesOut: "{{predicate}} ← {{kind}}",
     reachesIn: "{{kind}} ← {{predicate}} ← هنا",
+    edgeCount_zero: "لا روابط",
     edgeCount_one: "رابط واحد",
-    edgeCount_other: "{{count}} روابط",
+    edgeCount_two: "رابطان",
+    edgeCount_few: "{{count}} روابط",
+    edgeCount_many: "{{count}} رابطًا",
+    edgeCount_other: "{{count}} رابط",
     states: "الحالات المشتقة",
     filter: "مرشِّح",
     inState: "في الحالة",
@@ -1014,8 +1022,12 @@ export const ar: PartialResources & ArabicPlurals = {
     descending: "تنازلي",
     columns: "الأعمدة",
     noColumns: "لا أعمدة بعد — اختر خاصية أو رابطًا أو حالة على اليسار.",
+    hops_zero: "لا خطوات",
     hops_one: "خطوة واحدة",
-    hops_other: "{{count}} خطوات",
+    hops_two: "خطوتان",
+    hops_few: "{{count}} خطوات",
+    hops_many: "{{count}} خطوةً",
+    hops_other: "{{count}} خطوة",
     thenProperty: "ثم اقرأ خاصية من {{kind}}",
     thenAlong: "ثم اتبع رابطًا…",
     itsName: "اسمه",
@@ -1200,6 +1212,10 @@ export const ar: PartialResources & ArabicPlurals = {
     },
   },
   pipeline: {
+    noPipelineMarks: "لا يحدّد هذا النموذج أي نموذج أصلي كخط معالجة أو عقدة خط معالجة أو وصلة — حمّل seed يحدّدها.",
+    noPortMarks: "لا يحدّد هذا النموذج أي نموذج أصلي كمنفذ أو مدخل خط معالجة أو مخرج خط معالجة — حمّل seed يحدّدها.",
+    danglingWire: "هذه الوصلة غير موصولة من الطرفين: {{from}} → {{to}}",
+    requiredInputUnbound: "المدخل المطلوب «{{port}}» في «{{node}}» غير موصول وغير مربوط بمعامل تشغيل.",
     new: "جديد",
     undo: "تراجع",
     undoTitle: "تراجع (Ctrl/Cmd+Z)",
@@ -1259,9 +1275,14 @@ export const ar: PartialResources & ArabicPlurals = {
     connectionsWord: "الاتصالات",
   },
   viewerToolbar: {
+    plan: "مسقط",
+    section: "مقطع",
     sectionHeight: "ارتفاع المقطع",
   },
   operationsPage: {
+    all: "الكل",
+    live: "مباشر",
+    offline: "غير متصل",
     noDashboard: "لا توجد لوحة معلومات مُهيّأة",
     noDashboardBody: "لا يُعرّف هذا النموذج أي إعداد <0>Dashboard</0>. أضِف Thing من النموذج الأصلي <1>Dashboard</1> بخاصية <2>spec</2> لتشغيل هذه الصفحة.",
     unreadableSpecification: "تعذّرت قراءة {{name}}",
@@ -1284,6 +1305,7 @@ export const ar: PartialResources & ArabicPlurals = {
     portCount_many: "{{count}} منفذًا",
   },
   ifcUpload: {
+    serviceNotConfigured: "عنوان خدمة الاستيراد غير مضبوط (اضبط {{setting}}).",
     ingested: "تم استيراد {{file}}: {{created}} منشأة، {{updated}} محدّثة، {{rels}} علاقات.",
     ingestFailed: "فشل الاستيراد.",
     ingesting: "جارٍ الاستيراد…",
@@ -1293,6 +1315,8 @@ export const ar: PartialResources & ArabicPlurals = {
     configureHint: "عيّن <0>VITE_INGEST_URL</0> لتفعيل استيراد IFC داخل التطبيق، أو استورد من واجهة الأوامر باستخدام <1>vos.Taproot</1> (<2>ingest &lt;file.ifc&gt;</2>).",
   },
   intake: {
+    serviceNotConfigured: "عنوان خدمة الاستقبال غير مضبوط (اضبط {{setting}}).",
+    refusedWithStatus: "رُفض الإرسال ({{status}}).",
     title: "استقبال الأراضي",
     subtitle: "وصف قطعة أرض واقتراحها موقعًا",
     step: {
@@ -1379,6 +1403,8 @@ export const ar: PartialResources & ArabicPlurals = {
     tryExplore: "أتفضّل البدء من خريطة؟ استكشف أرضك.",
   },
   explore: {
+    noTicket: "أكّد عنوان بريدك الإلكتروني أولًا.",
+    defaultSiteName: "موقع عند {{latitude}}، {{longitude}}",
     title: "استكشف أرضك",
     intro: "أشر إلى قطعة أرض وانظر كم شخصًا يمكن أن تُطعم وتزوّد بالماء والكهرباء — ثم اضبط القرية التي في ذهنك.",
     unreachable: "لا تستطيع هذه الصفحة الوصول إلى خدمة الاستقبال في الوقت الحالي.",
@@ -1458,6 +1484,8 @@ export const ar: PartialResources & ArabicPlurals = {
     },
   },
   publicFindings: {
+    noTicket: "أكّد عنوان بريدك الإلكتروني أولًا.",
+    fileNotSent: "تعذّر إرسال الملف.",
     title: "طلبك",
     intro: "ما الذي قُدِّم، وما الذي تبيَّن، وما الذي يخلص إليه التحليل.",
     reference: "الرقم المرجعي",
@@ -1475,6 +1503,7 @@ export const ar: PartialResources & ArabicPlurals = {
     unreachable: "لا تستطيع هذه الصفحة الوصول إلى خدمة الاستقبال في الوقت الحالي.",
   },
   submissionReview: {
+    ambiguousProperty: "«{{property}}» موروثة من أكثر من نموذج أصلي على {{thing}}، لذا فإن قراءتها بهذا الاسم وحده لا تعني شيئًا: {{paths}}. اقرأها بمسارها الكامل.",
     title: "التقديمات",
     subtitle: "ما الذي وصل، وما الذي يُفعل به",
     showDecided: "إظهار ما تم البتّ فيه",

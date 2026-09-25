@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { VosThing } from '../../types/vos';
 
 interface PickerItem {
@@ -18,12 +19,13 @@ export function ThingPicker({ things, ...rest }: Omit<EntityPickerProps<VosThing
   return <EntityPicker items={things} {...rest} />;
 }
 
-function EntityPicker<T extends PickerItem>({ items, value, onChange, placeholder = 'Search...', label }: EntityPickerProps<T>) {
+function EntityPicker<T extends PickerItem>({ items, value, onChange, placeholder, label }: EntityPickerProps<T>) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const reference = useRef<HTMLDivElement>(null);
 
-  const selected = items.find((t) => t.Id === value);
+  const selected = items.find((item) => item.Id === value);
 
   const MAX_DISPLAY = 50;
 
@@ -32,7 +34,7 @@ function EntityPicker<T extends PickerItem>({ items, value, onChange, placeholde
       return { filtered: items.slice(0, MAX_DISPLAY), hasMore: items.length > MAX_DISPLAY };
     }
     const q = query.toLowerCase();
-    const matches = items.filter((t) => t.Name.toLowerCase().includes(q));
+    const matches = items.filter((item) => item.Name.toLowerCase().includes(q));
     // Sort: exact match first, then starts-with, then contains (shorter names first within each group)
     matches.sort((a, b) => {
       const an = a.Name.toLowerCase();
@@ -67,29 +69,29 @@ function EntityPicker<T extends PickerItem>({ items, value, onChange, placeholde
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t('common.searchPlaceholder')}
         className="w-full px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
       {open && filtered.length > 0 && (
         <div className="absolute z-10 mt-1 w-full max-h-48 overflow-auto rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 shadow-lg">
-          {filtered.map((t) => (
+          {filtered.map((item) => (
             <button
-              key={t.Id}
+              key={item.Id}
               type="button"
               onClick={() => {
-                onChange(t.Id);
-                setQuery(t.Name);
+                onChange(item.Id);
+                setQuery(item.Name);
                 setOpen(false);
               }}
               className="w-full text-left px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
             >
-              {t.Name}
-              <span className="ml-2 text-xs text-zinc-400">{t.Id.substring(0, 8)}</span>
+              {item.Name}
+              <span className="ml-2 text-xs text-zinc-400">{item.Id.substring(0, 8)}</span>
             </button>
           ))}
           {hasMore && (
             <div className="px-3 py-1.5 text-xs text-zinc-400 dark:text-zinc-500 text-center border-t border-zinc-200 dark:border-zinc-700">
-              Type to search more items...
+              {t('common.typeToSearchMore')}
             </div>
           )}
         </div>

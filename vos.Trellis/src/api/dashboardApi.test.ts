@@ -1633,7 +1633,7 @@ describe('state bindings ask the server to narrow', () => {
         thingsInState: async (state) => ({ StateName: state }),
       };
       await expect(resolveBinding({ kind: 'stateCount', state: 'flagged' }, { ...estateContext(null), reads }))
-        .rejects.toThrow('answered no count');
+        .rejects.toThrow('could not be read');
     });
 
     it('names the state a funnel stage excludes as one that disqualifies', async () => {
