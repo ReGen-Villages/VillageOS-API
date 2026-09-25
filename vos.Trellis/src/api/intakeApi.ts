@@ -2,6 +2,7 @@ import type { SubmissionDocument } from '../intake/submissionDraft';
 import type { BasemapSource, DeclaredBasemapSource } from '../types/basemap';
 import type { DeclaredTheme } from '../types/dashboard';
 import { basemapSourcesFrom } from '../utils/basemapSources';
+import type { TermWording } from '../i18n/termWording';
 import i18n from '../i18n';
 
 /** What the intake service answered a submission with: something the submitter can quote to whoever
@@ -48,6 +49,9 @@ export interface FormOptions {
   /** The themes a dashboard section may name, as the model declares them — what faces a tile on the
    *  report. Empty where the model declares none, which draws every section as a list. */
   themes: DeclaredTheme[];
+  /** Each offered term's words by language, under the name the lists above offer. A term the model
+   *  words in no language is absent, and is shown by its name. */
+  wording: TermWording;
 }
 
 /** The legal parcel a register holds at a position, as named pairs, with the register's own credit
@@ -81,6 +85,7 @@ export const intakeApi = {
       parcelLookup?: boolean;
       placeSearch?: boolean;
       themes?: Partial<DeclaredTheme>[];
+      wording?: TermWording;
     };
     return {
       allocationCategories: answered.allocationCategories ?? [],
@@ -90,6 +95,7 @@ export const intakeApi = {
       defaultProgramme: answered.defaultProgramme ?? [],
       parcelLookup: answered.parcelLookup ?? false,
       placeSearch: answered.placeSearch ?? false,
+      wording: answered.wording ?? {},
       themes: (answered.themes ?? []).map((theme) => ({
         name: theme.name ?? '',
         colour: theme.colour ?? null,

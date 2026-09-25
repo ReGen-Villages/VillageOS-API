@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import i18n from '../i18n';
 import { MULTI_STEP_FORM_TEST_TIMEOUT_MILLISECONDS } from '../testTimeouts';
 
 vi.setConfig({ testTimeout: MULTI_STEP_FORM_TEST_TIMEOUT_MILLISECONDS });
@@ -61,6 +62,7 @@ beforeEach(() => {
     defaultProgramme: [],
     parcelLookup: false,
     placeSearch: false,
+    wording: {},
     themes: [],
   });
 });
@@ -73,6 +75,28 @@ describe('the form somebody without an account fills in', () => {
 
     expect(await screen.findByLabelText('residential')).toBeInTheDocument();
     expect(screen.getByLabelText('food-and-agriculture')).toBeInTheDocument();
+  });
+
+  // Offered in the reader's words and kept by the model's name, which is what the service resolves.
+  it('offers each category in the reader’s language and keeps it by its name', async () => {
+    vi.mocked(intakeApi.formOptions).mockResolvedValue({
+      ...(await intakeApi.formOptions()),
+      wording: { residential: { en: 'Housing', de: 'Wohnen' } },
+    });
+    render(<PublicSubmissionPage />);
+    goToLastStep();
+    fireEvent.click(screen.getByRole('button', { name: '4. Size and programme' }));
+    await screen.findByLabelText('Housing');
+
+    await act(() => i18n.changeLanguage('de'));
+    try {
+      fireEvent.click(screen.getByLabelText('Wohnen'));
+
+      expect(Object.keys(loadDraft(DRAFT_OWNER)?.shares ?? {})).toContain('residential');
+      expect(screen.getByLabelText('food-and-agriculture')).toBeInTheDocument();
+    } finally {
+      await act(() => i18n.changeLanguage('en'));
+    }
   });
 
   it('says so when the service cannot be reached, rather than showing a form with nothing in it', async () => {

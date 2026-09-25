@@ -116,17 +116,17 @@ public static class DeclaredVocabularyReader
     // asks for: a deployment declaring no hazards draws one step fewer, the way one declaring no imagery
     // draws no map — where a submission naming a term the model does not hold is still refused, because
     // there the word is already written and something has to say it means nothing.
-    internal static IReadOnlyList<string> HazardTypeNamesOrNone(SnapshotDocument snapshot) =>
-        NamesOrNone(() => HazardTypes(snapshot));
+    internal static IReadOnlyList<DeclaredTerm> HazardTypesOrNone(SnapshotDocument snapshot) =>
+        TermsOrNone(() => HazardTypes(snapshot));
 
-    internal static IReadOnlyList<string> HazardLevelNamesOrNone(SnapshotDocument snapshot) =>
-        NamesOrNone(() => HazardLevels(snapshot));
+    internal static IReadOnlyList<DeclaredTerm> HazardLevelsOrNone(SnapshotDocument snapshot) =>
+        TermsOrNone(() => HazardLevels(snapshot));
 
-    private static IReadOnlyList<string> NamesOrNone(Func<DeclaredTerms> read)
+    private static IReadOnlyList<DeclaredTerm> TermsOrNone(Func<DeclaredTerms> read)
     {
         try
         {
-            return [.. read().Terms.Select(term => term.Name)];
+            return read().Terms;
         }
         catch (ModelNotSeededError)
         {

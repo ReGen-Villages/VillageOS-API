@@ -28,7 +28,7 @@ export function PublicSubmissionPage() {
   useStandalonePageDocument('publicForm.title');
   const [options, setOptions] = useState<FormOptions>({
     allocationCategories: [], basemapSources: [], hazardTypes: [], hazardLevels: [],
-    defaultProgramme: [], parcelLookup: false, placeSearch: false, themes: [],
+    defaultProgramme: [], parcelLookup: false, placeSearch: false, themes: [], wording: {},
   });
   const [unreachable, setUnreachable] = useState(false);
 
@@ -71,6 +71,7 @@ export function PublicSubmissionPage() {
           basemapSources={options.basemapSources}
           hazardTypes={options.hazardTypes}
           hazardLevels={options.hazardLevels}
+          wording={options.wording}
           draftOwner={DRAFT_OWNER}
         />
         <p className="mt-6 text-[11px] text-zinc-400 dark:text-zinc-500">

@@ -24,6 +24,7 @@ import { formatNumber } from '../components/dashboard/widgets/format';
 import { OriginLines } from '../components/dashboard/widgets/KpiCard';
 import { useElementWidth } from '../hooks/useElementWidth';
 import { useBinding, useResolveContext } from '../hooks/useDashboard';
+import { useTermWords } from '../i18n/termWording';
 import { useStandalonePageDocument } from '../hooks/useStandalonePageDocument';
 import { fromHectares, withShareSet, wholePercentages } from '../intake/submissionDraft';
 import { findingsFrom, type Findings } from '../publicFindings/answeredFindings';
@@ -919,6 +920,7 @@ function Dials({
   onDial: (patch: Partial<ExploreState>) => void;
 }) {
   const { t, i18n } = useTranslation();
+  const wordsFor = useTermWords(options?.wording ?? {});
   const percentage = useMemo(
     () => new Intl.NumberFormat(i18n.language, { style: 'percent' }),
     [i18n.language],
@@ -979,7 +981,7 @@ function Dials({
       <div className="mt-2 space-y-2">
         {Object.keys(state.shares).map((category) => (
           <div key={category} className="flex items-center gap-3">
-            <span className="w-64 text-sm text-zinc-700 dark:text-zinc-200">{category}</span>
+            <span className="w-64 text-sm text-zinc-700 dark:text-zinc-200">{wordsFor(category)}</span>
             <input
               type="range"
               min={0}
@@ -1003,9 +1005,9 @@ function Dials({
           <div className="mt-2 flex flex-col gap-2">
             {options.hazardTypes.map((hazardType) => (
               <label key={hazardType} className="flex items-center justify-between gap-3">
-                <span className="text-sm text-zinc-700 dark:text-zinc-300">{hazardType}</span>
+                <span className="text-sm text-zinc-700 dark:text-zinc-300">{wordsFor(hazardType)}</span>
                 <select
-                  aria-label={hazardType}
+                  aria-label={wordsFor(hazardType)}
                   value={state.reportedHazards[hazardType] ?? ''}
                   onChange={(event) => {
                     const reported = { ...state.reportedHazards };
@@ -1017,7 +1019,7 @@ function Dials({
                 >
                   <option value="">{t('explore.notReported')}</option>
                   {options.hazardLevels.map((level) => (
-                    <option key={level} value={level}>{level}</option>
+                    <option key={level} value={level}>{wordsFor(level)}</option>
                   ))}
                 </select>
               </label>
