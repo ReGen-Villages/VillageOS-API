@@ -27,13 +27,13 @@ export function TemporalPage() {
     <div className="h-full overflow-auto p-6">
       <h2 className="text-xl font-bold mb-4">{t('temporal.title')}</h2>
 
-      <div className="flex gap-1 border-b border-zinc-200 dark:border-zinc-700 mb-6">
+      <div className="flex gap-1 overflow-x-auto border-b border-zinc-200 dark:border-zinc-700 mb-6">
         {TEMPORAL_TABS.map((key) => (
           <button
             key={key}
             onClick={() => setTab(key)}
             className={clsx(
-              'px-4 py-2 text-sm font-medium border-b-2 transition-colors',
+              'px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
               tab === key
                 ? 'border-blue-500 text-blue-500'
                 : 'border-transparent text-zinc-500 hover:text-zinc-300',
@@ -81,7 +81,7 @@ function MutationsPanel() {
       <p className="text-xs text-zinc-500">
         {t('temporal.mutationsIntro')}
       </p>
-      <div className="flex gap-3 items-end">
+      <div className="flex flex-wrap gap-3 items-end">
         <div>
           <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.startTime')}</label>
           <input
@@ -193,7 +193,7 @@ function ThingMutationsPanel() {
           </select>
         </div>
       </div>
-      <div className="flex gap-3 items-end">
+      <div className="flex flex-wrap gap-3 items-end">
         <div>
           <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.startTime')}</label>
           <input type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)}
@@ -295,7 +295,7 @@ function RelationshipMutationsPanel() {
           ))}
         </select>
       </div>
-      <div className="flex gap-3 items-end">
+      <div className="flex flex-wrap gap-3 items-end">
         <div>
           <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.startTime')}</label>
           <input type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)}
@@ -368,7 +368,7 @@ function SnapshotPanel() {
       <p className="text-xs text-zinc-500">
         {t('temporal.snapshotIntro')}
       </p>
-      <div className="flex gap-3 items-end">
+      <div className="flex flex-wrap gap-3 items-end">
         <div>
           <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.timestamp')}</label>
           <input
@@ -504,7 +504,7 @@ function PropertyHistoryPanel() {
           </select>
         </div>
       </div>
-      <div className="flex gap-3 items-end">
+      <div className="flex flex-wrap gap-3 items-end">
         <div>
           <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.startTime')}</label>
           <input
@@ -580,7 +580,7 @@ function StateQueryPanel() {
       <p className="text-xs text-zinc-500">
         {t('temporal.stateQueryIntro')}
       </p>
-      <div className="flex gap-3 items-end">
+      <div className="flex flex-wrap gap-3 items-end">
         <div className="flex-1">
           <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.stateName')}</label>
           <input

@@ -660,17 +660,29 @@ function ClaimStep({
 
       <Field labelKey="explore.siteName" value={state.siteName} onChange={(siteName) => onChange({ siteName })} />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field labelKey="explore.yourName" value={state.contactName} onChange={(contactName) => onChange({ contactName })} />
-        <Field labelKey="explore.emailAddress" value={state.emailAddress} onChange={(emailAddress) => onChange({ emailAddress })} />
+        <Field
+          labelKey="explore.yourName"
+          autoComplete="name"
+          value={state.contactName}
+          onChange={(contactName) => onChange({ contactName })}
+        />
+        <Field
+          labelKey="explore.emailAddress"
+          autoComplete="email"
+          value={state.emailAddress}
+          onChange={(emailAddress) => onChange({ emailAddress })}
+        />
       </div>
 
-      <div className="mt-3 flex items-center gap-3">
+      <div className="mt-3 flex flex-wrap items-center gap-3">
         {awaitingCode && (
           <input
             aria-label={t('explore.code')}
             value={code}
             onChange={(event) => onCodeChange(event.target.value)}
             placeholder={t('explore.codePlaceholder')}
+            inputMode="numeric"
+            autoComplete="one-time-code"
             className="w-28 px-2 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
           />
         )}
@@ -678,7 +690,7 @@ function ClaimStep({
           type="button"
           onClick={onSubmit}
           disabled={heldBack}
-          className="px-3 py-1.5 text-sm rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-40"
+          className="px-3 py-1.5 text-sm whitespace-nowrap rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-40"
         >
           {awaitingCode ? t('explore.seeReport') : t('explore.sendCode')}
         </button>
@@ -744,7 +756,7 @@ function ReportStep({
         {expired && (
           <div className="mt-3 rounded-md border border-amber-300 dark:border-amber-700 p-3">
             <p className="text-sm text-amber-700 dark:text-amber-400">{t('explore.sessionExpired')}</p>
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={onResumeAskForCode}
@@ -758,6 +770,8 @@ function ReportStep({
                 value={code}
                 onChange={(event) => onCodeChange(event.target.value)}
                 placeholder={t('explore.codePlaceholder')}
+                inputMode="numeric"
+                autoComplete="one-time-code"
                 className="w-28 px-2 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
               />
               <button
@@ -1019,10 +1033,13 @@ function Field({
   labelKey,
   value,
   onChange,
+  autoComplete,
 }: {
   labelKey: string;
   value: string;
   onChange: (value: string) => void;
+  /** What the browser may fill the field from; an address also brings up the phone keyboard for one. */
+  autoComplete?: 'name' | 'email';
 }) {
   const { t } = useTranslation();
   return (
@@ -1031,6 +1048,8 @@ function Field({
         {t(labelKey as never) as string}
       </span>
       <input
+        type={autoComplete === 'email' ? 'email' : 'text'}
+        autoComplete={autoComplete}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className="mt-1 w-full px-2 py-1.5 text-sm rounded-md bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100"

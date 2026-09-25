@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, Eye, EyeOff, X } from 'lucide-react';
 import { useModelStore } from '../../stores/modelStore';
 import { useUiStore } from '../../stores/uiStore';
+import { TABLET_WIDTH, useIsWide } from '../../hooks/useIsWide';
 import {
   discoverTypes,
   groupTypesByName,
@@ -39,7 +40,8 @@ export function TypeFilterPanel() {
   const sortOrder = useUiStore((s) => s.typeSortOrder);
   const setSortOrder = useUiStore((s) => s.setTypeSortOrder);
 
-  const [collapsed, setCollapsed] = useState(false);
+  const wide = useIsWide(TABLET_WIDTH);
+  const [collapsed, setCollapsed] = useState(!wide);
   const [search, setSearch] = useState('');
 
   const allGroups = useMemo<TypeGroupStat[]>(

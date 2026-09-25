@@ -14,7 +14,7 @@ export function Palette({
 }) {
   const { t } = useTranslation();
   return (
-    <div className="w-56 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 overflow-auto">
+    <div className="w-full max-h-40 md:w-56 md:max-h-none flex-shrink-0 border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 overflow-auto">
       <h2 className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
         {t('palette.boundary')}
       </h2>

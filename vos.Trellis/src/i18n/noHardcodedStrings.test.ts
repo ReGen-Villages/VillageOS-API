@@ -49,8 +49,11 @@ const VISIBLE_ATTRIBUTES = new Set([
 /** Attributes whose value is read by the browser, not by a person. */
 const MACHINE_ATTRIBUTES = new Set(['className', 'key', 'i18nKey', 'data-testid', 'style', 'rel', 'target', 'href', 'media', 'type', 'name', 'id', 'role', 'autoComplete', 'inputMode']);
 
-/** Calls whose string arguments are keys, class names or log lines rather than words on a page. */
-const NOT_SHOWN_CALLS = /^(t|i18n\.t|i18next\.t|console\.\w+|clsx|cn|twMerge|import|require|(.+\.)?(matchMedia|getPropertyValue|querySelector|querySelectorAll|setAttribute|getAttribute|setRequestHeader|includes|startsWith|endsWith))$/;
+/** Calls whose string arguments are keys, class names or log lines rather than words on a page. An
+ *  action's description is one of those: it is reported to the broker as the record of what a person
+ *  did, read by whoever the model names, and one record in the reader's own language each would make
+ *  that record a mix of languages. */
+const NOT_SHOWN_CALLS = /^(t|i18n\.t|i18next\.t|console\.\w+|clsx|cn|twMerge|import|require|(.+\.)?(matchMedia|getPropertyValue|querySelector|querySelectorAll|setAttribute|getAttribute|setRequestHeader|includes|startsWith|endsWith|action|reportAction|recordAction))$/;
 
 const CLASS_WORD = /^(flex|grid|block|hidden|inline|contents|relative|absolute|fixed|sticky|static|truncate|underline|italic|uppercase|lowercase|capitalize|rounded|border|shadow|transition|grow|shrink|ring|outline|group|peer|visible|invisible|isolate|resize|antialiased|tabular-nums|shadow-sm|shadow-lg)$/;
 

@@ -41,6 +41,8 @@ export function IfcUploadDropzone() {
       <p className="text-sm text-zinc-500 dark:text-zinc-500 mt-2 max-w-md">
         <Trans
           i18nKey="ifcUpload.configureHint"
+          // The text writes its angle brackets as escape codes, because a bare one would open a tag.
+          shouldUnescape
           components={[
             <code className="font-mono" />,
             <code className="font-mono" />,

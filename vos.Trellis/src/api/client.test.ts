@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 import { ApiError, AuthenticationRequiredError, apiClient } from './client';
 
 function mockResponse(status: number, body: unknown): Response {
@@ -406,5 +406,80 @@ describe('ApiClient', () => {
       expect(apiClient.getModelId()).toBe('model-2');
       expect(apiClient.getModelName()).toBe('other-model');
     });
+  });
+});
+
+describe('a change a person asks for (TC #7270)', () => {
+  let fetchSpy: MockInstance<typeof fetch>;
+
+  beforeEach(async () => {
+    apiClient.logout();
+    fetchSpy = vi.spyOn(globalThis, 'fetch');
+    fetchSpy.mockResolvedValueOnce(mockResponse(200, tokenResponse));
+    await apiClient.login('testuser', 'pass');
+    fetchSpy.mockClear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function reports() {
+    return fetchSpy.mock.calls
+      .filter(([address]) => String(address).endsWith('/api/operator-activity'))
+      .map(([, request]) => JSON.parse(request?.body as string));
+  }
+
+  it('is reported once, after it succeeds, in the words it was described in', async () => {
+    fetchSpy.mockResolvedValue(mockResponse(200, { Id: 'thing-1' }));
+
+    await apiClient.action('rename Thing thing-1 to "Pump"', () => apiClient.put('/api/things/thing-1/name', { Name: 'Pump' }));
+    await vi.waitFor(() => expect(reports()).toHaveLength(1));
+
+    expect(reports()[0]).toEqual({ Kind: 'action', Description: 'rename Thing thing-1 to "Pump"', Succeeded: true });
+  });
+
+  it('is reported as failed when the broker refuses it, and the refusal still reaches the caller', async () => {
+    fetchSpy.mockResolvedValueOnce(mockResponse(409, '{"error":"taken"}')).mockResolvedValue(mockResponse(202, '{}'));
+
+    await expect(apiClient.action('create Thing "Pump"', () => apiClient.post('/api/things', { Name: 'Pump' })))
+      .rejects.toThrow('taken');
+    await vi.waitFor(() => expect(reports()).toHaveLength(1));
+
+    expect(reports()[0].Succeeded).toBe(false);
+  });
+
+  it('stands when the report cannot be made', async () => {
+    fetchSpy.mockResolvedValueOnce(mockResponse(200, { Id: 'thing-1' })).mockRejectedValue(new TypeError('offline'));
+
+    await expect(apiClient.action('delete Thing thing-1', () => apiClient.del('/api/things/thing-1')))
+      .resolves.toEqual({ Id: 'thing-1' });
+  });
+
+  it('a read is not reported', async () => {
+    fetchSpy.mockResolvedValue(mockResponse(200, []));
+
+    await apiClient.get('/api/things');
+    await apiClient.post('/api/temporal/aggregate', {});
+
+    expect(reports()).toHaveLength(0);
+  });
+
+  it('every request names Trellis, so the broker can say which program was used', async () => {
+    fetchSpy.mockResolvedValue(mockResponse(200, []));
+
+    await apiClient.get('/api/things');
+
+    expect((fetchSpy.mock.calls[0][1]?.headers as Record<string, string>)['X-Vos-Client']).toBe('Trellis');
+  });
+
+  it('signing in names Trellis too, since the broker records the sign-in itself', async () => {
+    apiClient.logout();
+    fetchSpy.mockResolvedValueOnce(mockResponse(200, tokenResponse));
+
+    await apiClient.login('testuser', 'pass');
+
+    const signIn = fetchSpy.mock.calls.find(([address]) => String(address).endsWith('/api/auth/login'))!;
+    expect((signIn[1]?.headers as Record<string, string>)['X-Vos-Client']).toBe('Trellis');
   });
 });

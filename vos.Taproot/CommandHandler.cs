@@ -243,6 +243,7 @@ namespace vos.Taproot
             {
                 await _mycelium.GetTokenAsync();
                 _writer.WriteLine("Successfully authenticated with Mycelium.");
+                await ReportAsync("sign-in");
             }
             catch (Exception ex)
             {
@@ -275,23 +276,49 @@ namespace vos.Taproot
                 string? arg = parts.Length > 1 ? parts[1] : null;
 
                 if (cmd == "exit")
+                {
+                    await ReportAsync("sign-out");
                     break;
+                }
 
                 if (cmd == "help")
+                {
                     ShowHelp();
-                else
-                    try
-                    {
-                        await HandleCommandAsync(cmd, arg);
-                    }
-                    catch (HttpRequestException ex)
-                    {
-                        _writer.WriteLine($"Error communicating with Mycelium: {OperatorMessage.For(ex)}");
-                    }
-                    catch (Exception ex)
-                    {
-                        _writer.WriteLine("Error: " + OperatorMessage.For(ex));
-                    }
+                    continue;
+                }
+
+                var succeeded = false;
+                try
+                {
+                    await HandleCommandAsync(cmd, arg);
+                    succeeded = true;
+                }
+                catch (HttpRequestException ex)
+                {
+                    _writer.WriteLine($"Error communicating with Mycelium: {OperatorMessage.For(ex)}");
+                }
+                catch (Exception ex)
+                {
+                    _writer.WriteLine("Error: " + OperatorMessage.For(ex));
+                }
+
+                // Most commands catch and print their own failures, so only an error that reached this loop
+                // is known to be one; anything else is reported without claiming it worked.
+                await ReportAsync("action", ReportedCommandLine.For(input), succeeded ? null : false);
+            }
+        }
+
+        // A report that cannot be made is written to the log file and nowhere else: the person asked for the
+        // command, not for the report, and its output is what they are reading.
+        private async Task ReportAsync(string kind, string? description = null, bool? succeeded = null)
+        {
+            try
+            {
+                await _mycelium.ReportActivityAsync(kind, description, succeeded);
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Warning("Could not report a {Kind} to Mycelium: {Reason}", kind, OperatorMessage.For(ex));
             }
         }
     }

@@ -44,7 +44,7 @@ export function DesignPropertiesPanel({ specification, selection, context, onEdi
         : t(`design.palette.kind.${specification.sections[selection.section].widgets[selection.widget].type}`);
 
   return (
-    <aside className="w-72 flex-shrink-0 flex flex-col border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+    <aside className="w-full max-h-[45dvh] md:w-72 md:max-h-none flex-shrink-0 flex flex-col border-t md:border-t-0 md:border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
       <div className="flex items-center justify-between px-3 pt-3 pb-1">
         <h2 className="text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{heading}</h2>
         <button type="button" aria-label={t('design.properties.close')} onClick={() => onSelect(null)} className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200">

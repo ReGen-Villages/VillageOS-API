@@ -32,25 +32,31 @@ export const myceliumApi = {
   getService: (id: string) => apiClient.get<RegisteredService>(`/api/mycelium/services/${id}`),
 
   startService: (id: string) =>
-    apiClient.post<{ message: string }>(`/api/mycelium/services/${id}/start`),
+    apiClient.action(`start service ${id}`, () => apiClient.post<{ message: string }>(`/api/mycelium/services/${id}/start`)),
 
   stopService: (id: string) =>
-    apiClient.post<{ message: string }>(`/api/mycelium/services/${id}/stop`),
+    apiClient.action(`stop service ${id}`, () => apiClient.post<{ message: string }>(`/api/mycelium/services/${id}/stop`)),
 
-  shutdown: () => apiClient.post<{ message: string }>('/api/mycelium/shutdown'),
+  shutdown: () => apiClient.action('shut the broker down', () => apiClient.post<{ message: string }>('/api/mycelium/shutdown')),
 
   getLibrarySeeds: () =>
     apiClient.get<{ name: string; sizeMb: number }[]>('/api/mycelium/library-seeds'),
 
   loadSeed: (name: string) =>
-    apiClient.post<{ message: string; modelId: string; modelName: string }>(`/api/mycelium/library-seeds/${encodeURIComponent(name)}/load`),
+    apiClient.action(`load seed "${name}"`, () =>
+      apiClient.post<{ message: string; modelId: string; modelName: string }>(
+        `/api/mycelium/library-seeds/${encodeURIComponent(name)}/load`,
+      ),
+    ),
 
   saveSeed: (name: string) =>
-    apiClient.put<{ message: string; name: string; sizeMb: number }>(
-      `/api/mycelium/library-seeds/${encodeURIComponent(name)}`,
-      {},
+    apiClient.action(`save the model as seed "${name}"`, () =>
+      apiClient.put<{ message: string; name: string; sizeMb: number }>(
+        `/api/mycelium/library-seeds/${encodeURIComponent(name)}`,
+        {},
+      ),
     ),
 
   reloadSeeds: () =>
-    apiClient.post<{ message: string }>('/api/mycelium/seeds/reload'),
+    apiClient.action('reload the seeds', () => apiClient.post<{ message: string }>('/api/mycelium/seeds/reload')),
 };

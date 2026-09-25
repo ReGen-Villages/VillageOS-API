@@ -21,4 +21,10 @@ describe('WidgetCard', () => {
 
     expect((container.firstElementChild as HTMLElement).className).toContain('min-w-0');
   });
+
+  it('moves what sits beside the title onto a line of its own when the two do not fit', () => {
+    render(<WidgetCard title="Accounts" right={<input aria-label="Search" />}>body</WidgetCard>);
+
+    expect(screen.getByRole('heading').parentElement).toHaveClass('flex-wrap');
+  });
 });
