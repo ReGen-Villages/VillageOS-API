@@ -46,6 +46,17 @@ public class ObservationIngestServiceTests
     }
 
     [Fact]
+    public void TryTransform_AnExpressionMatchingNothing_IsANullAndNotTheWordUndefined()
+    {
+        var sut = CreateService();
+
+        var ok = sut.TryTransform("{\"hourly\":{}}", new JsonataTransform("hourly.temperature_2m[0]"), out var transformed, out _);
+
+        ok.Should().BeTrue();
+        transformed.Should().Be("null");
+    }
+
+    [Fact]
     public void TryTransform_QueryEvalReturnsScalar_NormalizedToJson()
     {
         var sut = CreateService();

@@ -49,6 +49,20 @@ public class JsonataTransformTests
     }
 
     [Fact]
+    public void A_transform_that_matches_nothing_answers_a_json_null()
+    {
+        var transform = new JsonataTransform("missing.field");
+        var result = transform.Eval(Json("{\"a\":2}"), TimeProvider.System);
+        result.ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public void A_transform_that_matches_nothing_answers_no_text()
+    {
+        new JsonataTransform("missing.field").Eval("{\"a\":2}", TimeProvider.System).Should().BeEmpty();
+    }
+
+    [Fact]
     public void Ctor_throws_on_an_invalid_expression()
     {
         var act = () => new JsonataTransform("{{{");
