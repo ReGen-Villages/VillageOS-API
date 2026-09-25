@@ -5,17 +5,15 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * The design and pipeline editors lay their panels out as columns beside a canvas. On a phone, columns
- * of fixed width leave the canvas a sliver, so below a tablet's width each panel takes the full width and
- * stacks above or below the canvas instead. jsdom lays nothing out, so this reads the classes the
- * editors are drawn with.
+ * Fixed-width columns beside a canvas leave it a sliver on a phone, so below a tablet's width each editor
+ * panel takes the full width and stacks above or below the canvas. jsdom lays nothing out, so this reads
+ * the classes the editors are drawn with.
  */
 
 const SOURCE_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 const read = (path: string) => readFileSync(join(SOURCE_DIRECTORY, path), 'utf8');
 
-/** The class list on the first element carrying `flex-shrink-0`, which is each panel's own root. */
-function panelClasses(path: string): string {
+function classesOfFirstFixedWidthElement(path: string): string {
   const match = read(path).match(/className="([^"]*flex-shrink-0[^"]*)"/);
   return match ? match[1] : '';
 }
@@ -30,7 +28,7 @@ const PANELS = [
 
 describe('the editors on a screen narrower than a tablet', () => {
   it.each(PANELS)('%s takes the full width and a bounded height, and becomes a column from a tablet up', (path) => {
-    const classes = panelClasses(path).split(/\s+/);
+    const classes = classesOfFirstFixedWidthElement(path).split(/\s+/);
 
     expect(classes).toContain('w-full');
     expect(classes.some((name) => /^md:w-/.test(name))).toBe(true);
@@ -42,5 +40,9 @@ describe('the editors on a screen narrower than a tablet', () => {
     const classLists = [...read(path).matchAll(/className="([^"]*)"/g)].map((match) => match[1].split(/\s+/));
 
     expect(classLists.some((names) => names.includes('flex-col') && names.includes('md:flex-row'))).toBe(true);
+  });
+
+  it('wraps the pipeline toolbar, so the name box is not pushed past the edge', () => {
+    expect(read('pages/PipelinePage.tsx')).toContain('<div className="flex flex-wrap items-center gap-2 p-2 border-b');
   });
 });

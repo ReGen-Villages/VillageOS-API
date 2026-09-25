@@ -3,8 +3,6 @@ import { render, screen } from '@testing-library/react';
 import { SeriesTable } from './chartChrome';
 
 describe('SeriesTable', () => {
-  // A table never lays out narrower than its cells, so hiding it by shrinking it to one pixel leaves it
-  // as wide as its contents, and a phone scrolls sideways to reach the edge of it.
   it('is hidden by a block that clips it, so its width cannot widen the page', () => {
     render(
       <SeriesTable

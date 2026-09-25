@@ -4,11 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/**
- * Safari on a phone zooms the page into any field whose text is smaller than 16 pixels as soon as it is
- * tapped, and leaves it zoomed. The fields are styled small for a desktop, so the shared stylesheet
- * raises them on a phone-sized screen. jsdom lays nothing out, so this reads the rule itself.
- */
+/** jsdom lays nothing out, so this reads the rule `index.css` states for a phone-sized screen. */
 
 const stylesheet = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'index.css'), 'utf8');
 

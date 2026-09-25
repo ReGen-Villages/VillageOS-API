@@ -152,8 +152,6 @@ describe('the form on a phone', () => {
     expect(code).toHaveAttribute('autocomplete', 'one-time-code');
   });
 
-  // Beside a sentence saying what is missing, a button that is allowed to wrap is squeezed down to a
-  // word per line on a phone.
   it('keeps the send-code label on one line and puts what is missing on a row of its own', () => {
     saveDraft(DRAFT_OWNER, submittable({ siteName: '' }));
     render(<PublicSubmissionPage />);
