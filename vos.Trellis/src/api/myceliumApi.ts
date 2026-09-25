@@ -1,5 +1,6 @@
 import { apiClient } from './client';
 import type { RegisteredService } from '../types/mycelium';
+import i18n from '../i18n';
 
 export interface StartupProgress {
   IsLoading: boolean;
@@ -23,7 +24,7 @@ export const myceliumApi = {
   getStartupStatus: async (): Promise<StartupProgress> => {
     const baseUrl = import.meta.env.VITE_BROKER_URL || '';
     const res = await fetch(`${baseUrl}/api/mycelium/startup-status`);
-    if (!res.ok) throw new Error('Failed to fetch seed status');
+    if (!res.ok) throw new Error(i18n.t('authentication.seedStatusFailed'));
     return res.json();
   },
   getServices: () => apiClient.get<RegisteredService[]>('/api/mycelium/services'),

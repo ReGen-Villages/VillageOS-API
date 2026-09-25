@@ -3,6 +3,7 @@ import { relationshipApi } from '../api/relationshipApi';
 import { modelApi } from '../api/modelApi';
 import { PipelineModel, ARCHETYPE_FLAG, PREDICATE_FLAG, type PortInformation } from './model';
 import type { VosTypeName } from '../utils/constants';
+import i18n from '../i18n';
 
 // Persist / read a pipeline as Things + relationships (the lean-on-model bet): the editor is just CRUD over
 // thingApi / relationshipApi. Save shape mirrors the seed — node -has-> connection, and a wire is a relationship
@@ -79,16 +80,16 @@ export async function savePipeline(
   // so a save needs both — the archetype to say what the Thing is, the predicate to say where it goes.
   const wireArchetype = model.archetypeCarrying(ARCHETYPE_FLAG.PipelineWire);
   if (!isId || !hasId || !wireId || !wireArchetype || !pipelineArchetype || !nodeArchetype)
-    throw new Error('This model marks no archetype as a pipeline, a pipeline node or a wire — load a seed that marks them.');
+    throw new Error(i18n.t('pipeline.noPipelineMarks'));
 
   const portArchetype = model.archetypeCarrying(ARCHETYPE_FLAG.Port);
   const boundaryArchetype = (kind: 'input' | 'output') =>
     model.archetypeCarrying(kind === 'input' ? ARCHETYPE_FLAG.PipelineInput : ARCHETYPE_FLAG.PipelineOutput);
   if (nodes.some((n) => n.kind) && (!portArchetype || !boundaryArchetype('input') || !boundaryArchetype('output')))
-    throw new Error('This model marks no archetype as a port, a pipeline input or a pipeline output — load a seed that marks them.');
+    throw new Error(i18n.t('pipeline.noPortMarks'));
   const standsForId = model.predicateCarrying(PREDICATE_FLAG.StandsFor);
   if (nodes.some((n) => n.standsForId) && !standsForId)
-    throw new Error('This model marks no predicate as saying what a boundary node stands for — load a seed that marks one.');
+    throw new Error(i18n.t('pipeline.noStandsForMark'));
 
   const pipelineId = existingPipelineId ?? crypto.randomUUID();
 

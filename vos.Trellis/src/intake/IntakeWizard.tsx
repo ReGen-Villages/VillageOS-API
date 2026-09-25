@@ -45,6 +45,7 @@ import {
   withHazardReported,
   type SubmissionDraft,
 } from './submissionDraft';
+import { useTermWords, type TermWording } from '../i18n/termWording';
 
 const MapView = lazy(() => import('../components/map/MapView').then((m) => ({ default: m.MapView })));
 
@@ -53,6 +54,7 @@ export function IntakeWizard({
   basemapSources,
   hazardTypes,
   hazardLevels,
+  wording,
   draftOwner,
 }: {
   categories: readonly string[];
@@ -62,10 +64,14 @@ export function IntakeWizard({
    *  person who reached it should be told why there is nothing there. */
   hazardTypes: readonly string[];
   hazardLevels: readonly string[];
+  /** What each category, hazard and level is called in each language. Each is still submitted by its
+   *  name, which is what the service resolves against. */
+  wording: TermWording;
   /** What the half-finished submission is kept under, or null while that is still being established. */
   draftOwner: string | null;
 }) {
   const { t } = useTranslation();
+  const wordsFor = useTermWords(wording);
   const [draft, setDraft] = useState<SubmissionDraft | null>(null);
   const [step, setStep] = useState<StepId>('project');
   const [submitting, setSubmitting] = useState(false);
@@ -174,10 +180,10 @@ export function IntakeWizard({
         {step === 'project' && <ProjectStep draft={draft} onChange={change} />}
         {step === 'contact' && <ContactStep draft={draft} onChange={change} />}
         {step === 'location' && <LocationStep draft={draft} sources={basemapSources} onChange={change} />}
-        {step === 'programme' && <ProgrammeStep draft={draft} categories={categories} onChange={change} />}
+        {step === 'programme' && <ProgrammeStep draft={draft} categories={categories} wordsFor={wordsFor} onChange={change} />}
         {step === 'parcel' && <ParcelStep draft={draft} sources={basemapSources} onChange={change} />}
         {step === 'hazards' && (
-          <HazardsStep draft={draft} types={hazardTypes} levels={hazardLevels} onChange={change} />
+          <HazardsStep draft={draft} types={hazardTypes} levels={hazardLevels} wordsFor={wordsFor} onChange={change} />
         )}
       </div>
       <Navigation
@@ -420,8 +426,9 @@ function SiteMap({
 function ProgrammeStep({
   draft,
   categories,
+  wordsFor,
   onChange,
-}: StepProps & { categories: readonly string[] }) {
+}: StepProps & { categories: readonly string[]; wordsFor: (term: string) => string }) {
   const { t, i18n } = useTranslation();
   const hectares = statedAreaHectares(draft);
   const shown = wholePercentages(draft.shares);
@@ -484,7 +491,7 @@ function ProgrammeStep({
           {categories.map((category) => (
             <CategoryRow
               key={category}
-              category={category}
+              label={wordsFor(category)}
               chosen={category in draft.shares}
               share={shown[category]}
               percentage={percentage}
@@ -585,14 +592,14 @@ function ParcelStep({ draft, sources, onChange }: StepProps & { sources: Basemap
 }
 
 function CategoryRow({
-  category,
+  label,
   chosen,
   share,
   percentage,
   onToggle,
   onShare,
 }: {
-  category: string;
+  label: string;
   chosen: boolean;
   /** A whole percentage, from a set that adds to a hundred across the chosen categories, so what is on
    *  screen and what the split claims to describe are the same thing. */
@@ -610,7 +617,7 @@ function CategoryRow({
           onChange={(event) => onToggle(event.target.checked)}
           className="accent-emerald-600"
         />
-        {category}
+        {label}
       </label>
       <input
         type="range"
@@ -664,8 +671,9 @@ function HazardsStep({
   draft,
   types,
   levels,
+  wordsFor,
   onChange,
-}: StepProps & { types: readonly string[]; levels: readonly string[] }) {
+}: StepProps & { types: readonly string[]; levels: readonly string[]; wordsFor: (term: string) => string }) {
   const { t } = useTranslation();
 
   if (types.length === 0 || levels.length === 0) {
@@ -683,9 +691,9 @@ function HazardsStep({
       <div className="flex flex-col gap-2">
         {types.map((hazardType) => (
           <label key={hazardType} className="flex items-center justify-between gap-3">
-            <span className="text-sm text-zinc-700 dark:text-zinc-300">{hazardType}</span>
+            <span className="text-sm text-zinc-700 dark:text-zinc-300">{wordsFor(hazardType)}</span>
             <select
-              aria-label={hazardType}
+              aria-label={wordsFor(hazardType)}
               value={draft.reportedHazards[hazardType] ?? ''}
               onChange={(event) =>
                 onChange(withHazardReported(draft, hazardType, event.target.value))
@@ -695,7 +703,7 @@ function HazardsStep({
               <option value="">{t('intake.notReported')}</option>
               {levels.map((level) => (
                 <option key={level} value={level}>
-                  {level}
+                  {wordsFor(level)}
                 </option>
               ))}
             </select>

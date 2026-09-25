@@ -71,6 +71,14 @@ export const it: PartialResources = {
     downloadFailed: 'Impossibile scaricare il registro completo.',
   },
   common: {
+    requestFailed: "La richiesta non è riuscita ({{status}}).",
+    megabytes: "{{value}} MB",
+    close: "Chiudi",
+    searchPlaceholder: "Cerca…",
+    typeToSearchMore: "Digita per cercare altri elementi…",
+    mesh: "maglia",
+    meshSize: "maglia ({{vertices}} vertici)",
+    meshSizeWithTriangles: "maglia ({{vertices}} vertici, {{triangles}} triangoli)",
     start: 'Avvia',
     stop: 'Arresta',
     delete: 'Elimina',
@@ -249,6 +257,7 @@ export const it: PartialResources = {
     radial: { clearAll: 'Cancella tutti i predicati', slice: '{{name}} ({{edges}} archi)' },
     filter: { all: 'Tutti', none: 'Nessuno', hidden: '{{count}} nascosti', clearSearch: 'Cancella ricerca' },
     typeFilter: {
+      noType: "(nessun tipo)",
       title: 'Filtra per tipo',
       search: 'Cerca tipi…',
       sort: 'Ordina',
@@ -266,6 +275,14 @@ export const it: PartialResources = {
     },
   },
   authentication: {
+    required: "Accedi di nuovo per continuare.",
+    seedStatusFailed: "Impossibile sapere se è in corso il caricamento di un seed.",
+    seedLoadedSignInAgain: "Seed caricato. Accedi di nuovo.",
+    loginFailed: "Accesso non riuscito.",
+    emptyLibrary: "Nessun modello su Mycelium. Metti un file .seed.json in vos.Mycelium/seeds-library/ e ricarica, oppure invia POST /api/mycelium/library-seeds/<name>/load.",
+    librarySeedsFailed: "Impossibile elencare i seed della libreria.",
+    loadSeedFailed: "Impossibile caricare il seed.",
+    saveSeedFailed: "Impossibile salvare il seed.",
     loadSeed: 'Carica un seed',
     searchSeeds: 'Cerca seed…',
     columnName: 'Nome',
@@ -289,6 +306,20 @@ export const it: PartialResources = {
     signIn: 'Accedi',
   },
   widgets: {
+    stateCountMissing: "Impossibile leggere il numero di cose in «{{state}}».",
+    funnel: {
+      rows: "righe",
+      stage: "Fase",
+      thing: "Cosa",
+      searchStage: "Cerca in {{stage}}…",
+      searchAll: "Cerca in tutti: {{noun}}…",
+      kept: "{{percent}}% mantenuto",
+      entry: "ingresso",
+      allMatching: "Tutti: {{noun}} corrispondenti a «{{query}}»",
+    },
+    gantt: {
+      empty: "Nessun dato di pianificazione per questa sequenza temporale.",
+    },
     history: {
       series: 'Serie',
       lastYears_one: 'ultimo anno',
@@ -320,9 +351,13 @@ export const it: PartialResources = {
     kpi: { onTarget: 'in linea', watch: 'attenzione', peak: 'picco', trough: 'minimo' },
     working: { notDerived: 'questa cifra viene fornita al modello anziché calcolata da esso' },
     leaderboard: {
+      entity: "Entità",
+      score: "Punteggio",
       none: "Nessuna entità da confrontare.",
     },
     table: {
+      noRows: "Nessuna riga.",
+      noMatches: "Nessun risultato per «{{query}}».",
       searchPlaceholder: "Cerca…",
     },
     sparkline: {
@@ -341,6 +376,7 @@ export const it: PartialResources = {
     tryAgain: "Riprova",
   },
   changePassword: {
+    failed: "Impossibile cambiare la password.",
     required: "È richiesto il cambio della password",
     loggedInAs: "Accesso come",
     currentPassword: "Password attuale",
@@ -355,6 +391,16 @@ export const it: PartialResources = {
     tooShort: "La nuova password deve contenere almeno 4 caratteri",
   },
   modelPage: {
+    loadingModel: "Caricamento del modello",
+    loadingStage: "Caricamento del modello: {{stage}}",
+    geometryUnreadable: "Impossibile leggere la geometria 3D.",
+    stage: {
+      fetchingWorker: "avvio del processo di lavoro",
+      decompressing: "decompressione",
+      parsing: "lettura del file",
+      generating: "generazione della geometria",
+      done: "fatto",
+    },
     title: "Modello",
     subtitle: "Visualizzatore 3D dell'artefatto Fragments derivato da IFC. Fai clic su un elemento per ispezionarlo.",
     loading: "Caricamento del modello…",
@@ -437,6 +483,12 @@ export const it: PartialResources = {
     },
   },
   thingSearch: {
+    markdown: {
+      name: "Nome",
+      type: "Tipo",
+      properties: "Proprietà",
+      relationships: "Relazioni",
+    },
     title: "Ricerca cose",
     intro: "Cerca le cose per nome. Le corrispondenze esatte vengono elencate per prime, poi i prefissi e infine le sottostringhe. Fai clic su un nome per aprirlo nel Grafo.",
     placeholder: "Digita il nome di una cosa (es. Patient-123, Building-A, MalePatient-Type)…",
@@ -452,6 +504,14 @@ export const it: PartialResources = {
     typeLabel: "Tipo: {{type}}",
   },
   propertySearch: {
+    markdown: {
+      type: "Tipo",
+      owner: "Proprietario",
+      inheritedFrom: "Ereditato da",
+      value: "Valore",
+      thing: "Cosa",
+      relationship: "Relazione",
+    },
     title: "Ricerca proprietà",
     introByName: "Cerca le proprietà per nome in tutte le cose e relazioni. Sono supportate le corrispondenze parziali.",
     introByValue: "Cerca le proprietà per valore in tutte le cose e relazioni. Sono supportate le corrispondenze parziali.",
@@ -834,6 +894,7 @@ export const it: PartialResources = {
       resolvedAt: 'Risolto il (proprietà)',
     },
     toast: {
+      notReadBack: "La console non è riuscita a rileggere questa pagina, quindi non è stata scritta.",
       written: '“{{name}}” conservata.',
       kept: '“{{name}}” conservata come pagina; compare nella barra laterale per tutti.',
       removed: 'La pagina è stata rimossa.',
@@ -1058,6 +1119,13 @@ export const it: PartialResources = {
     },
   },
   pipeline: {
+    noPipelineMarks: "Questo modello non contrassegna alcun archetipo come pipeline, nodo di pipeline o collegamento: carica un seed che li contrassegni.",
+    noPortMarks: "Questo modello non contrassegna alcun archetipo come porta, ingresso di pipeline o uscita di pipeline: carica un seed che li contrassegni.",
+    noStandsForMark: "Questo modello non contrassegna alcun predicato come quello che indica cosa rappresenta un nodo di confine: carica un seed che ne contrassegni uno.",
+    danglingWire: "Questo collegamento non è agganciato a entrambe le estremità: {{from}} → {{to}}",
+    requiredInputUnbound: "L’ingresso obbligatorio «{{port}}» di «{{node}}» non è collegato né associato a un parametro di esecuzione.",
+    startCannotStart: "«{{node}}» è dove inizia questa pipeline e rappresenta «{{named}}», che non avvia nulla",
+    endCannotEnd: "«{{node}}» è dove finisce questa pipeline e rappresenta «{{named}}», che un’esecuzione non può lasciare dietro di sé",
     new: "Nuovo",
     undo: "Annulla",
     undoTitle: "Annulla (Ctrl/Cmd+Z)",
@@ -1176,9 +1244,14 @@ export const it: PartialResources = {
     },
   },
   viewerToolbar: {
+    plan: "Pianta",
+    section: "Sezione",
     sectionHeight: "Altezza sezione",
   },
   operationsPage: {
+    all: "Tutti",
+    live: "in diretta",
+    offline: "non in linea",
     noDashboard: "Nessuna dashboard configurata",
     noDashboardBody: "Questo modello non definisce alcuna configurazione <0>Dashboard</0>. Aggiungi una Thing dell'archetipo <1>Dashboard</1> con una proprietà <2>spec</2> per gestire questa pagina.",
     unreadableSpecification: "Impossibile leggere {{name}}",
@@ -1186,6 +1259,7 @@ export const it: PartialResources = {
     emptyView: "La specifica di questa dashboard non elenca alcuna sezione, quindi non c'è nulla da disegnare.",
   },
   ifcUpload: {
+    serviceNotConfigured: "L’indirizzo del servizio di importazione non è configurato (imposta {{setting}}).",
     ingested: "{{file}} importato: {{created}} creati, {{updated}} aggiornati, {{rels}} relazioni.",
     ingestFailed: "Importazione non riuscita.",
     ingesting: "Importazione in corso…",
@@ -1195,6 +1269,8 @@ export const it: PartialResources = {
     configureHint: "Imposta <0>VITE_INGEST_URL</0> per abilitare l'import IFC nell'app, oppure importa dalla CLI con <1>vos.Taproot</1> (<2>ingest &lt;file.ifc&gt;</2>).",
   },
   intake: {
+    serviceNotConfigured: "L’indirizzo del servizio di acquisizione non è configurato (imposta {{setting}}).",
+    refusedWithStatus: "L’invio è stato rifiutato ({{status}}).",
     title: "Acquisizione terreni",
     subtitle: "Descrivere un terreno e proporlo come sito",
     step: {
@@ -1281,6 +1357,8 @@ export const it: PartialResources = {
     tryExplore: 'Preferisci partire da una mappa? Esplora il tuo terreno.',
   },
   explore: {
+    noTicket: "Conferma prima il tuo indirizzo email.",
+    defaultSiteName: "Sito a {{latitude}}, {{longitude}}",
     title: 'Esplora il tuo terreno',
     intro: 'Indica un terreno e scopri chi potrebbe sfamare e rifornire di acqua ed elettricità — poi regola il villaggio che hai in mente.',
     unreachable: 'Questa pagina al momento non riesce a raggiungere il servizio di invio.',
@@ -1360,6 +1438,8 @@ export const it: PartialResources = {
     },
   },
   publicFindings: {
+    noTicket: "Conferma prima il tuo indirizzo email.",
+    fileNotSent: "Impossibile inviare il file.",
     title: 'Il tuo invio',
     intro: "Che cosa è stato inviato, che cosa è stato rilevato e che cosa ne ricava l'analisi.",
     reference: 'Riferimento',
@@ -1377,6 +1457,7 @@ export const it: PartialResources = {
     unreachable: 'Questa pagina al momento non riesce a raggiungere il servizio di invio.',
   },
   submissionReview: {
+    ambiguousProperty: "«{{property}}» è ereditata da più di un archetipo su {{thing}}, quindi leggerla solo con quel nome non dice nulla: {{paths}}. Leggila tramite il percorso completo.",
     title: "Invii",
     subtitle: "Che cosa è arrivato e che cosa farne",
     showDecided: "Mostra quelli decisi",

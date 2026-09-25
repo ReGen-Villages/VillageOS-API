@@ -2,6 +2,8 @@ import type { SubmissionDocument } from '../intake/submissionDraft';
 import type { BasemapSource, DeclaredBasemapSource } from '../types/basemap';
 import type { DeclaredTheme } from '../types/dashboard';
 import { basemapSourcesFrom } from '../utils/basemapSources';
+import type { TermWording } from '../i18n/termWording';
+import i18n from '../i18n';
 
 /** What the intake service answered a submission with: something the submitter can quote to whoever
  *  reviews it. What the model called the Things it composed the submission into stays inside the service —
@@ -47,6 +49,9 @@ export interface FormOptions {
   /** The themes a dashboard section may name, as the model declares them — what faces a tile on the
    *  report. Empty where the model declares none, which draws every section as a list. */
   themes: DeclaredTheme[];
+  /** Each offered term's words by language, under the name the lists above offer. A term the model
+   *  words in no language is absent, and is shown by its name. */
+  wording: TermWording;
 }
 
 /** The legal parcel a register holds at a position, as named pairs, with the register's own credit
@@ -80,6 +85,7 @@ export const intakeApi = {
       parcelLookup?: boolean;
       placeSearch?: boolean;
       themes?: Partial<DeclaredTheme>[];
+      wording?: TermWording;
     };
     return {
       allocationCategories: answered.allocationCategories ?? [],
@@ -89,6 +95,7 @@ export const intakeApi = {
       defaultProgramme: answered.defaultProgramme ?? [],
       parcelLookup: answered.parcelLookup ?? false,
       placeSearch: answered.placeSearch ?? false,
+      wording: answered.wording ?? {},
       themes: (answered.themes ?? []).map((theme) => ({
         name: theme.name ?? '',
         colour: theme.colour ?? null,
@@ -192,7 +199,7 @@ function servedByTheService(source: BasemapSource): BasemapSource {
 
 export function intakeServiceAddress(): string {
   const base = intakeUrl().replace(/\/$/, '');
-  if (!base) throw new Error('The intake service address is not configured (set VITE_INTAKE_URL).');
+  if (!base) throw new Error(i18n.t('intake.serviceNotConfigured', { setting: 'VITE_INTAKE_URL' }));
   return base;
 }
 
@@ -208,5 +215,5 @@ export async function refusalFrom(response: Response): Promise<string> {
 
 /** The service's own words for a refusal where it gave any, else the status. */
 export function refusalIn(body: { error?: string; detail?: string; title?: string } | null, status: number): string {
-  return body?.error ?? body?.detail ?? body?.title ?? `The submission was refused (${status}).`;
+  return body?.error ?? body?.detail ?? body?.title ?? i18n.t('intake.refusedWithStatus', { status });
 }

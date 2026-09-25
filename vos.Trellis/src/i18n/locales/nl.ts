@@ -71,6 +71,14 @@ export const nl: PartialResources = {
     downloadFailed: 'Kon het volledige logboek niet downloaden.',
   },
   common: {
+    requestFailed: "Het verzoek is mislukt ({{status}}).",
+    megabytes: "{{value}} MB",
+    close: "Sluiten",
+    searchPlaceholder: "Zoeken…",
+    typeToSearchMore: "Typ om meer items te zoeken…",
+    mesh: "net",
+    meshSize: "net ({{vertices}} hoekpunten)",
+    meshSizeWithTriangles: "net ({{vertices}} hoekpunten, {{triangles}} driehoeken)",
     start: 'Starten',
     stop: 'Stoppen',
     delete: 'Verwijderen',
@@ -101,7 +109,7 @@ export const nl: PartialResources = {
       ranges: 'Bereikevaluatie',
       rollups: 'Reactieve berekening',
       rangesUnit: 'bereiken',
-      rollupsUnit: 'roll-ups',
+      rollupsUnit: 'samenvattingen',
       edges: 'randen',
       members: 'leden',
       total: 'Totaal geheugen (gesch.)',
@@ -249,6 +257,7 @@ export const nl: PartialResources = {
     radial: { clearAll: 'Alle predicaten wissen', slice: '{{name}} ({{edges}} randen)' },
     filter: { all: 'Alle', none: 'Geen', hidden: '{{count}} verborgen', clearSearch: 'Zoekopdracht wissen' },
     typeFilter: {
+      noType: "(geen type)",
       title: 'Filteren op type',
       search: 'Typen zoeken…',
       sort: 'Sorteren',
@@ -266,6 +275,14 @@ export const nl: PartialResources = {
     },
   },
   authentication: {
+    required: "Meld u opnieuw aan om verder te gaan.",
+    seedStatusFailed: "Kon niet nagaan of er een seed wordt geladen.",
+    seedLoadedSignInAgain: "Seed geladen. Meld u opnieuw aan.",
+    loginFailed: "Aanmelden is mislukt.",
+    emptyLibrary: "Geen modellen op Mycelium. Zet een .seed.json in vos.Mycelium/seeds-library/ en laad opnieuw, of stuur POST /api/mycelium/library-seeds/<name>/load.",
+    librarySeedsFailed: "Kon de seeds in de bibliotheek niet weergeven.",
+    loadSeedFailed: "Kon de seed niet laden.",
+    saveSeedFailed: "Kon de seed niet opslaan.",
     loadSeed: 'Een seed laden',
     searchSeeds: 'Seeds zoeken…',
     columnName: 'Naam',
@@ -289,6 +306,20 @@ export const nl: PartialResources = {
     signIn: 'Aanmelden',
   },
   widgets: {
+    stateCountMissing: "Het aantal dingen in ‘{{state}}’ kon niet worden gelezen.",
+    funnel: {
+      rows: "rijen",
+      stage: "Fase",
+      thing: "Ding",
+      searchStage: "Zoeken in {{stage}}…",
+      searchAll: "Zoeken in alle {{noun}}…",
+      kept: "{{percent}}% behouden",
+      entry: "instroom",
+      allMatching: "Alle {{noun}} die overeenkomen met ‘{{query}}’",
+    },
+    gantt: {
+      empty: "Geen planningsgegevens voor deze tijdlijn.",
+    },
     history: {
       series: 'Reeksen',
       lastYears_one: 'afgelopen jaar',
@@ -320,9 +351,13 @@ export const nl: PartialResources = {
     kpi: { onTarget: 'op doel', watch: 'let op', peak: 'piek', trough: 'dal' },
     working: { notDerived: 'dit cijfer wordt aan het model gegeven, niet door het model berekend' },
     leaderboard: {
+      entity: "Entiteit",
+      score: "Score",
       none: "Geen entiteiten om te vergelijken.",
     },
     table: {
+      noRows: "Geen rijen.",
+      noMatches: "Geen resultaten voor ‘{{query}}’.",
       searchPlaceholder: "Zoeken…",
     },
     sparkline: {
@@ -341,6 +376,7 @@ export const nl: PartialResources = {
     tryAgain: "Opnieuw proberen",
   },
   changePassword: {
+    failed: "Het wachtwoord kon niet worden gewijzigd.",
     required: "Wachtwoord wijzigen vereist",
     loggedInAs: "Ingelogd als",
     currentPassword: "Huidig wachtwoord",
@@ -355,6 +391,16 @@ export const nl: PartialResources = {
     tooShort: "Nieuw wachtwoord moet minstens 4 tekens bevatten",
   },
   modelPage: {
+    loadingModel: "Model laden",
+    loadingStage: "Model laden: {{stage}}",
+    geometryUnreadable: "De 3D-geometrie kon niet worden gelezen.",
+    stage: {
+      fetchingWorker: "werkproces starten",
+      decompressing: "uitpakken",
+      parsing: "bestand lezen",
+      generating: "geometrie opbouwen",
+      done: "klaar",
+    },
     title: "Model",
     subtitle: "3D-viewer voor het uit IFC afgeleide Fragments-artefact. Klik op een element om het te inspecteren.",
     loading: "Model laden…",
@@ -437,6 +483,12 @@ export const nl: PartialResources = {
     },
   },
   thingSearch: {
+    markdown: {
+      name: "Naam",
+      type: "Soort",
+      properties: "Eigenschappen",
+      relationships: "Relaties",
+    },
     title: "Dingen zoeken",
     intro: "Zoek dingen op naam. Exacte overeenkomsten staan bovenaan, daarna voorvoegsels, daarna deelreeksen. Klik op een naam om het in de Grafiek te openen.",
     placeholder: "Typ een dingnaam (bijv. Patient-123, Building-A, MalePatient-Type)…",
@@ -452,6 +504,14 @@ export const nl: PartialResources = {
     typeLabel: "Type: {{type}}",
   },
   propertySearch: {
+    markdown: {
+      type: "Soort",
+      owner: "Eigenaar",
+      inheritedFrom: "Geërfd van",
+      value: "Waarde",
+      thing: "Ding",
+      relationship: "Relatie",
+    },
     title: "Eigenschappen zoeken",
     introByName: "Zoek eigenschappen op naam in alle dingen en relaties. Gedeeltelijke overeenkomsten worden ondersteund.",
     introByValue: "Zoek eigenschappen op waarde in alle dingen en relaties. Gedeeltelijke overeenkomsten worden ondersteund.",
@@ -724,7 +784,7 @@ export const nl: PartialResources = {
       origin: 'Waar het cijfer vandaan kwam',
       stages: 'Stadia',
       label: 'Label',
-      sublabel: 'Sublabel',
+      sublabel: 'Onderlabel',
       color: 'Kleur',
       count: 'Aantal',
       drill: 'Opent de rijen',
@@ -834,6 +894,7 @@ export const nl: PartialResources = {
       resolvedAt: 'Opgelost op (eigenschap)',
     },
     toast: {
+      notReadBack: "De console kon deze pagina niet teruglezen, dus is ze niet weggeschreven.",
       written: '“{{name}}” bewaard.',
       kept: '“{{name}}” bewaard als pagina; ze staat voor iedereen in de zijbalk.',
       removed: 'De pagina is verwijderd.',
@@ -1058,6 +1119,13 @@ export const nl: PartialResources = {
     },
   },
   pipeline: {
+    noPipelineMarks: "Dit model markeert geen archetype als pipeline, pipelineknooppunt of verbinding — laad een seed die ze markeert.",
+    noPortMarks: "Dit model markeert geen archetype als poort, pipeline-invoer of pipeline-uitvoer — laad een seed die ze markeert.",
+    noStandsForMark: "Dit model markeert geen predicaat als het predicaat dat zegt waar een grensknooppunt voor staat — laad een seed die er een markeert.",
+    danglingWire: "Deze verbinding is niet aan beide uiteinden bevestigd: {{from}} → {{to}}",
+    requiredInputUnbound: "De verplichte invoer ‘{{port}}’ op ‘{{node}}’ is niet verbonden en niet gekoppeld aan een uitvoeringsparameter.",
+    startCannotStart: "‘{{node}}’ is waar deze pipeline begint en staat voor ‘{{named}}’, dat niets start",
+    endCannotEnd: "‘{{node}}’ is waar deze pipeline eindigt en staat voor ‘{{named}}’, dat een uitvoering niet kan achterlaten",
     new: "Nieuw",
     undo: "Ongedaan maken",
     undoTitle: "Ongedaan maken (Ctrl/Cmd+Z)",
@@ -1176,9 +1244,14 @@ export const nl: PartialResources = {
     },
   },
   viewerToolbar: {
+    plan: "Plattegrond",
+    section: "Doorsnede",
     sectionHeight: "Sectiehoogte",
   },
   operationsPage: {
+    all: "Alle",
+    live: "live",
+    offline: "offline",
     noDashboard: "Geen dashboard geconfigureerd",
     noDashboardBody: "Dit model definieert geen <0>Dashboard</0>-configuratie. Voeg een Thing van archetype <1>Dashboard</1> met een <2>spec</2>-eigenschap toe om deze pagina aan te sturen.",
     unreadableSpecification: "{{name}} kon niet worden gelezen",
@@ -1186,6 +1259,7 @@ export const nl: PartialResources = {
     emptyView: "De specificatie van dit dashboard noemt geen secties, dus er valt niets te tekenen.",
   },
   ifcUpload: {
+    serviceNotConfigured: "Het adres van de importdienst is niet geconfigureerd (stel {{setting}} in).",
     ingested: "{{file}} geïmporteerd: {{created}} aangemaakt, {{updated}} bijgewerkt, {{rels}} relaties.",
     ingestFailed: "Importeren mislukt.",
     ingesting: "Bezig met importeren…",
@@ -1195,6 +1269,8 @@ export const nl: PartialResources = {
     configureHint: "Stel <0>VITE_INGEST_URL</0> in om IFC-import in de app in te schakelen, of importeer via de CLI met <1>vos.Taproot</1> (<2>ingest &lt;file.ifc&gt;</2>).",
   },
   intake: {
+    serviceNotConfigured: "Het adres van de aanmelddienst is niet geconfigureerd (stel {{setting}} in).",
+    refusedWithStatus: "De inzending is geweigerd ({{status}}).",
     title: "Grondaanmelding",
     subtitle: "Een stuk grond beschrijven en als locatie voorstellen",
     step: {
@@ -1281,6 +1357,8 @@ export const nl: PartialResources = {
     tryExplore: 'Liever vanaf een kaart beginnen? Verken uw grond.',
   },
   explore: {
+    noTicket: "Bevestig eerst uw e-mailadres.",
+    defaultSiteName: "Locatie op {{latitude}}, {{longitude}}",
     title: 'Verken uw grond',
     intro: 'Wijs een stuk grond aan en zie wat het zou kunnen voeden, van water en van stroom voorzien — en stel daarna het dorp in dat u voor ogen hebt.',
     unreachable: 'Deze pagina kan de indieningsdienst op dit moment niet bereiken.',
@@ -1360,6 +1438,8 @@ export const nl: PartialResources = {
     },
   },
   publicFindings: {
+    noTicket: "Bevestig eerst uw e-mailadres.",
+    fileNotSent: "Het bestand kon niet worden verzonden.",
     title: 'Uw inzending',
     intro: 'Wat is ingediend, wat is gevonden en wat de analyse ervan maakt.',
     reference: 'Referentie',
@@ -1377,6 +1457,7 @@ export const nl: PartialResources = {
     unreachable: 'Deze pagina kan de indieningsdienst op dit moment niet bereiken.',
   },
   submissionReview: {
+    ambiguousProperty: "‘{{property}}’ wordt op {{thing}} van meer dan één archetype geërfd, dus alleen die naam zegt niets: {{paths}}. Lees de eigenschap via het volledige pad.",
     title: "Inzendingen",
     subtitle: "Wat er binnen is gekomen en wat ermee moet gebeuren",
     showDecided: "Besliste inzendingen tonen",

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { catalystFixture } from './catalystFixture';
+import { catalystFixture } from './catalysts.test.fixture';
 import { catalystRail, outputRail } from './catalysts';
 
 describe('the rail of catalysts', () => {

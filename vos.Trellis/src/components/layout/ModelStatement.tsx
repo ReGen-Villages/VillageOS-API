@@ -8,7 +8,7 @@ import { useActivityStore } from '../../stores/activityStore';
  *  past it, so it has to say how much the model holds, whether changes are still arriving and how
  *  long ago anything moved, without being asked. */
 export function ModelStatement({ isCollapsed }: { isCollapsed: boolean }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { connected } = useSse();
   const loaded = useModelStore((s) => s.loaded);
   const thingCount = useModelStore((s) => s.things.length);
@@ -20,7 +20,7 @@ export function ModelStatement({ isCollapsed }: { isCollapsed: boolean }) {
     ? `${t('statement.things', { count: thingCount })} · ${t('statement.relationships', { count: relationshipCount })}`
     : t('statement.reading');
   const moved = latestEvent
-    ? t('statement.lastMoved', { at: new Date(latestEvent.Timestamp).toLocaleTimeString() })
+    ? t('statement.lastMoved', { at: new Date(latestEvent.Timestamp).toLocaleTimeString(i18n.language) })
     : t('statement.nothingYet');
 
   const mark = (

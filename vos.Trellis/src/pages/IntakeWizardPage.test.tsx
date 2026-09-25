@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
+import i18n from '../i18n';
 import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos';
 import type { BasemapSource } from '../types/basemap';
 import {
@@ -701,6 +702,33 @@ describe('the hazards step', () => {
     fireEvent.change(await screen.findByLabelText('flooding'), { target: { value: 'bad' } });
 
     expect(loadDraft('model-1')?.reportedHazards).toEqual({ flooding: 'bad' });
+  });
+
+  // Offered in the reader's words and submitted by the model's name, because the name is what the service
+  // resolves against.
+  it('offers each hazard and level in the reader’s language and reports it by its name', async () => {
+    const worded = (words: Record<string, string>): EffectiveProperty =>
+      ({ Value: JSON.stringify(words), Type: 'vos.String', IsInherited: false });
+    vi.mocked(thingApi.getAllProperties).mockImplementation(answeredLate({
+      ...PROPERTIES,
+      flooding: { wording: worded({ en: 'Flooding', de: 'Überschwemmung' }) },
+      bad: { wording: worded({ en: 'Bad', de: 'Schlimm' }) },
+    }));
+    render(<IntakeWizardPage />);
+    goToStep(5);
+    await screen.findByLabelText('Flooding');
+    await act(() => i18n.changeLanguage('de'));
+    try {
+
+      const flooding = await screen.findByLabelText('Überschwemmung');
+      expect(within(flooding).getByRole('option', { name: 'Schlimm' })).toBeInTheDocument();
+      expect(screen.getByLabelText('slippage')).toBeInTheDocument();
+
+      fireEvent.change(flooding, { target: { value: 'bad' } });
+      expect(loadDraft('model-1')?.reportedHazards).toEqual({ flooding: 'bad' });
+    } finally {
+      await act(() => i18n.changeLanguage('en'));
+    }
   });
 
   // A mis-click has to be takeable back, so clearing a row says nothing again rather than something else.

@@ -57,18 +57,61 @@ public static class FormOptionsReader
         IncludeRelationships = true,
     };
 
-    public static FormOptions Read(SnapshotDocument snapshot) => new(
-        [.. DeclaredVocabularyReader.AllocationCategories(snapshot).Terms.Select(term => term.Name)],
-        BasemapSources(snapshot),
+    public static FormOptions Read(SnapshotDocument snapshot)
+    {
+        var categories = DeclaredVocabularyReader.AllocationCategories(snapshot).Terms;
         // A form asking somebody what they have seen has to offer the words the model holds, for the same
         // reason it offers the allocation categories: a term typed freehand is refused on submission, and
         // the person who typed it is the last to find out.
-        DeclaredVocabularyReader.HazardTypeNamesOrNone(snapshot),
-        DeclaredVocabularyReader.HazardLevelNamesOrNone(snapshot),
-        DefaultProgramme(snapshot),
-        PositionLookupReader.ParcelLookups(snapshot).Count > 0,
-        PositionLookupReader.PlaceSearch(snapshot) is not null,
-        Themes(snapshot));
+        var hazardTypes = DeclaredVocabularyReader.HazardTypesOrNone(snapshot);
+        var hazardLevels = DeclaredVocabularyReader.HazardLevelsOrNone(snapshot);
+
+        return new FormOptions(
+            [.. categories.Select(term => term.Name)],
+            BasemapSources(snapshot),
+            [.. hazardTypes.Select(term => term.Name)],
+            [.. hazardLevels.Select(term => term.Name)],
+            DefaultProgramme(snapshot),
+            PositionLookupReader.ParcelLookups(snapshot).Count > 0,
+            PositionLookupReader.PlaceSearch(snapshot) is not null,
+            Themes(snapshot),
+            Wording(snapshot, [.. categories, .. hazardTypes, .. hazardLevels]));
+    }
+
+    // What each offered term is called in each language, as the term Thing states it: a JSON object from
+    // language code to words. A term is still submitted by its name; the words are only shown.
+    public const string WordingProperty = "wording";
+
+    private static Dictionary<string, IReadOnlyDictionary<string, string>> Wording(
+        SnapshotDocument snapshot, IReadOnlyList<DeclaredTerm> terms)
+    {
+        var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
+        var wording = new Dictionary<string, IReadOnlyDictionary<string, string>>();
+        foreach (var term in terms)
+        {
+            if (!thingsById.TryGetValue(term.Id, out var thing)) continue;
+            if (WordsByLanguage(Text(thing, WordingProperty)) is { Count: > 0 } words)
+                wording.TryAdd(term.Name, words);
+        }
+        return wording;
+    }
+
+    private static Dictionary<string, string>? WordsByLanguage(string? stated)
+    {
+        if (stated is null) return null;
+        try
+        {
+            using var document = JsonDocument.Parse(stated);
+            if (document.RootElement.ValueKind != JsonValueKind.Object) return null;
+            return document.RootElement.EnumerateObject()
+                .Where(entry => entry.Value.ValueKind == JsonValueKind.String)
+                .ToDictionary(entry => entry.Name, entry => entry.Value.GetString()!);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
 
     // The starting split, from the share each category Thing states for itself. Only the
     // categories stating one are in it, so a model declaring no defaults offers a page that starts

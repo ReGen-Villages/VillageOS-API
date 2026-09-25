@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import { catalystFixture } from '../../pipeline/catalystFixture';
+import { catalystFixture } from '../../pipeline/catalysts.test.fixture';
 import { catalystRail } from '../../pipeline/catalysts';
 import { CatalystRail } from './CatalystRail';
 

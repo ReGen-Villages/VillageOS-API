@@ -1,6 +1,7 @@
 // A "type" is any Thing that some other Thing `is`-relates to; there is no
-// fixed vocabulary. The synthetic "(no type)" bucket lets the panel's "None"
-// action mean "show nothing → empty graph".
+// fixed vocabulary. The synthetic no-type bucket lets the panel's "None"
+// action mean "show nothing → empty graph". It is named by its id, and the
+// panel shows that name in the reader's language.
 
 import type { VosThing, VosRelationship } from '../types/vos';
 
@@ -8,8 +9,6 @@ const IS_PREDICATE_NAME = 'is';
 
 // Reserved sentinel — cannot collide with a real Thing id because real ids are GUIDs.
 export const NO_TYPE_ID = '__noType__';
-
-export const NO_TYPE_NAME = '(no type)';
 
 export interface TypeStat {
   typeId: string;
@@ -78,7 +77,7 @@ export function discoverTypes(
 
   const out: TypeStat[] = [];
   for (const [typeId, members] of buckets) {
-    const name = typeId === NO_TYPE_ID ? NO_TYPE_NAME : thingNames.get(typeId);
+    const name = typeId === NO_TYPE_ID ? NO_TYPE_ID : thingNames.get(typeId);
     if (!name) continue;
     out.push({ typeId, name, instanceCount: members.size });
   }
@@ -137,7 +136,7 @@ export function sortTypeGroups(
   groups: readonly TypeGroupStat[],
   order: SortOrder,
 ): TypeGroupStat[] {
-  const isNoType = (g: TypeGroupStat) => g.name === NO_TYPE_NAME;
+  const isNoType = (g: TypeGroupStat) => g.name === NO_TYPE_ID;
 
   return [...groups].sort((a, b) => {
     // NO_TYPE sentinel always tail-sorts.

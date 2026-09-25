@@ -47,6 +47,24 @@ public class FormOptionsEndpointTests
             .Contain(WillowBend.VectorBasemapName);
     }
 
+    // The words travel under the name the list offers, exactly as the model spells it: a key recased on the
+    // way out would match no term, and every term would be shown by its bare name.
+    [Fact]
+    public async Task It_answers_each_terms_wording_under_the_name_as_the_model_spells_it()
+    {
+        var model = new DeclaredModel()
+            .WithArchetype("LandUse", DeclaredVocabularyReader.AllocationCategoryArchetypeFlag)
+            .With("putTo", DeclaredVocabularyReader.AllocationCategoryPredicateFlag)
+            .Relate("Orchard", "is", "LandUse")
+            .Stating("Orchard", (FormOptionsReader.WordingProperty, """{"en": "Orchard", "fr": "Verger"}"""));
+        await using var factory = AnsweringWith(model.Build());
+        using var client = factory.CreateClient();
+
+        var answered = await client.GetFromJsonAsync<JsonElement>("/submissions/form");
+
+        answered.GetProperty("wording").GetProperty("Orchard").GetProperty("fr").GetString().Should().Be("Verger");
+    }
+
     [Fact]
     public async Task It_answers_the_themes_a_report_may_name()
     {

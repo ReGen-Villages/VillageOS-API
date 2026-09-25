@@ -8,7 +8,7 @@ vi.mock('../api/thingApi', () => ({ thingApi: { create: vi.fn(), addProperty: vi
 vi.mock('../api/relationshipApi', () => ({ relationshipApi: { create: vi.fn(), setProperty: vi.fn(), remove: vi.fn() } }));
 
 import { useModelStore } from '../stores/modelStore';
-import { catalystFixture } from '../pipeline/catalystFixture';
+import { catalystFixture } from '../pipeline/catalysts.test.fixture';
 import { installResizeObserverDouble } from '../testResizeObserver';
 import { PipelinePage } from './PipelinePage';
 

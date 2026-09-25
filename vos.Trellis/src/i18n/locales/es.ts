@@ -71,6 +71,14 @@ export const es: PartialResources = {
     downloadFailed: 'No se pudo descargar el registro completo.',
   },
   common: {
+    requestFailed: "La solicitud ha fallado ({{status}}).",
+    megabytes: "{{value}} MB",
+    close: "Cerrar",
+    searchPlaceholder: "Buscar…",
+    typeToSearchMore: "Escribe para buscar más elementos…",
+    mesh: "malla",
+    meshSize: "malla ({{vertices}} vértices)",
+    meshSizeWithTriangles: "malla ({{vertices}} vértices, {{triangles}} triángulos)",
     start: 'Iniciar',
     stop: 'Detener',
     delete: 'Eliminar',
@@ -101,7 +109,7 @@ export const es: PartialResources = {
       ranges: 'Evaluación de rangos',
       rollups: 'Cálculo reactivo',
       rangesUnit: 'rangos',
-      rollupsUnit: 'roll-ups',
+      rollupsUnit: 'agregaciones',
       edges: 'aristas',
       members: 'miembros',
       total: 'Memoria total (est.)',
@@ -249,6 +257,7 @@ export const es: PartialResources = {
     radial: { clearAll: 'Borrar todos los predicados', slice: '{{name}} ({{edges}} aristas)' },
     filter: { all: 'Todos', none: 'Ninguno', hidden: '{{count}} ocultos', clearSearch: 'Borrar búsqueda' },
     typeFilter: {
+      noType: "(sin tipo)",
       title: 'Filtrar por tipo',
       search: 'Buscar tipos…',
       sort: 'Ordenar',
@@ -266,6 +275,14 @@ export const es: PartialResources = {
     },
   },
   authentication: {
+    required: "Vuelve a iniciar sesión para continuar.",
+    seedStatusFailed: "No se ha podido saber si se está cargando un seed.",
+    seedLoadedSignInAgain: "Seed cargado. Vuelve a iniciar sesión.",
+    loginFailed: "No se ha podido iniciar sesión.",
+    emptyLibrary: "No hay modelos en Mycelium. Coloca un .seed.json en vos.Mycelium/seeds-library/ y recarga, o envía POST /api/mycelium/library-seeds/<name>/load.",
+    librarySeedsFailed: "No se han podido listar los seeds de la biblioteca.",
+    loadSeedFailed: "No se ha podido cargar el seed.",
+    saveSeedFailed: "No se ha podido guardar el seed.",
     loadSeed: 'Cargar un seed',
     searchSeeds: 'Buscar seeds…',
     columnName: 'Nombre',
@@ -289,6 +306,20 @@ export const es: PartialResources = {
     signIn: 'Iniciar sesión',
   },
   widgets: {
+    stateCountMissing: "No se ha podido leer el número de cosas en «{{state}}».",
+    funnel: {
+      rows: "filas",
+      stage: "Etapa",
+      thing: "Cosa",
+      searchStage: "Buscar en {{stage}}…",
+      searchAll: "Buscar en todos: {{noun}}…",
+      kept: "{{percent}} % se mantiene",
+      entry: "entrada",
+      allMatching: "Todos: {{noun}} que coinciden con «{{query}}»",
+    },
+    gantt: {
+      empty: "No hay datos de calendario para esta línea de tiempo.",
+    },
     history: {
       series: 'Series',
       lastYears_one: 'último año',
@@ -320,9 +351,13 @@ export const es: PartialResources = {
     kpi: { onTarget: 'en objetivo', watch: 'atención', peak: 'máximo', trough: 'mínimo' },
     working: { notDerived: 'esta cifra se le da al modelo en vez de calcularla' },
     leaderboard: {
+      entity: "Entidad",
+      score: "Puntuación",
       none: "No hay entidades para comparar.",
     },
     table: {
+      noRows: "No hay filas.",
+      noMatches: "No hay coincidencias para «{{query}}».",
       searchPlaceholder: "Buscar…",
     },
     sparkline: {
@@ -341,6 +376,7 @@ export const es: PartialResources = {
     tryAgain: "Reintentar",
   },
   changePassword: {
+    failed: "No se ha podido cambiar la contraseña.",
     required: "Se requiere cambiar la contraseña",
     loggedInAs: "Sesión iniciada como",
     currentPassword: "Contraseña actual",
@@ -355,6 +391,16 @@ export const es: PartialResources = {
     tooShort: "La nueva contraseña debe tener al menos 4 caracteres",
   },
   modelPage: {
+    loadingModel: "Cargando el modelo",
+    loadingStage: "Cargando el modelo: {{stage}}",
+    geometryUnreadable: "No se ha podido leer la geometría 3D.",
+    stage: {
+      fetchingWorker: "iniciando el proceso de trabajo",
+      decompressing: "descomprimiendo",
+      parsing: "leyendo el archivo",
+      generating: "generando la geometría",
+      done: "listo",
+    },
     title: "Modelo",
     subtitle: "Visor 3D del artefacto Fragments derivado de IFC. Haz clic en un elemento para inspeccionarlo.",
     loading: "Cargando modelo…",
@@ -437,6 +483,12 @@ export const es: PartialResources = {
     },
   },
   thingSearch: {
+    markdown: {
+      name: "Nombre",
+      type: "Tipo",
+      properties: "Propiedades",
+      relationships: "Relaciones",
+    },
     title: "Búsqueda de cosas",
     intro: "Busca cosas por nombre. Las coincidencias exactas se ordenan primero, luego los prefijos y después las subcadenas. Haz clic en un nombre para abrirlo en el Grafo.",
     placeholder: "Escribe un nombre de cosa (p. ej. Patient-123, Building-A, MalePatient-Type)…",
@@ -452,6 +504,14 @@ export const es: PartialResources = {
     typeLabel: "Tipo: {{type}}",
   },
   propertySearch: {
+    markdown: {
+      type: "Tipo",
+      owner: "Propietario",
+      inheritedFrom: "Heredado de",
+      value: "Valor",
+      thing: "Cosa",
+      relationship: "Relación",
+    },
     title: "Búsqueda de propiedades",
     introByName: "Busca propiedades por nombre en todas las cosas y relaciones. Se admiten coincidencias parciales.",
     introByValue: "Busca propiedades por valor en todas las cosas y relaciones. Se admiten coincidencias parciales.",
@@ -834,6 +894,7 @@ export const es: PartialResources = {
       resolvedAt: 'Resuelto en (propiedad)',
     },
     toast: {
+      notReadBack: "La consola no ha podido volver a leer esta página, así que no se ha escrito.",
       written: '«{{name}}» conservada.',
       kept: '«{{name}}» conservada como página; está en la barra lateral para todos.',
       removed: 'La página se ha quitado.',
@@ -1058,6 +1119,13 @@ export const es: PartialResources = {
     },
   },
   pipeline: {
+    noPipelineMarks: "Este modelo no marca ningún arquetipo como pipeline, nodo de pipeline o conexión: carga un seed que los marque.",
+    noPortMarks: "Este modelo no marca ningún arquetipo como puerto, entrada de pipeline o salida de pipeline: carga un seed que los marque.",
+    noStandsForMark: "Este modelo no marca ningún predicado como el que indica qué representa un nodo de borde: carga un seed que marque uno.",
+    danglingWire: "Esta conexión no está unida por ambos extremos: {{from}} → {{to}}",
+    requiredInputUnbound: "La entrada obligatoria «{{port}}» de «{{node}}» no está conectada ni vinculada a un parámetro de ejecución.",
+    startCannotStart: "«{{node}}» es donde empieza este pipeline y representa «{{named}}», que no inicia nada",
+    endCannotEnd: "«{{node}}» es donde termina este pipeline y representa «{{named}}», que una ejecución no puede dejar tras de sí",
     new: "Nuevo",
     undo: "Deshacer",
     undoTitle: "Deshacer (Ctrl/Cmd+Z)",
@@ -1176,9 +1244,14 @@ export const es: PartialResources = {
     },
   },
   viewerToolbar: {
+    plan: "Planta",
+    section: "Sección",
     sectionHeight: "Altura de sección",
   },
   operationsPage: {
+    all: "Todos",
+    live: "en directo",
+    offline: "sin conexión",
     noDashboard: "No hay panel configurado",
     noDashboardBody: "Este modelo no define ninguna configuración de <0>Dashboard</0>. Añade una Thing del arquetipo <1>Dashboard</1> con una propiedad <2>spec</2> para gestionar esta página.",
     unreadableSpecification: "No se pudo leer {{name}}",
@@ -1186,6 +1259,7 @@ export const es: PartialResources = {
     emptyView: "La especificación de este panel no indica ninguna sección, así que no hay nada que dibujar.",
   },
   ifcUpload: {
+    serviceNotConfigured: "La dirección del servicio de importación no está configurada (define {{setting}}).",
     ingested: "{{file}} importado: {{created}} creados, {{updated}} actualizados, {{rels}} relaciones.",
     ingestFailed: "Error al importar.",
     ingesting: "Importando…",
@@ -1195,6 +1269,8 @@ export const es: PartialResources = {
     configureHint: "Configura <0>VITE_INGEST_URL</0> para habilitar la importación de IFC en la app, o importa desde la CLI con <1>vos.Taproot</1> (<2>ingest &lt;file.ifc&gt;</2>).",
   },
   intake: {
+    serviceNotConfigured: "La dirección del servicio de recepción no está configurada (define {{setting}}).",
+    refusedWithStatus: "La solicitud ha sido rechazada ({{status}}).",
     title: "Recepción de terrenos",
     subtitle: "Describir un terreno y proponerlo como emplazamiento",
     step: {
@@ -1281,6 +1357,8 @@ export const es: PartialResources = {
     tryExplore: '¿Prefiere empezar desde un mapa? Explore su terreno.',
   },
   explore: {
+    noTicket: "Confirma primero tu dirección de correo.",
+    defaultSiteName: "Terreno en {{latitude}}, {{longitude}}",
     title: 'Explore su terreno',
     intro: 'Señale un terreno y vea a cuántas personas podría alimentar y abastecer de agua y electricidad; después ajuste la aldea que tiene en mente.',
     unreachable: 'Esta página no puede comunicarse con el servicio de envío en este momento.',
@@ -1360,6 +1438,8 @@ export const es: PartialResources = {
     },
   },
   publicFindings: {
+    noTicket: "Confirma primero tu dirección de correo.",
+    fileNotSent: "No se ha podido enviar el archivo.",
     title: 'Su envío',
     intro: 'Qué se envió, qué se ha averiguado y qué concluye el análisis.',
     reference: 'Referencia',
@@ -1377,6 +1457,7 @@ export const es: PartialResources = {
     unreachable: 'Esta página no puede comunicarse con el servicio de envío en este momento.',
   },
   submissionReview: {
+    ambiguousProperty: "«{{property}}» se hereda de más de un arquetipo en {{thing}}, así que leerla solo por ese nombre no dice nada: {{paths}}. Léela por su ruta completa.",
     title: "Envíos",
     subtitle: "Qué ha llegado y qué hacer con ello",
     showDecided: "Mostrar los decididos",

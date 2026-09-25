@@ -378,7 +378,7 @@ describe('a wire held as a Thing', () => {
 
 describe('savePipeline / loadPipeline — what a boundary node stands for', () => {
   it('reconstructs the Thing a boundary node stands for on load', async () => {
-    const { catalystFixture } = await import('./catalystFixture');
+    const { catalystFixture } = await import('./catalysts.test.fixture');
     const { model, id } = catalystFixture();
     const loaded = loadPipeline(id.readingsArrive, model)!;
     expect(loaded.nodes.find((node) => node.id === id.readingsStart)?.standsForId).toBe(id.hourlyReading);
@@ -386,7 +386,7 @@ describe('savePipeline / loadPipeline — what a boundary node stands for', () =
   });
 
   it('writes the stands-for relationship through the predicate marked for it, and retracts the one it replaces', async () => {
-    const { catalystFixture } = await import('./catalystFixture');
+    const { catalystFixture } = await import('./catalysts.test.fixture');
     const { model, id } = catalystFixture();
     const loaded = loadPipeline(id.readingsArrive, model)!;
     const nodes = loaded.nodes.map((node) => (node.id === id.readingsStart ? { ...node, standsForId: id.intakeDoor } : node));
@@ -399,7 +399,7 @@ describe('savePipeline / loadPipeline — what a boundary node stands for', () =
   });
 
   it('refuses a node standing for something when the model marks no predicate for it', async () => {
-    const { catalystFixture } = await import('./catalystFixture');
+    const { catalystFixture } = await import('./catalysts.test.fixture');
     const { model, id, things, relationships } = catalystFixture();
     const unmarked = things.map((thing) => (thing.Id === id.standsFor ? { ...thing, Properties: {} } : thing));
     const { PipelineModel } = await import('./model');

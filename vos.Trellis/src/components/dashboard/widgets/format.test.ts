@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import i18n from '../../../i18n';
 import type { TableColumn } from '../../../types/dashboard';
 import type { Row } from '../../../api/dashboardApi';
-import { columnMaxima, deltaTone } from './format';
+import { columnMaxima, deltaTone, formatNumber } from './format';
 
 describe('columnMaxima', () => {
   const ageColumns: TableColumn[] = [
@@ -48,5 +49,34 @@ describe('deltaTone', () => {
   it('reads no figure, and no change, as flat', () => {
     expect(deltaTone(null)).toBe('flat');
     expect(deltaTone(0, 'neither-good')).toBe('flat');
+  });
+});
+
+describe('formatNumber', () => {
+  afterEach(async () => {
+    await i18n.changeLanguage('en');
+  });
+
+  it('groups and separates a figure the way the chosen language writes it', async () => {
+    await i18n.changeLanguage('de');
+
+    expect(formatNumber(1234567, 'integer')).toBe('1.234.567');
+    expect(formatNumber(12.5, 'decimal1')).toBe('12,5');
+    expect(formatNumber(3.14159, 'decimal2')).toBe('3,14');
+  });
+
+  it('writes a share with the percent sign where the chosen language puts it', async () => {
+    await i18n.changeLanguage('fr');
+
+    expect(formatNumber(0.42, 'percent')).toBe('42\u00a0%');
+  });
+
+  it('keeps the digits the rest of the page uses when the language is Arabic', async () => {
+    // Every count the translations interpolate is written in Western digits, so a figure beside one
+    // in Arabic-Indic digits would read as two different number systems on one line.
+    await i18n.changeLanguage('ar-SA');
+
+    expect(formatNumber(1234, 'integer')).toBe('1,234');
+    expect(formatNumber(0.42, 'percent')).toBe('42٪');
   });
 });

@@ -42,7 +42,7 @@ describe('ApiError', () => {
 
   it('falls back to status code when body is empty', () => {
     const err = new ApiError(404, '');
-    expect(err.message).toBe('Request failed (404)');
+    expect(err.message).toBe('The request failed (404).');
   });
 
   it('preserves status and body properties', () => {
@@ -62,7 +62,7 @@ describe('AuthRequiredError', () => {
   it('has correct name and message', () => {
     const err = new AuthenticationRequiredError();
     expect(err.name).toBe('AuthRequiredError');
-    expect(err.message).toBe('Authentication required');
+    expect(err.message).toBe('Sign in again to continue.');
     expect(err).toBeInstanceOf(Error);
   });
 });

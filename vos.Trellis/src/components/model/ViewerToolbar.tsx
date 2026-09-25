@@ -42,7 +42,7 @@ export function ViewerToolbar({
           active={cameraMode === 'plan'}
           onClick={() => onCameraModeChange('plan')}
           testid="camera-mode-plan"
-          label="Plan"
+          label={t('viewerToolbar.plan')}
           icon={<Layers size={14} />}
         />
       </div>
@@ -57,7 +57,7 @@ export function ViewerToolbar({
           }`}
         >
           <Scissors size={14} />
-          Section
+          {t('viewerToolbar.section')}
         </button>
         <input
           type="range"

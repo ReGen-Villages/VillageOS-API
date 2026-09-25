@@ -1,4 +1,5 @@
 import type { PortInformation } from './model';
+import i18n from '../i18n';
 
 // Pure pre-run validation for the pipeline editor: explains why a DAG will not run before the
 // user hits Run, instead of a silent dispatch failure. Kept pure so it is trivially unit-tested and can
@@ -50,12 +51,12 @@ export function validateEnds(nodes: ValidationNode[], _edges: ValidationEdge[]):
     if (node.kind === 'input' && !node.standsFor.mayStart)
       issues.push({
         kind: 'start-cannot-start', nodeId: node.id, named: node.standsFor.name,
-        message: `'${node.label}' is where this pipeline starts and stands for '${node.standsFor.name}', which starts nothing`,
+        message: i18n.t('pipeline.startCannotStart', { node: node.label, named: node.standsFor.name }),
       });
     if (node.kind === 'output' && !node.standsFor.mayEnd)
       issues.push({
         kind: 'end-cannot-end', nodeId: node.id, named: node.standsFor.name,
-        message: `'${node.label}' is where this pipeline ends and stands for '${node.standsFor.name}', which a run cannot leave behind`,
+        message: i18n.t('pipeline.endCannotEnd', { node: node.label, named: node.standsFor.name }),
       });
   }
   return issues;
@@ -85,7 +86,7 @@ export function validatePipeline(nodes: ValidationNode[], edges: ValidationEdge[
         sourceHandle: e.sourceHandle,
         target: e.target,
         targetHandle: e.targetHandle,
-        message: `Dangling wire ${e.source}.${e.sourceHandle} → ${e.target}.${e.targetHandle}`,
+        message: i18n.t('pipeline.danglingWire', { from: `${e.source}.${e.sourceHandle}`, to: `${e.target}.${e.targetHandle}` }),
       });
       continue;
     }
@@ -102,7 +103,7 @@ export function validatePipeline(nodes: ValidationNode[], edges: ValidationEdge[
           kind: 'unbound-required-input',
           nodeId: n.id,
           port: p.portName,
-          message: `Required input '${p.portName}' on '${n.label}' is neither wired nor bound to a run param`,
+          message: i18n.t('pipeline.requiredInputUnbound', { port: p.portName, node: n.label }),
         });
       }
     }

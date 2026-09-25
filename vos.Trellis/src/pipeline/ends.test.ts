@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { catalystFixture } from './catalystFixture';
+import { catalystFixture } from './catalysts.test.fixture';
 
 describe('what a boundary node stands for', () => {
   const { model, id } = catalystFixture();

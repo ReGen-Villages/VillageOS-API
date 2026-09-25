@@ -10,6 +10,7 @@ import { intakeApi, intakeServiceAddress, refusalFrom, refusalIn, TICKET_HEADER 
 import type { SharedSurvey } from '../explore/sharedSurveys';
 import type { FindingsAnswer } from '../publicFindings/answeredFindings';
 import type { TemporalReduceQuery, TemporalReduceResponse } from '../types/vos';
+import i18n from '../i18n';
 
 /** The history reduction as the page asks it: the platform's question without the Thing, which the
  *  service supplies as the submission's own site. */
@@ -87,7 +88,7 @@ export const findingsApi = {
       request.upload.onprogress = (event) => {
         if (event.lengthComputable && event.total > 0) onProgress(event.loaded / event.total);
       };
-      request.onerror = () => reject(new Error('The file could not be sent.'));
+      request.onerror = () => reject(new Error(i18n.t('publicFindings.fileNotSent')));
       request.onload = () => {
         if (request.status < 200 || request.status >= 300) {
           reject(new Error(refusalIn(parsedOrNull(request.responseText), request.status)));
