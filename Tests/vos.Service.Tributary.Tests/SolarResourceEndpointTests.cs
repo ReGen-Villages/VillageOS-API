@@ -1,6 +1,7 @@
 using vos.Service.Tributary.Services;
 using FluentAssertions;
 using JsonataTransform = vos.Service.Shared.JsonataTransform;
+using ModelClock = vos.Service.Shared.ModelClock;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
@@ -21,7 +22,8 @@ public class SolarResourceEndpointTests
     {
         var sut = new ObservationIngestService(
             Substitute.For<IEndpointMyceliumClient>(),
-            Substitute.For<ILogger<ObservationIngestService>>());
+            Substitute.For<ILogger<ObservationIngestService>>(),
+            new ModelClock());
         var query = new JsonataTransform(SolarResourceReshape);
         var upstream = """
         {

@@ -10,8 +10,6 @@ public class ModelClockFollowerTests
 {
     private static readonly DateTimeOffset ModelInstant = new(2025, 9, 20, 3, 0, 0, TimeSpan.Zero);
 
-    // Its own logger, handed to the follower: the static one belongs to every service in the process,
-    // and two tests that each swapped it raced over what the other captured.
     private sealed class Captured : ILogger
     {
         public List<string> Lines { get; } = [];

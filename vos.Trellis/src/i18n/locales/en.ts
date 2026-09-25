@@ -1171,7 +1171,7 @@ export const en = {
     boundaryOutput: "Output",
     wireLabel: "Wire · {{from}} → {{to}}",
     startBody: "Place where the run comes from off the catalysts on the left, what it leaves behind off the outputs on the right, and the services between them, then drag between ports to wire them.",
-    noServicesBody: "Load a model that has registered Connections (e.g. the pipeline demo seed) — they appear in the palette as nodes you can add.",
+    noServicesBody: "Load a model that has registered Connections (e.g. the pipeline demo seed) — they appear under Services in the outputs on the right, as nodes you can add.",
     catalysts: {
       title: "Catalysts",
       expand: "Show the catalysts",

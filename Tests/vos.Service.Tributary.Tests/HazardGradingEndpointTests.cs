@@ -1,6 +1,7 @@
 using vos.Service.Tributary.Services;
 using FluentAssertions;
 using JsonataTransform = vos.Service.Shared.JsonataTransform;
+using ModelClock = vos.Service.Shared.ModelClock;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
@@ -44,7 +45,8 @@ public class HazardGradingEndpointTests
 
     private static ObservationIngestService Ingest() => new(
         Substitute.For<IEndpointMyceliumClient>(),
-        Substitute.For<ILogger<ObservationIngestService>>());
+        Substitute.For<ILogger<ObservationIngestService>>(),
+        new ModelClock());
 
     [Fact]
     public void Reshape_maps_the_portals_grade_to_an_assessment_reading()

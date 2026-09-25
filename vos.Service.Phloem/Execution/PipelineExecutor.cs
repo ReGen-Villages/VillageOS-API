@@ -23,15 +23,13 @@ public sealed class PipelineExecutor
     public PipelineExecutor(
         IMyceliumGateway gateway,
         ILogger<PipelineExecutor> logger,
-        int maxConcurrency = 4,
-        ModelClock? clock = null)
+        ModelClock clock,
+        int maxConcurrency = 4)
     {
         _gateway = gateway;
         _logger = logger;
         _maxConcurrency = Math.Max(1, maxConcurrency);
-        // Un-anchored where none is registered, which is this machine's clock — what the model's own is
-        // until a simulation anchors it.
-        _clock = clock ?? new ModelClock();
+        _clock = clock;
     }
 
     // runId: Pre-generated run id for an async spawn (the editor already holds it to animate over

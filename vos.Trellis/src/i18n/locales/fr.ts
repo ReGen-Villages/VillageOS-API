@@ -1171,7 +1171,7 @@ export const fr: PartialResources = {
     boundaryInput: "Entrée",
     boundaryOutput: "Sortie",
     wireLabel: "Fil · {{from}} → {{to}}",
-    noServicesBody: "Chargez un modèle comportant des connexions enregistrées (p. ex. la seed de démonstration du pipeline) — elles apparaissent dans la palette sous forme de nœuds à ajouter.",
+    noServicesBody: "Chargez un modèle comportant des connexions enregistrées (p. ex. la seed de démonstration du pipeline) — elles apparaissent dans les sorties à droite, sous Services, sous forme de nœuds à ajouter.",
     findings: "Ce qui empêche ce pipeline de s'exécuter",
     startBody: "Placez d'où vient l'exécution depuis les déclencheurs à gauche, ce qu'elle laisse derrière elle depuis les sorties à droite, et les services entre les deux ; puis faites glisser entre les ports pour les relier.",
     catalysts: {
