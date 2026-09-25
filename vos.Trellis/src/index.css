@@ -92,3 +92,15 @@ body {
 #root {
   min-height: 100vh;
 }
+
+/*
+ * Safari on a phone zooms into any field under 16px when it is tapped. Unlayered, so it wins over the
+ * `text-sm` utilities the fields carry for a desktop.
+ */
+@media (max-width: 639px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

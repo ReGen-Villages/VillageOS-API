@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, Eye, EyeOff, X } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
 import type { PredicateStatistics } from '../../utils/predicateCluster';
+import { TABLET_WIDTH, useIsWide } from '../../hooks/useIsWide';
 
 /**
  * Predicate filter panel, sibling to TypeFilterPanel.
@@ -27,7 +28,8 @@ export function PredicateFilterPanel() {
   const setHiddenPredicateIds = useUiStore((s) => s.setHiddenPredicateIds);
   const clearHiddenPredicateIds = useUiStore((s) => s.clearHiddenPredicateIds);
 
-  const [collapsed, setCollapsed] = useState(false);
+  const wide = useIsWide(TABLET_WIDTH);
+  const [collapsed, setCollapsed] = useState(!wide);
   const [search, setSearch] = useState('');
 
   const sorted = useMemo<PredicateStatistics[]>(
