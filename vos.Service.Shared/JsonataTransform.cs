@@ -30,8 +30,13 @@ public sealed class JsonataTransform
         }
     }
 
-    public string Eval(string inputJson, TimeProvider clock) =>
-        _query.Eval(JToken.Parse(inputJson), EnvironmentReadingTheClock(clock)).ToIndentedString();
+    // Nothing is answered as no text: the engine writes it as the word "undefined", which is not JSON,
+    // and every caller reads an empty answer as nothing.
+    public string Eval(string inputJson, TimeProvider clock)
+    {
+        var result = _query.Eval(JToken.Parse(inputJson), EnvironmentReadingTheClock(clock));
+        return result.Type == JTokenType.Undefined ? "" : result.ToIndentedString();
+    }
 
     // Evaluate against a JSON value, returning the reshaped value. An empty/whitespace result (JSONata
     // "nothing") becomes a JSON null.
