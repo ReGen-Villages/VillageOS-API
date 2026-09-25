@@ -258,8 +258,6 @@ describe('MapView', () => {
 
   // Lose this and the map still mounts, still draws its controls and still reports no error — it
   // simply never parses a tile. See the reason in MapView.
-  // The broker picks the model from the caller's token, so a signed-in page's own tiles are refused
-  // without it; the public form has no token and supplies none.
   it('sends the sign-in its page provides with a request for the page’s own server', () => {
     render(
       <OwnServerRequestHeaders.Provider value={() => ({ Authorization: 'Bearer the-token' })}>
