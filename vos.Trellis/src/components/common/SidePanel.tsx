@@ -48,7 +48,7 @@ export function SidePanel({ side, bounds, labels, name, headerControls, children
       {...panel.handleProperties}
       aria-label={labels.resize}
       className={clsx(
-        'w-1.5 flex-shrink-0 cursor-col-resize transition-colors',
+        'hidden md:block w-1.5 flex-shrink-0 cursor-col-resize transition-colors',
         panel.isResizing ? 'bg-blue-500/60' : 'bg-transparent hover:bg-blue-400/40',
       )}
     />
@@ -59,12 +59,14 @@ export function SidePanel({ side, bounds, labels, name, headerControls, children
       {side === 'right' && handle}
       <aside
         aria-label={name}
-        style={isFolded ? undefined : { width: panel.width }}
+        // Through a variable, so the dragged width applies only from a tablet up; set inline it would
+        // beat the full width a phone stacks the panel at.
+        style={isFolded ? undefined : ({ '--panel-width': `${panel.width}px` } as React.CSSProperties)}
         className={clsx(
-          'flex-shrink-0 flex flex-col border-zinc-200 dark:border-zinc-700',
-          side === 'left' ? 'border-r' : 'border-l',
+          'w-full max-h-40 md:max-h-none flex-shrink-0 flex flex-col border-zinc-200 dark:border-zinc-700',
+          side === 'left' ? 'border-b md:border-b-0 md:border-r' : 'border-t md:border-t-0 md:border-l',
           // Folded, it is the width of the control that opens it again and nothing else.
-          isFolded && 'w-9',
+          isFolded ? 'md:w-9' : 'md:w-(--panel-width)',
         )}
       >
         <div className="flex items-center gap-1 p-1.5 border-b border-zinc-200 dark:border-zinc-700">
