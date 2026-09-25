@@ -1,7 +1,7 @@
 import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { modelApi } from '../api/modelApi';
-import { PipelineModel, ARCHETYPE_FLAG, type PortInformation } from './model';
+import { PipelineModel, ARCHETYPE_FLAG, PREDICATE_FLAG, type PortInformation } from './model';
 import type { VosTypeName } from '../utils/constants';
 import i18n from '../i18n';
 
@@ -27,6 +27,9 @@ export interface EditorNode {
   /** Boundary node: 'input' (a param source) or 'output' (the run's result sink). A boundary node
    * binds no connection — its `ports` are user-declared and persisted as its own port child-Things. */
   kind?: 'input' | 'output';
+  /** The Thing a boundary node stands for — its catalyst at the start, its outcome at the end — written
+   * as a relationship through the predicate the model marks for it. */
+  standsForId?: string;
 }
 
 export interface EditorEdge {
@@ -84,6 +87,9 @@ export async function savePipeline(
     model.archetypeCarrying(kind === 'input' ? ARCHETYPE_FLAG.PipelineInput : ARCHETYPE_FLAG.PipelineOutput);
   if (nodes.some((n) => n.kind) && (!portArchetype || !boundaryArchetype('input') || !boundaryArchetype('output')))
     throw new Error(i18n.t('pipeline.noPortMarks'));
+  const standsForId = model.predicateCarrying(PREDICATE_FLAG.StandsFor);
+  if (nodes.some((n) => n.standsForId) && !standsForId)
+    throw new Error(i18n.t('pipeline.noStandsForMark'));
 
   const pipelineId = existingPipelineId ?? crypto.randomUUID();
 
@@ -101,6 +107,8 @@ export async function savePipeline(
   ];
   // A boundary node's persisted ports, matched by name to reuse ids on update (retract removed ones below).
   const portsToRetract: string[] = [];
+  // A stands-for relationship the node no longer means: replaced below by the one it does.
+  const standsForToRetract: string[] = [];
   for (const n of nodes) {
     const thingId = nodeThingId.get(n.id)!;
     const props: Record<string, unknown> = { x: env(DOUBLE, n.x), y: env(DOUBLE, n.y) };
@@ -134,6 +142,11 @@ export async function savePipeline(
         relationships.push({ Name: 'has', Subject: thingId, Predicate: hasId, Target: portId });
       }
       for (const staleId of persisted.values()) portsToRetract.push(staleId);
+
+      const stood = model.standsFor(n.id);
+      if (stood && stood.thingId !== n.standsForId) standsForToRetract.push(stood.relationshipId);
+      if (n.standsForId && stood?.thingId !== n.standsForId)
+        relationships.push({ Name: 'standsFor', Subject: thingId, Predicate: standsForId!, Target: n.standsForId });
     } else {
       relationships.push({ Name: 'has', Subject: thingId, Predicate: hasId, Target: n.connectionId });
     }
@@ -187,8 +200,9 @@ export async function savePipeline(
     if (!desiredKeys.has(w.key))
       await (w.shape === 'edge' ? relationshipApi.remove(w.wireId) : thingApi.remove(w.wireId));
 
-  // Ports removed from a boundary node (still on the canvas) are retracted.
+  // Ports removed from a boundary node (still on the canvas) are retracted, as is what it stood for before.
   for (const portId of portsToRetract) await thingApi.remove(portId);
+  for (const relationshipId of standsForToRetract) await relationshipApi.remove(relationshipId);
 
   // Deleted nodes: persisted pipeline nodes no longer on the canvas are retracted, along with any port
   // child-Things a removed boundary node declared (so they don't linger as orphans).
@@ -234,7 +248,10 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
     };
     // Boundary node: its ports are declared on the node itself, and it binds no connection.
     const kind = model.boundaryKind(t.Id);
-    if (kind) return { ...base, kind, connectionId: '', ports: model.boundaryPortRelationships(t.Id).map((r) => r.port) };
+    if (kind) {
+      const stood = model.standsFor(t.Id);
+      return { ...base, kind, connectionId: '', ports: model.boundaryPortRelationships(t.Id).map((r) => r.port), ...(stood ? { standsForId: stood.thingId } : {}) };
+    }
 
     const conn = model.outgoing(t.Id, 'has').find((c) => model.isOfArchetypeCarrying(c.Id, ARCHETYPE_FLAG.Connection));
     return { ...base, connectionId: conn?.Id ?? '', ports: conn ? connectionsById.get(conn.Id)?.ports ?? [] : [] };

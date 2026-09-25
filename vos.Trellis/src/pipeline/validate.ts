@@ -10,6 +10,10 @@ export interface ValidationNode {
   label: string;
   ports: PortInformation[];
   paramBindings?: Record<string, string>;
+  /** A boundary node: where a run comes from, or what it leaves behind. */
+  kind?: 'input' | 'output';
+  /** What a boundary node stands for, and which end it may be. */
+  standsFor?: { name: string; mayStart: boolean; mayEnd: boolean };
 }
 
 export interface ValidationEdge {
@@ -21,6 +25,7 @@ export interface ValidationEdge {
 
 export type ValidationIssue =
   | { kind: 'unbound-required-input'; nodeId: string; port: string; message: string }
+  | EndIssue
   | {
       kind: 'dangling-wire';
       source: string;
@@ -30,7 +35,32 @@ export type ValidationIssue =
       message: string;
     };
 
+export type EndIssue =
+  | { kind: 'start-cannot-start'; nodeId: string; named: string; message: string }
+  | { kind: 'end-cannot-end'; nodeId: string; named: string; message: string };
+
 const key = (nodeId: string, port: string) => `${nodeId} ${port}`;
+
+/** Whether each end of the drawing stands for something a run may come from or leave behind. A boundary
+ *  node standing for nothing is fine: at the start it is a run started by hand, at the end the answer.
+ *  Judged on the drawing, before anything runs, because the orchestrator reads none of this. */
+export function validateEnds(nodes: ValidationNode[], _edges: ValidationEdge[]): EndIssue[] {
+  const issues: EndIssue[] = [];
+  for (const node of nodes) {
+    if (!node.kind || !node.standsFor) continue;
+    if (node.kind === 'input' && !node.standsFor.mayStart)
+      issues.push({
+        kind: 'start-cannot-start', nodeId: node.id, named: node.standsFor.name,
+        message: i18n.t('pipeline.startCannotStart', { node: node.label, named: node.standsFor.name }),
+      });
+    if (node.kind === 'output' && !node.standsFor.mayEnd)
+      issues.push({
+        kind: 'end-cannot-end', nodeId: node.id, named: node.standsFor.name,
+        message: i18n.t('pipeline.endCannotEnd', { node: node.label, named: node.standsFor.name }),
+      });
+  }
+  return issues;
+}
 
 export function validatePipeline(nodes: ValidationNode[], edges: ValidationEdge[]): ValidationIssue[] {
   const issues: ValidationIssue[] = [];

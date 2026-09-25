@@ -31,7 +31,7 @@ import uuid
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from catalog import SERVICES, PIPELINES
+from catalog import SERVICES, PIPELINES, MESSAGE_KINDS, EXTERNAL_SYSTEMS
 
 # Shared with tools/simulator so ids are consistent across the ecosystem. With no --namespace this root is
 # used directly, keeping the standalone fragment's ids stable. --namespace NAME derives a per-model root
@@ -55,6 +55,19 @@ ROLE_FLAG = {
     "PipelineWire": "__IsPipelineWireArchetype",
     "PipelineRun": "__IsPipelineRunArchetype",
     "NodeRun": "__IsNodeRunArchetype",
+    "ExternalSystem": "__IsExternalSystemArchetype",
+    "MessageKind": "__IsMessageKindArchetype",
+}
+
+# The role each predicate plays, as the flag it carries: how a connection is reached, what an external
+# system sends and is told, where a kind of message arrives, and what a boundary node stands for. The
+# names are this generator's own choice.
+PREDICATE_FLAG = {
+    "triggeredBy": "__IsTriggerPredicate",
+    "sends": "__IsSendsPredicate",
+    "told": "__IsToldPredicate",
+    "arrivesAt": "__IsArrivesAtPredicate",
+    "standsFor": "__IsStandsForPredicate",
 }
 
 
@@ -112,7 +125,15 @@ class Kit:
         return self.rels[key]
 
     def predicate(self, name):
-        return self.thing(stable_id(_TAG, "predicate", name), name, shared=True)
+        """A predicate found by name on merge: the built-in `is`, `has` and `of`, or one this generator
+        marks with the role it plays, so a target that already holds a predicate under the name gains the
+        mark as it reconciles, the way an archetype does."""
+        flag = PREDICATE_FLAG.get(name)
+        properties = {flag: typed(True, "vos.Boolean")} if flag else None
+        tid = self.thing(stable_id(_TAG, "predicate", name), name, properties, shared=True)
+        if flag:
+            self.role_flag[tid] = flag
+        return tid
 
     def archetype(self, role, name=None):
         """An archetype that says what it is by the flag it carries. The name is this generator's own choice
@@ -138,6 +159,11 @@ def build():
     has = k.predicate("has")
     of = k.predicate("of")
     carries = k.predicate("carries")
+    triggered_by = k.predicate("triggeredBy")
+    sends = k.predicate("sends")
+    told = k.predicate("told")
+    arrives_at = k.predicate("arrivesAt")
+    stands_for = k.predicate("standsFor")
 
     Pipeline = k.archetype("Pipeline")
     PipelineNode = k.archetype("PipelineNode")
@@ -149,8 +175,13 @@ def build():
     PipelineWire = k.archetype("PipelineWire")
     PipelineRun = k.archetype("PipelineRun")
     NodeRun = k.archetype("NodeRun")
+    ExternalSystem = k.archetype("ExternalSystem")
+    MessageKind = k.archetype("MessageKind")
 
     k.rel(carries, is_, PipelineWire)          # wires are the `carries` predicate, identified by this archetype
+    # Every connection here is a door reached over HTTP at its subdomain, which is what makes it a catalyst
+    # the Pipelines page lists. The trigger is a Thing the connection relates to, as the platform reads it.
+    http = k.thing(stable_id(_TAG, "trigger", "http"), "http", shared=True)
     k.rel(PipelineInput, is_, PipelineNode)  # boundary nodes are pipeline nodes too
     k.rel(PipelineOutput, is_, PipelineNode)
 
@@ -182,7 +213,30 @@ def build():
                           {"Subdomain": typed(svc["subdomain"], "vos.String")})
         k.rel(conn_id, is_, Connection)
         k.rel(conn_id, has, svc_id)
+        k.rel(conn_id, triggered_by, http)
         connection_by_key[svc["key"]] = conn_id
+
+    # Each kind of message → a MessageKind arriving at the door that reads it; each external system → an
+    # ExternalSystem that sends and is told its kinds.
+    kind_by_key = {}
+    for (key, label, arrives_at_service) in MESSAGE_KINDS:
+        kind_id = k.thing(stable_id(_TAG, "message-kind", key), label)
+        k.rel(kind_id, is_, MessageKind)
+        if arrives_at_service:
+            k.rel(kind_id, arrives_at, connection_by_key[arrives_at_service])
+        kind_by_key[key] = kind_id
+    system_by_key = {}
+    for system in EXTERNAL_SYSTEMS:
+        system_id = k.thing(stable_id(_TAG, "external-system", system["key"]), system["label"])
+        k.rel(system_id, is_, ExternalSystem)
+        for key in system["sends"]:
+            k.rel(system_id, sends, kind_by_key[key])
+        for key in system["told"]:
+            k.rel(system_id, told, kind_by_key[key])
+        system_by_key[system["key"]] = system_id
+
+    stood_for = {"messageKind": kind_by_key, "externalSystem": system_by_key,
+                 "pipeline": {pipe["name"]: stable_id(_TAG, "pipeline", pipe["name"]) for pipe in PIPELINES}}
 
     for pipe in PIPELINES:
         pipe_id = k.thing(stable_id(_TAG, "pipeline", pipe["name"]), pipe["name"])
@@ -216,6 +270,9 @@ def build():
                     pname, ptype = spec[0], spec[1]
                     prequired = spec[2] if len(spec) > 2 else False
                     make_port(nid, f"{pipe['name']}.{node['key']}", pname, direction, ptype, prequired, False)
+                if node.get("standsFor"):
+                    kind, key = node["standsFor"]
+                    k.rel(nid, stands_for, stood_for[kind][key])
 
             k.rel(pipe_id, has, nid)
 

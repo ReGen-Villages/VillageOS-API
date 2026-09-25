@@ -193,12 +193,17 @@ describe('the vocabulary the editor holds', () => {
       expect(held).toEqual([]);
     });
 
+  /** The marks the page reads that the orchestrator does not: the range mark is the platform's own,
+   *  and the orchestrator does not yet act on an external system or a kind of message. */
+  const READ_BY_THE_PAGE_ALONE = new Set<string>([ARCHETYPE_FLAG.Range, ARCHETYPE_FLAG.ExternalSystem, ARCHETYPE_FLAG.MessageKind]);
+
   it('reads the same marks the orchestrator does', () => {
     const phloem = readFileSync(
       join(here, '..', '..', '..', 'vos.Service.Phloem', 'Model', 'PipelineArchetypes.cs'),
       'utf-8',
     );
-    for (const flag of Object.values(ARCHETYPE_FLAG)) expect(phloem).toContain(`"${flag}"`);
+    for (const flag of Object.values(ARCHETYPE_FLAG))
+      if (!READ_BY_THE_PAGE_ALONE.has(flag)) expect(phloem).toContain(`"${flag}"`);
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validatePipeline, type ValidationNode, type ValidationEdge } from './validate';
+import { validatePipeline, validateEnds, type ValidationNode, type ValidationEdge } from './validate';
 
 const port = (portName: string, direction: 'in' | 'out', required = false): ValidationNode['ports'][number] => ({
   portName,
@@ -57,5 +57,28 @@ describe('validatePipeline', () => {
     const nodes = [node('src', [port('out1', 'out')]), node('dst', [port('in1', 'in', true)])];
     const edges: ValidationEdge[] = [{ source: 'src', sourceHandle: 'out1', target: 'dst', targetHandle: 'in1' }];
     expect(validatePipeline(nodes, edges)).toEqual([]);
+  });
+});
+
+describe('validateEnds', () => {
+  const node = (id: string, kind: 'input' | 'output', standsFor?: { name: string; mayStart: boolean; mayEnd: boolean }) =>
+    ({ id, label: id, ports: [], kind, standsFor });
+
+  it('refuses a start standing for something a run cannot come from', () => {
+    const issues = validateEnds([node('start', 'input', { name: 'Reporting office', mayStart: false, mayEnd: true })], []);
+    expect(issues).toEqual([{ kind: 'start-cannot-start', nodeId: 'start', named: 'Reporting office', message: expect.stringContaining('Reporting office') }]);
+  });
+
+  it('refuses an end standing for something a run cannot leave behind', () => {
+    const issues = validateEnds([node('end', 'output', { name: 'below reorder', mayStart: true, mayEnd: false })], []);
+    expect(issues).toEqual([{ kind: 'end-cannot-end', nodeId: 'end', named: 'below reorder', message: expect.stringContaining('below reorder') }]);
+  });
+
+  it('accepts an end standing for an external system, and a boundary node standing for nothing', () => {
+    expect(validateEnds([
+      node('end', 'output', { name: 'Reporting office', mayStart: false, mayEnd: true }),
+      node('start', 'input'),
+      { id: 'service', label: 'Echo', ports: [] },
+    ], [])).toEqual([]);
   });
 });

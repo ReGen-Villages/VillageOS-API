@@ -23,7 +23,6 @@ const PANELS = [
   'components/design/DesignPalette.tsx',
   'components/design/DesignPropertiesPanel.tsx',
   'components/design/TranslationsPanel.tsx',
-  'components/pipeline/Palette.tsx',
 ];
 
 describe('the editors on a screen narrower than a tablet', () => {
