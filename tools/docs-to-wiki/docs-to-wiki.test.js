@@ -18,6 +18,7 @@ const {
   pageFileName,
   rewriteLinks,
   convertPage,
+  attachmentName,
 } = require('./docs-to-wiki');
 
 const REPO_ROOT = path.join(__dirname, '..', '..');
@@ -34,6 +35,7 @@ function rewrite(markdown, docPath = 'docs/A.md') {
     wiki: manifest.wiki,
     pageOf: (file) => pages[file],
     anchorsOf: (file) => anchors[file],
+    attachmentNameOf: (file) => path.posix.basename(file),
     imagesSeen: new Set(),
   });
 }
@@ -96,7 +98,9 @@ test('the banner and the file links name the repository the manifest declares', 
     const page = fs.readFileSync(path.join(repository.output, 'Guide.md'), 'utf8');
     assert.match(page, /in the\n> A Repository repository/);
     assert.match(page, /https:\/\/dev\.azure\.com\/Somewhere\/A Project\/_git\/A Repository\?path=\/docs\/GUIDE\.md/);
-    assert.ok(fs.existsSync(path.join(repository.output, '.attachments', 'diagram.svg')), 'the image was not copied');
+    const attachment = attachmentName('docs/assets/diagram.svg', Buffer.from('<svg/>\n'));
+    assert.ok(fs.existsSync(path.join(repository.output, '.attachments', attachment)), 'the image was not copied');
+    assert.ok(page.includes(`](/.attachments/${attachment})`), 'the page does not link the attachment by its content name');
   } finally {
     discard(repository);
   }
@@ -376,17 +380,28 @@ test('external links are left alone', () => {
   assert.equal(rewrite(link), link);
 });
 
-test('an image becomes a wiki attachment and is collected for copying', () => {
+test('an image becomes a wiki attachment under the name the generator gives it, and is collected for copying', () => {
   const imagesSeen = new Set();
   const out = rewriteLinks('![a diagram](assets/a-diagram.png)', {
     docPath: 'docs/A_DOCUMENT.md',
     wiki: manifest.wiki,
     pageOf: () => undefined,
     anchorsOf: () => ({}),
+    attachmentNameOf: (file) => `${path.posix.basename(file, '.png')}-0badcafe.png`,
     imagesSeen,
   });
-  assert.equal(out, '![a diagram](/.attachments/a-diagram.png)');
+  assert.equal(out, '![a diagram](/.attachments/a-diagram-0badcafe.png)');
   assert.deepEqual([...imagesSeen], ['docs/assets/a-diagram.png']);
+});
+
+// The wiki's attachment API creates and never replaces, so an image that keeps its name keeps the
+// bytes it was first uploaded with. Naming it by its content makes a change a new attachment.
+test('an attachment is named by its content, so a changed image is a new attachment', () => {
+  const before = attachmentName('docs/assets/diagram.svg', Buffer.from('<svg/>'));
+  const after = attachmentName('docs/assets/diagram.svg', Buffer.from('<svg><style/></svg>'));
+  assert.match(before, /^diagram-[0-9a-f]{8}\.svg$/);
+  assert.notEqual(before, after);
+  assert.equal(before, attachmentName('docs/assets/diagram.svg', Buffer.from('<svg/>')));
 });
 
 test('a page path becomes the file name the wiki expects', () => {

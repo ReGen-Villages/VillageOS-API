@@ -12,9 +12,18 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { createHash } = require('crypto');
 const { spawnSync } = require('child_process');
 
 const ATTACHMENTS = '.attachments';
+
+/** The wiki's attachment API creates and never replaces, so an image that kept its name would keep
+ *  the bytes it was first uploaded with. Named by its content, a changed image is a new attachment. */
+function attachmentName(file, bytes) {
+  const extension = path.posix.extname(file);
+  const digest = createHash('sha256').update(bytes).digest('hex').slice(0, 8);
+  return `${path.posix.basename(file, extension)}-${digest}${extension}`;
+}
 
 /** The markdown a clone of the repository would contain. A file git ignores is a working note
  *  somebody keeps locally, so the wiki manifest is never expected to account for it. */
@@ -132,7 +141,7 @@ function unaccountedDocuments(repoRoot, manifest) {
  * - an in-page anchor is translated to the wiki's own heading slug
  * - an image becomes a wiki attachment
  */
-function rewriteLinks(markdown, { docPath, wiki, pageOf, anchorsOf, imagesSeen }) {
+function rewriteLinks(markdown, { docPath, wiki, pageOf, anchorsOf, attachmentNameOf, imagesSeen }) {
   const docDirectory = path.posix.dirname(docPath);
   const ownAnchors = anchorsOf(docPath) ?? {};
 
@@ -140,7 +149,7 @@ function rewriteLinks(markdown, { docPath, wiki, pageOf, anchorsOf, imagesSeen }
     if (/^(https?:|mailto:|#)/.test(target) === false && bang === '!') {
       const file = path.posix.normalize(path.posix.join(docDirectory, target));
       imagesSeen.add(file);
-      return `![${text}](/${ATTACHMENTS}/${path.posix.basename(file)})`;
+      return `![${text}](/${ATTACHMENTS}/${attachmentNameOf(file)})`;
     }
     if (target.startsWith('#')) {
       const translated = ownAnchors[target.slice(1)];
@@ -205,6 +214,7 @@ function generate(repoRoot, manifestPath, outputDirectory) {
     if (!anchors.has(doc)) anchors.set(doc, anchorMap(read(doc)));
     return anchors.get(doc);
   };
+  const attachmentNameOf = (image) => attachmentName(image, fs.readFileSync(path.join(repoRoot, image)));
 
   fs.rmSync(output, { recursive: true, force: true });
   for (const { doc, page } of manifest.pages) {
@@ -213,6 +223,7 @@ function generate(repoRoot, manifestPath, outputDirectory) {
       wiki: manifest.wiki,
       pageOf: (file) => byDoc.get(file),
       anchorsOf,
+      attachmentNameOf,
       imagesSeen,
     });
     const destination = path.join(output, pageFileName(page));
@@ -222,7 +233,7 @@ function generate(repoRoot, manifestPath, outputDirectory) {
   }
 
   for (const image of imagesSeen) {
-    const destination = path.join(output, ATTACHMENTS, path.basename(image));
+    const destination = path.join(output, ATTACHMENTS, attachmentNameOf(image));
     fs.mkdirSync(path.dirname(destination), { recursive: true });
     fs.copyFileSync(path.join(repoRoot, image), destination);
   }
@@ -241,6 +252,7 @@ module.exports = {
   pageFileName,
   rewriteLinks,
   convertPage,
+  attachmentName,
   banner,
 };
 

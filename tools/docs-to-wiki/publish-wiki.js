@@ -76,7 +76,8 @@ function attachmentBody(bytes) {
  * the run treats an attachment that is already there as the desired state.
  *
  * The API creates, it does not replace — re-running with different bytes under a name that exists
- * cannot update it. Changing an image means giving it a new file name.
+ * cannot update it. The generator names each attachment by its content, so a changed image arrives
+ * under a new name and the old one is simply never linked again.
  */
 function isAlreadyAttached(status, body) {
   if (status === 409) return true;
