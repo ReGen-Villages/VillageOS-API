@@ -2,6 +2,7 @@ import type { SubmissionDocument } from '../intake/submissionDraft';
 import type { BasemapSource, DeclaredBasemapSource } from '../types/basemap';
 import type { DeclaredTheme } from '../types/dashboard';
 import { basemapSourcesFrom } from '../utils/basemapSources';
+import i18n from '../i18n';
 
 /** What the intake service answered a submission with: something the submitter can quote to whoever
  *  reviews it. What the model called the Things it composed the submission into stays inside the service —
@@ -192,7 +193,7 @@ function servedByTheService(source: BasemapSource): BasemapSource {
 
 export function intakeServiceAddress(): string {
   const base = intakeUrl().replace(/\/$/, '');
-  if (!base) throw new Error('The intake service address is not configured (set VITE_INTAKE_URL).');
+  if (!base) throw new Error(i18n.t('intake.serviceNotConfigured', { setting: 'VITE_INTAKE_URL' }));
   return base;
 }
 
@@ -208,5 +209,5 @@ export async function refusalFrom(response: Response): Promise<string> {
 
 /** The service's own words for a refusal where it gave any, else the status. */
 export function refusalIn(body: { error?: string; detail?: string; title?: string } | null, status: number): string {
-  return body?.error ?? body?.detail ?? body?.title ?? `The submission was refused (${status}).`;
+  return body?.error ?? body?.detail ?? body?.title ?? i18n.t('intake.refusedWithStatus', { status });
 }

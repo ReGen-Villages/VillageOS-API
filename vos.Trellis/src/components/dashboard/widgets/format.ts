@@ -1,31 +1,31 @@
 import type { NumberFormat, TableColumn } from '../../../types/dashboard';
 import type { OriginKind } from '../../../types/vos';
 import type { Row } from '../../../api/dashboardApi';
+import { numberIn } from '../../../i18n/numbers';
 
 export function formatNumber(value: number | null | undefined, fmt?: NumberFormat): string {
   if (value === null || value === undefined || isNaN(value)) return '—';
   switch (fmt) {
     case 'integer':
-      return Math.round(value).toLocaleString('en-US');
+      return numberIn(Math.round(value));
     case 'decimal1':
-      return value.toFixed(1);
+      return numberIn(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
     case 'decimal2':
-      return value.toFixed(2);
+      return numberIn(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     case 'percent':
-      return `${Math.round(value * 100)}%`;
+      return numberIn(value, { style: 'percent', maximumFractionDigits: 0 });
     case 'percent1':
-      return `${(value * 100).toFixed(1)}%`;
+      return numberIn(value, { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 });
     case 'pct100':
-      return `${Math.round(value)}%`;
+      return numberIn(value / 100, { style: 'percent', maximumFractionDigits: 0 });
     case 'hours':
-      return `${value.toFixed(1)} h`;
+      return `${numberIn(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h`;
     case 'money':
-      return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      return numberIn(value, { style: 'currency', currency: 'USD' });
     case 'compact':
-      if (Math.abs(value) >= 1000) return `${(value / 1000).toFixed(1)}k`;
-      return `${Math.round(value)}`;
+      return numberIn(value, { notation: 'compact', maximumFractionDigits: 1 });
     default:
-      return value.toLocaleString('en-US');
+      return numberIn(value);
   }
 }
 

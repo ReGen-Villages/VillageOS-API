@@ -19,7 +19,7 @@ vi.mock('@react-three/drei', () => ({
 }));
 
 // A sentinel geometry value that parses; anything else yields no mesh, driving
-// the "Unable to parse 3D geometry" early return.
+// the early return for geometry that cannot be read.
 vi.mock('../../utils/geometryDispatcher', () => ({
   parseSolidMesh: (value: unknown) =>
     value === 'VALID'
@@ -36,7 +36,7 @@ vi.mock('../../utils/geometryDispatcher', () => ({
 describe('BuildingDetail3D', () => {
   it('keeps a stable hook order when geometry appears after an empty render', () => {
     const { rerender, queryByTestId, getByText } = render(<BuildingDetail3D geometryValue={null} />);
-    expect(getByText('Unable to parse 3D geometry.')).toBeTruthy();
+    expect(getByText('The 3D geometry could not be read.')).toBeTruthy();
 
     // Geometry arrives: the populated branch renders extra hooks. Before the
     // fix this threw "Rendered more hooks than during the previous render".

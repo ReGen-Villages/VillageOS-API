@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { numberIn } from '../../i18n/numbers';
 import { ChevronDown, ChevronRight, Eye, EyeOff, X } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
 import type { PredicateStatistics } from '../../utils/predicateCluster';
@@ -74,7 +75,7 @@ export function PredicateFilterPanel() {
           <span>{t('graph.predicateFilter.title')}</span>
         </div>
         <span className="text-zinc-400 font-mono">
-          {visibleEdges.toLocaleString()}/{totalEdges.toLocaleString()}
+          {numberIn(visibleEdges)}/{numberIn(totalEdges)}
         </span>
       </button>
 
@@ -147,7 +148,7 @@ export function PredicateFilterPanel() {
                           {s.predicateName}
                         </span>
                       </div>
-                      <span className="text-[10px] font-mono text-zinc-400">{s.edgeCount.toLocaleString()}</span>
+                      <span className="text-[10px] font-mono text-zinc-400">{numberIn(s.edgeCount)}</span>
                     </label>
                   </li>
                 );

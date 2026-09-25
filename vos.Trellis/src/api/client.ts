@@ -1,4 +1,5 @@
 import type { ModelSummary } from '../types/vos';
+import i18n from '../i18n';
 
 const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
 const API_KEY = import.meta.env.VITE_API_KEY || '';
@@ -368,7 +369,7 @@ export class ApiError extends Error {
     } catch {
       message = body;
     }
-    super(message || `Request failed (${status})`);
+    super(message || i18n.t('common.requestFailed', { status }));
     this.name = 'ApiError';
     this.status = status;
     this.body = body;
@@ -377,7 +378,7 @@ export class ApiError extends Error {
 
 export class AuthenticationRequiredError extends Error {
   constructor() {
-    super('Authentication required');
+    super(i18n.t('authentication.required'));
     this.name = 'AuthRequiredError';
   }
 }

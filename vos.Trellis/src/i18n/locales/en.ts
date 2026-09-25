@@ -63,6 +63,14 @@ export const en = {
     downloadFailed: 'Could not download the full log.',
   },
   common: {
+    requestFailed: "The request failed ({{status}}).",
+    megabytes: "{{value}} MB",
+    close: "Close",
+    searchPlaceholder: "Search…",
+    typeToSearchMore: "Type to search more items…",
+    mesh: "mesh",
+    meshSize: "mesh ({{vertices}} vertices)",
+    meshSizeWithTriangles: "mesh ({{vertices}} vertices, {{triangles}} triangles)",
     start: 'Start',
     stop: 'Stop',
     delete: 'Delete',
@@ -247,6 +255,7 @@ export const en = {
     radial: { clearAll: 'Clear all predicates', slice: '{{name}} ({{edges}} edges)' },
     filter: { all: 'All', none: 'None', hidden: '{{count}} hidden', clearSearch: 'Clear search' },
     typeFilter: {
+      noType: "(no type)",
       title: 'Filter by Type',
       search: 'Search types…',
       sort: 'Sort',
@@ -264,6 +273,14 @@ export const en = {
     },
   },
   authentication: {
+    required: "Sign in again to continue.",
+    seedStatusFailed: "Could not find out whether a seed is loading.",
+    seedLoadedSignInAgain: "Seed loaded. Please sign in again.",
+    loginFailed: "Sign-in failed.",
+    emptyLibrary: "No models on Mycelium. Drop a .seed.json into vos.Mycelium/seeds-library/ and reload, or POST /api/mycelium/library-seeds/<name>/load.",
+    librarySeedsFailed: "Could not list the seeds in the library.",
+    loadSeedFailed: "Could not load the seed.",
+    saveSeedFailed: "Could not save the seed.",
     loadSeed: 'Load a seed',
     searchSeeds: 'Search seeds…',
     columnName: 'Name',
@@ -287,6 +304,20 @@ export const en = {
     signIn: 'Sign In',
   },
   widgets: {
+    stateCountMissing: "The number of things in “{{state}}” could not be read.",
+    funnel: {
+      rows: "rows",
+      stage: "Stage",
+      thing: "Thing",
+      searchStage: "Search {{stage}}…",
+      searchAll: "Search all {{noun}}…",
+      kept: "{{percent}}% kept",
+      entry: "entry",
+      allMatching: "All {{noun}} matching “{{query}}”",
+    },
+    gantt: {
+      empty: "No schedule data available for this timeline.",
+    },
     history: {
       series: 'Series',
       lastYears_one: 'last year',
@@ -318,9 +349,13 @@ export const en = {
     kpi: { onTarget: 'on target', watch: 'watch', peak: 'peak', trough: 'trough' },
     working: { notDerived: 'the model is given this figure rather than working it out' },
     leaderboard: {
+      entity: "Entity",
+      score: "Score",
       none: "No entities to compare.",
     },
     table: {
+      noRows: "No rows.",
+      noMatches: "No matches for “{{query}}”.",
       searchPlaceholder: "Search…",
     },
     sparkline: {
@@ -339,6 +374,7 @@ export const en = {
     tryAgain: "Try again",
   },
   changePassword: {
+    failed: "The password could not be changed.",
     required: "Password change required",
     loggedInAs: "Logged in as",
     currentPassword: "Current Password",
@@ -353,6 +389,16 @@ export const en = {
     tooShort: "New password must be at least 4 characters",
   },
   modelPage: {
+    loadingModel: "Loading model",
+    loadingStage: "Loading model: {{stage}}",
+    geometryUnreadable: "The 3D geometry could not be read.",
+    stage: {
+      fetchingWorker: "starting the worker",
+      decompressing: "decompressing",
+      parsing: "reading the file",
+      generating: "building the geometry",
+      done: "done",
+    },
     title: "Model",
     subtitle: "3D viewer for the IFC-derived Fragments artifact. Click an element to inspect.",
     loading: "Loading model…",
@@ -435,6 +481,12 @@ export const en = {
     },
   },
   thingSearch: {
+    markdown: {
+      name: "Name",
+      type: "Type",
+      properties: "Properties",
+      relationships: "Relationships",
+    },
     title: "Thing Search",
     intro: "Search for things by name. Exact matches are ranked first, then prefix matches, then substrings. Click a name to open it in the Graph.",
     placeholder: "Type a thing name (e.g. Patient-123, Building-A, MalePatient-Type)…",
@@ -450,6 +502,14 @@ export const en = {
     typeLabel: "Type: {{type}}",
   },
   propertySearch: {
+    markdown: {
+      type: "Type",
+      owner: "Owner",
+      inheritedFrom: "Inherited from",
+      value: "Value",
+      thing: "Thing",
+      relationship: "Relationship",
+    },
     title: "Property Search",
     introByName: "Search for properties by name across all things and relationships. Partial matches are supported.",
     introByValue: "Search for properties by value across all things and relationships. Partial matches are supported.",
@@ -832,6 +892,7 @@ export const en = {
       resolvedAt: 'Resolved at (property)',
     },
     toast: {
+      notReadBack: "The console could not read this page back, so it was not written.",
       written: 'Kept “{{name}}”.',
       kept: 'Kept “{{name}}” as a page; it stands in the sidebar for everyone.',
       removed: 'The page was removed.',
@@ -1056,6 +1117,10 @@ export const en = {
     },
   },
   pipeline: {
+    noPipelineMarks: "This model marks no archetype as a pipeline, a pipeline node or a wire — load a seed that marks them.",
+    noPortMarks: "This model marks no archetype as a port, a pipeline input or a pipeline output — load a seed that marks them.",
+    danglingWire: "This wire is not attached at both ends: {{from}} → {{to}}",
+    requiredInputUnbound: "The required input “{{port}}” on “{{node}}” is neither wired nor bound to a run parameter.",
     new: "New",
     undo: "Undo",
     undoTitle: "Undo (Ctrl/Cmd+Z)",
@@ -1111,9 +1176,14 @@ export const en = {
     connectionsWord: "Connections",
   },
   viewerToolbar: {
+    plan: "Plan",
+    section: "Section",
     sectionHeight: "Section height",
   },
   operationsPage: {
+    all: "All",
+    live: "live",
+    offline: "offline",
     noDashboard: "No dashboard configured",
     noDashboardBody: "This model defines no <0>Dashboard</0> config. Add a Thing of archetype <1>Dashboard</1> with a <2>spec</2> property to drive this page.",
     unreadableSpecification: "{{name}} could not be read",
@@ -1132,6 +1202,7 @@ export const en = {
     portCount_other: "{{count}} ports",
   },
   ifcUpload: {
+    serviceNotConfigured: "The ingestion service address is not configured (set {{setting}}).",
     ingested: "Ingested {{file}}: {{created}} created, {{updated}} updated, {{rels}} relationships.",
     ingestFailed: "Ingest failed.",
     ingesting: "Ingesting…",
@@ -1141,6 +1212,8 @@ export const en = {
     configureHint: "Set <0>VITE_INGEST_URL</0> to enable in-app IFC ingestion, or ingest from the CLI with <1>vos.Taproot</1> (<2>ingest &lt;file.ifc&gt;</2>).",
   },
   intake: {
+    serviceNotConfigured: "The intake service address is not configured (set {{setting}}).",
+    refusedWithStatus: "The submission was refused ({{status}}).",
     title: 'Land intake',
     subtitle: 'Describe a piece of land and propose it as a site',
     step: {
@@ -1227,6 +1300,8 @@ export const en = {
     tryExplore: 'Prefer starting from a map? Explore your land.',
   },
   explore: {
+    noTicket: "Confirm your email address first.",
+    defaultSiteName: "Site at {{latitude}}, {{longitude}}",
     title: 'Explore your land',
     intro: 'Point at a piece of land and see what it could feed, water and power — then dial the village you have in mind.',
     unreachable: 'This page cannot reach the submission service at the moment.',
@@ -1306,6 +1381,8 @@ export const en = {
     },
   },
   publicFindings: {
+    noTicket: "Confirm your email address first.",
+    fileNotSent: "The file could not be sent.",
     title: 'Your submission',
     intro: 'What was submitted, what was discovered, and what the analysis makes of it.',
     reference: 'Reference',
@@ -1323,6 +1400,7 @@ export const en = {
     unreachable: 'This page cannot reach the submission service at the moment.',
   },
   submissionReview: {
+    ambiguousProperty: "“{{property}}” is inherited from more than one archetype on {{thing}}, so reading it by that name alone says nothing: {{paths}}. Read it by its full path.",
     title: "Submissions",
     subtitle: "What has arrived, and what to do with it",
     showDecided: "Show decided",

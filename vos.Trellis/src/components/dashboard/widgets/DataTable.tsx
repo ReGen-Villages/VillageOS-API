@@ -41,7 +41,7 @@ export function DataTable({
   sortKey,
   sortDir = 'desc',
   visibleRows,
-  emptyLabel = 'No rows.',
+  emptyLabel,
   footnote,
   query,
   searchKeys,
@@ -127,11 +127,11 @@ export function DataTable({
     setSort((s) => (s.key === key ? { key, direction: (s.direction * -1) as 1 | -1 } : { key, direction: numeric ? -1 : 1 }));
   }
 
-  if (loading) return <div className="py-6 text-center text-xs text-zinc-400">Loading…</div>;
+  if (loading) return <div className="py-6 text-center text-xs text-zinc-400">{t('common.loading')}</div>;
   if (!rows.length)
     return (
       <div className="py-6 text-center text-xs text-zinc-400">
-        {query?.trim() ? `No matches for “${query.trim()}”.` : emptyLabel}
+        {query?.trim() ? t('widgets.table.noMatches', { query: query.trim() }) : (emptyLabel ?? t('widgets.table.noRows'))}
       </div>
     );
 

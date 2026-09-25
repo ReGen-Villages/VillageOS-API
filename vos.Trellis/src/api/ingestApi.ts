@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import i18n from '../i18n';
 
 export interface IngestResult {
   success: boolean;
@@ -19,7 +20,7 @@ export const ingestApi = {
 
   upload: async (file: File, name: string, mode: IngestMode): Promise<IngestResult> => {
     const base = ingestUrl();
-    if (!base) throw new Error('Ingestion service URL is not configured (set VITE_INGEST_URL).');
+    if (!base) throw new Error(i18n.t('ifcUpload.serviceNotConfigured', { setting: 'VITE_INGEST_URL' }));
 
     const token = await apiClient.ensureToken();
     const form = new FormData();

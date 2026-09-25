@@ -1,6 +1,7 @@
 import type { GanttWidget } from '../../../types/dashboard';
 import type { ResolveContext } from '../../../api/dashboardApi';
 import { useBinding } from '../../../hooks/useDashboard';
+import { useTranslation } from 'react-i18next';
 import { WidgetCard } from './WidgetCard';
 
 interface GanttBar {
@@ -15,6 +16,7 @@ interface GanttRow {
 }
 
 export function Gantt({ widget, context }: { widget: GanttWidget; context: ResolveContext }) {
+  const { t } = useTranslation();
   const { loading, value } = useBinding(widget.rows, context);
   const rows: GanttRow[] = Array.isArray(value) ? (value as unknown as GanttRow[]) : [];
   const now = widget.now;
@@ -22,10 +24,10 @@ export function Gantt({ widget, context }: { widget: GanttWidget; context: Resol
   return (
     <WidgetCard title={widget.title} hint={widget.hint}>
       {loading ? (
-        <div className="py-6 text-center text-xs text-zinc-400">Loading…</div>
+        <div className="py-6 text-center text-xs text-zinc-400">{t('common.loading')}</div>
       ) : !rows.length ? (
         <div className="py-8 text-center text-xs text-zinc-400 dark:text-zinc-500">
-          No schedule data available for this timeline.
+          {t('widgets.gantt.empty')}
         </div>
       ) : (
         <div className="mt-2">

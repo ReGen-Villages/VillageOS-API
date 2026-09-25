@@ -1,5 +1,6 @@
 import { useState, useMemo, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { numberIn } from '../../i18n/numbers';
 import type { ModelSummary } from '../../types/vos';
 import type { StartupProgress } from '../../api/myceliumApi';
 import { RegenLogo } from './RegenLogo';
@@ -104,7 +105,7 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
             <RegenLogo className="w-40 h-40" />
           </div>
           <p className="text-sm text-gray-400 text-center mb-4">{t('authentication.loadSeed')}</p>
-          {error && error !== 'Please select a model' && (
+          {error && (
             <div className="bg-red-900/50 border border-red-500 text-red-200 px-3 py-2 rounded text-sm mb-4">
               {error}
             </div>
@@ -156,7 +157,7 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
                     <span className="flex-1 font-medium truncate">{label}</span>
                     {sizeMb !== null && (
                       <span className="text-gray-400 text-xs ml-2 w-20 text-right shrink-0">
-                        {sizeMb} MB
+                        {t('common.megabytes', { value: sizeMb })}
                       </span>
                     )}
                   </button>
@@ -213,7 +214,7 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
           <RegenLogo className="w-40 h-40" />
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {error && error !== 'Please select a model' && (
+          {error && (
             <div className="bg-red-900/50 border border-red-500 text-red-200 px-3 py-2 rounded text-sm">
               {error}
             </div>
@@ -260,8 +261,8 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
               </div>
               <div className="text-xs text-blue-300 pl-6">
                 {startupProgress.Phase}
-                {startupProgress.ThingsLoaded > 0 && ` — ${t('authentication.thingsLoaded', { n: startupProgress.ThingsLoaded.toLocaleString() })}`}
-                {startupProgress.RelationshipsLoaded > 0 && `, ${t('authentication.relationshipsLoaded', { n: startupProgress.RelationshipsLoaded.toLocaleString() })}`}
+                {startupProgress.ThingsLoaded > 0 && ` — ${t('authentication.thingsLoaded', { n: numberIn(startupProgress.ThingsLoaded) })}`}
+                {startupProgress.RelationshipsLoaded > 0 && `, ${t('authentication.relationshipsLoaded', { n: numberIn(startupProgress.RelationshipsLoaded) })}`}
               </div>
               <div className="text-xs text-blue-400 pl-6">
                 {t('authentication.autoSignIn')}

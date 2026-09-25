@@ -54,7 +54,7 @@ export function Leaderboard({ widget, context }: { widget: LeaderboardWidget; co
             <thead>
               <tr>
                 <th className="text-left px-2.5 py-2 border-b border-zinc-200 dark:border-zinc-700 text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400 font-semibold">
-                  {widget.labelKey ? '' : 'Entity'}
+                  {widget.labelKey ? '' : t('widgets.leaderboard.entity')}
                 </th>
                 {widget.metrics.map((m) => (
                   <th key={m.key} className="text-right px-2.5 py-2 border-b border-zinc-200 dark:border-zinc-700 text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400 font-semibold">
@@ -62,7 +62,7 @@ export function Leaderboard({ widget, context }: { widget: LeaderboardWidget; co
                   </th>
                 ))}
                 <th className="text-right px-2.5 py-2 border-b border-zinc-200 dark:border-zinc-700 text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400 font-semibold">
-                  Score
+                  {t('widgets.leaderboard.score')}
                 </th>
               </tr>
             </thead>
@@ -84,7 +84,7 @@ export function Leaderboard({ widget, context }: { widget: LeaderboardWidget; co
                     </td>
                   ))}
                   <td className="px-2.5 py-2.5 border-b border-zinc-100 dark:border-zinc-700/60 text-right tabular-nums">
-                    <span className="font-bold">{(r.__score as number).toFixed(1)}</span>
+                    <span className="font-bold">{formatNumber(r.__score as number, 'decimal1')}</span>
                     <span className="inline-block w-[54px] h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-700 relative align-middle ml-2">
                       <i
                         className="absolute left-0 top-0 h-1.5 rounded-full"

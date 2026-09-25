@@ -10,6 +10,7 @@ vi.mock('../../../hooks/useDashboard', () => ({
 vi.mock('../../../utils/logDownload', () => ({ triggerDownload: vi.fn() }));
 
 import { triggerDownload } from '../../../utils/logDownload';
+import i18n from '../../../i18n';
 
 const { DataTable } = await import('./DataTable');
 
@@ -251,5 +252,27 @@ describe('DataTable download', () => {
     const [blob, fileName] = vi.mocked(triggerDownload).mock.calls[0];
     expect(fileName).toBe('water-stored.csv');
     expect(await blob.text()).toBe('Location,Units\r\nLocation 11,11\r\nLocation 10,10\r\nLocation 1,1\r\n');
+  });
+});
+
+describe('DataTable wording', () => {
+  afterEach(async () => {
+    await act(() => i18n.changeLanguage('en'));
+  });
+
+  it('says a search found nothing in the chosen language, quoting what was searched for', async () => {
+    await act(() => i18n.changeLanguage('de'));
+    const { container } = render(
+      <DataTable columns={columns} rows={[{ id: 'a', name: 'Nord', units: 1 }]} context={{} as ResolveContext} query="Süd" searchKeys={['name']} />,
+    );
+
+    expect(container.textContent).toBe('Keine Treffer für „Süd“.');
+  });
+
+  it('says a table is empty in the chosen language', async () => {
+    await act(() => i18n.changeLanguage('fr'));
+    const { container } = render(<DataTable columns={columns} rows={[]} context={{} as ResolveContext} />);
+
+    expect(container.textContent).toBe('Aucune ligne.');
   });
 });

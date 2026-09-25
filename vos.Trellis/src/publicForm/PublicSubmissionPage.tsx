@@ -25,7 +25,7 @@ const DRAFT_OWNER = 'public-form';
 
 export function PublicSubmissionPage() {
   const { t } = useTranslation();
-  useStandalonePageDocument();
+  useStandalonePageDocument('publicForm.title');
   const [options, setOptions] = useState<FormOptions>({
     allocationCategories: [], basemapSources: [], hazardTypes: [], hazardLevels: [],
     defaultProgramme: [], parcelLookup: false, placeSearch: false, themes: [],
