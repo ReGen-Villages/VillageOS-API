@@ -29,7 +29,6 @@ describe('usePanelWidth', () => {
     expect(result.current.width).toBe(200);
   });
 
-  // A handle on the panel's right side widens the panel as the pointer travels right.
   it('follows the pointer away from a panel handled on the right to widen it', () => {
     const { result } = renderHook(() => usePanelWidth({ ...bounds, handleSide: 'right' }));
 

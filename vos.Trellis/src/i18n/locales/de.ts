@@ -1171,7 +1171,7 @@ export const de: PartialResources = {
     boundaryInput: "Eingabe",
     boundaryOutput: "Ausgabe",
     wireLabel: "Verbindung · {{from}} → {{to}}",
-    noServicesBody: "Laden Sie ein Modell mit registrierten Verbindungen (z. B. den Pipeline-Demo-Seed) — sie erscheinen in der Palette als Knoten, die Sie hinzufügen können.",
+    noServicesBody: "Laden Sie ein Modell mit registrierten Verbindungen (z. B. den Pipeline-Demo-Seed) — sie erscheinen rechts bei den Ergebnissen unter Dienste als Knoten, die Sie hinzufügen können.",
     findings: "Was diese Pipeline am Laufen hindert",
     startBody: "Legen Sie links bei den Auslösern ab, woher der Lauf kommt, rechts bei den Ergebnissen, was er hinterlässt, und dazwischen die Dienste; ziehen Sie dann zwischen den Ports, um sie zu verbinden.",
     catalysts: {

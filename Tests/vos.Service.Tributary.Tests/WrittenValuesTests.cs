@@ -22,7 +22,7 @@ public class WrittenValuesTests
     private static ObservationIngestService Ingest(out IEndpointMyceliumClient client)
     {
         client = Substitute.For<IEndpointMyceliumClient>();
-        return new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
+        return new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
     }
 
     private static void SubjectPathAnswers(IEndpointMyceliumClient client, Guid subjectId)

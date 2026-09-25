@@ -9,9 +9,6 @@ using Xunit;
 
 namespace vos.Service.Forage.Tests.Services;
 
-// What a discovery run actually gets when it asks for a fetcher. The slicing has its own tests, but
-// they prove what it does when something wraps the fetcher in it — lifting the wrapping out left all
-// of them passing, and a run would then ask a provider for a decade in one call again.
 public class SourceFetchingTests
 {
     private static ServiceProvider Wired(int windowDays = 365)
