@@ -67,14 +67,13 @@ try
 
     builder.Services.AddRateLimiter(options =>
     {
-        options.AddPolicy(SubmissionRate.PolicyName, context =>
-            RateLimitPartition.GetFixedWindowLimiter(
-                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                _ => new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = SubmissionRate.RequestsAllowed,
-                    Window = SubmissionRate.Window,
-                }));
+        void PerSource(string policyName, int requestsAllowed, TimeSpan window) =>
+            options.AddPolicy(policyName, context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions { PermitLimit = requestsAllowed, Window = window }));
+        PerSource(SubmissionRate.PolicyName, SubmissionRate.RequestsAllowed, SubmissionRate.Window);
+        PerSource(TileRate.PolicyName, TileRate.RequestsAllowed, TileRate.Window);
 
         options.OnRejected = async (context, cancellation) =>
         {
@@ -537,7 +536,7 @@ try
             logger.LogError(error, "A tile could not be answered: {Reason}", error.Message);
             return Results.Problem("This service cannot answer at the moment.", statusCode: 503);
         }
-    }).RequireRateLimiting(SubmissionRate.PolicyName);
+    }).RequireRateLimiting(TileRate.PolicyName);
 
     // The files a submitter shares after the report. The bytes go to the store beside this service and the
     // model gets the Thing it declares for one; both under the ticket, since a file is about one

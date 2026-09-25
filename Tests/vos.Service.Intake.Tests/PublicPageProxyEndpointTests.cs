@@ -257,4 +257,34 @@ public class PublicPageProxyEndpointTests
 
         response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
     }
+
+    [Fact]
+    public async Task Drawing_a_map_leaves_the_form_the_requests_a_submission_needs()
+    {
+        var (factory, _) = Holding();
+        await using var __ = factory;
+        using var client = factory.CreateClient();
+
+        for (var tile = 0; tile <= SubmissionRate.RequestsAllowed; tile++)
+            (await client.GetAsync($"/basemaps/satellite-tiles/10/{tile}/5")).StatusCode
+                .Should().Be(HttpStatusCode.OK, "one screen of a map is more tiles than a form's whole budget");
+
+        (await client.PostAsJsonAsync("/submissions/verification", new { emailAddress = ThisAddress })).StatusCode
+            .Should().Be(HttpStatusCode.Accepted);
+    }
+
+    // Each tile not yet cached is a request to the imagery provider, and this route needs no sign-in.
+    [Fact]
+    public async Task A_source_asking_for_more_tiles_than_its_budget_is_made_to_wait()
+    {
+        var (factory, _) = Holding();
+        await using var __ = factory;
+        using var client = factory.CreateClient();
+
+        HttpResponseMessage? refused = null;
+        for (var tile = 0; tile <= TileRate.RequestsAllowed; tile++)
+            refused = await client.GetAsync($"/basemaps/satellite-tiles/10/{tile}/5");
+
+        refused!.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+    }
 }
