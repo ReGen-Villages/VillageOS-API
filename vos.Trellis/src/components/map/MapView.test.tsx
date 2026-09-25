@@ -215,6 +215,7 @@ vi.mock('maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url', () => ({
 }));
 
 import { MapView } from './MapView';
+import { OwnServerRequestHeaders } from './ownServerRequests';
 import { useMapStore } from '../../stores/mapStore';
 import type { BoundaryPoint } from '../../utils/parcelGeometry';
 
@@ -257,6 +258,26 @@ describe('MapView', () => {
 
   // Lose this and the map still mounts, still draws its controls and still reports no error — it
   // simply never parses a tile. See the reason in MapView.
+  // The broker picks the model from the caller's token, so a signed-in page's own tiles are refused
+  // without it; the public form has no token and supplies none.
+  it('sends the sign-in its page provides with a request for the page’s own server', () => {
+    render(
+      <OwnServerRequestHeaders.Provider value={() => ({ Authorization: 'Bearer the-token' })}>
+        <MapView {...POSITION} sources={[STREETS]} />
+      </OwnServerRequestHeaders.Provider>,
+    );
+
+    const transform = maps[0].options.transformRequest as (url: string) => { headers?: unknown } | undefined;
+    expect(transform('/basemaps/satellite-tiles/3/4/5')?.headers).toEqual({ Authorization: 'Bearer the-token' });
+  });
+
+  it('sends nothing extra from a page nobody signed in to', () => {
+    render(<MapView {...POSITION} sources={[STREETS]} />);
+
+    const transform = maps[0].options.transformRequest as (url: string) => unknown;
+    expect(transform('/basemaps/satellite-tiles/3/4/5')).toBeUndefined();
+  });
+
   it('points maplibre at the worker the bundler emitted', () => {
     expect(mocks.configuration.WORKER_URL).toBe('https://example.test/assets/maplibre-worker.mjs');
   });
