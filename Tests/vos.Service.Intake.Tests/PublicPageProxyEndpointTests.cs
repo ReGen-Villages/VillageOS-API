@@ -273,7 +273,6 @@ public class PublicPageProxyEndpointTests
             .Should().Be(HttpStatusCode.Accepted);
     }
 
-    // Each tile not yet cached is a request to the imagery provider, and this route needs no sign-in.
     [Fact]
     public async Task A_source_asking_for_more_tiles_than_its_budget_is_made_to_wait()
     {
@@ -286,5 +285,7 @@ public class PublicPageProxyEndpointTests
             refused = await client.GetAsync($"/basemaps/satellite-tiles/10/{tile}/5");
 
         refused!.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        refused.Headers.RetryAfter!.Delta.Should().BeLessThanOrEqualTo(TileRate.Window,
+            "a map told to wait out the submission window would stay blank long after its own budget came back");
     }
 }
