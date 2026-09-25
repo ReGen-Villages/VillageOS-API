@@ -3,8 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { ModelSummary } from '../../types/vos';
 import type { StartupProgress } from '../../api/myceliumApi';
 import { RegenLogo } from './RegenLogo';
-import { LanguageSwitcher } from '../common/LanguageSwitcher';
-import { ThemeToggleButton } from '../common/ThemeToggleButton';
+import { SignInScreenControls } from './SignInScreenControls';
 
 interface LoginFormProps {
   onLogin: (username: string, password: string, modelId?: string) => Promise<void>;
@@ -97,10 +96,7 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
   if (availableModels && availableModels.length > 0 && (onSelectModel || (username && password))) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-100 dark:bg-zinc-900">
-        <div className="fixed top-3 right-3 z-10 flex items-center gap-1">
-          <ThemeToggleButton />
-          <LanguageSwitcher openDirection="down" align="right" />
-        </div>
+        <SignInScreenControls />
         <div className="w-full max-w-lg bg-white dark:bg-zinc-800 rounded-lg shadow-lg p-8">
           <div className="flex justify-center mb-2">
             <RegenLogo className="w-40 h-40" />
@@ -207,10 +203,7 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-zinc-100 dark:bg-zinc-900">
-      <div className="fixed top-3 right-3 z-10 flex items-center gap-1">
-        <ThemeToggleButton />
-        <LanguageSwitcher openDirection="down" align="right" />
-      </div>
+      <SignInScreenControls />
       <div className="w-full max-w-sm bg-white dark:bg-zinc-800 rounded-lg shadow-lg p-8">
         <div className="flex justify-center mb-6">
           <RegenLogo className="w-40 h-40" />
