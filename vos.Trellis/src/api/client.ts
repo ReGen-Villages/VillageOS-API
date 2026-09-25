@@ -43,14 +43,27 @@ class ApiClient {
   }
 
   private applyTokenResponse(data: { token: string; user: AuthenticatedUser; model?: { Id: string; Name: string } }) {
-    this.token = data.token;
-    this.tokenExpiry = new Date(Date.now() + 25 * 60 * 1000);
     this.currentUser = data.user as AuthenticatedUser;
     if (data.model) {
       this.currentModelId = data.model.Id;
       this.currentModelName = data.model.Name;
     }
+    this.applyToken(data.token);
+  }
+
+  private applyToken(token: string) {
+    this.token = token;
+    this.tokenExpiry = new Date(Date.now() + 25 * 60 * 1000);
     this.scheduleRefresh();
+  }
+
+  private forgetToken() {
+    if (this.refreshTimer) {
+      clearTimeout(this.refreshTimer);
+      this.refreshTimer = null;
+    }
+    this.token = null;
+    this.tokenExpiry = null;
   }
 
   async login(username: string, password: string, modelId?: string): Promise<AuthenticatedUser> {
@@ -106,12 +119,7 @@ class ApiClient {
    */
   async rescopeToModel(modelId: string): Promise<void> {
     if (API_KEY) {
-      if (this.refreshTimer) {
-        clearTimeout(this.refreshTimer);
-        this.refreshTimer = null;
-      }
-      this.token = null;
-      this.tokenExpiry = null;
+      this.forgetToken();
       this.currentModelId = null;
       this.currentModelName = null;
       await this.ensureToken();
@@ -143,8 +151,7 @@ class ApiClient {
       }
     }
 
-    this.token = null;
-    this.tokenExpiry = null;
+    this.forgetToken();
     this.currentUser = null;
     this.currentModelId = null;
     this.currentModelName = null;
@@ -186,7 +193,12 @@ class ApiClient {
     if (this.onUserUpdated) this.onUserUpdated(this.currentUser!);
   }
 
-  /** Non-admin users must provide their current password. */
+  /**
+   * Non-admin users must provide their current password. Changing your own password answers with a
+   * token that no longer says the password must change; the broker refuses the old one everywhere.
+   * The answer has no token when the broker could not mint one, and then signing in again is the
+   * only way on, so the old token is dropped rather than kept.
+   */
   async changePassword(userId: string, newPassword: string, currentPassword?: string): Promise<void> {
     const body: Record<string, string> = { NewPassword: newPassword };
     if (currentPassword) body.CurrentPassword = currentPassword;
@@ -199,6 +211,9 @@ class ApiClient {
         body: JSON.stringify(body),
       });
       await this.assertOk(response);
+      const { token } = await response.json();
+      if (token) this.applyToken(token);
+      else this.forgetToken();
     });
     if (this.currentUser) {
       this.currentUser = { ...this.currentUser, MustChangePassword: false };
