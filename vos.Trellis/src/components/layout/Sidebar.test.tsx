@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { VosThing, VosRelationship } from '../../types/vos';
 
@@ -122,5 +122,70 @@ describe('Sidebar', () => {
     renderSidebar();
 
     expect(entryLabels()).toContain('Reservoirs');
+  });
+  describe('on a screen narrower than a tablet', () => {
+    beforeEach(() => {
+      vi.stubGlobal('matchMedia', (media: string) => ({
+        matches: false,
+        media,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }));
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('starts collapsed to its icons, so the page keeps the width', () => {
+      renderSidebar();
+
+      expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeInTheDocument();
+      expect(screen.queryByText('Graph')).not.toBeInTheDocument();
+    });
+
+    it('lies over the page when opened, rather than squeezing it', () => {
+      renderSidebar();
+      fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }));
+
+      expect(screen.getByRole('complementary')).toHaveClass('fixed');
+    });
+
+    it('collapses again once a page is chosen from it', () => {
+      renderSidebar();
+      fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }));
+      fireEvent.click(screen.getByRole('link', { name: 'Graph' }));
+
+      expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeInTheDocument();
+    });
+  });
+
+  it('starts open on a screen as wide as a tablet', () => {
+    renderSidebar();
+
+    expect(screen.getByRole('button', { name: 'Collapse sidebar' })).toBeInTheDocument();
+    expect(screen.getByRole('complementary')).not.toHaveClass('fixed');
+  });
+
+  it('collapses when the window is narrowed below a tablet, and opens again when widened', () => {
+    const query = { matches: true, listeners: [] as (() => void)[] };
+    vi.stubGlobal('matchMedia', (media: string) => ({
+      get matches() { return query.matches; },
+      media,
+      addEventListener: (_: string, listener: () => void) => query.listeners.push(listener),
+      removeEventListener: () => {},
+    }));
+    const resize = (wide: boolean) => act(() => {
+      query.matches = wide;
+      query.listeners.forEach((listener) => listener());
+    });
+    renderSidebar();
+
+    resize(false);
+    expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeInTheDocument();
+
+    resize(true);
+    expect(screen.getByRole('button', { name: 'Collapse sidebar' })).toBeInTheDocument();
+    vi.unstubAllGlobals();
   });
 });

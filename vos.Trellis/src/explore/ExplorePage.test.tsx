@@ -464,3 +464,27 @@ describe('the overview over the land', () => {
     expect(screen.queryByRole('button', { name: 'See it on the land' })).toBeNull();
   });
 });
+
+describe('the page on a phone', () => {
+  it('asks the phone for the keyboard each claim field needs, and offers the code the mail brought', async () => {
+    await pickTheLand();
+
+    expect(await screen.findByLabelText('Your name')).toHaveAttribute('autocomplete', 'name');
+    expect(screen.getByLabelText('Email address')).toHaveAttribute('type', 'email');
+    expect(screen.getByLabelText('Email address')).toHaveAttribute('autocomplete', 'email');
+
+    fireEvent.change(screen.getByLabelText('Your name'), { target: { value: 'Ana Ferreira' } });
+    fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'ana.ferreira@example.pt' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send a code' }));
+
+    const code = await screen.findByLabelText('Code');
+    expect(code).toHaveAttribute('inputmode', 'numeric');
+    expect(code).toHaveAttribute('autocomplete', 'one-time-code');
+  });
+
+  it('keeps the send-code label on one line beside what is still missing', async () => {
+    await pickTheLand();
+
+    expect(await screen.findByRole('button', { name: 'Send a code' })).toHaveClass('whitespace-nowrap');
+  });
+});

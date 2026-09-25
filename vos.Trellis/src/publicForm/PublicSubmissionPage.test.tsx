@@ -125,3 +125,43 @@ describe('the form somebody without an account fills in', () => {
     expect(loadDraft(DRAFT_OWNER)?.projectName).toBe('Willow Bend');
   });
 });
+
+describe('the form on a phone', () => {
+  it('asks the phone for the keyboard each contact field needs', () => {
+    saveDraft(DRAFT_OWNER, submittable());
+    render(<PublicSubmissionPage />);
+    goToLastStep();
+    fireEvent.click(screen.getByRole('button', { name: '2. Contact' }));
+
+    expect(screen.getByLabelText('Name')).toHaveAttribute('autocomplete', 'name');
+    expect(screen.getByLabelText('Email address')).toHaveAttribute('type', 'email');
+    expect(screen.getByLabelText('Email address')).toHaveAttribute('autocomplete', 'email');
+    expect(screen.getByLabelText('Phone number')).toHaveAttribute('type', 'tel');
+    expect(screen.getByLabelText('Phone number')).toHaveAttribute('autocomplete', 'tel');
+  });
+
+  it('offers the code the mail brought, on a number keyboard', async () => {
+    vi.mocked(intakeApi.askForCode).mockResolvedValue(undefined);
+    saveDraft(DRAFT_OWNER, submittable());
+    render(<PublicSubmissionPage />);
+    goToLastStep();
+    fireEvent.click(screen.getByRole('button', { name: 'Send a code' }));
+
+    const code = await screen.findByLabelText('Code');
+    expect(code).toHaveAttribute('inputmode', 'numeric');
+    expect(code).toHaveAttribute('autocomplete', 'one-time-code');
+  });
+
+  // Beside a sentence saying what is missing, a button that is allowed to wrap is squeezed down to a
+  // word per line on a phone.
+  it('keeps the send-code label on one line and puts what is missing on a row of its own', () => {
+    saveDraft(DRAFT_OWNER, submittable({ siteName: '' }));
+    render(<PublicSubmissionPage />);
+    goToLastStep();
+
+    expect(screen.getByRole('button', { name: 'Send a code' })).toHaveClass('whitespace-nowrap');
+    expect(
+      screen.getByText('A site name, a project name, and a contact name and email address are all needed.'),
+    ).toHaveClass('basis-full');
+  });
+});
