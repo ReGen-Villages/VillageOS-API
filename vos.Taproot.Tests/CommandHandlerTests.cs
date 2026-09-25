@@ -316,6 +316,70 @@ public class CommandHandlerTests
         Assert.Contains("Error:", output);
     }
 
+    private List<(string Kind, string? Description, bool? Succeeded)> RecordReports()
+    {
+        var reports = new List<(string, string?, bool?)>();
+        _myceliumMock.Setup(b => b.ReportActivityAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<bool?>()))
+            .Callback<string, string?, bool?>((kind, description, succeeded) => reports.Add((kind, description, succeeded)))
+            .Returns(Task.CompletedTask);
+        return reports;
+    }
+
+    [Fact]
+    public async Task RunAsync_ReportsTheSessionAndEveryCommandInTheOrderTheyHappened()
+    {
+        _myceliumMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(JsonDocument.Parse("[]").RootElement);
+        var reports = RecordReports();
+
+        await CreateHandler(new StringReader("list things\nhelp\nexit\n"), new StringWriter()).RunAsync();
+
+        Assert.Equal(
+            [("sign-in", null, null), ("action", "list things", null), ("sign-out", null, null)],
+            reports);
+    }
+
+    [Fact]
+    public async Task RunAsync_ACommandThatThrowsIsReportedAsFailed()
+    {
+        _myceliumMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
+        _myceliumMock.Setup(b => b.ClearModelAsync()).ThrowsAsync(new InvalidOperationException("Test error"));
+        var reports = RecordReports();
+
+        await CreateHandler(new StringReader("clear model\nexit\n"), new StringWriter()).RunAsync();
+
+        Assert.Contains(("action", "clear model", false), reports);
+    }
+
+    [Fact]
+    public async Task RunAsync_ACommandCarryingASecretIsReportedMasked()
+    {
+        _myceliumMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
+        var reports = RecordReports();
+
+        await CreateHandler(new StringReader("set Gateway accessToken abc\nexit\n"), new StringWriter()).RunAsync();
+
+        Assert.Contains(reports, report => report.Description == "set Gateway accessToken ****");
+        Assert.DoesNotContain(reports, report => report.Description?.Contains("abc") == true);
+    }
+
+    [Fact]
+    public async Task RunAsync_AReportThatFailsLeavesTheCommandsOutputAlone()
+    {
+        _myceliumMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(JsonDocument.Parse("[]").RootElement);
+        var withReports = new StringWriter();
+        RecordReports();
+        await CreateHandler(new StringReader("list things\nexit\n"), withReports).RunAsync();
+
+        _myceliumMock.Setup(b => b.ReportActivityAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<bool?>()))
+            .ThrowsAsync(new HttpRequestException("Forbidden"));
+        var withRefusedReports = new StringWriter();
+        await CreateHandler(new StringReader("list things\nexit\n"), withRefusedReports).RunAsync();
+
+        Assert.Equal(withReports.ToString(), withRefusedReports.ToString());
+    }
+
     [Fact]
     public async Task RunAsync_MyceliumConnectionFailure_ShowsWarning()
     {

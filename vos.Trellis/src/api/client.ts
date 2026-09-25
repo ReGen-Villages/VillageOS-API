@@ -3,6 +3,10 @@ import type { ModelSummary } from '../types/vos';
 const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
 const API_KEY = import.meta.env.VITE_API_KEY || '';
 
+/** Names this program to the broker, which says which one a person used when it tells the people the
+ *  model names that they signed in, signed out or acted. */
+const PROGRAM_HEADERS = { 'X-Vos-Client': 'Trellis' } as const;
+
 export interface AuthenticatedUser {
   Id: string;
   Username: string;
@@ -54,7 +58,7 @@ class ApiClient {
 
     const response = await fetch(`${BASE_URL}/api/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...PROGRAM_HEADERS },
       credentials: 'include',
       body: JSON.stringify(body),
     });
@@ -130,7 +134,7 @@ class ApiClient {
       try {
         await fetch(`${BASE_URL}/api/auth/session/logout`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${this.token}` },
+          headers: { Authorization: `Bearer ${this.token}`, ...PROGRAM_HEADERS },
           credentials: 'include',
         });
       } catch {
@@ -186,13 +190,15 @@ class ApiClient {
     const body: Record<string, string> = { NewPassword: newPassword };
     if (currentPassword) body.CurrentPassword = currentPassword;
 
-    const response = await fetch(`${BASE_URL}/api/auth/users/${userId}/password`, {
-      method: 'PUT',
-      headers: await this.headers(),
-      credentials: 'include',
-      body: JSON.stringify(body),
+    await this.action('change a password', async () => {
+      const response = await fetch(`${BASE_URL}/api/auth/users/${userId}/password`, {
+        method: 'PUT',
+        headers: await this.headers(),
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+      await this.assertOk(response);
     });
-    await this.assertOk(response);
     if (this.currentUser) {
       this.currentUser = { ...this.currentUser, MustChangePassword: false };
     }
@@ -266,7 +272,38 @@ class ApiClient {
     return {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
+      ...PROGRAM_HEADERS,
     };
+  }
+
+  /**
+   * Runs a change a person asked for and then tells the broker about it, so the people the model names
+   * hear of it. Only a person's own request goes through here: a read, and anything Trellis sends on
+   * its own, does not. The report is not awaited and its failure is swallowed, because the person asked
+   * for the change, not for the report.
+   */
+  async action<T>(description: string, request: () => Promise<T>): Promise<T> {
+    let succeeded = false;
+    try {
+      const result = await request();
+      succeeded = true;
+      return result;
+    } finally {
+      void this.reportAction(description, succeeded);
+    }
+  }
+
+  async reportAction(description: string, succeeded: boolean): Promise<void> {
+    try {
+      await fetch(`${BASE_URL}/api/operator-activity`, {
+        method: 'POST',
+        headers: await this.headers(),
+        credentials: 'include',
+        body: JSON.stringify({ Kind: 'action', Description: description, Succeeded: succeeded }),
+      });
+    } catch {
+      // Nothing to tell the person: their change stands either way.
+    }
   }
 
   private async assertOk(response: Response): Promise<void> {
