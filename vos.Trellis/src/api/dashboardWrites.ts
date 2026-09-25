@@ -18,11 +18,15 @@ export interface EndpointAnswer {
  * carrying `error`. The client has no wording of its own to put there.
  */
 export async function postToEndpoint(reads: ModelReads, via: string, body: Record<string, unknown>): Promise<EndpointAnswer> {
+  let answer: EndpointAnswer;
   try {
-    return ((await reads.fromService(doorOf(via), body)) as EndpointAnswer | null) ?? {};
+    answer = ((await reads.fromService(doorOf(via), body)) as EndpointAnswer | null) ?? {};
   } catch (refusal) {
-    return { error: refusal instanceof Error ? refusal.message : String(refusal) };
+    answer = { error: refusal instanceof Error ? refusal.message : String(refusal) };
   }
+  // Where it went, never what was in it: a form's body is what a person typed about themselves.
+  reads.recordAction?.(`send a form to ${via}`, answer.error === undefined);
+  return answer;
 }
 
 /** Where a `via` posts: a route on the platform itself where the spec wrote one by its path, and
