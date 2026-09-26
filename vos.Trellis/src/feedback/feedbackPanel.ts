@@ -311,7 +311,6 @@ class PanelController {
   private keepFocusInside(event: KeyboardEvent): void {
     const focusable = [...this.dialog.querySelectorAll<HTMLElement>('button:not([disabled]), input, textarea')]
       .filter((element) => !element.closest('[hidden]'));
-    if (focusable.length === 0) return;
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
     const active = this.shadow.activeElement;

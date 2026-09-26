@@ -80,6 +80,16 @@ public sealed class FeedbackLaunchSettingsTests : IDisposable
     }
 
     [Fact]
+    public void NoDestinationsFile_IsRefused()
+    {
+        var parsed = FeedbackLaunchSettings.Parse(
+            [.. Arguments().Where(argument => !argument.StartsWith("--destinations"))], WithAccessToken);
+
+        parsed.Settings.Should().BeNull();
+        parsed.WhyRefused.Should().Contain("--destinations");
+    }
+
+    [Fact]
     public void ADestinationsFileThatDoesNotExist_IsRefusedByName()
     {
         File.Delete(_destinationsFile);

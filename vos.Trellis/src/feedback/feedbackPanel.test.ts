@@ -181,6 +181,38 @@ describe('the report panel', () => {
     expect(shadow.activeElement).toBe(focusable[focusable.length - 1]);
   });
 
+  it('keeps a draft through Cancel, and starts empty again once a report has gone', async () => {
+    const { find } = mount();
+    panel!.open();
+    find<HTMLInputElement>('[name="kind"][value="idea"]').click();
+    type(find('[name="title"]'), 'Export the table');
+
+    find<HTMLButtonElement>('[data-part="cancel"]').click();
+    panel!.open();
+    expect(find<HTMLInputElement>('[name="title"]').value).toBe('Export the table');
+
+    find<HTMLButtonElement>('[data-part="send"]').click();
+    await settle();
+    find<HTMLButtonElement>('[data-part="finish"]').click();
+    panel!.open();
+
+    expect(find<HTMLInputElement>('[name="title"]').value).toBe('');
+    expect(find<HTMLInputElement>('[name="kind"][value="bug"]').checked).toBe(true);
+    expect(find('[data-part="form"]').hasAttribute('hidden')).toBe(false);
+    expect(find<HTMLButtonElement>('[data-part="send"]').disabled).toBe(true);
+  });
+
+  it('moves Tab from the last control back to the first', () => {
+    const { find, shadow } = mount();
+    panel!.open();
+    type(find('[name="title"]'), 'Anything');
+    find<HTMLButtonElement>('[data-part="send"]').focus();
+
+    find('[role="dialog"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+
+    expect(shadow.activeElement).toBe(find('[data-part="close"]'));
+  });
+
   it('opens from a button the page already has, and then draws none of its own', () => {
     const trigger = document.createElement('button');
     document.body.append(trigger);
@@ -262,6 +294,53 @@ describe('a screenshot in the report panel', () => {
     chooser.dispatchEvent(new Event('change'));
     await settle();
     expect(find('[data-part="preview"]').closest('[hidden]')).toBeNull();
+  });
+
+  it('opens the file chooser from Choose a picture', () => {
+    const { find } = mount();
+    panel!.open();
+    const opened = vi.spyOn(find<HTMLInputElement>('[data-part="file"]'), 'click');
+
+    find<HTMLButtonElement>('[data-part="choose"]').click();
+
+    expect(opened).toHaveBeenCalled();
+  });
+
+  it('can be pasted into the panel', async () => {
+    const { find } = mount();
+    vi.mocked(pictureFromFile).mockResolvedValueOnce(fakePicture());
+    panel!.open();
+    const pasted = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent;
+    const picture = new File(['x'], 'pasted.png', { type: 'image/png' });
+    Object.defineProperty(pasted, 'clipboardData', {
+      value: { items: [{ type: 'text/plain', getAsFile: () => null }, { type: 'image/png', getAsFile: () => picture }] },
+    });
+
+    find('[role="dialog"]').dispatchEvent(pasted);
+    await settle();
+
+    expect(pictureFromFile).toHaveBeenCalledWith(picture);
+    expect(pasted.defaultPrevented).toBe(true);
+    expect(find('[data-part="preview"]').closest('[hidden]')).toBeNull();
+  });
+
+  it('is shrunk to the widest the relay is sent before it goes', async () => {
+    const { find } = mount();
+    const sentWidths: number[] = [];
+    vi.mocked(HTMLCanvasElement.prototype.toDataURL).mockImplementation(function (this: HTMLCanvasElement) {
+      sentWidths.push(this.width);
+      return 'data:image/jpeg;base64,UElDVFVSRQ==';
+    });
+    vi.mocked(captureScreen).mockResolvedValue(fakePicture(3840, 2160));
+    panel!.open();
+    find<HTMLButtonElement>('[data-part="capture"]').click();
+    await settle();
+
+    type(find('[name="title"]'), 'A wide screen');
+    find<HTMLButtonElement>('[data-part="send"]').click();
+    await settle();
+
+    expect(sentWidths).toEqual([1920]);
   });
 
   it('is sent with a hidden box painted over, and can be taken off again', async () => {

@@ -290,6 +290,96 @@ public class ReportEndpointTests
         factory.DevOpsRequests.Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData("description", 20_001)]
+    [InlineData("browser", 2_001)]
+    public async Task TextLongerThanTheRelayTakes_IsRefused(string field, int characters)
+    {
+        var token = PersonToken();
+        await using var factory = RelayAccepting(token);
+
+        var response = await Post(factory, Report(report =>
+        {
+            if (field == "description") report["description"] = new string('a', characters);
+            else report["context"]![field] = new string('a', characters);
+        }), token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await Body(response)).GetProperty("code").GetString().Should().Be("fieldTooLong");
+    }
+
+    [Fact]
+    public async Task AReportNamingNoApplication_IsRefused()
+    {
+        var token = PersonToken();
+        await using var factory = RelayAccepting(token);
+
+        var response = await Post(factory, Report(report => report.Remove("application")), token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await Body(response);
+        body.GetProperty("code").GetString().Should().Be("fieldMissing");
+        body.GetProperty("values").GetProperty("field").GetString().Should().Be("application");
+    }
+
+    [Fact]
+    public async Task ABodyThatIsNotAReport_IsRefusedAsUnreadable()
+    {
+        var token = PersonToken();
+        await using var factory = RelayAccepting(token);
+        using var client = factory.CreateClient();
+        var request = new HttpRequestMessage(HttpMethod.Post, "/reports")
+        {
+            Content = new StringContent("{ not json", Encoding.UTF8, "application/json"),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await Body(response)).GetProperty("code").GetString().Should().Be("reportUnreadable");
+        factory.DevOpsRequests.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task AJpegScreenshot_IsStoredUnderAJpegName()
+    {
+        var token = PersonToken();
+        await using var factory = RelayAccepting(token);
+
+        await Post(factory, Report(report => report["screenshot"] = DataAddress("image/jpeg", Picture)), token);
+
+        factory.DevOpsRequests[0].Address.Query.Should().Contain("fileName=screenshot.jpg");
+    }
+
+    [Fact]
+    public async Task AScreenshotWhosePictureDataIsBroken_IsRefused()
+    {
+        var token = PersonToken();
+        await using var factory = RelayAccepting(token);
+
+        var response = await Post(factory, Report(report => report["screenshot"] = "data:image/png;base64,abc"), token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await Body(response)).GetProperty("code").GetString().Should().Be("screenshotUnreadable");
+    }
+
+    [Fact]
+    public async Task DevOpsAnsweringWithAPageInsteadOfJson_AnswersBadGateway()
+    {
+        var token = PersonToken();
+        await using var factory = RelayAccepting(token);
+        factory.DevOpsAnswers = _ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("<html>Sign in to Azure DevOps</html>", Encoding.UTF8, "text/html"),
+        };
+
+        var response = await Post(factory, Report(), token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
+        factory.Log.Lines.Should().Contain(line => line.Contains("not JSON"));
+    }
+
     [Fact]
     public async Task ATitleLongerThanDevOpsTakes_IsRefused()
     {
