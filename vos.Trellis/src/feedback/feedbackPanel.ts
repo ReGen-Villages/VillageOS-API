@@ -44,7 +44,7 @@ export class FeedbackRefusedError extends Error {
 }
 
 export interface FeedbackOptions {
-  /** The name the relay's destinations file knows this page by. */
+  /** The name this page is listed under in the relay's Destinations settings. */
   application: string;
   submit: (report: FeedbackReport) => Promise<{ reference: string | number }>;
   language?: string;

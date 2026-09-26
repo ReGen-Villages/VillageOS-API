@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { mountFeedback, type FeedbackPanel } from '../feedback/feedbackPanel';
 import { feedbackApi } from '../api/feedbackApi';
 
-/** The name the feedback relay's destinations file knows this console by. */
+/** The name this console is listed under in the feedback relay's Destinations settings. */
 const APPLICATION = 'Trellis';
 
 /** Puts the report panel on every page while somebody is signed in, in the console's language. */
