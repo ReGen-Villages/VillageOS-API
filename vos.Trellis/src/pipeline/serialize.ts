@@ -253,12 +253,13 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
   const nodeIds = new Set(nodeThings.map((t) => t.Id));
 
   const nodes: EditorNode[] = nodeThings.map((t, i) => {
+    const stated = model.stated(t.Id);
     const base = {
       id: t.Id,
       label: t.Name,
-      x: Number(t.Properties.x ?? i * 280),
-      y: Number(t.Properties.y ?? 80),
-      paramBindings: parseParameterBindings(t.Properties.paramBindings),
+      x: Number(stated.x ?? i * 280),
+      y: Number(stated.y ?? 80),
+      paramBindings: parseParameterBindings(stated.paramBindings),
     };
     // Boundary node: its ports are declared on the node itself, and it binds no connection.
     const kind = model.boundaryKind(t.Id);

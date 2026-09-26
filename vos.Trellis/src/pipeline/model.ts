@@ -1,4 +1,5 @@
 import type { VosThing, VosRelationship } from '../types/vos';
+import { statedProperties } from '../utils/propertyMapper';
 
 // Client-side mirror of Phloem's graph reads (vos.Service.Phloem): resolve a node's dispatch connection, its
 // ports (via the bound service's is-chain), and identify wires by the archetype their predicate is of.
@@ -146,6 +147,7 @@ export class PipelineModel {
   // predicate does.
   private readonly usedAsPredicate: Set<string>;
   private readonly roleCache = new Map<string, boolean>();
+  private readonly statedCache = new WeakMap<VosThing, Record<string, unknown>>();
   // Relationships indexed by target, for the reads that ask what points at a Thing: which node stands for
   // a catalyst, which door a kind arrives at. Built once with the subject index.
   private readonly byTarget: Map<string, VosRelationship[]>;
@@ -382,8 +384,22 @@ export class PipelineModel {
     return ports;
   }
 
+  /** The values a Thing states, own or in its override store, for what the page saved onto a model
+   *  whose archetype declares the property. Held per Thing: the model is rebuilt on every store change,
+   *  and within one build a port is read for every pipeline that lists it. */
+  stated(thingId: string): Record<string, unknown> {
+    const thing = this.byId.get(thingId);
+    if (!thing) return {};
+    let values = this.statedCache.get(thing);
+    if (!values) {
+      values = statedProperties(thing);
+      this.statedCache.set(thing, values);
+    }
+    return values;
+  }
+
   private toPort(t: VosThing): PortInformation {
-    const p = t.Properties;
+    const p = this.stated(t.Id);
     return {
       portName: String(p.portName ?? t.Name),
       direction: String(p.direction ?? 'in').toLowerCase() === 'out' ? 'out' : 'in',
@@ -448,7 +464,7 @@ export class PipelineModel {
         .map((r) => r.TargetId)
         .find((id) => this.isOfArchetypeCarrying(id, ARCHETYPE_FLAG.PipelineNode));
       if (!target) continue;
-      out.push({ wireId: held.Id, shape: 'held', targetId: target, ...wireMapping(held.Properties) });
+      out.push({ wireId: held.Id, shape: 'held', targetId: target, ...wireMapping(this.stated(held.Id)) });
     }
     return out;
   }

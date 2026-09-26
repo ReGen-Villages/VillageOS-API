@@ -113,6 +113,20 @@ function collectOverrides(sets: Record<string, InheritedPropertySet> | undefined
 }
 
 /**
+ * What a Thing states for itself: its own properties and its override store, own winning, and never the
+ * `is` chain. A value written for a name the archetype declares is kept in the override store rather than
+ * among the own properties, so a reader of own properties alone finds every such value absent — a saved
+ * port read as an input named after its Thing. Distinct from effectiveProperties, which resolves the chain
+ * and so would hand a member every default its archetype carries, marks included. Call unwrapThing first.
+ */
+export function statedProperties(thing: ResolvableThing): Record<string, unknown> {
+  const stated: Record<string, unknown> = {};
+  collectOverrides(thing.InheritedOverrides, stated);
+  Object.assign(stated, thing.Properties);
+  return stated;
+}
+
+/**
  * A Thing's effective properties: inherited defaults + stored overrides + own, own winning, flattened
  * and unwrapped. Resolution walks the `is`-chain via `lookup`: each ancestor archetype contributes its
  * OWN effective properties (its defaults and overrides already resolved), so inherited values the

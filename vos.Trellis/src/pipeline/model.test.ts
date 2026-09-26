@@ -356,6 +356,48 @@ describe('loadPipeline', () => {
   });
 });
 
+// A value the page writes for a name the port archetype declares lands in the Thing's override store,
+// not among its own properties. Read from own properties alone, a saved start port fell back to the
+// Thing's name and to direction `in`, and the wire drawn from it matched nothing (#7331).
+describe('a saved port is read from what it states (#7331)', () => {
+  const overridden = (values: Record<string, unknown>): VosThing['InheritedOverrides'] => ({
+    'arch-port': { SourceId: 'arch-port', SourceName: 'Socket', InheritedAt: '', Properties: values },
+  });
+
+  function modelWithASavedPort() {
+    const things: VosThing[] = [];
+    const relationships: VosRelationship[] = [];
+    let n = 0;
+    const T = (id: string, name: string, props: Record<string, unknown> = {}, overrides?: VosThing['InheritedOverrides']) =>
+      things.push({ Id: id, Name: name, Properties: props, ...(overrides ? { InheritedOverrides: overrides } : {}) });
+    const R = (s: string, p: string, t: string) => relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
+    T('is', 'is'); T('has', 'has');
+    T('arch-port', 'Socket', { [ARCHETYPE_FLAG.Port]: true, portName: '', direction: '', type: '', required: false });
+    T('arch-node', 'Step', { [ARCHETYPE_FLAG.PipelineNode]: true });
+    T('N1', 'Start'); R('N1', 'is', 'arch-node');
+    T('P1', 'subject', {}, overridden({ portName: 'subject', direction: 'out', type: 'any', required: false }));
+    R('P1', 'is', 'arch-port'); R('N1', 'has', 'P1');
+    return new PipelineModel(things, relationships);
+  }
+
+  it('reads a port name and direction stated in the override store', () => {
+    const port = modelWithASavedPort().boundaryPortRelationships('N1')[0].port;
+    expect(port.portName).toBe('subject');
+    expect(port.direction).toBe('out');
+    expect(port.type).toBe('any');
+  });
+
+  it('states nothing for a Thing the model does not hold', () => {
+    expect(modelWithASavedPort().stated('nobody')).toEqual({});
+  });
+
+  it('does not hand a member its archetype\'s mark by reading up the chain', () => {
+    const model = modelWithASavedPort();
+    expect(model.archetypeCarrying(ARCHETYPE_FLAG.Port)).toBe('arch-port');
+    expect(model.thingsOfArchetypeCarrying(ARCHETYPE_FLAG.Port).map((t) => t.Id)).toEqual(['P1']);
+  });
+});
+
 // The playground ships its pipelines drawn, so the wire predicate was always in use before it was
 // asked for. A model built from templates declares the predicate and draws nothing, and the first
 // pipeline anyone drew on it could not be saved.
