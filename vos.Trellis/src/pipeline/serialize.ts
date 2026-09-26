@@ -52,6 +52,12 @@ export interface LoadedPipeline {
   edges: EditorEdge[];
 }
 
+/** What a save needs the model to declare, in the order a refusal names them. */
+export const PIPELINE_DECLARATIONS = [
+  'isPredicate', 'hasPredicate', 'pipelineArchetype', 'nodeArchetype', 'wireArchetype', 'wirePredicate',
+] as const;
+type PipelineDeclaration = (typeof PIPELINE_DECLARATIONS)[number];
+
 /** The result of a save: the new Pipeline id and the canvas-node-id → Thing-id map so the editor can map
  * live NodeRun statuses (keyed by Thing id) back onto its canvas nodes for animation. */
 export interface SavedPipeline {
@@ -79,8 +85,16 @@ export async function savePipeline(
   // A wire is written as a Thing of the wire archetype, pointing at its target through the wire predicate,
   // so a save needs both — the archetype to say what the Thing is, the predicate to say where it goes.
   const wireArchetype = model.archetypeCarrying(ARCHETYPE_FLAG.PipelineWire);
-  if (!isId || !hasId || !wireId || !wireArchetype || !pipelineArchetype || !nodeArchetype)
-    throw new Error(i18n.t('pipeline.noPipelineMarks'));
+  // The refusal names what is missing rather than every mark at once, which sent the reader after five
+  // things when one was absent. The six checks are what narrow each to a string below.
+  if (!isId || !hasId || !wireId || !wireArchetype || !pipelineArchetype || !nodeArchetype) {
+    const found: Record<PipelineDeclaration, string | undefined> = {
+      isPredicate: isId, hasPredicate: hasId, pipelineArchetype, nodeArchetype, wireArchetype, wirePredicate: wireId,
+    };
+    const missing = PIPELINE_DECLARATIONS.filter((declaration) => !found[declaration])
+      .map((declaration) => i18n.t(`pipeline.declarations.${declaration}`));
+    throw new Error(i18n.t('pipeline.noPipelineMarks', { missing: missing.join(', ') }));
+  }
 
   const portArchetype = model.archetypeCarrying(ARCHETYPE_FLAG.Port);
   const boundaryArchetype = (kind: 'input' | 'output') =>

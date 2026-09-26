@@ -25,7 +25,9 @@ public interface IMyceliumGateway
     // ring); with an index it's a per-item NodeRun of a fan-out, carrying index/total.
     Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken cancellationToken, int? index = null, int total = 0);
 
-    Task SetRunStatusAsync(Guid runId, string status, CancellationToken cancellationToken);
+    // The reason travels with a failure, so a run started by a state entry — one nobody awaits — still
+    // says in the model why it failed.
+    Task SetRunStatusAsync(Guid runId, string status, CancellationToken cancellationToken, string? error = null);
 
     // Store the pipeline's published result (the Output boundary node's collected inputs) on the
     // PipelineRun Thing, so it persists in the model and streams over SSE like any other property.

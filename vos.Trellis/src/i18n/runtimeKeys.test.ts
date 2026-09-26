@@ -14,6 +14,7 @@ import { BINDING_FIELD_KEYS, BINDING_KINDS, WIDGET_FIELD_KEYS } from '../utils/w
 import { DESIGN_FINDING_CODES } from '../utils/designFindings';
 import { LOADING_STAGES } from '../components/model/LoadingOverlay';
 import { REFUSAL_CODES } from '../api/refusals';
+import { PIPELINE_DECLARATIONS } from '../pipeline/serialize';
 
 /**
  * Whether a key the console assembles at run time has anything to say.
@@ -47,6 +48,7 @@ const BUILT_FROM = {
   'design.finding': [...DESIGN_FINDING_CODES],
   'modelPage.stage': [...LOADING_STAGES],
   refusal: [...REFUSAL_CODES],
+  'pipeline.declarations': [...PIPELINE_DECLARATIONS],
 } as Record<string, string[]>;
 
 /** A `t()` call whose key is assembled rather than written out, e.g. t(`intake.step.${step}`). */

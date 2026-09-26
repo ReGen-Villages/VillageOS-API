@@ -397,3 +397,44 @@ describe('a saved port is read from what it states (#7331)', () => {
     expect(model.thingsOfArchetypeCarrying(ARCHETYPE_FLAG.Port).map((t) => t.Id)).toEqual(['P1']);
   });
 });
+
+// The playground ships its pipelines drawn, so the wire predicate was always in use before it was
+// asked for. A model built from templates declares the predicate and draws nothing, and the first
+// pipeline anyone drew on it could not be saved.
+describe('the wire predicate before any wire is drawn (#7324)', () => {
+  function vocabularyAndNoWire() {
+    const things: VosThing[] = [];
+    const relationships: VosRelationship[] = [];
+    let n = 0;
+    const T = (id: string, name: string, props: Record<string, unknown> = {}) => things.push({ Id: id, Name: name, Properties: props });
+    const R = (s: string, p: string, t: string) => relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
+    T('is', 'is'); T('has', 'has');
+    T('arch-wire', 'Link', { [ARCHETYPE_FLAG.PipelineWire]: true });
+    T('arch-node', 'Step', { [ARCHETYPE_FLAG.PipelineNode]: true });
+    T('carries', 'carries'); R('carries', 'is', 'arch-wire');
+    return { things, relationships, T, R };
+  }
+
+  it('finds the predicate by its shape when nothing has used it yet', () => {
+    const { things, relationships } = vocabularyAndNoWire();
+    expect(new PipelineModel(things, relationships).wirePredicateId()).toBe('carries');
+  });
+
+  it('still never mistakes a held wire for the predicate, whichever the model lists first', () => {
+    const { things, relationships, T, R } = vocabularyAndNoWire();
+    T('N1', 'Node1'); R('N1', 'is', 'arch-node');
+    T('N2', 'Node2'); R('N2', 'is', 'arch-node');
+    T('W', 'w', { fromPort: 'out', toPort: 'in' }); R('W', 'is', 'arch-wire'); R('N1', 'has', 'W');
+    things.reverse();
+    expect(new PipelineModel(things, relationships).wirePredicateId()).toBe('carries');
+  });
+
+  it('finds nothing where the model holds only wires and no predicate', () => {
+    const { things, relationships, T, R } = vocabularyAndNoWire();
+    things.splice(things.findIndex((t) => t.Id === 'carries'), 1);
+    relationships.splice(0, relationships.length);
+    T('N1', 'Node1'); R('N1', 'is', 'arch-node');
+    T('W', 'w'); R('W', 'is', 'arch-wire'); R('N1', 'has', 'W');
+    expect(new PipelineModel(things, relationships).wirePredicateId()).toBeUndefined();
+  });
+});
