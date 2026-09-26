@@ -3,9 +3,9 @@ using System.Text.Json;
 
 namespace vos.Service.Shared;
 
-// Reads a JWT's payload without checking the signature: the holder is reading a credential the
-// broker signed for it, to learn what the credential says about itself.
-internal static class JwtPayload
+// Reads a JWT's payload without checking the signature. Only for a token already known to be the
+// broker's: a credential it signed for the reader, or one it has just accepted from a caller.
+public static class JwtPayload
 {
     private const string ExpiryClaim = "exp";
 
@@ -27,7 +27,7 @@ internal static class JwtPayload
         }
     }
 
-    internal static JsonElement? Read(string? token)
+    public static JsonElement? Read(string? token)
     {
         if (string.IsNullOrEmpty(token)) return null;
 

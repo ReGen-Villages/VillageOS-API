@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.feedback.tsbuildinfo",
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./dist-feedback/types",
+    "rootDir": "./src/feedback",
+    "types": []
+  },
+  "include": ["src/feedback/feedbackPanel.ts"]
+}
