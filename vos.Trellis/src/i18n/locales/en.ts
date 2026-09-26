@@ -1117,7 +1117,15 @@ export const en = {
     },
   },
   pipeline: {
-    noPipelineMarks: "This model marks no archetype as a pipeline, a pipeline node or a wire — load a seed that marks them.",
+    noPipelineMarks: "This model does not declare: {{missing}} — load a seed that does.",
+    declarations: {
+      isPredicate: "built-in is predicate",
+      hasPredicate: "built-in has predicate",
+      pipelineArchetype: "archetype marked as a pipeline",
+      nodeArchetype: "archetype marked as a pipeline node",
+      wireArchetype: "archetype marked as a wire",
+      wirePredicate: "wire predicate (a predicate of the wire archetype that no node holds)",
+    },
     noPortMarks: "This model marks no archetype as a port, a pipeline input or a pipeline output — load a seed that marks them.",
     noStandsForMark: "This model marks no predicate as saying what a boundary node stands for — load a seed that marks one.",
     danglingWire: "This wire is not attached at both ends: {{from}} → {{to}}",

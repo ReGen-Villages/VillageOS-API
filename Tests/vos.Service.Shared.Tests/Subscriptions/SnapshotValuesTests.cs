@@ -98,6 +98,39 @@ public class SnapshotValuesTests
             .Which.Value.Properties.Should().ContainKey("measuredAreaHectares");
     }
 
+    // A relationship carries an override store of its own, and the same reader serves it.
+    [Fact]
+    public void Every_value_a_relationship_states_is_read_whichever_of_the_two_it_is_carried_in()
+    {
+        const string payload = """
+        {
+          "Id": "36fa3bce-77b1-4a64-a76e-61a3c5c4b613", "Name": null,
+          "SubjectId": "fefab87a-4830-480a-93b1-623ba440de6c",
+          "PredicateId": "c7e8ab11-6374-4856-89b2-d516d96224a4",
+          "TargetId": "6513d4d5-c6d1-47c9-babd-3256848f79d9",
+          "Properties": { "toPort": { "typeInfo": "vos.String", "value": "message" } },
+          "InheritedOverrides": { "d2f3a0f5-8b1c-4e6b-9f6a-1c2d3e4f5a6b": { "SourceName": "PipelineWire",
+            "Properties": { "fromPort": { "typeInfo": "vos.String", "value": "echo" } } } },
+          "States": []
+        }
+        """;
+        var relationship = JsonSerializer.Deserialize<SnapshotRelationship>(payload, Json)!;
+
+        var stated = relationship.ValuesStated().ToDictionary(entry => entry.Key, entry => entry.Value.Value.GetString());
+
+        stated.Should().Equal(new Dictionary<string, string?> { ["toPort"] = "message", ["fromPort"] = "echo" });
+    }
+
+    // A payload that leaves a member out binds null to it, and a reader that faults on that is worse
+    // than one that answers empty.
+    [Fact]
+    public void A_thing_whose_payload_states_no_properties_member_is_read_as_stating_nothing()
+    {
+        var thing = JsonSerializer.Deserialize<SnapshotThing>("""{ "Id": "fefab87a-4830-480a-93b1-623ba440de6c" }""", Json)!;
+
+        thing.ValuesStated().Should().BeEmpty();
+    }
+
     // A Thing that overrode nothing carries no override set at all, so every reader has to
     // answer for the member being absent rather than empty.
     [Fact]

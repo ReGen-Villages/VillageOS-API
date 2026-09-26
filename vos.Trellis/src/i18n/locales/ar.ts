@@ -1212,7 +1212,15 @@ export const ar: WithArabicPluralForms<Resources> = {
     },
   },
   pipeline: {
-    noPipelineMarks: "لا يحدّد هذا النموذج أي نموذج أصلي كخط معالجة أو عقدة خط معالجة أو وصلة — حمّل seed يحدّدها.",
+    noPipelineMarks: "لا يصرّح هذا النموذج بما يلي: {{missing}} — حمّل seed يصرّح به.",
+    declarations: {
+      isPredicate: "مسند is المدمج",
+      hasPredicate: "مسند has المدمج",
+      pipelineArchetype: "نموذج أصلي محدّد كخط معالجة",
+      nodeArchetype: "نموذج أصلي محدّد كعقدة خط معالجة",
+      wireArchetype: "نموذج أصلي محدّد كوصلة",
+      wirePredicate: "مسند الوصلة (مسند من النموذج الأصلي للوصلة لا تحمله أي عقدة)",
+    },
     noPortMarks: "لا يحدّد هذا النموذج أي نموذج أصلي كمنفذ أو مدخل خط معالجة أو مخرج خط معالجة — حمّل seed يحدّدها.",
     noStandsForMark: "لا يحدّد هذا النموذج أي مسند يبيّن ما تمثّله عقدة الحدود — حمّل seed يحدّد واحدًا.",
     danglingWire: "هذه الوصلة غير موصولة من الطرفين: {{from}} → {{to}}",

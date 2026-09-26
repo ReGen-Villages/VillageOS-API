@@ -195,7 +195,8 @@ public static class TestGraphs
         Guid LooseConnectionId);
 
     // A state connection with a pipeline drawn from it: Arrival (a start node standing for the connection,
-    // out port `subjectId`) → Echo (message→echo) → Out. Beside it a second connection reaching another
+    // out port `subject`, the name the page gives it) → Echo (message→echo, the wire narrowing the subject
+    // to its id) → Out. Beside it a second connection reaching another
     // pipeline along the predicate marked as starting one, and a third reaching nothing. The two marked
     // predicates carry their marks themselves, the way the platform marks the predicates it dispatches on.
     public static StartFixture StatePipeline()
@@ -229,7 +230,7 @@ public static class TestGraphs
 
         var arrival = fx.Thing("Arrival");
         fx.Rel(arrival, vocabulary.Is, vocabulary.PipelineInput);
-        var subjectPort = fx.Thing("arrival.subjectId", ("direction", "out"), ("type", "string"), ("portName", PipelineExecutor.SubjectIdParam));
+        var subjectPort = fx.Thing("arrival.subject", ("direction", "out"), ("type", "any"), ("portName", PipelineExecutor.SubjectParam));
         fx.Rel(subjectPort, vocabulary.Is, vocabulary.Port);
         fx.Rel(arrival, vocabulary.Has, subjectPort);
         fx.Rel(arrival, standsFor, watching);
@@ -245,7 +246,7 @@ public static class TestGraphs
         fx.Rel(drawn, vocabulary.Has, arrival);
         fx.Rel(drawn, vocabulary.Has, ech);
         fx.Rel(drawn, vocabulary.Has, output);
-        fx.Rel(arrival, carries, ech, ("fromPort", PipelineExecutor.SubjectIdParam), ("toPort", "message"));
+        fx.Rel(arrival, carries, ech, ("fromPort", PipelineExecutor.SubjectParam), ("toPort", "message"), ("fromPath", "id"));
         fx.Rel(ech, carries, output, ("fromPort", "echo"), ("toPort", "result"));
 
         var reached = fx.Thing("Reached along the start mark");

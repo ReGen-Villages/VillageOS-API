@@ -35,8 +35,8 @@ public sealed class PipelineExecutor
     // runId: Pre-generated run id for an async spawn (the editor already holds it to animate over
     // SSE); when null a fresh id is minted (synchronous spawn / dispatched relationship).
     // subject: the Thing whose state entry or relationship started the run. It is recorded on the run and
-    // reaches the pipeline as the run params `subjectId` and `subjectName`, so a start node hands it on
-    // through an output port of either name like any other param.
+    // reaches the pipeline as the run param `subject` — the name the page gives a start node's port — as
+    // one value carrying the Thing's id and name, so a wire narrows it to either by its from-path.
     public async Task<PipelineRunResult> RunAsync(
         Guid pipelineId, JsonElement runParams, CancellationToken cancellationToken, Guid? runId = null, RunSubject? subject = null)
     {
@@ -136,7 +136,7 @@ public sealed class PipelineExecutor
 
     private async Task<PipelineRunResult> FailRunAsync(Guid runId, Guid pipelineId, string error, CancellationToken cancellationToken)
     {
-        await BestEffort(() => _gateway.SetRunStatusAsync(runId, RunStatus.Failed, cancellationToken), "set run failed");
+        await BestEffort(() => _gateway.SetRunStatusAsync(runId, RunStatus.Failed, cancellationToken, error), "set run failed");
         return PipelineRunResult.Failed(runId, pipelineId, error);
     }
 
@@ -237,13 +237,11 @@ public sealed class PipelineExecutor
         var merged = runParams.ValueKind == JsonValueKind.Object
             ? JsonSerializer.SerializeToNode(runParams)!.AsObject()
             : new JsonObject();
-        merged[SubjectIdParam] = subject.Id.ToString();
-        merged[SubjectNameParam] = subject.Name;
+        merged[SubjectParam] = new JsonObject { ["id"] = subject.Id.ToString(), ["name"] = subject.Name };
         return JsonSerializer.SerializeToElement(merged);
     }
 
-    public const string SubjectIdParam = "subjectId";
-    public const string SubjectNameParam = "subjectName";
+    public const string SubjectParam = "subject";
 
     // An Input boundary node's outputs: each output port is filled from the run param of the
     // same name, so downstream nodes receive the run's external inputs through ordinary wires.

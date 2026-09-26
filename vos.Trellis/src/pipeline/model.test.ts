@@ -355,3 +355,86 @@ describe('loadPipeline', () => {
     expect(loaded.nodes[0].paramBindings).toEqual({ message: 'greeting' });
   });
 });
+
+// A value the page writes for a name the port archetype declares lands in the Thing's override store,
+// not among its own properties. Read from own properties alone, a saved start port fell back to the
+// Thing's name and to direction `in`, and the wire drawn from it matched nothing (#7331).
+describe('a saved port is read from what it states (#7331)', () => {
+  const overridden = (values: Record<string, unknown>): VosThing['InheritedOverrides'] => ({
+    'arch-port': { SourceId: 'arch-port', SourceName: 'Socket', InheritedAt: '', Properties: values },
+  });
+
+  function modelWithASavedPort() {
+    const things: VosThing[] = [];
+    const relationships: VosRelationship[] = [];
+    let n = 0;
+    const T = (id: string, name: string, props: Record<string, unknown> = {}, overrides?: VosThing['InheritedOverrides']) =>
+      things.push({ Id: id, Name: name, Properties: props, ...(overrides ? { InheritedOverrides: overrides } : {}) });
+    const R = (s: string, p: string, t: string) => relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
+    T('is', 'is'); T('has', 'has');
+    T('arch-port', 'Socket', { [ARCHETYPE_FLAG.Port]: true, portName: '', direction: '', type: '', required: false });
+    T('arch-node', 'Step', { [ARCHETYPE_FLAG.PipelineNode]: true });
+    T('N1', 'Start'); R('N1', 'is', 'arch-node');
+    T('P1', 'subject', {}, overridden({ portName: 'subject', direction: 'out', type: 'any', required: false }));
+    R('P1', 'is', 'arch-port'); R('N1', 'has', 'P1');
+    return new PipelineModel(things, relationships);
+  }
+
+  it('reads a port name and direction stated in the override store', () => {
+    const port = modelWithASavedPort().boundaryPortRelationships('N1')[0].port;
+    expect(port.portName).toBe('subject');
+    expect(port.direction).toBe('out');
+    expect(port.type).toBe('any');
+  });
+
+  it('states nothing for a Thing the model does not hold', () => {
+    expect(modelWithASavedPort().stated('nobody')).toEqual({});
+  });
+
+  it('does not hand a member its archetype\'s mark by reading up the chain', () => {
+    const model = modelWithASavedPort();
+    expect(model.archetypeCarrying(ARCHETYPE_FLAG.Port)).toBe('arch-port');
+    expect(model.thingsOfArchetypeCarrying(ARCHETYPE_FLAG.Port).map((t) => t.Id)).toEqual(['P1']);
+  });
+});
+
+// The playground ships its pipelines drawn, so the wire predicate was always in use before it was
+// asked for. A model built from templates declares the predicate and draws nothing, and the first
+// pipeline anyone drew on it could not be saved.
+describe('the wire predicate before any wire is drawn (#7324)', () => {
+  function vocabularyAndNoWire() {
+    const things: VosThing[] = [];
+    const relationships: VosRelationship[] = [];
+    let n = 0;
+    const T = (id: string, name: string, props: Record<string, unknown> = {}) => things.push({ Id: id, Name: name, Properties: props });
+    const R = (s: string, p: string, t: string) => relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
+    T('is', 'is'); T('has', 'has');
+    T('arch-wire', 'Link', { [ARCHETYPE_FLAG.PipelineWire]: true });
+    T('arch-node', 'Step', { [ARCHETYPE_FLAG.PipelineNode]: true });
+    T('carries', 'carries'); R('carries', 'is', 'arch-wire');
+    return { things, relationships, T, R };
+  }
+
+  it('finds the predicate by its shape when nothing has used it yet', () => {
+    const { things, relationships } = vocabularyAndNoWire();
+    expect(new PipelineModel(things, relationships).wirePredicateId()).toBe('carries');
+  });
+
+  it('still never mistakes a held wire for the predicate, whichever the model lists first', () => {
+    const { things, relationships, T, R } = vocabularyAndNoWire();
+    T('N1', 'Node1'); R('N1', 'is', 'arch-node');
+    T('N2', 'Node2'); R('N2', 'is', 'arch-node');
+    T('W', 'w', { fromPort: 'out', toPort: 'in' }); R('W', 'is', 'arch-wire'); R('N1', 'has', 'W');
+    things.reverse();
+    expect(new PipelineModel(things, relationships).wirePredicateId()).toBe('carries');
+  });
+
+  it('finds nothing where the model holds only wires and no predicate', () => {
+    const { things, relationships, T, R } = vocabularyAndNoWire();
+    things.splice(things.findIndex((t) => t.Id === 'carries'), 1);
+    relationships.splice(0, relationships.length);
+    T('N1', 'Node1'); R('N1', 'is', 'arch-node');
+    T('W', 'w'); R('W', 'is', 'arch-wire'); R('N1', 'has', 'W');
+    expect(new PipelineModel(things, relationships).wirePredicateId()).toBeUndefined();
+  });
+});

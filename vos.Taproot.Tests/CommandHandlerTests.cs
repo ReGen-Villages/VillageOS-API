@@ -96,6 +96,15 @@ public class CommandHandlerTests
     }
 
     [Fact]
+    public void ShowHelp_ListsTheActiveAccountsCommand()
+    {
+        var writer = new StringWriter();
+        CreateHandler(new StringReader(""), writer).ShowHelp();
+
+        Assert.Contains("user active", writer.ToString());
+    }
+
+    [Fact]
     public async Task HandleCommandAsync_Pipeline_IsDispatchedToThePipelineHandler()
     {
         var writer = new StringWriter();

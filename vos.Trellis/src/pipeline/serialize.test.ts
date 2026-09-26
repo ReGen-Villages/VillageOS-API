@@ -130,7 +130,7 @@ describe('savePipeline — create (no existing pipeline id)', () => {
       [{ Id: 'is', Name: 'is', Properties: {} }, { Id: 'has', Name: 'has', Properties: {} }],
       [],
     );
-    await expect(savePipeline('Fresh', [node('n1', 'A')], [], model)).rejects.toThrow(/marks no archetype/);
+    await expect(savePipeline('Fresh', [node('n1', 'A')], [], model)).rejects.toThrow(/does not declare: .*pipeline.*node.*wire/);
     expect(applyFragment).not.toHaveBeenCalled();
   });
 });
@@ -406,5 +406,61 @@ describe('savePipeline / loadPipeline — what a boundary node stands for', () =
     const loaded = loadPipeline(id.readingsArrive, model)!;
     await expect(savePipeline(loaded.name, loaded.nodes, loaded.edges, new PipelineModel(unmarked, relationships), id.readingsArrive))
       .rejects.toThrow(/stands for/);
+  });
+});
+
+describe('loadPipeline — a saved pipeline whose ports are stated in the override store (#7331)', () => {
+  it('returns the wire attached at both ends', () => {
+    const { T, R, things, relationships } = graphWithVocabulary();
+    const stated = (values: Record<string, unknown>) => ({
+      'arch-port': { SourceId: 'arch-port', SourceName: 'Socket', InheritedAt: '', Properties: values },
+    });
+    T('BP', 'Decided'); R('BP', 'is', 'arch-pipeline');
+    T('IN', 'Start'); R('IN', 'is', 'arch-input'); R('BP', 'has', 'IN');
+    T('OUT', 'Submitter'); R('OUT', 'is', 'arch-output'); R('BP', 'has', 'OUT');
+    things.push({ Id: 'IN.subject', Name: 'subject', Properties: {}, InheritedOverrides: stated({ portName: 'subject', direction: 'out', type: 'any', required: 'false' }) });
+    R('IN.subject', 'is', 'arch-port'); R('IN', 'has', 'IN.subject');
+    things.push({ Id: 'OUT.payload', Name: 'payload', Properties: {}, InheritedOverrides: stated({ portName: 'payload', direction: 'in', type: 'any', required: 'true' }) });
+    R('OUT.payload', 'is', 'arch-port'); R('OUT', 'has', 'OUT.payload');
+    T('W', 'subject to payload', { fromPort: 'subject', toPort: 'payload', fromPath: '', toPath: '', transform: '' });
+    R('W', 'is', 'arch-wire'); R('IN', 'has', 'W'); R('W', 'carries', 'OUT');
+
+    const loaded = loadPipeline('BP', new PipelineModel(things, relationships))!;
+
+    const start = loaded.nodes.find((node) => node.id === 'IN')!;
+    expect(start.ports).toEqual([{ portName: 'subject', direction: 'out', type: 'any', required: false }]);
+    expect(loaded.edges).toEqual([expect.objectContaining({ source: 'IN', sourceHandle: 'subject', target: 'OUT', targetHandle: 'payload' })]);
+  });
+});
+
+// A model built from templates declares the wire predicate and draws nothing. The first pipeline drawn on
+// it was refused as marking no archetype, although it marks every one.
+describe('savePipeline — the first pipeline in a model with no wire yet (#7324)', () => {
+  function modelWithNoWire(): PipelineModel {
+    const { T, R, things, relationships } = graphWithVocabulary();
+    T('svc', 'svc'); R('svc', 'is', 'arch-service');
+    T('conn', 'conn', { Subdomain: 'echo' }); R('conn', 'is', 'arch-connection'); R('conn', 'has', 'svc');
+    return new PipelineModel(things, relationships);
+  }
+
+  it('writes the pipeline and its wire through the predicate the model declares', async () => {
+    const model = modelWithNoWire();
+    thingCreate.mockResolvedValue({ Id: 'W-new', Name: 'out to in', Properties: {} });
+
+    const saved = await savePipeline('First', [node('N1', 'A'), node('N2', 'B')], [wire('out', 'in')], model);
+
+    expect(applyFragment).toHaveBeenCalledOnce();
+    expect(saved.pipelineId).toBeTruthy();
+    expect(relationshipCreate).toHaveBeenCalledWith('W-new', 'carries', expect.any(String));
+  });
+
+  it('names what it did not find when the model marks no wire archetype', async () => {
+    const { T, R, things, relationships } = graphWithVocabulary();
+    things.splice(things.findIndex((t) => t.Id === 'arch-wire'), 1);
+    T('conn', 'conn', { Subdomain: 'echo' }); R('conn', 'is', 'arch-connection');
+
+    await expect(savePipeline('First', [node('N1', 'A')], [], new PipelineModel(things, relationships)))
+      .rejects.toThrow(/wire predicate/);
+    expect(applyFragment).not.toHaveBeenCalled();
   });
 });
