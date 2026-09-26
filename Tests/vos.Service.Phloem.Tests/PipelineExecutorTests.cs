@@ -398,7 +398,8 @@ public class PipelineExecutorTests
     }
 
     // A Thing entering a watched state is the run's subject: it is recorded on the run and reaches the
-    // start node as the `subjectId` param, so the pipeline hands it down its wires like any other.
+    // start node as the `subject` param — the name the page gives the port — carrying the Thing's id and
+    // name, so a wire narrows it to either and the pipeline hands it down like any other.
     [Fact]
     public async Task RunAsync_WithASubject_RecordsItOnTheRunAndSeedsTheStartNodeWithIt()
     {
@@ -429,7 +430,7 @@ public class PipelineExecutorTests
         };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
         var subject = new RunSubject(Guid.NewGuid(), "Submission 42");
-        var runParams = JsonSerializer.SerializeToElement(new { subjectId = "somebody else", kept = "yes" });
+        var runParams = JsonSerializer.SerializeToElement(new { subject = new { id = "somebody else" }, kept = "yes" });
 
         var result = await executor.RunAsync(fixture.DrawnPipelineId, runParams, CancellationToken.None, subject: subject);
 
