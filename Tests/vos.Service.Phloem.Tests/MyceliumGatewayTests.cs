@@ -368,18 +368,21 @@ public class MyceliumGatewayTests
         selector.GetProperty("includeIsAncestors").GetBoolean().Should().BeTrue();
         selector.TryGetProperty("types", out _).Should().BeFalse();
 
-        // The two marked predicates are asked for by their marks, so the mark can be read off each edge.
+        // The marked predicates are asked for by their marks, so the mark can be read off each edge.
         selector.GetProperty("markedArchetypes").EnumerateArray().Select(flag => flag.GetString())
-            .Should().Contain([PipelinePredicates.StandsForFlag, PipelinePredicates.PipelineStartFlag,
-                PipelineArchetypes.PipelineFlag, PipelineArchetypes.PipelineInputFlag]);
+            .Should().Contain([PipelinePredicates.StateWatchFlag, PipelinePredicates.StandsForFlag,
+                PipelinePredicates.PipelineStartFlag, PipelineArchetypes.PipelineFlag, PipelineArchetypes.PipelineInputFlag]);
 
+        // Traversals expand in order, so the watched state has to be reached before the nodes standing for it.
         var traversals = selector.GetProperty("traverse").EnumerateArray()
             .Select(rule => (Flag: rule.TryGetProperty("predicateFlag", out var f) ? f.GetString() : null,
                              Name: rule.TryGetProperty("predicate", out var n) ? n.GetString() : null,
                              Direction: rule.GetProperty("direction").GetString()))
             .ToList();
-        traversals.Should().Contain((PipelinePredicates.StandsForFlag, null, "incoming"));
-        traversals.Should().Contain((null, ModelNames.Has, "incoming"));
+        traversals.Should().ContainInOrder(
+            (PipelinePredicates.StateWatchFlag, null, "outgoing"),
+            (PipelinePredicates.StandsForFlag, null, "incoming"),
+            (null, ModelNames.Has, "incoming"));
         traversals.Should().Contain((PipelinePredicates.PipelineStartFlag, null, "outgoing"));
 
         // Relationship rules keep the read to those edges: a state connection accumulates one dispatch

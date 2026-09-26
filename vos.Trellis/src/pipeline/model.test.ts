@@ -206,11 +206,12 @@ describe('the vocabulary the editor holds', () => {
       if (!READ_BY_THE_PAGE_ALONE.has(flag)) expect(phloem).toContain(`"${flag}"`);
   });
 
-  /** The predicate marks the page reads that the orchestrator does not: the first three are the
-   *  platform's own dispatch marks, and the orchestrator does not yet act on what a system sends, is
-   *  told, or where a kind of message arrives. */
+  /** The predicate marks the page reads that the orchestrator does not: the first two are the platform's
+   *  own dispatch marks it never walks, and the orchestrator does not yet act on what a system sends, is
+   *  told, or where a kind of message arrives. The state-watch mark is the platform's too, but the
+   *  orchestrator walks it to the state a row stands for, so it is held to spelling it. */
   const PREDICATES_READ_BY_THE_PAGE_ALONE = new Set<string>([
-    PREDICATE_FLAG.Trigger, PREDICATE_FLAG.StateWatch, PREDICATE_FLAG.JudgedThing,
+    PREDICATE_FLAG.Trigger, PREDICATE_FLAG.JudgedThing,
     PREDICATE_FLAG.Sends, PREDICATE_FLAG.Told, PREDICATE_FLAG.ArrivesAt,
   ]);
 
