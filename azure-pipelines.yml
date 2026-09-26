@@ -259,7 +259,10 @@ jobs:
   # --coverage writes a cobertura report to vos.Trellis/coverage (configured in vite.config.ts).
   # Without it the GUI figure was never measured, so it could fall a long way unnoticed while the
   # platform figure looked healthy.
-  - script: npm run test -- --coverage --reporter=default --reporter=junit --outputFile.junit=$(testResultsDirectory)/trellis-junit.xml
+  # --testTimeout: vitest's five-second default measures how busy this shared agent is, not the tests;
+  # a body that passes here on a normal run fails once the agent is loaded. A run on a developer's
+  # machine keeps the default, where a test that hangs still fails at once.
+  - script: npm run test -- --coverage --testTimeout=30000 --reporter=default --reporter=junit --outputFile.junit=$(testResultsDirectory)/trellis-junit.xml
     displayName: 'Test Trellis'
     workingDirectory: vos.Trellis
     condition: always()
