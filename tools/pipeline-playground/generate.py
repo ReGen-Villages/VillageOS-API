@@ -60,14 +60,15 @@ ROLE_FLAG = {
 }
 
 # The role each predicate plays, as the flag it carries: how a connection is reached, what an external
-# system sends and is told, where a kind of message arrives, and what a boundary node stands for. The
-# names are this generator's own choice.
+# system sends and is told, where a kind of message arrives, what a boundary node stands for, and what a
+# run is about. The names are this generator's own choice.
 PREDICATE_FLAG = {
     "triggeredBy": "__IsTriggerPredicate",
     "sends": "__IsSendsPredicate",
     "told": "__IsToldPredicate",
     "arrivesAt": "__IsArrivesAtPredicate",
     "standsFor": "__IsStandsForPredicate",
+    "about": "__IsRunSubjectPredicate",
 }
 
 
@@ -164,6 +165,8 @@ def build():
     told = k.predicate("told")
     arrives_at = k.predicate("arrivesAt")
     stands_for = k.predicate("standsFor")
+    # Declared for the orchestrator, which relates a run to the Thing whose state entry started it.
+    k.predicate("about")
 
     Pipeline = k.archetype("Pipeline")
     PipelineNode = k.archetype("PipelineNode")

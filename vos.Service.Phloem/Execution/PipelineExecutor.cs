@@ -33,11 +33,16 @@ public sealed class PipelineExecutor
     }
 
     // runId: Pre-generated run id for an async spawn (the editor already holds it to animate over
-    // SSE); when null a fresh id is minted (synchronous spawn / graph trigger).
-    public async Task<PipelineRunResult> RunAsync(Guid pipelineId, JsonElement runParams, CancellationToken cancellationToken, Guid? runId = null)
+    // SSE); when null a fresh id is minted (synchronous spawn / dispatched relationship).
+    // subject: the Thing whose state entry or relationship started the run. It is recorded on the run and
+    // reaches the pipeline as the run params `subjectId` and `subjectName`, so a start node hands it on
+    // through an output port of either name like any other param.
+    public async Task<PipelineRunResult> RunAsync(
+        Guid pipelineId, JsonElement runParams, CancellationToken cancellationToken, Guid? runId = null, RunSubject? subject = null)
     {
         var rid = runId ?? Guid.NewGuid();
-        await BestEffort(() => _gateway.CreateRunAsync(rid, pipelineId, cancellationToken), "create run");
+        if (subject is not null) runParams = WithSubject(runParams, subject);
+        await BestEffort(() => _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject), "create run");
 
         PipelineDag dag;
         try
@@ -224,6 +229,21 @@ public sealed class PipelineExecutor
             inputs[port] = PayloadMapping.ToElement(node2);
         return inputs;
     }
+
+    // The subject is the broker's word on what entered, so it wins over a relationship property of the
+    // same name.
+    private static JsonElement WithSubject(JsonElement runParams, RunSubject subject)
+    {
+        var merged = runParams.ValueKind == JsonValueKind.Object
+            ? JsonSerializer.SerializeToNode(runParams)!.AsObject()
+            : new JsonObject();
+        merged[SubjectIdParam] = subject.Id.ToString();
+        merged[SubjectNameParam] = subject.Name;
+        return JsonSerializer.SerializeToElement(merged);
+    }
+
+    public const string SubjectIdParam = "subjectId";
+    public const string SubjectNameParam = "subjectName";
 
     // An Input boundary node's outputs: each output port is filled from the run param of the
     // same name, so downstream nodes receive the run's external inputs through ordinary wires.
