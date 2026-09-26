@@ -5,37 +5,33 @@ using Xunit;
 
 namespace vos.Service.Feedback.Tests;
 
-public sealed class FeedbackLaunchSettingsTests : IDisposable
+public sealed class FeedbackLaunchSettingsTests
 {
-    private readonly string _destinationsFile = Path.Combine(Path.GetTempPath(), $"destinations-{Guid.NewGuid():N}.json");
+    private static readonly string[] Arguments = ["--port=7310", "--myceliumUrl=http://localhost:7243"];
 
-    public FeedbackLaunchSettingsTests()
+    private static readonly Dictionary<string, string?> Settings = new()
     {
-        File.WriteAllText(_destinationsFile, """
-            { "Console": { "project": "Clients", "areaPath": "Clients", "bugType": "Bug", "ideaType": "Feature" } }
-            """);
+        ["DevOpsOrganization"] = "https://dev.azure.com/Example",
+        ["DevOpsAccessToken"] = "secret",
+        ["Destinations:Console:Project"] = "Clients",
+        ["Destinations:Console:AreaPath"] = "Clients",
+        ["Destinations:Console:BugType"] = "Bug",
+        ["Destinations:Console:IdeaType"] = "Feature",
+    };
+
+    private static IConfiguration Configuration(Action<Dictionary<string, string?>>? change = null)
+    {
+        var settings = new Dictionary<string, string?>(Settings);
+        change?.Invoke(settings);
+        return new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
     }
-
-    public void Dispose() => File.Delete(_destinationsFile);
-
-    private static IConfiguration Configuration(params (string Key, string Value)[] settings) =>
-        new ConfigurationBuilder()
-            .AddInMemoryCollection(settings.ToDictionary(setting => setting.Key, setting => (string?)setting.Value))
-            .Build();
-
-    private string[] Arguments(params string[] extra) =>
-    [
-        "--port=7310", "--myceliumUrl=http://localhost:7243",
-        "--devOpsOrganization=https://dev.azure.com/Example", $"--destinations={_destinationsFile}",
-        .. extra,
-    ];
-
-    private static readonly IConfiguration WithAccessToken = Configuration(("DevOpsAccessToken", "secret"));
 
     [Fact]
     public void EverySettingGiven_IsRead()
     {
-        var parsed = FeedbackLaunchSettings.Parse(Arguments("--allowedOrigin=https://a.example, https://b.example"), WithAccessToken);
+        var parsed = FeedbackLaunchSettings.Parse(
+            [.. Arguments, "--allowedOrigin=https://a.example, https://b.example"],
+            Configuration(settings => settings["Destinations:Console:Tags:0"] = "Console"));
 
         var settings = parsed.Settings!;
         settings.Service.Port.Should().Be(7310);
@@ -43,81 +39,78 @@ public sealed class FeedbackLaunchSettingsTests : IDisposable
         settings.DevOpsAccessToken.Should().Be("secret");
         settings.AllowedOrigins.Should().Equal("https://a.example", "https://b.example");
         settings.Destinations.For("console")!.IdeaType.Should().Be("Feature");
-        settings.Destinations.For("console")!.Tags.Should().BeEmpty();
+        settings.Destinations.For("console")!.Tags.Should().Equal("Console");
     }
 
     [Fact]
-    public void AnOrganisationThatIsNotAnAddress_IsRefused()
+    public void TheRelaysOwnSettingsFile_FilesTrellisReportsInTheConsolesProject()
     {
-        var parsed = FeedbackLaunchSettings.Parse(
-            [.. Arguments().Where(argument => !argument.StartsWith("--devOpsOrganization")), "--devOpsOrganization=Example"],
-            WithAccessToken);
+        var shipped = new ConfigurationBuilder()
+            .AddJsonFile(Path.Combine(AppContext.BaseDirectory, "appsettings.json"))
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["DevOpsAccessToken"] = "secret" })
+            .Build();
 
-        parsed.Settings.Should().BeNull();
-        parsed.WhyRefused.Should().Contain("devOpsOrganization");
+        var parsed = FeedbackLaunchSettings.Parse(Arguments, shipped);
+
+        parsed.Settings!.Destinations.For("Trellis")!.Project.Should().Be("VillageOS-API");
     }
 
     [Theory]
-    [InlineData("http://dev.azure.com/Example", false)]
-    [InlineData("http://localhost:7399/Example", true)]
-    [InlineData("http://127.0.0.1:7399/Example", true)]
-    public void PlainHttp_IsTakenOnlyForAStandInOnThisMachine(string organisation, bool taken)
+    [InlineData("Example")]
+    [InlineData("http://dev.azure.com/Example")]
+    public void AnOrganisationThatIsNotAnHttpsAddress_IsRefused(string organisation)
     {
-        var parsed = FeedbackLaunchSettings.Parse(
-            [.. Arguments().Where(argument => !argument.StartsWith("--devOpsOrganization")), $"--devOpsOrganization={organisation}"],
-            WithAccessToken);
+        var parsed = FeedbackLaunchSettings.Parse(Arguments, Configuration(settings => settings["DevOpsOrganization"] = organisation));
 
-        (parsed.Settings is not null).Should().Be(taken);
+        parsed.Settings.Should().BeNull();
+        parsed.WhyRefused.Should().Contain("DevOpsOrganization");
+    }
+
+    [Theory]
+    [InlineData("http://localhost:7399/Example")]
+    [InlineData("http://127.0.0.1:7399/Example")]
+    public void PlainHttp_IsTakenForAStandInOnThisMachine(string organisation)
+    {
+        var parsed = FeedbackLaunchSettings.Parse(Arguments, Configuration(settings => settings["DevOpsOrganization"] = organisation));
+
+        parsed.Settings.Should().NotBeNull();
     }
 
     [Fact]
     public void TheAccessTokenOnTheCommandLine_IsNotRead()
     {
-        var parsed = FeedbackLaunchSettings.Parse(Arguments("--devOpsAccessToken=secret"), Configuration());
+        var parsed = FeedbackLaunchSettings.Parse(
+            [.. Arguments, "--devOpsAccessToken=secret"], Configuration(settings => settings.Remove("DevOpsAccessToken")));
 
         parsed.Settings.Should().BeNull();
         parsed.WhyRefused.Should().Contain("DevOpsAccessToken");
     }
 
     [Fact]
-    public void NoDestinationsFile_IsRefused()
+    public void SettingsNamingNoDestination_AreRefused()
     {
-        var parsed = FeedbackLaunchSettings.Parse(
-            [.. Arguments().Where(argument => !argument.StartsWith("--destinations"))], WithAccessToken);
+        var parsed = FeedbackLaunchSettings.Parse(Arguments, Configuration(settings =>
+        {
+            foreach (var key in settings.Keys.Where(key => key.StartsWith("Destinations:")).ToList()) settings.Remove(key);
+        }));
 
         parsed.Settings.Should().BeNull();
-        parsed.WhyRefused.Should().Contain("--destinations");
+        parsed.WhyRefused.Should().Contain("Destinations");
     }
 
     [Fact]
-    public void ADestinationsFileThatDoesNotExist_IsRefusedByName()
+    public void ADestinationMissingAWorkItemType_IsRefusedByName()
     {
-        File.Delete(_destinationsFile);
-
-        var parsed = FeedbackLaunchSettings.Parse(Arguments(), WithAccessToken);
+        var parsed = FeedbackLaunchSettings.Parse(Arguments, Configuration(settings => settings.Remove("Destinations:Console:IdeaType")));
 
         parsed.Settings.Should().BeNull();
-        parsed.WhyRefused.Should().Contain(_destinationsFile);
-    }
-
-    [Theory]
-    [InlineData("not json")]
-    [InlineData("{}")]
-    [InlineData("""{ "Console": { "project": "Clients", "areaPath": "Clients", "bugType": "Bug" } }""")]
-    public void ADestinationsFileThatNamesNoUsableDestination_IsRefused(string contents)
-    {
-        File.WriteAllText(_destinationsFile, contents);
-
-        var parsed = FeedbackLaunchSettings.Parse(Arguments(), WithAccessToken);
-
-        parsed.Settings.Should().BeNull();
-        parsed.WhyRefused.Should().Contain(_destinationsFile);
+        parsed.WhyRefused.Should().Contain("Destinations:Console");
     }
 
     [Fact]
     public void NoPortOrPlatformAddress_AsksForTheUsage()
     {
-        var parsed = FeedbackLaunchSettings.Parse(["--devOpsOrganization=https://dev.azure.com/Example"], WithAccessToken);
+        var parsed = FeedbackLaunchSettings.Parse([], Configuration());
 
         parsed.Settings.Should().BeNull();
         parsed.WhyRefused.Should().StartWith("Usage:");

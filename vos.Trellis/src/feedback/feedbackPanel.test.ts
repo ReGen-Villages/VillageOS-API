@@ -97,13 +97,28 @@ describe('the report panel', () => {
       description: 'Switched model, nothing drew.',
       screenshot: null,
       context: {
-        pageAddress: window.location.href,
+        pageAddress: `${window.location.origin}${window.location.pathname}`,
         browser: navigator.userAgent,
         screenSize: `${window.innerWidth} × ${window.innerHeight}`,
         language: 'en',
       },
     });
     expect(shadow.textContent).toContain('Your report was filed as number 7400.');
+  });
+
+  it('sends the page without its query or fragment, where a page may carry its own key', async () => {
+    const { find, submit } = mount();
+    window.history.pushState({}, '', '/floor/index.html?key=secret-key&debug=1#step');
+    try {
+      panel!.open();
+      type(find('[name="title"]'), 'Anything');
+      find<HTMLButtonElement>('[data-part="send"]').click();
+      await settle();
+
+      expect(submit.mock.calls[0][0].context.pageAddress).toBe(`${window.location.origin}/floor/index.html`);
+    } finally {
+      window.history.pushState({}, '', '/');
+    }
   });
 
   it('sends an idea as an idea, and asks for one in the words for an idea', async () => {

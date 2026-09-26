@@ -1,4 +1,4 @@
-using System.Text.Json;
+using Microsoft.Extensions.Configuration;
 
 namespace vos.Service.Feedback.Configuration;
 
@@ -7,45 +7,34 @@ namespace vos.Service.Feedback.Configuration;
 // assumed.
 public sealed record Destination(string Project, string AreaPath, string BugType, string IdeaType, string[] Tags);
 
-// Every application this deployment takes reports from, read from the file the deployment names. An
-// application missing from it is refused, so a page cannot file into a project by naming it.
+// Every application this deployment takes reports from, read from the Destinations section of its
+// settings. An application missing from it is refused, so a page cannot file into a project by naming it.
 public sealed class Destinations
 {
+    public const string Section = "Destinations";
+
     private readonly IReadOnlyDictionary<string, Destination> _byApplication;
 
     private Destinations(IReadOnlyDictionary<string, Destination> byApplication) => _byApplication = byApplication;
 
     public Destination? For(string application) => _byApplication.GetValueOrDefault(application);
 
-    private static readonly JsonSerializerOptions FileFormat = new() { PropertyNameCaseInsensitive = true };
-
-    private sealed record DestinationInFile(string? Project, string? AreaPath, string? BugType, string? IdeaType, string[]? Tags);
-
-    public static (Destinations? Destinations, string WhyRefused) Load(string path)
+    public static (Destinations? Destinations, string WhyRefused) From(IConfiguration? configuration)
     {
-        if (!File.Exists(path))
-            return (null, $"The destinations file {path} does not exist.");
-
-        Dictionary<string, DestinationInFile?>? read;
-        try
-        {
-            read = JsonSerializer.Deserialize<Dictionary<string, DestinationInFile?>>(File.ReadAllText(path), FileFormat);
-        }
-        catch (JsonException error)
-        {
-            return (null, $"The destinations file {path} is not readable JSON: {error.Message}");
-        }
-
-        if (read is null || read.Count == 0)
-            return (null, $"The destinations file {path} names no application.");
+        var applications = configuration?.GetSection(Section).GetChildren().ToList() ?? [];
+        if (applications.Count == 0)
+            return (null, $"The {Section} section of the settings names no application.");
 
         var byApplication = new Dictionary<string, Destination>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (application, destination) in read)
+        foreach (var application in applications)
         {
-            if (destination is not { Project: { Length: > 0 } project, AreaPath: { Length: > 0 } areaPath,
-                                     BugType: { Length: > 0 } bugType, IdeaType: { Length: > 0 } ideaType })
-                return (null, $"The destinations file {path} gives '{application}' no project, areaPath, bugType and ideaType.");
-            byApplication[application] = new Destination(project, areaPath, bugType, ideaType, destination.Tags ?? []);
+            if (application["Project"] is not { Length: > 0 } project || application["AreaPath"] is not { Length: > 0 } areaPath
+                || application["BugType"] is not { Length: > 0 } bugType || application["IdeaType"] is not { Length: > 0 } ideaType)
+                return (null, $"{Section}:{application.Key} needs a Project, AreaPath, BugType and IdeaType.");
+
+            var tags = application.GetSection("Tags").GetChildren()
+                .Select(tag => tag.Value).OfType<string>().Where(tag => tag.Length > 0).ToArray();
+            byApplication[application.Key] = new Destination(project, areaPath, bugType, ideaType, tags);
         }
 
         return (new Destinations(byApplication), "");

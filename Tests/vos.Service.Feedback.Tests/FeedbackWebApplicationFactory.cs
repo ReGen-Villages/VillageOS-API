@@ -27,25 +27,9 @@ public sealed class FeedbackWebApplicationFactory : WebApplicationFactory<Progra
 
     public static readonly Guid ModelId = Guid.Parse("4d6c0f3e-9a55-4b5e-9d0e-7b1a3c2f5e11");
 
-    private readonly string _destinationsFile = Path.Combine(Path.GetTempPath(), $"feedback-destinations-{Guid.NewGuid():N}.json");
     private readonly List<RecordedRequest> _platformRequests = [];
     private readonly List<RecordedRequest> _devOpsRequests = [];
     private readonly Lock _recording = new();
-
-    public FeedbackWebApplicationFactory()
-    {
-        File.WriteAllText(_destinationsFile, """
-            {
-              "Trellis": {
-                "project": "Clients",
-                "areaPath": "Clients\\Console",
-                "bugType": "Bug",
-                "ideaType": "User Story",
-                "tags": ["Console"]
-              }
-            }
-            """);
-    }
 
     public HashSet<string> AcceptedTokens { get; } = [];
 
@@ -76,7 +60,11 @@ public sealed class FeedbackWebApplicationFactory : WebApplicationFactory<Progra
         builder.UseSetting("MyceliumUrl", PlatformAddress);
         builder.UseSetting("DevOpsOrganization", Organisation);
         builder.UseSetting("DevOpsAccessToken", AccessToken);
-        builder.UseSetting("Destinations", _destinationsFile);
+        builder.UseSetting("Destinations:Trellis:Project", "Clients");
+        builder.UseSetting("Destinations:Trellis:AreaPath", @"Clients\Console");
+        builder.UseSetting("Destinations:Trellis:BugType", "Bug");
+        builder.UseSetting("Destinations:Trellis:IdeaType", "User Story");
+        builder.UseSetting("Destinations:Trellis:Tags:0", "Console");
         if (AllowedOrigin != null)
             builder.UseSetting("AllowedOrigin", AllowedOrigin);
 
@@ -87,12 +75,6 @@ public sealed class FeedbackWebApplicationFactory : WebApplicationFactory<Progra
             services.AddSingleton<ILogger<ReportFiling>>(Log);
             services.AddSingleton<IStartupFilter, ArrivingThroughTheProxy>();
         });
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        base.Dispose(disposing);
-        File.Delete(_destinationsFile);
     }
 
     private HttpResponseMessage Answer(HttpRequestMessage request)

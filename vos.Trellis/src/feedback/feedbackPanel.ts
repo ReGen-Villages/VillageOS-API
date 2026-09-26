@@ -444,7 +444,8 @@ class PanelController {
       description: this.description.value.trim(),
       screenshot: this.screenshotToSend(),
       context: {
-        pageAddress: window.location.href,
+        // Never the query or fragment: a page may carry its own credential there, and a report is read by people outside it.
+        pageAddress: `${window.location.origin}${window.location.pathname}`,
         browser: navigator.userAgent,
         screenSize: `${window.innerWidth} × ${window.innerHeight}`,
         language: this.language,
