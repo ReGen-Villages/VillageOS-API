@@ -341,15 +341,18 @@ public class ReportEndpointTests
         factory.DevOpsRequests.Should().BeEmpty();
     }
 
-    [Fact]
-    public async Task AJpegScreenshot_IsStoredUnderAJpegName()
+    [Theory]
+    [InlineData("image/jpeg", "screenshot.jpg")]
+    [InlineData("image/webp", "screenshot.webp")]
+    [InlineData("image/png", "screenshot.png")]
+    public async Task AScreenshot_IsStoredUnderANameForItsKindOfPicture(string mediaType, string fileName)
     {
         var token = PersonToken();
         await using var factory = RelayAccepting(token);
 
-        await Post(factory, Report(report => report["screenshot"] = DataAddress("image/jpeg", Picture)), token);
+        await Post(factory, Report(report => report["screenshot"] = DataAddress(mediaType, Picture)), token);
 
-        factory.DevOpsRequests[0].Address.Query.Should().Contain("fileName=screenshot.jpg");
+        factory.DevOpsRequests[0].Address.Query.Should().Contain($"fileName={fileName}");
     }
 
     [Theory]
