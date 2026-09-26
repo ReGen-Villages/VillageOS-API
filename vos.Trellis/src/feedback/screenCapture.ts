@@ -14,7 +14,7 @@ const FIRST_FRAME_WAIT_MILLISECONDS = 150;
 /**
  * A picture of what the person is looking at. Where the browser can capture a tab (desktop browsers)
  * the picture is exact, maps and 3D views included, at the cost of one question from the browser.
- * Phones and handhelds offer no such capture, so there the page draws itself, leaving `panelHost`
+ * Phones and tablets offer no such capture, so there the page draws itself, leaving `panelHost`
  * out; what the graphics card draws may come out blank that way.
  */
 export async function captureScreen(panelHost: Element): Promise<HTMLCanvasElement> {

@@ -10,7 +10,6 @@ namespace vos.Service.Feedback;
 public sealed class DevOpsRefusedError(int status, string detail)
     : Exception($"Azure DevOps answered {status}: {detail}");
 
-// The two Azure DevOps REST calls a report needs: store a picture, and create a work item.
 public sealed class DevOpsWorkItems(IHttpClientFactory clients, Uri organisation, string accessToken)
 {
     private const string ApiVersion = "7.1";

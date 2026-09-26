@@ -8,11 +8,11 @@ namespace vos.Service.Feedback;
 // Who a report is filed under. Through names the service that vouched for them, when one did.
 public sealed record Reporter(string Name, string? Role, string? Through);
 
-// The JSON patch that creates a report's work item. Everything the reporter wrote is encoded before it
-// goes into the HTML body, so what they typed is shown and never runs.
+// Everything the reporter wrote is encoded before it goes into the HTML body, so what they typed is
+// shown and never runs.
 public static class WorkItemDocument
 {
-    public const string ReportedInAppTag = "Reported in app";
+    private const string ReportedInAppTag = "Reported in app";
 
     public static JsonArray For(
         ValidReport report, Reporter reporter, string? modelName, Destination destination, string? attachmentUrl,

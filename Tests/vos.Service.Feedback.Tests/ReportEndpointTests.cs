@@ -23,7 +23,7 @@ public class ReportEndpointTests
         [VosClaims.ModelId] = FeedbackWebApplicationFactory.ModelId.ToString(),
     });
 
-    private static string ServiceToken(string service = "floor-gateway") => TestTokens.Jwt(new Dictionary<string, object>
+    private static string ServiceToken(string service = "kiosk-gateway") => TestTokens.Jwt(new Dictionary<string, object>
     {
         [ClaimTypes.Name] = $"service:{service}",
         [ClaimTypes.Role] = "Service",
@@ -226,14 +226,14 @@ public class ReportEndpointTests
     [Fact]
     public async Task AServiceToken_FilesUnderTheWorkerItNamesAndSaysThroughWhichService()
     {
-        var token = ServiceToken("floor-gateway");
+        var token = ServiceToken("kiosk-gateway");
         await using var factory = RelayAccepting(token);
 
         var response = await Post(factory, Report(report => report["reporter"] = "W-12"), token);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = Field(Patch(factory), "Microsoft.VSTS.TCM.ReproSteps")!;
-        body.Should().Contain("W-12").And.Contain("floor-gateway");
+        body.Should().Contain("W-12").And.Contain("kiosk-gateway");
     }
 
     [Fact]
@@ -478,16 +478,16 @@ public class ReportEndpointTests
     [Fact]
     public async Task APreflightFromAnAllowedOrigin_MayCarryTheSignInToken()
     {
-        await using var factory = new FeedbackWebApplicationFactory { AllowedOrigin = "https://desk.example.org" };
+        await using var factory = new FeedbackWebApplicationFactory { AllowedOrigin = "https://console.example.org" };
         using var client = factory.CreateClient();
         var preflight = new HttpRequestMessage(HttpMethod.Options, "/reports");
-        preflight.Headers.Add("Origin", "https://desk.example.org");
+        preflight.Headers.Add("Origin", "https://console.example.org");
         preflight.Headers.Add("Access-Control-Request-Method", "POST");
         preflight.Headers.Add("Access-Control-Request-Headers", "authorization,content-type");
 
         var response = await client.SendAsync(preflight);
 
-        response.Headers.GetValues("Access-Control-Allow-Origin").Should().ContainSingle().Which.Should().Be("https://desk.example.org");
+        response.Headers.GetValues("Access-Control-Allow-Origin").Should().ContainSingle().Which.Should().Be("https://console.example.org");
         response.Headers.GetValues("Access-Control-Allow-Headers").Single().ToLowerInvariant().Should().Contain("authorization");
     }
 

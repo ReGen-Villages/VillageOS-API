@@ -2,8 +2,7 @@ using vos.Service.Feedback.Configuration;
 
 namespace vos.Service.Feedback;
 
-// One report from arrival to work item: whose it is, whether it is complete, where it goes, and the
-// DevOps calls that file it. Nothing reaches DevOps until every one of those has answered.
+// Nothing reaches DevOps until the caller, the report and its destination have all been accepted.
 public sealed class ReportFiling(
     PlatformCallers callers, DevOpsWorkItems devOps, Destinations destinations, TimeProvider time, ILogger<ReportFiling> log)
 {

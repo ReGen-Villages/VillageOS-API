@@ -3,9 +3,7 @@ using vos.Service.Shared.Configuration;
 
 namespace vos.Service.Feedback.Configuration;
 
-// The common service settings, plus the Azure DevOps organisation reports are filed in, the credential
-// that files them, the destinations file, and the origins allowed to call across origins. No origin
-// given is a relay only a page on its own host can call.
+// No allowed origin given is a relay only a page on its own host can call.
 public sealed record FeedbackLaunchSettings(
     ServiceLaunchSettings Service,
     Uri DevOpsOrganization,

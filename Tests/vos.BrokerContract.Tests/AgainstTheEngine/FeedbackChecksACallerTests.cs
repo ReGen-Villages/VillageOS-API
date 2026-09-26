@@ -35,11 +35,11 @@ public class FeedbackChecksACallerTests : IClassFixture<TheEngine>
     [Fact]
     public async Task A_service_the_engine_dispatched_to_is_accepted_as_a_service()
     {
-        var (verdict, holder) = await Callers().CheckAsync(_engine.ServiceTokenFor("floor-gateway"), CancellationToken.None);
+        var (verdict, holder) = await Callers().CheckAsync(_engine.ServiceTokenFor("kiosk-gateway"), CancellationToken.None);
 
         verdict.Should().Be(CallerVerdict.Accepted);
         holder!.Kind.Should().Be(TokenHolderKind.Service);
-        holder.Name.Should().Be("service:floor-gateway");
+        holder.Name.Should().Be("service:kiosk-gateway");
     }
 
     [Fact]

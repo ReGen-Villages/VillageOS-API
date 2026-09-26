@@ -50,7 +50,6 @@ export interface FeedbackOptions {
   language?: string;
   /** A button the page already draws. Given one, the panel opens from it and draws none of its own. */
   trigger?: HTMLElement;
-  container?: HTMLElement;
 }
 
 export interface FeedbackPanel {
@@ -134,7 +133,7 @@ function template(drawsItsOwnButton: boolean): string {
   return `
 <style>${STYLE}</style>
 ${drawsItsOwnButton ? `<button type="button" class="open" data-part="open" data-word-label="openButton">${SPEECH_BUBBLE}</button>` : ''}
-<section class="panel" role="dialog" aria-modal="true" aria-labelledby="feedback-heading" hidden>
+<section class="panel" data-part="dialog" role="dialog" aria-modal="true" aria-labelledby="feedback-heading" hidden>
   <header>
     <h2 id="feedback-heading" data-word="heading"></h2>
     <button type="button" class="icon" data-part="close" data-word-label="close">&times;</button>
@@ -246,7 +245,7 @@ class PanelController {
   }
 
   private part<T extends HTMLElement = HTMLElement>(name: string): T {
-    return name === 'dialog' ? this.find<T>('[role="dialog"]') : this.find<T>(`[data-part="${name}"]`);
+    return this.find<T>(`[data-part="${name}"]`);
   }
 
   private listen(): void {
@@ -497,7 +496,7 @@ export function mountFeedback(options: FeedbackOptions): FeedbackPanel {
   const host = document.createElement(ELEMENT_NAME);
   const shadow = host.attachShadow({ mode: 'open' });
   shadow.innerHTML = template(options.trigger === undefined);
-  (options.container ?? document.body).append(host);
+  document.body.append(host);
 
   const controller = new PanelController(host, shadow, options);
   return {
