@@ -11,7 +11,8 @@ namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
 // The feedback relay knows a caller is signed in only because the engine answers a signed-in route
 // to their token. Its own suite answers that route with a stand-in, so this is where a change to what
-// the route admits would show.
+// the route admits would show. A service's token is not among the cases: minting one here would take
+// the engine's own signer, which this repository does not compile against.
 public class FeedbackChecksACallerTests : IClassFixture<TheEngine>
 {
     private readonly TheEngine _engine;
@@ -30,16 +31,6 @@ public class FeedbackChecksACallerTests : IClassFixture<TheEngine>
         holder.Name.Should().StartWith("host-admin-");
         holder.Role.Should().NotBeNullOrEmpty();
         holder.ModelName.Should().NotBeNullOrEmpty("the engine names the model the token was issued for");
-    }
-
-    [Fact]
-    public async Task A_service_the_engine_dispatched_to_is_accepted_as_a_service()
-    {
-        var (verdict, holder) = await Callers().CheckAsync(_engine.ServiceTokenFor("kiosk-gateway"), CancellationToken.None);
-
-        verdict.Should().Be(CallerVerdict.Accepted);
-        holder!.Kind.Should().Be(TokenHolderKind.Service);
-        holder.Name.Should().Be("service:kiosk-gateway");
     }
 
     [Fact]
