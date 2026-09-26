@@ -29,14 +29,25 @@ public static class SnapshotValues
 
     // Every value the Thing states, for a reader that takes what it finds rather than asking for
     // a name it already knows. Own properties answer first, so a name stated twice is read once.
-    public static IEnumerable<KeyValuePair<string, SnapshotProperty>> ValuesStated(this SnapshotThing thing)
+    public static IEnumerable<KeyValuePair<string, SnapshotProperty>> ValuesStated(this SnapshotThing thing) =>
+        ValuesStated(thing.Properties, thing.InheritedOverrides);
+
+    // A relationship carries an override store of its own: a wire drawn as a relationship states its ports
+    // there when the predicate's archetype declares them.
+    public static IEnumerable<KeyValuePair<string, SnapshotProperty>> ValuesStated(this SnapshotRelationship relationship) =>
+        ValuesStated(relationship.Properties, relationship.InheritedOverrides);
+
+    // Own is declared as always present, but a payload that leaves the member out binds null to it, and
+    // a Thing with no property stated is an empty answer rather than a fault.
+    private static IEnumerable<KeyValuePair<string, SnapshotProperty>> ValuesStated(
+        Dictionary<string, SnapshotProperty>? own, Dictionary<string, InheritedPropertySet>? overrides)
     {
         var answered = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var stated in thing.Properties)
+        foreach (var stated in own ?? [])
             if (answered.Add(stated.Key)) yield return stated;
 
-        if (thing.InheritedOverrides is null) yield break;
-        foreach (var stated in ValuesIn(thing.InheritedOverrides))
+        if (overrides is null) yield break;
+        foreach (var stated in ValuesIn(overrides))
             if (answered.Add(stated.Key)) yield return stated;
     }
 

@@ -515,6 +515,29 @@ public class MyceliumGatewayTests
         body.GetProperty("value").GetString().Should().Be(RunStatus.Succeeded);
     }
 
+    // A run started by a state entry is awaited by nobody, so the reason it failed has to be on the run
+    // itself — and the property route sets only what a Thing already carries, so the run is created
+    // carrying it, as it is created carrying its result.
+    [Fact]
+    public async Task SetRunStatusAsync_WithAReason_WritesTheReasonOnTheRunItWasCreatedCarrying()
+    {
+        var runId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway();
+        await gateway.CreateRunAsync(runId, Guid.NewGuid(), CancellationToken.None);
+
+        var failing = () => gateway.SetRunStatusAsync(runId, RunStatus.Failed, CancellationToken.None, "'subject' is not an output port");
+
+        await failing.Should().NotThrowAsync();
+        var written = new List<(string Name, string Value)>();
+        foreach (var request in RequestsTo(handler, $"/api/things/{runId}/properties", HttpMethod.Put))
+        {
+            var body = await ReadJson(request);
+            written.Add((body.GetProperty("name").GetString()!, body.GetProperty("value").GetString()!));
+        }
+        written.Should().Contain(("status", RunStatus.Failed));
+        written.Should().Contain(("error", "'subject' is not an output port"));
+    }
+
     [Fact]
     public async Task SetRunResultAsync_PublishesThePipelineResultOnTheRun()
     {

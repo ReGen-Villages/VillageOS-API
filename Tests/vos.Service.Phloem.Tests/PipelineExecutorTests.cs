@@ -436,6 +436,22 @@ public class PipelineExecutorTests
         result.Result!.Value.GetProperty("result").GetString().Should().Be(subject.Id.ToString());
     }
 
+    // A run refused before any node dispatches has no node run to carry a reason, and nobody awaits a
+    // run a state entry started; the reason lives on the run.
+    [Fact]
+    public async Task RunAsync_ARunRefusedBeforeAnyNode_LeavesItsReasonOnTheRun()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        fx.Rel(fx.Get("Echo"), fx.Get("carries"), fx.Get("Generate"), ("fromPort", "echo"), ("toPort", "message"));
+        var gateway = new FakeGateway(fx.Build());
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        gateway.RunError.Should().Be(result.Error).And.Contain("invalid");
+    }
+
     [Fact]
     public async Task RunAsync_WithoutASubject_RecordsNone()
     {
