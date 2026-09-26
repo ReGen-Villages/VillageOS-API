@@ -11,4 +11,10 @@ public class VosClaimsTests
     {
         VosClaims.ModelId.Should().Be("vos:model_id");
     }
+
+    [Fact]
+    public void TokenType_matches_the_claim_mycelium_mints()
+    {
+        VosClaims.TokenType.Should().Be("vos:token_type");
+    }
 }

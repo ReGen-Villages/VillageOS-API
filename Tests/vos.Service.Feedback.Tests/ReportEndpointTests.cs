@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using FluentAssertions;
+using vos.Auth.Shared;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -18,24 +19,24 @@ public class ReportEndpointTests
     {
         [ClaimTypes.Name] = name,
         [ClaimTypes.Role] = role,
-        ["vos:token_type"] = "user",
-        ["vos:model_id"] = FeedbackWebApplicationFactory.ModelId.ToString(),
+        [VosClaims.TokenType] = "user",
+        [VosClaims.ModelId] = FeedbackWebApplicationFactory.ModelId.ToString(),
     });
 
     private static string ServiceToken(string service = "floor-gateway") => TestTokens.Jwt(new Dictionary<string, object>
     {
         [ClaimTypes.Name] = $"service:{service}",
         [ClaimTypes.Role] = "Service",
-        ["vos:token_type"] = "service",
-        ["vos:model_id"] = FeedbackWebApplicationFactory.ModelId.ToString(),
+        [VosClaims.TokenType] = "service",
+        [VosClaims.ModelId] = FeedbackWebApplicationFactory.ModelId.ToString(),
     });
 
     private static string StreamToken() => TestTokens.Jwt(new Dictionary<string, object>
     {
         [ClaimTypes.Name] = "ada",
         [ClaimTypes.Role] = "Viewer",
-        ["vos:token_type"] = "stream",
-        ["vos:model_id"] = FeedbackWebApplicationFactory.ModelId.ToString(),
+        [VosClaims.TokenType] = "stream",
+        [VosClaims.ModelId] = FeedbackWebApplicationFactory.ModelId.ToString(),
     });
 
     private static JsonObject Report(Action<JsonObject>? change = null)

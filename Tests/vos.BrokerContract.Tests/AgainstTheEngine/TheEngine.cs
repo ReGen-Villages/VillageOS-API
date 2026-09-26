@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using vos.Auth.Shared;
 using vos.Mycelium.Auth;
 using vos.Mycelium.Testing;
 using vos.Service.Shared;
@@ -53,7 +54,7 @@ public sealed class TheEngine : IAsyncLifetime
     // to, as a daemon the engine dispatched to would hold it.
     public string ServiceTokenFor(string serviceName)
     {
-        var modelId = Guid.Parse(JwtPayload.Read(AdminToken)!.Value.GetProperty("vos:model_id").GetString()!);
+        var modelId = Guid.Parse(JwtPayload.Read(AdminToken)!.Value.GetProperty(VosClaims.ModelId).GetString()!);
         return _host.Services.GetRequiredService<JwtTokenService>()
             .GenerateServiceToken(serviceName, $"endpoint:{serviceName}:*", modelId, []);
     }

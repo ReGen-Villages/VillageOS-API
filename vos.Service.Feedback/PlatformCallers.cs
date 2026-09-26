@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text.Json;
+using vos.Auth.Shared;
 using vos.Service.Shared;
 
 namespace vos.Service.Feedback;
@@ -56,7 +57,7 @@ public sealed class PlatformCallers(IHttpClientFactory clients, string platformA
     {
         if (JwtPayload.Read(token) is not { } payload) return null;
 
-        var kind = Text(payload, "vos:token_type") switch
+        var kind = Text(payload, VosClaims.TokenType) switch
         {
             "user" => TokenHolderKind.Person,
             "service" => TokenHolderKind.Service,
@@ -64,7 +65,7 @@ public sealed class PlatformCallers(IHttpClientFactory clients, string platformA
         };
         if (kind is null || Text(payload, ClaimTypes.Name) is not { Length: > 0 } name) return null;
 
-        var modelName = Guid.TryParse(Text(payload, "vos:model_id"), out var modelId)
+        var modelName = Guid.TryParse(Text(payload, VosClaims.ModelId), out var modelId)
             ? models.FirstOrDefault(model => model.Id == modelId)?.Name
             : null;
 

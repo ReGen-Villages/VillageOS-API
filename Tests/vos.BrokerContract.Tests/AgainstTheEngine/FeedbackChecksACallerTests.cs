@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
 using FluentAssertions;
+using vos.Auth.Shared;
 using vos.Service.Feedback;
 using vos.Tests.Shared;
 using Xunit;
@@ -57,7 +58,7 @@ public class FeedbackChecksACallerTests : IClassFixture<TheEngine>
     public async Task A_token_signed_by_anyone_but_the_engine_is_refused()
     {
         var forged = new MyceliumSigner().Token("VillageOS", "VosClients",
-            new Claim(ClaimTypes.Name, "ada"), new Claim("vos:token_type", "user"), new Claim(ClaimTypes.Role, "admin"));
+            new Claim(ClaimTypes.Name, "ada"), new Claim(VosClaims.TokenType, "user"), new Claim(ClaimTypes.Role, "admin"));
 
         var (verdict, _) = await Callers().CheckAsync(forged, CancellationToken.None);
 
