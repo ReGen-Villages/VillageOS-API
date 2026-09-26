@@ -1119,7 +1119,15 @@ export const fr: PartialResources = {
     },
   },
   pipeline: {
-    noPipelineMarks: "Ce modèle ne marque aucun archétype comme pipeline, nœud de pipeline ou liaison — chargez un seed qui les marque.",
+    noPipelineMarks: "Ce modèle ne déclare aucun {{missing}} — chargez un seed qui le déclare.",
+    declarations: {
+      isPredicate: "prédicat intégré is",
+      hasPredicate: "prédicat intégré has",
+      pipelineArchetype: "archétype marqué comme pipeline",
+      nodeArchetype: "archétype marqué comme nœud de pipeline",
+      wireArchetype: "archétype marqué comme liaison",
+      wirePredicate: "prédicat de liaison (un prédicat de l'archétype de liaison qu'aucun nœud ne détient)",
+    },
     noPortMarks: "Ce modèle ne marque aucun archétype comme port, entrée de pipeline ou sortie de pipeline — chargez un seed qui les marque.",
     noStandsForMark: "Ce modèle ne marque aucun prédicat comme indiquant ce que représente un nœud de bord — chargez un seed qui en marque un.",
     danglingWire: "Cette liaison n’est pas raccordée aux deux bouts : {{from}} → {{to}}",

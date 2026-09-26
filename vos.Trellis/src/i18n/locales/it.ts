@@ -1119,7 +1119,15 @@ export const it: PartialResources = {
     },
   },
   pipeline: {
-    noPipelineMarks: "Questo modello non contrassegna alcun archetipo come pipeline, nodo di pipeline o collegamento: carica un seed che li contrassegni.",
+    noPipelineMarks: "Questo modello non dichiara alcun {{missing}}: carica un seed che lo dichiari.",
+    declarations: {
+      isPredicate: "predicato integrato is",
+      hasPredicate: "predicato integrato has",
+      pipelineArchetype: "archetipo contrassegnato come pipeline",
+      nodeArchetype: "archetipo contrassegnato come nodo di pipeline",
+      wireArchetype: "archetipo contrassegnato come collegamento",
+      wirePredicate: "predicato di collegamento (un predicato dell'archetipo di collegamento che nessun nodo contiene)",
+    },
     noPortMarks: "Questo modello non contrassegna alcun archetipo come porta, ingresso di pipeline o uscita di pipeline: carica un seed che li contrassegni.",
     noStandsForMark: "Questo modello non contrassegna alcun predicato come quello che indica cosa rappresenta un nodo di confine: carica un seed che ne contrassegni uno.",
     danglingWire: "Questo collegamento non è agganciato a entrambe le estremità: {{from}} → {{to}}",

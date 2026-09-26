@@ -1119,7 +1119,15 @@ export const nl: PartialResources = {
     },
   },
   pipeline: {
-    noPipelineMarks: "Dit model markeert geen archetype als pipeline, pipelineknooppunt of verbinding — laad een seed die ze markeert.",
+    noPipelineMarks: "Dit model declareert geen {{missing}} — laad een seed die het declareert.",
+    declarations: {
+      isPredicate: "ingebouwd is-predicaat",
+      hasPredicate: "ingebouwd has-predicaat",
+      pipelineArchetype: "archetype gemarkeerd als pipeline",
+      nodeArchetype: "archetype gemarkeerd als pipelineknooppunt",
+      wireArchetype: "archetype gemarkeerd als verbinding",
+      wirePredicate: "verbindingspredicaat (een predicaat van het verbindingsarchetype dat geen knooppunt vasthoudt)",
+    },
     noPortMarks: "Dit model markeert geen archetype als poort, pipeline-invoer of pipeline-uitvoer — laad een seed die ze markeert.",
     noStandsForMark: "Dit model markeert geen predicaat als het predicaat dat zegt waar een grensknooppunt voor staat — laad een seed die er een markeert.",
     danglingWire: "Deze verbinding is niet aan beide uiteinden bevestigd: {{from}} → {{to}}",

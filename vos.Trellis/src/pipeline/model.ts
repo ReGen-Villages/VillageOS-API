@@ -459,13 +459,17 @@ export class PipelineModel {
   }
 
   /** Id of the wire predicate — the predicate Thing of the archetype the model marks as holding wires.
-   *  A wire held as a Thing is of that same archetype, so this also asks that the Thing is one the model
-   *  uses as a predicate; without that it returns whichever the snapshot happens to list first, and a save
-   *  writes every new wire through a Thing that is not a predicate at all. */
+   *  A wire held as a Thing is of that same archetype, so being of it does not tell the two apart. The
+   *  one the model already uses as a predicate answers first; before any wire is drawn nothing uses it,
+   *  so the shape decides: a held wire is always held by a node along `has`, and a predicate never is. */
   wirePredicateId(): string | undefined {
-    return this.things.find(
-      (t) => this.usedAsPredicate.has(t.Id) && this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.PipelineWire),
-    )?.Id;
+    const ofTheWireArchetype = this.things.filter((t) => this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.PipelineWire));
+    return ofTheWireArchetype.find((t) => this.usedAsPredicate.has(t.Id))?.Id
+      ?? ofTheWireArchetype.find((t) => !this.isHeld(t.Id))?.Id;
+  }
+
+  private isHeld(thingId: string): boolean {
+    return (this.byTarget.get(thingId) ?? []).some((r) => this.byId.get(r.PredicateId)?.Name.toLowerCase() === 'has');
   }
 
   /** Id of the archetype this model marks with the given role — the Thing an `is` relationship is written to.

@@ -1119,7 +1119,15 @@ export const de: PartialResources = {
     },
   },
   pipeline: {
-    noPipelineMarks: "Dieses Modell kennzeichnet keinen Archetyp als Pipeline, Pipeline-Knoten oder Verbindung — laden Sie einen Seed, der sie kennzeichnet.",
+    noPipelineMarks: "Dieses Modell deklariert kein {{missing}} — laden Sie einen Seed, der es deklariert.",
+    declarations: {
+      isPredicate: "eingebautes is-Prädikat",
+      hasPredicate: "eingebautes has-Prädikat",
+      pipelineArchetype: "als Pipeline gekennzeichnetes Archetyp",
+      nodeArchetype: "als Pipeline-Knoten gekennzeichnetes Archetyp",
+      wireArchetype: "als Verbindung gekennzeichnetes Archetyp",
+      wirePredicate: "Verbindungsprädikat (ein Prädikat des Verbindungs-Archetyps, das kein Knoten hält)",
+    },
     noPortMarks: "Dieses Modell kennzeichnet keinen Archetyp als Port, Pipeline-Eingang oder Pipeline-Ausgang — laden Sie einen Seed, der sie kennzeichnet.",
     noStandsForMark: "Dieses Modell kennzeichnet kein Prädikat als Angabe, wofür ein Randknoten steht — laden Sie einen Seed, der eines kennzeichnet.",
     danglingWire: "Diese Verbindung ist nicht an beiden Enden angeschlossen: {{from}} → {{to}}",
