@@ -30,6 +30,28 @@ public class PipelineStartTests
         resolution.PipelineId.Should().Be(fixture.DrawnPipelineId);
     }
 
+    // The page draws a state row standing for the state, not for any one connection watching it, because
+    // several may. The broker dispatches the connection, so the orchestrator walks to the state it watches.
+    [Fact]
+    public void A_connection_starts_the_pipeline_whose_start_node_stands_for_the_state_it_watches()
+    {
+        var fixture = TestGraphs.StatePipeline();
+        var fx = fixture.Fixture;
+        var watches = fx.Thing("watches", (PipelinePredicates.StateWatchFlag, true));
+        var state = fx.Thing("SubmissionHandled");
+        fx.Rel(fx.Get("looseConn"), watches, state);
+        var start = fx.Thing("Decided");
+        fx.Rel(start, fx.Get("is"), fx.Get("PipelineInput"));
+        fx.Rel(start, fx.Get("standsFor"), state);
+        var drawnFromTheState = fx.Thing("Tell the submitter");
+        fx.Rel(drawnFromTheState, fx.Get("is"), fx.Get("Pipeline"));
+        fx.Rel(drawnFromTheState, fx.Get("has"), start);
+
+        var resolution = PipelineStart.Resolve(fx.Build(), fixture.LooseConnectionId);
+
+        resolution.PipelineId.Should().Be(drawnFromTheState.Id);
+    }
+
     [Fact]
     public void A_connection_starts_the_pipeline_it_reaches_along_the_start_mark()
     {

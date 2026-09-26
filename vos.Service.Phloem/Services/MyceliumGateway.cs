@@ -50,11 +50,12 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 
     public async Task<PipelineGraph> LoadStartSubgraphAsync(Guid targetId, CancellationToken cancellationToken)
     {
-        // The target and what tells it apart: its `is` chain, the start nodes standing for it and the
-        // pipelines holding them, and any pipeline it reaches along the start mark. The two marked
-        // predicates are asked for by their marks so the graph can read the mark off each edge. Relationship
-        // rules keep the read to those edges: a state connection gains one dispatch record per Thing that
-        // ever entered its state, and the wider reading would carry every one of them on every start.
+        // The target and what tells it apart: its `is` chain, the state it watches, the start nodes standing
+        // for either and the pipelines holding them, and any pipeline it reaches along the start mark. The
+        // marked predicates are asked for by their marks so the graph can read the mark off each edge, and
+        // the traversals run in order, so the watched state is reached before the nodes standing for it.
+        // Relationship rules keep the read to those edges: a state connection gains one dispatch record per
+        // Thing that ever entered its state, and the wider reading would carry every one on every start.
         var selector = new
         {
             ids = new[] { targetId },
@@ -62,10 +63,11 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             markedArchetypes = new[]
             {
                 PipelineArchetypes.PipelineFlag, PipelineArchetypes.PipelineInputFlag,
-                PipelinePredicates.StandsForFlag, PipelinePredicates.PipelineStartFlag,
+                PipelinePredicates.StateWatchFlag, PipelinePredicates.StandsForFlag, PipelinePredicates.PipelineStartFlag,
             },
             traverse = new object[]
             {
+                new { predicateFlag = PipelinePredicates.StateWatchFlag, direction = "outgoing", depth = 1 },
                 new { predicateFlag = PipelinePredicates.StandsForFlag, direction = "incoming", depth = 1 },
                 new { predicate = ModelNames.Has, direction = "incoming", depth = 1 },
                 new { predicateFlag = PipelinePredicates.PipelineStartFlag, direction = "outgoing", depth = 1 },
@@ -75,6 +77,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             relationships = new object[]
             {
                 new { predicate = ModelNames.Is, direction = "outgoing" },
+                new { predicateFlag = PipelinePredicates.StateWatchFlag, direction = "outgoing" },
                 new { predicateFlag = PipelinePredicates.StandsForFlag, direction = "incoming" },
                 new { predicate = ModelNames.Has, direction = "incoming" },
                 new { predicateFlag = PipelinePredicates.PipelineStartFlag, direction = "outgoing" },

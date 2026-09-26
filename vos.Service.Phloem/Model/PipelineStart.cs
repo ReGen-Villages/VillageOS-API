@@ -9,8 +9,9 @@ public sealed record StartResolution(Guid? PipelineId, string? Refusal)
 // Which pipeline a relationship posted to the orchestrator starts. The broker posts the same body for a
 // `X runs Pipeline` relationship and for a Thing entering a watched state, and only the target tells them
 // apart: the pipeline itself in the first, the connection that watches the state in the second. For a
-// connection the pipeline is the one drawn from it — the one whose start node stands for it — or, failing
-// that, the one the connection reaches along the predicate marked as starting a pipeline.
+// connection the pipeline is the one drawn from it — the one whose start node stands for it, or for the
+// state it watches — or, failing that, the one the connection reaches along the predicate marked as
+// starting a pipeline.
 public static class PipelineStart
 {
     public static StartResolution Resolve(PipelineGraph graph, Guid targetId)
@@ -22,10 +23,14 @@ public static class PipelineStart
         if (graph.IsOfArchetypeCarrying(target, PipelineArchetypes.PipelineFlag))
             return new StartResolution(target.Id, null);
 
-        var drawnFrom = PipelineWhoseStartNodeStandsFor(graph, target) ?? PipelineReachedFrom(graph, target);
+        var drawnFrom = PipelineWhoseStartNodeStandsFor(graph, target)
+            ?? graph.OutgoingAlongPredicateMarked(target, PipelinePredicates.StateWatchFlag)
+                .Select(state => PipelineWhoseStartNodeStandsFor(graph, state))
+                .FirstOrDefault(pipeline => pipeline is not null)
+            ?? PipelineReachedFrom(graph, target);
         return drawnFrom is null
             ? new StartResolution(null,
-                $"No pipeline is drawn from '{target.Name}': no start node stands for it, and it starts none.")
+                $"No pipeline is drawn from '{target.Name}': no start node stands for it or for a state it watches, and it starts none.")
             : new StartResolution(drawnFrom.Id, null);
     }
 

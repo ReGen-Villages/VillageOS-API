@@ -15,4 +15,9 @@ public static class PipelinePredicates
 
     // A run reaches the Thing whose entry into a state started it.
     public const string RunSubjectFlag = "__IsRunSubjectPredicate";
+
+    // A state connection reaches the range it watches. The platform's own mark: a state row on the page
+    // stands for the range, since several connections may watch one state, and the broker dispatches the
+    // connection, so the two meet through this edge.
+    public const string StateWatchFlag = "__IsStateWatchPredicate";
 }
