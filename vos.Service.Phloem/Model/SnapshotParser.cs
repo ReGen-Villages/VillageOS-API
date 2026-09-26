@@ -13,11 +13,11 @@ public static class SnapshotParser
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
+    // A subscription answer wraps the document; a bare document is what a test hands over. Both are read
+    // without regard to case, as the records are.
     public static PipelineGraph Parse(JsonElement root)
     {
-        var document = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("snapshot", out var wrapped)
-            ? wrapped.Deserialize<SnapshotDocument>(Json)
-            : root.Deserialize<SnapshotDocument>(Json);
+        var document = root.Deserialize<SubscribeResult>(Json)?.Snapshot ?? root.Deserialize<SnapshotDocument>(Json);
         return Parse(document ?? new SnapshotDocument(0, [], []));
     }
 

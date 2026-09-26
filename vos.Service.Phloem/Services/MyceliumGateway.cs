@@ -126,7 +126,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             {
                 ["status"] = status,
                 ["nodeId"] = nodeId.ToString(),
-                ["error"] = error,
+                [ModelNames.Error] = error,
             };
             if (index is int idx)
             {
@@ -142,7 +142,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 
         // Subsequent transition (running -> terminal) on the same Thing — a property change the SSE view sees.
         await SetPropertyAsync(nodeRunId, "status", status, cancellationToken);
-        if (error != null) await SetPropertyAsync(nodeRunId, "error", error, cancellationToken);
+        if (error != null) await SetPropertyAsync(nodeRunId, ModelNames.Error, error, cancellationToken);
     }
 
     public async Task SetRunStatusAsync(Guid runId, string status, CancellationToken cancellationToken, string? error = null)

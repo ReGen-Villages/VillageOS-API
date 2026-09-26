@@ -188,26 +188,36 @@ public class SnapshotParserTests
         var from = Guid.NewGuid();
         var to = Guid.NewGuid();
         var carries = Guid.NewGuid();
+        var wireArchetype = Guid.NewGuid();
+        var isPredicate = Guid.NewGuid();
         var json = $$"""
         {
-          "things": [
-            { "Id": "{{from}}", "Name": "a", "Properties": {} },
-            { "Id": "{{to}}", "Name": "b", "Properties": {} },
-            { "Id": "{{carries}}", "Name": "carries", "Properties": {} }
-          ],
-          "relationships": [
-            { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{from}}", "PredicateId": "{{carries}}", "TargetId": "{{to}}",
-              "Properties": {},
-              "InheritedOverrides": { "{{Guid.NewGuid()}}": { "SourceName": "PipelineWire",
-                "Properties": { "fromPort": { "typeInfo": "vos.String", "value": "echo" } } } } }
-          ]
+          "Snapshot": {
+            "things": [
+              { "Id": "{{from}}", "Name": "a", "Properties": {} },
+              { "Id": "{{to}}", "Name": "b", "Properties": {} },
+              { "Id": "{{isPredicate}}", "Name": "is", "Properties": {} },
+              { "Id": "{{wireArchetype}}", "Name": "PipelineWire", "IsArchetype": true,
+                "Properties": { "__IsPipelineWireArchetype": { "typeInfo": "vos.Boolean", "value": true } } },
+              { "Id": "{{carries}}", "Name": "carries", "Properties": {} }
+            ],
+            "relationships": [
+              { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{carries}}", "PredicateId": "{{isPredicate}}", "TargetId": "{{wireArchetype}}" },
+              { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{from}}", "PredicateId": "{{carries}}", "TargetId": "{{to}}",
+                "Properties": {},
+                "InheritedOverrides": { "{{Guid.NewGuid()}}": { "SourceName": "PipelineWire",
+                  "Properties": { "fromPort": { "typeInfo": "vos.String", "value": "echo" } } } } }
+            ]
+          }
         }
         """;
 
+        // Wrapped under a capitalised key on purpose: the wrapper is read as the records are, without regard to case.
         var graph = SnapshotParser.Parse(JsonDocument.Parse(json).RootElement);
 
-        graph.OutgoingTargets(graph.Thing(from)!, "carries").Single().Id.Should().Be(to);
-        graph.Relationships.Single().PropertyString("fromPort").Should().Be("echo");
+        var wire = graph.OutgoingByPredicateCarrying(graph.Thing(from)!, PipelineArchetypes.PipelineWireFlag).Single();
+        wire.TargetId.Should().Be(to);
+        wire.PropertyString("fromPort").Should().Be("echo");
     }
 
     // A relationship short of one of its four identifiers is dropped rather than failing the load, and the Things
