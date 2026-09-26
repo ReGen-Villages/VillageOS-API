@@ -232,6 +232,15 @@ describe('the report panel', () => {
     expect(shadow.activeElement).toBe(find('[data-part="close"]'));
   });
 
+  it('opens when the page asks, for a page that offers it from a control of its own', () => {
+    const { find, shadow } = mount({ trigger: document.createElement('button') });
+
+    panel!.open();
+
+    expect(find('[role="dialog"]').hasAttribute('hidden')).toBe(false);
+    expect(shadow.activeElement).toBe(find('[name="title"]'));
+  });
+
   it('opens from a button the page already has, and then draws none of its own', () => {
     const trigger = document.createElement('button');
     document.body.append(trigger);

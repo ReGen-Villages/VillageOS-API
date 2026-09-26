@@ -53,6 +53,8 @@ export interface FeedbackOptions {
 }
 
 export interface FeedbackPanel {
+  /** For a page that offers the panel from more than one place, beside the trigger. */
+  open(): void;
   setLanguage(language: string): void;
   unmount(): void;
 }
@@ -504,6 +506,7 @@ export function mountFeedback(options: FeedbackOptions): FeedbackPanel {
 
   const controller = new PanelController(host, shadow, options);
   return {
+    open: () => controller.open(),
     setLanguage: (language) => controller.setLanguage(language),
     unmount: () => controller.unmount(),
   };
