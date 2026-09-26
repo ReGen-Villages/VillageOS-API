@@ -94,6 +94,45 @@ public sealed class PipelineGraph
         }
     }
 
+    // Subjects reaching the target via a predicate matched by name (use for the built-in is/has).
+    public IEnumerable<GraphThing> IncomingSubjects(GraphThing target, string predicateName)
+    {
+        foreach (var rel in _relationships)
+        {
+            if (rel.TargetId != target.Id) continue;
+            var predicate = Thing(rel.PredicateId);
+            if (predicate != null && string.Equals(predicate.Name, predicateName, StringComparison.OrdinalIgnoreCase)
+                && Thing(rel.SubjectId) is { } subject)
+                yield return subject;
+        }
+    }
+
+    // Targets reached from the subject along a predicate that itself carries the given flag — the way the
+    // platform marks the predicates it dispatches on, as against a wire's predicate, which `is` a marked
+    // archetype.
+    public IEnumerable<GraphThing> OutgoingAlongPredicateMarked(GraphThing subject, string predicateFlag)
+    {
+        foreach (var rel in _relationships)
+        {
+            if (rel.SubjectId != subject.Id) continue;
+            if (Thing(rel.PredicateId) is { } predicate && predicate.CarriesFlag(predicateFlag)
+                && Thing(rel.TargetId) is { } target)
+                yield return target;
+        }
+    }
+
+    // Subjects reaching the target along a predicate that itself carries the given flag.
+    public IEnumerable<GraphThing> IncomingAlongPredicateMarked(GraphThing target, string predicateFlag)
+    {
+        foreach (var rel in _relationships)
+        {
+            if (rel.TargetId != target.Id) continue;
+            if (Thing(rel.PredicateId) is { } predicate && predicate.CarriesFlag(predicateFlag)
+                && Thing(rel.SubjectId) is { } subject)
+                yield return subject;
+        }
+    }
+
     // Outgoing relationships whose predicate Thing is of an archetype carrying the given flag — how a wire
     // is found without naming either the predicate or the archetype it comes from.
     public IEnumerable<GraphRelationship> OutgoingByPredicateCarrying(GraphThing subject, string roleFlag)

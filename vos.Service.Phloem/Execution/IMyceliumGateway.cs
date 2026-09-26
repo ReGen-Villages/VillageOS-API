@@ -12,7 +12,12 @@ public interface IMyceliumGateway
 {
     Task<PipelineGraph> LoadPipelineSubgraphAsync(Guid pipelineId, CancellationToken cancellationToken);
 
-    Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken cancellationToken);
+    // What a dispatched relationship's target is, with the start nodes standing for it and the pipelines
+    // they belong to or it reaches — enough for PipelineStart to say which pipeline it starts.
+    Task<PipelineGraph> LoadStartSubgraphAsync(Guid targetId, CancellationToken cancellationToken);
+
+    // The subject, when the run has one, is related to the run along the predicate the model marks for it.
+    Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null);
 
     // Upsert a NodeRun Thing and set its status — running before dispatch, then the terminal
     // status — on one Thing per key (deterministic id) so the SSE view sees a property change, not duplicate

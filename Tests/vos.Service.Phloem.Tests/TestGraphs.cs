@@ -1,4 +1,5 @@
 using System.Text.Json;
+using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
 
 namespace vos.Service.Phloem.Tests;
@@ -182,6 +183,81 @@ public static class TestGraphs
         fx.Rel(ech, carries, output, ("fromPort", "echo"), ("toPort", "result"));
 
         return (fx, pipe.Id);
+    }
+
+    // The three ways a dispatched relationship's target can start a pipeline, and one way it cannot.
+    public sealed record StartFixture(
+        GraphFixture Fixture,
+        Guid DrawnPipelineId,
+        Guid WatchingConnectionId,
+        Guid ReachedPipelineId,
+        Guid ReachingConnectionId,
+        Guid LooseConnectionId);
+
+    // A state connection with a pipeline drawn from it: Arrival (a start node standing for the connection,
+    // out port `subjectId`) → Echo (message→echo) → Out. Beside it a second connection reaching another
+    // pipeline along the predicate marked as starting one, and a third reaching nothing. The two marked
+    // predicates carry their marks themselves, the way the platform marks the predicates it dispatches on.
+    public static StartFixture StatePipeline()
+    {
+        var fx = new GraphFixture();
+        var vocabulary = fx.DeclareVocabulary();
+        var carries = fx.Thing("carries");
+        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        var standsFor = fx.Thing("standsFor", (PipelinePredicates.StandsForFlag, true));
+        var starts = fx.Thing("starts", (PipelinePredicates.PipelineStartFlag, true));
+
+        var proto = fx.Thing("EchoProto");
+        fx.Rel(proto, vocabulary.Is, vocabulary.Service);
+        var portIn = fx.Thing("e.in", ("direction", "in"), ("type", "string"), ("portName", "message"), ("required", "true"));
+        var portOut = fx.Thing("e.out", ("direction", "out"), ("type", "string"), ("portName", "echo"));
+        fx.Rel(portIn, vocabulary.Is, vocabulary.Port);
+        fx.Rel(portOut, vocabulary.Is, vocabulary.Port);
+        fx.Rel(proto, vocabulary.Has, portIn);
+        fx.Rel(proto, vocabulary.Has, portOut);
+        var echSvc = fx.Thing("echSvc");
+        fx.Rel(echSvc, vocabulary.Is, proto);
+        var echConn = fx.Thing("echConn", ("Subdomain", "ech"));
+        fx.Rel(echConn, vocabulary.Is, vocabulary.Connection);
+        fx.Rel(echConn, vocabulary.Has, echSvc);
+        var ech = fx.Thing("Echo");
+        fx.Rel(ech, vocabulary.Is, vocabulary.PipelineNode);
+        fx.Rel(ech, vocabulary.Has, echConn);
+
+        var watching = fx.Thing("watchingConn");
+        fx.Rel(watching, vocabulary.Is, vocabulary.Connection);
+
+        var arrival = fx.Thing("Arrival");
+        fx.Rel(arrival, vocabulary.Is, vocabulary.PipelineInput);
+        var subjectPort = fx.Thing("arrival.subjectId", ("direction", "out"), ("type", "string"), ("portName", PipelineExecutor.SubjectIdParam));
+        fx.Rel(subjectPort, vocabulary.Is, vocabulary.Port);
+        fx.Rel(arrival, vocabulary.Has, subjectPort);
+        fx.Rel(arrival, standsFor, watching);
+
+        var output = fx.Thing("Out");
+        fx.Rel(output, vocabulary.Is, vocabulary.PipelineOutput);
+        var resultPort = fx.Thing("out.result", ("direction", "in"), ("type", "string"), ("portName", "result"));
+        fx.Rel(resultPort, vocabulary.Is, vocabulary.Port);
+        fx.Rel(output, vocabulary.Has, resultPort);
+
+        var drawn = fx.Thing("Drawn from the state");
+        fx.Rel(drawn, vocabulary.Is, vocabulary.Pipeline);
+        fx.Rel(drawn, vocabulary.Has, arrival);
+        fx.Rel(drawn, vocabulary.Has, ech);
+        fx.Rel(drawn, vocabulary.Has, output);
+        fx.Rel(arrival, carries, ech, ("fromPort", PipelineExecutor.SubjectIdParam), ("toPort", "message"));
+        fx.Rel(ech, carries, output, ("fromPort", "echo"), ("toPort", "result"));
+
+        var reached = fx.Thing("Reached along the start mark");
+        fx.Rel(reached, vocabulary.Is, vocabulary.Pipeline);
+        var reaching = fx.Thing("reachingConn");
+        fx.Rel(reaching, vocabulary.Is, vocabulary.Connection);
+        fx.Rel(reaching, starts, reached);
+
+        var loose = fx.Thing("looseConn");
+        fx.Rel(loose, vocabulary.Is, vocabulary.Connection);
+
+        return new StartFixture(fx, drawn.Id, watching.Id, reached.Id, reaching.Id, loose.Id);
     }
 
     // Field-merge demo: A and B both feed node C's single `in` input, A at to-path `a` and B

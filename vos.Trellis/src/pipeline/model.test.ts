@@ -4,7 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { basename, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { VosThing, VosRelationship } from '../types/vos';
-import { PipelineModel, ARCHETYPE_FLAG, typesCompatible } from './model';
+import { PipelineModel, ARCHETYPE_FLAG, PREDICATE_FLAG, typesCompatible } from './model';
 import { loadPipeline } from './serialize';
 
 /** An archetype's own mark, which is the only thing that says what role it plays. */
@@ -204,6 +204,23 @@ describe('the vocabulary the editor holds', () => {
     );
     for (const flag of Object.values(ARCHETYPE_FLAG))
       if (!READ_BY_THE_PAGE_ALONE.has(flag)) expect(phloem).toContain(`"${flag}"`);
+  });
+
+  /** The predicate marks the page reads that the orchestrator does not: the first three are the
+   *  platform's own dispatch marks, and the orchestrator does not yet act on what a system sends, is
+   *  told, or where a kind of message arrives. */
+  const PREDICATES_READ_BY_THE_PAGE_ALONE = new Set<string>([
+    PREDICATE_FLAG.Trigger, PREDICATE_FLAG.StateWatch, PREDICATE_FLAG.JudgedThing,
+    PREDICATE_FLAG.Sends, PREDICATE_FLAG.Told, PREDICATE_FLAG.ArrivesAt,
+  ]);
+
+  it('reads the same predicate marks the orchestrator starts a run from', () => {
+    const phloem = readFileSync(
+      join(here, '..', '..', '..', 'vos.Service.Phloem', 'Model', 'PipelinePredicates.cs'),
+      'utf-8',
+    );
+    for (const flag of Object.values(PREDICATE_FLAG))
+      if (!PREDICATES_READ_BY_THE_PAGE_ALONE.has(flag)) expect(phloem).toContain(`"${flag}"`);
   });
 });
 

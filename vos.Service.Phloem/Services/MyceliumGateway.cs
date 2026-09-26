@@ -18,7 +18,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     private const string PropertyType = "vos.String";
 
     private readonly ConcurrentDictionary<string, Guid> _thingIdByName = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, Guid> _archetypeIdByRoleFlag = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, Guid> _thingIdByFlag = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<Guid, byte> _createdNodeRuns = new();
 
     public MyceliumGateway(IHttpClientFactory httpClientFactory, ILogger<MyceliumGateway> logger, string myceliumUrl, string? serviceToken = null, string? apiKey = null)
@@ -48,7 +48,43 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         return await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(30), cancellationToken);
     }
 
-    public async Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken cancellationToken)
+    public async Task<PipelineGraph> LoadStartSubgraphAsync(Guid targetId, CancellationToken cancellationToken)
+    {
+        // The target and what tells it apart: its `is` chain, the start nodes standing for it and the
+        // pipelines holding them, and any pipeline it reaches along the start mark. The two marked
+        // predicates are asked for by their marks so the graph can read the mark off each edge. Relationship
+        // rules keep the read to those edges: a state connection gains one dispatch record per Thing that
+        // ever entered its state, and the wider reading would carry every one of them on every start.
+        var selector = new
+        {
+            ids = new[] { targetId },
+            names = new[] { ModelNames.Is, ModelNames.Has },
+            markedArchetypes = new[]
+            {
+                PipelineArchetypes.PipelineFlag, PipelineArchetypes.PipelineInputFlag,
+                PipelinePredicates.StandsForFlag, PipelinePredicates.PipelineStartFlag,
+            },
+            traverse = new object[]
+            {
+                new { predicateFlag = PipelinePredicates.StandsForFlag, direction = "incoming", depth = 1 },
+                new { predicate = ModelNames.Has, direction = "incoming", depth = 1 },
+                new { predicateFlag = PipelinePredicates.PipelineStartFlag, direction = "outgoing", depth = 1 },
+            },
+            includeIsAncestors = true,
+            includeRelationships = true,
+            relationships = new object[]
+            {
+                new { predicate = ModelNames.Is, direction = "outgoing" },
+                new { predicateFlag = PipelinePredicates.StandsForFlag, direction = "incoming" },
+                new { predicate = ModelNames.Has, direction = "incoming" },
+                new { predicateFlag = PipelinePredicates.PipelineStartFlag, direction = "outgoing" },
+            },
+        };
+
+        return await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
+    }
+
+    public async Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null)
     {
         // The result is declared here with no value. It is known only once the run ends, and the property
         // route sets a property the Thing already carries — so a run given one only at the end is a run
@@ -64,6 +100,16 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         await RelateAsync(runId, ModelNames.Is,
             await ArchetypeCarryingAsync(PipelineArchetypes.PipelineRunFlag, cancellationToken), cancellationToken);
         await RelateAsync(runId, ModelNames.Of, pipelineId, cancellationToken);
+
+        if (subject is null) return;
+        var subjectPredicateId = await TryThingCarryingAsync(PipelinePredicates.RunSubjectFlag, cancellationToken);
+        if (subjectPredicateId is null)
+        {
+            Logger.LogWarning("The model marks no predicate with {Flag}; run {RunId} is recorded without its subject {SubjectId}",
+                PipelinePredicates.RunSubjectFlag, runId, subject.Id);
+            return;
+        }
+        await RelateAsync(runId, subjectPredicateId.Value, subject.Id, cancellationToken);
     }
 
     public async Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken cancellationToken, int? index = null, int total = 0)
@@ -148,22 +194,28 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     // was told. Asked for on its own: markedTypes would answer with every Thing that already `is`
     // one, which for a run archetype is every run ever recorded. An archetype cannot change role while the
     // process lives, and this runs once per node run, so the answer is kept.
-    private async Task<Guid> ArchetypeCarryingAsync(string roleFlag, CancellationToken cancellationToken)
+    private async Task<Guid> ArchetypeCarryingAsync(string roleFlag, CancellationToken cancellationToken) =>
+        await TryThingCarryingAsync(roleFlag, cancellationToken)
+        ?? throw new InvalidOperationException($"The model marks no archetype with {roleFlag} = true.");
+
+    // The one Thing carrying a mark as its own property — an archetype for a role, or a predicate the model
+    // dispatches or records along. The selector answers the carrier alone, whether or not it is an archetype.
+    private async Task<Guid?> TryThingCarryingAsync(string flag, CancellationToken cancellationToken)
     {
-        if (_archetypeIdByRoleFlag.TryGetValue(roleFlag, out var cached)) return cached;
+        if (_thingIdByFlag.TryGetValue(flag, out var cached)) return cached;
 
         var selector = new
         {
-            markedArchetypes = new[] { roleFlag },
+            markedArchetypes = new[] { flag },
             includeIsAncestors = false,
             includeRelationships = false,
         };
         var graph = await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
 
-        var archetype = graph.ArchetypeCarrying(roleFlag)
-            ?? throw new InvalidOperationException($"The model marks no archetype with {roleFlag} = true.");
-        _archetypeIdByRoleFlag[roleFlag] = archetype.Id;
-        return archetype.Id;
+        var carrier = graph.ArchetypeCarrying(flag);
+        if (carrier is null) return null;
+        _thingIdByFlag[flag] = carrier.Id;
+        return carrier.Id;
     }
 
     // A property reaches the broker as a typed envelope, never as a bare value: the create route reads each
@@ -213,9 +265,11 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     private static JsonElement Unwrap(JsonElement value) =>
         TryGetPropertyCaseInsensitive(value, "value", out var bare) ? bare : value;
 
-    private async Task RelateAsync(Guid subjectId, string predicateName, Guid targetId, CancellationToken cancellationToken)
+    private async Task RelateAsync(Guid subjectId, string predicateName, Guid targetId, CancellationToken cancellationToken) =>
+        await RelateAsync(subjectId, await ResolveByNameAsync(predicateName, cancellationToken), targetId, cancellationToken);
+
+    private async Task RelateAsync(Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken)
     {
-        var predicateId = await ResolveByNameAsync(predicateName, cancellationToken);
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
         var response = await client.PostAsync($"{MyceliumUrl}/api/relationships",
             JsonContent.Create(new { subjectId, predicateId, targetId }), cancellationToken);

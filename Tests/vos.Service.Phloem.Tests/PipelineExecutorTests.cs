@@ -397,6 +397,57 @@ public class PipelineExecutorTests
         gateway.RunResult!.Value.GetProperty("result").GetString().Should().Be("world");
     }
 
+    // A Thing entering a watched state is the run's subject: it is recorded on the run and reaches the
+    // start node as the `subjectId` param, so the pipeline hands it down its wires like any other.
+    [Fact]
+    public async Task RunAsync_WithASubject_RecordsItOnTheRunAndSeedsTheStartNodeWithIt()
+    {
+        var fixture = TestGraphs.StatePipeline();
+        var gateway = new FakeGateway(fixture.Fixture.Build())
+        {
+            OnDispatch = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+        var subject = new RunSubject(Guid.NewGuid(), "Submission 42");
+
+        var result = await executor.RunAsync(fixture.DrawnPipelineId, default, CancellationToken.None, subject: subject);
+
+        result.Success.Should().BeTrue();
+        result.Result!.Value.GetProperty("result").GetString().Should().Be(subject.Id.ToString());
+        gateway.RunsCreated.Single().Subject.Should().Be(subject);
+    }
+
+    // The subject is the broker's word on what entered, so a relationship property spelled the same way
+    // does not displace it.
+    [Fact]
+    public async Task RunAsync_TheSubjectWinsOverAParamOfTheSameName()
+    {
+        var fixture = TestGraphs.StatePipeline();
+        var gateway = new FakeGateway(fixture.Fixture.Build())
+        {
+            OnDispatch = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+        var subject = new RunSubject(Guid.NewGuid(), "Submission 42");
+        var runParams = JsonSerializer.SerializeToElement(new { subjectId = "somebody else", kept = "yes" });
+
+        var result = await executor.RunAsync(fixture.DrawnPipelineId, runParams, CancellationToken.None, subject: subject);
+
+        result.Result!.Value.GetProperty("result").GetString().Should().Be(subject.Id.ToString());
+    }
+
+    [Fact]
+    public async Task RunAsync_WithoutASubject_RecordsNone()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        var gateway = new FakeGateway(fx.Build());
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        await executor.RunAsync(pipelineId, default, CancellationToken.None);
+
+        gateway.RunsCreated.Single().Subject.Should().BeNull();
+    }
+
     private static NodeDispatchResult NodeOk(params (string Port, string Value)[] outputs)
     {
         var outs = outputs.ToDictionary(o => o.Port, o => o.Value);
@@ -408,35 +459,4 @@ public class PipelineExecutorTests
 
     private static string InputValue(JsonElement envelope, string port) =>
         envelope.GetProperty("inputs").GetProperty(port).GetString()!;
-
-    private sealed class FakeGateway : IMyceliumGateway
-    {
-        private readonly PipelineGraph _graph;
-        public FakeGateway(PipelineGraph graph) => _graph = graph;
-
-        public Func<string, JsonElement, NodeDispatchResult> OnDispatch { get; set; } = (_, _) => new NodeDispatchResult(200, "{\"success\":true,\"outputs\":{}}");
-        public Func<Guid, bool> CancelRequested { get; set; } = _ => false;
-        public List<string> Dispatched { get; } = new();
-        public List<(string Subdomain, JsonElement Envelope)> Envelopes { get; } = new();
-        public List<string> StatusUpdates { get; } = new();
-        public List<(string Name, string Status)> NodeStatuses { get; } = new();
-        public JsonElement? RunResult { get; private set; }
-
-        public Task<PipelineGraph> LoadPipelineSubgraphAsync(Guid pipelineId, CancellationToken ct) => Task.FromResult(_graph);
-        public Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct) => Task.CompletedTask;
-        public Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken ct, int? index = null, int total = 0)
-        {
-            lock (NodeStatuses) NodeStatuses.Add((nodeName, status));
-            return Task.CompletedTask;
-        }
-        public Task SetRunStatusAsync(Guid runId, string status, CancellationToken ct) { StatusUpdates.Add(status); return Task.CompletedTask; }
-        public Task SetRunResultAsync(Guid runId, JsonElement result, CancellationToken ct) { RunResult = result.Clone(); return Task.CompletedTask; }
-        public Task<bool> IsCancelRequestedAsync(Guid runId, CancellationToken ct) => Task.FromResult(CancelRequested(runId));
-
-        public Task<NodeDispatchResult> DispatchAsync(string subdomain, JsonElement envelope, CancellationToken ct)
-        {
-            lock (Dispatched) { Dispatched.Add(subdomain); Envelopes.Add((subdomain, envelope.Clone())); }
-            return Task.FromResult(OnDispatch(subdomain, envelope));
-        }
-    }
 }
