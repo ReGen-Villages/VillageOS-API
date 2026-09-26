@@ -22,8 +22,9 @@ public sealed record FeedbackLaunchSettings(
         if (ServiceLaunchSettings.Parse(reader) is not { } service)
             return (null, UsageMessage);
 
+        // The access token travels with every call, so only a stand-in on this machine is reached over plain http.
         if (!Uri.TryCreate(reader.Read("devOpsOrganization")?.TrimEnd('/'), UriKind.Absolute, out var organisation)
-            || organisation.Scheme != Uri.UriSchemeHttps)
+            || !(organisation.Scheme == Uri.UriSchemeHttps || (organisation.Scheme == Uri.UriSchemeHttp && organisation.IsLoopback)))
             return (null, "--devOpsOrganization must be the organisation's https address.\n\n" + UsageMessage);
 
         if (reader.ReadCredential(AccessTokenSetting) is not { Length: > 0 } accessToken)

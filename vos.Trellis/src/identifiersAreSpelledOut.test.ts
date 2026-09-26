@@ -144,6 +144,7 @@ kept("the browser's own names: the request shape, the query string, a bounding b
   'clearRect', 'fillRect', 'strokeRect', 'colSpan', '.exec', '.info', 'rel=');
 kept('markup tags', '<rect', '<nav');
 kept("an image element's own attributes: the file it shows, and the files a picture chooses between", 'src=', 'srcSet=');
+keptIn('feedback/screenCapture.ts', "the browser's own properties: what an image shows, and the stream a video plays", 'src', 'srcObject');
 kept("i18next's start-up", 'initReactI18next', '.init');
 kept("vitest's runtime setting", '.setConfig');
 kept("the platform's wire: the property envelope, a pipeline node's bindings, the service registry's figures",

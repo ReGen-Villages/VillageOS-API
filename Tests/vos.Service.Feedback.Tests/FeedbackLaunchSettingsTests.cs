@@ -57,6 +57,19 @@ public sealed class FeedbackLaunchSettingsTests : IDisposable
         parsed.WhyRefused.Should().Contain("devOpsOrganization");
     }
 
+    [Theory]
+    [InlineData("http://dev.azure.com/Example", false)]
+    [InlineData("http://localhost:7399/Example", true)]
+    [InlineData("http://127.0.0.1:7399/Example", true)]
+    public void PlainHttp_IsTakenOnlyForAStandInOnThisMachine(string organisation, bool taken)
+    {
+        var parsed = FeedbackLaunchSettings.Parse(
+            [.. Arguments().Where(argument => !argument.StartsWith("--devOpsOrganization")), $"--devOpsOrganization={organisation}"],
+            WithAccessToken);
+
+        (parsed.Settings is not null).Should().Be(taken);
+    }
+
     [Fact]
     public void TheAccessTokenOnTheCommandLine_IsNotRead()
     {

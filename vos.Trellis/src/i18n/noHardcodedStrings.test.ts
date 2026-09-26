@@ -37,6 +37,8 @@ const ALLOWED = new Map<string, string>([
   ['This page was handed no way to reduce a property series.', 'A findings page is always built with its reader; this names a programming mistake.'],
   ['A findings page reduces no Things by time bucket.', 'A findings page is built without that reading; this names a programming mistake.'],
   ['A findings page calls no service.', 'A findings page is built without that reading; this names a programming mistake.'],
+  ['<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>', "The report panel's speech-bubble icon: drawing instructions, hidden from screen readers."],
+  ['<button type="button" class="open" data-part="open" data-word-label="openButton">{}</button>', "The report panel's own button; its name is set from the panel's words, which carry every language the console speaks."],
 ]);
 
 /** Attributes a person reads. `emptyLabel` is not one: the design editor passes
