@@ -56,6 +56,8 @@ public sealed class PipelineGraph
 
     public IReadOnlyCollection<GraphThing> Things => _things.Values;
 
+    public IReadOnlyList<GraphRelationship> Relationships => _relationships;
+
     public GraphThing? Thing(Guid id) => _things.TryGetValue(id, out var t) ? t : null;
 
     // The archetype in this snapshot carrying the given flag, or null when none does. A snapshot

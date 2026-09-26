@@ -41,7 +41,14 @@ internal sealed class FakeGateway : IMyceliumGateway
         return Task.CompletedTask;
     }
 
-    public Task SetRunStatusAsync(Guid runId, string status, CancellationToken ct) { StatusUpdates.Add(status); return Task.CompletedTask; }
+    public string? RunError { get; private set; }
+
+    public Task SetRunStatusAsync(Guid runId, string status, CancellationToken ct, string? error = null)
+    {
+        StatusUpdates.Add(status);
+        if (error != null) RunError = error;
+        return Task.CompletedTask;
+    }
     public Task SetRunResultAsync(Guid runId, JsonElement result, CancellationToken ct) { RunResult = result.Clone(); return Task.CompletedTask; }
     public Task<bool> IsCancelRequestedAsync(Guid runId, CancellationToken ct) => Task.FromResult(CancelRequested(runId));
 

@@ -136,7 +136,7 @@ public sealed class PipelineExecutor
 
     private async Task<PipelineRunResult> FailRunAsync(Guid runId, Guid pipelineId, string error, CancellationToken cancellationToken)
     {
-        await BestEffort(() => _gateway.SetRunStatusAsync(runId, RunStatus.Failed, cancellationToken), "set run failed");
+        await BestEffort(() => _gateway.SetRunStatusAsync(runId, RunStatus.Failed, cancellationToken, error), "set run failed");
         return PipelineRunResult.Failed(runId, pipelineId, error);
     }
 

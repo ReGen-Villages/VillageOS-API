@@ -126,6 +126,90 @@ public class SnapshotParserTests
         wire.PropertyString("toPort").Should().Be("message");
     }
 
+    // A value written for a name the Thing's archetype declares is kept in the Thing's override store, not
+    // among its own properties. A port the page saves onto a model whose port archetype declares portName
+    // therefore read as a port with no name, and every wire into it was refused.
+    [Fact]
+    public void Parse_ReadsWhatAThingStatesInItsOverrideStore()
+    {
+        var port = Guid.NewGuid();
+        var portArchetype = Guid.NewGuid();
+        var json = $$"""
+        {
+          "snapshot": {
+            "things": [
+              { "Id": "{{port}}", "Name": "subject", "IsArchetype": false, "Properties": {},
+                "InheritedOverrides": {
+                  "{{portArchetype}}": {
+                    "SourceId": "{{portArchetype}}", "SourceName": "Port", "InheritedAt": "2026-09-26T13:17:43Z",
+                    "Properties": {
+                      "portName": { "typeInfo": "vos.String", "value": "subject" },
+                      "direction": { "typeInfo": "vos.String", "value": "out" } } } },
+                "States": [], "Relationships": [] }
+            ],
+            "relationships": []
+          }
+        }
+        """;
+
+        var graph = SnapshotParser.Parse(JsonDocument.Parse(json).RootElement);
+
+        graph.Thing(port)!.PropertyString("portName").Should().Be("subject");
+        graph.Thing(port)!.PropertyString("direction").Should().Be("out");
+    }
+
+    // Own first: a name a Thing states both ways is read once, as its own.
+    [Fact]
+    public void Parse_LetsAnOwnValueWinOverAnOverride()
+    {
+        var thing = Guid.NewGuid();
+        var json = $$"""
+        {
+          "things": [
+            { "Id": "{{thing}}", "Name": "n",
+              "Properties": { "portName": { "typeInfo": "vos.String", "value": "own" } },
+              "InheritedOverrides": { "{{Guid.NewGuid()}}": { "SourceName": "Port",
+                "Properties": { "portName": { "typeInfo": "vos.String", "value": "overridden" } } } } }
+          ],
+          "relationships": []
+        }
+        """;
+
+        var graph = SnapshotParser.Parse(JsonDocument.Parse(json).RootElement);
+
+        graph.Thing(thing)!.PropertyString("portName").Should().Be("own");
+    }
+
+    // A wire drawn as a relationship carries its ports on the relationship, which has an override store
+    // of its own.
+    [Fact]
+    public void Parse_ReadsWhatARelationshipStatesInItsOverrideStore()
+    {
+        var from = Guid.NewGuid();
+        var to = Guid.NewGuid();
+        var carries = Guid.NewGuid();
+        var json = $$"""
+        {
+          "things": [
+            { "Id": "{{from}}", "Name": "a", "Properties": {} },
+            { "Id": "{{to}}", "Name": "b", "Properties": {} },
+            { "Id": "{{carries}}", "Name": "carries", "Properties": {} }
+          ],
+          "relationships": [
+            { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{from}}", "PredicateId": "{{carries}}", "TargetId": "{{to}}",
+              "Properties": {},
+              "InheritedOverrides": { "{{Guid.NewGuid()}}": { "SourceName": "PipelineWire",
+                "Properties": { "fromPort": { "typeInfo": "vos.String", "value": "echo" } } } } }
+          ]
+        }
+        """;
+
+        var graph = SnapshotParser.Parse(JsonDocument.Parse(json).RootElement);
+
+        graph.OutgoingTargets(graph.Thing(from)!, "carries").Single().Id.Should().Be(to);
+        graph.Relationships.Single().PropertyString("fromPort").Should().Be("echo");
+    }
+
     // A relationship short of one of its four identifiers is dropped rather than failing the load, and the Things
     // around it still parse. Fixtured bare, without the subscription answer's wrapper, which the parser
     // also accepts.

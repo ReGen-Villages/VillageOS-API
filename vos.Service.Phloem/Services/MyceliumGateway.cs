@@ -98,6 +98,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             ["pipelineId"] = pipelineId.ToString(),
             ["startedUtc"] = DateTime.UtcNow.ToString("o"),
             [ModelNames.Result] = null,
+            [ModelNames.Error] = null,
         }, cancellationToken);
 
         await RelateAsync(runId, ModelNames.Is,
@@ -144,8 +145,11 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         if (error != null) await SetPropertyAsync(nodeRunId, "error", error, cancellationToken);
     }
 
-    public Task SetRunStatusAsync(Guid runId, string status, CancellationToken cancellationToken) =>
-        SetPropertyAsync(runId, "status", status, cancellationToken);
+    public async Task SetRunStatusAsync(Guid runId, string status, CancellationToken cancellationToken, string? error = null)
+    {
+        await SetPropertyAsync(runId, "status", status, cancellationToken);
+        if (error != null) await SetPropertyAsync(runId, ModelNames.Error, error, cancellationToken);
+    }
 
     public Task SetRunResultAsync(Guid runId, JsonElement result, CancellationToken cancellationToken) =>
         SetPropertyAsync(runId, ModelNames.Result, result.GetRawText(), cancellationToken);
