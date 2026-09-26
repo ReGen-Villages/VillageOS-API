@@ -53,7 +53,6 @@ export interface FeedbackOptions {
 }
 
 export interface FeedbackPanel {
-  open(): void;
   setLanguage(language: string): void;
   unmount(): void;
 }
@@ -289,6 +288,10 @@ class PanelController {
     this.preview.addEventListener('pointermove', (event) => {
       if (this.dragStart) this.redrawPreview(markBetween(this.dragStart, this.pointInPicture(event), this.markKind));
     });
+    this.preview.addEventListener('pointercancel', () => {
+      this.dragStart = null;
+      this.redrawPreview();
+    });
     this.preview.addEventListener('pointerup', (event) => {
       if (!this.dragStart) return;
       const mark = markBetween(this.dragStart, this.pointInPicture(event), this.markKind);
@@ -501,7 +504,6 @@ export function mountFeedback(options: FeedbackOptions): FeedbackPanel {
 
   const controller = new PanelController(host, shadow, options);
   return {
-    open: () => controller.open(),
     setLanguage: (language) => controller.setLanguage(language),
     unmount: () => controller.unmount(),
   };

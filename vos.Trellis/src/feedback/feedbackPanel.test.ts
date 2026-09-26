@@ -56,6 +56,10 @@ function type(field: HTMLInputElement | HTMLTextAreaElement, text: string) {
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+function openPanel() {
+  document.querySelector('vos-feedback')!.shadowRoot!.querySelector<HTMLButtonElement>('[data-part="open"]')!.click();
+}
+
 describe('the report panel', () => {
   it('draws a button named for what it does, and opens on it with the title ready to type', () => {
     const { find, shadow } = mount();
@@ -72,7 +76,7 @@ describe('the report panel', () => {
 
   it('keeps Send unavailable until there is a title', () => {
     const { find } = mount();
-    panel!.open();
+    openPanel();
 
     expect(find<HTMLButtonElement>('[data-part="send"]').disabled).toBe(true);
     type(find('[name="title"]'), '   ');
@@ -83,7 +87,7 @@ describe('the report panel', () => {
 
   it('sends what was written with where it was written, and shows the number it was filed as', async () => {
     const { find, submit, shadow } = mount({ language: 'en' });
-    panel!.open();
+    openPanel();
     type(find('[name="title"]'), '  The map stays blank  ');
     type(find('[name="description"]'), 'Switched model, nothing drew.');
 
@@ -108,14 +112,14 @@ describe('the report panel', () => {
 
   it('sends the page without its query or fragment, where a page may carry its own key', async () => {
     const { find, submit } = mount();
-    window.history.pushState({}, '', '/floor/index.html?key=secret-key&debug=1#step');
+    window.history.pushState({}, '', '/console/index.html?key=secret-key&debug=1#step');
     try {
-      panel!.open();
+      openPanel();
       type(find('[name="title"]'), 'Anything');
       find<HTMLButtonElement>('[data-part="send"]').click();
       await settle();
 
-      expect(submit.mock.calls[0][0].context.pageAddress).toBe(`${window.location.origin}/floor/index.html`);
+      expect(submit.mock.calls[0][0].context.pageAddress).toBe(`${window.location.origin}/console/index.html`);
     } finally {
       window.history.pushState({}, '', '/');
     }
@@ -123,7 +127,7 @@ describe('the report panel', () => {
 
   it('sends an idea as an idea, and asks for one in the words for an idea', async () => {
     const { find, submit } = mount();
-    panel!.open();
+    openPanel();
 
     find<HTMLInputElement>('[name="kind"][value="idea"]').click();
     expect(find<HTMLInputElement>('[name="title"]').placeholder).toBe('What would help, in a few words');
@@ -137,7 +141,7 @@ describe('the report panel', () => {
   it('says a refusal in the reader’s words and keeps what they wrote', async () => {
     const { find, submit, shadow } = mount({ language: 'de' });
     submit.mockRejectedValueOnce(new FeedbackRefusedError('tooManyRequests', { seconds: 40 }));
-    panel!.open();
+    openPanel();
     type(find('[name="title"]'), 'Karte bleibt leer');
 
     find<HTMLButtonElement>('[data-part="send"]').click();
@@ -151,7 +155,7 @@ describe('the report panel', () => {
   it('says the connection failed when the report never reached anyone', async () => {
     const { find, submit, shadow } = mount();
     submit.mockRejectedValueOnce(new TypeError('Failed to fetch'));
-    panel!.open();
+    openPanel();
     type(find('[name="title"]'), 'Anything');
 
     find<HTMLButtonElement>('[data-part="send"]').click();
@@ -163,7 +167,7 @@ describe('the report panel', () => {
   it('says only that it was refused when the refusal names nothing the panel knows', async () => {
     const { find, submit, shadow } = mount();
     submit.mockRejectedValueOnce(new FeedbackRefusedError('somethingNew'));
-    panel!.open();
+    openPanel();
     type(find('[name="title"]'), 'Anything');
 
     find<HTMLButtonElement>('[data-part="send"]').click();
@@ -186,7 +190,7 @@ describe('the report panel', () => {
 
   it('keeps Tab inside the open panel', () => {
     const { find, shadow } = mount();
-    panel!.open();
+    openPanel();
     find<HTMLButtonElement>('[data-part="close"]').focus();
 
     find('[role="dialog"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
@@ -198,18 +202,18 @@ describe('the report panel', () => {
 
   it('keeps a draft through Cancel, and starts empty again once a report has gone', async () => {
     const { find } = mount();
-    panel!.open();
+    openPanel();
     find<HTMLInputElement>('[name="kind"][value="idea"]').click();
     type(find('[name="title"]'), 'Export the table');
 
     find<HTMLButtonElement>('[data-part="cancel"]').click();
-    panel!.open();
+    openPanel();
     expect(find<HTMLInputElement>('[name="title"]').value).toBe('Export the table');
 
     find<HTMLButtonElement>('[data-part="send"]').click();
     await settle();
     find<HTMLButtonElement>('[data-part="finish"]').click();
-    panel!.open();
+    openPanel();
 
     expect(find<HTMLInputElement>('[name="title"]').value).toBe('');
     expect(find<HTMLInputElement>('[name="kind"][value="bug"]').checked).toBe(true);
@@ -219,7 +223,7 @@ describe('the report panel', () => {
 
   it('moves Tab from the last control back to the first', () => {
     const { find, shadow } = mount();
-    panel!.open();
+    openPanel();
     type(find('[name="title"]'), 'Anything');
     find<HTMLButtonElement>('[data-part="send"]').focus();
 
@@ -271,7 +275,7 @@ describe('a screenshot in the report panel', () => {
       hiddenWhileCapturing = (host as HTMLElement).style.visibility === 'hidden';
       return fakePicture();
     });
-    panel!.open();
+    openPanel();
 
     find<HTMLButtonElement>('[data-part="capture"]').click();
     await settle();
@@ -284,7 +288,7 @@ describe('a screenshot in the report panel', () => {
   it('says so when the capture was turned down, and keeps the panel open', async () => {
     const { find, shadow } = mount();
     vi.mocked(captureScreen).mockRejectedValue(new CaptureCancelledError());
-    panel!.open();
+    openPanel();
 
     find<HTMLButtonElement>('[data-part="capture"]').click();
     await settle();
@@ -295,7 +299,7 @@ describe('a screenshot in the report panel', () => {
 
   it('can be a chosen picture, and a file that is not one is refused', async () => {
     const { find, shadow } = mount();
-    panel!.open();
+    openPanel();
     const chooser = find<HTMLInputElement>('[data-part="file"]');
 
     vi.mocked(pictureFromFile).mockRejectedValueOnce(new Error('not a picture'));
@@ -313,7 +317,7 @@ describe('a screenshot in the report panel', () => {
 
   it('opens the file chooser from Choose a picture', () => {
     const { find } = mount();
-    panel!.open();
+    openPanel();
     const opened = vi.spyOn(find<HTMLInputElement>('[data-part="file"]'), 'click');
 
     find<HTMLButtonElement>('[data-part="choose"]').click();
@@ -324,7 +328,7 @@ describe('a screenshot in the report panel', () => {
   it('can be pasted into the panel', async () => {
     const { find } = mount();
     vi.mocked(pictureFromFile).mockResolvedValueOnce(fakePicture());
-    panel!.open();
+    openPanel();
     const pasted = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent;
     const picture = new File(['x'], 'pasted.png', { type: 'image/png' });
     Object.defineProperty(pasted, 'clipboardData', {
@@ -347,7 +351,7 @@ describe('a screenshot in the report panel', () => {
       return 'data:image/jpeg;base64,UElDVFVSRQ==';
     });
     vi.mocked(captureScreen).mockResolvedValue(fakePicture(3840, 2160));
-    panel!.open();
+    openPanel();
     find<HTMLButtonElement>('[data-part="capture"]').click();
     await settle();
 
@@ -361,7 +365,7 @@ describe('a screenshot in the report panel', () => {
   it('is sent with a hidden box painted over, and can be taken off again', async () => {
     const { find, submit } = mount();
     vi.mocked(captureScreen).mockResolvedValue(fakePicture(800, 600));
-    panel!.open();
+    openPanel();
     find<HTMLButtonElement>('[data-part="capture"]').click();
     await settle();
 
@@ -382,10 +386,29 @@ describe('a screenshot in the report panel', () => {
     expect(submit.mock.calls[0][0].screenshot).toBe('data:image/jpeg;base64,UElDVFVSRQ==');
   });
 
+  it('draws no box from a drag the system cancelled', async () => {
+    const { find } = mount();
+    vi.mocked(captureScreen).mockResolvedValue(fakePicture());
+    openPanel();
+    find<HTMLButtonElement>('[data-part="capture"]').click();
+    await settle();
+    const preview = find<HTMLCanvasElement>('[data-part="preview"]');
+    vi.spyOn(preview, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 800, height: 600 } as DOMRect);
+
+    preview.dispatchEvent(new PointerEvent('pointerdown', { clientX: 10, clientY: 10 }));
+    preview.dispatchEvent(new PointerEvent('pointercancel', {}));
+    drawn.length = 0;
+    preview.dispatchEvent(new PointerEvent('pointermove', { clientX: 90, clientY: 90 }));
+    preview.dispatchEvent(new PointerEvent('pointerup', { clientX: 90, clientY: 90 }));
+
+    expect(drawn.some((call) => call.startsWith('strokeRect'))).toBe(false);
+    expect(find<HTMLButtonElement>('[data-part="undo"]').disabled).toBe(true);
+  });
+
   it('loses its last mark on Undo, and goes entirely on Remove', async () => {
     const { find, submit } = mount();
     vi.mocked(captureScreen).mockResolvedValue(fakePicture());
-    panel!.open();
+    openPanel();
     find<HTMLButtonElement>('[data-part="capture"]').click();
     await settle();
     const preview = find<HTMLCanvasElement>('[data-part="preview"]');

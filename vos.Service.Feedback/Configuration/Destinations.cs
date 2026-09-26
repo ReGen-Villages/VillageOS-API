@@ -11,7 +11,7 @@ public sealed record Destination(string Project, string AreaPath, string BugType
 // settings. An application missing from it is refused, so a page cannot file into a project by naming it.
 public sealed class Destinations
 {
-    public const string Section = "Destinations";
+    private const string Section = "Destinations";
 
     private readonly IReadOnlyDictionary<string, Destination> _byApplication;
 

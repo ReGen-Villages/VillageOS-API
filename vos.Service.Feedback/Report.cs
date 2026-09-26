@@ -1,5 +1,3 @@
-using System.Text.RegularExpressions;
-
 namespace vos.Service.Feedback;
 
 public sealed record ReportContext(string? PageAddress, string? Browser, string? ScreenSize, string? Language);
@@ -26,12 +24,11 @@ public sealed record ValidReport(
     string Application, ReportKind Kind, string Title, string Description, Screenshot? Screenshot,
     string? Reporter, ReportContext Context);
 
-public static partial class ReportReading
+public static class ReportReading
 {
     private static readonly string[] PictureTypes = ["image/png", "image/jpeg", "image/webp"];
-
-    [GeneratedRegex(@"^data:(?<type>[a-z]+/[a-z0-9.+-]+);base64,(?<data>[A-Za-z0-9+/=]+)$")]
-    private static partial Regex DataAddress();
+    private const string DataPrefix = "data:";
+    private const string Base64Marker = ";base64,";
 
     public static (ValidReport? Report, Refusal? Refusal) Read(ReportRequest? request)
     {
@@ -76,20 +73,21 @@ public static partial class ReportReading
             string.IsNullOrWhiteSpace(request.Reporter) ? null : request.Reporter.Trim(), context), null);
     }
 
+    // Decoded from the address in place: a copy of the text first would double what a picture of
+    // several megabytes costs to read.
     private static Screenshot? PictureIn(string dataAddress)
     {
-        var match = DataAddress().Match(dataAddress);
-        if (!match.Success || !PictureTypes.Contains(match.Groups["type"].Value))
+        var marker = dataAddress.IndexOf(Base64Marker, StringComparison.Ordinal);
+        if (!dataAddress.StartsWith(DataPrefix, StringComparison.Ordinal) || marker < 0)
+            return null;
+        var mediaType = dataAddress[DataPrefix.Length..marker];
+        var data = dataAddress.AsSpan(marker + Base64Marker.Length);
+        if (!PictureTypes.Contains(mediaType) || data.Length == 0 || data.Length % 4 != 0)
             return null;
 
-        try
-        {
-            return new Screenshot(Convert.FromBase64String(match.Groups["data"].Value), match.Groups["type"].Value);
-        }
-        catch (FormatException)
-        {
-            return null;
-        }
+        var padding = data.EndsWith("==") ? 2 : data.EndsWith("=") ? 1 : 0;
+        var bytes = new byte[data.Length / 4 * 3 - padding];
+        return Convert.TryFromBase64Chars(data, bytes, out _) ? new Screenshot(bytes, mediaType) : null;
     }
 
     private static (ValidReport?, Refusal?) Missing(string field) =>

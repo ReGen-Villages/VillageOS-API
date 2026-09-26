@@ -89,20 +89,19 @@ try
             return ReportFiling.Answer(StatusCodes.Status413PayloadTooLarge,
                 new Refusal(RefusalCode.ReportTooLarge, "The report is too large. Send a smaller screenshot."));
 
-        ReportRequest? request;
-        try
-        {
-            request = await JsonSerializer.DeserializeAsync<ReportRequest>(
-                context.Request.Body, JsonSerializerOptions.Web, context.RequestAborted);
-        }
-        catch (JsonException)
-        {
-            request = null;
-        }
-
         var authorization = context.Request.Headers.Authorization.ToString();
         var token = authorization.StartsWith("Bearer ", StringComparison.Ordinal) ? authorization["Bearer ".Length..].Trim() : null;
-        return await filing.FileAsync(request, token, context.RequestAborted);
+        return await filing.FileAsync(token, async cancellation =>
+        {
+            try
+            {
+                return await JsonSerializer.DeserializeAsync<ReportRequest>(context.Request.Body, JsonSerializerOptions.Web, cancellation);
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
+        }, context.RequestAborted);
     }).RequireRateLimiting(ReportRate.PolicyName);
 
     app.Run();

@@ -352,13 +352,17 @@ public class ReportEndpointTests
         factory.DevOpsRequests[0].Address.Query.Should().Contain("fileName=screenshot.jpg");
     }
 
-    [Fact]
-    public async Task AScreenshotWhosePictureDataIsBroken_IsRefused()
+    [Theory]
+    [InlineData("data:image/png;base64,abc")]
+    [InlineData("data:image/png;base64,ab!d")]
+    [InlineData("data:image/png;base64,")]
+    [InlineData("image/png;base64,iVBORw==")]
+    public async Task AScreenshotWhosePictureDataIsBroken_IsRefused(string screenshot)
     {
         var token = PersonToken();
         await using var factory = RelayAccepting(token);
 
-        var response = await Post(factory, Report(report => report["screenshot"] = "data:image/png;base64,abc"), token);
+        var response = await Post(factory, Report(report => report["screenshot"] = screenshot), token);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await Body(response)).GetProperty("code").GetString().Should().Be("screenshotUnreadable");

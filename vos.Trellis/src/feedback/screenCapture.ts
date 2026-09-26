@@ -42,8 +42,8 @@ async function frameOfThisTab(): Promise<HTMLCanvasElement> {
     throw error;
   }
 
+  const video = document.createElement('video');
   try {
-    const video = document.createElement('video');
     video.muted = true;
     video.srcObject = stream;
     await video.play();
@@ -56,6 +56,7 @@ async function frameOfThisTab(): Promise<HTMLCanvasElement> {
     return canvas;
   } finally {
     for (const track of stream.getTracks()) track.stop();
+    video.srcObject = null;
   }
 }
 

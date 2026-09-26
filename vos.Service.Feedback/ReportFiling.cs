@@ -2,13 +2,15 @@ using vos.Service.Feedback.Configuration;
 
 namespace vos.Service.Feedback;
 
-// Nothing reaches DevOps until the caller, the report and its destination have all been accepted.
+// Nothing reaches DevOps until the caller, the report and its destination have all been accepted, and
+// the report is not even read until the platform has accepted the caller.
 public sealed class ReportFiling(
     PlatformCallers callers, DevOpsWorkItems devOps, Destinations destinations, TimeProvider time, ILogger<ReportFiling> log)
 {
     private const string ServiceNamePrefix = "service:";
 
-    public async Task<IResult> FileAsync(ReportRequest? request, string? token, CancellationToken cancellation)
+    public async Task<IResult> FileAsync(
+        string? token, Func<CancellationToken, Task<ReportRequest?>> readReport, CancellationToken cancellation)
     {
         if (string.IsNullOrEmpty(token))
             return SignInRequired();
@@ -20,7 +22,7 @@ public sealed class ReportFiling(
         if (holder is null)
             return SignInRequired();
 
-        var (report, refusal) = ReportReading.Read(request);
+        var (report, refusal) = ReportReading.Read(await readReport(cancellation));
         if (report is null)
             return Answer(StatusCodes.Status400BadRequest, refusal!);
 

@@ -8,7 +8,7 @@ import { feedbackApi } from '../api/feedbackApi';
 vi.mock('../feedback/feedbackPanel', () => ({ mountFeedback: vi.fn() }));
 vi.mock('../api/feedbackApi', () => ({ feedbackApi: { offered: vi.fn(), send: vi.fn() } }));
 
-const panel = { open: vi.fn(), setLanguage: vi.fn(), unmount: vi.fn() };
+const panel = { setLanguage: vi.fn(), unmount: vi.fn() };
 
 beforeEach(() => {
   vi.clearAllMocks();
