@@ -2,7 +2,7 @@
 # provisions certificates itself); everything behind the proxy listens on loopback only, which
 # Tests/vos.ContinuousIntegration.Tests/ServicesBindLoopbackTests pins.
 #
-# Replace the hostnames and the intake port with the deployment's own. The broker knows nothing
+# Replace the hostnames and the intake and feedback ports with the deployment's own. The broker knows nothing
 # about hostnames — this file is deliberately the only place the split exists.
 
 # The main host: the GUI and the broker's API.
@@ -11,6 +11,12 @@ app.example.org {
 
 	handle /api/* {
 		reverse_proxy localhost:7243
+	}
+
+	# The feedback relay, on the GUI's own host so a report is posted without crossing origins. The
+	# prefix is taken off, so the relay answers /reports.
+	handle_path /feedback/* {
+		reverse_proxy localhost:7310
 	}
 
 	# The GUI is the built single-page app; every non-API path falls through to it.

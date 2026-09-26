@@ -1,6 +1,8 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using vos.Mycelium.Auth;
 using vos.Mycelium.Testing;
 using vos.Service.Shared;
 using vos.Tests.Shared;
@@ -45,6 +47,15 @@ public sealed class TheEngine : IAsyncLifetime
         ClientFactory = new PerCallHttpClientFactory(_host.Server.CreateHandler());
         Admin = _host.CreateClient();
         Admin.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", AdminToken);
+    }
+
+    // A service's token, minted by the engine's own signer for the model the administrator signed in
+    // to, as a daemon the engine dispatched to would hold it.
+    public string ServiceTokenFor(string serviceName)
+    {
+        var modelId = Guid.Parse(JwtPayload.Read(AdminToken)!.Value.GetProperty("vos:model_id").GetString()!);
+        return _host.Services.GetRequiredService<JwtTokenService>()
+            .GenerateServiceToken(serviceName, $"endpoint:{serviceName}:*", modelId, []);
     }
 
     public Task DisposeAsync()
