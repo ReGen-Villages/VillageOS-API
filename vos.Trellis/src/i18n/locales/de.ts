@@ -1119,7 +1119,7 @@ export const de: PartialResources = {
     },
   },
   pipeline: {
-    noPipelineMarks: "Dieses Modell deklariert kein {{missing}} — laden Sie einen Seed, der es deklariert.",
+    noPipelineMarks: "Dieses Modell deklariert nicht: {{missing}} — laden Sie einen Seed, der es tut.",
     declarations: {
       isPredicate: "eingebautes is-Prädikat",
       hasPredicate: "eingebautes has-Prädikat",

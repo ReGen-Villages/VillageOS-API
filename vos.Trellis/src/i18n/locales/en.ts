@@ -1117,7 +1117,7 @@ export const en = {
     },
   },
   pipeline: {
-    noPipelineMarks: "This model declares no {{missing}} — load a seed that declares it.",
+    noPipelineMarks: "This model does not declare: {{missing}} — load a seed that does.",
     declarations: {
       isPredicate: "built-in is predicate",
       hasPredicate: "built-in has predicate",

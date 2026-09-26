@@ -1119,7 +1119,7 @@ export const nl: PartialResources = {
     },
   },
   pipeline: {
-    noPipelineMarks: "Dit model declareert geen {{missing}} — laad een seed die het declareert.",
+    noPipelineMarks: "Dit model declareert niet: {{missing}} — laad een seed die dat wel doet.",
     declarations: {
       isPredicate: "ingebouwd is-predicaat",
       hasPredicate: "ingebouwd has-predicaat",

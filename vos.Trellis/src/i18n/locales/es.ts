@@ -1119,7 +1119,7 @@ export const es: PartialResources = {
     },
   },
   pipeline: {
-    noPipelineMarks: "Este modelo no declara ningún {{missing}}: carga un seed que lo declare.",
+    noPipelineMarks: "Este modelo no declara: {{missing}}. Carga un seed que lo haga.",
     declarations: {
       isPredicate: "predicado integrado is",
       hasPredicate: "predicado integrado has",

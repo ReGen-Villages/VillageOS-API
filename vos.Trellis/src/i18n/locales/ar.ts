@@ -1212,7 +1212,7 @@ export const ar: WithArabicPluralForms<Resources> = {
     },
   },
   pipeline: {
-    noPipelineMarks: "لا يصرّح هذا النموذج بأي {{missing}} — حمّل seed يصرّح به.",
+    noPipelineMarks: "لا يصرّح هذا النموذج بما يلي: {{missing}} — حمّل seed يصرّح به.",
     declarations: {
       isPredicate: "مسند is المدمج",
       hasPredicate: "مسند has المدمج",

@@ -130,7 +130,7 @@ describe('savePipeline — create (no existing pipeline id)', () => {
       [{ Id: 'is', Name: 'is', Properties: {} }, { Id: 'has', Name: 'has', Properties: {} }],
       [],
     );
-    await expect(savePipeline('Fresh', [node('n1', 'A')], [], model)).rejects.toThrow(/declares no .*pipeline.*node.*wire/);
+    await expect(savePipeline('Fresh', [node('n1', 'A')], [], model)).rejects.toThrow(/does not declare: .*pipeline.*node.*wire/);
     expect(applyFragment).not.toHaveBeenCalled();
   });
 });
