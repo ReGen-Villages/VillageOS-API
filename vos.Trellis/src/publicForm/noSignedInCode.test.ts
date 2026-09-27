@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { relative, resolve } from 'node:path';
-import { importsOf } from '../sourceImports';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, relative, resolve } from 'node:path';
 
 /**
  * The public pages are served on a site anybody can open, and they hold no credential. Nothing either
@@ -24,6 +24,25 @@ const ENTRIES = {
 
 const BROKER_CLIENT = resolve(SOURCE, 'api/client.ts');
 const SIGNED_IN_STATE = resolve(SOURCE, 'hooks/useAuth.ts');
+
+const SPECIFIER = /(?:from\s*|import\s*\(\s*)['"](\.[^'"]+)['"]/g;
+
+/** What one source file imports, as paths on disk. A specifier naming anything that is not source — a
+ *  stylesheet, an asset, a package — is left out, because nothing further is reached through it. */
+function importsOf(file: string): string[] {
+  const source = readFileSync(file, 'utf8');
+  return [...source.matchAll(SPECIFIER)]
+    .map(([, specifier]) => fileFor(resolve(dirname(file), specifier)))
+    .filter((imported): imported is string => imported !== null);
+}
+
+/** What a specifier without an extension names on disk, in the order a bundler tries them. */
+function fileFor(path: string): string | null {
+  for (const candidate of [`${path}.ts`, `${path}.tsx`, `${path}/index.ts`, `${path}/index.tsx`]) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
 
 function reachedFrom(entry: string): Set<string> {
   const reached = new Set<string>();

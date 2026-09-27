@@ -1,71 +1,65 @@
 using System.Text.Json;
-using static vos.Service.Shared.MyceliumClientBase;
+using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Phloem.Model;
 
-// Builds a PipelineGraph from a Mycelium subscription snapshot
-// ({ snapshot: { things:[...], relationships:[...] } }). Property/relationship values arrive wrapped as
-// { value, typeInfo }; this unwraps them to the bare value.
+// Builds a PipelineGraph from a Mycelium subscription answer, wrapped ({ snapshot: {...} }) or bare.
 //
-// Every member is read without regard to case: the broker serialises a snapshot with no naming policy, so
-// a Thing arrives as Id/Name/Properties, while the container keys around it are written in lower case.
+// Read through the shared snapshot records rather than by walking the JSON: a value written for a name
+// the Thing's archetype declares sits in the Thing's override store, not among its own properties, and
+// SnapshotValues is where that rule lives. Own properties first, then the override sets, never up the
+// `is` chain — a mark stays where it is stated, so an archetype's members do not answer with its mark.
 public static class SnapshotParser
 {
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    // A subscription answer wraps the document; a bare document is what a test hands over. Both are read
+    // without regard to case, as the records are.
     public static PipelineGraph Parse(JsonElement root)
     {
-        var snapshot = TryGetPropertyCaseInsensitive(root, "snapshot", out var s) ? s : root;
+        var document = root.Deserialize<SubscribeResult>(Json)?.Snapshot ?? root.Deserialize<SnapshotDocument>(Json);
+        return Parse(document ?? new SnapshotDocument(0, [], []));
+    }
 
+    public static PipelineGraph Parse(SnapshotDocument snapshot)
+    {
         var things = new Dictionary<Guid, GraphThing>();
-        if (TryGetPropertyCaseInsensitive(snapshot, "things", out var thingsArr) && thingsArr.ValueKind == JsonValueKind.Array)
-            foreach (var t in thingsArr.EnumerateArray())
+        foreach (var thing in snapshot.Things ?? [])
+        {
+            if (thing.Id == Guid.Empty) continue;
+            things[thing.Id] = new GraphThing
             {
-                if (!TryGuid(t, "id", out var id)) continue;
-                things[id] = new GraphThing
-                {
-                    Id = id,
-                    Name = TryGetPropertyCaseInsensitive(t, "name", out var n) ? n.GetString() ?? string.Empty : string.Empty,
-                    Properties = ParseProperties(t),
-                };
-            }
+                Id = thing.Id,
+                Name = thing.Name ?? string.Empty,
+                Properties = Stated(thing.ValuesStated()),
+            };
+        }
 
         var relationships = new List<GraphRelationship>();
-        if (TryGetPropertyCaseInsensitive(snapshot, "relationships", out var relArr) && relArr.ValueKind == JsonValueKind.Array)
-            foreach (var r in relArr.EnumerateArray())
+        foreach (var relationship in snapshot.Relationships ?? [])
+        {
+            // One short of its four identifiers is dropped rather than failing the load.
+            if (relationship.Id == Guid.Empty || relationship.SubjectId == Guid.Empty
+                || relationship.PredicateId == Guid.Empty || relationship.TargetId == Guid.Empty)
+                continue;
+            relationships.Add(new GraphRelationship
             {
-                if (!TryGuid(r, "id", out var id) || !TryGuid(r, "subjectId", out var subj)
-                    || !TryGuid(r, "predicateId", out var pred) || !TryGuid(r, "targetId", out var tgt))
-                    continue;
-                relationships.Add(new GraphRelationship
-                {
-                    Id = id,
-                    SubjectId = subj,
-                    PredicateId = pred,
-                    TargetId = tgt,
-                    Properties = ParseProperties(r),
-                });
-            }
+                Id = relationship.Id,
+                SubjectId = relationship.SubjectId,
+                PredicateId = relationship.PredicateId,
+                TargetId = relationship.TargetId,
+                Properties = Stated(relationship.ValuesStated()),
+            });
+        }
 
         return new PipelineGraph(things, relationships);
     }
 
-    private static IReadOnlyDictionary<string, JsonElement> ParseProperties(JsonElement owner)
+    private static IReadOnlyDictionary<string, JsonElement> Stated(IEnumerable<KeyValuePair<string, SnapshotProperty>> values)
     {
         var result = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
-        if (TryGetPropertyCaseInsensitive(owner, "properties", out var props) && props.ValueKind == JsonValueKind.Object)
-            foreach (var p in props.EnumerateObject())
-                result[p.Name] = Unwrap(p.Value);
+        foreach (var (name, property) in values)
+            result[name] = property.Value;
         return result;
-    }
-
-    // A property value is { value: x, typeInfo: ... } — return x; otherwise the raw element.
-    private static JsonElement Unwrap(JsonElement value) =>
-        value.ValueKind == JsonValueKind.Object && TryGetPropertyCaseInsensitive(value, "value", out var bare)
-            ? bare.Clone()
-            : value.Clone();
-
-    private static bool TryGuid(JsonElement obj, string name, out Guid value)
-    {
-        value = Guid.Empty;
-        return TryGetPropertyCaseInsensitive(obj, name, out var v) && v.ValueKind == JsonValueKind.String && Guid.TryParse(v.GetString(), out value);
     }
 }

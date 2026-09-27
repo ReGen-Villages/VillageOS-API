@@ -70,6 +70,56 @@ public class UserCommandHandlerTests
     }
 
     [Fact]
+    public async Task Active_SaysHowManyAccountsAreActive_ThenEachOne()
+    {
+        AnswerAdministration("""
+            {"count":2,"accounts":[
+              {"id":"1","name":"admin","lastSeen":"2026-09-26 12:03 UTC","state":"connected"},
+              {"id":"2","name":"ada","lastSeen":"2026-09-26 12:01 UTC","state":"seen recently"}]}
+            """);
+
+        await ExecuteHandler("active");
+
+        var lines = _writer.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        Assert.StartsWith("2 accounts active", lines[0]);
+        Assert.Contains(lines, line => line.Contains("admin") && line.Contains("2026-09-26 12:03 UTC") && line.Contains("connected"));
+        Assert.Contains(lines, line => line.Contains("ada") && line.Contains("2026-09-26 12:01 UTC") && line.Contains("seen recently"));
+        Assert.Equal("active-accounts", Posted().GetProperty("view").GetString());
+    }
+
+    [Fact]
+    public async Task Active_WithOneAccount_SpeaksOfOneAccount()
+    {
+        AnswerAdministration("""
+            {"count":1,"accounts":[{"id":"1","name":"admin","lastSeen":"2026-09-26 12:03 UTC","state":"connected"}]}
+            """);
+
+        await ExecuteHandler("active");
+
+        Assert.StartsWith("1 account active", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task Active_WithNoAccountActive_SaysSo_AndDrawsNoTable()
+    {
+        AnswerAdministration("""{"count":0,"accounts":[]}""");
+
+        await ExecuteHandler("active");
+
+        var output = _writer.ToString();
+        Assert.Contains("No account is active", output);
+        Assert.DoesNotContain("Last seen", output);
+    }
+
+    [Fact]
+    public async Task Usage_ListsTheActiveCommand()
+    {
+        await ExecuteHandler("");
+
+        Assert.Contains("user active", _writer.ToString());
+    }
+
+    [Fact]
     public async Task List_WithNoAccounts_SaysSo()
     {
         AnswerAdministration("[]");

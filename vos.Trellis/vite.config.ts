@@ -68,6 +68,12 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      // The feedback relay on its default port, with the prefix taken off as the deployment's proxy does.
+      '/feedback': {
+        target: 'http://localhost:7310',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/feedback/, ''),
+      },
     },
   },
 })

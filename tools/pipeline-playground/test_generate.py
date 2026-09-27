@@ -115,7 +115,7 @@ class CatalystVocabularyTests(unittest.TestCase):
 
     def test_each_new_role_is_marked_on_one_thing(self):
         for flag in ("__IsExternalSystemArchetype", "__IsMessageKindArchetype", "__IsTriggerPredicate", "__IsSendsPredicate",
-                     "__IsToldPredicate", "__IsArrivesAtPredicate", "__IsStandsForPredicate"):
+                     "__IsToldPredicate", "__IsArrivesAtPredicate", "__IsStandsForPredicate", "__IsRunSubjectPredicate"):
             self.assertEqual(len(self.carriers(flag)), 1, flag)
 
     def test_a_marked_predicate_reconciles_onto_a_target_that_holds_it_by_name(self):

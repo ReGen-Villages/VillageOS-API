@@ -84,6 +84,27 @@
   --chart-axis: #383835;
 }
 
+/*
+ * The report panel draws inside a shadow root, which page styles cannot reach but custom properties
+ * can. These give it the console's surfaces, in both themes.
+ */
+:root {
+  --vos-feedback-surface: #ffffff;
+  --vos-feedback-text: #18181b;
+  --vos-feedback-muted: #52525b;
+  --vos-feedback-border: #d4d4d8;
+  --vos-feedback-accent: #2563eb;
+  --vos-feedback-accent-text: #ffffff;
+}
+.dark {
+  --vos-feedback-surface: #18181b;
+  --vos-feedback-text: #f4f4f5;
+  --vos-feedback-muted: #a1a1aa;
+  --vos-feedback-border: #3f3f46;
+  --vos-feedback-accent: #3b82f6;
+  --vos-feedback-accent-text: #ffffff;
+}
+
 body {
   margin: 0;
   min-height: 100vh;

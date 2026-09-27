@@ -128,7 +128,7 @@ public class HandleEndpointSourceOfferedTests
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids[subject] });
-        await factory.RunsStarted();
+        await factory.CompleteStartedRuns();
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         return writes;

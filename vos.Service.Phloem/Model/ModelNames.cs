@@ -29,6 +29,7 @@ public static class ModelNames
     public const string OnItemError = "onItemError";
     // The pipeline's published result — the Output boundary node's collected inputs, stored on the PipelineRun.
     public const string Result = "result";
+    public const string Error = "error";
 
     public const string DirectionIn = "in";
     public const string DirectionOut = "out";

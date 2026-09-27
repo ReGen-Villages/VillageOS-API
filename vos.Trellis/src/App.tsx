@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { directionFor } from './i18n/languages';
 import { AppLayout } from './components/layout/AppLayout';
 import { AuthenticationContext, useAuthenticationState, useAuthentication } from './hooks/useAuthentication';
+import { useFeedbackPanel } from './hooks/useFeedbackPanel';
 import { LoginForm } from './components/auth/LoginForm';
 import { ChangePasswordForm } from './components/auth/ChangePasswordForm';
 import { useModelData } from './hooks/useModelData';
@@ -45,6 +46,7 @@ function AuthenticatedApp() {
   useEffect(() => {
     if (accountId) void loadPlatformPages(accountId);
   }, [accountId]);
+  useFeedbackPanel(user !== null);
 
   return (
     <BrowserRouter>

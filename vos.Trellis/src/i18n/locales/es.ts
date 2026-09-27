@@ -1119,7 +1119,15 @@ export const es: PartialResources = {
     },
   },
   pipeline: {
-    noPipelineMarks: "Este modelo no marca ningún arquetipo como pipeline, nodo de pipeline o conexión: carga un seed que los marque.",
+    noPipelineMarks: "Este modelo no declara: {{missing}}. Carga un seed que lo haga.",
+    declarations: {
+      isPredicate: "predicado integrado is",
+      hasPredicate: "predicado integrado has",
+      pipelineArchetype: "arquetipo marcado como pipeline",
+      nodeArchetype: "arquetipo marcado como nodo de pipeline",
+      wireArchetype: "arquetipo marcado como conexión",
+      wirePredicate: "predicado de conexión (un predicado del arquetipo de conexión que ningún nodo contiene)",
+    },
     noPortMarks: "Este modelo no marca ningún arquetipo como puerto, entrada de pipeline o salida de pipeline: carga un seed que los marque.",
     noStandsForMark: "Este modelo no marca ningún predicado como el que indica qué representa un nodo de borde: carga un seed que marque uno.",
     danglingWire: "Esta conexión no está unida por ambos extremos: {{from}} → {{to}}",

@@ -139,6 +139,7 @@ namespace vos.Taproot
             _writer.WriteLine();
             _writer.WriteLine("User Management:");
             _writer.WriteLine("  user list                                   - Every account, its role and the models it may enter");
+            _writer.WriteLine("  user active                                 - How many accounts are active now, and which");
             _writer.WriteLine("  user create <username> <role> [<model name>] - Add an account; prompts for its first password");
             _writer.WriteLine("  user grant|revoke <username> <model name>   - Let an account enter a model, or take one off it");
             _writer.WriteLine("  user role <username> <admin|editor|viewer>  - Change an account's role");

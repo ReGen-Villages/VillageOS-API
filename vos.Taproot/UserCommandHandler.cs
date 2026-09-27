@@ -34,6 +34,9 @@ public class UserCommandHandler
                 case "list":
                     await ListAsync();
                     break;
+                case "active":
+                    await ActiveAsync();
+                    break;
                 case "create" when tok.Length >= 3:
                     await CreateAsync(tok[1], tok[2], RestOfTheLine(tok, 3));
                     break;
@@ -96,6 +99,22 @@ public class UserCommandHandler
         }
     }
 
+    private async Task ActiveAsync()
+    {
+        var answer = await _mycelium.AdministerAccountsAsync(new { view = "active-accounts" });
+        var count = answer.GetProperty("count").GetInt32();
+        if (count == 0)
+        {
+            _writer.WriteLine("No account is active: none has a request open or made one in the last five minutes.");
+            return;
+        }
+
+        _writer.WriteLine($"{count} {(count == 1 ? "account" : "accounts")} active: a request open now, or one in the last five minutes.");
+        _writer.WriteLine($"{"Account",-20} {"Last seen",-22} State");
+        foreach (var row in answer.GetProperty("accounts").EnumerateArray())
+            _writer.WriteLine($"{Text(row, "name"),-20} {Text(row, "lastSeen"),-22} {Text(row, "state")}");
+    }
+
     private async Task CreateAsync(string username, string role, string? modelName)
     {
         var password = Prompt("First password: ");
@@ -141,6 +160,7 @@ public class UserCommandHandler
     {
         _writer.WriteLine("Usage:");
         _writer.WriteLine("  user list                                  - Every account, its role and the models it may enter");
+        _writer.WriteLine("  user active                                - How many accounts are active now, and which");
         _writer.WriteLine("  user create <username> <role> [<model name>] - Add an account; prompts for its first password");
         _writer.WriteLine("  user grant <username> <model name>         - Let an account enter a model");
         _writer.WriteLine("  user revoke <username> <model name>        - Take a model off an account");

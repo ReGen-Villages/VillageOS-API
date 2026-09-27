@@ -96,7 +96,7 @@ public class AnalysisSpawnTests
 
         var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
         // The run leaves the request that dispatched it, so what it wrote is only there once it ends.
-        await factory.RunsStarted();
+        await factory.CompleteStartedRuns();
         return response;
     }
 

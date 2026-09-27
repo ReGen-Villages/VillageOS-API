@@ -17,6 +17,7 @@ public class MyceliumGatewayTests
     private const string MyceliumUrl = "http://localhost:7243";
     private static readonly Guid NodeRunArchetypeId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid PipelineRunArchetypeId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+    private static readonly Guid RunSubjectPredicateId = Guid.Parse("44444444-4444-4444-4444-444444444444");
     private static readonly Guid PredicateId = Guid.Parse("33333333-3333-3333-3333-333333333333");
 
     private static (MyceliumGateway Gateway, MockHttpMessageHandler Handler) NewGateway(
@@ -51,6 +52,8 @@ public class MyceliumGatewayTests
                 return MarkedArchetypeSnapshot(PipelineRunArchetypeId, PipelineArchetypes.PipelineRunFlag);
             if (selector.Contains(PipelineArchetypes.NodeRunFlag))
                 return MarkedArchetypeSnapshot(NodeRunArchetypeId, PipelineArchetypes.NodeRunFlag);
+            if (selector.Contains(PipelinePredicates.RunSubjectFlag))
+                return MarkedArchetypeSnapshot(RunSubjectPredicateId, PipelinePredicates.RunSubjectFlag);
             return Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""");
         }
 
@@ -311,6 +314,83 @@ public class MyceliumGatewayTests
                 .Should().Be(PredicateId.ToString());
     }
 
+    // The subject is a Thing the model holds, so the run reaches it by a relationship along the predicate
+    // the model marks for it — never by its identifier copied into a word.
+    [Fact]
+    public async Task CreateRunAsync_WithASubject_RelatesTheRunToItAlongTheMarkedPredicate()
+    {
+        var runId = Guid.NewGuid();
+        var subject = new RunSubject(Guid.NewGuid(), "Submission 42");
+        var (gateway, handler) = NewGateway();
+
+        await gateway.CreateRunAsync(runId, Guid.NewGuid(), CancellationToken.None, subject);
+
+        var edges = new List<JsonElement>();
+        foreach (var request in RequestsTo(handler, "/api/relationships", HttpMethod.Post))
+            edges.Add(await ReadJson(request));
+        edges.Should().HaveCount(3);
+        var toSubject = edges.Single(edge => edge.GetProperty("predicateId").GetString() == RunSubjectPredicateId.ToString());
+        toSubject.GetProperty("subjectId").GetString().Should().Be(runId.ToString());
+        toSubject.GetProperty("targetId").GetString().Should().Be(subject.Id.ToString());
+    }
+
+    // A model marking no such predicate still records the run; it only loses what it cannot say.
+    [Fact]
+    public async Task CreateRunAsync_WhenTheModelMarksNoSubjectPredicate_RecordsTheRunWithoutIt()
+    {
+        var broker = new BrokerApplyingItsWriteRules();
+        var (gateway, handler) = NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post
+            && request.Content!.ReadAsStringAsync().Result.Contains(PipelinePredicates.RunSubjectFlag)
+                ? Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""")
+                : broker.Respond(request));
+
+        var creating = () => gateway.CreateRunAsync(
+            Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None, new RunSubject(Guid.NewGuid(), "orphan"));
+
+        await creating.Should().NotThrowAsync();
+        RequestsTo(handler, "/api/relationships", HttpMethod.Post).Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task LoadStartSubgraphAsync_AsksForTheTargetWhatStandsForItAndWhatItStarts()
+    {
+        var targetId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/subscriptions"
+                ? Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""")
+                : new HttpResponseMessage(HttpStatusCode.OK));
+
+        await gateway.LoadStartSubgraphAsync(targetId, CancellationToken.None);
+
+        var selector = await ReadJson(RequestsTo(handler, "/api/subscriptions", HttpMethod.Post).Single());
+        selector.GetProperty("ids")[0].GetString().Should().Be(targetId.ToString());
+        selector.GetProperty("includeIsAncestors").GetBoolean().Should().BeTrue();
+        selector.TryGetProperty("types", out _).Should().BeFalse();
+
+        // The marked predicates are asked for by their marks, so the mark can be read off each edge.
+        selector.GetProperty("markedArchetypes").EnumerateArray().Select(flag => flag.GetString())
+            .Should().Contain([PipelinePredicates.StateWatchFlag, PipelinePredicates.StandsForFlag,
+                PipelinePredicates.PipelineStartFlag, PipelineArchetypes.PipelineFlag, PipelineArchetypes.PipelineInputFlag]);
+
+        // Traversals expand in order, so the watched state has to be reached before the nodes standing for it.
+        var traversals = selector.GetProperty("traverse").EnumerateArray()
+            .Select(rule => (Flag: rule.TryGetProperty("predicateFlag", out var f) ? f.GetString() : null,
+                             Name: rule.TryGetProperty("predicate", out var n) ? n.GetString() : null,
+                             Direction: rule.GetProperty("direction").GetString()))
+            .ToList();
+        traversals.Should().ContainInOrder(
+            (PipelinePredicates.StateWatchFlag, null, "outgoing"),
+            (PipelinePredicates.StandsForFlag, null, "incoming"),
+            (null, ModelNames.Has, "incoming"));
+        traversals.Should().Contain((PipelinePredicates.PipelineStartFlag, null, "outgoing"));
+
+        // Relationship rules keep the read to those edges: a state connection accumulates one dispatch
+        // record per entry, and the wider reading would carry every one on every start.
+        selector.GetProperty("includeRelationships").GetBoolean().Should().BeTrue();
+        selector.GetProperty("relationships").EnumerateArray().Should().HaveCountGreaterThan(0);
+    }
+
     // The name route answers one Thing, so an answer that is not one is an answer the gateway cannot use.
     // Resolving the first entry of a list would tie the run to whatever the model happened to return first.
     [Theory]
@@ -433,6 +513,29 @@ public class MyceliumGatewayTests
         var body = await ReadJson(request);
         body.GetProperty("name").GetString().Should().Be("status");
         body.GetProperty("value").GetString().Should().Be(RunStatus.Succeeded);
+    }
+
+    // A run started by a state entry is awaited by nobody, so the reason it failed has to be on the run
+    // itself — and the property route sets only what a Thing already carries, so the run is created
+    // carrying it, as it is created carrying its result.
+    [Fact]
+    public async Task SetRunStatusAsync_WithAReason_WritesTheReasonOnTheRunItWasCreatedCarrying()
+    {
+        var runId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway();
+        await gateway.CreateRunAsync(runId, Guid.NewGuid(), CancellationToken.None);
+
+        var failing = () => gateway.SetRunStatusAsync(runId, RunStatus.Failed, CancellationToken.None, "'subject' is not an output port");
+
+        await failing.Should().NotThrowAsync();
+        var written = new List<(string Name, string Value)>();
+        foreach (var request in RequestsTo(handler, $"/api/things/{runId}/properties", HttpMethod.Put))
+        {
+            var body = await ReadJson(request);
+            written.Add((body.GetProperty("name").GetString()!, body.GetProperty("value").GetString()!));
+        }
+        written.Should().Contain(("status", RunStatus.Failed));
+        written.Should().Contain(("error", "'subject' is not an output port"));
     }
 
     [Fact]

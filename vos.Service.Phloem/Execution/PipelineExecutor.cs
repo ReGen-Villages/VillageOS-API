@@ -33,11 +33,16 @@ public sealed class PipelineExecutor
     }
 
     // runId: Pre-generated run id for an async spawn (the editor already holds it to animate over
-    // SSE); when null a fresh id is minted (synchronous spawn / graph trigger).
-    public async Task<PipelineRunResult> RunAsync(Guid pipelineId, JsonElement runParams, CancellationToken cancellationToken, Guid? runId = null)
+    // SSE); when null a fresh id is minted (synchronous spawn / dispatched relationship).
+    // subject: the Thing whose state entry or relationship started the run. It is recorded on the run and
+    // reaches the pipeline as the run param `subject` — the name the page gives a start node's port — as
+    // one value carrying the Thing's id and name, so a wire narrows it to either by its from-path.
+    public async Task<PipelineRunResult> RunAsync(
+        Guid pipelineId, JsonElement runParams, CancellationToken cancellationToken, Guid? runId = null, RunSubject? subject = null)
     {
         var rid = runId ?? Guid.NewGuid();
-        await BestEffort(() => _gateway.CreateRunAsync(rid, pipelineId, cancellationToken), "create run");
+        if (subject is not null) runParams = WithSubject(runParams, subject);
+        await BestEffort(() => _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject), "create run");
 
         PipelineDag dag;
         try
@@ -131,7 +136,7 @@ public sealed class PipelineExecutor
 
     private async Task<PipelineRunResult> FailRunAsync(Guid runId, Guid pipelineId, string error, CancellationToken cancellationToken)
     {
-        await BestEffort(() => _gateway.SetRunStatusAsync(runId, RunStatus.Failed, cancellationToken), "set run failed");
+        await BestEffort(() => _gateway.SetRunStatusAsync(runId, RunStatus.Failed, cancellationToken, error), "set run failed");
         return PipelineRunResult.Failed(runId, pipelineId, error);
     }
 
@@ -224,6 +229,19 @@ public sealed class PipelineExecutor
             inputs[port] = PayloadMapping.ToElement(node2);
         return inputs;
     }
+
+    // The subject is the broker's word on what entered, so it wins over a relationship property of the
+    // same name.
+    private static JsonElement WithSubject(JsonElement runParams, RunSubject subject)
+    {
+        var merged = runParams.ValueKind == JsonValueKind.Object
+            ? JsonSerializer.SerializeToNode(runParams)!.AsObject()
+            : new JsonObject();
+        merged[SubjectParam] = new JsonObject { ["id"] = subject.Id.ToString(), ["name"] = subject.Name };
+        return JsonSerializer.SerializeToElement(merged);
+    }
+
+    public const string SubjectParam = "subject";
 
     // An Input boundary node's outputs: each output port is filled from the run param of the
     // same name, so downstream nodes receive the run's external inputs through ordinary wires.

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { unwrapProperties, unwrapThing, unwrapRelationship, effectiveProperties, type IsChainLookup } from './propertyMapper';
+import { unwrapProperties, unwrapThing, unwrapRelationship, effectiveProperties, statedProperties, type IsChainLookup } from './propertyMapper';
 import type { VosThing, VosRelationship, InheritedPropertySet } from '../types/vos';
 
 const inheritedSet = (
@@ -316,5 +316,29 @@ describe('the declaration a value arrives with', () => {
       Properties: { anything: { typeInfo: 'vos.Double', value: 1, writeKind: 'Whenever' } },
     });
     expect(thing.PropertyWriteKinds).toBeUndefined();
+  });
+});
+
+// What a Thing states for itself: its own properties and its override store, never the `is` chain.
+describe('statedProperties', () => {
+  const thing = (properties: Record<string, unknown>, overrides?: Record<string, InheritedPropertySet>): VosThing =>
+    ({ Id: 't', Name: 'port', Properties: properties, ...(overrides ? { InheritedOverrides: overrides } : {}) });
+  const set = (values: Record<string, unknown>, inherited?: Record<string, InheritedPropertySet>): InheritedPropertySet =>
+    ({ SourceId: 's', SourceName: 'Socket', InheritedAt: '', Properties: values, ...(inherited ? { Inherited: inherited } : {}) });
+
+  it('reads a value from the override store', () => {
+    expect(statedProperties(thing({}, { a: set({ portName: 'subject' }) }))).toEqual({ portName: 'subject' });
+  });
+
+  it('lets an own value win over an override of the same name', () => {
+    expect(statedProperties(thing({ portName: 'own' }, { a: set({ portName: 'overridden' }) })).portName).toBe('own');
+  });
+
+  it('reads a value stated over a farther ancestor', () => {
+    expect(statedProperties(thing({}, { a: set({}, { b: set({ direction: 'out' }) }) })).direction).toBe('out');
+  });
+
+  it('states nothing for a Thing with no override store', () => {
+    expect(statedProperties(thing({ x: 1 }))).toEqual({ x: 1 });
   });
 });

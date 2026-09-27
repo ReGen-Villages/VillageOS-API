@@ -18,25 +18,31 @@ public class ForageWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
     public Func<HttpRequestMessage, HttpResponseMessage> HandlerCallback { get; set; }
         = _ => new HttpResponseMessage(HttpStatusCode.NotFound);
 
-    // A run leaves the request that dispatched it, so a test has to be able to wait for the one it
-    // started. This keeps every started run and hands them back; the production starter drops them onto
-    // the thread pool, where nothing could await one.
-    private readonly StartedRuns _runs = new();
+    // The production starter hands a run to the thread pool, so the run may finish before or after the
+    // dispatch is answered. Here no run begins until the test completes it, so a test that reads what a
+    // run did without completing it fails every time instead of only on a busy machine.
+    private readonly HeldRuns _runs = new();
 
-    public Task RunsStarted() => _runs.All();
+    public Task CompleteStartedRuns() => _runs.RunAll();
 
-    private sealed class StartedRuns : IDiscoveryRunStarter
+    private sealed class HeldRuns : IDiscoveryRunStarter
     {
-        private readonly List<Task> _started = new();
+        private readonly List<Func<CancellationToken, Task>> _held = new();
 
         public void Start(Func<CancellationToken, Task> run)
         {
-            lock (_started) _started.Add(run(CancellationToken.None));
+            lock (_held) _held.Add(run);
         }
 
-        public Task All()
+        public Task RunAll()
         {
-            lock (_started) return Task.WhenAll(_started.ToArray());
+            Func<CancellationToken, Task>[] runs;
+            lock (_held)
+            {
+                runs = _held.ToArray();
+                _held.Clear();
+            }
+            return Task.WhenAll(runs.Select(run => run(CancellationToken.None)));
         }
     }
 

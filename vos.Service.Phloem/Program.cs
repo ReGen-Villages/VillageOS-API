@@ -51,6 +51,7 @@ try
     builder.Services.AddSingleton<IMyceliumGateway>(sp => sp.GetRequiredService<MyceliumGateway>());
     builder.Services.AddModelClock<MyceliumGateway>("Phloem");
     builder.Services.AddSingleton<PipelineExecutor>();
+    builder.Services.AddSingleton<PipelineStarter>();
 
     var app = builder.Build();
 
@@ -75,7 +76,7 @@ try
     }));
 
     // Spawn-and-wait: { pipelineId, params? } -> run the DAG to completion -> return the result.
-    var handleEndpoint = app.MapPost("/handle", async (HttpContext httpContext, PipelineExecutor executor) =>
+    var handleEndpoint = app.MapPost("/handle", async (HttpContext httpContext, PipelineExecutor executor, PipelineStarter starter) =>
     {
         JsonElement root;
         try
@@ -109,18 +110,25 @@ try
                 var result = await executor.RunAsync(trigger.PipelineId, trigger.Params, httpContext.RequestAborted);
                 return Results.Ok(result);
 
-            case SpawnKind.Graph:
-                // A `X runs Pipeline` relationship trigger fires during a relationship-create and Mycelium
-                // only waits ~15s — so ACK immediately and run the DAG in the background. The result lands on
-                // the PipelineRun (animated over SSE). A detached token lets it outlive the request.
-                var pipelineId = trigger.PipelineId;
+            case SpawnKind.Relationship:
+                // A dispatched relationship — a `X runs Pipeline` write or a Thing entering a watched state —
+                // fires while Mycelium waits ~15s, so the pipeline is resolved and the run acknowledged before
+                // the DAG runs in the background. The result lands on the PipelineRun (animated over SSE). A
+                // detached token lets it outlive the request. A target no pipeline is drawn from is refused
+                // with 400: the broker records that as refused rather than failed, and nothing retries it.
+                var start = await starter.ResolveAsync(trigger.TargetId, httpContext.RequestAborted);
+                if (!start.Started)
+                    return Results.BadRequest(new { error = start.Refusal });
+
+                var pipelineId = start.PipelineId!.Value;
                 var runParams = trigger.Params;
+                var subject = trigger.Subject;
                 _ = Task.Run(async () =>
                 {
-                    try { await executor.RunAsync(pipelineId, runParams, CancellationToken.None); }
-                    catch (Exception ex) { Log.Error(ex, "Graph-triggered pipeline run {PipelineId} failed", pipelineId); }
+                    try { await executor.RunAsync(pipelineId, runParams, CancellationToken.None, subject: subject); }
+                    catch (Exception ex) { Log.Error(ex, "Dispatched pipeline run {PipelineId} failed", pipelineId); }
                 });
-                return Results.Ok(new { success = true, accepted = true, pipelineId = trigger.PipelineId });
+                return Results.Ok(new { success = true, accepted = true, pipelineId });
 
             default:
                 return Results.BadRequest(new { error = trigger.Error });

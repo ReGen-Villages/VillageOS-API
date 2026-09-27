@@ -1,9 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import i18n from '../i18n';
-import { MULTI_STEP_FORM_TEST_TIMEOUT_MILLISECONDS } from '../testTimeouts';
-
-vi.setConfig({ testTimeout: MULTI_STEP_FORM_TEST_TIMEOUT_MILLISECONDS });
 
 vi.mock('../api/intakeApi', () => ({
   intakeApi: { configured: vi.fn(), formOptions: vi.fn(), submit: vi.fn(), askForCode: vi.fn() },
