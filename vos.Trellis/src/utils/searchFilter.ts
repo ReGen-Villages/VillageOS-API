@@ -33,6 +33,7 @@ export function buildStringMatcher(
       const re = new RegExp(query, flags);
       return (s) => re.test(s);
     } catch {
+      // Text that is not a regular expression is searched as plain text.
     }
   }
 

@@ -260,6 +260,7 @@ export function extractAllGuiSettings(
           }
         }
       } catch {
+        // Overrides that do not parse are treated as none.
       }
     }
   }
