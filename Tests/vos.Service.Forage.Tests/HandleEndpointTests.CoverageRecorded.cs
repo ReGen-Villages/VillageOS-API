@@ -69,7 +69,7 @@ public class HandleEndpointCoverageTests
         using var client = factory.CreateClient();
 
         await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.RunsStarted();
+        await factory.CompleteStartedRuns();
 
         fetched.Should().ContainSingle("the source that already answered is not asked again");
         fetched.Single().Should().Contain("NationalFloodPortalEndpoint");
@@ -98,7 +98,7 @@ public class HandleEndpointCoverageTests
         using var client = factory.CreateClient();
 
         await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.RunsStarted();
+        await factory.CompleteStartedRuns();
 
         fetched.Should().HaveCount(2);
     }

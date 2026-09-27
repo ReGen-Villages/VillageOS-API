@@ -64,7 +64,7 @@ public class HandleEndpointTests
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.RunsStarted();
+        await factory.CompleteStartedRuns();
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         fetched.Should().HaveCount(2);
@@ -102,7 +102,7 @@ public class HandleEndpointTests
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.RunsStarted();
+        await factory.CompleteStartedRuns();
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted, "one provider being down is not the run failing");
         fetched.Should().HaveCount(2, "a provider that is down does not stop the sources beside it");
@@ -129,7 +129,7 @@ public class HandleEndpointTests
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.RunsStarted();
+        await factory.CompleteStartedRuns();
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         bodies.Should().HaveCount(2);
@@ -153,7 +153,7 @@ public class HandleEndpointTests
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.RunsStarted();
+        await factory.CompleteStartedRuns();
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         fetches.Should().Be(0);
@@ -179,7 +179,7 @@ public class HandleEndpointTests
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new { subjectId = Guid.NewGuid() });
-        await factory.RunsStarted();
+        await factory.CompleteStartedRuns();
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         fetches.Should().Be(0, "a coverage read that failed selected no sources, and no source is not none");
@@ -215,7 +215,7 @@ public class HandleEndpointTests
         using var client = factory.CreateClient();
 
         await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.RunsStarted();
+        await factory.CompleteStartedRuns();
 
         coverageReads.Should().Be(1);
         fetches.Should().Be(0);
@@ -253,6 +253,7 @@ public class HandleEndpointTests
             targetName = "discoversSite",
             properties = new Dictionary<string, object?> { ["__DispatchState"] = "Pending" },
         });
+        await factory.CompleteStartedRuns();
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         fetched.Should().HaveCount(2);
@@ -318,7 +319,7 @@ public class HandleEndpointTests
         using var client = factory.CreateClient();
 
         await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.RunsStarted();
+        await factory.CompleteStartedRuns();
 
         opened.Should().BeGreaterThan(0);
         released.Should().Be(opened);

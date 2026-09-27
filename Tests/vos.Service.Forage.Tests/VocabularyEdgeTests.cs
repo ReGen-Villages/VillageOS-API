@@ -90,7 +90,7 @@ public class VocabularyEdgeTests
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.RunsStarted();
+        await factory.CompleteStartedRuns();
         return response;
     }
 
@@ -192,7 +192,7 @@ public class VocabularyEdgeTests
         };
         using var client = factory.CreateClient();
         var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.RunsStarted();
+        await factory.CompleteStartedRuns();
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         attempts.Should().Be(1);
@@ -222,7 +222,7 @@ public class VocabularyEdgeTests
         };
         using var client = factory.CreateClient();
         await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.RunsStarted();
+        await factory.CompleteStartedRuns();
 
         recorder.Written.Should().Contain((ids["WillowBend"], ids["flowsAs"], ids["steady"]));
     }
@@ -253,7 +253,7 @@ public class VocabularyEdgeTests
         };
         using var client = factory.CreateClient();
         await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.RunsStarted();
+        await factory.CompleteStartedRuns();
 
         recorder.Written.Should().BeEmpty();
     }
@@ -291,7 +291,7 @@ public class VocabularyEdgeTests
         };
         using var client = factory.CreateClient();
         await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.RunsStarted();
+        await factory.CompleteStartedRuns();
 
         declarationReads.Should().Be(1, "the fetch wrote a word, so the run asked for the declarations");
         recorder.Written.Should().BeEmpty();

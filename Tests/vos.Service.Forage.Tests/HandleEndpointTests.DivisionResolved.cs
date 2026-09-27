@@ -102,7 +102,7 @@ public class HandleEndpointDivisionTests
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.RunsStarted();
+        await factory.CompleteStartedRuns();
 
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         written.Should().Contain(path => path.Contains("hazardPortalDivision/facts", StringComparison.Ordinal));
@@ -138,7 +138,7 @@ public class HandleEndpointDivisionTests
         using var client = factory.CreateClient();
 
         await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        await factory.RunsStarted();
+        await factory.CompleteStartedRuns();
 
         asked.Should().ContainSingle().Which.Should().Contain("2409");
     }
