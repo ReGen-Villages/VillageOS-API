@@ -187,7 +187,7 @@ public class MetabolismTests : IAsyncLifetime
         var entry1 = _engine.Register(MakeConfig());
         entry1.Status.Should().Be("waiting"); // future start
 
-        var entry2 = _engine.Register(MakeConfig(quantity: 20.0m));
+        _engine.Register(MakeConfig(quantity: 20.0m));
 
         _engine.GetAll().Should().HaveCount(1);
         _engine.GetAll().First().Config.Quantity.Should().Be(20.0m);

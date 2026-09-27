@@ -130,7 +130,7 @@ public class AnalysisSpawnTests
             new Edge("secondBalance service", "is", "SecondBalance prototype"),
         ];
 
-        var response = await RunDiscovery(ids, edges, spawns);
+        await RunDiscovery(ids, edges, spawns);
 
         spawns.Written.Should().BeEquivalentTo(new[]
         {

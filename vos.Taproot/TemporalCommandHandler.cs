@@ -125,13 +125,21 @@ public class TemporalCommandHandler
 
         var mutationType = args[0].ToLowerInvariant();
 
-        var handled = mutationType switch
+        switch (mutationType)
         {
-            "model" => await HandleModelMutationsAsync(args.Skip(1).ToArray()),
-            "thing" => await HandleThingMutationsAsync(args.Skip(1).ToArray()),
-            "relationship" or "rel" => await HandleRelationshipMutationsAsync(args.Skip(1).ToArray()),
-            _ => await HandleImplicitThingMutationsAsync(args)
-        };
+            case "model":
+                await HandleModelMutationsAsync(args.Skip(1).ToArray());
+                break;
+            case "thing":
+                await HandleThingMutationsAsync(args.Skip(1).ToArray());
+                break;
+            case "relationship" or "rel":
+                await HandleRelationshipMutationsAsync(args.Skip(1).ToArray());
+                break;
+            default:
+                await HandleImplicitThingMutationsAsync(args);
+                break;
+        }
     }
 
     private async Task<bool> HandleModelMutationsAsync(string[] args)

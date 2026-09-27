@@ -22,12 +22,12 @@ export function PropertyModePanel() {
       setMode(data.Mode);
       setRingBufferSize(data.RingBufferSize?.toString() ?? '');
       setSampleRate(data.SampleRate?.toString() ?? '');
-    } catch {
-      // endpoint may not exist on older Mycelium instances
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('dashboard.propertyMode.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- every state write in the loader is after an await, so nothing is set while the effect runs; the rule does not model that boundary
   useEffect(() => { load(); }, [load]);

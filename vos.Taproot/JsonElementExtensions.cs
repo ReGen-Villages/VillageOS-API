@@ -9,7 +9,7 @@ namespace vos.Taproot
             return element.TryGetProperty(propertyName, out var prop) ? prop.GetString() ?? defaultValue : defaultValue;
         }
 
-        public static bool GetBoolOrDefault(this JsonElement element, string propertyName, bool defaultValue = false)
+        public static bool IsTrue(this JsonElement element, string propertyName)
         {
             return element.TryGetProperty(propertyName, out var prop) && prop.ValueKind == JsonValueKind.True;
         }

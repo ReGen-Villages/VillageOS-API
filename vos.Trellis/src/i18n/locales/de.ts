@@ -188,6 +188,7 @@ export const de: PartialResources = {
       sampleExample: 'z. B. 10',
       updated: 'Eigenschaftsmodus aktualisiert',
       updateFailed: 'Eigenschaftsmodus konnte nicht aktualisiert werden',
+      loadFailed: 'Eigenschaftsmodus konnte nicht gelesen werden',
     },
     feed: {
       title: 'Aktivitätsverlauf',

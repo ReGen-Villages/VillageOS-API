@@ -50,39 +50,29 @@ public class JsonElementExtensionsTests
 
     #endregion
 
-    #region GetBoolOrDefault Tests
-
     [Fact]
-    public void GetBoolOrDefault_WhenTrue_ReturnsTrue()
+    public void IsTrue_WhenTrue_ReturnsTrue()
     {
         var json = JsonSerializer.Deserialize<JsonElement>("{\"IsRunning\":true}");
 
-        var result = json.GetBoolOrDefault("IsRunning");
-
-        Assert.True(result);
+        Assert.True(json.IsTrue("IsRunning"));
     }
 
     [Fact]
-    public void GetBoolOrDefault_WhenFalse_ReturnsFalse()
+    public void IsTrue_WhenFalse_ReturnsFalse()
     {
         var json = JsonSerializer.Deserialize<JsonElement>("{\"IsRunning\":false}");
 
-        var result = json.GetBoolOrDefault("IsRunning");
-
-        Assert.False(result);
+        Assert.False(json.IsTrue("IsRunning"));
     }
 
     [Fact]
-    public void GetBoolOrDefault_WhenMissing_ReturnsFalse()
+    public void IsTrue_WhenMissing_ReturnsFalse()
     {
         var json = JsonSerializer.Deserialize<JsonElement>("{}");
 
-        var result = json.GetBoolOrDefault("IsRunning");
-
-        Assert.False(result);
+        Assert.False(json.IsTrue("IsRunning"));
     }
-
-    #endregion
 
     #region GetIntOrDefault Tests
 

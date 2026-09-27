@@ -217,6 +217,7 @@ export const ar: WithArabicPluralForms<Resources> = {
       sampleExample: 'مثال: 10',
       updated: 'تم تحديث وضع الخاصية',
       updateFailed: 'تعذّر تحديث وضع الخاصية',
+      loadFailed: 'تعذّر قراءة وضع الخاصية',
     },
     feed: {
       title: 'موجز النشاط',
