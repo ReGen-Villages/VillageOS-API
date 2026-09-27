@@ -145,7 +145,7 @@ describe('buildGraph', () => {
       expect(graph.getNodeAttribute('i-reservoirzone', 'size')).toBeCloseTo(1.4, 6);
     });
 
-    it('caps size at NODE_SIZE_MAX (6)', () => {
+    it('caps size at the maximum', () => {
       const hub = makeThing('hub', 'Hub');
       const predicate = makeThing('pred', 'connects');
       const sources: VosThing[] = [];
