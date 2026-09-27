@@ -12,8 +12,7 @@ import { computeNodeSize } from './nodeSize';
 import { LAYOUT_DEFAULTS, type LayoutSettings } from './guiSettings';
 import { resolveClassColor } from './classPalette';
 
-// ── Relationship index: one pass over things and relationships, rather than a scan of every relationship per thing ──
-
+// Built in one pass over things and relationships, rather than a scan of every relationship per thing.
 interface RelationshipIndex {
   /** Set of all thing IDs used as predicates in any relationship. */
   predicateIds: Set<string>;
@@ -46,8 +45,6 @@ export function buildRelationshipIndex(
   return { predicateIds, isTypeTargets, isSubjectToTypeName };
 }
 
-// ── Classification helpers ─────────────────────────────────────────────
-
 export function getThingType(
   thing: VosThing,
   index: RelationshipIndex,
@@ -70,8 +67,6 @@ function getInstanceTypeName(
   return index.isSubjectToTypeName.get(thing.Id) ?? null;
 }
 
-// ── Node attribute types ───────────────────────────────────────────────
-
 interface GraphNodeAttributes {
   x: number;
   y: number;
@@ -85,7 +80,6 @@ interface GraphNodeAttributes {
   hidden: boolean;
   isLogical: boolean;
   parentGeoNodeId?: string;
-  // sigma uses `type` for renderer selection – keep it generic for now
   [key: string]: unknown;
 }
 
@@ -97,8 +91,6 @@ interface GraphEdgeAttributes {
   predicateId: string;
   [key: string]: unknown;
 }
-
-// ── Build graph ────────────────────────────────────────────────────────
 
 export function buildGraph(
   things: VosThing[],
@@ -123,13 +115,11 @@ export function buildGraph(
   const graph = new Graph({ multi: true, type: 'directed' });
   const thingMap = new Map(things.map((t) => [t.Id, t]));
 
-  // Pre-compute incoming relationship counts (node size ∝ how many things point at it)
   const relationshipCounts = new Map<string, number>();
   for (const r of relationships) {
     relationshipCounts.set(r.TargetId, (relationshipCounts.get(r.TargetId) || 0) + 1);
   }
 
-  // Build predicate colour map — explicit overrides first, hash fallback
   const predicateColorMap = new Map<string, string>();
   for (const r of relationships) {
     if (predicateColorMap.has(r.PredicateId)) continue;
@@ -139,14 +129,12 @@ export function buildGraph(
 
   const relationshipIndex = buildRelationshipIndex(relationships, thingMap);
 
-  // ── Add nodes ──────────────────────────────────────────────────────
   const angle = (2 * Math.PI) / Math.max(things.length, 1);
   things.forEach((t, i) => {
     const thingType = getThingType(t, relationshipIndex);
     const relationshipCount = relationshipCounts.get(t.Id) || 0;
 
-    // Geographic centroid from pre-computed latitude/longitude properties.
-    // These are always present on physical things (computed at import time).
+    // Latitude and longitude are computed at import time, so every physical thing carries them.
     const centroid = (typeof t.Properties?.latitude === 'number' && typeof t.Properties?.longitude === 'number')
       ? { lat: t.Properties.latitude as number, lng: t.Properties.longitude as number }
       : null;
@@ -158,15 +146,10 @@ export function buildGraph(
     } else if (thingType === 'type') {
       color = ROLE_COLORS.type;
     } else {
-      // Color by the user-configured classifying property
-      // (default 'ifcClass' for IFC seeds; deployments override via
-      // GUI_Settings.ClassifyingProperty). When the value is missing or has
-      // no curated bucket and no override, fall back to the vibrant/pastel
-      // hash palette keyed by the instance's `is`-target type name so demos
-      // without a class table still render distinctly.
-      // An IFC instance stores its own class as an override, because
-      // its type declares the same name — so the own bag alone is empty here and
-      // every instance fell through to the hash palette.
+      // A missing classifying value, or one with no curated bucket and no override, falls back to the
+      // hash palette keyed by the `is`-target type name so a model without a class table still renders
+      // distinctly. An imported instance stores its own class as an override because its type declares
+      // the same name, so the own bag alone is empty here.
       const classifyingValue = storedTextOf(t, classifyingProperty);
       if (classifyingValue) {
         color = resolveClassColor(classifyingProperty, classifyingValue, classColorOverrides);
@@ -179,11 +162,8 @@ export function buildGraph(
       }
     }
 
-    // Size: scale by relationship count (formula in computeNodeSize,
-    // bounds drawn from LayoutSettings so they're runtime-tunable).
     const size = computeNodeSize(relationshipCount, sizeOptions);
 
-    // Initial circular layout (force supervisor will re-position)
     const radius = 100;
     const x = radius * Math.cos(angle * i);
     const y = radius * Math.sin(angle * i);
@@ -202,9 +182,7 @@ export function buildGraph(
     } satisfies GraphNodeAttributes);
   });
 
-  // ── Add edges ──────────────────────────────────────────────────────
   for (const r of relationships) {
-    // Only add edges when both endpoints exist in the graph
     if (!graph.hasNode(r.SubjectId) || !graph.hasNode(r.TargetId)) continue;
 
     const predicate = thingMap.get(r.PredicateId);
@@ -219,12 +197,10 @@ export function buildGraph(
     } satisfies GraphEdgeAttributes);
   }
 
-  // ── Second pass: classify logical nodes & compute parent linkage ───
   graph.forEachNode((nodeId, attributes) => {
     if (attributes.hasGeometry) return; // physical node — already classified
     graph.setNodeAttribute(nodeId, 'isLogical', true);
 
-    // Find the first geo-neighbour (via any edge direction) as parent
     const geoParent = findGeoParent(graph, nodeId);
     if (geoParent) {
       graph.setNodeAttribute(nodeId, 'parentGeoNodeId', geoParent);
@@ -234,16 +210,12 @@ export function buildGraph(
   return graph;
 }
 
-// ── Logical node helpers ─────────────────────────────────────────────
-
 /**
  * Find the first geographic neighbour of a logical node.
  * Prefers "has" containment edges (geo parent → logical child),
  * then falls back to any neighbour with geometry.
  */
 function findGeoParent(graph: Graph, logicalNodeId: string): string | null {
-  // First pass: look for a "has" edge where the geo node is the source
-  // (parent "has" child pattern)
   for (const edge of graph.inEdges(logicalNodeId)) {
     const source = graph.source(edge);
     const edgeAttributes = graph.getEdgeAttributes(edge);
@@ -253,7 +225,6 @@ function findGeoParent(graph: Graph, logicalNodeId: string): string | null {
     }
   }
 
-  // Second pass: any neighbour with geometry (in or out)
   for (const neighbor of graph.neighbors(logicalNodeId)) {
     const neighborAttributes = graph.getNodeAttributes(neighbor);
     if (neighborAttributes.hasGeometry) {

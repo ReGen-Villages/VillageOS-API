@@ -20,9 +20,7 @@ public class PipelineExecutorTests
         {
             OnDispatch = (subdomain, envelope) => subdomain switch
             {
-                // Generate emits echo="hi"
                 "gen" => NodeOk(("echo", "hi")),
-                // Echo emits whatever was wired into its "message" input
                 "ech" => NodeOk(("echo", InputValue(envelope, "message"))),
                 _ => NodeFail("unexpected subdomain"),
             },
@@ -33,10 +31,8 @@ public class PipelineExecutorTests
 
         result.Success.Should().BeTrue();
         result.Nodes.Should().OnlyContain(n => n.Status == RunStatus.Succeeded);
-        // Echo's output is the value routed from Generate.echo → Echo.message
         var echo = result.Nodes.Single(n => n.Name == "Echo");
         echo.Outputs["echo"].GetString().Should().Be("hi");
-        // dispatched in dependency order
         gateway.Dispatched.Should().Equal("gen", "ech");
         gateway.StatusUpdates.Should().Contain(RunStatus.Succeeded);
     }
@@ -166,7 +162,6 @@ public class PipelineExecutorTests
 
         result.Success.Should().BeTrue();
         gateway.Dispatched.Should().Equal("water-reserve");
-        // all three run params routed into the node's three input ports
         seenInputs.GetProperty("population").GetDouble().Should().Be(730.0);
         seenInputs.GetProperty("storageCapacityM3").GetDouble().Should().Be(1400.0);
         result.Nodes.Single(n => n.Name == "WaterReserve").Outputs["daysOfSupply"].GetString().Should().Be("14");
@@ -202,7 +197,6 @@ public class PipelineExecutorTests
 
         result.Success.Should().BeTrue();
         gateway.Dispatched.Should().Equal("energy-balance");
-        // all five run params routed into the node's input ports
         seenInputs.GetProperty("solarPvAreaM2").GetDouble().Should().Be(29611.0);
         seenInputs.GetProperty("annualConsumptionMwhPerYear").GetDouble().Should().Be(18743.0);
         result.Nodes.Single(n => n.Name == "EnergyBalance").Outputs["netPositive"].GetString().Should().Be("true");
@@ -280,10 +274,6 @@ public class PipelineExecutorTests
             .Should().Equal("A", null, "C"); // failed item is a null hole, in order
     }
 
-    // --- helpers ---
-
-    // Field-level mapping + merge ---------------------------------------------------------------
-
     [Fact] // Two wires into one input deep-merge by their to-paths
     public async Task RunAsync_TwoWiresIntoOneInput_DeepMergeByToPath()
     {
@@ -309,8 +299,6 @@ public class PipelineExecutorTests
         input.GetProperty("a").GetString().Should().Be("AA");
         input.GetProperty("b").GetString().Should().Be("BB");
     }
-
-    // On-wire JSONata transforms ----------------------------------------------------------------
 
     [Fact] // A JSONata transform reshapes the upstream output before the downstream input
     public async Task RunAsync_WireTransform_ReshapesUpstreamOutput()
@@ -353,8 +341,6 @@ public class PipelineExecutorTests
         gateway.Dispatched.Should().BeEmpty("a pipeline that fails validation never dispatches a node");
     }
 
-    // Boundary I/O nodes ------------------------------------------------------------------------
-
     [Fact] // Input node output ports are filled from run params
     public async Task RunAsync_InputBoundaryNode_SeedsOutputPortsFromRunParams()
     {
@@ -369,9 +355,7 @@ public class PipelineExecutorTests
         var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
 
         result.Success.Should().BeTrue();
-        // Echo received the Input node's `seed` (filled from the run param) on its wired `message` input.
         result.Nodes.Single(n => n.Name == "Echo").Outputs["echo"].GetString().Should().Be("hi");
-        // Only the service node dispatches — boundary nodes never hit a subdomain.
         gateway.Dispatched.Should().Equal("ech");
     }
 
@@ -389,10 +373,8 @@ public class PipelineExecutorTests
         var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
 
         result.Success.Should().BeTrue();
-        // The value wired into the Output node's `result` input is the pipeline's published result …
         result.Result.Should().NotBeNull();
         result.Result!.Value.GetProperty("result").GetString().Should().Be("world");
-        // … and it is persisted on the PipelineRun Thing.
         gateway.RunResult.Should().NotBeNull();
         gateway.RunResult!.Value.GetProperty("result").GetString().Should().Be("world");
     }

@@ -20,8 +20,6 @@ public class MyceliumClientBaseValidationTests
     private const string TokenResponseSchemaId = "https://villageos/contracts/token-response.schema.json";
     private const string MyceliumRegisterRequestSchemaId = "https://villageos/contracts/mycelium-register-request.schema.json";
 
-    // ---- RegisterAsync ----
-
     [Fact]
     public async Task RegisterAsync_ValidPayload_ThrowMode_PostsAndReturnsTrue()
     {
@@ -70,8 +68,6 @@ public class MyceliumClientBaseValidationTests
             .Which.Should().Contain(MyceliumRegisterRequestSchemaId);
     }
 
-    // ---- GetTokenAsync ----
-
     [Fact]
     public async Task GetTokenAsync_MyceliumReturnsValidShape_ThrowMode_ReturnsToken()
     {
@@ -108,8 +104,6 @@ public class MyceliumClientBaseValidationTests
         logger.Warnings.Should().ContainSingle()
             .Which.Should().Contain(TokenResponseSchemaId);
     }
-
-    // ---- Helpers ----
 
     private static (TestableMyceliumClient client, MockHttpMessageHandler handler) BuildClient(
         Func<HttpRequestMessage, HttpResponseMessage> respond,

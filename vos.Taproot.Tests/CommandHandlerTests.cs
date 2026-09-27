@@ -456,8 +456,6 @@ public class CommandHandlerTests
         Assert.DoesNotContain("Unknown command", writer.ToString());
     }
 
-    #region Shutdown and Clear Model Tests
-
     [Fact]
     public async Task HandleCommandAsync_Shutdown_CallsMyceliumShutdown()
     {
@@ -535,10 +533,6 @@ public class CommandHandlerTests
 
         Assert.Contains("Usage: clear model", writer.ToString());
     }
-
-    #endregion
-
-    #region Interactive Mode Tests
 
     [Fact]
     public void Constructor_WithInteractiveModeTrue_AcceptsParameter()
@@ -634,6 +628,4 @@ public class CommandHandlerTests
         // Should complete without error - whitespace lines are ignored
         Assert.Contains("VillageOS CLI", writer.ToString());
     }
-
-    #endregion
 }

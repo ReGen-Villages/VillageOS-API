@@ -21,8 +21,6 @@ public class StartCommandHandlerTests
         await handler.ExecuteAsync();
     }
 
-    // ========== ExecuteAsync Tests ==========
-
     [Fact]
     public async Task Execute_WithNoArguments_ShowsUsage()
     {
@@ -41,8 +39,6 @@ public class StartCommandHandlerTests
         var output = _writer.ToString();
         Assert.Contains("Usage:", output);
     }
-
-    // ========== StartServiceAsync Tests ==========
 
     [Fact]
     public async Task StartService_WithNoHandler_ShowsUsage()
@@ -109,8 +105,6 @@ public class StartCommandHandlerTests
         Assert.Contains("Error:", output);
     }
 
-    // ========== Command Dispatch Tests ==========
-
     [Fact]
     public async Task Execute_ServiceCommand_CaseInsensitive()
     {
@@ -125,8 +119,6 @@ public class StartCommandHandlerTests
         var output = _writer.ToString();
         Assert.Contains("started successfully", output);
     }
-
-    // ========== ShowGuids Flag Tests ==========
 
     [Fact]
     public async Task StartService_WithShowGuidsFlag_ShowsGuidInOutput()
@@ -157,8 +149,6 @@ public class StartCommandHandlerTests
         var output = _writer.ToString();
         Assert.DoesNotContain(handlerId.ToString(), output);
     }
-
-    // ========== Error Handling Tests ==========
 
     [Fact]
     public async Task StartService_WhenExceptionThrown_ShowsError()

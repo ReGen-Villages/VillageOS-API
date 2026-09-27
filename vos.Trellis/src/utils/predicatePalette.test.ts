@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { CURATED_PREDICATE_COLORS } from './predicatePalette';
 import { resolvePredicateColor, PREDICATE_PALETTE, hashStringToIndex } from './colors';
 
-describe('CURATED_PREDICATE_COLORS (Feature #5340)', () => {
+describe('CURATED_PREDICATE_COLORS', () => {
   it('every entry is a valid 7-char hex color', () => {
     for (const [name, hex] of Object.entries(CURATED_PREDICATE_COLORS)) {
       expect(hex, `${name} -> ${hex}`).toMatch(/^#[0-9a-f]{6}$/i);
@@ -46,7 +46,7 @@ describe('CURATED_PREDICATE_COLORS (Feature #5340)', () => {
   });
 });
 
-describe('resolvePredicateColor priority chain (Feature #5340)', () => {
+describe('resolvePredicateColor priority chain', () => {
   it('1. user override beats curated default and hash', () => {
     // is is curated; user override should still win.
     expect(resolvePredicateColor('is', { is: '#ff00ff' })).toBe('#ff00ff');

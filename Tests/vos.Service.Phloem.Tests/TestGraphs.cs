@@ -141,7 +141,6 @@ public static class TestGraphs
         var carries = fx.Thing("carries");
         fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
 
-        // Echo service node: message (in) → echo (out).
         var proto = fx.Thing("EchoProto");
         fx.Rel(proto, vocabulary.Is, vocabulary.Service);
         var portIn = fx.Thing("e.in", ("direction", "in"), ("type", "string"), ("portName", "message"), ("required", "true"));
@@ -159,14 +158,12 @@ public static class TestGraphs
         fx.Rel(ech, vocabulary.Is, vocabulary.PipelineNode);
         fx.Rel(ech, vocabulary.Has, echConn);
 
-        // Input boundary node with an output port `seed`.
         var input = fx.Thing("In");
         fx.Rel(input, vocabulary.Is, vocabulary.PipelineInput);
         var seedPort = fx.Thing("in.seed", ("direction", "out"), ("type", "string"), ("portName", "seed"));
         fx.Rel(seedPort, vocabulary.Is, vocabulary.Port);
         fx.Rel(input, vocabulary.Has, seedPort);
 
-        // Output boundary node with an input port `result`.
         var output = fx.Thing("Out");
         fx.Rel(output, vocabulary.Is, vocabulary.PipelineOutput);
         var resultPort = fx.Thing("out.result", ("direction", "in"), ("type", "string"), ("portName", "result"));

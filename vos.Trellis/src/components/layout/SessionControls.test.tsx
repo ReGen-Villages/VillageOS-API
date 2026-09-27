@@ -15,8 +15,7 @@ describe('SessionControls', () => {
     switchModel.mockReset();
   });
 
-  // The panel lives in the shared sidebar footer, so these controls must be
-  // present on every page — not re-implemented per page as they once were.
+  // The panel lives in the shared sidebar footer, so these controls are present on every page.
   it.each([true, false])('renders theme, switch-model, and log-out (collapsed=%s)', (isCollapsed) => {
     render(<SessionControls isCollapsed={isCollapsed} />);
     expect(screen.getByTestId('theme-toggle')).toBeInTheDocument();

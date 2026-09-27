@@ -341,8 +341,6 @@ public class FindCommandHandlerTests
         Assert.DoesNotContain(relationshipId.ToString(), output);
     }
 
-    #region FindThingsAsync Edge Cases
-
     [Fact]
     public async Task FindThing_NonArrayResponse_ShowsNotFound()
     {
@@ -382,10 +380,6 @@ public class FindCommandHandlerTests
         Assert.Contains("PressureSensor", output);
         Assert.DoesNotContain("Motor", output);
     }
-
-    #endregion
-
-    #region FindRelationshipsAsync Edge Cases
 
     [Fact]
     public async Task FindRelationships_BothSubjectAndTarget_ShowsBothSections()
@@ -476,6 +470,4 @@ public class FindCommandHandlerTests
         var output = _writer.ToString();
         Assert.Contains("Error", output);
     }
-
-    #endregion
 }

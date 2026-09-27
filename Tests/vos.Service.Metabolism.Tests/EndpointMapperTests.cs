@@ -30,8 +30,6 @@ public class EndpointMapperTests : IAsyncLifetime
 
     private static JsonElement Parse(string json) => JsonDocument.Parse(json).RootElement;
 
-    // ---- GET /health ----
-
     [Fact]
     public async Task Health_ReturnsHealthyEnvelope()
     {
@@ -47,8 +45,6 @@ public class EndpointMapperTests : IAsyncLifetime
         body.GetProperty("uptime").GetString().Should().Be("active");
     }
 
-    // ---- GET /stats ----
-
     [Fact]
     public async Task Stats_ReturnsServiceMetadata()
     {
@@ -62,8 +58,6 @@ public class EndpointMapperTests : IAsyncLifetime
         body.GetProperty("myceliumUrl").GetString().Should().Be("http://localhost:1");
         body.TryGetProperty("handlerId", out _).Should().BeTrue();
     }
-
-    // ---- POST /handle ----
 
     [Fact]
     public async Task Handle_ValidRequest_RegistersSimulation_IncrementsCount()
@@ -144,8 +138,6 @@ public class EndpointMapperTests : IAsyncLifetime
             e.GetProperty("path").GetString()!.Contains("subjectId"));
     }
 
-    // ---- GET /simulations ----
-
     [Fact]
     public async Task Simulations_NoneRegistered_ReturnsEmptyArray()
     {
@@ -183,8 +175,6 @@ public class EndpointMapperTests : IAsyncLifetime
         sim.TryGetProperty("registeredAt", out _).Should().BeTrue();
     }
 
-    // ---- DELETE /simulations/{relationshipId} ----
-
     [Fact]
     public async Task DeleteSimulation_ExistingRelationship_ReturnsOk_AndCancels()
     {
@@ -215,8 +205,6 @@ public class EndpointMapperTests : IAsyncLifetime
         body.GetProperty("error").GetString().Should().Contain(unknown.ToString());
     }
 
-    // ---- POST /shutdown ----
-
     [Fact]
     public async Task Shutdown_ReturnsMessage_AndSchedulesAppStop()
     {
@@ -226,11 +214,9 @@ public class EndpointMapperTests : IAsyncLifetime
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         body.GetProperty("message").GetString().Should().Contain("consumes");
         body.GetProperty("message").GetString().Should().Contain("Shutting down");
-        // The shutdown is fire-and-forget via Task.Run with a 300ms delay; we don't wait for
-        // it (the test factory will dispose the host anyway). Just pin the immediate response.
+        // The shutdown runs on a delayed background task nothing awaits, and the test factory disposes
+        // the host anyway, so only the immediate response is pinned.
     }
-
-    // ---- helpers ----
 
     private static object ValidHandleBody(Guid relationshipId) => new
     {

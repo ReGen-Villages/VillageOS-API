@@ -3,8 +3,6 @@ import { filterGraph } from './searchFilter';
 import type { VosThing, VosRelationship } from '../types/vos';
 import type { SearchOptions } from './searchFilter';
 
-// ── Helpers ────────────────────────────────────────────────────────────
-
 function makeThing(id: string, name: string): VosThing {
   return { Id: id, Name: name, Properties: {} };
 }
@@ -15,20 +13,15 @@ function makeRelationship(id: string, subjectId: string, predicateId: string, ta
 
 const defaults: SearchOptions = { caseSensitive: false, exactMatch: false, useRegex: false };
 
-// ── Test data ──────────────────────────────────────────────────────────
-
 const alice = makeThing('1', 'Alice');
 const bob = makeThing('2', 'Bob');
 const charlie = makeThing('3', 'Charlie');
 const likes = makeThing('4', 'likes');
 const things = [alice, bob, charlie, likes];
 
-// Alice -likes-> Bob,  Bob -likes-> Charlie
 const rel1 = makeRelationship('r1', '1', '4', '2'); // Alice likes Bob
 const rel2 = makeRelationship('r2', '2', '4', '3'); // Bob likes Charlie
 const relationships = [rel1, rel2];
-
-// ── Tests ──────────────────────────────────────────────────────────────
 
 describe('filterGraph', () => {
   describe('empty query', () => {
@@ -100,7 +93,6 @@ describe('filterGraph', () => {
 
   describe('neighbor expansion', () => {
     it('includes direct neighbors of matched nodes', () => {
-      // Alice matches, and Alice-likes->Bob, so Bob and likes should be included
       const result = filterGraph('Alice', things, relationships, defaults);
       const names = result.filteredThings.map((t) => t.Name);
       expect(names).toContain('Alice');
@@ -115,9 +107,6 @@ describe('filterGraph', () => {
     });
 
     it('does not include unrelated nodes', () => {
-      // Searching for Charlie — only Bob-likes->Charlie touches Charlie
-      // So result should include Charlie, Bob, likes, and rel2
-      // Alice should NOT be included (no direct edge to Charlie)
       const result = filterGraph('Charlie', things, relationships, defaults);
       const names = result.filteredThings.map((t) => t.Name);
       expect(names).toContain('Charlie');
@@ -129,9 +118,6 @@ describe('filterGraph', () => {
 
   describe('edge filtering', () => {
     it('only includes edges where both endpoints are present', () => {
-      // Search for "Bob" — Bob is subject of r2 and target of r1
-      // Both r1 and r2 touch Bob, so neighbors expand to Alice, Charlie, likes
-      // All endpoints present → both edges included
       const result = filterGraph('Bob', things, relationships, defaults);
       expect(result.filteredRelationships).toHaveLength(2);
     });
@@ -139,7 +125,6 @@ describe('filterGraph', () => {
 
   describe('predicate things included for edge labels', () => {
     it('includes predicate things even if they are not direct neighbors', () => {
-      // Create a scenario where the predicate thing isn't a neighbor of the match
       const sensor = makeThing('s1', 'Sensor');
       const zone = makeThing('z1', 'Zone');
       const monitors = makeThing('p1', 'monitors');
@@ -156,13 +141,10 @@ describe('filterGraph', () => {
 
   describe('multiple matches', () => {
     it('returns correct matchCount for multiple hits', () => {
-      // "li" matches Alice, Charlie, and likes (all contain "li")
       const result = filterGraph('li', things, relationships, defaults);
       expect(result.matchCount).toBe(3);
     });
   });
-
-  // ── Comma-separated list ────────────────────────────────────────────
 
   describe('comma-separated list', () => {
     it('matches multiple names separated by commas', () => {
@@ -174,7 +156,6 @@ describe('filterGraph', () => {
     });
 
     it('matches by thing ID in comma list', () => {
-      // ID "2" is Bob
       const result = filterGraph('Alice, 2', things, relationships, defaults);
       expect(result.matchCount).toBe(2);
       const names = result.filteredThings.map((t) => t.Name);
@@ -194,7 +175,6 @@ describe('filterGraph', () => {
     });
 
     it('supports substring matching per term', () => {
-      // "li" matches Alice, Charlie, likes; "ob" matches Bob
       const result = filterGraph('li, ob', things, relationships, defaults);
       expect(result.matchCount).toBe(4); // Alice, Charlie, likes, Bob
     });
@@ -203,7 +183,6 @@ describe('filterGraph', () => {
       const result = filterGraph('Alice, Bob', things, relationships, { caseSensitive: false, exactMatch: true, useRegex: false });
       expect(result.matchCount).toBe(2);
 
-      // Substring should NOT match in exact mode
       const result2 = filterGraph('Ali, Bo', things, relationships, { caseSensitive: false, exactMatch: true, useRegex: false });
       expect(result2.matchCount).toBe(0);
     });
@@ -222,8 +201,6 @@ describe('filterGraph', () => {
     });
   });
 
-  // ── Regex search ────────────────────────────────────────────────────
-
   describe('regex search', () => {
     it('matches names by regex pattern', () => {
       const result = filterGraph('^A', things, relationships, { caseSensitive: false, exactMatch: false, useRegex: true });
@@ -240,7 +217,6 @@ describe('filterGraph', () => {
     });
 
     it('matches by thing ID with regex', () => {
-      // ID "2" is Bob
       const result = filterGraph('^2$', things, relationships, { caseSensitive: false, exactMatch: false, useRegex: true });
       expect(result.matchCount).toBe(1);
       const names = result.filteredThings.map((t) => t.Name);
@@ -261,27 +237,21 @@ describe('filterGraph', () => {
     });
 
     it('supports character classes', () => {
-      // Match names ending in "e"
       const result = filterGraph('e$', things, relationships, { caseSensitive: false, exactMatch: false, useRegex: true });
       expect(result.matchCount).toBe(2); // Alice, Charlie
     });
 
     it('supports quantifiers', () => {
-      // Match names with one or more "l" characters
       const result = filterGraph('l+', things, relationships, { caseSensitive: false, exactMatch: false, useRegex: true });
-      // Alice, Charlie, and likes all contain "l"
       expect(result.matchCount).toBe(3);
     });
 
     it('falls back to plain text on invalid regex', () => {
-      // "[" is invalid regex — should fall through to substring match
       const result = filterGraph('[', things, relationships, { caseSensitive: false, exactMatch: false, useRegex: true });
-      // No names contain "[", so 0 matches
       expect(result.matchCount).toBe(0);
     });
 
     it('handles special regex chars when regex is off', () => {
-      // "." would match everything in regex mode, but in plain text mode it matches nothing
       const result = filterGraph('.', things, relationships, { caseSensitive: false, exactMatch: false, useRegex: false });
       expect(result.matchCount).toBe(0); // No names contain literal "."
     });

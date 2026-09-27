@@ -170,7 +170,6 @@ describe('localizeSpec', () => {
     const kpi = specification.sections[0].widgets[0] as KpiWidget;
     // The state name stays "Harvested" even though the KPI unit "Harvested" was translatable.
     expect(kpi.value).toEqual({ kind: 'stateCount', state: 'Harvested' });
-    // Row keys are identifiers, not labels — untouched.
     const table = specification.sections[0].widgets[2] as TableWidget;
     expect(table.columns.map((c) => c.key)).toEqual(['name', 'age']);
     expect(specification.detail?.relations?.[0].predicate).toBe('has');
@@ -184,7 +183,6 @@ describe('localizeSpec', () => {
 
   it('falls back to the base text for a key missing within a present locale', () => {
     const specification = localizeSpecification(fixture(), 'es');
-    // The "Exceptions" section title has no es entry.
     expect(specification.sections[1].title).toBe('Exceptions');
   });
 

@@ -35,7 +35,6 @@ function EntityPicker<T extends PickerItem>({ items, value, onChange, placeholde
     }
     const q = query.toLowerCase();
     const matches = items.filter((item) => item.Name.toLowerCase().includes(q));
-    // Sort: exact match first, then starts-with, then contains (shorter names first within each group)
     matches.sort((a, b) => {
       const an = a.Name.toLowerCase();
       const bn = b.Name.toLowerCase();

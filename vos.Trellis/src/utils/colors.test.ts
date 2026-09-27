@@ -11,14 +11,10 @@ describe('brightenColor', () => {
   });
 
   it('mixes halfway toward white at t=0.5', () => {
-    // #000000 mixed 50% toward white → #808080 (128,128,128)
     expect(brightenColor('#000000', 0.5)).toBe('#808080');
   });
 
   it('brightens a colored hex correctly', () => {
-    // #f87171 → r=248, g=113, b=113, t=0.5
-    // mix(248) = 248 + (255-248)*0.5 = 251.5 → 252
-    // mix(113) = 113 + (255-113)*0.5 = 184
     expect(brightenColor('#f87171', 0.5)).toBe('#fcb8b8');
   });
 });
@@ -39,7 +35,6 @@ describe('hashStringToIndex', () => {
   it('produces different indices for different strings', () => {
     const a = hashStringToIndex('Building', 16);
     const b = hashStringToIndex('Sensor', 16);
-    // Not guaranteed but very likely with these strings
     expect(a).not.toBe(b);
   });
 
@@ -64,7 +59,6 @@ describe('hashStringToIndex', () => {
     for (let i = 0; i < 20; i++) {
       indices.add(hashStringToIndex(`Type${i}`, PREDICATE_PALETTE.length));
     }
-    // With 20 inputs into 8 buckets, should hit at least 4 different buckets
     expect(indices.size).toBeGreaterThanOrEqual(4);
   });
 });

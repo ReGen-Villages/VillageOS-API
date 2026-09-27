@@ -106,8 +106,6 @@ public class IngestHandlerTests : IDisposable
         result.Error.Should().Contain("xbim parse error");
     }
 
-    // ---- upload path (IngestUploadAsync) ----
-
     private static MemoryStream Ifc(int bytes = 32) => new(new byte[bytes]);
 
     [Fact]

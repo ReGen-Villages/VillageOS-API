@@ -73,7 +73,7 @@ public class ModelCommandHandler
             modelId = match.Value;
         }
 
-        var result = await _mycelium.SwitchModelAsync(modelId);
+        await _mycelium.SwitchModelAsync(modelId);
         _writer.WriteLine($"Switched to model {modelId}.");
     }
 

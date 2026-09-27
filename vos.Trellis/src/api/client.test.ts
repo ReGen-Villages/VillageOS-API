@@ -342,7 +342,6 @@ describe('ApiClient', () => {
       await apiClient.login('testuser', 'pass');
       expect(apiClient.isAuthenticated()).toBe(true);
 
-      // Advance past 80% of the 25-minute expiry (20 minutes)
       await vi.advanceTimersByTimeAsync(20 * 60 * 1000 + 1000);
 
       expect(fetchSpy).toHaveBeenCalledTimes(2);
@@ -457,7 +456,7 @@ describe('ApiClient', () => {
   });
 });
 
-describe('a change a person asks for (TC #7270)', () => {
+describe('a change a person asks for', () => {
   let fetchSpy: MockInstance<typeof fetch>;
 
   beforeEach(async () => {

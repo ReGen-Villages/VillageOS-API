@@ -9,8 +9,9 @@ using Xunit;
 namespace vos.Service.Tributary.Tests;
 
 // The Energy slice's source: a solar-resource endpoint reshapes an Open-Meteo response into a
-// reading Tributary ingests as a shortwave-radiation observation on the Site. That resource (annualized to
-// GTI) and the PV area — rolled up reactively over the classified SolarArray is-relationships (AggregateBounds Sum) — are the two inputs the EnergyBalance node multiplies into solar generation.
+// reading Tributary ingests as a shortwave-radiation observation on the Site. That resource, summed over
+// the year, and the panel area — rolled up over the classified SolarArray is-relationships — are the two
+// inputs the EnergyBalance node multiplies into solar generation.
 public class SolarResourceEndpointTests
 {
     // Open-Meteo hourly shortwave radiation -> a Site reading { name, properties:{shortwaveRadiation}, observedAt }.

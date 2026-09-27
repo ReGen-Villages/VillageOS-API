@@ -118,7 +118,7 @@ public class EnergyBalanceReactiveHandlerTests
         Assert.Contains("annualConsumptionMwhPerYear", thrown.Message);
     }
 
-    // Bug 6826: a study a submission built describes land and a programme and carries no panels, so the
+    // A study a submission built describes land and a programme and carries no panels, so the
     // area is absent until a building model exists. Throwing on it had the broker record the dispatch
     // failed and re-drive it on every reconciliation for as long as the model lived.
     [Fact]

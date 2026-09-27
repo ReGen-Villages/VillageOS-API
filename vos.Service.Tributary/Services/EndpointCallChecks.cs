@@ -97,7 +97,7 @@ public static class EndpointCallChecks
         [NotNullWhen(false)] out Refusal? refusal)
     {
         address = null;
-        List<string>? urlConflicts = null;
+        List<string>? urlConflicts;
         List<string>? methodConflicts = null;
 
         if (!EffectivePropertyResolver.TryGetEffectiveProperty(effective, "url", out var urlElement, out urlConflicts)

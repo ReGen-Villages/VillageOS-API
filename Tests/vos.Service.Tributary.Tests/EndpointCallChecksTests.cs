@@ -18,8 +18,6 @@ public class EndpointCallChecksTests
     private static readonly ResolvedKind DiskCache = new("DiskCache", ["cacheTtl"]);
     private static readonly ResolvedKind ModelAsset = new("ModelAsset", ["assetProperty", "assetSubject"]);
 
-    // ---------- what the kinds require ----------
-
     [Fact]
     public void UnmetRequirement_EverythingSupplied_RefusesNothing()
     {
@@ -51,8 +49,6 @@ public class EndpointCallChecksTests
         refusal.Error.Should().Contain("ModelAsset").And.Contain("assetSubject");
     }
 
-    // ---------- the response body ----------
-
     [Theory]
     [InlineData(null, false)]
     [InlineData("JsonResponse", false)]
@@ -74,8 +70,6 @@ public class EndpointCallChecksTests
 
         refusal!.Error.Should().Contain("XmlResponse").And.Contain("JsonResponse").And.Contain("BinaryResponse");
     }
-
-    // ---------- the address ----------
 
     [Fact]
     public void TryAddress_UrlAndMethodPresent_ParsesTheOneAndNormalisesTheOther()
@@ -162,8 +156,6 @@ public class EndpointCallChecksTests
         refusal!.Error.Should().Contain("Unsupported httpMethod").And.Contain("FETCH");
     }
 
-    // ---------- the reshape ----------
-
     [Fact]
     public void TryReshape_NothingRegisteredNothingRequested_CompilesNothing()
     {
@@ -225,8 +217,6 @@ public class EndpointCallChecksTests
         refusal!.Error.Should().Contain("ambiguous").And.Contain("responseTransform");
     }
 
-    // ---------- an optional setting ----------
-
     [Fact]
     public void TryOptionalText_Absent_IsNullAndNotARefusal()
     {
@@ -280,8 +270,6 @@ public class EndpointCallChecksTests
 
         timeout.Should().Be(TimeSpan.FromSeconds(5));
     }
-
-    // ---------- the credential ----------
 
     [Fact]
     public void TryCredential_NoKind_IsAPlainCall()
@@ -348,8 +336,6 @@ public class EndpointCallChecksTests
         refusal!.Error.Should().Contain("BasicAuth").And.Contain("TokenExchangeAuth");
     }
 
-    // ---------- the pages ----------
-
     [Fact]
     public void TryPaging_NoKind_ReadsInOne()
     {
@@ -397,8 +383,6 @@ public class EndpointCallChecksTests
         refusal!.Error.Should().Contain("CursorPaging").And.Contain("OffsetPaging");
     }
 
-    // ---------- the cache ----------
-
     [Fact]
     public void TryCaching_NoKind_RefetchesEveryTime()
     {
@@ -425,8 +409,6 @@ public class EndpointCallChecksTests
 
         refusal!.Error.Should().Contain("cacheTtl");
     }
-
-    // ---------- the keep ----------
 
     [Fact]
     public void TryKeeping_NoKind_KeepsNothing()
@@ -504,8 +486,6 @@ public class EndpointCallChecksTests
 
         refusal!.Error.Should().Contain("S3Vault").And.Contain("ModelAsset");
     }
-
-    // ---------- what cannot be combined ----------
 
     [Fact]
     public void PagingClash_BinaryBodyReadPageByPage_RefusesNamingBothKinds()
@@ -604,8 +584,6 @@ public class EndpointCallChecksTests
 
         EndpointCallChecks.KeepingClash(kinds, new KeepPlan("surfaceMap", "SiteAlpha", null), null).Should().BeNull();
     }
-
-    // ---------- harness ----------
 
     private static IReadOnlyDictionary<string, JsonElement> Effective(params (string Key, string Text)[] entries) =>
         EffectiveRaw([.. entries.Select(entry => (entry.Key, JsonSerializer.Serialize(entry.Text)))]);

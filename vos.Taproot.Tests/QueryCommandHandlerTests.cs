@@ -26,8 +26,6 @@ public class QueryCommandHandlerTests
         _myceliumMock.Setup(b => b.GetAllPropertiesAsync(It.IsAny<string>()))
             .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(effectiveJson));
 
-    // ========== Execute Tests ==========
-
     [Fact]
     public async Task Execute_WithNoArguments_ShowsUsage()
     {
@@ -46,8 +44,6 @@ public class QueryCommandHandlerTests
         var output = _writer.ToString();
         Assert.Contains("Usage:", output);
     }
-
-    // ========== Query Property Tests ==========
 
     [Fact]
     public async Task QueryProperty_WithInsufficientArguments_ShowsUsage()
@@ -109,8 +105,6 @@ public class QueryCommandHandlerTests
         Assert.Contains("Alice", output);
         Assert.Contains("Bob", output);
     }
-
-    // ========== Query Predicate Tests ==========
 
     [Fact]
     public async Task QueryPredicate_WithNoArguments_ShowsUsage()
@@ -174,8 +168,6 @@ public class QueryCommandHandlerTests
         var output = _writer.ToString();
         Assert.Contains("Found 1 relationship(s)", output);
     }
-
-    // ========== Query Stats Tests ==========
 
     [Fact]
     public async Task QueryStats_ShowsModelStatistics()
@@ -262,8 +254,6 @@ public class QueryCommandHandlerTests
         Assert.Contains("unknown: 1 relationship(s)", _writer.ToString());
     }
 
-    // ========== Query Path Tests ==========
-
     [Fact]
     public async Task QueryPath_ShowsNotAvailableMessage()
     {
@@ -292,8 +282,6 @@ public class QueryCommandHandlerTests
         var output = _writer.ToString();
         Assert.Contains("local graph traversal", output);
     }
-
-    // ========== --showguids Flag Tests ==========
 
     [Fact]
     public async Task QueryProperty_WithShowGuidsFlag_ShowsGuids()
@@ -370,12 +358,10 @@ public class QueryCommandHandlerTests
         Assert.DoesNotContain(relId.ToString(), output);
     }
 
-    #region FindPropertyMatch Tests
-
     [Fact]
     public async Task QueryProperty_InheritedProperty_ShowsInheritedSource()
     {
-        // Regression: the value lives only on the archetype (inherited, never overridden),
+        // The value lives only on the archetype (inherited, never overridden),
         // so it comes from the effective endpoint keyed by qualified path — not the removed key.
         var thingId = Guid.NewGuid();
         _myceliumMock.Setup(b => b.GetAllThingsAsync())
@@ -445,10 +431,6 @@ public class QueryCommandHandlerTests
         Assert.Contains("Found 1 thing(s)", output);
         Assert.DoesNotContain("inherited from", output);
     }
-
-    #endregion
-
-    #region ShowStatsAsync Tests
 
     [Fact]
     public async Task QueryStats_EmptyModel_ShowsZeros()
@@ -575,6 +557,4 @@ public class QueryCommandHandlerTests
         Assert.Contains("p6: 2 relationship(s)", output);
         Assert.Equal(5, output.Split('\n').Count(line => line.Contains(" relationship(s)")));
     }
-
-    #endregion
 }

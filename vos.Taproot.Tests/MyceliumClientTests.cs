@@ -1,10 +1,3 @@
-// Direct unit tests for vos.Taproot.MyceliumClient. Uses the internal test-seam
-// constructor (MyceliumClient(myceliumUrl, apiKey, HttpClient, Func<DateTime>?))
-// reached via InternalsVisibleTo, and the MockHttpMessageHandler from
-// vos.Tests.Shared to fake mycelium HTTP without touching the network.
-//
-// See docs/FOLLOW-UPS.md (entry #1) for the design rationale.
-
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -22,8 +15,6 @@ public class MyceliumClientTests
     private const string MyceliumUrl = "https://localhost:7243";
     private const string ApiKey = "test-api-key";
     private const string ServiceToken = "test-jwt-from-mycelium";
-
-    // ---- Construction + API key resolution ----
 
     [Fact]
     public void Ctor_TrimsTrailingSlashFromMyceliumUrl()
@@ -126,8 +117,6 @@ public class MyceliumClientTests
         act.Should().NotThrow();
     }
 
-    // ---- GetTokenAsync token flow ----
-
     [Fact]
     public async Task GetTokenAsync_SendsXApiKeyAndReturnsMyceliumToken()
     {
@@ -208,8 +197,6 @@ public class MyceliumClientTests
         captured.Headers.Authorization!.Scheme.Should().Be("Bearer");
         captured.Headers.Authorization.Parameter.Should().Be(ServiceToken);
     }
-
-    // ---- HTTP method patterns: GET → JsonElement ----
 
     [Fact]
     public async Task GetAllThingsAsync_ParsesJsonArray()
@@ -578,8 +565,6 @@ public class MyceliumClientTests
             .And.Contain("properties=capacity%2Cfill");
     }
 
-    // ---- HTTP method patterns: GET → JsonElement? (404 → null) ----
-
     [Fact]
     public async Task GetThingAsync_FoundReturnsElement_NotFoundReturnsNull()
     {
@@ -684,8 +669,6 @@ public class MyceliumClientTests
         result.Should().NotBeNull();
     }
 
-    // ---- HTTP method patterns: GET → string ----
-
     [Fact]
     public async Task GetModelJsonAsync_ReturnsRawString()
     {
@@ -702,8 +685,6 @@ public class MyceliumClientTests
 
         json.Should().Be("{\"raw\":\"model\"}");
     }
-
-    // ---- HTTP method patterns: POST with body → JsonElement ----
 
     [Fact]
     public async Task CreateThingAsync_PostsNameInBody()
@@ -847,8 +828,6 @@ public class MyceliumClientTests
         // (No specific assertion needed - we're exercising the no-token branch of SwitchModelAsync)
     }
 
-    // ---- HTTP method patterns: POST no body → bool ----
-
     [Fact]
     public async Task ShutdownMyceliumAsync_PostsAndReturnsSuccessBoolean()
     {
@@ -902,8 +881,6 @@ public class MyceliumClientTests
         (await client.StartServiceAsync(handlerId)).Should().BeTrue();
     }
 
-    // ---- HTTP method patterns: POST no body → JsonElement ----
-
     [Fact]
     public async Task LoadLibrarySeedAsync_PostsToLoadEndpoint()
     {
@@ -931,8 +908,6 @@ public class MyceliumClientTests
         await client.ReloadSeedsAsync();
     }
 
-    // ---- HTTP method patterns: POST string body → string ----
-
     [Fact]
     public async Task SetModelAsync_PostsRawJsonAndReturnsRawResponse()
     {
@@ -951,8 +926,6 @@ public class MyceliumClientTests
         var result = await client.SetModelAsync(modelJson);
         result.Should().Be("response-payload");
     }
-
-    // ---- Fragment upsert ----
 
     [Fact]
     public async Task ApplyFragmentAsync_PostsFragmentToModelFragmentEndpointAndReturnsCounts()
@@ -975,8 +948,6 @@ public class MyceliumClientTests
         capturedBody.Value.GetProperty("Things").GetArrayLength().Should().Be(1);
         result.GetProperty("thingsCreated").GetInt32().Should().Be(1);
     }
-
-    // ---- Promotion into a project model ----
 
     [Fact]
     public async Task PromoteAsync_PostsWhatTravelsAndWhatToBuildItFrom()
@@ -1017,8 +988,6 @@ public class MyceliumClientTests
         await refused.Should().ThrowAsync<HttpRequestException>();
     }
 
-    // ---- Taking a group out of a model ----
-
     [Fact]
     public async Task PruneAsync_PostsTheRootAndWhatTheWalkFollows()
     {
@@ -1056,8 +1025,6 @@ public class MyceliumClientTests
         await refused.Should().ThrowAsync<HttpRequestException>();
     }
 
-    // ---- IFC ingestion via the Xylem service ----
-
     [Fact]
     public async Task IngestIfcAsync_PostsMultipartToTheIngestServiceWithBearer()
     {
@@ -1089,8 +1056,6 @@ public class MyceliumClientTests
         }
     }
 
-    // ---- HTTP method patterns: PUT with body → JsonElement ----
-
     [Fact]
     public async Task SetPropertyAsync_PutsTypedValuePayload()
     {
@@ -1112,7 +1077,7 @@ public class MyceliumClientTests
         capturedBody.Value.GetProperty("Value").GetString().Should().Be("red");
     }
 
-    // Regression: adding a property is POST on the same path; PUT answers 404 for one the
+    // Adding a property is POST on the same path; PUT answers 404 for one the
     // Thing does not hold yet, and the short type names the guide lists were sent unmapped.
     [Fact]
     public async Task AddPropertyAsync_PostsTheTypedValueUnderThePlatformsTypeName()
@@ -1303,8 +1268,6 @@ public class MyceliumClientTests
         (await act.Should().ThrowAsync<HttpRequestException>()).Which.Message.Should().Contain("There is no account named nobody");
     }
 
-    // ---- HTTP method patterns: PUT no body → JsonElement ----
-
     [Fact]
     public async Task SaveLibrarySeedAsync_PutsToLibrarySeedsEndpoint()
     {
@@ -1318,8 +1281,6 @@ public class MyceliumClientTests
 
         await client.SaveLibrarySeedAsync("village");
     }
-
-    // ---- HTTP method patterns: DELETE → bool ----
 
     [Fact]
     public async Task DeleteThingAsync_SuccessReturnsTrue()
@@ -1405,8 +1366,6 @@ public class MyceliumClientTests
         (await client.DeleteRangeAsync(thingId, "warm")).Should().BeTrue();
     }
 
-    // ---- HTTP method patterns: DELETE → void (EnsureSuccessStatusCode) ----
-
     [Fact]
     public async Task ClearModelAsync_DeletesModelEndpoint_NonSuccessThrows()
     {
@@ -1429,8 +1388,6 @@ public class MyceliumClientTests
         var actFail = async () => await clientFail.ClearModelAsync();
         await actFail.Should().ThrowAsync<HttpRequestException>();
     }
-
-    // ---- Time-range query string (BuildTimeRangeQuery via mutations methods) ----
 
     [Fact]
     public async Task GetModelMutationsAsync_BothTimestamps_BuildsBothQueryParams()
@@ -1632,8 +1589,6 @@ public class MyceliumClientTests
         captured.Headers.Authorization.Should().NotBeNull();
     }
 
-    // ---- Error path: non-2xx on any authenticated GET surfaces HttpRequestException ----
-
     [Fact]
     public async Task AuthenticatedGet_Non2xxResponse_ThrowsViaEnsureSuccessStatusCode()
     {
@@ -1646,8 +1601,6 @@ public class MyceliumClientTests
 
         await act.Should().ThrowAsync<HttpRequestException>();
     }
-
-    // ---- Helpers ----
 
     private static (MyceliumClient client, MockHttpMessageHandler handler) NewClient(
         Func<HttpRequestMessage, HttpResponseMessage> respond,
@@ -1696,7 +1649,7 @@ public class MyceliumClientTests
     private static HttpResponseMessage TokenResponse(string token)
         => JsonResponse($"{{\"token\":\"{token}\"}}");
 
-    // Regression: the platform answers a refused mode with the modes it accepts, and the
+    // The platform answers a refused mode with the modes it accepts, and the
     // default status-code check discards that body — leaving the operator a bare "400 (Bad Request)".
     [Fact]
     public async Task EnsureSuccessCarryingTheReason_OnRefusal_KeepsWhatThePlatformSaid()

@@ -121,8 +121,6 @@ public class PublicPageProxyEndpointTests
         return await client.SendAsync(request);
     }
 
-    // ---- the reduction ---------------------------------------------------------------------------
-
     [Fact]
     public async Task A_submitter_reduces_a_series_of_their_own_site_and_the_service_names_the_site()
     {
@@ -205,8 +203,6 @@ public class PublicPageProxyEndpointTests
         (await response.Content.ReadAsStringAsync()).Should().Contain(SubmissionFindingsService.NotYourSubmission);
         broker.ReduceCalls.Should().BeEmpty();
     }
-
-    // ---- the tiles -------------------------------------------------------------------------------
 
     [Fact]
     public async Task A_tile_is_fetched_through_the_registration_the_route_names_and_served_with_its_cache_life()

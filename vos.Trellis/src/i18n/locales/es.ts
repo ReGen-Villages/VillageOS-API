@@ -188,6 +188,7 @@ export const es: PartialResources = {
       sampleExample: 'p. ej. 10',
       updated: 'Modo de propiedad actualizado',
       updateFailed: 'No se pudo actualizar el modo de propiedad',
+      loadFailed: 'No se pudo leer el modo de propiedad',
     },
     feed: {
       title: 'Actividad',

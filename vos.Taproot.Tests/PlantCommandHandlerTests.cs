@@ -31,8 +31,6 @@ public class PlantCommandHandlerTests : IDisposable
         return path;
     }
 
-    // ========== Help Tests ==========
-
     [Fact]
     public async Task Execute_WithNoArguments_ShowsHelp()
     {
@@ -42,8 +40,6 @@ public class PlantCommandHandlerTests : IDisposable
         Assert.Contains("Usage: plant <file> [mode] [options]", output);
         Assert.Contains("Run 'config mode' to see the modes this platform accepts.", output);
     }
-
-    // ========== Basic Plant Tests ==========
 
     [Fact]
     public async Task Execute_WithValidFile_LoadsModel()
@@ -83,8 +79,6 @@ public class PlantCommandHandlerTests : IDisposable
         var output = _writer.ToString();
         Assert.Contains("Error: File not found", output);
     }
-
-    // ========== Plant with Mode Tests ==========
 
     [Fact]
     public async Task Execute_WithModeArgument_SetsAllPropertyModes()
@@ -156,8 +150,6 @@ public class PlantCommandHandlerTests : IDisposable
         _myceliumMock.Verify(b => b.SetPropertyModeAsync(thingId, "Prop1", "Sampled", null, 25), Times.Once);
     }
 
-    // ========== Multiple Properties Tests ==========
-
     [Fact]
     public async Task Execute_WithMultipleThingsAndProperties_SetsAllModes()
     {
@@ -184,8 +176,6 @@ public class PlantCommandHandlerTests : IDisposable
         Assert.Contains("Configured 3 properties across 2 things to CurrentOnly mode", output);
     }
 
-    // ========== Mode Case Insensitivity Tests ==========
-
     [Theory]
     [InlineData("fullhistory")]
     [InlineData("FULLHISTORY")]
@@ -210,8 +200,6 @@ public class PlantCommandHandlerTests : IDisposable
         var output = _writer.ToString();
         Assert.Contains($"Setting all properties to {mode} mode", output);
     }
-
-    // ========== Error Handling Tests ==========
 
     [Fact]
     public async Task Execute_WhenMyceliumThrows_ShowsError()
@@ -257,8 +245,6 @@ public class PlantCommandHandlerTests : IDisposable
         Assert.Contains("Warning: Could not set mode for Thing1.Prop1", output);
         Assert.Contains("Configured 1 properties across 1 things to FullHistory mode", output);
     }
-
-    // ========== SetAllPropertyModesAsync Edge Cases ==========
 
     [Fact]
     public async Task Execute_WithThingMissingId_SkipsThing()
@@ -352,7 +338,7 @@ public class PlantCommandHandlerTests : IDisposable
         Assert.Contains("Configured 1 properties across 1 things", output);
     }
 
-    // Regression: the client held its own list of modes and silently dropped a word that was
+    // The client held its own list of modes and silently dropped a word that was
     // not on it, so a mode the platform accepts and this client had not heard of did nothing at all.
     [Fact]
     public async Task Execute_WithAModeThisClientDoesNotKnow_SendsItToThePlatform()
@@ -371,8 +357,6 @@ public class PlantCommandHandlerTests : IDisposable
 
         _myceliumMock.Verify(b => b.SetPropertyModeAsync(thingId, "flowRate", "EveryOtherChange", null, null), Times.Once);
     }
-
-    // ========== ParseArguments Edge Cases ==========
 
     [Fact]
     public async Task Execute_WithMultipleOptions_ParsesCorrectly()
@@ -420,8 +404,6 @@ public class PlantCommandHandlerTests : IDisposable
         var output = _writer.ToString();
         Assert.Contains("Sample rate: 1 in 10", output);
     }
-
-    // ========== Cleanup ==========
 
     public void Dispose()
     {

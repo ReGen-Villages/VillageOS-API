@@ -14,8 +14,6 @@ public class OutboundRequestTests
 {
     private static JsonElement Json(string raw) => JsonDocument.Parse(raw).RootElement;
 
-    // ---------- MethodSupportsBody ----------
-
     [Theory]
     [InlineData("POST", true)]
     [InlineData("PUT", true)]
@@ -27,8 +25,6 @@ public class OutboundRequestTests
     {
         OutboundRequest.MethodSupportsBody(method).Should().Be(expected);
     }
-
-    // ---------- ApplyQueryParameters ----------
 
     [Fact]
     public void ApplyQueryParameters_Null_LeavesUriUnchanged()
@@ -85,8 +81,6 @@ public class OutboundRequestTests
         Uri.UnescapeDataString(result.Query).Should().Contain("name = 'a b'");
     }
 
-    // ---------- ResolveTimeout ----------
-
     [Fact]
     public void ResolveTimeout_NumericSeconds_ReturnsThatDuration()
     {
@@ -128,8 +122,6 @@ public class OutboundRequestTests
         resolved.Should().Be(TimeSpan.FromSeconds(30.5));
     }
 
-    // ---------- TryParseStringMap ----------
-
     [Fact]
     public void TryParseStringMap_Object_ParsesEntries()
     {
@@ -163,8 +155,6 @@ public class OutboundRequestTests
     {
         OutboundRequest.TryParseStringMap(Json(raw)).Should().BeNull();
     }
-
-    // ---------- Build ----------
 
     [Fact]
     public void Build_GetWithoutBody_HasNoContent()
@@ -268,8 +258,6 @@ public class OutboundRequestTests
         map!["obj"].Should().Be("{\"k\":\"v\"}");
         map["arr"].Should().Be("[1,2]");
     }
-
-    // ---------- Accept header ----------
 
     [Fact]
     public void Build_AcceptHeader_SetsAcceptOnRequest()

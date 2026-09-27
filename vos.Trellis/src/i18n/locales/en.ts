@@ -180,6 +180,7 @@ export const en = {
       sampleExample: 'e.g. 10',
       updated: 'Property mode updated',
       updateFailed: 'Failed to update property mode',
+      loadFailed: 'Failed to read the property mode',
     },
     feed: {
       title: 'Activity Feed',

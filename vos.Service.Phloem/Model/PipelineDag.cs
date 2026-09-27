@@ -35,7 +35,6 @@ public sealed class DagNode
     // continue (collect-partial — failed items become null holes, node is partial).
     public string OnItemError { get; init; } = ModelNames.OnItemErrorFail;
 
-    public IEnumerable<DagPort> InputPorts => Ports.Where(p => p.IsInput);
     public IEnumerable<DagPort> OutputPorts => Ports.Where(p => p.IsOutput);
 
     // The single collection input this node fans out over, if any (v1 supports exactly one).

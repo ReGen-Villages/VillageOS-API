@@ -387,7 +387,6 @@ async function fitCameraToBounds(
   const { center, size } = bounds;
 
   if (mode === '3d') {
-    // Diagonal 3/4 overhead view framing the full model.
     camera.fov = 45;
     const horizontal = Math.max(size.x, size.z, size.y) || 1;
     const distance = (horizontal / (2 * Math.tan((camera.fov * Math.PI) / 360))) * 1.2;

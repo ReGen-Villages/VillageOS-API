@@ -188,6 +188,7 @@ export const nl: PartialResources = {
       sampleExample: 'bijv. 10',
       updated: 'Eigenschapsmodus bijgewerkt',
       updateFailed: 'Bijwerken van eigenschapsmodus mislukt',
+      loadFailed: 'Lezen van eigenschapsmodus mislukt',
     },
     feed: {
       title: 'Activiteitenoverzicht',

@@ -11,7 +11,6 @@ namespace vos.Service.Tributary.Tests;
 
 public class ObservationIngestServiceTests
 {
-    // ---------- TryTransform ----------
 
     [Fact]
     public void TryTransform_WithValidJsonAndExpression_ReturnsNormalizedJson()
@@ -91,8 +90,6 @@ public class ObservationIngestServiceTests
         ok.Should().BeFalse();
         error.Should().NotBeEmpty();
     }
-
-    // ---------- CreateObservationsAsync — hybrid ingest (readings -> observations) ----------
 
     [Fact]
     public async Task ExistingEntity_IsRelatedToTheEndpointThatWroteOntoIt()
@@ -260,7 +257,6 @@ public class ObservationIngestServiceTests
 
         result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
         result.EntitiesTouched.Should().Be(1);
-        // First reading seeds the property declaration (a Fact); the second is observed.
         result.ObservationsSubmitted.Should().Be(1);
         await client.Received(1).CreateThingAsync("Sensor-1", Arg.Any<Dictionary<string, object?>>());
         await client.Received(1).SetPropertyModeAsync(entityId, "temp", ObservationIngestService.DefaultObservationMode);
@@ -336,8 +332,6 @@ public class ObservationIngestServiceTests
             "Mycelium stamps an undated sample from the model clock, which a run can anchor away "
             + "from real time — stamping here would use this process's wall clock instead");
     }
-
-    // ---------- failure paths ----------
 
     [Fact]
     public async Task TransformFails_ReturnsFailure_AndTouchesNothing()
@@ -496,8 +490,6 @@ public class ObservationIngestServiceTests
         await client.DidNotReceive().CreateRelationshipAsync(
             Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Guid>());
     }
-
-    // ---------- ObserveValueAsync ----------
 
     [Fact]
     public async Task ObserveValueAsync_OneSampleLandsOnTheSubject_CarryingTheTimeItIsAbout()

@@ -6,7 +6,7 @@ function thing(partial: Partial<VosThing>): VosThing {
   return { Id: 'id', Name: 'name', Properties: {}, ...partial };
 }
 
-describe('ifcGlobalIdOf (Bug #6191)', () => {
+describe('ifcGlobalIdOf', () => {
   it('reads the identifier a Thing owns', () => {
     expect(ifcGlobalIdOf(thing({ Properties: { ifcGlobalId: 'own-guid' } }))).toBe('own-guid');
   });
@@ -67,7 +67,7 @@ describe('ifcGlobalIdOf (Bug #6191)', () => {
   });
 });
 
-describe('storedPropertyOf (Bug #6191)', () => {
+describe('storedPropertyOf', () => {
   // ifcClass travels the same way as the identifier: the type declares the name,
   // so an instance's own class is stored as an override. The graph colours by it.
   it('reads a non-identifier property out of the overrides too', () => {

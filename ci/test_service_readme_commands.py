@@ -5,7 +5,7 @@ developer machine: macOS has no `python` command, and the `python3` on PATH refu
 packages into itself. The install was the worse half — where it did succeed it put the dependencies
 on the system interpreter, and `python3 -m unittest discover`, the command the stdlib suites in this
 repository use, then reports `OK` on that directory having collected nothing. A reader following the
-README turned a loud failure into a silent pass (#6692). This is the check that reads those READMEs.
+README turned a loud failure into a silent pass. This is the check that reads those READMEs.
 
 A directory with no requirements.txt has no environment to get wrong, so nothing to check.
 """

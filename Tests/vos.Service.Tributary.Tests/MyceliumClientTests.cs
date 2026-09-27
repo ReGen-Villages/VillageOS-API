@@ -13,7 +13,6 @@ namespace vos.Service.Tributary.Tests;
 
 public class MyceliumClientTests
 {
-    // ---------- FindThingByNameAsync ----------
 
     [Fact]
     public async Task FindThingByNameAsync_WhenMyceliumReturnsThing_ReturnsParsedThing()
@@ -107,8 +106,6 @@ public class MyceliumClientTests
         result!.Value.Name.Should().Be("lowercase");
     }
 
-    // ---------- GetEffectivePropertiesAsync ----------
-
     [Fact]
     public async Task GetEffectivePropertiesAsync_WhenMyceliumReturnsValueEnvelope_ExtractsValues()
     {
@@ -183,8 +180,6 @@ public class MyceliumClientTests
         result.Should().NotContainKey("bad");
     }
 
-    // ---------- CreateThingAsync ----------
-
     [Fact]
     public async Task CreateThingAsync_HappyPath_ReturnsCreated()
     {
@@ -250,8 +245,6 @@ public class MyceliumClientTests
         (await sut.CreateThingAsync("X")).Should().BeNull();
     }
 
-    // ---------- CreateRelationshipAsync ----------
-
     [Fact]
     public async Task CreateRelationshipAsync_HappyPath_ReturnsTrue()
     {
@@ -285,10 +278,6 @@ public class MyceliumClientTests
 
         (await sut.CreateRelationshipAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid())).Should().BeFalse();
     }
-
-    // ---------- Helpers ----------
-
-    // ---------- SubmitObservationsAsync ----------
 
     [Fact]
     public async Task SubmitObservationsAsync_PostsBatchToObservationsRoute()
@@ -382,8 +371,6 @@ public class MyceliumClientTests
         ok.Should().BeFalse();
     }
 
-    // ---------- SetPropertyModeAsync ----------
-
     [Fact]
     public async Task SetPropertyModeAsync_PutsModeToPropertyModeRoute()
     {
@@ -414,8 +401,6 @@ public class MyceliumClientTests
 
         ok.Should().BeFalse();
     }
-
-    // ---------- DepositAssetAsync ----------
 
     [Fact]
     public async Task DepositAssetAsync_Accepted_ReturnsTheTicketAndSendsTheBytesVerbatim()

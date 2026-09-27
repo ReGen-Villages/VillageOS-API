@@ -9,7 +9,7 @@ using static vos.Service.Forage.Tests.ModelSnapshotStub;
 
 namespace vos.Service.Forage.Tests;
 
-// The division a run works out for itself, driven end to end (6851). The choosing is pinned in
+// The division a run works out for itself, driven end to end. The choosing is pinned in
 // Helpers/HazardDivisionTests and the run's own decisions in Services/DivisionResolverTests; this covers
 // what the endpoint composes from them, which is the half nothing else reaches: the two lookups are read
 // out of the same model read the sources come from, and what they settle on has to address the gradings

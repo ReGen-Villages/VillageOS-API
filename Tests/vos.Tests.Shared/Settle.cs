@@ -1,7 +1,7 @@
 namespace vos.Tests.Shared;
 
-// Waits for a condition a test cannot await directly — a background loop's effect, a fire-and-forget
-// write. The ceiling is a hang detector, not a deadline the work is meant to approach: a test that
+// Waits for a condition a test cannot await directly — a background loop's effect, a write nothing
+// awaits. The ceiling is a hang detector, not a deadline the work is meant to approach: a test that
 // instead waits a fixed duration is asserting how busy the build agent is, so it passes on an idle
 // machine and reddens an unrelated pull request on a loaded one.
 public static class Settle
