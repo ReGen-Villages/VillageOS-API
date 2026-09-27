@@ -6,10 +6,10 @@ import type { VosTypeName } from '../utils/constants';
 import i18n from '../i18n';
 
 // Persist / read a pipeline as Things + relationships: the editor only creates, reads, updates and
-// deletes through thingApi / relationshipApi. Save shape mirrors the seed — node -has-> connection, and a wire is a relationship
-// through the predicate the model marks as holding wires, carrying fromPort/toPort. Every archetype an `is`
-// relationship is written to is the one the model marks with that role, never one this file names. Node canvas
-// position round-trips as x/y properties on the node Thing.
+// deletes through thingApi / relationshipApi. Save shape mirrors the seed — node -has-> connection, and a
+// wire is a relationship through the predicate the model marks as holding wires, carrying fromPort/toPort.
+// Every archetype an `is` relationship is written to is the one the model marks with that role, never one
+// this file names. Node canvas position round-trips as x/y properties on the node Thing.
 
 const DOUBLE: VosTypeName = 'vos.Double';
 const STRING: VosTypeName = 'vos.String';

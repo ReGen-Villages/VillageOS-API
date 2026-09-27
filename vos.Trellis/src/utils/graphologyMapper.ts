@@ -12,6 +12,7 @@ import { computeNodeSize } from './nodeSize';
 import { LAYOUT_DEFAULTS, type LayoutSettings } from './guiSettings';
 import { resolveClassColor } from './classPalette';
 
+// Built in one pass over things and relationships, rather than a scan of every relationship per thing.
 interface RelationshipIndex {
   /** Set of all thing IDs used as predicates in any relationship. */
   predicateIds: Set<string>;

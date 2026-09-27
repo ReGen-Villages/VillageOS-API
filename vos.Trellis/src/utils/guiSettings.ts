@@ -58,8 +58,10 @@ export const LAYOUT_DEFAULTS: LayoutSettings = {
   clusterRepulsion: 0.4,
   scalingRatioMultiplier: 100,
   gravityMultiplier: 10000,
+  // The ForceAtlas2 paper's value for graphs past ten thousand nodes.
   barnesHutTheta: 1.2,
   slowDown: 10,
+  // Gravity that weakens with distance cannot hold tens of thousands of nodes against their repulsion.
   strongGravityMode: true,
   nodeSizeMin: 1,
   nodeSizeMax: 6,

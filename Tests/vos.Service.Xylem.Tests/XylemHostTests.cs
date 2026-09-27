@@ -129,7 +129,11 @@ public class XylemHostTests
 
         IngestJob? job = null;
         await Settle.UntilAsync(
-            () => (job = client.GetFromJsonAsync<IngestJob>($"/ingest/jobs/{jobId}").Result)?.Status == IngestJobStatus.Succeeded,
+            () =>
+            {
+                job = client.GetFromJsonAsync<IngestJob>($"/ingest/jobs/{jobId}").GetAwaiter().GetResult();
+                return job?.Status == IngestJobStatus.Succeeded;
+            },
             "the background ingest completes");
         job!.Result!.ThingsCreated.Should().Be(3);
         factory.Runner.SeenName.Should().Be("Demo");
