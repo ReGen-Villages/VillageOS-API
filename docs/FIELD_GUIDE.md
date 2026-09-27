@@ -963,7 +963,7 @@ The **Pipelines** page in the console is the editor.
 - **The catalysts**, in the rail on the left, are everything in the model that sets a run off,
   listed by kind — a state a Thing enters, a kind of message an external system sends, a request —
   each saying what it starts or what happens to it today. Clicking one places a **start node**
-  standing for it; *By hand* places a start whose ports are filled from the run's parameters. Beneath
+  standing for it; *By hand* places a start whose ports are filled from the run's parameters. Beside
   the catalysts the **roster** lists the model's pipelines; one opens from it, and the first opens on
   arrival.
 - **The outputs**, in the rail on the right, offer the answer, the other pipelines and the external
@@ -1070,9 +1070,10 @@ Open `http://localhost:5173`. Sign in as `admin` with the password the server wr
 `VOS_ADMIN_PASSWORD` held then. There is no default password. A developer may put a key in
 `VITE_API_KEY` in a local settings file for automatic sign-in.
 
-![The sign-in form: username, password and the ReGen mark above them](assets/trellis-sign-in.png)
+![The sign-in form: username, password and the ReGen mark above them, with the theme switch and the language in the corner](assets/trellis-sign-in.png)
 
-The sign-in and password pages have one look whichever theme the rest of the console is in. With
+The sign-in and password pages carry the theme switch and the language in their corner, and follow
+the theme the rest of the console is in. With
 several models loaded, they are offered by name after sign-in; an account enters only the models it
 has been granted, and an administrator every one (chapter 54).
 
@@ -1391,6 +1392,8 @@ own. An account holds one role and enters only the models it is granted; an admi
 model and needs no grant. Nothing on the page acts on the administrator's own account. The same acts
 are the `user` commands in Taproot (chapter 68), through the same route, so the two say and refuse the
 same things.
+
+![The API keys page: every key with its role, the model it may enter, its fingerprint, when it expires and whether it is in use or revoked; the form that issues one, showing the key it just issued once; and the keys in use to revoke](assets/trellis-api-keys.png)
 
 The **API keys** page lists every key with whether it is in use, revoked or expired. **Issue a key**
 takes a name, a role, optionally the model the key is confined to, and optionally the days until it

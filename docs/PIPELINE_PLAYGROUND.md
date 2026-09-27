@@ -23,7 +23,7 @@ Open the GUI and click **Switch Model** in the sidebar footer to open the seed p
 seed and re-scopes your session to it.
 
 Now click **Pipelines** in the sidebar. On the left you'll see the **catalysts** — everything that sets a run
-off — and beneath them the **roster** of the model's pipelines, the example DAGs among them; the first opens
+off — and beside them the **roster** of the model's pipelines, the example DAGs among them; the first opens
 on arrival. On the right are the **outputs** and, under them, the **services**.
 
 ## The Pipelines page in 60 seconds
@@ -31,7 +31,7 @@ on arrival. On the right are the **outputs** and, under them, the **services**.
 - **Catalysts (left)** — what starts a run, by kind: a state a Thing enters, a kind of message an external
   system sends, a request. Click one to place a start node standing for it; **By hand** places a start
   filled from the run's parameters.
-- **Roster (left, beneath)** — the model's pipelines. Click one to open it.
+- **Roster (left, beside the catalysts)** — the model's pipelines. Click one to open it.
 - **Outputs (right)** — the answer, the other pipelines and the external systems. Click one to place an end
   node.
 - **Services (right, beneath)** — each entry is a service you can drop as a node. Click one to add it to the
