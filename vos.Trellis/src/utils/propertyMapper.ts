@@ -156,17 +156,13 @@ function resolveEffective(
 
   const merged: Record<string, unknown> = {};
 
-  // 1. Inherited defaults from ancestors — farthest first so a nearer archetype overwrites a farther
-  //    one; each ancestor's own effective view is folded in, so its overrides and deeper defaults are
-  //    already resolved.
+  // Ancestors fold in farthest first so a nearer archetype overwrites a farther one, each through its
+  // own effective view so its overrides and deeper defaults are already resolved; then this instance's
+  // stored overrides, then its own properties, each layer winning over the one before.
   foldInAncestors(thing, lookup, visiting, (parent) =>
     Object.assign(merged, resolveEffective(parent, lookup, visiting)),
   );
-
-  // 2. This instance's stored overrides win over inherited defaults.
   collectOverrides(thing.InheritedOverrides, merged);
-
-  // 3. Own properties win over everything.
   Object.assign(merged, thing.Properties);
 
   const frozen = Object.freeze(merged);

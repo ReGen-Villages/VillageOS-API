@@ -52,7 +52,6 @@ describe('useNodeRangesData', () => {
       await waitFor(() => expect(result.current.rangesLoading).toBe(false));
       expect(mockGetSummary).toHaveBeenCalledTimes(1);
 
-      // Simulate an SSE event bumping statesVersion
       rerender({ version: 1 });
       await act(() => Promise.resolve());
       rerender({ version: 2 });

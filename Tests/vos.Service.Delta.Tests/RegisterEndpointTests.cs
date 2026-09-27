@@ -15,7 +15,6 @@ namespace vos.Service.Delta.Tests;
 // test rather than duplicating the entire decision tree.
 public class RegisterEndpointTests
 {
-    // ---------- Request validation ----------
 
     [Fact]
     public async Task Handle_MissingName_Returns400()
@@ -234,8 +233,6 @@ public class RegisterEndpointTests
         (await response.Content.ReadAsStringAsync()).Should().Contain("Unsupported httpMethod");
     }
 
-    // ---------- Template resolution ----------
-
     [Fact]
     public async Task Handle_TemplateCannotBeProvisioned_Returns500AndLeavesNoEndpointBehind()
     {
@@ -301,8 +298,6 @@ public class RegisterEndpointTests
         (await response.Content.ReadAsStringAsync()).Should().Contain("Failed to create registered endpoint");
         creationCount.Should().Be(1);
     }
-
-    // ---------- Relationship creation + compensation ----------
 
     [Fact]
     public async Task Handle_RelationshipCreationFails_CompensatesAndReturns500()
@@ -384,8 +379,6 @@ public class RegisterEndpointTests
         deleted.Should().BeTrue();
     }
 
-    // ---------- Happy path ----------
-
     [Fact]
     public async Task Handle_HappyPath_CreatesEverythingAndReturns200()
     {
@@ -430,8 +423,6 @@ public class RegisterEndpointTests
         propertySets.Should().Contain(s => s.Contains("\"name\":\"httpMethod\""));
     }
 
-    // ---------- /register alias ----------
-
     [Fact]
     public async Task Register_AliasUsesSameLogic_ReturnsSameShape()
     {
@@ -466,8 +457,6 @@ public class RegisterEndpointTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         (await response.Content.ReadAsStringAsync()).Should().Contain("\"success\":true");
     }
-
-    // ---------- Template selection ----------
 
     [Fact]
     public async Task Handle_UnknownTemplate_Returns400WithDescentMessage()
@@ -650,8 +639,6 @@ public class RegisterEndpointTests
         propertySets.Should().Contain(s => s.Contains("\"name\":\"timeout\""));
     }
 
-    // ---------- Starting up touches no model ----------
-
     [Fact]
     public async Task Boot_BeforeAnyRegistration_TouchesNoModel()
     {
@@ -672,8 +659,6 @@ public class RegisterEndpointTests
 
         myceliumCalls.Should().Be(0);
     }
-
-    // ---------- /health and /shutdown ----------
 
     [Fact]
     public async Task Health_ReturnsHealthy()
@@ -702,8 +687,6 @@ public class RegisterEndpointTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         (await response.Content.ReadAsStringAsync()).Should().Contain("Shutting down Delta");
     }
-
-    // ---------- Helpers ----------
 
     private static HttpResponseMessage Json(string body) =>
         new(HttpStatusCode.OK)

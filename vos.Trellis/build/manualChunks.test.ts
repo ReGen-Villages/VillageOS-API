@@ -15,7 +15,7 @@ describe('pickChunk', () => {
     });
   });
 
-  describe('vendor-react (Bug #5359 — stable cache key)', () => {
+  describe('vendor-react — stable cache key', () => {
     it.each([
       '/repo/node_modules/react/index.js',
       '/repo/node_modules/react-dom/client.js',

@@ -38,8 +38,8 @@ describe('BuildingDetail3D', () => {
     const { rerender, queryByTestId, getByText } = render(<BuildingDetail3D geometryValue={null} />);
     expect(getByText('The 3D geometry could not be read.')).toBeTruthy();
 
-    // Geometry arrives: the populated branch renders extra hooks. Before the
-    // fix this threw "Rendered more hooks than during the previous render".
+    // The populated branch renders extra hooks, which once threw "Rendered more hooks than during the
+    // previous render".
     rerender(<BuildingDetail3D geometryValue="VALID" />);
     expect(queryByTestId('canvas')).toBeTruthy();
   });

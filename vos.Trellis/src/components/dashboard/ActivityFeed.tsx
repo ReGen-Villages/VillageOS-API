@@ -122,7 +122,6 @@ export function ActivityFeed({ events, onCollapse }: Props) {
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragging.current) return;
-    // Dragging up increases height
     const delta = startY.current - e.clientY;
     const newHeight = Math.max(MIN_HEIGHT, startHeight.current + delta);
     setHeight(newHeight);

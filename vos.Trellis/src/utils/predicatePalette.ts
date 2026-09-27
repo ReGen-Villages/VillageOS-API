@@ -30,7 +30,6 @@
  * vos.Tools.ModelIngest/Pipeline/*RelationshipExtractor.cs).
  */
 export const CURATED_PREDICATE_COLORS: Record<string, string> = {
-  // ── containment / hierarchy (green family) ───────────────────────────
   is:             '#a78bfa', // violet — type relation, ubiquitous, must stand out
   has:            '#86efac', // green-300
   contains:       '#86efac',
@@ -40,7 +39,6 @@ export const CURATED_PREDICATE_COLORS: Record<string, string> = {
   nests:          '#4ade80',
   hasMember:      '#86efac',
 
-  // ── material chain (brown / tan family) ──────────────────────────────
   hasMaterial:    '#a8744d', // brown
   hasLayer:       '#c8a47e', // tan
   hasLayerSet:    '#c8a47e',
@@ -48,7 +46,6 @@ export const CURATED_PREDICATE_COLORS: Record<string, string> = {
   hasProfile:     '#c8a47e',
   hasProfileSet:  '#c8a47e',
 
-  // ── MEP / connectivity (magenta / cyan family) ───────────────────────
   hasPort:         '#f0abfc', // magenta — matches the IfcDistributionPort node color
   connectsTo:      '#22d3ee', // cyan-400
   connectsElement: '#22d3ee',
@@ -56,29 +53,23 @@ export const CURATED_PREDICATE_COLORS: Record<string, string> = {
   connectsThrough: '#22d3ee',
   services:        '#67e8f9', // cyan-300
 
-  // ── openings & boundaries (amber / orange family) ────────────────────
   voids:       '#fbbf24', // amber
   fills:       '#fbbf24',
   hasBoundary: '#fb923c', // orange-400
 
-  // ── classification / type info (cyan) ────────────────────────────────
   hasClassification: '#67e8f9', // cyan-300
   typeInfo:          '#67e8f9',
 
-  // ── documentation / process / actors (muted) ─────────────────────────
   hasDocument:   '#a5b4fc', // indigo-300
   hasConstraint: '#a5b4fc',
   hasActor:      '#fda4af', // rose-300
   hasProcess:    '#bef264', // lime-300
   referencedIn:  '#94a3b8', // slate-400 — soft / metadata-ish
 
-  // ── coverings (tan) ──────────────────────────────────────────────────
   covers: '#c8a47e',
 
-  // ── clashes (red — alert) ────────────────────────────────────────────
   interferesWith: '#f87171', // red-400
 
-  // ── generic descriptors (slate) ──────────────────────────────────────
   node:  '#94a3b8',
   value: '#94a3b8',
 };

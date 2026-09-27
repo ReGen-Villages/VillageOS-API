@@ -101,8 +101,8 @@ describe('unwrapThing', () => {
     expect(result.InheritedOverrides).toBeUndefined();
   });
 
-  // Regression: the wire field is InheritedOverrides (override-only).
-  // unwrapThing must read it, or inherited override values silently vanish from the GUI.
+  // The wire field is InheritedOverrides (override-only); unwrapThing has to read it, or inherited
+  // override values silently vanish from the page.
   it('reads inherited override values from the InheritedOverrides field', () => {
     const thing = {
       ...baseThing,
@@ -120,14 +120,11 @@ describe('unwrapThing', () => {
   });
 });
 
-// Regression: under lazy inheritance an instance's value for an
-// inherited name is relocated out of Properties into InheritedOverrides, so
-// reading Properties alone misses it and dashboard widgets render blank/0.
+// Under lazy inheritance an instance's value for an inherited name is relocated out of Properties
+// into InheritedOverrides, so reading Properties alone misses it and dashboard widgets render blank.
 describe('effectiveProperties', () => {
-  // A lookup with no `is`-chain: exercises the override + own layers in isolation.
   const noAncestors: IsChainLookup = { byId: new Map(), isParents: new Map() };
 
-  // Build an is-chain lookup from archetype Things and a child→parents map.
   const chain = (things: VosThing[], parents: Record<string, string[]>): IsChainLookup => ({
     byId: new Map(things.map((t) => [t.Id, t])),
     isParents: new Map(Object.entries(parents)),
@@ -155,7 +152,6 @@ describe('effectiveProperties', () => {
     const merged = effectiveProperties({
       Properties: {},
       InheritedOverrides: {
-        // Home overrides x=2; its ancestor Building sets x=1 and y=9.
         Home: inheritedSet('Home', { x: 2 }, { Building: inheritedSet('Building', { x: 1, y: 9 }) }),
       },
     }, noAncestors);

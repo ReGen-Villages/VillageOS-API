@@ -43,7 +43,7 @@ export function RadialPredicateMenu() {
         closeRadialMenu();
       }
     };
-    // Use a short delay to avoid the same click that opened the menu
+    // Listening at once would let the click that opened the menu close it.
     const timer = setTimeout(() => {
       window.addEventListener('mousedown', handleClick);
     }, 100);
@@ -56,7 +56,6 @@ export function RadialPredicateMenu() {
   const handleToggle = useCallback(
     (predicateId: string) => {
       togglePredicateId(predicateId);
-      // Menu stays open for multi-select
     },
     [togglePredicateId],
   );
@@ -102,7 +101,6 @@ export function RadialPredicateMenu() {
 
       {/* Predicate slices arranged radially */}
       {predicateStatistics.map((stat, i) => {
-        // Angle: start at -90deg (12 o'clock), go clockwise
         const angle = ((2 * Math.PI) / count) * i - Math.PI / 2;
         const x = Math.cos(angle) * RADIUS;
         const y = Math.sin(angle) * RADIUS;

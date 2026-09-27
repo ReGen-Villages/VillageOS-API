@@ -173,8 +173,7 @@ describe('ModelPage', () => {
     await waitFor(() => expect(mockGetBytes).toHaveBeenCalledTimes(2));
   });
 
-  // Regression: the model page must mount NodeDetailPanel
-  // (the same component the GraphPage uses) — never a duplicate panel.
+  // The model page mounts the same NodeDetailPanel the GraphPage uses, never a duplicate panel.
   it('mounts NodeDetailPanel (not a duplicate panel) when viewer picks an element', async () => {
     const bytes = new Uint8Array([0x01]).buffer;
     mockGetBytes.mockResolvedValue(bytes);

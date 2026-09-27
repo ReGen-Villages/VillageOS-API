@@ -60,7 +60,6 @@ export function EdgeDetailPanel({ relationship: relationship, allThings, onClose
           relationshipRangeApi.getStates(relationship.Id),
         ]);
         if (!cancelled) {
-          // Adapt to ThingRangesResponse shape (no inherited ranges for relationships)
           setRangesData({
             ThingId: rangesResponse.RelationshipId,
             ThingName: rangesResponse.RelationshipName,

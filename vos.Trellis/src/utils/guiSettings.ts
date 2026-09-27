@@ -18,28 +18,24 @@ export interface FlashSettings {
  * on Mycelium (or in the seed JSON) overrides any of these without a rebuild.
  */
 export interface LayoutSettings {
-  // FA2 scalingRatio bases: repulsion for the whole graph, clusterRepulsion
-  // when a predicate cluster is active (members spread to show sub-structure).
+  // Repulsion for the whole graph; clusterRepulsion applies while a predicate cluster is active, so its
+  // members spread apart enough to show their sub-structure.
   repulsion: number;
   gravity: number;
   clusterRepulsion: number;
 
-  // FA2 supervisor knobs — empirically validated against the
-  // 30k-node IFC graph; defaults are in LAYOUT_DEFAULTS below.
+  // Force-layout settings, validated against a building model of tens of thousands of nodes.
   scalingRatioMultiplier: number;
   gravityMultiplier: number;
   barnesHutTheta: number;
   slowDown: number;
   strongGravityMode: boolean;
 
-  // Node sizing — incoming-degree → pixel size: clamp to
-  // [nodeSizeMin, nodeSizeMax] of nodeSizeMin + degree * nodeSizeSlope.
   nodeSizeMin: number;
   nodeSizeMax: number;
   nodeSizeSlope: number;
 
-  // Edge sizing — flat width for all edges. Smaller = less visual
-  // clutter when many edges share endpoints.
+  // One width for every edge; a smaller one reduces clutter where many edges share endpoints.
   edgeSize: number;
 
   /**
@@ -60,19 +56,16 @@ export const LAYOUT_DEFAULTS: LayoutSettings = {
   repulsion: 0.1,
   gravity: 0.0001,
   clusterRepulsion: 0.4,
-  // FA2 — see fa2Settings.ts for the rationale on each value.
   scalingRatioMultiplier: 100,
   gravityMultiplier: 10000,
   barnesHutTheta: 1.2,
   slowDown: 10,
   strongGravityMode: true,
-  // Node sizing — see nodeSize.ts.
   nodeSizeMin: 1,
   nodeSizeMax: 6,
   nodeSizeSlope: 0.4,
-  // Edge sizing.
   edgeSize: 1,
-  // Default to "ifcClass" so IFC-imported seeds work out of the box.
+  // A model imported from a building model renders by class without any setting.
   classifyingProperty: 'ifcClass',
 };
 
@@ -133,13 +126,11 @@ export function findGuiSettingsProperties(
   const typeThing = things.find((t) => t.Name === GUI_SETTINGS_TYPE_NAME);
   if (!typeThing) return null;
 
-  // Find an instance linked via "is" to this type
   const isRelationship = relationships.find((r) => r.TargetId === typeThing.Id);
   const instance = isRelationship
     ? things.find((t) => t.Id === isRelationship.SubjectId)
     : undefined;
 
-  // Merge: type defaults ← instance overrides
   return {
     ...(typeThing.Properties || {}),
     ...((instance?.Properties) || {}),
@@ -199,7 +190,6 @@ function readLayoutSettings(p: Record<string, unknown>): LayoutSettings {
     nodeSizeMax: toNumber(p['NodeSizeMax'], LAYOUT_DEFAULTS.nodeSizeMax),
     nodeSizeSlope: toNumber(p['NodeSizeSlope'], LAYOUT_DEFAULTS.nodeSizeSlope),
     edgeSize: toNumber(p['EdgeSize'], LAYOUT_DEFAULTS.edgeSize),
-    // Domain-agnostic classifier property name
     classifyingProperty: toString(p['ClassifyingProperty'], LAYOUT_DEFAULTS.classifyingProperty),
   };
 }
@@ -270,7 +260,6 @@ export function extractAllGuiSettings(
           }
         }
       } catch {
-        // invalid JSON — use empty overrides
       }
     }
   }

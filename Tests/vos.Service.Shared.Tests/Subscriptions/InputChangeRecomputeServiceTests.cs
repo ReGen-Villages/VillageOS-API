@@ -119,7 +119,7 @@ public class InputChangeRecomputeServiceTests
 
         await harness.WatchAsync(Study, ModelOne, alsoOn: [SecondAllocation]);
 
-        // Membership changes are fire-and-forget, so the test waits for the state rather than for a
+        // Membership changes are not awaited, so the test waits for the state rather than for a
         // call it cannot await.
         await Settle.UntilAsync(() => !harness.ClientFor(ModelOne).Members.Contains(Allocation),
             "the Thing no subject reads any more leaves the subscription");
@@ -131,7 +131,7 @@ public class InputChangeRecomputeServiceTests
     {
         // What this pins is that a refused release does not wedge the follower: the subject keeps
         // recomputing on the Things it still reads. It does not prove the guard inside the release —
-        // that call is fire-and-forget, so removing the catch leaves this passing, the same reason the
+        // that call is not awaited, so removing the catch leaves this passing, the same reason the
         // add-membership guard is tested through the opening pass instead. The guard stays for the log
         // line and for consistency with that one, not because a test can fail without it.
         await using var harness = await Harness.StartedAsync();
@@ -397,7 +397,7 @@ public class InputChangeRecomputeServiceTests
     // kills the stream loop before it starts and the whole model stops being followed. The follower logs
     // that the subject's results will go stale and carries on instead.
     //
-    // Deliberately the opening pass rather than a later Watch: that one is fire-and-forget, so an
+    // Deliberately the opening pass rather than a later Watch: that one is not awaited, so an
     // escaping exception is swallowed by the unobserved task and proves nothing about the guard.
     [Fact]
     public async Task A_subject_that_cannot_be_added_as_the_subscription_opens_leaves_the_model_still_followed()

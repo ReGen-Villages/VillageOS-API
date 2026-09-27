@@ -9,8 +9,6 @@ import {
   PREVIEW_PROPERTIES,
 } from './thingSearch';
 
-// ── Helpers ────────────────────────────────────────────────────────────
-
 function makeThing(id: string, name: string, props: Record<string, unknown> = {}): VosThing {
   return { Id: id, Name: name, Properties: props };
 }
@@ -31,8 +29,6 @@ function makeRelationship(
   };
 }
 
-// ── Fixtures ────────────────────────────────────────────────────────────
-
 const isPredicate = makeThing('p-is', 'is');
 const hasPredicate = makeThing('p-has', 'has');
 
@@ -41,15 +37,11 @@ const sensor = makeThing('s1', 'Sensor-01', { temperature: 22.5, unit: 'C' });
 const buildingType = makeThing('bt1', 'BuildingType');
 const zone = makeThing('z1', 'Zone-North');
 
-// building --[is]--> buildingType
 const relationshipIsBuilding = makeRelationship('r1', 'b1', 'p-is', 'bt1');
-// sensor --[has]--> zone
 const relationshipHasSensor = makeRelationship('r2', 's1', 'p-has', 'z1');
 
 const allThings = [building, sensor, buildingType, zone, isPredicate, hasPredicate];
 const allRelationships = [relationshipIsBuilding, relationshipHasSensor];
-
-// ── scoreThingMatch ────────────────────────────────────────────────────
 
 describe('scoreThingMatch', () => {
   describe('exact match (score 0)', () => {
@@ -86,7 +78,6 @@ describe('scoreThingMatch', () => {
     });
 
     it('does not score a prefix as substring when prefix matches first', () => {
-      // "Build" is a prefix → score 1, not 2
       expect(scoreThingMatch(building, 'Build')).toBe(1);
     });
   });
@@ -103,7 +94,6 @@ describe('scoreThingMatch', () => {
     });
 
     it('prefers name match over ID match', () => {
-      // thing whose name contains "abc" and ID also contains "abc" → score 2 (name substring)
       const thing = makeThing('abc-id', 'contains-abc-name');
       expect(scoreThingMatch(thing, 'abc')).toBe(2);
     });
@@ -116,13 +106,10 @@ describe('scoreThingMatch', () => {
     });
 
     it('matches everything with empty query via prefix (caller must guard)', () => {
-      // '' startsWith '' → true → score 1; searchThings guards against empty query
       expect(scoreThingMatch(building, '')).toBe(1);
     });
   });
 });
-
-// ── buildThingSearchIndex ──────────────────────────────────────────────
 
 describe('buildThingSearchIndex', () => {
   describe('isSubjectToTypeName', () => {
@@ -139,7 +126,6 @@ describe('buildThingSearchIndex', () => {
 
     it('ignores non-"is" predicates', () => {
       const index = buildThingSearchIndex(allThings, allRelationships);
-      // sensor --[has]--> zone should NOT appear in isSubjectToTypeName
       expect(index.isSubjectToTypeName.get('z1')).toBeUndefined();
     });
 
@@ -153,7 +139,6 @@ describe('buildThingSearchIndex', () => {
         [isPredicate, instance, typeA, typeB],
         [relationshipA, relationshipB],
       );
-      // First encountered wins
       expect(index.isSubjectToTypeName.get('inst')).toBe('TypeA');
     });
 
@@ -170,26 +155,21 @@ describe('buildThingSearchIndex', () => {
   describe('relCountByThing', () => {
     it('counts outgoing relationships for subject', () => {
       const index = buildThingSearchIndex(allThings, allRelationships);
-      // building is subject of relIsBuilding → count 1
       expect(index.relationshipCountByThing.get('b1')).toBe(1);
     });
 
     it('counts incoming relationships for target', () => {
       const index = buildThingSearchIndex(allThings, allRelationships);
-      // buildingType is target of relIsBuilding → count 1
       expect(index.relationshipCountByThing.get('bt1')).toBe(1);
     });
 
     it('counts both outgoing and incoming for a thing with multiple relationships', () => {
-      // sensor is subject of relHasSensor (outgoing to zone)
-      // Add another relationship where sensor is target
       const other = makeThing('o1', 'Other');
       const relationshipToSensor = makeRelationship('r3', 'o1', 'p-has', 's1');
       const index = buildThingSearchIndex(
         [...allThings, other],
         [...allRelationships, relationshipToSensor],
       );
-      // sensor: 1 outgoing (relHasSensor) + 1 incoming (relToSensor) = 2
       expect(index.relationshipCountByThing.get('s1')).toBe(2);
     });
 
@@ -200,8 +180,6 @@ describe('buildThingSearchIndex', () => {
     });
   });
 });
-
-// ── searchThings ───────────────────────────────────────────────────────
 
 describe('searchThings', () => {
   const index = buildThingSearchIndex(allThings, allRelationships);
@@ -243,7 +221,6 @@ describe('searchThings', () => {
     });
 
     it('can match multiple things', () => {
-      // "Zone" matches Zone-North; "Building" matches Building-A and BuildingType
       const results = searchThings('Building', allThings, index);
       const ids = results.map((r) => r.id);
       expect(ids).toContain('b1');
@@ -253,19 +230,15 @@ describe('searchThings', () => {
 
   describe('sorting', () => {
     it('sorts exact match before prefix before substring', () => {
-      // "Building-A" exact → score 0
-      // "BuildingType" prefix → score 1 (starts with "Building")
       const results = searchThings('Building-A', allThings, index);
       expect(results[0].id).toBe('b1'); // exact match first
     });
 
     it('sorts same-score results alphabetically', () => {
-      // "B" matches Building-A (prefix, score 1) and BuildingType (prefix, score 1)
       const results = searchThings('B', allThings, index);
       const names = results.map((r) => r.name);
       const buildingAIndex = names.indexOf('Building-A');
       const buildingTypeIndex = names.indexOf('BuildingType');
-      // "Building-A" < "BuildingType" alphabetically
       expect(buildingAIndex).toBeLessThan(buildingTypeIndex);
     });
   });
@@ -306,7 +279,6 @@ describe('searchThings', () => {
       });
       const localIndex = buildThingSearchIndex([thing], []);
       const results = searchThings('TestThing', [thing], localIndex);
-      // Only 'name' and 'value' survive the filter
       expect(results[0].ownPropertyCount).toBe(2);
     });
 
@@ -346,8 +318,6 @@ describe('searchThings', () => {
   });
 });
 
-// ── THING_SEARCH_SKIP_KEYS ─────────────────────────────────────────────
-
 describe('THING_SEARCH_SKIP_KEYS', () => {
   it('contains expected skip keys', () => {
     expect(THING_SEARCH_SKIP_KEYS.has('geometry')).toBe(true);
@@ -355,12 +325,10 @@ describe('THING_SEARCH_SKIP_KEYS', () => {
     expect(THING_SEARCH_SKIP_KEYS.has('__geometry_envelope')).toBe(true);
   });
 
-  it('does not contain the legacy __IsSurface key (Bug #5305)', () => {
+  it('does not contain the retired __IsSurface key', () => {
     expect(THING_SEARCH_SKIP_KEYS.has('__IsSurface')).toBe(false);
   });
 });
-
-// ── buildThingSearchMarkdown ───────────────────────────────────────────
 
 describe('buildThingSearchMarkdown', () => {
   const sampleResults = [
@@ -420,7 +388,6 @@ describe('buildThingSearchMarkdown', () => {
     const md = buildThingSearchMarkdown('xyz', []);
     expect(md).toContain('# Thing Search: "xyz"');
     expect(md).toContain('| Name |');
-    // No data rows
     const lines = md.split('\n').filter((l) => l.startsWith('|') && !l.startsWith('|---') && !l.includes('Name'));
     expect(lines).toHaveLength(0);
   });

@@ -2,13 +2,9 @@ import type { ClusterMap } from './predicateCluster';
 import type { FlashSettings } from './guiSettings';
 import { brightenColor } from './colors';
 
-// ── Constants ────────────────────────────────────────────────────────────
-
 /** Bright style for edges connected to hovered or selected node. */
 export const BRIGHT_EDGE_COLOR = '#d4d4d8'; // zinc-300
 export const BRIGHT_EDGE_SIZE = 1.5;
-
-// ── Pure helpers ─────────────────────────────────────────────────────────
 
 /** Append an alpha channel to a hex colour string. */
 export function withAlpha(hex: string, alpha: number): string {

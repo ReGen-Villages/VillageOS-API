@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseSolidMesh } from './geometryDispatcher';
 
-// ── Test fixture: a simple box in y-up Three.js coords ──────────────
-
 /** 2×2×3 box centred at (5, 0, -10), height 3m, y-up. */
 function makeBoxMeshData() {
   const positions = [

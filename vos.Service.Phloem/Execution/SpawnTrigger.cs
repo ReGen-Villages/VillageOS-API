@@ -7,7 +7,7 @@ public enum SpawnKind
     // http endpoint-forward: { pipelineId, params } — synchronous spawn-and-wait.
     Http,
     // A relationship the broker dispatched: a `X runs Pipeline` write, or a Thing entering a watched state.
-    // Which pipeline it starts is read from the model, not from the body — fire-and-forget.
+    // Which pipeline it starts is read from the model, not from the body, and nothing waits on the run.
     Relationship,
     Invalid,
 }
@@ -19,8 +19,8 @@ public enum SpawnKind
 // PipelineStart reads that from the model — so it travels as it came, with the subject.
 // Detected by shape — pipelineId ⇒ http, else targetId ⇒ relationship.
 // Async: for an http spawn, {"async":true} asks Phloem to return the run id immediately and run the DAG in
-// the background (the editor animates over SSE) instead of blocking for the result. A relationship is
-// always fire-and-forget.
+// the background (the editor animates over SSE) instead of blocking for the result. A relationship never
+// blocks for the result.
 public sealed record SpawnTrigger(
     SpawnKind Kind, Guid PipelineId, Guid TargetId, RunSubject? Subject, JsonElement Params, bool Async, string? Error)
 {

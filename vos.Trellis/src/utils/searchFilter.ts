@@ -27,18 +27,15 @@ export function buildStringMatcher(
   query: string,
   options: SearchOptions,
 ): (s: string) => boolean {
-  // ── Regex mode ──────────────────────────────────────────────────────
   if (options.useRegex) {
     try {
       const flags = options.caseSensitive ? '' : 'i';
       const re = new RegExp(query, flags);
       return (s) => re.test(s);
     } catch {
-      // Invalid regex — fall through to plain text
     }
   }
 
-  // ── Comma-separated list mode ───────────────────────────────────────
   if (query.includes(',')) {
     const terms = query
       .split(',')
@@ -57,7 +54,6 @@ export function buildStringMatcher(
     };
   }
 
-  // ── Single-term mode ────────────────────────────────────────────────
   const q = options.caseSensitive ? query : query.toLowerCase();
   return (s) => {
     const n = options.caseSensitive ? s : s.toLowerCase();
@@ -76,19 +72,16 @@ function buildMatcher(
 ): (thing: VosThing) => boolean {
   const matchString = buildStringMatcher(query, options);
 
-  // For comma-separated lists, also do exact ID matching
   if (!options.useRegex && query.includes(',')) {
     const rawTerms = query.split(',').map((s) => s.trim()).filter(Boolean);
     const termSet = new Set(rawTerms);
     return (t) => termSet.has(t.Id) || matchString(t.Name);
   }
 
-  // For regex mode, test both Name and Id
   if (options.useRegex) {
     return (t) => matchString(t.Name) || matchString(t.Id);
   }
 
-  // Single-term: name only (original behaviour)
   return (t) => matchString(t.Name);
 }
 
@@ -106,7 +99,6 @@ export function filterGraph(
     things.filter((t) => matches(t)).map((t) => t.Id),
   );
 
-  // Find all relationships that touch a matched node
   const touchingRelationships = relationships.filter(
     (r) => matchedIds.has(r.SubjectId) || matchedIds.has(r.TargetId) || matchedIds.has(r.PredicateId),
   );
@@ -122,7 +114,6 @@ export function filterGraph(
 
   const ft = things.filter((t) => expandedIds.has(t.Id));
   const ftIds = new Set(ft.map((t) => t.Id));
-  // Only include edges where BOTH endpoints are present
   const fr = relationships.filter(
     (r) => ftIds.has(r.SubjectId) && ftIds.has(r.TargetId),
   );

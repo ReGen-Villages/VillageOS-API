@@ -13,7 +13,6 @@ namespace vos.Service.Delta.Tests;
 
 public class MyceliumClientTests
 {
-    // ---------- FindThingByNameAsync ----------
 
     [Fact]
     public async Task FindThingByName_HappyPath_ReturnsParsedThing()
@@ -122,8 +121,6 @@ public class MyceliumClientTests
         result.Value.Properties["arr"].Should().Be("[1,2]");
     }
 
-    // ---------- CreateThingAsync ----------
-
     [Fact]
     public async Task CreateThingAsync_WhenMyceliumReturnsThing_ReturnsParsedThing()
     {
@@ -182,8 +179,6 @@ public class MyceliumClientTests
         (await CreateClient(handler).CreateThingAsync(new() { Name = "X" })).Should().BeNull();
     }
 
-    // ---------- DeleteThingAsync ----------
-
     [Fact]
     public async Task DeleteThingAsync_HappyPath_ReturnsTrue()
     {
@@ -212,8 +207,6 @@ public class MyceliumClientTests
         var handler = new MockHttpMessageHandler(_ => throw new HttpRequestException("boom"));
         (await CreateClient(handler).DeleteThingAsync(Guid.NewGuid())).Should().BeFalse();
     }
-
-    // ---------- SetThingPropertyAsync ----------
 
     [Fact]
     public async Task SetThingPropertyAsync_HappyPath_ReturnsTrue()
@@ -306,8 +299,6 @@ public class MyceliumClientTests
         body.Should().Contain($"\"type\":\"{expectedType}\"");
     }
 
-    // ---------- CreateRelationshipAsync ----------
-
     [Fact]
     public async Task CreateRelationshipAsync_WhenMyceliumReturnsCreated_ReturnsTrue()
     {
@@ -345,8 +336,6 @@ public class MyceliumClientTests
         (await CreateClient(handler).CreateRelationshipAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()))
             .Should().BeFalse();
     }
-
-    // ---------- Helpers ----------
 
     private static MyceliumClient CreateClient(HttpMessageHandler handler)
     {

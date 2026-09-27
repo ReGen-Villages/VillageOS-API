@@ -5,7 +5,7 @@ import { EditorHistory, MAX_HISTORY } from './history';
 // The module is pure and generic over the snapshot type, so it is unit-tested here without React Flow.
 type Snap = { v: number };
 
-describe('EditorHistory (US #5872)', () => {
+describe('EditorHistory', () => {
   it('starts empty — nothing to undo', () => {
     const h = new EditorHistory<Snap>();
     expect(h.canUndo()).toBe(false);
@@ -13,7 +13,7 @@ describe('EditorHistory (US #5872)', () => {
     expect(h.undo()).toBeNull();
   });
 
-  it('undo returns the state recorded before the last change (TC #5876)', () => {
+  it('undo returns the state recorded before the last change', () => {
     const h = new EditorHistory<Snap>();
     h.record({ v: 1 }); // state before change 1
     expect(h.canUndo()).toBe(true);
@@ -40,7 +40,7 @@ describe('EditorHistory (US #5872)', () => {
     expect(h.undo()).toEqual({ v: MAX_HISTORY + 4 });
   });
 
-  it('commit sets the baseline and clears the undo stack (TC #5878)', () => {
+  it('commit sets the baseline and clears the undo stack', () => {
     const h = new EditorHistory<Snap>();
     h.record({ v: 1 });
     h.record({ v: 2 });
@@ -50,7 +50,7 @@ describe('EditorHistory (US #5872)', () => {
     expect(h.undo()).toBeNull(); // saved state is the floor
   });
 
-  it('rollbackTarget returns the last committed baseline (TC #5877)', () => {
+  it('rollbackTarget returns the last committed baseline', () => {
     const h = new EditorHistory<Snap>();
     expect(h.rollbackTarget()).toBeNull(); // nothing saved yet
     h.commit({ v: 10 });

@@ -81,7 +81,6 @@ public class SnapshotParserTests
 
         graph.Things.Should().HaveCount(3);
         graph.Thing(pipe)!.PropertyString("Subdomain").Should().Be("gen");
-        // the is-relationship is readable as the role the archetype above it is marked with
         graph.IsOfArchetypeCarrying(graph.Thing(pipe)!, PipelineArchetypes.PipelineFlag).Should().BeTrue();
     }
 

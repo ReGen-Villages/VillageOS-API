@@ -44,8 +44,6 @@ public class MetabolismTests : IAsyncLifetime
         new(relId, "subject-1", "target-1", "TestSubject", quantity, "kWh", "quantity", freqSeconds,
             DateTime.UtcNow.AddHours(1), DateTime.UtcNow.AddHours(2)); // future start so loop just waits
 
-    #region UpdateProperty with native values
-
     [Fact]
     public void UpdateProperty_Quantity_UpdatesConfig()
     {
@@ -128,10 +126,6 @@ public class MetabolismTests : IAsyncLifetime
         _engine.GetAll().Should().HaveCount(1);
     }
 
-    #endregion
-
-    #region UpdateProperty with JsonElement values (SSE scenario)
-
     [Fact]
     public void UpdateProperty_JsonElement_Double_UpdatesQuantity()
     {
@@ -177,10 +171,6 @@ public class MetabolismTests : IAsyncLifetime
         _engine.GetAll().First().Config.Quantity.Should().Be(5.0m);
     }
 
-    #endregion
-
-    #region Register re-registration
-
     [Fact]
     public void Register_SameRelationship_CancelsOldSimulation()
     {
@@ -216,10 +206,6 @@ public class MetabolismTests : IAsyncLifetime
         _engine.GetAll().First().Config.StartDelaySeconds.Should().Be(10.5m);
     }
 
-    #endregion
-
-    #region Concurrent updates
-
     [Fact]
     public async Task UpdateProperty_ConcurrentQuantityAndFrequency_BothApplied()
     {
@@ -235,10 +221,6 @@ public class MetabolismTests : IAsyncLifetime
         config.Quantity.Should().Be(3.0m);
         config.FrequencySeconds.Should().Be(5);
     }
-
-    #endregion
-
-    #region RunSimulationLoop execution tests
 
     // Create a Metabolism engine whose MyceliumClient is backed by a MockHttpMessageHandler
     // so that ApplyQuantityAsync and IncrementRelationshipPropertyAsync succeed.
@@ -299,7 +281,7 @@ public class MetabolismTests : IAsyncLifetime
             "a simulation whose start time has already passed activates once its stagger delay ends");
     }
 
-    // Regression: the running total a tick writes was chosen by comparing the launch word
+    // The running total a tick writes was chosen by comparing the launch word
     // against a literal, so a misspelling recorded consumption as production and nothing failed.
     [Theory]
     [InlineData("consumes", "total_consumed", "decrements")]
@@ -403,10 +385,6 @@ public class MetabolismTests : IAsyncLifetime
         engine.GetAll().Should().BeEmpty();
     }
 
-    #endregion
-
-    #region StartDelaySeconds behavior
-
     [Fact]
     public async Task RunSimulationLoop_WithStartDelay_SetsDelayedStatusFirst()
     {
@@ -454,6 +432,4 @@ public class MetabolismTests : IAsyncLifetime
             "cancelling during the start delay ends the loop before it activates");
         entry.TickCount.Should().Be(0);
     }
-
-    #endregion
 }

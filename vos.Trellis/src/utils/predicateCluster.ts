@@ -2,8 +2,6 @@ import type Graph from 'graphology';
 import { resolvePredicateColor } from './colors';
 import type { VosThing, VosRelationship } from '../types/vos';
 
-// ── Types ─────────────────────────────────────────────────────────────
-
 export interface PredicateStatistics {
   predicateId: string;
   predicateName: string;
@@ -19,8 +17,6 @@ export interface ClusterMap {
   /** Representative node ID per cluster (highest-degree node). */
   representatives: Map<number, string>;
 }
-
-// ── Predicate statistics ──────────────────────────────────────────────
 
 /** Convert an accumulated counts map into a sorted PredicateStatistics array. */
 function buildPredicateStatisticsArray(
@@ -90,15 +86,12 @@ export function computePredicateStatisticsFromModel(
   return buildPredicateStatisticsArray(counts, predicateColors);
 }
 
-// ── Cluster computation via BFS ───────────────────────────────────────
-
 /**
  * Find connected components in the graph using only edges whose predicateId
  * is in the given `predicateIds` set (union semantics).
  * Predicate-type nodes (nodes whose thingType === 'predicate') are excluded from clusters.
  */
 export function computeClusters(graph: Graph, predicateIds: Set<string>): ClusterMap {
-  // Build adjacency list for the chosen predicates (union of edges)
   const adj = new Map<string, Set<string>>();
 
   graph.forEachEdge((_edge, attributes, source, target) => {
@@ -115,7 +108,6 @@ export function computeClusters(graph: Graph, predicateIds: Set<string>): Cluste
     adj.get(target)!.add(source);
   });
 
-  // BFS to find connected components
   const visited = new Set<string>();
   const clusters: Set<string>[] = [];
   const nodeCluster = new Map<string, number>();
@@ -149,20 +141,16 @@ export function computeClusters(graph: Graph, predicateIds: Set<string>): Cluste
     }
   }
 
-  // Mark all other nodes as unclustered (-1)
   graph.forEachNode((node, _attributes) => {
     if (!nodeCluster.has(node)) {
       nodeCluster.set(node, -1);
     }
   });
 
-  // Pick representatives
   const representatives = pickClusterRepresentatives(graph, clusters);
 
   return { nodeCluster, clusters, representatives };
 }
-
-// ── Representative selection ──────────────────────────────────────────
 
 /**
  * Pick the highest-degree node in each cluster as its representative.

@@ -118,7 +118,6 @@ describe('savePipeline — create (no existing pipeline id)', () => {
     expect(frag.Things.some((t: { Name: string }) => t.Name === 'Fresh')).toBe(true);
     expect(frag.Things.some((t: { Name: string }) => t.Name === 'A')).toBe(true);
     expect(thingRemove).not.toHaveBeenCalled();
-    // The new pipeline got a fresh id (not one of the fixture ids).
     expect(saved.pipelineId).not.toBe('P');
     // …and `is` the archetype this model marks as its pipeline, whatever that archetype is called.
     expect(frag.Relationships.some((r: { Subject: string; Name: string; Target: string }) =>
@@ -138,7 +137,7 @@ describe('savePipeline — create (no existing pipeline id)', () => {
 describe('savePipeline — update in place (existing pipeline id)', () => {
   it('reuses the pipeline id and keeps an existing node’s Thing id (no duplicate)', async () => {
     const model = buildModel();
-    // Keep only N1 (its canvas id IS its Thing id), moved; drop N2.
+    // Keep only N1 (its canvas id is its Thing id), moved; drop N2.
     const saved = await savePipeline('MyPipeline', [{ ...node('N1', 'Node1'), x: 99 }], [], model, 'P');
 
     expect(saved.pipelineId).toBe('P');
@@ -158,7 +157,6 @@ describe('savePipeline — update in place (existing pipeline id)', () => {
 
   it('removes a wire that is gone and creates a wire that is new', async () => {
     const model = buildModel();
-    // Drop the N1->N2 wire (no relationships) — the one persisted wire should be removed, and no others.
     await savePipeline('MyPipeline', [node('N1', 'Node1'), node('N2', 'Node2')], [], model, 'P');
     expect(relationshipRemove).toHaveBeenCalledTimes(1);
   });
@@ -409,7 +407,7 @@ describe('savePipeline / loadPipeline — what a boundary node stands for', () =
   });
 });
 
-describe('loadPipeline — a saved pipeline whose ports are stated in the override store (#7331)', () => {
+describe('loadPipeline — a saved pipeline whose ports are stated in the override store', () => {
   it('returns the wire attached at both ends', () => {
     const { T, R, things, relationships } = graphWithVocabulary();
     const stated = (values: Record<string, unknown>) => ({
@@ -435,7 +433,7 @@ describe('loadPipeline — a saved pipeline whose ports are stated in the overri
 
 // A model built from templates declares the wire predicate and draws nothing. The first pipeline drawn on
 // it was refused as marking no archetype, although it marks every one.
-describe('savePipeline — the first pipeline in a model with no wire yet (#7324)', () => {
+describe('savePipeline — the first pipeline in a model with no wire yet', () => {
   function modelWithNoWire(): PipelineModel {
     const { T, R, things, relationships } = graphWithVocabulary();
     T('svc', 'svc'); R('svc', 'is', 'arch-service');

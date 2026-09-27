@@ -2,7 +2,7 @@
 
 `npm ci` refuses to run without a lock file, so a project whose dependencies CI installs is already
 guarded. `tools/docs-pdf` is not one: it is run by hand when a document needs rendering, so its
-missing lock file went unnoticed until somebody looked (#6638). This is the check that looks.
+missing lock file went unnoticed until somebody looked. This is the check that looks.
 
 A project declaring no dependencies has nothing to pin and needs no lock file.
 """

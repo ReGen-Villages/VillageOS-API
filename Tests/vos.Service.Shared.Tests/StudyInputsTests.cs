@@ -5,7 +5,7 @@ using Xunit;
 
 namespace vos.Service.Shared.Tests;
 
-// Bug 6744: the broker answers a study's effective properties with its own under their bare name and
+// The broker answers a study's effective properties with its own under their bare name and
 // every inherited one under a key qualified by the set it came from. Since the shared study archetype
 // took over the assumptions, reading by bare name alone found none of them — and every handler test
 // stubbed the answer with bare keys, so the lookup was only ever exercised against a shape the broker
@@ -78,7 +78,7 @@ public class StudyInputsTests
         act.Should().Throw<InvalidOperationException>().WithMessage("*no value*");
     }
 
-    // Bug 6826: an input a study does not carry is a figure that has not arrived rather than a fault, so a
+    // An input a study does not carry is a figure that has not arrived rather than a fault, so a
     // handler asks what it is waiting for before it reads a single value.
     [Fact]
     public void A_name_the_study_does_not_carry_is_one_it_is_waiting_for()

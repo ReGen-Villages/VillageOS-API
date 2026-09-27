@@ -5,7 +5,6 @@ namespace vos.Taproot.Tests;
 [Collection(nameof(CliEnvVarCollection))]
 public class ConsoleOptionsTests
 {
-    // ========== Parse() Tests ==========
 
     [Fact]
     public void Parse_WithNoArgs_ReturnsDefaultMyceliumUrl()
@@ -86,8 +85,6 @@ public class ConsoleOptionsTests
         Assert.Equal("https://localhost:7243", options.MyceliumUrl);
     }
 
-    // ========== Environment Variable Tests ==========
-
     [Fact]
     public void Parse_WithEnvVariable_UseEnvValue()
     {
@@ -160,8 +157,6 @@ public class ConsoleOptionsTests
         }
     }
 
-    // ========== Env-var precedence ==========
-
     [Fact]
     public void Parse_VosMyceliumUrlEnvVar_OverridesDefault()
     {
@@ -213,8 +208,6 @@ public class ConsoleOptionsTests
             Environment.SetEnvironmentVariable("VOS_API_KEY", origKey);
         }
     }
-
-    // ========== The API key is not a command-line argument ==========
 
     [Theory]
     [InlineData("--api-key=from-command-line")]

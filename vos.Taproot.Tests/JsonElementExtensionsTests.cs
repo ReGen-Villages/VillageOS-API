@@ -6,7 +6,6 @@ namespace vos.Taproot.Tests;
 
 public class JsonElementExtensionsTests
 {
-    #region GetStringOrDefault Tests
 
     [Fact]
     public void GetStringOrDefault_WhenPropertyExists_ReturnsValue()
@@ -48,8 +47,6 @@ public class JsonElementExtensionsTests
         Assert.Equal("unknown", result);
     }
 
-    #endregion
-
     [Fact]
     public void IsTrue_WhenTrue_ReturnsTrue()
     {
@@ -73,8 +70,6 @@ public class JsonElementExtensionsTests
 
         Assert.False(json.IsTrue("IsRunning"));
     }
-
-    #region GetIntOrDefault Tests
 
     [Fact]
     public void GetIntOrDefault_WhenPropertyExists_ReturnsValue()
@@ -106,10 +101,6 @@ public class JsonElementExtensionsTests
         Assert.Equal(5, result);
     }
 
-    #endregion
-
-    #region GetNullableInt Tests
-
     [Fact]
     public void GetNullableInt_WhenPropertyExists_ReturnsValue()
     {
@@ -139,10 +130,6 @@ public class JsonElementExtensionsTests
 
         Assert.Null(result);
     }
-
-    #endregion
-
-    #region GetNullableDateTime Tests
 
     [Fact]
     public void GetNullableDateTime_WhenPropertyExists_ReturnsValue()
@@ -174,10 +161,6 @@ public class JsonElementExtensionsTests
 
         Assert.Null(result);
     }
-
-    #endregion
-
-    #region HasObjectProperty Tests
 
     [Fact]
     public void HasObjectProperty_WhenObjectExists_ReturnsTrue()
@@ -218,10 +201,6 @@ public class JsonElementExtensionsTests
 
         Assert.False(result);
     }
-
-    #endregion
-
-    #region FormatPropertyValue Tests
 
     [Fact]
     public void FormatPropertyValue_WhenString_ReturnsString()
@@ -304,10 +283,6 @@ public class JsonElementExtensionsTests
         Assert.Equal("", result);
     }
 
-    #endregion
-
-    #region GetPropertyOrNull Tests
-
     [Fact]
     public void GetPropertyOrNull_WhenPropertyExists_ReturnsElement()
     {
@@ -328,6 +303,4 @@ public class JsonElementExtensionsTests
 
         Assert.Null(result);
     }
-
-    #endregion
 }

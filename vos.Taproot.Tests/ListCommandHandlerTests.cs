@@ -587,8 +587,6 @@ public class ListCommandHandlerTests
         Assert.Contains(handlerId.ToString(), output);
     }
 
-    #region Unknown Command and Edge Cases
-
     [Fact]
     public async Task List_UnknownSubcommand_ShowsUsage()
     {
@@ -640,7 +638,7 @@ public class ListCommandHandlerTests
     [Fact]
     public async Task ListThings_WithInheritedProperties_ShowsInheritedSource()
     {
-        // Regression: serialNumber is inherited (never overridden) so it comes from the
+        // serialNumber is inherited (never overridden) so it comes from the
         // effective endpoint, keyed by qualified path — the removed InheritedProperties key is gone.
         var thingId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>(
@@ -672,10 +670,6 @@ public class ListCommandHandlerTests
         Assert.Contains("No running microservices found", output);
     }
 
-    #endregion
-
-    #region Nested-inheritance traversal
-
     [Fact]
     public async Task ListThings_NestedInheritedProperties_TraversesAllLevels()
     {
@@ -695,6 +689,4 @@ public class ListCommandHandlerTests
         Assert.Contains("parent.p1", output);
         Assert.Contains("parent.grandparent.g1", output);
     }
-
-    #endregion
 }

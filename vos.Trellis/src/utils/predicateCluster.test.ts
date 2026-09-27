@@ -7,19 +7,15 @@ import {
 } from './predicateCluster';
 import { resolvePredicateColor } from './colors';
 
-// ── Helpers ──────────────────────────────────────────────────────────────
-
 function makeGraph(): Graph {
   const graph = new Graph({ multi: true, type: 'directed' });
 
-  // Nodes
   graph.addNode('a', { label: 'A', thingType: 'default' });
   graph.addNode('b', { label: 'B', thingType: 'default' });
   graph.addNode('c', { label: 'C', thingType: 'default' });
   graph.addNode('d', { label: 'D', thingType: 'default' });
   graph.addNode('pred-has', { label: 'has', thingType: 'predicate' });
 
-  // Edges with predicateId
   graph.addDirectedEdgeWithKey('e1', 'a', 'b', { predicateId: 'p-has', label: 'has' });
   graph.addDirectedEdgeWithKey('e2', 'b', 'c', { predicateId: 'p-has', label: 'has' });
   graph.addDirectedEdgeWithKey('e3', 'a', 'd', { predicateId: 'p-monitors', label: 'monitors' });
@@ -27,8 +23,6 @@ function makeGraph(): Graph {
 
   return graph;
 }
-
-// ── Tests ────────────────────────────────────────────────────────────────
 
 describe('computePredicateStats', () => {
   it('counts edges per predicate', () => {
@@ -48,7 +42,6 @@ describe('computePredicateStats', () => {
     const graph = makeGraph();
     const statistics = computePredicateStatistics(graph);
 
-    // "has" has 2 edges, should be first
     expect(statistics[0].predicateId).toBe('p-has');
     expect(statistics[0].edgeCount).toBe(2);
   });
@@ -57,7 +50,6 @@ describe('computePredicateStats', () => {
     const graph = makeGraph();
     const statistics = computePredicateStatistics(graph);
 
-    // Each predicate gets its hash-based color
     const hasStatistics = statistics.find((s) => s.predicateName === 'has');
     expect(hasStatistics!.color).toBe(resolvePredicateColor('has', {}));
     const monitorsStatistics = statistics.find((s) => s.predicateName === 'monitors');
@@ -104,8 +96,6 @@ describe('computeClusters', () => {
     const graph = makeGraph();
     const result = computeClusters(graph, new Set(['p-has']));
 
-    // a -has-> b -has-> c forms one component {a, b, c}
-    // d is only connected via p-monitors (not selected) → unclustered
     expect(result.clusters.length).toBeGreaterThanOrEqual(1);
 
     const mainCluster = result.clusters.find(
@@ -119,7 +109,6 @@ describe('computeClusters', () => {
     const graph = makeGraph();
     const result = computeClusters(graph, new Set(['p-has']));
 
-    // d is connected to a only via p-monitors → unclustered
     expect(result.nodeCluster.get('d')).toBe(-1);
   });
 
@@ -127,7 +116,6 @@ describe('computeClusters', () => {
     const graph = makeGraph();
     const result = computeClusters(graph, new Set(['p-has']));
 
-    // pred-has is a predicate node → should not appear in any cluster
     expect(result.nodeCluster.get('pred-has')).toBe(-1);
     for (const cluster of result.clusters) {
       expect(cluster.has('pred-has')).toBe(false);
@@ -140,7 +128,6 @@ describe('computeClusters', () => {
     graph.addNode('y', { thingType: 'default' });
     graph.addNode('z', { thingType: 'default' });
     graph.addDirectedEdgeWithKey('e-xy', 'x', 'y', { predicateId: 'p1' });
-    // z is isolated → separate component or unclustered
 
     const result = computeClusters(graph, new Set(['p1']));
     expect(result.clusters.length).toBe(1);
@@ -153,7 +140,6 @@ describe('computeClusters', () => {
     const graph = makeGraph();
     const result = computeClusters(graph, new Set(['p-has', 'p-monitors']));
 
-    // a -has-> b, b -has-> c, a -monitors-> d → all in one component
     const mainCluster = result.clusters.find(
       (s) => s.has('a') && s.has('b') && s.has('c') && s.has('d'),
     );
@@ -164,7 +150,6 @@ describe('computeClusters', () => {
     const graph = makeGraph();
     const result = computeClusters(graph, new Set(['p-has']));
 
-    // Representatives should be picked for each cluster
     expect(result.representatives.size).toBe(result.clusters.length);
   });
 });
@@ -203,10 +188,8 @@ describe('pickClusterRepresentatives', () => {
   it('skips empty cluster set (no bestNode)', () => {
     const graph = new Graph({ multi: true, type: 'directed' });
     graph.addNode('a', {});
-    // Pass a cluster with nodes not in the graph — iteration yields nothing
     const clusters = [new Set<string>()];
     const reps = pickClusterRepresentatives(graph, clusters);
-    // Empty cluster → bestNode never set → no representative
     expect(reps.has(0)).toBe(false);
   });
 });
@@ -220,7 +203,6 @@ describe('computePredicateStats — edge cases', () => {
 
     const statistics = computePredicateStatistics(graph);
     expect(statistics).toHaveLength(1);
-    // Empty label → falls back to predicateId
     expect(statistics[0].predicateName).toBe('p-feed');
   });
 });
@@ -231,15 +213,11 @@ describe('computeClusters — edge cases', () => {
     graph.addNode('pred', { thingType: 'predicate' });
     graph.addNode('a', { thingType: 'default' });
     graph.addNode('b', { thingType: 'default' });
-    // Edge FROM predicate node
     graph.addDirectedEdgeWithKey('e1', 'pred', 'a', { predicateId: 'p1' });
-    // Normal edge
     graph.addDirectedEdgeWithKey('e2', 'a', 'b', { predicateId: 'p1' });
 
     const result = computeClusters(graph, new Set(['p1']));
-    // the predicate should not be in any cluster
     expect(result.nodeCluster.get('pred')).toBe(-1);
-    // a and b should be clustered together
     const cluster = result.clusters.find((c) => c.has('a') && c.has('b'));
     expect(cluster).toBeDefined();
   });
@@ -250,7 +228,6 @@ describe('computeClusters — edge cases', () => {
     graph.addNode('b', { thingType: 'default' });
     graph.addNode('isolated', { thingType: 'default' });
     graph.addDirectedEdgeWithKey('e1', 'a', 'b', { predicateId: 'p1' });
-    // 'isolated' has no edges matching p1
 
     const result = computeClusters(graph, new Set(['p1']));
     expect(result.nodeCluster.get('isolated')).toBe(-1);

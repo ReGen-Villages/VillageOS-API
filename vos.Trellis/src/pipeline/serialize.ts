@@ -5,8 +5,8 @@ import { PipelineModel, ARCHETYPE_FLAG, PREDICATE_FLAG, type PortInformation } f
 import type { VosTypeName } from '../utils/constants';
 import i18n from '../i18n';
 
-// Persist / read a pipeline as Things + relationships (the lean-on-model bet): the editor is just CRUD over
-// thingApi / relationshipApi. Save shape mirrors the seed — node -has-> connection, and a wire is a relationship
+// Persist / read a pipeline as Things + relationships: the editor only creates, reads, updates and
+// deletes through thingApi / relationshipApi. Save shape mirrors the seed — node -has-> connection, and a wire is a relationship
 // through the predicate the model marks as holding wires, carrying fromPort/toPort. Every archetype an `is`
 // relationship is written to is the one the model marks with that role, never one this file names. Node canvas
 // position round-trips as x/y properties on the node Thing.
@@ -66,8 +66,8 @@ export interface SavedPipeline {
 }
 
 // Save the editor state to the model. With no existingPipelineId this creates a new pipeline; with one
-// it updates that pipeline IN PLACE — existing node Things keep their Ids (no duplicate pipeline/nodes),
-// removed nodes and wires are retracted. The Thing graph (pipeline + nodes + is/has relationships) rides ONE
+// it updates that pipeline in place — existing node Things keep their Ids (no duplicate pipeline/nodes),
+// removed nodes and wires are retracted. The Thing graph (pipeline + nodes + is/has relationships) rides one
 // idempotent fragment upsert; wires are written per-entity because /api/model/fragment does not
 // carry a relationship's fromPort/toPort properties.
 export async function savePipeline(
@@ -107,7 +107,7 @@ export async function savePipeline(
 
   const pipelineId = existingPipelineId ?? crypto.randomUUID();
 
-  // A loaded node's canvas id IS its Thing id (see loadPipeline); a new node ("nX") gets a fresh id so
+  // A loaded node's canvas id is its Thing id (see loadPipeline); a new node ("nX") gets a fresh id so
   // the whole Thing graph can ride one id-keyed fragment upsert (create + update in place, no dupes).
   const nodeThingId = new Map<string, string>();
   for (const n of nodes)

@@ -336,8 +336,8 @@ public class SubmissionsCommandHandlerTests
     }
 
     // Every term under a marked archetype inherits the mark, so a reader counting carriers finds the
-    // archetype and all of its terms and calls a perfectly ordinary model ambiguous. That is the whole of
-    // Bug 6723: reject and promote both refused in every seeded model.
+    // archetype and all of its terms and calls a perfectly ordinary model ambiguous, so reject and
+    // promote both refused in every seeded model.
     [Fact]
     public async Task The_archetype_is_found_even_though_every_disposition_under_it_reads_the_mark_too()
     {
@@ -454,8 +454,6 @@ public class SubmissionsCommandHandlerTests
         _mycelium.Verify(client => client.CreateRelationshipAsync(
             It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
     }
-
-    // ── dispose ──────────────────────────────────────────────────────────────
 
     private void PruneReturnsWhatItTook() =>
         _mycelium.Setup(client => client.PruneAsync(It.IsAny<Guid>(), It.IsAny<IReadOnlyList<string>>()))

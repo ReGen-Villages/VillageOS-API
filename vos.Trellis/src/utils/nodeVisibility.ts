@@ -40,10 +40,6 @@ export function edgeTouchesNode(
  *   3. Search active             → 'show' iff both endpoints are matched, else 'hide'
  *   4. Predicate filter active   → 'show' iff this edge's predicate is selected, else 'hide'
  *   5. No filter active          → 'show' (every edge visible by default)
- *
- * The previous `showAllByDefault` parameter is removed; the
- * "quiet mode" (hide edges by default) is superseded by the predicate
- * filter panel which gives the same effect with finer control.
  */
 export type EdgeDisplay = 'show' | 'brighten' | 'hide';
 

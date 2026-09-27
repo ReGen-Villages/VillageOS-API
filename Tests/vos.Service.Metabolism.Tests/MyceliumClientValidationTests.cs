@@ -21,8 +21,6 @@ public class MyceliumClientValidationTests
     private const string ApplyQuantitySchemaId = "https://villageos/contracts/apply-quantity-request.schema.json";
     private const string RelationshipIncrementSchemaId = "https://villageos/contracts/relationship-property-increment-request.schema.json";
 
-    // ---- ApplyQuantityAsync ----
-
     [Fact]
     public async Task ApplyQuantityAsync_ValidPayload_ThrowMode_PostsAndReturns()
     {
@@ -61,8 +59,6 @@ public class MyceliumClientValidationTests
         mock.Requests.Should().Contain(r => r.RequestUri!.AbsolutePath.Contains("/properties/quantity/"));
     }
 
-    // ---- IncrementRelationshipPropertyAsync ----
-
     [Fact]
     public async Task IncrementRelationshipPropertyAsync_ValidPayload_ThrowMode_Posts()
     {
@@ -99,8 +95,6 @@ public class MyceliumClientValidationTests
         logger.Warnings.Should().ContainSingle().Which.Should().Contain(RelationshipIncrementSchemaId);
         mock.Requests.Should().Contain(r => r.RequestUri!.AbsolutePath.Contains("/increments"));
     }
-
-    // ---- Helpers ----
 
     private static (TestableMetabolismMyceliumClient client, MockHttpMessageHandler mock) CreateTestClient(
         SchemaViolationMode mode,

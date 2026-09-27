@@ -5,13 +5,8 @@ import { useUiStore } from '../../stores/uiStore';
 import { stubScreenWidth } from '../../testScreenWidth';
 
 /**
- * The filter cluster on GraphPage put two panels with
- * `max-h-[40vh]` lists in a single bottom-anchored container, which pushed
- * the predicate panel header off-screen on tall lists and trapped scroll
- * inside the inner ul. The fix replaces the fixed 40vh cap with flex-1
- * min-h-0 so the panel uses its share of the parent flex container.
- *
- * These tests guard against regressing back to the absolute height cap.
+ * A fixed height cap on the list pushed the panel header off-screen on tall lists and trapped
+ * scrolling inside the inner list, so the panel takes its share of the parent flex container instead.
  */
 describe('PredicateFilterPanel layout', () => {
   beforeEach(() => {

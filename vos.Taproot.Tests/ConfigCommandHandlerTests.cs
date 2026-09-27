@@ -21,8 +21,6 @@ public class ConfigCommandHandlerTests
         await handler.ExecuteAsync();
     }
 
-    // ========== ExecuteAsync Tests ==========
-
     [Fact]
     public async Task Execute_WithNoArguments_ShowsHelp()
     {
@@ -49,8 +47,6 @@ public class ConfigCommandHandlerTests
         var output = _writer.ToString();
         Assert.Contains("Config commands:", output);
     }
-
-    // ========== Command Dispatch Tests ==========
 
     [Fact]
     public async Task Execute_ModeCommand_DispatchesToPropertyModeHandler()
@@ -91,8 +87,6 @@ public class ConfigCommandHandlerTests
         Assert.Contains("Property Mode Configuration:", output);
     }
 
-    // ========== HandlePropertyModeAsync Tests ==========
-
     // The fixtures below are the reply the platform actually sends: a field named Mode, and the modes
     // it accepts. Reading a field it does not send printed an empty default and nothing failed.
     [Fact]
@@ -112,7 +106,7 @@ public class ConfigCommandHandlerTests
         Assert.Contains("Available modes: CurrentOnly, RingBuffer, Sampled, FullHistory", output);
     }
 
-    // Regression: the client used to print a list of modes it was built with, which could
+    // The client used to print a list of modes it was built with, which could
     // disagree with the platform's.
     [Fact]
     public async Task Mode_WithNoArgs_ReportsAModeThisClientWasNeverBuiltWith()
@@ -182,8 +176,6 @@ public class ConfigCommandHandlerTests
         Assert.Contains("Error:", output);
     }
 
-    // ========== HandleSetPropertyModeAsync Tests ==========
-
     [Fact]
     public async Task Mode_SetWithNoArgs_ShowsUsage()
     {
@@ -206,8 +198,6 @@ public class ConfigCommandHandlerTests
         var output = _writer.ToString();
         Assert.Contains("Default property mode set to: Sampled", output);
     }
-
-    // ========== Valid Mode Name Direct Set Tests ==========
 
     [Fact]
     public async Task Mode_WithValidModeName_SetsDefaultDirectly()
@@ -238,7 +228,7 @@ public class ConfigCommandHandlerTests
         Assert.Contains("Set property 'flowRate' mode to FullHistory", _writer.ToString());
     }
 
-    // Regression: a word that is not a subcommand is a mode name, and the platform decides
+    // A word that is not a subcommand is a mode name, and the platform decides
     // whether it is one. The client used to refuse it first, from a list of its own.
     [Fact]
     public async Task Mode_WithAWordThatIsNotASubcommand_SendsItAsAModeAndShowsThePlatformsRefusal()
@@ -254,8 +244,6 @@ public class ConfigCommandHandlerTests
         Assert.Contains("CurrentOnly", output);
     }
 
-    // ========== Error Handling Tests ==========
-
     [Fact]
     public async Task Execute_WhenExceptionThrown_ShowsError()
     {
@@ -268,8 +256,6 @@ public class ConfigCommandHandlerTests
         Assert.Contains("Error:", output);
         Assert.Contains("Connection refused", output);
     }
-
-    // ========== Named-arg parsing ==========
 
     [Fact]
     public async Task Execute_DefaultModeRingBufferWithSize_ParsesNamedArg()
