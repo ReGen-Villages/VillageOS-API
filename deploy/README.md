@@ -1,12 +1,13 @@
 # Deployment routing
 
-**The intake service answers on its own hostname; the API and the GUI stay on the main one. The
-split lives in the reverse proxy and nowhere else.**
+**The intake service answers on its own hostname; the API, the GUI and the feedback relay stay on the
+main one. The split lives in the reverse proxy and nowhere else.**
 
 ## What the Caddyfile does
 
-- `app.example.org` — `/api/*` goes to the broker on `localhost:7243`; every other path serves the
-  built GUI (`vos.Trellis`'s build output).
+- `app.example.org` — `/api/*` goes to the broker on `localhost:7243`; `/feedback/*` goes to the
+  feedback relay on `localhost:7310` with the prefix removed; every other path serves the built GUI
+  (`vos.Trellis`'s build output).
 - `intake.example.org` — everything goes to the intake service on `localhost:7300`.
 - TLS terminates at the proxy for both hosts. Caddy provisions and renews the certificates itself.
 

@@ -29,7 +29,11 @@ and each generated page says so at the top. Edit the document in `docs/` instead
   Started` is `#1-getting-started` in the repository and `#1.-getting-started` on the wiki.
   Anchors are translated from the target document's real headings, and an anchor that matches
   no heading is left alone rather than guessed at.
-- **Copies images** into the wiki's `.attachments` folder and repoints them.
+- **Copies images** into the wiki's `.attachments` folder and repoints them. Each image is copied
+  under a name made of its stem, a short digest of its bytes and its extension, and every page links
+  that name: the wiki's attachment API creates and never replaces, so a changed image has to arrive
+  as a new attachment. Unchanged bytes keep their name; superseded attachments stay on the wiki,
+  unlinked.
 
 The output directory is emptied before anything is written, so it has to be outside the
 repository. A path inside it is refused rather than obeyed.

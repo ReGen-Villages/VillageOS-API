@@ -22,16 +22,23 @@ Open the GUI and click **Switch Model** in the sidebar footer to open the seed p
 **PipelinePlayground** (or the site seed you merged into). Mycelium replaces the current model with the
 seed and re-scopes your session to it.
 
-Now click **Pipelines** in the sidebar. On the left you'll see the **Services** palette populated with the
-example services; the **Load pipeline…** dropdown in the toolbar lists the example DAGs.
+Now click **Pipelines** in the sidebar. On the left you'll see the **catalysts** — everything that sets a run
+off — and beneath them the **roster** of the model's pipelines, the example DAGs among them; the first opens
+on arrival. On the right are the **outputs** and, under them, the **services**.
 
 ## The Pipelines page in 60 seconds
 
-- **Services palette (left)** — each entry is a service you can drop as a node. Click one to add it to the
-  canvas. **Input** and **Output** buttons drop boundary nodes.
+- **Catalysts (left)** — what starts a run, by kind: a state a Thing enters, a kind of message an external
+  system sends, a request. Click one to place a start node standing for it; **By hand** places a start
+  filled from the run's parameters.
+- **Roster (left, beneath)** — the model's pipelines. Click one to open it.
+- **Outputs (right)** — the answer, the other pipelines and the external systems. Click one to place an end
+  node.
+- **Services (right, beneath)** — each entry is a service you can drop as a node. Click one to add it to the
+  canvas.
 - **Wire ports** — drag from a node's output handle (right) to another node's input handle (left). Wires are
   type-checked; an incompatible connection is refused.
-- **Load pipeline…** — open one of the examples. **New** clears the canvas.
+- **New** clears the canvas.
 - **Run** — spawns the DAG (enabled only once the pipeline is saved and passes validation). **Params** bar
   appears above the canvas when a node binds an input to a run parameter.
 - **History** — past runs of the loaded pipeline; selecting one replays its node statuses onto the canvas.
@@ -42,7 +49,7 @@ Full reference: [the Field Guide, Part VI](FIELD_GUIDE.md#41-building-one-on-the
 
 ## The example DAGs
 
-Load each from the **Load pipeline…** dropdown. Grouped by what it demonstrates.
+Open each from the **roster**. Grouped by what it demonstrates.
 
 ### Start here
 
@@ -81,9 +88,16 @@ These bind inputs to **run parameters** — the **Params** bar appears above the
 | **Site Analysis (Combined)** | The capstone. A `Site Parameters` source supplies one wired input (`population`) while others are param-bound; `Water Reserve` and `Energy Balance` run in parallel, merge into a report, and end at a `Publish` sink. |
 | **Enrichment Batch** | Fan-out into a sink: a list of records is enriched one item at a time, then published. |
 
+### Catalysts and outputs that stand for the world outside
+
+| Pipeline | What it shows |
+|----------|---------------|
+| **Readings Arrive** | A start standing for the kind of message the `Sensor gateway` sends — a batch of readings arriving at a connection — ending at the answer. |
+| **Daily Report** | A pipeline ending at the `Reporting office`, an external system that is told the report. |
+
 ## Running a pipeline
 
-1. **Load** the pipeline.
+1. **Open** the pipeline from the roster.
 2. If a **Params** bar appears, fill it in (see the cheat-sheet). A value that is valid JSON is parsed as
    JSON — so `["a","b","c"]` becomes a list (driving fan-out) and `42` becomes a number; anything else is
    passed as a plain string.

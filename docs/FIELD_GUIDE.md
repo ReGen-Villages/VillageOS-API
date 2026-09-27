@@ -399,8 +399,10 @@ A **seed** is a text file (in the JSON format, a plain-text way of writing struc
 describing one whole model: its Things with their properties, ranges and derived values, and the
 relationships between them. The server plants a model from it **once**. From then on the model
 lives in its own durable record and is rebuilt from that on every restart; the seed is an initial
-import, not a settings file that is re-read. A model can be exported back to a seed at any time,
-and that export is a complete snapshot that can be planted elsewhere.
+import, not a settings file that is re-read. A later version of the seed can be merged into the
+running model on request, which adds only what the model never held and changes nothing it holds. A
+model can be exported back to a seed at any time, and that export is a complete snapshot that can be
+planted elsewhere.
 
 The smallest complete seed the platform ships has a predicate, a display-settings Thing, one kind,
 one member, and one relationship. The shape of a Thing, with the parts a modeller meets most:
@@ -671,8 +673,9 @@ how far off it is and how severe that is, once the state has settled.
 ![A Thing entering a state starts a service, and leaving the completion state proves the work done](assets/field-guide-state-dispatch.svg)
 
 A **state connection** is a connection whose trigger is a state: it watches a range, and every Thing
-entering that range is dispatched to the connection's service. Nothing calls the service by hand;
-what started a run is a fact in the model afterwards.
+entering that range is dispatched to the connection's service. Bound to the pipeline orchestrator,
+the state starts the pipeline drawn from it rather than one service (chapter 42). Nothing calls the
+service by hand; what started a run is a fact in the model afterwards.
 
 - **The dispatch is durable.** Entering the state writes a **dispatch record** — a relationship
   from the Thing to the connection — before the service is called. The record carries how the
@@ -850,6 +853,7 @@ property; a derived property refuses every write.
 | **Phloem** | http | The pipeline orchestrator (Part VI) |
 | **Xylem** | http | Accepts a building-model upload, runs the importer, and applies the result to the model |
 | **Intake** | its own address | Takes a public submission, composes it into the model as one fragment, sends the verification code, keeps shared files, and answers a submitter's findings page. It registers with nothing and holds its own confined key |
+| **Feedback** | its own address | Takes a bug report or an idea from a signed-in person's report panel and files it as a work item, with the screenshot attached, after the server has accepted the caller's pass (chapter 78). It registers with nothing |
 | **The echo examples** | graph | The reference service in each of five languages, and the reference pipeline node |
 
 ### 37. Metabolism: a simulation that runs in the model
@@ -954,12 +958,21 @@ value read from the model, transformed and written back.
 ### 41. Building one on the canvas
 The **Pipelines** page in the console is the editor.
 
-![The Pipelines page with a saved pipeline loaded: the boundary and the service palette on the left, the nodes wired on the canvas, the parameters along the top](assets/trellis-pipelines.png)
+![The Pipelines page with a saved pipeline loaded: the catalysts and the roster on the left, the nodes wired on the canvas, the outputs and the services on the right, the parameters along the top](assets/trellis-pipelines.png)
 
-- **The palette** lists every connection in the model that can be dispatched. Clicking one drops a
-  node bound to it; its typed ports come from the service it binds. **Input** and **Output**
-  buttons drop boundary nodes: an Input's ports are filled from the run's parameters, and the value
-  wired into an Output becomes the run's published result.
+- **The catalysts**, in the rail on the left, are everything in the model that sets a run off,
+  listed by kind — a state a Thing enters, a kind of message an external system sends, a request —
+  each saying what it starts or what happens to it today. Clicking one places a **start node**
+  standing for it; *By hand* places a start whose ports are filled from the run's parameters. Beneath
+  the catalysts the **roster** lists the model's pipelines; one opens from it, and the first opens on
+  arrival.
+- **The outputs**, in the rail on the right, offer the answer, the other pipelines and the external
+  systems; clicking one places an **end node**, and the value wired into an end becomes the run's
+  published result or what the system is told. The **services** stand under the outputs: clicking
+  one drops a node bound to its connection, with the typed ports the service declares.
+- **A boundary node stands for its catalyst or its outcome**, read by marks, never by name. The
+  **findings** under the canvas list what stops a run, including an end standing for the wrong kind of
+  Thing. On a screen narrower than a tablet's the rails sit above the canvas rather than beside it.
 - **Wiring** is dragging from an output port to an input port. Wires are type-checked; an
   incompatible one is refused.
 - **Field mapping** on a wire picks a part of the upstream value and places it at a named part of
@@ -970,7 +983,7 @@ The **Pipelines** page in the console is the editor.
   in a bar above the canvas where values are typed at run time.
 - **Validation** runs before every run: a required input neither wired nor bound, or a wire with a
   loose end, disables Run and says why.
-- **Save, load, undo.** Saving a loaded pipeline updates it in place. Every edit is optimistic and
+- **Save and undo.** Saving an opened pipeline updates it in place. Every edit is optimistic and
   can be undone; a save the server refuses rolls the canvas back to the last saved state.
 - **History** lists a pipeline's past runs; picking one replays each node's status onto the canvas.
 
@@ -994,9 +1007,16 @@ input receives a list — the other inputs are the same for every item — and e
 into a list for downstream. The node may continue past a failed item, marking the run partial, or
 fail as a whole.
 
-A pipeline can also be started **from the model**: a `runs` predicate bound to Phloem makes
+A pipeline can also be started **from the model**, two ways. A `runs` predicate bound to Phloem makes
 creating *X runs Pipeline* start it, so any service can start a pipeline by creating one
-relationship.
+relationship. And a **state connection** bound to Phloem starts the pipeline drawn from it — the one
+whose start node stands for the connection, or for the state it watches, since several connections
+may watch one state — when a Thing enters the state, with the entering Thing as the run's `subject`:
+the name the Pipelines page gives a start node's port, carrying the Thing's id and name, which a wire
+narrows by its from-path. The run relates to that Thing along the predicate marked as the run's
+subject. What the orchestrator is asked to run is resolved against the model: a pipeline runs itself,
+a connection runs the pipeline drawn from it or the one it reaches along the pipeline-start
+predicate, and anything else is refused.
 
 ### 43. A service becomes a node
 A node is an ordinary service that recognises one extra shape of handle request — one carrying a
@@ -1064,14 +1084,17 @@ Accounts page — is shown the change form first and nothing else until it has.
 
 ![The password change form shown after sign-in when a change is required](assets/trellis-change-password.png)
 
-**The pages.** The left rail lists them; it collapses to icons with the chevron at its top.
+**The pages.** The left rail lists them; it collapses to icons with the chevron at its top. On a
+screen narrower than a tablet's (below 768 pixels) it starts as icons, opens over the page rather than
+beside it, and closes again once a page is chosen.
 
 | Page | What it is for |
 | --- | --- |
 | **Dashboard** | What the model holds, what the two engines are carrying, which services are registered and healthy, and a live feed of what is happening |
 | **Operations**, and the model's own pages | Every page the model publishes, one rail entry each with the icon its description names, in the reader's language; a model that publishes none shows one Operations entry saying so |
-| **Accounts** | The page the platform declares for administrators: who may sign in and which models each account may enter (chapter 54). Listed only to an administrator, before the model's own pages |
+| **Accounts**, **API keys** | The pages the platform declares for administrators: who may sign in, which models each account may enter and who is active now; and every key, with a form that issues one and the acts that revoke one (chapter 54). Listed only to an administrator, before the model's own pages |
 | **Compose** | A table built from what the model declares for a kind — its properties, its links and its states — kept as a page of the model's own |
+| **Design** | A page laid out on a grid from the palette every seeded page was drawn with, and kept as a page of the model's own (chapter 53) |
 | **Land intake** | The five-step wizard that describes a piece of land, shown where an intake service is configured |
 | **Submissions** | What has arrived, and what a reviewer decides about it |
 | **Graph** | The model as a picture: search, clustering, the 3D view of one building, and every create, edit and delete |
@@ -1084,7 +1107,11 @@ Accounts page — is shown the change form first and nothing else until it has.
 ![The same page with the sidebar collapsed to its icon strip](assets/trellis-sidebar-collapsed.png)
 
 The rail's footer holds what is the same on every page: the light or dark **theme**, **Switch
-Model**, **Log Out**, and the **language**. Above the controls a model statement says whether the
+Model**, **Log Out**, and the **language**. Where the console was built with a feedback relay's
+address, a speech-bubble button in the corner of every page opens the **report panel**: pick a problem
+or an idea, write a title and details, add a screenshot you can mark up, and it is filed as a work
+item (chapter 78). The console also reports each sign-in, sign-out and change a person makes to the
+server, so a model that names recipients for operator alerts hears of them. Above the controls a model statement says whether the
 stream is live, how many Things and relationships the model holds (*Reading the model…* until it
 is loaded), and when the newest event arrived (*Nothing has moved yet* before one). Collapsed, only
 the live mark stays, with the statement as its tooltip.
@@ -1114,6 +1141,8 @@ The Graph page draws every Thing as a node and every relationship as a line with
 simulation: Things with many relationships drift to the centre and leaf Things to the edge.
 
 ![The Graph page on the village seed: the force-directed layout, the search bar top left, the predicate and type filters on the right and the toolbar bottom left](assets/trellis-graph.png)
+
+On a screen narrower than a tablet's the two filter panels start closed, so the graph keeps the width.
 
 **What you see.**
 
@@ -1337,19 +1366,38 @@ answers.
 
 ![Compose: a kind chosen on the left, a link and a state picked as columns, the table drawn on the right](assets/trellis-compose.png)
 
-### 54. The Accounts page
-**Accounts** is neither a page the console ships nor one a model publishes: the platform declares it,
-as a page description, to an administrator, and the console draws it exactly as it draws a model's
-own pages. Anyone who is not an administrator sees no such entry.
+**Design** lays a page out on a grid from the palette every seeded page was drawn with, and keeps it as
+the same kind of page Thing a seeded page is. The pages the model holds stand on the left; the one
+opened is edited on the canvas between the palette and the properties of whatever is selected. A seeded
+page is opened as a copy and never written over; a page the console kept is edited in place. Every
+binding is chosen from the model's own words — its kinds, properties, links and states — with what each
+costs to read said beside it, and the page's words can be given in every language. What the seed's
+validation would refuse the Design page refuses first, and warns about the rest, so a kept page never
+draws *absent* for a name nothing holds.
+
+### 54. The Accounts and API keys pages
+**Accounts** and **API keys** are neither pages the console ships nor pages a model publishes: the
+platform declares them, as page descriptions, to an administrator, and the console draws them exactly
+as it draws a model's own pages. Anyone who is not an administrator sees no such entry.
 
 ![The Accounts page: every account, a form that adds one, and the acts that grant, revoke, change a role, reset a password and delete](assets/trellis-accounts.png)
 
-Every read and write on it goes to the platform's administration route. An account added or reset
-here signs in with the password typed and must then choose its own. An account holds one role and
-enters only the models it is granted; an administrator enters every model and needs no grant.
-Nothing on the page acts on the administrator's own account. The same acts are the `user` commands
-in Taproot (chapter 68), through the same route, so the two say and refuse the
+Every read and write on either page goes to the platform's administration route. The Accounts page
+opens with an **Active now** figure: how many accounts have a request open now or made one in the last
+five minutes with their own credentials, and which, each with when it was last seen and whether it is
+still connected. The record is kept in memory only, so a restart clears it, and services and keys are
+not counted. An account added or reset here signs in with the password typed and must then choose its
+own. An account holds one role and enters only the models it is granted; an administrator enters every
+model and needs no grant. Nothing on the page acts on the administrator's own account. The same acts
+are the `user` commands in Taproot (chapter 68), through the same route, so the two say and refuse the
 same things.
+
+The **API keys** page lists every key with whether it is in use, revoked or expired. **Issue a key**
+takes a name, a role, optionally the model the key is confined to, and optionally the days until it
+expires — a fraction of a day is accepted, so `0.5` is twelve hours — and shows the raw key once, in
+the reply. **Revoke a key** names a key in use, so a name belongs to one key in use at a time: a name a
+key in use already has is refused, and a revoked or expired key frees its name. The first
+administrator key the server wrote at its first start can be revoked here once nothing uses it.
 
 ### 55. Time and the log
 **Temporal** reads the model's past: property changes across the model or for one Thing, the model
@@ -1503,7 +1551,9 @@ Successfully authenticated with Mycelium.
 | A development server's self-signed certificate | `VOS_INSECURE_TLS=true` — never in production |
 
 The key is exchanged for a short-lived pass, renewed on its own. Up and Down recall earlier commands.
-`help` prints the whole reference, grouped as the next chapter groups it; `exit` leaves.
+`help` prints the whole reference, grouped as the next chapter groups it; `exit` leaves. Taproot
+reports each session and every command to the server, so a model that names recipients for operator
+alerts hears of them; a password, key or token typed on a line is masked before the line is reported.
 
 **Naming a Thing.** Wherever a Thing is named you may give its identifier or its name,
 case-insensitively. A name shared by two Things is refused with both identifiers listed. Add
@@ -1557,6 +1607,7 @@ written `2026-01-15T12:30:00Z`, in universal time, or as `now`.
 | `mycelium status`, `mycelium endpoints` | Startup progress; the request connections the model registers |
 | `submissions list`, `submissions reject <id>`, `submissions promote <id> <template> <predicates> <name>`, `submissions dispose <predicates>` | Review, and the retention pass |
 | `user list` | Every account, its role, the models it may enter, whether its password must change, and when it was created |
+| `user active` | How many accounts are active now, then each one with when it was last seen and whether it is still connected. Active means a request open now, or one in the last five minutes, made with the account's own credentials; services and API keys are not counted |
 | `user create <username> <role> [<model name>]` | Add an account, prompting for its first password, which the person must change at first sign-in |
 | `user grant <username> <model name>`, `user revoke <username> <model name>` | Let an account enter a model, or take one off it; the model's name is the rest of the line |
 | `user role <username> <admin\|editor\|viewer>` | Change an account's role |
@@ -1948,9 +1999,12 @@ The server listens on `https://localhost:7243`. On a first start with no account
    directory.
 2. Creates the `admin` account. Its password is `VOS_ADMIN_PASSWORD` if set; otherwise a random one
    that must be changed on first sign-in. There is no weak default.
-3. Creates a first administrator key.
+3. Creates a first administrator key. If the store holds no accounts but still holds that key in use
+   — its accounts were all deleted — the old key is revoked, and the new one is the key the credentials
+   file names.
 4. Writes both credentials to `bootstrap-credentials.txt` in the data directory, readable by the
-   owner only. Secure the file and delete it.
+   owner only. Secure the file and delete it; the first key can be revoked on the API keys page once
+   nothing uses it.
 
 `VOS_MASTER_KEY` encrypts the account store and the signing key on disk. Without it they are
 written in plain text and the server warns at startup. Set it in any real deployment and back it
@@ -2028,10 +2082,25 @@ service it started and asks every other known service to stop, and reports any t
 ![A deployment: one proxy hears the internet; everything else answers only on the machine itself](assets/field-guide-deployment.svg)
 
 **One host, one proxy.** The reference deployment puts a reverse proxy in front: one hostname
-sends requests to the server and every other path to the built console; a second hostname sends
-everything to the intake service. The proxy provisions its own certificates. Every service answers only
-on the machine itself and is unreachable except through the proxy; the server itself never reads a request's
-host name.
+sends requests to the server, `/feedback` to the feedback relay, and every other path to the built
+console; a second hostname sends everything to the intake service. The proxy provisions its own
+certificates. Every service answers only on the machine itself and is unreachable except through the
+proxy; the server itself never reads a request's host name.
+
+**The feedback relay** takes a bug report or an idea from a signed-in person's report panel and files
+it as a work item in Azure DevOps, with the screenshot attached. It checks the caller by presenting the
+caller's own pass to the server, on a route every signed-in caller may read, and accepts only a
+person's pass — never a key's or a stream's — so a report cannot claim a model its pass does not
+reach; the server is what decides, because the server replaces its signing keys over time. Where
+reports are filed is read from its `appsettings.json`, or from the one in the folder `--contentRoot`
+names for a deployment filing into another organisation: `DevOpsOrganization` is the organisation's
+address, and the `Destinations` section names, per application, the project, the area path, the
+work-item type a bug and an idea each become, and any tags; an application the section does not name
+is refused. `DevOpsAccessToken`, a personal access token with work items read and write, comes from
+configuration or the environment, never the command line. Reports are counted per address before the
+caller is known, a report is capped in size, and `--allowedOrigin` names any page allowed to call it
+across origins. The report panel is part of the console; it is also built on its own
+(`npm run build:feedback-widget`) as one module a page with no build step can load.
 
 **The intake service** is the one service that takes requests from strangers. It is started with
 the addresses the public pages are served from, and with a mail host and sender, because a
@@ -2065,8 +2134,10 @@ on the router is opened. The deployment guide beside this one walks the account 
 | The persistence directory: per model, its durable record, its checkpoints, and the sealed history files | The record of every Fact, and the only copy of every reading once its record segment has been compacted |
 | The master key | Without it the encrypted files above cannot be read |
 
-Back up the data directory, the persistence directory and the master key. The seed file is an
-initial import only.
+Back up the data directory, the persistence directory and the master key. A seed builds the model
+once; a later version of it can be merged into the running model with
+`POST /api/mycelium/library-seeds/{name}/merge`, which adds only what the model never held and changes
+nothing it holds.
 
 ### 80. Hosting the real server in a test
 The release carries a test host that starts the real server inside a test process — real routes,
@@ -2102,11 +2173,12 @@ sign-in state in a context. Everything reaches the server through one client tha
 its pass in the background at four-fifths of its lifetime, and re-scopes the session when the model
 changes.
 
-The console reaches three addresses, each from a build-time setting: the server (`VITE_BROKER_URL`,
+The console reaches four addresses, each from a build-time setting: the server (`VITE_BROKER_URL`,
 empty for same-origin through the development server's proxy), the building-model upload service
 (`VITE_INGEST_URL`, without which the Model page's upload is hidden and the page points at the
-command line), and the intake service (`VITE_INTAKE_URL`, without which the wizard's submit button
-stays disabled). Intake has its own address rather than the server's forwarding route on purpose:
+command line), the intake service (`VITE_INTAKE_URL`, without which the wizard's submit button
+stays disabled), and the feedback relay (`VITE_FEEDBACK_URL`, `/feedback` on the same host by
+default; `off` hides the report button). Intake has its own address rather than the server's forwarding route on purpose:
 that route resolves where to forward from data in the model, so anything the model named would be
 within reach of whoever could call it.
 
@@ -2178,6 +2250,7 @@ effects on a live change, the decimal precisions, and which properties a load se
 | `/` | The Dashboard page |
 | `/operations/{page}` | A page the model publishes, one address each — the page's name run together, accents folded, falling back to its identifier where two names collide — and, before them, the pages the platform declares for the signed-in account, read once per account on sign-in and drawn by the same renderer; `/operations` alone settles on the first |
 | `/compose` | Compose |
+| `/design`, `/design/{page}` | Design: a new page, or one of the model's opened for editing |
 | `/intake` | The land-intake wizard |
 | `/submissions` | The review page |
 | `/graph`, `/model`, `/temporal`, `/things`, `/properties`, `/pipelines`, `/logs` | As chapter 46 describes them |
@@ -2326,9 +2399,9 @@ an unknown one.
   "sections": [ { "title": "Reserves", "layout": "kpi-strip", "widgets": [ … ] } ] }
 ```
 
-Pages the platform itself declares for the signed-in account — an administrator's Accounts page —
-are read on sign-in and listed before the model's own, each at an address of its own, drawn by the
-same widgets.
+Pages the platform itself declares for the signed-in account — an administrator's Accounts and API
+keys pages — are read on sign-in and listed before the model's own, each at an address of its own,
+drawn by the same widgets.
 
 The widget kinds: a **kpi** figure with a unit, a target and a small trace; **funnel**, **bullet**,
 **gantt**, **table**, **leaderboard**; **verdict** and **working** (chapter
@@ -2539,6 +2612,18 @@ model, found by the marks it puts on its own wiring. Only the subject of a relat
 handled. The platform stamps a dispatch's state onto the relationship rather than as a committed
 Fact, so each dispatched relationship is read back in the same request round as the states.
 
+**Why a service decided about a Thing.** For a Thing a service decided about, the card opens a second
+block: the kind of decision, the instant, what was chosen and the rule it was decided under. Both halves
+come from one renderer — a consideration held through the support predicate reads *for* the choice, one
+held through the refusal predicate reads *against* it, naming the candidates it turned away and the true
+count kept for the ones past the naming bound. Every property a constraint names is read at the
+decision's own instant, through the things route's timestamp, never live: a value the platform cannot
+answer for that instant reads as *not recorded*, and a Thing retracted since the decision still answers,
+because that route resolves before the active filter. Where more than one decision was taken about a
+Thing, the latest opens the block and the earlier ones are one click away, each with its own instant; a
+decision's own card opens on the same block. Nothing here names a predicate or an archetype: each is
+found by the mark it carries.
+
 **A figure opens to show what it is made of.** A dotted rule under a kpi appears only where the
 binding's shape says the model derived the figure, and opens to the same narrowed question asked for
 its rows: the Things a count counted, the members an aggregate reduced with each one's contribution,
@@ -2557,9 +2642,9 @@ names chosen, an optional field left empty not at all, no field naming an actor.
 shown in the endpoint's own words. A press the route accepted starts a new generation of platform reads,
 so a table on the same page shows what the press changed — a write the platform records outside the
 model, an account, announces nothing on the stream. The platform's own administration route,
-`POST /api/auth/administration`, takes these bodies for its Accounts page; no shipped service
-endpoint does yet, and one a model registers has to accept `{ view | reason, record, …asked }` or
-`{ view, …fields }` and answer `{ said }` or `{ error }`.
+`POST /api/auth/administration`, takes these bodies for its Accounts and API keys pages; no shipped
+service endpoint does yet, and one a model registers has to accept `{ view | reason, record, …asked }`
+or `{ view, …fields }` and answer `{ said }` or `{ error }`.
 
 **Translating a description.** Author in one base language, then add a top-level `translations`
 map from language code to base string to translated string, keyed by language rather than region
@@ -2570,7 +2655,9 @@ labels, a verdict's `reads` wording and its lever wordings, an origin's wordings
 submit label, and the detail block's labels. Model vocabulary is never looked up — binding values,
 state names, archetypes, property names, predicate names, row keys, colours, formats, the page
 Thing's own name — so a translation can never corrupt what a binding resolves; and resolved row data
-is model content, shown in the model's own language.
+is model content, shown in the model's own language. A term a form offers — a programme category, a
+hazard — states its words in a `wording` property the model carries, read in the reader's language, and
+is still submitted by its name.
 
 ### 94. Tiles, and what a page is sent
 A section may name a **theme** the model declares — a Thing under the archetype marked as a theme,
@@ -2613,17 +2700,21 @@ of it, a tilt control offered, the camera lifted far enough to see the horizon �
 none draws flat. The globe and the sky need no declaration. A source is dropped rather than drawn
 when it carries no attribution, no address, or both a style and a tile address. Discovery reads
 effective properties, because a normalised seed keeps a source's address one level down as an
-override. The platform repository ships a basemap template declaring one keyless street-map source;
-there is deliberately no imagery source in it, since no global imagery is free, keyless and licensed
-for production, so a site's own model declares the imagery for its country. Anything put onto the
+override. The platform repository ships a basemap template declaring a keyless street-map source and a
+**Satellite** source whose tiles come through the platform's own tile route rather than the provider's
+address. A relative `tileUrl` — a path such as `/basemaps/satellite-tiles/{z}/{x}/{y}` — is asked of
+the server that served the page: the intake service for the public pages, the server itself for the
+signed-in console. A signed-in map sends its sign-in with tile requests to its own server and to no
+other, so no map provider is ever handed a pass. Anything put onto the
 style — the boundary, the ground, the globe, the sky — goes on once the map has settled, and once
 only, because each repaints the map. The map library is chunked on its own and loaded when a map
 mounts, and its tile worker is named in the source so the bundler emits it; unnamed, no tile is ever
 parsed and nothing says so.
 
 ### 96. Verifying a change
-`npm run dev` serves the console; `npm run lint`, `npm test` and `npm run build` (which
-type-checks) are what the build runs, and a failure in any of them fails it. `npm run
+`npm run dev` serves the console, passing `/api` and `/basemaps` through to the server and `/feedback`
+to the relay on its default port; `npm run lint`, `npm test` and `npm run build` (which type-checks)
+are what the build runs, and a failure in any of them fails it. `npm run
 test:integration` needs a running server and checks what only one can answer — today, that the
 property type names the console holds are the ones the platform's write routes accept. Walk a
 change through the model: load a seed, confirm every Thing and relationship draws, search, select a
