@@ -354,6 +354,12 @@ stays good, when a token is due for replacement, how long a cached answer lives 
 code in ten seconds. That is why the model clock is its own registration rather than the injected
 `TimeProvider`.
 
+**A model-declared transform reads the same clock.** `$now()` and `$millis()` inside a JSONata
+expression the model carries — a `responseTransform`, or a transform on a pipeline wire — are answered
+from the model clock, because those instants are written by an expression the model holds rather than
+by service code. `$now()` takes no arguments here: a transform wanting a formatted instant writes
+`$fromMillis($millis(), picture)`, which reads the same clock.
+
 ## 7. Program.cs — the same steps, most of them shared
 
 `Program.cs` is wiring. Anything that makes a decision belongs outside it, where
@@ -781,8 +787,9 @@ public class MyServiceWritesTests : IClassFixture<TheEngine>
 }
 ```
 
-Arrange a model with `_engine.DeclareAsync(...)`, and read back what the service
-wrote with `_engine.ValueOfAsync(...)`.
+Arrange a model with `_engine.DeclareAsync(...)`, relate its Things with
+`_engine.RelateAsync(...)`, and read back what the service wrote with
+`_engine.ValueOfAsync(...)`.
 
 It needs the platform's engine, which lives in the VillageOS repository, so it does
 not run from a plain `dotnet test`. Stage one first:
@@ -917,7 +924,10 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 The response includes a `rawKey` field (e.g. `vos_sk_...`) — store it securely,
 it is only shown once. Give it to a service through the `ApiKey` setting, or
 exchange it yourself via `POST /api/auth/token` (`X-API-Key: <rawKey>`) and
-hand the short-lived token over through the `Token` setting.
+hand the short-lived token over through the `Token` setting. A key name stands
+for one key in use: a name a key in use already has is refused with `409`, so a
+second run of the example needs the first key revoked (`DELETE /api/auth/keys/{id}`,
+or the API keys page) or another name. A revoked or expired key frees its name.
 
 ### Related docs
 
@@ -1216,10 +1226,19 @@ POST /api/endpoints/phloem   { "pipelineId": "<guid>", "params": { }, "async": t
 like `consumes`/`produces` drive Metabolism: the seed declares a `runs` predicate that is a **graph
 Connection** bound to the Phloem Service. Creating a `<X> runs <Pipeline>` relationship makes Mycelium
 forward the relationship envelope (`{relationshipId, subjectId, targetId, properties}`) to the same
-`/handle`; `SpawnTrigger.Resolve` keys off shape (`pipelineId` ⇒ http; else `targetId` is the Pipeline,
-`properties` are the params). So **any service can spawn a DAG** by creating that relationship. Because a
-graph trigger fires during a relationship-create (Mycelium waits ~15s), it is **fire-and-forget**: Phloem
+`/handle`; a body carrying `pipelineId` is an http spawn, and any other is resolved against the model
+(`PipelineStart`): a pipeline runs itself, a connection runs the pipeline drawn from it — the one whose
+start node stands for the connection, or for the state it watches — or the one it reaches along the
+predicate marked `__IsPipelineStartPredicate`, and anything else is refused with `400`; `properties`
+are the params. So **any service can spawn a DAG** by creating that relationship. Because a graph
+trigger fires during a relationship-create (Mycelium waits ~15s), it is **fire-and-forget**: Phloem
 ACKs immediately and runs the DAG in the background, persisting the result to the `PipelineRun`.
+
+**Spawn — state (a Thing enters a watched state).** A **state Connection** bound to the Phloem Service
+starts the pipeline drawn from it when a Thing enters the state it watches, with the entering Thing as
+the run's `subject` — the name the Pipelines page gives a start node's port, carrying the Thing's id and
+name, which a wire narrows by its from-path. The run relates to that Thing along the predicate marked
+`__IsRunSubjectPredicate`.
 
 ```mermaid
 sequenceDiagram

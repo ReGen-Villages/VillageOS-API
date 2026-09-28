@@ -54,12 +54,14 @@ empty box.
 **The typography travels with the file.** Three variable faces are embedded, so a guide renders the
 same on a machine that has none of them.
 
-**A figure drawn dark is turned light.** The diagrams were drawn for a screen, on a near-black
-ground; printing one costs a page of ink a reader did not ask for. A figure whose backdrop is dark
-has every colour's lightness turned over — the ground becomes paper, light text becomes ink, and an
-accent keeps its hue — and its backdrop is set to white. A figure that was already light is left
-exactly as it is: inverting one would be the fault this exists to prevent. `figures.mjs` decides by
-reading the backdrop rectangle, not by guessing.
+**A figure drawn dark is turned light.** The four `vos-*.svg` figures were drawn for a screen, on a
+near-black ground, and no published page attaches them; printing one costs a page of ink a reader
+did not ask for. A figure whose backdrop is dark has every colour's lightness turned over — the
+ground becomes paper, light text becomes ink, and an accent keeps its hue — and its backdrop is set
+to white. A figure that was already light is left exactly as it is: inverting one would be the fault
+this exists to prevent. The Field Guide's diagrams are drawn light, paint no ground of their own, and
+carry a dark-scheme stylesheet for the wiki; the renderer leaves them alone and prints their light
+default. `figures.mjs` decides by reading the backdrop rectangle, not by guessing.
 
 **Every page is light**, for the same reason: the cover, the part dividers, the table headings and
 the code blocks are all set in pale teal rather than in a solid fill, so a guide printed whole costs

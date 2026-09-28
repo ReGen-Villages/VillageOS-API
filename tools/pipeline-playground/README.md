@@ -62,6 +62,11 @@ and Batch Enrich, and a Publish sink. Subdomains match live Managed Microservice
 (`echo`, `water-reserve`, `energy-balance`, `metabolism`, `model-bridge`), so a saved pipeline can also be
 Run against a live platform; the rest are dispatch-only stand-ins that still drive the editor end to end.
 
+**External systems and message kinds** (`EXTERNAL_SYSTEMS`, `MESSAGE_KINDS`) — what stands outside the
+platform and what crosses its boundary: a `Sensor gateway` that sends a batch of readings, a `Reporting
+office` that is told the daily report. A system `sends` or is `told` kinds of message; a kind `arrivesAt`
+a connection; every connection is `triggeredBy` `http`.
+
 **Pipelines** — each showcases a Pipeline-page feature:
 
 | Pipeline | Shows |
@@ -77,6 +82,8 @@ Run against a live platform; the rest are dispatch-only stand-ins that still dri
 | Site Analysis (Combined) | A capstone: a source feeding one wired input while others are param-bound, two analyses in parallel, merge → report → sink. |
 | Number Cruncher | A numeric chain mixing wired and param-bound inputs on the same node. |
 | Enrichment Batch | Fan-out into a sink. |
+| Readings Arrive | A start standing for the kind of message the Sensor gateway sends, ending at the answer. |
+| Daily Report | A pipeline ending at the Reporting office, which is told the report. |
 
 ## The graph shape it writes
 
@@ -93,3 +100,8 @@ Mirrors `vos.Infrastructure.Tests/Fixtures/pipeline-demo.seed.json` and the cont
   `fromPath` / `toPath` / `transform`.
 - A seeded **run** `is PipelineRun`, points `of` its pipeline, and `has` `NodeRun` children (a per-item
   `NodeRun` carrying `index` / `total` drives fan-out progress).
+- An **external system** `is ExternalSystem` and `sends` or is `told` message kinds; a **message kind**
+  `is MessageKind` and `arrivesAt` a connection; a **boundary node** `standsFor` the Thing it stands for
+  — a connection, a state, a message kind or an external system. Each of these predicates carries its
+  mark (`__IsSendsPredicate`, `__IsToldPredicate`, `__IsArrivesAtPredicate`, `__IsStandsForPredicate`),
+  and each archetype its own, so the page reads roles and never names.
