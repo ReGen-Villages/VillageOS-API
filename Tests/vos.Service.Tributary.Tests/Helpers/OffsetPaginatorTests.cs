@@ -160,8 +160,6 @@ public class OffsetPaginatorTests
         ids.Should().Equal(1, 2, 3);
     }
 
-    // ---------- helpers ----------
-
     private static string Page(string itemsKey, int[] ids, string hasMoreKey, bool more) =>
         JsonSerializer.Serialize(new Dictionary<string, object>
         {

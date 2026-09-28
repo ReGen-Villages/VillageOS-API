@@ -30,7 +30,6 @@ export function GraphToolbar() {
   }, [sigma]);
 
   const handleRelayout = useCallback(() => {
-    // Jitter positions to force the layout to re-settle.
     const graph = sigma.getGraph();
     graph.forEachNode((node) => {
       const attributes = graph.getNodeAttributes(node);

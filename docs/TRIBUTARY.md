@@ -411,7 +411,10 @@ Tributary's contract is **fetch-and-shape**:
    selecting, renaming, and restructuring fields — not a place to compute new domain quantities.
    A reading that names no `observedAt` is forwarded without one, so Mycelium stamps the batch
    from the model clock. Tributary never supplies its own: its wall clock is not the model's
-   whenever a run has anchored time away from real time.
+   whenever a run has anchored time away from real time. An instant the expression itself writes
+   — `$now()` or `$millis()` — is answered from the model clock too, because the expression is the
+   model's rather than service code. `$now()` takes no arguments here; a transform wanting a
+   formatted instant writes `$fromMillis($millis(), picture)`, which reads the same clock.
 3. **Ingest** (hybrid ingest) — readings are grouped by entity `name`. Each entity is a
    Thing created **once** (its first reading seeds the observable properties, each bounded to
    `Sampled` PropertyMode) and related to the endpoint through an `observed` relationship — **one per
@@ -444,9 +447,8 @@ calculation deliberately lives on the other side of the boundary.
 
 ## Example: precipitation onto a Site (#5805)
 
-Plane A of the site-analysis Water slice. A weather endpoint (e.g. Open-Meteo) is registered
-with a `responseTransform` that reshapes the hourly response into a reading on the Site Thing —
-no Tributary code changes, just config:
+A weather endpoint (e.g. Open-Meteo) is registered with a `responseTransform` that reshapes the
+hourly response into a reading on the Site Thing — no Tributary code changes, just config:
 
 ```jsonc
 // endpoint registration (descends from the root Endpoint template)
@@ -548,8 +550,10 @@ readable rather than being settled by whichever was written last.
 - **"No data" writes nothing.** The portal answers 404 for a division it holds nothing about, which
   never reaches the expression; a body carrying the grade anyway is refused by the filter. Either way
   the assessment stays honestly unassessed — no level, and no date suggesting one was read.
-- **The date is the fetch's own.** The portal publishes no assessment date, so `assessedOn` records
-  when the grade was read, and only beside a grade (see `HazardGradingEndpointTests`).
+- **The date is the fetch's own, on the model's clock.** The portal publishes no assessment date, so
+  `assessedOn` records when the grade was read, and only beside a grade (see
+  `HazardGradingEndpointTests`). The `$now()` that writes it is answered from the model clock, so on
+  a simulated run the date is the model's, not the machine's.
 
 ## Pointers
 

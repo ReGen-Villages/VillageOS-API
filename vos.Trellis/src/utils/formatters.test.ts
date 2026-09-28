@@ -15,7 +15,7 @@ describe('formatGuid', () => {
 describe('formatTimestamp', () => {
   it('formats an ISO string to HH:mm:ss', () => {
     const result = formatTimestamp('2025-06-15T14:30:45.000Z');
-    // The exact output depends on timezone, but it should be a time string
+    // The exact text depends on the machine's time zone.
     expect(result).toMatch(/^\d{2}:\d{2}:\d{2}$/);
   });
 
@@ -37,7 +37,6 @@ describe('formatDateTime', () => {
 
 describe('formatRelativeTime', () => {
   it('returns a relative time string with suffix', () => {
-    // 1 hour ago
     const oneHourAgo = new Date(Date.now() - 3600 * 1000).toISOString();
     const result = formatRelativeTime(oneHourAgo);
     expect(result).toMatch(/ago$/);

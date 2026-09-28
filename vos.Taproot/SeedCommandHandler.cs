@@ -76,21 +76,21 @@ public class SeedCommandHandler
     private async Task LoadSeedAsync(string name)
     {
         _writer.WriteLine($"Loading seed '{name}'...");
-        var result = await _mycelium.LoadLibrarySeedAsync(name);
+        await _mycelium.LoadLibrarySeedAsync(name);
         _writer.WriteLine($"Seed '{name}' loaded.");
     }
 
     private async Task SaveSeedAsync(string name)
     {
         _writer.WriteLine($"Saving current model as seed '{name}'...");
-        var result = await _mycelium.SaveLibrarySeedAsync(name);
+        await _mycelium.SaveLibrarySeedAsync(name);
         _writer.WriteLine($"Model saved as seed '{name}'.");
     }
 
     private async Task ReloadSeedsAsync()
     {
         _writer.WriteLine("Reloading seeds from disk...");
-        var result = await _mycelium.ReloadSeedsAsync();
+        await _mycelium.ReloadSeedsAsync();
         _writer.WriteLine("Seeds reloaded.");
     }
 

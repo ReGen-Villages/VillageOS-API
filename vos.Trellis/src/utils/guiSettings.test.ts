@@ -11,8 +11,6 @@ import {
 } from './guiSettings';
 import type { VosThing, VosRelationship } from '../types/vos';
 
-// ── Test helpers ──────────────────────────────────────────────────────
-
 let idCounter = 0;
 function uniqueId() {
   return `test-${++idCounter}`;
@@ -59,8 +57,6 @@ beforeEach(() => {
   idCounter = 0;
 });
 
-// ── findGuiSettingsProperties ─────────────────────────────────────────
-
 describe('findGuiSettingsProperties', () => {
   it('returns null when no GUI_Settings type exists', () => {
     const things = [makeThing('Foo'), makeThing('Bar')];
@@ -82,8 +78,6 @@ describe('findGuiSettingsProperties', () => {
     expect(result).toEqual({ FlashEdgeSize: 1.5, FlashNodeBrighten: 0.8 });
   });
 });
-
-// ── extractFlashSettings ──────────────────────────────────────────────
 
 describe('extractFlashSettings', () => {
   it('returns defaults when no GUI_Settings type exists', () => {
@@ -142,8 +136,6 @@ describe('extractFlashSettings', () => {
   });
 });
 
-// ── extractLayoutSettings ─────────────────────────────────────────────
-
 describe('extractLayoutSettings', () => {
   it('returns defaults when no GUI_Settings type exists', () => {
     const things = [makeThing('SomeOtherThing')];
@@ -164,7 +156,6 @@ describe('extractLayoutSettings', () => {
       repulsion: 0.5,
       gravity: 0.01,
       clusterRepulsion: 1.5,
-      // Perf knobs not present in this fixture, so defaults apply.
       scalingRatioMultiplier: LAYOUT_DEFAULTS.scalingRatioMultiplier,
       gravityMultiplier: LAYOUT_DEFAULTS.gravityMultiplier,
       barnesHutTheta: LAYOUT_DEFAULTS.barnesHutTheta,
@@ -174,12 +165,11 @@ describe('extractLayoutSettings', () => {
       nodeSizeMax: LAYOUT_DEFAULTS.nodeSizeMax,
       nodeSizeSlope: LAYOUT_DEFAULTS.nodeSizeSlope,
       edgeSize: LAYOUT_DEFAULTS.edgeSize,
-      // classifyingProperty defaults when unset
       classifyingProperty: LAYOUT_DEFAULTS.classifyingProperty,
     });
   });
 
-  it('extracts the Bug #5361 perf knobs from GUI_Settings overrides', () => {
+  it('extracts the layout tuning settings from GUI_Settings overrides', () => {
     const { things, relationships } = buildGuiFixture({
       LayoutScalingRatioMultiplier: 200,
       LayoutGravityMultiplier: 5000,
@@ -245,8 +235,6 @@ describe('extractLayoutSettings', () => {
     expect('maxMove' in result).toBe(false);
   });
 });
-
-// ── extractPredicateColors ───────────────────────────────────────────
 
 describe('extractPredicateColors', () => {
   it('returns empty object when no GUI_Settings type exists', () => {

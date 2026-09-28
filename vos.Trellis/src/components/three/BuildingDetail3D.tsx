@@ -77,7 +77,6 @@ function RotatingBuilding({
   const meshEntries = useMemo(() => {
     const entries: MeshEntry[] = [];
 
-    // Parse the primary mesh (may be null for container IFC things)
     const primaryMesh = parseSolidMesh(geometryValue);
 
     const allMeshes: { mesh: SolidMeshData; color: string }[] = [];

@@ -84,7 +84,6 @@ interface UiState {
   setHoveredNodeId: (id: string | null) => void;
   setDetailPanelWidth: (width: number) => void;
 
-  // ── States refresh counters ───────────────────────────────────────
   // Moved by useModelData on the Mycelium's `StatesChanged` SSE event so detail panels re-fetch
   // ranges without each page owning a local subscription. The running total is what a panel
   // showing one Thing's ranges watches; the per-state counts are what a dashboard figure made of
@@ -94,14 +93,8 @@ interface UiState {
   stateVersions: Record<string, number>;
   statesMoved: (states: string[]) => void;
 
-
-  // ── Type filter ───────────────────────────────────
-  // Set of type Thing ids currently hidden. Domain-agnostic — any Thing
-  // that is the target of an `is` relationship is a "type" for purposes
-  // of this filter. Both the Graph page (Sigma) and the Model page
-  // (Fragments) consume this same set so the two views stay in sync.
-  // Persisted per-model via localStorage so different domains keep
-  // separate filter state across reloads.
+  // Type Thing ids currently hidden; any target of an `is` relationship counts as a type. The Graph and
+  // Model pages read the same set so the two views agree, and it is kept per model in localStorage.
   currentModelId: string | null;
   hiddenTypeIds: Set<string>;
   setCurrentModelId: (modelId: string | null) => void;
@@ -112,12 +105,8 @@ interface UiState {
   typeSortOrder: SortOrder;
   setTypeSortOrder: (order: SortOrder) => void;
 
-  // ── Predicate edge-visibility filter ──────────────────
-  // Set of predicate ids whose edges should be HIDDEN. Mirror semantic of
-  // hiddenTypeIds: empty set = nothing hidden = all edges show. Driven by
-  // PredicateFilterPanel; consumed by NodeReducer.edgeReducer. Independent
-  // from activePredicateIds (which still drives clustering via the radial
-  // menu — different intent).
+  // Predicate ids whose edges are hidden; an empty set shows every edge. Independent of
+  // activePredicateIds, which drives clustering from the radial menu.
   hiddenPredicateIds: Set<string>;
   toggleHiddenPredicate: (predicateId: string) => void;
   setHiddenPredicateIds: (ids: Set<string>) => void;

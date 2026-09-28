@@ -138,7 +138,7 @@ try
 
     app.Run();
 }
-catch (Exception ex)
+catch (Exception ex) when (ex is not HostAbortedException)
 {
     Log.Fatal(ex, "Xylem service terminated unexpectedly");
 }
@@ -146,3 +146,5 @@ finally
 {
     Log.CloseAndFlush();
 }
+
+public partial class Program;

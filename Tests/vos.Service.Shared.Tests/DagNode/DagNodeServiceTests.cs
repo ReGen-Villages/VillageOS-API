@@ -20,8 +20,6 @@ public class DagNodeServiceTests
     private static readonly Guid Node = Guid.Parse("5628da90-0000-0000-0000-0000000000bb");
     private static readonly Guid Source = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
-    // ---------------- Envelope detection ----------------
-
     [Theory]
     [InlineData("""{"runId":"5628da90-0000-0000-0000-0000000000aa","nodeId":"5628da90-0000-0000-0000-0000000000bb"}""", true)]
     [InlineData("""{"runId":"5628da90-0000-0000-0000-0000000000aa"}""", false)]   // nodeId missing
@@ -31,8 +29,6 @@ public class DagNodeServiceTests
         var root = JsonDocument.Parse(json).RootElement;
         DagNodeService.IsNodeEnvelope(root).Should().Be(expected);
     }
-
-    // ---------------- Literal inputs ----------------
 
     [Fact]
     public async Task HandleNodeAsync_LiteralInput_RunsNodeAndReturnsOutputs()
@@ -46,8 +42,6 @@ public class DagNodeServiceTests
         response.Error.Should().BeNull();
         response.Outputs["echo"].Should().Be("hello");
     }
-
-    // ---------------- Reference inputs ----------------
 
     [Fact]
     public async Task HandleNodeAsync_RefInput_ResolvedFromEffectiveProperties()
@@ -81,8 +75,6 @@ public class DagNodeServiceTests
         response.Outputs.Should().BeEmpty();
     }
 
-    // ---------------- Failure contract ----------------
-
     [Fact]
     public async Task HandleNodeAsync_NodeThrows_ReturnsFailureNotException()
     {
@@ -96,8 +88,6 @@ public class DagNodeServiceTests
         response.Outputs.Should().BeEmpty();
     }
 
-    // ---------------- Manifest ----------------
-
     [Fact]
     public void Ports_AdvertiseInputAndOutputForManifest()
     {
@@ -106,8 +96,6 @@ public class DagNodeServiceTests
         node.Ports.Should().ContainSingle(p => p.PortName == "message" && p.Direction == "in" && p.Required);
         node.Ports.Should().ContainSingle(p => p.PortName == "echo" && p.Direction == "out" && !p.Required);
     }
-
-    // ---------------- Helpers ----------------
 
     private static JsonElement Envelope(string inputs) =>
         JsonDocument.Parse($$"""{"runId":"{{Run}}","nodeId":"{{Node}}","params":{},"inputs":{{inputs}}}""").RootElement;

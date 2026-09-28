@@ -26,6 +26,9 @@ page:
 - **Rewrites the DevOps `_wiki` root** → the GitHub wiki root.
 - **Strips private-only `_boards` links** to plain text (no public equivalent).
 - **Converts mermaid** — DevOps `::: mermaid … :::` → GitHub ` ```mermaid … ``` `.
+- **Carries the images** — copies the wiki's `.attachments` folder into the output and rewrites each
+  `/.attachments/<name>` image link to the raw file on the GitHub wiki repository, so the diagrams
+  render on GitHub.
 - **Generates `_Sidebar.md`** from the DevOps `.order` files (nested one level).
 
 ## Tests

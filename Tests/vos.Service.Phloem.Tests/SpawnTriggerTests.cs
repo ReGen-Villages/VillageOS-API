@@ -6,7 +6,7 @@ using Xunit;
 namespace vos.Service.Phloem.Tests;
 
 // One /handle, two spawn shapes — http {pipelineId,params} (sync) and a dispatched relationship
-// {subjectId, targetId, properties} (fire-and-forget). SpawnTrigger classifies; which pipeline a
+// {subjectId, targetId, properties} (answered before the run finishes). SpawnTrigger classifies; which pipeline a
 // relationship's target starts is the model's answer, not the body's.
 public class SpawnTriggerTests
 {
@@ -58,7 +58,7 @@ public class SpawnTriggerTests
         t.TargetId.Should().Be(Pipe);
         t.Subject.Should().Be(new RunSubject(Subject, "Submission 42"));
         t.Params.GetProperty("scenario").GetString().Should().Be("base");
-        t.Async.Should().BeTrue();                 // a dispatched relationship is always fire-and-forget
+        t.Async.Should().BeTrue("a dispatched relationship is always answered before the run finishes");
     }
 
     // A body naming no subject, or one that is not an identifier, is still a relationship to act on: the

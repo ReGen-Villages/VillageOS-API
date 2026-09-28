@@ -6,11 +6,7 @@ import { useUiStore } from '../../stores/uiStore';
 import type { VosThing, VosRelationship } from '../../types/vos';
 import { stubScreenWidth } from '../../testScreenWidth';
 
-/**
- * See PredicateFilterPanel.test.tsx for context. Mirror guard
- * for the Type panel since both share the filter-cluster layout in
- * GraphPage and were both regressed by the same fixed max-h-[40vh] cap.
- */
+/** The same layout guard as PredicateFilterPanel.test.tsx: both panels share the filter-cluster layout. */
 describe('TypeFilterPanel layout', () => {
   beforeEach(() => {
     const isPredicate: VosThing = { Id: 'is', Name: 'is', Properties: {} };

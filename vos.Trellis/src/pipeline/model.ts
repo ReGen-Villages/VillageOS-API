@@ -497,7 +497,7 @@ export class PipelineModel {
 
   /** Live per-node status for a run, keyed by the node Thing id — the SSE animation source.
    * Phloem records each node's progress on a node-run Thing the run `has`, carrying `nodeId` + `status`. Only the
-   * node's AGGREGATE record (no `index`) drives the ring; per-item fan-out records are counted separately. */
+   * node's aggregate record (no `index`) drives the ring; per-item fan-out records are counted separately. */
   nodeRunStatuses(runId: string): Record<string, string> {
     const out: Record<string, string> = {};
     for (const nodeRun of this.outgoing(runId, 'has')) {

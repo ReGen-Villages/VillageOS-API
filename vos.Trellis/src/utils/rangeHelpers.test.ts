@@ -2,10 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { stateColor, rangeBindingColor, findRange } from './rangeHelpers';
 import type { RangeDto, ThingRangesResponse, PropertyBindingDto } from '../types/vos';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function makeBinding(overrides: Partial<PropertyBindingDto> = {}): PropertyBindingDto {
   return {
     PropertyName: 'temperature',
@@ -38,10 +34,6 @@ function makeRangesResponse(overrides: Partial<ThingRangesResponse> = {}): Thing
     ...overrides,
   };
 }
-
-// ---------------------------------------------------------------------------
-// rangeBindingColor
-// ---------------------------------------------------------------------------
 
 describe('rangeBindingColor', () => {
   it('returns green for undefined range', () => {
@@ -126,10 +118,6 @@ describe('rangeBindingColor', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// findRange
-// ---------------------------------------------------------------------------
-
 describe('findRange', () => {
   it('finds a range in own ranges', () => {
     const r = makeRange({ Name: 'cold' });
@@ -192,10 +180,6 @@ describe('findRange', () => {
     expect(findRange('dup', data)).toBe(own);
   });
 });
-
-// ---------------------------------------------------------------------------
-// stateColor
-// ---------------------------------------------------------------------------
 
 describe('stateColor', () => {
   it('returns green when rangesData is null', () => {

@@ -141,21 +141,16 @@ public class NameResolverTests
         Assert.Equal(expectedId, result.Id);
     }
 
-    #region ResolveByNameAsync Edge Cases
-
     [Fact]
     public async Task ResolveByNameAsync_WithNonArrayResponse_ReturnsError()
     {
-        // Arrange - Return an object instead of array
         var notAnArray = JsonSerializer.Deserialize<JsonElement>(@"{""error"":""invalid""}");
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(notAnArray);
 
         var resolver = new NameResolver(_myceliumMock.Object);
 
-        // Act
         var result = await resolver.ResolveThingAsync("AnyName");
 
-        // Assert
         Assert.False(result.IsSuccess);
         Assert.Contains("No things found", result.ErrorMessage);
     }
@@ -163,23 +158,19 @@ public class NameResolverTests
     [Fact]
     public async Task ResolveByNameAsync_WithNullValueKind_ReturnsError()
     {
-        // Arrange - Return null
         JsonElement? nullElement = null;
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(nullElement ?? default);
 
         var resolver = new NameResolver(_myceliumMock.Object);
 
-        // Act
         var result = await resolver.ResolveThingAsync("AnyName");
 
-        // Assert
         Assert.False(result.IsSuccess);
     }
 
     [Fact]
     public async Task ResolveByNameAsync_WithThingMissingId_SkipsInvalidThing()
     {
-        // Arrange - Thing with matching name but no Id field
         var expectedId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"Name\":\"NoIdThing\"}},{{\"Id\":\"{expectedId}\",\"Name\":\"ValidThing\"}}]");
@@ -187,10 +178,8 @@ public class NameResolverTests
 
         var resolver = new NameResolver(_myceliumMock.Object);
 
-        // Act - Looking for NoIdThing should fail
         var result = await resolver.ResolveThingAsync("NoIdThing");
 
-        // Assert
         Assert.False(result.IsSuccess);
         Assert.Contains("No thing found", result.ErrorMessage);
     }
@@ -198,7 +187,6 @@ public class NameResolverTests
     [Fact]
     public async Task ResolveByNameAsync_WithInvalidGuidFormat_SkipsInvalidThing()
     {
-        // Arrange - Thing with invalid GUID
         var expectedId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"Id\":\"not-a-guid\",\"Name\":\"InvalidIdThing\"}},{{\"Id\":\"{expectedId}\",\"Name\":\"ValidThing\"}}]");
@@ -206,17 +194,11 @@ public class NameResolverTests
 
         var resolver = new NameResolver(_myceliumMock.Object);
 
-        // Act - Looking for InvalidIdThing should fail
         var result = await resolver.ResolveThingAsync("InvalidIdThing");
 
-        // Assert
         Assert.False(result.IsSuccess);
         Assert.Contains("No thing found", result.ErrorMessage);
     }
-
-    #endregion
-
-    #region ResolveNameAsync Tests
 
     [Fact]
     public async Task ResolveNameAsync_WithKnownGuid_ReturnsName()
@@ -256,10 +238,6 @@ public class NameResolverTests
 
         Assert.Equal("TestThing", result);
     }
-
-    #endregion
-
-    #region GetGuidToNameMapAsync Tests
 
     [Fact]
     public async Task GetGuidToNameMapAsync_ReturnsMapping()
@@ -318,10 +296,6 @@ public class NameResolverTests
         Assert.Equal("ValidThing", map[validId.ToString().ToLowerInvariant()]);
     }
 
-    #endregion
-
-    #region ClearCache Tests
-
     [Fact]
     public async Task ClearCache_ForcesRefetch()
     {
@@ -349,6 +323,4 @@ public class NameResolverTests
 
         _myceliumMock.Verify(b => b.GetAllThingsAsync(), Times.Exactly(2));
     }
-
-    #endregion
 }

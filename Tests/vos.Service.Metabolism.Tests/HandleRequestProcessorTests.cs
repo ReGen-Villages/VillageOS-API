@@ -28,8 +28,6 @@ public class HandleRequestProcessorTests
         _processor = new HandleRequestProcessor(_engine, processorLogger.Object);
     }
 
-    #region ExtractConfig
-
     [Fact]
     public void ExtractConfig_AllPropertiesPresent_ReturnsFullConfig()
     {
@@ -138,10 +136,6 @@ public class HandleRequestProcessorTests
         config.Quantity.Should().Be(1.0m); // Properties.Value.ValueKind != Object
     }
 
-    #endregion
-
-    #region ProcessHandle
-
     [Fact]
     public void ProcessHandle_ValidRequest_RegistersSimulation()
     {
@@ -188,6 +182,4 @@ public class HandleRequestProcessorTests
         entry.Should().BeNull();
         error.Should().NotBeNull();
     }
-
-    #endregion
 }

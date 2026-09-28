@@ -34,7 +34,7 @@ beforeEach(() => {
 
 // What a recipient reads on their phone is the description, so each change says what it did in words a
 // person would use, and still sends the request it always sent.
-describe('every change a person asks for is described and still sent (TC #7270)', () => {
+describe('every change a person asks for is described and still sent', () => {
   it.each([
     ['create a Thing', () => thingApi.create('Pump'), 'post', '/api/things', 'create Thing "Pump"'],
     ['delete a Thing', () => thingApi.remove('thing-1'), 'del', '/api/things/thing-1', 'delete Thing thing-1'],

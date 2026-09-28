@@ -206,7 +206,6 @@ function drawCenteredEdgeLabel(
   label = truncated;
   const textLength = context.measureText(label).width;
 
-  // Compute angle — keep text readable (never upside-down)
   let angle: number;
   if (dx > 0) {
     angle = dy > 0 ? Math.acos(dx / d) : Math.asin(dy / d);

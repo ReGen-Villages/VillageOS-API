@@ -27,7 +27,6 @@ const wireEdge = (Id: string, SubjectId: string, PredicateId: string, TargetId: 
   Id, Name: null, SubjectId, PredicateId, TargetId, Properties: {}, InheritedOverrides: null, States: [],
 });
 
-// Capture the SSE handler registry so tests can fire events synthetically.
 type Handler = (...callArguments: unknown[]) => void;
 const handlers = new Map<string, Handler>();
 const mockResubscribe = vi.fn();
@@ -44,12 +43,10 @@ vi.mock('./useSse', () => ({
   }),
 }));
 
-// useFlashTimer touches uiStore but we don't need real timers for these tests.
 vi.mock('./useFlashTimer', () => ({
   useFlashTimer: () => ({ triggerFlashNode: vi.fn(), triggerFlashEdge: vi.fn() }),
 }));
 
-// Toast is fire-and-forget; silence it.
 vi.mock('../components/common/toastStore', () => ({
   toast: { error: vi.fn(), success: vi.fn(), information: vi.fn() },
 }));
@@ -444,9 +441,8 @@ describe('useModelData', () => {
     expect(useModelStore.getState().things).toHaveLength(1);
   });
 
-  // Regression: OperationsPage blocks rendering on the store's
-  // `loaded` flag. reloadModelData must flip it, or the page hangs on
-  // "Loading model…" forever even though the data arrived.
+  // OperationsPage blocks rendering on the store's `loaded` flag, so reloadModelData has to flip it or
+  // the page shows "Loading model…" after the data arrived.
   it('marks the store loaded after a successful fetch', async () => {
     expect(useModelStore.getState().loaded).toBe(false);
     await reloadModelData();
@@ -459,8 +455,8 @@ describe('useModelData', () => {
     expect(useModelStore.getState().loaded).toBe(false);
   });
 
-  // Regression: a reopened subscription answers with a fresh snapshot, and the changes
-  // missed while the stream was down come back with it — without blind polling.
+  // A reopened subscription answers with a fresh snapshot, and the changes missed while the stream
+  // was down come back with it — without blind polling.
   it('reads the model again when the subscription reopens, and says nothing about it', async () => {
     await mountLoaded();
     expect(mockGetAllThings).toHaveBeenCalledTimes(1);
@@ -537,7 +533,6 @@ describe('useModelData', () => {
     await mountLoaded();
     await waitFor(() => expect(useModelStore.getState().things).toHaveLength(1));
 
-    // Reset reload mock so we can assert the in-place update did NOT trigger a full reload.
     mockGetAllThings.mockClear();
 
     await act(async () => handlers.get('PropertyChanged')!('t1', 'geometry', 'new'));

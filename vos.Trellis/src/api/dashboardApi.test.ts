@@ -270,8 +270,8 @@ describe('resolveBinding', () => {
     expect(v).toBeCloseTo((98.9 + 94.1) / 2);
   });
 
-  // Regression: under lazy inheritance an overridden value lives in
-  // InheritedOverrides, not Properties. Bindings must read effective properties.
+  // Under lazy inheritance an overridden value lives in InheritedOverrides, not Properties, so a
+  // binding has to read effective properties.
   it('property $scope resolves a value inherited from an archetype', async () => {
     const child: VosThing = {
       Id: 'vil3',
@@ -1065,7 +1065,6 @@ describe('service bindings carry the selected scope', () => {
   });
 });
 
-// ---- verdict binding --------------------------------------------
 // The target a balance is judged against comes from the range that judges it, never from the spec:
 // a view restating 14 days says the wrong thing the day the range moves.
 describe('verdict binding', () => {

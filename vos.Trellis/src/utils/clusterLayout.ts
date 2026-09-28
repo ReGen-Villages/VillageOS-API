@@ -2,12 +2,12 @@ import type Graph from 'graphology';
 
 /**
  * Layout primitives that let predicate clustering run inside the off-thread
- * ForceAtlas2 engine, which has no shouldSkipNode/shouldSkipEdge callbacks.
+ * ForceAtlas2 engine, which cannot be told to skip a node or an edge.
  *
- * FA2 reads a node's `fixed` attribute and an edge-weight getter on the main
+ * The engine reads a node's `fixed` attribute and an edge-weight getter on the main
  * thread when it builds the layout matrices, so pinning the background with
- * `fixed` and zeroing non-active edge weights reproduces the old force-engine
- * clustering behaviour without a per-frame main-thread simulation.
+ * `fixed` and zeroing non-active edge weights clusters the active members
+ * without a per-frame main-thread simulation.
  */
 
 /** Nodes touched by at least one edge whose predicate is in the active set. */
@@ -25,10 +25,7 @@ export function collectClusterNodeIds(
   return nodeIds;
 }
 
-/**
- * Pin every node that is not a cluster member so only the active-predicate
- * members move; cluster members are freed. Mirrors the old shouldSkipNode.
- */
+/** Pin every node that is not a cluster member so only the active-predicate members move. */
 export function applyClusterFixedFlags(graph: Graph, clusterNodeIds: Set<string>): void {
   graph.forEachNode((node) => {
     graph.setNodeAttribute(node, 'fixed', !clusterNodeIds.has(node));
@@ -42,10 +39,7 @@ export function clearFixedFlags(graph: Graph): void {
   });
 }
 
-/**
- * Edge-weight getter for FA2: active-predicate edges pull (weight 1), all
- * others exert no attraction (weight 0). Mirrors the old shouldSkipEdge.
- */
+/** Active-predicate edges pull (weight 1); all others exert no attraction (weight 0). */
 export function makeActivePredicateWeightGetter(
   activePredicateIds: Set<string>,
 ): (edge: string, attributes: Record<string, unknown>) => number {

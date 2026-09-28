@@ -14,7 +14,6 @@ namespace vos.Service.Tributary.Tests;
 // SubmitObservations) AND the outbound endpoint call all resolve through the same handler.
 public class HandleEndpointTests
 {
-    // ---------- Request validation ----------
 
     [Fact]
     public async Task Handle_MissingEndpointName_Returns400()
@@ -72,8 +71,6 @@ public class HandleEndpointTests
         (await response.Content.ReadAsStringAsync()).Should().Contain("Endpoint resolution failed");
     }
 
-    // ---------- responseTransform override (request-level) ----------
-
     [Fact]
     public async Task Handle_InvalidOverrideTransform_Returns400()
     {
@@ -107,8 +104,6 @@ public class HandleEndpointTests
         (await response.Content.ReadAsStringAsync()).Should().Contain("Invalid responseTransform");
         outboundCalls.Should().Be(0, "an expression that cannot compile is refused before the source is called");
     }
-
-    // ---------- TryGetEffectiveProperty branches ----------
 
     [Fact]
     public async Task Handle_MissingUrlAndMethod_Returns400()
@@ -228,8 +223,6 @@ public class HandleEndpointTests
         (await response.Content.ReadAsStringAsync()).Should().Contain("Unsupported httpMethod");
     }
 
-    // ---------- Successful endpoint dispatch ----------
-
     [Fact]
     public async Task Handle_GetEndpointWithoutTransform_ReturnsRawBody()
     {
@@ -328,8 +321,6 @@ public class HandleEndpointTests
         sentBody.Should().NotBeNull();
         sentBody!.Should().Contain("\"hello\"").And.Contain("\"world\"");
     }
-
-    // ---------- The reshape expression in effect drives ingest ----------
 
     // Tributary cannot tell an own property from an inherited one, and must not try: Mycelium's
     // resolved view qualifies an inherited key with the template that declares it, and both
@@ -568,8 +559,6 @@ public class HandleEndpointTests
         (await response.Content.ReadAsStringAsync()).Should().Contain("Endpoint call failed");
     }
 
-    // ---------- What the provider answered reaches the caller ----------
-
     [Fact]
     public async Task Handle_ProviderRefusesTheCall_AnswersWithItsStatusAndWords()
     {
@@ -671,8 +660,6 @@ public class HandleEndpointTests
         outbound!.Headers.GetValues("User-Agent").Should().ContainSingle()
             .Which.Should().Be(OutboundRequest.DefaultUserAgent);
     }
-
-    // ---------- Base request capabilities ----------
 
     [Fact]
     public async Task Handle_CustomHeaders_AppliedToOutboundRequest()
@@ -897,8 +884,6 @@ public class HandleEndpointTests
         (await response.Content.ReadAsStringAsync()).Should().Be("{\"ok\":true}");
     }
 
-    // ---------- /health and /shutdown ----------
-
     [Fact]
     public async Task Health_ReturnsHealthy()
     {
@@ -927,8 +912,6 @@ public class HandleEndpointTests
         var body = await response.Content.ReadAsStringAsync();
         body.Should().Contain("Shutting down Tributary");
     }
-
-    // ---------- Helpers ----------
 
     private static string EmptyProps() => "{}";
 }

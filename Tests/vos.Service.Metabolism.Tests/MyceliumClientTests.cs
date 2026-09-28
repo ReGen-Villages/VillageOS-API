@@ -14,7 +14,6 @@ public class MyceliumClientTests
 {
     private readonly Mock<ILogger<MyceliumClient>> _logger = new();
 
-    // Create a MyceliumClient whose GetTokenAsync() always fails (no reachable mycelium).
     private MyceliumClient CreateUnreachableClient()
     {
         var httpFactory = new Mock<IHttpClientFactory>();
@@ -22,8 +21,6 @@ public class MyceliumClientTests
         return new MyceliumClient(httpFactory.Object, _logger.Object, "http://localhost:0", ResourceDirection.Consumes);
     }
 
-    // Create a MyceliumClient backed by a MockHttpMessageHandler so HTTP calls
-    // are intercepted without requiring a running mycelium.
     private MyceliumClient CreateMockedClient(MockHttpMessageHandler handler, ResourceDirection? direction = null)
     {
         var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://test-mycelium") };
@@ -41,8 +38,6 @@ public class MyceliumClientTests
             direction ?? ResourceDirection.Consumes);
     }
 
-    // Build a MockHttpMessageHandler that responds to /api/auth/token with a fake JWT
-    // and routes all other requests through the supplied responder.
     private static MockHttpMessageHandler CreateTokenAwareMock(
         Func<HttpRequestMessage, HttpResponseMessage> apiResponder)
     {
@@ -59,9 +54,6 @@ public class MyceliumClientTests
             return apiResponder(req);
         });
     }
-
-
-    #region ApplyQuantityAsync Tests
 
     [Fact]
     public async Task ApplyQuantityAsync_Success_ReturnsJsonElement()
@@ -124,7 +116,6 @@ public class MyceliumClientTests
 
         await client.ApplyQuantityAsync("thing-1", "quantity", 5.0m);
 
-        // The second request (after token) should be the quantity call
         var quantityRequest = mock.Requests.First(r => r.RequestUri!.AbsolutePath != "/api/auth/token");
         quantityRequest.RequestUri!.AbsolutePath.Should().Be("/api/things/thing-1/properties/quantity/decrements");
     }
@@ -146,10 +137,6 @@ public class MyceliumClientTests
         quantityRequest.RequestUri!.AbsolutePath.Should().Be("/api/things/thing-1/properties/quantity/increments");
     }
 
-    #endregion
-
-    #region IncrementRelationshipPropertyAsync Tests
-
     [Fact]
     public async Task IncrementRelationshipPropertyAsync_Success_Completes()
     {
@@ -161,7 +148,6 @@ public class MyceliumClientTests
 
         var client = CreateMockedClient(mock, ResourceDirection.Consumes);
 
-        // Should not throw
         await client.IncrementRelationshipPropertyAsync("rel-1", "total_consumed", 10.0m);
 
         var relRequest = mock.Requests.First(r => r.RequestUri!.AbsolutePath.Contains("/api/relationships/"));
@@ -183,10 +169,6 @@ public class MyceliumClientTests
         await act.Should().ThrowAsync<HttpRequestException>();
     }
 
-    #endregion
-
-    #region Service Token Tests
-
     [Fact]
     public async Task GetTokenAsync_WithServiceToken_ReturnsTokenDirectly()
     {
@@ -203,7 +185,6 @@ public class MyceliumClientTests
     [Fact]
     public async Task GetTokenAsync_WithoutServiceToken_FallsBackToEndpoint()
     {
-        // Without a service token, GetTokenAsync tries Mycelium endpoint (which will fail here)
         var client = CreateUnreachableClient();
 
         var token = await client.GetTokenAsync();
@@ -214,7 +195,6 @@ public class MyceliumClientTests
     [Fact]
     public async Task ApplyQuantityAsync_WithServiceToken_SkipsTokenEndpoint()
     {
-        // All requests go through the same handler — no /api/auth/token call expected
         var mock = new MockHttpMessageHandler(req =>
             new HttpResponseMessage(HttpStatusCode.OK)
             {
@@ -229,11 +209,7 @@ public class MyceliumClientTests
 
         await client.ApplyQuantityAsync("thing-1", "quantity", 5.0m);
 
-        // Should NOT have called /api/auth/token
         mock.Requests.Should().NotContain(r => r.RequestUri!.AbsolutePath == "/api/auth/token");
-        // Should have called the quantity endpoint
         mock.Requests.Should().Contain(r => r.RequestUri!.AbsolutePath == "/api/things/thing-1/properties/quantity/decrements");
     }
-
-    #endregion
 }

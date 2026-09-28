@@ -176,7 +176,6 @@ public class FileSystemCommandHandlerTests
     [Fact]
     public async Task Deserialize_WithoutExtension_AddsJsonExtension()
     {
-        // Arrange - Create a file with .json extension
         var tempDir = Path.GetTempPath();
         var baseName = $"test_model_{Guid.NewGuid():N}";
         var tempFile = Path.Combine(tempDir, baseName + ".json");
@@ -187,10 +186,8 @@ public class FileSystemCommandHandlerTests
 
         try
         {
-            // Act - Use path without .json extension
             await ExecuteHandler("deserialize", Path.Combine(tempDir, baseName));
 
-            // Assert - Should find the file with .json appended
             _myceliumMock.Verify(b => b.SetModelAsync(jsonContent), Times.Once);
             Assert.Contains("Model loaded from", _writer.ToString());
             Assert.Contains(".json", _writer.ToString());
@@ -205,7 +202,6 @@ public class FileSystemCommandHandlerTests
     [Fact]
     public async Task Deserialize_WithJsonExtension_DoesNotDoubleAppend()
     {
-        // Arrange
         var tempFile = Path.GetTempFileName();
         var jsonFile = tempFile + ".json";
         var jsonContent = "{\"things\": []}";
@@ -217,10 +213,8 @@ public class FileSystemCommandHandlerTests
 
         try
         {
-            // Act - Use path with .json extension already
             await ExecuteHandler("deserialize", jsonFile);
 
-            // Assert - Should not look for .json.json
             _myceliumMock.Verify(b => b.SetModelAsync(jsonContent), Times.Once);
             Assert.DoesNotContain(".json.json", _writer.ToString());
         }
@@ -234,7 +228,6 @@ public class FileSystemCommandHandlerTests
     [Fact]
     public async Task Serialize_WithoutExtension_AddsJsonExtension()
     {
-        // Arrange
         var tempDir = Path.GetTempPath();
         var baseName = $"test_model_{Guid.NewGuid():N}";
         var expectedFile = Path.Combine(tempDir, baseName + ".json");
@@ -243,10 +236,8 @@ public class FileSystemCommandHandlerTests
 
         try
         {
-            // Act - Use path without .json extension
             await ExecuteHandler("serialize", Path.Combine(tempDir, baseName));
 
-            // Assert - Should create file with .json appended
             Assert.True(File.Exists(expectedFile), $"Expected file {expectedFile} to exist");
             var content = File.ReadAllText(expectedFile);
             Assert.Contains("test", content);
@@ -262,7 +253,6 @@ public class FileSystemCommandHandlerTests
     [Fact]
     public async Task Serialize_WithJsonExtension_DoesNotDoubleAppend()
     {
-        // Arrange
         var tempDir = Path.GetTempPath();
         var fileName = $"test_model_{Guid.NewGuid():N}.json";
         var tempFile = Path.Combine(tempDir, fileName);
@@ -271,10 +261,8 @@ public class FileSystemCommandHandlerTests
 
         try
         {
-            // Act - Use path with .json extension already
             await ExecuteHandler("serialize", tempFile);
 
-            // Assert - Should NOT create .json.json file
             Assert.True(File.Exists(tempFile));
             Assert.False(File.Exists(tempFile + ".json"), "Should not create .json.json file");
         }
@@ -288,7 +276,6 @@ public class FileSystemCommandHandlerTests
     [Fact]
     public async Task Deserialize_WithOtherExtension_DoesNotAddJson()
     {
-        // Arrange - Create a file with .txt extension
         var tempFile = Path.GetTempFileName(); // Creates .tmp file
         var txtFile = Path.ChangeExtension(tempFile, ".txt");
         var jsonContent = "{\"things\": []}";
@@ -299,10 +286,8 @@ public class FileSystemCommandHandlerTests
 
         try
         {
-            // Act - Use .txt file path
             await ExecuteHandler("deserialize", txtFile);
 
-            // Assert - Should load the .txt file without adding .json
             _myceliumMock.Verify(b => b.SetModelAsync(jsonContent), Times.Once);
         }
         finally

@@ -18,8 +18,6 @@ const DEFAULT_FLASH: FlashSettings = {
   flashNodeBrighten: 0.5,
 };
 
-// ── withAlpha ────────────────────────────────────────────────────────────
-
 describe('withAlpha', () => {
   it('appends alpha to a 7-char hex (#rrggbb)', () => {
     expect(withAlpha('#ff0000', 0.5)).toBe('#ff000080');
@@ -37,8 +35,6 @@ describe('withAlpha', () => {
     expect(withAlpha('red', 0.5)).toBe('red');
   });
 });
-
-// ── applySelectionHighlight ──────────────────────────────────────────────
 
 describe('applySelectionHighlight', () => {
   const data = { color: '#ff0000', size: 5, label: 'Test' };
@@ -59,8 +55,6 @@ describe('applySelectionHighlight', () => {
   });
 });
 
-// ── brightenEdge ─────────────────────────────────────────────────────────
-
 describe('brightenEdge', () => {
   it('returns bright color, size, and forceLabel', () => {
     const data = { color: '#333', size: 1, label: 'has' };
@@ -71,8 +65,6 @@ describe('brightenEdge', () => {
     expect(result.label).toBe('has');
   });
 });
-
-// ── applyNodeFlash ──────────────────────────────────────────────────────
 
 describe('applyNodeFlash', () => {
   it('brightens colour and increases size', () => {
@@ -110,8 +102,6 @@ describe('applyNodeFlash', () => {
   });
 });
 
-// ── applyEdgeFlash ──────────────────────────────────────────────────────
-
 describe('applyEdgeFlash', () => {
   it('brightens current edge color and sets size + forceLabel', () => {
     const data = { color: '#333333', size: 1, label: 'consumes' };
@@ -133,8 +123,6 @@ describe('applyEdgeFlash', () => {
     expect((result.color as string).length).toBe(7);
   });
 });
-
-// ── computeClusterNodeStyle ──────────────────────────────────────────────
 
 describe('computeClusterNodeStyle', () => {
   const makeClusterMap = (): ClusterMap => ({

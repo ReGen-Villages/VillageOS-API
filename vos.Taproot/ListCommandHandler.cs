@@ -258,7 +258,7 @@ namespace vos.Taproot
             }
 
             var handlers = connections.EnumerateArray()
-                .Where(c => c.GetBoolOrDefault("BindsService"))
+                .Where(c => c.IsTrue("BindsService"))
                 .ToList();
 
             if (handlers.Count == 0)
@@ -336,7 +336,7 @@ namespace vos.Taproot
             var serviceName = service.GetStringOrDefault("ServiceName");
             var endpointUrl = service.GetStringOrDefault("EndpointUrl");
             var healthStatus = service.GetStringOrDefault("HealthStatus", "Unknown");
-            var isRunning = service.GetBoolOrDefault("IsRunning");
+            var isRunning = service.IsTrue("IsRunning");
 
             var displayName = ResolveDisplayName(serviceName, handlerId, nameMap);
 
@@ -377,7 +377,7 @@ namespace vos.Taproot
         private void WriteProcess(JsonElement service)
         {
             var parts = new List<string> { service.GetNullableInt("ProcessId")?.ToString() ?? "running" };
-            if (service.GetBoolOrDefault("IsExternal"))
+            if (service.IsTrue("IsExternal"))
                 parts.Add("external");
             if (service.GetNullableDateTime("LastContactTime") is { } lastContact)
                 parts.Add($"last contact {lastContact:yyyy-MM-ddTHH:mm:ssZ}");

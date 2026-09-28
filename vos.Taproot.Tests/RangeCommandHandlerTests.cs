@@ -23,8 +23,6 @@ public class RangeCommandHandlerTests
         await handler.ExecuteAsync();
     }
 
-    #region Help and Basic Commands
-
     [Fact]
     public async Task Range_WithoutClient_ShowsHelp()
     {
@@ -42,10 +40,6 @@ public class RangeCommandHandlerTests
         var output = _writer.ToString();
         Assert.Contains("Expected range commands:", output);
     }
-
-    #endregion
-
-    #region Create Command Tests
 
     [Fact]
     public async Task Create_WithMinimumArgs_CallsApi()
@@ -168,10 +162,6 @@ public class RangeCommandHandlerTests
         _myceliumMock.Verify(b => b.CreateRangeAsync(thingId, "nominal", "temp>0", null, null), Times.Once);
     }
 
-    #endregion
-
-    #region List Command Tests
-
     [Fact]
     public async Task List_CallsGetRangesAsync()
     {
@@ -217,10 +207,6 @@ public class RangeCommandHandlerTests
         _myceliumMock.Verify(b => b.GetRelationshipRangesAsync(It.IsAny<Guid>()), Times.Never);
     }
 
-    #endregion
-
-    #region Get Command Tests
-
     [Fact]
     public async Task Get_CallsGetRangeAsync()
     {
@@ -255,10 +241,6 @@ public class RangeCommandHandlerTests
         var output = _writer.ToString();
         Assert.Contains("Usage: range get", output);
     }
-
-    #endregion
-
-    #region Delete Command Tests
 
     [Fact]
     public async Task Delete_CallsDeleteRangeAsync()
@@ -308,10 +290,6 @@ public class RangeCommandHandlerTests
         _myceliumMock.Verify(b => b.DeleteRangeAsync(thingId, "nominal"), Times.Once);
     }
 
-    #endregion
-
-    #region Validate Command Tests
-
     [Fact]
     public async Task Validate_ValidCriteria_ShowsValid()
     {
@@ -358,10 +336,6 @@ public class RangeCommandHandlerTests
 
         _myceliumMock.Verify(b => b.ValidateCriteriaAsync("temp > 100 AND rpm < 5000"), Times.Once);
     }
-
-    #endregion
-
-    #region ParseCreateOption Tests (covers all branches)
 
     [Fact]
     public async Task ParseCreateOption_UnknownOption_IsIgnored()
@@ -418,6 +392,4 @@ public class RangeCommandHandlerTests
 
         _myceliumMock.Verify(b => b.CreateRangeAsync(thingId, "nominal", "temp>0", null, null), Times.Once);
     }
-
-    #endregion
 }

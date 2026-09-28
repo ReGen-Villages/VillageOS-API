@@ -40,7 +40,7 @@ function unreportedWrites(): string[] {
   });
 }
 
-describe('every change a person asks for is reported (TC #7270)', () => {
+describe('every change a person asks for is reported', () => {
   it('no write goes to the broker unreported', () => {
     expect(unreportedWrites()).toEqual([]);
   });

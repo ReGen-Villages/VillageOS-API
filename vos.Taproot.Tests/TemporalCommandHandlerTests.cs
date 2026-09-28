@@ -172,8 +172,6 @@ public class TemporalCommandHandlerTests
         Assert.Contains("Temporal query commands:", output);
     }
 
-    #region HandleMutationsAsync Tests
-
     [Fact]
     public async Task Mutations_WithNoArgs_CallsGetModelMutationsAsync()
     {
@@ -330,10 +328,6 @@ public class TemporalCommandHandlerTests
         Assert.Contains("Cannot resolve name", output);
     }
 
-    #endregion
-
-    #region Snapshot no-timestamp path
-
     [Fact]
     public async Task Snapshot_NoTimestamp_PassesNullToMycelium()
     {
@@ -346,6 +340,4 @@ public class TemporalCommandHandlerTests
 
         _myceliumMock.Verify(b => b.GetModelAtTimeAsync(null), Times.AtLeastOnce);
     }
-
-    #endregion
 }

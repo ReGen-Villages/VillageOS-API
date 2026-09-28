@@ -117,7 +117,7 @@ public class CreateCommandHandlerTests
         Assert.Contains("Usage:", _writer.ToString());
     }
 
-    // Regression: adding went through the set-existing request, which answers 404 for a
+    // Adding went through the set-existing request, which answers 404 for a
     // property the Thing does not hold yet.
     [Fact]
     public async Task CreateProperty_ValidArgs_AddsThePropertyRatherThanSettingAnExistingOne()
@@ -305,8 +305,6 @@ public class CreateCommandHandlerTests
         Assert.DoesNotContain(thingId.ToString(), output);
     }
 
-    #region CreateRelationAsync Edge Cases
-
     [Fact]
     public async Task CreateRelation_InvalidPredicateName_ShowsError()
     {
@@ -397,10 +395,6 @@ public class CreateCommandHandlerTests
         Assert.Contains("Bob", output);
     }
 
-    #endregion
-
-    #region CreateProperty Edge Cases
-
     [Fact]
     public async Task CreateProperty_InvalidThingName_ShowsError()
     {
@@ -422,6 +416,4 @@ public class CreateCommandHandlerTests
 
         Assert.Contains("Usage:", _writer.ToString());
     }
-
-    #endregion
 }

@@ -6,7 +6,7 @@ import {
   type ClassBucket,
 } from './classPalette';
 
-describe('getClassBucket (Feature #5340 — generic, property-name-keyed)', () => {
+describe('getClassBucket — generic, property-name-keyed', () => {
   describe('IFC default table (registered under propertyName="ifcClass")', () => {
     it.each<[string, ClassBucket]>([
       ['IfcSite', 'spatial'],
@@ -76,7 +76,7 @@ describe('getClassBucket (Feature #5340 — generic, property-name-keyed)', () =
   });
 });
 
-describe('BUCKET_COLORS (Feature #5340)', () => {
+describe('BUCKET_COLORS', () => {
   it('defines a hex color for every bucket', () => {
     const buckets: ClassBucket[] = [
       'spatial', 'structural', 'opening', 'mep', 'port',
@@ -93,7 +93,7 @@ describe('BUCKET_COLORS (Feature #5340)', () => {
   });
 });
 
-describe('resolveClassColor (Feature #5340 — override priority)', () => {
+describe('resolveClassColor — override priority', () => {
   it('returns the bucket color when no override is supplied (IFC default)', () => {
     expect(resolveClassColor('ifcClass', 'IfcWall')).toBe(BUCKET_COLORS.structural);
     expect(resolveClassColor('ifcClass', 'IfcDistributionPort')).toBe(BUCKET_COLORS.port);
@@ -103,7 +103,6 @@ describe('resolveClassColor (Feature #5340 — override priority)', () => {
     expect(resolveClassColor('ifcClass', null)).toBe(BUCKET_COLORS.other);
     expect(resolveClassColor('ifcClass', undefined)).toBe(BUCKET_COLORS.other);
     expect(resolveClassColor('ifcClass', 'Bogus')).toBe(BUCKET_COLORS.other);
-    // Unknown property — no table registered, no suffix rule
     expect(resolveClassColor('myProp', 'anything')).toBe(BUCKET_COLORS.other);
   });
 

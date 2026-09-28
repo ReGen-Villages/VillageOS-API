@@ -234,7 +234,7 @@ describe('typesCompatible', () => {
   });
 });
 
-describe('run animation source (#5635)', () => {
+describe('run animation source', () => {
   it('reads overall run status and per-node status from the live model', () => {
     const things: VosThing[] = [];
     const relationships: VosRelationship[] = [];
@@ -245,7 +245,6 @@ describe('run animation source (#5635)', () => {
       return t;
     };
     const has = T('has');
-    // Phloem records: run -has-> NodeRun, each NodeRun carrying nodeId + status.
     const run = T('PipelineRun abc', { status: 'running' });
     const nr1 = T('NodeRun Generate', { nodeId: 'node-gen', status: 'succeeded' });
     const nr2 = T('NodeRun Echo', { nodeId: 'node-ech', status: 'running' });
@@ -259,7 +258,7 @@ describe('run animation source (#5635)', () => {
     expect(model.nodeRunStatuses('missing')).toEqual({});
   });
 
-  it('separates the aggregate ring status from per-item fan-out progress (#5648)', () => {
+  it('separates the aggregate ring status from per-item fan-out progress', () => {
     const things: VosThing[] = [];
     const relationships: VosRelationship[] = [];
     let n = 0;
@@ -328,7 +327,7 @@ describe('loadPipeline', () => {
     expect(loadPipeline('does-not-exist', model)).toBeNull();
   });
 
-  it('parses a node\'s paramBindings property (#5647)', () => {
+  it('parses a node\'s paramBindings property', () => {
     const things: VosThing[] = [];
     const relationships: VosRelationship[] = [];
     let n = 0;
@@ -358,8 +357,8 @@ describe('loadPipeline', () => {
 
 // A value the page writes for a name the port archetype declares lands in the Thing's override store,
 // not among its own properties. Read from own properties alone, a saved start port fell back to the
-// Thing's name and to direction `in`, and the wire drawn from it matched nothing (#7331).
-describe('a saved port is read from what it states (#7331)', () => {
+// Thing's name and to direction `in`, and the wire drawn from it matched nothing.
+describe('a saved port is read from what it states', () => {
   const overridden = (values: Record<string, unknown>): VosThing['InheritedOverrides'] => ({
     'arch-port': { SourceId: 'arch-port', SourceName: 'Socket', InheritedAt: '', Properties: values },
   });
@@ -401,7 +400,7 @@ describe('a saved port is read from what it states (#7331)', () => {
 // The playground ships its pipelines drawn, so the wire predicate was always in use before it was
 // asked for. A model built from templates declares the predicate and draws nothing, and the first
 // pipeline anyone drew on it could not be saved.
-describe('the wire predicate before any wire is drawn (#7324)', () => {
+describe('the wire predicate before any wire is drawn', () => {
   function vocabularyAndNoWire() {
     const things: VosThing[] = [];
     const relationships: VosRelationship[] = [];

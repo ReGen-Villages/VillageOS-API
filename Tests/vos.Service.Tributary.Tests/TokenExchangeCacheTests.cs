@@ -186,8 +186,6 @@ public class TokenExchangeCacheTests
         handler.Requests.Should().HaveCount(2, "without a usable expiry the token is treated as immediately stale");
     }
 
-    // ---------- helpers ----------
-
     private static TokenExchangeCache Create(HttpMessageHandler handler, TimeProvider clock) =>
         new(new PerCallFactory(handler), clock, Substitute.For<ILogger<TokenExchangeCache>>());
 

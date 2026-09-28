@@ -17,8 +17,6 @@ public class MyceliumClientBaseTests
     private const string MyceliumUrl = "http://localhost:7243";
     private const string TestToken = "service-token-abc";
 
-    // ---- HandlerId ----
-
     [Fact]
     public void HandlerId_IsUniquePerInstance()
     {
@@ -36,8 +34,6 @@ public class MyceliumClientBaseTests
 
         client.MyceliumUrl.Should().Be(MyceliumUrl);
     }
-
-    // ---- GetTokenAsync ----
 
     [Fact]
     public async Task GetTokenAsync_WithProvidedToken_ReturnsItWithoutCallingMycelium()
@@ -90,7 +86,7 @@ public class MyceliumClientBaseTests
         token.Should().BeNull();
     }
 
-    // Regression: a daemon shared by several models must call back on the model
+    // A daemon shared by several models must call back on the model
     // of the current /handle request. The inbound bearer overrides the launch-time startup token.
     [Fact]
     public async Task GetTokenAsync_PrefersInboundRequestToken_OverStartupToken()
@@ -169,8 +165,6 @@ public class MyceliumClientBaseTests
         return app.Build();
     }
 
-    // ---- CreateAuthenticatedClientAsync ----
-
     [Fact]
     public async Task CreateAuthenticatedClient_WithToken_SetsBearerAuthorizationHeader()
     {
@@ -203,8 +197,6 @@ public class MyceliumClientBaseTests
 
         httpClient.Timeout.Should().Be(TimeSpan.FromSeconds(42));
     }
-
-    // ---- RegisterAsync ----
 
     [Fact]
     public async Task RegisterAsync_Success_PostsRegistrationEnvelopeAndReturnsTrue()
@@ -275,8 +267,6 @@ public class MyceliumClientBaseTests
         result.Should().BeFalse();
     }
 
-    // ---- An API key instead of a token ----
-
     private static readonly DateTimeOffset Now = new(2026, 8, 24, 12, 0, 0, TimeSpan.Zero);
 
     private static HttpResponseMessage Minted(string token) =>
@@ -330,8 +320,6 @@ public class MyceliumClientBaseTests
         answered.Should().Be("inbound-model-token");
         handler.Requests.Should().BeEmpty();
     }
-
-    // ---- Helpers ----
 
     private static (TestableMyceliumClient client, MockHttpMessageHandler handler) BuildClient(
         Func<HttpRequestMessage, HttpResponseMessage> respond,

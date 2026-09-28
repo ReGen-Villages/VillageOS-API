@@ -217,7 +217,7 @@ describe('openRadialMenu', () => {
   });
 });
 
-describe('hiddenTypeIds — type filter (Feature #5362)', () => {
+describe('hiddenTypeIds — type filter', () => {
   beforeEach(() => {
     localStorage.clear();
     useUiStore.setState({

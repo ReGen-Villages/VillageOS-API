@@ -171,7 +171,6 @@ function AddPropertyRow({
       setType(DEFAULT_PROPERTY_TYPE);
       setValue('');
       onSaved?.();
-      // Re-focus the name input for quick successive adds
       nameReference.current?.focus();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('panels.properties.addFailed'));

@@ -188,6 +188,7 @@ export const fr: PartialResources = {
       sampleExample: 'p. ex. 10',
       updated: 'Mode de propriété mis à jour',
       updateFailed: 'Échec de la mise à jour du mode de propriété',
+      loadFailed: 'Échec de la lecture du mode de propriété',
     },
     feed: {
       title: 'Flux d’activité',

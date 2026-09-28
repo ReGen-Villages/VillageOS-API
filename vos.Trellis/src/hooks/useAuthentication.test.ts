@@ -1,15 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 
-// apiClient is the source of login and authentication state. We capture the login mock so
-// each test can shape its rejection (no-models, multi-model picker, etc).
 const mockLogin = vi.fn();
 const mockRestoreSession = vi.fn().mockResolvedValue(false);
 const mockSetAuthenticationRequiredCallback = vi.fn();
 const mockSetUserUpdatedCallback = vi.fn();
-// Stateful mocks for getUser / isAuthenticated so individual tests can simulate
-// "already logged in" state and exercise the logout flow. The real apiClient
-// reads these from a non-React field, which is exactly what went wrong before.
+// The real apiClient answers getUser and isAuthenticated from a field React does not watch, which is
+// the fault the logout tests below pin.
 let mockInitialUser: { Id: string; Username: string; Role: string } | null = null;
 let mockIsAuthenticated = false;
 vi.mock('../api/client', () => ({
@@ -45,8 +42,6 @@ vi.mock('../stores/modelStore', () => ({
 
 import { useAuthenticationState } from './useAuthentication';
 
-// Helper: shape an ApiError-ish rejection that matches what apiClient.login
-// surfaces when Mycelium returns 400 { error: "No models loaded" }.
 function noModelsError(): Error & { body: string } {
   const err = new Error('No models loaded') as Error & { body: string };
   err.body = JSON.stringify({ error: 'No models loaded' });
@@ -134,11 +129,8 @@ describe('useAuthState logout: forces a re-render gate (Bug #5325)', () => {
       await result.current.logout();
     });
 
-    // The bug: with apiClient.isAuthenticated() still returning true (we
-    // deliberately leave mockIsAuth=true to mirror the real-world race where
-    // the in-memory token field clears AFTER the awaited Mycelium round-trip),
-    // the hook must still flip isAuthenticated to false on its own React state
-    // — otherwise App.tsx never re-renders to the login form.
+    // The mock still answers authenticated, as the client does until its token clears after the awaited
+    // round-trip; the hook has to flip its own React state or the login form never renders.
     expect(result.current.isAuthenticated).toBe(false);
     expect(result.current.user).toBeNull();
   });

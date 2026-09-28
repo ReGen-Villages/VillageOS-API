@@ -24,7 +24,7 @@ public class PipelineModelTests
         var output = dag.Node(fx.Get("Out").Id)!;
         output.Kind.Should().Be(DagNodeKind.Output);
         output.Subdomain.Should().BeEmpty();
-        output.InputPorts.Select(p => p.PortName).Should().Contain("result");
+        output.Ports.Where(p => p.IsInput).Select(p => p.PortName).Should().Contain("result");
 
         // The service node in the same pipeline still resolves as a Service with a subdomain.
         dag.Node(fx.Get("Echo").Id)!.Kind.Should().Be(DagNodeKind.Service);

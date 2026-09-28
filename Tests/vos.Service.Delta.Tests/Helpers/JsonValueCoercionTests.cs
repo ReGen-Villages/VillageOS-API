@@ -8,7 +8,6 @@ namespace vos.Service.Delta.Tests.Helpers;
 
 public class JsonValueCoercionTests
 {
-    // ---------- CoerceToString ----------
 
     [Fact]
     public void CoerceToString_Null_ReturnsNull()
@@ -86,8 +85,6 @@ public class JsonValueCoercionTests
         JsonValueCoercion.CoerceToString(element).Should().Be("{\"a\":1}");
     }
 
-    // ---------- TryGetPropertyValue ----------
-
     [Fact]
     public void TryGetPropertyValue_ExactKeyMatch_ReturnsTrue()
     {
@@ -141,8 +138,6 @@ public class JsonValueCoercionTests
 
         value.Should().Be("lower");
     }
-
-    // ---------- TryGetStringProperty ----------
 
     [Fact]
     public void TryGetStringProperty_StringValue_ReturnsTrueWithValue()

@@ -3,8 +3,8 @@
 Replay a **timeline of graph changes** against a live Mycelium in (accelerated) real time.
 
 A *timeline* is a deterministic, offset-ordered list of `Action`s — each one intent (create a Thing,
-create a Relationship, post a Fact, adjust a quantity, delete a Thing) carrying the simulated-second
-`offset` at which it comes due. The simulator sleeps to each offset (scaled by `--speed`), routes
+create a Relationship, post a Fact, adjust a quantity, delete a Thing, or post to a route outside the
+write API) carrying the simulated-second `offset` at which it comes due. The simulator sleeps to each offset (scaled by `--speed`), routes
 quantity deltas through a `BalanceLedger` so no balance is ever driven negative, and POSTs via the
 Mycelium client. Because the platform stamps every write `CommittedAt = UtcNow` (no backdating), a
 POST *now* is genuinely now and flows reactor → range re-evaluation → derived-status change → SSE:
@@ -18,7 +18,7 @@ library or as a serialized file.
 
 | File | What it is |
 | --- | --- |
-| `mycelium.py` | A minimal, standard-library Mycelium HTTP client (Things, Relationships, Facts, quantity adjustments, subscriptions/SSE) plus `stable_id`. |
+| `mycelium.py` | A minimal, standard-library Mycelium HTTP client (Things, Relationships, Facts, quantity adjustments, subscriptions/SSE, and a plain post to any route) plus `stable_id`. |
 | `simulator.py` | The driver: `Action`, `BalanceLedger`, `Checkpoint`, `Simulator`, `follow_until`, and a CLI that plays a timeline file. |
 | `test_simulator.py` | Ledger no-oversell under concurrency, checkpoint resume, action serialization, where a credential comes from, dry replay against a fake Mycelium that fails loud on any oversell. That double stands in for the write API only — it refuses the subscription and stream calls, which belong against a running Mycelium. |
 
@@ -66,6 +66,7 @@ python3 simulator.py --url http://localhost:5000 --timeline run.jsonl \
 | `increment` / `decrement` | `thing_id, prop, amount` | quantity adjust, routed through the `BalanceLedger` |
 | `ledger_set` | `thing_id, amount` | seed a starting balance (no write) so the first consume resolves absolute |
 | `delete_thing` | `thing_id` | `DELETE /api/things/{id}` (retraction) |
+| `http_post` | `path, body?, headers?, address?, reads?` | `POST` to a route outside the write API, through the client's request path — a submission to the intake service, for instance. The answer is kept under the action's key for the run; `reads` names, for each `{{name}}` placeholder the action carries, the field of an earlier post's answer to fill it from, so a post can read what the one before answered. Answers are not journaled, so a read of a post committed before a restart is refused rather than posting the placeholder |
 
 ## What it gets right
 
@@ -130,4 +131,5 @@ reads both from the environment, and `--token` or `--api-key` is refused as an u
 
 With neither set, the first request fails saying so. In-process callers may still hand a credential
 straight to `MyceliumClient(...)` — a library call is not a command line — and that wins over the
-environment.
+environment. The bearer rides only to the client's own address: an `http_post` naming another
+`address` is sent without it.

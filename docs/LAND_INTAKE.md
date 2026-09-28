@@ -300,7 +300,8 @@ comes first, and the report comes before the questions.
   files in [§9](#9-public-submissions-and-the-trust-boundary)), one after another so every send rides
   the ticket the last one handed back, with the browser reporting how far the bytes have got. A file
   over the limit is refused on the page before a byte is sent, with the limit named; a refusal from
-  the service is shown beside the file in the service's own words. What the model holds is listed
+  the service is shown beside the file in the reader's language, worded by the page from the code the
+  refusal carries. What the model holds is listed
   below with each file's description, read back through the service when the report opens, so a
   person who returns sees what they shared before.
 - **The closing view is the land itself.** *See it on the land* opens the parcel on the imagery the
@@ -1182,7 +1183,11 @@ different way the route can be abused, and each owned by this service rather tha
 | **Body cap** | A body larger than a form's worth of answers is refused on its declared length, before anything reads it | Say anything about a body that fits |
 | **Field bounds** | Text has a length, a coordinate a range, an area and a population a plausible span, and an email address the shape of one. A refusal names the field | Judge whether the answer is true |
 | **Verified address** | `POST /submissions/verification` sends a code to an address; `POST /submissions/ticket` exchanges that code for a short-lived ticket signed against it; `POST /submissions` reads the ticket back in `X-Submission-Ticket` and refuses a submission naming any other address | Say who the person is. It establishes that somebody reads that mailbox, and a person may hold as many mailboxes as they like |
-| **Rate limit** | One source may make a fixed number of requests in a fixed window, verification and ticket requests included. Over it, `429` with a `Retry-After` telling the caller when to come back | Tell two submitters behind one address apart |
+| **Rate limit** | One source may make a fixed number of requests in a fixed window, verification and ticket requests included; that budget covers every public route except the map tiles. `GET /basemaps/{registration}/{z}/{x}/{y}` has a separate budget per address, 600 tiles a minute, so drawing a map never spends the budget a submission needs. Over either, `429` with a `Retry-After` telling the caller when to come back | Tell two submitters behind one address apart |
+
+Every refusal the service answers carries a `code`, such as `serviceUnavailable` or `fieldTooLong`, and
+the `values` its wording needs, so a page words it in the reader's language; a `503` carries the code
+too, and nothing else.
 
 The verification and the rate limit work as a pair: answering a code costs a submitter a mailbox and a
 wait, and the rate limit is what bounds how fast they can spend either. Neither is a challenge from a
@@ -1266,8 +1271,11 @@ credential for the same reason `POST /submissions` demands none, and it spends t
 The categories are found by the mark their archetype carries; the basemap sources by the archetype name
 [the Field Guide's map chapter](FIELD_GUIDE.md#95-the-map-and-its-basemap-sources) states for every client that draws a map;
 the themes a report's tiles are faced with by the mark `__IsThemeArchetype`, each with its colour, icon
-and order as the model states them, and none where the model declares no themes. A model that was
-never seeded is answered `503` with nothing in the body, as a submission into one is.
+and order as the model states them, and none where the model declares no themes. Each category and
+hazard carries its `wording` — its words in every language the model states them in — so the form
+offers a term in the reader's language and still submits it by its name. A model that was never
+seeded is answered `503` carrying the code `serviceUnavailable` and nothing else, as a submission into
+one is.
 
 **Nothing but the email address reaches the service before the address is verified.** The page holds what
 was collected in the browser; asking for a code sends the address alone; the answers go with the ticket
@@ -1346,8 +1354,9 @@ opening map is drawn before anything is verified: the route names a tile registr
 `__IsBasemapTileRegistration`, forwards the three placeholders through the fetching service — which
 keeps the bytes on its disk for the registration's cache life — and serves the bytes back with a
 `Cache-Control` of the same life. A registration without the mark is not served, whatever the route
-names, so this service is a proxy for the basemaps the model declares and for nothing else. Neither
-route hands a page the provider's address or any key.
+names, so this service is a proxy for the basemaps the model declares and for nothing else. Tiles are
+counted on a budget of their own, per address, not on the submission budget, so a map drawn never costs
+a submission its requests. Neither route hands a page the provider's address or any key.
 
 **A submitter can share files about their land once the report is up, and the same service takes
 them** (#7059). `POST /submissions/{submissionId}/documents`, under the ticket, is a form carrying

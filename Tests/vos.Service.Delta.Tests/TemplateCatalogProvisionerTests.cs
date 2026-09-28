@@ -443,8 +443,6 @@ public class TemplateCatalogProvisionerTests
         stub.Relationships.Should().HaveCount(2, "a template that could not narrow a key is still wired");
     }
 
-    // ---------- Harness ----------
-
     // Both clients share one handler, so the writes one makes are what the other's snapshot reports —
     // which is the whole subject of a repair run.
     private static TemplateCatalogProvisioner Provisioner(MyceliumStub stub, string seedJson)

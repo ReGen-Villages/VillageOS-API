@@ -31,8 +31,6 @@ public class EndpointSeedGraphResolutionTests
         },
         Is("EsriEndpoint", "Endpoint"), Is("CountyParcels", "EsriEndpoint")));
 
-    // ---------- ContainsTemplate ----------
-
     [Fact]
     public void ContainsTemplate_KnownTemplate_True()
     {
@@ -50,8 +48,6 @@ public class EndpointSeedGraphResolutionTests
     {
         ThreeLevelGraph().ContainsTemplate("Ghost").Should().BeFalse();
     }
-
-    // ---------- Chain ----------
 
     [Fact]
     public void Chain_LeafTemplate_NearestFirstToRoot()
@@ -77,8 +73,6 @@ public class EndpointSeedGraphResolutionTests
         act.Should().Throw<KeyNotFoundException>();
     }
 
-    // ---------- AllowedKeys ----------
-
     [Fact]
     public void AllowedKeys_UnionsKeysAlongChain()
     {
@@ -98,8 +92,6 @@ public class EndpointSeedGraphResolutionTests
     {
         ThreeLevelGraph().AllowedKeys("EsriEndpoint").Contains("HTTPMETHOD").Should().BeTrue();
     }
-
-    // ---------- TryGetEffectiveSeedValue ----------
 
     [Fact]
     public void TryGetEffectiveSeedValue_ClosestAncestorWins()

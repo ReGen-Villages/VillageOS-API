@@ -5,7 +5,7 @@ import { VOS_TYPES, PROPERTY_TYPES, DEFAULT_PROPERTY_TYPE, asVosTypeName, type V
 // Nothing checked it, so every property write from the GUI failed for months. These type names are
 // now a named set, which puts that mistake in front of the compiler.
 describe('a type name the client writes is checked when the code is compiled', () => {
-  it('rejects the retired short name that Bug #6141 sent', () => {
+  it('rejects the retired short name', () => {
     // @ts-expect-error - "double" is the retired short name; the platform answers it with "Invalid
     // type specified". If this line stops erroring, the set has stopped checking anything.
     const retired: VosTypeName = 'double';

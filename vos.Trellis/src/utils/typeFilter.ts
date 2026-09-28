@@ -58,8 +58,6 @@ export function discoverTypes(
   const thingNames = new Map(things.map((t) => [t.Id, t.Name]));
   const instanceTypeIndex = buildInstanceTypeIndex(things, relationships);
 
-  // typeId -> Set<thingId>. typeId is either a real type Thing id or
-  // NO_TYPE_ID for Things without a registered `is` target.
   const buckets = new Map<string, Set<string>>();
 
   // Type Things themselves count in their own bucket — selecting "None" must
@@ -139,7 +137,6 @@ export function sortTypeGroups(
   const isNoType = (g: TypeGroupStat) => g.name === NO_TYPE_ID;
 
   return [...groups].sort((a, b) => {
-    // NO_TYPE sentinel always tail-sorts.
     if (isNoType(a) !== isNoType(b)) return isNoType(a) ? 1 : -1;
 
     switch (order) {
@@ -207,13 +204,10 @@ export function applyTypeFilter(
   for (const t of things) {
     const typeId = instanceTypeIndex.get(t.Id);
     if (typeId && hiddenTypeIds.has(typeId)) {
-      // Instance of a hidden type
       hiddenThingIds.add(t.Id);
     } else if (!typeId && noTypeHidden) {
-      // Has no `is` target AND the synthetic bucket is hidden
       hiddenThingIds.add(t.Id);
     } else if (hiddenTypeIds.has(t.Id)) {
-      // The Thing IS itself a hidden type Thing
       hiddenThingIds.add(t.Id);
     }
   }

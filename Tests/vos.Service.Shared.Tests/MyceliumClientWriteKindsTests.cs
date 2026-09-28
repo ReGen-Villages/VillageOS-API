@@ -19,8 +19,6 @@ public class MyceliumClientWriteKindsTests
     private static readonly Guid Thing = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly DateTime At = new(2026, 6, 20, 14, 0, 0, DateTimeKind.Utc);
 
-    // ---------------- Facts ----------------
-
     [Fact]
     public async Task SetFactAsync_Created_PostsValueAndReturnsSequence()
     {
@@ -45,8 +43,6 @@ public class MyceliumClientWriteKindsTests
         (await act.Should().ThrowAsync<HttpRequestException>())
             .Which.StatusCode.Should().Be(HttpStatusCode.MethodNotAllowed);
     }
-
-    // ---------------- Observations (single) ----------------
 
     [Fact]
     public async Task RecordObservationAsync_WithObservedAt_PostsValueAndTime()
@@ -84,8 +80,6 @@ public class MyceliumClientWriteKindsTests
             .Which.StatusCode.Should().Be(HttpStatusCode.MethodNotAllowed);
     }
 
-    // ---------------- Observations (batch) ----------------
-
     [Fact]
     public async Task RecordObservationsAsync_Batch_PostsArrayAndReturnsAccepted()
     {
@@ -116,8 +110,6 @@ public class MyceliumClientWriteKindsTests
         accepted.Should().Be(0);
         handler.Requests.Should().BeEmpty();
     }
-
-    // ---------------- Sediment ----------------
 
     [Fact]
     public async Task DepositSedimentAsync_Accepted_PostsReadingsAndReturnsSummary()
@@ -166,8 +158,6 @@ public class MyceliumClientWriteKindsTests
         (await act.Should().ThrowAsync<HttpRequestException>())
             .Which.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
-
-    // ---------------- helpers ----------------
 
     private static (TestableMyceliumClient client, MockHttpMessageHandler handler) BuildClient(
         Func<HttpRequestMessage, HttpResponseMessage> respond)

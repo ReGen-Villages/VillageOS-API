@@ -154,8 +154,6 @@ public sealed class BrokerSnapshot
         }),
     };
 
-    // ---- the worked example -------------------------------------------------
-
     public const string OtherSubmissionId = "1d2c3b4a-5e6f-4708-9a1b-2c3d4e5f6071";
 
     public static readonly Guid IsPredicate = new("33333333-3333-3333-3333-333333333333");
