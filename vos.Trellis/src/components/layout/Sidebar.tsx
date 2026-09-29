@@ -82,7 +82,7 @@ export function Sidebar() {
             {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
           </button>
         </div>
-        <nav className="flex-1 p-2 space-y-1">
+        <nav className="flex-1 overflow-y-auto p-2 space-y-1">
           {links.map(({ to, icon: Icon, labelKey }) =>
             to === OPERATIONS_PATH && dashboards.length > 0 ? (
               dashboards.map((dashboard) => (
