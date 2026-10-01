@@ -181,6 +181,8 @@ public class XylemHostTests
 
         _ = client.PostAsync("/ingest", Upload("ISO-10303-21;"), caller.Token);
         await Settle.ForAsync(factory.Runner.HeldRunStarted, "the tool was started");
+        // The test server tells the request its caller has gone before Cancel returns, so there is nothing
+        // to wait for.
         caller.Cancel();
 
         factory.Runner.HeldRunWasCancelled.Should().BeFalse();
