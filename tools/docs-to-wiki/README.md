@@ -3,8 +3,7 @@
 Generates an **Azure DevOps project wiki** from a repository's own markdown.
 
 The repository is the source of truth. Every wiki page is produced from a file listed in a
-manifest, so a page cannot quietly fall behind the document it is built from — which is exactly
-what happened before this existed.
+manifest, so a page cannot quietly fall behind the document it is built from.
 
 The manifest names the wiki to publish to, so a repository that keeps its own documentation
 supplies a manifest and the path to it rather than carrying a copy of this tool. This repository's
@@ -22,7 +21,7 @@ and each generated page says so at the top. Edit the document in `docs/` instead
   DevOps wiki renders. Ordinary code fences are untouched.
 - **Rewrites cross-document links** — `[Tributary](TRIBUTARY.md)` becomes
   `[Tributary](/Services/Tributary)` when the target is a mapped document, and a link to the
-  file in the repository when it is not (a roadmap, a licence).
+  file in the repository when it is not (a licence, a tool's README).
 - **Relabels file-name links** — a documentation index that writes `[FIELD_GUIDE.md](FIELD_GUIDE.md)`
   reads as `[Field Guide](/Field Guide)` on the wiki.
 - **Translates heading anchors** — the two systems slug headings differently: `1. Getting

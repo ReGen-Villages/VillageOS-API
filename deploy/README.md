@@ -43,7 +43,7 @@ Where the public hostname points depends on what runs:
   own certificate provisioning is switched off.
 
 The intake service's rate limit keeps working: the connector and the proxy both pass the caller's
-address on, and the service reads it from loopback only, as before. The broker's event streams send a
+address on, and the service reads it from loopback only. The broker's event streams send a
 heartbeat every fifteen seconds, which is inside Cloudflare's idle limit for a response, and the GUI
 reconnects with replay if a stream is ever cut.
 
@@ -122,6 +122,6 @@ credential, so it cannot read the model; the service reads it under its own and 
 programme categories a submission may name and the basemap sources a map may draw on, and nothing else.
 
 **A basemap address the model holds is published by this.** The form is open to anybody, so a tile or
-style address carrying a key in it is readable by anybody who opens the page. That was already true of
-every browser signed in to the GUI; what changes is who can open it. A deployment whose imagery is
+style address carrying a key in it is readable by anybody who opens the page. The same holds for
+every browser signed in to the GUI; the form widens who can open it. A deployment whose imagery is
 behind a key should put a proxy in front of the provider rather than a key in the model.

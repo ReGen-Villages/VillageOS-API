@@ -59,8 +59,8 @@ public sealed class SmtpVerificationMailer(MailSettings settings) : IVerificatio
 
 // Writes the code down instead of sending it, for a developer with no mail relay to hand.
 //
-// This puts in a log the two things §12 of docs/LAND_INTAKE.md exists to keep out of one: an
-// address somebody typed, and the code that would let anybody submit under it. That is not an oversight
+// This puts in a log the two things "Handling personal data" in docs/LAND_INTAKE.md exists to keep
+// out of one: an address somebody typed, and the code that would let anybody submit under it. That is not an oversight
 // to be tidied up — it is the whole function, and it is why
 // MailDelivery.WhyRefusedIn allows it on a development machine and nowhere else.
 public sealed class ConsoleVerificationMailer(ILogger<ConsoleVerificationMailer> logger) : IVerificationMailer

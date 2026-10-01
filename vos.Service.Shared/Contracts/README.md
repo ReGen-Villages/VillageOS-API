@@ -17,15 +17,12 @@ Contracts/
 1. Drop the `.schema.json` file under `Schemas/` with a unique `$id`.
 2. Set `additionalProperties: false` on every object subschema (strict by default per project convention).
 3. Add positive and negative fixtures under `Tests/vos.Service.Shared.Contracts.Tests/Fixtures/`.
-4. Run `dotnet test` &mdash; `SchemaSelfValidityTests` will exercise the new schema automatically (file discovery).
+4. Run `dotnet test` &mdash; `SchemaSelfValidityTests` finds the new schema by file discovery and exercises it.
 
-## Adoption posture
+## Where the validator runs
 
-Phase 1 ships the schemas + validator as a *dormant library* &mdash; no production code path consumes them yet. Subsequent phases wire the validator into:
+- **Inbound `/handle` bodies**, through the `UseRequestContractValidation` middleware, on a route that opts in with `RequireContract<T>()`. Metabolism's `/handle` does.
+- **Outbound calls in `MyceliumClientBase`**: the registration body, the token response, and the body of each write helper.
+- **Metabolism's own outbound calls**: the quantity adjustment and the relationship increment.
 
-- Phase 2: inbound `/handle` middleware (`UseRequestContractValidation`).
-- Phase 3: outbound checks in `MyceliumClientBase`.
-- Phase 4: SSE change-stream receive-side in Metabolism (via the shared `SubscriptionClient`).
-- Phase 5: GUI runtime validation (TS types generated from the same schemas).
-
-See `docs/SERVICES.md` §9 for the full design.
+A violation throws in a Debug build and logs a warning in a Release build. See `docs/SERVICES.md` §9 for the whole of it.

@@ -44,9 +44,9 @@ The shape:
   kind the endpoint reaches.** A kind is a Thing related through a role relationship
   (`authenticatesBy`, `pagesBy`, `readsBodyAs`); its own property keys are what an
   endpoint using it must supply, checked before anything is called. A role reaching no
-  kind means the plain behaviour; the nearest declaration up the `is` chain wins; and the
-  superseded property spellings (`authKind`, `pagingKind`, `responseKind`) are refused at
-  provisioning (see [`DELTA.md`](DELTA.md)).
+  kind means the plain behaviour; the nearest declaration up the `is` chain wins; and a
+  kind written as a property (`authKind`, `pagingKind`, `responseKind`) is refused when
+  the catalog is read (see [`DELTA.md`](DELTA.md)).
 
 - Templates are Things; inheritance is expressed model-natively as `is` relationships
   (`EsriEndpoint is Endpoint`), never a scalar field.
@@ -147,15 +147,15 @@ timestamps, attributed to the wrong site. `subjectId` on the request closes that
 - **No Thing is created.** The subject exists already, so nothing is minted from the reading's name.
   The `observed` relationship back to the registration is still written — see *Which registration wrote a
   value* below.
-- **Without it, nothing changes.** A registration serving one subject keeps naming it in the
-  expression and is resolved by name exactly as before. A reading that names no subject, on a call
+- **Without it, the reading's name decides.** A registration serving one subject names it in the
+  expression, and the Thing is resolved by that name. A reading that names no subject, on a call
   that names none either, is refused rather than written onto a guess.
 
 ## Which registration wrote a value
 
 **Every ingest that puts values on a Thing relates the registration to that Thing through `observed`.**
 A number nothing can be walked back from reads exactly as trustworthy as one with a provider behind
-it, which is the confusion the intake design exists to remove: an estimate and a measurement must not
+it, which is the confusion land intake exists to remove: an estimate and a measurement must not
 look the same once they are in the model.
 
 - **The relationship names the registration, not the provider.** Tributary knows the endpoint it
@@ -335,14 +335,16 @@ paging, a credentialed (`TokenExchangeAuth`) call, and a request with an outboun
 **Keeping what was retrieved: `keepsBy` → `ModelAsset`.** The cache above is a speed layer
 the model cannot see; an endpoint that reaches the **`ModelAsset`** kind through `keepsBy`
 gives the model memory of the retrieval itself. On a real upstream fetch answered 2xx,
-Tributary deposits the response bytes — Content-Type and all — in the broker's
-content-addressed asset store (`POST /api/assets`, answering `{ "hash": "sha256:<64-hex>" }`,
-idempotent because the name is the content), then writes that ticket string onto the model
-through the ordinary observation lane. The bytes never enter the model: the ticket is an
-ordinary ~71-character scalar on a property series, so property history and as-of reads work
-unchanged — and because assets are immutable, an as-of read resolves to the exact bytes that
-were true then. Content identity, not a location pointer, is what
+Tributary posts the response bytes — Content-Type and all — to the broker's asset route
+(`POST /api/assets`), reads the ticket the broker answers with
+(`{ "hash": "sha256:<64-hex>" }`, a name made from the content), then writes that ticket string
+onto the model through the ordinary observation lane. The bytes never enter the model: the
+ticket is an ordinary ~71-character scalar on a property series, so property history and as-of
+reads work unchanged. Content identity, not a location pointer, is what
 [`TEMPORAL_READS.md`](TEMPORAL_READS.md)'s no-stubs rule permits: the key IS the address.
+
+The kind depends on the broker serving that route. A broker that does not serve it refuses the
+deposit, and the call fails with a 502 as any refused keep does (below).
 
 The kind requires two keys and may name a third — all of them names the model supplies,
 none of them meaningful to this service:
@@ -365,12 +367,10 @@ write — fails the call with a 502 rather than answering as though something wa
 It composes with the kinds above. `readsBodyAs → BinaryResponse` supplies the bytes
 verbatim (the ordinary pairing for imagery); a plain text body deposits its UTF-8 bytes.
 `cachesBy → DiskCache` serves repeats locally, and **a cache hit deposits nothing** — no
-new retrieval happened, and the store's content addressing makes the re-deposit after an
-expiry idempotent anyway. `OffsetPaging` is refused: the aggregate is assembled by this
+new retrieval happened. `OffsetPaging` is refused: the aggregate is assembled by this
 service, so keeping it would deposit bytes the provider never served. Reaching no kind
-through `keepsBy` is the transient default above, unchanged. The store itself — the
-`GET /api/assets/{hash}` serving lane, retention, GC — is broker-side and lives outside
-this service.
+through `keepsBy` is the transient default above. How the bytes are stored and served back
+is the broker's concern and lies outside this service.
 
 Graph composition is pinned by `EsriTileEndpointTemplateTests` and
 `ModelAssetEndpointSpecTests` (Delta); behavior by `BinaryResponseKindTests`,
@@ -382,9 +382,9 @@ Graph composition is pinned by `EsriTileEndpointTemplateTests` and
 anything outside 2xx — other than the one case below — comes back to the caller with that
 status and that body, and nothing is reshaped or ingested. One rule for all three paths:
 a plain call, a binary one, and a paged walk, where any page outside 2xx ends the walk and
-is the answer the caller gets. Answering 200 with a refusal inside it is what lets a run
+is the answer the caller gets. Answering 200 with a refusal inside it would let a run
 count a call resolved, stamp its coverage and move on, leaving a reading unassessed for a
-reason nobody was told (Bug #6831).
+reason nobody was told.
 
 **404 is the exception, because it is an answer.** A portal holding no entry for a
 division answers 404 (see the hazard grading below): the reshape is skipped, nothing is
@@ -445,7 +445,7 @@ or computing over time, it is Metabolism. That is why Tributary is stateless and
 idempotent per call, and why the JSONata step is constrained to reshaping — derived
 calculation deliberately lives on the other side of the boundary.
 
-## Example: precipitation onto a Site (#5805)
+## Example: precipitation onto a Site
 
 A weather endpoint (e.g. Open-Meteo) is registered with a `responseTransform` that reshapes the
 hourly response into a reading on the Site Thing — no Tributary code changes, just config:
@@ -462,17 +462,15 @@ hourly response into a reading on the Site Thing — no Tributary code changes, 
 
 Tributary fetches it and ingests `precipitation` (mm) as an observation on `ExampleSite` at the
 observed time (see `PrecipitationEndpointTests`). That rainfall series feeds the catchment the study
-works out for itself — real discovered data instead of a run param.
+works out for itself — real discovered data instead of a run parameter.
 
-The **Energy** slice (#5806) discovers the same way — a solar-resource endpoint reshaping
-`hourly.shortwave_radiation` onto the Site (see `SolarResourceEndpointTests`). Its two solar inputs
-come from different sources that meet at the `EnergyBalance` node: the **solar resource** (annualized to
-GTI) is *discovered* here, while the **PV area** is *rolled up* reactively over the classified
-`SolarArray` `is` relationships — an `AggregateBounds` `Sum` over the ingester's classification (#5796)
-and roll-up (#5797). Discovery (fetch a resource) and the ingester's structural knowledge (aggregate the assets) both
-feed the same compute node.
+A solar-resource endpoint is discovered the same way, reshaping `hourly.shortwave_radiation` onto
+the Site (see `SolarResourceEndpointTests`). The energy balance takes its two solar inputs from
+different sources: the **solar resource** is *discovered* here, while the **panel area** is a total
+the model works out over every Thing that `is SolarArray`. A fetched figure and a figure summed from
+the building model both feed the same balance.
 
-## Example: a climate zone onto a Site (#6734)
+## Example: a climate zone onto a Site
 
 The two examples above are per-address registrations written by hand. This one ships as **seed data**:
 `open-data-sources.template.json` in the platform repository declares it, so every project created from
@@ -509,16 +507,16 @@ Three things about it are worth reading off:
   description, and `$exists` would let that hedge through.
   A hedge writes nothing, the same answer a coordinate the provider cannot classify already gets:
   writing either half would invent precision the source explicitly withheld, and writing the pair would
-  put a value that is no class at all onto the Site (Bug #6772, see `ClimateZoneEndpointTests`).
+  put a value that is no class at all onto the Site (see `ClimateZoneEndpointTests`).
 
-**Köppen-Geiger is the scheme, and it is recorded where a reader of the intake design finds it too** —
+**Köppen-Geiger is the scheme, and it is recorded where a reader of the land intake guide finds it too** —
 [`LAND_INTAKE.md`](LAND_INTAKE.md#what-the-catalogue-fetches), beside the registration's own comment in the
-template. Its classes are Things of their own in the platform's intake template (platform Task 6684).
-The discovery run resolves the fetched code against them by the declaration that template carries
-(platform User Story 6773; the resolution is #6809), and the code stays on the Site's series as the
+template. Its classes are Things of their own in the platform's templates.
+The discovery run resolves the fetched code against them by the declaration the template carries,
+and the code stays on the Site's series as the
 record of what the provider answered, with the `classifiedAs` relationship carrying the classification.
 
-## Example: a hazard grading onto an assessment (#6735)
+## Example: a hazard grading onto an assessment
 
 Seed data like the climate source, but its subject is never the site: the portal grades one hazard at
 one administrative division per call, so the discovery run calls it once per assessment the site has,

@@ -2,18 +2,18 @@
 
 Canonical C# how-to for `Service` projects. For the **language-agnostic HTTP + SSE
 wire contract** (Go/Node/Python/Rust subscribe snippets) see
-[`SERVICE_CONTRACT.md`](SERVICE_CONTRACT.md). Forward-looking design (delivery
-contract, dispatch, ACK envelope) lives in
-[`SERVICE_HOST_ROADMAP.md`](SERVICE_HOST_ROADMAP.md) §1. For the simulation-
-specific behavior of Metabolism, see [`METABOLISM.md`](METABOLISM.md).
+[`SERVICE_CONTRACT.md`](SERVICE_CONTRACT.md). For the simulation-specific behavior
+of Metabolism, see [`METABOLISM.md`](METABOLISM.md).
 
 ## 1. What a microservice is in this repo
 
 A `Service` is a `Microsoft.NET.Sdk.Web` minimal-API binary on
 .NET 10 that talks to the **VillageOS Mycelium** (separate repo, default
-`https://localhost:7243`). It auto-registers on start and exposes a `/health`
-endpoint Mycelium's `LivenessMonitor` polls; the monitor also removes the
-registration of a service that has stopped answering.
+`https://localhost:7243`). It exposes a `/health` endpoint that Mycelium's
+`LivenessMonitor` polls. A service the model declares is launched by Mycelium
+from that declaration. A service started outside Mycelium announces itself with
+a registration call (§5), and the monitor removes the registration of one that
+has stopped answering (§8).
 
 The handler contract is just **HTTP + one JWT signed on the P-256 elliptic curve**, so it is not tied to
 .NET — a microservice can be written in any language. This doc is the C#
@@ -21,48 +21,36 @@ reference; for the **language-agnostic contract** plus runnable reference
 handlers in Go, Node/TypeScript, Python, and Rust, see
 [`SERVICE_AUTHORING.md`](SERVICE_AUTHORING.md).
 
-Today's .NET services: `Echo`, `Tributary`, `Forage`, `Delta`, `Metabolism`, `Phloem`,
-`WaterReserve`, `EnergyBalance`, `ModelBridge`, `Xylem`, `Intake`. `Delta` is the endpoint-registration service: it
-provisions the endpoint-template catalog into a model on that model's first registration, and
-validates every endpoint
-registration against that template graph (see [`DELTA.md`](DELTA.md)); `Tributary` is the runtime
-fetch side of the same endpoint story; `Forage` resolves a site against every source
-covering it, calls Tributary for each, relates each fetched vocabulary word to the Thing it names,
-and then starts the site's analysis by relating its
-`SiteStudy` to each marked compute connection (see [`FORAGE.md`](FORAGE.md)). `WaterReserve` (#5805) and `EnergyBalance` (#5806) are
-site-analysis nodes: `WaterReserve` computes emergency reserve / days-of-supply / %
-consumption; `EnergyBalance` computes solar + other
-generation vs consumption → % of consumption and net-positive. `EnergyBalance` also runs
-**reactively** (#5839) — a graph `/handle` whose subject is the SiteStudy makes the service
-read its inputs off the study's effective properties, compute, and write its verdict back as a Fact, so the
-study's judge ranges re-evaluate (no pipeline). It is the only service the site analysis still
-dispatches: a service earns a dispatch by producing what no declaration on the study can hold, and the
-energy verdict is the last of those — a boolean where every formula the analysis declares yields a number.
-`WaterReserve` has only the node path left: every figure it computes is a formula the shared study
-archetype declares, so a study answers all four for itself and nothing dispatches the service against
-one (#6748). A pipeline run still routes to it, supplying the three inputs on wired ports. `FoodBalance`
-is retired for the same reason and no longer exists. Each allocation's area and both of a site's
-footprints are figures the model works out for itself as well, so no service produces them.
-`RainwaterHarvest` (#6021) ran reactively too, apportioning the rain a site captures over the demands on
-it in turn, and is retired (#6892). The volume captured in a year is now a formula the shared study
-archetype declares, and each demand is a Thing of the study's own that works out what it takes, how much of
-what it wanted that is, and what is left short. The harvest is one body of water, so measuring it against
-each demand on its own would count the same cubic metre twice — a demand takes the smaller of what it
-wants and what the demands before it left, which is why the model's expression language grew `min` over two
-figures. Which demands there are and the order they are served in are Things in the shared analysis
-template, so a third demand is a template edit and no service changes. `ModelBridge` (#5866) is a generic
-**model⇄DAG bridge** node: with node param `mode:"read"` it outputs a Thing's property value (GET the
-Thing's properties); with `mode:"write"` it writes its `value` input onto a Thing's property (a Fact).
-It lets a compute node read a roll-up / SiteStudy param and write its result back over ordinary node→node
-wires — the source/target Thing id is baked into the node params (`thingId`, `property`). See
-[`MODELBRIDGE.md`](MODELBRIDGE.md) for the full read/write contract and a worked example. **Echo is
-the canonical reference implementation** — the simplest. When adding a new
-microservice, copy Echo's structure and the test patterns in §10. `Phloem` is the
-pipeline/DAG orchestrator and a service becomes a pipeline *node* via an additive `/handle`
-envelope — both documented in §16 (Pipelines / DAG orchestration).
+The .NET services:
+
+| Service | What it does |
+|---|---|
+| `Echo` | The reference for the request shapes: it answers a graph or http body by reflecting it, and is the reference pipeline node (§16.2). |
+| `Delta` | Endpoint registration. It provisions the endpoint-template catalog into a model on that model's first registration, and validates every endpoint registration against that template graph (see [`DELTA.md`](DELTA.md)). |
+| `Tributary` | The runtime fetch side of the same endpoint story (see [`TRIBUTARY.md`](TRIBUTARY.md)). |
+| `Forage` | Resolves a site against every source covering it, calls Tributary for each, relates each fetched vocabulary word to the Thing it names, and then starts the site's analysis by relating its `SiteStudy` to each marked compute connection (see [`FORAGE.md`](FORAGE.md)). |
+| `Metabolism` | The consume/produce simulation behind the `consumes` and `produces` predicates (see [`METABOLISM.md`](METABOLISM.md)). |
+| `EnergyBalance` | Computes solar and other generation against consumption: the share of consumption covered, and whether the site is net-positive. It runs two ways: as a pipeline node, and **reactively** — a graph `/handle` whose subject is the `SiteStudy` makes the service read its inputs off the study's effective properties, compute, and write its verdict back as a Fact, so the study's judge ranges re-evaluate. |
+| `WaterReserve` | Computes the emergency reserve, days of supply and share of annual consumption. It runs as a pipeline node only, with its inputs supplied on wired ports. |
+| `ModelBridge` | A generic **bridge between the model and a pipeline**, as a node. With node param `mode:"read"` it outputs a Thing's property value; with `mode:"write"` it writes its `value` input onto a Thing's property as a Fact. The Thing and the property are named in the node params (`thingId`, `property`). See [`MODELBRIDGE.md`](MODELBRIDGE.md). |
+| `Phloem` | The pipeline orchestrator (§16). |
+| `Xylem` | Takes a building-model upload, runs the ingest tool and applies the result to the model. |
+| `Intake` | Takes a land-intake submission from the public (below). |
+| `Feedback` | Files a report from a signed-in person's report panel as a work item (below). |
+
+**What the site analysis asks of a service.** A service earns a dispatch by producing what no
+declaration on the study can hold. `EnergyBalance` is the only service the site analysis dispatches:
+the energy verdict is a boolean, where every formula the analysis declares yields a number.
+Everything else the analysis works out is a formula or a total the shared study archetype declares,
+so the model answers it for itself and no service produces it: the water reserve figures, the food
+balance, each allocation's area, a site's footprints, the rain a site captures in a year, and what
+each water demand takes of that rain. The captured rain is one body of water, so each demand takes
+the smaller of what it wants and what the demands before it left. Which demands there are and the
+order they are served in are Things in the shared analysis template, so adding a demand is a template
+edit and no service changes.
 
 **`Intake` is the exception to most of this section.** It takes a land-intake **submission**, composes
-the Site, Parcel and SiteStudy it becomes, and applies them as one fragment (#6310). It does **not**
+the Site, Parcel and SiteStudy it becomes, and applies them as one fragment. It does **not**
 register with Mycelium and is not reachable through the endpoint-forward route — that route resolves
 where to forward from data in the model, so a submission path opened there would put whatever the model
 happens to name within reach of whoever can call it. So it registers nothing, holds its own credential,
@@ -73,13 +61,19 @@ verified address, a per-source rate limit and bounds on every field stand where 
 also the one service that sends mail, and it will not start without somewhere to send it. The submission
 document is in [`LAND_INTAKE.md`](LAND_INTAKE.md) §4 and what guards the route is in §9.
 
+**`Feedback` registers nothing either.** It is reached at its own address through the reverse proxy,
+maps `/health` alone, and checks its caller by presenting the caller's own token to Mycelium. The
+Field Guide's chapter *Serving it to people* describes its settings.
+
 **Two kinds of predicates — the extension point.** `is` is the *only* predicate built into
 Mycelium; **every other predicate that does work is a *Handled Predicate*** dispatched to a
 microservice. That is the platform's extension point: a new capability — simulation, integration,
 computation — ships as a microservice bound to a predicate, with no change to Mycelium (Metabolism
-backs `consumes`/`produces` today; a pipeline node and the `runs` spawn-trigger are the same
+backs `consumes`/`produces`; a pipeline node and the `runs` spawn-trigger are the same
 pattern). The dispatch machinery is load-bearing even with a single handler — don't flatten it, and
-don't add a second built-in predicate alongside `is`. The full relationship-service handler model, the Mycelium API handlers use, and worked examples are in [`RELATIONSHIP_SERVICES.md`](RELATIONSHIP_SERVICES.md).
+don't add a second built-in predicate alongside `is`. The full relationship-service handler model,
+the Mycelium API handlers use, and worked examples are in
+[`RELATIONSHIP_SERVICES.md`](RELATIONSHIP_SERVICES.md).
 
 Project references: `vos.Auth.Shared` (inbound JWT validation) and
 `vos.Service.Shared` (Mycelium-client base, validators, contract-
@@ -93,12 +87,12 @@ depend on `vos.Core` or `vos.Application`.
 cd ../VillageOS/vos.Mycelium
 dotnet run                                  # binds https://localhost:7243
 
-# 2. Start a microservice
+# 2. Start a microservice, holding a key to register with (§12 creates one)
 cd vos.Service.CSharp.Echo
-dotnet run -- --port=7245 --myceliumUrl=https://localhost:7243
+ApiKey=vos_sk_... dotnet run -- --port=7245 --myceliumUrl=https://localhost:7243
 
 # 3. Verify health
-curl http://localhost:7245/health           # {"status":"Healthy"}
+curl http://localhost:7245/health           # {"status":"Healthy", ...}
 
 # 4. Verify Mycelium registration
 TOKEN=$(curl -s -X POST https://localhost:7243/api/auth/login \
@@ -128,7 +122,7 @@ A service with no settings beyond the standard ones has no `Configuration`
 folder, and a service that only registers under its own name has no broker
 client of its own. Both come from `vos.Service.Shared`.
 
-## 4. Launch settings — the standard flags and the two credentials
+## 4. Launch settings — the standard flags and the credentials
 
 `vos.Service.Shared.Configuration.ServiceLaunchSettings` reads the settings
 every service needs. There is one implementation; no service writes its own.
@@ -136,17 +130,20 @@ every service needs. There is one implementation; no service writes its own.
 - **Required flags:** `--port`, `--myceliumUrl`
 - **Optional flags:** `--issuer`, `--audience`
 - **Credentials, which are never flags:** `Token` (pre-minted service JWT for
-  **outbound** Mycelium calls) and `VerificationKey` (base64 of Mycelium's
-  public signing key, for checking **inbound** Mycelium requests)
+  **outbound** Mycelium calls), `ApiKey` (a key exchanged for short-lived
+  tokens, for a service that outlives any one token — §12) and
+  `VerificationKey` (base64 of Mycelium's public signing key, for checking
+  **inbound** Mycelium requests)
 
 Every flag can also come from configuration or the environment under its
 Pascal-case name — `Port`, `MyceliumUrl` and so on — so a service can be
 launched with no flags at all. A flag always wins over configuration.
 
-The two credentials are read from configuration alone. A command line is visible
+The credentials are read from configuration alone. A command line is visible
 to every process on the host and is recorded by anything that logs the line a
-service was started with, so `--token=` and `--verificationKey=` are ignored if
-given. Mycelium sets both on the environment of every daemon it launches.
+service was started with, so `--token=`, `--apiKey=` and `--verificationKey=`
+are ignored if given. Mycelium sets `Token` and `VerificationKey` on the
+environment of every daemon it launches.
 
 The rule holds in the other direction too: a service that launches a process of
 its own passes any credential on that child's environment, never in its
@@ -162,23 +159,24 @@ reimplementing it, and builds its usage message with
 `ServiceLaunchSettings.BuildUsageMessage`. Metabolism's
 `--mode=consumes|produces` works this way in
 `vos.Service.Metabolism/Configuration/MetabolismLaunchSettings.cs`; Forage,
-Xylem and Intake do the same for their own settings.
+Xylem, Intake and Feedback do the same for their own settings.
 
 ## 5. Talking to the broker
 
 A service that only needs to register under its own name uses
 `vos.Service.Shared.EndpointServiceMyceliumClient` and writes no client of its
 own. A service that makes broker calls of its own — Delta, Tributary,
-Metabolism, and Phloem's gateway — derives from `MyceliumClientBase` and adds
-those calls.
+Metabolism, Forage, Intake, and Phloem's gateway — derives from
+`MyceliumClientBase` and adds those calls.
 
 `vos.Service.Shared.MyceliumClientBase` owns the
 service-agnostic plumbing:
 
 - `HandlerId` (fresh `Guid` per process)
 - `MyceliumUrl`
-- `GetTokenAsync()` — returns the `Token` setting if set, otherwise hits the
-  legacy `/api/auth/token` endpoint
+- `GetTokenAsync()` — answers the token the service presents: the `Token`
+  setting, or the one exchanged for its `ApiKey` (§12). A service holding
+  neither gets no token, because the exchange route refuses a call with no key
 - `CreateAuthenticatedClientAsync(timeout?)` — returns an `HttpClient` with
   Bearer auth
 - `RegisterAsync(port, serviceName, startCommand)` — POSTs the registration
@@ -227,41 +225,50 @@ ApplySnapshot(added.Snapshot); // incremental snapshot hydrates the newly-added 
 await sub.RemoveObjectsAsync(all.SubscriptionId, new[] { relId });
 ```
 
-The subclass's job is to provide a service-specific `RegisterAsync(port)`
-overload that calls the base with the right `(serviceName, startCommand)`,
-plus any service-specific calls (`CreateThingAsync`, `ApplyQuantityAsync`, …).
-Echo's canonical example:
+A subclass adds the service's own calls (`ApplyQuantityAsync`, …). A subclass
+that registers also gives a `RegisterAsync(port)` overload that calls the base
+with its `(serviceName, startCommand)`. Phloem's gateway is the example:
 
 ```csharp
-public class MyceliumClient : MyceliumClientBase
+public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 {
-    public MyceliumClient(IHttpClientFactory http, ILogger<MyceliumClient> log, string myceliumUrl, string? token = null)
-        : base(http, log, myceliumUrl, token) { }
+    public MyceliumGateway(IHttpClientFactory httpClientFactory, ILogger<MyceliumGateway> logger,
+        string myceliumUrl, string? serviceToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey) { }
 
-    public Task<bool> RegisterAsync(int port)
-        => RegisterAsync(port, "Echo", "endpoint-service");
+    public Task<bool> RegisterAsync(int port) => RegisterAsync(port, "Phloem", "endpoint-service");
+
+    // … the gateway's own calls
 }
 ```
 
 ### Registration sequence
+
+Registration is for a service started outside Mycelium. Echo, Phloem,
+EnergyBalance, WaterReserve and ModelBridge register on start. The other
+services are launched by Mycelium from the model's declaration and make no
+registration call.
 
 ```mermaid
 sequenceDiagram
     participant MS as Service
     participant B  as VillageOS Mycelium
 
-    Note over MS,B: ApplicationStarted
-    MS->>B: GET /api/auth/token (the Token setting short-circuits this when set)
-    B-->>MS: { token: "..." }
-    MS->>B: POST /api/mycelium/register<br/>{ handlerId, serviceName, endpointUrl, ... }
+    Note over MS,B: The service has started
+    MS->>B: POST /api/mycelium/register<br/>Authorization: Bearer {token}<br/>{ handlerId, serviceName, endpointUrl, ... }
     B-->>MS: 200 OK
 
     Note over MS,B: Service runs
+    B->>MS: GET /health, on the liveness interval
+    MS-->>B: 200 OK
 
-    Note over MS,B: ApplicationStopping
-    MS->>B: DELETE /api/mycelium/services/{handlerId}<br/>Authorization: Bearer {token}
-    B-->>MS: 200 OK
+    Note over MS,B: The service stops
+    B->>MS: GET /health
+    Note over B: After repeated failures the monitor removes the registration
 ```
+
+A service does not withdraw its own registration: the removal route is
+admin-only, so the call would be refused whatever the service holds.
 
 ## 6. Helpers — pulling logic out of Program.cs
 
@@ -284,7 +291,7 @@ Worked examples:
   existing model-seed document (a `Things[]` + `Relationships[]` fragment) and
   assembles it via `EndpointSeedGraph.Build`, which derives the template hierarchy
   from the seed's `is` relationships (not a scalar field). `LoadGraphDefault(ILogger)`
-  wraps with the canonical three paths.
+  calls it with the default candidate paths.
 - `vos.Service.Metabolism/Helpers/JsonValueUnwrapper.cs` —
   `Unwrap(object?)` maps `JsonElement` to native CLR types with
   `int → long → decimal` width escalation.
@@ -294,9 +301,8 @@ Worked examples:
 
 What stays in `Program.cs`: DI registration, middleware order, route mapping,
 lifetime callbacks, endpoint lambdas with thin call-through bodies.
-Composition, not logic. The `coverage.runsettings` exclusion of `Program.cs`
-is honest after the extraction; before it, real testable code hid behind the
-exclusion.
+Composition, not logic. That is what makes the `coverage.runsettings` exclusion
+of an entry point honest: nothing a test could reach sits behind it.
 
 ### 6.1 Read and write machine-to-machine values with the invariant culture
 
@@ -376,25 +382,33 @@ a test can reach it — code inside an entry point cannot be called from a test.
    `builder.AddMyceliumTokenAuth(verificationKey, issuer, audience)`. The
    recipient name is this service's own, so a token addressed anywhere else is
    refused before any handler code runs.
-5. Calls `builder.Services.AddContractValidation()` to register the schema
-   registry and validator.
-6. Registers the broker client and the service's own dependencies, then
-   `builder.Services.AddMyceliumRegistration(serviceName, port)`.
-7. Calls `app.UseRouting()`, then `app.UseRequestContractValidation()` (after
-   auth when auth is enabled). The middleware reads
-   `ContractValidationMetadata` off the matched endpoint, so it must run after
-   `UseRouting` and before endpoint dispatch.
-8. Maps **POST `/handle`**, and calls `app.MapHealthAndStats(serviceName,
-   myceliumUrl)` and `app.MapShutdown(serviceName)` for the rest. Each request
-   type that has a JSON Schema is tagged `[ContractSchema("<$id>")]`; its route
-   calls `.RequireContract<TRequest>()` to opt in to validation.
-9. `app.Run()`.
+5. Registers the broker client and the service's own dependencies. A service
+   that registers (§5) adds `builder.Services.AddMyceliumRegistration(serviceName, port)`.
+6. With auth enabled, calls `app.UseAuthentication()`, `app.UseAuthorization()`
+   and `app.UseMyceliumModelToken()`. The last keeps the bearer a request
+   arrived with, so the service's own calls back to Mycelium are made for the
+   model that request was about.
+7. Maps **POST `/handle`**, and calls `app.MapHealthAndStats(serviceName,
+   myceliumUrl)` and `app.MapShutdown(serviceName)` for the rest. A service that
+   keeps no registration calls `app.MapHealth(serviceName)` in place of the
+   first.
+8. `app.Run()`.
 
-Registration and withdrawal are not steps here: `AddMyceliumRegistration` runs
-both on the host's own schedule. Registration happens off the startup path, so a
-broker that is slow or absent cannot stop the service coming up. Withdrawal is
-awaited, so the broker learns the service has gone rather than being left with a
-handler that no longer answers.
+`vos.Service.ModelBridge/Program.cs` is these steps and nothing else.
+EnergyBalance and WaterReserve follow them too. Echo, Delta, Tributary, Forage,
+Metabolism, Phloem and Xylem map a `/health` of their own, and Echo and Phloem
+make their own registration call on start; a new service uses the shared calls.
+
+A service that validates its request against a JSON Schema adds three calls
+(§9): `builder.Services.AddContractValidation()`, then `app.UseRouting()`
+followed by `app.UseRequestContractValidation()` (after auth when auth is
+enabled), and `.RequireContract<TRequest>()` on the route. The middleware reads
+`ContractValidationMetadata` off the matched endpoint, so it must run after
+`UseRouting` and before endpoint dispatch.
+
+Registration is not a step in the request path: `AddMyceliumRegistration` runs
+it off the startup path, so a broker that is slow or absent cannot stop the
+service coming up. Nothing is withdrawn on shutdown (§8).
 
 **What `/handle` receives.** A reactive service is sent either a pipeline node
 envelope or a graph relationship naming the Thing to act on.
@@ -410,6 +424,7 @@ switch (request.Kind)
     case HandleRequestKind.NodeEnvelope:
         return Results.Ok(await node.HandleNodeAsync(request.Json, ctx.RequestAborted));
     case HandleRequestKind.RelationshipSubject:
+        following.Watch(request.SubjectId);
         var answer = await reactive.RecomputeAsync(request.SubjectId, ctx.RequestAborted);
         return Results.Ok(new { success = true, answer.Outputs, answer.WaitingFor });
     default:
@@ -419,21 +434,21 @@ switch (request.Kind)
 
 **The classifier is handed the body text, never a parsed body.** It reads the text itself
 so that it can answer `Unrecognised` for a body that is empty or is not JSON at all —
-the same answer it gives JSON that names no subject. A service that parsed its own body
-would raise on such text instead, and the caller would get a failed request where it
+the same answer it gives JSON that names no subject. A service that deserialised its own
+body would raise on such text instead, and the caller would get a failed request where it
 should have had a refusal — which the broker then re-drives, posting the same unusable
-body again. No service parses a `/handle` body itself, and a guard in
-`vos.ContinuousIntegration.Tests` holds every entry point to that.
+body again. A guard in `vos.ContinuousIntegration.Tests` fails an entry point that
+deserialises a request body itself.
 
-**Staying current (#6155).** A dispatch computes once. `InputChangeRecomputeService`
+**Staying current.** A dispatch computes once. `InputChangeRecomputeService`
 (`vos.Service.Shared.Subscriptions`) keeps the result current afterwards: `/handle` calls
 `Watch(subjectId)` for the subject it just computed, and the service recomputes whenever one of its
 **input** properties moves on a Thing it follows. The set of subjects grows from the dispatches the
-service already receives, so no discovery rule of its own. One line wires it:
+service already receives, so no discovery rule of its own. One call wires it:
 
 ```csharp
 builder.Services.AddInputChangeRecompute<EnergyBalanceReactiveHandler>(
-    "EnergyBalance", myceliumUrl, serviceToken, EnergyBalanceReactiveHandler.InputProperties,
+    "EnergyBalance", myceliumUrl, serviceToken, _ => EnergyBalanceReactiveHandler.InputProperties,
     (handler, studyId, ct) => handler.RecomputeAsync(studyId, ct));
 ```
 
@@ -446,25 +461,24 @@ What makes it work:
   Thing that owns it, so a roll-up whose members changed arrives as a property change on the subject,
   exactly like a param someone edited. `EnergyBalance` reads nothing else, so it passes no second
   argument.
-- **A service computing from other Things names them (#6539).** `Watch(subjectId, readsFrom)` also follows
+- **A service computing from other Things names them.** `Watch(subjectId, readsFrom)` also follows
   the Things the result is computed from, and a change on any of them recomputes **the subject**, never the
-  Thing that changed. Land allocation reads the programme split off the allocations beside the study, and
-  a roll-up cannot stand in for them: moving share between two categories leaves both a `Sum` and a sorted
-  `Set` unchanged while the split they stand for has changed. Re-registering replaces what a subject reads,
-  because a planner can add or remove one — so a service passes its current set on every recompute, and a
-  Thing no subject reads any more leaves the subscription rather than arriving to be read and dropped.
+  Thing that changed. A roll-up on the subject cannot always stand in for them: moving share between two
+  members leaves a `Sum` over them unchanged while the split it stands for has changed. Re-registering
+  replaces what a subject reads, so a service passes its current set on every recompute, and a Thing no
+  subject reads leaves the subscription rather than arriving to be read and dropped.
 - **Only inputs trigger it.** A compute service writes its outputs onto the same subject it watches, so
   reacting to every change there would recompute forever. Each handler exposes `InputProperties`, and the
   wiring passes that same set, so the filter cannot drift from what the handler reads.
-- **An input that has not arrived is waited for, not failed (#6826).** A study built from a submission
+- **An input that has not arrived is waited for, not failed.** A study built from a submission
   carries land and a programme and nothing about buildings, so a reservoir capacity or a panel area is
   absent until a building model exists. `StudyInputs.WaitingFor` says which of a handler's inputs the study
   holds no number under — one it does not carry, and one carried with its number withheld — and a handler
   that finds any writes nothing, logs the names, and answers a `RecomputeAnswer` carrying them. The dispatch
-  is recorded done and the watch above is what recomputes the study when the figure lands. Throwing instead
-  had the dispatch recorded `__DispatchState=Failed` and driven again on every reconciliation for the life
-  of the model, which reads in the log exactly like a service that is broken. Text where a number belongs
-  is still refused: that is a model to fix rather than a figure to wait for.
+  is recorded done and the watch above is what recomputes the study when the figure lands. A handler that
+  threw instead would have its dispatch recorded `__DispatchState=Failed` and driven again on every
+  reconciliation for the life of the model, which reads in the log exactly like a service that is broken.
+  Text where a number belongs is refused: that is a model to fix rather than a figure to wait for.
 - **A reconnect recomputes.** A derived value is published live-only and never enters the journal, so a
   resumed stream does not replay one. `ISubscriptionClient.Reconnected` fires after the stream re-establishes
   a dropped connection, and every watched subject is recomputed rather than trusted — **each subject once**,
@@ -477,17 +491,14 @@ What makes it work:
   so a handler writes its results back into the project the subject lives in without knowing there is more
   than one. A project whose token cannot be extended does not take the others down with it.
 
-The contract-validation wiring is the canonical reference in
-`vos.Service.Metabolism/Program.cs` +
-`Endpoints/EndpointMapper.cs`. Adopting it in a new
-microservice is three local edits: `AddContractValidation()`,
-`UseRequestContractValidation()`, and `.RequireContract<HandleRequest>()` on
-the route.
+The reference for the contract-validation wiring is
+`vos.Service.Metabolism/Program.cs` with `Endpoints/EndpointMapper.cs`.
 
 ## 8. Health & lifecycle
 
 Mycelium's `LivenessMonitor` polls `/health` every 15 seconds. Three
-consecutive failures (a 45 s window) trigger auto-deregistration:
+consecutive failures (a 45 s window) remove the registration of a service that
+registered itself:
 
 ```text
 00:00 - Service registers         (FailureCount = 0)
@@ -498,8 +509,8 @@ consecutive failures (a 45 s window) trigger auto-deregistration:
 01:15 - GET /health → Timeout     (FailureCount = 3) → Auto-deregistered
 ```
 
-After auto-deregistration the service must restart. The `ApplicationStarted`
-hook generates a new `HandlerId` and re-registers.
+A service removed this way registers again when it is next started, under a new
+`HandlerId`: the identifier is made fresh in every process.
 
 Only a service that registered itself is removed this way. A daemon the model
 declares and Mycelium supervises is shown as stopped while its process is not
@@ -508,14 +519,17 @@ it can be started.
 
 A service does not deregister itself: the removal route is admin-only, so the
 call would be refused whatever the service holds. A stopped service stays
-listed until the monitor's auto-deregistration removes it.
+listed until the monitor removes it.
 
-Today each service hand-rolls the `/health` body shape (Echo returns
-`requestsProcessed`; Metabolism returns five fields). The monitor reads the
-status code and, from a healthy answer, `processId` — the process a service
-the platform did not start is running as, which is how the performance page
-measures it. The fixed-envelope health shape arrives with the Delivery contract;
-see [`SERVICE_HOST_ROADMAP.md`](SERVICE_HOST_ROADMAP.md) §1.8.
+A service that holds a subscription stream open counts as alive while the
+stream is active, even when one `/health` poll goes unanswered.
+
+The `/health` body is not one shape across the services. `ServiceHost.MapHealth`
+answers `status`, `service` and `processId`; Echo adds `requestsProcessed`, and
+Metabolism answers its simulation counts. The monitor reads only two things: the
+status code and, from a healthy answer, `processId` — the process a service the
+platform did not start is running as, which is how the performance page measures
+it. Nothing else in the body is relied on.
 
 ### Deregistration triggers
 
@@ -524,14 +538,13 @@ see [`SERVICE_HOST_ROADMAP.md`](SERVICE_HOST_ROADMAP.md) §1.8.
 | Liveness failure (3× `/health` timeout) on a self-registered service | Mycelium auto-deregisters |
 | An administrator removing the entry | `DELETE /api/mycelium/services/{handlerId}` (admin-only) |
 
-A service that exits — SIGTERM, `POST /shutdown`, or Mycelium calling
-`TryStopAsync()` — stays registered until the liveness monitor notices it is
-gone.
+A service that exits — on SIGTERM, on `POST /shutdown`, or stopped by Mycelium —
+stays registered until the liveness monitor notices it is gone.
 
 ### A busy service is not a dead one
 
 Before Mycelium launches a daemon it probes the health endpoint, and reads the
-answer three ways rather than two:
+answer three ways:
 
 | Probe result | What it means | What Mycelium does |
 |---|---|---|
@@ -544,8 +557,8 @@ its probe deadline while still holding its port, and a second process launched
 there could only fail to bind — while adding the load that makes the next probe
 time out too. Your service will not be duplicated for being busy.
 
-Note the difference from the liveness table above: `LivenessMonitor` still
-deregisters a service that misses three polls in a row. The probe described
+Note the difference from the liveness table above: `LivenessMonitor` removes a
+self-registered service that misses three polls in a row. The probe described
 here only decides whether to *launch* a process, never whether to retire one.
 
 ### Launched daemons run with a memory ceiling
@@ -555,7 +568,7 @@ in its environment, set from Mycelium's `DaemonLauncher:MemoryCeilingMegabytes`
 (4096 by default, zero to switch it off). A service not on the .NET runtime
 ignores it.
 
-**What this means for you.** A handler that allocates without end now raises an
+**What this means for you.** A handler that allocates without end raises an
 out-of-memory error in your own process, with a stack trace pointing at the
 allocation, instead of quietly growing until the host has nothing left for
 anything else. If your service dies this way, the fix is in the handler, not the
@@ -567,26 +580,26 @@ changes between calls, and collapse a burst of triggers into one pass.
 ## 9. Contract validation
 
 JSON Schema artifacts + a runtime that loads and validates against them.
-Schemas pin the wire format of Mycelium ↔ microservice payloads so future
-changes are a schema diff in code review rather than a silent runtime
-surprise. Phases 1–4 have landed.
+Schemas pin the wire format of Mycelium ↔ microservice payloads, so a change to
+one is a schema diff in code review rather than a silent runtime surprise.
 
 Schemas live under `vos.Service.Shared/Contracts/Schemas/` and are
 embedded as resources in the shared assembly. The validator runtime lives in
 `vos.Service.Shared/Contracts/Validation/`.
 
-### 9.1 Schemas in scope
+### 9.1 The schemas
 
-| Schema | Producer → Consumer | Source of truth in code | Phase landed |
-|---|---|---|---|
-| `mycelium-register-request` | every microservice → Mycelium `POST /api/mycelium/register` | `MyceliumClientBase.RegisterAsync` | 1 (schema) / 3 (wired) |
-| `token-response` | Mycelium `POST /api/auth/token` → every microservice | `MyceliumClientBase.GetTokenAsync` | 1 / 3 |
-| `handle-request-metabolism` | Mycelium → Metabolism `POST /handle` | `vos.Service.Metabolism.Models.HandleRequest` | 1 / 2 |
-| `apply-quantity-request` | Metabolism → Mycelium `POST /api/things/{id}/properties/{path}/{decrements\|increments}` | `vos.Service.Metabolism.Services.MyceliumClient.ApplyQuantityAsync` | 4 |
-| `relationship-property-increment-request` | Metabolism → Mycelium `POST /api/relationships/{id}/properties/{path}/increments` | `vos.Service.Metabolism.Services.MyceliumClient.IncrementRelationshipPropertyAsync` | 4 |
+| Schema | Producer → Consumer | Source of truth in code |
+|---|---|---|
+| `mycelium-register-request` | a registering microservice → Mycelium `POST /api/mycelium/register` | `MyceliumClientBase.RegisterAsync` |
+| `token-response` | Mycelium `POST /api/auth/token` → a microservice | `MyceliumClientBase.GetTokenAsync` |
+| `handle-request-metabolism` | Mycelium → Metabolism `POST /handle` | `vos.Service.Metabolism.Models.HandleRequest` |
+| `apply-quantity-request` | Metabolism → Mycelium `POST /api/things/{id}/properties/{path}/{decrements\|increments}` | `vos.Service.Metabolism.Services.MyceliumClient.ApplyQuantityAsync` |
+| `relationship-property-increment-request` | Metabolism → Mycelium `POST /api/relationships/{id}/properties/{path}/increments` | `vos.Service.Metabolism.Services.MyceliumClient.IncrementRelationshipPropertyAsync` |
+| `fact-write-request`, `observation-write-request`, `observation-batch-request`, `sediment-deposit-request` | a microservice → Mycelium's write routes | The write helpers on `MyceliumClientBase` (§15) |
 
 Each schema uses `additionalProperties: false` on every object subschema —
-strict by default per the project's pre-release / no-shims convention.
+strict by default.
 
 ### 9.2 Public API
 
@@ -647,50 +660,47 @@ NJsonSchema's internal `ValidationErrorKind` enum:
 
 Schemas are authored against Draft 2020-12.
 
-### 9.4 Inbound middleware (Phase 2)
+### 9.4 Inbound middleware
 
 `app.UseRequestContractValidation()` + `endpoint.RequireContract<T>()` gate
 the inbound `/handle` body. A schema violation returns `400` with a
 `{ schemaId, errors[] }` envelope before the handler runs. Adoption is
 per-service: tag the request DTO with `[ContractSchema]` and add
-`.RequireContract<T>()` to the route. Today Metabolism is the only adopter.
+`.RequireContract<T>()` to the route. Metabolism is the one service that
+validates its `/handle` body this way.
 
-### 9.5 MyceliumClientBase outbound + response validation (Phase 3)
+### 9.5 Outbound and response validation in `MyceliumClientBase`
 
-`RegisterAsync` body and `GetTokenAsync` response are validated on every call.
-Failure policy is per-call via `SchemaViolationMode`:
+The `RegisterAsync` body, the `GetTokenAsync` response and the body of every
+write helper (§15) are validated on every call. What a violation does is set by
+`SchemaViolationMode`:
 
 - **Debug** builds throw `ContractValidationException`.
 - **Release** builds emit a single `LogLevel.Warning` and let the call
   through.
 
-Tests pin both paths regardless of build config via a virtual
-`OutboundViolationMode` on `MyceliumClientBase`. No metrics infra yet — counter
-follow-up tracked separately.
+Tests pin both paths regardless of build configuration through the virtual
+`OutboundViolationMode` on `MyceliumClientBase`.
 
-### 9.6 Metabolism hot-path validation (Phase 4)
+### 9.6 Metabolism's own calls
 
 `ApplyQuantityAsync` and `IncrementRelationshipPropertyAsync` validate their
-outbound bodies on every tick. `ValidateOutbound` is promoted to `protected` so
-service-specific subclasses can call it. Same Throw/Log policy as §9.5. Inbound
+outbound bodies on every tick, through the `protected` `ValidateOutbound` any
+subclass can call, under the same policy as §9.5. Inbound
 `RelationshipPropertyChanged` events arriving over the SSE subscription are not
 schema-validated — `MetabolismSubscriptionService` applies them directly.
 
 ### 9.7 Tests + coverage
 
 `Tests/vos.Service.Shared.Contracts.Tests/` runs alongside the
-rest of the solution under `dotnet test`. The new assembly is excluded from
-coverage measurement via the existing `ModulePath` filter in
-`coverage.runsettings`; the production code lands under
-`vos.Service.Shared`'s existing thresholds (unchanged by Phase 1).
+rest of the solution under `dotnet test`. The test assembly is excluded from
+coverage measurement by the `ModulePath` filter in `coverage.runsettings`; the
+production code is measured as part of `vos.Service.Shared`.
 
 The `LoadEmbeddedRawSchemas` host-side enumeration has branches (resource-name
 filter, defensive null-stream throw) that are not reachable through the test
 surface; the parsing and registration logic it feeds *is* covered, via the
 internal `SchemaRegistry` constructor that takes raw `(name, json)` pairs.
-
-Two further phases (GUI runtime validation, CI drift gate) are sketched in
-[`SERVICE_HOST_ROADMAP.md`](SERVICE_HOST_ROADMAP.md) §3 but unscheduled.
 
 ## 10. Testing patterns
 
@@ -721,13 +731,22 @@ Both live in `vos.Service.Shared` and are covered once, thoroughly, in
 | Shared test file | What it pins |
 |---|---|
 | `Configuration/ServiceLaunchSettingsTests.cs` | Required settings, port bounds, every optional flag, configuration and environment fallback, a flag beating configuration, exact flag matching |
-| `EndpointServiceMyceliumClientTests.cs` | Registration under each service's name, the endpoints Mycelium is given, refusal and token failure returning false, withdrawal, a supplied token short-circuiting the token call |
+| `EndpointServiceMyceliumClientTests.cs` | Registration under each service's name, the endpoints Mycelium is given, refusal and token failure returning false, a supplied token short-circuiting the token call |
 | `MyceliumRoutesTests.cs` | The routes every service builds its requests from, and that a property name which would otherwise change the path is escaped into one segment |
-| `Hosting/ServiceHostTests.cs` | Health and statistics, shutdown answering before it stops, registration on startup, withdrawal on shutdown, a failing broker not stopping the service serving |
+| `Hosting/ServiceHostTests.cs` | Health and statistics, shutdown answering before it stops, registration on startup, no withdrawal asked of the broker on shutdown, a failing broker not stopping the service serving |
 | `DagNode/HandleRequestRouterTests.cs` | Which shape a `/handle` body is, what an unusable one is answered with, and that text which is not JSON is answered rather than raising |
 
 Copying a test is the same problem as copying the code. If a behaviour is the
 same in every service, it belongs in the shared suite, not repeated per service.
+
+**A test that waits, waits through `Settle`.** `vos.Tests.Shared.Settle` holds
+the one clock a test may put on a wait for something to happen: `UntilAsync`
+for a condition, `ForAsync` for a task, and `Ceiling` for a wait that needs the
+duration itself. `BeforeAssertingAbsenceAsync(window)` is the pause before
+asserting that something did not happen, and the only short wait a test keeps.
+A shorter clock of a test's own fails correct code on a busy build agent, so
+`TestWaitsKeepTheSharedCeilingTests` in `Tests/vos.ContinuousIntegration.Tests/`
+fails a test file that writes one.
 
 ### 10.1 Testing a service's own settings
 
@@ -759,10 +778,10 @@ the code under test.
 
 **A stand-in answers what its author believed the broker answers.** That is the whole
 of its value and the whole of its limit: a test written against one agrees with
-whatever its author assumed, including an assumption that is wrong. Three services
-posted a property with no type on it — a shape the broker refuses with a 400
-carrying no body — and every one of their cases passed, because every stand-in
-answered 200 whatever the body was (Bug #6929, Bug #6930).
+whatever its author assumed, including an assumption that is wrong. A service that
+posts a property with no type on it — a shape the broker refuses with a 400
+carrying no body — passes every case written against a stand-in that answers 200
+whatever the body is.
 
 So make the stand-in refuse what the broker refuses, in the cases you care about,
 and cover the shape of what you write in **10.2.1** as well.
@@ -804,7 +823,7 @@ saying so. The VillageOS pipeline runs it in every build, because that build has
 engine to stage.
 
 **Put a case here whenever a service writes to the model** — a Thing, a property, a
-relationship. That is where every drift so far has been.
+relationship. A write is where a service and the broker most easily come to disagree.
 
 ### 10.3 Service-specific endpoint tests
 
@@ -825,26 +844,29 @@ statements, so declare `public partial class Program { }` at the bottom of
 Aim for **95% line coverage or better** on everything a service owns: its
 settings record, its broker calls, and its business-logic classes.
 
-A service entry point is excluded from coverage only once it holds nothing but
-wiring — because whatever it used to decide now lives in shared code and is
-covered there, or its endpoints are driven end to end through the test host.
-An entry point that still handles requests stays counted, so the gap is visible
-rather than hidden. Xylem and Phloem are in that position today.
+A service entry point is excluded from coverage only when it holds nothing but
+wiring — because what it decides lives in shared code and is covered there, or
+its endpoints are driven end to end through the test host. An entry point that
+handles requests itself stays counted, so the gap is visible rather than
+hidden. Xylem's and Phloem's are counted for that reason.
 
 When adding a service, add its `Program.cs` to the comma-separated
 `<ExcludeByFile>` list in `coverage.runsettings` only when that is true of it.
+`ServiceEntryPointsAreDecidedTests` fails the build for a service whose entry
+point is neither excluded there nor named in the test as counted.
 
 > The list is comma-separated on purpose: coverlet's XPlat data collector
 > expects a single string there, and nested `<File>` elements are silently
-> ignored — which is how an earlier wildcard came to exclude nothing at all.
+> ignored.
 
 ## 11. Adding a new microservice
 
-1. Copy `vos.Service.CSharp.Echo/` to `vos.Service.<Name>/` and rename the
-   namespace and project file. Change the service name passed to
+1. Copy `vos.Service.ModelBridge/` to `vos.Service.<Name>/` and rename the
+   namespace and project file. Its entry point is the shared host calls of §7
+   and nothing else. Change the service name passed to
    `EndpointServiceMyceliumClient` and to the `ServiceHost` calls.
 2. Add the new project to `VillageOS-API.sln`.
-3. Copy `Tests/vos.Service.CSharp.Echo.Tests/` to
+3. Copy `Tests/vos.Service.ModelBridge.Tests/` to
    `Tests/vos.Service.<Name>.Tests/` and update the project reference and
    namespace. Only copy tests for what the new service actually owns — the
    standard settings, registration and host behaviour are already covered in
@@ -860,7 +882,8 @@ When adding a service, add its `Program.cs` to the comma-separated
    it counted and extract the handling instead.
 7. Add a row for the service to the microservice table in `README.md`. That table
    is the first list of what this repository runs that anyone reads, and
-   `Tests/vos.ContinuousIntegration.Tests/` fails when a service has no row. A project that is not a service anyone runs is named in
+   `Tests/vos.ContinuousIntegration.Tests/` fails when a service has no row. A
+   project that is not a service anyone runs is named in
    `ReadmeListsEveryServiceTests.ListedElsewhere` with the reason instead.
 
 Only add a `Configuration/` folder if the service has settings beyond the
@@ -933,12 +956,10 @@ or the API keys page) or another name. A revoked or expired key frees its name.
 
 - [`METABOLISM.md`](METABOLISM.md) — Metabolism simulation lifecycle, two-mode
   binary (`--mode=consumes|produces`), tick logic.
-- [`MODELBRIDGE.md`](MODELBRIDGE.md) — ModelBridge model⇄DAG bridge node: the
+- [`MODELBRIDGE.md`](MODELBRIDGE.md) — ModelBridge, the node that bridges the model and a pipeline: the
   `read`/`write` modes, the `thingId`/`property` param contract, and a worked example.
 - [`DELTA.md`](DELTA.md) — Delta endpoint-registration service: per-model template-catalog
   provisioning, the graph-validation rules, and the `/handle` registration contract.
-- [`SERVICE_HOST_ROADMAP.md`](SERVICE_HOST_ROADMAP.md) — Delivery contract,
-  remaining DI refactors, possible contract-validation phases 5+6.
 
 ## 13. Common issues
 
@@ -946,8 +967,8 @@ or the API keys page) or another name. A revoked or expired key frees its name.
 
 Mycelium is not running or not accessible. Start it
 (`cd ../VillageOS/vos.Mycelium && dotnet run`), verify with
-`curl https://localhost:7243/api/auth/token`, and check `--myceliumUrl` matches
-Mycelium's actual URL.
+`curl https://localhost:7243/api/mycelium/startup-status` (the one route that
+needs no credential), and check `--myceliumUrl` matches Mycelium's actual URL.
 
 ### Service shows as "Unreachable" in `/api/mycelium/services`
 
@@ -958,8 +979,9 @@ The `/health` endpoint is not responding. Test directly:
 
 ### Service was auto-deregistered
 
-Three consecutive `/health` failures (45 s window). Fix the health issue,
-then restart — the service re-registers with a new `HandlerId`.
+Three consecutive `/health` failures (45 s window) on a service that registered
+itself. Fix the health issue, then restart — the service registers again with a
+new `HandlerId`.
 
 ### Port already in use
 
@@ -1106,8 +1128,8 @@ graph LR
   relationship with the same subject, predicate and target, so drawn that way a node pair carries one wire
   whatever ports either side declares, and further inputs have to travel as node parameter bindings —
   which the validator does not check, while every wire's ports are proved to exist and to have compatible
-  types. As Things, two wires between a pair are two Things and the rule never applies. The Thing shape is
-  replacing the relationship shape; both are read while producers move over.
+  types. As Things, two wires between a pair are two Things and the rule never applies. Phloem reads
+  both shapes.
 - The predicate name is the model's to choose, and it is deliberately not `feeds`: that word already names
   matter moving between built things (a swale into a buffer, a compost station into a greenhouse),
   and a dashboard scope resolves a predicate **by name**.
@@ -1118,7 +1140,7 @@ graph LR
   to choose. Phloem asks for the marked archetypes through the subscription selector (`markedTypes` for a
   role's members, `markedArchetypes` for the archetype alone), and the Trellis pipeline editor reads the same
   marks off the model it has loaded, so renaming any of them changes nothing on either side.
-- Make any seed DAG-ready with the `seed-migrate` tool in the private VillageOS repo (`tools/seed-migrate/pipeline-enable.js`),
+- Make any seed pipeline-ready with the `seed-migrate` tool in the private VillageOS repo (`tools/seed-migrate/pipeline-enable.js`),
   which adds the archetypes, the Phloem Connection, example Echo node services with typed Ports, and a demo Pipeline.
 
 ### 16.2 Making a microservice a node — the envelope
@@ -1141,8 +1163,8 @@ POST /handle                                     {
 }
 ```
 
-A request is a node invocation **iff it carries both `runId` and `nodeId`** — anything else is a legacy
-graph/http body the service handles exactly as before; the two never collide.
+A request is a node invocation **only when it carries both `runId` and `nodeId`**. Anything else is a
+graph or http body the service handles as its own; the two never collide.
 
 - **Reference inputs.** Large values aren't shipped in-band: an input may be `{ "ref": { "thingId",
   "property" } }`, which the node resolves via `GET /api/things/{id}/properties` before running.
@@ -1171,26 +1193,31 @@ envelope onto business logic:
 ```csharp
 public sealed class MyNode : DagNodeService
 {
+    public MyNode(IHttpClientFactory httpClientFactory, ILogger<MyNode> logger, string myceliumUrl,
+        string? serviceToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey) { }
+
     public override IReadOnlyList<PortDescriptor> Ports { get; } = new[]
     {
         PortDescriptor.Input("message", "string", required: true),
         PortDescriptor.Output("echo", "string"),
     };
 
-    protected override Task<NodeResult> ExecuteNodeAsync(NodeContext ctx, CancellationToken ct)
+    protected override Task<NodeResult> ExecuteNodeAsync(NodeContext context, CancellationToken cancellationToken)
     {
-        var message = ctx.Input("message")?.GetString() ?? throw new InvalidOperationException("message required");
+        var message = context.Input("message")?.GetString() ?? throw new InvalidOperationException("message required");
         return Task.FromResult(NodeResult.Ok(("echo", message)));
     }
 }
 
-// wire into the host's existing /handle:
-app.MapPost("/handle", async (HttpContext http, MyNode node) =>
+// in the service's /handle, with the body classified as in §7:
+app.MapPost("/handle", async (HttpContext ctx, MyNode node) =>
 {
-    using var doc = await JsonDocument.ParseAsync(http.Request.Body);
-    return DagNodeService.IsNodeEnvelope(doc.RootElement)
-        ? Results.Ok(await node.HandleNodeAsync(doc.RootElement, http.RequestAborted))
-        : Results.Ok(/* … the service's existing handling … */);
+    using var reader = new StreamReader(ctx.Request.Body);
+    var request = HandleRequestRouter.Classify(await reader.ReadToEndAsync());
+    return request.Kind == HandleRequestKind.NodeEnvelope
+        ? Results.Ok(await node.HandleNodeAsync(request.Json, ctx.RequestAborted))
+        : Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedNodeEnvelope("MyNode") });
 });
 ```
 
@@ -1199,8 +1226,8 @@ app.MapPost("/handle", async (HttpContext http, MyNode node) =>
 orchestrator records the failure and halts dependents cleanly. **Echo** (`EchoNode`) is the reference node
 (`message` → `echo`). Non-.NET services implement the same JSON envelope directly.
 
-> **Node vs. spawner.** Being a node is one role; **spawning** a pipeline is a different one. A service that
-> *runs* a DAG (e.g. Tributary, or Metabolism's `consumes`/`produces`) is a **spawner** — see §16.3 — not a
+> **Node vs. spawner.** Being a node is one role; **spawning** a pipeline is a different one. Whatever
+> creates the relationship or makes the call that starts a run is a spawner (§16.3), and need not be a
 > node.
 
 ### 16.3 The orchestrator (Phloem)
@@ -1230,9 +1257,9 @@ forward the relationship envelope (`{relationshipId, subjectId, targetId, proper
 (`PipelineStart`): a pipeline runs itself, a connection runs the pipeline drawn from it — the one whose
 start node stands for the connection, or for the state it watches — or the one it reaches along the
 predicate marked `__IsPipelineStartPredicate`, and anything else is refused with `400`; `properties`
-are the params. So **any service can spawn a DAG** by creating that relationship. Because a graph
+are the params. So **any service can start a pipeline** by creating that relationship. Because a graph
 trigger fires during a relationship-create (Mycelium waits ~15s), it is **fire-and-forget**: Phloem
-ACKs immediately and runs the DAG in the background, persisting the result to the `PipelineRun`.
+ACKs immediately and runs the pipeline in the background, persisting the result to the `PipelineRun`.
 
 **Spawn — state (a Thing enters a watched state).** A **state Connection** bound to the Phloem Service
 starts the pipeline drawn from it when a Thing enters the state it watches, with the entering Thing as
@@ -1249,7 +1276,7 @@ sequenceDiagram
   Caller->>Mycelium: POST /api/endpoints/phloem {pipelineId}
   Mycelium->>Phloem: lazy-start + forward
   Phloem->>Mycelium: load subgraph (subscription snapshot)
-  Phloem->>Phloem: build DAG + validate (Kahn + port types)
+  Phloem->>Phloem: build the graph + validate (no cycle + port types)
   loop each ready node (dependency order)
     Phloem->>Mycelium: POST /api/endpoints/<node-subdomain> {runId,nodeId,params,inputs}
     Mycelium->>Node: lazy-start + forward
@@ -1259,8 +1286,9 @@ sequenceDiagram
 ```
 
 **What a run does:** (1) load the pipeline's structural closure in one subscription snapshot; (2) build the
-DAG (node→Connection subdomain, ports via the `is`-chain, wires by `PipelineWire`); (3) validate up front —
-Kahn topological sort (acyclic, distinct from Hyphae's runtime oscillation) + port-type compatibility;
+graph (node→Connection subdomain, ports via the `is`-chain, wires by `PipelineWire`); (3) validate up front —
+an ordering of the nodes by dependency, which fails when the graph has a cycle (distinct from Hyphae's
+runtime oscillation), and port-type compatibility;
 (4) execute in dependency order (independent nodes concurrently, bounded), dispatching each via
 endpoint-forward and routing outputs→inputs; a node failure halts dependents; (5) **persist the run live**,
 best-effort — each node is written `running` before dispatch and its terminal status after, on **one
@@ -1287,4 +1315,6 @@ and a model may call its archetypes anything.
 
 > **Scope.** Synchronous + async spawn with level-by-level concurrency, **live SSE run animation + cancel**,
 > run-history replay, **run-level param routing**, and **fan-out over collections** (one collection input per
-> node). Incremental rerun/caching, and full list-type validation across the graph, are later phases.
+> node). Every run executes every node: nothing is cached between runs. A wire's two port types are checked
+> for equality, with an empty or `any` type matching everything; whether a list is wired into a collection
+> port is not checked before the run.

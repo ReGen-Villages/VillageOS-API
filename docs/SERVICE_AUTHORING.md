@@ -42,16 +42,15 @@ a question *of* the value. Nobody asks what a phone number means. Names from a s
 — the building-model type names, for instance — stay as they are; they are that standard's vocabulary,
 not the model's.
 
-A worked example of each, one already put right and one not:
+Two examples of the rule applied:
 
-| Where | What it does | What it costs |
-|-------|--------------|---------------|
-| `SubmissionFragmentComposer` | Holds the allowed boundary sources as a list in C# and refuses anything else | Adding a way of obtaining a boundary means changing a service and deploying it |
-| `HazardAssessment` — **fixed** | Named its source in a string while `DataSource` was a Thing in the same model. It now hangs off that Thing instead | Before: nothing could walk from a hazard to what produced it, and the two could disagree with nothing to notice |
+| Where | What it does | What that buys |
+|-------|--------------|----------------|
+| `HazardAssessment` | Relates to the `DataSource` Thing that produced it, where it could have carried the source's name in a string | Two hazards read off one portal share one `DataSource`, the planner asserts what it covers, and discovery writes the date it was resolved onto that same Thing. A reader can walk from a hazard to what produced it |
+| `SubmissionFragmentComposer` | Resolves a submitted boundary source against the vocabulary Things the land-intake template declares, each found by the mark its archetype carries, where it could have held the allowed words as a list in C# | A project adds a way of obtaining a boundary by adding a Thing to its model, and deploys nothing |
 
-The hazard is what the rule looks like applied. Two hazards read off one portal share one `DataSource`, the planner asserts what it covers, and discovery later writes the date it was resolved onto that same Thing — which a name copied onto each hazard could never have supported.
-
-The boundary sources are still wrong. That is not a reason to rewrite them on sight; fix a breach when the work is already in that file.
+A string you find where a Thing belongs is not a reason to rewrite it on sight; put it right when the
+work is already in that file.
 
 ## Lifecycle
 
@@ -60,8 +59,7 @@ sequenceDiagram
     participant M as Mycelium
     participant S as Your service
     M->>S: launch: app --port --myceliumUrl --issuer --audience (Token + VerificationKey in the environment)
-    S->>M: POST /api/auth/token (skip if Token is set) → { token }
-    S->>M: POST /api/mycelium/register (Bearer) → 200
+    S->>M: POST /api/mycelium/register (Bearer Token) → 200
     Note over M,S: relationship with your predicate is created
     M->>S: POST /handle (Bearer mycelium_request JWT) → 200
     M->>S: GET /health (polled) → Healthy
@@ -82,16 +80,17 @@ Mycelium launches your binary with `--key=value` flags. `--port` and `--mycelium
 
 ### Credentials
 
-Read these from configuration or the environment, **never** from the command line. Mycelium sets both
-on the environment of the daemon it launches. A command line is readable by every process on the host
-and is recorded by anything that logs the line a service was started with.
+Read these from configuration or the environment, **never** from the command line. Mycelium sets
+`Token` and `VerificationKey` on the environment of the daemon it launches. A command line is readable
+by every process on the host and is recorded by anything that logs the line a service was started with.
 
 Launch a process of your own and the same rule applies to what you hand it: set the credential on the
 child's environment, not in its arguments. Xylem hands the IFC ingest tool its `Token` that way.
 
 | Setting | Meaning |
 |---------|---------|
-| `Token` | Pre-minted service JWT for outbound calls; if unset, fetch one from `POST /api/auth/token` |
+| `Token` | Pre-minted service JWT for outbound calls |
+| `ApiKey` | For a service nobody launches on demand, in place of `Token`: a key exchanged at `POST /api/auth/token`, in the `X-API-Key` header, for a short-lived JWT, and exchanged again shortly before that expires. The route refuses a call that carries no key |
 | `VerificationKey` | Base64 of Mycelium's **public** signing key (its SubjectPublicKeyInfo encoding), for checking **inbound** requests. When present, `/handle` and `/shutdown` require auth; when absent, auth is disabled |
 
 `VerificationKey` checks a signature and cannot produce one. Mycelium keeps the private half and
@@ -101,7 +100,7 @@ never releases it, so no handler — yours included — can mint a token Myceliu
 
 On startup, obtain a bearer token then register.
 
-1. **Token** — use the `Token` setting if provided, else `POST {myceliumUrl}/api/auth/token` (no body) → `{ "token": "<jwt>" }`.
+1. **Token** — use the `Token` setting. A service holding an `ApiKey` in its place sends `POST {myceliumUrl}/api/auth/token` with the header `X-API-Key: <key>` and no body → `{ "token": "<jwt>" }`.
 2. **Register** — `POST {myceliumUrl}/api/mycelium/register` with `Authorization: Bearer <token>` and body:
 
 ```json
@@ -231,7 +230,7 @@ Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT car
 - [ ] Parse the `--key=value` flags; exit with usage if `--port`/`--myceliumUrl` missing
 - [ ] Read `Token` (or `ApiKey`) and `VerificationKey` from configuration or the environment, not from the command line
 - [ ] Generate a `handlerId` UUID at startup
-- [ ] Get a token (the `Token` setting or `/api/auth/token`) and `POST /api/mycelium/register`
+- [ ] Get a token (the `Token` setting, or an `ApiKey` exchanged at `/api/auth/token`) and `POST /api/mycelium/register`
 - [ ] Serve `/handle`, `/health`, `/stats`, `/shutdown`
 - [ ] Validate the inbound JWT when a `VerificationKey` is set (ES256 named explicitly, iss/aud/exp, 30s skew)
 - [ ] Refuse a token whose recipient is not your own `--audience`, and one claiming any algorithm other than ES256

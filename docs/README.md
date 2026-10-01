@@ -14,7 +14,7 @@ map below.
 
 | Doc | For | What it covers |
 |-----|-----|----------------|
-| [PIPELINE_PLAYGROUND.md](PIPELINE_PLAYGROUND.md) | Anyone exploring the Pipelines page | How to load and use the ready-made example DAGs and services that exercise the Trellis Pipeline editor. |
+| [PIPELINE_PLAYGROUND.md](PIPELINE_PLAYGROUND.md) | Anyone exploring the Pipelines page | How to load and use the ready-made example pipelines and services that exercise the Trellis Pipelines page. |
 
 ## Platform concepts
 
@@ -26,9 +26,9 @@ Approachable for a general reader as well as an engineer.
 | [METABOLISM.md](METABOLISM.md) | The consume/produce simulation service behind the `consumes` / `produces` predicates. |
 | [TRIBUTARY.md](TRIBUTARY.md) | Pulling data in from external HTTP APIs (with JSONata response transforms) as configuration, not code. |
 | [DELTA.md](DELTA.md) | The endpoint-registration service that provisions and validates data-source endpoints. |
-| [MODELBRIDGE.md](MODELBRIDGE.md) | The generic bridge between a pipeline DAG and the model (read a property, or write a computed result back). |
+| [MODELBRIDGE.md](MODELBRIDGE.md) | The generic bridge between a pipeline and the model (read a property, or write a computed result back). |
 | [TEMPORAL_READS.md](TEMPORAL_READS.md) | How "what is true now" and "what was true at a past moment" are served from different places, and why current-state reads stay fast however long the history grows. |
-| [LAND_INTAKE.md](LAND_INTAKE.md) | **Partly built; its header says what is.** Taking in a piece of land and analysing it — the intake wizard, the public submission page, open-data discovery, and the site analysis. Written for a general reader; render to a print-ready PDF with [tools/docs-pdf](../tools/docs-pdf/). |
+| [LAND_INTAKE.md](LAND_INTAKE.md) | Taking in a piece of land and analysing it — the intake wizard, the public pages, open-data discovery, the site analysis with its calculations worked through, and what guards a route a stranger may post to. Written for a general reader; render to a print-ready PDF with [tools/docs-pdf](../tools/docs-pdf/). |
 | [FORAGE.md](FORAGE.md) | The discovery service: how a site is matched to the data sources that cover it, how each is called, and how the analysis is started from what came back. |
 
 ## Authoring microservices
@@ -37,10 +37,9 @@ Reference material for engineers building or hosting services. Denser by design.
 
 | Doc | What it covers |
 |-----|----------------|
-| [SERVICE_AUTHORING.md](SERVICE_AUTHORING.md) | The language-agnostic contract for writing your own handler (HTTP + one JWT signed on the P-256 elliptic curve), with reference implementations in five languages. |
+| [SERVICE_AUTHORING.md](SERVICE_AUTHORING.md) | The language-agnostic contract for writing your own handler (HTTP + one JWT signed on the P-256 elliptic curve), with a reference implementation in each of C#, Go, Node, Python and Rust. |
 | [SERVICE_CONTRACT.md](SERVICE_CONTRACT.md) | The precise wire contract — endpoints, subscribe/SSE, and write-back kinds. |
 | [SERVICES.md](SERVICES.md) | The canonical reference for the shared C# service host and the services built on it. |
-| [SERVICE_HOST_ROADMAP.md](SERVICE_HOST_ROADMAP.md) | Planned work for consolidating the shared host across services. |
 | [../deploy/README.md](../deploy/README.md) | How a deployment routes requests: the reverse proxy that splits the hostnames, what each service must bind, and the origin the public form posts from. |
 | [../deploy/TUNNEL.md](../deploy/TUNNEL.md) | Reaching a deployment on a machine with no public address: what the Cloudflare account holder sets up, written for someone with no prior Cloudflare knowledge. |
 

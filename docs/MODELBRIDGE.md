@@ -1,9 +1,9 @@
 # ModelBridge
 
-ModelBridge is a generic **bridge between a pipeline DAG and the model** (User Story #5866).
+ModelBridge is a generic **bridge between a pipeline and the model**.
 It is a pipeline *node* like Echo, but instead of computing anything it moves a single value
 across the boundary between the graph and the model: in one direction it **reads** a Thing's
-property into the DAG, in the other it **writes** a DAG value back onto a Thing.
+property into the pipeline, in the other it **writes** a pipeline value back onto a Thing.
 
 It is deliberately generic — there is no per-domain code. The Thing and property it touches
 are supplied as node params at seed-build time, so the same binary serves any read/write the
@@ -92,7 +92,7 @@ Observations returns 405, and an unknown thing/property returns 404 — both sur
 Three nodes wired in series. The read and write nodes are both ModelBridge; only their params
 differ.
 
-**Read node** — pull the site's total PV area into the DAG:
+**Read node** — pull the site's total PV area into the pipeline:
 
 ```jsonc
 // node params

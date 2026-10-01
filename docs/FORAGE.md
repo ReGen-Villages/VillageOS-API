@@ -39,14 +39,14 @@ Both sources above cover `WillowBend`: one directly, one through the nesting.
 
 **Where that graph comes from.** The `Place` archetype, the three predicates and the sources every
 project shares are seed data: `open-data-sources.template.json` in the platform repository, read
-alongside the archetype set (platform User Story #6750). A registration lives in the project's own
+alongside the archetype set. A registration lives in the project's own
 model, so a source every project uses belongs in the seed every project is created from — see
 [`DELTA.md`](DELTA.md#which-model-a-registration-lives-in). **A site's own `isIn` relationship is
 written by its producer, not inherited from the archetype.** The submission producer writes one per
 site, to the Place carrying `__IsRootPlace` through the predicate carrying
 `__IsPlaceNestingPredicate` — both found
 by mark, because a producer naming `Earth` would relate nothing, and say nothing, in a model that
-called its root something else (Bug #6752).
+called its root something else.
 
 **The root is enough for a source that covers everything, and no more is claimed.** A submitted site
 is not related to a country or a region: `country` on a submission is optional and stays text, it
@@ -96,9 +96,9 @@ is no outage for an operator to look into.
 ## Reading the model
 
 One scoped snapshot answers each question. **What the dispatch named** is read first: the subject with
-its `is` chain, and the site archetype the platform marks with `__IsSiteArchetype` (platform Task
-#6811) — asked for on its own, because with its members every site in the model would arrive to
-answer a question about one Thing. A subject that `is` that archetype, directly or through
+its `is` chain, and the site archetype the platform marks with `__IsSiteArchetype` — asked for on
+its own, because with its members every site in the model would arrive to answer a question about
+one Thing. A subject that `is` that archetype, directly or through
 intermediate types, is a site; one that is not and `covers` a Place or is `resolvedBy` a registration
 is a source; anything else is neither, and the run writes nothing for it. A model that marks no site
 archetype cannot tell the two apart, and every subject in it is taken for a site — such a model cannot
@@ -143,13 +143,13 @@ anything. The run stamps the source when it has reached every site, which is wha
 
 The ranges and the connections are declared in the platform repository — the ranges beside the `Site`
 and `OpenDataSource` archetypes in `land-intake.template.json`, the connections beside the sources in
-`open-data-sources.template.json` (platform Tasks #6771 and #6790). A deployment that never fetches
-reads neither file and runs no discovery service.
+`open-data-sources.template.json`. A deployment that never fetches reads neither file and runs no
+discovery service.
 
 ## What a run records, and what it therefore skips
 
 **Every call a run makes has a `SourceCoverage` to record what it came to** — one Thing per subject and
-source, declared by the platform (Task #6779) and filled here. It carries `resolvedAt` when the answer
+source, declared by the platform and filled here. It carries `resolvedAt` when the answer
 landed, and `lastAttemptAt`, `attempts` and `failureReason` when it did not. A run mints one for any call
 the model has none for, relating it `appliesTo` the subject and `sourcedFrom` the source.
 
@@ -163,28 +163,26 @@ site has of it, so its coverage of one assessment is a different Thing from its 
 portal answering for five of a site's assessments and not the sixth records five resolved and one
 outstanding; per source, the sixth would either be lost or re-call all six.
 
-**This is where a run's report lives.** It was a response body the broker discarded, then a log line
-(Task #6777). On the coverages it is durable and per call, and a planner reaches it from the gap it
-explains. `attempts` is added to rather than overwritten, so a provider that has failed every run since
-the site was submitted reads differently from one that failed once.
+**This is where a run's report lives.** On the coverages it is durable and per call, and a planner
+reaches it from the gap it explains; a response body would be discarded by the broker, and a log line
+is read by nobody the gap matters to. `attempts` is added to rather than overwritten, so a provider
+that has failed every run since the site was submitted reads differently from one that failed once.
 
 `coverageMatchedAt` is stamped on the site whatever the run found, including nothing: a site no source
 covers has been looked at, and saying so is what tells it apart from one still waiting to be.
 
 **A model that declares no coverage vocabulary still fetches.** It records nothing and asks again next
-time, which is the behaviour that shipped before these Things existed — discovering nothing at all would
-be worse than the once-ever discovery they replace. The archetype is found by the mark the platform
-declares it with, never by name.
+time, because discovering nothing at all would be worse than fetching what was already fetched. The
+archetype is found by the mark the platform declares it with, never by name.
 
 ## A source added to the catalogue
 
-**A source is dispatched too, and its run is the site's run in reverse: it mints and fetches nothing**
-(Task #6812). A site's run walks from the site up through its Places to the sources covering them; a
+**A source is dispatched too, and its run is the site's run in reverse: it mints and fetches nothing.**
+A site's run walks from the site up through its Places to the sources covering them; a
 source's run walks from the source through the Places it `covers` and *down* their nesting to every
 site in them. Places and sites arrive by the same walk, and the mark the platform puts on the site
-archetype (`__IsSiteArchetype`, platform Task #6811) is what tells them apart — the `proposes`
-relationship could not, because it reaches a submitted site only and a surveyed site has no such
-relationship.
+archetype (`__IsSiteArchetype`) is what tells them apart — the `proposes` relationship could not,
+because it reaches a submitted site only and a surveyed site has no such relationship.
 
 **One coverage per call those sites would make.** The run works out, for each site it reaches, the
 calls the source would be asked — one about the site, or one per Thing the site has of what the source
@@ -229,13 +227,13 @@ outstanding — the run's own last write is what closes it — and `done_within`
 nobody will finish. Completion is *observed* rather than *announced* because nothing exposes a route
 for a service to announce one.
 
-**A coverage read that fails writes nothing.** It cannot refuse in the answer any more — one has
-already been given — so it says so by leaving no trace: no fetch, no analysis started, and the site
+**A coverage read that fails writes nothing.** It cannot refuse in the answer, because the answer has
+already been given, so it says so by leaving no trace: no fetch, no analysis started, and the site
 still in the state that dispatched it, which is what drives the run again. An unreachable gateway must
 never be mistaken for "no source covers this site".
 
-What a run found goes to the log, per source and with the provider's own words. Persisting it where a
-planner can read it afterwards is platform Task #6779, which needs it for a different reason.
+What a run found goes onto the coverages (above) and to the log, per source and with the provider's
+own words.
 
 A run's report, as the log records it:
 
@@ -252,7 +250,7 @@ aborted because one provider was unavailable would be abandoned. A source that f
 value undiscovered, does not stop the others, and appears in `unresolved` with a reason — carrying
 the provider's own words where there are any, because that is the most useful thing a planner can
 be told about why a value is missing. Reporting what did *not* resolve matters as much as reporting
-what did: a quietly short list is the failure of the tool being replaced.
+what did: a quietly short list reads as a complete one.
 
 **A call is addressed from its subject outward.** Whatever the call's subject carries — coordinates,
 elevation, climate zone — is passed as its address parameters, and behind it, layered so the most
@@ -300,7 +298,7 @@ of it per call, and the outcome is reported when every slice has answered. The r
 to declare and a long one is legitimate; what one pass can carry is a fact about the deployment. A
 whole reach in one call makes the provider's answer, the reshape that follows it and the write it
 becomes each as large as the reach — at a decade of hourly readings, millions of readings in each,
-which exhausted the fetching service while it reshaped and was refused as a single write. The
+which exhausts the fetching service while it reshapes and is refused as a single write. The
 per-source bound then applies to a slice rather than to the decade.
 
 **Fetching is not done here.** Forage asks Mycelium to forward each call to the endpoint service
@@ -322,7 +320,7 @@ never reaches the ingest, so it leaves no relationship suggesting it did.
 
 ## Resolving the hazard division
 
-**Before the fetches, a run works out which administrative division the site stands in (#6851).** Every
+**Before the fetches, a run works out which administrative division the site stands in.** Every
 route the hazard portal serves takes a division code and none takes coordinates, so a site whose model
 supplies no code has every grading refused before the provider is contacted — which reaches a planner as
 an empty hazards table and reads as "no hazards here".
@@ -371,12 +369,12 @@ outstanding, the site stays in the state that dispatched the run, and the next r
 
 ## Resolving the fetched words
 
-**A fetched word becomes the relationship the model declares, inside the run that fetched it (#6809).** Some
+**A fetched word becomes the relationship the model declares, inside the run that fetched it.** Some
 vocabularies take their word from a fetch — a site's climate class, an assessment's hazard grade —
 and a fetch writes property values, never relationships. So after the fetches, the run resolves each written
 word against the vocabulary the model declares and relates the subject to the member it names.
 
-**Everything is read from the declaration** (platform User Story 6773): the vocabulary archetype
+**Everything is read from the declaration**: the vocabulary archetype
 carries `__IsDiscoveredVocabularyArchetype` and names, in `resolvedFromProperty`, the property its
 word arrives under; an archetype-level relationship — `Site classifiedAs ClimateZone`,
 `HazardAssessment gradedAs HazardLevel` — names the Thing the word is written onto and the predicate
@@ -405,7 +403,7 @@ two answers — and the next run resolves again.
 subject, the property, the word and the vocabulary. Writing it would invent a member the scheme does
 not hold; refusing the fetch would turn a provider's odd answer into an outage. The word stays on the
 subject's series as the record of what the source answered — for these vocabularies the series is the
-provenance and the relationship is the conclusion, which is why no retired-word rule applies to them. A word
+provenance and the relationship is the conclusion, so the word is kept beside the relationship. A word
 that matches a member only up to case, and a member name two Things carry, are reported the same way
 rather than guessed at.
 
@@ -423,7 +421,7 @@ here. The model carries the trigger, which means there is one way to start an an
 two to keep in step, and what started a given analysis is answerable from the model afterwards rather
 than only from a log.
 
-**The subject is the study, never the site.** A compute service reads its inputs off the study, so an
+**The subject is the study, never the site.** A compute service reads its inputs off the study, so a
 relationship naming the site would dispatch the service against a Thing carrying none of them.
 
 **The relationship is written once.** Dispatch makes the service compute and start watching the study, so
@@ -449,5 +447,5 @@ them. A write that fails for one connection names that connection.
 
 - [`TRIBUTARY.md`](TRIBUTARY.md) — the fetcher Forage calls, its per-call address
   parameters, and how a reshape expression turns a response into an observation on the Site.
-- [`LAND_INTAKE.md`](LAND_INTAKE.md) — the intake design this serves, and the model the
+- [`LAND_INTAKE.md`](LAND_INTAKE.md) — the land intake this serves, and the model the
   Site, Parcel and DataSource archetypes sit in.

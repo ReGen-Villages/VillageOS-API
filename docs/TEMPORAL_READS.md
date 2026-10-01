@@ -42,9 +42,7 @@ reactive engine's in-memory tracker, which records every change point as it happ
 
 Both responses carry a `Coverage` block. While `Source` is `in-memory` the history only reaches back
 to when the engine loaded the model and is lost on restart, so absence of a transition is not
-evidence the state never held — read `Coverage.From` before drawing that conclusion. Durable
-reconstruction (replaying criteria against Rings) will return the same contract with
-`Source: reconstructed` over a wider window, so callers need no change.
+evidence the state never held — read `Coverage.From` before drawing that conclusion.
 
 ## Rings: the tiered time-series store
 
@@ -111,9 +109,11 @@ per property by its **PropertyMode**:
 | **Sampled** | a decimated trend (every Kth sample, or rate-bucketed) |
 | **FullHistory** | every sample, tiered Canopy → Sapwood → Heartwood |
 
-`CurrentOnly` is the default for streamed observations; `FullHistory` is reserved for properties
-whose audit value justifies the cost. A background compactor enforces each mode on sealed buckets,
-so storage growth is bounded at the source.
+`FullHistory` is the default. A model can set another default for the properties created in it, and
+a property declares its own mode where it differs: a fast-moving reading is usually given
+`RingBuffer` or `Sampled`, so its storage is bounded where it is written. Where a deployment turns
+compaction on (`Persistence:CompactionEnabled`, off by default), a background compactor enforces
+each mode on sealed buckets.
 
 ### What a read answers beyond a property's retention
 
@@ -193,7 +193,7 @@ a property's retention runs out.
 
 ```http
 POST /api/temporal/aggregate
-{"function":"Sum","memberType":"Dispatch","timestampProperty":"left_at","measureProperty":"units",
+{"function":"Sum","memberType":"PumpRun","timestampProperty":"finishedAt","measureProperty":"litres",
  "windowSeconds":28800,"bucketSeconds":900}
 
 {"Buckets":[12,0,7,…],"FirstBucketStart":"2026-07-05T04:00:00+00:00","BucketSeconds":900,"UnusableMembers":0}
