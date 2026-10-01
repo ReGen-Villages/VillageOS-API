@@ -48,6 +48,27 @@ public class ModelIngestRunnerTests
     }
 
     [Fact]
+    public async Task A_tool_file_that_dotnet_cannot_run_is_a_failed_ingest_carrying_what_dotnet_wrote()
+    {
+        var notAnAssembly = Path.Combine(Path.GetTempPath(), $"not-an-assembly-{Guid.NewGuid():N}.dll");
+        await File.WriteAllTextAsync(notAnAssembly, "not an assembly");
+        try
+        {
+            using var hangDetector = new CancellationTokenSource(Settle.Ceiling);
+
+            var result = await Runner(Credential(serviceToken: "tok"), dll: notAnAssembly)
+                .RunAsync("/tmp/whatever.ifc", "Demo", hangDetector.Token);
+
+            result.Success.Should().BeFalse();
+            result.Error.Should().NotBeNullOrWhiteSpace().And.NotBe("IFC ingest failed.");
+        }
+        finally
+        {
+            File.Delete(notAnAssembly);
+        }
+    }
+
+    [Fact]
     public async Task The_ingest_process_is_handed_its_token_through_the_environment()
     {
         var startInfo = await Runner(Credential(serviceToken: "the.service.jwt"))
