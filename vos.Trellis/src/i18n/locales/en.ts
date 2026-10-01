@@ -234,6 +234,8 @@ export const en = {
       found: '{{count}} found',
       createThing: 'Create thing',
       newThingPlaceholder: 'New thing name…',
+      newThingIsAType: 'Is a type',
+      newThingIsATypeHint: 'Other things can be typed by it. This cannot be changed once it is created.',
       create: 'Create',
     },
     toolbar: {

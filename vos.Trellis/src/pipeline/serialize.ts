@@ -198,7 +198,7 @@ export async function savePipeline(
       if (w.transform !== existing.transform) await write(existing.wireId, 'transform', STRING, w.transform);
       continue;
     }
-    const wire = await thingApi.create(`${w.fp} to ${w.tp}`);
+    const wire = await thingApi.create(`${w.fp} to ${w.tp}`, false);
     // Every value is declared at creation, empty where unset, because a Thing's property write updates and
     // does not create — so a path added later is an update rather than a call that answers "no such property".
     await thingApi.addProperty(wire.Id, 'fromPort', STRING, w.fp);

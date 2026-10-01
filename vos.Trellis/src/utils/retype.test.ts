@@ -4,14 +4,27 @@ vi.mock('../api/relationshipApi', () => ({
   relationshipApi: { create: vi.fn(), remove: vi.fn() },
 }));
 
-import { retypeThing } from './retype';
+import { declaredTypes, retypeThing } from './retype';
 import { relationshipApi } from '../api/relationshipApi';
-import type { VosRelationship } from '../types/vos';
+import type { VosRelationship, VosThing } from '../types/vos';
 
 const relationship = (Id: string, SubjectId: string, PredicateId: string, TargetId: string): VosRelationship =>
   ({ Id, Name: '', SubjectId, PredicateId, TargetId, Properties: {} } as unknown as VosRelationship);
 
+const thing = (Id: string, IsArchetype?: boolean): VosThing =>
+  ({ Id, Name: Id, IsArchetype, Properties: {} } as unknown as VosThing);
+
 beforeEach(() => vi.clearAllMocks());
+
+describe('declaredTypes', () => {
+  // The platform refuses a Thing typed by one that was not declared a type, so offering any other
+  // Thing as a new type offers a choice that can only fail.
+  it('keeps the Things declared a type and leaves out every other', () => {
+    const things = [thing('Reservoir', true), thing('Upper Reservoir', false), thing('feeds'), thing('Spring', true)];
+
+    expect(declaredTypes(things).map((kept) => kept.Id)).toEqual(['Reservoir', 'Spring']);
+  });
+});
 
 describe('retypeThing', () => {
   it('removes the thing’s is-edges and creates one to the new archetype', async () => {

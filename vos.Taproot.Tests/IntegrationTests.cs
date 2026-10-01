@@ -55,11 +55,11 @@ public class IntegrationTests : IDisposable
         var relationshipId = Guid.NewGuid();
 
         // Setup mycelium responses for the workflow
-        _myceliumMock.Setup(b => b.CreateThingAsync("Alice")).ReturnsAsync(
+        _myceliumMock.Setup(b => b.CreateThingAsync("Alice", false)).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>($@"{{""Id"":""{aliceId}"",""Name"":""Alice""}}"));
-        _myceliumMock.Setup(b => b.CreateThingAsync("Bob")).ReturnsAsync(
+        _myceliumMock.Setup(b => b.CreateThingAsync("Bob", false)).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>($@"{{""Id"":""{bobId}"",""Name"":""Bob""}}"));
-        _myceliumMock.Setup(b => b.CreateThingAsync("likes")).ReturnsAsync(
+        _myceliumMock.Setup(b => b.CreateThingAsync("likes", false)).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>($@"{{""Id"":""{likesId}"",""Name"":""likes""}}"));
         _myceliumMock.Setup(b => b.CreateRelationshipAsync(aliceId, likesId, bobId)).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>($@"{{""Id"":""{relationshipId}"",""SubjectId"":""{aliceId}"",""PredicateId"":""{likesId}"",""TargetId"":""{bobId}""}}"));
@@ -84,8 +84,8 @@ public class IntegrationTests : IDisposable
         await handler.HandleCommandAsync("create", $"relation {aliceId} {likesId} {bobId}");
         Assert.Contains("Created Relationship", writer.ToString());
 
-        _myceliumMock.Verify(b => b.CreateThingAsync("Alice"), Times.Once);
-        _myceliumMock.Verify(b => b.CreateThingAsync("Bob"), Times.Once);
+        _myceliumMock.Verify(b => b.CreateThingAsync("Alice", false), Times.Once);
+        _myceliumMock.Verify(b => b.CreateThingAsync("Bob", false), Times.Once);
         _myceliumMock.Verify(b => b.CreateRelationshipAsync(aliceId, likesId, bobId), Times.Once);
     }
 

@@ -48,15 +48,17 @@ namespace vos.Taproot
             }
         }
 
+        private const string ArchetypeOption = "--archetype";
+
         private async Task CreateThingAsync(string[] tok)
         {
-            if (tok.Length == 0)
+            if (CommandOptions.Positional(tok).FirstOrDefault() is not { } newName)
             {
-                _writer.WriteLine("Usage: create thing <name> [--showguids]");
+                _writer.WriteLine($"Usage: create thing <name> [{ArchetypeOption}] [--showguids]");
                 return;
             }
 
-            var result = await _mycelium.CreateThingAsync(tok[0]);
+            var result = await _mycelium.CreateThingAsync(newName, CommandOptions.Has(tok, ArchetypeOption));
             var id = result.TryGetProperty("Id", out var idProp) ? idProp.GetString() : "unknown";
             var name = result.TryGetProperty("Name", out var nameProp) ? nameProp.GetString() : "unknown";
 
@@ -158,7 +160,7 @@ namespace vos.Taproot
 
         private void ShowUsage()
         {
-            _writer.WriteLine("Usage: create thing <name> [--showguids]                                   - Create a new thing");
+            _writer.WriteLine($"Usage: create thing <name> [{ArchetypeOption}] [--showguids]                     - Create a new thing");
             _writer.WriteLine("       create property <thing> <name> <type> <value> [--showguids]         - Add a property to a thing");
             _writer.WriteLine("       create rel-property <relId> <name> <type> <value>                   - Add a property to a relationship");
             _writer.WriteLine("       create relation <subject> <predicate> <target> [--showguids]        - Create a relationship");
@@ -166,6 +168,7 @@ namespace vos.Taproot
             _writer.WriteLine("Note: <thing>, <subject>, <predicate>, <target> can be either a GUID or a unique name.");
             _writer.WriteLine();
             _writer.WriteLine("Options:");
+            _writer.WriteLine($"  {ArchetypeOption}      Create the thing as a type. Other things can only be typed by a thing created this way");
             _writer.WriteLine("  --showguids, -g  Show GUIDs in addition to names");
         }
     }

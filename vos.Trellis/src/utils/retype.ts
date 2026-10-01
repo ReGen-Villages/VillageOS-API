@@ -1,5 +1,11 @@
 import { relationshipApi } from '../api/relationshipApi';
-import type { VosRelationship } from '../types/vos';
+import type { VosRelationship, VosThing } from '../types/vos';
+
+// What a Thing can be retyped to. The platform refuses a Thing typed by one that was not declared a
+// type, so nothing else is worth offering.
+export function declaredTypes(things: VosThing[]): VosThing[] {
+  return things.filter((thing) => thing.IsArchetype === true);
+}
 
 // Repoint ONE of a Thing's types to a different archetype. Multiple inheritance is a first-class
 // feature, so this never collapses the rest: with `fromArchetypeId` it replaces only that type relationship; without

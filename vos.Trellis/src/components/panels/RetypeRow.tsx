@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ThingPicker } from '../common/ThingPicker';
-import { retypeThing } from '../../utils/retype';
+import { declaredTypes, retypeThing } from '../../utils/retype';
 import { toast } from '../common/toastStore';
 import type { VosThing, VosRelationship } from '../../types/vos';
 
@@ -37,6 +37,7 @@ export function RetypeRow({ thingId, things, relationships }: Props) {
     [things, currentTypeIds],
   );
   const needsFrom = currentTypeIds.length > 1;
+  const typesOffered = useMemo(() => declaredTypes(things), [things]);
 
   const submit = useCallback(async () => {
     if (!toId || !isPredicateId || (needsFrom && !fromId) || saving) return;
@@ -61,7 +62,7 @@ export function RetypeRow({ thingId, things, relationships }: Props) {
       {needsFrom && (
         <ThingPicker things={currentTypeThings} value={fromId} onChange={setFromId} placeholder={t('panels.retype.replaceWhich')} />
       )}
-      <ThingPicker things={things} value={toId} onChange={setToId} placeholder={t('panels.retype.newArchetype')} />
+      <ThingPicker things={typesOffered} value={toId} onChange={setToId} placeholder={t('panels.retype.newArchetype')} />
       <div className="flex justify-end">
         <button
           onClick={submit}

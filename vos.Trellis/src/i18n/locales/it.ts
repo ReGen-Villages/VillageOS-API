@@ -236,6 +236,8 @@ export const it: PartialResources = {
       found: '{{count}} trovate',
       createThing: 'Crea cosa',
       newThingPlaceholder: 'Nome della nuova cosa…',
+      newThingIsAType: 'È un tipo',
+      newThingIsATypeHint: 'Altre cose possono essere di questo tipo. Non si può cambiare dopo la creazione.',
       create: 'Crea',
     },
     toolbar: {
