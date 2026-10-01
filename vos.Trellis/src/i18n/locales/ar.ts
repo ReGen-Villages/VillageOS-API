@@ -249,7 +249,7 @@ export const ar: WithArabicPluralForms<Resources> = {
       propertyDeleted: 'تم حذف الخاصية: {{name}}',
       thingCreated: 'تم إنشاء الشيء: {{name}}',
       createThingFailed: 'تعذّر إنشاء الشيء',
-      fragmentApplied: 'تم تطبيق الجزء: {{created}} مُنشأة · {{updated}} مُحدَّثة · {{rels}} علاقات',
+      fragmentApplied: 'تم تطبيق الجزء: {{created}} مُنشأة · {{updated}} مُحدَّثة · {{relationships}} علاقات',
       fragmentFailed: 'تعذّر تطبيق الجزء',
       idCopied: 'تم نسخ معرّف العقدة',
       copyFailed: 'فشل النسخ',
@@ -1372,7 +1372,8 @@ export const ar: WithArabicPluralForms<Resources> = {
   },
   ifcUpload: {
     serviceNotConfigured: "عنوان خدمة الاستيراد غير مضبوط (اضبط {{setting}}).",
-    ingested: "تم استيراد {{file}}: {{created}} منشأة، {{updated}} محدّثة، {{rels}} علاقات.",
+    ingested: "تم استيراد {{file}}: {{created}} منشأة، {{updated}} محدّثة، {{relationships}} علاقات.",
+    ingestedCountsNotReported: "تم استيراد {{file}}. لم تُبلِغ خدمة الاستيراد بعدد الأشياء والعلاقات التي كتبتها.",
     ingestFailed: "فشل الاستيراد.",
     ingesting: "جارٍ الاستيراد…",
     ingest: "استيراد ملف IFC",

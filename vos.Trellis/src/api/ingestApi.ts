@@ -1,11 +1,13 @@
 import { apiClient } from './client';
 import i18n from '../i18n';
 
+// A count is null when the ingest succeeded and the service could not read it off what the ingest tool
+// printed. It is not nought: the model was written.
 export interface IngestResult {
   success: boolean;
-  thingsCreated: number;
-  thingsUpdated: number;
-  relationshipsCreated: number;
+  thingsCreated: number | null;
+  thingsUpdated: number | null;
+  relationshipsCreated: number | null;
   error?: string | null;
 }
 

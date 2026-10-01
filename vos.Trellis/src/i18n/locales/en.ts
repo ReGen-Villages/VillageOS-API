@@ -214,7 +214,7 @@ export const en = {
       propertyDeleted: 'Deleted property: {{name}}',
       thingCreated: 'Created thing: {{name}}',
       createThingFailed: 'Failed to create thing',
-      fragmentApplied: 'Fragment applied: {{created}} created · {{updated}} updated · {{rels}} relationships',
+      fragmentApplied: 'Fragment applied: {{created}} created · {{updated}} updated · {{relationships}} relationships',
       fragmentFailed: 'Failed to apply fragment',
       idCopied: 'Node ID copied',
       copyFailed: 'Failed to copy',
@@ -1269,7 +1269,8 @@ export const en = {
   },
   ifcUpload: {
     serviceNotConfigured: "The ingestion service address is not configured (set {{setting}}).",
-    ingested: "Ingested {{file}}: {{created}} created, {{updated}} updated, {{rels}} relationships.",
+    ingested: "Ingested {{file}}: {{created}} created, {{updated}} updated, {{relationships}} relationships.",
+    ingestedCountsNotReported: "Ingested {{file}}. The ingestion service did not report how many things and relationships it wrote.",
     ingestFailed: "Ingest failed.",
     ingesting: "Ingesting…",
     ingest: "Ingest an IFC file",
