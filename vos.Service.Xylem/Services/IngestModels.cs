@@ -8,7 +8,7 @@ public enum IngestMode
     NewModel,
 }
 
-// A count is null when the run succeeded and the service could not read it off what the tool printed.
+// A count is null when the run succeeded and the service could not read it from the tool's result file.
 // Nought would say the model gained nothing, which a caller cannot tell from a count nobody read.
 public record IngestRunResult(
     bool Success,
