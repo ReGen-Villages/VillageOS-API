@@ -236,6 +236,8 @@ export const nl: PartialResources = {
       found: '{{count}} gevonden',
       createThing: 'Ding aanmaken',
       newThingPlaceholder: 'Naam van nieuw ding…',
+      newThingIsAType: 'Is een type',
+      newThingIsATypeHint: 'Andere dingen kunnen van dit type zijn. Dit kan na het aanmaken niet meer worden gewijzigd.',
       create: 'Aanmaken',
     },
     toolbar: {

@@ -80,6 +80,14 @@ describe('thingApi.getEffectiveProperties', () => {
   });
 });
 
+describe('thingApi.create', () => {
+  it.each([true, false])('says whether the new Thing is a declared type (%s)', async (isArchetype) => {
+    mockPost.mockResolvedValue({ Id: 'thing-1', Name: 'Reservoir', IsArchetype: isArchetype, Properties: {} });
+    await thingApi.create('Reservoir', isArchetype);
+    expect(mockPost).toHaveBeenCalledWith('/api/things', { Name: 'Reservoir', IsArchetype: isArchetype });
+  });
+});
+
 describe('thingApi property writes', () => {
   // A Thing has two property routes, and they are not interchangeable: the update one
   // answers "Property does not exist on the thing" for a name it has never seen. Adding through it

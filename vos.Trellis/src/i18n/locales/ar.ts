@@ -269,6 +269,8 @@ export const ar: WithArabicPluralForms<Resources> = {
       found: 'تم العثور على {{count}}',
       createThing: 'إنشاء شيء',
       newThingPlaceholder: 'اسم الشيء الجديد…',
+      newThingIsAType: 'هو نوع',
+      newThingIsATypeHint: 'يمكن أن تكون أشياء أخرى من هذا النوع. لا يمكن تغيير ذلك بعد الإنشاء.',
       create: 'إنشاء',
     },
     toolbar: {

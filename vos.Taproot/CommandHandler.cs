@@ -24,7 +24,7 @@ namespace vos.Taproot
             _writer.WriteLine("Available commands:");
             _writer.WriteLine();
             _writer.WriteLine("Basic Operations:");
-            _writer.WriteLine("  create thing <name>                         - Create a new thing");
+            _writer.WriteLine("  create thing <name> [--archetype]           - Create a new thing, as a type with --archetype");
             _writer.WriteLine("  create property <thing> <name> <type> <val> - Add a property to a thing");
             _writer.WriteLine("  create rel-property <relId> <name> <type> <val> - Add a property to a relationship");
             _writer.WriteLine("  create relation <subj> <pred> <target>      - Add a relationship");

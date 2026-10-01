@@ -227,11 +227,11 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    public virtual async Task<JsonElement> CreateThingAsync(string name)
+    public virtual async Task<JsonElement> CreateThingAsync(string name, bool isArchetype)
     {
         await SetAuthHeaderAsync();
         var content = new StringContent(
-            JsonSerializer.Serialize(new { Name = name }),
+            JsonSerializer.Serialize(new { Name = name, IsArchetype = isArchetype }),
             Encoding.UTF8,
             "application/json");
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/things", content);

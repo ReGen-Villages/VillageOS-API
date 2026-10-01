@@ -36,7 +36,7 @@ beforeEach(() => {
 // person would use, and still sends the request it always sent.
 describe('every change a person asks for is described and still sent', () => {
   it.each([
-    ['create a Thing', () => thingApi.create('Pump'), 'post', '/api/things', 'create Thing "Pump"'],
+    ['create a Thing', () => thingApi.create('Pump', false), 'post', '/api/things', 'create Thing "Pump"'],
     ['delete a Thing', () => thingApi.remove('thing-1'), 'del', '/api/things/thing-1', 'delete Thing thing-1'],
     ['rename a Thing', () => thingApi.rename('thing-1', 'Pump'), 'put', '/api/things/thing-1/name', 'rename Thing thing-1 to "Pump"'],
     ['set a property', () => thingApi.setProperty('thing-1', 'flow', 'vos.Integer', 3), 'put', '/api/things/thing-1/properties', 'set property "flow" on Thing thing-1'],

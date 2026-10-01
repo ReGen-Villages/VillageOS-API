@@ -686,8 +686,10 @@ public class MyceliumClientTests
         json.Should().Be("{\"raw\":\"model\"}");
     }
 
-    [Fact]
-    public async Task CreateThingAsync_PostsNameInBody()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task CreateThingAsync_PostsTheNameAndWhetherItIsADeclaredType(bool isArchetype)
     {
         JsonElement? capturedBody = null;
         var (client, _) = NewClient(req =>
@@ -699,9 +701,10 @@ public class MyceliumClientTests
             return JsonResponse("{\"Id\":\"...\"}");
         });
 
-        await client.CreateThingAsync("alice");
+        await client.CreateThingAsync("Reservoir", isArchetype);
 
-        capturedBody!.Value.GetProperty("Name").GetString().Should().Be("alice");
+        capturedBody!.Value.GetProperty("Name").GetString().Should().Be("Reservoir");
+        capturedBody!.Value.GetProperty("IsArchetype").GetBoolean().Should().Be(isArchetype);
     }
 
     [Fact]

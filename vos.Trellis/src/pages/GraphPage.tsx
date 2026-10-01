@@ -48,6 +48,7 @@ export function GraphPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: DeletableEntity; id: string; name: string } | null>(null);
   const [showCreateThing, setShowCreateThing] = useState(false);
   const [newThingName, setNewThingName] = useState('');
+  const [newThingIsAType, setNewThingIsAType] = useState(false);
   const [creatingThing, setCreatingThing] = useState(false);
 
   const selectedNodeId = useUiStore((s) => s.selectedNodeId);
@@ -160,9 +161,10 @@ export function GraphPage() {
     if (!newThingName.trim() || creatingThing) return;
     setCreatingThing(true);
     try {
-      await thingApi.create(newThingName.trim());
+      await thingApi.create(newThingName.trim(), newThingIsAType);
       toast.success(t('graph.toast.thingCreated', { name: newThingName.trim() }));
       setNewThingName('');
+      setNewThingIsAType(false);
       setShowCreateThing(false);
       reloadModelData();
     } catch (err) {
@@ -208,6 +210,7 @@ export function GraphPage() {
         matchCount={matchCount}
         showCreateThing={showCreateThing} setShowCreateThing={setShowCreateThing}
         newThingName={newThingName} setNewThingName={setNewThingName}
+        newThingIsAType={newThingIsAType} setNewThingIsAType={setNewThingIsAType}
         creatingThing={creatingThing} onCreateThing={handleCreateThing}
       />
 
