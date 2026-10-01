@@ -76,6 +76,8 @@ try
 
     var app = builder.Build();
 
+    if (settings.PathPrefix is { } pathPrefix)
+        app.UsePathBase(pathPrefix);
     app.UseForwardedHeaders();
     if (settings.AllowedOrigins.Length > 0)
         app.UseCors();
