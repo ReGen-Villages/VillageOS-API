@@ -78,8 +78,8 @@ public sealed class ModelIngestRunner : IModelIngestRunner
             _log.LogWarning(
                 "The ingest tool succeeded and left no result file the service could read, so the reply "
                 + "carries no counts of what the broker created and updated. Result file: {ResultFile}. "
-                + "The tool's error output: {Err}",
-                resultFile ?? "none was written", run.StandardError.Trim());
+                + "The tool's error output: {Err}. It printed: {Output}",
+                resultFile ?? "none was written", run.StandardError.Trim(), run.StandardOutput.Trim());
             return new IngestRunResult(true, null, null, null, null);
         }
 

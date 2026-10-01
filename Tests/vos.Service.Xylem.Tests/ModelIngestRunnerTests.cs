@@ -128,7 +128,8 @@ public class ModelIngestRunnerTests
         return startInfo;
     }
 
-    // The ingest tool, in another repository, has a test of its own that runs it with these arguments.
+    // The whole command line, because the ingest tool lives in another repository and refuses an argument
+    // it does not know.
     [Fact]
     public async Task The_ingest_process_is_started_with_the_path_its_result_file_goes_to()
     {
@@ -148,8 +149,10 @@ public class ModelIngestRunnerTests
     private const string ResultFileOfTheSameUploadAgain =
         """{"thingsCreated":0,"thingsUpdated":9,"relationshipsCreated":0}""";
 
+    private const string OutputOfAnIngestRun = "Fragment POST:      200 2 batch(es) applied → http://localhost:7463\n";
+
     private static ModelIngestRunner.ProcessRun ARunThatExitedWith(int code, string errorOutput = "") =>
-        new(code, "", errorOutput);
+        new(code, OutputOfAnIngestRun, errorOutput);
 
     [Theory]
     [InlineData(ResultFileOfAFirstUpload, 9, 0, 4)]
@@ -183,7 +186,8 @@ public class ModelIngestRunnerTests
         result.Should().Be(new IngestRunResult(true, null, null, null, null));
         log.Lines.Should().ContainSingle()
             .Which.Should().Contain(theLogSaysOfTheFile)
-            .And.Contain("The broker accepted the post, but a reply carried no counts.");
+            .And.Contain("The broker accepted the post, but a reply carried no counts.")
+            .And.Contain("2 batch(es) applied");
     }
 
     [FactNeedingAShell]
