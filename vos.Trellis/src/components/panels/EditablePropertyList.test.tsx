@@ -1,11 +1,16 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { EditablePropertyList } from './EditablePropertyList';
 import { useToastStore } from '../common/toastStore';
 import { thingApi } from '../../api/thingApi';
+import { assetsApi } from '../../api/assetsApi';
 
 vi.mock('../../api/thingApi', () => ({
   thingApi: { setProperty: vi.fn().mockResolvedValue({}), addProperty: vi.fn().mockResolvedValue({}) },
+}));
+
+vi.mock('../../api/assetsApi', () => ({
+  assetsApi: { getContent: vi.fn() },
 }));
 
 const setProperty = vi.mocked(thingApi.setProperty);
@@ -227,5 +232,54 @@ describe('a displayed property', () => {
     );
     expect(screen.getByTitle('vos.Double')).toBeInTheDocument();
     expect(screen.getByText('0.12346')).toBeInTheDocument();
+  });
+});
+
+// A ticket is a reference, not a reading: the row shows what it names rather than the hash,
+// the same way a reader would want any other reference resolved.
+describe('a displayed property holding an asset ticket', () => {
+  const ticket = 'sha256:' + 'ab'.repeat(32);
+
+  beforeEach(() => {
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL: vi.fn(() => 'blob:kept-content'),
+      revokeObjectURL: vi.fn(),
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('shows the kept image in place of the hash text', async () => {
+    vi.mocked(assetsApi.getContent).mockResolvedValue({
+      bytes: new ArrayBuffer(4),
+      contentType: 'image/png',
+    });
+    render(
+      <EditablePropertyList
+        properties={[{ name: 'surfaceMap', value: ticket, type: 'vos.String' }]}
+        entityId="thing-1"
+        entityType="thing"
+        editMode={false}
+      />,
+    );
+
+    expect(await screen.findByRole('img')).toHaveAttribute('src', 'blob:kept-content');
+  });
+
+  it('leaves an ordinary string as the text it is', () => {
+    render(
+      <EditablePropertyList
+        properties={[{ name: 'condition', value: 'filling', type: 'vos.String' }]}
+        entityId="thing-1"
+        entityType="thing"
+        editMode={false}
+      />,
+    );
+
+    expect(screen.getByText('filling')).toBeInTheDocument();
+    expect(screen.queryByRole('img')).toBeNull();
   });
 });

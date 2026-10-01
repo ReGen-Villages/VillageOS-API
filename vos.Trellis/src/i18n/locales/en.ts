@@ -431,6 +431,17 @@ export const en = {
     lookDown: "Look straight down",
     northUp: "North up",
   },
+  assets: {
+    alt: 'Content retrieved from the source',
+    loading: 'Loading the retrieved content',
+    missing: 'The store holds nothing for this ticket',
+    notImage: 'The kept content is not an image',
+    timeline: 'Imagery over time',
+    scrub: 'Scrub through the retrieved images',
+    pin: 'Pin for comparison',
+    unpin: 'Unpin',
+    pinned: 'Pinned',
+  },
   temporal: {
     title: "Temporal Queries",
     tabs: {

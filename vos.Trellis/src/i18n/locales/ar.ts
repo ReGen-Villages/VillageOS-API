@@ -474,6 +474,17 @@ export const ar: WithArabicPluralForms<Resources> = {
     lookDown: "انظر من الأعلى مباشرة",
     northUp: "الشمال للأعلى",
   },
+  assets: {
+    alt: 'محتوى مسترجع من المصدر',
+    loading: 'جارٍ تحميل المحتوى المسترجع',
+    missing: 'لا يحتفظ المخزن بشيء لهذه التذكرة',
+    notImage: 'المحتوى المحفوظ ليس صورة',
+    timeline: 'الصور عبر الزمن',
+    scrub: 'تنقّل عبر الصور المسترجعة',
+    pin: 'تثبيت للمقارنة',
+    unpin: 'إلغاء التثبيت',
+    pinned: 'مثبّتة',
+  },
   temporal: {
     title: "الاستعلامات الزمنية",
     tabs: {
