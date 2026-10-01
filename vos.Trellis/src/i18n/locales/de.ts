@@ -216,7 +216,7 @@ export const de: PartialResources = {
       propertyDeleted: 'Eigenschaft gelöscht: {{name}}',
       thingCreated: 'Ding erstellt: {{name}}',
       createThingFailed: 'Ding konnte nicht erstellt werden',
-      fragmentApplied: 'Fragment angewendet: {{created}} erstellt · {{updated}} aktualisiert · {{rels}} Beziehungen',
+      fragmentApplied: 'Fragment angewendet: {{created}} erstellt · {{updated}} aktualisiert · {{relationships}} Beziehungen',
       fragmentFailed: 'Fragment konnte nicht angewendet werden',
       idCopied: 'Knoten-ID kopiert',
       copyFailed: 'Kopieren fehlgeschlagen',
@@ -1271,7 +1271,8 @@ export const de: PartialResources = {
   },
   ifcUpload: {
     serviceNotConfigured: "Die Adresse des Importdienstes ist nicht konfiguriert (setzen Sie {{setting}}).",
-    ingested: "{{file}} importiert: {{created}} erstellt, {{updated}} aktualisiert, {{rels}} Beziehungen.",
+    ingested: "{{file}} importiert: {{created}} erstellt, {{updated}} aktualisiert, {{relationships}} Beziehungen.",
+    ingestedCountsNotReported: "{{file}} importiert. Der Importdienst hat nicht gemeldet, wie viele Dinge und Beziehungen er geschrieben hat.",
     ingestFailed: "Import fehlgeschlagen.",
     ingesting: "Wird importiert…",
     ingest: "Eine IFC-Datei importieren",

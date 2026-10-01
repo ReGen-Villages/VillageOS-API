@@ -61,6 +61,51 @@ public class IngestCommandHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task Ingest_reports_the_three_counts_in_one_line()
+    {
+        var path = WriteIfc();
+        _myceliumMock.Setup(m => m.IngestIfcAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(Result(true, 5, 1, 3));
+
+        await Execute($"{path} --url={Url}");
+
+        _writer.ToString().Trim().Should().Be(
+            $"Ingested {path}: 5 thing(s) created, 1 updated, 3 relationship(s) created.");
+    }
+
+    [Fact]
+    public async Task Ingest_whose_counts_the_service_did_not_read_says_so_and_prints_no_number()
+    {
+        var path = WriteIfc();
+        _myceliumMock.Setup(m => m.IngestIfcAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(JsonDocument.Parse(
+                """{"success":true,"thingsCreated":null,"thingsUpdated":null,"relationshipsCreated":null,"error":null}""")
+                .RootElement);
+
+        await Execute($"{path} --url={Url}");
+
+        _writer.ToString().Trim().Should().Be(
+            $"Ingested {path}. The ingestion service did not report how many Things and relationships it wrote.");
+    }
+
+    [Theory]
+    [InlineData("""{"success":true,"thingsCreated":null,"thingsUpdated":1,"relationshipsCreated":3}""")]
+    [InlineData("""{"success":true,"thingsCreated":5,"thingsUpdated":null,"relationshipsCreated":3}""")]
+    [InlineData("""{"success":true,"thingsCreated":5,"thingsUpdated":1,"relationshipsCreated":null}""")]
+    [InlineData("""{"success":true,"thingsCreated":5,"thingsUpdated":1}""")]
+    public async Task Ingest_missing_any_one_count_prints_none_of_them(string reply)
+    {
+        var path = WriteIfc();
+        _myceliumMock.Setup(m => m.IngestIfcAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(JsonDocument.Parse(reply).RootElement);
+
+        await Execute($"{path} --url={Url}");
+
+        _writer.ToString().Trim().Should().Be(
+            $"Ingested {path}. The ingestion service did not report how many Things and relationships it wrote.");
+    }
+
+    [Fact]
     public async Task Ingest_new_flag_selects_new_model_mode()
     {
         var path = WriteIfc();

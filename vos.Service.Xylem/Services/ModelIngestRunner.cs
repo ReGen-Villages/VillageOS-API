@@ -56,13 +56,12 @@ public sealed class ModelIngestRunner : IModelIngestRunner
         if (ParseCounts(run.StandardOutput) is not var (things, relationships))
         {
             // The tool lives in another repository and can change what it prints without failing a test
-            // here. The model was written, so the run stays a success; this line is the only sign that
-            // the nought in the reply is a count nobody read.
+            // here. The model was written, so the run stays a success, and the reply carries no counts.
             _log.LogWarning(
                 "The ingest tool succeeded and printed no line of the form \"{CountLineForm}\", so the reply "
-                + "reports no Things and no relationships whatever the tool wrote. It printed: {Output}",
+                + "carries no counts of what the tool wrote. It printed: {Output}",
                 CountLineForm, run.StandardOutput.Trim());
-            return new IngestRunResult(true, 0, 0, 0, null);
+            return new IngestRunResult(true, null, null, null, null);
         }
 
         return new IngestRunResult(true, things, 0, relationships, null);

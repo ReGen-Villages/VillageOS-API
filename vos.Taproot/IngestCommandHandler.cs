@@ -66,11 +66,20 @@ public class IngestCommandHandler
             return $"Ingest failed: {err}";
         }
 
-        int Count(string name) =>
-            result.TryGetProperty(name, out var v) && v.TryGetInt32(out var n) ? n : 0;
+        int? Count(string name) =>
+            result.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var n)
+                ? n
+                : null;
 
-        return $"Ingested {filePath}: {Count("thingsCreated")} thing(s) created, " +
-               $"{Count("thingsUpdated")} updated, {Count("relationshipsCreated")} relationship(s) created.";
+        // The service answers null for a count it could not read off what the ingest tool printed.
+        if (Count("thingsCreated") is not { } created
+            || Count("thingsUpdated") is not { } updated
+            || Count("relationshipsCreated") is not { } relationships)
+            return $"Ingested {filePath}. The ingestion service did not report how many Things and "
+                   + "relationships it wrote.";
+
+        return $"Ingested {filePath}: {created} thing(s) created, " +
+               $"{updated} updated, {relationships} relationship(s) created.";
     }
 
     private void ShowUsage()

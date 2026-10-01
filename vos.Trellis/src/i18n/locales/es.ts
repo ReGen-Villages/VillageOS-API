@@ -216,7 +216,7 @@ export const es: PartialResources = {
       propertyDeleted: 'Propiedad eliminada: {{name}}',
       thingCreated: 'Cosa creada: {{name}}',
       createThingFailed: 'No se pudo crear la cosa',
-      fragmentApplied: 'Fragmento aplicado: {{created}} creadas · {{updated}} actualizadas · {{rels}} relaciones',
+      fragmentApplied: 'Fragmento aplicado: {{created}} creadas · {{updated}} actualizadas · {{relationships}} relaciones',
       fragmentFailed: 'No se pudo aplicar el fragmento',
       idCopied: 'ID del nodo copiado',
       copyFailed: 'Error al copiar',
@@ -1271,7 +1271,8 @@ export const es: PartialResources = {
   },
   ifcUpload: {
     serviceNotConfigured: "La dirección del servicio de importación no está configurada (define {{setting}}).",
-    ingested: "{{file}} importado: {{created}} creados, {{updated}} actualizados, {{rels}} relaciones.",
+    ingested: "{{file}} importado: {{created}} creados, {{updated}} actualizados, {{relationships}} relaciones.",
+    ingestedCountsNotReported: "{{file}} importado. El servicio de importación no indicó cuántas cosas y relaciones escribió.",
     ingestFailed: "Error al importar.",
     ingesting: "Importando…",
     ingest: "Importar un archivo IFC",

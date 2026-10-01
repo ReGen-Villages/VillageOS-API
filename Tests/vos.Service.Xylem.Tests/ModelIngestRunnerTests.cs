@@ -151,7 +151,7 @@ public class ModelIngestRunnerTests
 
         var result = Runner(log).ResultOf(new ModelIngestRunner.ProcessRun(0, OutputWithNoCountLine, ""));
 
-        result.Should().Be(new IngestRunResult(true, 0, 0, 0, null));
+        result.Should().Be(new IngestRunResult(true, null, null, null, null));
         log.Lines.Should().ContainSingle()
             .Which.Should().Contain("Ingested: <n> things, <m> relationships.")
             .And.Contain("2 batch(es) applied");

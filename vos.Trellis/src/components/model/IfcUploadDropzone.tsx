@@ -19,12 +19,17 @@ export function IfcUploadDropzone() {
       const name = file.name.replace(/\.ifc$/i, '');
       const result = await ingestApi.upload(file, name, replace ? 'new-model' : 'merge');
       if (result.success) {
-        toast.success(t('ifcUpload.ingested', {
-          file: file.name,
-          created: result.thingsCreated,
-          updated: result.thingsUpdated,
-          relationships: result.relationshipsCreated,
-        }));
+        const countsWereReported = result.thingsCreated !== null
+          && result.thingsUpdated !== null
+          && result.relationshipsCreated !== null;
+        toast.success(countsWereReported
+          ? t('ifcUpload.ingested', {
+            file: file.name,
+            created: result.thingsCreated,
+            updated: result.thingsUpdated,
+            relationships: result.relationshipsCreated,
+          })
+          : t('ifcUpload.ingestedCountsNotReported', { file: file.name }));
         reloadModelData();
       } else {
         toast.error(result.error || t('ifcUpload.ingestFailed'));

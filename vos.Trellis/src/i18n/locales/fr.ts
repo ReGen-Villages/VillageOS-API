@@ -216,7 +216,7 @@ export const fr: PartialResources = {
       propertyDeleted: 'Propriété supprimée : {{name}}',
       thingCreated: 'Chose créée : {{name}}',
       createThingFailed: 'Impossible de créer la chose',
-      fragmentApplied: 'Fragment appliqué : {{created}} créées · {{updated}} mises à jour · {{rels}} relations',
+      fragmentApplied: 'Fragment appliqué : {{created}} créées · {{updated}} mises à jour · {{relationships}} relations',
       fragmentFailed: 'Impossible d’appliquer le fragment',
       idCopied: 'ID du nœud copié',
       copyFailed: 'Échec de la copie',
@@ -1271,7 +1271,8 @@ export const fr: PartialResources = {
   },
   ifcUpload: {
     serviceNotConfigured: "L’adresse du service d’importation n’est pas configurée (définissez {{setting}}).",
-    ingested: "{{file}} importé : {{created}} créés, {{updated}} mis à jour, {{rels}} relations.",
+    ingested: "{{file}} importé : {{created}} créés, {{updated}} mis à jour, {{relationships}} relations.",
+    ingestedCountsNotReported: "{{file}} importé. Le service d’importation n’a pas indiqué combien d’objets et de relations il a écrits.",
     ingestFailed: "Échec de l'importation.",
     ingesting: "Importation…",
     ingest: "Importer un fichier IFC",

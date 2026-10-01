@@ -216,7 +216,7 @@ export const nl: PartialResources = {
       propertyDeleted: 'Eigenschap verwijderd: {{name}}',
       thingCreated: 'Ding aangemaakt: {{name}}',
       createThingFailed: 'Ding aanmaken mislukt',
-      fragmentApplied: 'Fragment toegepast: {{created}} aangemaakt · {{updated}} bijgewerkt · {{rels}} relaties',
+      fragmentApplied: 'Fragment toegepast: {{created}} aangemaakt · {{updated}} bijgewerkt · {{relationships}} relaties',
       fragmentFailed: 'Fragment toepassen mislukt',
       idCopied: 'Knoop-ID gekopieerd',
       copyFailed: 'Kopiëren mislukt',
@@ -1271,7 +1271,8 @@ export const nl: PartialResources = {
   },
   ifcUpload: {
     serviceNotConfigured: "Het adres van de importdienst is niet geconfigureerd (stel {{setting}} in).",
-    ingested: "{{file}} geïmporteerd: {{created}} aangemaakt, {{updated}} bijgewerkt, {{rels}} relaties.",
+    ingested: "{{file}} geïmporteerd: {{created}} aangemaakt, {{updated}} bijgewerkt, {{relationships}} relaties.",
+    ingestedCountsNotReported: "{{file}} geïmporteerd. De importdienst heeft niet gemeld hoeveel dingen en relaties hij heeft geschreven.",
     ingestFailed: "Importeren mislukt.",
     ingesting: "Bezig met importeren…",
     ingest: "Een IFC-bestand importeren",
