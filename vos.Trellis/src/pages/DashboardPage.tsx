@@ -6,6 +6,7 @@ import { ServicesPanel } from '../components/dashboard/ServicesPanel';
 import { EngineMetricsPanel } from '../components/dashboard/EngineMetricsPanel';
 import { ActivityFeed } from '../components/dashboard/ActivityFeed';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
+import { ConnectionMark } from '../components/common/ConnectionMark';
 import { myceliumApi } from '../api/myceliumApi';
 import { engineMetricsApi } from '../api/engineMetricsApi';
 import { endpointApi } from '../api/endpointApi';
@@ -23,6 +24,7 @@ import { RegenLogo } from '../components/auth/RegenLogo';
 
 import type { RegisteredService, EndpointServiceInformation } from '../types/mycelium';
 import type { EngineMetricsSummary } from '../types/engineMetrics';
+import type { ConnectionState } from '../types/connection';
 
 const FEED_COLLAPSED_KEY = 'vos-activity-feed-collapsed';
 
@@ -37,15 +39,16 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
+  const holdsWholeModel = useModelStore((s) => s.holdsWholeModel);
   const [services, setServices] = useState<RegisteredService[]>([]);
   const [endpointServices, setEndpointServices] = useState<EndpointServiceInformation[]>([]);
-  const [httpOk, setHttpOk] = useState(false);
+  const [myceliumConnection, setMyceliumConnection] = useState<ConnectionState>('connecting');
   const [engineMetrics, setEngineMetrics] = useState<EngineMetricsSummary | null>(null);
   const [showShutdown, setShowShutdown] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ thingId: string; name: string } | null>(null);
   const [feedCollapsed, setFeedCollapsed] = useState(() => localStorage.getItem(FEED_COLLAPSED_KEY) === 'true');
   const events = useActivityStore((s) => s.events);
-  const { on, connected } = useSse();
+  const { on, connection } = useSse();
   const { t } = useTranslation();
 
   const toggleFeedCollapsed = useCallback(() => {
@@ -64,10 +67,10 @@ export function DashboardPage() {
       ]);
       setServices(s);
       setEndpointServices(effectiveProperty);
-      setHttpOk(true);
+      setMyceliumConnection('live');
     } catch (err) {
       console.warn('Mycelium services load failed (non-fatal):', err);
-      setHttpOk(false);
+      setMyceliumConnection('lost');
     }
   }, []);
 
@@ -91,11 +94,13 @@ export function DashboardPage() {
     return () => clearInterval(interval);
   }, [loadEngineMetrics]);
 
-  // With the connection down, every service reads as unreachable — derived rather than written into
+  // With the connection lost, every service reads as unreachable — derived rather than written into
   // state, so a reconnect shows what was last loaded instead of the offline values overwriting it.
-  const displayedServices = connected
-    ? services
-    : services.map((s) => ({ ...s, IsRunning: false, ProcessId: undefined, HealthStatus: 'Unreachable' }));
+  // A connection still opening has lost nothing, and the registry's own answer stands.
+  const connectionLost = connection === 'lost';
+  const displayedServices = connectionLost
+    ? services.map((s) => ({ ...s, IsRunning: false, ProcessId: undefined, HealthStatus: 'Unreachable' }))
+    : services;
 
   useEffect(() => {
     // Under a simulation a service request completes hundreds of times a second, far more often
@@ -181,7 +186,7 @@ export function DashboardPage() {
     try {
       await myceliumApi.shutdown();
       toast.success(t('dashboard.toast.shutdownInitiated'));
-      setHttpOk(false);
+      setMyceliumConnection('lost');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('dashboard.toast.shutdownFailed'));
     }
@@ -196,12 +201,12 @@ export function DashboardPage() {
         </div>
         <div className="flex items-center gap-4 text-xs">
           <div className="flex items-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full ${httpOk ? 'bg-emerald-500' : 'bg-red-500'}`} />
+            <ConnectionMark state={myceliumConnection} saysItsState />
             <span className="text-zinc-500">{t('dashboard.status.mycelium')}</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-500' : 'bg-red-500'}`} />
-            <span className="text-zinc-500">{t('dashboard.status.live')}</span>
+            <ConnectionMark state={connection} />
+            <span className="text-zinc-500">{t(`connection.${connection}`)}</span>
           </div>
           <a
             href={`${import.meta.env.VITE_BROKER_URL || ''}/swagger`}
@@ -241,8 +246,8 @@ export function DashboardPage() {
       <div className="flex-1 overflow-auto px-6 pb-6">
         <div className={`grid grid-cols-1 gap-6 ${feedCollapsed ? '' : 'lg:grid-cols-3'}`}>
           <div className={`space-y-6 ${feedCollapsed ? '' : 'lg:col-span-2'}`}>
-            <ModelStatisticsCard things={things} relationships={relationships} />
-            <EngineMetricsPanel metrics={connected ? engineMetrics : null} />
+            <ModelStatisticsCard things={things} relationships={relationships} wholeModelHeld={holdsWholeModel} />
+            <EngineMetricsPanel metrics={connectionLost ? null : engineMetrics} />
             <ServicesPanel services={displayedServices} endpoints={endpointServices} onStart={handleStartService} onStop={handleStopService} onDelete={(thingId, name) => setDeleteTarget({ thingId, name })} onViewLogs={(serviceKey) => navigate(`/logs?service=${serviceKey}`)} onDownloadLogs={handleDownloadServiceLog} />
             <PropertyModePanel />
           </div>

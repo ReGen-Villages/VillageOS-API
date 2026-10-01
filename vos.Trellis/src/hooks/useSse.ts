@@ -3,10 +3,11 @@ import { apiClient } from '../api/client';
 import { unwrapThing, unwrapRelationship } from '../utils/propertyMapper';
 import { WHOLE_MODEL, type SubscriptionOpened, type SubscriptionSelector } from '../types/subscription';
 import type { VosThing, VosRelationship } from '../types/vos';
+import type { ConnectionState } from '../types/connection';
 
 // Live model + operational updates over Server-Sent Events.
 // Two streams — the object subscription the page declared and the system/operational events —
-// feed one dispatch surface. Same { connected, on } API the consumers use.
+// feed one dispatch surface. Same { connection, on } API the consumers use.
 
 const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
 
@@ -27,6 +28,13 @@ const KNOWN_EVENTS = [
  *  what the page holds. Never sent by the server — this client raises it on itself. */
 export const SUBSCRIPTION_OPENED = 'SubscriptionOpened';
 
+/** What the subscription is to cover has changed, raised with the new selector before anything is
+ *  asked of the platform. What a page holds was loaded for the coverage being left, and waiting for
+ *  the new subscription to open would leave that on screen as the new page's own for a request or
+ *  more. Raised by this client on itself, like {@link SUBSCRIPTION_OPENED}; a reconnect covers
+ *  what it covered before and raises nothing. */
+export const SUBSCRIPTION_CHANGING = 'SubscriptionChanging';
+
 type Handler = (...eventArguments: unknown[]) => void;
 type Entry = { event: string; handler: Handler };
 
@@ -38,7 +46,7 @@ let objectSource: EventSource | null = null;
 let systemSource: EventSource | null = null;
 let openSubscriptionId: string | null = null;
 let referenceCount = 0;
-let connectedState = false;
+let connectionState: ConnectionState = 'connecting';
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempt = 0;
 let generation = 0; // bumped on release/reconnect to abort stale async opens
@@ -77,7 +85,7 @@ function effectiveSelector(): SubscriptionSelector {
 }
 
 function notify() { listeners.forEach((l) => l()); }
-function setConnected(v: boolean) { if (connectedState !== v) { connectedState = v; notify(); } }
+function setConnection(next: ConnectionState) { if (connectionState !== next) { connectionState = next; notify(); } }
 
 /** The events whose payload is a property rather than an entity. Listed rather than matched on the
  *  name, so adding one is a decision about its shape instead of an accident of what it is called. */
@@ -149,7 +157,7 @@ function closeStreams() {
 
 function scheduleReconnect() {
   if (reconnectTimer) return;
-  setConnected(false);
+  setConnection('lost');
   const delays = [1000, 2000, 5000, 10000, 30000];
   const delay = delays[Math.min(reconnectAttempt, delays.length - 1)];
   reconnectAttempt++;
@@ -164,6 +172,8 @@ function scheduleReconnect() {
 async function openStreams() {
   const myGeneration = ++generation;
   closeStreams();
+  // Closing a stream that had failed is still a retry, so only a live one becomes connecting.
+  if (connectionState === 'live') setConnection('connecting');
   const selector = effectiveSelector();
   openedFor = JSON.stringify(selector);
   const superseded = () => myGeneration !== generation || referenceCount === 0;
@@ -209,7 +219,7 @@ async function openStreams() {
     const object = new EventSource(
       `${BASE_URL}/api/subscriptions/${subscriptionId}/stream?${tokenParameter}&lastEventId=${resumeFrom}`,
     );
-    object.onopen = () => { reconnectAttempt = 0; setConnected(true); };
+    object.onopen = () => { reconnectAttempt = 0; setConnection('live'); };
     object.onerror = () => scheduleReconnect();
     attachListeners(object, true);
     objectSource = object;
@@ -267,8 +277,10 @@ const DECLARATIONS_SETTLE_MILLISECONDS = 300;
 function follow() {
   settling = null;
   if (referenceCount === 0) return;
-  if (JSON.stringify(effectiveSelector()) === openedFor) return;
+  const selector = effectiveSelector();
+  if (JSON.stringify(selector) === openedFor) return;
   consumedWatermark = null;
+  dispatch(SUBSCRIPTION_CHANGING, selector);
   void openStreams();
 }
 
@@ -359,7 +371,7 @@ function release() {
     consumedWatermark = null; // per-model sequence — a fresh acquire (e.g. model switch) restarts from head
     openedFor = null;
     closeStreams();
-    setConnected(false);
+    setConnection('connecting');
   }
 }
 
@@ -369,9 +381,9 @@ export function useSse() {
     return () => release();
   }, []);
 
-  const connected = useSyncExternalStore(
+  const connection = useSyncExternalStore(
     (callback) => { listeners.add(callback); return () => listeners.delete(callback); },
-    () => connectedState,
+    () => connectionState,
   );
 
   const on = useCallback((event: string, handler: Handler) => {
@@ -380,5 +392,5 @@ export function useSse() {
     return () => { handlers.delete(entry); };
   }, []);
 
-  return { connected, on };
+  return { connection, on };
 }

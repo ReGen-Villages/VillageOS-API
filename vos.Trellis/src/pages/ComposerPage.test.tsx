@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import type { VosThing, VosRelationship } from '../types/vos';
 
 vi.mock('../hooks/useSse', () => ({
-  useSse: () => ({ connected: true, on: () => () => {} }),
+  useSse: () => ({ connection: 'live', on: () => () => {} }),
   useSubscription: () => {},
 }));
 vi.mock('../api/stateApi', async (importOriginal) => ({

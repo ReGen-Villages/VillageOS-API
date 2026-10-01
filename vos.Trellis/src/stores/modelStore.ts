@@ -32,6 +32,10 @@ interface ModelState {
   thingStates: Map<string, string[]>;
   thingStatesVersion: number;
   loaded: boolean;
+  /** Whether what is held is the whole model rather than one page's own set of Things. A figure
+   *  about the model is drawn only while this is true: a page's set counted as the model is a
+   *  wrong figure, not a partial one. */
+  holdsWholeModel: boolean;
 
   setThings: (things: VosThing[]) => void;
   setRelationships: (relationships: VosRelationship[]) => void;
@@ -43,7 +47,7 @@ interface ModelState {
    *  the kept index makes a batch cost its own size plus one copy of the array's references,
    *  whatever the size of the model. */
   applyBatch: (batch: ModelBatch) => void;
-  markLoaded: () => void;
+  markLoaded: (load: { wholeModel: boolean }) => void;
   clear: () => void;
 }
 
@@ -96,6 +100,7 @@ export const useModelStore = create<ModelState>((set) => ({
   thingStates: new Map(),
   thingStatesVersion: 0,
   loaded: false,
+  holdsWholeModel: false,
 
   // A load replaces the model, so the index is dropped rather than left holding the last one until
   // the next flush rebuilds it — on a switch between models, the whole of the old one. The states
@@ -166,12 +171,12 @@ export const useModelStore = create<ModelState>((set) => ({
 
     return next;
   }),
-  markLoaded: () => set({ loaded: true }),
+  markLoaded: ({ wholeModel }) => set({ loaded: true, holdsWholeModel: wholeModel }),
   clear: () => {
     thingsById.forget();
     relationshipsById.forget();
     set((s) => ({
-      things: [], relationships: [], loaded: false,
+      things: [], relationships: [], loaded: false, holdsWholeModel: false,
       thingStates: new Map(), thingStatesVersion: s.thingStatesVersion + 1,
     }));
   },

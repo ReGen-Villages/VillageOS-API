@@ -2,12 +2,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { VosThing, VosRelationship } from '../types/vos';
+import type { ConnectionState } from '../types/connection';
 
+const stream: { connection: ConnectionState } = { connection: 'live' };
 const declaredSubscriptions: unknown[] = [];
 const streamHandlers = new Map<string, ((data?: unknown) => void)[]>();
 vi.mock('../hooks/useSse', () => ({
   useSse: () => ({
-    connected: true,
+    connection: stream.connection,
     on: (event: string, handler: (data?: unknown) => void) => {
       streamHandlers.set(event, [...(streamHandlers.get(event) ?? []), handler]);
       return () => streamHandlers.set(event, (streamHandlers.get(event) ?? []).filter((held) => held !== handler));
@@ -128,7 +130,18 @@ describe('OperationsPage', () => {
     vi.clearAllMocks();
     declaredSubscriptions.length = 0;
     vi.mocked(stateApi.getThingsInState).mockResolvedValue({ StateName: 'harvested', Count: 2 });
+    stream.connection = 'live';
     seedStore();
+  });
+
+  it.each([
+    ['connecting', 'Connecting…'],
+    ['live', 'Live'],
+    ['lost', 'Connection lost'],
+  ] as const)('says the connection is %s in the words every page uses', (connection, words) => {
+    stream.connection = connection;
+    renderAt();
+    expect(screen.getByText(words)).toBeInTheDocument();
   });
 
   it('renders the model-resident dashboard title + sections', () => {

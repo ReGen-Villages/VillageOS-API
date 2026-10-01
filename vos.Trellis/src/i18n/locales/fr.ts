@@ -29,10 +29,14 @@ export const fr: PartialResources = {
   table: {
     downloadAsCsv: 'Télécharger en CSV',
   },
-  statement: {
+  connection: {
+    connecting: 'Connexion en cours…',
     live: 'En direct',
-    notLive: 'Hors direct',
+    lost: 'Connexion perdue',
+  },
+  statement: {
     reading: 'Lecture du modèle…',
+    onThisPage: 'Sur cette page : {{held}}',
     things_one: '{{count}} Chose',
     things_other: '{{count}} Choses',
     relationships_one: '{{count}} relation',
@@ -115,7 +119,7 @@ export const fr: PartialResources = {
       total: 'Mémoire totale (est.)',
     },
     title: 'Tableau de bord Mycelium',
-    status: { mycelium: 'Mycelium', live: 'En direct' },
+    status: { mycelium: 'Mycelium' },
     actions: {
       swagger: 'Documentation de l’API Swagger',
       reloadSeeds: 'Recharger les seeds depuis le disque',
@@ -1259,8 +1263,6 @@ export const fr: PartialResources = {
   },
   operationsPage: {
     all: "Tous",
-    live: "en direct",
-    offline: "hors ligne",
     noDashboard: "Aucun tableau de bord configuré",
     noDashboardBody: "Ce modèle ne définit aucune configuration <0>Dashboard</0>. Ajoutez une Thing de l'archétype <1>Dashboard</1> avec une propriété <2>spec</2> pour piloter cette page.",
     unreadableSpecification: "Impossible de lire {{name}}",
