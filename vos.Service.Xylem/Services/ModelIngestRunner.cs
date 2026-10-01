@@ -106,17 +106,31 @@ public sealed class ModelIngestRunner : IModelIngestRunner
     // Both streams are read at once. A child that has filled the stream nobody is reading waits to write
     // more, and a reader that takes one stream to its end before starting the other waits for that child
     // to exit.
-    internal static async Task<ProcessRun?> RunToExitAsync(ProcessStartInfo startInfo, CancellationToken ct)
+    internal async Task<ProcessRun?> RunToExitAsync(ProcessStartInfo startInfo, CancellationToken ct)
     {
         using var proc = Process.Start(startInfo);
         if (proc is null) return null;
 
-        var standardOutput = proc.StandardOutput.ReadToEndAsync(ct);
-        var standardError = proc.StandardError.ReadToEndAsync(ct);
-        await Task.WhenAll(standardOutput, standardError);
-        await proc.WaitForExitAsync(ct);
+        try
+        {
+            var standardOutput = proc.StandardOutput.ReadToEndAsync(ct);
+            var standardError = proc.StandardError.ReadToEndAsync(ct);
+            await Task.WhenAll(standardOutput, standardError);
+            await proc.WaitForExitAsync(ct);
 
-        return new ProcessRun(proc.ExitCode, await standardOutput, await standardError);
+            return new ProcessRun(proc.ExitCode, await standardOutput, await standardError);
+        }
+        catch (OperationCanceledException)
+        {
+            // Disposing the process object leaves the process running. The callers delete the tool's input
+            // file and its result file as soon as this method ends, so the tool has to be gone before it does.
+            proc.Kill(entireProcessTree: true);
+            await proc.WaitForExitAsync(CancellationToken.None);
+            _log.LogWarning(
+                "The ingest run was cancelled, so the tool was stopped before it finished. "
+                + "The model keeps what the tool had already posted.");
+            throw;
+        }
     }
 
     // The bearer token travels in the child's environment, never in its arguments: an argument list is

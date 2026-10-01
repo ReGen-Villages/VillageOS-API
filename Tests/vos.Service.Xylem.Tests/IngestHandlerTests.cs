@@ -14,12 +14,15 @@ public class IngestHandlerTests : IDisposable
         public bool FileExistedAtCall;
         public IngestRunResult Result = new(true, 3, 1, 2, null);
         public int Calls;
+        public Action WhileRunning = () => { };
 
         public Task<IngestRunResult> RunAsync(string ifcPath, string modelName, CancellationToken ct)
         {
             Calls++;
             SeenPath = ifcPath; SeenName = modelName;
             FileExistedAtCall = File.Exists(ifcPath);
+            WhileRunning();
+            ct.ThrowIfCancellationRequested();
             return Task.FromResult(Result);
         }
     }
@@ -111,7 +114,8 @@ public class IngestHandlerTests : IDisposable
     [Fact]
     public async Task Upload_empty_stream_fails_without_running()
     {
-        var result = await Handler.IngestUploadAsync(new MemoryStream(), "Demo", IngestMode.Merge, 1024, default);
+        var result = await Handler.IngestUploadAsync(
+            new MemoryStream(), "Demo", IngestMode.Merge, 1024, default, default);
         result.Success.Should().BeFalse();
         _runner.Calls.Should().Be(0);
     }
@@ -119,7 +123,8 @@ public class IngestHandlerTests : IDisposable
     [Fact]
     public async Task Upload_over_the_size_cap_fails_without_running()
     {
-        var result = await Handler.IngestUploadAsync(Ifc(10_000), "Demo", IngestMode.Merge, maxBytes: 1000, default);
+        var result = await Handler.IngestUploadAsync(
+            Ifc(10_000), "Demo", IngestMode.Merge, maxBytes: 1000, default, default);
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("limit");
         _runner.Calls.Should().Be(0);
@@ -128,12 +133,53 @@ public class IngestHandlerTests : IDisposable
     [Fact]
     public async Task Upload_valid_spools_to_a_real_file_and_runs()
     {
-        var result = await Handler.IngestUploadAsync(Ifc(64), "Demo", IngestMode.Merge, maxBytes: 1024, default);
+        var result = await Handler.IngestUploadAsync(
+            Ifc(64), "Demo", IngestMode.Merge, maxBytes: 1024, default, default);
 
         result.Success.Should().BeTrue();
         _runner.Calls.Should().Be(1);
         _runner.FileExistedAtCall.Should().BeTrue("the upload was spooled to a temp file before running");
         File.Exists(_runner.SeenPath!).Should().BeFalse("the temp upload file is cleaned up after the run");
+    }
+
+    [Fact]
+    public async Task An_upload_whose_caller_leaves_while_the_tool_runs_is_ingested_to_the_end()
+    {
+        using var caller = new CancellationTokenSource();
+        _runner.WhileRunning = caller.Cancel;
+
+        var result = await Handler.IngestUploadAsync(
+            Ifc(64), "Demo", IngestMode.Merge, maxBytes: 1024, callerLeft: caller.Token, serviceStopping: default);
+
+        result.Success.Should().BeTrue();
+        File.Exists(_runner.SeenPath!).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task An_upload_whose_caller_leaves_before_the_file_has_arrived_starts_no_run()
+    {
+        using var caller = new CancellationTokenSource();
+        caller.Cancel();
+
+        var upload = () => Handler.IngestUploadAsync(
+            Ifc(64), "Demo", IngestMode.NewModel, maxBytes: 1024, callerLeft: caller.Token, serviceStopping: default);
+
+        await upload.Should().ThrowAsync<OperationCanceledException>();
+        _preparer.Calls.Should().Be(0);
+        _runner.Calls.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task The_service_stopping_ends_a_run_in_progress_and_removes_the_uploaded_file()
+    {
+        using var service = new CancellationTokenSource();
+        _runner.WhileRunning = service.Cancel;
+
+        var upload = () => Handler.IngestUploadAsync(
+            Ifc(64), "Demo", IngestMode.Merge, maxBytes: 1024, callerLeft: default, serviceStopping: service.Token);
+
+        await upload.Should().ThrowAsync<OperationCanceledException>();
+        File.Exists(_runner.SeenPath!).Should().BeFalse();
     }
 
     public void Dispose()

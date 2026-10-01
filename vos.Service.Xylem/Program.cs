@@ -74,7 +74,8 @@ try
     // Accept an uploaded .ifc (multipart: file, name, mode=merge|new-model), run ModelIngest, apply the
     // graph to the model, and return the counts. Antiforgery is disabled — this is a token-authed
     // service endpoint, not a browser form.
-    var ingest = app.MapPost("/ingest", async (HttpRequest req, IngestHandler handler, IngestJobStore jobs, CancellationToken ct) =>
+    var ingest = app.MapPost("/ingest", async (
+        HttpRequest req, IngestHandler handler, IngestJobStore jobs, IHostApplicationLifetime lifetime, CancellationToken ct) =>
     {
         if (!req.HasFormContentType)
             return Results.BadRequest(new { error = "Expected a multipart/form-data upload (fields: file, name, mode)." });
@@ -106,7 +107,7 @@ try
             var job = jobs.Create();
             _ = Task.Run(async () =>
             {
-                try { jobs.Complete(job.Id, await handler.IngestAsync(name, mode, temp, CancellationToken.None)); }
+                try { jobs.Complete(job.Id, await handler.IngestAsync(name, mode, temp, lifetime.ApplicationStopping)); }
                 catch (Exception ex) { jobs.Complete(job.Id, IngestResult.Failed(ex.Message)); }
                 finally { if (File.Exists(temp)) File.Delete(temp); }
             });
@@ -114,7 +115,8 @@ try
         }
 
         await using var stream = file.OpenReadStream();
-        var result = await handler.IngestUploadAsync(stream, name, mode, launchSettings.MaxUploadBytes, ct);
+        var result = await handler.IngestUploadAsync(
+            stream, name, mode, launchSettings.MaxUploadBytes, callerLeft: ct, serviceStopping: lifetime.ApplicationStopping);
         return result.Success ? Results.Ok(result) : Results.BadRequest(result);
     }).DisableAntiforgery();
     if (authEnabled) ingest.RequireAuthorization();

@@ -52,12 +52,25 @@ public sealed class XylemWebApplicationFactory : WebApplicationFactory<Program>
         public long SeenBytes { get; private set; }
         public int Calls { get; private set; }
 
+        private readonly TaskCompletionSource _heldRunStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private TaskCompletionSource<IngestRunResult>? _heldRun;
+
+        public Task HeldRunStarted => _heldRunStarted.Task;
+        public bool HeldRunWasCancelled => _heldRun?.Task.IsCanceled ?? false;
+
+        // A held run ends only when the service cancels it, as the ingest tool runs until it is stopped.
+        public void HoldTheNextRunOpen() => _heldRun = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public Task<IngestRunResult> RunAsync(string ifcPath, string modelName, CancellationToken ct)
         {
             Calls++;
             SeenName = modelName;
             SeenBytes = new FileInfo(ifcPath).Length;
-            return Task.FromResult(Result);
+            if (_heldRun is not { } heldRun) return Task.FromResult(Result);
+
+            ct.Register(() => heldRun.TrySetCanceled(ct));
+            _heldRunStarted.TrySetResult();
+            return heldRun.Task;
         }
     }
 
