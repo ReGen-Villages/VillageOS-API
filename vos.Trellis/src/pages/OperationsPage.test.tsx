@@ -134,7 +134,6 @@ describe('OperationsPage', () => {
     seedStore();
   });
 
-  // A stream still opening used to read "offline" here, the same as one that had failed.
   it.each([
     ['connecting', 'Connecting…'],
     ['live', 'Live'],

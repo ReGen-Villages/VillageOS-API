@@ -11,8 +11,6 @@ vi.mock('../hooks/useLogTail', () => ({
 import { LogPage } from './LogPage';
 
 describe('LogPage', () => {
-  // Before its first stream opened the page read "Reconnecting", a retry of something that had
-  // not yet been tried.
   it.each([
     ['connecting', 'Connecting…'],
     ['live', 'Streaming'],

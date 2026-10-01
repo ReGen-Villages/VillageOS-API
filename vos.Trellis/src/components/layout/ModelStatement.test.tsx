@@ -28,8 +28,6 @@ describe('ModelStatement', () => {
     expect(screen.getByText('3 Things · 1 relationship')).toBeInTheDocument();
   });
 
-  // A page that asked for less than the whole model holds its own set of Things. Counted without
-  // saying so, that set reads as the size of the model.
   it('counts a page\'s own set as the page\'s, not as the model\'s', () => {
     useModelStore.setState({ things: [thing('a'), thing('b')], relationships: [edge('r1')], loaded: true, holdsWholeModel: false });
     render(<ModelStatement isCollapsed={false} />);

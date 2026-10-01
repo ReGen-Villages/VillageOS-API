@@ -450,8 +450,6 @@ describe('useModelData', () => {
     expect(useModelStore.getState().loaded).toBe(true);
   });
 
-  // The Dashboard and the sidebar count what the store holds, and a page's own set counted as the
-  // model is a wrong figure — so each load says which it was.
   it('says the store holds the whole model after the model read, and not after a narrowed load', async () => {
     renderHook(() => useModelData());
     await act(async () => {
@@ -505,7 +503,6 @@ describe('useModelData', () => {
     expect(useModelStore.getState().loaded).toBe(true);
   });
 
-  /** A narrowed page's load, as the shell's own subscription or a published page's leaves it. */
   async function holdingANarrowedSet() {
     renderHook(() => useModelData());
     await act(async () => {

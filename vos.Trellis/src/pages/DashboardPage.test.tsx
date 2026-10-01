@@ -165,8 +165,6 @@ describe('DashboardPage while the model loads and the connection opens', () => {
 
   afterEach(() => vi.clearAllMocks());
 
-  // After sign-in the store first holds the few Things the navigation needs, then nothing, then the
-  // model. Counted at each step the card read a handful, then zero, then the real figure.
   it('shows no model figure until the store holds the whole model', async () => {
     useModelStore.setState({ things: [thing('a'), thing('b'), thing('c')], relationships: [], loaded: true, holdsWholeModel: false });
     openDashboard();
@@ -179,7 +177,6 @@ describe('DashboardPage while the model loads and the connection opens', () => {
     expect(figure('Things')).toBe('3');
   });
 
-  // A stream that has not opened yet says nothing about the services: the registry's answer stands.
   it('draws a service as the registry reports it while the connection opens, and unreachable once it is lost', async () => {
     stream.connection = 'connecting';
     const { rerender } = openDashboard();
@@ -207,7 +204,6 @@ describe('DashboardPage while the model loads and the connection opens', () => {
     expect(screen.getByText('Metrics unavailable')).toBeInTheDocument();
   });
 
-  // The broker has not failed to answer before it has been asked.
   it('draws Mycelium as connecting until its first answer, then live', async () => {
     let answer: (services: RegisteredService[]) => void = () => {};
     vi.mocked(myceliumApi.getServices).mockReturnValue(new Promise((resolve) => { answer = resolve; }));
@@ -222,9 +218,10 @@ describe('DashboardPage while the model loads and the connection opens', () => {
 
   it('draws Mycelium as lost when it does not answer', async () => {
     vi.mocked(myceliumApi.getServices).mockRejectedValue(new Error('unreachable'));
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
     openDashboard();
     await act(async () => {});
+    warned.mockRestore();
 
     expect(screen.getByRole('img', { name: 'Connection lost' })).toBeInTheDocument();
   });

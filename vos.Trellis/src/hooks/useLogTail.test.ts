@@ -88,7 +88,6 @@ describe('useLogTail', () => {
     expect((await openedStream()).url).toContain('service=water%20reserve');
   });
 
-  // A stream that has not opened yet has not failed, so it is not reported as one being retried.
   it('reports the stream as connecting until it opens, then live', async () => {
     const { result } = renderHook(() => useLogTail());
     const stream = await openedStream();

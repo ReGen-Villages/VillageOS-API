@@ -170,8 +170,6 @@ describe('useSse', () => {
     unmount();
   });
 
-  // A stream that has not opened yet is not a stream that failed. Reported alike, every sign-in
-  // shows a fault until the first stream opens.
   it('is connecting until the object stream opens, then live', async () => {
     const { result, unmount } = renderHook(() => useSse());
     expect(result.current.connection).toBe('connecting');
@@ -230,8 +228,6 @@ describe('useSse', () => {
     second.unmount();
   });
 
-  // What the store holds was loaded for the coverage being left, so its reader hears of the change
-  // before anything is asked of the platform — not a request later, when the subscription opens.
   it('announces a change of coverage before it asks the platform for the subscription', async () => {
     const { result, unmount } = renderHook(() => useSse());
     await waitFor(() => expect(objectStreams().length).toBe(1));

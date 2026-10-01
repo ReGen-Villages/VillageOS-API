@@ -34,7 +34,6 @@ describe('modelStore', () => {
     expect(useModelStore.getState().relationships).toHaveLength(1);
   });
 
-  // A page's own set counted as the model is a wrong figure, so a load says which of the two it was.
   it.each([true, false])('markLoaded records that a load landed, and whether it was the whole model: %s', (wholeModel) => {
     useModelStore.getState().markLoaded({ wholeModel });
     expect(useModelStore.getState().loaded).toBe(true);

@@ -48,7 +48,6 @@ async function declaredModelLoadProperties(): Promise<string[]> {
   }
 }
 
-/** Whether the store currently holds one page's own set of Things rather than the whole model. */
 function holdsNarrowedSet(): boolean {
   const { loaded, holdsWholeModel } = useModelStore.getState();
   return loaded && !holdsWholeModel;

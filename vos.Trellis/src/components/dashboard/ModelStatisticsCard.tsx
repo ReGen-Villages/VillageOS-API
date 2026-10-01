@@ -4,22 +4,12 @@ import type { VosThing, VosRelationship } from '../../types/vos';
 interface Props {
   things: VosThing[];
   relationships: VosRelationship[];
-  /** False until the store holds the whole model. What it holds before that is one page's own set
-   *  or nothing, and the card then says the model is being read instead of counting it — a count
-   *  would read as the size of the model. */
+  /** False until the store holds the whole model. A narrower set counted here would read as the
+   *  size of the model, so the card says the model is being read instead. */
   wholeModelHeld: boolean;
 }
 
-interface ModelFigures {
-  things: number;
-  relationships: number;
-  predicates: number;
-  properties: number;
-  handlers: number;
-  topPredicates: [name: string, count: number][];
-}
-
-function figuresOf(things: VosThing[], relationships: VosRelationship[]): ModelFigures {
+function figuresOf(things: VosThing[], relationships: VosRelationship[]) {
   // Top predicates by usage, looked up through a Map so the cost does not grow with things times relationships
   const thingMap = new Map(things.map((t) => [t.Id, t]));
   const predicateCounts = new Map<string, number>();

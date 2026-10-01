@@ -3,8 +3,6 @@ import { render, screen } from '@testing-library/react';
 import { ConnectionMark } from './ConnectionMark';
 
 describe('ConnectionMark', () => {
-  // Connecting and lost drawn alike is the fault this mark exists to end: a sign-in would show a
-  // failure until its first stream opened.
   it.each([
     ['connecting', 'bg-amber-500'],
     ['live', 'bg-emerald-500'],
@@ -20,8 +18,6 @@ describe('ConnectionMark', () => {
     expect(screen.queryByRole('img')).toBeNull();
   });
 
-  // A mark standing beside a name rather than a state carries the state in colour alone, which a
-  // reader who cannot tell the colours apart, or cannot see them, is not told.
   it('says the state itself where nothing beside it does', () => {
     render(<ConnectionMark state="connecting" saysItsState />);
     expect(screen.getByRole('img', { name: 'Connecting…' })).toHaveAttribute('title', 'Connecting…');
