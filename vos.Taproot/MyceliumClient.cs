@@ -13,7 +13,7 @@ public readonly record struct LogDownload(string FileName, Stream Content);
 public class MyceliumClient
 {
     private readonly HttpClient _httpClient;
-    private readonly HttpClient _streamClient;
+    private readonly HttpClient _clientWithNoTimeLimit;
     private readonly string _myceliumUrl;
     private readonly string? _apiKey;
     private readonly Func<DateTime> _clock;
@@ -32,12 +32,12 @@ public class MyceliumClient
         {
             Timeout = TimeSpan.FromSeconds(30)
         };
-        _streamClient = new HttpClient(CreateHandler())
+        _clientWithNoTimeLimit = new HttpClient(CreateHandler())
         {
             Timeout = Timeout.InfiniteTimeSpan
         };
         NameThisProgram(_httpClient);
-        NameThisProgram(_streamClient);
+        NameThisProgram(_clientWithNoTimeLimit);
     }
 
     public const string ProgramHeader = "X-Vos-Client";
@@ -63,14 +63,17 @@ public class MyceliumClient
     internal static bool IsInsecureTlsEnabled()
         => Environment.GetEnvironmentVariable("VOS_INSECURE_TLS") is "1" or "true" or "TRUE" or "True";
 
-    internal MyceliumClient(string myceliumUrl, string? apiKey, HttpClient httpClient, Func<DateTime>? clock = null)
+    internal MyceliumClient(
+        string myceliumUrl, string? apiKey, HttpClient httpClient, Func<DateTime>? clock = null,
+        HttpClient? clientWithNoTimeLimit = null)
     {
         _myceliumUrl = myceliumUrl.TrimEnd('/');
         _apiKey = apiKey ?? Environment.GetEnvironmentVariable("VOS_API_KEY");
         _httpClient = httpClient;
-        _streamClient = httpClient;
+        _clientWithNoTimeLimit = clientWithNoTimeLimit ?? httpClient;
         _clock = clock ?? (() => DateTime.UtcNow);
         NameThisProgram(_httpClient);
+        NameThisProgram(_clientWithNoTimeLimit);
     }
 
     // Tells the broker what the person did, so it can tell the people the model names. Kind is
@@ -154,7 +157,7 @@ public class MyceliumClient
         var token = await GetTokenAsync();
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        using var response = await _streamClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        using var response = await _clientWithNoTimeLimit.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         await EnsureSuccessCarryingTheReasonAsync(response);
         await using var body = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var reader = new StreamReader(body);
@@ -469,6 +472,10 @@ public class MyceliumClient
     // model (mode: "merge" | "new-model"). Authenticated with a Mycelium token; returns the service's
     // result JSON ({ success, thingsCreated, thingsUpdated, relationshipsCreated, error }) for both
     // success and validation-failure responses so the caller can report either.
+    //
+    // The service replies only when the ingest is done, however long that takes, and stops the ingest
+    // when its caller leaves. So the upload cannot go through the client whose timeout bounds every
+    // request.
     public virtual async Task<JsonElement> IngestIfcAsync(string ingestUrl, string filePath, string modelName, string mode)
     {
         var token = await GetTokenAsync();
@@ -482,7 +489,7 @@ public class MyceliumClient
 
         var request = new HttpRequestMessage(HttpMethod.Post, $"{ingestUrl.TrimEnd('/')}/ingest") { Content = form };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        var response = await _httpClient.SendAsync(request);
+        var response = await _clientWithNoTimeLimit.SendAsync(request);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
