@@ -31,8 +31,8 @@ export function ViewFitController() {
 
     const markPositionsChanged = () => { positionsChanged = true; };
 
-    // Before the render, not on each graph event: one layout step moves every node, and Sigma
-    // reprocesses once per render however many events led to it.
+    // Before the render, not on each graph event: a model load sets attributes one node at a time,
+    // and Sigma reprocesses once per render however many events led to it.
     const fitView = () => {
       if (!positionsChanged) return;
       positionsChanged = false;

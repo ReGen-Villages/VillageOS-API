@@ -91,6 +91,29 @@ describe('ViewFitController', () => {
     expect(lastFittedBox().x).toEqual([-200, 200]);
   });
 
+  it('measures again after a node is added', () => {
+    addSquareOfNodes(5, 100);
+    render(<ViewFitController />);
+    renderFrame();
+
+    liveGraph.addNode('arrived', { x: 0, y: 300 });
+    renderFrame();
+
+    expect(lastFittedBox().y).toEqual([-100, 300]);
+  });
+
+  it('measures again after a node is dropped', () => {
+    addSquareOfNodes(5, 100);
+    liveGraph.addNode('leaving', { x: 0, y: 300 });
+    render(<ViewFitController />);
+    renderFrame();
+
+    liveGraph.dropNode('leaving');
+    renderFrame();
+
+    expect(lastFittedBox().y).toEqual([-100, 100]);
+  });
+
   it('hands the fit back to Sigma when the graph empties', () => {
     addSquareOfNodes(5, 100);
     render(<ViewFitController />);
