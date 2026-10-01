@@ -189,7 +189,7 @@ describe('useSse', () => {
 
     page.unmount();
     await waitFor(() => expect(objectStreams().length).toBe(3));
-    expect(subscriptionsOpened()[2]).toEqual({ all: true });
+    expect(subscriptionsOpened()[2]).toMatchObject({ all: true });
     unmount();
   });
 
@@ -224,8 +224,8 @@ describe('useSse', () => {
 
   // A navigation takes the leaving page's declaration back before the arriving page makes its own,
   // and the arriving page's code is fetched on demand, so the gap between the two is a load rather
-  // than a tick. Between two pages that both read the whole model, acting inside it would build a
-  // whole-model snapshot and re-read a whole model for a reader that never existed.
+  // than a tick. Between two pages that both read the whole model, acting inside it would re-read a
+  // whole model for a reader that never existed.
   it('reopens nothing when one page hands over to another asking for the same thing', async () => {
     const { unmount } = renderHook(() => useSse());
     await waitFor(() => expect(objectStreams().length).toBe(1));
@@ -384,17 +384,16 @@ describe('useSse', () => {
   });
 
   // The model read is what fills the store for a whole-model page, because only it honours the
-  // properties the model says its pages are drawn with. Converting the snapshot into the shape the
-  // store holds and then discarding it costs an object per Thing and per property on the largest
-  // answer the platform gives.
-  it('leaves a whole-model subscription\'s snapshot unread', async () => {
-    answersWithASnapshot();
+  // properties the model says its pages are drawn with. A snapshot sent beside it is the whole model
+  // built, sent and parsed a second time, and the read that fills the page waits for it.
+  it('asks for no snapshot when the subscription covers the whole model', async () => {
     const { result, unmount } = renderHook(() => useSse());
     const handler = vi.fn();
     let off: () => void = () => {};
     act(() => { off = result.current.on(SUBSCRIPTION_OPENED, handler); });
 
     await waitFor(() => expect(handler).toHaveBeenCalled());
+    expect(subscriptionsOpened()[0]).toEqual({ all: true, includeSnapshot: false });
     expect((handler.mock.calls[0][0] as SubscriptionOpened).covered).toBeNull();
     act(() => off());
     unmount();

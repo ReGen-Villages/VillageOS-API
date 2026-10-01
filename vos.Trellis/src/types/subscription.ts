@@ -57,13 +57,9 @@ export interface SubscriptionOpened {
   subscriptionId: string;
   watermark: number;
   /**
-   * The objects the selector reached — or null for {@link WHOLE_MODEL}, whose snapshot is left
-   * unread.
-   *
-   * A whole-model subscription's snapshot is not what fills the store: the model read is, because
-   * only that honours the properties the model says its pages are drawn with. Converting a
-   * whole-model snapshot into the shape the store holds and then discarding it costs an object per
-   * Thing and per property on the largest answer the platform gives.
+   * The objects the selector reached — or null for {@link WHOLE_MODEL}, which asks for no snapshot.
+   * The model read fills the store for it instead, because only that honours the properties the
+   * model says its pages are drawn with.
    */
   covered: {
     things: VosThing[];
