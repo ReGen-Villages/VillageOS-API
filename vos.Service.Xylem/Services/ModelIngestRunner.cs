@@ -12,8 +12,10 @@ namespace vos.Service.Xylem.Services;
 // tested, and the orchestration by IngestHandlerTests.
 public sealed class ModelIngestRunner : IModelIngestRunner
 {
-    // The ingest tool prints "Ingested: <n> things, <m> relationships." and no other count, so every
-    // Thing it wrote is reported as created and none as updated.
+    private const string CountLineForm = "Ingested: <n> things, <m> relationships.";
+
+    // The ingest tool prints this line and no other count, so every Thing it wrote is reported as created
+    // and none as updated.
     private static readonly Regex CountLine = new(@"Ingested:\s+(\d+)\s+things,\s+(\d+)\s+relationships",
         RegexOptions.Compiled);
 
@@ -37,8 +39,13 @@ public sealed class ModelIngestRunner : IModelIngestRunner
             return new IngestRunResult(false, 0, 0, 0, $"ModelIngest tool not found at '{_modelIngestDll}'.");
 
         var run = await RunToExitAsync(await BuildStartInfoAsync(ifcPath, modelName, ct), ct);
-        if (run is null) return new IngestRunResult(false, 0, 0, 0, "Failed to start ModelIngest process.");
+        return run is null
+            ? new IngestRunResult(false, 0, 0, 0, "Failed to start ModelIngest process.")
+            : ResultOf(run);
+    }
 
+    internal IngestRunResult ResultOf(ProcessRun run)
+    {
         if (run.ExitCode != 0)
         {
             _log.LogWarning("ModelIngest failed (exit {Code}): {Err}", run.ExitCode, run.StandardError);
@@ -46,8 +53,19 @@ public sealed class ModelIngestRunner : IModelIngestRunner
                 string.IsNullOrWhiteSpace(run.StandardError) ? "IFC ingest failed." : run.StandardError.Trim());
         }
 
-        var (things, rels) = ParseCounts(run.StandardOutput);
-        return new IngestRunResult(true, things, 0, rels, null);
+        if (ParseCounts(run.StandardOutput) is not var (things, relationships))
+        {
+            // The tool lives in another repository and can change what it prints without failing a test
+            // here. The model was written, so the run stays a success; this line is the only sign that
+            // the nought in the reply is a count nobody read.
+            _log.LogWarning(
+                "The ingest tool succeeded and printed no line of the form \"{CountLineForm}\", so the reply "
+                + "reports no Things and no relationships whatever the tool wrote. It printed: {Output}",
+                CountLineForm, run.StandardOutput.Trim());
+            return new IngestRunResult(true, 0, 0, 0, null);
+        }
+
+        return new IngestRunResult(true, things, 0, relationships, null);
     }
 
     internal sealed record ProcessRun(int ExitCode, string StandardOutput, string StandardError);
@@ -93,9 +111,9 @@ public sealed class ModelIngestRunner : IModelIngestRunner
         return psi;
     }
 
-    internal static (int Things, int Relationships) ParseCounts(string stdout)
+    internal static (int Things, int Relationships)? ParseCounts(string stdout)
     {
         var m = CountLine.Match(stdout);
-        return m.Success ? (int.Parse(m.Groups[1].Value), int.Parse(m.Groups[2].Value)) : (0, 0);
+        return m.Success ? (int.Parse(m.Groups[1].Value), int.Parse(m.Groups[2].Value)) : null;
     }
 }

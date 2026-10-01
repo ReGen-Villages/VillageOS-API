@@ -4,6 +4,7 @@ using System.Text;
 using vos.Service.Shared;
 using vos.Service.Xylem.Services;
 using vos.Tests.Shared;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using FluentAssertions;
@@ -31,6 +32,9 @@ public class ModelIngestRunnerTests
 
     private static ModelIngestRunner Runner(ServiceCredential credential, string dll = "/tools/ModelIngest.dll") =>
         new(dll, MyceliumUrl, credential, NullLogger<ModelIngestRunner>.Instance);
+
+    private static ModelIngestRunner Runner(ILogger<ModelIngestRunner> log) =>
+        new("/tools/ModelIngest.dll", MyceliumUrl, Credential(), log);
 
     [Fact]
     public async Task RunAsync_missing_tool_reports_a_clear_error_without_spawning()
@@ -111,8 +115,65 @@ public class ModelIngestRunnerTests
     }
 
     [Fact]
-    public void Output_with_no_count_line_reads_as_no_Things_and_no_relationships()
+    public void Output_with_no_count_line_reads_as_no_count()
     {
-        ModelIngestRunner.ParseCounts("no count line here").Should().Be((0, 0));
+        ModelIngestRunner.ParseCounts("no count line here").Should().BeNull();
+    }
+
+    private const string OutputWithNoCountLine =
+        "Fragment POST:      200 2 batch(es) applied → http://localhost:7391\n";
+
+    [Fact]
+    public void A_successful_run_with_no_count_line_is_logged_with_the_line_looked_for_and_what_was_printed()
+    {
+        var log = new CapturingLogger<ModelIngestRunner>();
+
+        var result = Runner(log).ResultOf(new ModelIngestRunner.ProcessRun(0, OutputWithNoCountLine, ""));
+
+        result.Should().Be(new IngestRunResult(true, 0, 0, 0, null));
+        log.Lines.Should().ContainSingle()
+            .Which.Should().Contain("Ingested: <n> things, <m> relationships.")
+            .And.Contain("2 batch(es) applied");
+    }
+
+    [Fact]
+    public void A_count_line_that_reads_nought_is_a_count_and_logs_nothing()
+    {
+        var log = new CapturingLogger<ModelIngestRunner>();
+
+        var result = Runner(log).ResultOf(
+            new ModelIngestRunner.ProcessRun(0, "Ingested: 0 things, 0 relationships.\n", ""));
+
+        result.Should().Be(new IngestRunResult(true, 0, 0, 0, null));
+        log.Lines.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void A_run_that_read_its_counts_reports_them_and_logs_nothing()
+    {
+        var log = new CapturingLogger<ModelIngestRunner>();
+
+        var result = Runner(log).ResultOf(new ModelIngestRunner.ProcessRun(0, OutputOfAnIngestRun, ""));
+
+        result.Should().Be(new IngestRunResult(true, 9, 0, 4, null));
+        log.Lines.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void A_failed_run_answers_with_what_the_tool_wrote_to_its_error_output()
+    {
+        var result = Runner(new CapturingLogger<ModelIngestRunner>()).ResultOf(
+            new ModelIngestRunner.ProcessRun(1, OutputOfAnIngestRun, "  The broker refused the post.\n"));
+
+        result.Should().Be(new IngestRunResult(false, 0, 0, 0, "The broker refused the post."));
+    }
+
+    [Fact]
+    public void A_failed_run_that_wrote_no_error_output_still_answers_with_a_reason()
+    {
+        var result = Runner(new CapturingLogger<ModelIngestRunner>()).ResultOf(
+            new ModelIngestRunner.ProcessRun(1, "", " \n"));
+
+        result.Should().Be(new IngestRunResult(false, 0, 0, 0, "IFC ingest failed."));
     }
 }
