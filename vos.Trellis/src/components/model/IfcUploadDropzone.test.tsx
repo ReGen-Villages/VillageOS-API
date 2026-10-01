@@ -56,6 +56,12 @@ describe('IfcUploadDropzone (US #5844)', () => {
     expect(reloadModelData).toHaveBeenCalled();
   });
 
+  it.each(['thingsCreated', 'thingsUpdated', 'relationshipsCreated'] as const)('shows no count at all when only %s is missing', async (missing) => {
+    vi.mocked(ingestApi.upload).mockResolvedValue({ success: true, thingsCreated: 3, thingsUpdated: 1, relationshipsCreated: 2, [missing]: null });
+
+    expect(await upload()).toBe('Ingested building.ifc. The ingestion service did not report how many things and relationships it wrote.');
+  });
+
   it.each(SUPPORTED_LANGUAGES.map((language) => language.code))('fills every value its upload messages ask for in %s', async (code) => {
     await act(() => i18n.changeLanguage(code));
 

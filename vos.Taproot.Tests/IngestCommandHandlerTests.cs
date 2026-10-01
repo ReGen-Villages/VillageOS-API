@@ -88,6 +88,23 @@ public class IngestCommandHandlerTests : IDisposable
             $"Ingested {path}. The ingestion service did not report how many Things and relationships it wrote.");
     }
 
+    [Theory]
+    [InlineData("""{"success":true,"thingsCreated":null,"thingsUpdated":1,"relationshipsCreated":3}""")]
+    [InlineData("""{"success":true,"thingsCreated":5,"thingsUpdated":null,"relationshipsCreated":3}""")]
+    [InlineData("""{"success":true,"thingsCreated":5,"thingsUpdated":1,"relationshipsCreated":null}""")]
+    [InlineData("""{"success":true,"thingsCreated":5,"thingsUpdated":1}""")]
+    public async Task Ingest_missing_any_one_count_prints_none_of_them(string reply)
+    {
+        var path = WriteIfc();
+        _myceliumMock.Setup(m => m.IngestIfcAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(JsonDocument.Parse(reply).RootElement);
+
+        await Execute($"{path} --url={Url}");
+
+        _writer.ToString().Trim().Should().Be(
+            $"Ingested {path}. The ingestion service did not report how many Things and relationships it wrote.");
+    }
+
     [Fact]
     public async Task Ingest_new_flag_selects_new_model_mode()
     {
