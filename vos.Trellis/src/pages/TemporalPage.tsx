@@ -5,6 +5,7 @@ import { modelApi } from '../api/modelApi';
 import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { toast } from '../components/common/toastStore';
+import { ImageryTimeline } from '../components/assets/ImageryTimeline';
 import type { ModelMutations, ThingMutations, RelationshipMutations, PropertyVersionsResponse, VosThing, VosRelationship, TemporalSnapshot } from '../types/vos';
 import { stateApi } from '../api/stateApi';
 import { formatDateTime, formatPropertyValue } from '../utils/formatters';
@@ -539,6 +540,10 @@ function PropertyHistoryPanel() {
             {' — '}
             {t('temporal.versionCount', { count: versions.Versions.length })}
           </div>
+          <ImageryTimeline
+            key={`${versions.ObjectId}:${versions.PropertyName}`}
+            versions={versions.Versions}
+          />
           <div className="space-y-1">
             {versions.Versions.map((v, i) => (
               <div key={i} className="flex items-baseline gap-3 text-xs">

@@ -433,6 +433,17 @@ export const nl: PartialResources = {
     lookDown: "Kijk recht naar beneden",
     northUp: "Noorden boven",
   },
+  assets: {
+    alt: 'Inhoud opgehaald van de bron',
+    loading: 'Opgehaalde inhoud wordt geladen',
+    missing: 'De opslag bevat niets voor dit ticket',
+    notImage: 'De bewaarde inhoud is geen afbeelding',
+    timeline: 'Beelden door de tijd',
+    scrub: 'Blader door de opgehaalde beelden',
+    pin: 'Vastzetten om te vergelijken',
+    unpin: 'Losmaken',
+    pinned: 'Vastgezet',
+  },
   temporal: {
     title: "Temporele query's",
     tabs: {

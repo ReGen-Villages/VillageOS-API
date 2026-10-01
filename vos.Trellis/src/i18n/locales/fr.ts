@@ -433,6 +433,17 @@ export const fr: PartialResources = {
     lookDown: "Regarder à la verticale",
     northUp: "Nord en haut",
   },
+  assets: {
+    alt: 'Contenu récupéré depuis la source',
+    loading: 'Chargement du contenu récupéré',
+    missing: 'Le dépôt ne détient rien pour ce ticket',
+    notImage: "Le contenu conservé n'est pas une image",
+    timeline: 'Images au fil du temps',
+    scrub: 'Parcourir les images récupérées',
+    pin: 'Épingler pour comparer',
+    unpin: 'Détacher',
+    pinned: 'Épinglée',
+  },
   temporal: {
     title: "Requêtes temporelles",
     tabs: {

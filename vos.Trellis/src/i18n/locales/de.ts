@@ -433,6 +433,17 @@ export const de: PartialResources = {
     lookDown: "Senkrecht nach unten sehen",
     northUp: "Norden oben",
   },
+  assets: {
+    alt: 'Vom Ursprung abgerufener Inhalt',
+    loading: 'Abgerufener Inhalt wird geladen',
+    missing: 'Der Speicher hält nichts zu diesem Ticket',
+    notImage: 'Der aufbewahrte Inhalt ist kein Bild',
+    timeline: 'Bilder im Zeitverlauf',
+    scrub: 'Durch die abgerufenen Bilder blättern',
+    pin: 'Zum Vergleich anheften',
+    unpin: 'Lösen',
+    pinned: 'Angeheftet',
+  },
   temporal: {
     title: "Zeitliche Abfragen",
     tabs: {

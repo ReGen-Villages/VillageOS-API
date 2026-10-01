@@ -433,6 +433,17 @@ export const es: PartialResources = {
     lookDown: "Mirar en vertical",
     northUp: "Norte arriba",
   },
+  assets: {
+    alt: 'Contenido recuperado de la fuente',
+    loading: 'Cargando el contenido recuperado',
+    missing: 'El almacén no tiene nada para este ticket',
+    notImage: 'El contenido conservado no es una imagen',
+    timeline: 'Imágenes a lo largo del tiempo',
+    scrub: 'Recorrer las imágenes recuperadas',
+    pin: 'Fijar para comparar',
+    unpin: 'Soltar',
+    pinned: 'Fijada',
+  },
   temporal: {
     title: "Consultas temporales",
     tabs: {

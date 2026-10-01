@@ -433,6 +433,17 @@ export const it: PartialResources = {
     lookDown: "Guarda dall’alto",
     northUp: "Nord in alto",
   },
+  assets: {
+    alt: 'Contenuto recuperato dalla fonte',
+    loading: 'Caricamento del contenuto recuperato',
+    missing: 'Il deposito non conserva nulla per questo ticket',
+    notImage: "Il contenuto conservato non è un'immagine",
+    timeline: 'Immagini nel tempo',
+    scrub: 'Scorri le immagini recuperate',
+    pin: 'Fissa per confrontare',
+    unpin: 'Sgancia',
+    pinned: 'Fissata',
+  },
   temporal: {
     title: "Query temporali",
     tabs: {
