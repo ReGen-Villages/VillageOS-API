@@ -14,12 +14,15 @@ public class IngestHandlerTests : IDisposable
         public bool FileExistedAtCall;
         public IngestRunResult Result = new(true, 3, 1, 2, null);
         public int Calls;
+        public Action WhileRunning = () => { };
 
         public Task<IngestRunResult> RunAsync(string ifcPath, string modelName, CancellationToken ct)
         {
             Calls++;
             SeenPath = ifcPath; SeenName = modelName;
             FileExistedAtCall = File.Exists(ifcPath);
+            WhileRunning();
+            ct.ThrowIfCancellationRequested();
             return Task.FromResult(Result);
         }
     }
@@ -134,6 +137,44 @@ public class IngestHandlerTests : IDisposable
         _runner.Calls.Should().Be(1);
         _runner.FileExistedAtCall.Should().BeTrue("the upload was spooled to a temp file before running");
         File.Exists(_runner.SeenPath!).Should().BeFalse("the temp upload file is cleaned up after the run");
+    }
+
+    [Fact]
+    public async Task An_upload_stopped_while_the_tool_runs_is_answered_with_the_reason_and_its_file_is_removed()
+    {
+        using var upload = new CancellationTokenSource();
+        _runner.WhileRunning = upload.Cancel;
+
+        var result = await Handler.IngestUploadAsync(
+            Ifc(64), "Demo", IngestMode.Merge, maxBytes: 1024, upload.Token);
+
+        result.Success.Should().BeFalse();
+        result.Error.Should().Contain("stopped before it finished");
+        File.Exists(_runner.SeenPath!).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task An_upload_stopped_before_its_file_has_arrived_clears_nothing_and_starts_no_run()
+    {
+        using var upload = new CancellationTokenSource();
+        upload.Cancel();
+
+        var result = await Handler.IngestUploadAsync(
+            Ifc(64), "Demo", IngestMode.NewModel, maxBytes: 1024, upload.Token);
+
+        result.Error.Should().Contain("stopped before it finished");
+        _preparer.Calls.Should().Be(0);
+        _runner.Calls.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task A_cancellation_nobody_asked_for_is_not_answered_as_a_stopped_upload()
+    {
+        _runner.WhileRunning = () => throw new OperationCanceledException("The broker took too long.");
+
+        var upload = () => Handler.IngestUploadAsync(Ifc(64), "Demo", IngestMode.Merge, maxBytes: 1024, default);
+
+        await upload.Should().ThrowAsync<OperationCanceledException>().WithMessage("The broker took too long.");
     }
 
     public void Dispose()

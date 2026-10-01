@@ -3,6 +3,8 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using vos.Service.Xylem.Services;
 using vos.Tests.Shared;
 using Xunit;
@@ -167,6 +169,35 @@ public class XylemHostTests
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await BodyOf(response)).GetProperty("error").GetString().Should().Contain("No IFC content");
         factory.Runner.Calls.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task A_caller_leaving_cancels_the_run_of_its_upload()
+    {
+        await using var factory = new XylemWebApplicationFactory();
+        factory.Runner.HoldTheNextRunOpen();
+        using var client = factory.CreateClient();
+        using var caller = new CancellationTokenSource();
+
+        _ = client.PostAsync("/ingest", Upload("ISO-10303-21;"), caller.Token);
+        await Settle.ForAsync(factory.Runner.HeldRunStarted, "the tool was started");
+        caller.Cancel();
+
+        await Settle.UntilAsync(() => factory.Runner.HeldRunWasCancelled, "the run in progress was cancelled");
+    }
+
+    [Fact]
+    public async Task The_service_stopping_cancels_the_run_of_a_waiting_upload()
+    {
+        await using var factory = new XylemWebApplicationFactory();
+        factory.Runner.HoldTheNextRunOpen();
+        using var client = factory.CreateClient();
+
+        _ = client.PostAsync("/ingest", Upload("ISO-10303-21;"));
+        await Settle.ForAsync(factory.Runner.HeldRunStarted, "the tool was started");
+        factory.Services.GetRequiredService<IHostApplicationLifetime>().StopApplication();
+
+        await Settle.UntilAsync(() => factory.Runner.HeldRunWasCancelled, "the run in progress was cancelled");
     }
 
     [Fact]

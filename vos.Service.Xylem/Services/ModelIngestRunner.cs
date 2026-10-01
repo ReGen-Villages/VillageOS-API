@@ -8,8 +8,8 @@ namespace vos.Service.Xylem.Services;
 //   dotnet <ModelIngest.dll> --ifc <path> --post <mycelium> --name <model> --profile analysis --result <path>
 // which parses (Xbim), classifies, and posts the graph to /api/model/fragment (idempotent, stable ids).
 // Purely the subprocess; new-model model preparation is the handler's job. No unit test starts the tool
-// itself; the launch it builds, the guard, the reading of a child's output and of its result file are
-// tested, and the orchestration by IngestHandlerTests.
+// itself; the launch it builds, the guard, the reading of a child's output and of its result file and
+// the stopping of a child are tested, and the orchestration by IngestHandlerTests.
 public sealed class ModelIngestRunner : IModelIngestRunner
 {
     // What the ingest tool writes to its --result file: what the broker created and updated across the
@@ -106,17 +106,31 @@ public sealed class ModelIngestRunner : IModelIngestRunner
     // Both streams are read at once. A child that has filled the stream nobody is reading waits to write
     // more, and a reader that takes one stream to its end before starting the other waits for that child
     // to exit.
-    internal static async Task<ProcessRun?> RunToExitAsync(ProcessStartInfo startInfo, CancellationToken ct)
+    internal async Task<ProcessRun?> RunToExitAsync(ProcessStartInfo startInfo, CancellationToken ct)
     {
         using var proc = Process.Start(startInfo);
         if (proc is null) return null;
 
-        var standardOutput = proc.StandardOutput.ReadToEndAsync(ct);
-        var standardError = proc.StandardError.ReadToEndAsync(ct);
-        await Task.WhenAll(standardOutput, standardError);
-        await proc.WaitForExitAsync(ct);
+        try
+        {
+            var standardOutput = proc.StandardOutput.ReadToEndAsync(ct);
+            var standardError = proc.StandardError.ReadToEndAsync(ct);
+            await Task.WhenAll(standardOutput, standardError);
+            await proc.WaitForExitAsync(ct);
 
-        return new ProcessRun(proc.ExitCode, await standardOutput, await standardError);
+            return new ProcessRun(proc.ExitCode, await standardOutput, await standardError);
+        }
+        catch (OperationCanceledException)
+        {
+            // Disposing the process object leaves the process running. The callers delete the tool's input
+            // file and its result file as soon as this method ends, so the tool has to be gone before it does.
+            proc.Kill(entireProcessTree: true);
+            await proc.WaitForExitAsync(CancellationToken.None);
+            _log.LogWarning(
+                "The ingest run was cancelled, so the tool was stopped before it finished. "
+                + "The model keeps what the tool had already posted.");
+            throw;
+        }
     }
 
     // The bearer token travels in the child's environment, never in its arguments: an argument list is

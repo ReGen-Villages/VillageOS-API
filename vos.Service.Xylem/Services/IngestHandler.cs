@@ -27,6 +27,12 @@ public class IngestHandler
             if (written < 0) return IngestResult.Failed($"File exceeds the {maxBytes / (1024 * 1024)} MB upload limit.");
             return await IngestAsync(modelName, mode, temp, ct);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            return IngestResult.Failed(
+                "The upload was stopped before it finished, because its caller left or the service stopped. "
+                + "The model keeps what had already been posted.");
+        }
         finally
         {
             if (File.Exists(temp)) File.Delete(temp);

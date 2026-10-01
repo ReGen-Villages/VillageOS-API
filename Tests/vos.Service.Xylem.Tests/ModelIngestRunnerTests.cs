@@ -108,11 +108,59 @@ public class ModelIngestRunnerTests
         var startInfo = AShellRunning("head -c 1048576 /dev/zero | tr '\\0' 'e' >&2; echo done; exit 3");
         using var hangDetector = new CancellationTokenSource(Settle.Ceiling);
 
-        var run = await ModelIngestRunner.RunToExitAsync(startInfo, hangDetector.Token);
+        var run = await Runner(Credential()).RunToExitAsync(startInfo, hangDetector.Token);
 
         run!.ExitCode.Should().Be(3);
         run.StandardOutput.Trim().Should().Be("done");
         run.StandardError.Should().HaveLength(1048576);
+    }
+
+    // The ingest tool starts another program when it is asked for fragments, and stopping the tool alone
+    // would leave that one running: the shell's own child stands for it. It sleeps for longer than the
+    // test waits, so neither process ends unprompted.
+    [FactNeedingAShell]
+    public async Task A_cancelled_run_stops_the_child_process_and_the_process_it_started()
+    {
+        var processIdsPath = Path.Combine(Path.GetTempPath(), $"process-ids-{Guid.NewGuid():N}.txt");
+        var startInfo = AShellRunning(
+            $"sleep {2 * Settle.Ceiling.TotalSeconds:0} & echo $$ $! > '{processIdsPath}'; wait");
+        var log = new CapturingLogger<ModelIngestRunner>();
+        using var run = new CancellationTokenSource();
+        try
+        {
+            var waitingForTheChild = Runner(log).RunToExitAsync(startInfo, run.Token);
+            await Settle.UntilAsync(
+                () => File.Exists(processIdsPath) && File.ReadAllText(processIdsPath).EndsWith('\n'),
+                "the child process wrote its own process id and its child's");
+            var processIds = File.ReadAllText(processIdsPath)
+                .Split(' ', StringSplitOptions.TrimEntries).Select(int.Parse).ToArray();
+
+            run.Cancel();
+            var cancelled = async () => await waitingForTheChild;
+
+            await cancelled.Should().ThrowAsync<OperationCanceledException>();
+            IsRunning(processIds[0]).Should().BeFalse(
+                "the uploaded file is deleted once the wait ends, so the child reading it has to be gone by then");
+            await Settle.UntilAsync(() => !IsRunning(processIds[1]), "the process the child started stopped");
+            log.Lines.Should().ContainSingle().Which.Should().Contain("the tool was stopped before it finished");
+        }
+        finally
+        {
+            File.Delete(processIdsPath);
+        }
+    }
+
+    private static bool IsRunning(int processId)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            return !process.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
     }
 
     private static ProcessStartInfo AShellRunning(string script)

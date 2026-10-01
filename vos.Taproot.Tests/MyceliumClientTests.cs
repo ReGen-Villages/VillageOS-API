@@ -1057,6 +1057,33 @@ public class MyceliumClientTests
     }
 
     [Fact]
+    public async Task An_upload_is_sent_by_the_client_that_has_no_time_limit()
+    {
+        var tmp = Path.GetTempFileName();
+        await File.WriteAllTextAsync(tmp, "ISO-10303-21;\nENDSEC;\n");
+        try
+        {
+            var heldToATimeLimit = new MockHttpMessageHandler(_ => TokenResponse(ServiceToken));
+            var withNoTimeLimit = new MockHttpMessageHandler(_ => JsonResponse("{\"success\":true}"));
+            var client = new MyceliumClient(
+                MyceliumUrl, ApiKey, new HttpClient(heldToATimeLimit),
+                clientWithNoTimeLimit: new HttpClient(withNoTimeLimit));
+
+            await client.IngestIfcAsync("http://localhost:6100", tmp, "Demo", "merge");
+
+            var upload = withNoTimeLimit.Requests.Should().ContainSingle().Subject;
+            upload.RequestUri!.AbsolutePath.Should().Be("/ingest");
+            upload.Headers.GetValues(MyceliumClient.ProgramHeader).Should().ContainSingle(MyceliumClient.ProgramName);
+            heldToATimeLimit.Requests.Should().ContainSingle()
+                .Which.RequestUri!.AbsolutePath.Should().Be("/api/auth/token");
+        }
+        finally
+        {
+            File.Delete(tmp);
+        }
+    }
+
+    [Fact]
     public async Task SetPropertyAsync_PutsTypedValuePayload()
     {
         var thingId = Guid.NewGuid();
