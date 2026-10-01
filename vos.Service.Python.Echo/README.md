@@ -11,7 +11,7 @@ It's the Python analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python app.py --port=5103 --myceliumUrl=https://localhost:7243
+Token=<service-jwt> .venv/bin/python app.py --port=5103 --myceliumUrl=https://localhost:7243
 
 # with inbound auth, as Mycelium launches it:
 Token=<service-jwt> VerificationKey=<base64-public-key> \
@@ -39,7 +39,7 @@ Both come from the environment and are never flags. A command line is readable b
 
 | Variable | Meaning |
 |----------|---------|
-| `Token` | Pre-minted service JWT; if unset, fetched from `POST /api/auth/token` |
+| `Token` | Pre-minted service JWT. With none set the service asks `POST /api/auth/token` for one with no key, which Mycelium refuses, so a run by hand needs one |
 | `VerificationKey` | Base64 of Mycelium's public signing key; when set, `/handle` and `/shutdown` require a valid Mycelium-signed JWT addressed to this service. It checks a signature and cannot make one |
 
 ## Endpoints
@@ -91,8 +91,8 @@ Full wire contract (routes, status codes, 405/404 gating): [`docs/SERVICE_CONTRA
 
 ## Selecting a slice (snapshot selector)
 
-The selector replaced launch-time object IDs: subscribe with a selector describing the slice you
-need. This example provides `subscribe` / `unsubscribe` / `slice_by_type_and_traverse` /
+A handler is passed no object identifiers at launch: it subscribes with a selector describing the
+slice it needs. This example provides `subscribe` / `unsubscribe` / `slice_by_type_and_traverse` /
 `demo_subscribe` and a runnable demo at `POST /demo/subscribe {"type": "Battery", "predicate": "powers"}`.
 
 ```python

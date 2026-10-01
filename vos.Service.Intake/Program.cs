@@ -667,7 +667,7 @@ static async Task<T?> ReadAsync<T>(HttpContext context) where T : class
 
 // A refusal is logged by why it was refused and by where it came from, and never by what was submitted.
 // Contact details arrive on this route by design, and a log line is the one place they would leave the
-// model behind — see docs/LAND_INTAKE.md §12.
+// model behind — see "Handling personal data" in docs/LAND_INTAKE.md.
 static void LogRefusal(HttpContext context, string reason) =>
     context.RequestServices.GetRequiredService<ILogger<SubmissionIntakeService>>()
         .LogWarning("A submission was refused: {Reason}, source {Source}",

@@ -182,7 +182,7 @@ public class SubscriptionClientTests
                    $"data: {{\"Kind\":\"PropertyChanged\",\"EntityId\":\"{entityId}\",\"PropertyName\":\"temp\",\"Value\":92}}\n\n";
         var (client, _) = Build(_ => Sse(wire));
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(Settle.Ceiling);
         ModelChangeEvent? got = null;
         await foreach (var e in client.StreamAsync(Guid.NewGuid(), fromSequence: 42, cts.Token))
         {
@@ -218,7 +218,7 @@ public class SubscriptionClientTests
             return Sse(lastEventIds.Count == 1 ? wire[..wire.IndexOf("id: 43")] : wire[wire.IndexOf("id: 43")..]);
         });
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(Settle.Ceiling);
         var got = new List<ModelChangeEvent>();
         await foreach (var e in client.StreamAsync(Guid.NewGuid(), fromSequence: 42, cts.Token))
         {
@@ -251,7 +251,7 @@ public class SubscriptionClientTests
             return Sse($"id: {seq}\ndata: {{\"Kind\":\"PropertyChanged\",\"EntityId\":\"{entityId}\"}}\n\n");
         });
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(Settle.Ceiling);
         var sequences = new List<long>();
         await foreach (var e in client.StreamAsync(Guid.NewGuid(), fromSequence: 49, cts.Token))
         {
@@ -282,8 +282,12 @@ public class SubscriptionClientTests
     {
         // 500 -> EnsureSuccessStatusCode throws -> ConnectAsync returns null -> StreamAsync
         // delays-reconnect, which returns false once the token is cancelled -> yield break.
-        var (client, _) = Build(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+        using var cts = new CancellationTokenSource();
+        var (client, _) = Build(_ =>
+        {
+            cts.Cancel();
+            return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+        });
 
         var events = new List<ModelChangeEvent>();
         await foreach (var e in client.StreamAsync(Guid.NewGuid(), 0, cts.Token))

@@ -29,10 +29,14 @@ export const es: PartialResources = {
   table: {
     downloadAsCsv: 'Descargar como CSV',
   },
-  statement: {
+  connection: {
+    connecting: 'Conectando…',
     live: 'En vivo',
-    notLive: 'Sin conexión en vivo',
+    lost: 'Conexión perdida',
+  },
+  statement: {
     reading: 'Leyendo el modelo…',
+    onThisPage: 'En esta página: {{held}}',
     things_one: '{{count}} Cosa',
     things_other: '{{count}} Cosas',
     relationships_one: '{{count}} relación',
@@ -115,7 +119,7 @@ export const es: PartialResources = {
       total: 'Memoria total (est.)',
     },
     title: 'Panel de Mycelium',
-    status: { mycelium: 'Mycelium', live: 'En vivo' },
+    status: { mycelium: 'Mycelium' },
     actions: {
       swagger: 'Documentación de la API de Swagger',
       reloadSeeds: 'Recargar seeds desde el disco',
@@ -212,7 +216,7 @@ export const es: PartialResources = {
       propertyDeleted: 'Propiedad eliminada: {{name}}',
       thingCreated: 'Cosa creada: {{name}}',
       createThingFailed: 'No se pudo crear la cosa',
-      fragmentApplied: 'Fragmento aplicado: {{created}} creadas · {{updated}} actualizadas · {{rels}} relaciones',
+      fragmentApplied: 'Fragmento aplicado: {{created}} creadas · {{updated}} actualizadas · {{relationships}} relaciones',
       fragmentFailed: 'No se pudo aplicar el fragmento',
       idCopied: 'ID del nodo copiado',
       copyFailed: 'Error al copiar',
@@ -1259,8 +1263,6 @@ export const es: PartialResources = {
   },
   operationsPage: {
     all: "Todos",
-    live: "en directo",
-    offline: "sin conexión",
     noDashboard: "No hay panel configurado",
     noDashboardBody: "Este modelo no define ninguna configuración de <0>Dashboard</0>. Añade una Thing del arquetipo <1>Dashboard</1> con una propiedad <2>spec</2> para gestionar esta página.",
     unreadableSpecification: "No se pudo leer {{name}}",
@@ -1269,7 +1271,8 @@ export const es: PartialResources = {
   },
   ifcUpload: {
     serviceNotConfigured: "La dirección del servicio de importación no está configurada (define {{setting}}).",
-    ingested: "{{file}} importado: {{created}} creados, {{updated}} actualizados, {{rels}} relaciones.",
+    ingested: "{{file}} importado: {{created}} creados, {{updated}} actualizados, {{relationships}} relaciones.",
+    ingestedCountsNotReported: "{{file}} importado. El servicio de importación no indicó cuántas cosas y relaciones escribió.",
     ingestFailed: "Error al importar.",
     ingesting: "Importando…",
     ingest: "Importar un archivo IFC",

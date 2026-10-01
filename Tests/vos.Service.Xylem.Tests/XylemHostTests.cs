@@ -90,6 +90,23 @@ public class XylemHostTests
     }
 
     [Fact]
+    public async Task A_run_whose_counts_were_not_read_is_answered_with_null_for_each_count()
+    {
+        await using var factory = new XylemWebApplicationFactory();
+        factory.Runner.Result = new IngestRunResult(true, null, null, null, null);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/ingest", Upload("ISO-10303-21;"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await BodyOf(response);
+        body.GetProperty("success").GetBoolean().Should().BeTrue();
+        body.GetProperty("thingsCreated").ValueKind.Should().Be(JsonValueKind.Null);
+        body.GetProperty("thingsUpdated").ValueKind.Should().Be(JsonValueKind.Null);
+        body.GetProperty("relationshipsCreated").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Fact]
     public async Task A_new_model_upload_clears_the_model_first()
     {
         await using var factory = new XylemWebApplicationFactory();

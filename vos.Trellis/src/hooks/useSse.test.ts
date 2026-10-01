@@ -1,6 +1,6 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { SUBSCRIPTION_OPENED, resubscribe, useSse, useSubscription, useDefaultSubscription } from './useSse';
+import { SUBSCRIPTION_CHANGING, SUBSCRIPTION_OPENED, resubscribe, useSse, useSubscription, useDefaultSubscription } from './useSse';
 import { apiClient } from '../api/client';
 import type { SubscriptionSelector, SubscriptionOpened } from '../types/subscription';
 
@@ -170,6 +170,105 @@ describe('useSse', () => {
     unmount();
   });
 
+  it('is connecting until the object stream opens, then live', async () => {
+    const { result, unmount } = renderHook(() => useSse());
+    expect(result.current.connection).toBe('connecting');
+
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+    expect(result.current.connection).toBe('connecting');
+
+    act(() => objectStreams()[0].onopen?.());
+    expect(result.current.connection).toBe('live');
+    unmount();
+  });
+
+  it('is lost from the moment a stream fails until one opens again', async () => {
+    const { result, unmount } = renderHook(() => useSse());
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+    act(() => objectStreams()[0].onopen?.());
+
+    vi.useFakeTimers();
+    act(() => objectStreams()[0].onerror?.());
+    expect(result.current.connection).toBe('lost');
+    await vi.advanceTimersByTimeAsync(1000);
+    vi.useRealTimers();
+
+    await waitFor(() => expect(objectStreams().length).toBe(2));
+    expect(result.current.connection).toBe('lost');
+    act(() => objectStreams()[1].onopen?.());
+    expect(result.current.connection).toBe('live');
+    unmount();
+  });
+
+  // A page changing what the subscription covers closes the streams on purpose. Nothing is
+  // arriving while the new ones open, and nothing has gone wrong.
+  it('is connecting, not live or lost, while a changed declaration reopens the streams', async () => {
+    const { result, unmount } = renderHook(() => useSse());
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+    act(() => objectStreams()[0].onopen?.());
+
+    const page = mountPage({ types: ['Site'] });
+    await waitFor(() => expect(objectStreams().length).toBe(2));
+    expect(result.current.connection).toBe('connecting');
+
+    act(() => objectStreams()[1].onopen?.());
+    expect(result.current.connection).toBe('live');
+    page.unmount();
+    unmount();
+  });
+
+  it('starts from connecting again once the last reader has left', async () => {
+    const first = renderHook(() => useSse());
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+    act(() => objectStreams()[0].onopen?.());
+    first.unmount();
+
+    const second = renderHook(() => useSse());
+    expect(second.result.current.connection).toBe('connecting');
+    second.unmount();
+  });
+
+  it('announces a change of coverage before it asks the platform for the subscription', async () => {
+    const { result, unmount } = renderHook(() => useSse());
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+    const requestsWhenAnnounced: number[] = [];
+    const announced: unknown[] = [];
+    let off: () => void = () => {};
+    act(() => {
+      off = result.current.on(SUBSCRIPTION_CHANGING, (selector) => {
+        announced.push(selector);
+        requestsWhenAnnounced.push(subscriptionsOpened().length);
+      });
+    });
+
+    const page = mountPage({ types: ['Site'] });
+    await waitFor(() => expect(objectStreams().length).toBe(2));
+
+    expect(announced).toEqual([{ types: ['Site'] }]);
+    expect(requestsWhenAnnounced).toEqual([1]);
+    act(() => off());
+    page.unmount();
+    unmount();
+  });
+
+  it('announces no change of coverage for a reconnect', async () => {
+    const { result, unmount } = renderHook(() => useSse());
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+    const announced = vi.fn();
+    let off: () => void = () => {};
+    act(() => { off = result.current.on(SUBSCRIPTION_CHANGING, announced); });
+
+    vi.useFakeTimers();
+    act(() => objectStreams()[0].onerror?.());
+    await vi.advanceTimersByTimeAsync(1000);
+    vi.useRealTimers();
+    await waitFor(() => expect(objectStreams().length).toBe(2));
+
+    expect(announced).not.toHaveBeenCalled();
+    act(() => off());
+    unmount();
+  });
+
   /** The bodies of every subscription this test opened, oldest first. */
   const subscriptionsOpened = () =>
     vi.mocked(globalThis.fetch).mock.calls
@@ -189,12 +288,13 @@ describe('useSse', () => {
 
     page.unmount();
     await waitFor(() => expect(objectStreams().length).toBe(3));
-    expect(subscriptionsOpened()[2]).toEqual({ all: true });
+    expect(subscriptionsOpened()[2]).toEqual({ all: true, includeSnapshot: false });
     unmount();
   });
 
-  // Reopening costs a snapshot the platform has to build, so a page that re-renders — or one that
-  // declares the same thing the page before it did — must not pay for one.
+  // Reopening costs a load — a snapshot the platform has to build, or the whole model read again —
+  // so a page that re-renders, or one that declares the same thing the page before it did, must not
+  // pay for one.
   it('reopens nothing when a declaration says what is already open', async () => {
     const { unmount } = renderHook(() => useSse());
     await waitFor(() => expect(objectStreams().length).toBe(1));
@@ -224,8 +324,8 @@ describe('useSse', () => {
 
   // A navigation takes the leaving page's declaration back before the arriving page makes its own,
   // and the arriving page's code is fetched on demand, so the gap between the two is a load rather
-  // than a tick. Between two pages that both read the whole model, acting inside it would build a
-  // whole-model snapshot and re-read a whole model for a reader that never existed.
+  // than a tick. Between two pages that both read the whole model, acting inside it would re-read a
+  // whole model for a reader that never existed.
   it('reopens nothing when one page hands over to another asking for the same thing', async () => {
     const { unmount } = renderHook(() => useSse());
     await waitFor(() => expect(objectStreams().length).toBe(1));
@@ -343,8 +443,10 @@ describe('useSse', () => {
     unmount();
   });
 
-  /** A platform answering with a snapshot of one Thing and the relationship it sits on. */
-  function answersWithASnapshot() {
+  // A subscription answers with the objects it covers and then streams the changes to them. A
+  // reader given that before the stream was listening would apply it and then miss everything
+  // between the two.
+  it('hands what a narrowed subscription covers to the handlers once the streams are attached', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -359,13 +461,6 @@ describe('useSse', () => {
         },
       }),
     }) as unknown as typeof fetch;
-  }
-
-  // A subscription answers with the objects it covers and then streams the changes to them. A
-  // reader given that before the stream was listening would apply it and then miss everything
-  // between the two.
-  it('hands what a narrowed subscription covers to the handlers once the streams are attached', async () => {
-    answersWithASnapshot();
     const { result, unmount } = renderHook(() => useSse());
     const handler = vi.fn();
     let off: () => void = () => {};
@@ -384,17 +479,16 @@ describe('useSse', () => {
   });
 
   // The model read is what fills the store for a whole-model page, because only it honours the
-  // properties the model says its pages are drawn with. Converting the snapshot into the shape the
-  // store holds and then discarding it costs an object per Thing and per property on the largest
-  // answer the platform gives.
-  it('leaves a whole-model subscription\'s snapshot unread', async () => {
-    answersWithASnapshot();
+  // properties the model says its pages are drawn with. A snapshot sent beside it is the whole model
+  // built, sent and parsed a second time, and the read that fills the page waits for it.
+  it('asks for no snapshot when the subscription covers the whole model', async () => {
     const { result, unmount } = renderHook(() => useSse());
     const handler = vi.fn();
     let off: () => void = () => {};
     act(() => { off = result.current.on(SUBSCRIPTION_OPENED, handler); });
 
     await waitFor(() => expect(handler).toHaveBeenCalled());
+    expect(subscriptionsOpened()[0]).toEqual({ all: true, includeSnapshot: false });
     expect((handler.mock.calls[0][0] as SubscriptionOpened).covered).toBeNull();
     act(() => off());
     unmount();

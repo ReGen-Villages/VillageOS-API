@@ -1,6 +1,6 @@
-# Pipeline Playground — using the example DAGs
+# Pipeline Playground — using the example pipelines
 
-A set of ready-made **services and pipelines (DAGs)** for exercising the Trellis
+A set of ready-made **services and pipelines** for exercising the Trellis
 [Pipelines page](FIELD_GUIDE.md#41-building-one-on-the-canvas) — the service palette, wiring, field mapping,
 transforms, parameter binding, fan-out, pre-run validation, run history, and live node status.
 
@@ -9,11 +9,11 @@ guide is about *using* what it produced.
 
 ## Where the examples live
 
-The generator dropped the same content into two places:
+The generator writes the same content to either of two places:
 
-- **`PipelinePlayground` seed** — a small standalone model (`vos.Mycelium/seeds/PipelinePlayground.seed.json`).
-  Load this to work with just the pipelines, nothing else.
-- **A site seed** — the generator can also merge the same services and DAGs into a site model
+- **`PipelinePlayground` seed** — a small standalone model (`generate.py --out PipelinePlayground.seed.json`,
+  placed in the server's seeds directory). Load this to work with just the pipelines, nothing else.
+- **A site seed** — the generator can also merge the same services and pipelines into a site model
   (`generate.py --into`), so you can build pipelines alongside real building data.
 
 ## Load them
@@ -23,7 +23,7 @@ Open the GUI and click **Switch Model** in the sidebar footer to open the seed p
 seed and re-scopes your session to it.
 
 Now click **Pipelines** in the sidebar. On the left you'll see the **catalysts** — everything that sets a run
-off — and beside them the **roster** of the model's pipelines, the example DAGs among them; the first opens
+off — and beside them the **roster** of the model's pipelines, the example pipelines among them; the first opens
 on arrival. On the right are the **outputs** and, under them, the **services**.
 
 ## The Pipelines page in 60 seconds
@@ -39,7 +39,7 @@ on arrival. On the right are the **outputs** and, under them, the **services**.
 - **Wire ports** — drag from a node's output handle (right) to another node's input handle (left). Wires are
   type-checked; an incompatible connection is refused.
 - **New** clears the canvas.
-- **Run** — spawns the DAG (enabled only once the pipeline is saved and passes validation). **Params** bar
+- **Run** — starts the pipeline (enabled only once it is saved and passes validation). **Params** bar
   appears above the canvas when a node binds an input to a run parameter.
 - **History** — past runs of the loaded pipeline; selecting one replays its node statuses onto the canvas.
 - **Inspector** — click a node to bind its inputs to run parameters (or edit a boundary node's ports); click
@@ -47,7 +47,7 @@ on arrival. On the right are the **outputs** and, under them, the **services**.
 
 Full reference: [the Field Guide, Part VI](FIELD_GUIDE.md#41-building-one-on-the-canvas).
 
-## The example DAGs
+## The example pipelines
 
 Open each from the **roster**. Grouped by what it demonstrates.
 
@@ -55,7 +55,7 @@ Open each from the **roster**. Grouped by what it demonstrates.
 
 | Pipeline | What it shows | Try |
 |----------|---------------|-----|
-| **Hello Echo** | The simplest DAG: `Generate Text → Echo`. Ships with a seeded **succeeded** and **failed** run. | Load it, open **History**, and select a run — the node status rings light up with no services running. |
+| **Hello Echo** | The simplest pipeline: `Generate Text → Echo`. Ships with a seeded **succeeded** and **failed** run. | Load it, open **History**, and select a run — the node status rings light up with no services running. |
 
 ### Boundary nodes and multi-stage flow
 
@@ -72,7 +72,7 @@ Click a **wire** to open its inspector and see the field paths / transform in pl
 |----------|---------------|
 | **Field Merge** | Two sources land at different **to-paths** (`greeting`, `roll`) of one `JSON Merge` input, so they deep-merge into one object instead of overwriting. |
 | **Wire Transform** | A JSONata **transform** on the `Generate Text → Echo` wire reshapes the payload (`{"message": "shout: " & $}`) before it reaches the input. |
-| **Diamond Fan** | A wider DAG — one source fans to two transforms that merge (at to-paths `upper` / `lower`), then a report. Good for seeing canvas layout and multi-input merge. |
+| **Diamond Fan** | A wider pipeline — one source fans to two transforms that merge (at to-paths `upper` / `lower`), then a report. Good for seeing canvas layout and multi-input merge. |
 
 ### Parameters, fan-out, and the analysis domains
 
@@ -130,9 +130,9 @@ dispatch-only stand-ins: they exercise the whole editor — drop, wire, validate
 live Run needs the service listening at that subdomain.
 
 > **water-reserve has to be started by hand.** The site analysis works every figure that service computes
-> out for itself, so it declares no Thing for it any more and nothing auto-starts it with the model
-> (#6748). The service is still there and still answers over its ports — run it yourself before a live
-> Run of Water Self-Sufficiency or Site Analysis (Combined).
+> out for itself, so no site model declares a connection that starts it. The service answers over its
+> ports as a pipeline node — run it yourself before a live Run of Water Self-Sufficiency or Site Analysis
+> (Combined).
 
 So everything on the **canvas** (building, wiring, validation, save/load, field mapping, transforms, boundary
 ports) works from seed data alone. A live **Run** with real results needs the target service up; the seeded
@@ -154,8 +154,8 @@ Two pipelines carry pre-recorded runs so the run UI works with nothing else runn
 
 ## Regenerate or customize
 
-The services and DAGs are plain data in
+The services and pipelines are plain data in
 [tools/pipeline-playground/catalog.py](../tools/pipeline-playground/catalog.py) — add a service to `SERVICES`
-or a DAG to `PIPELINES` and re-run the generator to refresh the seeds. See the
+or a pipeline to `PIPELINES` and re-run the generator to refresh the seeds. See the
 [tool README](../tools/pipeline-playground/README.md) for the commands (including dropping the playground into
 any other model, and taking it back out).

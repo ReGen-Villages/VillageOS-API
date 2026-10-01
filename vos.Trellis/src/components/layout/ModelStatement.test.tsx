@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import type { ConnectionState } from '../../types/connection';
 
-const stream = { connected: true };
-vi.mock('../../hooks/useSse', () => ({ useSse: () => ({ connected: stream.connected, on: () => () => {} }) }));
+const stream: { connection: ConnectionState } = { connection: 'live' };
+vi.mock('../../hooks/useSse', () => ({ useSse: () => ({ connection: stream.connection, on: () => () => {} }) }));
 
 import { useModelStore } from '../../stores/modelStore';
 import { useActivityStore } from '../../stores/activityStore';
@@ -13,8 +14,8 @@ const edge = (id: string) => ({ Id: id, Name: id, SubjectId: 'a', PredicateId: '
 
 describe('ModelStatement', () => {
   beforeEach(() => {
-    stream.connected = true;
-    useModelStore.setState({ things: [], relationships: [], loaded: false });
+    stream.connection = 'live';
+    useModelStore.setState({ things: [], relationships: [], loaded: false, holdsWholeModel: false });
     useActivityStore.setState({ events: [] });
   });
 
@@ -22,18 +23,26 @@ describe('ModelStatement', () => {
     const { rerender } = render(<ModelStatement isCollapsed={false} />);
     expect(screen.getByText('Reading the model…')).toBeInTheDocument();
 
-    useModelStore.setState({ things: [thing('a'), thing('b'), thing('c')], relationships: [edge('r1')], loaded: true });
+    useModelStore.setState({ things: [thing('a'), thing('b'), thing('c')], relationships: [edge('r1')], loaded: true, holdsWholeModel: true });
     rerender(<ModelStatement isCollapsed={false} />);
     expect(screen.getByText('3 Things · 1 relationship')).toBeInTheDocument();
   });
 
-  it('follows the connection flag between live and not live', () => {
-    const { rerender } = render(<ModelStatement isCollapsed={false} />);
-    expect(screen.getByText('Live')).toBeInTheDocument();
+  it('counts a page\'s own set as the page\'s, not as the model\'s', () => {
+    useModelStore.setState({ things: [thing('a'), thing('b')], relationships: [edge('r1')], loaded: true, holdsWholeModel: false });
+    render(<ModelStatement isCollapsed={false} />);
 
-    stream.connected = false;
-    rerender(<ModelStatement isCollapsed={false} />);
-    expect(screen.getByText('Not live')).toBeInTheDocument();
+    expect(screen.getByText('On this page: 2 Things · 1 relationship')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['connecting', 'Connecting…'],
+    ['live', 'Live'],
+    ['lost', 'Connection lost'],
+  ] as const)('says the connection is %s in words', (connection, words) => {
+    stream.connection = connection;
+    render(<ModelStatement isCollapsed={false} />);
+    expect(screen.getByText(words)).toBeInTheDocument();
   });
 
   it('shows when the newest event arrived, and that nothing has yet', () => {
@@ -50,7 +59,7 @@ describe('ModelStatement', () => {
   });
 
   it('keeps only the live mark when the sidebar is collapsed, with the statement as its title', () => {
-    useModelStore.setState({ things: [thing('a')], relationships: [], loaded: true });
+    useModelStore.setState({ things: [thing('a')], relationships: [], loaded: true, holdsWholeModel: true });
     render(<ModelStatement isCollapsed />);
     expect(screen.queryByText('1 Thing · 0 relationships')).toBeNull();
     expect(screen.getByTitle('Live · 1 Thing · 0 relationships · Nothing has moved yet')).toBeInTheDocument();

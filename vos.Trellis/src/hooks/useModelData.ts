@@ -5,8 +5,8 @@ import { useModelStore } from '../stores/modelStore';
 import { useUiStore } from '../stores/uiStore';
 import { NAVIGATION_AND_SETTINGS } from '../api/dashboardSubscription';
 import { DASHBOARD_SPECIFICATION_PROPERTY } from '../types/dashboard';
-import type { SubscriptionOpened } from '../types/subscription';
-import { SUBSCRIPTION_OPENED, resubscribe, useSse, useDefaultSubscription } from './useSse';
+import type { SubscriptionOpened, SubscriptionSelector } from '../types/subscription';
+import { SUBSCRIPTION_CHANGING, SUBSCRIPTION_OPENED, resubscribe, useSse, useDefaultSubscription } from './useSse';
 import { useFlashTimer } from './useFlashTimer';
 import { toast } from '../components/common/toastStore';
 import { isVisibleRelationship } from '../utils/propertyUpdates';
@@ -48,14 +48,19 @@ async function declaredModelLoadProperties(): Promise<string[]> {
   }
 }
 
+function holdsNarrowedSet(): boolean {
+  const { loaded, holdsWholeModel } = useModelStore.getState();
+  return loaded && !holdsWholeModel;
+}
+
 /**
- * Whether the store currently holds one page's own set of Things rather than the whole model.
- *
  * A page that asked for the whole model must not be shown a narrower page's set as though it were
- * the model, so the store is emptied before its load rather than left showing someone else's
- * answer. Held here rather than in the store because it describes the load, not the model.
+ * the model, so that set goes when the page asks rather than when its subscription opens: until
+ * then the page would draw someone else's answer as its own.
  */
-let holdsNarrowedSet = false;
+function leaveANarrowedSet(next: SubscriptionSelector): void {
+  if (next.all && holdsNarrowedSet()) useModelStore.getState().clear();
+}
 
 /**
  * The whole-model read. Exported so a mutation handler can refresh after its own action without
@@ -71,10 +76,9 @@ export async function reloadModelData(options?: { silent?: boolean }): Promise<v
     const [t, r] = await Promise.all([thingApi.getAll(declared), relationshipApi.getAll()]);
     useModelStore.getState().setThings(t);
     useModelStore.getState().setRelationships(r);
-    holdsNarrowedSet = false;
     // Flip the gate that pages (e.g. OperationsPage) block rendering on. Without
     // this the Operations page sits on "Loading model…" forever.
-    useModelStore.getState().markLoaded();
+    useModelStore.getState().markLoaded({ wholeModel: true });
   } catch {
     if (!options?.silent) toast.error(i18n.t('modelPage.loadFailed'));
   }
@@ -94,11 +98,9 @@ function loadWhatOpened(opened: SubscriptionOpened): void {
     useModelStore.getState().setThings(opened.covered.things);
     useModelStore.getState().setRelationships(opened.covered.relationships);
     useModelStore.getState().seedThingStates(opened.covered.thingStates);
-    holdsNarrowedSet = true;
-    useModelStore.getState().markLoaded();
+    useModelStore.getState().markLoaded({ wholeModel: false });
     return;
   }
-  if (holdsNarrowedSet) useModelStore.getState().clear();
   // A load the user is waiting on says when it failed; a refresh behind an already-drawn page does
   // not, because an error toast does not auto-dismiss and a retrying loop would stack them.
   const waitedOn = !useModelStore.getState().loaded;
@@ -239,7 +241,7 @@ export function useModelData(): void {
       if (!carried) return;
       pending.thingRemove.delete(carried.thing.Id);
       pending.thingUpserts.set(carried.thing.Id, carried.thing);
-      if (holdsNarrowedSet) pending.thingStates.set(carried.thing.Id, carried.states);
+      if (holdsNarrowedSet()) pending.thingStates.set(carried.thing.Id, carried.states);
       schedule();
     };
     const thingGone = (data: unknown) => {
@@ -279,6 +281,7 @@ export function useModelData(): void {
       on('RelationshipPropertyChanged', (...eventArguments) => onRelationshipProperty(eventArguments, { deleted: false, value: eventArguments[2] })),
       on('RelationshipPropertyDeleted', (...eventArguments) => onRelationshipProperty(eventArguments, { deleted: true })),
       // Every open: the first, a reconnect, and a page changing what the subscription covers.
+      on(SUBSCRIPTION_CHANGING, (selector) => leaveANarrowedSet(selector as SubscriptionSelector)),
       on(SUBSCRIPTION_OPENED, (data) => loadWhatOpened(data as SubscriptionOpened)),
       // A replaced model is not the one the subscription resolved against, so it is asked for
       // again rather than reconciled — which also re-answers with the new model's snapshot.
@@ -292,7 +295,7 @@ export function useModelData(): void {
       on('StatesChanged', (data) => {
         const change = stateChange(data);
         useUiStore.getState().statesMoved(change?.states ?? []);
-        if (holdsNarrowedSet && change) { pending.thingStates.set(change.id, change.states); schedule(); }
+        if (holdsNarrowedSet() && change) { pending.thingStates.set(change.id, change.states); schedule(); }
       }),
       on('RelationshipStatesChanged', (data) => useUiStore.getState().statesMoved(stateChange(data)?.states ?? [])),
     ];

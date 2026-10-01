@@ -226,7 +226,8 @@ public class MetabolismTests : IAsyncLifetime
     // so that ApplyQuantityAsync and IncrementRelationshipPropertyAsync succeed.
     private Services.Metabolism CreateEngineWithMockedMycelium(
         Func<HttpRequestMessage, HttpResponseMessage>? apiResponder = null,
-        ResourceDirection? direction = null)
+        ResourceDirection? direction = null,
+        ILogger<Services.Metabolism>? engineLogger = null)
     {
         direction ??= ResourceDirection.Consumes;
 
@@ -254,11 +255,43 @@ public class MetabolismTests : IAsyncLifetime
         var myceliumLogger = new Mock<ILogger<MyceliumClient>>();
         var myceliumClient = new MyceliumClient(httpFactory.Object, myceliumLogger.Object, "http://test-mycelium", direction);
 
-        var engineLogger = new Mock<ILogger<Services.Metabolism>>();
-        var engine = new Services.Metabolism(myceliumClient, engineLogger.Object, direction);
+        engineLogger ??= new Mock<ILogger<Services.Metabolism>>().Object;
+        var engine = new Services.Metabolism(myceliumClient, engineLogger, direction);
         _startedEngines.Add(engine);
         return engine;
     }
+
+    // Holds a simulation at the line that announces it is active, which the loop writes before it
+    // first asks whether it should go on. A stop sent during the hold is therefore one the loop
+    // finds for itself, rather than one that interrupts a wait.
+    private sealed class HoldAtTheActiveAnnouncement : ILogger<Services.Metabolism>, IDisposable
+    {
+        private readonly ManualResetEventSlim _released = new();
+        private volatile bool _isHolding;
+
+        public bool IsHolding => _isHolding;
+
+        public void Release() => _released.Set();
+
+        public void Dispose() => Release();
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (!formatter(state, exception).Contains(": active")) return;
+            _isHolding = true;
+            _released.Wait();
+        }
+    }
+
+    // An hour, because a test thread has resumed more than ten seconds late on a busy build agent,
+    // and a delay it can outlast lets the simulation start ticking under a test that says it has not.
+    private const decimal AStartDelayNoTestOutlasts = 3600m;
 
     private static SimulationConfig MakePastConfig(
         string relId = "rel-1",
@@ -317,9 +350,8 @@ public class MetabolismTests : IAsyncLifetime
         var engine = CreateEngineWithMockedMycelium();
         var entry = engine.Register(MakePastConfig(freqSeconds: 1));
 
-        await Settle.UntilAsync(() => entry.TickCount > 0, "the loop runs its first tick");
-
-        entry.LastTickUtc.Should().NotBeNull();
+        await Settle.UntilAsync(() => entry.TickCount > 0 && entry.LastTickUtc is not null,
+            "the loop runs its first tick and stamps when it ran");
     }
 
     [Fact]
@@ -385,12 +417,29 @@ public class MetabolismTests : IAsyncLifetime
         engine.GetAll().Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StopAllAsync_ArrivingAsASimulationTurnsActive_ReadsCancelled(bool endTimeAlreadyPassed)
+    {
+        using var hold = new HoldAtTheActiveAnnouncement();
+        var engine = CreateEngineWithMockedMycelium(engineLogger: hold);
+        var endUtc = endTimeAlreadyPassed ? DateTime.UtcNow.AddSeconds(-1) : DateTime.UtcNow.AddHours(1);
+        var entry = engine.Register(MakePastConfig(endUtc: endUtc));
+        await Settle.UntilAsync(() => hold.IsHolding, "the simulation announces that it is active");
+
+        var stopped = engine.StopAllAsync();
+        hold.Release();
+        await stopped;
+
+        entry.Status.Should().Be("cancelled");
+    }
+
     [Fact]
     public async Task RunSimulationLoop_WithStartDelay_SetsDelayedStatusFirst()
     {
         var engine = CreateEngineWithMockedMycelium();
-        // A delay long enough to outlast the test, so nothing here depends on when it expires.
-        var entry = engine.Register(MakePastConfig(freqSeconds: 60, startDelaySeconds: 10.0m));
+        var entry = engine.Register(MakePastConfig(freqSeconds: 60, startDelaySeconds: AStartDelayNoTestOutlasts));
 
         await Settle.UntilAsync(() => entry.Status == "delayed",
             "a start delay holds the simulation in the delayed phase instead of activating it");
@@ -410,9 +459,8 @@ public class MetabolismTests : IAsyncLifetime
     public async Task RunSimulationLoop_WithStartDelay_NoTicksDuringDelay()
     {
         var engine = CreateEngineWithMockedMycelium();
-        // A one-second frequency, so a loop that ticked during its delay would be caught, and a delay
-        // long enough that reading the tick count cannot race its expiry.
-        var entry = engine.Register(MakePastConfig(freqSeconds: 1, startDelaySeconds: 10.0m));
+        // A one-second frequency, so a loop that ticked during its delay would be caught.
+        var entry = engine.Register(MakePastConfig(freqSeconds: 1, startDelaySeconds: AStartDelayNoTestOutlasts));
 
         await Settle.UntilAsync(() => entry.Status == "delayed", "the simulation enters its start delay");
 
@@ -423,7 +471,7 @@ public class MetabolismTests : IAsyncLifetime
     public async Task RunSimulationLoop_WithStartDelay_CancelDuringDelay()
     {
         var engine = CreateEngineWithMockedMycelium();
-        var entry = engine.Register(MakePastConfig(freqSeconds: 60, startDelaySeconds: 10.0m));
+        var entry = engine.Register(MakePastConfig(freqSeconds: 60, startDelaySeconds: AStartDelayNoTestOutlasts));
         await Settle.UntilAsync(() => entry.Status == "delayed", "the simulation is inside its start delay");
 
         engine.Cancel("rel-1");

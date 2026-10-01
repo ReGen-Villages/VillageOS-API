@@ -32,10 +32,11 @@ const handlers = new Map<string, Handler>();
 const mockResubscribe = vi.fn();
 vi.mock('./useSse', () => ({
   SUBSCRIPTION_OPENED: 'SubscriptionOpened',
+  SUBSCRIPTION_CHANGING: 'SubscriptionChanging',
   resubscribe: () => mockResubscribe(),
   useDefaultSubscription: () => {},
   useSse: () => ({
-    connected: true,
+    connection: 'live',
     on: (event: string, callback: Handler) => {
       handlers.set(event, callback);
       return () => handlers.delete(event);
@@ -85,7 +86,7 @@ describe('useModelData', () => {
     mockGetThingByName.mockResolvedValue(null);
     mockResubscribe.mockClear();
     vi.mocked(toast.error).mockClear();
-    useModelStore.setState({ things: [], relationships: [], loaded: false });
+    useModelStore.setState({ things: [], relationships: [], loaded: false, holdsWholeModel: false });
     useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null, statesVersion: 0, stateVersions: {} });
   });
 
@@ -449,6 +450,17 @@ describe('useModelData', () => {
     expect(useModelStore.getState().loaded).toBe(true);
   });
 
+  it('says the store holds the whole model after the model read, and not after a narrowed load', async () => {
+    renderHook(() => useModelData());
+    await act(async () => {
+      subscriptionOpened({ covered: { things: [{ Id: 't1', Name: 'Scoped', Properties: {} }], relationships: [], thingStates: new Map() } });
+    });
+    expect(useModelStore.getState().holdsWholeModel).toBe(false);
+
+    await act(async () => { subscriptionOpened(); });
+    await waitFor(() => expect(useModelStore.getState().holdsWholeModel).toBe(true));
+  });
+
   it('leaves the store unloaded when the fetch fails', async () => {
     mockGetAllThings.mockRejectedValue(new Error('network'));
     await reloadModelData();
@@ -491,22 +503,46 @@ describe('useModelData', () => {
     expect(useModelStore.getState().loaded).toBe(true);
   });
 
-  // A page that asked for the whole model must not be shown the narrower page's set as though it
-  // were the model while the read is still in flight.
-  it('empties a narrowed set before loading the whole model over it', async () => {
+  async function holdingANarrowedSet() {
     renderHook(() => useModelData());
     await act(async () => {
       subscriptionOpened({ covered: { things: [{ Id: 't1', Name: 'Scoped', Properties: {} }], relationships: [], thingStates: new Map() } });
     });
+  }
 
-    let finishLoad: (things: unknown[]) => void = () => {};
-    mockGetAllThings.mockReturnValue(new Promise((resolve) => { finishLoad = resolve; }));
-    await act(async () => { subscriptionOpened(); });
+  // A page that asked for the whole model must not be shown the narrower page's set as though it
+  // were the model. Waiting for its subscription to open would leave that set on screen for a
+  // request or more, so it goes when the page asks.
+  it('empties a narrowed set the moment a page asks for the whole model, before anything opens', async () => {
+    await holdingANarrowedSet();
+
+    await act(async () => { handlers.get('SubscriptionChanging')!({ all: true }); });
 
     expect(useModelStore.getState().things).toEqual([]);
     expect(useModelStore.getState().loaded).toBe(false);
-    await act(async () => { finishLoad([{ Id: 't2', Name: 'Everything', Properties: {} }]); });
-    expect(useModelStore.getState().things.map((t) => t.Id)).toEqual(['t2']);
+    expect(mockGetAllThings).not.toHaveBeenCalled();
+  });
+
+  // The next narrowed page is answered with its own set in one request, and the navigation reads
+  // its entries out of what is held until then.
+  it('keeps a narrowed set while the next page asks for another narrowed set', async () => {
+    await holdingANarrowedSet();
+
+    await act(async () => { handlers.get('SubscriptionChanging')!({ types: ['Site'] }); });
+
+    expect(useModelStore.getState().things.map((t) => t.Id)).toEqual(['t1']);
+    expect(useModelStore.getState().loaded).toBe(true);
+  });
+
+  it('keeps the whole model when the next page asks for the whole model too', async () => {
+    mockGetAllThings.mockResolvedValue([{ Id: 't1', Name: 'A', Properties: {} }]);
+    await mountLoaded();
+    await waitFor(() => expect(useModelStore.getState().things).toHaveLength(1));
+
+    await act(async () => { handlers.get('SubscriptionChanging')!({ all: true, ids: ['a'] }); });
+
+    expect(useModelStore.getState().things).toHaveLength(1);
+    expect(useModelStore.getState().holdsWholeModel).toBe(true);
   });
 
   // A subscription covers what it resolved to when it opened, and a replaced model holds none of

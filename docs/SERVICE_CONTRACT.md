@@ -8,11 +8,11 @@ Trellis are reference consumers of the subscription side.
 A service plays one or both roles:
 
 - **Handler** — exposes `POST /handle`, `GET /health`, `POST /shutdown`; registers with Mycelium
-  and is invoked per matching relationship. (All four reference services do this.)
+  and is invoked per matching relationship. (Every reference service does this.)
 - **Subscriber** — needs live model data, so it takes a snapshot and follows an SSE stream
   instead of polling. (Metabolism does this; the snippets below show it in each language.)
 
-A handler may additionally act as a **pipeline DAG node** by recognising one extra `/handle` request
+A handler may additionally act as a **pipeline node** by recognising one extra `/handle` request
 shape (the node envelope) and replying with outputs — see the
 [SERVICES.md §16.2 (node contract)](SERVICES.md). It is purely additive to everything below.
 
@@ -25,7 +25,7 @@ Mycelium launches a daemon with these flags (a service ignores ones it doesn't n
 | `--port` | Port the service listens on |
 | `--myceliumUrl` | Mycelium base URL |
 | `--issuer` / `--audience` | Expected JWT issuer/audience (validation must match what Mycelium signs) |
-| `--scheme=https` | Passed only when Mycelium runs with `Https:Only` on. It then addresses the daemon at `https://localhost:<port>`, so a service given this flag must answer `/handle`, `/health`, `/stats` and `/shutdown` over TLS; a self-registration naming an `http://` address is refused with `400`. The shared C# host does not yet act on the flag |
+| `--scheme=https` | Passed only when Mycelium runs with `Https:Only` on. It then addresses the daemon at `https://localhost:<port>`, so a service given this flag must answer `/handle`, `/health`, `/stats` and `/shutdown` over TLS; a self-registration naming an `http://` address is refused with `400`. The shared C# host does not act on the flag |
 
 Plain service-specific flags (e.g. `--mode=consumes`) are passed through verbatim.
 
@@ -34,7 +34,7 @@ reads them from configuration:
 
 | Setting | Meaning |
 |---------|---------|
-| `Token` | Pre-minted service JWT (else fetch from `POST /api/auth/token`) |
+| `Token` | Pre-minted service JWT. A service holding an `ApiKey` in its place exchanges the key for one (see Auth) |
 | `VerificationKey` | Base64 of Mycelium's public signing key, for checking inbound `/handle` JWTs |
 
 A command line is readable by every process on the host and is recorded by anything that logs the
@@ -186,16 +186,15 @@ computing its own value carries the value and not the formula. Read the formula 
 the way an inherited value is read — by walking `is` — which a snapshot supports because it closes
 over `is`-ancestors of everything it reached unless a caller turns that off.
 
-Each Thing also carries `IsArchetype` — whether it is a **type** or a **member** of one (#6218).
+Each Thing also carries `IsArchetype` — whether it is a **type** or a **member** of one.
 Read it before working over the members of a type. Nothing else in the payload answers the
 question: a type and a member are the same shape, and a type whose members do not exist yet has no
 `is` relationship pointing at it, so a handler that guessed would treat that type as a real unit.
 
-### Selecting a slice (the startup-template replacement)
+### Selecting a slice
 
-The selector is how a handler says *which* objects it wants — it replaced the retired `ServiceArgs`
-ID template. Instead of Mycelium injecting object IDs into your launch command, you ask for
-the slice **by shape** and get exactly that closure. Recipes:
+The selector is how a handler says *which* objects it wants. Mycelium puts no object identifiers
+on a launch command: you ask for the slice **by shape** and get exactly that closure. Recipes:
 
 | Need | Selector body |
 |---|---|
@@ -345,7 +344,8 @@ you depend on.
 
 A separate stream for non-object events: `ActivityEvent`, `ModelChanged`, `ModelCleared`,
 `ServiceHealthChanged`, `DaemonStatusChanged`, `EndpointServiceRequestCompleted`,
-`ServiceRequestCompleted`, `StatesChanged`. Fire-and-forget (no resume); refetch on reconnect.
+`ServiceRequestCompleted`, `StatesChanged`, `RelationshipStatesChanged`,
+`EngineConfigurationChanged`. Fire-and-forget (no resume); refetch on reconnect.
 
 > Field casing: **a Thing or a relationship is PascalCase wherever it appears** — in a snapshot
 > (`Id`, `Name`, `IsArchetype`, `Properties`; `SubjectId`, `PredicateId`, `TargetId`), in an SSE
@@ -473,7 +473,8 @@ Bearer-authed POST. Pick by intent:
 | **Sediment** | bulk historical load written straight to sealed Sapwood; entities must already exist; `observedAt` **required** | `POST /api/sediment` | `[{ "thingId", "property", "value", "observedAt" }]` | `202 { batchId, series, buckets, samples }` |
 
 **Computed properties refuse every write kind.** A property whose value the platform computes
-from related Things (a roll-up — its serialized `typeInfo` ends in `Rollup`) answers `400` to
+— a roll-up over related Things or a formula, serialized with a `typeInfo` of `vos.DecimalRollup`,
+`vos.IntegerRollup`, `vos.SetRollup` or `vos.DecimalExpression` — answers `400` to
 Facts, Observations, and Sediment alike: its value belongs to the platform's computing pass, and
 a stored write would only be overwritten on the next pass.
 
@@ -501,7 +502,12 @@ relationships (including the `is` type relationship), and their initial values �
 
 | Route | Body | Success |
 |---|---|---|
-| `POST /api/model/fragment` | `{ "Name", "Things": [ {Id, Name, Properties} ], "Relationships": [ {Name, Subject, Predicate, Target} ] }` | `200 { thingsCreated, thingsUpdated, relationshipsCreated, things }` |
+| `POST /api/model/fragment` | `{ "Name", "Things": [ {Id, Name, Properties} ], "Relationships": [ {Name, Subject, Predicate, Target} ] }` | `200 { thingsCreated, thingsUpdated, relationshipsCreated, things, thingsNotRendered, thingsRetired }` |
+
+The reply counts what the batch changed and lists the Things it leaves the caller holding.
+`thingsNotRendered` names, by id with the reason, any Thing the batch wrote but could not send back.
+`thingsRetired` names, by id with the reason, every Thing the batch leaves retired, so a caller is
+never told it created a Thing the model no longer holds live.
 
 - **Upsert, idempotent.** Existing Things and relationships are left in place (values re-applied);
   re-posting the same fragment neither duplicates nor errors. `ModifyData` (editor/admin/**service**).
@@ -518,11 +524,12 @@ relationships (including the `is` type relationship), and their initial values �
 - **A computed name cannot be written.** If a roll-up computes a property name for a Thing — through a
   definition it owns, one it inherits from a type it already has, or one a type in the same batch brings —
   writing a value for that name fails `400` with **zero** mutation. Send the members; the value follows.
-- **Server resolves lazy inheritance (I1).** A Thing that carries a value for a name it will *inherit*
-  is created **bare**, gains its `is` relationship, then has the value written as an **override** — so
-  you send
-  the natural `{Thing-with-own-Properties} + {Thing is Archetype}` shape and never trip I1 yourself.
-  Batches order writes so an `is`-target's own properties land before the subject that inherits them.
+- **Server resolves inheritance.** The model refuses an `is` relationship that would make a Thing
+  inherit a property name it already owns. A fragment never trips that rule: a Thing that carries a
+  value for a name it will *inherit* is created **bare**, gains its `is` relationship, then has the
+  value written as an **override** — so you send the natural
+  `{Thing-with-own-Properties} + {Thing is Archetype}` shape. Batches order writes so an `is`-target's
+  own properties land before the subject that inherits them.
 - **Emits the same Facts/SSE** as the per-write endpoints (it goes through the same fact pipeline), so
   every created Thing, relationship and value animates and survives replay. Property values carry a
   typed envelope (`{ "typeInfo": "vos.Decimal", "value": 2.5 }`) so decimals/measures don't truncate.

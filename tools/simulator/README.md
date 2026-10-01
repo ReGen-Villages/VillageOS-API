@@ -4,10 +4,11 @@ Replay a **timeline of graph changes** against a live Mycelium in (accelerated) 
 
 A *timeline* is a deterministic, offset-ordered list of `Action`s — each one intent (create a Thing,
 create a Relationship, post a Fact, adjust a quantity, delete a Thing, or post to a route outside the
-write API) carrying the simulated-second `offset` at which it comes due. The simulator sleeps to each offset (scaled by `--speed`), routes
-quantity deltas through a `BalanceLedger` so no balance is ever driven negative, and POSTs via the
-Mycelium client. Because the platform stamps every write `CommittedAt = UtcNow` (no backdating), a
-POST *now* is genuinely now and flows reactor → range re-evaluation → derived-status change → SSE:
+write API) carrying the simulated-second `offset` at which it comes due. The simulator sleeps to each
+offset (scaled by `--speed`), routes quantity deltas through a `BalanceLedger` so no balance is ever
+driven negative, and POSTs via the Mycelium client. Because the platform stamps every write itself
+when it commits (no backdating), a POST *now* is genuinely now and flows reactor → range
+re-evaluation → derived-status change → SSE:
 the change animates in Trellis as if a real user or external system had acted.
 
 The simulator is **domain-agnostic**. It plays whatever timeline it is handed and knows nothing about
@@ -20,7 +21,7 @@ library or as a serialized file.
 | --- | --- |
 | `mycelium.py` | A minimal, standard-library Mycelium HTTP client (Things, Relationships, Facts, quantity adjustments, subscriptions/SSE, and a plain post to any route) plus `stable_id`. |
 | `simulator.py` | The driver: `Action`, `BalanceLedger`, `Checkpoint`, `Simulator`, `follow_until`, and a CLI that plays a timeline file. |
-| `test_simulator.py` | Ledger no-oversell under concurrency, checkpoint resume, action serialization, where a credential comes from, dry replay against a fake Mycelium that fails loud on any oversell. That double stands in for the write API only — it refuses the subscription and stream calls, which belong against a running Mycelium. |
+| `test_simulator.py` | The ledger never driving a balance negative under concurrency, checkpoint resume, action serialization, where a credential comes from, dry replay against a fake Mycelium that fails loud on any balance driven negative. That double stands in for the write API only — it refuses the subscription and stream calls, which belong against a running Mycelium. |
 
 No third-party dependencies — stock Python 3.10+.
 
@@ -32,15 +33,15 @@ from simulator import Action, Simulator
 
 actions = [
     Action(offset=0, seq=0, actor="setup", op="create_thing",
-           args={"name": "bin-A", "thing_id": stable_id("bin", "A"),
-                 "properties": {"contained_units": 100}}, key="bin-A"),
+           args={"name": "Reservoir-A", "thing_id": stable_id("reservoir", "A"),
+                 "properties": {"storedM3": 100}}, key="Reservoir-A"),
     Action(offset=0, seq=1, actor="setup", op="ledger_set",
-           args={"thing_id": stable_id("bin", "A"), "amount": 100}, key="bin-A"),
-    Action(offset=30, seq=2, actor="worker", op="decrement",
-           args={"thing_id": stable_id("bin", "A"), "prop": "contained_units", "amount": 5}, key="draw"),
+           args={"thing_id": stable_id("reservoir", "A"), "amount": 100}, key="Reservoir-A"),
+    Action(offset=30, seq=2, actor="household", op="decrement",
+           args={"thing_id": stable_id("reservoir", "A"), "prop": "storedM3", "amount": 5}, key="draw"),
 ]
 
-client = MyceliumClient("http://localhost:5000")     # credential from VOS_TOKEN or VOS_API_KEY
+client = MyceliumClient("https://localhost:7243")    # credential from VOS_TOKEN or VOS_API_KEY
 Simulator(client, speed=120, checkpoint="run.ckpt").run(actions)
 ```
 
@@ -50,7 +51,7 @@ Serialize a timeline to JSONL (one `Action` per line via `Action.to_dict()` / `w
 
 ```bash
 export VOS_TOKEN=<editor/admin JWT>
-python3 simulator.py --url http://localhost:5000 --timeline run.jsonl \
+python3 simulator.py --url https://localhost:7243 --timeline run.jsonl \
     --speed 120 [--seed-first] [--follow] [--checkpoint run.ckpt] [--dry-run]
 ```
 
@@ -70,7 +71,7 @@ python3 simulator.py --url http://localhost:5000 --timeline run.jsonl \
 
 ## What it gets right
 
-- **Never oversells.** `POST …/decrements` rejects a decrement that would go negative (HTTP 400 with
+- **Never drives a balance negative.** `POST …/decrements` rejects a decrement that would go negative (HTTP 400 with
   `available`/`requested`). The `BalanceLedger` holds one lock per balance, resolves to an absolute
   quantity, and applies at most what is available — a shortfall is a legitimate outcome, and a 400
   *inside* the lock means a real divergence (a lost write, a double-run) and fails loud.
@@ -91,12 +92,11 @@ python3 simulator.py --url http://localhost:5000 --timeline run.jsonl \
   nothing.
 - **Doesn't fake the clock.** `--speed` changes only *when* each POST is issued, never the stored
   timestamps. The only caller-supplied time is an Observation's optional `observed_at`.
-- **Respects lazy inheritance (I1), resolved server-side.** Under lazy inheritance a Thing may not
-  *own* a property name it *inherits*. Timelines emit the natural domain shape — `create_thing(props)`
-  then `create_rel(is)` — which, sent granularly, would post the instance's own properties *before*
-  the `is` relationship and make it fail with I1 on a live Mycelium. The simulator no longer choreographs
-  a client-side workaround (bare-create then override). Instead a deterministic **coalescing pass**
-  folds each `create_thing` and its *creation-time* relationships (a `create_rel` at the **same offset** whose
+- **Respects lazy inheritance, resolved server-side.** A Thing may not *own* a property name it
+  *inherits*. Timelines emit the natural domain shape — `create_thing(props)` then `create_rel(is)`
+  — which, sent one call at a time, would post the instance's own properties *before* the `is`
+  relationship and be refused by a live Mycelium. The simulator works around nothing on the client:
+  a deterministic **coalescing pass** folds each `create_thing` and its *creation-time* relationships (a `create_rel` at the **same offset** whose
   subject **is** the new Thing) into a single `apply_fragment`, and `POST /api/model/fragment` upserts
   the batch: the **server** creates the Thing bare, establishes the `is` relationship, materializes any
   inherited value as an **override**, and emits the granular SSE/Facts. The endpoint is

@@ -3,8 +3,9 @@
 Delta is VillageOS's **endpoint-registration service**. It owns two jobs around the
 endpoint-template catalog that [Tributary](TRIBUTARY.md) fetches against:
 
-1. **Provision** the endpoint-template catalog into Mycelium at startup — find-or-create
-   every template Thing and wire its `is` inheritance relationships.
+1. **Provision** the endpoint-template catalog into a model on that model's first
+   registration — find-or-create every template Thing and wire its `is` inheritance
+   relationships.
 2. **Register** individual endpoints on demand — validate an incoming endpoint against the
    template graph, create the Thing, attach it to its template with an `is` relationship, and
    set its properties.
@@ -42,10 +43,10 @@ anything is called rather than failing partway through the outbound request. The
 roles are `authenticatesBy`, `pagesBy` and `readsBodyAs`; a role reaching no kind
 means the plain behaviour, and the nearest declaration up the `is` chain wins.
 
-A seed that still sets `authKind`, `pagingKind` or `responseKind` as a property
-is refused at provisioning, naming the template and the relationship to write instead.
-There is no compatibility shim: a catalogue half-provisioned against the old
-shape would leave endpoints reaching nothing while looking configured.
+A seed that sets `authKind`, `pagingKind` or `responseKind` as a property is
+refused when the graph is built, naming the template and the relationship to write
+instead. A word on a template would leave its endpoints reaching no kind while
+looking configured.
 
 Delta loads this graph from a `seed.json` document (`EndpointSeedModel` — a `Things[]` +
 `Relationships[]` fragment) and builds an `EndpointSeedGraph`. The graph is the same shape
@@ -77,15 +78,20 @@ not in its model. `ModelTemplateCatalog` holds what each model has, keyed by the
 the caller's bearer carries.
 
 `TemplateCatalogProvisioner.ProvisionAsync` reflects the seed graph into that model. It is
-**idempotent** by find-or-create by name:
+**idempotent**: it finds or creates each template by name, and reads once which relationships the
+catalog already carries.
 
 1. Resolve the `is` predicate Thing (a model primitive — never created; if missing, provisioning
    logs and aborts).
-2. Order templates **root-first** (ascending chain length is a valid topological order, so a
+2. Read the relationships the templates already carry, in one subscription snapshot. A failed read
+   provisions nothing, because guessing at what is already wired is worse than waiting.
+3. Order templates **root-first** (ascending chain length is a valid topological order, so a
    parent is always provisioned before its children).
-3. For each template: if a Thing with that name already exists, reuse it; otherwise create it and
-   — only for the newly-created Thing — wire its `is` relationship to its parent, then write the keys it
-   narrows.
+4. For each template: reuse the Thing with that name, or create it. Where its `is` relationship to
+   its parent is not already there, wire it and then write the keys it narrows. Where the
+   relationship is already there, write nothing.
+5. Mint each kind and each role predicate, find-or-create, and relate every template to the kinds
+   it declares.
 
 **Why a narrowed key is written last.** A template usually restates keys its parent already
 declares, with a tighter value (`EsriEndpoint` narrowing `Endpoint`'s `requestContentType`). The
@@ -93,17 +99,18 @@ order those two writes happen in decides how Mycelium stores the result:
 
 | Order | What Mycelium stores | Result |
 |---|---|---|
-| Property first, `is` after | An **own** property — the name was not yet inherited when it was written | The template owns a name it also inherits. The platform forbids that (invariant I1/I2), and the key surfaces **twice** in every descendant's resolved view |
+| Property first, `is` after | An **own** property — the name was not yet inherited when it was written | The template owns a name it also inherits. The platform forbids that, and the key surfaces **twice** in every descendant's resolved view |
 | `is` first, property after | An **override** — the name resolves as inherited, so the write materializes a per-instance override | One key in the resolved view, holding the narrowed value |
 
 So the provisioner splits a template's seed properties: keys no ancestor declares are carried on
 the create, and keys some ancestor declares are written after the `is` relationship exists. The root
 template inherits nothing, so all of its properties stay on the create.
 
-> **Known gap.** If a template Thing was created on a prior run but its `is` relationship failed, a
-> later run finds the Thing and cannot repair the missing relationship — there is no Mycelium
-> relationship-query API to detect it. The same run leaves that template's narrowed keys unwritten, so it silently
-> keeps the parent's values. Tracked in the code comment on `TemplateCatalogProvisioner`.
+**A later run repairs a template an earlier run left half-made.** If a template Thing was created
+on a prior run but its `is` relationship failed, the next run finds the Thing by name, sees from the
+relationships it read that the `is` is missing, wires it, and writes the narrowed keys that hang off
+it. A name lookup alone could not tell the two cases apart, and the half-made template would keep
+resolving to its parent's values while looking correct.
 
 **A model provisions once, and calls that arrive together queue behind it.** Mycelium accepts a
 second Thing carrying a name it already holds, and then answers every lookup for that name with a
@@ -146,8 +153,8 @@ The handler validates, then commits, in this order:
 
 **Commit (with compensation)**
 - Create the endpoint Thing.
-- Create its `is` relationship to the template Thing. *(Mycelium awaits the `is`-handler
-  synchronously, so inherited properties exist once this returns.)*
+- Create its `is` relationship to the template Thing. *(Mycelium resolves `is` in-process, so
+  inherited properties resolve as soon as this returns.)*
 - Set each **user-supplied** property. Inherited values are **not** materialized — they resolve
   live through the `is`-chain.
 
@@ -183,9 +190,7 @@ a registration inherits from belongs to the project's model on the same grounds.
 
 The templates a registration is wired to follow it: they are provisioned into the caller's model on
 its [first registration](#first-contact-provisioning-the-catalog-into-a-model), under the same
-bearer. Provisioning at startup instead would have put the whole catalog in the one model Delta's
-launch token names, and every other project's registration would have been refused for a template
-absent from its own model.
+bearer.
 
 ## Endpoints
 
@@ -197,8 +202,7 @@ absent from its own model.
 | `POST /shutdown` | Graceful stop after a short delay. |
 
 When a `VerificationKey` is supplied, `/handle`, `/register`, and `/shutdown` require a valid
-Mycelium JWT addressed to Delta; `/health` stays open. Delta does not expose a `/stats` endpoint today (noted in
-[`SERVICE_HOST_ROADMAP.md`](SERVICE_HOST_ROADMAP.md)).
+Mycelium JWT addressed to Delta; `/health` stays open. Delta exposes no `/stats` endpoint.
 
 ## CLI & configuration
 
@@ -209,17 +213,18 @@ dotnet run -- --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--audience=<au
 ```
 
 `--issuer` must match what Mycelium signed with and `--audience` must be Delta's own recipient
-name, or `/handle` auth refuses every call. Any flag absent from the command line falls back to configuration and the environment under
-its Pascal-case name — `Port`, `MyceliumUrl`, `Issuer`, `Audience` — so Delta can be launched with no
-flags at all. A flag always wins over configuration. The two credentials, `Token` and `VerificationKey`,
-come from configuration only and are ignored on the command line. This is the shared behaviour every
-service now has; see `vos.Service.Shared/Configuration/ServiceLaunchSettings.cs`.
+name, or `/handle` auth refuses every call. Any flag absent from the command line falls back to
+configuration and the environment under its Pascal-case name — `Port`, `MyceliumUrl`, `Issuer`,
+`Audience` — so Delta can be launched with no flags at all. A flag always wins over configuration.
+The credentials — `Token`, `ApiKey` and `VerificationKey` — come from configuration only and are
+ignored on the command line. This is the shared behaviour of every service; see
+`vos.Service.Shared/Configuration/ServiceLaunchSettings.cs`.
 
 ## Seed loading
 
-`FileEndpointSeedProvider` (via `EndpointSeedLoader`) loads the first existing `seed.json` from
-three candidate paths — the bin output, the current working directory, and the canonical
-three-up path relative to a built binary — and builds the validated `EndpointSeedGraph` from it.
+`FileEndpointSeedProvider` (via `EndpointSeedLoader`) loads the first existing `seed.json` among
+its candidate paths — the bin output, the current working directory, and the folder three levels
+above a built binary — and builds the validated `EndpointSeedGraph` from it.
 A parse failure or a graph-validation failure aborts boot.
 
 ## Source & tests
