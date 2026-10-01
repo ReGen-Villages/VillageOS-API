@@ -42,10 +42,14 @@ export const ar: WithArabicPluralForms<Resources> = {
   table: {
     downloadAsCsv: 'تنزيل بصيغة CSV',
   },
-  statement: {
+  connection: {
+    connecting: 'جارٍ الاتصال…',
     live: 'مباشر',
-    notLive: 'غير مباشر',
+    lost: 'انقطع الاتصال',
+  },
+  statement: {
     reading: 'جارٍ قراءة النموذج…',
+    onThisPage: 'في هذه الصفحة: {{held}}',
     things_zero: "لا أشياء",
     things_one: "شيء واحد",
     things_two: "شيئان",
@@ -144,7 +148,7 @@ export const ar: WithArabicPluralForms<Resources> = {
       total: 'إجمالي الذاكرة (تقديري)',
     },
     title: 'لوحة تحكم Mycelium',
-    status: { mycelium: 'Mycelium', live: 'مباشر' },
+    status: { mycelium: 'Mycelium' },
     actions: {
       swagger: 'وثائق واجهة برمجة تطبيقات Swagger',
       reloadSeeds: 'إعادة تحميل الـ seeds من القرص',
@@ -1360,8 +1364,6 @@ export const ar: WithArabicPluralForms<Resources> = {
   },
   operationsPage: {
     all: "الكل",
-    live: "مباشر",
-    offline: "غير متصل",
     noDashboard: "لا توجد لوحة معلومات مُهيّأة",
     noDashboardBody: "لا يُعرّف هذا النموذج أي إعداد <0>Dashboard</0>. أضِف Thing من النموذج الأصلي <1>Dashboard</1> بخاصية <2>spec</2> لتشغيل هذه الصفحة.",
     unreadableSpecification: "تعذّرت قراءة {{name}}",

@@ -34,9 +34,11 @@ describe('modelStore', () => {
     expect(useModelStore.getState().relationships).toHaveLength(1);
   });
 
-  it('markLoaded sets loaded to true', () => {
-    useModelStore.getState().markLoaded();
+  // A page's own set counted as the model is a wrong figure, so a load says which of the two it was.
+  it.each([true, false])('markLoaded records that a load landed, and whether it was the whole model: %s', (wholeModel) => {
+    useModelStore.getState().markLoaded({ wholeModel });
     expect(useModelStore.getState().loaded).toBe(true);
+    expect(useModelStore.getState().holdsWholeModel).toBe(wholeModel);
   });
 
   it('applyBatch upserts, removes, and mutates a property in one write', () => {
@@ -94,12 +96,13 @@ describe('modelStore', () => {
   it('clear resets everything', () => {
     useModelStore.getState().setThings([thing('1', 'A')]);
     useModelStore.getState().setRelationships([relationship('r1', 'X')]);
-    useModelStore.getState().markLoaded();
+    useModelStore.getState().markLoaded({ wholeModel: true });
     useModelStore.getState().clear();
-    const { things, relationships, loaded } = useModelStore.getState();
+    const { things, relationships, loaded, holdsWholeModel } = useModelStore.getState();
     expect(things).toEqual([]);
     expect(relationships).toEqual([]);
     expect(loaded).toBe(false);
+    expect(holdsWholeModel).toBe(false);
   });
 });
 

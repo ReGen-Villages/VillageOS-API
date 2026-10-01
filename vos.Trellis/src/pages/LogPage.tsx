@@ -6,6 +6,7 @@ import { useLogTail } from '../hooks/useLogTail';
 import { fetchFullLog } from '../api/logsApi';
 import { snapshotBlob, snapshotFileName, triggerDownload } from '../utils/logDownload';
 import { toast } from '../components/common/toastStore';
+import { ConnectionMark } from '../components/common/ConnectionMark';
 
 /** Live tail of the Mycelium broker log — or a service daemon's log when ?service=<key> is set.
  *  Keyed by service so switching sources remounts the view with fresh state. */
@@ -16,9 +17,14 @@ export function LogPage() {
 }
 
 function LogView({ service }: { service?: string }) {
-  const { lines, connected, clear } = useLogTail(service);
+  const { lines, connection, clear } = useLogTail(service);
   const { t } = useTranslation();
   const title = service ? t('log.serviceTitle', { service }) : t('log.brokerTitle');
+  const streamInWords = {
+    connecting: t('connection.connecting'),
+    live: t('log.streaming'),
+    lost: t('log.reconnecting'),
+  }[connection];
   const [autoScroll, setAutoScroll] = useState(true);
   const [downloadingFull, setDownloadingFull] = useState(false);
   const scrollReference = useRef<HTMLDivElement>(null);
@@ -67,8 +73,8 @@ function LogView({ service }: { service?: string }) {
         </div>
         <div className="flex items-center gap-4 text-xs">
           <div className="flex items-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-500' : 'bg-red-500'}`} />
-            <span className="text-zinc-500">{connected ? t('log.streaming') : t('log.reconnecting')}</span>
+            <ConnectionMark state={connection} />
+            <span className="text-zinc-500">{streamInWords}</span>
           </div>
           <button
             onClick={() => setAutoScroll((v) => !v)}

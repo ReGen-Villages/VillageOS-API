@@ -15,6 +15,7 @@ import { DESIGN_FINDING_CODES } from '../utils/designFindings';
 import { LOADING_STAGES } from '../components/model/LoadingOverlay';
 import { REFUSAL_CODES } from '../api/refusals';
 import { PIPELINE_DECLARATIONS } from '../pipeline/serialize';
+import { CONNECTION_STATES } from '../types/connection';
 
 /**
  * Whether a key the console assembles at run time has anything to say.
@@ -49,6 +50,7 @@ const BUILT_FROM = {
   'modelPage.stage': [...LOADING_STAGES],
   refusal: [...REFUSAL_CODES],
   'pipeline.declarations': [...PIPELINE_DECLARATIONS],
+  connection: [...CONNECTION_STATES],
 } as Record<string, string[]>;
 
 /** A `t()` call whose key is assembled rather than written out, e.g. t(`intake.step.${step}`). */

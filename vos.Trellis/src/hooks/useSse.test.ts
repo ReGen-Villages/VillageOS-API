@@ -1,6 +1,6 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { SUBSCRIPTION_OPENED, resubscribe, useSse, useSubscription, useDefaultSubscription } from './useSse';
+import { SUBSCRIPTION_CHANGING, SUBSCRIPTION_OPENED, resubscribe, useSse, useSubscription, useDefaultSubscription } from './useSse';
 import { apiClient } from '../api/client';
 import type { SubscriptionSelector, SubscriptionOpened } from '../types/subscription';
 
@@ -167,6 +167,109 @@ describe('useSse', () => {
 
     await waitFor(() => expect(objectStreams().length).toBe(2));
     expect(objectStreams()[1].url).toContain('lastEventId=7'); // resumed from consumed sequence
+    unmount();
+  });
+
+  // A stream that has not opened yet is not a stream that failed. Reported alike, every sign-in
+  // shows a fault until the first stream opens.
+  it('is connecting until the object stream opens, then live', async () => {
+    const { result, unmount } = renderHook(() => useSse());
+    expect(result.current.connection).toBe('connecting');
+
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+    expect(result.current.connection).toBe('connecting');
+
+    act(() => objectStreams()[0].onopen?.());
+    expect(result.current.connection).toBe('live');
+    unmount();
+  });
+
+  it('is lost from the moment a stream fails until one opens again', async () => {
+    const { result, unmount } = renderHook(() => useSse());
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+    act(() => objectStreams()[0].onopen?.());
+
+    vi.useFakeTimers();
+    act(() => objectStreams()[0].onerror?.());
+    expect(result.current.connection).toBe('lost');
+    await vi.advanceTimersByTimeAsync(1000);
+    vi.useRealTimers();
+
+    await waitFor(() => expect(objectStreams().length).toBe(2));
+    expect(result.current.connection).toBe('lost');
+    act(() => objectStreams()[1].onopen?.());
+    expect(result.current.connection).toBe('live');
+    unmount();
+  });
+
+  // A page changing what the subscription covers closes the streams on purpose. Nothing is
+  // arriving while the new ones open, and nothing has gone wrong.
+  it('is connecting, not live or lost, while a changed declaration reopens the streams', async () => {
+    const { result, unmount } = renderHook(() => useSse());
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+    act(() => objectStreams()[0].onopen?.());
+
+    const page = mountPage({ types: ['Site'] });
+    await waitFor(() => expect(objectStreams().length).toBe(2));
+    expect(result.current.connection).toBe('connecting');
+
+    act(() => objectStreams()[1].onopen?.());
+    expect(result.current.connection).toBe('live');
+    page.unmount();
+    unmount();
+  });
+
+  it('starts from connecting again once the last reader has left', async () => {
+    const first = renderHook(() => useSse());
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+    act(() => objectStreams()[0].onopen?.());
+    first.unmount();
+
+    const second = renderHook(() => useSse());
+    expect(second.result.current.connection).toBe('connecting');
+    second.unmount();
+  });
+
+  // What the store holds was loaded for the coverage being left, so its reader hears of the change
+  // before anything is asked of the platform — not a request later, when the subscription opens.
+  it('announces a change of coverage before it asks the platform for the subscription', async () => {
+    const { result, unmount } = renderHook(() => useSse());
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+    const requestsWhenAnnounced: number[] = [];
+    const announced: unknown[] = [];
+    let off: () => void = () => {};
+    act(() => {
+      off = result.current.on(SUBSCRIPTION_CHANGING, (selector) => {
+        announced.push(selector);
+        requestsWhenAnnounced.push(subscriptionsOpened().length);
+      });
+    });
+
+    const page = mountPage({ types: ['Site'] });
+    await waitFor(() => expect(objectStreams().length).toBe(2));
+
+    expect(announced).toEqual([{ types: ['Site'] }]);
+    expect(requestsWhenAnnounced).toEqual([1]);
+    act(() => off());
+    page.unmount();
+    unmount();
+  });
+
+  it('announces no change of coverage for a reconnect', async () => {
+    const { result, unmount } = renderHook(() => useSse());
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+    const announced = vi.fn();
+    let off: () => void = () => {};
+    act(() => { off = result.current.on(SUBSCRIPTION_CHANGING, announced); });
+
+    vi.useFakeTimers();
+    act(() => objectStreams()[0].onerror?.());
+    await vi.advanceTimersByTimeAsync(1000);
+    vi.useRealTimers();
+    await waitFor(() => expect(objectStreams().length).toBe(2));
+
+    expect(announced).not.toHaveBeenCalled();
+    act(() => off());
     unmount();
   });
 

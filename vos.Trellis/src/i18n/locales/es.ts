@@ -29,10 +29,14 @@ export const es: PartialResources = {
   table: {
     downloadAsCsv: 'Descargar como CSV',
   },
-  statement: {
+  connection: {
+    connecting: 'Conectando…',
     live: 'En vivo',
-    notLive: 'Sin conexión en vivo',
+    lost: 'Conexión perdida',
+  },
+  statement: {
     reading: 'Leyendo el modelo…',
+    onThisPage: 'En esta página: {{held}}',
     things_one: '{{count}} Cosa',
     things_other: '{{count}} Cosas',
     relationships_one: '{{count}} relación',
@@ -115,7 +119,7 @@ export const es: PartialResources = {
       total: 'Memoria total (est.)',
     },
     title: 'Panel de Mycelium',
-    status: { mycelium: 'Mycelium', live: 'En vivo' },
+    status: { mycelium: 'Mycelium' },
     actions: {
       swagger: 'Documentación de la API de Swagger',
       reloadSeeds: 'Recargar seeds desde el disco',
@@ -1259,8 +1263,6 @@ export const es: PartialResources = {
   },
   operationsPage: {
     all: "Todos",
-    live: "en directo",
-    offline: "sin conexión",
     noDashboard: "No hay panel configurado",
     noDashboardBody: "Este modelo no define ninguna configuración de <0>Dashboard</0>. Añade una Thing del arquetipo <1>Dashboard</1> con una propiedad <2>spec</2> para gestionar esta página.",
     unreadableSpecification: "No se pudo leer {{name}}",

@@ -56,7 +56,7 @@ describe('useDeclaredPropertyTypes', () => {
     act(() => useModelStore.getState().clear());
     expect(result.current).toBeNull();
 
-    act(() => useModelStore.getState().markLoaded());
+    act(() => useModelStore.getState().markLoaded({ wholeModel: true }));
     await waitFor(() => expect(result.current).toEqual(openRatio));
     expect(mockGetAllProperties).toHaveBeenCalledTimes(2);
   });

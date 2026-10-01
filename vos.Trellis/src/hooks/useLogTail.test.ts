@@ -88,14 +88,15 @@ describe('useLogTail', () => {
     expect((await openedStream()).url).toContain('service=water%20reserve');
   });
 
-  it('reports the stream as connected once it opens', async () => {
+  // A stream that has not opened yet has not failed, so it is not reported as one being retried.
+  it('reports the stream as connecting until it opens, then live', async () => {
     const { result } = renderHook(() => useLogTail());
     const stream = await openedStream();
 
-    expect(result.current.connected).toBe(false);
+    expect(result.current.connection).toBe('connecting');
     act(() => stream.onopen?.());
 
-    expect(result.current.connected).toBe(true);
+    expect(result.current.connection).toBe('live');
   });
 
   it('collects the lines the broker sends, in order', async () => {
@@ -132,17 +133,17 @@ describe('useLogTail', () => {
     expect(result.current.lines).toEqual([]);
   });
 
-  it('reports the stream as disconnected when it breaks', async () => {
+  it('reports the stream as lost when it breaks', async () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useLogTail());
     const stream = await flushUntilOpened();
 
     act(() => stream.onopen?.());
-    expect(result.current.connected).toBe(true);
+    expect(result.current.connection).toBe('live');
 
     act(() => stream.onerror?.());
 
-    expect(result.current.connected).toBe(false);
+    expect(result.current.connection).toBe('lost');
     expect(stream.closed).toBe(true);
   });
 
@@ -181,7 +182,7 @@ describe('useLogTail', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(result.current.connected).toBe(false);
+    expect(result.current.connection).toBe('lost');
     expect(FakeEventSource.instances).toHaveLength(0);
 
     vi.spyOn(apiClient, 'mintStreamToken').mockResolvedValue('a-stream-token');

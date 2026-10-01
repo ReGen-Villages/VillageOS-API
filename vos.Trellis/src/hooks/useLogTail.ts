@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
 import { appendLines } from '../utils/logBuffer';
+import type { ConnectionState } from '../types/connection';
 
 const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
 
@@ -14,9 +15,9 @@ const TAIL_LINES = 200;
  * this one open (the /api/logs/stream path is one of Mycelium's BrowserStreamPaths). Reconnects
  * with backoff on error, and re-opens against the new source when `service` changes.
  */
-export function useLogTail(service?: string): { lines: string[]; connected: boolean; clear: () => void } {
+export function useLogTail(service?: string): { lines: string[]; connection: ConnectionState; clear: () => void } {
   const [lines, setLines] = useState<string[]>([]);
-  const [connected, setConnected] = useState(false);
+  const [connection, setConnection] = useState<ConnectionState>('connecting');
 
   const sourceReference = useRef<EventSource | null>(null);
   const reconnectReference = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -29,7 +30,7 @@ export function useLogTail(service?: string): { lines: string[]; connected: bool
 
     const scheduleReconnect = () => {
       if (reconnectReference.current) return;
-      setConnected(false);
+      setConnection('lost');
       const delays = [1000, 2000, 5000, 10000, 30000];
       const delay = delays[Math.min(attemptReference.current, delays.length - 1)];
       attemptReference.current += 1;
@@ -49,7 +50,7 @@ export function useLogTail(service?: string): { lines: string[]; connected: bool
         const es = new EventSource(url);
         es.onopen = () => {
           attemptReference.current = 0;
-          setConnected(true);
+          setConnection('live');
         };
         es.onerror = () => {
           es.close();
@@ -83,5 +84,5 @@ export function useLogTail(service?: string): { lines: string[]; connected: bool
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { lines, connected, clear };
+  return { lines, connection, clear };
 }

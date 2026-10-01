@@ -21,6 +21,7 @@ import { localizeSpecification } from '../api/dashboardLocalization';
 import { DashboardSections } from '../components/dashboard/DashboardSections';
 import { useDetailWindows } from '../components/dashboard/detail/DetailWindowManager';
 import { ComposedPageControls } from '../components/dashboard/ComposedPageControls';
+import { ConnectionMark } from '../components/common/ConnectionMark';
 
 const REFRESH_EVENTS = [
   'StatesChanged',
@@ -39,7 +40,7 @@ const WIDE = 1024;
 
 export function OperationsPage() {
   const loaded = useModelStore((s) => s.loaded);
-  const { on, connected } = useSse();
+  const { on, connection } = useSse();
 
   const index = useModelIndex();
   const dashboards = useDashboards();
@@ -163,8 +164,8 @@ export function OperationsPage() {
           )}
           {dashboard && <ComposedPageControls dashboard={dashboard} index={index} />}
           <div className="text-[11px] text-zinc-400 dark:text-zinc-500 inline-flex items-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-500' : 'bg-zinc-400'}`} />
-            {connected ? t('operationsPage.live') : t('operationsPage.offline')}
+            <ConnectionMark state={connection} />
+            {t(`connection.${connection}`)}
           </div>
         </div>
       </header>

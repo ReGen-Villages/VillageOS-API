@@ -21,10 +21,14 @@ export const en = {
   table: {
     downloadAsCsv: 'Download as CSV',
   },
-  statement: {
+  connection: {
+    connecting: 'Connecting…',
     live: 'Live',
-    notLive: 'Not live',
+    lost: 'Connection lost',
+  },
+  statement: {
     reading: 'Reading the model…',
+    onThisPage: 'On this page: {{held}}',
     things_one: '{{count}} Thing',
     things_other: '{{count}} Things',
     relationships_one: '{{count}} relationship',
@@ -107,7 +111,7 @@ export const en = {
       total: 'Total est. memory',
     },
     title: 'Mycelium Dashboard',
-    status: { mycelium: 'Mycelium', live: 'Live' },
+    status: { mycelium: 'Mycelium' },
     actions: {
       swagger: 'Swagger API docs',
       reloadSeeds: 'Reload seeds from disk',
@@ -1257,8 +1261,6 @@ export const en = {
   },
   operationsPage: {
     all: "All",
-    live: "live",
-    offline: "offline",
     noDashboard: "No dashboard configured",
     noDashboardBody: "This model defines no <0>Dashboard</0> config. Add a Thing of archetype <1>Dashboard</1> with a <2>spec</2> property to drive this page.",
     unreadableSpecification: "{{name}} could not be read",
