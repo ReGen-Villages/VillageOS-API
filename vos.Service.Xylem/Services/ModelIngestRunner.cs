@@ -7,9 +7,9 @@ namespace vos.Service.Xylem.Services;
 // Production runner: invokes the vos.Tools.ModelIngest tool as a subprocess
 //   dotnet <ModelIngest.dll> --ifc <path> --post <mycelium> --name <model> --profile analysis
 // which parses (Xbim), classifies, and posts the graph to /api/model/fragment (idempotent, stable ids).
-// Purely the subprocess; new-model model preparation is the handler's job. The spawn itself is not unit-
-// tested; the launch it builds, the guard and the count parsing are, and the orchestration by
-// IngestHandlerTests.
+// Purely the subprocess; new-model model preparation is the handler's job. No unit test starts the tool
+// itself; the launch it builds, the guard, the reading of a child's output and the count parsing are
+// tested, and the orchestration by IngestHandlerTests.
 public sealed class ModelIngestRunner : IModelIngestRunner
 {
     // The ingest tool prints "Ingested: <n> things, <m> relationships." and no other count, so every
@@ -36,21 +36,36 @@ public sealed class ModelIngestRunner : IModelIngestRunner
         if (string.IsNullOrEmpty(_modelIngestDll) || !File.Exists(_modelIngestDll))
             return new IngestRunResult(false, 0, 0, 0, $"ModelIngest tool not found at '{_modelIngestDll}'.");
 
-        using var proc = Process.Start(await BuildStartInfoAsync(ifcPath, modelName, ct));
-        if (proc is null) return new IngestRunResult(false, 0, 0, 0, "Failed to start ModelIngest process.");
+        var run = await RunToExitAsync(await BuildStartInfoAsync(ifcPath, modelName, ct), ct);
+        if (run is null) return new IngestRunResult(false, 0, 0, 0, "Failed to start ModelIngest process.");
 
-        var stdout = await proc.StandardOutput.ReadToEndAsync(ct);
-        var stderr = await proc.StandardError.ReadToEndAsync(ct);
-        await proc.WaitForExitAsync(ct);
-
-        if (proc.ExitCode != 0)
+        if (run.ExitCode != 0)
         {
-            _log.LogWarning("ModelIngest failed (exit {Code}): {Err}", proc.ExitCode, stderr);
-            return new IngestRunResult(false, 0, 0, 0, string.IsNullOrWhiteSpace(stderr) ? "IFC ingest failed." : stderr.Trim());
+            _log.LogWarning("ModelIngest failed (exit {Code}): {Err}", run.ExitCode, run.StandardError);
+            return new IngestRunResult(false, 0, 0, 0,
+                string.IsNullOrWhiteSpace(run.StandardError) ? "IFC ingest failed." : run.StandardError.Trim());
         }
 
-        var (things, rels) = ParseCounts(stdout);
+        var (things, rels) = ParseCounts(run.StandardOutput);
         return new IngestRunResult(true, things, 0, rels, null);
+    }
+
+    internal sealed record ProcessRun(int ExitCode, string StandardOutput, string StandardError);
+
+    // Both streams are read at once. A child that has filled the stream nobody is reading waits to write
+    // more, and a reader that takes one stream to its end before starting the other waits for that child
+    // to exit.
+    internal static async Task<ProcessRun?> RunToExitAsync(ProcessStartInfo startInfo, CancellationToken ct)
+    {
+        using var proc = Process.Start(startInfo);
+        if (proc is null) return null;
+
+        var standardOutput = proc.StandardOutput.ReadToEndAsync(ct);
+        var standardError = proc.StandardError.ReadToEndAsync(ct);
+        await Task.WhenAll(standardOutput, standardError);
+        await proc.WaitForExitAsync(ct);
+
+        return new ProcessRun(proc.ExitCode, await standardOutput, await standardError);
     }
 
     // The bearer token travels in the child's environment, never in its arguments: an argument list is

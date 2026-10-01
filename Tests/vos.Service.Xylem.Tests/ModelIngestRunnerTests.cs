@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Text;
 using vos.Service.Shared;
@@ -71,6 +72,29 @@ public class ModelIngestRunnerTests
         var startInfo = await Runner(Credential()).BuildStartInfoAsync("/tmp/model.ifc", "Demo", default);
 
         startInfo.Environment.Should().NotContainKey("Token");
+    }
+
+    // The operating system holds a limited amount of a child's unread output, 65,536 bytes where this was
+    // measured. A megabyte is past that on any system, so a child that writes it to a stream nobody is
+    // reading waits, and a reader waiting for the other stream to end waits with it.
+    [FactNeedingAShell]
+    public async Task A_megabyte_of_error_output_is_read_while_standard_output_is_still_open()
+    {
+        var startInfo = new ProcessStartInfo("/bin/sh")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        startInfo.ArgumentList.Add("-c");
+        startInfo.ArgumentList.Add("head -c 1048576 /dev/zero | tr '\\0' 'e' >&2; echo done; exit 3");
+        using var hangDetector = new CancellationTokenSource(Settle.Ceiling);
+
+        var run = await ModelIngestRunner.RunToExitAsync(startInfo, hangDetector.Token);
+
+        run!.ExitCode.Should().Be(3);
+        run.StandardOutput.Trim().Should().Be("done");
+        run.StandardError.Should().HaveLength(1048576);
     }
 
     // Copied from a run of the ingest tool, which lives in another repository: a sample written by hand
