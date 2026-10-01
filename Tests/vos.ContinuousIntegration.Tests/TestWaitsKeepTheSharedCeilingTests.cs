@@ -93,6 +93,12 @@ public class TestWaitsKeepTheSharedCeilingTests
     }
 
     [Fact]
+    public void A_call_the_source_never_closes_is_not_read_as_a_wait()
+    {
+        Assert.Empty(ClockedWaits.In("await Task.Delay(TimeSpan.FromSeconds(5"));
+    }
+
+    [Fact]
     public void Each_wait_is_judged_on_its_own_clock_and_reported_on_its_own_line()
     {
         const string source = """
