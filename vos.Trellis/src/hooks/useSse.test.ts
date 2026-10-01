@@ -189,12 +189,13 @@ describe('useSse', () => {
 
     page.unmount();
     await waitFor(() => expect(objectStreams().length).toBe(3));
-    expect(subscriptionsOpened()[2]).toMatchObject({ all: true });
+    expect(subscriptionsOpened()[2]).toEqual({ all: true, includeSnapshot: false });
     unmount();
   });
 
-  // Reopening costs a snapshot the platform has to build, so a page that re-renders — or one that
-  // declares the same thing the page before it did — must not pay for one.
+  // Reopening costs a load — a snapshot the platform has to build, or the whole model read again —
+  // so a page that re-renders, or one that declares the same thing the page before it did, must not
+  // pay for one.
   it('reopens nothing when a declaration says what is already open', async () => {
     const { unmount } = renderHook(() => useSse());
     await waitFor(() => expect(objectStreams().length).toBe(1));
@@ -343,8 +344,10 @@ describe('useSse', () => {
     unmount();
   });
 
-  /** A platform answering with a snapshot of one Thing and the relationship it sits on. */
-  function answersWithASnapshot() {
+  // A subscription answers with the objects it covers and then streams the changes to them. A
+  // reader given that before the stream was listening would apply it and then miss everything
+  // between the two.
+  it('hands what a narrowed subscription covers to the handlers once the streams are attached', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -359,13 +362,6 @@ describe('useSse', () => {
         },
       }),
     }) as unknown as typeof fetch;
-  }
-
-  // A subscription answers with the objects it covers and then streams the changes to them. A
-  // reader given that before the stream was listening would apply it and then miss everything
-  // between the two.
-  it('hands what a narrowed subscription covers to the handlers once the streams are attached', async () => {
-    answersWithASnapshot();
     const { result, unmount } = renderHook(() => useSse());
     const handler = vi.fn();
     let off: () => void = () => {};
