@@ -176,11 +176,13 @@ async function openStreams() {
     const token = await apiClient.ensureToken();
     if (superseded()) return;
 
-    // The subscription the mounted page declared. Its snapshot watermark anchors the first resume.
+    // The subscription the mounted page declared. Its watermark anchors the first resume. The model
+    // read fills the store for a whole-model page, so that page's snapshot is declined: it would be
+    // the whole model built, sent and parsed a second time, before the read that fills the page.
     const response = await fetch(`${BASE_URL}/api/subscriptions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(selector),
+      body: JSON.stringify(selector.all ? { ...selector, includeSnapshot: false } : selector),
     });
     if (!response.ok) {
       if (!superseded()) scheduleReconnect();
@@ -278,9 +280,9 @@ function follow() {
  * declaration again and there is nothing to wait for. What has to be waited out is the opposite: no
  * page holding one at all, which is a page having left while the next page's code is still loading.
  * Following it there would open a subscription for a reader that never arrives — between two pages
- * that both read the whole model, a whole-model snapshot built and a whole model re-read for
- * nobody. The wait is skipped entirely before the first open, when every moment is a page waiting
- * on its data and there is no page to hand over from.
+ * that both read the whole model, a whole model re-read for nobody. The wait is skipped entirely
+ * before the first open, when every moment is a page waiting on its data and there is no page to
+ * hand over from.
  */
 let settling: ReturnType<typeof setTimeout> | null = null;
 let following = false;
