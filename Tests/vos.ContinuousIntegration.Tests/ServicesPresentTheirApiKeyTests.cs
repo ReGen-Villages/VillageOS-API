@@ -68,18 +68,8 @@ public class ServicesPresentTheirApiKeyTests
     {
         foreach (Match match in Regex.Matches(source, @"new\s+" + Regex.Escape(clientType) + @"\s*\("))
         {
-            var index = match.Index + match.Length - 1;
-            var depth = 0;
-
-            for (var scan = index; scan < source.Length; scan++)
-            {
-                if (source[scan] == '(') depth++;
-                else if (source[scan] == ')' && --depth == 0)
-                {
-                    yield return source[match.Index..(scan + 1)];
-                    break;
-                }
-            }
+            var closed = SourceCalls.ClosingBracket(source, match.Index + match.Length - 1);
+            if (closed >= 0) yield return source[match.Index..(closed + 1)];
         }
     }
 }

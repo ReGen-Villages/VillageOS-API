@@ -138,6 +138,7 @@ kept("react-router's hooks and link", 'useParams', 'useSearchParams', 'NavLink')
 kept("react-three-fiber's constructor arguments on an element", 'args=');
 kept("react-grid-layout's settings, each an attribute of the grid, and the column count inside one", 'gridConfig=', 'dragConfig=', 'resizeConfig=', 'dropConfig=', 'cols');
 kept("Testing Library's first inputs to a rendered hook", 'initialProps');
+kept("Testing Library's settings: the reader of them, and how long a wait inside a test may last", 'getConfig', 'asyncUtilTimeout');
 kept("lucide's icon", 'Info');
 kept("the browser's own names: the request shape, the query string, a bounding box, a canvas call, a table cell, a pattern match, a console level, a link relation",
   'RequestInit', 'HeadersInit', 'URLSearchParams', 'getBoundingClientRect', 'DOMRect', 'contentRect',

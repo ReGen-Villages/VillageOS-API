@@ -35,7 +35,7 @@ internal static class ServiceBindings
             while (at >= 0)
             {
                 var opened = at + call.Length - 1;
-                var closed = MatchingBracket(source, opened);
+                var closed = SourceCalls.ClosingBracket(source, opened);
                 if (closed > opened) calls.Add(source[at..(closed + 1)]);
                 at = source.IndexOf(call, at + call.Length, StringComparison.Ordinal);
             }
@@ -54,16 +54,4 @@ internal static class ServiceBindings
     // binding that would put it on the network.
     internal static bool ReachesBeyondLoopback(string text) =>
         BeyondLoopback.Any(address => text.Contains(address, StringComparison.Ordinal));
-
-    private static int MatchingBracket(string source, int opened)
-    {
-        var depth = 0;
-        for (var at = opened; at < source.Length; at++)
-        {
-            if (source[at] == '(') depth++;
-            else if (source[at] == ')' && --depth == 0) return at;
-        }
-
-        return -1;
-    }
 }

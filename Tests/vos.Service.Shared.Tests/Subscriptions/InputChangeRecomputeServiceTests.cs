@@ -273,7 +273,7 @@ public class InputChangeRecomputeServiceTests
         var harness = new Harness(environmentName: "Testing");
 
         await harness.Service.StartAsync(CancellationToken.None);
-        await harness.WatchAsync(Study, ModelOne);
+        await harness.WatchAsync(Study, ModelOne, waitForSubscription: false);
 
         harness.Clients.Should().AllSatisfy(client => client.SubscribeAttempts.Should().Be(0));
         await harness.DisposeAsync();
@@ -451,7 +451,7 @@ public class InputChangeRecomputeServiceTests
         harness.Exchange.IssueExpiringIn = TimeSpan.FromHours(24);
 
         await harness.WatchAsync(Study, ModelOne);
-        await Task.Delay(150);
+        await Settle.BeforeAssertingAbsenceAsync(TimeSpan.FromMilliseconds(150));
 
         harness.Exchange.Calls.Should().ContainSingle("only the initial trade should have happened");
     }
@@ -630,48 +630,32 @@ public class InputChangeRecomputeServiceTests
                 return Task.CompletedTask;
             });
 
-            // Watching before the service starts opens no subscription, so waiting for one would only
-            // burn the deadline.
+            // Watching before the service starts opens no subscription, so there is none to wait for.
             if (waitForSubscription) await WaitForSubscriptionAsync(modelId);
         }
 
-        public async Task WaitForSubscriptionAsync(Guid modelId)
-        {
-            var deadline = DateTime.UtcNow.AddSeconds(5);
-            while (DateTime.UtcNow < deadline)
-            {
-                var client = Clients.FirstOrDefault(c => c.ModelId == modelId);
-                if (client is not null && client.Subscribed.Task.IsCompleted)
-                {
-                    // Membership is added right after the subscription opens; let that settle too.
-                    await Task.Delay(20);
-                    return;
-                }
-                await Task.Delay(10);
-            }
-        }
+        public Task WaitForSubscriptionAsync(Guid modelId) =>
+            Settle.UntilAsync(
+                () => Clients.Any(client => client.ModelId == modelId && client.Subscribed.Task.IsCompleted),
+                $"the follower opens its subscription for model {modelId}");
 
         // Waits for the follower to settle on the last bearer the exchange issued. Only
         // meaningful once the exchange has begun issuing outside the lead time, because until then
         // there is always another replacement coming and no answer stays true.
-        public async Task WaitForCurrentTokenToBeTheLastIssuedAsync(Guid modelId)
-        {
-            var deadline = DateTime.UtcNow.AddSeconds(5);
-            while (DateTime.UtcNow < deadline)
-            {
-                if (ClientFor(modelId).CurrentToken == Exchange.Issued[^1]) return;
-                await Task.Delay(10);
-            }
-
-            ClientFor(modelId).CurrentToken.Should().Be(Exchange.Issued[^1],
-                "the subscription's own calls must use the replacement, not the bearer it was seeded with");
-        }
+        public Task WaitForCurrentTokenToBeTheLastIssuedAsync(Guid modelId) =>
+            Settle.UntilAsync(
+                () => ClientFor(modelId).CurrentToken == Exchange.Issued[^1],
+                "the subscription's own calls use the replacement, not the bearer it was seeded with");
 
         public FakeSubscriptionClient ClientFor(Guid modelId) =>
             Clients.Single(client => client.ModelId == modelId);
 
-        public async Task<Recompute> NextRecomputeAsync() =>
-            await _observed.Reader.ReadAsync(new CancellationTokenSource(TimeSpan.FromSeconds(5)).Token);
+        public async Task<Recompute> NextRecomputeAsync()
+        {
+            var next = _observed.Reader.ReadAsync().AsTask();
+            await Settle.ForAsync(next, "a recompute runs");
+            return await next;
+        }
 
         public async ValueTask DisposeAsync() => await Service.StopAsync(CancellationToken.None);
     }
@@ -719,18 +703,9 @@ public class InputChangeRecomputeServiceTests
             return Task.FromResult(ModelScopedBearer.Read(extended));
         }
 
-        public async Task WaitForCallsAsync(int atLeast)
-        {
-            var deadline = DateTime.UtcNow.AddSeconds(5);
-            while (DateTime.UtcNow < deadline)
-            {
-                if (Calls.Count >= atLeast) return;
-                await Task.Delay(10);
-            }
-
-            Calls.Count.Should().BeGreaterThanOrEqualTo(atLeast,
-                "a bearer inside its lead time should be replaced on each check");
-        }
+        public Task WaitForCallsAsync(int atLeast) =>
+            Settle.UntilAsync(() => Calls.Count >= atLeast,
+                "a bearer inside its lead time is replaced on each check");
     }
 
     // Not the "Testing" environment: these tests exercise the subscription itself, which StartAsync skips there.
