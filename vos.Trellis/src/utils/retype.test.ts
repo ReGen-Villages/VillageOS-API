@@ -17,8 +17,6 @@ const thing = (Id: string, IsArchetype?: boolean): VosThing =>
 beforeEach(() => vi.clearAllMocks());
 
 describe('declaredTypes', () => {
-  // The platform refuses a Thing typed by one that was not declared a type, so offering any other
-  // Thing as a new type offers a choice that can only fail.
   it('keeps the Things declared a type and leaves out every other', () => {
     const things = [thing('Reservoir', true), thing('Upper Reservoir', false), thing('feeds'), thing('Spring', true)];
 

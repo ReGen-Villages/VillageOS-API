@@ -16,8 +16,6 @@ public class CreateCommandHandlerTests
         _writer = new StringWriter();
     }
 
-    // The platform refuses a Thing typed by one that was not declared a type, and the declaration
-    // cannot be added later, so `create` has to be able to make one.
     [Fact]
     public async Task CreateThing_WithTheArchetypeOption_CreatesADeclaredType()
     {

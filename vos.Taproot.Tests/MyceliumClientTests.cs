@@ -686,7 +686,6 @@ public class MyceliumClientTests
         json.Should().Be("{\"raw\":\"model\"}");
     }
 
-    // Whether a Thing is a type is fixed when it is created, so the flag travels with the name.
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

@@ -9,8 +9,6 @@ const thing = (Id: string, Name: string, IsArchetype?: boolean): VosThing =>
   ({ Id, Name, IsArchetype, Properties: {} } as unknown as VosThing);
 
 describe('RetypeRow', () => {
-  // The platform refuses a Thing typed by one that was not declared a type, so a member offered as a
-  // new type is a choice that can only fail.
   it('offers the declared types as the new type, and no member', () => {
     const things = [
       thing('is-predicate', 'is'),
