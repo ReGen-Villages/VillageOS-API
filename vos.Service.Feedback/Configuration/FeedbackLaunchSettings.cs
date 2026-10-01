@@ -9,6 +9,7 @@ public sealed record FeedbackLaunchSettings(
     Uri DevOpsOrganization,
     string DevOpsAccessToken,
     string[] AllowedOrigins,
+    string? PathPrefix,
     Destinations Destinations)
 {
     public const string AccessTokenSetting = "DevOpsAccessToken";
@@ -35,12 +36,17 @@ public sealed record FeedbackLaunchSettings(
         var allowedOrigins = reader.Read("allowedOrigin")
             ?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [];
 
-        return (new FeedbackLaunchSettings(service, organisation, accessToken, allowedOrigins, destinations), "");
+        var pathPrefix = reader.Read("pathPrefix");
+        if (pathPrefix is not null && !pathPrefix.StartsWith('/'))
+            return (null, "--pathPrefix must begin with a slash, such as /feedback.\n\n" + UsageMessage);
+
+        return (new FeedbackLaunchSettings(service, organisation, accessToken, allowedOrigins, pathPrefix, destinations), "");
     }
 
     public static string UsageMessage => ServiceLaunchSettings.BuildUsageMessage(
-        " [--allowedOrigin=<origin>[,<origin>]]",
+        " [--allowedOrigin=<origin>[,<origin>]] [--pathPrefix=<prefix>]",
         "\n  --allowedOrigin  Origin(s) of pages allowed to call this service across origins"
+        + "\n  --pathPrefix     Path prefix a proxy in front leaves on each request, such as /feedback, for one that cannot take it off"
         + "\n\nWhere reports are filed is read from appsettings.json, or from the one in the folder --contentRoot names:"
         + "\n  DevOpsOrganization  The Azure DevOps organisation's address, such as https://dev.azure.com/<name>"
         + "\n  Destinations        Per application: Project, AreaPath, BugType, IdeaType and Tags"

@@ -39,6 +39,8 @@ public sealed class FeedbackWebApplicationFactory : WebApplicationFactory<Progra
 
     public string? AllowedOrigin { get; set; }
 
+    public string? PathPrefix { get; set; }
+
     public CapturingLogger<ReportFiling> Log { get; } = new();
 
     public IReadOnlyList<RecordedRequest> PlatformRequests
@@ -67,6 +69,8 @@ public sealed class FeedbackWebApplicationFactory : WebApplicationFactory<Progra
         builder.UseSetting("Destinations:Trellis:Tags:0", "Console");
         if (AllowedOrigin != null)
             builder.UseSetting("AllowedOrigin", AllowedOrigin);
+        if (PathPrefix != null)
+            builder.UseSetting("PathPrefix", PathPrefix);
 
         builder.ConfigureTestServices(services =>
         {
