@@ -13,15 +13,6 @@ const POSITION_EVENTS = [
   'eachNodeAttributesUpdated',
 ] as const;
 
-/** Sorts both arrays in place. */
-function trimmedExtent(xs: Float32Array, ys: Float32Array): { x: [number, number]; y: [number, number] } {
-  const trimmed = Math.floor(xs.length * TRIMMED_SHARE_AT_EACH_EDGE);
-  const last = xs.length - 1 - trimmed;
-  xs.sort();
-  ys.sort();
-  return { x: [xs[trimmed], xs[last]], y: [ys[trimmed], ys[last]] };
-}
-
 /**
  * Fits the view to the extent of nearly every node rather than every node. The force layout
  * occasionally throws a few nodes far out for a second or two; fitted to every node, Sigma shrinks
@@ -64,7 +55,11 @@ export function ViewFitController() {
         index++;
       });
 
-      sigma.setCustomBBox(trimmedExtent(nodeXs, nodeYs));
+      nodeXs.sort();
+      nodeYs.sort();
+      const trimmed = Math.floor(graph.order * TRIMMED_SHARE_AT_EACH_EDGE);
+      const last = graph.order - 1 - trimmed;
+      sigma.setCustomBBox({ x: [nodeXs[trimmed], nodeXs[last]], y: [nodeYs[trimmed], nodeYs[last]] });
     };
 
     for (const event of POSITION_EVENTS) graph.on(event, markPositionsChanged);
