@@ -11,20 +11,21 @@ namespace vos.ContinuousIntegration.Tests;
 // ceiling beside one that gives up after five seconds.
 internal static class ClockedWaits
 {
-    internal sealed record Wait(int Line, string Call, string Clock, bool AlwaysTakesAClock);
+    internal sealed record Wait(int Line, string Call, IReadOnlyList<string> Arguments, bool AlwaysTakesAClock);
 
     private static readonly Regex TakesAClock = new(
         @"\bTask\.Delay\s*\(|\bThread\.Sleep\s*\(|\bnew\s+CancellationTokenSource\s*\(|\.CancelAfter\s*\(");
 
-    // Wait and WaitAsync also take a cancellation token, or nothing, and neither is a clock.
-    private static readonly Regex MayTakeAClock = new(@"\.Wait(?:Async)?\s*\(");
+    // These also take a cancellation token, a condition, a list of tasks, or nothing, and none of
+    // those is a clock.
+    private static readonly Regex MayTakeAClock = new(@"\.Wait(?:Async|One|All|Any)?\s*\(|\bSpinUntil\s*\(");
 
-    private static readonly Regex WrittenAsADuration = new(@"^\d|TimeSpan\.From");
+    private static readonly Regex WrittenAsADuration = new(@"^(?:\w+:\s*)?\d|TimeSpan\.From");
 
     private static readonly Regex LineComment = new(@"(?<!:)//.*$", RegexOptions.Multiline);
 
     private static readonly string[] SharedCeilingOrNoClock =
-        ["", "Settle.Ceiling", "Timeout.Infinite", "Timeout.InfiniteTimeSpan"];
+        ["Settle.Ceiling", "Timeout.Infinite", "Timeout.InfiniteTimeSpan"];
 
     internal static IReadOnlyList<Wait> In(string source)
     {
@@ -36,12 +37,12 @@ internal static class ClockedWaits
             .ToList();
     }
 
-    // A variable passed to Wait or WaitAsync is let through, because the text does not say whether
-    // it is a duration or a cancellation token.
+    // A variable passed to a call that may take a clock is let through, because the text does not
+    // say whether it is a duration or a cancellation token.
     internal static bool KeepsItsOwnClock(Wait wait) =>
         wait.AlwaysTakesAClock
-            ? !SharedCeilingOrNoClock.Contains(wait.Clock)
-            : WrittenAsADuration.IsMatch(wait.Clock);
+            ? wait.Arguments.Count > 0 && !SharedCeilingOrNoClock.Contains(wait.Arguments[0])
+            : wait.Arguments.Any(WrittenAsADuration.IsMatch);
 
     private static IEnumerable<Wait> WaitsMatching(Regex opening, string code, bool alwaysTakesAClock)
     {
@@ -54,21 +55,30 @@ internal static class ClockedWaits
             yield return new Wait(
                 Line: code.AsSpan(0, match.Index).Count('\n') + 1,
                 Call: code[match.Index..(closed + 1)].TrimStart('.'),
-                Clock: FirstArgument(code[(opened + 1)..closed]),
+                Arguments: ArgumentsIn(code[(opened + 1)..closed]),
                 alwaysTakesAClock);
         }
     }
 
-    private static string FirstArgument(string arguments)
+    private static List<string> ArgumentsIn(string betweenTheBrackets)
     {
+        var arguments = new List<string>();
         var depth = 0;
-        for (var at = 0; at < arguments.Length; at++)
+        var from = 0;
+
+        for (var at = 0; at < betweenTheBrackets.Length; at++)
         {
-            if (arguments[at] is '(' or '[' or '{') depth++;
-            else if (arguments[at] is ')' or ']' or '}') depth--;
-            else if (arguments[at] == ',' && depth == 0) return arguments[..at].Trim();
+            if (betweenTheBrackets[at] is '(' or '[' or '{') depth++;
+            else if (betweenTheBrackets[at] is ')' or ']' or '}') depth--;
+            else if (betweenTheBrackets[at] == ',' && depth == 0)
+            {
+                arguments.Add(betweenTheBrackets[from..at].Trim());
+                from = at + 1;
+            }
         }
 
-        return arguments.Trim();
+        var last = betweenTheBrackets[from..].Trim();
+        if (last.Length > 0) arguments.Add(last);
+        return arguments;
     }
 }

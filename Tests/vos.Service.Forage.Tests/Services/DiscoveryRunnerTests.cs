@@ -32,8 +32,6 @@ public class DiscoveryRunnerTests
         public int PeakInFlight { get; private set; }
         public List<string> Called { get; } = new();
 
-        public int CalledCount { get { lock (Called) return Called.Count; } }
-
         public List<Guid> Subjects { get; } = new();
 
         public async Task<SourceOutcome> FetchAsync(
@@ -151,7 +149,8 @@ public class DiscoveryRunnerTests
             .ToList();
 
         var run = Runner(fetcher, maxConcurrent: 3).RunAsync(site, sources, default);
-        await Settle.UntilAsync(() => fetcher.CalledCount >= 3, "three calls may run at once");
+        await Settle.UntilAsync(() => { lock (fetcher.Called) return fetcher.Called.Count >= 3; },
+            "three calls may run at once");
         await Settle.BeforeAssertingAbsenceAsync(TimeSpan.FromMilliseconds(50));
         release.SetResult();
         var report = await run;

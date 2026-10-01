@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -34,15 +36,27 @@ public class TestWaitsKeepTheSharedCeilingTests
             + string.Join("\n", found));
     }
 
+    // The solution is what the build runs, so it is the list this sweep cannot be short of: a test
+    // project the walk does not reach would go on writing its own clocks with this guard green.
     [Fact]
-    public void The_sweep_reads_test_files_from_more_than_one_project_and_finds_waits_in_them()
+    public void The_sweep_reads_every_test_project_the_solution_lists()
     {
-        var files = TestSourceFiles().ToList();
+        var solution = File.ReadAllText(Path.Combine(Root, RepositoryRoot.SolutionFileName));
+        var listed = Regex.Matches(solution, @"""(?<project>[^""]+Tests\.csproj)""")
+            .Select(match => Path.GetDirectoryName(match.Groups["project"].Value.Replace('\\', Path.DirectorySeparatorChar))!)
+            .ToList();
+        var read = TestProjectDirectories(new DirectoryInfo(Root))
+            .Select(directory => Path.GetRelativePath(Root, directory.FullName))
+            .ToList();
 
-        Assert.True(files.Select(file => Path.GetRelativePath(Root, file).Split(Path.DirectorySeparatorChar)[0])
-                .Distinct().Count() > 1,
-            "the sweep found test files under one top-level directory only");
-        Assert.Contains(files, file => ClockedWaits.In(File.ReadAllText(file)).Count > 0);
+        Assert.NotEmpty(listed);
+        Assert.Empty(listed.Except(read));
+    }
+
+    [Fact]
+    public void The_sweep_finds_waits_in_the_files_it_reads()
+    {
+        Assert.Contains(TestSourceFiles(), file => ClockedWaits.In(File.ReadAllText(file)).Count > 0);
     }
 
     [Theory]
@@ -57,6 +71,11 @@ public class TestWaitsKeepTheSharedCeilingTests
     [InlineData("await registered.Task.WaitAsync(TimeSpan.FromSeconds(5));")]
     [InlineData("started.Wait(TimeSpan.FromSeconds(10)).Should().BeTrue();")]
     [InlineData("started.Wait(10_000);")]
+    [InlineData("started.Wait(millisecondsTimeout: 10_000);")]
+    [InlineData("signalled.WaitOne(TimeSpan.FromSeconds(5));")]
+    [InlineData("Task.WaitAll(new[] { first, second }, TimeSpan.FromSeconds(5));")]
+    [InlineData("Task.WaitAny(new[] { first, second }, 5000);")]
+    [InlineData("SpinWait.SpinUntil(() => fired, TimeSpan.FromSeconds(5));")]
     public void A_wait_with_a_clock_of_its_own_is_refused(string source)
     {
         Assert.Contains(ClockedWaits.In(source), ClockedWaits.KeepsItsOwnClock);
@@ -70,6 +89,9 @@ public class TestWaitsKeepTheSharedCeilingTests
     [InlineData("await registered.Task.WaitAsync(Settle.Ceiling);")]
     [InlineData("await registered.Task.WaitAsync(cancellationToken);")]
     [InlineData("released.Wait();")]
+    [InlineData("signalled.WaitOne();")]
+    [InlineData("Task.WaitAll(first, second);")]
+    [InlineData("Task.WaitAll(new[] { first, second }, Settle.Ceiling);")]
     public void A_wait_on_the_shared_ceiling_or_with_no_clock_is_accepted(string source)
     {
         var waits = ClockedWaits.In(source);
@@ -122,7 +144,8 @@ public class TestWaitsKeepTheSharedCeilingTests
 
     private static IEnumerable<DirectoryInfo> TestProjectDirectories(DirectoryInfo directory)
     {
-        if (directory.Name.EndsWith(".Tests") || directory.Name.EndsWith(".Tests.Shared"))
+        if (directory.Name.EndsWith(".Tests", StringComparison.Ordinal)
+            || directory.Name.EndsWith(".Tests.Shared", StringComparison.Ordinal))
         {
             yield return directory;
             yield break;

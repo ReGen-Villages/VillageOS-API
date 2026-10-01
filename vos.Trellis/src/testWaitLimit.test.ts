@@ -11,6 +11,11 @@ describe('how long a wait inside a test may last', () => {
     expect(waitLimitWithin(30_000)).toBe(6_000);
   });
 
+  it('stays at one second when a test has no limit, which is how a test runs under a debugger', () => {
+    expect(waitLimitWithin(0)).toBe(1_000);
+    expect(waitLimitWithin(Infinity)).toBe(1_000);
+  });
+
   it('is set for each test from that test\'s own limit', { timeout: 20_000 }, ({ task }) => {
     expect(task.timeout).toBe(20_000);
     expect(getConfig().asyncUtilTimeout).toBe(4_000);
