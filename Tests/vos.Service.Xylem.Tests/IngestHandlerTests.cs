@@ -170,16 +170,27 @@ public class IngestHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task The_service_stopping_ends_a_run_in_progress_and_removes_the_uploaded_file()
+    public async Task The_service_stopping_ends_a_run_in_progress_says_why_and_removes_the_uploaded_file()
     {
         using var service = new CancellationTokenSource();
         _runner.WhileRunning = service.Cancel;
 
-        var upload = () => Handler.IngestUploadAsync(
+        var result = await Handler.IngestUploadAsync(
             Ifc(64), "Demo", IngestMode.Merge, maxBytes: 1024, callerLeft: default, serviceStopping: service.Token);
 
-        await upload.Should().ThrowAsync<OperationCanceledException>();
+        result.Success.Should().BeFalse();
+        result.Error.Should().Contain("The service stopped");
         File.Exists(_runner.SeenPath!).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task A_cancellation_the_service_did_not_ask_for_is_not_answered_as_the_service_stopping()
+    {
+        _runner.WhileRunning = () => throw new OperationCanceledException("The broker took too long.");
+
+        var ingest = () => Handler.IngestAsync("Demo", IngestMode.Merge, _tempIfc, serviceStopping: default);
+
+        await ingest.Should().ThrowAsync<OperationCanceledException>().WithMessage("The broker took too long.");
     }
 
     public void Dispose()

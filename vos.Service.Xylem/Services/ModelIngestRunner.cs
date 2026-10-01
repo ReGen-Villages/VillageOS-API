@@ -8,8 +8,8 @@ namespace vos.Service.Xylem.Services;
 //   dotnet <ModelIngest.dll> --ifc <path> --post <mycelium> --name <model> --profile analysis --result <path>
 // which parses (Xbim), classifies, and posts the graph to /api/model/fragment (idempotent, stable ids).
 // Purely the subprocess; new-model model preparation is the handler's job. No unit test starts the tool
-// itself; the launch it builds, the guard, the reading of a child's output and of its result file are
-// tested, and the orchestration by IngestHandlerTests.
+// itself; the launch it builds, the guard, the reading of a child's output and of its result file and
+// the stopping of a child are tested, and the orchestration by IngestHandlerTests.
 public sealed class ModelIngestRunner : IModelIngestRunner
 {
     // What the ingest tool writes to its --result file: what the broker created and updated across the

@@ -188,16 +188,14 @@ public class XylemHostTests
         factory.Runner.HeldRunWasCancelled.Should().BeFalse();
     }
 
-    [Theory]
-    [InlineData("/ingest")]
-    [InlineData("/ingest?async=true")]
-    public async Task The_service_stopping_cancels_a_run_in_progress(string route)
+    [Fact]
+    public async Task The_service_stopping_cancels_the_run_of_a_waiting_upload()
     {
         await using var factory = new XylemWebApplicationFactory();
         factory.Runner.HoldTheNextRunOpen();
         using var client = factory.CreateClient();
 
-        _ = client.PostAsync(route, Upload("ISO-10303-21;"));
+        _ = client.PostAsync("/ingest", Upload("ISO-10303-21;"));
         await Settle.ForAsync(factory.Runner.HeldRunStarted, "the tool was started");
         factory.Services.GetRequiredService<IHostApplicationLifetime>().StopApplication();
 

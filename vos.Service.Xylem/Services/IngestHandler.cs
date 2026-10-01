@@ -38,22 +38,32 @@ public class IngestHandler
         }
     }
 
-    public async Task<IngestResult> IngestAsync(string modelName, IngestMode mode, string ifcPath, CancellationToken ct)
+    public async Task<IngestResult> IngestAsync(
+        string modelName, IngestMode mode, string ifcPath, CancellationToken serviceStopping)
     {
         if (string.IsNullOrWhiteSpace(modelName))
             return IngestResult.Failed("A model name is required.");
         if (!File.Exists(ifcPath))
             return IngestResult.Failed("Uploaded IFC file not found.");
 
-        if (mode == IngestMode.NewModel)
+        try
         {
-            var clearError = await _preparer.ClearModelAsync(ct);
-            if (clearError is not null) return IngestResult.Failed(clearError);
-        }
+            if (mode == IngestMode.NewModel)
+            {
+                var clearError = await _preparer.ClearModelAsync(serviceStopping);
+                if (clearError is not null) return IngestResult.Failed(clearError);
+            }
 
-        var r = await _runner.RunAsync(ifcPath, modelName, ct);
-        return r.Success
-            ? IngestResult.Ok(r.ThingsCreated, r.ThingsUpdated, r.RelationshipsCreated)
-            : IngestResult.Failed(r.Error ?? "IFC ingest failed.");
+            var r = await _runner.RunAsync(ifcPath, modelName, serviceStopping);
+            return r.Success
+                ? IngestResult.Ok(r.ThingsCreated, r.ThingsUpdated, r.RelationshipsCreated)
+                : IngestResult.Failed(r.Error ?? "IFC ingest failed.");
+        }
+        catch (OperationCanceledException) when (serviceStopping.IsCancellationRequested)
+        {
+            return IngestResult.Failed(
+                "The service stopped while the ingest was running, so the ingest was stopped before it finished. "
+                + "The model keeps what had already been posted.");
+        }
     }
 }

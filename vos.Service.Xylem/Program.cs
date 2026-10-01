@@ -107,7 +107,7 @@ try
             var job = jobs.Create();
             _ = Task.Run(async () =>
             {
-                try { jobs.Complete(job.Id, await handler.IngestAsync(name, mode, temp, lifetime.ApplicationStopping)); }
+                try { jobs.Complete(job.Id, await handler.IngestAsync(name, mode, temp, CancellationToken.None)); }
                 catch (Exception ex) { jobs.Complete(job.Id, IngestResult.Failed(ex.Message)); }
                 finally { if (File.Exists(temp)) File.Delete(temp); }
             });
