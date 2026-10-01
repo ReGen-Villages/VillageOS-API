@@ -18,9 +18,9 @@ When a relationship like `Cottage-01 --[consumes]--> VillageElectricityPool` is 
 { "ServiceArgs": "--mode=consumes" }
 ```
 
-> `ServiceArgs` is plain CLI text passed verbatim to the daemon at launch. (A handler that
-> needs startup context subscribes for it over SSE — see `SERVICE_CONTRACT.md` — rather
-> than receiving injected IDs; an earlier `{{...}}` template mechanism was retired.)
+> `ServiceArgs` is plain CLI text passed verbatim to the daemon at launch. A handler that
+> needs startup context subscribes for it over SSE — see [`SERVICE_CONTRACT.md`](SERVICE_CONTRACT.md);
+> no identifiers are passed to it at launch.
 
 This means there are two running processes (on ports 7102 and 7103), but built from the same source.
 
@@ -41,8 +41,8 @@ When a seed loads with 20 `consumes` relationships, all 20 get registered within
 ### Startup sequence
 
 ```text
-1. Parse the launch settings (--port, --myceliumUrl and --mode from the command line; Token and VerificationKey from configuration)
-2. Use the pre-minted service JWT from the Token setting for Mycelium authentication
+1. Parse the launch settings (--port, --myceliumUrl and --mode from the command line; Token or ApiKey, and VerificationKey, from configuration)
+2. Use the service JWT from the Token setting, or the one exchanged for the ApiKey, for Mycelium authentication
 3. Start ASP.NET minimal API on the given port (with Mycelium token validation via vos.Auth.Shared)
 4. Open an SSE subscription to Mycelium for relationship property-change events
 5. Wait for /handle requests from Mycelium (validated via Mycelium-signed request tokens)
@@ -83,6 +83,8 @@ stateDiagram-v2
     waiting --> active: startUtc reached
     active --> active: tick every frequencySeconds
     active --> completed: endUtc reached
+    delayed --> cancelled: re-registered / stopped
+    waiting --> cancelled: re-registered / stopped
     active --> cancelled: re-registered / stopped
     completed --> [*]
     cancelled --> [*]
@@ -102,7 +104,9 @@ stateDiagram-v2
 2. Increment `total_consumed` (or `total_produced`) on the relationship itself (best-effort)
 3. Sleep for `frequencySeconds`
 
-**completed**: The loop exits when `endUtc` is reached or the simulation is cancelled.
+**completed**: A simulation reads `completed` only when its end time is reached.
+
+**cancelled**: A simulation that is stopped, cancelled or registered again reads `cancelled`, wherever in its run the stop arrived.
 
 If a relationship is registered again (e.g., on seed reload), the previous simulation is cancelled and replaced.
 
@@ -146,7 +150,7 @@ vos.Service.Metabolism/
 
 **`Metabolism`** — The simulation engine. Holds a `ConcurrentDictionary<string, SimulationEntry>` keyed by relationship ID. Each entry has its own async loop running in a `Task`. Handles registration, cancellation, property hot-reload, and graceful shutdown.
 
-**`MyceliumClient`** — HTTP communication with Mycelium: the pre-minted service token from the `Token` startup setting (exchanged at the token route when none was given), and the quantity increment and decrement calls.
+**`MyceliumClient`** — HTTP communication with Mycelium: the service token from the `Token` startup setting, or the one exchanged for an `ApiKey`, and the quantity increment and decrement calls.
 
 **`MetabolismSubscriptionService`** — Hosted service owning the SSE subscription: streams `RelationshipPropertyChanged` events into the engine and keeps the subscription's membership in step with registered simulations (add on Register, remove on Cancel).
 
@@ -254,11 +258,12 @@ Mycelium will auto-start the Metabolism service (if not already running), call `
 ### 4. Run manually (for development/debugging)
 
 ```bash
-dotnet run --project vos.Service.Metabolism -- \
+ApiKey=vos_sk_... dotnet run --project vos.Service.Metabolism -- \
   --port=7102 --myceliumUrl=https://localhost:7243 --mode=consumes
 ```
 
-Then check status:
+A handler started by hand needs a credential of its own to call Mycelium: an API key with the
+`service` role, as [`SERVICES.md` §12](SERVICES.md) creates one. Then check status:
 
 ```bash
 curl http://localhost:7102/health
@@ -277,9 +282,9 @@ On `ApplicationStopping`:
 2. `Task.WhenAll` waits for all loops to finish
 3. The SSE subscription is cancelled and unsubscribed
 
-The registration stays with Mycelium until its liveness monitor notices the
-handler is gone — the removal route is admin-only, so a handler cannot
-withdraw itself.
+The handler has no registration to withdraw. Mycelium tracks it under the
+connection that binds it, and shows it as stopped while its process is not
+running.
 
 Mycelium can also trigger shutdown by POSTing to `/shutdown`, which follows the same sequence.
 

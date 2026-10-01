@@ -2,7 +2,7 @@
 
 > **What VillageOS is, why it is built the way it is, and how to install and use every part of it.**
 > It is written for anyone who meets the platform — a landowner, a planner, an investor, an
-> operator, a modeller or an engineer — in plain words. It describes the platform as it is today.
+> operator, a modeller or an engineer — in plain words. It describes the platform as it is.
 
 <sub>VillageOS is made by ReGen Villages BV. This guide belongs to the public VillageOS-API
 repository, beside the console, the command line and the services it describes.</sub>
@@ -720,7 +720,7 @@ costs.
 | What was true at instant T; how did X change between T1 and T2 | Rings, the store of every value over time, reading only the layers that hold the span asked for |
 | The model, or one Thing, as it stood at T | The model's own history; a Thing not yet created, or already deleted, at T is answered as absent |
 | Which states a Thing held, and when; how long it spent in one | The engine's state history, which says how far back it reaches |
-| How much happened per slice of time across a kind: units dispatched per quarter hour over the last eight hours | A bucketed reduction over the live model's members and the instant each carries |
+| How much happened per slice of time across a kind: litres pumped per quarter hour over the last eight hours | A bucketed reduction over the live model's members and the instant each carries |
 | What one property's readings come to by calendar: the monthly mean of the daily high, the frost days a year, the share of hours inside a comfort band | A reduction over the property's retained readings, folded in steps — by day, then by month, then across the years |
 
 A value whose retention cannot reach the instant asked for is left out of the answer, never
@@ -815,9 +815,11 @@ A service that needs live model data does not poll. It opens a **subscription** 
 **selector** saying which slice of the model it wants — everything; particular Things by
 identifier or name; every Thing of a kind, found by name or by mark; the neighbours of those along
 a predicate; and which relationships should travel with them. The answer is a **snapshot** of that
-slice, stamped with the sequence number it was taken at, and from then on a **stream** carries every change to those Things and no
-others: created, deleted, a property changed, a relationship added, a Thing entering the slice
-because it was later typed into a watched kind.
+slice, stamped with the sequence number it was taken at, and from then on a **stream** carries
+every change to those Things and no others: created, deleted, a property changed, a relationship
+added, a Thing entering the slice because it was later typed into a watched kind. A subscriber that
+will read the slice another way declines the snapshot and is answered with the sequence number
+alone.
 
 Every change on the stream carries the sequence number it was committed at, so a client that
 drops its connection resumes from the last sequence it applied and misses nothing. A derived
@@ -962,7 +964,7 @@ The **Pipelines** page in the console is the editor.
 
 - **The catalysts**, in the rail on the left, are everything in the model that sets a run off,
   listed by kind — a state a Thing enters, a kind of message an external system sends, a request —
-  each saying what it starts or what happens to it today. Clicking one places a **start node**
+  each saying what it starts or what happens to it. Clicking one places a **start node**
   standing for it; *By hand* places a start whose ports are filled from the run's parameters. Beside
   the catalysts the **roster** lists the model's pipelines; one opens from it, and the first opens on
   arrival.
@@ -1112,10 +1114,15 @@ Model**, **Log Out**, and the **language**. Where the console was built with a f
 address, a speech-bubble button in the corner of every page opens the **report panel**: pick a problem
 or an idea, write a title and details, add a screenshot you can mark up, and it is filed as a work
 item (chapter 78). The console also reports each sign-in, sign-out and change a person makes to the
-server, so a model that names recipients for operator alerts hears of them. Above the controls a model statement says whether the
-stream is live, how many Things and relationships the model holds (*Reading the model…* until it
-is loaded), and when the newest event arrived (*Nothing has moved yet* before one). Collapsed, only
-the live mark stays, with the statement as its tooltip.
+server, so a model that names recipients for operator alerts hears of them.
+
+Above the controls a **model statement** says three things. The first is the state of the live
+stream, as a coloured mark and in words: amber *Connecting…* while a stream is being opened, green
+*Live* once it is open, red *Connection lost* after a stream fails and while the console retries.
+The second is how many Things and relationships the model holds — *Reading the model…* until it is
+loaded, and *On this page:* before the count where the open page holds only its own set of Things
+and not the whole model. The third is when the newest event arrived (*Nothing has moved yet* before
+one). Collapsed, only the mark stays, with the statement as its tooltip.
 
 The theme toggle switches the whole console between day and night. Every other picture in this guide
 is taken in day mode; here is the Dashboard in both.
@@ -1298,10 +1305,12 @@ Safari limits how many drawing surfaces a page may hold, so the 3D tab is hidden
 graph goes blank on Safari, resize the window, or reload the page.
 
 ### 52. The Dashboard page
-The landing page after sign-in, in four parts.
+The landing page after sign-in.
 
 **Model statistics.** Counts of Things, relationships, distinct predicates, properties and
-registered services, and the most-used predicates.
+registered services, and the most-used predicates. The counts are drawn only once the console holds
+the whole model; until then each reads as a dash and the card says *Reading the model…*, so a part
+of the model is never shown as its size.
 
 **Reactive engines.** What the two engines are carrying for this model: registered ranges and the
 dependencies they watch, derived-value definitions and the members they reduce over, and an estimated
@@ -1318,6 +1327,9 @@ whether the process was started outside the server, its process identifier and l
 and a **Delete** control that removes the connection from the model after a confirmation — distinct
 from Stop, which only ends the process.
 
+**Property storage mode.** The default retention a new property takes (chapter 17), with the ring
+buffer's size or the sample rate where the mode has one, and **Apply** to change it.
+
 **Activity feed.** Every change to the model, live: a Thing created, a relationship created, a
 property changed, a service called, each in its own colour. A *property observed* is a reading
 delivered to a subscription that asked for readings — a published page asks, the navigation does
@@ -1326,9 +1338,11 @@ hundred. **Pause** freezes it and counts what arrives meanwhile; **Play** shows 
 top show or hide the Model, Things, Relationships, Properties and Services categories. The panel
 collapses and resizes, and remembers its height.
 
-The top-right controls show whether the server and the live streams are connected, open the
-server's interactive route listing, **reload the seeds** (discard the current model and load the
-seeds directory again), and **shut the server down** after a confirmation.
+The top-right controls carry two lights, open the server's interactive route listing, **reload the
+seeds** (discard the current model and load the seeds directory again), and **shut the server down**
+after a confirmation. The **Mycelium** light is amber until the server's first answer, green once
+it has answered, and red when it does not answer. The second light is the live stream's, with its
+state beside it in words: amber *Connecting…*, green *Live*, red *Connection lost*.
 
 ### 53. Reading a published page
 A dashboard is a page the model publishes, and the console draws it without knowing what it is
@@ -1874,8 +1888,9 @@ command but `change-password` goes through the platform's administration route, 
 console's Accounts page uses (chapter 54), so the command line and the console
 say and refuse the same things, and a refusal is written in the route's own words. Every password is
 prompted for rather than taken on the command line, so none is left in the shell's history. Nothing
-acts on the caller's own account except `change-password`. Keys are still created and revoked over
-the request interface. An account added, granted a second model, promoted and removed, with a
+acts on the caller's own account except `change-password`. The command line has no command for
+keys: they are issued and revoked on the API keys page (chapter 54) or over the request interface.
+An account added, granted a second model, promoted and removed, with a
 refusal, as the console printed it:
 
 ```text
@@ -1913,7 +1928,7 @@ empty.
 | --- | --- |
 | Every request is refused as unavailable | The server is still rebuilding from its record or loading seeds; the console shows the progress, and `seeds status` reports it |
 | The console says *not signed in* over a plain `http` address | Sessions need a secure `https` origin; use the server's own secure address or the reverse proxy |
-| The console's **Live** light is red | The stream has dropped; the console reconnects on its own within half a minute. A red **Mycelium** light means the server itself is down |
+| The console's stream light is red and reads *Connection lost* | The stream has failed; the console retries on its own, waiting at most half a minute between tries. Amber *Connecting…* is a stream being opened and is not a fault. A red **Mycelium** light means the server itself does not answer |
 | A created Thing never appears on a page | The page's subscription did not cover it. A narrowed page is sent a Thing later typed into one of its kinds, but not one named by identifier or reached by a walk after the page opened; those arrive on the next open |
 | The graph never settles | **Pause** it and read it as it stands |
 | Search finds nothing | Check the case-sensitive, exact-match and pattern toggles; a pattern gives `.` and `(` special meaning |
@@ -2207,6 +2222,7 @@ vos.Trellis/
     ├── intake/                    the land-intake wizard, shared with the public form
     ├── publicForm/, publicFindings/, explore/
     │                              the three public pages' entries
+    ├── feedback/                  the report panel, also built on its own
     ├── pipeline/                  the pipeline editor's model, validation, undo history
     ├── i18n/                      one file per language
     └── components/                layout, graph, panels, dashboard widgets, pipeline,
@@ -2241,7 +2257,7 @@ store current. The graph mapper turns the store into the renderer's graph:
   neighbours and predicates so every visible relationship has both ends and a name.
 - **Removals** are one clear-and-import rather than one drop per node, because the renderer
   re-indexes the whole graph on every single removal; hiding most of a large model one node at a
-  time locked the page for long enough to look like a crash.
+  time would lock the page for long enough to look like a crash.
 
 The display settings live on the `GUI_Settings` Thing every seed carries: the layout strengths,
 the predicate colours (a map from predicate name to colour), the classifying property, the flash
@@ -2319,8 +2335,11 @@ that is not a stream — because an address is recorded in logs and history wher
 | `ServiceHealthChanged`, `DaemonStatusChanged`, `ServiceRequestCompleted`, `EndpointServiceRequestCompleted` | The service, its status, the timing | Events stream |
 | `ActivityEvent` | Every notable act, for the feed | Events stream |
 
-**What each page subscribes to.** A subscription says which objects it covers; the platform answers
-with a snapshot of them and then streams changes to those and no others. The declaration follows the
+**What each page subscribes to.** A subscription says which objects it covers, and the platform
+streams changes to those and no others. A narrowed page is answered with a snapshot of what it
+covers, and that snapshot is its load. A page that asks for the whole model declines the snapshot
+(`"includeSnapshot": false`) and is filled by the model reads, so the whole model is not built, sent
+and parsed twice. The declaration follows the
 page: a page declares what it needs while it is shown and takes the declaration back when it leaves,
 and the innermost declaration is the one in force. The application shell always asks for the pages
 the navigation lists and the display-settings Thing. The graph, the two searches, the pipeline
@@ -2496,13 +2515,13 @@ and a status cell has to be single-valued.
 
 ```jsonc
 { "type": "table",
-  "columns": [ { "key": "name", "label": "Unit" }, { "key": "at", "label": "At" },
+  "columns": [ { "key": "name", "label": "Pump" }, { "key": "feeds", "label": "Feeds" },
                { "key": "condition", "label": "Condition", "render": "badge" } ],
-  "rows": { "kind": "thingList", "archetype": "Machine",
+  "rows": { "kind": "thingList", "archetype": "Pump",
     "computed": [
-      { "key": "at", "value": { "kind": "related", "via": [ { "predicate": "at" } ] } },
+      { "key": "feeds", "value": { "kind": "related", "via": [ { "predicate": "feeds" } ] } },
       { "key": "condition",
-        "value": { "kind": "stateOf", "states": ["blocked", "charging", "idle"] } } ] } }
+        "value": { "kind": "stateOf", "states": ["failed", "running", "idle"] } } ] } }
 ```
 
 ### 91. Series and charts
@@ -2518,9 +2537,9 @@ the tile above a line asks the same question as the line. An outgoing `scope` na
 an inbound one is refused; a refused question resolves to nothing rather than to an empty series.
 
 ```json
-{ "type": "kpi", "title": "Throughput", "format": "integer",
-  "value": { "kind": "latest", "series": { "kind": "timeseries", "archetype": "Reading",
-             "happenedAt": "recorded_at", "property": "volume", "op": "sum",
+{ "type": "kpi", "title": "Water pumped", "format": "integer",
+  "value": { "kind": "latest", "series": { "kind": "timeseries", "archetype": "PumpRun",
+             "happenedAt": "finishedAt", "property": "litres", "op": "sum",
              "bucketSeconds": 900, "buckets": 32, "bucketsPerPoint": 4 } } }
 ```
 
@@ -2646,8 +2665,8 @@ shown in the endpoint's own words. A press the route accepted starts a new gener
 so a table on the same page shows what the press changed — a write the platform records outside the
 model, an account, announces nothing on the stream. The platform's own administration route,
 `POST /api/auth/administration`, takes these bodies for its Accounts and API keys pages; no shipped
-service endpoint does yet, and one a model registers has to accept `{ view | reason, record, …asked }`
-or `{ view, …fields }` and answer `{ said }` or `{ error }`.
+service endpoint takes them, and one a model registers has to accept
+`{ view | reason, record, …asked }` or `{ view, …fields }` and answer `{ said }` or `{ error }`.
 
 **Translating a description.** Author in one base language, then add a top-level `translations`
 map from language code to base string to translated string, keyed by language rather than region
@@ -2671,9 +2690,9 @@ section carrying `facts: true` draws its kpi widgets as cards beside the map on 
 each with its origin line in place of a tick, and leaves the report; the page draws three cards of
 its own (the area, the coordinates, the reference), so a facts section carries only what the page
 cannot know for itself. A section carrying `tab` becomes a tab of the closing view over the land,
-in description order. The signed-in pages draw no tiles today, so a description naming a theme
-renders there as the list it always did. The themes reach the public pages through the intake
-service's form route, found by the mark.
+in description order. The signed-in pages draw no tiles, so a description naming a theme renders
+there as a list of sections. The themes reach the public pages through the intake service's form
+route, found by the mark.
 
 **What a page is sent.** A page opens the subscription its description implies (chapter
 85), so a binding reaches its subject either by naming it or by walking to it; a
@@ -2718,7 +2737,7 @@ parsed and nothing says so.
 `npm run dev` serves the console, passing `/api` and `/basemaps` through to the server and `/feedback`
 to the relay on its default port; `npm run lint`, `npm test` and `npm run build` (which type-checks)
 are what the build runs, and a failure in any of them fails it. `npm run
-test:integration` needs a running server and checks what only one can answer — today, that the
+test:integration` needs a running server and checks what only one can answer: that the
 property type names the console holds are the ones the platform's write routes accept. Walk a
 change through the model: load a seed, confirm every Thing and relationship draws, search, select a
 Thing and a relationship, create a Thing from the command line and watch it appear without a reload,

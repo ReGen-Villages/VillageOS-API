@@ -7,7 +7,7 @@ namespace vos.Service.Intake;
 //
 // A refusal names the field and never quotes the value back. Contact details arrive on this route by
 // design, and a message that echoed one would put it in whatever reads the response — see
-// docs/LAND_INTAKE.md §12.
+// "Handling personal data" in docs/LAND_INTAKE.md.
 public static class SubmissionLimits
 {
     // A submission is a form's worth of answers and a drawn boundary — kilobytes. The cap is

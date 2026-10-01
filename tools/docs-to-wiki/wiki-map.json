@@ -26,7 +26,6 @@
     { "doc": "deploy/TUNNEL.md", "page": "/Deployment/Tunnel" }
   ],
   "excluded": [
-    { "doc": "docs/SERVICE_HOST_ROADMAP.md", "why": "Planned work, not reference material. Plans change faster than the wiki should." },
     { "doc": "LICENSE-COMMERCIAL.md", "why": "Licence text. It belongs with the source, not on the wiki." },
     { "doc": "tools/docs-pdf/README.md", "why": "How to run one tool, kept beside it. A reader wanting a PDF is already in the directory." },
     { "doc": "tools/docs-to-wiki/README.md", "why": "How to run the generator that builds this wiki. Publishing it would explain the wiki on the wiki." },

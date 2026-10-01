@@ -27,7 +27,7 @@ Everything talks to **Mycelium**, the VillageOS server that stores the graph and
 - Server-Sent Events (SSE) real-time updates with flash effects
 - Zustand state management
 - Config-driven **Operations** dashboard — a model supplies a JSON spec and Trellis renders KPI, chart, funnel, table, and leaderboard widgets against it (the GUI stays domain-agnostic)
-- Dashboard, Operations, Compose, Intake, Submissions, Graph, Temporal, Things, Properties, Model, Pipelines and Logs pages, plus every page the platform declares for the signed-in account (Accounts, for an administrator), drawn like a model's own
+- Dashboard, Operations, Compose, Design, Land intake, Submissions, Graph, Model, Pipelines, Temporal, Things, Properties and Logs pages, plus every page the platform declares for the signed-in account (Accounts and API keys, for an administrator), drawn like a model's own
 
 ### Taproot (CLI)
 
@@ -47,15 +47,15 @@ Everything talks to **Mycelium**, the VillageOS server that stores the graph and
 | vos.Service.Delta | Production | Registers data sources against a single-rooted endpoint-template graph (`is`-inheritance), with schema discovery and saga compensation |
 | vos.Service.Tributary | Production | HTTP endpoint calling with JSONata response transforms; config-driven token-exchange auth + offset pagination (e.g. ESRI/ArcGIS) |
 | vos.Service.Metabolism | Production | Consume/produce simulation — decrements/increments a target property's quantity at a configured rate; backs the `consumes`/`produces` Handled Predicates |
-| vos.Service.Phloem | Production | Pipeline/DAG orchestrator — runs a user-authored DAG of microservice nodes; spawned synchronously through Mycelium, dispatches each node via endpoint-forward (see [SERVICES.md §16](docs/SERVICES.md)) |
+| vos.Service.Phloem | Production | Pipeline orchestrator — runs a user-authored pipeline of microservice nodes; spawned synchronously through Mycelium, dispatches each node via endpoint-forward (see [SERVICES.md §16](docs/SERVICES.md)) |
 | vos.Service.Xylem | Production | IFC ingestion — accepts an `.ifc` upload (`POST /ingest`, merge or new-model), runs the `vos.Tools.ModelIngest` tool, and applies the graph to Mycelium; frees clients from a local ingest toolchain. Large files: `?async=true` returns a job id (poll `GET /ingest/jobs/{id}`) and the upload is streamed with a configurable cap |
 | vos.Service.Forage | Production | Resolves a site against every data source covering it, calls Tributary for each, and starts the site's analysis by relating its study to each marked compute connection (see [FORAGE.md](docs/FORAGE.md)) |
 | vos.Service.Intake | Production | Takes a land-intake submission and composes the Site, Parcel and study it becomes, applied as one all-or-nothing fragment; registers with nothing and holds its own credential (see [LAND_INTAKE.md](docs/LAND_INTAKE.md)) |
 | vos.Service.Feedback | Production | Takes a bug report or an idea from a signed-in person's report panel and files it as an Azure DevOps work item, with the screenshot attached; asks the platform to accept the caller's token, holds the DevOps access token, and reads each application's project and area from the `Destinations` section of its settings |
 | vos.Service.EnergyBalance | Production | Site energy-balance simulation — sums generation (e.g. solar: PV area × resource × efficiency) against demand; a Handled-Predicate service in the same family as Metabolism |
 | vos.Service.WaterReserve | Production | Water-reserve simulation — tracks stored water against consumption (e.g. an emergency reserve under a supply failure). A pipeline node only: a site study declares all four of its figures as formulas, so nothing dispatches it against a study |
-| vos.Service.ModelBridge | Production | Generic bridge between a pipeline DAG and the model — reads a property off a Thing or writes a computed result back (see [MODELBRIDGE.md](docs/MODELBRIDGE.md)) |
-| vos.Service.CSharp.Echo | Example (C#) | Minimal managed microservice demonstrating the lifecycle — the canonical reference; also the reference pipeline DAG node |
+| vos.Service.ModelBridge | Production | Generic bridge between a pipeline and the model — reads a property off a Thing or writes a computed result back (see [MODELBRIDGE.md](docs/MODELBRIDGE.md)) |
+| vos.Service.CSharp.Echo | Example (C#) | Minimal managed microservice demonstrating the lifecycle — the canonical reference; also the reference pipeline node |
 | vos.Service.Go.Echo | Example (Go) | The same handler in Go (standard library, zero deps) |
 | vos.Service.Node.Echo | Example (Node/TS) | The same handler in TypeScript (Node built-ins, zero runtime deps) |
 | vos.Service.Python.Echo | Example (Python) | The same handler in FastAPI |
@@ -103,7 +103,7 @@ publishes: the documentation to the project wiki, and the repository and that wi
 what is public is what has been integrated rather than what was last promoted.
 
 `npm test` runs offline. `npm run test:integration` covers what only a live
-platform can answer — currently that the property type names Trellis holds are
+platform can answer: that the property type names Trellis holds are
 the ones the platform's write routes accept, so a type added on one side and not
 the other is caught rather than surfacing later as a property the GUI
 mishandles. It needs a Mycelium running, so it is not part of the build above;
@@ -118,8 +118,8 @@ Trellis connects to the Mycelium at `https://localhost:7243` by default.
 `Tests/vos.BrokerContract.Tests` runs a service's own broker client against a **real Mycelium started
 inside the test process** — real routes, real inheritance, real write semantics, over no network.
 Every other service suite answers the platform with a stand-in it wrote itself, which encodes what
-its author believed the platform does; three services turned out to be writing a shape the platform
-refuses, and every one of their cases passed.
+its author believed the platform does: a service writing a shape the platform refuses passes every
+case written against a stand-in that accepts it.
 
 It needs the platform's engine, which lives in the VillageOS repository, so it does not run from a
 plain `dotnet test` here. Stage one and run it:

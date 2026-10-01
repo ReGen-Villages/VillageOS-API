@@ -9,7 +9,7 @@ It's the Rust analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.Se
 ## Run
 
 ```bash
-cargo run -- --port=5104 --myceliumUrl=https://localhost:7243
+Token=<service-jwt> cargo run -- --port=5104 --myceliumUrl=https://localhost:7243
 
 # with inbound auth, as Mycelium launches it:
 Token=<service-jwt> VerificationKey=<base64-public-key> \
@@ -32,7 +32,7 @@ Both come from the environment and are never flags. A command line is readable b
 
 | Variable | Meaning |
 |----------|---------|
-| `Token` | Pre-minted service JWT; if unset, fetched from `POST /api/auth/token` |
+| `Token` | Pre-minted service JWT. With none set the service asks `POST /api/auth/token` for one with no key, which Mycelium refuses, so a run by hand needs one |
 | `VerificationKey` | Base64 of Mycelium's public signing key; when set, `/handle` and `/shutdown` require a valid Mycelium-signed JWT addressed to this service. It checks a signature and cannot make one |
 
 ## Endpoints
@@ -79,8 +79,8 @@ Full wire contract (routes, status codes, 405/404 gating): [`docs/SERVICE_CONTRA
 
 ## Selecting a slice (snapshot selector)
 
-The selector replaced launch-time object IDs: subscribe with a selector describing the slice you
-need. This example provides `subscribe` / `unsubscribe` / `slice_by_type_and_traverse` and a
+A handler is passed no object identifiers at launch: it subscribes with a selector describing the
+slice it needs. This example provides `subscribe` / `unsubscribe` / `slice_by_type_and_traverse` and a
 runnable demo at `POST /demo/subscribe { "type": "Battery", "predicate": "powers" }`.
 
 ```rust

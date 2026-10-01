@@ -54,7 +54,7 @@ empty box.
 **The typography travels with the file.** Three variable faces are embedded, so a guide renders the
 same on a machine that has none of them.
 
-**A figure drawn dark is turned light.** The four `vos-*.svg` figures were drawn for a screen, on a
+**A figure drawn dark is turned light.** The `vos-*.svg` figures were drawn for a screen, on a
 near-black ground, and no published page attaches them; printing one costs a page of ink a reader
 did not ask for. A figure whose backdrop is dark has every colour's lightness turned over — the
 ground becomes paper, light text becomes ink, and an accent keeps its hue — and its backdrop is set

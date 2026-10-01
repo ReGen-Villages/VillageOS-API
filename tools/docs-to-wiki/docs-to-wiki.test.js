@@ -372,7 +372,7 @@ test('an anchor with no matching heading is left untouched rather than guessed a
 });
 
 test('a link to an unmapped repository file points at the file in the repository', () => {
-  assert.match(rewrite('[roadmap](SERVICE_HOST_ROADMAP.md)'), /_git\/VillageOS-API\?path=\/docs\/SERVICE_HOST_ROADMAP\.md\)$/);
+  assert.match(rewrite('[notes](UNMAPPED_NOTES.md)'), /_git\/VillageOS-API\?path=\/docs\/UNMAPPED_NOTES\.md\)$/);
 });
 
 test('external links are left alone', () => {
