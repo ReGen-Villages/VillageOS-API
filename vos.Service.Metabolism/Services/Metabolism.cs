@@ -63,6 +63,23 @@ public class Metabolism
 
     private async Task RunSimulationLoop(SimulationEntry entry, int order, CancellationToken ct)
     {
+        try
+        {
+            await RunUntilEndTime(entry, order, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            entry.Status = "cancelled";
+            return;
+        }
+
+        entry.Status = "completed";
+        _logger.LogInformation("Simulation {RelId}: completed after {Ticks} ticks",
+            entry.Config.RelationshipId, entry.TickCount);
+    }
+
+    private async Task RunUntilEndTime(SimulationEntry entry, int order, CancellationToken ct)
+    {
         var config = entry.Config;
         var verb = _direction.ProgressVerb;
 
@@ -72,8 +89,7 @@ public class Metabolism
             _logger.LogInformation("Simulation {RelId}: delaying {Seconds}s before start",
                 config.RelationshipId, config.StartDelaySeconds);
             entry.Status = "delayed";
-            try { await Task.Delay(delayMs, ct); }
-            catch (OperationCanceledException) { entry.Status = "cancelled"; return; }
+            await Task.Delay(delayMs, ct);
         }
 
         var waitTime = config.StartUtc - DateTime.UtcNow;
@@ -82,8 +98,7 @@ public class Metabolism
             entry.Status = "waiting";
             _logger.LogInformation("Simulation {RelId}: waiting {Seconds}s until start time",
                 config.RelationshipId, waitTime.TotalSeconds);
-            try { await Task.Delay(waitTime, ct); }
-            catch (OperationCanceledException) { entry.Status = "cancelled"; return; }
+            await Task.Delay(waitTime, ct);
         }
         else
         {
@@ -91,16 +106,19 @@ public class Metabolism
             // Each simulation waits (order * 200ms) + random jitter before first tick.
             var staggerMs = (order * 200) + Random.Shared.Next(0, 500);
             _logger.LogDebug("Simulation {RelId}: staggering initial tick by {Ms}ms", config.RelationshipId, staggerMs);
-            try { await Task.Delay(staggerMs, ct); }
-            catch (OperationCanceledException) { entry.Status = "cancelled"; return; }
+            await Task.Delay(staggerMs, ct);
         }
 
         entry.Status = "active";
         _logger.LogInformation("Simulation {RelId}: active — {Verb} {Qty} {Unit} every {Freq}s on {Target}",
             config.RelationshipId, verb, config.Quantity, config.Unit, config.FrequencySeconds, config.TargetId);
 
-        while (!ct.IsCancellationRequested && DateTime.UtcNow < config.EndUtc)
+        while (true)
         {
+            ct.ThrowIfCancellationRequested();
+            if (DateTime.UtcNow >= config.EndUtc)
+                return;
+
             try
             {
                 await _myceliumClient.ApplyQuantityAsync(config.TargetId, config.PropertyPath, config.Quantity, config.SubjectName, config.Unit);
@@ -126,13 +144,8 @@ public class Metabolism
                 _logger.LogWarning("Simulation {RelId} tick failed: {Error}", config.RelationshipId, ex.Message);
             }
 
-            var sleepMs = config.FrequencySeconds * 1000;
-            try { await Task.Delay(sleepMs, ct); }
-            catch (OperationCanceledException) { entry.Status = "cancelled"; return; }
+            await Task.Delay(config.FrequencySeconds * 1000, ct);
         }
-
-        entry.Status = "completed";
-        _logger.LogInformation("Simulation {RelId}: completed after {Ticks} ticks", config.RelationshipId, entry.TickCount);
     }
 
     public virtual void UpdateProperty(string relationshipId, string propertyName, object? newValue)

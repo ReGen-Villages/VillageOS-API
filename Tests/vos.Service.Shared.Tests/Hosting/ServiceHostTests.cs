@@ -64,10 +64,8 @@ public class ServiceHostTests
         await app.StartAsync();
 
         var clock = app.Services.GetRequiredService<ModelClock>();
-        for (var attempt = 0; attempt < 50 && !clock.IsAnchored; attempt++)
-            await Task.Delay(20);
+        await Settle.UntilAsync(() => clock.IsAnchored, "the service's clock takes the broker's reading");
 
-        clock.IsAnchored.Should().BeTrue();
         clock.Rate.Should().Be(60, "the rate the broker answered with, not a default");
         // A day of model time, not five seconds: at sixty times real speed a tolerance in model time is
         // that tolerance divided by sixty on the agent's clock, and five seconds of it is eighty-three
@@ -149,8 +147,7 @@ public class ServiceHostTests
 
         await app.GetTestClient().PostAsync("/shutdown", content: null);
 
-        var stopped = await Task.WhenAny(stopping.Task, Task.Delay(TimeSpan.FromSeconds(5)));
-        stopped.Should().Be(stopping.Task, "the shutdown endpoint should stop the host");
+        await Settle.ForAsync(stopping.Task, "the shutdown endpoint stops the host");
     }
 
     [Fact]
@@ -166,8 +163,7 @@ public class ServiceHostTests
 
         await app.StartAsync();
 
-        var completed = await Task.WhenAny(registered.Task, Task.Delay(TimeSpan.FromSeconds(5)));
-        completed.Should().Be(registered.Task, "startup should announce the service to the broker");
+        await Settle.ForAsync(registered.Task, "startup announces the service to the broker");
         (await registered.Task).Method.Should().Be(HttpMethod.Post);
     }
 

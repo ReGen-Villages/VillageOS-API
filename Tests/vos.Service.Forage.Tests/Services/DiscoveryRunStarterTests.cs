@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using vos.Service.Forage.Services;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Forage.Tests.Services;
@@ -78,8 +79,8 @@ public class DiscoveryRunStarterTests
         starter.Start(_ => { second.SetResult(true); return Task.CompletedTask; });
 
         (await second.Task).Should().BeTrue("one run failing does not stop the starter");
-        var deadline = DateTime.UtcNow.AddSeconds(5);
-        while (logger.Errors.Count == 0 && DateTime.UtcNow < deadline) await Task.Delay(10);
+        await Settle.UntilAsync(() => { lock (logger.Errors) return logger.Errors.Count > 0; },
+            "the run that threw is reported");
         logger.Errors.Should().ContainSingle().Which.Should().Contain("after its dispatch had been accepted");
     }
 }

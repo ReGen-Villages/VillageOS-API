@@ -178,6 +178,9 @@ public class SubmissionIntakeServiceTests
         // Completes as soon as a second lookup is in flight. Awaited one after another there is never a
         // second one waiting here, so the count stays at one however long each call takes.
         var aSecondArrived = new TaskCompletionSource();
+        // One wait shared by every lookup, so lookups that do run one after another fail the test
+        // after one ceiling rather than one each.
+        var noSecondCame = new Lazy<Task>(() => Task.Delay(Settle.Ceiling));
 
         var service = ServiceOfAnUnseededModel(async request =>
         {
@@ -189,7 +192,7 @@ public class SubmissionIntakeServiceTests
                 mostAtOnce = Math.Max(mostAtOnce, inFlight);
                 if (inFlight >= 2) aSecondArrived.TrySetResult();
             }
-            await Task.WhenAny(aSecondArrived.Task, Task.Delay(TimeSpan.FromSeconds(2)));
+            await Task.WhenAny(aSecondArrived.Task, noSecondCame.Value);
             lock (counting) inFlight--;
 
             return SeededAnswer(request);
