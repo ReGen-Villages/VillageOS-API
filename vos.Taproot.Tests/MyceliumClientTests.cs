@@ -1071,7 +1071,9 @@ public class MyceliumClientTests
 
             await client.IngestIfcAsync("http://localhost:6100", tmp, "Demo", "merge");
 
-            withNoTimeLimit.Requests.Should().ContainSingle().Which.RequestUri!.AbsolutePath.Should().Be("/ingest");
+            var upload = withNoTimeLimit.Requests.Should().ContainSingle().Subject;
+            upload.RequestUri!.AbsolutePath.Should().Be("/ingest");
+            upload.Headers.GetValues(MyceliumClient.ProgramHeader).Should().ContainSingle(MyceliumClient.ProgramName);
             heldToATimeLimit.Requests.Should().ContainSingle()
                 .Which.RequestUri!.AbsolutePath.Should().Be("/api/auth/token");
         }

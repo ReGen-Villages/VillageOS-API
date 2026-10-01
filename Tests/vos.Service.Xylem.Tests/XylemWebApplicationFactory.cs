@@ -58,7 +58,7 @@ public sealed class XylemWebApplicationFactory : WebApplicationFactory<Program>
         public Task HeldRunStarted => _heldRunStarted.Task;
         public bool HeldRunWasCancelled => _heldRun?.Task.IsCanceled ?? false;
 
-        // Nothing releases a held run. It ends when the service cancels it.
+        // Nothing releases a held run. It ends when it is cancelled.
         public void HoldTheNextRunOpen() => _heldRun = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Task<IngestRunResult> RunAsync(string ifcPath, string modelName, CancellationToken ct)
