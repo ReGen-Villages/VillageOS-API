@@ -73,12 +73,22 @@ public class ModelIngestRunnerTests
         startInfo.Environment.Should().NotContainKey("Token");
     }
 
-    [Theory]
-    [InlineData("Ingested 12 things, 5 relationships.\nFragment POST: 200 applied", 12, 5)]
-    [InlineData("Ingested 0 things, 0 relationships.", 0, 0)]
-    [InlineData("no count line here", 0, 0)]
-    public void ParseCounts_reads_the_totals(string stdout, int things, int rels)
+    // Copied from a run of the ingest tool, which lives in another repository: a sample written by hand
+    // proves only that the pattern matches the sample.
+    private const string OutputOfAnIngestRun =
+        "Profile: analysis — dropping BIM detail no analysis reads.\n" +
+        "Ingested: 9 things, 4 relationships.\n" +
+        "Fragment POST:      200 2 batch(es) applied → http://localhost:7391\n";
+
+    [Fact]
+    public void The_counts_are_read_from_the_line_the_ingest_tool_prints()
     {
-        ModelIngestRunner.ParseCounts(stdout).Should().Be((things, rels));
+        ModelIngestRunner.ParseCounts(OutputOfAnIngestRun).Should().Be((9, 4));
+    }
+
+    [Fact]
+    public void Output_with_no_count_line_reads_as_no_Things_and_no_relationships()
+    {
+        ModelIngestRunner.ParseCounts("no count line here").Should().Be((0, 0));
     }
 }

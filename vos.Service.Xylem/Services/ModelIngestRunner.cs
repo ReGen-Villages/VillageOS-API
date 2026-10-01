@@ -12,9 +12,9 @@ namespace vos.Service.Xylem.Services;
 // IngestHandlerTests.
 public sealed class ModelIngestRunner : IModelIngestRunner
 {
-    // The ModelIngest CLI prints "Ingested <n> things, <m> relationships." — the only count it surfaces.
-    // Created-vs-updated fidelity needs a ModelIngest enhancement (follow-up); we report totals as created.
-    private static readonly Regex CountLine = new(@"Ingested\s+(\d+)\s+things,\s+(\d+)\s+relationships",
+    // The ingest tool prints "Ingested: <n> things, <m> relationships." and no other count, so every
+    // Thing it wrote is reported as created and none as updated.
+    private static readonly Regex CountLine = new(@"Ingested:\s+(\d+)\s+things,\s+(\d+)\s+relationships",
         RegexOptions.Compiled);
 
     private readonly string _modelIngestDll;
