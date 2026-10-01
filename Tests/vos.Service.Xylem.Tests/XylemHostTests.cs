@@ -172,7 +172,7 @@ public class XylemHostTests
     }
 
     [Fact]
-    public async Task An_upload_whose_caller_leaves_while_the_tool_runs_is_not_cancelled()
+    public async Task A_caller_leaving_cancels_the_run_of_its_upload()
     {
         await using var factory = new XylemWebApplicationFactory();
         factory.Runner.HoldTheNextRunOpen();
@@ -181,11 +181,9 @@ public class XylemHostTests
 
         _ = client.PostAsync("/ingest", Upload("ISO-10303-21;"), caller.Token);
         await Settle.ForAsync(factory.Runner.HeldRunStarted, "the tool was started");
-        // The test server tells the request its caller has gone before Cancel returns, so there is nothing
-        // to wait for.
         caller.Cancel();
 
-        factory.Runner.HeldRunWasCancelled.Should().BeFalse();
+        await Settle.UntilAsync(() => factory.Runner.HeldRunWasCancelled, "the run in progress was cancelled");
     }
 
     [Fact]

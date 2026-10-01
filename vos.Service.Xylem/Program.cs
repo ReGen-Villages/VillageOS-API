@@ -114,9 +114,13 @@ try
             return Results.Accepted($"/ingest/jobs/{job.Id}", new { jobId = job.Id, status = "running" });
         }
 
+        // A caller that has gone and a service that is stopping both end the run. Either would otherwise
+        // leave the ingest tool posting to the model with nothing waiting for it.
+        using var callerLeftOrServiceStopping =
+            CancellationTokenSource.CreateLinkedTokenSource(ct, lifetime.ApplicationStopping);
         await using var stream = file.OpenReadStream();
         var result = await handler.IngestUploadAsync(
-            stream, name, mode, launchSettings.MaxUploadBytes, callerLeft: ct, serviceStopping: lifetime.ApplicationStopping);
+            stream, name, mode, launchSettings.MaxUploadBytes, callerLeftOrServiceStopping.Token);
         return result.Success ? Results.Ok(result) : Results.BadRequest(result);
     }).DisableAntiforgery();
     if (authEnabled) ingest.RequireAuthorization();

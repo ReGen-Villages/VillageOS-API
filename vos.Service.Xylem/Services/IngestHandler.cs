@@ -16,21 +16,22 @@ public class IngestHandler
     // Ingest an uploaded stream: stream it to a temp file enforcing the size cap as it copies,
     // run, always clean up. Streaming (not a length check) keeps a very large IFC out of memory
     // and keeps the endpoint a thin form-read so the whole upload path is unit-tested without a web host.
-    //
-    // Nothing undoes a model clear or what the tool has already posted, so stopping part-way leaves the
-    // model holding part of a building. Once the file has arrived the ingest therefore runs to its end
-    // whether or not the caller is still there, and only the service stopping ends it early.
     public async Task<IngestResult> IngestUploadAsync(
-        Stream ifc, string modelName, IngestMode mode, long maxBytes,
-        CancellationToken callerLeft, CancellationToken serviceStopping)
+        Stream ifc, string modelName, IngestMode mode, long maxBytes, CancellationToken ct)
     {
         var temp = Path.Combine(Path.GetTempPath(), $"xylem_{Guid.NewGuid():N}.ifc");
         try
         {
-            var written = await UploadSpooler.SpoolAsync(ifc, temp, maxBytes, callerLeft);
+            var written = await UploadSpooler.SpoolAsync(ifc, temp, maxBytes, ct);
             if (written == 0) return IngestResult.Failed("No IFC content uploaded.");
             if (written < 0) return IngestResult.Failed($"File exceeds the {maxBytes / (1024 * 1024)} MB upload limit.");
-            return await IngestAsync(modelName, mode, temp, serviceStopping);
+            return await IngestAsync(modelName, mode, temp, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            return IngestResult.Failed(
+                "The upload was stopped before it finished, because its caller left or the service stopped. "
+                + "The model keeps what had already been posted.");
         }
         finally
         {
@@ -38,32 +39,22 @@ public class IngestHandler
         }
     }
 
-    public async Task<IngestResult> IngestAsync(
-        string modelName, IngestMode mode, string ifcPath, CancellationToken serviceStopping)
+    public async Task<IngestResult> IngestAsync(string modelName, IngestMode mode, string ifcPath, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(modelName))
             return IngestResult.Failed("A model name is required.");
         if (!File.Exists(ifcPath))
             return IngestResult.Failed("Uploaded IFC file not found.");
 
-        try
+        if (mode == IngestMode.NewModel)
         {
-            if (mode == IngestMode.NewModel)
-            {
-                var clearError = await _preparer.ClearModelAsync(serviceStopping);
-                if (clearError is not null) return IngestResult.Failed(clearError);
-            }
+            var clearError = await _preparer.ClearModelAsync(ct);
+            if (clearError is not null) return IngestResult.Failed(clearError);
+        }
 
-            var r = await _runner.RunAsync(ifcPath, modelName, serviceStopping);
-            return r.Success
-                ? IngestResult.Ok(r.ThingsCreated, r.ThingsUpdated, r.RelationshipsCreated)
-                : IngestResult.Failed(r.Error ?? "IFC ingest failed.");
-        }
-        catch (OperationCanceledException) when (serviceStopping.IsCancellationRequested)
-        {
-            return IngestResult.Failed(
-                "The service stopped while the ingest was running, so the ingest was stopped before it finished. "
-                + "The model keeps what had already been posted.");
-        }
+        var r = await _runner.RunAsync(ifcPath, modelName, ct);
+        return r.Success
+            ? IngestResult.Ok(r.ThingsCreated, r.ThingsUpdated, r.RelationshipsCreated)
+            : IngestResult.Failed(r.Error ?? "IFC ingest failed.");
     }
 }

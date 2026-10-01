@@ -114,8 +114,7 @@ public class IngestHandlerTests : IDisposable
     [Fact]
     public async Task Upload_empty_stream_fails_without_running()
     {
-        var result = await Handler.IngestUploadAsync(
-            new MemoryStream(), "Demo", IngestMode.Merge, 1024, default, default);
+        var result = await Handler.IngestUploadAsync(new MemoryStream(), "Demo", IngestMode.Merge, 1024, default);
         result.Success.Should().BeFalse();
         _runner.Calls.Should().Be(0);
     }
@@ -123,8 +122,7 @@ public class IngestHandlerTests : IDisposable
     [Fact]
     public async Task Upload_over_the_size_cap_fails_without_running()
     {
-        var result = await Handler.IngestUploadAsync(
-            Ifc(10_000), "Demo", IngestMode.Merge, maxBytes: 1000, default, default);
+        var result = await Handler.IngestUploadAsync(Ifc(10_000), "Demo", IngestMode.Merge, maxBytes: 1000, default);
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("limit");
         _runner.Calls.Should().Be(0);
@@ -133,8 +131,7 @@ public class IngestHandlerTests : IDisposable
     [Fact]
     public async Task Upload_valid_spools_to_a_real_file_and_runs()
     {
-        var result = await Handler.IngestUploadAsync(
-            Ifc(64), "Demo", IngestMode.Merge, maxBytes: 1024, default, default);
+        var result = await Handler.IngestUploadAsync(Ifc(64), "Demo", IngestMode.Merge, maxBytes: 1024, default);
 
         result.Success.Should().BeTrue();
         _runner.Calls.Should().Be(1);
@@ -143,54 +140,41 @@ public class IngestHandlerTests : IDisposable
     }
 
     [Fact]
-    public async Task An_upload_whose_caller_leaves_while_the_tool_runs_is_ingested_to_the_end()
+    public async Task An_upload_stopped_while_the_tool_runs_is_answered_with_the_reason_and_its_file_is_removed()
     {
-        using var caller = new CancellationTokenSource();
-        _runner.WhileRunning = caller.Cancel;
+        using var upload = new CancellationTokenSource();
+        _runner.WhileRunning = upload.Cancel;
 
         var result = await Handler.IngestUploadAsync(
-            Ifc(64), "Demo", IngestMode.Merge, maxBytes: 1024, callerLeft: caller.Token, serviceStopping: default);
+            Ifc(64), "Demo", IngestMode.Merge, maxBytes: 1024, upload.Token);
 
-        result.Success.Should().BeTrue();
+        result.Success.Should().BeFalse();
+        result.Error.Should().Contain("stopped before it finished");
         File.Exists(_runner.SeenPath!).Should().BeFalse();
     }
 
     [Fact]
-    public async Task An_upload_whose_caller_leaves_before_the_file_has_arrived_starts_no_run()
+    public async Task An_upload_stopped_before_its_file_has_arrived_clears_nothing_and_starts_no_run()
     {
-        using var caller = new CancellationTokenSource();
-        caller.Cancel();
+        using var upload = new CancellationTokenSource();
+        upload.Cancel();
 
-        var upload = () => Handler.IngestUploadAsync(
-            Ifc(64), "Demo", IngestMode.NewModel, maxBytes: 1024, callerLeft: caller.Token, serviceStopping: default);
+        var result = await Handler.IngestUploadAsync(
+            Ifc(64), "Demo", IngestMode.NewModel, maxBytes: 1024, upload.Token);
 
-        await upload.Should().ThrowAsync<OperationCanceledException>();
+        result.Error.Should().Contain("stopped before it finished");
         _preparer.Calls.Should().Be(0);
         _runner.Calls.Should().Be(0);
     }
 
     [Fact]
-    public async Task The_service_stopping_ends_a_run_in_progress_says_why_and_removes_the_uploaded_file()
-    {
-        using var service = new CancellationTokenSource();
-        _runner.WhileRunning = service.Cancel;
-
-        var result = await Handler.IngestUploadAsync(
-            Ifc(64), "Demo", IngestMode.Merge, maxBytes: 1024, callerLeft: default, serviceStopping: service.Token);
-
-        result.Success.Should().BeFalse();
-        result.Error.Should().Contain("The service stopped");
-        File.Exists(_runner.SeenPath!).Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task A_cancellation_the_service_did_not_ask_for_is_not_answered_as_the_service_stopping()
+    public async Task A_cancellation_nobody_asked_for_is_not_answered_as_a_stopped_upload()
     {
         _runner.WhileRunning = () => throw new OperationCanceledException("The broker took too long.");
 
-        var ingest = () => Handler.IngestAsync("Demo", IngestMode.Merge, _tempIfc, serviceStopping: default);
+        var upload = () => Handler.IngestUploadAsync(Ifc(64), "Demo", IngestMode.Merge, maxBytes: 1024, default);
 
-        await ingest.Should().ThrowAsync<OperationCanceledException>().WithMessage("The broker took too long.");
+        await upload.Should().ThrowAsync<OperationCanceledException>().WithMessage("The broker took too long.");
     }
 
     public void Dispose()
