@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Forage.Helpers;
 using vos.Service.Forage.Services;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Forage.Tests.Services;
@@ -30,6 +31,8 @@ public class DiscoveryRunnerTests
 
         public int PeakInFlight { get; private set; }
         public List<string> Called { get; } = new();
+
+        public int CalledCount { get { lock (Called) return Called.Count; } }
 
         public List<Guid> Subjects { get; } = new();
 
@@ -148,16 +151,8 @@ public class DiscoveryRunnerTests
             .ToList();
 
         var run = Runner(fetcher, maxConcurrent: 3).RunAsync(site, sources, default);
-        // Bounded, and generously: a wait with no bound hangs the suite rather than failing it when
-        // the runner admits too few, and CI agents are far slower than a development machine.
-        var waited = TimeSpan.Zero;
-        while (fetcher.Called.Count < 3 && waited < TimeSpan.FromSeconds(10))
-        {
-            await Task.Delay(5);
-            waited += TimeSpan.FromMilliseconds(5);
-        }
-        fetcher.Called.Count.Should().BeGreaterThanOrEqualTo(3, "three may run at once");
-        await Task.Delay(50);
+        await Settle.UntilAsync(() => fetcher.CalledCount >= 3, "three calls may run at once");
+        await Settle.BeforeAssertingAbsenceAsync(TimeSpan.FromMilliseconds(50));
         release.SetResult();
         var report = await run;
 
