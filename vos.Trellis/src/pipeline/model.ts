@@ -23,6 +23,8 @@ export const ARCHETYPE_FLAG = {
   // that boundary. Declared by the model like every other role; nothing here names either archetype.
   ExternalSystem: '__IsExternalSystemArchetype',
   MessageKind: '__IsMessageKindArchetype',
+  // The orchestrator's prototype: the rail binds a state's connection to the one service of it.
+  Orchestrator: '__IsOrchestratorArchetype',
 } as const;
 
 /** The marks on the predicates the page walks. The platform declares the first three and dispatches on
@@ -80,6 +82,9 @@ export interface CatalystConnection {
   trigger: string;
   subdomain: string;
   serviceName: string;
+  /** The `has` relationship binding the connection to its service, and that service. */
+  bindingId?: string;
+  serviceId?: string;
   /** The range a state connection watches: the state itself, the kind it judges, and how often the clock re-checks it. */
   watches?: { rangeId: string; name: string; kindJudged: string; everySeconds: number };
   startsPipeline?: PipelineNamed;
@@ -220,8 +225,21 @@ export class PipelineModel {
     return '';
   }
 
-  private serviceBoundTo(connectionId: string): VosThing | undefined {
-    return this.outgoing(connectionId, 'has').find((s) => this.isOfArchetypeCarrying(s.Id, ARCHETYPE_FLAG.Service));
+  private bindingOf(connectionId: string): { relationshipId: string; service: VosThing } | undefined {
+    for (const relationship of this.bySubject.get(connectionId) ?? []) {
+      if (this.byId.get(relationship.PredicateId)?.Name.toLowerCase() !== 'has') continue;
+      const service = this.byId.get(relationship.TargetId);
+      if (service && this.isOfArchetypeCarrying(service.Id, ARCHETYPE_FLAG.Service))
+        return { relationshipId: relationship.Id, service };
+    }
+    return undefined;
+  }
+
+  /** The one service of the orchestrator's archetype. None where the model holds none or several, since
+   *  binding a state to one of several would be a guess. */
+  orchestratorService(): VosThing | undefined {
+    const services = this.thingsOfArchetypeCarrying(ARCHETYPE_FLAG.Orchestrator);
+    return services.length === 1 ? services[0] : undefined;
   }
 
   /** Every connection the model holds, as the catalyst its trigger makes it, whether or not a pipeline
@@ -234,12 +252,14 @@ export class PipelineModel {
         .find((pipeline) => this.isOfArchetypeCarrying(pipeline.Id, ARCHETYPE_FLAG.Pipeline));
       const subdomain = connection.Properties.Subdomain;
       const interval = watched ? Number(watched.Properties[EVALUATION_INTERVAL_PROPERTY] ?? 0) : 0;
+      const binding = this.bindingOf(connection.Id);
       return {
         connectionId: connection.Id,
         name: connection.Name,
         trigger: this.triggerOf(connection.Id),
         subdomain: typeof subdomain === 'string' ? subdomain : '',
-        serviceName: this.serviceBoundTo(connection.Id)?.Name ?? '',
+        serviceName: binding?.service.Name ?? '',
+        ...(binding ? { bindingId: binding.relationshipId, serviceId: binding.service.Id } : {}),
         ...(watched ? {
           watches: {
             rangeId: watched.Id,

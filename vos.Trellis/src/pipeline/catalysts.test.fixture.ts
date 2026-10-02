@@ -12,12 +12,16 @@ export interface CatalystFixture {
   id: Record<
     | 'intakeDoor' | 'spareDoor' | 'weatherStation' | 'hourlyReading' | 'reportingOffice' | 'dailyDigest'
     | 'belowReorder' | 'overdue' | 'reservoir' | 'feeds' | 'readingsArrive' | 'refill' | 'digest'
-    | 'readingsStart' | 'readingsEnd' | 'refillStart' | 'digestEnd' | 'standsFor' | 'is' | 'has',
+    | 'readingsStart' | 'readingsEnd' | 'refillStart' | 'digestEnd' | 'standsFor' | 'is' | 'has'
+    | 'watcher' | 'watchesReorder' | 'reorderBinding' | 'conductor' | 'surplus' | 'drought' | 'storeSurplus'
+    | 'dry' | 'watchesDry',
     string
   >;
 }
 
-export function catalystFixture(): CatalystFixture {
+/** How many services of the orchestrator's archetype the model holds: the page offers a hand-over only
+ *  where there is exactly one. */
+export function catalystFixture({ orchestrators = 1 }: { orchestrators?: number } = {}): CatalystFixture {
   const things: VosThing[] = [];
   const relationships: VosRelationship[] = [];
   let sequence = 0;
@@ -67,12 +71,21 @@ export function catalystFixture(): CatalystFixture {
     return id;
   };
   const reader = service('Reader'), watcher = service('Watcher'), handler = service('Handler');
+  const orchestratorArchetype = thing('Conductor kind', marked(ARCHETYPE_FLAG.Orchestrator), true);
+  relate(orchestratorArchetype, is, serviceArchetype);
+  const conductors = Array.from({ length: orchestrators }, (_, index) => {
+    const id = thing(index === 0 ? 'Conductor' : `Conductor ${index + 1}`);
+    relate(id, is, orchestratorArchetype);
+    return id;
+  });
+  const conductor = conductors[0] ?? handler;
 
+  const bindings = new Map<string, string>();
   const connection = (name: string, trigger: string, boundService: string, properties: Record<string, unknown> = {}) => {
     const id = thing(name, properties);
     relate(id, is, connectionArchetype);
     relate(id, triggeredBy, trigger);
-    relate(id, has, boundService);
+    bindings.set(id, relate(id, has, boundService));
     return id;
   };
   const intakeDoor = connection('intake', http, reader, { Subdomain: 'intake' });
@@ -105,6 +118,23 @@ export function catalystFixture(): CatalystFixture {
   relate(watchesOverdue, watches, overdue);
   const feeds = connection('feeds', graph, handler);
 
+  const surplus = thing('surplus');
+  relate(surplus, is, rangeArchetype);
+  relate(surplus, judges, reservoir);
+  relate(connection('watches surplus', state, conductor), watches, surplus);
+  const drought = thing('drought');
+  relate(drought, is, rangeArchetype);
+  relate(drought, judges, reservoir);
+  relate(connection('watches drought', state, conductor), watches, drought);
+  const dry = thing('dry');
+  relate(dry, is, rangeArchetype);
+  relate(dry, judges, reservoir);
+  const watchesDry = thing('watches dry');
+  relate(watchesDry, is, connectionArchetype);
+  relate(watchesDry, triggeredBy, state);
+  relate(watchesDry, watches, dry);
+  relate(watchesDry, has, thing('a note on dry spells'));
+
   const pipeline = (name: string) => {
     const id = thing(name);
     relate(id, is, pipelineArchetype);
@@ -132,6 +162,8 @@ export function catalystFixture(): CatalystFixture {
   relate(watchesReorder, starts, refill);
   const digest = pipeline('Digest');
   const digestEnd = boundary(digest, 'The office is told', 'output', reportingOffice);
+  const storeSurplus = pipeline('Store surplus');
+  boundary(storeSurplus, 'A reservoir overflows', 'input', surplus);
 
   return {
     model: new PipelineModel(things, relationships),
@@ -141,6 +173,8 @@ export function catalystFixture(): CatalystFixture {
       intakeDoor, spareDoor, weatherStation, hourlyReading, reportingOffice, dailyDigest,
       belowReorder, overdue, reservoir, feeds, readingsArrive, refill, digest,
       readingsStart, readingsEnd, refillStart, digestEnd, standsFor, is, has,
+      watcher, watchesReorder, reorderBinding: bindings.get(watchesReorder)!, conductor, surplus, drought, storeSurplus,
+      dry, watchesDry,
     },
   };
 }

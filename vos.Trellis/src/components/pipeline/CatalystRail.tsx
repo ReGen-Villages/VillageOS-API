@@ -9,6 +9,8 @@ interface Props {
   /** Place a start node standing for the row's Thing on the open drawing; undefined for a start by hand. */
   onPlace: (row: CatalystRow | undefined) => void;
   onOpenPipeline: (pipelineId: string) => void;
+  /** Bind the row's state to the orchestrator, so the pipeline drawn from it is what runs. */
+  onHandOver: (row: CatalystRow) => void;
 }
 
 const RAIL_BOUNDS = { initial: 232, min: 168, max: 480 };
@@ -24,13 +26,29 @@ const KIND_LABEL_KEY = {
 /** Everything that sets a run off, read off the model: what arrives from outside, and what the model
  *  does on its own. Each row says which pipeline is drawn for it, or what happens to it today, and
  *  places a start node standing for it. The first row is a start by hand, which stands for nothing. */
-export function CatalystRail({ groups, onPlace, onOpenPipeline }: Props) {
+export function CatalystRail({ groups, onPlace, onOpenPipeline, onHandOver }: Props) {
   const { t } = useTranslation();
 
   const words = (row: CatalystRow) => {
     const who = row.who || (row.kind === 'message' ? t('pipeline.catalysts.anybody') : '');
     const what = row.everySeconds === undefined ? row.what : `${row.what} · ${t('pipeline.catalysts.everySeconds', { count: row.everySeconds })}`;
     return who ? `${who} · ${what}` : what;
+  };
+
+  // A state says it starts its drawing only when the orchestrator receives its entries; sent anywhere
+  // else, the drawing never runs, so the row names both the drawing and what really happens.
+  const outcomeLine = (row: CatalystRow) => {
+    const today = row.today ? t('pipeline.catalysts.today', { service: row.today }) : t('pipeline.catalysts.nothingToday');
+    const runsTheDrawing = row.starts !== undefined && (row.handling === undefined || row.handling.byOrchestrator);
+    const text = runsTheDrawing ? t('pipeline.catalysts.starts', { pipeline: row.starts!.name })
+      : row.handling?.byOrchestrator ? t('pipeline.catalysts.orchestratorRefuses')
+      : row.starts ? t('pipeline.catalysts.drawn', { pipeline: row.starts.name, today })
+      : today;
+    return (
+      <span className={clsx('block text-[10px]', runsTheDrawing ? 'text-emerald-700 dark:text-emerald-400' : 'text-zinc-400')}>
+        {text}
+      </span>
+    );
   };
 
   // The kind is said once for each run of rows of that kind, not on every row: twenty doors in a row
@@ -54,12 +72,17 @@ export function CatalystRail({ groups, onPlace, onOpenPipeline }: Props) {
         ) : (
           <span className="block break-words text-[12px] text-zinc-700 dark:text-zinc-300">{words(row)}</span>
         )}
-        {row.starts ? (
-          <span className="block text-[10px] text-emerald-700 dark:text-emerald-400">{t('pipeline.catalysts.starts', { pipeline: row.starts.name })}</span>
-        ) : (
-          <span className="block text-[10px] text-zinc-400">
-            {row.today ? t('pipeline.catalysts.today', { service: row.today }) : t('pipeline.catalysts.nothingToday')}
-          </span>
+        {outcomeLine(row)}
+        {row.offersOrchestrator && (
+          <button
+            type="button"
+            onClick={() => onHandOver(row)}
+            aria-label={t('pipeline.catalysts.handOverTitle', { what: words(row) })}
+            title={t('pipeline.catalysts.handOverTitle', { what: words(row) })}
+            className="block text-[10px] text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            {t('pipeline.catalysts.handOver')}
+          </button>
         )}
       </div>
       <button
