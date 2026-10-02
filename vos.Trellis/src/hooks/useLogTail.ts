@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
 import { appendLines } from '../utils/logBuffer';
 import type { ConnectionState } from '../types/connection';
+import { HEARTBEAT_AS_EVENT, watchForSilence, type SilenceWatch } from './streamSilence';
 
 const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
 
@@ -13,13 +14,15 @@ const TAIL_LINES = 200;
  * `service` is given (e.g. 'irrigator' → watch-irrigator.log). Mirrors useSse's authentication approach:
  * EventSource can't set an Authorization header, so the address carries a stream token minted for
  * this one open (the /api/logs/stream path is one of Mycelium's BrowserStreamPaths). Reconnects
- * with backoff on error, and re-opens against the new source when `service` changes.
+ * with backoff on error or when the stream goes quiet, and re-opens against the new source when
+ * `service` changes.
  */
 export function useLogTail(service?: string): { lines: string[]; connection: ConnectionState; clear: () => void } {
   const [lines, setLines] = useState<string[]>([]);
   const [connection, setConnection] = useState<ConnectionState>('connecting');
 
   const sourceReference = useRef<EventSource | null>(null);
+  const silenceReference = useRef<SilenceWatch | null>(null);
   const reconnectReference = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attemptReference = useRef(0);
 
@@ -46,17 +49,22 @@ export function useLogTail(service?: string): { lines: string[]; connection: Con
         const streamToken = await apiClient.mintStreamToken();
         if (released) return;
         const serviceParameter = service ? `&service=${encodeURIComponent(service)}` : '';
-        const url = `${BASE_URL}/api/logs/stream?tail=${TAIL_LINES}${serviceParameter}&access_token=${encodeURIComponent(streamToken)}`;
+        const url = `${BASE_URL}/api/logs/stream?tail=${TAIL_LINES}${serviceParameter}&access_token=${encodeURIComponent(streamToken)}&${HEARTBEAT_AS_EVENT}`;
         const es = new EventSource(url);
+        const lost = () => {
+          silence.stop();
+          es.close();
+          scheduleReconnect();
+        };
+        const silence = watchForSilence(es, lost);
+        silenceReference.current = silence;
         es.onopen = () => {
           attemptReference.current = 0;
           setConnection('live');
         };
-        es.onerror = () => {
-          es.close();
-          scheduleReconnect();
-        };
+        es.onerror = lost;
         es.addEventListener('log', (e: MessageEvent) => {
+          silence.heard();
           let line: string;
           try {
             line = JSON.parse(e.data) as string;
@@ -76,6 +84,7 @@ export function useLogTail(service?: string): { lines: string[]; connection: Con
     return () => {
       released = true;
       if (reconnectReference.current) clearTimeout(reconnectReference.current);
+      silenceReference.current?.stop();
       sourceReference.current?.close();
       sourceReference.current = null;
     };
