@@ -72,6 +72,18 @@ public class RetypeCommandHandlerTests
     }
 
     [Fact]
+    public async Task A_refused_removal_of_the_old_type_adds_no_new_type_beside_it()
+    {
+        SetupModel(Edge(RelA, ThingId, IsId, TypeA));
+        _mycelium.Setup(m => m.DeleteRelationshipAsync(RelA)).ThrowsAsync(new HttpRequestException("403 Forbidden"));
+
+        await Execute($"{ThingId} {NewType}");
+
+        _writer.ToString().Should().Contain("403 Forbidden");
+        _mycelium.Verify(m => m.CreateRelationshipAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Fact]
     public async Task No_args_shows_usage()
     {
         await Execute("");
