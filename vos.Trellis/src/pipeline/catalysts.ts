@@ -24,6 +24,19 @@ export interface CatalystRow {
   today: string;
   /** For a state the clock re-checks: how often. */
   everySeconds?: number;
+  /** For a state watched through one connection: what the broker sends its entries to. */
+  handling?: StateHandling;
+  /** Whether the row may be handed to the orchestrator: a state it does not handle yet, in a model holding
+   *  exactly one. Never a door or a relationship, which reach the orchestrator without naming the drawing. */
+  offersOrchestrator: boolean;
+}
+
+export interface StateHandling {
+  connectionId: string;
+  /** The `has` relationship binding the connection to its service, which a hand-over retracts. */
+  bindingId?: string;
+  /** Whether the orchestrator receives the entries, so a pipeline drawn from the state is what runs. */
+  byOrchestrator: boolean;
 }
 
 export interface CatalystGroup {
@@ -43,6 +56,7 @@ function ordered(rows: CatalystRow[]): CatalystRow[] {
 export function catalystRail(model: PipelineModel): [CatalystGroup, CatalystGroup] {
   const connections = model.catalystConnections();
   const byId = new Map(connections.map((connection) => [connection.connectionId, connection]));
+  const orchestratorId = model.orchestratorService()?.Id;
   const external: CatalystRow[] = [];
   const internal: CatalystRow[] = [];
 
@@ -57,7 +71,7 @@ export function catalystRail(model: PipelineModel): [CatalystGroup, CatalystGrou
       const starts = startedBy(kind.id) ?? startedBy(system.id) ?? startedAt(door);
       external.push({
         id: `message:${system.id}:${kind.id}`, kind: 'message', who: system.name, what: kind.name,
-        standsForId: kind.id, ...(starts ? { starts } : {}), today: door?.serviceName ?? '',
+        standsForId: kind.id, ...(starts ? { starts } : {}), today: door?.serviceName ?? '', offersOrchestrator: false,
       });
     }
 
@@ -68,13 +82,13 @@ export function catalystRail(model: PipelineModel): [CatalystGroup, CatalystGrou
       const starts = startedAt(connection);
       external.push({
         id: `door:${connection.connectionId}`, kind: 'message', who: '', what: connection.subdomain || connection.name,
-        standsForId: connection.connectionId, ...(starts ? { starts } : {}), today: connection.serviceName,
+        standsForId: connection.connectionId, ...(starts ? { starts } : {}), today: connection.serviceName, offersOrchestrator: false,
       });
     } else if (connection.trigger === 'graph') {
       const starts = startedBy(connection.connectionId) ?? connection.startsPipeline;
       internal.push({
         id: `relationship:${connection.connectionId}`, kind: 'relationship', who: '', what: connection.name,
-        standsForId: connection.connectionId, ...(starts ? { starts } : {}), today: connection.serviceName,
+        standsForId: connection.connectionId, ...(starts ? { starts } : {}), today: connection.serviceName, offersOrchestrator: false,
       });
     } else if (connection.watches) {
       // A state several connections watch is one row: drawn if any of them draws.
@@ -83,10 +97,18 @@ export function catalystRail(model: PipelineModel): [CatalystGroup, CatalystGrou
       seenRanges.add(rangeId);
       const watching = connections.filter((each) => each.watches?.rangeId === rangeId);
       const starts = startedBy(rangeId) ?? watching.find((each) => each.startsPipeline)?.startsPipeline;
+      // A state several connections watch has no single binding to hand over, so it is offered nothing.
+      const handling: StateHandling | undefined = watching.length === 1 ? {
+        connectionId: watching[0].connectionId,
+        ...(watching[0].bindingId ? { bindingId: watching[0].bindingId } : {}),
+        byOrchestrator: orchestratorId !== undefined && watching[0].serviceId === orchestratorId,
+      } : undefined;
       internal.push({
         id: `state:${rangeId}`, kind: everySeconds > 0 ? 'clock' : 'state', who: kindJudged, what: name,
         standsForId: rangeId, ...(starts ? { starts } : {}), today: watching.find((each) => each.serviceName)?.serviceName ?? '',
         ...(everySeconds > 0 ? { everySeconds } : {}),
+        ...(handling ? { handling } : {}),
+        offersOrchestrator: orchestratorId !== undefined && handling !== undefined && !handling.byOrchestrator,
       });
     }
   }
