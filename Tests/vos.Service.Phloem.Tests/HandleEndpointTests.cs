@@ -69,9 +69,37 @@ public class HandleEndpointTests
         body.GetProperty("pipelineId").GetGuid().Should().Be(Drawn);
     }
 
-    private static StringContent StateEntry(Guid target) => new(JsonSerializer.Serialize(new
+    [Fact]
+    public async Task Handle_ARelationshipWrittenAlongAConnection_StartsThePipelineDrawnFromThatConnection()
     {
-        relationshipId = Guid.NewGuid(),
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/handle", StateEntry(target: Joined, relationship: WrittenAlongWatching));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("pipelineId").GetGuid().Should().Be(Drawn);
+        await Settle.UntilAsync(() => factory.RunsRecordedFor(Drawn) == 1, "the run record reaches the broker");
+    }
+
+    [Fact]
+    public async Task Handle_ARelationshipTheModelDoesNotHold_IsRefused()
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/handle", StateEntry(target: Joined));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        factory.RunsRecordedFor(Drawn).Should().Be(0);
+    }
+
+    private static readonly Guid Joined = Guid.Parse("70000000-0000-0000-0000-000000000001");
+    private static readonly Guid WrittenAlongWatching = Guid.Parse("a0000000-0000-0000-0000-000000000007");
+
+    private static StringContent StateEntry(Guid target, Guid? relationship = null) => new(JsonSerializer.Serialize(new
+    {
+        relationshipId = relationship ?? Guid.NewGuid(),
         subjectId = Submission,
         targetId = target,
         subjectName = "Submission 42",
@@ -113,6 +141,10 @@ public class HandleEndpointTests
                 return Json(OneDrawing());
             if (uri.AbsolutePath == "/api/things" && uri.Query.Contains("name="))
                 return Json(JsonSerializer.Serialize(new { Id = Guid.NewGuid(), Name = "a predicate", Properties = new { } }));
+            if (uri.AbsolutePath.StartsWith("/api/relationships/", StringComparison.Ordinal) && request.Method == HttpMethod.Get)
+                return uri.AbsolutePath.EndsWith(WrittenAlongWatching.ToString(), StringComparison.Ordinal)
+                    ? Json(JsonSerializer.Serialize(new { Id = WrittenAlongWatching, SubjectId = Submission, PredicateId = Watching, TargetId = Joined, Properties = new { } }))
+                    : new HttpResponseMessage(HttpStatusCode.NotFound);
             return new HttpResponseMessage(HttpStatusCode.OK);
         }
 
