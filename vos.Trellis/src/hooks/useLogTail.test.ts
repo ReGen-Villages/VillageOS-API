@@ -55,6 +55,8 @@ async function openedStream(): Promise<FakeEventSource> {
   return FakeEventSource.latest();
 }
 
+const TWO_HEARTBEATS = 30_000;
+
 describe('useLogTail', () => {
   beforeEach(() => {
     FakeEventSource.reset();
@@ -159,6 +161,71 @@ describe('useLogTail', () => {
     });
 
     expect(FakeEventSource.instances.length).toBeGreaterThan(1);
+  });
+
+  it('asks for the heartbeat as an event', async () => {
+    renderHook(() => useLogTail());
+
+    expect((await openedStream()).url).toContain('heartbeatAsEvent=true');
+  });
+
+  it('reports the stream as lost, and reopens it, when it sends nothing for longer than two heartbeats', async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useLogTail());
+    const stream = await flushUntilOpened();
+    act(() => stream.onopen?.());
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(TWO_HEARTBEATS);
+    });
+
+    expect(result.current.connection).toBe('lost');
+    expect(stream.closed).toBe(true);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(FakeEventSource.instances).toHaveLength(2);
+  });
+
+  it.each(['Heartbeat', 'log'])('stays live while a %s event arrives within every two heartbeats', async (kind) => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useLogTail());
+    const stream = await flushUntilOpened();
+    act(() => stream.onopen?.());
+
+    for (let heard = 0; heard < 4; heard += 1) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(TWO_HEARTBEATS - 1000);
+      });
+      act(() => stream.emit(kind, JSON.stringify('a line')));
+    }
+
+    expect(result.current.connection).toBe('live');
+    expect(FakeEventSource.instances).toHaveLength(1);
+  });
+
+  it('stops waiting on a stream that broke, so its silence does not reopen the one that replaced it', async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useLogTail());
+    const broken = await flushUntilOpened();
+    act(() => broken.onerror?.());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    const replacement = FakeEventSource.latest();
+    act(() => replacement.onopen?.());
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(TWO_HEARTBEATS - 2000);
+    });
+    act(() => replacement.emit('Heartbeat', '{}'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(result.current.connection).toBe('live');
+    expect(FakeEventSource.instances).toHaveLength(2);
   });
 
   it('closes the stream when the view goes away', async () => {
