@@ -171,6 +171,19 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         return false;
     }
 
+    public async Task<Guid?> PredicateOfAsync(Guid relationshipId, CancellationToken cancellationToken)
+    {
+        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+        var response = await client.GetAsync($"{MyceliumUrl}/api/relationships/{relationshipId}", cancellationToken);
+        if (!response.IsSuccessStatusCode) return null;
+
+        var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
+        return TryGetPropertyCaseInsensitive(root, "PredicateId", out var predicate)
+            && predicate.ValueKind == JsonValueKind.String && Guid.TryParse(predicate.GetString(), out var predicateId)
+                ? predicateId
+                : null;
+    }
+
     public async Task<NodeDispatchResult> DispatchAsync(string subdomain, JsonElement envelope, CancellationToken cancellationToken)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromMinutes(5));
