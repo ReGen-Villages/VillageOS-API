@@ -92,7 +92,7 @@ public class StopCommandHandlerTests
     }
 
     [Fact]
-    public async Task StopService_WhenNotFound_ShowsNotFoundMessage()
+    public async Task StopService_WhenThePlatformHoldsNoSuchService_SaysSo()
     {
         var handlerId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{handlerId}\",\"Name\":\"MyHandler\"}}]");
@@ -101,9 +101,23 @@ public class StopCommandHandlerTests
 
         await ExecuteHandler($"service {handlerId}");
 
+        Assert.Contains("MyHandler is not registered or has no running daemon", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task StopService_WhenThePlatformRefuses_SaysWhatThePlatformSaid()
+    {
+        var handlerId = Guid.NewGuid();
+        var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{handlerId}\",\"Name\":\"MyHandler\"}}]");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.StopServiceAsync(handlerId)).ThrowsAsync(new HttpRequestException(
+            "502 Bad Gateway: {\"message\":\"MyHandler refused the stop and is still running\"}"));
+
+        await ExecuteHandler($"service {handlerId}");
+
         var output = _writer.ToString();
-        Assert.Contains("Service", output);
-        Assert.Contains("not found", output);
+        Assert.Contains("refused the stop and is still running", output);
+        Assert.DoesNotContain("not registered", output);
     }
 
     // --showguids flag tests

@@ -195,7 +195,7 @@ public class RangeCommandHandler
         }
 
         var success = await _client!.DeleteRangeAsync(resolveResult.Id, args[1]);
-        _writer.WriteLine(success ? $"Deleted range '{args[1]}'" : $"Failed to delete range '{args[1]}'");
+        _writer.WriteLine(success ? $"Deleted range '{args[1]}'" : $"Range not found: {args[1]}");
     }
 
     private async Task HandleValidateAsync(string[] args)
