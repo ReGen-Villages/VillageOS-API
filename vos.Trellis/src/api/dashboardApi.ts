@@ -50,6 +50,11 @@ export type BindingResult = number | string | Row[] | number[] | null;
 export interface ModelIndex {
   byId: Map<string, VosThing>;
   byName: Map<string, VosThing>;
+  /** name → ids of the declared types carrying a name `byName` already answers for. The platform
+   *  keeps no name unique, and its type lookup starts from every Thing a name names, so a walk that
+   *  started from one of them would lose the members it was sent for the others. Types only: a
+   *  surveyed model repeats instance names by the tens of thousands, and nothing `is` an instance. */
+  otherTypesByName: Map<string, string[]>;
   relationships: VosRelationship[];
   /** predicate id → the relationships asserting it, so following one predicate reads its own
    *  relationships instead of scanning every relationship in the model. */
@@ -81,11 +86,16 @@ export interface ModelIndex {
 export function buildModelIndex(things: VosThing[], relationships: VosRelationship[]): ModelIndex {
   const byId = new Map<string, VosThing>();
   const byName = new Map<string, VosThing>();
+  const otherTypesByName = new Map<string, string[]>();
   const archetypeIds = new Set<string>();
   for (const t of things) {
     byId.set(t.Id, t);
-    // First writer wins for duplicate names (archetypes are unique by name).
     if (!byName.has(t.Name)) byName.set(t.Name, t);
+    else if (t.IsArchetype) {
+      const others = otherTypesByName.get(t.Name);
+      if (others) others.push(t.Id);
+      else otherTypesByName.set(t.Name, [t.Id]);
+    }
     if (t.IsArchetype) archetypeIds.add(t.Id);
   }
   const predicateNameToId = new Map<string, string>();
@@ -118,7 +128,7 @@ export function buildModelIndex(things: VosThing[], relationships: VosRelationsh
     }
   }
   return {
-    byId, byName, relationships, relationshipsByPredicate,
+    byId, byName, otherTypesByName, relationships, relationshipsByPredicate,
     predicateNameToId, predicateIdToName, isChildren, archetypeIds, isParents,
     archetypeMembers: new Map(),
     adjacencyByPredicate: new Map(),
@@ -183,7 +193,7 @@ export function thingIdsOfArchetype(archetype: string, index: ModelIndex): Set<s
   index.archetypeMembers.set(archetype, out);
   if (!archetypeThing) return out;
   const seen = new Set<string>();          // archetype nodes already descended (cycle guard)
-  const frontier = [archetypeThing.Id];
+  const frontier = [archetypeThing.Id, ...(index.otherTypesByName.get(archetype) ?? [])];
   while (frontier.length) {
     const current = frontier.pop()!;
     if (seen.has(current)) continue;

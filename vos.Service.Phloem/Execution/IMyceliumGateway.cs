@@ -16,6 +16,9 @@ public interface IMyceliumGateway
     // they belong to or it reaches — enough for PipelineStart to say which pipeline it starts.
     Task<PipelineGraph> LoadStartSubgraphAsync(Guid targetId, CancellationToken cancellationToken);
 
+    // The predicate a relationship was written along, or none when the model does not hold it.
+    Task<Guid?> PredicateOfAsync(Guid relationshipId, CancellationToken cancellationToken);
+
     // A message the run leaves for an external system: written, held by the run, then related to the system
     // along the connection it is told through, which the broker delivers.
     Task SendMessageAsync(Guid runId, Telling telling, JsonElement payload, CancellationToken cancellationToken);

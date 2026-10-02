@@ -619,6 +619,25 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
+    public async Task PredicateOfAsync_ReadsTheRelationshipAndAnswersItsPredicate()
+    {
+        var relationshipId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway(_ => Json(HttpStatusCode.OK,
+            $$$"""{"Id":"{{{relationshipId}}}","SubjectId":"{{{Guid.NewGuid()}}}","PredicateId":"{{{PredicateId}}}","TargetId":"{{{Guid.NewGuid()}}}","Properties":{}}"""));
+
+        (await gateway.PredicateOfAsync(relationshipId, CancellationToken.None)).Should().Be(PredicateId);
+        handler.Requests.Single().RequestUri!.AbsolutePath.Should().Be($"/api/relationships/{relationshipId}");
+    }
+
+    [Fact]
+    public async Task PredicateOfAsync_WhenTheModelDoesNotHoldTheRelationship_AnswersNone()
+    {
+        var (gateway, _) = NewGateway(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+
+        (await gateway.PredicateOfAsync(Guid.NewGuid(), CancellationToken.None)).Should().BeNull();
+    }
+
+    [Fact]
     public async Task DispatchAsync_SendsTheEnvelopeToTheNamedEndpointAndReturnsWhatItSaid()
     {
         var (gateway, handler) = NewGateway(_ => Json(HttpStatusCode.Accepted, """{"outputs":{"sum":3}}"""));

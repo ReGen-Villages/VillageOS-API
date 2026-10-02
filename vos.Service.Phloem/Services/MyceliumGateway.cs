@@ -178,6 +178,19 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         return false;
     }
 
+    public async Task<Guid?> PredicateOfAsync(Guid relationshipId, CancellationToken cancellationToken)
+    {
+        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+        var response = await client.GetAsync($"{MyceliumUrl}/api/relationships/{relationshipId}", cancellationToken);
+        if (!response.IsSuccessStatusCode) return null;
+
+        var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
+        return TryGetPropertyCaseInsensitive(root, "PredicateId", out var predicate)
+            && predicate.ValueKind == JsonValueKind.String && Guid.TryParse(predicate.GetString(), out var predicateId)
+                ? predicateId
+                : null;
+    }
+
     // Related to the system last: that write is the one the broker dispatches, and the sender it reaches reads
     // a message already whole and already held by its run.
     public async Task SendMessageAsync(Guid runId, Telling telling, JsonElement payload, CancellationToken cancellationToken)
