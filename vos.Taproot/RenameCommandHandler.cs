@@ -37,7 +37,7 @@ public class RenameCommandHandler
             if (await _mycelium.RenameThingAsync(thing.Id, newName))
                 _writer.WriteLine($"Renamed {target} to {newName}.");
             else
-                _writer.WriteLine($"Error: rename failed for '{target}'.");
+                _writer.WriteLine($"Error: '{target}' was not found.");
         }
         catch (Exception ex)
         {

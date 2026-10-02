@@ -60,13 +60,24 @@ public class RenameCommandHandlerTests
     }
 
     [Fact]
-    public async Task Broker_failure_is_reported_as_an_error()
+    public async Task A_thing_the_platform_does_not_hold_is_reported_as_not_found()
     {
         _mycelium.Setup(m => m.RenameThingAsync(ThingId, "X")).ReturnsAsync(false);
 
         await Execute($"{ThingId} X");
 
-        _writer.ToString().Should().Contain("Error");
+        _writer.ToString().Should().Contain("Error").And.Contain("was not found");
+    }
+
+    [Fact]
+    public async Task A_refused_rename_says_what_the_platform_said()
+    {
+        _mycelium.Setup(m => m.RenameThingAsync(ThingId, "X")).ThrowsAsync(
+            new HttpRequestException("400 Bad Request: {\"error\":\"A non-empty name is required.\"}"));
+
+        await Execute($"{ThingId} X");
+
+        _writer.ToString().Should().Contain("A non-empty name is required.");
     }
 
     [Fact]

@@ -79,7 +79,7 @@ public class StartCommandHandlerTests
     }
 
     [Fact]
-    public async Task StartService_WhenStartFails_ShowsFailureMessage()
+    public async Task StartService_WhenThePlatformHoldsNoSuchService_SaysItIsNotRegistered()
     {
         var handlerId = Guid.NewGuid();
         var thingsJson = $@"[{{""Id"":""{handlerId}"",""Name"":""MyHandler"",""Properties"":{{}}}}]";
@@ -90,7 +90,7 @@ public class StartCommandHandlerTests
         await ExecuteHandler("service MyHandler");
 
         var output = _writer.ToString();
-        Assert.Contains("Failed to start service", output);
+        Assert.Contains("MyHandler is not registered", output);
     }
 
     [Fact]

@@ -461,7 +461,7 @@ public class CommandHandlerTests
     {
         var reader = new StringReader("");
         var writer = new StringWriter();
-        _myceliumMock.Setup(b => b.ShutdownMyceliumAsync()).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.ShutdownMyceliumAsync()).Returns(Task.CompletedTask);
         var handler = CreateHandler(reader, writer);
 
         await handler.HandleCommandAsync("shutdown", null);
@@ -471,16 +471,18 @@ public class CommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleCommandAsync_Shutdown_WhenFails_ShowsError()
+    public async Task HandleCommandAsync_Shutdown_WhenRefused_SaysWhyAndDoesNotSayItStarted()
     {
         var reader = new StringReader("");
         var writer = new StringWriter();
-        _myceliumMock.Setup(b => b.ShutdownMyceliumAsync()).ReturnsAsync(false);
+        _myceliumMock.Setup(b => b.ShutdownMyceliumAsync()).ThrowsAsync(
+            new HttpRequestException("403 Forbidden", inner: null, System.Net.HttpStatusCode.Forbidden));
         var handler = CreateHandler(reader, writer);
 
         await handler.HandleCommandAsync("shutdown", null);
 
-        Assert.Contains("Failed to initiate Mycelium shutdown", writer.ToString());
+        Assert.Contains("Failed to initiate Mycelium shutdown: 403 Forbidden", writer.ToString());
+        Assert.DoesNotContain("shutdown initiated", writer.ToString());
     }
 
     [Fact]

@@ -243,7 +243,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/things/{id}");
-        return response.IsSuccessStatusCode;
+        return await TrueUnlessNotFoundAsync(response);
     }
 
     // Rename a Thing in place — keeps its Id and all relationships (unlike delete+recreate). The broker
@@ -256,7 +256,7 @@ public class MyceliumClient
             Encoding.UTF8,
             "application/json");
         var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/things/{id}/name", content);
-        return response.IsSuccessStatusCode;
+        return await TrueUnlessNotFoundAsync(response);
     }
 
     // The platform changes a property a Thing already holds through PUT and adds one through POST on
@@ -286,7 +286,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(propertyName)}");
-        return response.IsSuccessStatusCode;
+        return await TrueUnlessNotFoundAsync(response);
     }
 
     public virtual async Task<JsonElement> GetAllRelationshipsAsync()
@@ -339,7 +339,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/relationships/{id}");
-        return response.IsSuccessStatusCode;
+        return await TrueUnlessNotFoundAsync(response);
     }
 
     // A relationship's property write adds the property when the relationship does not hold it yet.
@@ -350,7 +350,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/relationships/{relId}/properties/{Uri.EscapeDataString(propertyName)}");
-        return response.IsSuccessStatusCode;
+        return await TrueUnlessNotFoundAsync(response);
     }
 
     public virtual async Task<JsonElement> GetAllServicesAsync()
@@ -372,25 +372,25 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    public virtual async Task<bool> ShutdownMyceliumAsync()
+    public virtual async Task ShutdownMyceliumAsync()
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/mycelium/shutdown", null);
-        return response.IsSuccessStatusCode;
+        await EnsureSuccessCarryingTheReasonAsync(response);
     }
 
     public virtual async Task<bool> StopServiceAsync(Guid handlerId)
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/mycelium/services/{handlerId}/stop", null);
-        return response.IsSuccessStatusCode;
+        return await TrueUnlessNotFoundAsync(response);
     }
 
     public virtual async Task<bool> StartServiceAsync(Guid handlerId)
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/mycelium/services/{handlerId}/start", null);
-        return response.IsSuccessStatusCode;
+        return await TrueUnlessNotFoundAsync(response);
     }
 
     public virtual async Task<string> GetModelJsonAsync()
@@ -683,9 +683,19 @@ public class MyceliumClient
         if (response.IsSuccessStatusCode) return;
 
         var body = (await response.Content.ReadAsStringAsync()).Trim();
-        throw new HttpRequestException(body.Length == 0
+        var reason = body.Length == 0
             ? $"{(int)response.StatusCode} {response.ReasonPhrase}"
-            : $"{(int)response.StatusCode} {response.ReasonPhrase}: {body}");
+            : $"{(int)response.StatusCode} {response.ReasonPhrase}: {body}";
+        throw new HttpRequestException(reason, inner: null, response.StatusCode);
+    }
+
+    // False says the platform does not hold what was named. Any other refusal has a reason of its
+    // own, and answering false for it would have the command report "not found".
+    private static async Task<bool> TrueUnlessNotFoundAsync(HttpResponseMessage response)
+    {
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return false;
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return true;
     }
 
     public virtual async Task<JsonElement> GetModelAtTimeAsync(DateTime? timestamp = null)
@@ -807,7 +817,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/things/{thingId}/ranges/{Uri.EscapeDataString(rangeName)}");
-        return response.IsSuccessStatusCode;
+        return await TrueUnlessNotFoundAsync(response);
     }
 
     public virtual async Task<JsonElement> GetStatesAsync(Guid thingId)

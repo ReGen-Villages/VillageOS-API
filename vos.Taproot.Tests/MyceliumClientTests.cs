@@ -832,28 +832,12 @@ public class MyceliumClientTests
     }
 
     [Fact]
-    public async Task ShutdownMyceliumAsync_PostsAndReturnsSuccessBoolean()
+    public async Task ShutdownMyceliumAsync_PostsToTheShutdownRoute()
     {
-        var (client, _) = NewClient(req =>
-        {
-            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
-            req.Method.Should().Be(HttpMethod.Post);
-            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/mycelium/shutdown");
-            return Ok();
-        });
+        var captured = await CaptureRequest(client => client.ShutdownMyceliumAsync());
 
-        (await client.ShutdownMyceliumAsync()).Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task ShutdownMyceliumAsync_NonSuccessReturnsFalse()
-    {
-        var (client, _) = NewClient(req =>
-            req.RequestUri!.AbsolutePath == "/api/auth/token"
-                ? TokenResponse(ServiceToken)
-                : new HttpResponseMessage(HttpStatusCode.InternalServerError));
-
-        (await client.ShutdownMyceliumAsync()).Should().BeFalse();
+        captured.Method.Should().Be(HttpMethod.Post);
+        captured.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/mycelium/shutdown");
     }
 
     [Fact]

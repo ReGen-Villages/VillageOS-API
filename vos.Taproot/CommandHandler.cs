@@ -170,15 +170,18 @@ namespace vos.Taproot
         {
             try
             {
-                var success = await _mycelium.ShutdownMyceliumAsync();
-                if (success)
-                    _writer.WriteLine("Mycelium shutdown initiated.");
-                else
-                    _writer.WriteLine("Failed to initiate Mycelium shutdown.");
+                await _mycelium.ShutdownMyceliumAsync();
+                _writer.WriteLine("Mycelium shutdown initiated.");
             }
-            catch (HttpRequestException)
+            // A platform that stops while answering drops the connection, and that failure carries no
+            // status. A refusal carries one.
+            catch (HttpRequestException dropped) when (dropped.StatusCode is null)
             {
                 _writer.WriteLine("Mycelium shutdown initiated (connection closed).");
+            }
+            catch (HttpRequestException refused)
+            {
+                _writer.WriteLine($"Failed to initiate Mycelium shutdown: {OperatorMessage.For(refused)}");
             }
         }
 

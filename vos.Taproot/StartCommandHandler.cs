@@ -76,7 +76,7 @@ namespace vos.Taproot
             var success = await _mycelium.StartServiceAsync(handlerId);
             var message = success
                 ? $"Service {display} started successfully"
-                : $"Failed to start service {display} (not registered or start failed)";
+                : $"Service {display} is not registered";
             _writer.WriteLine(message);
         }
 
