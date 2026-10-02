@@ -13,6 +13,11 @@ app.example.org {
 		reverse_proxy localhost:7243
 	}
 
+	# Satellite map tiles, which a signed-in page asks this host for and the broker serves.
+	handle /basemaps/* {
+		reverse_proxy localhost:7243
+	}
+
 	# The feedback relay, on the GUI's own host so a report is posted without crossing origins. The
 	# prefix is taken off, so the relay answers /reports.
 	handle_path /feedback/* {

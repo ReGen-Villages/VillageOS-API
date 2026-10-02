@@ -256,11 +256,12 @@ test("recordObservations: empty batch makes no call", async () => {
 test("depositSediment: posts readings and returns summary", async () => {
   const s = stubFetch(() => ({ status: 202, json: { batchId: "b-1", series: 1, buckets: 3, samples: 10 } }));
   try {
-    const r = await depositSediment(CFG, [{ thingId: "t1", property: "flow", value: 1.0, observedAt: "2026-06-19T00:00:00Z" }]);
+    const r = await depositSediment(CFG, [{ objectId: "t1", property: "flow", value: 1.0, observedAt: "2026-06-19T00:00:00Z" }]);
     assert.equal(r.batchId, "b-1");
     assert.equal(r.samples, 10);
     assert.ok(s.calls[0].url.endsWith("/api/sediment"));
     assert.ok(s.calls[0].body.includes("observedAt"));
+    assert.equal(JSON.parse(s.calls[0].body)[0].objectId, "t1", "the sediment route reads the Thing from objectId");
   } finally {
     s.restore();
   }
@@ -285,8 +286,8 @@ function stubSelectorFetch(): { calls: Captured[]; restore: () => void } {
           subscriptionId: "s-1",
           watermark: 42,
           snapshot: {
-            things: [{ id: "t1", name: "Battery-1" }, { id: "t2", name: "Inverter-7" }],
-            relationships: [{ id: "r1" }],
+            things: [{ Id: "t1", Name: "Battery-1" }, { Id: "t2", Name: "Inverter-7" }],
+            relationships: [{ Id: "r1" }],
           },
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
@@ -358,5 +359,152 @@ test("shutdown does not ask the broker to withdraw", async () => {
     assert.deepEqual(s.calls, [], "a service cannot deregister itself, so shutdown must not try");
   } finally {
     s.restore();
+  }
+});
+
+import { mock } from "node:test";
+import { getToken, registration, reasonACallFailed, USAGE } from "./index.js";
+
+const A_MOMENT = Date.parse("2026-10-02T12:00:00Z");
+const FIVE_MINUTES = 5 * 60_000;
+
+function tokenWithClaims(claims: Record<string, unknown>): string {
+  return `${b64url({ alg: "ES256" })}.${b64url(claims)}.not-a-signature`;
+}
+
+function tokenExpiringAt(milliseconds: number): string {
+  return tokenWithClaims({ sub: "a-service", exp: Math.floor(milliseconds / 1000) });
+}
+
+function withAKey(overrides: Partial<Config> = {}): Config {
+  return { port: 5102, myceliumUrl: "http://mycelium.test", apiKey: "vos_ak_example", issuer: "", audience: "", ...overrides };
+}
+
+/** Stands in for the route that exchanges a key, and records the key each call presented. */
+function stubKeyExchange(answer: () => { status: number; token?: string }): { keysPresented: (string | undefined)[]; restore: () => void } {
+  const keysPresented: (string | undefined)[] = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (input: unknown, init?: RequestInit): Promise<Response> => {
+    assert.ok(String(input).endsWith("/api/auth/token"), `unexpected call to ${String(input)}`);
+    keysPresented.push(((init?.headers ?? {}) as Record<string, string>)["X-API-Key"]);
+    const { status, token } = answer();
+    return new Response(JSON.stringify({ token }), { status });
+  }) as typeof fetch;
+  return { keysPresented, restore: () => void (globalThis.fetch = original) };
+}
+
+test("parseArgs: an API key is read from the environment and never from a flag", () => {
+  const flags = ["--port=5102", "--myceliumUrl=https://localhost:7243", "--apiKey=flag-key"];
+  assert.equal(parseArgs(flags, { ApiKey: "environment-key" })?.apiKey, "environment-key");
+  assert.equal(parseArgs(flags, {})?.apiKey, undefined);
+});
+
+test("a key is exchanged in the key header, and the token is held", async () => {
+  mock.timers.enable({ apis: ["Date"], now: A_MOMENT });
+  const minted = tokenExpiringAt(A_MOMENT + FIVE_MINUTES);
+  const exchange = stubKeyExchange(() => ({ status: 200, token: minted }));
+  try {
+    const cfg = withAKey();
+    for (let call = 0; call < 3; call++) assert.equal(await getToken(cfg), minted);
+    assert.deepEqual(exchange.keysPresented, ["vos_ak_example"]);
+  } finally {
+    exchange.restore();
+    mock.timers.reset();
+  }
+});
+
+test("a held token is exchanged again shortly before it runs out", async () => {
+  mock.timers.enable({ apis: ["Date"], now: A_MOMENT });
+  const exchange = stubKeyExchange(() => ({ status: 200, token: tokenExpiringAt(Date.now() + FIVE_MINUTES) }));
+  try {
+    const cfg = withAKey();
+    for (let call = 0; call < 3; call++) {
+      await getToken(cfg);
+      mock.timers.setTime(Date.now() + FIVE_MINUTES - 20_000);
+    }
+    assert.equal(
+      exchange.keysPresented.length, 3,
+      "twenty seconds from running out is inside the half minute a token is replaced in");
+  } finally {
+    exchange.restore();
+    mock.timers.reset();
+  }
+});
+
+test("a token that states no expiry is not held", async () => {
+  const exchange = stubKeyExchange(() => ({ status: 200, token: tokenWithClaims({ sub: "a-service" }) }));
+  try {
+    await assert.rejects(getToken(withAKey()), /no expiry/);
+  } finally {
+    exchange.restore();
+  }
+});
+
+test("a refused key says what the platform answered", async () => {
+  const exchange = stubKeyExchange(() => ({ status: 401 }));
+  try {
+    await assert.rejects(getToken(withAKey()), /refused to exchange the API key \(401\)/);
+  } finally {
+    exchange.restore();
+  }
+});
+
+test("an answer that is not a token is not held", async () => {
+  const exchange = stubKeyExchange(() => ({ status: 200, token: "one.!!!.three" }));
+  try {
+    await assert.rejects(getToken(withAKey()), /not a token/);
+  } finally {
+    exchange.restore();
+  }
+});
+
+test("with neither a key nor a token there is nothing to present", async () => {
+  await assert.rejects(getToken(withAKey({ apiKey: undefined })), /neither ApiKey nor Token is set/);
+});
+
+test("a key is presented before a token given beside it", async () => {
+  mock.timers.enable({ apis: ["Date"], now: A_MOMENT });
+  const minted = tokenExpiringAt(A_MOMENT + FIVE_MINUTES);
+  const exchange = stubKeyExchange(() => ({ status: 200, token: minted }));
+  try {
+    assert.equal(await getToken(withAKey({ token: "a-launch-token" })), minted);
+  } finally {
+    exchange.restore();
+    mock.timers.reset();
+  }
+});
+
+test("with neither a key nor a token no call is made and the service says so", async () => {
+  const s = stubFetch(() => ({ status: 401 }));
+  try {
+    const said = await registration(withAKey({ apiKey: undefined }));
+    assert.deepEqual(s.calls, [], "a call carrying no credential is always refused");
+    assert.match(said, /ApiKey/);
+    assert.match(said, /Token/);
+  } finally {
+    s.restore();
+  }
+});
+
+test("the usage text names the key among the credentials", () => {
+  assert.match(USAGE, /ApiKey/);
+});
+
+// Node's built-in fetch reports a refused certificate as "fetch failed" and names the reason only on the cause.
+test("a certificate Node does not trust is reported with the setting that makes Node trust it", () => {
+  const refused = new TypeError("fetch failed", { cause: Object.assign(new Error("self-signed certificate"), { code: "DEPTH_ZERO_SELF_SIGNED_CERT" }) });
+  assert.match(reasonACallFailed(refused), /NODE_EXTRA_CA_CERTS/);
+  assert.equal(reasonACallFailed(new Error("register returned 403")), "register returned 403");
+});
+
+test("a call that fails on the certificate is the reason registration gives", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    throw new TypeError("fetch failed", { cause: Object.assign(new Error("self-signed certificate"), { code: "DEPTH_ZERO_SELF_SIGNED_CERT" }) });
+  }) as typeof fetch;
+  try {
+    assert.match(await registration(CFG), /registration failed.*NODE_EXTRA_CA_CERTS/);
+  } finally {
+    globalThis.fetch = original;
   }
 });
