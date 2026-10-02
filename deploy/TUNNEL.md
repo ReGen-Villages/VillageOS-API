@@ -1,8 +1,8 @@
 # The Cloudflare account's part of a tunnelled deployment
 
-**Authorise the serving machine once in the browser; it creates its own tunnel and hostnames. Then
-host the public pages, and put a sign-in gate in front of the main host.** Nothing else in the account
-changes; a website already on the domain is untouched.
+**Authorise the serving machine once in the browser; it creates its own tunnel and hostnames, and
+serves the public pages itself. Then put a sign-in gate in front of the main host.** Nothing else in
+the account changes; a website already on the domain is untouched.
 
 This is written for whoever signs into the Cloudflare account that holds the domain, and assumes no
 prior Cloudflare knowledge. `app.example.org`, `intake.example.org` and `submit.example.org` stand for
@@ -16,8 +16,9 @@ the deployment's own hostnames.
   to Cloudflare. When somebody visits `app.example.org`, Cloudflare sends the request down that
   connection. Nothing on the machine's network is opened to the internet, its address stays hidden,
   and Cloudflare provides the HTTPS certificate.
-- The **public pages** — the submission form and the pages a submitter reads — are plain files, hosted
-  by Cloudflare itself.
+- The **public pages** — the submission form and the pages a submitter reads — are plain files. The
+  machine serves them through the same tunnel under a hostname of their own; Cloudflare can host
+  them instead.
 
 ## What you need
 
@@ -37,19 +38,23 @@ That is the whole hand-over: the machine now creates the tunnel, its hostnames a
 by itself. No token changes hands.
 
 **Check:** **Zero Trust → Networks → Tunnels** shows a tunnel named after the machine, **Healthy**,
-once the machine side has started it; **DNS → Records** shows `app` and `intake` as CNAMEs to
-`<id>.cfargotunnel.com`, proxied (orange cloud).
+once the machine side has started it; **DNS → Records** shows `app`, `intake` and `submit` as CNAMEs
+to `<id>.cfargotunnel.com`, proxied (orange cloud).
 
-## 2. Host the public pages
+## 2. The public pages
 
-The machine side hands you a folder of files (the form, findings and explore pages).
+Nothing to do in the account: the machine serves the pages at `submit.example.org` through the tunnel,
+and wrote that hostname's record in step 1.
+
+Only if the machine side has chosen not to serve them, it hands you a folder of files (the form,
+findings and explore pages) to host instead:
 
 1. **Workers & Pages → Create → Pages → Upload assets**; name the project; upload the folder.
 2. **Custom domains → Set up a custom domain →** `submit.example.org`. Cloudflare creates the
    record and the certificate.
 
-Every later update of the pages is the same upload again: the project → **Create new deployment →
-Upload**.
+Every later update of the pages is then the same upload again: the project → **Create new
+deployment → Upload**.
 
 ## 3. Recommended: a sign-in gate in front of the main host
 

@@ -343,8 +343,18 @@ ticket is an ordinary ~71-character scalar on a property series, so property his
 reads work unchanged. Content identity, not a location pointer, is what
 [`TEMPORAL_READS.md`](TEMPORAL_READS.md)'s no-stubs rule permits: the key IS the address.
 
-The kind depends on the broker serving that route. A broker that does not serve it refuses the
-deposit, and the call fails with a 502 as any refused keep does (below).
+What the broker promises about what it keeps:
+
+- **The bytes come back as they went in.** `GET /api/assets/{ticket}` answers the exact bytes under
+  the Content-Type they were deposited with, to any caller who may read the model; a deposit with no
+  Content-Type is kept as `application/octet-stream`.
+- **Nothing is deleted**, so a ticket anywhere in a property's history always names its bytes.
+- **A second deposit of the same bytes** answers the same ticket and stores nothing new — `201` the
+  first time, `200` after — and keeps the Content-Type of the first.
+
+A ticket the store does not hold answers `404`, and anything not shaped `sha256:<64 hex digits>`
+answers `400`. The console draws a property whose value is a ticket as the image it names, and lets a
+series of them be scrubbed through on its Temporal page.
 
 The kind requires two keys and may name a third — all of them names the model supplies,
 none of them meaningful to this service:
@@ -369,8 +379,7 @@ verbatim (the ordinary pairing for imagery); a plain text body deposits its UTF-
 `cachesBy → DiskCache` serves repeats locally, and **a cache hit deposits nothing** — no
 new retrieval happened. `OffsetPaging` is refused: the aggregate is assembled by this
 service, so keeping it would deposit bytes the provider never served. Reaching no kind
-through `keepsBy` is the transient default above. How the bytes are stored and served back
-is the broker's concern and lies outside this service.
+through `keepsBy` is the transient default above.
 
 Graph composition is pinned by `EsriTileEndpointTemplateTests` and
 `ModelAssetEndpointSpecTests` (Delta); behavior by `BinaryResponseKindTests`,
