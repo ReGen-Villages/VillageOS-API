@@ -19,6 +19,7 @@ public class MyceliumGatewayTests
     private static readonly Guid PipelineRunArchetypeId = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid RunSubjectPredicateId = Guid.Parse("44444444-4444-4444-4444-444444444444");
     private static readonly Guid PredicateId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+    private static readonly Guid SentMessageArchetypeId = Guid.Parse("55555555-5555-5555-5555-555555555555");
 
     private static (MyceliumGateway Gateway, MockHttpMessageHandler Handler) NewGateway(
         Func<HttpRequestMessage, HttpResponseMessage>? respond = null)
@@ -54,6 +55,8 @@ public class MyceliumGatewayTests
                 return MarkedArchetypeSnapshot(NodeRunArchetypeId, PipelineArchetypes.NodeRunFlag);
             if (selector.Contains(PipelinePredicates.RunSubjectFlag))
                 return MarkedArchetypeSnapshot(RunSubjectPredicateId, PipelinePredicates.RunSubjectFlag);
+            if (selector.Contains(PipelineArchetypes.SentMessageFlag))
+                return MarkedArchetypeSnapshot(SentMessageArchetypeId, PipelineArchetypes.SentMessageFlag);
             return Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""");
         }
 
@@ -180,9 +183,15 @@ public class MyceliumGatewayTests
             .Should().BeEquivalentTo([PipelineArchetypes.PortFlag, PipelineArchetypes.PipelineWireFlag]);
 
         // And the archetype for every role, so one missing from the snapshot means the model marks it
-        // nowhere rather than that this pipeline has no node playing it.
+        // nowhere rather than that this pipeline has no node playing it, beside the two predicates an end
+        // standing for a system is read through.
         selector.GetProperty("markedArchetypes").EnumerateArray().Select(flag => flag.GetString())
-            .Should().BeEquivalentTo(PipelineArchetypes.DagRoleFlags);
+            .Should().BeEquivalentTo(PipelineArchetypes.DagRoleFlags.Concat([PipelinePredicates.StandsForFlag, PipelinePredicates.ToldThroughFlag]));
+
+        // The system an end stands for, and the connection it is told through, are reached after the nodes.
+        selector.GetProperty("traverse").EnumerateArray()
+            .Select(rule => rule.TryGetProperty("predicateFlag", out var flag) ? flag.GetString() : rule.GetProperty("predicate").GetString())
+            .Should().Equal(ModelNames.Has, PipelinePredicates.StandsForFlag, PipelinePredicates.ToldThroughFlag);
     }
 
     [Fact]
@@ -283,6 +292,32 @@ public class MyceliumGatewayTests
         written.Should().NotBeEmpty();
         foreach (var property in written)
             property.Value.GetProperty("typeInfo").GetString().Should().Be("vos.String");
+    }
+
+    // The message is whole before it is related to the system: that last write is the one the broker
+    // dispatches to the sender, which reads the message it is sent.
+    [Fact]
+    public async Task SendMessageAsync_WritesTheMessageHoldsItOnTheRunAndRelatesItToTheSystemAlongItsConnectionLast()
+    {
+        var runId = Guid.NewGuid();
+        var telling = new Telling(Guid.NewGuid(), "Reporting office", Guid.NewGuid());
+        var (gateway, handler) = NewGateway();
+
+        await gateway.SendMessageAsync(runId, telling, JsonDocument.Parse("""{"result":"world"}""").RootElement, CancellationToken.None);
+
+        var message = await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single());
+        var messageId = message.GetProperty("id").GetString();
+        JsonDocument.Parse(message.GetProperty("properties").GetProperty("payload").GetProperty("value").GetString()!)
+            .RootElement.GetProperty("result").GetString().Should().Be("world");
+
+        var edges = new List<JsonElement>();
+        foreach (var request in RequestsTo(handler, "/api/relationships", HttpMethod.Post))
+            edges.Add(await ReadJson(request));
+        edges.Select(edge => (edge.GetProperty("subjectId").GetString(), edge.GetProperty("targetId").GetString())).Should().Equal(
+            (messageId, SentMessageArchetypeId.ToString()),
+            (runId.ToString(), messageId),
+            (messageId, telling.SystemId.ToString()));
+        edges[^1].GetProperty("predicateId").GetString().Should().Be(telling.ConnectionId.ToString());
     }
 
     // The result is known only once the run ends, and the property route sets a property the Thing already

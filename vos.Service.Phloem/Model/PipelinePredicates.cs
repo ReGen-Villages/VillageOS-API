@@ -20,4 +20,8 @@ public static class PipelinePredicates
     // stands for the range, since several connections may watch one state, and the broker dispatches the
     // connection, so the two meet through this edge.
     public const string StateWatchFlag = "__IsStateWatchPredicate";
+
+    // An external system reaches the connection it is told through: a predicate bound to the service that
+    // sends what a run leaves for the system.
+    public const string ToldThroughFlag = "__IsToldThroughPredicate";
 }

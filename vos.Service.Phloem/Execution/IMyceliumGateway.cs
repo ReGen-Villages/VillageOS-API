@@ -19,6 +19,10 @@ public interface IMyceliumGateway
     // The predicate a relationship was written along, or none when the model does not hold it.
     Task<Guid?> PredicateOfAsync(Guid relationshipId, CancellationToken cancellationToken);
 
+    // A message the run leaves for an external system: written, held by the run, then related to the system
+    // along the connection it is told through, which the broker delivers.
+    Task SendMessageAsync(Guid runId, Telling telling, JsonElement payload, CancellationToken cancellationToken);
+
     // The subject, when the run has one, is related to the run along the predicate the model marks for it.
     Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null);
 

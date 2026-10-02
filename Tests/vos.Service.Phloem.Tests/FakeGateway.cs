@@ -39,6 +39,16 @@ internal sealed class FakeGateway : IMyceliumGateway
         return Task.FromResult(PredicatesByRelationship.TryGetValue(relationshipId, out var predicate) ? predicate : (Guid?)null);
     }
 
+    public Action OnSend { get; set; } = () => { };
+    public List<(Guid RunId, Telling Telling, JsonElement Payload)> MessagesSent { get; } = new();
+
+    public Task SendMessageAsync(Guid runId, Telling telling, JsonElement payload, CancellationToken ct)
+    {
+        OnSend();
+        MessagesSent.Add((runId, telling, payload.Clone()));
+        return Task.CompletedTask;
+    }
+
     public Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct, RunSubject? subject = null)
     {
         RunsCreated.Add((runId, pipelineId, subject));
