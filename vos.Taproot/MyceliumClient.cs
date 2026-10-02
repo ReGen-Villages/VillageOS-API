@@ -181,7 +181,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things");
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -213,7 +213,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/properties?scope={scope}");
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -223,7 +223,7 @@ public class MyceliumClient
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{id}");
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             return null;
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -235,7 +235,7 @@ public class MyceliumClient
             Encoding.UTF8,
             "application/json");
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/things", content);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -293,7 +293,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/relationships");
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -303,7 +303,7 @@ public class MyceliumClient
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/relationships/{id}");
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             return null;
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -331,7 +331,7 @@ public class MyceliumClient
             Encoding.UTF8,
             "application/json");
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/relationships", content);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -357,7 +357,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/mycelium/services");
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -368,7 +368,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/mycelium/connections");
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -397,7 +397,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/model");
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadAsStringAsync();
     }
 
@@ -406,7 +406,7 @@ public class MyceliumClient
         await SetAuthHeaderAsync();
         var content = new StringContent(modelJson, Encoding.UTF8, "application/json");
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/model", content);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadAsStringAsync();
     }
 
@@ -414,7 +414,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/model");
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
     }
 
     // Upsert a fragment (a partial-model {Name, Things, Relationships} batch) into the live model.
@@ -425,7 +425,7 @@ public class MyceliumClient
         await SetAuthHeaderAsync();
         var content = new StringContent(fragmentJson, Encoding.UTF8, "application/json");
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/model/fragment", content);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -446,7 +446,7 @@ public class MyceliumClient
         });
         var content = new StringContent(body, Encoding.UTF8, "application/json");
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/model/promote", content);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -464,7 +464,7 @@ public class MyceliumClient
         });
         var content = new StringContent(body, Encoding.UTF8, "application/json");
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/model/prune", content);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -497,7 +497,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/engines/metrics");
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -505,7 +505,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/engines/metrics/reactors");
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -513,7 +513,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/snapshots/resolution/metrics");
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -521,7 +521,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/mycelium/startup-status");
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -529,7 +529,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/mycelium/library-seeds");
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -537,7 +537,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/mycelium/library-seeds/{Uri.EscapeDataString(name)}/load", null);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -545,7 +545,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/mycelium/library-seeds/{Uri.EscapeDataString(name)}", null);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -553,7 +553,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/mycelium/seeds/reload", null);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -561,7 +561,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/endpoints");
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -569,7 +569,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/models");
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -580,7 +580,7 @@ public class MyceliumClient
             JsonSerializer.Serialize(new { ModelId = modelId }),
             Encoding.UTF8, "application/json");
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/auth/switch-model", content);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         _cachedToken = null;
         var result = await response.Content.ReadFromJsonAsync<JsonElement>();
         if (result.TryGetProperty("token", out var tokenElem))
@@ -598,7 +598,7 @@ public class MyceliumClient
             JsonSerializer.Serialize(new { CurrentPassword = currentPassword, NewPassword = newPassword }),
             Encoding.UTF8, "application/json");
         var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/auth/users/{userId}/password", content);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -632,7 +632,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/config/property-mode");
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -656,7 +656,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(propertyName)}/mode");
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -676,8 +676,8 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    // A refused mode is answered with the modes the platform accepts, and the default status-code
-    // check throws that body away — leaving the operator "400 (Bad Request)" and nothing to act on.
+    // The platform answers a refusal with its reason, and the default status-code check throws that
+    // body away — leaving the operator "400 (Bad Request)" and nothing to act on.
     internal static async Task EnsureSuccessCarryingTheReasonAsync(HttpResponseMessage response)
     {
         if (response.IsSuccessStatusCode) return;
@@ -697,7 +697,7 @@ public class MyceliumClient
             url += $"?timestamp={timestamp.Value:O}";
         }
         var response = await _httpClient.GetAsync(url);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -712,7 +712,7 @@ public class MyceliumClient
         var response = await _httpClient.GetAsync(url);
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             return null;
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -725,7 +725,7 @@ public class MyceliumClient
         await SetAuthHeaderAsync();
         var url = $"{_myceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(propertyName)}/versions{BuildTimeRangeQuery(startTime, endTime)}";
         var response = await _httpClient.GetAsync(url);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -737,7 +737,7 @@ public class MyceliumClient
         await SetAuthHeaderAsync();
         var url = $"{_myceliumUrl}/api/things/{thingId}/mutations{BuildTimeRangeQuery(startTime, endTime)}";
         var response = await _httpClient.GetAsync(url);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -748,7 +748,7 @@ public class MyceliumClient
         await SetAuthHeaderAsync();
         var url = $"{_myceliumUrl}/api/mutations{BuildTimeRangeQuery(startTime, endTime)}";
         var response = await _httpClient.GetAsync(url);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -760,7 +760,7 @@ public class MyceliumClient
         await SetAuthHeaderAsync();
         var url = $"{_myceliumUrl}/api/relationships/{relationshipId}/mutations{BuildTimeRangeQuery(startTime, endTime)}";
         var response = await _httpClient.GetAsync(url);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -781,7 +781,7 @@ public class MyceliumClient
             Encoding.UTF8,
             "application/json");
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/things/{thingId}/ranges", content);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -789,7 +789,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/ranges");
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -799,7 +799,7 @@ public class MyceliumClient
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/ranges/{Uri.EscapeDataString(rangeName)}");
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             return null;
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -814,7 +814,7 @@ public class MyceliumClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/states");
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -846,7 +846,7 @@ public class MyceliumClient
             Encoding.UTF8,
             "application/json");
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/ranges/validate", content);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
