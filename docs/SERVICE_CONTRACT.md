@@ -521,6 +521,9 @@ never told it created a Thing the model no longer holds live.
   `400` — so the
   model a caller reads afterwards is the one they posted against. Re-posting is idempotent either way,
   so a corrected retry still heals.
+- **An `is` must reach a declared type.** A fragment typing a Thing by one that is not a declared type
+  is refused `400` with **zero** mutation. A type the fragment itself creates counts once it carries
+  `"IsArchetype": true`; the same rule refuses a single `POST /api/relationships` that would do it.
 - **A computed name cannot be written.** If a roll-up computes a property name for a Thing — through a
   definition it owns, one it inherits from a type it already has, or one a type in the same batch brings —
   writing a value for that name fails `400` with **zero** mutation. Send the members; the value follows.

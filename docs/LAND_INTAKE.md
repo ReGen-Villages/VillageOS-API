@@ -275,7 +275,7 @@ before the questions.
   each category declares in the model, and the population and household size start unset.
 - **The report leads with capacity.** The study declares three figures that read no population — the
   people the land could feed, water and power — so a submission carrying only a boundary still gets a
-  first answer, with the estimated energy balance judged by its own ranges once a population is set.
+  first answer, and the energy balance is judged once a population is set.
 - **Everything else is a dial on the report.** The page forwards itself to the findings with the
   reference and the ticket already in hand; the programme split, the population, the household size
   and what the person has seen of each hazard re-post the same submission under the same identifier —
@@ -643,10 +643,12 @@ flowchart TB
 ```
 
 The arrows are property reads and writes on one Thing, not wires. The model answers the middle box as
-the model loads and again whenever a term moves. The energy balance reads none of it — its panel area
-is a roll-up over the site's own arrays — so it sits beside the model's own work rather than after it.
-Nothing sequences any of them: each recomputes when an input it declared moves, and the cascade is
-bounded by the model's recompute round limit.
+the model loads and again whenever a term moves, generation, consumption and their share included;
+what the energy balance adds is the verdict. Its panel area is the arrays' measured area once the
+model holds arrays and an estimate from the land until then, and its consumption is worked out from
+the population, so it reads figures the model has already worked out. Nothing sequences any of them:
+each recomputes when an input it declared moves, and the cascade is bounded by the model's recompute
+round limit.
 
 **Each allocation's own area is a formula, not a write.** An allocation works out its normalised share of
 the stated programme and its share of the parcel from definitions the shared analysis declares on the
@@ -667,8 +669,8 @@ assessed" range holds. A balance computed against a silently substituted number 
 because it looks like an answer.
 
 **An input the study does not carry yet is waited for, not failed.** A submission describes land,
-a boundary and programme shares, so a reservoir capacity and a panel area are absent until a building
-model exists. A service that finds one of its inputs missing writes nothing, names it in its own log, and
+a boundary and programme shares, so a reservoir capacity is absent until a building model exists or
+somebody states one. A service that finds one of its inputs missing writes nothing, names it in its own log, and
 answers what it is waiting for; the watch it registered on the study is what brings it back when the
 figure arrives. A service that failed instead would have the broker record the dispatch failed and
 drive it again on every reconciliation for as long as the model lived.
@@ -836,7 +838,7 @@ Using a synthetic example throughout — **Willow Bend**, a fictional 24-hectare
 | | `householdSize` | 2.4 | Fact |
 | | `solarResourceKwhPerM2PerYear` | 1750 | **Observation** — discovered |
 | | `rainfallMillimetresPerYear` | 700 | **Observation** — discovered |
-| Willow Bend Site Study *(SiteStudy)* | `estimatedPctOfConsumption` | 90.7 | Derived — the model computes it |
+| Willow Bend Site Study *(SiteStudy)* | `pctOfConsumption` | 90.7 | Derived — the model computes it, and `EnergyShortOfTarget` judges it |
 | Parcel-01 *(Parcel)* | `boundary` | GeoJSON polygon | Fact |
 | | `measuredAreaHectares` | 23.4 | Fact |
 | | `obtainedBy` → `drawn-by-hand` | a relationship to the Thing | Relationship — the only place it is recorded |
@@ -912,19 +914,21 @@ losses, wiring, soiling, heat and downtime. Together they come to 0.131. The stu
 balance service each take the two as separate inputs, so leaving the losses out is a visible omission:
 a module efficiency alone would overstate output by about a third.
 
-**The arithmetic above is declared on the study as the intake-stage estimate**, beside —
-never in place of — the balance a building model feeds. A submitted site has no arrays and no metered
-consumption, so `pctOfConsumption` stays honestly unassessed; `estimatedPctOfConsumption` answers the
-intake-stage question from the land alone, sized on the categories marked `__IsArrayHostCategory`
-(residential, in the shipped programme) at the `arrayCoverageFraction` the shared study declares, and
-judged by ranges of its own so the two verdicts can never be mistaken for each other.
+**Each input reads the best source the model holds.** The study's array area is the estimate above
+until the model holds arrays, and their measured area from then on; its consumption is population
+times energy per person until somebody states a figure or the model holds occupied spaces; and one set
+of energy ranges judges the balance throughout. The estimate stays on the study as
+`estimatedArrayAreaM2`, sized on the categories marked `__IsArrayHostCategory` (residential, in the
+shipped programme) at the `arrayCoverageFraction` the shared study declares, and is reported against
+the measured area as `arrayAreaDivergencePct`.
 
 ### What the land could support
 
 Three capacity figures on the study read no population at all, which is what lets a submission
 carrying only a boundary get a first answer: **people fed** (the growing land times the yield),
 **people watered** (the harvest divided by what one person drinks in a year), and **people powered**
-(the estimated generation divided by what one person consumes). For Willow Bend they come to about
+(the generation the balance reads — the estimate until a building model arrives — divided by what one
+person consumes). For Willow Bend they come to about
 20, 900 and 290 people — the growing land is the binding constraint, which is itself the finding.
 The submitter dashboard leads with them, and a population dialled in afterwards is what turns the
 percentages and the demand coverages from *not assessed* into verdicts.

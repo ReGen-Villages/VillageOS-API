@@ -1,7 +1,8 @@
 # Microservices
 
-Canonical C# how-to for `Service` projects. For the **language-agnostic HTTP + SSE
-wire contract** (Go/Node/Python/Rust subscribe snippets) see
+Canonical C# how-to for `Service` projects. For the **language-agnostic wire contract** —
+plain HTTP, plus Server-Sent Events (SSE), a long-lived HTTP response the server keeps writing
+events into — (Go/Node/Python/Rust subscribe snippets) see
 [`SERVICE_CONTRACT.md`](SERVICE_CONTRACT.md). For the simulation-specific behavior
 of Metabolism, see [`METABOLISM.md`](METABOLISM.md).
 
@@ -471,8 +472,8 @@ What makes it work:
   reacting to every change there would recompute forever. Each handler exposes `InputProperties`, and the
   wiring passes that same set, so the filter cannot drift from what the handler reads.
 - **An input that has not arrived is waited for, not failed.** A study built from a submission
-  carries land and a programme and nothing about buildings, so a reservoir capacity or a panel area is
-  absent until a building model exists. `StudyInputs.WaitingFor` says which of a handler's inputs the study
+  carries land and a programme and nothing about buildings, so a reservoir capacity is absent until a
+  building model exists or somebody states one. `StudyInputs.WaitingFor` says which of a handler's inputs the study
   holds no number under — one it does not carry, and one carried with its number withheld — and a handler
   that finds any writes nothing, logs the names, and answers a `RecomputeAnswer` carrying them. The dispatch
   is recorded done and the watch above is what recomputes the study when the figure lands. A handler that

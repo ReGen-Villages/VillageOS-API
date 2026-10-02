@@ -160,7 +160,7 @@ better than a technical label would.
 | **Forage** | The service that looks a site up in every source that covers it | Going out to find what the surroundings hold |
 | **Phloem** | The orchestrator that runs a pipeline of services drawn on a canvas | The tissue that routes a plant's products from source to sink |
 | **Xylem** | The service that takes a building model file and raises it into the model | The tissue that carries water up from the roots |
-| **Intake** | The service that takes a description of a piece of land from a member of the public | Kept plain: it is the one door a stranger comes through |
+| **Intake** | The service that takes a description of a piece of land from a member of the public | Kept plain: it is the one service that takes requests from strangers |
 
 A **seed** is the file a model is first planted from. A **fragment** is a partial model added to a
 live one. Both words are used throughout this guide.
@@ -335,8 +335,11 @@ what is its own.
   through the whole chain, the nearest declaration winning.
 - **A kind is never judged by its own ranges.** It declares the ranges its members are judged by,
   and never enters a state itself.
-- **A kind declares itself.** Whether a Thing is a kind is a declaration its author makes, because
-  a kind with no members yet has nothing pointing at it to reveal it.
+- **A kind declares itself.** Whether a Thing is a kind is a declaration its author makes when the
+  Thing is created, because a kind with no members yet has nothing pointing at it to reveal it. Only
+  a declared kind can be the far end of an `is`: the server refuses to type a Thing by one that is
+  not, whether the write is a single relationship or a fragment, and the validator refuses a seed
+  that does it.
 
 A read of a Thing answers its **effective** properties: its own values plus everything it inherits,
 own values winning, each tagged with where it came from.
@@ -558,6 +561,13 @@ answer is no", and the reason every verdict has an unassessed companion.
 so a threshold stored in days can be judged against a clock counting seconds:
 `elapsed(lastInspected) > daysBetweenInspections * 86400`.
 
+**Two figures, and a first answer.** `min(a, b)` is the smaller of two figures, and unknown when
+either is. `firstKnown(a, b, …)` is the first figure, in the order written, that has a number to give:
+one that is unknown, a text, or a path reaching several Things is passed over, and zero is an answer.
+It is how a figure with more than one source is written —
+`firstKnown(measuredArrayAreaM2, estimatedArrayAreaM2)` reads the measured area once the model holds
+arrays, and the estimate until then.
+
 **Logic.** `AND`, `OR`, `NOT`, and parentheses.
 
 **Across relationships.** `[feeds].quantity` follows the `feeds` relationship and reads the far
@@ -637,9 +647,9 @@ The rules a modeller relies on:
 | --- | --- |
 | **A total over nothing is nought — unless told otherwise** | `Sum` over an empty set is zero and `Count` is none; `Min`, `Max` and `Average` are unknown, because there is no smallest of nothing. A definition may *require members*, in which case an empty set answers unknown rather than zero, for a model where "none" and "nobody has said" differ |
 | **A member that cannot contribute** | A missing value, text where a number belongs, an ambiguous name. The model's policy decides: **withhold** the whole total (the default, because a partial total is a wrong answer presented as a right one), or **skip** the member and total the rest. Withholding one value never stops the pass |
-| **A formula with no answer is unknown, never zero** | A term nothing has written, a division by zero, a path reaching several Things — each leaves the figure unknown, which is the one place a formula behaves differently as a value than as a comparison |
+| **A formula with no answer is unknown, never zero** | A term nothing has written, a division by zero, a path reaching several Things, a name the Thing inherits from two kinds — each leaves the figure unknown, which is the one place a formula behaves differently as a value than as a comparison. `firstKnown` is how a figure falls back to a second source instead. A name inherited from two kinds is also logged, naming both kinds: give the Thing its own value, or rename the property on all but one kind |
 | **A condition narrows the members** | A total may carry a criterion each member must satisfy; one that fails it is not a member. This is how the built footprint sums only the programme categories marked as hard surface |
-| **Who computes** | The declaring Thing computes one value, or every member computes its own (*per instance*). A formula declared on a kind almost always wants per instance, since the terms it reads sit on the members |
+| **Who computes** | The declaring Thing computes one value, or every member computes its own (*per instance*). A formula declared on a kind almost always wants per instance, since the terms it reads sit on the members. The exception is a formula reading only totals over the kind's own members: the kind computes that once |
 | **Chains settle in one pass** | A round visits a definition after the ones it reads, so a chain of any depth settles at once. Only a graph that feeds itself repeats, up to a limit the model declares, and reaching the limit is logged naming every definition still moving |
 | **The derived value comes first** | On every change, derived values are recomputed before the ranges that read the raw change are judged (chapter 22) |
 
@@ -897,7 +907,10 @@ refused is carried back with the provider's own status and words.
 
 Some sources return bytes rather than text — map tiles, imagery — and a registration says so by
 reaching the kind that reads its body as bytes; it may also cache the bytes on disk for the life the
-provider's terms allow.
+provider's terms allow. A registration that reaches the kind that **keeps** what it retrieved has
+Tributary hand the bytes to the server's store and write the ticket it is answered with — a name made
+from the content — onto a property as a reading, so a property's history becomes the history of what
+was fetched. The console draws such a property as the image it names.
 
 **Coverage is relationships.** A source relates to a **Place**; a site relates to the Place it sits in;
 Places nest. A source covering a region covers every site within it without naming any, and a
@@ -1103,7 +1116,7 @@ beside it, and closes again once a page is chosen.
 | **Graph** | The model as a picture: search, clustering, the 3D view of one building, and every create, edit and delete |
 | **Model** | The whole building model in 3D, with filtering by element type and a map of where the site is |
 | **Pipelines** | The canvas where a pipeline is drawn, wired, run and watched (Part VI) |
-| **Temporal** | Every change to a property over a time range you choose |
+| **Temporal** | Every change to a property over a time range you choose; a property whose values name stored images shows them, with a slider across them and one moment pinned beside another to compare |
 | **Things**, **Properties** | Search the whole model by name, or by property name |
 | **Logs** | The server's log, live |
 
@@ -1173,9 +1186,9 @@ On a screen narrower than a tablet's the two filter panels start closed, so the 
 
 | Toolbar control | What it does |
 | --- | --- |
-| **+** beside the search bar | Create a Thing by name, in place |
+| **+** beside the search bar | Create a Thing by name, in place; tick **Is a type** to create it as a kind, which cannot be changed afterwards |
 | **+** and **−** | Zoom in and out |
-| **Fit** | Frame every node |
+| **Fit** | Frame the drawing. On a large graph the outermost half percent of nodes at each edge is left out of the fit, so a few nodes the simulation briefly throws far out do not shrink the whole drawing; a small graph is framed to every node |
 | **Re-layout** | Nudge every node so the simulation settles into a new arrangement |
 | **Spread** | Push nodes apart while keeping their clusters; click again to return |
 | **Pause** and **Play** | Freeze the simulation to read the graph as it stands; resume it |
@@ -1196,8 +1209,8 @@ with geometry.
 | Tab | What it shows |
 | --- | --- |
 | **Ranges** | The states the Thing currently holds as coloured badges; its own ranges with their criteria and whether each holds; the ranges it inherits, grouped by the kind that supplies them, each name a link to that kind; the ranges on every relationship it sits on; and, per binding, how far a value sits from its bounds. **Add Range** creates one from a name and a criterion; each own range has a delete control; an inherited range is removed from the kind that declares it. The tab holds a still picture of the world while you read it, so a stream of state changes does not shuffle the panel under you; the refresh control takes a fresh one |
-| **Properties** | The Thing's own values, each formatted to its type — a date as a date, an identifier shortened, geometry as a summary, decimals to the precision the model's display settings ask for. Under them, what the Thing inherits, grouped by source, each group a link to that kind. The pencil turns on editing: each value becomes a field that follows its type (a checkbox, a date picker, a number field, a text box), saved on Enter or on clicking away, cancelled with Escape; a value the type cannot hold is refused before it is sent, naming the property. A row at the bottom adds a property with a name, a type and a value. Editing an inherited value creates an override on this Thing. Geometry is not edited here |
-| **Relationships** | What points at the Thing and what it points to, each name a link. A chevron opens a relationship's own values for editing; an icon opens the relationship's own panel. In editing mode a row at the bottom of each list adds a relationship from a predicate and a Thing, and a **retype** row repoints the Thing's `is` to another kind in one step |
+| **Properties** | The Thing's own values, each formatted to its type — a date as a date, an identifier shortened, geometry as a summary, decimals to the precision the model's display settings ask for, a ticket naming a stored image as the image itself (the ticket text, with the reason, where the image cannot be shown). Under them, what the Thing inherits, grouped by source, each group a link to that kind. The pencil turns on editing: each value becomes a field that follows its type (a checkbox, a date picker, a number field, a text box), saved on Enter or on clicking away, cancelled with Escape; a value the type cannot hold is refused before it is sent, naming the property. A row at the bottom adds a property with a name, a type and a value. Editing an inherited value creates an override on this Thing. Geometry is not edited here |
+| **Relationships** | What points at the Thing and what it points to, each name a link. A chevron opens a relationship's own values for editing; an icon opens the relationship's own panel. In editing mode a row at the bottom of each list adds a relationship from a predicate and a Thing, and a **retype** row repoints the Thing's `is` to another kind in one step, offering declared kinds only |
 | **3D** | An auto-rotating view of the element. Drag to orbit, scroll to zoom. A container with no geometry of its own — a building, a storey — shows what it contains, coloured by element class |
 
 ![The Properties tab in edit mode: each own value in a field with a delete control, an add-property row beneath, the inherited groups below](assets/trellis-graph-properties-edit.png)
@@ -1419,7 +1432,10 @@ administrator key the server wrote at its first start can be revoked here once n
 ### 55. Time and the log
 **Temporal** reads the model's past: property changes across the model or for one Thing, the model
 as it stood at an instant, one property's history, and which Things held a state. Each tab takes a
-time range and asks the platform's temporal reads (chapter 30).
+time range and asks the platform's temporal reads (chapter 30). Where a property's history holds
+tickets naming stored images, the history tab adds **Imagery over time**: a slider across the images
+from oldest to newest, opening on the newest, and **Pin for comparison** to hold one moment beside
+another.
 
 ![The Temporal page: the Mutations tab, a time range and the changes it found](assets/trellis-temporal.png)
 
@@ -1433,7 +1449,7 @@ Everything is done in place on the graph page.
 
 | To | Do |
 | --- | --- |
-| Create a Thing | **+** beside the search bar, type a name, Enter. It appears at once |
+| Create a Thing | **+** beside the search bar, type a name, Enter. It appears at once. Tick **Is a type** first to create a kind other Things can be typed by |
 | Add a property | Select a node, pencil, the row at the bottom of the property list: name, type, value, Enter. The field stays focused for the next one |
 | Edit a property | In editing mode click a value; Enter or click away saves, Escape reverts; a blue border marks an unsaved change. Editing an inherited value creates an override |
 | Delete a property | The bin on its row. An inherited property cannot be deleted, only overridden |
@@ -1441,7 +1457,7 @@ Everything is done in place on the graph page.
 | Edit a relationship's values | Open its chevron, or click the relationship on the graph |
 | Delete a relationship | Click it on the graph, **Delete Relationship**, confirm |
 | Delete a Thing | Right-click, **Delete**, confirm |
-| Retype a Thing | In editing mode, the retype row on the Relationships tab |
+| Retype a Thing | In editing mode, the retype row on the Relationships tab, which offers declared kinds only |
 | Add a range | The Ranges tab, **Add Range**: a name and a criterion |
 
 A change you make appears on every other open console through the live stream, and a deletion you
@@ -1580,12 +1596,12 @@ written `2026-01-15T12:30:00Z`, in universal time, or as `now`.
 ### 61. The commands
 | Command | What it does |
 | --- | --- |
-| `create thing <name>` | Create a Thing |
+| `create thing <name> [--archetype]` | Create a Thing; with `--archetype`, as a kind other Things can be typed by. Which it is cannot be changed afterwards |
 | `create property <thing> <name> <type> <value>` | Add a property; the types are `string`, `int`, `long`, `double`, `float`, `decimal`, `bool`, `datetime`, `guid` |
 | `create rel-property <relationship id> <name> <type> <value>`, `delete rel-property <relationship id> <name>` | Add or remove a property on a relationship |
 | `create relation <subject> <predicate> <target>` | Create a relationship |
 | `rename <thing> <new name>` | Rename in place, keeping the identifier and every relationship; the name may contain spaces |
-| `retype <thing> <kind>` | Repoint a Thing's `is` to another kind |
+| `retype <thing> <kind>` | Repoint a Thing's `is` to another kind; a Thing not created as a kind is refused |
 | `delete thing <thing>`, `delete relationship <id>`, `delete property <thing> <name>` | Remove |
 | `get thing <thing>`, `get relationship <id>` | The Thing as structured text; a relationship with its properties, by identifier, since a relationship has no name |
 | `set <thing> <name> <value>` | Set a property |
@@ -1854,7 +1870,9 @@ idempotent — re-applying neither duplicates nor errors — and the server reso
 Thing may carry a value for a name it will inherit. An exported model carries each Thing's own
 properties and its overrides keyed by the kind each overrides; loading one restores inheritance
 without re-running any service. `ingest` uploads a building model to the Xylem service, merging by
-default and replacing with `--new`. `pwd` and `cd` say where files are read and written.
+default and replacing with `--new`, and waits for as long as the import takes; where the service
+could not say how many Things and relationships it wrote, the line says that instead of printing
+nought. `pwd` and `cd` say where files are read and written.
 
 ### 68. Seeds, models, retention and accounts from the shell
 ```text
@@ -2117,7 +2135,9 @@ work-item type a bug and an idea each become, and any tags; an application the s
 is refused. `DevOpsAccessToken`, a personal access token with work items read and write, comes from
 configuration or the environment, never the command line. Reports are counted per address before the
 caller is known, a report is capped in size, and `--allowedOrigin` names any page allowed to call it
-across origins. The report panel is part of the console; it is also built on its own
+across origins. `--pathPrefix=/feedback` makes it answer requests that still carry that prefix, for a
+proxy that routes a path but cannot remove it, as a tunnel connector does; the example proxy removes
+the prefix and needs no flag. The report panel is part of the console; it is also built on its own
 (`npm run build:feedback-widget`) as one module a page with no build step can load.
 
 **The intake service** is the one service that takes requests from strangers. It is started with
@@ -2150,9 +2170,10 @@ on the router is opened. The deployment guide beside this one walks the account 
 | The data directory: the account store, the signing key, the first-start credentials, one log per launched service | Every account and every key that can be trusted |
 | The seeds directory, and `templates/` beneath it | The seed a model was planted from is not needed to restart it, but is needed to plant it again elsewhere |
 | The persistence directory: per model, its durable record, its checkpoints, and the sealed history files | The record of every Fact, and the only copy of every reading once its record segment has been compacted |
+| The asset directory: the bytes kept for every ticket a property holds | The only copy of each kept image or file; a property holding its ticket names it and does not hold it |
 | The master key | Without it the encrypted files above cannot be read |
 
-Back up the data directory, the persistence directory and the master key. A seed builds the model
+Back up the data directory, the persistence directory, the asset directory and the master key. A seed builds the model
 once; a later version of it can be merged into the running model with
 `POST /api/mycelium/library-seeds/{name}/merge`, which adds only what the model never held and changes
 nothing it holds.
@@ -2371,14 +2392,16 @@ to the server, because nothing expires one.
 
 The Dashboard page refetches its service registry once per two-second window when a service event
 arrives, the first event claiming the window and the rest absorbed, so it keeps reading while a
-simulation keeps completing requests.
+simulation keeps completing requests. It also rereads the registry every fifteen seconds with no event
+at all; that read is what turns the **Mycelium** light red when the server stops answering, and green
+again when it answers.
 
 ### 88. The console and the command line
 Almost every command has an equivalent on the graph page; where one has none, the table says why.
 
 | Command | In the console |
 | --- | --- |
-| `create thing` | The **+** beside the search bar |
+| `create thing`, `create thing --archetype` | The **+** beside the search bar; the **Is a type** box beside the name is `--archetype` |
 | `create property` | Editing mode, the row at the bottom of the property list |
 | `create relation` | Editing mode, the row at the bottom of a relationship list |
 | `set` on a relationship | Click the relationship, editing mode |
@@ -2806,10 +2829,13 @@ runs it during a play and keeps the file with its readings.
 | A trailing window | `OVER instant LAST seconds` after a total | `COUNT [feeds] OVER flowed_at LAST 900 > 20` |
 | A property's readings, folded (in a formula) | `HISTORY series LAST seconds` then `BY fold function [parameter]` per step, the last `BY all` | `HISTORY [studies].temperature LAST 31536000 BY day Min BY all CountAtOrBelow frostCelsius` |
 | The clock | `elapsed(x)` in seconds, `Now()` | `elapsed(lastInspected) > 86400` |
+| The smaller of two figures | `min(a, b)`; unknown when either is | `min(harvestM3PerYear, demandM3PerYear)` |
+| The first figure with a number | `firstKnown(a, b, …)`, in the order written; an unknown, a text or a path reaching several Things is passed over, and zero is an answer | `firstKnown(measuredArrayAreaM2, estimatedArrayAreaM2)` |
 
 A criterion over a property nothing can supply answers false; the validator refuses it before it
-ships. A total in a criterion answers zero over an empty set; `IS KNOWN` answers whether anything
-produced a value at all.
+ships. A total in a criterion answers zero over an empty set; a derived total that requires members
+stays unknown over one, which is how a study says a figure is not measured yet. `IS KNOWN` answers
+whether anything produced a value at all.
 
 ## Appendix C — The guides beside this one
 
