@@ -47,9 +47,11 @@ export const thingApi = {
     }
   },
 
-  create: async (name: string) => {
+  // Whether the Thing is a type is fixed when it is created, and the platform refuses a Thing typed by
+  // one that was not declared a type, so the caller always says which it is making.
+  create: async (name: string, isArchetype: boolean) => {
     const thing = await apiClient.action(`create Thing "${name}"`, () =>
-      apiClient.post<VosThing>('/api/things', { Name: name }),
+      apiClient.post<VosThing>('/api/things', { Name: name, IsArchetype: isArchetype }),
     );
     return unwrapThing(thing);
   },

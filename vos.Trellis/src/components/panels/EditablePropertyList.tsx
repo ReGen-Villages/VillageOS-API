@@ -2,6 +2,8 @@ import { useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Expand, Trash2, Loader2, Plus } from 'lucide-react';
 import { formatPropertyValue } from '../../utils/formatters';
+import { assetTicketOf } from '../../utils/assetTicket';
+import { AssetImage } from '../assets/AssetImage';
 import { thingApi } from '../../api/thingApi';
 import { relationshipApi } from '../../api/relationshipApi';
 import { toast } from '../common/toastStore';
@@ -111,6 +113,9 @@ function DisplayRow({
   const { t } = useTranslation();
   const formatted = formatPropertyValue(value, declaredType, numbers);
   const isLong = formatted.length > VALUE_TRUNCATE_LIMIT;
+  // A ticket is a reference, not a reading: the row shows what it names. The Expand button
+  // stays, so the hash itself is still one click away for copying.
+  const ticket = assetTicketOf(value);
 
   return (
     <div className="flex items-baseline gap-2 py-1 min-w-0">
@@ -119,9 +124,13 @@ function DisplayRow({
         <span className="text-[10px] text-zinc-600 dark:text-zinc-500 shrink-0" title={declaredType}>
           {shortTypeLabel(declaredType)}
         </span>
-        <span className="text-xs font-mono truncate max-w-[180px]" title={isLong ? undefined : formatted}>
-          {isLong ? formatted.slice(0, VALUE_TRUNCATE_LIMIT) + '…' : formatted}
-        </span>
+        {ticket ? (
+          <AssetImage ticket={ticket} />
+        ) : (
+          <span className="text-xs font-mono truncate max-w-[180px]" title={isLong ? undefined : formatted}>
+            {isLong ? formatted.slice(0, VALUE_TRUNCATE_LIMIT) + '…' : formatted}
+          </span>
+        )}
         {isLong && onExpand && (
           <button
             onClick={() => onExpand(formatted)}

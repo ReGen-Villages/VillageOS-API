@@ -160,11 +160,11 @@ public class CommandHandlerTests
         var handler = CreateHandler(reader, writer);
         var thingId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>($@"{{""id"":""{thingId}"",""name"":""TestThing""}}");
-        _myceliumMock.Setup(b => b.CreateThingAsync("TestThing")).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.CreateThingAsync("TestThing", false)).ReturnsAsync(json);
 
         await handler.HandleCommandAsync("create", "thing TestThing");
 
-        _myceliumMock.Verify(b => b.CreateThingAsync("TestThing"), Times.Once);
+        _myceliumMock.Verify(b => b.CreateThingAsync("TestThing", false), Times.Once);
     }
 
     [Fact]
@@ -316,7 +316,7 @@ public class CommandHandlerTests
         var reader = new StringReader("create thing TestThing\nexit\n");
         var writer = new StringWriter();
         _myceliumMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
-        _myceliumMock.Setup(b => b.CreateThingAsync(It.IsAny<string>())).ThrowsAsync(new InvalidOperationException("Test error"));
+        _myceliumMock.Setup(b => b.CreateThingAsync(It.IsAny<string>(), It.IsAny<bool>())).ThrowsAsync(new InvalidOperationException("Test error"));
         var handler = CreateHandler(reader, writer);
 
         await handler.RunAsync();
@@ -446,7 +446,7 @@ public class CommandHandlerTests
         _myceliumMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
         var thingId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>($@"{{""id"":""{thingId}"",""name"":""Test""}}");
-        _myceliumMock.Setup(b => b.CreateThingAsync(It.IsAny<string>())).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.CreateThingAsync(It.IsAny<string>(), It.IsAny<bool>())).ReturnsAsync(json);
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(JsonSerializer.Deserialize<JsonElement>("[]"));
         var handler = CreateHandler(reader, writer);
 
@@ -461,7 +461,7 @@ public class CommandHandlerTests
     {
         var reader = new StringReader("");
         var writer = new StringWriter();
-        _myceliumMock.Setup(b => b.ShutdownMyceliumAsync()).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.ShutdownMyceliumAsync()).Returns(Task.CompletedTask);
         var handler = CreateHandler(reader, writer);
 
         await handler.HandleCommandAsync("shutdown", null);
@@ -471,16 +471,18 @@ public class CommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleCommandAsync_Shutdown_WhenFails_ShowsError()
+    public async Task HandleCommandAsync_Shutdown_WhenRefused_SaysWhyAndDoesNotSayItStarted()
     {
         var reader = new StringReader("");
         var writer = new StringWriter();
-        _myceliumMock.Setup(b => b.ShutdownMyceliumAsync()).ReturnsAsync(false);
+        _myceliumMock.Setup(b => b.ShutdownMyceliumAsync()).ThrowsAsync(
+            new HttpRequestException("403 Forbidden", inner: null, System.Net.HttpStatusCode.Forbidden));
         var handler = CreateHandler(reader, writer);
 
         await handler.HandleCommandAsync("shutdown", null);
 
-        Assert.Contains("Failed to initiate Mycelium shutdown", writer.ToString());
+        Assert.Contains("Failed to initiate Mycelium shutdown: 403 Forbidden", writer.ToString());
+        Assert.DoesNotContain("shutdown initiated", writer.ToString());
     }
 
     [Fact]
@@ -601,7 +603,7 @@ public class CommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>($@"{{""id"":""{thingId}"",""name"":""TestThing""}}");
-        _myceliumMock.Setup(b => b.CreateThingAsync("TestThing")).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.CreateThingAsync("TestThing", false)).ReturnsAsync(json);
         _myceliumMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(JsonSerializer.Deserialize<JsonElement>("[]"));
 
@@ -611,7 +613,7 @@ public class CommandHandlerTests
 
         await handler.RunAsync();
 
-        _myceliumMock.Verify(b => b.CreateThingAsync("TestThing"), Times.Once);
+        _myceliumMock.Verify(b => b.CreateThingAsync("TestThing", false), Times.Once);
         _myceliumMock.Verify(b => b.GetAllThingsAsync(), Times.Once);
     }
 

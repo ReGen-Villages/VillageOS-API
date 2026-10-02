@@ -1,15 +1,16 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { catalystFixture } from '../../pipeline/catalysts.test.fixture';
-import { catalystRail } from '../../pipeline/catalysts';
+import { catalystRail, type CatalystRow } from '../../pipeline/catalysts';
 import { CatalystRail } from './CatalystRail';
 
 function rail() {
   const { model, id } = catalystFixture();
   const onPlace = vi.fn();
   const onOpenPipeline = vi.fn();
-  render(<CatalystRail groups={catalystRail(model)} onPlace={onPlace} onOpenPipeline={onOpenPipeline} />);
-  return { id, onPlace, onOpenPipeline };
+  const onHandOver = vi.fn();
+  render(<CatalystRail groups={catalystRail(model)} onPlace={onPlace} onOpenPipeline={onOpenPipeline} onHandOver={onHandOver} />);
+  return { id, onPlace, onOpenPipeline, onHandOver };
 }
 
 describe('CatalystRail', () => {
@@ -27,9 +28,36 @@ describe('CatalystRail', () => {
   it('says what each catalyst starts, or what happens to it today', () => {
     rail();
     expect(screen.getByText('starts Readings arrive')).toBeInTheDocument();
-    expect(screen.getByText('starts Refill')).toBeInTheDocument();
+    expect(screen.getByText('starts Store surplus')).toBeInTheDocument();
     expect(screen.getAllByText('today: dispatched to Reader')).toHaveLength(1);
     expect(screen.getByText('today: dispatched to Handler')).toBeInTheDocument();
+  });
+
+  it('says of a state drawn from but sent elsewhere both the drawing and the service that receives it', () => {
+    rail();
+    expect(screen.queryByText('starts Refill')).not.toBeInTheDocument();
+    expect(screen.getByText('drawn: Refill · today: dispatched to Watcher')).toBeInTheDocument();
+  });
+
+  it('says a state the orchestrator handles with nothing drawn is refused each time', () => {
+    rail();
+    expect(screen.getByText('the orchestrator refuses each entry: nothing is drawn')).toBeInTheDocument();
+  });
+
+  it('says of a state drawn from but sent to no service that nothing happens to it today', () => {
+    const row: CatalystRow = {
+      id: 'state:dry', kind: 'state', who: 'Reservoir', what: 'dry', standsForId: 'dry', today: '',
+      starts: { id: 'p', name: 'Refill' }, handling: { connectionId: 'c', byOrchestrator: false }, offersOrchestrator: true,
+    };
+    render(<CatalystRail groups={[{ side: 'external', rows: [] }, { side: 'internal', rows: [row] }]} onPlace={vi.fn()} onOpenPipeline={vi.fn()} onHandOver={vi.fn()} />);
+    expect(screen.getByText('drawn: Refill · nothing happens today')).toBeInTheDocument();
+  });
+
+  it('offers the orchestrator on each state it does not handle yet, and hands that row over', () => {
+    const { id, onHandOver } = rail();
+    expect(screen.getAllByRole('button', { name: /with the orchestrator$/ })).toHaveLength(3);
+    fireEvent.click(screen.getByRole('button', { name: 'Handle Reservoir · below reorder with the orchestrator' }));
+    expect(onHandOver).toHaveBeenCalledWith(expect.objectContaining({ standsForId: id.belowReorder }));
   });
 
   it('opens the pipeline a catalyst starts when its words are pressed', () => {
@@ -54,7 +82,7 @@ describe('CatalystRail', () => {
   });
 
   it('says a side holds nothing rather than drawing an empty list', () => {
-    render(<CatalystRail groups={[{ side: 'external', rows: [] }, { side: 'internal', rows: [] }]} onPlace={vi.fn()} onOpenPipeline={vi.fn()} />);
+    render(<CatalystRail groups={[{ side: 'external', rows: [] }, { side: 'internal', rows: [] }]} onPlace={vi.fn()} onOpenPipeline={vi.fn()} onHandOver={vi.fn()} />);
     expect(screen.getAllByText('Nothing is declared')).toHaveLength(2);
   });
 });

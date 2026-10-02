@@ -533,4 +533,98 @@ describe('useSse', () => {
     expect(objectStreams()[0].url).not.toContain('lastEventId=7');
     second.unmount();
   });
+
+  describe('a stream that goes quiet', () => {
+    const TWO_HEARTBEATS = 30_000;
+    const systemStream = () => FakeEventSource.instances.find((e) => e.url.includes('/api/events/stream'))!;
+
+    afterEach(() => vi.useRealTimers());
+
+    async function liveUnderAMovableClock() {
+      vi.useFakeTimers();
+      const hook = renderHook(() => useSse());
+      for (let turn = 0; turn < 10 && FakeEventSource.instances.length < 2; turn += 1)
+        await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+      act(() => objectStreams()[0].onopen?.());
+      expect(hook.result.current.connection).toBe('live');
+      return hook;
+    }
+
+    const pass = (milliseconds: number) => act(async () => { await vi.advanceTimersByTimeAsync(milliseconds); });
+
+    it('asks each stream for its heartbeat as an event', async () => {
+      const { unmount } = await liveUnderAMovableClock();
+
+      expect(FakeEventSource.instances.every((stream) => stream.url.includes('heartbeatAsEvent=true'))).toBe(true);
+      unmount();
+    });
+
+    it('is lost, and reopens, when the streams send nothing for longer than two heartbeats', async () => {
+      const { result, unmount } = await liveUnderAMovableClock();
+
+      await pass(TWO_HEARTBEATS);
+      expect(result.current.connection).toBe('lost');
+
+      await pass(1000);
+      expect(objectStreams().length).toBe(2);
+      expect(objectStreams()[0].closed).toBe(true);
+      unmount();
+    });
+
+    it('stays live while each stream sends a heartbeat within every two', async () => {
+      const { result, unmount } = await liveUnderAMovableClock();
+
+      for (let heard = 0; heard < 4; heard += 1) {
+        await pass(TWO_HEARTBEATS - 1000);
+        act(() => {
+          objectStreams()[0].emit('Heartbeat', {});
+          systemStream().emit('Heartbeat', {});
+        });
+      }
+
+      expect(result.current.connection).toBe('live');
+      expect(objectStreams().length).toBe(1);
+      unmount();
+    });
+
+    it('takes an event the page listens for as a sign of life', async () => {
+      const { result, unmount } = await liveUnderAMovableClock();
+
+      for (let heard = 0; heard < 4; heard += 1) {
+        await pass(TWO_HEARTBEATS - 1000);
+        act(() => {
+          objectStreams()[0].emit('ThingCreated', { EntityId: 't1' });
+          systemStream().emit('ActivityEvent', { Type: 'X' });
+        });
+      }
+
+      expect(result.current.connection).toBe('live');
+      unmount();
+    });
+
+    it('is lost when one stream goes quiet while the other keeps sending', async () => {
+      const { result, unmount } = await liveUnderAMovableClock();
+
+      await pass(TWO_HEARTBEATS - 1000);
+      act(() => objectStreams()[0].emit('Heartbeat', {}));
+      await pass(1000);
+
+      expect(result.current.connection).toBe('lost');
+      unmount();
+    });
+
+    it('stops waiting on a stream it has closed', async () => {
+      const { result, unmount } = await liveUnderAMovableClock();
+
+      await pass(TWO_HEARTBEATS - 1000);
+      act(() => resubscribe());
+      for (let turn = 0; turn < 10 && objectStreams().length < 2; turn += 1) await pass(0);
+      act(() => objectStreams()[1].onopen?.());
+      await pass(2000);
+
+      expect(result.current.connection).toBe('live');
+      expect(objectStreams().length).toBe(2);
+      unmount();
+    });
+  });
 });

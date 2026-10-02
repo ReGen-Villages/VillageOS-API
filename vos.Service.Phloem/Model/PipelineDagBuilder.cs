@@ -122,7 +122,23 @@ public static class PipelineDagBuilder
             Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
             Ports = ResolvePorts(graph, nodeThing).ToList(),
             ParamBindings = ParseParamBindings(nodeThing),
+            Tells = kind == DagNodeKind.Output ? TellingOf(graph, nodeThing) : null,
         };
+    }
+
+    // Refused at build rather than at the end, so a run that could never send its message does nothing first.
+    private static Telling? TellingOf(PipelineGraph graph, GraphThing endNode)
+    {
+        var system = graph.OutgoingAlongPredicateMarked(endNode, PipelinePredicates.StandsForFlag)
+            .FirstOrDefault(target => graph.IsOfArchetypeCarrying(target, PipelineArchetypes.ExternalSystemFlag));
+        if (system is null) return null;
+
+        var connection = graph.OutgoingAlongPredicateMarked(system, PipelinePredicates.ToldThroughFlag)
+            .FirstOrDefault(target => graph.IsOfArchetypeCarrying(target, PipelineArchetypes.ConnectionFlag))
+            ?? throw new PipelineModelException(
+                $"End node '{endNode.Name}' stands for '{system.Name}', which names no connection it is told through, "
+                + "so nothing could send it what reaches the node.");
+        return new Telling(system.Id, system.Name, connection.Id);
     }
 
     // Parse the node's paramBindings property — a JSON object mapping input-port name → the

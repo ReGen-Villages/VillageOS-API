@@ -35,8 +35,10 @@ import { useModelStore } from '../stores/modelStore';
 import { DashboardPage } from './DashboardPage';
 
 /** Longer than the page's refresh window, so a burst meant to cost one read has had every chance to
- *  cost more. */
-const WELL_PAST_ONE_WINDOW = 10_000;
+ *  cost more, and two of them still shorter than the wait before the page reads unprompted. */
+const WELL_PAST_ONE_WINDOW = 5_000;
+
+const WELL_PAST_ONE_REPEATED_READ = 40_000;
 
 function arrived(event: string, times: number): void {
   for (let count = 0; count < times; count += 1) streamHandlers.get(event)?.forEach((handler) => handler({}));
@@ -117,6 +119,44 @@ describe('DashboardPage registry refresh', () => {
     });
 
     expect(servicesReads()).toBe(servicesBefore + 1);
+  });
+
+  it('turns the Mycelium mark red when the platform stops answering and no event arrives', async () => {
+    openDashboard();
+    await settled();
+    expect(screen.getByRole('img', { name: 'Live' })).toBeInTheDocument();
+
+    vi.mocked(myceliumApi.getServices).mockRejectedValue(new Error('unreachable'));
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await act(async () => { await vi.advanceTimersByTimeAsync(WELL_PAST_ONE_REPEATED_READ); });
+    warned.mockRestore();
+
+    expect(screen.getByRole('img', { name: 'Connection lost' })).toBeInTheDocument();
+  });
+
+  it('turns the Mycelium mark green again when the platform answers again', async () => {
+    vi.mocked(myceliumApi.getServices).mockRejectedValue(new Error('unreachable'));
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    openDashboard();
+    await settled();
+    expect(screen.getByRole('img', { name: 'Connection lost' })).toBeInTheDocument();
+
+    vi.mocked(myceliumApi.getServices).mockResolvedValue([]);
+    await act(async () => { await vi.advanceTimersByTimeAsync(WELL_PAST_ONE_REPEATED_READ); });
+    warned.mockRestore();
+
+    expect(screen.getByRole('img', { name: 'Live' })).toBeInTheDocument();
+  });
+
+  it('stops the repeated read when the page is left', async () => {
+    const { unmount } = openDashboard();
+    await settled();
+    const servicesBefore = servicesReads();
+
+    unmount();
+    await act(async () => { await vi.advanceTimersByTimeAsync(WELL_PAST_ONE_REPEATED_READ); });
+
+    expect(servicesReads()).toBe(servicesBefore);
   });
 
   it('does not read after the page is left', async () => {

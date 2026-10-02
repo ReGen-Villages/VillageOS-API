@@ -25,7 +25,10 @@ import { savePipeline, loadPipeline, type EditorNode, type EditorEdge } from '..
 import { validatePipeline, validateEnds } from '../pipeline/validate';
 import { catalystRail, outputRail, type CatalystRow, type OutputRow } from '../pipeline/catalysts';
 import { EditorHistory } from '../pipeline/history';
+import { handStateToOrchestrator } from '../pipeline/handOver';
 import { pipelineApi } from '../api/pipelineApi';
+import { relationshipApi } from '../api/relationshipApi';
+import { reloadModelData } from '../hooks/useModelData';
 import { PipelineNodeView, type PipelineNodeData } from '../components/pipeline/PipelineNodeView';
 import { CatalystRail } from '../components/pipeline/CatalystRail';
 import { OutputRail } from '../components/pipeline/OutputRail';
@@ -245,6 +248,20 @@ export function PipelinePage() {
     });
   }, [place, t]);
 
+  // The rail's words after a hand-over come from the model read back, not from the press.
+  const handOver = useCallback(async (row: CatalystRow) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await handStateToOrchestrator(model, row, relationshipApi);
+      await reloadModelData({ silent: true });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('pipeline.catalysts.handOverFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }, [model, t]);
+
   // What the run leaves behind: the answer to whoever started it, another pipeline, or a system told.
   const placeOutput = useCallback((row: OutputRow) => {
     const portName = row.kind === 'answer' ? 'value' : row.kind === 'pipeline' ? 'subject' : 'payload';
@@ -455,7 +472,7 @@ export function PipelinePage() {
 
   return (
     <div className="flex h-full flex-col md:flex-row">
-      <CatalystRail groups={catalysts} onPlace={placeStart} onOpenPipeline={onLoad} />
+      <CatalystRail groups={catalysts} onPlace={placeStart} onOpenPipeline={onLoad} onHandOver={handOver} />
       <PipelineRoster pipelines={pipelines} openedPipelineId={editingPipelineId} onOpen={onLoad} onCreate={onNew} />
       <div className="flex-1 min-w-0 min-h-0 flex flex-col">
         <div className="flex flex-wrap items-center gap-2 p-2 border-b border-zinc-200 dark:border-zinc-700">

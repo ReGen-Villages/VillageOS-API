@@ -33,14 +33,21 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         // does not pull predicate Things; every Port and wire Thing, because includeIsAncestors does not
         // pull a prototype's has-children; and the archetype for each role, so that one missing from the
         // snapshot means the model marks it on nothing rather than that this pipeline plays that role
-        // nowhere. See SelectorResolver.
+        // nowhere. See SelectorResolver. After the nodes come the system an end stands for and the connection
+        // that system is told through, with the two predicates that lead there so the graph reads their marks.
         var selector = new
         {
             ids = new[] { pipelineId },
             names = new[] { ModelNames.Is, ModelNames.Has },
             markedTypes = new[] { PipelineArchetypes.PortFlag, PipelineArchetypes.PipelineWireFlag },
-            markedArchetypes = PipelineArchetypes.DagRoleFlags,
-            traverse = new[] { new { predicate = ModelNames.Has, direction = "outgoing", depth = 8 } },
+            markedArchetypes = PipelineArchetypes.DagRoleFlags
+                .Concat([PipelinePredicates.StandsForFlag, PipelinePredicates.ToldThroughFlag]).ToArray(),
+            traverse = new object[]
+            {
+                new { predicate = ModelNames.Has, direction = "outgoing", depth = 8 },
+                new { predicateFlag = PipelinePredicates.StandsForFlag, direction = "outgoing", depth = 1 },
+                new { predicateFlag = PipelinePredicates.ToldThroughFlag, direction = "outgoing", depth = 1 },
+            },
             includeIsAncestors = true,
             includeRelationships = true,
         };
@@ -169,6 +176,32 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
                 || (v.ValueKind == JsonValueKind.String && string.Equals(v.GetString(), "true", StringComparison.OrdinalIgnoreCase));
         }
         return false;
+    }
+
+    public async Task<Guid?> PredicateOfAsync(Guid relationshipId, CancellationToken cancellationToken)
+    {
+        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+        var response = await client.GetAsync($"{MyceliumUrl}/api/relationships/{relationshipId}", cancellationToken);
+        if (!response.IsSuccessStatusCode) return null;
+
+        var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
+        return TryGetPropertyCaseInsensitive(root, "PredicateId", out var predicate)
+            && predicate.ValueKind == JsonValueKind.String && Guid.TryParse(predicate.GetString(), out var predicateId)
+                ? predicateId
+                : null;
+    }
+
+    // Related to the system last: that write is the one the broker dispatches, and the sender it reaches reads
+    // a message already whole and already held by its run.
+    public async Task SendMessageAsync(Guid runId, Telling telling, JsonElement payload, CancellationToken cancellationToken)
+    {
+        var messageId = Guid.NewGuid();
+        await CreateThingWithIdAsync(messageId, $"Message to {telling.SystemName} {runId:N}",
+            new Dictionary<string, string?> { [ModelNames.Payload] = payload.GetRawText() }, cancellationToken);
+        await RelateAsync(messageId, ModelNames.Is,
+            await ArchetypeCarryingAsync(PipelineArchetypes.SentMessageFlag, cancellationToken), cancellationToken);
+        await RelateAsync(runId, ModelNames.Has, messageId, cancellationToken);
+        await RelateAsync(messageId, telling.ConnectionId, telling.SystemId, cancellationToken);
     }
 
     public async Task<NodeDispatchResult> DispatchAsync(string subdomain, JsonElement envelope, CancellationToken cancellationToken)

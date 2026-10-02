@@ -17,16 +17,40 @@ public class CreateCommandHandlerTests
     }
 
     [Fact]
+    public async Task CreateThing_WithTheArchetypeOption_CreatesADeclaredType()
+    {
+        var json = JsonSerializer.Deserialize<JsonElement>($"{{\"Id\":\"{Guid.NewGuid()}\",\"Name\":\"Reservoir\"}}");
+        _myceliumMock.Setup(b => b.CreateThingAsync("Reservoir", true)).ReturnsAsync(json);
+
+        var handler = new CreateCommandHandler("thing Reservoir --archetype", _writer, _myceliumMock.Object);
+        await handler.ExecuteAsync();
+
+        _myceliumMock.Verify(b => b.CreateThingAsync("Reservoir", true), Times.Once);
+        Assert.Contains("Created Thing", _writer.ToString());
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("thing")]
+    public async Task CreateThing_Usage_NamesTheArchetypeOption(string arguments)
+    {
+        var handler = new CreateCommandHandler(arguments, _writer, _myceliumMock.Object);
+        await handler.ExecuteAsync();
+
+        Assert.Contains("--archetype", _writer.ToString());
+    }
+
+    [Fact]
     public async Task CreateThing_ValidName_CreatesThing()
     {
         var thingId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>($"{{\"Id\":\"{thingId}\",\"Name\":\"MyThing\"}}");
-        _myceliumMock.Setup(b => b.CreateThingAsync("MyThing")).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.CreateThingAsync("MyThing", false)).ReturnsAsync(json);
 
         var handler = new CreateCommandHandler("thing MyThing", _writer, _myceliumMock.Object);
         await handler.ExecuteAsync();
 
-        _myceliumMock.Verify(b => b.CreateThingAsync("MyThing"), Times.Once);
+        _myceliumMock.Verify(b => b.CreateThingAsync("MyThing", false), Times.Once);
         Assert.Contains("Created Thing", _writer.ToString());
         Assert.Contains("MyThing", _writer.ToString());
         Assert.DoesNotContain(thingId.ToString(), _writer.ToString());
@@ -190,7 +214,7 @@ public class CreateCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>($"{{\"Id\":\"{thingId}\",\"Name\":\"MyThing\"}}");
-        _myceliumMock.Setup(b => b.CreateThingAsync("MyThing")).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.CreateThingAsync("MyThing", false)).ReturnsAsync(json);
 
         var handler = new CreateCommandHandler("thing MyThing --showguids", _writer, _myceliumMock.Object);
         await handler.ExecuteAsync();
@@ -206,7 +230,7 @@ public class CreateCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>($"{{\"Id\":\"{thingId}\",\"Name\":\"MyThing\"}}");
-        _myceliumMock.Setup(b => b.CreateThingAsync("MyThing")).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.CreateThingAsync("MyThing", false)).ReturnsAsync(json);
 
         var handler = new CreateCommandHandler("thing MyThing", _writer, _myceliumMock.Object);
         await handler.ExecuteAsync();

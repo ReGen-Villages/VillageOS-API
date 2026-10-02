@@ -193,9 +193,10 @@ describe('the vocabulary the editor holds', () => {
       expect(held).toEqual([]);
     });
 
-  /** The marks the page reads that the orchestrator does not: the range mark is the platform's own,
-   *  and the orchestrator does not yet act on an external system or a kind of message. */
-  const READ_BY_THE_PAGE_ALONE = new Set<string>([ARCHETYPE_FLAG.Range, ARCHETYPE_FLAG.ExternalSystem, ARCHETYPE_FLAG.MessageKind]);
+  /** The marks the page reads that the orchestrator does not: the range mark is the platform's own, the
+   *  orchestrator does not yet act on a kind of message, and its own prototype's mark is how the page finds
+   *  the service to bind a state to. */
+  const READ_BY_THE_PAGE_ALONE = new Set<string>([ARCHETYPE_FLAG.Range, ARCHETYPE_FLAG.MessageKind, ARCHETYPE_FLAG.Orchestrator]);
 
   it('reads the same marks the orchestrator does', () => {
     const phloem = readFileSync(

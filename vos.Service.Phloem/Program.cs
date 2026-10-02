@@ -116,7 +116,7 @@ try
                 // the DAG runs in the background. The result lands on the PipelineRun (animated over SSE). A
                 // detached token lets it outlive the request. A target no pipeline is drawn from is refused
                 // with 400: the broker records that as refused rather than failed, and nothing retries it.
-                var start = await starter.ResolveAsync(trigger.TargetId, httpContext.RequestAborted);
+                var start = await starter.ResolveAsync(trigger.TargetId, trigger.RelationshipId, httpContext.RequestAborted);
                 if (!start.Started)
                     return Results.BadRequest(new { error = start.Refusal });
 

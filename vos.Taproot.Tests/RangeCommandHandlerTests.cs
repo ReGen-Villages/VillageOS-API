@@ -257,7 +257,7 @@ public class RangeCommandHandlerTests
     }
 
     [Fact]
-    public async Task Delete_Failure_ShowsError()
+    public async Task Delete_OfARangeTheThingDoesNotHold_SaysNotFound()
     {
         var thingId = Guid.NewGuid();
         _myceliumMock.Setup(b => b.DeleteRangeAsync(thingId, "nominal"))
@@ -266,7 +266,7 @@ public class RangeCommandHandlerTests
         await ExecuteHandler($"delete {thingId} nominal", _myceliumMock.Object);
 
         var output = _writer.ToString();
-        Assert.Contains("Failed to delete", output);
+        Assert.Contains("Range not found: nominal", output);
     }
 
     [Fact]

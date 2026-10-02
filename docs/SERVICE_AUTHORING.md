@@ -193,7 +193,10 @@ completed that survives either belongs on the relation itself.
 
 **`GET /stats`** → `{ "service": "...", "version": "...", "requestsProcessed": <n>, "handlerId": "<uuid>", "myceliumUrl": "..." }`
 
-**`POST /shutdown`** → `{ "message": "..." }`, then exit.
+**`POST /shutdown`** → `{ "message": "..." }`, then exit. Mycelium posts its stop to the
+`stopEndpoint` you registered (to `/shutdown` on your port where you registered none), then checks your
+`healthEndpoint` until it stops answering. A service still answering five seconds after accepting the
+stop is reported as one that did not stop, so exit promptly once the answer is sent.
 
 ## Inbound JWT validation
 

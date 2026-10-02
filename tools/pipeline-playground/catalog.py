@@ -93,7 +93,7 @@ MESSAGE_KINDS = [
 
 EXTERNAL_SYSTEMS = [
     {"key": "sensor-gateway", "label": "Sensor gateway", "sends": ["reading-batch"], "told": []},
-    {"key": "reporting-office", "label": "Reporting office", "sends": [], "told": ["daily-report"]},
+    {"key": "reporting-office", "label": "Reporting office", "sends": [], "told": ["daily-report"], "toldThrough": "publish"},
 ]
 
 

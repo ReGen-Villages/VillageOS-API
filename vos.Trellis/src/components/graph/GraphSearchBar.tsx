@@ -15,6 +15,8 @@ interface Props {
   setShowCreateThing: (fn: (previous: boolean) => boolean) => void;
   newThingName: string;
   setNewThingName: (name: string) => void;
+  newThingIsAType: boolean;
+  setNewThingIsAType: (isAType: boolean) => void;
   creatingThing: boolean;
   onCreateThing: () => void;
 }
@@ -27,9 +29,15 @@ export function GraphSearchBar({
   matchCount,
   showCreateThing, setShowCreateThing,
   newThingName, setNewThingName,
+  newThingIsAType, setNewThingIsAType,
   creatingThing, onCreateThing,
 }: Props) {
   const { t } = useTranslation();
+  const closeCreateThing = () => {
+    setShowCreateThing(() => false);
+    setNewThingName('');
+    setNewThingIsAType(false);
+  };
   return (
     <>
       <div className="absolute top-3 left-3 z-10 flex items-center gap-2 bg-zinc-800/80 backdrop-blur rounded-lg px-3 py-1.5">
@@ -108,12 +116,24 @@ export function GraphSearchBar({
             onChange={(e) => setNewThingName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') onCreateThing();
-              if (e.key === 'Escape') { setShowCreateThing(() => false); setNewThingName(''); }
+              if (e.key === 'Escape') closeCreateThing();
             }}
             placeholder={t('graph.search.newThingPlaceholder')}
             disabled={creatingThing}
             className="bg-transparent text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none w-48"
           />
+          <label
+            className="flex items-center gap-1 text-xs text-zinc-400 flex-shrink-0"
+            title={t('graph.search.newThingIsATypeHint')}
+          >
+            <input
+              type="checkbox"
+              checked={newThingIsAType}
+              onChange={(e) => setNewThingIsAType(e.target.checked)}
+              disabled={creatingThing}
+            />
+            {t('graph.search.newThingIsAType')}
+          </label>
           <button
             onClick={onCreateThing}
             disabled={!newThingName.trim() || creatingThing}
@@ -123,7 +143,7 @@ export function GraphSearchBar({
             {creatingThing ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
           </button>
           <button
-            onClick={() => { setShowCreateThing(() => false); setNewThingName(''); }}
+            onClick={closeCreateThing}
             className="text-zinc-500 hover:text-zinc-300 transition-colors flex-shrink-0"
             title={t('common.cancel')}
           >

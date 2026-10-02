@@ -4,6 +4,7 @@ import { unwrapThing, unwrapRelationship } from '../utils/propertyMapper';
 import { WHOLE_MODEL, type SubscriptionOpened, type SubscriptionSelector } from '../types/subscription';
 import type { VosThing, VosRelationship } from '../types/vos';
 import type { ConnectionState } from '../types/connection';
+import { HEARTBEAT_AS_EVENT, watchForSilence, type SilenceWatch } from './streamSilence';
 
 // Live model + operational updates over Server-Sent Events.
 // Two streams — the object subscription the page declared and the system/operational events —
@@ -44,6 +45,7 @@ const listeners = new Set<() => void>();
 
 let objectSource: EventSource | null = null;
 let systemSource: EventSource | null = null;
+let silenceWatches: SilenceWatch[] = [];
 let openSubscriptionId: string | null = null;
 let referenceCount = 0;
 let connectionState: ConnectionState = 'connecting';
@@ -116,8 +118,12 @@ function dispatch(kind: string, data: unknown) {
 // `trackWatermark` is true only for the object subscription — its events carry the
 // per-model Fact sequence as their SSE id; the system/operational stream does not.
 function attachListeners(source: EventSource, trackWatermark = false) {
+  const silence = watchForSilence(source, scheduleReconnect);
+  silenceWatches.push(silence);
   for (const kind of KNOWN_EVENTS) {
     source.addEventListener(kind, (e: MessageEvent) => {
+      // A replay sends changes and no heartbeat until it is done, so a change is a sign of life too.
+      silence.heard();
       if (trackWatermark && e.lastEventId) {
         const sequence = Number(e.lastEventId);
         // Monotonic guard: replay/de-dup can re-deliver ≤ our position; never rewind.
@@ -147,6 +153,8 @@ function releaseSubscription(id: string | null) {
 }
 
 function closeStreams() {
+  silenceWatches.forEach((watch) => watch.stop());
+  silenceWatches = [];
   objectSource?.close();
   systemSource?.close();
   objectSource = null;
@@ -208,7 +216,7 @@ async function openStreams() {
     const streamToken = await apiClient.mintStreamToken();
     if (superseded()) return;
 
-    const tokenParameter = `access_token=${encodeURIComponent(streamToken)}`;
+    const tokenParameter = `access_token=${encodeURIComponent(streamToken)}&${HEARTBEAT_AS_EVENT}`;
 
     // Resume from where we left off: on a reconnect the broker replays the
     // Facts we missed and de-dupes by sequence; on a first connect we have no position, so

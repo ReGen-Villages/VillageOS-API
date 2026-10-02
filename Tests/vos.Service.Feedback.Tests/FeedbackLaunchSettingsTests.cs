@@ -30,7 +30,7 @@ public sealed class FeedbackLaunchSettingsTests
     public void EverySettingGiven_IsRead()
     {
         var parsed = FeedbackLaunchSettings.Parse(
-            [.. Arguments, "--allowedOrigin=https://a.example, https://b.example"],
+            [.. Arguments, "--allowedOrigin=https://a.example, https://b.example", "--pathPrefix=/feedback"],
             Configuration(settings => settings["Destinations:Console:Tags:0"] = "Console"));
 
         var settings = parsed.Settings!;
@@ -38,8 +38,26 @@ public sealed class FeedbackLaunchSettingsTests
         settings.DevOpsOrganization.Should().Be(new Uri("https://dev.azure.com/Example"));
         settings.DevOpsAccessToken.Should().Be("secret");
         settings.AllowedOrigins.Should().Equal("https://a.example", "https://b.example");
+        settings.PathPrefix.Should().Be("/feedback");
         settings.Destinations.For("console")!.IdeaType.Should().Be("Feature");
         settings.Destinations.For("console")!.Tags.Should().Equal("Console");
+    }
+
+    [Fact]
+    public void NoPathPrefixGiven_IsNone()
+    {
+        var parsed = FeedbackLaunchSettings.Parse(Arguments, Configuration());
+
+        parsed.Settings!.PathPrefix.Should().BeNull();
+    }
+
+    [Fact]
+    public void APathPrefixThatDoesNotBeginWithASlash_IsRefusedByName()
+    {
+        var parsed = FeedbackLaunchSettings.Parse([.. Arguments, "--pathPrefix=feedback"], Configuration());
+
+        parsed.Settings.Should().BeNull();
+        parsed.WhyRefused.Should().Contain("--pathPrefix");
     }
 
     [Fact]

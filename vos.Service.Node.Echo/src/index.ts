@@ -18,6 +18,9 @@ const SERVICE_NAME = "Node";
 export interface Config {
   port: number;
   myceliumUrl: string;
+  /** Exchanged with Mycelium for a short-lived JWT, and exchanged again before that runs out. */
+  apiKey?: string;
+  /** A pre-minted service JWT, used when no key is given. */
   token?: string;
   verificationKey?: string;
   issuer: string;
@@ -25,15 +28,18 @@ export interface Config {
   audience: string;
 }
 
-const USAGE = `Usage: node index.js --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--audience=<aud>]
+export const USAGE = `Usage: node index.js --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--audience=<aud>]
   --port        Port to listen on (1-65535)
   --myceliumUrl Base URL of the VillageOS Mycelium gateway
   --issuer      JWT issuer Mycelium signs with; required with a VerificationKey
   --audience    This service's own name, which an inbound token must carry; required with a VerificationKey
 
 Credentials come from the environment, never the command line:
-  Token            Service JWT for authenticating to Mycelium (optional; else fetched)
-  VerificationKey  Base64 of Mycelium's public signing key, for checking inbound /handle requests (optional)`;
+  ApiKey           API key, exchanged with Mycelium for a short-lived JWT and exchanged again before that runs out
+  Token            Service JWT for authenticating to Mycelium, used when no ApiKey is set
+  VerificationKey  Base64 of Mycelium's public signing key, for checking inbound /handle requests (optional)
+
+With neither ApiKey nor Token the service answers its own routes and makes no call to Mycelium.`;
 
 // A credential is read from the environment alone. A command line is visible to every process on
 // the host and is recorded by anything that logs the line a service was started with.
@@ -57,6 +63,7 @@ export function parseArgs(argv: string[], environment: NodeJS.ProcessEnv = proce
   return {
     port,
     myceliumUrl: myceliumUrl.replace(/\/+$/, ""),
+    apiKey: environment.ApiKey,
     token: environment.Token,
     verificationKey,
     // Read only when a verification key was given, and that case is refused above without them.
@@ -68,12 +75,73 @@ export function parseArgs(argv: string[], environment: NodeJS.ProcessEnv = proce
 const handlerId = randomUUID();
 let requestsProcessed = 0;
 
-async function getToken(cfg: Config): Promise<string> {
+const NO_CREDENTIAL = "neither ApiKey nor Token is set";
+
+// How long before a held token runs out it is replaced, so a call in flight never carries one that
+// expires on the way.
+const REPLACEMENT_LEAD_MILLISECONDS = 30_000;
+
+const heldTokens = new WeakMap<Config, { token: string; expiresAtMilliseconds: number }>();
+
+// A key is presented before a token given beside it: a token runs out and the key can replace it.
+export async function getToken(cfg: Config): Promise<string> {
+  if (cfg.apiKey) return tokenFromTheKey(cfg, cfg.apiKey);
   if (cfg.token) return cfg.token;
-  const res = await fetch(`${cfg.myceliumUrl}/api/auth/token`, { method: "POST" });
-  if (!res.ok) throw new Error(`token endpoint returned ${res.status}`);
-  const body = (await res.json()) as { token: string };
-  return body.token;
+  throw new Error(NO_CREDENTIAL);
+}
+
+async function tokenFromTheKey(cfg: Config, apiKey: string): Promise<string> {
+  const held = heldTokens.get(cfg);
+  if (held && Date.now() < held.expiresAtMilliseconds - REPLACEMENT_LEAD_MILLISECONDS) return held.token;
+
+  const res = await fetch(`${cfg.myceliumUrl}/api/auth/token`, { method: "POST", headers: { "X-API-Key": apiKey } });
+  if (!res.ok) throw new Error(`mycelium refused to exchange the API key (${res.status})`);
+  const { token } = (await res.json()) as { token: string };
+  heldTokens.set(cfg, { token, expiresAtMilliseconds: expiryOf(token) });
+  return token;
+}
+
+// The token is Mycelium's own answer over the connection the key was sent on, so its expiry is read
+// without checking the signature.
+function expiryOf(token: string): number {
+  let expiresAtSeconds: unknown;
+  try {
+    expiresAtSeconds = JSON.parse(b64urlToBuf(token.split(".")[1] ?? "").toString("utf8")).exp;
+  } catch {
+    throw new Error("mycelium answered the API key with something that is not a token");
+  }
+  if (typeof expiresAtSeconds !== "number") {
+    throw new Error("the token mycelium exchanged the API key for states no expiry, so it cannot be held");
+  }
+  return expiresAtSeconds * 1000;
+}
+
+const CERTIFICATE_REFUSALS = new Set([
+  "DEPTH_ZERO_SELF_SIGNED_CERT",
+  "SELF_SIGNED_CERT_IN_CHAIN",
+  "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+  "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
+]);
+
+// Node checks a certificate against the list it ships with, and its switch for the machine's own
+// store does not find the development certificate a local Mycelium presents.
+export function reasonACallFailed(error: unknown): string {
+  const code = ((error as { cause?: { code?: unknown } } | null)?.cause ?? {}).code;
+  if (typeof code === "string" && CERTIFICATE_REFUSALS.has(code)) {
+    return `Node does not trust the certificate Mycelium presented (${code}); start this service with NODE_EXTRA_CA_CERTS naming a file that holds that certificate in PEM form`;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** Registers with Mycelium and says what happened. A call carrying no credential is always refused, so with none the service makes no call. */
+export async function registration(cfg: Config): Promise<string> {
+  if (!cfg.apiKey && !cfg.token) return `${NO_CREDENTIAL}, so this service has not registered with mycelium`;
+  try {
+    await register(cfg);
+    return `registered with mycelium as ${handlerId}`;
+  } catch (error) {
+    return `registration failed: ${reasonACallFailed(error)}`;
+  }
 }
 
 async function register(cfg: Config): Promise<void> {
@@ -103,7 +171,7 @@ export interface ObservationSample {
 }
 
 export interface SedimentReading {
-  thingId: string;
+  objectId: string;
   property: string;
   value: unknown;
   observedAt: string; // required — sediment is historical
@@ -182,8 +250,8 @@ export async function demoWriteKinds(cfg: Config, thingId: string, now: Date = n
   ]);
   const dayAgo = new Date(now.getTime() - 86_400_000);
   const deposit = await depositSediment(cfg, [
-    { thingId, property: "temperature", value: 19.8, observedAt: iso(dayAgo) },
-    { thingId, property: "temperature", value: 20.4, observedAt: iso(new Date(dayAgo.getTime() + 3_600_000)) },
+    { objectId: thingId, property: "temperature", value: 19.8, observedAt: iso(dayAgo) },
+    { objectId: thingId, property: "temperature", value: 20.4, observedAt: iso(new Date(dayAgo.getTime() + 3_600_000)) },
   ]);
   return {
     factSequence,
@@ -212,7 +280,8 @@ export interface Selector {
 export interface SubscribeResult {
   subscriptionId: string;
   watermark: number;
-  snapshot: { things: { id: string; name?: string }[]; relationships: { id: string }[] };
+  // Mycelium answers each Thing and relationship with capitalised field names.
+  snapshot: { things: { Id: string; Name?: string | null }[]; relationships: { Id: string }[] };
 }
 
 /** A representative slice selector: every Thing of `type` plus its depth-1 `predicate` neighbours. */
@@ -247,7 +316,7 @@ export interface SelectorDemoResult {
 /** Runnable worked example: subscribe for a by-type+traverse slice, report the closure, unsubscribe. */
 export async function demoSubscribe(cfg: Config, type = "Battery", predicate = "powers"): Promise<SelectorDemoResult> {
   const sub = await subscribe(cfg, sliceByTypeAndTraverse(type, predicate));
-  const names = sub.snapshot.things.map((t) => t.name ?? t.id);
+  const names = sub.snapshot.things.map((t) => t.Name ?? t.Id);
   await unsubscribe(cfg, sub.subscriptionId); // demo: release rather than stream
   return {
     subscriptionId: sub.subscriptionId,
@@ -390,7 +459,7 @@ function main(): void {
       try {
         return sendJson(res, 200, await demoWriteKinds(cfg, payload.thingId));
       } catch (err) {
-        return sendJson(res, 500, { error: String(err) });
+        return sendJson(res, 500, { error: reasonACallFailed(err) });
       }
     }
     if (method === "POST" && url === "/demo/subscribe") {
@@ -404,7 +473,7 @@ function main(): void {
       try {
         return sendJson(res, 200, await demoSubscribe(cfg, body.type ?? "Battery", body.predicate ?? "powers"));
       } catch (err) {
-        return sendJson(res, 500, { error: String(err) });
+        return sendJson(res, 500, { error: reasonACallFailed(err) });
       }
     }
     if (method === "POST" && url === "/shutdown") {
@@ -417,9 +486,7 @@ function main(): void {
   });
 
   server.listen(cfg.port, "localhost", () => {
-    void register(cfg)
-      .then(() => console.log(`registered with mycelium as ${handlerId}`))
-      .catch((err) => console.error("registration failed:", err));
+    void registration(cfg).then((said) => console.log(said));
   });
 
   process.on("SIGINT", exitAfterShutdown);

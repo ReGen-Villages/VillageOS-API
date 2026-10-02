@@ -72,7 +72,7 @@ public class ModelIngestRunnerTests
     public async Task The_ingest_process_is_handed_its_token_through_the_environment()
     {
         var startInfo = await Runner(Credential(serviceToken: "the.service.jwt"))
-            .BuildStartInfoAsync("/tmp/model.ifc", "Demo", default);
+            .BuildStartInfoAsync("/tmp/model.ifc", "Demo", "/tmp/result.json", default);
 
         startInfo.Environment["Token"].Should().Be("the.service.jwt");
         startInfo.ArgumentList.Should().NotContain("--token").And.NotContain("the.service.jwt");
@@ -86,7 +86,7 @@ public class ModelIngestRunnerTests
         var minted = TestTokens.For(Guid.NewGuid(), DateTimeOffset.UtcNow.AddHours(1));
 
         var startInfo = await Runner(Credential(apiKey: "key-1", mintedToken: minted))
-            .BuildStartInfoAsync("/tmp/model.ifc", "Demo", default);
+            .BuildStartInfoAsync("/tmp/model.ifc", "Demo", "/tmp/result.json", default);
 
         startInfo.Environment["Token"].Should().Be(minted);
     }
@@ -94,7 +94,7 @@ public class ModelIngestRunnerTests
     [Fact]
     public async Task An_absent_token_leaves_the_ingest_process_without_one()
     {
-        var startInfo = await Runner(Credential()).BuildStartInfoAsync("/tmp/model.ifc", "Demo", default);
+        var startInfo = await Runner(Credential()).BuildStartInfoAsync("/tmp/model.ifc", "Demo", "/tmp/result.json", default);
 
         startInfo.Environment.Should().NotContainKey("Token");
     }
@@ -105,6 +105,66 @@ public class ModelIngestRunnerTests
     [FactNeedingAShell]
     public async Task A_megabyte_of_error_output_is_read_while_standard_output_is_still_open()
     {
+        var startInfo = AShellRunning("head -c 1048576 /dev/zero | tr '\\0' 'e' >&2; echo done; exit 3");
+        using var hangDetector = new CancellationTokenSource(Settle.Ceiling);
+
+        var run = await Runner(Credential()).RunToExitAsync(startInfo, hangDetector.Token);
+
+        run!.ExitCode.Should().Be(3);
+        run.StandardOutput.Trim().Should().Be("done");
+        run.StandardError.Should().HaveLength(1048576);
+    }
+
+    // The ingest tool starts another program when it is asked for fragments, and stopping the tool alone
+    // would leave that one running: the shell's own child stands for it. It sleeps for longer than the
+    // test waits, so neither process ends unprompted.
+    [FactNeedingAShell]
+    public async Task A_cancelled_run_stops_the_child_process_and_the_process_it_started()
+    {
+        var processIdsPath = Path.Combine(Path.GetTempPath(), $"process-ids-{Guid.NewGuid():N}.txt");
+        var startInfo = AShellRunning(
+            $"sleep {2 * Settle.Ceiling.TotalSeconds:0} & echo $$ $! > '{processIdsPath}'; wait");
+        var log = new CapturingLogger<ModelIngestRunner>();
+        using var run = new CancellationTokenSource();
+        try
+        {
+            var waitingForTheChild = Runner(log).RunToExitAsync(startInfo, run.Token);
+            await Settle.UntilAsync(
+                () => File.Exists(processIdsPath) && File.ReadAllText(processIdsPath).EndsWith('\n'),
+                "the child process wrote its own process id and its child's");
+            var processIds = File.ReadAllText(processIdsPath)
+                .Split(' ', StringSplitOptions.TrimEntries).Select(int.Parse).ToArray();
+
+            run.Cancel();
+            var cancelled = async () => await waitingForTheChild;
+
+            await cancelled.Should().ThrowAsync<OperationCanceledException>();
+            IsRunning(processIds[0]).Should().BeFalse(
+                "the uploaded file is deleted once the wait ends, so the child reading it has to be gone by then");
+            await Settle.UntilAsync(() => !IsRunning(processIds[1]), "the process the child started stopped");
+            log.Lines.Should().ContainSingle().Which.Should().Contain("the tool was stopped before it finished");
+        }
+        finally
+        {
+            File.Delete(processIdsPath);
+        }
+    }
+
+    private static bool IsRunning(int processId)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            return !process.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private static ProcessStartInfo AShellRunning(string script)
+    {
         var startInfo = new ProcessStartInfo("/bin/sh")
         {
             RedirectStandardOutput = true,
@@ -112,79 +172,90 @@ public class ModelIngestRunnerTests
             UseShellExecute = false,
         };
         startInfo.ArgumentList.Add("-c");
-        startInfo.ArgumentList.Add("head -c 1048576 /dev/zero | tr '\\0' 'e' >&2; echo done; exit 3");
-        using var hangDetector = new CancellationTokenSource(Settle.Ceiling);
-
-        var run = await ModelIngestRunner.RunToExitAsync(startInfo, hangDetector.Token);
-
-        run!.ExitCode.Should().Be(3);
-        run.StandardOutput.Trim().Should().Be("done");
-        run.StandardError.Should().HaveLength(1048576);
+        startInfo.ArgumentList.Add(script);
+        return startInfo;
     }
 
-    // Copied from a run of the ingest tool, which lives in another repository: a sample written by hand
-    // proves only that the pattern matches the sample.
-    private const string OutputOfAnIngestRun =
-        "Profile: analysis — dropping BIM detail no analysis reads.\n" +
-        "Ingested: 9 things, 4 relationships.\n" +
-        "Fragment POST:      200 2 batch(es) applied → http://localhost:7391\n";
-
+    // The whole command line, because the ingest tool lives in another repository and refuses an argument
+    // it does not know.
     [Fact]
-    public void The_counts_are_read_from_the_line_the_ingest_tool_prints()
+    public async Task The_ingest_process_is_started_with_the_path_its_result_file_goes_to()
     {
-        ModelIngestRunner.ParseCounts(OutputOfAnIngestRun).Should().Be((9, 4));
+        var startInfo = await Runner(Credential())
+            .BuildStartInfoAsync("/tmp/model.ifc", "Demo", "/tmp/result.json", default);
+
+        startInfo.ArgumentList.Should().Equal(
+            "/tools/ModelIngest.dll", "--ifc", "/tmp/model.ifc", "--post", MyceliumUrl, "--name", "Demo",
+            "--profile", "analysis", "--result", "/tmp/result.json");
     }
 
-    [Fact]
-    public void Output_with_no_count_line_reads_as_no_count()
-    {
-        ModelIngestRunner.ParseCounts("no count line here").Should().BeNull();
-    }
+    // Copied from two runs of the ingest tool posting one building model into one model: a sample written
+    // by hand proves only that the reader reads the sample.
+    private const string ResultFileOfAFirstUpload =
+        """{"thingsCreated":9,"thingsUpdated":0,"relationshipsCreated":4}""";
 
-    private const string OutputWithNoCountLine =
-        "Fragment POST:      200 2 batch(es) applied → http://localhost:7391\n";
+    private const string ResultFileOfTheSameUploadAgain =
+        """{"thingsCreated":0,"thingsUpdated":9,"relationshipsCreated":0}""";
 
-    [Fact]
-    public void A_successful_run_with_no_count_line_is_logged_with_the_line_looked_for_and_what_was_printed()
+    private const string OutputOfAnIngestRun = "Fragment POST:      200 2 batch(es) applied → http://localhost:7463\n";
+
+    private static ModelIngestRunner.ProcessRun ARunThatExitedWith(int code, string errorOutput = "") =>
+        new(code, OutputOfAnIngestRun, errorOutput);
+
+    [Theory]
+    [InlineData(ResultFileOfAFirstUpload, 9, 0, 4)]
+    [InlineData(ResultFileOfTheSameUploadAgain, 0, 9, 0)]
+    public void An_upload_reports_what_the_result_file_says_the_broker_created_and_updated(
+        string resultFile, int created, int updated, int relationshipsCreated)
     {
         var log = new CapturingLogger<ModelIngestRunner>();
 
-        var result = Runner(log).ResultOf(new ModelIngestRunner.ProcessRun(0, OutputWithNoCountLine, ""));
+        var result = Runner(log).ResultOf(ARunThatExitedWith(0), resultFile);
 
-        result.Should().Be(new IngestRunResult(true, null, null, null, null));
-        log.Lines.Should().ContainSingle()
-            .Which.Should().Contain("Ingested: <n> things, <m> relationships.")
-            .And.Contain("2 batch(es) applied");
+        result.Should().Be(new IngestRunResult(true, created, updated, relationshipsCreated, null));
+        log.Lines.Should().BeEmpty();
     }
 
-    [Fact]
-    public void A_count_line_that_reads_nought_is_a_count_and_logs_nothing()
+    // The model was written, so the run stays a success. Nought would say the model gained nothing.
+    [Theory]
+    [InlineData(null, "none was written")]
+    [InlineData("""{"thingsCreated":9,"thingsUpdated":0}""", """{"thingsCreated":9,"thingsUpdated":0}""")]
+    [InlineData("not a result", "not a result")]
+    [InlineData("null", "null")]
+    public void A_successful_run_with_no_result_file_it_can_read_carries_no_counts_and_is_logged(
+        string? resultFile, string theLogSaysOfTheFile)
     {
         var log = new CapturingLogger<ModelIngestRunner>();
 
         var result = Runner(log).ResultOf(
-            new ModelIngestRunner.ProcessRun(0, "Ingested: 0 things, 0 relationships.\n", ""));
+            ARunThatExitedWith(0, errorOutput: "The broker accepted the post, but a reply carried no counts.\n"),
+            resultFile);
 
-        result.Should().Be(new IngestRunResult(true, 0, 0, 0, null));
-        log.Lines.Should().BeEmpty();
+        result.Should().Be(new IngestRunResult(true, null, null, null, null));
+        log.Lines.Should().ContainSingle()
+            .Which.Should().Contain(theLogSaysOfTheFile)
+            .And.Contain("The broker accepted the post, but a reply carried no counts.")
+            .And.Contain("2 batch(es) applied");
     }
 
-    [Fact]
-    public void A_run_that_read_its_counts_reports_them_and_logs_nothing()
+    [FactNeedingAShell]
+    public async Task The_result_file_a_child_process_wrote_is_read_and_then_removed()
     {
-        var log = new CapturingLogger<ModelIngestRunner>();
+        var resultPath = Path.Combine(Path.GetTempPath(), $"result-{Guid.NewGuid():N}.json");
+        var startInfo = AShellRunning($"printf '%s' '{ResultFileOfTheSameUploadAgain}' > '{resultPath}'");
+        using var hangDetector = new CancellationTokenSource(Settle.Ceiling);
 
-        var result = Runner(log).ResultOf(new ModelIngestRunner.ProcessRun(0, OutputOfAnIngestRun, ""));
+        var result = await Runner(Credential()).RunAndReadResultAsync(startInfo, resultPath, hangDetector.Token);
 
-        result.Should().Be(new IngestRunResult(true, 9, 0, 4, null));
-        log.Lines.Should().BeEmpty();
+        result.Should().Be(new IngestRunResult(true, 0, 9, 0, null));
+        File.Exists(resultPath).Should().BeFalse();
     }
 
     [Fact]
     public void A_failed_run_answers_with_what_the_tool_wrote_to_its_error_output()
     {
         var result = Runner(new CapturingLogger<ModelIngestRunner>()).ResultOf(
-            new ModelIngestRunner.ProcessRun(1, OutputOfAnIngestRun, "  The broker refused the post.\n"));
+            ARunThatExitedWith(1, errorOutput: "  The broker refused the post.\n"), resultFile: null);
 
         result.Should().Be(new IngestRunResult(false, 0, 0, 0, "The broker refused the post."));
     }
@@ -193,7 +264,7 @@ public class ModelIngestRunnerTests
     public void A_failed_run_that_wrote_no_error_output_still_answers_with_a_reason()
     {
         var result = Runner(new CapturingLogger<ModelIngestRunner>()).ResultOf(
-            new ModelIngestRunner.ProcessRun(1, "", " \n"));
+            ARunThatExitedWith(1, errorOutput: " \n"), resultFile: null);
 
         result.Should().Be(new IngestRunResult(false, 0, 0, 0, "IFC ingest failed."));
     }

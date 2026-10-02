@@ -188,6 +188,28 @@ describe('dashboard order and addresses', () => {
   it('falls back to the Thing id where a name leaves nothing an address can carry', () => {
     expect(routeKeys(['المصادر'])).toEqual(['dash-0']);
   });
+
+  it.each([
+    ['in the order the model lists them', (things: VosThing[]) => things],
+    ['in the opposite order', (things: VosThing[]) => [...things].reverse()],
+  ])('lists the pages under each of two types named Dashboard, %s', (_, ordered) => {
+    const { things, relationships } = dashboardModel(['Site submission']);
+    const fromAnotherTemplate: VosThing[] = [
+      { Id: 'arch-dash-site', Name: 'Dashboard', IsArchetype: true, Properties: {} },
+      { Id: 'dash-site', Name: 'Site operations', Properties: { specification: JSON.stringify({ title: 'T', sections: [] }) } },
+    ];
+    relationships.push({
+      Id: 'dash-site-is', Name: 'dash-site is Dashboard',
+      SubjectId: 'dash-site', PredicateId: 'is', TargetId: 'arch-dash-site', Properties: {},
+    });
+
+    const found = discoverDashboards(ordered([...things, ...fromAnotherTemplate]), relationships);
+
+    expect(found.map((d) => [d.name, d.routeKey])).toEqual([
+      ['Site operations', 'site-operations'],
+      ['Site submission', 'site-submission'],
+    ]);
+  });
 });
 
 // Archetypes are subtyped (Resident is Party, GardenPlot is Location),
@@ -250,6 +272,32 @@ describe('thingIdsOfArchetype (transitive, instances-only)', () => {
     const roster = buildModelIndex(declared(rosterThings, rosterRelationships), rosterRelationships);
 
     expect(thingIdsOfArchetype('Machine', roster)).toEqual(new Set(['tractor1']));
+  });
+
+  it.each([
+    ['in the order the model lists them', (things: VosThing[]) => things],
+    ['in the opposite order', (things: VosThing[]) => [...things].reverse()],
+  ])('reaches the members of every type that carries the name, %s', (_, ordered) => {
+    const springThings = [
+      t('is', 'is'), t('spring-a', 'Spring'), t('spring-b', 'Spring'), t('spring-c', 'Spring'),
+      t('s1', 'SPRING-1'), t('s2', 'SPRING-2'), t('s3', 'SPRING-3'),
+    ];
+    const springRelationships = [
+      relationship('s1', 'spring-a'), relationship('s2', 'spring-b'), relationship('s3', 'spring-c'),
+    ];
+
+    const sameNamed = buildModelIndex(ordered(declared(springThings, springRelationships)), springRelationships);
+
+    expect(thingIdsOfArchetype('Spring', sameNamed)).toEqual(new Set(['s1', 's2', 's3']));
+  });
+
+  it('finds a type whose name an instance listed before it also carries', () => {
+    const things = [t('is', 'is'), t('named-alike', 'Reservoir'), t('reservoir-type', 'Reservoir'), t('r1', 'RESERVOIR-1')];
+    const relationships = [relationship('r1', 'reservoir-type')];
+
+    const index = buildModelIndex(declared(things, relationships), relationships);
+
+    expect(thingIdsOfArchetype('Reservoir', index)).toEqual(new Set(['r1']));
   });
 });
 

@@ -12,6 +12,7 @@ import { LogicalNodeController } from './LogicalNodeController';
 import { NodeReducer } from './NodeReducer';
 import { GraphToolbar } from './GraphToolbar';
 import { WebGLContextGuard } from './WebGLContextGuard';
+import { ViewFitController } from './ViewFitController';
 
 function drawRoundedPill(
   context: CanvasRenderingContext2D,
@@ -347,6 +348,7 @@ export function SigmaCanvas({ things, relationships, searchQuery, searchOptions 
       <ClusterComputer />
       <GraphEvents />
       <LayoutController />
+      <ViewFitController />
       <LogicalNodeController />
       <WebGLContextGuard />
       <NodeReducer searchQuery={searchQuery} searchOptions={searchOptions} />

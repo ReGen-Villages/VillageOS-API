@@ -47,7 +47,47 @@ describe('the rail of catalysts', () => {
   it('groups the two sides and orders the internal side state, relationship, clock', () => {
     expect(external.side).toBe('external');
     expect(internal.side).toBe('internal');
-    expect(internal.rows.map((each) => each.kind)).toEqual(['state', 'relationship', 'clock']);
+    expect(internal.rows.map((each) => each.kind)).toEqual(['state', 'state', 'state', 'state', 'relationship', 'clock']);
+  });
+
+  it('says a state watched through a connection bound to no service has no binding to retract, and offers the orchestrator', () => {
+    const row = internal.rows.find((each) => each.standsForId === id.dry);
+    expect(row).toMatchObject({ today: '', handling: { connectionId: id.watchesDry, byOrchestrator: false }, offersOrchestrator: true });
+    expect(row?.handling?.bindingId).toBeUndefined();
+  });
+
+  it('says which connection a state is watched through, what binds it, and that the orchestrator does not handle it', () => {
+    const row = internal.rows.find((each) => each.standsForId === id.belowReorder);
+    expect(row?.handling).toEqual({ connectionId: id.watchesReorder, bindingId: id.reorderBinding, byOrchestrator: false });
+    expect(row?.offersOrchestrator).toBe(true);
+  });
+
+  it('says a state the orchestrator handles starts the pipeline drawn from it, and offers nothing more', () => {
+    const row = internal.rows.find((each) => each.standsForId === id.surplus);
+    expect(row).toMatchObject({ handling: { byOrchestrator: true }, offersOrchestrator: false, starts: { id: id.storeSurplus } });
+  });
+
+  it('says a state the orchestrator handles with nothing drawn from it starts nothing', () => {
+    const row = internal.rows.find((each) => each.standsForId === id.drought);
+    expect(row).toMatchObject({ handling: { byOrchestrator: true }, offersOrchestrator: false });
+    expect(row?.starts).toBeUndefined();
+  });
+
+  it('offers the orchestrator on a state the clock re-checks, as on any state', () => {
+    expect(internal.rows.find((each) => each.standsForId === id.overdue)?.offersOrchestrator).toBe(true);
+  });
+
+  it('offers the orchestrator on no door and no relationship, which it cannot start a run from', () => {
+    const others = [...external.rows, ...internal.rows.filter((each) => each.kind === 'relationship')];
+    expect(others.length).toBeGreaterThan(0);
+    expect(others.every((each) => !each.offersOrchestrator && each.handling === undefined)).toBe(true);
+  });
+
+  it('offers the orchestrator nowhere on a model holding no orchestrator, or several', () => {
+    for (const orchestrators of [0, 2]) {
+      const [, rows] = catalystRail(catalystFixture({ orchestrators }).model);
+      expect(rows.rows.some((each) => each.offersOrchestrator)).toBe(false);
+    }
   });
 
   it('lists nothing on a model that declares no connection', () => {
@@ -65,6 +105,7 @@ describe('the rail of outputs', () => {
       ['answer', ''],
       ['pipeline', 'Digest'],
       ['pipeline', 'Refill'],
+      ['pipeline', 'Store surplus'],
       ['externalSystem', 'Reporting office'],
       ['externalSystem', 'Weather station'],
     ]);
@@ -74,6 +115,6 @@ describe('the rail of outputs', () => {
 
   it('offers every pipeline while none is open', () => {
     expect(outputRail(model, null).filter((row) => row.kind === 'pipeline').map((row) => row.name))
-      .toEqual(['Digest', 'Readings arrive', 'Refill']);
+      .toEqual(['Digest', 'Readings arrive', 'Refill', 'Store surplus']);
   });
 });

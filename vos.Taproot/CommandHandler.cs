@@ -24,7 +24,7 @@ namespace vos.Taproot
             _writer.WriteLine("Available commands:");
             _writer.WriteLine();
             _writer.WriteLine("Basic Operations:");
-            _writer.WriteLine("  create thing <name>                         - Create a new thing");
+            _writer.WriteLine("  create thing <name> [--archetype]           - Create a new thing, as a type with --archetype");
             _writer.WriteLine("  create property <thing> <name> <type> <val> - Add a property to a thing");
             _writer.WriteLine("  create rel-property <relId> <name> <type> <val> - Add a property to a relationship");
             _writer.WriteLine("  create relation <subj> <pred> <target>      - Add a relationship");
@@ -170,15 +170,18 @@ namespace vos.Taproot
         {
             try
             {
-                var success = await _mycelium.ShutdownMyceliumAsync();
-                if (success)
-                    _writer.WriteLine("Mycelium shutdown initiated.");
-                else
-                    _writer.WriteLine("Failed to initiate Mycelium shutdown.");
+                await _mycelium.ShutdownMyceliumAsync();
+                _writer.WriteLine("Mycelium shutdown initiated.");
             }
-            catch (HttpRequestException)
+            // A platform that stops while answering drops the connection, and that failure carries no
+            // status. A refusal carries one.
+            catch (HttpRequestException dropped) when (dropped.StatusCode is null)
             {
                 _writer.WriteLine("Mycelium shutdown initiated (connection closed).");
+            }
+            catch (HttpRequestException refused)
+            {
+                _writer.WriteLine($"Failed to initiate Mycelium shutdown: {OperatorMessage.For(refused)}");
             }
         }
 

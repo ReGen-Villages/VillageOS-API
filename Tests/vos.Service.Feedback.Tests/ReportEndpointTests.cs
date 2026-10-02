@@ -62,10 +62,10 @@ public class ReportEndpointTests
     private static string DataAddress(string mediaType, byte[] bytes) => $"data:{mediaType};base64,{Convert.ToBase64String(bytes)}";
 
     private static async Task<HttpResponseMessage> Post(
-        FeedbackWebApplicationFactory factory, JsonObject report, string? token, string? origin = null)
+        FeedbackWebApplicationFactory factory, JsonObject report, string? token, string? origin = null, string address = "/reports")
     {
         using var client = factory.CreateClient();
-        var request = new HttpRequestMessage(HttpMethod.Post, "/reports")
+        var request = new HttpRequestMessage(HttpMethod.Post, address)
         {
             Content = new StringContent(report.ToJsonString(), Encoding.UTF8, "application/json"),
         };
@@ -507,5 +507,32 @@ public class ReportEndpointTests
         var response = await Post(factory, Report(), token, origin: "https://elsewhere.example.org");
 
         response.Headers.Contains("Access-Control-Allow-Origin").Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("/feedback/reports")]
+    [InlineData("/reports")]
+    public async Task ARelayStartedWithAPathPrefix_FilesAReportPostedWithOrWithoutIt(string address)
+    {
+        var token = PersonToken();
+        await using var factory = RelayAccepting(token);
+        factory.PathPrefix = "/feedback";
+
+        var response = await Post(factory, Report(), token, address: address);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await Body(response)).GetProperty("reference").GetInt32().Should().Be(FeedbackWebApplicationFactory.CreatedWorkItem);
+    }
+
+    [Fact]
+    public async Task ARelayStartedWithNoPathPrefix_DoesNotAnswerUnderOne()
+    {
+        var token = PersonToken();
+        await using var factory = RelayAccepting(token);
+
+        var response = await Post(factory, Report(), token, address: "/feedback/reports");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        factory.DevOpsRequests.Should().BeEmpty();
     }
 }

@@ -74,7 +74,7 @@ namespace vos.Taproot
             }
             else
             {
-                _writer.WriteLine($"Service {display} not found");
+                _writer.WriteLine($"Service {display} is not registered or has no running daemon");
             }
         }
 
