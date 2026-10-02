@@ -34,6 +34,10 @@ const ENGINE_METRICS_POLL_MILLISECONDS = 15000;
 
 const REGISTRY_REFRESH_WINDOW_MILLISECONDS = 2000;
 
+// With the platform gone no event arrives to prompt a registry read, so only a read on a timer
+// finds out and turns the Mycelium mark red.
+const REGISTRY_POLL_MILLISECONDS = 15000;
+
 export function DashboardPage() {
   useSubscription(WHOLE_MODEL);
   const navigate = useNavigate();
@@ -77,6 +81,8 @@ export function DashboardPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- every state write in the loader is after an await, so nothing is set while the effect runs; the rule does not model that boundary
     loadMyceliumData();
+    const interval = setInterval(loadMyceliumData, REGISTRY_POLL_MILLISECONDS);
+    return () => clearInterval(interval);
   }, [loadMyceliumData]);
 
   const loadEngineMetrics = useCallback(async () => {
