@@ -17,7 +17,7 @@ internal sealed class FakeGateway : IMyceliumGateway
     public List<(string Subdomain, JsonElement Envelope)> Envelopes { get; } = new();
     public List<string> StatusUpdates { get; } = new();
     public List<(string Name, string Status)> NodeStatuses { get; } = new();
-    public List<(Guid RunId, Guid PipelineId, RunSubject? Subject)> RunsCreated { get; } = new();
+    public List<(Guid RunId, Guid PipelineId, RunSubject? Subject, Guid? RequestId)> RunsCreated { get; } = new();
     public List<Guid> StartTargetsAsked { get; } = new();
     public JsonElement? RunResult { get; private set; }
 
@@ -49,9 +49,9 @@ internal sealed class FakeGateway : IMyceliumGateway
         return Task.CompletedTask;
     }
 
-    public Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct, RunSubject? subject = null)
+    public Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct, RunSubject? subject = null, Guid? requestId = null)
     {
-        RunsCreated.Add((runId, pipelineId, subject));
+        RunsCreated.Add((runId, pipelineId, subject, requestId));
         return Task.CompletedTask;
     }
 

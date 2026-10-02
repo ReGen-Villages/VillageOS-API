@@ -499,6 +499,20 @@ public class PipelineExecutorTests
         await executor.RunAsync(pipelineId, default, CancellationToken.None);
 
         gateway.RunsCreated.Single().Subject.Should().BeNull();
+        gateway.RunsCreated.Single().RequestId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task RunAsync_WithTheRequestThatStartedIt_RecordsThatRequestsIdentifierOnTheRun()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        var gateway = new FakeGateway(fx.Build());
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+        var requestId = Guid.NewGuid();
+
+        await executor.RunAsync(pipelineId, default, CancellationToken.None, requestId: requestId);
+
+        gateway.RunsCreated.Single().RequestId.Should().Be(requestId);
     }
 
     private static NodeDispatchResult NodeOk(params (string Port, string Value)[] outputs)

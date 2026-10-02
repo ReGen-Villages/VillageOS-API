@@ -90,6 +90,9 @@ try
         }
 
         var trigger = SpawnTrigger.Resolve(root);
+        // The broker's name for this call in its request log. A call without one, or with one that is not an
+        // identifier, still runs; the run simply records no request.
+        var requestId = Guid.TryParse(httpContext.Request.Headers[RequestLogHeader].ToString(), out var named) ? named : (Guid?)null;
         switch (trigger.Kind)
         {
             case SpawnKind.Http when trigger.Async:
@@ -100,14 +103,14 @@ try
                 var asyncParams = trigger.Params;
                 _ = Task.Run(async () =>
                 {
-                    try { await executor.RunAsync(asyncPipelineId, asyncParams, CancellationToken.None, asyncRunId); }
+                    try { await executor.RunAsync(asyncPipelineId, asyncParams, CancellationToken.None, asyncRunId, requestId: requestId); }
                     catch (Exception ex) { Log.Error(ex, "Async pipeline run {RunId} ({PipelineId}) failed", asyncRunId, asyncPipelineId); }
                 });
                 return Results.Ok(new { success = true, accepted = true, runId = asyncRunId, pipelineId = trigger.PipelineId });
 
             case SpawnKind.Http:
                 // Synchronous spawn-and-wait — the caller (e.g. a programmatic client) blocks for the result.
-                var result = await executor.RunAsync(trigger.PipelineId, trigger.Params, httpContext.RequestAborted);
+                var result = await executor.RunAsync(trigger.PipelineId, trigger.Params, httpContext.RequestAborted, requestId: requestId);
                 return Results.Ok(result);
 
             case SpawnKind.Relationship:
@@ -125,7 +128,7 @@ try
                 var subject = trigger.Subject;
                 _ = Task.Run(async () =>
                 {
-                    try { await executor.RunAsync(pipelineId, runParams, CancellationToken.None, subject: subject); }
+                    try { await executor.RunAsync(pipelineId, runParams, CancellationToken.None, subject: subject, requestId: requestId); }
                     catch (Exception ex) { Log.Error(ex, "Dispatched pipeline run {PipelineId} failed", pipelineId); }
                 });
                 return Results.Ok(new { success = true, accepted = true, pipelineId });
@@ -157,4 +160,8 @@ finally
 }
 
 // Exposed to WebApplicationFactory<Program> in the test project.
-public partial class Program { }
+public partial class Program
+{
+    // The header the broker names each call's request-log entry in.
+    internal const string RequestLogHeader = "Vos-Request-Id";
+}

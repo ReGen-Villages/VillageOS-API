@@ -94,19 +94,22 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         return await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
     }
 
-    public async Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null)
+    public async Task CreateRunAsync(
+        Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null, Guid? requestId = null)
     {
         // The result is declared here with no value. It is known only once the run ends, and the property
         // route sets a property the Thing already carries — so a run given one only at the end is a run
         // that can never be given one.
-        await CreateThingWithIdAsync(runId, $"PipelineRun {runId:N}", new Dictionary<string, string?>
+        var properties = new Dictionary<string, string?>
         {
             ["status"] = RunStatus.Running,
             ["pipelineId"] = pipelineId.ToString(),
             ["startedUtc"] = DateTime.UtcNow.ToString("o"),
             [ModelNames.Result] = null,
             [ModelNames.Error] = null,
-        }, cancellationToken);
+        };
+        if (requestId is { } request) properties[ModelNames.RequestId] = request.ToString();
+        await CreateThingWithIdAsync(runId, $"PipelineRun {runId:N}", properties, cancellationToken);
 
         await RelateAsync(runId, ModelNames.Is,
             await ArchetypeCarryingAsync(PipelineArchetypes.PipelineRunFlag, cancellationToken), cancellationToken);
