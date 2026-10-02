@@ -91,8 +91,6 @@ mycelium_url_stored = config.mycelium_url
 requests_processed = 0
 
 
-API_KEY_HEADER = "X-API-Key"
-
 #: A held token is exchanged again this long before it runs out.
 REPLACEMENT_LEAD = timedelta(seconds=30)
 
@@ -101,10 +99,6 @@ _held_token: tuple[str, datetime] | None = None
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
-
-
-def holds_a_credential() -> bool:
-    return bool(config.api_key or config.token)
 
 
 async def _get_token(*, client: httpx.AsyncClient | None = None) -> str:
@@ -127,7 +121,7 @@ async def _get_token(*, client: httpx.AsyncClient | None = None) -> str:
 
 async def _exchange_the_key(client: httpx.AsyncClient | None) -> tuple[str, datetime]:
     url = f"{config.mycelium_url}/api/auth/token"
-    headers = {API_KEY_HEADER: config.api_key}
+    headers = {"X-API-Key": config.api_key}
     if client is not None:
         res = await client.post(url, headers=headers)
     else:
@@ -296,7 +290,7 @@ def verify_request(request: Request) -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    if not holds_a_credential():
+    if not (config.api_key or config.token):
         print("neither ApiKey nor Token is set, so this service has not registered with mycelium")
     else:
         try:

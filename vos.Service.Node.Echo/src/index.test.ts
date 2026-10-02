@@ -449,6 +449,19 @@ test("a refused key says what the platform answered", async () => {
   }
 });
 
+test("an answer that is not a token is not held", async () => {
+  const exchange = stubKeyExchange(() => ({ status: 200, token: "one.!!!.three" }));
+  try {
+    await assert.rejects(getToken(withAKey()), /not a token/);
+  } finally {
+    exchange.restore();
+  }
+});
+
+test("with neither a key nor a token there is nothing to present", async () => {
+  await assert.rejects(getToken(withAKey({ apiKey: undefined })), /neither ApiKey nor Token is set/);
+});
+
 test("a key is presented before a token given beside it", async () => {
   mock.timers.enable({ apis: ["Date"], now: A_MOMENT });
   const minted = tokenExpiringAt(A_MOMENT + FIVE_MINUTES);

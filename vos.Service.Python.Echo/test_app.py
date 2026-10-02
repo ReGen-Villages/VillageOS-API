@@ -298,7 +298,6 @@ def test_deposit_sediment_posts_readings_and_returns_summary(mycelium):
     assert res["batchId"] == "b-1"
     assert res["samples"] == 10
     assert captured[0].url.path == "/api/sediment"
-    # The platform names the Thing a reading belongs to `objectId`.
     assert json.loads(captured[0].content)[0] == {
         "objectId": "t1", "property": "flow", "value": 1.0, "observedAt": "2026-06-19T00:00:00Z"}
 
@@ -514,6 +513,13 @@ def test_a_token_that_states_no_expiry_is_not_held(holding_a_key):
 def test_a_refused_key_says_what_the_platform_answered(holding_a_key):
     with pytest.raises(RuntimeError, match="401"):
         tokens_asked_for(lambda request: httpx.Response(401), times=1)
+
+
+def test_with_neither_a_key_nor_a_token_there_is_nothing_to_present(holding_a_key, monkeypatch):
+    monkeypatch.setattr(appmod.config, "api_key", None)
+
+    with pytest.raises(RuntimeError, match="neither ApiKey nor Token is set"):
+        tokens_asked_for(lambda request: httpx.Response(500), times=1)
 
 
 def test_a_key_is_presented_before_a_token_given_beside_it(holding_a_key, monkeypatch):

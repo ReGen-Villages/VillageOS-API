@@ -519,6 +519,19 @@ func TestARefusedKeySaysWhatThePlatformAnswered(t *testing.T) {
 	}
 }
 
+func TestAnAnswerThatIsNotATokenIsNotHeld(t *testing.T) {
+	for _, answered := range []string{"", "one.!!!.three"} {
+		exchange := &keyExchange{answer: func() (int, string) { return http.StatusOK, answered }}
+		srv := exchange.serve(t)
+		s := &service{cfg: config{MyceliumURL: srv.URL, APIKey: "vos_ak_example"}, client: srv.Client()}
+
+		if _, err := s.token(); err == nil || !strings.Contains(err.Error(), "not a token") {
+			t.Fatalf("answered %q: err = %v, want a refusal saying it is not a token", answered, err)
+		}
+		srv.Close()
+	}
+}
+
 func TestAKeyIsPresentedBeforeATokenGivenBesideIt(t *testing.T) {
 	minted := tokenExpiring(aMoment.Add(5 * time.Minute))
 	exchange := &keyExchange{answer: func() (int, string) { return http.StatusOK, minted }}

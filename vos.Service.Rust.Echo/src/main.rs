@@ -606,7 +606,6 @@ async fn main() {
     serve_until_stopped(listener, state).await;
 }
 
-/// Serves until the process is interrupted or /shutdown is called, finishing the calls in flight.
 async fn serve_until_stopped(listener: tokio::net::TcpListener, state: Arc<AppState>) {
     // /handle and /shutdown are auth-protected; /health and /stats are open.
     let protected = Router::new()
@@ -1108,6 +1107,25 @@ mod tests {
         let refusal = token_at(&cfg, &reqwest::Client::new(), A_MOMENT).await.unwrap_err();
 
         assert!(refusal.contains("refused to exchange the API key") && refusal.contains("401"), "{refusal}");
+    }
+
+    #[tokio::test]
+    async fn an_answer_that_is_not_a_token_is_not_held() {
+        let exchange = KeyExchange::answering(StatusCode::OK, "one.!!!.three".into());
+        let cfg = exchange.serve().await;
+
+        let refusal = token_at(&cfg, &reqwest::Client::new(), A_MOMENT).await.unwrap_err();
+
+        assert!(refusal.contains("not a token"), "{refusal}");
+    }
+
+    #[tokio::test]
+    async fn with_neither_a_key_nor_a_token_there_is_nothing_to_present() {
+        let cfg = Config { token: None, ..test_cfg("http://127.0.0.1:1".into()) };
+
+        let refusal = token_at(&cfg, &reqwest::Client::new(), A_MOMENT).await.unwrap_err();
+
+        assert_eq!(refusal, NO_CREDENTIAL);
     }
 
     #[tokio::test]
