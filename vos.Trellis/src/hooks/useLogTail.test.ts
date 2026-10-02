@@ -163,8 +163,6 @@ describe('useLogTail', () => {
     expect(FakeEventSource.instances.length).toBeGreaterThan(1);
   });
 
-  // A browser hands the page an event and never a comment, so the page can only notice heartbeats
-  // stopping when the platform sends each one as an event.
   it('asks for the heartbeat as an event', async () => {
     renderHook(() => useLogTail());
 

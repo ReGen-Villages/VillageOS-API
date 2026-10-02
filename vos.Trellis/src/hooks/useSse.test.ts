@@ -540,7 +540,6 @@ describe('useSse', () => {
 
     afterEach(() => vi.useRealTimers());
 
-    /** Both streams open and reporting live, on a clock the test moves. */
     async function liveUnderAMovableClock() {
       vi.useFakeTimers();
       const hook = renderHook(() => useSse());
@@ -553,8 +552,6 @@ describe('useSse', () => {
 
     const pass = (milliseconds: number) => act(async () => { await vi.advanceTimersByTimeAsync(milliseconds); });
 
-    // A browser hands the page an event and never a comment, so the page can only notice
-    // heartbeats stopping when the platform sends each one as an event.
     it('asks each stream for its heartbeat as an event', async () => {
       const { unmount } = await liveUnderAMovableClock();
 
@@ -590,7 +587,6 @@ describe('useSse', () => {
       unmount();
     });
 
-    // A long replay sends changes and no heartbeat until it is done.
     it('takes an event the page listens for as a sign of life', async () => {
       const { result, unmount } = await liveUnderAMovableClock();
 
