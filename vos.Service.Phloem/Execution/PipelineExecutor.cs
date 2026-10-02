@@ -164,6 +164,25 @@ public sealed class PipelineExecutor
         }
     }
 
+    // Sending is writing: the broker delivers the message once from the model, so a failure here is a write the
+    // broker refused, never a message half sent.
+    private async Task<NodeRunResult> TellAsync(
+        PipelineDag dag, DagNode node, Telling telling, Guid runId,
+        IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, JsonElement runParams, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var payload = JsonSerializer.SerializeToElement(AssembleInputs(dag, node, outputs, runParams));
+            await _gateway.SendMessageAsync(runId, telling, payload, cancellationToken);
+            return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, NoOutputs, null);
+        }
+        catch (Exception ex)
+        {
+            return new NodeRunResult(node.NodeId, node.Name, RunStatus.Failed, NoOutputs,
+                $"The message to '{telling.SystemName}' could not be written: {ex.Message}");
+        }
+    }
+
     private async Task<NodeRunResult> RunNodeAsync(
         PipelineDag dag, DagNode node, Guid runId,
         IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, JsonElement runParams, CancellationToken cancellationToken)
@@ -178,7 +197,9 @@ public sealed class PipelineExecutor
         if (node.Kind == DagNodeKind.Input)
             return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, ProjectParamsOntoOutputs(node, runParams), null);
         if (node.Kind == DagNodeKind.Output)
-            return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, NoOutputs, null);
+            return node.Tells is null
+                ? new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, NoOutputs, null)
+                : await TellAsync(dag, node, node.Tells, runId, outputs, runParams, cancellationToken);
 
         Dictionary<string, JsonElement> inputs;
         try

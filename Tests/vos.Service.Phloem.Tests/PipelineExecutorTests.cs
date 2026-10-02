@@ -379,6 +379,60 @@ public class PipelineExecutorTests
         gateway.RunResult!.Value.GetProperty("result").GetString().Should().Be("world");
     }
 
+    [Fact]
+    public async Task RunAsync_EndingAtAnExternalSystem_SendsWhatReachedTheEndAlongTheSystemsConnection()
+    {
+        var telling = TestGraphs.TellingPipeline();
+        var gateway = new FakeGateway(telling.Fixture.Build())
+        {
+            OnDispatch = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(telling.PipelineId, JsonSerializer.SerializeToElement(new { seed = "world" }), CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        var sent = gateway.MessagesSent.Should().ContainSingle().Subject;
+        sent.RunId.Should().Be(result.RunId);
+        sent.Telling.Should().Be(new Telling(telling.SystemId, "Reporting office", telling.ConnectionId));
+        sent.Payload.GetProperty("result").GetString().Should().Be("world");
+        result.Result!.Value.GetProperty("result").GetString().Should().Be("world", "the run still publishes what reached its end");
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenTheMessageCannotBeWritten_FailsTheEndNodeNamingTheSystem()
+    {
+        var telling = TestGraphs.TellingPipeline();
+        var gateway = new FakeGateway(telling.Fixture.Build())
+        {
+            OnDispatch = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
+            OnSend = () => throw new HttpRequestException("the broker refused the write"),
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(telling.PipelineId, JsonSerializer.SerializeToElement(new { seed = "world" }), CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        var end = result.Nodes.Single(node => node.Name == "Out");
+        end.Status.Should().Be(RunStatus.Failed);
+        end.Error.Should().Contain("Reporting office").And.Contain("the broker refused the write");
+    }
+
+    [Fact]
+    public async Task RunAsync_EndingAtASystemThatNamesNoConnection_FailsBeforeAnyNodeRuns()
+    {
+        var telling = TestGraphs.TellingPipeline(namesItsConnection: false);
+        var gateway = new FakeGateway(telling.Fixture.Build());
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(telling.PipelineId, JsonSerializer.SerializeToElement(new { seed = "world" }), CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        gateway.Dispatched.Should().BeEmpty();
+        gateway.MessagesSent.Should().BeEmpty();
+        gateway.RunError.Should().Contain("Reporting office");
+    }
+
     // A Thing entering a watched state is the run's subject: it is recorded on the run and reaches the
     // start node as the `subject` param — the name the page gives the port — carrying the Thing's id and
     // name, so a wire narrows it to either and the pipeline hands it down like any other.
