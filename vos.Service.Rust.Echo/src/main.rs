@@ -9,12 +9,13 @@
 //! `is` is NOT an external predicate — Mycelium handles `is` inheritance
 //! in-process and never dispatches it. Register for a custom predicate instead.
 //!
-//! Run: cargo run -- --port=5104 --myceliumUrl=https://localhost:7243
+//! Run: ApiKey=<key> cargo run -- --port=5104 --myceliumUrl=https://localhost:7243
 
 use std::sync::{
     atomic::{AtomicU64, Ordering},
     Arc,
 };
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::{
     extract::{Request, State},
@@ -24,6 +25,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -34,13 +36,23 @@ const SERVICE_NAME: &str = "Rust";
 struct Config {
     port: u16,
     mycelium_url: String,
+    /// Exchanged with Mycelium for a short-lived JWT, and exchanged again before that runs out.
+    api_key: Option<String>,
+    /// A pre-minted service JWT, used when no key is given.
     token: Option<String>,
+    /// The token the key was last exchanged for, shared by every copy of this configuration.
+    held_token: Arc<tokio::sync::Mutex<Option<HeldToken>>>,
     /// Base64 of Mycelium's public signing key, for checking inbound requests.
     verification_key: Option<String>,
     #[allow(dead_code)]
     issuer: String,
     /// This service's own name. A token addressed to anything else is refused.
     audience: String,
+}
+
+struct HeldToken {
+    token: String,
+    expires_at_seconds: u64,
 }
 
 /// Parses the standard --key=value flags. Returns None if required ones missing.
@@ -50,6 +62,7 @@ struct Config {
 fn parse_args(args: &[String], environment: impl Fn(&str) -> Option<String>) -> Option<Config> {
     let mut port: Option<u16> = None;
     let mut mycelium_url: Option<String> = None;
+    let api_key = environment("ApiKey").filter(|key| !key.is_empty());
     let token = environment("Token");
     let verification_key = environment("VerificationKey");
     let mut issuer = String::new();
@@ -75,7 +88,9 @@ fn parse_args(args: &[String], environment: impl Fn(&str) -> Option<String>) -> 
     Some(Config {
         port: port?,
         mycelium_url: mycelium_url?,
+        api_key,
         token,
+        held_token: Default::default(),
         verification_key,
         issuer,
         audience,
@@ -84,12 +99,26 @@ fn parse_args(args: &[String], environment: impl Fn(&str) -> Option<String>) -> 
 
 const USAGE: &str = "Usage: app --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--audience=<aud>]\n\
     --issuer and --audience are required whenever a VerificationKey is set; --audience is this service's own name.\n\
-    Credentials come from the environment, never the command line: Token, VerificationKey";
+    Credentials come from the environment, never the command line: ApiKey, Token, VerificationKey.\n\
+    An ApiKey is exchanged with Mycelium for a short-lived JWT and exchanged again before that runs out; a Token is used when no ApiKey is set.\n\
+    With neither, the service answers its own routes and makes no call to Mycelium.";
 
 struct AppState {
     config: Config,
     handler_id: String,
     requests: AtomicU64,
+    stop_requested: tokio::sync::Notify,
+}
+
+impl AppState {
+    fn serving(config: Config) -> Self {
+        AppState {
+            config,
+            handler_id: uuid::Uuid::new_v4().to_string(),
+            requests: AtomicU64::new(0),
+            stop_requested: tokio::sync::Notify::new(),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -185,24 +214,77 @@ async fn stats(State(state): State<Arc<AppState>>) -> Json<Value> {
     }))
 }
 
-async fn shutdown() -> Json<Value> {
+async fn shutdown(State(state): State<Arc<AppState>>) -> Json<Value> {
+    state.stop_requested.notify_one();
     Json(json!({ "message": format!("Shutting down {SERVICE_NAME} microservice") }))
 }
 
-async fn get_token(cfg: &Config, http: &reqwest::Client) -> reqwest::Result<String> {
-    if let Some(t) = &cfg.token {
-        return Ok(t.clone());
-    }
-    let resp = http
-        .post(format!("{}/api/auth/token", cfg.mycelium_url))
-        .send()
-        .await?
-        .error_for_status()?;
-    let body: Value = resp.json().await?;
-    Ok(body.get("token").and_then(Value::as_str).unwrap_or_default().to_string())
+const NO_CREDENTIAL: &str = "neither ApiKey nor Token is set";
+
+/// How long before a held token runs out it is replaced, so a call in flight never carries one
+/// that expires on the way.
+const REPLACEMENT_LEAD_SECONDS: u64 = 30;
+
+async fn get_token(cfg: &Config, http: &reqwest::Client) -> Result<String, String> {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |since| since.as_secs());
+    token_at(cfg, http, now).await
 }
 
-async fn register(state: &AppState, http: &reqwest::Client) -> reqwest::Result<()> {
+/// A key is presented before a token given beside it: a token runs out and the key can replace it.
+async fn token_at(cfg: &Config, http: &reqwest::Client, now_seconds: u64) -> Result<String, String> {
+    let Some(api_key) = &cfg.api_key else {
+        return cfg.token.clone().ok_or_else(|| NO_CREDENTIAL.to_string());
+    };
+
+    let mut held = cfg.held_token.lock().await;
+    if let Some(held) = held.as_ref().filter(|held| now_seconds + REPLACEMENT_LEAD_SECONDS < held.expires_at_seconds) {
+        return Ok(held.token.clone());
+    }
+
+    let resp = http
+        .post(format!("{}/api/auth/token", cfg.mycelium_url))
+        .header("X-API-Key", api_key)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("mycelium refused to exchange the API key ({})", resp.status().as_u16()));
+    }
+    let body: Value = resp.json().await.map_err(|e| e.to_string())?;
+    let token = body.get("token").and_then(Value::as_str).unwrap_or_default().to_string();
+    let expires_at_seconds = expiry_of(&token)?;
+    *held = Some(HeldToken { token: token.clone(), expires_at_seconds });
+    Ok(token)
+}
+
+/// The token is Mycelium's own answer over the connection the key was sent on, so its expiry is
+/// read without checking the signature.
+fn expiry_of(token: &str) -> Result<u64, String> {
+    let claims: Value = token
+        .split('.')
+        .nth(1)
+        .and_then(|payload| URL_SAFE_NO_PAD.decode(payload).ok())
+        .and_then(|payload| serde_json::from_slice(&payload).ok())
+        .ok_or("mycelium answered the API key with something that is not a token")?;
+    claims
+        .get("exp")
+        .and_then(Value::as_u64)
+        .ok_or_else(|| "the token mycelium exchanged the API key for states no expiry, so it cannot be held".to_string())
+}
+
+/// Registers with Mycelium and says what happened. A call carrying no credential is always
+/// refused, so with none the service makes no call.
+async fn registration(state: &AppState, http: &reqwest::Client) -> String {
+    if state.config.api_key.is_none() && state.config.token.is_none() {
+        return format!("{NO_CREDENTIAL}, so this service has not registered with mycelium");
+    }
+    match register(state, http).await {
+        Ok(()) => format!("registered with mycelium as {}", state.handler_id),
+        Err(reason) => format!("registration failed: {reason}"),
+    }
+}
+
+async fn register(state: &AppState, http: &reqwest::Client) -> Result<(), String> {
     let token = get_token(&state.config, http).await?;
     let base = format!("http://localhost:{}", state.config.port);
     let payload = json!({
@@ -217,8 +299,9 @@ async fn register(state: &AppState, http: &reqwest::Client) -> reqwest::Result<(
         .bearer_auth(token)
         .json(&payload)
         .send()
-        .await?
-        .error_for_status()?;
+        .await
+        .and_then(reqwest::Response::error_for_status)
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -236,7 +319,7 @@ struct ObservationSample {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SedimentReading {
-    thing_id: String,
+    object_id: String,
     property: String,
     value: Value,
     observed_at: String, // required — sediment is historical
@@ -265,7 +348,7 @@ fn enc(s: &str) -> String {
 
 /// Assert a structural Fact; return the commit sequence number (405 if ObservationOnly).
 async fn set_fact(cfg: &Config, http: &reqwest::Client, thing_id: &str, property: &str, value: Value) -> Result<i64, String> {
-    let token = get_token(cfg, http).await.map_err(|e| e.to_string())?;
+    let token = get_token(cfg, http).await?;
     let url = format!("{}/api/things/{}/properties/{}/facts", cfg.mycelium_url, thing_id, enc(property));
     let resp = http.post(url).bearer_auth(token).json(&json!({ "value": value })).send().await.map_err(|e| e.to_string())?;
     if resp.status().as_u16() != 201 {
@@ -277,7 +360,7 @@ async fn set_fact(cfg: &Config, http: &reqwest::Client, thing_id: &str, property
 
 /// Record one Observation (202); pass observed_at for late samples, None for now (405 if FactOnly).
 async fn record_observation(cfg: &Config, http: &reqwest::Client, thing_id: &str, property: &str, value: Value, observed_at: Option<&str>) -> Result<(), String> {
-    let token = get_token(cfg, http).await.map_err(|e| e.to_string())?;
+    let token = get_token(cfg, http).await?;
     let mut body = json!({ "value": value });
     if let Some(at) = observed_at {
         body["observedAt"] = json!(at);
@@ -295,7 +378,7 @@ async fn record_observations(cfg: &Config, http: &reqwest::Client, thing_id: &st
     if samples.is_empty() {
         return Ok(0);
     }
-    let token = get_token(cfg, http).await.map_err(|e| e.to_string())?;
+    let token = get_token(cfg, http).await?;
     let url = format!("{}/api/things/{}/observations", cfg.mycelium_url, thing_id);
     let resp = http.post(url).bearer_auth(token).json(&samples).send().await.map_err(|e| e.to_string())?;
     if !resp.status().is_success() {
@@ -310,7 +393,7 @@ async fn deposit_sediment(cfg: &Config, http: &reqwest::Client, readings: &[Sedi
     if readings.is_empty() {
         return Err("at least one reading is required".to_string());
     }
-    let token = get_token(cfg, http).await.map_err(|e| e.to_string())?;
+    let token = get_token(cfg, http).await?;
     let url = format!("{}/api/sediment", cfg.mycelium_url);
     let resp = http.post(url).bearer_auth(token).json(&readings).send().await.map_err(|e| e.to_string())?;
     if !resp.status().is_success() {
@@ -345,8 +428,8 @@ async fn demo_write_kinds(State(state): State<Arc<AppState>>, body: Option<Json<
             ObservationSample { property: "flow".into(), value: json!(3.1), observed_at: None },
         ]).await?;
         let deposit = deposit_sediment(cfg, &http, &[
-            SedimentReading { thing_id: thing_id.clone(), property: "temperature".into(), value: json!(19.8), observed_at: "2026-06-19T12:00:00Z".into() },
-            SedimentReading { thing_id: thing_id.clone(), property: "temperature".into(), value: json!(20.4), observed_at: "2026-06-19T13:00:00Z".into() },
+            SedimentReading { object_id: thing_id.clone(), property: "temperature".into(), value: json!(19.8), observed_at: "2026-06-19T12:00:00Z".into() },
+            SedimentReading { object_id: thing_id.clone(), property: "temperature".into(), value: json!(20.4), observed_at: "2026-06-19T13:00:00Z".into() },
         ]).await?;
         Ok::<_, String>(json!({
             "factSequence": seq,
@@ -387,13 +470,16 @@ struct Selector {
     all: Option<bool>,
 }
 
+// Mycelium answers each Thing and relationship with capitalised field names.
 #[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
 struct SnapThing {
     id: String,
     name: Option<String>,
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
 struct SnapRel {
     #[allow(dead_code)]
     id: String,
@@ -403,6 +489,10 @@ struct SnapRel {
 struct Snapshot {
     things: Vec<SnapThing>,
     relationships: Vec<SnapRel>,
+}
+
+fn names_of(snapshot: &Snapshot) -> Vec<String> {
+    snapshot.things.iter().map(|t| t.name.clone().unwrap_or_else(|| t.id.clone())).collect()
 }
 
 #[derive(Deserialize)]
@@ -428,7 +518,7 @@ fn slice_by_type_and_traverse(type_: &str, predicate: &str) -> Selector {
 
 /// POST the selector to /api/subscriptions; return the resolved snapshot closure.
 async fn subscribe(cfg: &Config, http: &reqwest::Client, selector: &Selector) -> Result<SubscribeResult, String> {
-    let token = get_token(cfg, http).await.map_err(|e| e.to_string())?;
+    let token = get_token(cfg, http).await?;
     let url = format!("{}/api/subscriptions", cfg.mycelium_url);
     let resp = http.post(url).bearer_auth(token).json(selector).send().await.map_err(|e| e.to_string())?;
     if !resp.status().is_success() {
@@ -467,12 +557,7 @@ async fn demo_subscribe(State(state): State<Arc<AppState>>, body: Option<Json<Su
     let cfg = &state.config;
     match subscribe(cfg, &http, &slice_by_type_and_traverse(&type_, &predicate)).await {
         Ok(sub) => {
-            let names: Vec<String> = sub
-                .snapshot
-                .things
-                .iter()
-                .map(|t| t.name.clone().unwrap_or_else(|| t.id.clone()))
-                .collect();
+            let names = names_of(&sub.snapshot);
             unsubscribe(cfg, &http, &sub.subscription_id).await;
             Json(json!({
                 "subscriptionId": sub.subscription_id,
@@ -497,16 +582,32 @@ async fn main() {
 
     let port = config.port;
     let auth_enabled = config.verification_key.is_some();
-    let state = Arc::new(AppState {
-        config,
-        handler_id: uuid::Uuid::new_v4().to_string(),
-        requests: AtomicU64::new(0),
-    });
+    let state = Arc::new(AppState::serving(config));
     println!(
         "VillageOS {SERVICE_NAME} microservice — port {port}, mycelium {}, auth={auth_enabled}",
         state.config.mycelium_url
     );
 
+    // Register once the listener is bound.
+    let reg_state = state.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let http = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true) // dev: Mycelium uses a self-signed cert
+            .build()
+            .expect("http client");
+        println!("{}", registration(&reg_state, &http).await);
+    });
+
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", port))
+        .await
+        .expect("bind");
+
+    serve_until_stopped(listener, state).await;
+}
+
+/// Serves until the process is interrupted or /shutdown is called, finishing the calls in flight.
+async fn serve_until_stopped(listener: tokio::net::TcpListener, state: Arc<AppState>) {
     // /handle and /shutdown are auth-protected; /health and /stats are open.
     let protected = Router::new()
         .route("/handle", post(handle_relationship))
@@ -520,29 +621,13 @@ async fn main() {
         .merge(protected)
         .with_state(state.clone());
 
-    // Register once the listener is bound.
-    let reg_state = state.clone();
-    tokio::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-        let http = reqwest::Client::builder()
-            .danger_accept_invalid_certs(true) // dev: Mycelium uses a self-signed cert
-            .build()
-            .expect("http client");
-        match register(&reg_state, &http).await {
-            Ok(()) => println!("registered with mycelium as {}", reg_state.handler_id),
-            Err(e) => eprintln!("registration failed: {e}"),
-        }
-    });
-
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", port))
-        .await
-        .expect("bind");
-
-    let shut_state = state.clone();
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {
-            let _ = tokio::signal::ctrl_c().await;
-            on_shutdown(&shut_state).await;
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {}
+                _ = state.stop_requested.notified() => {}
+            }
+            on_shutdown(&state).await;
         })
         .await
         .expect("server");
@@ -787,7 +872,9 @@ mod tests {
         Config {
             port: 0,
             mycelium_url: url,
+            api_key: None,
             token: Some("tok".into()),
+            held_token: Default::default(),
             verification_key: None,
             issuer: "VillageOS".into(),
             audience: "VosClients".into(),
@@ -809,7 +896,7 @@ mod tests {
         ]).await.unwrap();
         assert_eq!(n, 2);
         let res = deposit_sediment(&cfg, &http, &[
-            SedimentReading { thing_id: "t1".into(), property: "flow".into(), value: json!(1.0), observed_at: "2026-06-19T00:00:00Z".into() },
+            SedimentReading { object_id: "t1".into(), property: "flow".into(), value: json!(1.0), observed_at: "2026-06-19T00:00:00Z".into() },
         ]).await.unwrap();
         assert_eq!(res.batch_id, "b-1");
         assert_eq!(res.samples, 10);
@@ -823,6 +910,7 @@ mod tests {
         assert!(calls.iter().all(|(_, a, _)| a == "Bearer tok"));
         let sed = calls.iter().find(|(p, _, _)| p == "/api/sediment").unwrap();
         assert!(sed.2.contains("observedAt"));
+        assert!(sed.2.contains("\"objectId\":\"t1\""), "the sediment route reads the Thing from objectId, and the body is {}", sed.2);
     }
 
     #[tokio::test]
@@ -860,23 +948,12 @@ mod tests {
                 "subscriptionId": "s-1",
                 "watermark": 42,
                 "snapshot": {
-                    "things": [{ "id": "t1", "name": "Battery-1" }, { "id": "t2", "name": "Inverter-7" }],
-                    "relationships": [{ "id": "r1" }]
+                    "things": [{ "Id": "t1", "Name": "Battery-1" }, { "Id": "t2", "Name": null }],
+                    "relationships": [{ "Id": "r1", "Name": null }]
                 }
             }))).into_response()
         } else {
             StatusCode::OK.into_response()
-        }
-    }
-
-    fn sel_cfg(url: String) -> Config {
-        Config {
-            port: 0,
-            mycelium_url: url,
-            token: Some("tok".into()),
-            verification_key: None,
-            issuer: "VillageOS".into(),
-            audience: "VosClients".into(),
         }
     }
 
@@ -896,7 +973,7 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-        let state = AppState { config: sel_cfg(format!("http://{addr}")), handler_id: "h-1".into(), requests: AtomicU64::new(0) };
+        let state = AppState::serving(test_cfg(format!("http://{addr}")));
 
         on_shutdown(&state).await;
 
@@ -912,11 +989,11 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
-        let cfg = sel_cfg(format!("http://{addr}"));
+        let cfg = test_cfg(format!("http://{addr}"));
         let http = reqwest::Client::new();
         let sub = subscribe(&cfg, &http, &slice_by_type_and_traverse("Battery", "powers")).await.unwrap();
         assert_eq!(sub.subscription_id, "s-1");
-        assert_eq!(sub.snapshot.things.len(), 2);
+        assert_eq!(names_of(&sub.snapshot), ["Battery-1", "t2"], "a Thing with no name is shown by its identifier");
         assert_eq!(sub.snapshot.relationships.len(), 1);
         unsubscribe(&cfg, &http, &sub.subscription_id).await;
 
@@ -925,5 +1002,152 @@ mod tests {
         assert_eq!(calls[0].1, "Bearer tok");
         assert!(calls[0].2.contains("types") && calls[0].2.contains("Battery") && calls[0].2.contains("powers"));
         assert_eq!(calls[1].0, "/api/subscriptions/s-1");
+    }
+
+    // ---- Presenting a key ----
+
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+
+    const A_MOMENT: u64 = 1_790_942_400;
+    const FIVE_MINUTES: u64 = 300;
+
+    fn token_with_claims(claims: Value) -> String {
+        let part = |text: String| URL_SAFE_NO_PAD.encode(text);
+        format!("{}.{}.{}", part(json!({ "alg": "ES256" }).to_string()), part(claims.to_string()), part("not-a-signature".into()))
+    }
+
+    fn token_expiring_at(seconds: u64) -> String {
+        token_with_claims(json!({ "sub": "a-service", "exp": seconds }))
+    }
+
+    /// Stands in for the route that exchanges a key, and records the key each call presented.
+    #[derive(Clone)]
+    struct KeyExchange {
+        keys_presented: Arc<Mutex<Vec<String>>>,
+        answer: Arc<Mutex<(StatusCode, String)>>,
+    }
+
+    impl KeyExchange {
+        fn answering(status: StatusCode, token: String) -> Self {
+            KeyExchange { keys_presented: Default::default(), answer: Arc::new(Mutex::new((status, token))) }
+        }
+
+        async fn serve(&self) -> Config {
+            async fn exchange(State(exchange): State<KeyExchange>, req: Request) -> Response {
+                assert_eq!(req.uri().path(), "/api/auth/token");
+                let key = req.headers().get("X-API-Key").and_then(|h| h.to_str().ok()).unwrap_or("").to_string();
+                exchange.keys_presented.lock().unwrap().push(key);
+                let (status, token) = exchange.answer.lock().unwrap().clone();
+                (status, Json(json!({ "token": token }))).into_response()
+            }
+            let app = Router::new().fallback(exchange).with_state(self.clone());
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let addr = listener.local_addr().unwrap();
+            tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            Config { api_key: Some("vos_ak_example".into()), token: None, ..test_cfg(format!("http://{addr}")) }
+        }
+    }
+
+    #[test]
+    fn parse_args_reads_an_api_key_from_the_environment_and_never_from_a_flag() {
+        let flags: [String; 3] = ["--port=5104".into(), "--myceliumUrl=https://localhost:7243".into(), "--apiKey=flag-key".into()];
+        let from_the_environment = parse_args(&flags, |name| (name == "ApiKey").then(|| "environment-key".to_string())).unwrap();
+        let from_a_flag = parse_args(&flags, empty_environment).unwrap();
+
+        assert_eq!(from_the_environment.api_key.as_deref(), Some("environment-key"));
+        assert!(from_a_flag.api_key.is_none());
+    }
+
+    #[tokio::test]
+    async fn a_key_is_exchanged_in_the_key_header_and_the_token_is_held() {
+        let minted = token_expiring_at(A_MOMENT + FIVE_MINUTES);
+        let exchange = KeyExchange::answering(StatusCode::OK, minted.clone());
+        let cfg = exchange.serve().await;
+        let http = reqwest::Client::new();
+
+        for _ in 0..3 {
+            assert_eq!(token_at(&cfg, &http, A_MOMENT).await.unwrap(), minted);
+        }
+
+        assert_eq!(*exchange.keys_presented.lock().unwrap(), ["vos_ak_example"]);
+    }
+
+    #[tokio::test]
+    async fn a_held_token_is_exchanged_again_shortly_before_it_runs_out() {
+        let exchange = KeyExchange::answering(StatusCode::OK, String::new());
+        let cfg = exchange.serve().await;
+        let http = reqwest::Client::new();
+
+        let mut now = A_MOMENT;
+        for _ in 0..3 {
+            exchange.answer.lock().unwrap().1 = token_expiring_at(now + FIVE_MINUTES);
+            token_at(&cfg, &http, now).await.unwrap();
+            now += FIVE_MINUTES - 20;
+        }
+
+        assert_eq!(
+            exchange.keys_presented.lock().unwrap().len(), 3,
+            "twenty seconds from running out is inside the half minute a token is replaced in");
+    }
+
+    #[tokio::test]
+    async fn a_token_that_states_no_expiry_is_not_held() {
+        let exchange = KeyExchange::answering(StatusCode::OK, token_with_claims(json!({ "sub": "a-service" })));
+        let cfg = exchange.serve().await;
+
+        let refusal = token_at(&cfg, &reqwest::Client::new(), A_MOMENT).await.unwrap_err();
+
+        assert!(refusal.contains("no expiry"), "{refusal}");
+    }
+
+    #[tokio::test]
+    async fn a_refused_key_says_what_the_platform_answered() {
+        let exchange = KeyExchange::answering(StatusCode::UNAUTHORIZED, String::new());
+        let cfg = exchange.serve().await;
+
+        let refusal = token_at(&cfg, &reqwest::Client::new(), A_MOMENT).await.unwrap_err();
+
+        assert!(refusal.contains("refused to exchange the API key") && refusal.contains("401"), "{refusal}");
+    }
+
+    #[tokio::test]
+    async fn a_key_is_presented_before_a_token_given_beside_it() {
+        let minted = token_expiring_at(A_MOMENT + FIVE_MINUTES);
+        let exchange = KeyExchange::answering(StatusCode::OK, minted.clone());
+        let cfg = Config { token: Some("a-launch-token".into()), ..exchange.serve().await };
+
+        assert_eq!(token_at(&cfg, &reqwest::Client::new(), A_MOMENT).await.unwrap(), minted);
+    }
+
+    #[tokio::test]
+    async fn with_neither_a_key_nor_a_token_no_call_is_made_and_the_service_says_so() {
+        let cap: Captured = Arc::new(Mutex::new(Vec::new()));
+        let cfg = Config { token: None, ..test_cfg(spawn_mock(cap.clone()).await) };
+
+        let said = registration(&AppState::serving(cfg), &reqwest::Client::new()).await;
+
+        assert!(cap.lock().unwrap().is_empty(), "a call carrying no credential is always refused");
+        assert!(said.contains("ApiKey") && said.contains("Token"), "{said}");
+    }
+
+    #[test]
+    fn usage_names_the_key_among_the_credentials() {
+        assert!(USAGE.contains("ApiKey"));
+    }
+
+    #[tokio::test]
+    async fn a_call_to_the_shutdown_route_stops_the_service() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let state = Arc::new(AppState::serving(test_cfg("http://127.0.0.1:1".into())));
+        let serving = tokio::spawn(serve_until_stopped(listener, state));
+
+        let answer = reqwest::Client::new().post(format!("http://{addr}/shutdown")).send().await.unwrap();
+
+        assert!(answer.status().is_success());
+        tokio::time::timeout(std::time::Duration::from_secs(5), serving)
+            .await
+            .expect("the service was still serving five seconds after it answered /shutdown")
+            .unwrap();
     }
 }

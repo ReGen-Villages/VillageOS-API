@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -312,7 +313,7 @@ func TestWriteKinds(t *testing.T) {
 	if err != nil || n != 2 {
 		t.Fatalf("recordObservations: %d %v", n, err)
 	}
-	res, err := s.depositSediment([]sedimentReading{{ThingID: "t1", Property: "flow", Value: 1.0, ObservedAt: "2026-06-19T00:00:00Z"}})
+	res, err := s.depositSediment([]sedimentReading{{ObjectID: "t1", Property: "flow", Value: 1.0, ObservedAt: "2026-06-19T00:00:00Z"}})
 	if err != nil || res.BatchID != "b-1" || res.Samples != 10 {
 		t.Fatalf("depositSediment: %+v %v", res, err)
 	}
@@ -339,6 +340,9 @@ func TestWriteKinds(t *testing.T) {
 	}
 	if !strings.Contains(got[3].body, "observedAt") {
 		t.Fatalf("sediment body missing observedAt: %s", got[3].body)
+	}
+	if !strings.Contains(got[3].body, `"objectId":"t1"`) {
+		t.Fatalf("the sediment route reads the Thing from objectId, and the body is %s", got[3].body)
 	}
 }
 
@@ -411,5 +415,140 @@ func TestShutdownDoesNotAskTheBrokerToWithdraw(t *testing.T) {
 
 	if len(got) != 0 {
 		t.Fatalf("a service cannot deregister itself, so shutdown must not try; broker received %+v", got)
+	}
+}
+
+var aMoment = time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
+
+func tokenWithClaims(claims string) string {
+	part := func(text string) string { return base64.RawURLEncoding.EncodeToString([]byte(text)) }
+	return part(`{"alg":"ES256"}`) + "." + part(claims) + "." + part("not-a-signature")
+}
+
+func tokenExpiring(at time.Time) string {
+	return tokenWithClaims(fmt.Sprintf(`{"sub":"a-service","exp":%d}`, at.Unix()))
+}
+
+type keyExchange struct {
+	keysPresented []string
+	answer        func() (int, string)
+}
+
+func (exchange *keyExchange) serve(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/auth/token" {
+			t.Errorf("unexpected call to %s", r.URL.Path)
+		}
+		exchange.keysPresented = append(exchange.keysPresented, r.Header.Get("X-API-Key"))
+		status, token := exchange.answer()
+		w.WriteHeader(status)
+		_, _ = fmt.Fprintf(w, `{"token":%q}`, token)
+	}))
+}
+
+func TestParseArgsReadsAnAPIKeyFromTheEnvironmentAndNeverFromAFlag(t *testing.T) {
+	arguments := []string{"--port=5101", "--myceliumUrl=https://localhost:7243", "--apiKey=flag-key"}
+	fromTheEnvironment, _ := parseArgs(arguments, func(name string) string {
+		return map[string]string{"ApiKey": "environment-key"}[name]
+	})
+	fromAFlag, _ := parseArgs(arguments, emptyEnvironment)
+
+	if fromTheEnvironment.APIKey != "environment-key" || fromAFlag.APIKey != "" {
+		t.Fatalf("key from the environment = %q, from a flag = %q", fromTheEnvironment.APIKey, fromAFlag.APIKey)
+	}
+}
+
+func TestAKeyIsExchangedInTheKeyHeaderAndTheTokenIsHeld(t *testing.T) {
+	minted := tokenExpiring(aMoment.Add(5 * time.Minute))
+	exchange := &keyExchange{answer: func() (int, string) { return http.StatusOK, minted }}
+	srv := exchange.serve(t)
+	defer srv.Close()
+	s := &service{cfg: config{MyceliumURL: srv.URL, APIKey: "vos_ak_example"}, client: srv.Client(), now: func() time.Time { return aMoment }}
+
+	for range 3 {
+		if token, err := s.token(); err != nil || token != minted {
+			t.Fatalf("token = %q, %v", token, err)
+		}
+	}
+
+	if len(exchange.keysPresented) != 1 || exchange.keysPresented[0] != "vos_ak_example" {
+		t.Fatalf("the key is exchanged once, in its header, and the token held; exchanges = %q", exchange.keysPresented)
+	}
+}
+
+func TestAHeldTokenIsExchangedAgainShortlyBeforeItRunsOut(t *testing.T) {
+	now := aMoment
+	lifetime := 5 * time.Minute
+	exchange := &keyExchange{answer: func() (int, string) { return http.StatusOK, tokenExpiring(now.Add(lifetime)) }}
+	srv := exchange.serve(t)
+	defer srv.Close()
+	s := &service{cfg: config{MyceliumURL: srv.URL, APIKey: "vos_ak_example"}, client: srv.Client(), now: func() time.Time { return now }}
+
+	for range 3 {
+		if _, err := s.token(); err != nil {
+			t.Fatalf("token: %v", err)
+		}
+		now = now.Add(lifetime - 20*time.Second)
+	}
+
+	if len(exchange.keysPresented) != 3 {
+		t.Fatalf("twenty seconds from running out is inside the half minute a token is replaced in; exchanges = %d", len(exchange.keysPresented))
+	}
+}
+
+func TestATokenThatStatesNoExpiryIsNotHeld(t *testing.T) {
+	exchange := &keyExchange{answer: func() (int, string) { return http.StatusOK, tokenWithClaims(`{"sub":"a-service"}`) }}
+	srv := exchange.serve(t)
+	defer srv.Close()
+	s := &service{cfg: config{MyceliumURL: srv.URL, APIKey: "vos_ak_example"}, client: srv.Client()}
+
+	if _, err := s.token(); err == nil || !strings.Contains(err.Error(), "no expiry") {
+		t.Fatalf("err = %v, want a refusal naming the missing expiry", err)
+	}
+}
+
+func TestARefusedKeySaysWhatThePlatformAnswered(t *testing.T) {
+	exchange := &keyExchange{answer: func() (int, string) { return http.StatusUnauthorized, "" }}
+	srv := exchange.serve(t)
+	defer srv.Close()
+	s := &service{cfg: config{MyceliumURL: srv.URL, APIKey: "vos_ak_example"}, client: srv.Client()}
+
+	if _, err := s.token(); err == nil || !strings.Contains(err.Error(), "401") {
+		t.Fatalf("err = %v, want the status the platform answered", err)
+	}
+}
+
+func TestAKeyIsPresentedBeforeATokenGivenBesideIt(t *testing.T) {
+	minted := tokenExpiring(aMoment.Add(5 * time.Minute))
+	exchange := &keyExchange{answer: func() (int, string) { return http.StatusOK, minted }}
+	srv := exchange.serve(t)
+	defer srv.Close()
+	s := &service{cfg: config{MyceliumURL: srv.URL, APIKey: "vos_ak_example", Token: "a-launch-token"}, client: srv.Client(), now: func() time.Time { return aMoment }}
+
+	if token, _ := s.token(); token != minted {
+		t.Fatalf("token = %q, want the one the key was exchanged for", token)
+	}
+}
+
+func TestWithNeitherAKeyNorATokenNoCallIsMadeAndTheServiceSaysSo(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls++ }))
+	defer srv.Close()
+	s := &service{cfg: config{MyceliumURL: srv.URL}, handlerID: "id", client: srv.Client()}
+
+	said := s.registration()
+
+	if calls != 0 {
+		t.Fatalf("a call carrying no credential is always refused, and %d were made", calls)
+	}
+	if !strings.Contains(said, "ApiKey") || !strings.Contains(said, "Token") {
+		t.Fatalf("the service said %q, which names neither setting", said)
+	}
+}
+
+func TestUsageNamesTheKeyAmongTheCredentials(t *testing.T) {
+	if !strings.Contains(usage, "ApiKey") {
+		t.Fatal("the usage text does not name ApiKey")
 	}
 }

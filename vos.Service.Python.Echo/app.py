@@ -37,6 +37,7 @@ class Config:
     port: int = 0
     mycelium_url: str = ""
     token: str | None = None
+    api_key: str | None = None
     verification_key: str | None = None
     issuer: str = ""
     #: This service's own name. A token addressed to anything else is refused.
@@ -50,7 +51,8 @@ def parse_args(argv: list[str], environment: Mapping[str, str] = os.environ) -> 
     on the host and is recorded by anything that logs the line a service was started with.
     """
     cfg = Config(
-        token=environment.get("Token"), verification_key=environment.get("VerificationKey"))
+        token=environment.get("Token"), api_key=environment.get("ApiKey"),
+        verification_key=environment.get("VerificationKey"))
     seen_port = seen_url = False
     for arg in argv:
         if "=" not in arg:
@@ -80,7 +82,7 @@ USAGE = (
     "[--issuer=<iss>] [--audience=<aud>]\n"
     "--issuer and --audience are required whenever a VerificationKey is set; --audience is this "
     "service's own name.\n"
-    "Credentials come from the environment, never the command line: Token, VerificationKey"
+    "Credentials come from the environment, never the command line: ApiKey, Token, VerificationKey"
 )
 
 config = parse_args(sys.argv[1:]) or Config()
@@ -89,13 +91,57 @@ mycelium_url_stored = config.mycelium_url
 requests_processed = 0
 
 
-async def _get_token() -> str:
+API_KEY_HEADER = "X-API-Key"
+
+#: A held token is exchanged again this long before it runs out.
+REPLACEMENT_LEAD = timedelta(seconds=30)
+
+_held_token: tuple[str, datetime] | None = None
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def holds_a_credential() -> bool:
+    return bool(config.api_key or config.token)
+
+
+async def _get_token(*, client: httpx.AsyncClient | None = None) -> str:
+    """The bearer for a call to Mycelium.
+
+    A key does not run out, but the token it is exchanged for lasts minutes. So the token is held
+    and the exchange repeated shortly before it runs out, rather than on every call. A key is
+    presented before a token given beside it, as the C# host does. With neither there is nothing
+    to present: Mycelium refuses a token request that carries no key, so none is made.
+    """
+    global _held_token
+    if config.api_key:
+        if _held_token is None or _held_token[1] - _now() <= REPLACEMENT_LEAD:
+            _held_token = await _exchange_the_key(client)
+        return _held_token[0]
     if config.token:
         return config.token
-    async with httpx.AsyncClient(timeout=5, verify=False) as client:
-        res = await client.post(f"{config.mycelium_url}/api/auth/token")
-        res.raise_for_status()
-        return res.json()["token"]
+    raise RuntimeError("neither ApiKey nor Token is set, so there is no credential to present to Mycelium")
+
+
+async def _exchange_the_key(client: httpx.AsyncClient | None) -> tuple[str, datetime]:
+    url = f"{config.mycelium_url}/api/auth/token"
+    headers = {API_KEY_HEADER: config.api_key}
+    if client is not None:
+        res = await client.post(url, headers=headers)
+    else:
+        async with httpx.AsyncClient(timeout=5, verify=False) as c:
+            res = await c.post(url, headers=headers)
+    if not res.is_success:
+        raise RuntimeError(f"Mycelium refused to exchange the API key ({res.status_code})")
+    token = res.json()["token"]
+    # Read, not checked: only Mycelium can check its own signature, and it does on every call.
+    expires = jwt.decode(token, options={"verify_signature": False}).get("exp")
+    if expires is None:
+        # It would be held forever and fail only once something depended on it.
+        raise RuntimeError("Mycelium exchanged the API key for a token that states no expiry")
+    return token, datetime.fromtimestamp(expires, timezone.utc)
 
 
 async def register_with_mycelium() -> bool:
@@ -123,7 +169,7 @@ async def register_with_mycelium() -> bool:
 
 
 async def _authed_post(path: str, json_body, *, client: httpx.AsyncClient | None = None) -> httpx.Response:
-    token = await _get_token()
+    token = await _get_token(client=client)
     url = f"{config.mycelium_url}{path}"
     headers = {"Authorization": f"Bearer {token}"}
     if client is not None:
@@ -160,8 +206,13 @@ async def record_observations(thing_id: str, samples: list[dict], *, client: htt
     return res.json().get("accepted", len(samples))
 
 
+def sediment_reading(thing_id: str, prop: str, value, observed_at: str) -> dict:
+    """One historical reading, with its Thing under the name the sediment route reads it by."""
+    return {"objectId": thing_id, "property": prop, "value": value, "observedAt": observed_at}
+
+
 async def deposit_sediment(readings: list[dict], *, client: httpx.AsyncClient | None = None) -> dict:
-    """Bulk-load historical readings (dicts of {thingId, property, value, observedAt}) to sealed Sapwood (202)."""
+    """Bulk-load historical readings (each a `sediment_reading`) to sealed Sapwood (202)."""
     if not readings:
         raise ValueError("at least one reading is required")
     res = await _authed_post("/api/sediment", readings, client=client)
@@ -188,7 +239,7 @@ async def subscribe(selector: dict, *, client: httpx.AsyncClient | None = None) 
 
 async def unsubscribe(subscription_id: str, *, client: httpx.AsyncClient | None = None) -> None:
     """Release a subscription (best-effort)."""
-    token = await _get_token()
+    token = await _get_token(client=client)
     headers = {"Authorization": f"Bearer {token}"}
     url = f"{config.mycelium_url}/api/subscriptions/{subscription_id}"
     if client is not None:
@@ -203,7 +254,7 @@ async def demo_subscribe(type_: str = "Battery", predicate: str = "powers", *, c
     sub = await subscribe(slice_by_type_and_traverse(type_, predicate), client=client)
     snap = sub.get("snapshot", {})
     things = snap.get("things", [])
-    names = [t.get("name") or t.get("id") for t in things]
+    names = [t.get("Name") or t.get("Id") for t in things]
     await unsubscribe(sub["subscriptionId"], client=client)
     return {
         "subscriptionId": sub["subscriptionId"],
@@ -245,11 +296,14 @@ def verify_request(request: Request) -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    try:
-        registered = await register_with_mycelium()
-        print(f"{'registered' if registered else 'failed to register'} with mycelium as {handler_id}")
-    except Exception as exc:
-        print(f"registration failed: {exc}", file=sys.stderr)
+    if not holds_a_credential():
+        print("neither ApiKey nor Token is set, so this service has not registered with mycelium")
+    else:
+        try:
+            registered = await register_with_mycelium()
+            print(f"{'registered' if registered else 'failed to register'} with mycelium as {handler_id}")
+        except Exception as exc:
+            print(f"registration failed: {exc}", file=sys.stderr)
     yield
 
 
@@ -302,17 +356,20 @@ async def demo_write_kinds(request: Request, _: None = Depends(verify_request)) 
 
     now = datetime.now(timezone.utc)
     day_ago = now - timedelta(days=1)
-    seq = await set_fact(thing_id, "status", "active")
-    await record_observation(thing_id, "temperature", 21.5, now.isoformat())
-    accepted = await record_observations(
-        thing_id, [{"property": "temperature", "value": 21.7}, {"property": "flow", "value": 3.1}]
-    )
-    deposit = await deposit_sediment(
-        [
-            {"thingId": thing_id, "property": "temperature", "value": 19.8, "observedAt": day_ago.isoformat()},
-            {"thingId": thing_id, "property": "temperature", "value": 20.4, "observedAt": (day_ago + timedelta(hours=1)).isoformat()},
-        ]
-    )
+    try:
+        seq = await set_fact(thing_id, "status", "active")
+        await record_observation(thing_id, "temperature", 21.5, now.isoformat())
+        accepted = await record_observations(
+            thing_id, [{"property": "temperature", "value": 21.7}, {"property": "flow", "value": 3.1}]
+        )
+        deposit = await deposit_sediment(
+            [
+                sediment_reading(thing_id, "temperature", 19.8, day_ago.isoformat()),
+                sediment_reading(thing_id, "temperature", 20.4, (day_ago + timedelta(hours=1)).isoformat()),
+            ]
+        )
+    except RuntimeError as refused:
+        return JSONResponse({"error": str(refused)}, status_code=500)
     return JSONResponse(
         {
             "factSequence": seq,
@@ -330,13 +387,22 @@ async def demo_subscribe_endpoint(request: Request, _: None = Depends(verify_req
         payload = await request.json()
     except Exception:
         payload = {}
-    result = await demo_subscribe(payload.get("type", "Battery"), payload.get("predicate", "powers"))
+    try:
+        result = await demo_subscribe(payload.get("type", "Battery"), payload.get("predicate", "powers"))
+    except RuntimeError as refused:
+        return JSONResponse({"error": str(refused)}, status_code=500)
     return JSONResponse(result)
+
+
+_server = None
 
 
 @app.post("/shutdown")
 def shutdown(_: None = Depends(verify_request)) -> dict:
-    # Mycelium kills the daemon in production; this only acknowledges the request.
+    # Mycelium kills a daemon it started itself. One started any other way is stopped through this
+    # route alone, and Mycelium then checks that it no longer answers.
+    if _server is not None:
+        _server.should_exit = True
     return {"message": f"Shutting down {SERVICE_NAME} microservice"}
 
 
@@ -350,7 +416,9 @@ def main() -> None:
         f"VillageOS {SERVICE_NAME} microservice — port {config.port}, "
         f"mycelium {config.mycelium_url}, auth={bool(config.verification_key)}"
     )
-    uvicorn.run(app, host="localhost", port=config.port, log_level="info")
+    global _server
+    _server = uvicorn.Server(uvicorn.Config(app, host="localhost", port=config.port, log_level="info"))
+    _server.run()
 
 
 if __name__ == "__main__":

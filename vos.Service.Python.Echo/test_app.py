@@ -293,11 +293,14 @@ def test_record_observations_empty_makes_no_call(mycelium):
 
 def test_deposit_sediment_posts_readings_and_returns_summary(mycelium):
     captured = []
-    res = _run(captured, lambda c: deposit_sediment([{"thingId": "t1", "property": "flow", "value": 1.0, "observedAt": "2026-06-19T00:00:00Z"}], client=c))
+    res = _run(captured, lambda c: deposit_sediment(
+        [appmod.sediment_reading("t1", "flow", 1.0, "2026-06-19T00:00:00Z")], client=c))
     assert res["batchId"] == "b-1"
     assert res["samples"] == 10
     assert captured[0].url.path == "/api/sediment"
-    assert "observedAt" in json.loads(captured[0].content)[0]
+    # The platform names the Thing a reading belongs to `objectId`.
+    assert json.loads(captured[0].content)[0] == {
+        "objectId": "t1", "property": "flow", "value": 1.0, "observedAt": "2026-06-19T00:00:00Z"}
 
 
 def test_deposit_sediment_empty_raises():
@@ -336,9 +339,10 @@ def _sel_handler(captured):
                 json={
                     "subscriptionId": "s-1",
                     "watermark": 42,
+                    # Things and relationships as the model routes write them, capitals included.
                     "snapshot": {
-                        "things": [{"id": "t1", "name": "Battery-1"}, {"id": "t2", "name": "Inverter-7"}],
-                        "relationships": [{"id": "r1"}],
+                        "things": [{"Id": "t1", "Name": "Battery-1"}, {"Id": "t2", "Name": "Inverter-7"}],
+                        "relationships": [{"Id": "r1"}],
                     },
                 },
             )
@@ -428,3 +432,137 @@ def test_parse_args_ignores_credentials_given_as_flags():
 
 def test_usage_tells_the_reader_to_launch_through_the_virtual_environment():
     assert ".venv/bin/python app.py" in USAGE
+
+
+from datetime import datetime, timedelta, timezone
+
+A_MOMENT = datetime(2026, 10, 2, 12, 0, tzinfo=timezone.utc)
+NOT_A_SIGNING_KEY = "k" * 32
+
+
+def token_expiring(at: datetime | None) -> str:
+    claims = {"sub": "a-service"} if at is None else {"sub": "a-service", "exp": int(at.timestamp())}
+    return jwt.encode(claims, NOT_A_SIGNING_KEY, algorithm="HS256")
+
+
+@pytest.fixture
+def holding_a_key(monkeypatch):
+    monkeypatch.setattr(appmod.config, "mycelium_url", "http://mycelium.test")
+    monkeypatch.setattr(appmod.config, "api_key", "vos_ak_example")
+    monkeypatch.setattr(appmod.config, "token", None)
+    monkeypatch.setattr(appmod, "_held_token", None)
+    clock = {"now": A_MOMENT}
+    monkeypatch.setattr(appmod, "_now", lambda: clock["now"])
+    return clock
+
+
+def exchanges_answering(captured, minted):
+    def handle(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(200, json={"token": minted()})
+
+    return handle
+
+
+def tokens_asked_for(handler, times, clock=None, between=timedelta(0)):
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+            answered = []
+            for _ in range(times):
+                answered.append(await appmod._get_token(client=c))
+                if clock is not None:
+                    clock["now"] += between
+            return answered
+
+    return asyncio.run(run())
+
+
+def test_parse_args_reads_an_api_key_from_the_environment_and_never_from_a_flag():
+    arguments = ["--port=5103", "--myceliumUrl=https://localhost:7243", "--apiKey=flag-key"]
+    assert parse_args(arguments, {"ApiKey": "environment-key"}).api_key == "environment-key"
+    assert parse_args(arguments, {}).api_key is None
+
+
+def test_a_key_is_exchanged_in_the_key_header_and_the_token_is_held(holding_a_key):
+    captured = []
+    minted = token_expiring(A_MOMENT + timedelta(minutes=5))
+
+    answered = tokens_asked_for(exchanges_answering(captured, lambda: minted), times=3)
+
+    assert answered == [minted] * 3
+    assert len(captured) == 1, "the token is held, so the key is exchanged once and not on every call"
+    assert captured[0].url.path == "/api/auth/token"
+    assert captured[0].headers["X-API-Key"] == "vos_ak_example"
+
+
+def test_a_held_token_is_exchanged_again_shortly_before_it_runs_out(holding_a_key):
+    captured = []
+    lifetime = timedelta(minutes=5)
+
+    tokens_asked_for(
+        exchanges_answering(captured, lambda: token_expiring(holding_a_key["now"] + lifetime)),
+        times=3, clock=holding_a_key, between=lifetime - timedelta(seconds=20))
+
+    assert len(captured) == 3, "twenty seconds from running out is inside the half minute a token is replaced in"
+
+
+def test_a_token_that_states_no_expiry_is_not_held(holding_a_key):
+    with pytest.raises(RuntimeError, match="no expiry"):
+        tokens_asked_for(exchanges_answering([], lambda: token_expiring(None)), times=1)
+
+
+def test_a_refused_key_says_what_the_platform_answered(holding_a_key):
+    with pytest.raises(RuntimeError, match="401"):
+        tokens_asked_for(lambda request: httpx.Response(401), times=1)
+
+
+def test_a_key_is_presented_before_a_token_given_beside_it(holding_a_key, monkeypatch):
+    monkeypatch.setattr(appmod.config, "token", "a-launch-token")
+    minted = token_expiring(A_MOMENT + timedelta(minutes=5))
+
+    assert tokens_asked_for(exchanges_answering([], lambda: minted), times=1) == [minted]
+
+
+def test_with_neither_a_key_nor_a_token_no_call_is_made_and_the_service_says_so(monkeypatch, capsys):
+    monkeypatch.setattr(appmod.config, "api_key", None)
+    monkeypatch.setattr(appmod.config, "token", None)
+    with patch("httpx.AsyncClient.request", new=AsyncMock()) as request:
+        with TestClient(app):
+            pass
+
+    assert request.await_count == 0, "a call carrying no credential is always refused"
+    said = capsys.readouterr().out
+    assert said.count("\n") == 1 and "ApiKey" in said and "Token" in said
+
+
+def test_usage_names_the_key_among_the_credentials():
+    assert "ApiKey" in USAGE
+
+
+def test_the_write_demo_answers_a_refused_write_with_what_was_refused(client):
+    with patch("app.set_fact", new=AsyncMock(side_effect=RuntimeError("fact write returned 405"))):
+        res = client.post("/demo/write-kinds", json={"thingId": "t1"})
+
+    assert res.status_code == 500
+    assert res.json() == {"error": "fact write returned 405"}
+
+
+def test_the_subscribe_demo_answers_a_refused_subscription_with_what_was_refused(client):
+    with patch("app.subscribe", new=AsyncMock(side_effect=RuntimeError("subscribe returned 403"))):
+        res = client.post("/demo/subscribe", json={})
+
+    assert res.status_code == 500
+    assert res.json() == {"error": "subscribe returned 403"}
+
+
+# A service the platform did not start is stopped through this route alone.
+
+def test_shutdown_stops_the_server_once_it_has_answered(client, monkeypatch):
+    class Serving:
+        should_exit = False
+
+    serving = Serving()
+    monkeypatch.setattr(appmod, "_server", serving)
+
+    assert client.post("/shutdown").status_code == 200
+    assert serving.should_exit is True
