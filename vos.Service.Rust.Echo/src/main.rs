@@ -1242,7 +1242,7 @@ mod tests {
         assert!(said.contains("certificate"), "{said}");
     }
 
-    // Each demo route builds its own client, so each is held to checking the certificate.
+    // Each demo route reaches the platform on its own, so each is held to checking the certificate.
     #[tokio::test]
     async fn each_demo_route_answers_a_refused_certificate_and_sends_nothing() {
         let (url, requests) = untrusted_platform().await;
