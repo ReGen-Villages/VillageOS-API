@@ -180,10 +180,8 @@ public class MyceliumClient
         return new LogDownload(fileName, await response.Content.ReadAsStreamAsync());
     }
 
-    public virtual IAsyncEnumerable<ServerSentEvent> FollowRequestsAsync(int? tail, Guid? connection, CancellationToken cancellationToken)
-        => StreamAsync(
-            $"{_myceliumUrl}/api/requests/stream{Query(("tail", tail?.ToString()), ("connection", connection?.ToString()))}",
-            cancellationToken);
+    public virtual IAsyncEnumerable<ServerSentEvent> FollowRequestsAsync(Guid? connection, CancellationToken cancellationToken)
+        => StreamAsync($"{_myceliumUrl}/api/requests/stream{Query(("connection", connection?.ToString()))}", cancellationToken);
 
     public virtual IAsyncEnumerable<ServerSentEvent> WatchEventsAsync(CancellationToken cancellationToken)
         => StreamAsync($"{_myceliumUrl}/api/events/stream", cancellationToken);

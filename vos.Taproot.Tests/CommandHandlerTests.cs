@@ -51,6 +51,8 @@ public class CommandHandlerTests
         Assert.Contains("logs follow", output);
         Assert.Contains("logs download", output);
         Assert.Contains("events watch", output);
+        Assert.Contains("requests latest", output);
+        Assert.Contains("requests show", output);
     }
 
     [Fact]
@@ -138,6 +140,19 @@ public class CommandHandlerTests
 
         Assert.DoesNotContain("Unknown command", writer.ToString());
         Assert.Contains("a line", writer.ToString());
+    }
+
+    [Fact]
+    public async Task HandleCommandAsync_Requests_IsDispatchedToTheRequestsHandler()
+    {
+        var writer = new StringWriter();
+        var handler = CreateHandler(new StringReader(""), writer);
+        _myceliumMock.Setup(c => c.GetLatestRequestsAsync(null, null)).ReturnsAsync(JsonDocument.Parse("[]").RootElement);
+
+        await handler.HandleCommandAsync("requests", "latest");
+
+        Assert.DoesNotContain("Unknown command", writer.ToString());
+        Assert.Contains("No requests in the last day.", writer.ToString());
     }
 
     [Fact]

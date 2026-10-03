@@ -77,10 +77,10 @@ public class RequestsCommandHandler
         using var window = new CancellationTokenSource(TimeSpan.FromSeconds(seconds));
         try
         {
-            await foreach (var received in _mycelium.FollowRequestsAsync(null, connection, window.Token))
+            await foreach (var received in _mycelium.FollowRequestsAsync(connection, window.Token))
             {
                 if (received.Name == RequestEvent)
-                    _writer.WriteLine(Line(JsonDocument.Parse(received.Data).RootElement));
+                    _writer.WriteLine(Line(JsonSerializer.Deserialize<JsonElement>(received.Data)));
             }
         }
         catch (OperationCanceledException) when (window.IsCancellationRequested)

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
@@ -89,7 +90,7 @@ public class RequestsCommandHandlerTests
     [Fact]
     public async Task Follow_WritesEachEntryAsItArrivesAndReturnsWhenTheStreamEnds()
     {
-        _myceliumMock.Setup(c => c.FollowRequestsAsync(null, GaugesConnectionId, It.IsAny<CancellationToken>()))
+        _myceliumMock.Setup(c => c.FollowRequestsAsync(GaugesConnectionId, It.IsAny<CancellationToken>()))
             .Returns(Events(
                 new ServerSentEvent("request", Entry(FirstRequestId).ReplaceLineEndings("")),
                 new ServerSentEvent("Heartbeat", "{}"),
@@ -100,6 +101,17 @@ public class RequestsCommandHandlerTests
         var output = _writer.ToString();
         output.Should().Contain(FirstRequestId.ToString()).And.Contain(SecondRequestId.ToString()).And.EndWith("Followed for 5 s.\n");
         output.Split('\n').Should().HaveCount(4, "two entries, the closing line and the empty remainder after it");
+    }
+
+    [Fact]
+    public async Task Follow_EndsWhenTheWindowClosesOnAStreamThatNeverEnds()
+    {
+        _myceliumMock.Setup(c => c.FollowRequestsAsync(null, It.IsAny<CancellationToken>()))
+            .Returns((Guid? _, CancellationToken token) => EndlessAfter(token, new ServerSentEvent("request", Entry(FirstRequestId).ReplaceLineEndings(""))));
+
+        await Execute("follow --for=1");
+
+        _writer.ToString().Should().Contain(FirstRequestId.ToString()).And.EndWith("Followed for 1 s.\n");
     }
 
     [Fact]
@@ -211,6 +223,13 @@ public class RequestsCommandHandlerTests
         await Execute("latest");
 
         _writer.ToString().Should().StartWith("Error: ");
+    }
+
+    private static async IAsyncEnumerable<ServerSentEvent> EndlessAfter([EnumeratorCancellation] CancellationToken token, params ServerSentEvent[] events)
+    {
+        foreach (var one in events)
+            yield return one;
+        await Task.Delay(Timeout.Infinite, token);
     }
 
     private static async IAsyncEnumerable<ServerSentEvent> Events(params ServerSentEvent[] events)

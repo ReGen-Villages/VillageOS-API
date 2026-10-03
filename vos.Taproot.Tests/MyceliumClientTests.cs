@@ -400,7 +400,7 @@ public class MyceliumClientTests
     }
 
     [Fact]
-    public async Task FollowRequestsAsync_RoutesToRequestsStreamWithTheTailAndConnectionAsked()
+    public async Task FollowRequestsAsync_RoutesToRequestsStreamWithTheConnectionAsked()
     {
         var connection = Guid.NewGuid();
         var (client, handler) = NewClient(req => req.RequestUri!.AbsolutePath == "/api/auth/token"
@@ -408,10 +408,10 @@ public class MyceliumClientTests
             : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("event: request\ndata: {}\n\n") });
 
         var received = new List<ServerSentEvent>();
-        await foreach (var one in client.FollowRequestsAsync(20, connection, CancellationToken.None))
+        await foreach (var one in client.FollowRequestsAsync(connection, CancellationToken.None))
             received.Add(one);
 
-        handler.Requests.Last().RequestUri!.PathAndQuery.Should().Be($"/api/requests/stream?tail=20&connection={connection}");
+        handler.Requests.Last().RequestUri!.PathAndQuery.Should().Be($"/api/requests/stream?connection={connection}");
         received.Should().Equal(new ServerSentEvent("request", "{}"));
     }
 
