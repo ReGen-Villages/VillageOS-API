@@ -11,7 +11,6 @@ namespace vos.Service.Shared;
 public abstract class MyceliumClientBase
 {
     private const string MyceliumRegisterRequestSchemaId = "https://villageos/contracts/mycelium-register-request.schema.json";
-    private const string TokenResponseSchemaId = "https://villageos/contracts/token-response.schema.json";
 
     private static readonly Lazy<SchemaRegistry> _registry = new(() => new SchemaRegistry());
     private static readonly SchemaValidator _validator = new();
@@ -58,54 +57,28 @@ public abstract class MyceliumClientBase
         _credential = new ServiceCredential(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey);
     }
 
+    private const string NoCredential = "neither ApiKey nor Token is set";
+
+    // A client built with a provider speaks for one model whatever else is in hand.
+    private bool HoldsACredential => _tokenProvider != null || _credential.Holds;
+
+    // Null when the service holds no credential: the platform refuses a token request that carries no
+    // key, so there is nothing to ask it for.
     public async Task<string?> GetTokenAsync()
     {
-        // A client built with a provider speaks for one model whatever else is in hand, so it is asked
-        // first: a subscription's own calls must never be re-pointed by the request a caller is inside.
+        // Asked first: a subscription's own calls must never be re-pointed by the request a caller is inside.
         if (_tokenProvider != null)
             return await _tokenProvider();
 
-        // Whatever the service holds is final, including a key whose exchange came back with nothing:
-        // asking the broker below would reach further than the credential the operator chose.
-        if (_credential.Holds)
-            return await _credential.GetTokenAsync();
-
-        string body;
-        try
-        {
-            var client = HttpClientFactory.CreateClient();
-            client.Timeout = TimeSpan.FromSeconds(5);
-
-            var response = await client.PostAsync($"{MyceliumUrl}/api/auth/token", null);
-            response.EnsureSuccessStatusCode();
-
-            body = await response.Content.ReadAsStringAsync();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to get token from mycelium");
-            return null;
-        }
-
-        // Outside the network try/catch so contract violations are not swallowed.
-        ValidateOutbound(body, TokenResponseSchemaId);
-
-        try
-        {
-            var result = JsonSerializer.Deserialize<JsonElement>(body);
-            return result.GetProperty("token").GetString();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to parse token from mycelium response");
-            return null;
-        }
+        return await _credential.GetTokenAsync();
     }
 
     protected async Task<HttpClient> CreateAuthenticatedClientAsync(TimeSpan? timeout = null)
     {
         var token = await GetTokenAsync()
-            ?? throw new InvalidOperationException("Failed to get authentication token");
+            ?? throw new InvalidOperationException(HoldsACredential
+                ? "Failed to get authentication token"
+                : $"{NoCredential}, so there is no credential to present to Mycelium");
 
         var client = HttpClientFactory.CreateClient();
         client.Timeout = timeout ?? TimeSpan.FromSeconds(5);
@@ -129,6 +102,12 @@ public abstract class MyceliumClientBase
 
         // Outside the network try/catch so schema-violation exceptions are not swallowed.
         ValidateOutbound(json, MyceliumRegisterRequestSchemaId);
+
+        if (!HoldsACredential)
+        {
+            Logger.LogWarning("{Reason}, so this service has not registered with mycelium", NoCredential);
+            return false;
+        }
 
         try
         {

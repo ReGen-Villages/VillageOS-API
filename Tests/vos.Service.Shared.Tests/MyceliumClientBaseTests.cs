@@ -6,6 +6,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Tests.Shared;
 using Xunit;
@@ -48,42 +49,17 @@ public class MyceliumClientBaseTests
         handler.Requests.Should().BeEmpty();
     }
 
+    // The platform refuses a token request that carries no key, every time, so a service holding no
+    // credential has nothing to ask for.
     [Fact]
-    public async Task GetTokenAsync_NoToken_MyceliumReturnsToken_ReturnsMyceliumToken()
+    public async Task GetTokenAsync_HoldingNoCredential_AnswersNullWithoutCallingMycelium()
     {
-        var (client, handler) = BuildClient(req =>
-        {
-            req.Method.Should().Be(HttpMethod.Post);
-            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/auth/token");
-            return JsonResponse("""{"token":"from-mycelium"}""");
-        }, serviceToken: null);
-
-        var token = await client.GetTokenAsync();
-
-        token.Should().Be("from-mycelium");
-        handler.Requests.Should().ContainSingle();
-    }
-
-    [Fact]
-    public async Task GetTokenAsync_NoToken_MyceliumReturnsError_ReturnsNull()
-    {
-        var (client, _) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError),
-            serviceToken: null);
+        var (client, handler) = BuildClient(_ => JsonResponse("""{"token":"from-mycelium"}"""), serviceToken: null);
 
         var token = await client.GetTokenAsync();
 
         token.Should().BeNull();
-    }
-
-    [Fact]
-    public async Task GetTokenAsync_NoToken_HttpThrows_ReturnsNull()
-    {
-        var (client, _) = BuildClient(_ => throw new HttpRequestException("mycelium unreachable"),
-            serviceToken: null);
-
-        var token = await client.GetTokenAsync();
-
-        token.Should().BeNull();
+        handler.Requests.Should().BeEmpty();
     }
 
     // A daemon shared by several models must call back on the model
@@ -178,14 +154,26 @@ public class MyceliumClientBaseTests
     }
 
     [Fact]
-    public async Task CreateAuthenticatedClient_NoToken_MyceliumFails_ThrowsInvalidOperationException()
+    public async Task CreateAuthenticatedClient_HoldingNoCredential_SaysNeitherIsSet()
     {
-        var (client, _) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError),
-            serviceToken: null);
+        var (client, handler) = BuildClient(_ => JsonResponse("""{"token":"from-mycelium"}"""), serviceToken: null);
 
         var act = async () => await client.CreateAuthenticatedClientPublicAsync();
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*neither ApiKey nor Token is set*");
+        handler.Requests.Should().BeEmpty();
+    }
+
+    // A key whose exchange failed is a credential the service holds, so the reason is the failure.
+    [Fact]
+    public async Task CreateAuthenticatedClient_WhenTheKeyExchangeFails_SaysTheTokenCouldNotBeHad()
+    {
+        var (client, _) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized), serviceToken: null,
+            apiKey: "vos_ak_refused");
+
+        var act = async () => await client.CreateAuthenticatedClientPublicAsync();
+
+        (await act.Should().ThrowAsync<InvalidOperationException>()).Which.Message.Should().NotContain("neither");
     }
 
     [Fact]
@@ -240,12 +228,23 @@ public class MyceliumClientBaseTests
     }
 
     [Fact]
-    public async Task RegisterAsync_TokenAcquisitionFails_ReturnsFalse()
+    public async Task RegisterAsync_HoldingNoCredential_MakesNoCallAndSaysWhy()
     {
-        // No service token + mycelium returns 500 on /api/auth/token => CreateAuthenticatedClient throws
-        // InvalidOperationException, which RegisterAsync catches.
-        var (client, _) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError),
-            serviceToken: null);
+        var logged = new RecordingLogger();
+        var (client, handler) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.OK), serviceToken: null, logger: logged);
+
+        var result = await client.RegisterAsync(7100, "Echo", "endpoint-service");
+
+        result.Should().BeFalse();
+        handler.Requests.Should().BeEmpty();
+        logged.Lines.Should().ContainSingle().Which.Should().Contain("neither ApiKey nor Token is set");
+    }
+
+    [Fact]
+    public async Task RegisterAsync_WhenTheKeyExchangeFails_ReturnsFalse()
+    {
+        var (client, _) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized), serviceToken: null,
+            apiKey: "vos_ak_refused");
 
         var result = await client.RegisterAsync(7100, "Echo", "endpoint-service");
 
@@ -325,13 +324,26 @@ public class MyceliumClientBaseTests
         Func<HttpRequestMessage, HttpResponseMessage> respond,
         string? serviceToken,
         Func<Task<string?>>? tokenProvider = null,
-        string? apiKey = null)
+        string? apiKey = null,
+        ILogger? logger = null)
     {
         var handler = new MockHttpMessageHandler(respond);
         var httpClient = new HttpClient(handler);
         var factory = new TestHttpClientFactory(httpClient);
-        var client = new TestableMyceliumClient(factory, NullLogger.Instance, MyceliumUrl, serviceToken, tokenProvider, apiKey);
+        var client = new TestableMyceliumClient(factory, logger ?? NullLogger.Instance, MyceliumUrl, serviceToken, tokenProvider, apiKey);
         return (client, handler);
+    }
+
+    private sealed class RecordingLogger : ILogger
+    {
+        public List<string> Lines { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Lines.Add(formatter(state, exception));
     }
 
     private static HttpResponseMessage JsonResponse(string body)

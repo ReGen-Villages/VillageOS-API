@@ -153,11 +153,8 @@ app.MapGet("/stats", (EndpointServiceMyceliumClient myceliumClient) => new
 });
 
 // Write-kinds demo — POST { "thingId": "..." } (see WriteKindsDemo for prerequisites).
-var writeKindsEndpoint = app.MapPost("/demo/write-kinds", async (WriteKindsDemoRequest req, EndpointServiceMyceliumClient myceliumClient) =>
-{
-    var result = await new WriteKindsDemo(myceliumClient).RunAsync(req.ThingId, DateTime.UtcNow);
-    return Results.Ok(result);
-});
+var writeKindsEndpoint = app.MapPost("/demo/write-kinds", (WriteKindsDemoRequest req, EndpointServiceMyceliumClient myceliumClient) =>
+    DemoAnswer.OfAsync(() => new WriteKindsDemo(myceliumClient).RunAsync(req.ThingId, DateTime.UtcNow)));
 if (authEnabled) writeKindsEndpoint.RequireAuthorization();
 
 // Selector demo — POST optional { "type": "...", "predicate": "..." } (defaults to Battery/powers).
@@ -167,8 +164,7 @@ var selectorEndpoint = app.MapPost("/demo/subscribe",
     var subscriptions = new SubscriptionClient(
         httpFactory, loggerFactory.CreateLogger("SelectorDemo"), myceliumUrl, serviceToken, apiKey: apiKey);
     var selector = SelectorDemo.SliceByTypeAndTraverse(req?.Type ?? "Battery", req?.Predicate ?? "powers");
-    var result = await new SelectorDemo(subscriptions).RunAsync(selector);
-    return Results.Ok(result);
+    return await DemoAnswer.OfAsync(() => new SelectorDemo(subscriptions).RunAsync(selector));
 });
 if (authEnabled) selectorEndpoint.RequireAuthorization();
 
