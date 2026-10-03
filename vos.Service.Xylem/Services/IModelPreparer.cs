@@ -27,10 +27,22 @@ public sealed class HttpModelPreparer : IModelPreparer
     {
         var token = await _credential.GetTokenAsync(ct);
 
+        var broker = _myceliumUrl.TrimEnd('/');
         var http = _httpFactory.CreateClient();
-        var req = new HttpRequestMessage(HttpMethod.Delete, $"{_myceliumUrl.TrimEnd('/')}/api/model");
+        var req = new HttpRequestMessage(HttpMethod.Delete, $"{broker}/api/model");
         if (!string.IsNullOrEmpty(token)) req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        var resp = await http.SendAsync(req, ct);
-        return resp.IsSuccessStatusCode ? null : $"Failed to clear the model for a new-model ingest ({(int)resp.StatusCode}).";
+        try
+        {
+            var resp = await http.SendAsync(req, ct);
+            return resp.IsSuccessStatusCode ? null : $"Failed to clear the model for a new-model ingest ({(int)resp.StatusCode}).";
+        }
+        catch (HttpRequestException unreachable)
+        {
+            return $"Failed to clear the model for a new-model ingest: the broker at {broker} could not be reached ({unreachable.Message}).";
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return $"Failed to clear the model for a new-model ingest: the broker at {broker} did not answer in time.";
+        }
     }
 }
