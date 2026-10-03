@@ -93,7 +93,7 @@ public class PlantCommandHandlerTests : IDisposable
 
         _myceliumMock.Setup(b => b.SetModelAsync(seedContent)).ReturnsAsync("OK");
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
-        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId, "Prop1", "FullHistory", null, null))
+        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId, "Prop1", "FullHistory", null, null, null))
             .ReturnsAsync(modeResult);
 
         await ExecuteHandler($"{seedPath} FullHistory");
@@ -117,18 +117,18 @@ public class PlantCommandHandlerTests : IDisposable
 
         _myceliumMock.Setup(b => b.SetModelAsync(seedContent)).ReturnsAsync("OK");
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
-        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId, "Prop1", "RingBuffer", 50, null))
+        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId, "Prop1", "RingBuffer", 50, null, null))
             .ReturnsAsync(modeResult);
 
         await ExecuteHandler($"{seedPath} RingBuffer --ringbuffer=50");
 
         var output = _writer.ToString();
         Assert.Contains("Ring buffer size: 50", output);
-        _myceliumMock.Verify(b => b.SetPropertyModeAsync(thingId, "Prop1", "RingBuffer", 50, null), Times.Once);
+        _myceliumMock.Verify(b => b.SetPropertyModeAsync(thingId, "Prop1", "RingBuffer", 50, null, null), Times.Once);
     }
 
     [Fact]
-    public async Task Execute_WithSampledMode_SetsSampleRate()
+    public async Task Execute_WithSampledByObservationsMode_SetsSampleRate()
     {
         var thingId = Guid.NewGuid();
         var seedContent = @"{""Id"":""00000000-0000-0000-0000-000000000001"",""Name"":""Test"",""Things"":[]}";
@@ -136,18 +136,37 @@ public class PlantCommandHandlerTests : IDisposable
 
         var thingsJson = $@"[{{""Id"":""{thingId}"",""Name"":""Thing1"",""Properties"":{{""Prop1"":{{""Value"":1}}}}}}]";
         var thingsArray = JsonSerializer.Deserialize<JsonElement>(thingsJson);
-        var modeResult = JsonSerializer.Deserialize<JsonElement>(@"{""Mode"":""Sampled""}");
+        var modeResult = JsonSerializer.Deserialize<JsonElement>(@"{""Mode"":""SampledByObservations""}");
 
         _myceliumMock.Setup(b => b.SetModelAsync(seedContent)).ReturnsAsync("OK");
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
-        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId, "Prop1", "Sampled", null, 25))
+        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId, "Prop1", "SampledByObservations", null, 25, null))
             .ReturnsAsync(modeResult);
 
-        await ExecuteHandler($"{seedPath} Sampled --samplerate=25");
+        await ExecuteHandler($"{seedPath} SampledByObservations --samplerate=25");
 
         var output = _writer.ToString();
         Assert.Contains("Sample rate: 1 in 25", output);
-        _myceliumMock.Verify(b => b.SetPropertyModeAsync(thingId, "Prop1", "Sampled", null, 25), Times.Once);
+        _myceliumMock.Verify(b => b.SetPropertyModeAsync(thingId, "Prop1", "SampledByObservations", null, 25, null), Times.Once);
+    }
+
+    [Fact]
+    public async Task Execute_WithSampledByTimeMode_SetsSampleSeconds()
+    {
+        var thingId = Guid.NewGuid();
+        var seedContent = @"{""Id"":""00000000-0000-0000-0000-000000000001"",""Name"":""Test"",""Things"":[]}";
+        var seedPath = CreateSeedFile("test.json", seedContent);
+
+        var thingsJson = $@"[{{""Id"":""{thingId}"",""Name"":""Thing1"",""Properties"":{{""Prop1"":{{""Value"":1}}}}}}]";
+        _myceliumMock.Setup(b => b.SetModelAsync(seedContent)).ReturnsAsync("OK");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(thingsJson));
+        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId, "Prop1", "SampledByTime", null, null, 60))
+            .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(@"{""Mode"":""SampledByTime""}"));
+
+        await ExecuteHandler($"{seedPath} SampledByTime --sampleseconds=60");
+
+        Assert.Contains("Sample seconds: 60", _writer.ToString());
+        _myceliumMock.Verify(b => b.SetPropertyModeAsync(thingId, "Prop1", "SampledByTime", null, null, 60), Times.Once);
     }
 
     [Fact]
@@ -167,7 +186,7 @@ public class PlantCommandHandlerTests : IDisposable
 
         _myceliumMock.Setup(b => b.SetModelAsync(seedContent)).ReturnsAsync("OK");
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
-        _myceliumMock.Setup(b => b.SetPropertyModeAsync(It.IsAny<Guid>(), It.IsAny<string>(), "CurrentOnly", null, null))
+        _myceliumMock.Setup(b => b.SetPropertyModeAsync(It.IsAny<Guid>(), It.IsAny<string>(), "CurrentOnly", null, null, null))
             .ReturnsAsync(modeResult);
 
         await ExecuteHandler($"{seedPath} CurrentOnly");
@@ -192,7 +211,7 @@ public class PlantCommandHandlerTests : IDisposable
 
         _myceliumMock.Setup(b => b.SetModelAsync(seedContent)).ReturnsAsync("OK");
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
-        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId, "Prop1", mode, null, null))
+        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId, "Prop1", mode, null, null, null))
             .ReturnsAsync(modeResult);
 
         await ExecuteHandler($"{seedPath} {mode}");
@@ -234,9 +253,9 @@ public class PlantCommandHandlerTests : IDisposable
 
         _myceliumMock.Setup(b => b.SetModelAsync(seedContent)).ReturnsAsync("OK");
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
-        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId1, "Prop1", "FullHistory", null, null))
+        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId1, "Prop1", "FullHistory", null, null, null))
             .ThrowsAsync(new Exception("Property not found"));
-        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId2, "PropA", "FullHistory", null, null))
+        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId2, "PropA", "FullHistory", null, null, null))
             .ReturnsAsync(modeResult);
 
         await ExecuteHandler($"{seedPath} FullHistory");
@@ -328,7 +347,7 @@ public class PlantCommandHandlerTests : IDisposable
 
         _myceliumMock.Setup(b => b.SetModelAsync(seedContent)).ReturnsAsync("OK");
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
-        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thing1Id, "Prop1", "FullHistory", null, null))
+        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thing1Id, "Prop1", "FullHistory", null, null, null))
             .ReturnsAsync(modeResult);
 
         await ExecuteHandler($"{seedPath} FullHistory");
@@ -355,7 +374,7 @@ public class PlantCommandHandlerTests : IDisposable
 
         await ExecuteHandler($"{seedPath} EveryOtherChange");
 
-        _myceliumMock.Verify(b => b.SetPropertyModeAsync(thingId, "flowRate", "EveryOtherChange", null, null), Times.Once);
+        _myceliumMock.Verify(b => b.SetPropertyModeAsync(thingId, "flowRate", "EveryOtherChange", null, null, null), Times.Once);
     }
 
     [Fact]
@@ -371,7 +390,7 @@ public class PlantCommandHandlerTests : IDisposable
 
         _myceliumMock.Setup(b => b.SetModelAsync(seedContent)).ReturnsAsync("OK");
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
-        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId, "Prop1", "RingBuffer", 50, null))
+        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId, "Prop1", "RingBuffer", 50, null, null))
             .ReturnsAsync(modeResult);
 
         // Args with mode and option
@@ -391,15 +410,15 @@ public class PlantCommandHandlerTests : IDisposable
 
         var thingsJson = $@"[{{""Id"":""{thingId}"",""Name"":""Thing1"",""Properties"":{{""Prop1"":{{""Value"":1}}}}}}]";
         var thingsArray = JsonSerializer.Deserialize<JsonElement>(thingsJson);
-        var modeResult = JsonSerializer.Deserialize<JsonElement>(@"{""Mode"":""Sampled""}");
+        var modeResult = JsonSerializer.Deserialize<JsonElement>(@"{""Mode"":""SampledByObservations""}");
 
         _myceliumMock.Setup(b => b.SetModelAsync(seedContent)).ReturnsAsync("OK");
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
-        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId, "Prop1", "Sampled", null, 10))
+        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId, "Prop1", "SampledByObservations", null, 10, null))
             .ReturnsAsync(modeResult);
 
         // Use uppercase option prefix
-        await ExecuteHandler($"{seedPath} Sampled --SAMPLERATE=10");
+        await ExecuteHandler($"{seedPath} SampledByObservations --SAMPLERATE=10");
 
         var output = _writer.ToString();
         Assert.Contains("Sample rate: 1 in 10", output);

@@ -213,6 +213,8 @@ export const en = {
       sampleRate: 'Sample Rate',
       ringExample: 'e.g. 100',
       sampleExample: 'e.g. 10',
+      sampleSeconds: 'Sample Interval (seconds)',
+      sampleSecondsExample: 'e.g. 60',
       updated: 'Property mode updated',
       updateFailed: 'Failed to update property mode',
       loadFailed: 'Failed to read the property mode',

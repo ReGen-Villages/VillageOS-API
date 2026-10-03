@@ -221,6 +221,8 @@ export const nl: PartialResources = {
       sampleRate: 'Bemonsteringsfrequentie',
       ringExample: 'bijv. 100',
       sampleExample: 'bijv. 10',
+      sampleSeconds: 'Bemonsteringsinterval (seconden)',
+      sampleSecondsExample: 'bijv. 60',
       updated: 'Eigenschapsmodus bijgewerkt',
       updateFailed: 'Bijwerken van eigenschapsmodus mislukt',
       loadFailed: 'Lezen van eigenschapsmodus mislukt',

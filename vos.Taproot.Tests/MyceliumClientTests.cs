@@ -1283,11 +1283,29 @@ public class MyceliumClientTests
             return JsonResponse("{}");
         });
 
-        await client.SetPropertyModeAsync(thingId, "temp", "Sampled", sampleRate: 100);
+        await client.SetPropertyModeAsync(thingId, "temp", "SampledByObservations", sampleRate: 100);
 
         var body = capturedBody!.Value;
-        body.GetProperty("Mode").GetString().Should().Be("Sampled");
+        body.GetProperty("Mode").GetString().Should().Be("SampledByObservations");
         body.GetProperty("SampleRate").GetInt32().Should().Be(100);
+        body.TryGetProperty("SampleSeconds", out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SetPropertyModeAndDefault_IncludeSampleSecondsWhenSupplied()
+    {
+        var bodies = new List<JsonElement>();
+        var (client, _) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            bodies.Add(ReadJsonBody(req));
+            return JsonResponse("{}");
+        });
+
+        await client.SetPropertyModeAsync(Guid.NewGuid(), "temp", "SampledByTime", sampleSeconds: 30);
+        await client.SetDefaultPropertyModeAsync("SampledByTime", sampleSeconds: 15);
+
+        bodies.Select(body => body.GetProperty("SampleSeconds").GetInt32()).Should().Equal(30, 15);
     }
 
     [Fact]

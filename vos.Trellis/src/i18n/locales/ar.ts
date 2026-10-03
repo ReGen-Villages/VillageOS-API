@@ -250,6 +250,8 @@ export const ar: WithArabicPluralForms<Resources> = {
       sampleRate: 'معدل أخذ العينات',
       ringExample: 'مثال: 100',
       sampleExample: 'مثال: 10',
+      sampleSeconds: 'فاصل أخذ العينات (بالثواني)',
+      sampleSecondsExample: 'مثال: 60',
       updated: 'تم تحديث وضع الخاصية',
       updateFailed: 'تعذّر تحديث وضع الخاصية',
       loadFailed: 'تعذّر قراءة وضع الخاصية',
