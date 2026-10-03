@@ -22,12 +22,12 @@ public class RequestsCommandHandlerTests
 
     private static JsonElement Parse(string json) => JsonDocument.Parse(json).RootElement;
 
-    private static string Entry(Guid id, int status = 200, long durationMs = 12, string? caller = null, Guid? subject = null) =>
+    private static string Entry(Guid id, int status = 200, long durationMilliseconds = 12, string? caller = null, Guid? subject = null) =>
         $$"""
         {"Id":"{{id}}","Time":"2026-10-03T11:15:29.123+00:00","ModelId":"{{Guid.Empty}}",
          "ConnectionId":"{{GaugesConnectionId}}","ConnectionName":"reads the gauges",
          "Caller":{{(caller is null ? "null" : $"\"{caller}\"")}},"SubjectId":{{(subject is null ? "null" : $"\"{subject}\"")}},
-         "RelationshipId":null,"Status":{{status}},"DurationMs":{{durationMs}},"BodyBytes":27,"BodyKeptBytes":0}
+         "RelationshipId":null,"Status":{{status}},"DurationMilliseconds":{{durationMilliseconds}},"BodyBytes":27,"BodyKeptBytes":0}
         """;
 
     [Fact]
@@ -44,7 +44,7 @@ public class RequestsCommandHandlerTests
     public async Task Latest_AsksForTheLimitAndConnectionGivenAndWritesALineAnEntry()
     {
         _myceliumMock.Setup(c => c.GetLatestRequestsAsync(2, GaugesConnectionId))
-            .ReturnsAsync(Parse($"[{Entry(FirstRequestId)},{Entry(SecondRequestId, status: 0, durationMs: 30000)}]"));
+            .ReturnsAsync(Parse($"[{Entry(FirstRequestId)},{Entry(SecondRequestId, status: 0, durationMilliseconds: 30000)}]"));
 
         await Execute($"latest --limit=2 --connection={GaugesConnectionId}");
 
