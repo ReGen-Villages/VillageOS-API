@@ -572,3 +572,66 @@ def test_shutdown_stops_the_server_once_it_has_answered(client, monkeypatch):
 
     assert client.post("/shutdown").status_code == 200
     assert serving.should_exit is True
+
+
+# A platform presenting a certificate this machine does not trust: what answers there may not be the
+# platform, so the key is not sent to it.
+
+import ssl
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.x509.oid import NameOID
+
+
+@pytest.fixture
+def untrusted_platform(tmp_path, monkeypatch):
+    key = ec.generate_private_key(ec.SECP256R1())
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "localhost")])
+    certificate = (
+        x509.CertificateBuilder()
+        .subject_name(name).issuer_name(name).public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.now(timezone.utc) - timedelta(minutes=1))
+        .not_valid_after(datetime.now(timezone.utc) + timedelta(hours=1))
+        .add_extension(x509.SubjectAlternativeName([x509.DNSName("localhost")]), critical=False)
+        .sign(key, hashes.SHA256())
+    )
+    (tmp_path / "certificate.pem").write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
+    (tmp_path / "key.pem").write_bytes(key.private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
+
+    received = []
+
+    class Answering(BaseHTTPRequestHandler):
+        def do_POST(self):
+            received.append((self.path, self.headers.get("X-API-Key")))
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b'{"token": "never"}')
+
+        def log_message(self, *_):
+            pass
+
+    server = HTTPServer(("localhost", 0), Answering)
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(tmp_path / "certificate.pem", tmp_path / "key.pem")
+    server.socket = context.wrap_socket(server.socket, server_side=True)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+
+    monkeypatch.setattr(appmod.config, "mycelium_url", f"https://localhost:{server.server_address[1]}")
+    monkeypatch.setattr(appmod.config, "api_key", "vos_ak_example")
+    monkeypatch.setattr(appmod.config, "token", None)
+    monkeypatch.setattr(appmod, "_held_token", None)
+    yield received
+    server.shutdown()
+    server.server_close()
+
+
+def test_a_key_is_not_sent_to_a_platform_whose_certificate_the_machine_does_not_trust(untrusted_platform):
+    with pytest.raises(httpx.ConnectError, match="(?i)certificate"):
+        asyncio.run(appmod._get_token())
+
+    assert untrusted_platform == [], "the key reached a server whose certificate nothing vouches for"
