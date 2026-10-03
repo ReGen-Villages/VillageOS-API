@@ -240,6 +240,30 @@ public class MyceliumClientBaseTests
         logged.Lines.Should().ContainSingle().Which.Should().Contain("neither ApiKey nor Token is set");
     }
 
+    // A client built with a token provider holds a credential even when it was launched with none.
+    [Fact]
+    public async Task RegisterAsync_WithOnlyATokenProvider_Registers()
+    {
+        var (client, handler) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.OK), serviceToken: null,
+            tokenProvider: () => Task.FromResult<string?>("from-the-provider"));
+
+        var result = await client.RegisterAsync(7100, "Echo", "endpoint-service");
+
+        result.Should().BeTrue();
+        handler.Requests.Should().ContainSingle().Which.Headers.Authorization!.Parameter.Should().Be("from-the-provider");
+    }
+
+    [Fact]
+    public async Task CreateAuthenticatedClient_WhenOnlyATokenProviderAnswersNothing_SaysTheTokenCouldNotBeHad()
+    {
+        var (client, _) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.OK), serviceToken: null,
+            tokenProvider: () => Task.FromResult<string?>(null));
+
+        var act = async () => await client.CreateAuthenticatedClientPublicAsync();
+
+        (await act.Should().ThrowAsync<InvalidOperationException>()).Which.Message.Should().NotContain("neither");
+    }
+
     [Fact]
     public async Task RegisterAsync_WhenTheKeyExchangeFails_ReturnsFalse()
     {

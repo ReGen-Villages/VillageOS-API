@@ -191,3 +191,6 @@ finally
 {
     Log.CloseAndFlush();
 }
+
+// Exposed to WebApplicationFactory<Program> in the test project per docs/SERVICES.md.
+public partial class Program { }
