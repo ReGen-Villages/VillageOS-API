@@ -7,7 +7,9 @@ vi.mock('../api/modelApi', () => ({ modelApi: { applyFragment: vi.fn().mockResol
 vi.mock('../api/thingApi', () => ({ thingApi: { create: vi.fn(), addProperty: vi.fn(), setProperty: vi.fn(), remove: vi.fn() } }));
 vi.mock('../api/relationshipApi', () => ({ relationshipApi: { create: vi.fn(), setProperty: vi.fn(), remove: vi.fn() } }));
 
+import { MemoryRouter } from 'react-router-dom';
 import { useModelStore } from '../stores/modelStore';
+import { ARCHETYPE_FLAG } from '../pipeline/model';
 import { catalystFixture } from '../pipeline/catalysts.test.fixture';
 import { installResizeObserverDouble } from '../testResizeObserver';
 import { PipelinePage } from './PipelinePage';
@@ -52,6 +54,32 @@ describe('PipelinePage', () => {
     expect(screen.getByRole('list', { name: 'What stops this pipeline running' }))
       .toHaveTextContent("'From the office' is where this pipeline starts and stands for 'Reporting office', which starts nothing");
     expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled();
+  });
+
+  it('links a run chosen from the history to the request it started from, and a run no request started to nothing', async () => {
+    const { things, relationships, id } = catalystFixture();
+    const relate = (subject: string, predicate: string, target: string) =>
+      relationships.push({ Id: `${subject}-${predicate}-${target}`, Name: '', SubjectId: subject, PredicateId: predicate, TargetId: target, Properties: {} });
+    things.push(
+      { Id: 'of', Name: 'of', Properties: {} },
+      { Id: 'run-kind', Name: 'Execution', IsArchetype: true, Properties: { [ARCHETYPE_FLAG.PipelineRun]: true } },
+      { Id: 'from-a-door', Name: 'run 1', Properties: { status: 'succeeded', startedUtc: '2026-10-03T11:00:00Z', requestId: 'r-door' } },
+      { Id: 'by-hand', Name: 'run 2', Properties: { status: 'failed', startedUtc: '2026-10-03T12:00:00Z' } },
+    );
+    for (const run of ['from-a-door', 'by-hand']) {
+      relate(run, id.is, 'run-kind');
+      relate(run, 'of', id.digest);
+    }
+    useModelStore.setState({ things, relationships, loaded: true });
+
+    render(<MemoryRouter><PipelinePage /></MemoryRouter>);
+    const history = await screen.findByRole('combobox', { name: 'Run history' });
+
+    fireEvent.change(history, { target: { value: 'by-hand' } });
+    expect(screen.queryByRole('link', { name: /Request/ })).toBeNull();
+
+    fireEvent.change(history, { target: { value: 'from-a-door' } });
+    expect(screen.getByRole('link', { name: /Request/ })).toHaveAttribute('href', '/requests?entry=r-door');
   });
 
   it('names a new pipeline from the roster and leaves the canvas empty for it', async () => {
