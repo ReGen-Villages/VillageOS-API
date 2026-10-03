@@ -28,7 +28,6 @@ export type RequestLookup =
   | { kind: 'noLongerKept' }
   | { kind: 'notShown' };
 
-/** The query parameter narrowing the log to one connection, or nothing where none is named. */
 export function connectionParameter(connection: string | undefined): string {
   return connection ? `connection=${encodeURIComponent(connection)}` : '';
 }
