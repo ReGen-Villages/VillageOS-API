@@ -106,6 +106,7 @@ def platform_client(timeout: float) -> httpx.AsyncClient:
     """
     return httpx.AsyncClient(timeout=timeout, verify=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT))
 
+
 _held_token: tuple[str, datetime] | None = None
 
 

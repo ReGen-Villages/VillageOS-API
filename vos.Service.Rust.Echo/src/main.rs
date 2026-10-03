@@ -1019,6 +1019,45 @@ mod tests {
         assert_eq!(calls[1].0, "/api/subscriptions/s-1");
     }
 
+    // ---- The demo routes, on the client the service holds ----
+
+    async fn answered(answer: Response) -> (StatusCode, Value) {
+        let status = answer.status();
+        let body = axum::body::to_bytes(answer.into_body(), usize::MAX).await.unwrap();
+        (status, serde_json::from_slice(&body).unwrap())
+    }
+
+    #[tokio::test]
+    async fn the_write_kinds_route_makes_each_write_and_answers_what_the_platform_said() {
+        let cap: Captured = Arc::new(Mutex::new(Vec::new()));
+        let state = Arc::new(AppState::serving(test_cfg(spawn_mock(cap.clone()).await)));
+        let thing: DemoReq = serde_json::from_value(json!({ "thingId": "t1" })).unwrap();
+
+        let (status, said) = answered(demo_write_kinds(State(state), Some(Json(thing))).await).await;
+
+        assert_eq!(status, StatusCode::OK, "{said}");
+        assert_eq!(said, json!({ "factSequence": 42, "observationsAccepted": 3, "sedimentBatchId": "b-1", "sedimentSamples": 10 }));
+        assert_eq!(cap.lock().unwrap().len(), 4);
+    }
+
+    #[tokio::test]
+    async fn the_subscribe_route_answers_the_slice_and_gives_the_subscription_up() {
+        let cap: Cap = Arc::new(Mutex::new(Vec::new()));
+        let app = Router::new().fallback(sub_mock).with_state(cap.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let state = Arc::new(AppState::serving(test_cfg(format!("http://{addr}"))));
+
+        let (status, said) = answered(demo_subscribe(State(state), None).await).await;
+
+        assert_eq!(status, StatusCode::OK, "{said}");
+        assert_eq!(said["subscriptionId"], "s-1");
+        assert_eq!(said["thingNames"], json!(["Battery-1", "t2"]));
+        let calls = cap.lock().unwrap();
+        assert_eq!(calls.last().unwrap().0, "/api/subscriptions/s-1", "the subscription was left open");
+    }
+
     // ---- Presenting a key ----
 
     use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -1292,9 +1331,9 @@ mod tests {
             demo_write_kinds(State(state.clone()), Some(Json(thing))).await,
             demo_subscribe(State(state.clone()), None).await,
         ] {
-            assert_eq!(answer.status(), StatusCode::INTERNAL_SERVER_ERROR);
-            let body = axum::body::to_bytes(answer.into_body(), usize::MAX).await.unwrap();
-            assert!(String::from_utf8_lossy(&body).contains("certificate"), "{}", String::from_utf8_lossy(&body));
+            let (status, said) = answered(answer).await;
+            assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+            assert!(said["error"].as_str().unwrap().contains("certificate"), "{said}");
         }
         assert_eq!(requests.load(Ordering::SeqCst), 0, "the token reached a server whose certificate nothing vouches for");
     }

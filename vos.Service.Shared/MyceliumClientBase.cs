@@ -59,11 +59,11 @@ public abstract class MyceliumClientBase
 
     private const string NoCredential = "neither ApiKey nor Token is set";
 
-    // A client built with a provider speaks for one model whatever else is in hand.
+    // A token provider is a credential of the client's own, whatever the service was launched with.
     private bool HoldsACredential => _tokenProvider != null || _credential.Holds;
 
-    // Null when the service holds no credential: the platform refuses a token request that carries no
-    // key, so there is nothing to ask it for.
+    // Null when the service holds no credential, and when the one it holds yields no token. The platform
+    // refuses a token request that carries no key, so none is made.
     public async Task<string?> GetTokenAsync()
     {
         // Asked first: a subscription's own calls must never be re-pointed by the request a caller is inside.
