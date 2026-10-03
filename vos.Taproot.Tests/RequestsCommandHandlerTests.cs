@@ -66,6 +66,17 @@ public class RequestsCommandHandlerTests
     }
 
     [Fact]
+    public async Task Latest_NamingAConnectionTheModelDoesNotHold_SaysSoAndAsksNothing()
+    {
+        _myceliumMock.Setup(c => c.GetAllThingsAsync()).ReturnsAsync(Parse("[]"));
+
+        await Execute("latest --connection=gauges");
+
+        _writer.ToString().Should().Be("Error: No thing found with name 'gauges'.\n");
+        _myceliumMock.Verify(c => c.GetLatestRequestsAsync(It.IsAny<int?>(), It.IsAny<Guid?>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Latest_WhenTheLastDayHoldsNothing_SaysSo()
     {
         _myceliumMock.Setup(c => c.GetLatestRequestsAsync(null, null)).ReturnsAsync(Parse("[]"));

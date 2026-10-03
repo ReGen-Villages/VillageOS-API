@@ -171,8 +171,7 @@ public class RequestsCommandHandler
     private static string TimeOf(JsonElement entry) =>
         entry.GetProperty("Time").GetDateTimeOffset().UtcDateTime.ToString(TimeFormat);
 
-    private static long DurationOf(JsonElement entry) =>
-        entry.TryGetProperty("DurationMs", out var duration) && duration.ValueKind == JsonValueKind.Number ? duration.GetInt64() : 0;
+    private static long DurationOf(JsonElement entry) => entry.GetProperty("DurationMs").GetInt64();
 
     private void ShowUsage()
     {
