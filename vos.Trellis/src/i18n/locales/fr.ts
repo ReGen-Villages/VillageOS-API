@@ -221,6 +221,8 @@ export const fr: PartialResources = {
       sampleRate: 'Fréquence d’échantillonnage',
       ringExample: 'p. ex. 100',
       sampleExample: 'p. ex. 10',
+      sampleSeconds: 'Intervalle d’échantillonnage (secondes)',
+      sampleSecondsExample: 'p. ex. 60',
       updated: 'Mode de propriété mis à jour',
       updateFailed: 'Échec de la mise à jour du mode de propriété',
       loadFailed: 'Échec de la lecture du mode de propriété',

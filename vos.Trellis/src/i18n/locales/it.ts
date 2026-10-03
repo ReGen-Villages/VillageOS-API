@@ -221,6 +221,8 @@ export const it: PartialResources = {
       sampleRate: 'Frequenza di campionamento',
       ringExample: 'es. 100',
       sampleExample: 'es. 10',
+      sampleSeconds: 'Intervallo di campionamento (secondi)',
+      sampleSecondsExample: 'es. 60',
       updated: 'Modalità proprietà aggiornata',
       updateFailed: 'Impossibile aggiornare la modalità proprietà',
       loadFailed: 'Impossibile leggere la modalità proprietà',

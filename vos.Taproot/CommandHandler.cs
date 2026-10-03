@@ -84,8 +84,8 @@ namespace vos.Taproot
             _writer.WriteLine("  seed [file]                                 - Alias for serialize");
             _writer.WriteLine("  deserialize <file>                          - Deserialize model from JSON file");
             _writer.WriteLine("  plant <file> [mode] [options]               - Load seed and set property modes");
-            _writer.WriteLine("    Modes: CurrentOnly, RingBuffer, Sampled, FullHistory");
-            _writer.WriteLine("    Options: --ringbuffer=N, --samplerate=N");
+            _writer.WriteLine("    Modes: FullHistory, RingBuffer, SampledByObservations, SampledByTime, CurrentOnly");
+            _writer.WriteLine("    Options: --ringbuffer=N, --samplerate=N, --sampleseconds=N");
             _writer.WriteLine("  apply <file.json>                           - Upsert a fragment (Things + Relationships) into the live model");
             _writer.WriteLine("  ingest <file.ifc> [--new] [--url=<url>]     - Upload an IFC to the Xylem service to build/merge the model");
             _writer.WriteLine("  pwd                                         - Show current directory");

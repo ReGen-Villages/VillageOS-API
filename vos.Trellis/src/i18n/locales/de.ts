@@ -221,6 +221,8 @@ export const de: PartialResources = {
       sampleRate: 'Abtastrate',
       ringExample: 'z. B. 100',
       sampleExample: 'z. B. 10',
+      sampleSeconds: 'Abtastintervall (Sekunden)',
+      sampleSecondsExample: 'z. B. 60',
       updated: 'Eigenschaftsmodus aktualisiert',
       updateFailed: 'Eigenschaftsmodus konnte nicht aktualisiert werden',
       loadFailed: 'Eigenschaftsmodus konnte nicht gelesen werden',

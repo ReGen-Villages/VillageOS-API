@@ -221,6 +221,8 @@ export const es: PartialResources = {
       sampleRate: 'Frecuencia de muestreo',
       ringExample: 'p. ej. 100',
       sampleExample: 'p. ej. 10',
+      sampleSeconds: 'Intervalo de muestreo (segundos)',
+      sampleSecondsExample: 'p. ej. 60',
       updated: 'Modo de propiedad actualizado',
       updateFailed: 'No se pudo actualizar el modo de propiedad',
       loadFailed: 'No se pudo leer el modo de propiedad',

@@ -673,12 +673,11 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    public virtual async Task<JsonElement> SetDefaultPropertyModeAsync(string mode, int? ringBufferSize = null, int? sampleRate = null)
+    public virtual async Task<JsonElement> SetDefaultPropertyModeAsync(
+        string mode, int? ringBufferSize = null, int? sampleRate = null, int? sampleSeconds = null)
     {
         await SetAuthHeaderAsync();
-        var payload = new Dictionary<string, object?> { ["Mode"] = mode };
-        if (ringBufferSize.HasValue) payload["RingBufferSize"] = ringBufferSize.Value;
-        if (sampleRate.HasValue) payload["SampleRate"] = sampleRate.Value;
+        var payload = ModePayload(mode, ringBufferSize, sampleRate, sampleSeconds);
 
         var content = new StringContent(
             JsonSerializer.Serialize(payload),
@@ -689,6 +688,15 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
+    private static Dictionary<string, object?> ModePayload(string mode, int? ringBufferSize, int? sampleRate, int? sampleSeconds)
+    {
+        var payload = new Dictionary<string, object?> { ["Mode"] = mode };
+        if (ringBufferSize.HasValue) payload["RingBufferSize"] = ringBufferSize.Value;
+        if (sampleRate.HasValue) payload["SampleRate"] = sampleRate.Value;
+        if (sampleSeconds.HasValue) payload["SampleSeconds"] = sampleSeconds.Value;
+        return payload;
+    }
+
     public virtual async Task<JsonElement> GetPropertyModeAsync(Guid thingId, string propertyName)
     {
         await SetAuthHeaderAsync();
@@ -697,12 +705,11 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    public virtual async Task<JsonElement> SetPropertyModeAsync(Guid thingId, string propertyName, string mode, int? ringBufferSize = null, int? sampleRate = null)
+    public virtual async Task<JsonElement> SetPropertyModeAsync(
+        Guid thingId, string propertyName, string mode, int? ringBufferSize = null, int? sampleRate = null, int? sampleSeconds = null)
     {
         await SetAuthHeaderAsync();
-        var payload = new Dictionary<string, object?> { ["Mode"] = mode };
-        if (ringBufferSize.HasValue) payload["RingBufferSize"] = ringBufferSize.Value;
-        if (sampleRate.HasValue) payload["SampleRate"] = sampleRate.Value;
+        var payload = ModePayload(mode, ringBufferSize, sampleRate, sampleSeconds);
 
         var content = new StringContent(
             JsonSerializer.Serialize(payload),
