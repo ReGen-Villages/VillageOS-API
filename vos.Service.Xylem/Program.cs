@@ -105,12 +105,12 @@ try
                 return Results.BadRequest(new { error = written == 0 ? "No IFC content uploaded." : "File exceeds the upload limit." });
             }
 
-            var job = jobs.Start(async serviceStopping =>
+            var jobId = jobs.Start(async serviceStopping =>
             {
                 try { return await handler.IngestAsync(name, mode, temp, serviceStopping); }
                 finally { if (File.Exists(temp)) File.Delete(temp); }
             });
-            return Results.Accepted($"/ingest/jobs/{job.Id}", new { jobId = job.Id, status = "running" });
+            return Results.Accepted($"/ingest/jobs/{jobId}", new { jobId, status = "running" });
         }
 
         // A caller that has gone and a service that is stopping both end the run. Either would otherwise

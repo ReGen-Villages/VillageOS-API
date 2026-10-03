@@ -25,16 +25,16 @@ public sealed class IngestJobStore : IHostedService
     private readonly object _gate = new();
     private bool _stopping;
 
-    public IngestJob Start(Func<CancellationToken, Task<IngestResult>> ingest)
+    public string Start(Func<CancellationToken, Task<IngestResult>> ingest)
     {
-        var job = new IngestJob(Guid.NewGuid().ToString("N"), IngestJobStatus.Running, null);
-        _jobs[job.Id] = job;
+        var id = Guid.NewGuid().ToString("N");
+        _jobs[id] = new IngestJob(id, IngestJobStatus.Running, null);
         lock (_gate)
         {
-            if (_stopping) Complete(job.Id, StoppedWithTheService);
-            else _running[job.Id] = Task.Run(() => RunAsync(job.Id, ingest));
+            if (_stopping) Complete(id, StoppedWithTheService);
+            else _running[id] = Task.Run(() => RunAsync(id, ingest));
         }
-        return job;
+        return id;
     }
 
     public IngestJob? Get(string id) => _jobs.TryGetValue(id, out var job) ? job : null;

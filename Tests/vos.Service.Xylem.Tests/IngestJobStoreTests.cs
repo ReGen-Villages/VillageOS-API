@@ -13,13 +13,13 @@ public class IngestJobStoreTests
         var store = new IngestJobStore();
         var answer = new TaskCompletionSource<IngestResult>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var job = store.Start(_ => answer.Task);
+        var jobId =store.Start(_ => answer.Task);
 
-        job.Id.Should().NotBeNullOrWhiteSpace();
-        store.Get(job.Id)!.Status.Should().Be(IngestJobStatus.Running);
+        jobId.Should().NotBeNullOrWhiteSpace();
+        store.Get(jobId)!.Status.Should().Be(IngestJobStatus.Running);
         answer.SetResult(IngestResult.Ok(5, 1, 3));
-        await Settle.UntilAsync(() => store.Get(job.Id)!.Status == IngestJobStatus.Succeeded, "the job succeeds");
-        store.Get(job.Id)!.Result!.ThingsCreated.Should().Be(5);
+        await Settle.UntilAsync(() => store.Get(jobId)!.Status == IngestJobStatus.Succeeded, "the job succeeds");
+        store.Get(jobId)!.Result!.ThingsCreated.Should().Be(5);
     }
 
     [Fact]
@@ -27,10 +27,10 @@ public class IngestJobStoreTests
     {
         var store = new IngestJobStore();
 
-        var job = store.Start(_ => Task.FromResult(IngestResult.Failed("boom")));
+        var jobId =store.Start(_ => Task.FromResult(IngestResult.Failed("boom")));
 
-        await Settle.UntilAsync(() => store.Get(job.Id)!.Status == IngestJobStatus.Failed, "the job fails");
-        store.Get(job.Id)!.Result!.Error.Should().Be("boom");
+        await Settle.UntilAsync(() => store.Get(jobId)!.Status == IngestJobStatus.Failed, "the job fails");
+        store.Get(jobId)!.Result!.Error.Should().Be("boom");
     }
 
     [Fact]
@@ -38,10 +38,10 @@ public class IngestJobStoreTests
     {
         var store = new IngestJobStore();
 
-        var job = store.Start(_ => throw new InvalidOperationException("the tool could not start"));
+        var jobId =store.Start(_ => throw new InvalidOperationException("the tool could not start"));
 
-        await Settle.UntilAsync(() => store.Get(job.Id)!.Status == IngestJobStatus.Failed, "the job fails");
-        store.Get(job.Id)!.Result!.Error.Should().Be("the tool could not start");
+        await Settle.UntilAsync(() => store.Get(jobId)!.Status == IngestJobStatus.Failed, "the job fails");
+        store.Get(jobId)!.Result!.Error.Should().Be("the tool could not start");
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public class IngestJobStoreTests
         var store = new IngestJobStore();
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var ended = false;
-        var job = store.Start(async serviceStopping =>
+        var jobId =store.Start(async serviceStopping =>
         {
             try
             {
@@ -69,7 +69,7 @@ public class IngestJobStoreTests
         await store.StopAsync(CancellationToken.None);
 
         ended.Should().BeTrue();
-        store.Get(job.Id)!.Result.Should().Be(IngestJobStore.StoppedWithTheService);
+        store.Get(jobId)!.Result.Should().Be(IngestJobStore.StoppedWithTheService);
     }
 
     [Fact]
@@ -79,14 +79,14 @@ public class IngestJobStoreTests
         await store.StopAsync(CancellationToken.None);
         var ran = false;
 
-        var job = store.Start(_ =>
+        var jobId =store.Start(_ =>
         {
             ran = true;
             return Task.FromResult(IngestResult.Ok(1, 0, 0));
         });
 
         ran.Should().BeFalse();
-        store.Get(job.Id)!.Result.Should().Be(IngestJobStore.StoppedWithTheService);
+        store.Get(jobId)!.Result.Should().Be(IngestJobStore.StoppedWithTheService);
     }
 
     [Fact]
