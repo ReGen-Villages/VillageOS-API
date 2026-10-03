@@ -630,6 +630,21 @@ def untrusted_platform(tmp_path, monkeypatch):
     server.server_close()
 
 
+@pytest.mark.parametrize("call", [
+    lambda: appmod.register_with_mycelium(),
+    lambda: appmod.set_fact("t1", "status", "active"),
+    lambda: appmod.unsubscribe("s-1"),
+], ids=["registration", "a write", "an unsubscribe"])
+def test_a_token_is_not_sent_to_a_platform_whose_certificate_the_machine_does_not_trust(untrusted_platform, monkeypatch, call):
+    monkeypatch.setattr(appmod.config, "api_key", None)
+    monkeypatch.setattr(appmod.config, "token", "a-launch-token")
+
+    with pytest.raises(httpx.ConnectError, match="(?i)certificate"):
+        asyncio.run(call())
+
+    assert untrusted_platform == [], "the token reached a server whose certificate nothing vouches for"
+
+
 def test_the_demo_routes_answer_a_refused_connection_with_why(client, untrusted_platform):
     writes = client.post("/demo/write-kinds", json={"thingId": "t1"})
     subscription = client.post("/demo/subscribe", json={})
