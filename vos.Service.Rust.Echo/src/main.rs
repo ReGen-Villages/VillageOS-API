@@ -233,6 +233,19 @@ fn platform_client() -> reqwest::Result<reqwest::Client> {
     reqwest::Client::builder().build()
 }
 
+/// A failed call with every cause beneath it. The outermost says only that the request could not be
+/// sent; why — a certificate refused, a connection refused — is further down.
+fn reason_of(failure: reqwest::Error) -> String {
+    let mut reason = failure.to_string();
+    let mut cause = std::error::Error::source(&failure);
+    while let Some(beneath) = cause {
+        reason.push_str(": ");
+        reason.push_str(&beneath.to_string());
+        cause = beneath.source();
+    }
+    reason
+}
+
 async fn get_token(cfg: &Config, http: &reqwest::Client) -> Result<String, String> {
     let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |since| since.as_secs());
     token_at(cfg, http, now).await
@@ -254,7 +267,7 @@ async fn token_at(cfg: &Config, http: &reqwest::Client, now_seconds: u64) -> Res
         .header("X-API-Key", api_key)
         .send()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(reason_of)?;
     if !resp.status().is_success() {
         return Err(format!("mycelium refused to exchange the API key ({})", resp.status().as_u16()));
     }
@@ -309,7 +322,7 @@ async fn register(state: &AppState, http: &reqwest::Client) -> Result<(), String
         .send()
         .await
         .and_then(reqwest::Response::error_for_status)
-        .map_err(|e| e.to_string())?;
+        .map_err(reason_of)?;
     Ok(())
 }
 
@@ -358,7 +371,7 @@ fn enc(s: &str) -> String {
 async fn set_fact(cfg: &Config, http: &reqwest::Client, thing_id: &str, property: &str, value: Value) -> Result<i64, String> {
     let token = get_token(cfg, http).await?;
     let url = format!("{}/api/things/{}/properties/{}/facts", cfg.mycelium_url, thing_id, enc(property));
-    let resp = http.post(url).bearer_auth(token).json(&json!({ "value": value })).send().await.map_err(|e| e.to_string())?;
+    let resp = http.post(url).bearer_auth(token).json(&json!({ "value": value })).send().await.map_err(reason_of)?;
     if resp.status().as_u16() != 201 {
         return Err(format!("fact write returned {}", resp.status()));
     }
@@ -374,7 +387,7 @@ async fn record_observation(cfg: &Config, http: &reqwest::Client, thing_id: &str
         body["observedAt"] = json!(at);
     }
     let url = format!("{}/api/things/{}/properties/{}/observations", cfg.mycelium_url, thing_id, enc(property));
-    let resp = http.post(url).bearer_auth(token).json(&body).send().await.map_err(|e| e.to_string())?;
+    let resp = http.post(url).bearer_auth(token).json(&body).send().await.map_err(reason_of)?;
     if !resp.status().is_success() {
         return Err(format!("observation write returned {}", resp.status()));
     }
@@ -388,7 +401,7 @@ async fn record_observations(cfg: &Config, http: &reqwest::Client, thing_id: &st
     }
     let token = get_token(cfg, http).await?;
     let url = format!("{}/api/things/{}/observations", cfg.mycelium_url, thing_id);
-    let resp = http.post(url).bearer_auth(token).json(&samples).send().await.map_err(|e| e.to_string())?;
+    let resp = http.post(url).bearer_auth(token).json(&samples).send().await.map_err(reason_of)?;
     if !resp.status().is_success() {
         return Err(format!("observation batch returned {}", resp.status()));
     }
@@ -403,7 +416,7 @@ async fn deposit_sediment(cfg: &Config, http: &reqwest::Client, readings: &[Sedi
     }
     let token = get_token(cfg, http).await?;
     let url = format!("{}/api/sediment", cfg.mycelium_url);
-    let resp = http.post(url).bearer_auth(token).json(&readings).send().await.map_err(|e| e.to_string())?;
+    let resp = http.post(url).bearer_auth(token).json(&readings).send().await.map_err(reason_of)?;
     if !resp.status().is_success() {
         return Err(format!("sediment deposit returned {}", resp.status()));
     }
@@ -528,7 +541,7 @@ fn slice_by_type_and_traverse(type_: &str, predicate: &str) -> Selector {
 async fn subscribe(cfg: &Config, http: &reqwest::Client, selector: &Selector) -> Result<SubscribeResult, String> {
     let token = get_token(cfg, http).await?;
     let url = format!("{}/api/subscriptions", cfg.mycelium_url);
-    let resp = http.post(url).bearer_auth(token).json(selector).send().await.map_err(|e| e.to_string())?;
+    let resp = http.post(url).bearer_auth(token).json(selector).send().await.map_err(reason_of)?;
     if !resp.status().is_success() {
         return Err(format!("subscribe returned {}", resp.status()));
     }
@@ -1218,6 +1231,6 @@ mod tests {
         let refusal = token_at(&cfg, &platform_client().unwrap(), A_MOMENT).await.unwrap_err();
 
         assert_eq!(requests.load(Ordering::SeqCst), 0, "the key reached a server whose certificate nothing vouches for");
-        assert!(refusal.contains("error sending request"), "{refusal}");
+        assert!(refusal.contains("certificate"), "the refusal does not say the certificate was refused: {refusal}");
     }
 }

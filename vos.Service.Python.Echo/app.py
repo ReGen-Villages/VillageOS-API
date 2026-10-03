@@ -374,7 +374,7 @@ async def demo_write_kinds(request: Request, _: None = Depends(verify_request)) 
                 sediment_reading(thing_id, "temperature", 20.4, (day_ago + timedelta(hours=1)).isoformat()),
             ]
         )
-    except RuntimeError as refused:
+    except (RuntimeError, httpx.HTTPError) as refused:
         return JSONResponse({"error": str(refused)}, status_code=500)
     return JSONResponse(
         {
@@ -395,7 +395,7 @@ async def demo_subscribe_endpoint(request: Request, _: None = Depends(verify_req
         payload = {}
     try:
         result = await demo_subscribe(payload.get("type", "Battery"), payload.get("predicate", "powers"))
-    except RuntimeError as refused:
+    except (RuntimeError, httpx.HTTPError) as refused:
         return JSONResponse({"error": str(refused)}, status_code=500)
     return JSONResponse(result)
 

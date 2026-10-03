@@ -630,6 +630,15 @@ def untrusted_platform(tmp_path, monkeypatch):
     server.server_close()
 
 
+def test_the_demo_routes_answer_a_refused_connection_with_why(client, untrusted_platform):
+    writes = client.post("/demo/write-kinds", json={"thingId": "t1"})
+    subscription = client.post("/demo/subscribe", json={})
+
+    for answer in (writes, subscription):
+        assert answer.status_code == 500
+        assert "certificate" in answer.json()["error"].lower()
+
+
 def test_a_key_is_not_sent_to_a_platform_whose_certificate_the_machine_does_not_trust(untrusted_platform):
     with pytest.raises(httpx.ConnectError, match="(?i)certificate"):
         asyncio.run(appmod._get_token())
