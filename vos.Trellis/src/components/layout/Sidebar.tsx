@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Network, LayoutDashboard, Gauge, Clock, Search, Boxes, Box, ClipboardList, Inbox, Workflow, Terminal, Table2, LayoutTemplate, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Network, LayoutDashboard, Gauge, Clock, Search, Boxes, Box, ClipboardList, Inbox, Workflow, Terminal, ArrowLeftRight, Table2, LayoutTemplate, ChevronLeft, ChevronRight } from 'lucide-react';
 import { DynamicIcon, iconNames, type IconName } from 'lucide-react/dynamic';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
@@ -29,6 +29,7 @@ const links = [
   { to: '/things', icon: Boxes, labelKey: 'navigation.things' },
   { to: '/properties', icon: Search, labelKey: 'navigation.properties' },
   { to: '/logs', icon: Terminal, labelKey: 'navigation.logs' },
+  { to: '/requests', icon: ArrowLeftRight, labelKey: 'navigation.requests' },
 ] as const;
 
 export function Sidebar() {

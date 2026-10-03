@@ -29,6 +29,7 @@ const ThingSearchPage = lazy(() => import('./pages/ThingSearchPage').then(m => (
 const ModelPage = lazy(() => import('./pages/ModelPage').then(m => ({ default: m.ModelPage })));
 const PipelinePage = lazy(() => import('./pages/PipelinePage').then(m => ({ default: m.PipelinePage })));
 const LogPage = lazy(() => import('./pages/LogPage').then(m => ({ default: m.LogPage })));
+const RequestsPage = lazy(() => import('./pages/RequestsPage').then(m => ({ default: m.RequestsPage })));
 
 /** Inner shell rendered only when authenticated. Owns the live model-data
  *  load so every page sees a populated store from mount. */
@@ -68,6 +69,7 @@ function AuthenticatedApp() {
             <Route path="/model" element={<ModelPage />} />
             <Route path="/pipelines" element={<PipelinePage />} />
             <Route path="/logs" element={<LogPage />} />
+            <Route path="/requests" element={<RequestsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
