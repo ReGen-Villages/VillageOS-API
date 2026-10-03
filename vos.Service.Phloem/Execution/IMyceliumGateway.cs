@@ -24,7 +24,8 @@ public interface IMyceliumGateway
     Task SendMessageAsync(Guid runId, Telling telling, JsonElement payload, CancellationToken cancellationToken);
 
     // The subject, when the run has one, is related to the run along the predicate the model marks for it.
-    Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null);
+    // The request that started it, when the broker named one, is the identifier of its request-log entry.
+    Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null, Guid? requestId = null);
 
     // Upsert a NodeRun Thing and set its status — running before dispatch, then the terminal
     // status — on one Thing per key (deterministic id) so the SSE view sees a property change, not duplicate

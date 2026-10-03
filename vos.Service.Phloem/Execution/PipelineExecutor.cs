@@ -38,11 +38,12 @@ public sealed class PipelineExecutor
     // reaches the pipeline as the run param `subject` — the name the page gives a start node's port — as
     // one value carrying the Thing's id and name, so a wire narrows it to either by its from-path.
     public async Task<PipelineRunResult> RunAsync(
-        Guid pipelineId, JsonElement runParams, CancellationToken cancellationToken, Guid? runId = null, RunSubject? subject = null)
+        Guid pipelineId, JsonElement runParams, CancellationToken cancellationToken, Guid? runId = null, RunSubject? subject = null,
+        Guid? requestId = null)
     {
         var rid = runId ?? Guid.NewGuid();
         if (subject is not null) runParams = WithSubject(runParams, subject);
-        await BestEffort(() => _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject), "create run");
+        await BestEffort(() => _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject, requestId), "create run");
 
         PipelineDag dag;
         try
