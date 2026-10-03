@@ -49,6 +49,7 @@ public sealed class XylemWebApplicationFactory : WebApplicationFactory<Program>
     {
         public IngestRunResult Result { get; set; } = new(true, 3, 1, 2, null);
         public string? SeenName { get; private set; }
+        public string? SeenPath { get; private set; }
         public long SeenBytes { get; private set; }
         public int Calls { get; private set; }
 
@@ -65,6 +66,7 @@ public sealed class XylemWebApplicationFactory : WebApplicationFactory<Program>
         {
             Calls++;
             SeenName = modelName;
+            SeenPath = ifcPath;
             SeenBytes = new FileInfo(ifcPath).Length;
             if (_heldRun is not { } heldRun) return Task.FromResult(Result);
 
