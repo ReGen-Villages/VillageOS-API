@@ -201,6 +201,21 @@ public class XylemHostTests
     }
 
     [Fact]
+    public async Task The_service_has_stopped_the_run_of_a_background_upload_and_removed_its_file_before_it_stops()
+    {
+        var factory = new XylemWebApplicationFactory();
+        factory.Runner.HoldTheNextRunOpen();
+        using var client = factory.CreateClient();
+
+        (await client.PostAsync("/ingest?async=true", Upload("ISO-10303-21;"))).StatusCode.Should().Be(HttpStatusCode.Accepted);
+        await Settle.ForAsync(factory.Runner.HeldRunStarted, "the tool was started");
+        await factory.DisposeAsync();
+
+        factory.Runner.HeldRunWasCancelled.Should().BeTrue();
+        File.Exists(factory.Runner.SeenPath).Should().BeFalse();
+    }
+
+    [Fact]
     public async Task An_unknown_job_is_not_found()
     {
         await using var factory = new XylemWebApplicationFactory();

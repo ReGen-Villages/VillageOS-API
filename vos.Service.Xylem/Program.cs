@@ -62,6 +62,7 @@ try
     builder.Services.AddSingleton(sp => new IngestHandler(
         sp.GetRequiredService<IModelIngestRunner>(), sp.GetRequiredService<IModelPreparer>()));
     builder.Services.AddSingleton<IngestJobStore>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<IngestJobStore>());
 
     var app = builder.Build();
 
@@ -104,11 +105,9 @@ try
                 return Results.BadRequest(new { error = written == 0 ? "No IFC content uploaded." : "File exceeds the upload limit." });
             }
 
-            var job = jobs.Create();
-            _ = Task.Run(async () =>
+            var job = jobs.Start(async serviceStopping =>
             {
-                try { jobs.Complete(job.Id, await handler.IngestAsync(name, mode, temp, CancellationToken.None)); }
-                catch (Exception ex) { jobs.Complete(job.Id, IngestResult.Failed(ex.Message)); }
+                try { return await handler.IngestAsync(name, mode, temp, serviceStopping); }
                 finally { if (File.Exists(temp)) File.Delete(temp); }
             });
             return Results.Accepted($"/ingest/jobs/{job.Id}", new { jobId = job.Id, status = "running" });
