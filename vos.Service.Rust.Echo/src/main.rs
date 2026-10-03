@@ -1233,4 +1233,32 @@ mod tests {
         assert_eq!(requests.load(Ordering::SeqCst), 0, "the key reached a server whose certificate nothing vouches for");
         assert!(refusal.contains("certificate"), "the refusal does not say the certificate was refused: {refusal}");
     }
+
+    #[tokio::test]
+    async fn registration_does_not_send_a_token_to_a_platform_whose_certificate_the_machine_does_not_trust() {
+        let (url, requests) = untrusted_platform().await;
+
+        let said = registration(&AppState::serving(test_cfg(url)), &platform_client().unwrap()).await;
+
+        assert_eq!(requests.load(Ordering::SeqCst), 0, "the token reached a server whose certificate nothing vouches for");
+        assert!(said.contains("certificate"), "{said}");
+    }
+
+    // Each demo route builds its own client, so each is held to checking the certificate.
+    #[tokio::test]
+    async fn each_demo_route_answers_a_refused_certificate_and_sends_nothing() {
+        let (url, requests) = untrusted_platform().await;
+        let state = Arc::new(AppState::serving(test_cfg(url)));
+        let thing: DemoReq = serde_json::from_value(json!({ "thingId": "t1" })).unwrap();
+
+        for answer in [
+            demo_write_kinds(State(state.clone()), Some(Json(thing))).await,
+            demo_subscribe(State(state.clone()), None).await,
+        ] {
+            assert_eq!(answer.status(), StatusCode::INTERNAL_SERVER_ERROR);
+            let body = axum::body::to_bytes(answer.into_body(), usize::MAX).await.unwrap();
+            assert!(String::from_utf8_lossy(&body).contains("certificate"), "{}", String::from_utf8_lossy(&body));
+        }
+        assert_eq!(requests.load(Ordering::SeqCst), 0, "the token reached a server whose certificate nothing vouches for");
+    }
 }
