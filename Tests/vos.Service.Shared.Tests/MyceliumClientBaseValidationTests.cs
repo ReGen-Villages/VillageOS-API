@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -9,7 +8,7 @@ using Xunit;
 
 namespace vos.Service.Shared.Tests;
 
-// Outbound + response validation in MyceliumClientBase.
+// Outbound validation in MyceliumClientBase.
 // Both Throw and Log policies tested regardless of build config -- the MyceliumClient's
 // OutboundViolationMode is a virtual property the test subclass overrides, so
 // CI (Release) can exercise both paths without re-running tests in two configurations.

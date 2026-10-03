@@ -230,7 +230,7 @@ public class MyceliumClientBaseTests
     [Fact]
     public async Task RegisterAsync_HoldingNoCredential_MakesNoCallAndSaysWhy()
     {
-        var logged = new RecordingLogger();
+        var logged = new CapturingLogger<TestableMyceliumClient>();
         var (client, handler) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.OK), serviceToken: null, logger: logged);
 
         var result = await client.RegisterAsync(7100, "Echo", "endpoint-service");
@@ -356,18 +356,6 @@ public class MyceliumClientBaseTests
         var factory = new TestHttpClientFactory(httpClient);
         var client = new TestableMyceliumClient(factory, logger ?? NullLogger.Instance, MyceliumUrl, serviceToken, tokenProvider, apiKey);
         return (client, handler);
-    }
-
-    private sealed class RecordingLogger : ILogger
-    {
-        public List<string> Lines { get; } = [];
-
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-            Lines.Add(formatter(state, exception));
     }
 
     private static HttpResponseMessage JsonResponse(string body)

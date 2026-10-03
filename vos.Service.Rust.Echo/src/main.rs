@@ -1185,12 +1185,18 @@ mod tests {
             .unwrap();
     }
 
-    // ---- A platform whose certificate nothing vouches for ----
+    // ---- A platform presenting a certificate made for the test ----
+
+    async fn untrusted_platform() -> (String, Arc<AtomicU64>) {
+        let (url, requests, _) = platform_with_a_certificate_of_its_own().await;
+        (url, requests)
+    }
 
     /// An HTTPS server presenting a certificate made for this test alone, which counts every request
-    /// that gets past the handshake.
-    async fn untrusted_platform() -> (String, Arc<AtomicU64>) {
+    /// that gets past the handshake. The certificate comes back so that a test can have it trusted.
+    async fn platform_with_a_certificate_of_its_own() -> (String, Arc<AtomicU64>, String) {
         let certified = rcgen::generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+        let certificate = certified.cert.pem();
         let chain = vec![certified.cert.der().clone()];
         let key = tokio_rustls::rustls::pki_types::PrivateKeyDer::Pkcs8(certified.key_pair.serialize_der().into());
         let tls = tokio_rustls::rustls::ServerConfig::builder_with_provider(Arc::new(
@@ -1218,7 +1224,40 @@ mod tests {
                 });
             }
         });
-        (format!("https://localhost:{port}"), requests)
+        (format!("https://localhost:{port}"), requests, certificate)
+    }
+
+    const PLATFORM_UNDER_TEST: &str = "VOS_RUST_ECHO_PLATFORM_UNDER_TEST";
+
+    // What the machine trusts cannot be changed from inside a test, so the trusted case runs in a
+    // process of its own, which SSL_CERT_FILE tells to trust the certificate the server presents.
+    #[tokio::test]
+    async fn registration_reaches_a_platform_whose_certificate_the_machine_trusts() {
+        let (url, requests, certificate) = platform_with_a_certificate_of_its_own().await;
+        let trusted = std::env::temp_dir().join(format!("vos-rust-echo-trusted-{}.pem", uuid::Uuid::new_v4()));
+        std::fs::write(&trusted, certificate).unwrap();
+
+        let registering = tokio::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "tests::registers_with_the_platform_named_in_the_environment", "--ignored"])
+            .env("SSL_CERT_FILE", &trusted)
+            .env(PLATFORM_UNDER_TEST, &url)
+            .output()
+            .await
+            .unwrap();
+        std::fs::remove_file(&trusted).unwrap();
+
+        assert!(registering.status.success(), "{}", String::from_utf8_lossy(&registering.stdout));
+        assert_eq!(requests.load(Ordering::SeqCst), 1, "registration never reached the platform");
+    }
+
+    #[tokio::test]
+    #[ignore = "run by registration_reaches_a_platform_whose_certificate_the_machine_trusts, in a process of its own"]
+    async fn registers_with_the_platform_named_in_the_environment() {
+        let Ok(url) = std::env::var(PLATFORM_UNDER_TEST) else { return };
+
+        let said = registration(&AppState::serving(test_cfg(url))).await;
+
+        assert!(said.starts_with("registered with mycelium"), "{said}");
     }
 
     #[tokio::test]

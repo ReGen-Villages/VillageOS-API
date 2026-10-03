@@ -659,3 +659,17 @@ def test_a_key_is_not_sent_to_a_platform_whose_certificate_the_machine_does_not_
         asyncio.run(appmod._get_token())
 
     assert untrusted_platform == [], "the key reached a server whose certificate nothing vouches for"
+
+
+# What a machine trusts cannot be changed from a test, so this holds the client to asking the
+# machine: the list httpx ships with does not hold the development certificate a local platform presents.
+def test_calls_to_the_platform_check_its_certificate_against_what_the_machine_trusts(monkeypatch):
+    built_with = {}
+    monkeypatch.setattr(appmod.httpx, "AsyncClient", lambda **settings: built_with.update(settings))
+
+    appmod.platform_client(5.0)
+
+    trust = built_with["verify"]
+    assert isinstance(trust, appmod.truststore.SSLContext)
+    assert trust.verify_mode == ssl.CERT_REQUIRED
+    assert trust.check_hostname

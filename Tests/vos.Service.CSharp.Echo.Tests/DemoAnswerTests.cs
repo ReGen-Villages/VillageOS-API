@@ -42,6 +42,20 @@ public class DemoAnswerTests
     }
 
     [Fact]
+    public async Task A_call_the_platform_did_not_answer_in_time_answers_that_it_timed_out()
+    {
+        var handler = new MockHttpMessageHandler(_ =>
+            throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout elapsing."));
+        var client = new EndpointServiceMyceliumClient(new PerCallHttpClientFactory(handler),
+            NullLogger<EndpointServiceMyceliumClient>.Instance, "Echo", MyceliumUrl, serviceToken: "svc-jwt-abc");
+
+        var answer = await DemoAnswer.OfAsync(() => new WriteKindsDemo(client).RunAsync(Guid.NewGuid(), DateTime.UtcNow));
+
+        ((IStatusCodeHttpResult)answer).StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        ReasonIn(answer).Should().Contain("Timeout");
+    }
+
+    [Fact]
     public async Task A_demo_that_runs_answers_its_result()
     {
         var answer = await DemoAnswer.OfAsync(() => Task.FromResult(42));

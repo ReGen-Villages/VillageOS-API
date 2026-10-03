@@ -37,6 +37,12 @@ public class ReferenceProxyForwardsWhatTheConsoleAsksForTests
         Assert.Empty(answeredWrongly);
     }
 
+    // The file is copied as written. A proxy told to skip the check hands a signed-in person's token to
+    // whatever answers on the broker's port.
+    [Fact]
+    public void The_reference_proxy_is_not_told_to_skip_checking_an_upstream_certificate() =>
+        Assert.DoesNotContain("tls_insecure_skip_verify", ReferenceCaddyfile());
+
     private static Dictionary<string, string> ForwardedInDevelopment() =>
         Regex.Matches(
                 File.ReadAllText(Path.Combine(Repository, "vos.Trellis", "vite.config.ts")),
@@ -47,7 +53,7 @@ public class ReferenceProxyForwardsWhatTheConsoleAsksForTests
     // upstream with no scheme is reached over plain HTTP, as Caddy reads it.
     private static Dictionary<string, string> ForwardedByTheReferenceProxy()
     {
-        var caddyfile = File.ReadAllText(Path.Combine(Repository, "deploy", "Caddyfile"));
+        var caddyfile = ReferenceCaddyfile();
         var pathsByMatcher = Regex.Matches(caddyfile, @"(?<matcher>@\w+) path (?<paths>(?:/[a-z]+/\*[ \t]*)+)")
             .ToDictionary(
                 match => match.Groups["matcher"].Value,
@@ -64,4 +70,6 @@ public class ReferenceProxyForwardsWhatTheConsoleAsksForTests
         }
         return forwarded;
     }
+
+    private static string ReferenceCaddyfile() => File.ReadAllText(Path.Combine(Repository, "deploy", "Caddyfile"));
 }
