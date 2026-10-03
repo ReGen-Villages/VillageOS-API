@@ -35,30 +35,13 @@ public class MyceliumClientTests
             };
         });
         return new MyceliumClient(httpFactory.Object, _logger.Object, "http://test-mycelium",
-            direction ?? ResourceDirection.Consumes);
-    }
-
-    private static MockHttpMessageHandler CreateTokenAwareMock(
-        Func<HttpRequestMessage, HttpResponseMessage> apiResponder)
-    {
-        return new MockHttpMessageHandler(req =>
-        {
-            if (req.RequestUri!.AbsolutePath == "/api/auth/token")
-            {
-                return new HttpResponseMessage(HttpStatusCode.OK)
-                {
-                    Content = new StringContent("{\"token\":\"fake-jwt\"}", System.Text.Encoding.UTF8, "application/json")
-                };
-            }
-
-            return apiResponder(req);
-        });
+            direction ?? ResourceDirection.Consumes, serviceToken: "fake-jwt");
     }
 
     [Fact]
     public async Task ApplyQuantityAsync_Success_ReturnsJsonElement()
     {
-        var mock = CreateTokenAwareMock(req =>
+        var mock = new MockHttpMessageHandler(req =>
             new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent("{\"newValue\":42.5}", System.Text.Encoding.UTF8, "application/json")
@@ -75,7 +58,7 @@ public class MyceliumClientTests
     [Fact]
     public async Task ApplyQuantityAsync_NotFound_ThrowsKeyNotFoundException()
     {
-        var mock = CreateTokenAwareMock(req =>
+        var mock = new MockHttpMessageHandler(req =>
             new HttpResponseMessage(HttpStatusCode.NotFound)
             {
                 Content = new StringContent("Thing not found", System.Text.Encoding.UTF8, "text/plain")
@@ -91,7 +74,7 @@ public class MyceliumClientTests
     [Fact]
     public async Task ApplyQuantityAsync_ServerError_ThrowsHttpRequestException()
     {
-        var mock = CreateTokenAwareMock(req =>
+        var mock = new MockHttpMessageHandler(req =>
             new HttpResponseMessage(HttpStatusCode.InternalServerError)
             {
                 Content = new StringContent("Internal error", System.Text.Encoding.UTF8, "text/plain")
@@ -106,7 +89,7 @@ public class MyceliumClientTests
     [Fact]
     public async Task ApplyQuantityAsync_ConsumingDirection_CallsDecrementEndpoint()
     {
-        var mock = CreateTokenAwareMock(req =>
+        var mock = new MockHttpMessageHandler(req =>
             new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent("{\"ok\":true}", System.Text.Encoding.UTF8, "application/json")
@@ -116,14 +99,14 @@ public class MyceliumClientTests
 
         await client.ApplyQuantityAsync("thing-1", "quantity", 5.0m);
 
-        var quantityRequest = mock.Requests.First(r => r.RequestUri!.AbsolutePath != "/api/auth/token");
+        var quantityRequest = mock.Requests.Should().ContainSingle().Subject;
         quantityRequest.RequestUri!.AbsolutePath.Should().Be("/api/things/thing-1/properties/quantity/decrements");
     }
 
     [Fact]
     public async Task ApplyQuantityAsync_ProducingDirection_CallsIncrementEndpoint()
     {
-        var mock = CreateTokenAwareMock(req =>
+        var mock = new MockHttpMessageHandler(req =>
             new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent("{\"ok\":true}", System.Text.Encoding.UTF8, "application/json")
@@ -133,14 +116,14 @@ public class MyceliumClientTests
 
         await client.ApplyQuantityAsync("thing-1", "quantity", 5.0m);
 
-        var quantityRequest = mock.Requests.First(r => r.RequestUri!.AbsolutePath != "/api/auth/token");
+        var quantityRequest = mock.Requests.Should().ContainSingle().Subject;
         quantityRequest.RequestUri!.AbsolutePath.Should().Be("/api/things/thing-1/properties/quantity/increments");
     }
 
     [Fact]
     public async Task IncrementRelationshipPropertyAsync_Success_Completes()
     {
-        var mock = CreateTokenAwareMock(req =>
+        var mock = new MockHttpMessageHandler(req =>
             new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json")
@@ -157,7 +140,7 @@ public class MyceliumClientTests
     [Fact]
     public async Task IncrementRelationshipPropertyAsync_Failure_Throws()
     {
-        var mock = CreateTokenAwareMock(req =>
+        var mock = new MockHttpMessageHandler(req =>
             new HttpResponseMessage(HttpStatusCode.InternalServerError)
             {
                 Content = new StringContent("Server error", System.Text.Encoding.UTF8, "text/plain")
@@ -183,13 +166,13 @@ public class MyceliumClientTests
     }
 
     [Fact]
-    public async Task GetTokenAsync_WithoutServiceToken_FallsBackToEndpoint()
+    public async Task GetTokenAsync_WithoutAServiceToken_AnswersNothing()
     {
         var client = CreateUnreachableClient();
 
         var token = await client.GetTokenAsync();
 
-        token.Should().BeNull("mycelium is unreachable and no service token was provided");
+        token.Should().BeNull("no key and no token was provided, so there is nothing to present");
     }
 
     [Fact]
