@@ -64,6 +64,19 @@ describe('requestLogApi', () => {
     expect(nothing).toBeNull();
   });
 
+  it('passes on a download the broker refuses for any reason but an hour with no file', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{"error":"Administrators only"}', { status: 403 })));
+
+    await expect(fetchRequestHour('2026100311')).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('orders two entries made in the same instant by their identifiers', () => {
+    const first = entry('01a1-a', '2026-10-03T11:00:00+00:00');
+    const second = entry('01a1-b', '2026-10-03T11:00:00+00:00');
+
+    expect(mergeNewestFirst([first], [second], 10).map((e) => e.Id)).toEqual(['01a1-b', '01a1-a']);
+  });
+
   it('names an hour the way the broker names its files, in universal time', () => {
     expect(hourOf(new Date('2026-10-03T09:59:59Z'))).toBe('2026100309');
   });
@@ -73,7 +86,20 @@ describe('requestLogApi', () => {
     const newer = entry('r2', '2026-10-03T11:00:00.25+00:01');
     const newest = entry('r3', '2026-10-03T11:05:00+00:00');
 
-    expect(mergeNewestFirst([older], [newest, older, newer], 10).map((e) => e.Id)).toEqual(['r3', 'r1', 'r2']);
+    expect(mergeNewestFirst([older], [newest, older, newer, newest], 10).map((e) => e.Id)).toEqual(['r3', 'r1', 'r2']);
     expect(mergeNewestFirst([older, newer], [newest], 2).map((e) => e.Id)).toEqual(['r3', 'r1']);
+  });
+
+  it('puts an entry older than some it holds between them', () => {
+    const held = [entry('r3', '2026-10-03T11:05:00+00:00'), entry('r1', '2026-10-03T11:00:00+00:00')];
+
+    expect(mergeNewestFirst(held, [entry('r2', '2026-10-03T11:02:00+00:00')], 10).map((e) => e.Id))
+      .toEqual(['r3', 'r2', 'r1']);
+  });
+
+  it('hands back the list it holds when nothing arrived is new, so a replay redraws nothing', () => {
+    const held = [entry('r2', '2026-10-03T11:01:00+00:00'), entry('r1', '2026-10-03T11:00:00+00:00')];
+
+    expect(mergeNewestFirst(held, [entry('r1', '2026-10-03T11:00:00+00:00')], 10)).toBe(held);
   });
 });

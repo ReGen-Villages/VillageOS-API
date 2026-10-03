@@ -8,12 +8,12 @@ import type { ConnectionState } from '../types/connection';
 
 vi.mock('../hooks/useSse', () => ({ useSubscription: () => {} }));
 
-const log: { entries: RequestLogEntry[]; connection: ConnectionState; askedFor: (string | undefined)[] } =
-  { entries: [], connection: 'live', askedFor: [] };
+const log: { entries: RequestLogEntry[]; streamState: ConnectionState; askedFor: (string | undefined)[] } =
+  { entries: [], streamState: 'live', askedFor: [] };
 vi.mock('../hooks/useRequestLog', () => ({
   useRequestLog: (connection: string | undefined) => {
     log.askedFor.push(connection);
-    return { entries: log.entries, connection: log.connection };
+    return { entries: log.entries, streamState: log.streamState };
   },
 }));
 
@@ -25,8 +25,14 @@ vi.mock('../api/requestLogApi', async (importOriginal) => ({
   fetchRequestHour: vi.fn(async () => hour.file),
 }));
 
+vi.mock('../utils/logDownload', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../utils/logDownload')>()),
+  triggerDownload: vi.fn(),
+}));
+
 import { RequestsPage } from './RequestsPage';
-import { fetchRequestHour } from '../api/requestLogApi';
+import { fetchRequest, fetchRequestHour, hourOf } from '../api/requestLogApi';
+import { triggerDownload } from '../utils/logDownload';
 
 function entry(id: string, overrides: Partial<RequestLogEntry> = {}): RequestLogEntry {
   return {
@@ -71,7 +77,7 @@ function renderAt(address: string) {
 describe('RequestsPage', () => {
   beforeEach(() => {
     log.entries = [];
-    log.connection = 'live';
+    log.streamState = 'live';
     log.askedFor = [];
     lookup.answer = { kind: 'notShown' };
     hour.file = null;
@@ -151,6 +157,18 @@ describe('RequestsPage', () => {
     expect(screen.getByTestId('address')).toHaveTextContent('/requests?connection=c-gauges');
   });
 
+  it.each([
+    ['connecting', 'Connecting…'],
+    ['live', 'Streaming'],
+    ['lost', 'Reconnecting'],
+  ] as const)('says a %s request stream in words that fit it', (streamState, words) => {
+    log.streamState = streamState;
+
+    renderAt('/requests');
+
+    expect(screen.getByText(words)).toBeInTheDocument();
+  });
+
   it('says so when the hour asked for holds no requests', async () => {
     renderAt('/requests');
 
@@ -158,5 +176,66 @@ describe('RequestsPage', () => {
 
     await waitFor(() => expect(fetchRequestHour).toHaveBeenCalled());
     expect(await screen.findByText('No requests were recorded in that hour.')).toBeInTheDocument();
+  });
+
+  it('asks for the hour chosen as the broker names it, and saves the file under the broker’s name', async () => {
+    hour.file = { blob: new Blob(['{}\n']), fileName: 'requests-2026100311.jsonl' };
+    renderAt('/requests');
+
+    fireEvent.change(screen.getByLabelText('Hour'), { target: { value: '2026-10-03T13:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Download hour' }));
+
+    await waitFor(() => expect(triggerDownload).toHaveBeenCalledWith(hour.file!.blob, 'requests-2026100311.jsonl'));
+    expect(fetchRequestHour).toHaveBeenCalledWith(hourOf(new Date('2026-10-03T13:00')));
+  });
+
+  it('says so when the hour cannot be downloaded', async () => {
+    vi.mocked(fetchRequestHour).mockRejectedValueOnce(new Error('refused'));
+    renderAt('/requests');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Download hour' }));
+
+    expect(await screen.findByText('Could not download that hour.')).toBeInTheDocument();
+  });
+
+  it('opens a request from its identifier in the list, keeping the connection chosen', async () => {
+    log.entries = [entry('r1')];
+    lookup.answer = { kind: 'found', entry: entry('r1') };
+    renderAt('/requests?connection=c-gauges');
+
+    fireEvent.click(screen.getByRole('button', { name: 'r1' }));
+
+    expect(screen.getByTestId('address')).toHaveTextContent('/requests?connection=c-gauges&entry=r1');
+    expect(await screen.findByRole('region', { name: 'Request' })).toHaveTextContent('reads the gauges (c-gauges)');
+  });
+
+  it('widens the log to every connection again', () => {
+    holdConnections();
+    renderAt('/requests?connection=c-gauges');
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Connection' }), { target: { value: '' } });
+
+    expect(screen.getByTestId('address')).toHaveTextContent(/^\/requests$/);
+    expect(log.askedFor.at(-1)).toBeUndefined();
+  });
+
+  it('shows nothing from a request read after its panel was closed', async () => {
+    let answer: (lookup: RequestLookup) => void = () => {};
+    vi.mocked(fetchRequest).mockReturnValueOnce(new Promise((resolve) => { answer = resolve; }));
+    renderAt('/requests?entry=r1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    answer({ kind: 'noLongerKept' });
+
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Request' })).toBeNull());
+    expect(screen.queryByText(/no longer kept/)).toBeNull();
+  });
+
+  it('says so when a request cannot be read', async () => {
+    vi.mocked(fetchRequest).mockRejectedValueOnce(new Error('refused'));
+
+    renderAt('/requests?entry=r1');
+
+    expect(await screen.findByText('Could not read the request.')).toBeInTheDocument();
   });
 });

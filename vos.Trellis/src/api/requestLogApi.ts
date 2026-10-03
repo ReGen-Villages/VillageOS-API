@@ -70,12 +70,40 @@ export function hourOf(instant: Date): string {
   return instant.toISOString().slice(0, 13).replace(/[-T]/g, '');
 }
 
-/** Both lists as one, each entry once, newest first and no longer than `limit`. Times are compared as
- *  instants: the broker writes a varying number of fractional digits, so the text does not sort. */
+// Times are compared as instants: the broker writes a varying number of fractional digits, so the text does
+// not sort. Each entry's is read once, since a busy broker streams many entries into a long list.
+const instants = new WeakMap<RequestLogEntry, number>();
+
+function instantOf(entry: RequestLogEntry): number {
+  let instant = instants.get(entry);
+  if (instant === undefined) {
+    instant = Date.parse(entry.Time);
+    instants.set(entry, instant);
+  }
+  return instant;
+}
+
+function newerFirst(a: RequestLogEntry, b: RequestLogEntry): number {
+  return instantOf(b) - instantOf(a) || b.Id.localeCompare(a.Id);
+}
+
+/** `held`, already newest first, with each arrived entry it lacks put in its place, no longer than `limit`.
+ *  `held` itself where nothing arrived is new, so a stream replaying what the page holds redraws nothing. */
 export function mergeNewestFirst(held: RequestLogEntry[], arrived: RequestLogEntry[], limit: number): RequestLogEntry[] {
-  const byId = new Map<string, RequestLogEntry>();
-  for (const entry of [...held, ...arrived]) byId.set(entry.Id, entry);
-  return [...byId.values()]
-    .sort((a, b) => Date.parse(b.Time) - Date.parse(a.Time) || b.Id.localeCompare(a.Id))
-    .slice(0, limit);
+  const known = new Set(held.map((entry) => entry.Id));
+  const fresh: RequestLogEntry[] = [];
+  for (const entry of arrived) {
+    if (known.has(entry.Id)) continue;
+    known.add(entry.Id);
+    fresh.push(entry);
+  }
+  if (fresh.length === 0) return held;
+
+  const merged: RequestLogEntry[] = [];
+  let heldIndex = 0;
+  for (const entry of fresh.sort(newerFirst)) {
+    while (heldIndex < held.length && newerFirst(held[heldIndex], entry) < 0) merged.push(held[heldIndex++]);
+    merged.push(entry);
+  }
+  return merged.concat(held.slice(heldIndex)).slice(0, limit);
 }

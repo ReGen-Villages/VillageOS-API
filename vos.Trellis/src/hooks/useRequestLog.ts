@@ -6,8 +6,8 @@ import { HEARTBEAT_AS_EVENT, watchForSilence, type SilenceWatch } from './stream
 
 const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
 
-/** As many as the broker hands back at most, so one read of the latest is never cut short here. */
-const ENTRIES_HELD = 5000;
+/** The page's own limit: the oldest drop off as new ones arrive, since every arrival redraws the list. */
+const ENTRIES_HELD = 1000;
 
 const RECONNECT_DELAYS_MILLISECONDS = [1000, 2000, 5000, 10000, 30000];
 
@@ -16,7 +16,7 @@ const RECONNECT_DELAYS_MILLISECONDS = [1000, 2000, 5000, 10000, 30000];
  * recorded. Narrowed to one connection where one is named. The stream replays the newest entries when it
  * opens and again on every reconnect, so an entry is kept once by its identifier.
  */
-export function useRequestLog(connection: string | undefined): { entries: RequestLogEntry[]; connection: ConnectionState } {
+export function useRequestLog(connection: string | undefined): { entries: RequestLogEntry[]; streamState: ConnectionState } {
   const [entries, setEntries] = useState<RequestLogEntry[]>([]);
   const [streamState, setStreamState] = useState<ConnectionState>('connecting');
 
@@ -92,5 +92,5 @@ export function useRequestLog(connection: string | undefined): { entries: Reques
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { entries, connection: streamState };
+  return { entries, streamState };
 }

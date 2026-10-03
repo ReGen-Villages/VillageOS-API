@@ -108,16 +108,60 @@ describe('useRequestLog', () => {
     const first = await openedStream();
 
     act(() => first.onopen?.());
-    expect(result.current.connection).toBe('live');
+    expect(result.current.streamState).toBe('live');
 
     act(() => first.onerror?.());
-    expect(result.current.connection).toBe('lost');
+    expect(result.current.streamState).toBe('lost');
     expect(first.closed).toBe(true);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1000);
     });
     expect(FakeEventSource.instances).toHaveLength(2);
+  });
+
+  it('reconnects once for two breaks before it retries, and retries when no stream token could be had', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.spyOn(requestLogApi, 'fetchLatestRequests').mockResolvedValue([]);
+    vi.mocked(apiClient.mintStreamToken).mockRejectedValueOnce(new Error('signed out'));
+    const { result } = renderHook(() => useRequestLog(undefined));
+
+    await waitFor(() => expect(result.current.streamState).toBe('lost'));
+    expect(FakeEventSource.instances).toHaveLength(0);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    const opened = await openedStream();
+    act(() => {
+      opened.onerror?.();
+      opened.onerror?.();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+
+    expect(FakeEventSource.instances).toHaveLength(2);
+  });
+
+  it('opens nothing once the page has let go, whether a retry or a stream token was still on its way', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.spyOn(requestLogApi, 'fetchLatestRequests').mockResolvedValue([]);
+    let tokenArrives: (token: string) => void = () => {};
+    vi.mocked(apiClient.mintStreamToken).mockReturnValueOnce(new Promise((resolve) => { tokenArrives = resolve; }));
+    const late = renderHook(() => useRequestLog(undefined));
+    late.unmount();
+    await act(async () => tokenArrives('a-stream-token'));
+
+    const retrying = renderHook(() => useRequestLog(undefined));
+    const stream = await openedStream();
+    act(() => stream.onerror?.());
+    retrying.unmount();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+
+    expect(FakeEventSource.instances).toEqual([stream]);
   });
 
   it('keeps streaming when the latest entries cannot be read', async () => {

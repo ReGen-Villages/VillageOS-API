@@ -14,7 +14,7 @@ import { ConnectionMark } from '../components/common/ConnectionMark';
 const CONNECTION_PARAMETER = 'connection';
 const ENTRY_PARAMETER = 'entry';
 
-/** An instant as the broker's files and Taproot write it: universal time to the second. */
+/** An instant in universal time to the second, as Taproot prints it. */
 function timeOf(entry: RequestLogEntry): string {
   return `${new Date(entry.Time).toISOString().slice(0, 19).replace('T', ' ')}Z`;
 }
@@ -82,7 +82,7 @@ export function RequestsPage() {
           <HourDownload />
         </div>
       </div>
-      <div className="flex-1 min-h-0 flex gap-4 px-6 pb-6">
+      <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-4 px-6 pb-6">
         <RequestLogView
           key={connection ?? ''}
           connection={connection}
@@ -96,7 +96,7 @@ export function RequestsPage() {
 
 function RequestLogView({ connection, onOpen }: { connection?: string; onOpen: (id: string) => void }) {
   const { t } = useTranslation();
-  const { entries, connection: streamState } = useRequestLog(connection);
+  const { entries, streamState } = useRequestLog(connection);
   const streamInWords = {
     connecting: t('connection.connecting'),
     live: t('log.streaming'),
@@ -205,7 +205,7 @@ function RequestEntryPanel({ id, onClose }: { id: string; onClose: () => void })
   }, [id]);
 
   return (
-    <section aria-label={t('requests.entry')} className="w-96 flex-shrink-0 overflow-auto rounded-md border border-zinc-200 dark:border-zinc-800 p-3 text-xs">
+    <section aria-label={t('requests.entry')} className="w-full md:w-96 max-h-[50vh] md:max-h-none flex-shrink-0 overflow-auto rounded-md border border-zinc-200 dark:border-zinc-800 p-3 text-xs">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-semibold">{t('requests.entry')}</h3>
         <button onClick={onClose} aria-label={t('common.close')} className="p-1 rounded text-zinc-500 hover:bg-zinc-700">
