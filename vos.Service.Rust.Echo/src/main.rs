@@ -108,6 +108,9 @@ struct AppState {
     handler_id: String,
     requests: AtomicU64,
     stop_requested: tokio::sync::Notify,
+    /// Built once: reading the machine's certificate store takes tens of milliseconds, which a
+    /// client built for each request would pay every time.
+    platform: reqwest::Client,
 }
 
 impl AppState {
@@ -117,6 +120,7 @@ impl AppState {
             handler_id: uuid::Uuid::new_v4().to_string(),
             requests: AtomicU64::new(0),
             stop_requested: tokio::sync::Notify::new(),
+            platform: platform_client().expect("a client for calls to Mycelium"),
         }
     }
 }
@@ -295,17 +299,18 @@ fn expiry_of(token: &str) -> Result<u64, String> {
 
 /// Registers with Mycelium and says what happened. A call carrying no credential is always
 /// refused, so with none the service makes no call.
-async fn registration(state: &AppState, http: &reqwest::Client) -> String {
+async fn registration(state: &AppState) -> String {
     if state.config.api_key.is_none() && state.config.token.is_none() {
         return format!("{NO_CREDENTIAL}, so this service has not registered with mycelium");
     }
-    match register(state, http).await {
+    match register(state).await {
         Ok(()) => format!("registered with mycelium as {}", state.handler_id),
         Err(reason) => format!("registration failed: {reason}"),
     }
 }
 
-async fn register(state: &AppState, http: &reqwest::Client) -> Result<(), String> {
+async fn register(state: &AppState) -> Result<(), String> {
+    let http = &state.platform;
     let token = get_token(&state.config, http).await?;
     let base = format!("http://localhost:{}", state.config.port);
     let payload = json!({
@@ -435,20 +440,17 @@ async fn demo_write_kinds(State(state): State<Arc<AppState>>, body: Option<Json<
         Some(t) if !t.is_empty() => t,
         _ => return (StatusCode::BAD_REQUEST, Json(json!({ "error": "thingId is required" }))).into_response(),
     };
-    let http = match platform_client() {
-        Ok(c) => c,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
-    };
+    let http = &state.platform;
     let cfg = &state.config;
 
     let run = async {
-        let seq = set_fact(cfg, &http, &thing_id, "status", json!("active")).await?;
-        record_observation(cfg, &http, &thing_id, "temperature", json!(21.5), Some("2026-06-20T12:00:00Z")).await?;
-        let accepted = record_observations(cfg, &http, &thing_id, &[
+        let seq = set_fact(cfg, http, &thing_id, "status", json!("active")).await?;
+        record_observation(cfg, http, &thing_id, "temperature", json!(21.5), Some("2026-06-20T12:00:00Z")).await?;
+        let accepted = record_observations(cfg, http, &thing_id, &[
             ObservationSample { property: "temperature".into(), value: json!(21.7), observed_at: None },
             ObservationSample { property: "flow".into(), value: json!(3.1), observed_at: None },
         ]).await?;
-        let deposit = deposit_sediment(cfg, &http, &[
+        let deposit = deposit_sediment(cfg, http, &[
             SedimentReading { object_id: thing_id.clone(), property: "temperature".into(), value: json!(19.8), observed_at: "2026-06-19T12:00:00Z".into() },
             SedimentReading { object_id: thing_id.clone(), property: "temperature".into(), value: json!(20.4), observed_at: "2026-06-19T13:00:00Z".into() },
         ]).await?;
@@ -571,15 +573,12 @@ async fn demo_subscribe(State(state): State<Arc<AppState>>, body: Option<Json<Su
     let (type_, predicate) = body.map(|Json(b)| (b.type_, b.predicate)).unwrap_or((None, None));
     let type_ = type_.unwrap_or_else(|| "Battery".into());
     let predicate = predicate.unwrap_or_else(|| "powers".into());
-    let http = match platform_client() {
-        Ok(c) => c,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
-    };
+    let http = &state.platform;
     let cfg = &state.config;
-    match subscribe(cfg, &http, &slice_by_type_and_traverse(&type_, &predicate)).await {
+    match subscribe(cfg, http, &slice_by_type_and_traverse(&type_, &predicate)).await {
         Ok(sub) => {
             let names = names_of(&sub.snapshot);
-            unsubscribe(cfg, &http, &sub.subscription_id).await;
+            unsubscribe(cfg, http, &sub.subscription_id).await;
             Json(json!({
                 "subscriptionId": sub.subscription_id,
                 "watermark": sub.watermark,
@@ -613,8 +612,7 @@ async fn main() {
     let reg_state = state.clone();
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-        let http = platform_client().expect("http client");
-        println!("{}", registration(&reg_state, &http).await);
+        println!("{}", registration(&reg_state).await);
     });
 
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", port))
@@ -1160,7 +1158,7 @@ mod tests {
         let cap: Captured = Arc::new(Mutex::new(Vec::new()));
         let cfg = Config { token: None, ..test_cfg(spawn_mock(cap.clone()).await) };
 
-        let said = registration(&AppState::serving(cfg), &reqwest::Client::new()).await;
+        let said = registration(&AppState::serving(cfg)).await;
 
         assert!(cap.lock().unwrap().is_empty(), "a call carrying no credential is always refused");
         assert!(said.contains("ApiKey") && said.contains("Token"), "{said}");
@@ -1238,7 +1236,7 @@ mod tests {
     async fn registration_does_not_send_a_token_to_a_platform_whose_certificate_the_machine_does_not_trust() {
         let (url, requests) = untrusted_platform().await;
 
-        let said = registration(&AppState::serving(test_cfg(url)), &platform_client().unwrap()).await;
+        let said = registration(&AppState::serving(test_cfg(url))).await;
 
         assert_eq!(requests.load(Ordering::SeqCst), 0, "the token reached a server whose certificate nothing vouches for");
         assert!(said.contains("certificate"), "{said}");
