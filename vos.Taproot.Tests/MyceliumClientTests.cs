@@ -318,6 +318,104 @@ public class MyceliumClientTests
     }
 
     [Fact]
+    public async Task GetLatestRequestsAsync_RoutesToRequestsWithTheLimitAndConnectionAsked()
+    {
+        var connection = Guid.NewGuid();
+
+        var narrowed = await CaptureRequest(c => c.GetLatestRequestsAsync(2, connection));
+        var everything = await CaptureRequest(c => c.GetLatestRequestsAsync(null, null));
+
+        narrowed.Method.Should().Be(HttpMethod.Get);
+        narrowed.RequestUri!.PathAndQuery.Should().Be($"/api/requests?limit=2&connection={connection}");
+        everything.RequestUri!.PathAndQuery.Should().Be("/api/requests");
+    }
+
+    [Fact]
+    public async Task GetRequestAsync_ReturnsTheEntryAndNullWhereNoneIsShown()
+    {
+        var id = Guid.NewGuid();
+        var (client, handler) = NewClient(req => req.RequestUri!.AbsolutePath switch
+        {
+            "/api/auth/token" => TokenResponse(ServiceToken),
+            var path when path == $"/api/requests/{id}" => JsonResponse($"{{\"Id\":\"{id}\"}}"),
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound),
+        });
+
+        var found = await client.GetRequestAsync(id);
+        var missing = await client.GetRequestAsync(Guid.NewGuid());
+
+        found!.Value.GetProperty("Id").GetGuid().Should().Be(id);
+        missing.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetRequestAsync_OfAnEntryPastTheRetentionPeriod_ThrowsCarryingGone()
+    {
+        var (client, _) = NewClient(req => req.RequestUri!.AbsolutePath == "/api/auth/token"
+            ? TokenResponse(ServiceToken)
+            : new HttpResponseMessage(HttpStatusCode.Gone));
+
+        var asking = () => client.GetRequestAsync(Guid.NewGuid());
+
+        (await asking.Should().ThrowAsync<HttpRequestException>()).Which.StatusCode.Should().Be(HttpStatusCode.Gone);
+    }
+
+    [Fact]
+    public async Task DownloadRequestsAsync_RoutesToTheHoursDownloadAndKeepsThePlatformsFileName()
+    {
+        var (client, handler) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}\n") };
+            response.Content.Headers.ContentDisposition = new ContentDispositionHeaderValue("attachment") { FileName = "\"requests-2026100311.jsonl\"" };
+            return response;
+        });
+
+        var download = await client.DownloadRequestsAsync("2026100311");
+
+        handler.Requests.Last().RequestUri!.PathAndQuery.Should().Be("/api/requests/download?hour=2026100311");
+        download!.Value.FileName.Should().Be("requests-2026100311.jsonl");
+        (await new StreamReader(download.Value.Content).ReadToEndAsync()).Should().Be("{}\n");
+    }
+
+    [Fact]
+    public async Task DownloadRequestsAsync_WithNoFileNameFromThePlatform_NamesTheFileAfterTheHourAsked()
+    {
+        var (client, _) = NewClient(req => req.RequestUri!.AbsolutePath == "/api/auth/token"
+            ? TokenResponse(ServiceToken)
+            : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("") });
+
+        (await client.DownloadRequestsAsync("2026100311"))!.Value.FileName.Should().Be("requests-2026100311.jsonl");
+        (await client.DownloadRequestsAsync(null))!.Value.FileName.Should().Be("requests-this-hour.jsonl");
+    }
+
+    [Fact]
+    public async Task DownloadRequestsAsync_OfAnHourWithNoFile_ReturnsNull()
+    {
+        var (client, _) = NewClient(req => req.RequestUri!.AbsolutePath == "/api/auth/token"
+            ? TokenResponse(ServiceToken)
+            : new HttpResponseMessage(HttpStatusCode.NotFound));
+
+        (await client.DownloadRequestsAsync(null)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task FollowRequestsAsync_RoutesToRequestsStreamWithTheTailAndConnectionAsked()
+    {
+        var connection = Guid.NewGuid();
+        var (client, handler) = NewClient(req => req.RequestUri!.AbsolutePath == "/api/auth/token"
+            ? TokenResponse(ServiceToken)
+            : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("event: request\ndata: {}\n\n") });
+
+        var received = new List<ServerSentEvent>();
+        await foreach (var one in client.FollowRequestsAsync(20, connection, CancellationToken.None))
+            received.Add(one);
+
+        handler.Requests.Last().RequestUri!.PathAndQuery.Should().Be($"/api/requests/stream?tail=20&connection={connection}");
+        received.Should().Equal(new ServerSentEvent("request", "{}"));
+    }
+
+    [Fact]
     public async Task WatchEventsAsync_RoutesToEventsStreamWithABearerTokenAndYieldsEachEvent()
     {
         var (client, handler) = NewClient(req => req.RequestUri!.AbsolutePath == "/api/auth/token"

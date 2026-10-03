@@ -146,6 +146,45 @@ public class MyceliumClient
     public virtual IAsyncEnumerable<ServerSentEvent> FollowLogAsync(int? tail, string? service, CancellationToken cancellationToken)
         => StreamAsync($"{_myceliumUrl}/api/logs/stream{Query(("tail", tail?.ToString()), ("service", service))}", cancellationToken);
 
+    public virtual async Task<JsonElement> GetLatestRequestsAsync(int? limit, Guid? connection)
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.GetAsync(
+            $"{_myceliumUrl}/api/requests{Query(("limit", limit?.ToString()), ("connection", connection?.ToString()))}");
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    // Null where the log holds no entry the caller is shown. An entry past the log's retention period
+    // throws carrying 410 Gone, so a caller can tell it from one that never was.
+    public virtual async Task<JsonElement?> GetRequestAsync(Guid id)
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/requests/{id}");
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    // Null where nothing was recorded in that hour. Without an hour, this hour's file.
+    public virtual async Task<LogDownload?> DownloadRequestsAsync(string? hour)
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.GetAsync(
+            $"{_myceliumUrl}/api/requests/download{Query(("hour", hour))}", HttpCompletionOption.ResponseHeadersRead);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        var fileName = response.Content.Headers.ContentDisposition?.FileNameStar
+            ?? response.Content.Headers.ContentDisposition?.FileName?.Trim('"')
+            ?? $"requests-{hour ?? "this-hour"}.jsonl";
+        return new LogDownload(fileName, await response.Content.ReadAsStreamAsync());
+    }
+
+    public virtual IAsyncEnumerable<ServerSentEvent> FollowRequestsAsync(int? tail, Guid? connection, CancellationToken cancellationToken)
+        => StreamAsync(
+            $"{_myceliumUrl}/api/requests/stream{Query(("tail", tail?.ToString()), ("connection", connection?.ToString()))}",
+            cancellationToken);
+
     public virtual IAsyncEnumerable<ServerSentEvent> WatchEventsAsync(CancellationToken cancellationToken)
         => StreamAsync($"{_myceliumUrl}/api/events/stream", cancellationToken);
 
