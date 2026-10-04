@@ -86,13 +86,8 @@ public class DiscoveryRunStarterTests
         logger.Errors.Should().ContainSingle().Which.Should().Contain("after its dispatch had been accepted");
     }
 
-    // A run that could start is given this long to do so before a test concludes it was held.
+    // Time for a held run to start, if the hold let it, before a test asserts that it did not.
     private static readonly TimeSpan HeldLongEnough = TimeSpan.FromMilliseconds(300);
-
-    private static readonly TimeSpan StartsSoonEnough = TimeSpan.FromSeconds(10);
-
-    private static async Task<bool> StartsWithin(Task started, TimeSpan wait) =>
-        await Task.WhenAny(started, Task.Delay(wait)) == started;
 
     [Fact]
     public async Task ASecondRunForTheSameSubject_WaitsForTheFirstToEndAndSaysSo()
@@ -105,14 +100,15 @@ public class DiscoveryRunStarterTests
         var secondStarted = new TaskCompletionSource();
 
         starter.Start(site, async _ => { firstStarted.SetResult(); await releaseFirst.Task; });
-        await firstStarted.Task;
+        await Settle.ForAsync(firstStarted.Task, "the first run starts");
         starter.Start(site, _ => { secondStarted.SetResult(); return Task.CompletedTask; });
 
-        (await StartsWithin(secondStarted.Task, HeldLongEnough)).Should().BeFalse(
+        await Settle.BeforeAssertingAbsenceAsync(HeldLongEnough);
+        secondStarted.Task.IsCompleted.Should().BeFalse(
             "two runs for one site would each mint a coverage for the same call");
         logger.Information.Should().ContainSingle().Which.Should().Contain(site.ToString()).And.Contain("in flight");
         releaseFirst.SetResult();
-        (await StartsWithin(secondStarted.Task, StartsSoonEnough)).Should().BeTrue("the held run starts once the first ends");
+        await Settle.ForAsync(secondStarted.Task, "the held run starts once the first ends");
     }
 
     [Fact]
@@ -123,7 +119,7 @@ public class DiscoveryRunStarterTests
         var ran = new TaskCompletionSource();
 
         starter.Start(Guid.NewGuid(), _ => { ran.SetResult(); return Task.CompletedTask; });
-        await ran.Task;
+        await Settle.ForAsync(ran.Task, "the run starts");
 
         logger.Information.Should().BeEmpty();
     }
@@ -142,7 +138,7 @@ public class DiscoveryRunStarterTests
         starter.Start(site, _ => { secondEnded.SetResult(); return Task.CompletedTask; });
         starter.Start(site, _ => { thirdRan = true; return Task.CompletedTask; });
         releaseFirst.SetResult();
-        await secondEnded.Task;
+        await Settle.ForAsync(secondEnded.Task, "the waiting run runs once the first ends");
         await Settle.UntilAsync(() => starter.SubjectsWithRunsInFlight == 0, "every run for the site has ended");
 
         thirdRan.Should().BeFalse(
@@ -163,13 +159,14 @@ public class DiscoveryRunStarterTests
         starter.Start(site, _ => releaseFirst.Task);
         starter.Start(site, async _ => { secondStarted.SetResult(); await releaseSecond.Task; });
         releaseFirst.SetResult();
-        await secondStarted.Task;
+        await Settle.ForAsync(secondStarted.Task, "the waiting run starts once the first ends");
         starter.Start(site, _ => { thirdStarted.SetResult(); return Task.CompletedTask; });
 
-        (await StartsWithin(thirdStarted.Task, HeldLongEnough)).Should().BeFalse(
+        await Settle.BeforeAssertingAbsenceAsync(HeldLongEnough);
+        thirdStarted.Task.IsCompleted.Should().BeFalse(
             "the first run ending must not forget the second, which is still in flight");
         releaseSecond.SetResult();
-        (await StartsWithin(thirdStarted.Task, StartsSoonEnough)).Should().BeTrue(
+        await Settle.ForAsync(thirdStarted.Task,
             "once the waiting run has started, the next dispatch waits for it rather than being dropped");
     }
 
@@ -183,7 +180,7 @@ public class DiscoveryRunStarterTests
         starter.Start(Guid.NewGuid(), _ => releaseFirst.Task);
         starter.Start(Guid.NewGuid(), _ => { secondStarted.SetResult(); return Task.CompletedTask; });
 
-        (await StartsWithin(secondStarted.Task, StartsSoonEnough)).Should().BeTrue(
+        await Settle.ForAsync(secondStarted.Task,
             "only runs for one subject are held; separate sites are still discovered in parallel");
         releaseFirst.SetResult();
     }
@@ -198,7 +195,7 @@ public class DiscoveryRunStarterTests
         starter.Start(site, _ => throw new InvalidOperationException("the model is unreachable"));
         starter.Start(site, _ => { secondStarted.SetResult(); return Task.CompletedTask; });
 
-        (await StartsWithin(secondStarted.Task, StartsSoonEnough)).Should().BeTrue();
+        await Settle.ForAsync(secondStarted.Task, "a run that threw releases its subject");
     }
 
     [Fact]
@@ -209,7 +206,7 @@ public class DiscoveryRunStarterTests
         var ended = new TaskCompletionSource();
 
         starter.Start(site, _ => { ended.SetResult(); return Task.CompletedTask; });
-        await ended.Task;
+        await Settle.ForAsync(ended.Task, "the run ends");
 
         await Settle.UntilAsync(() => starter.SubjectsWithRunsInFlight == 0,
             "a subject is forgotten once its last run ends, or every site ever discovered stays in memory");
