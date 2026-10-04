@@ -39,7 +39,7 @@ export type NumberFormat =
   | 'bytes'     // 32_500_000_000 → "30.3 GiB"
   | 'money';
 
-/** A step of a history reduction as the specificationwrites it. A parameter — a percentile, a band's bound, a
+/** A step of a history reduction as the specification writes it. A parameter — a percentile, a band's bound, a
  *  threshold — is a number, or a binding onto the model's own value (a setpoint the study declares,
  *  a bound a class Thing carries) resolved to the number before the platform is asked. */
 export type BoundNumber = number | Binding;
@@ -165,8 +165,8 @@ export type Binding =
    *  declares nothing about is `unknown`. A renamed property answers the same way, and silence is
    *  never reported as a measurement.
    *
-   *  `reads` is the wording the specificationgives that origin, and is the only wording there is — an origin
-   *  the specificationleaves unworded says nothing rather than something Trellis made up. `source` names
+   *  `reads` is the wording the specification gives that origin, and is the only wording there is — an origin
+   *  the specification leaves unworded says nothing rather than something Trellis made up. `source` names
    *  what says so and `resolvedAt` when it last did: for an assumption, the archetype the value came
    *  from; otherwise what the `source` walk reaches from the Thing holding the value, which is how a
    *  fetched figure names its data source and a generated boundary says it was generated.
@@ -653,7 +653,7 @@ export interface SunPosition {
 
 /** Every hour of every day of the year as one cell coloured by value — a `history` binding folded
  *  by `hourOfDay,dayOfYear` — painted on a canvas because the grid is thousands of cells, with the
- *  sunrise and sunset curves over it where the specificationbinds the coordinates. The ramp is one hue,
+ *  sunrise and sunset curves over it where the specification binds the coordinates. The ramp is one hue,
  *  light at the floor and dark at the ceiling, with a scale legend; `floor` and `ceiling` fix it,
  *  absent it fits the data. */
 export interface HeatmapWidget {
@@ -763,7 +763,7 @@ export interface ActionChoice {
 }
 
 /** What pressing a choice writes, and no service named anywhere in it. Which service wakes is the
- *  model's to decide from the relationship the endpoint lays down — a specificationnaming a handler would move that
+ *  model's to decide from the relationship the endpoint lays down — a specification naming a handler would move that
  *  decision into the specification. */
 export interface ActionRecords {
   /** The endpoint that accepts the act, by the name `POST /api/endpoints/{name}` forwards to — or,
@@ -887,7 +887,7 @@ export interface DashboardSection {
    *  reference from what it knows itself, so this section carries only what the page cannot know. */
   facts?: boolean;
   /** Names the section as a tab of the closing view over the land: the explore page draws every
-   *  section carrying one as a tab in a sheet along the bottom of the map, in specificationorder, and not in
+   *  section carrying one as a tab in a sheet along the bottom of the map, in specification order, and not in
    *  the report beneath. The word is the tab's key; the section's title is what the tab reads. */
   tab?: string;
 }
@@ -958,7 +958,7 @@ export interface DetailSpecification {
  * absent locale or an untranslated string falls back to the base text — never a
  * blank or a raw key. Only human-facing labels are looked up; model vocabulary
  * (state names, property keys, predicate names, archetypes) is never translated.
- * See `localizeSpec` in src/api/dashboardLocalization.ts and the authoring
+ * See `localizeSpecification` in src/api/dashboardLocalization.ts and the authoring
  * contract in docs/FIELD_GUIDE.md, Part IX.
  */
 export type SpecificationTranslations = Record<string, Record<string, string>>;
@@ -967,7 +967,7 @@ export interface DashboardSpecification {
   title: string;
   subtitle?: string;
   /** Name of the icon the navigation entry draws, from the set Trellis renders with — the same
-   *  presentation vocabulary the specificationalready carries as colours and number formats. A specificationthat
+   *  presentation vocabulary the specification already carries as colours and number formats. A specification that
    *  names none, or names one Trellis cannot draw, gets a generic icon rather than no entry. */
   icon?: string;
   compare?: CompareConfiguration;
@@ -994,7 +994,7 @@ export interface DashboardDescriptor {
    *  so a link survives a reseeded model, and language-independent so an address does not change
    *  when the reader's language does. */
   routeKey: string;
-  /** Null where the Thing carries a specificationthat could not be read. Such a dashboard is still listed
+  /** Null where the Thing carries a specification that could not be read. Such a dashboard is still listed
    *  and still addressable, so the author sees the fault rather than a page that is simply missing. */
   specification: DashboardSpecification | null;
 }

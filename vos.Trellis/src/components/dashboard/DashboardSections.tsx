@@ -21,7 +21,7 @@ export function DashboardSections({
   context: ResolveContext;
   isWide: boolean;
   openDetail?: (thingId: string) => void;
-  /** What to say where the specificationlists no sections. Each page says it in its own words; drawing
+  /** What to say where the specification lists no sections. Each page says it in its own words; drawing
    *  nothing is how a figure the analysis has not computed reads, so a page with nothing to draw at
    *  all cannot look the same as one whose figures came back empty. */
   whenEmpty: React.ReactNode;

@@ -1,9 +1,9 @@
 /**
  * Render-time localization of a model-supplied {@link DashboardSpec}.
  *
- * A model author keeps writing the specificationin one base language and adds a single
+ * A model author keeps writing the specification in one base language and adds a single
  * `translations` block: `{ [locale]: { [baseString]: translatedString } }`.
- * `localizeSpec` returns a copy of the specificationwith every human-facing label
+ * `localizeSpecification` returns a copy of the specification with every human-facing label
  * replaced by its translation in the active locale, falling back to the base
  * text whenever the locale — or a given string within it — is absent.
  *

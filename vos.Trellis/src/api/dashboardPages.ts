@@ -10,8 +10,8 @@ import i18n from '../i18n';
  * Writing a page back to the model.
  *
  * A page the console keeps is one more `Dashboard` Thing beside the seeded ones, and is found by
- * the same discovery. Nothing checks a specificationwritten in a browser the way the seed's checks read a
- * seeded one, so a specificationthe discovery could not list is refused here before anything is written.
+ * the same discovery. Nothing checks a specification written in a browser the way the seed's checks read a
+ * seeded one, so a specification the discovery could not list is refused here before anything is written.
  */
 
 const SPECIFICATION_TYPE = 'vos.String';
@@ -39,7 +39,7 @@ function asTheDiscoveryReadsIt(specification: DashboardSpecification): string {
 }
 
 export const dashboardPages = {
-  /** Keeps a page as one fragment — the Thing, what it is and its specificationtogether — so a page the
+  /** Keeps a page as one fragment — the Thing, what it is and its specification together — so a page the
    *  model refuses leaves nothing behind. Written as three requests, a refusal after the first would
    *  leave a Thing of no kind that no discovery lists and nobody could see to remove. Answers the
    *  id, which the browser mints because the fragment points its own relationship at the Thing it creates. */

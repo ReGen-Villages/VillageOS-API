@@ -11,7 +11,7 @@ import { complete, formRequest, type Entered } from './writeRequest';
  * The widget that records something nothing on the page lists yet. An action list decides about a
  * row it was handed; this one mints the row.
  *
- * It posts what was filled in to the endpoint the specificationnames, under the act's name, and nothing
+ * It posts what was filled in to the endpoint the specification names, under the act's name, and nothing
  * else: no actor, and no Thing built here. The endpoint lays down what the model already
  * understands, so what the write summons is the model's to decide from the relationships it now holds.
  */

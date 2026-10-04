@@ -71,7 +71,7 @@ export function OperationsPage() {
 
   // A trailing-window widget slides with the clock, and the event that takes a Thing out of a state
   // names the states it still holds rather than the one it left — so a figure the broker answers
-  // falls back on the cadence the specificationstates.
+  // falls back on the cadence the specification states.
   const refreshSeconds = specification?.refreshSeconds ?? 0;
 
   // A live event starts a new generation. What each widget does with it is its own to decide: a
@@ -112,7 +112,7 @@ export function OperationsPage() {
   if (!dashboard && dashboards.length > 0) {
     return <Navigate to={`/operations/${dashboards[0].routeKey}`} replace />;
   }
-  // A Thing that declares itself a dashboard and carries a specificationnothing can read. Named, so the
+  // A Thing that declares itself a dashboard and carries a specification nothing can read. Named, so the
   // author knows which one to open, and told apart from a model that publishes no dashboard at all.
   if (dashboard && !dashboard.specification) {
     return (

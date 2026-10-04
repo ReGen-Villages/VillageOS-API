@@ -113,9 +113,9 @@ describe('discovery', () => {
     expect(entities.map((e) => e.name)).toEqual(['V-1', 'V-2']);
   });
 
-  // A specificationauthored wrong is still addressable, so its author can be told what is
+  // A specification authored wrong is still addressable, so its author can be told what is
   // wrong with it. Ordered by name like any other, so a broken one does not sort to the end.
-  it('lists a Dashboard Thing whose specificationcould not be read, carrying no specification', () => {
+  it('lists a Dashboard Thing whose specification could not be read, carrying no specification', () => {
     const { things, relationships } = model();
     things.push({ Id: 'dash2', Name: 'Half a specification', Properties: { specification: '{ "title": "Ops"' } });
     relationships.push({
@@ -1279,7 +1279,7 @@ describe('verdict binding', () => {
     expect(rows[0]).toMatchObject({ property: 'percentOfConsumption', target: 100, value: null });
   });
 
-  it('reports no verdict when the specificationnames a thing the model does not hold', async () => {
+  it('reports no verdict when the specification names a thing the model does not hold', async () => {
     holding('EnergyShortOfTarget');
 
     const rows = await resolveBinding(
@@ -1313,7 +1313,7 @@ describe('verdict binding', () => {
     expect(vi.mocked(rangeApi.getAll)).toHaveBeenCalledTimes(1);
   });
 
-  it('reads the ranges of the selected scope entity when the specificationnames no thing', async () => {
+  it('reads the ranges of the selected scope entity when the specification names no thing', async () => {
     holding('EnergyShortOfTarget');
 
     await resolveBinding({ kind: 'verdict', states: ENERGY_STATES } as Binding, studyContext({ percentOfConsumption: 73 }));
@@ -2002,7 +2002,7 @@ describe('levers under a shortfall', () => {
 
   // The author marks where levers appear; the arithmetic decides what and which way. A state left
   // unmarked gets none, however it was judged.
-  it('offers no levers on a state the specificationdoes not mark', async () => {
+  it('offers no levers on a state the specification does not mark', async () => {
     holding('EnergyNetPositive');
 
     const rows = await resolveBinding(binding, studyContext(DEFINITIONS)) as Row[];
@@ -2258,7 +2258,7 @@ describe('origin binding', () => {
     }]);
   });
 
-  it('leaves an origin the specificationgave no wording without any', async () => {
+  it('leaves an origin the specification gave no wording without any', async () => {
     const binding = { kind: 'origin', property: 'untracked', reads: { stated: 'as submitted' } } as Binding;
     const rows = await resolveBinding(binding, siteContext()) as Row[];
     expect(rows).toEqual([{ origin: 'unknown', reads: null, source: null, resolvedAt: null }]);
@@ -2288,7 +2288,7 @@ function seriesContext(): ResolveContext {
 }
 
 // A point covering several buckets, and the tile that reads the newest one. The platform
-// reduces onto a fixed grid; a specificationthat wants an hourly figure plotted every quarter hour asks for
+// reduces onto a fixed grid; a specification that wants an hourly figure plotted every quarter hour asks for
 // quarter-hour buckets and says how many of them each point covers.
 describe('a series whose points cover several buckets', () => {
   const trace: Binding = {
@@ -2422,7 +2422,7 @@ describe('history reads the platform reduction over a property series', () => {
     });
   });
 
-  it('asks about the scope entity, in its own clock offset, with the steps as the specificationwrote them', async () => {
+  it('asks about the scope entity, in its own clock offset, with the steps as the specification wrote them', async () => {
     await resolveBinding(monthlyHigh, siteContext('site1', { [UTC_OFFSET_PROPERTY]: 7200 }));
 
     expect(temporalApi.reduce).toHaveBeenCalledWith({

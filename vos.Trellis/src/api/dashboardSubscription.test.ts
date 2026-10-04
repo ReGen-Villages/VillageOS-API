@@ -8,7 +8,7 @@ function specificationWith(over: Partial<DashboardSpecification>): DashboardSpec
   return { title: 'Ops', sections: [], ...over };
 }
 
-/** A specificationwhose one widget carries the binding under test. */
+/** A specification whose one widget carries the binding under test. */
 function specificationDrawing(value: DashboardSpecification['sections'][number]['widgets'][number]): DashboardSpecification {
   return specificationWith({ sections: [{ widgets: [value] }] });
 }

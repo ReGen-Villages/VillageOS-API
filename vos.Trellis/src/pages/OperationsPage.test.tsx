@@ -190,9 +190,9 @@ describe('OperationsPage', () => {
     expect(screen.getByText('No dashboard configured')).toBeInTheDocument();
   });
 
-  // The store this page reads holds nothing but what its own specificationasks for — every figure above is
+  // The store this page reads holds nothing but what its own specification asks for — every figure above is
   // resolved from that set. What makes the set arrive is the page saying so.
-  it('declares the subscription its specificationdescribes', () => {
+  it('declares the subscription its specification describes', () => {
     renderAt();
 
     expect(declaredSubscriptions).toContainEqual(subscriptionForSpecification(SPECIFICATION as DashboardSpecification, null));
@@ -311,9 +311,9 @@ describe('OperationsPage section widths', () => {
   });
 });
 
-// A specificationis model data and can be authored wrong. Every one of these draws something a
+// A specification is model data and can be authored wrong. Every one of these draws something a
 // reader can act on, rather than an empty page that looks like a model with nothing in it.
-describe('OperationsPage on a specificationauthored wrong', () => {
+describe('OperationsPage on a specification authored wrong', () => {
   function publish(name: string, specification: string) {
     useModelStore.setState((s) => ({
       things: [...s.things, { Id: name, Name: name, Properties: { specification } }],
@@ -329,7 +329,7 @@ describe('OperationsPage on a specificationauthored wrong', () => {
     seedStore();
   });
 
-  it('names the dashboard whose specificationit could not read', () => {
+  it('names the dashboard whose specification it could not read', () => {
     publish('Unreadable', '{ "title": "Half a specification"');
 
     renderAt('/operations/unreadable');
@@ -337,7 +337,7 @@ describe('OperationsPage on a specificationauthored wrong', () => {
     expect(screen.getByText('Unreadable could not be read')).toBeInTheDocument();
   });
 
-  it('tells a specificationit could not read apart from a model publishing no dashboard', () => {
+  it('tells a specification it could not read apart from a model publishing no dashboard', () => {
     publish('Unreadable', 'not a specification at all');
 
     renderAt('/operations/unreadable');
@@ -453,7 +453,7 @@ describe('what a live event makes the page ask again', () => {
     expect(stateReads()).toBe(before);
   });
 
-  it('asks the platform again on the cadence the specificationstates', async () => {
+  it('asks the platform again on the cadence the specification states', async () => {
     withCadence();
     renderAt();
     expect(await screen.findByText('2')).toBeInTheDocument();
@@ -491,7 +491,7 @@ describe('what a live event makes the page ask again', () => {
 });
 
 // A page the platform declares is drawn exactly as a model's own: one address, the same renderer,
-// and its bindings and presses on the platform route the specificationnames.
+// and its bindings and presses on the platform route the specification names.
 describe('a page the platform declares', () => {
   const ACCOUNTS: DashboardSpecification = {
     title: 'Accounts',

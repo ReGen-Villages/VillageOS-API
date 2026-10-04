@@ -18,7 +18,7 @@ import type {
   FormWidget,
 } from '../types/dashboard';
 
-/** A specificationexercising every widget type plus a detail card. The base strings are
+/** A specification exercising every widget type plus a detail card. The base strings are
  *  deliberately plain English; `translations.es` renders them in Spanish. One
  *  key (the exceptions section title) is left untranslated to prove key-level
  *  fallback, and the state name "Harvested" doubles as a KPI unit to prove that a
@@ -130,7 +130,7 @@ function fixture(): DashboardSpecification {
   };
 }
 
-describe('localizeSpec', () => {
+describe('localizeSpecification', () => {
   it('renders display strings in the active locale', () => {
     const specification = localizeSpecification(fixture(), 'es');
     expect(specification.title).toBe('Operaciones del pueblo');
@@ -200,7 +200,7 @@ describe('localizeSpec', () => {
     expect(specification.sections[0].title).toBe('Rendimiento');
   });
 
-  it('returns a specificationwith no translations block unchanged (no regression)', () => {
+  it('returns a specification with no translations block unchanged (no regression)', () => {
     const base = fixture();
     delete base.translations;
     const specification = localizeSpecification(base, 'es');
@@ -208,9 +208,9 @@ describe('localizeSpec', () => {
   });
 });
 
-// The verdict wording is the only display text the specificationvocabulary keeps on a binding, so the
+// The verdict wording is the only display text the specification vocabulary keeps on a binding, so the
 // invariant that binding values pass through untouched has to bend for it — and only for it.
-describe('localizeSpec over a verdict widget', () => {
+describe('localizeSpecification over a verdict widget', () => {
   function verdictSpecification(): DashboardSpecification {
     return {
       title: 'Analysis',
@@ -291,7 +291,7 @@ describe('localizeSpec over a verdict widget', () => {
   });
 });
 
-describe('localizeSpec over an origin binding', () => {
+describe('localizeSpecification over an origin binding', () => {
   const localized = localizeSpecification({
     title: 'Analysis',
     sections: [
@@ -339,7 +339,7 @@ describe('localizeSpec over an origin binding', () => {
   });
 });
 
-describe('localizeSpec over a rangeBar widget', () => {
+describe('localizeSpecification over a rangeBar widget', () => {
   const specification: DashboardSpecification = {
     title: 'Analysis',
     sections: [{ widgets: [{
@@ -378,7 +378,7 @@ describe('localizeSpec over a rangeBar widget', () => {
   });
 });
 
-describe('localizeSpec over a lineSeries widget', () => {
+describe('localizeSpecification over a lineSeries widget', () => {
   const specification: DashboardSpecification = {
     title: 'Analysis',
     sections: [{ widgets: [{
@@ -407,7 +407,7 @@ describe('localizeSpec over a lineSeries widget', () => {
   });
 });
 
-describe('localizeSpec over a heatmap widget', () => {
+describe('localizeSpecification over a heatmap widget', () => {
   const specification: DashboardSpecification = {
     title: 'Analysis',
     sections: [{ widgets: [{
@@ -434,7 +434,7 @@ describe('localizeSpec over a heatmap widget', () => {
   });
 });
 
-describe('localizeSpec over a stackedShares widget', () => {
+describe('localizeSpecification over a stackedShares widget', () => {
   const specification: DashboardSpecification = {
     title: 'Analysis',
     sections: [{ widgets: [{
@@ -464,7 +464,7 @@ describe('localizeSpec over a stackedShares widget', () => {
   });
 });
 
-describe('localizeSpec over a divergingBar widget', () => {
+describe('localizeSpecification over a divergingBar widget', () => {
   const specification: DashboardSpecification = {
     title: 'Analysis',
     sections: [{ widgets: [{
@@ -496,7 +496,7 @@ describe('localizeSpec over a divergingBar widget', () => {
   });
 });
 
-describe('localizeSpec over a smallMultiples widget', () => {
+describe('localizeSpecification over a smallMultiples widget', () => {
   const specification: DashboardSpecification = {
     title: 'Analysis',
     sections: [{ widgets: [{
@@ -536,7 +536,7 @@ describe('localizeSpec over a smallMultiples widget', () => {
   });
 });
 
-describe('localizeSpec over the writing widgets', () => {
+describe('localizeSpecification over the writing widgets', () => {
   const specification: DashboardSpecification = {
     title: 'Springs',
     sections: [

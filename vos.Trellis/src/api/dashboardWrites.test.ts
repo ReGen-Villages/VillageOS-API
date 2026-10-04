@@ -10,14 +10,14 @@ describe('postToEndpoint', () => {
     fromService.mockReset();
   });
 
-  it('posts the body to the endpoint the specificationnames, through the context’s port, and hands back what it said', async () => {
+  it('posts the body to the endpoint the specification names, through the context’s port, and hands back what it said', async () => {
     fromService.mockResolvedValue({ said: 'taken' });
 
     expect(await postToEndpoint(reads, 'readings', { view: 'book' })).toEqual({ said: 'taken' });
     expect(fromService).toHaveBeenCalledWith('/api/endpoints/readings', { view: 'book' });
   });
 
-  it('posts to a platform route as written where the specificationnames one by its path', async () => {
+  it('posts to a platform route as written where the specification names one by its path', async () => {
     fromService.mockResolvedValue({ said: 'granted' });
 
     await postToEndpoint(reads, '/api/auth/administration', { view: 'grant' });

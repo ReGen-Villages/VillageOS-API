@@ -21,7 +21,7 @@ describe('a widget kind this build has no drawing for', () => {
     expect(screen.getByText(/sankey/)).toBeInTheDocument();
   });
 
-  it('says so even where the specificationnames no kind at all', () => {
+  it('says so even where the specification names no kind at all', () => {
     draw({ title: 'Flows' });
 
     expect(screen.getByText('Widget not drawn')).toBeInTheDocument();
@@ -64,9 +64,9 @@ describe('a widget asking for binding vocabulary this build cannot answer', () =
     expect(screen.queryByText('Throughput')).toBeNull();
   });
 
-  // A specificationcan leave the word out as easily as misspell it, and the notice is a translated sentence
+  // A specification can leave the word out as easily as misspell it, and the notice is a translated sentence
   // either way — so the gap where the word would be is filled in the reader's own language.
-  it('says the kind was not given where the specificationnames none', () => {
+  it('says the kind was not given where the specification names none', () => {
     draw({ type: 'kpi', title: 'Throughput', value: { property: 'volume' } });
 
     expect(screen.getByText(/none given/)).toBeInTheDocument();

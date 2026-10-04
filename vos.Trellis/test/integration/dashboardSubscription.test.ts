@@ -80,7 +80,7 @@ function release(subscriptionId: string, token: string) {
   });
 }
 
-/** The specificationsthe model publishes, read the way the client reads them: JSON in a property. */
+/** The specifications the model publishes, read the way the client reads them: JSON in a property. */
 function specificationsIn(things: VosThing[]): { name: string; specification: DashboardSpecification }[] {
   const found: { name: string; specification: DashboardSpecification }[] = [];
   for (const thing of things) {
@@ -126,7 +126,7 @@ describe('the subscription a dashboard opens', () => {
 
   // A binding that names a Thing outright is the one case a walk cannot rescue: the page reads that
   // Thing's properties out of what it was sent, and reads nothing if it was not sent.
-  it('carries every Thing the specificationsname', async () => {
+  it('carries every Thing the specifications name', async () => {
     for (const { name, specification } of published) {
       const selector = subscriptionForSpecification(specification, null);
       const opened = await open(selector, token);

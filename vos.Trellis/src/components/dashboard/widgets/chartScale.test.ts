@@ -33,7 +33,7 @@ describe('a padded domain', () => {
     expect(paddedDomain([12, 31], -10, 40)).toEqual([-10, 40]);
   });
 
-  it('fits the data with a little air above and below where the specificationstates none', () => {
+  it('fits the data with a little air above and below where the specification states none', () => {
     const [floor, ceiling] = paddedDomain([12, 31]);
     expect(floor).toBeLessThan(12);
     expect(ceiling).toBeGreaterThan(31);
