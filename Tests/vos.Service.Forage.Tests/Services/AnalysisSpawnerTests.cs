@@ -20,7 +20,7 @@ public class AnalysisSpawnerTests
                 "http://localhost"),
             NullLogger<AnalysisSpawner>.Instance);
 
-    // Neither case below reaches the network; the factory exists to prove that, by failing if one does.
+    // No case below reaches the network; the factory exists to prove that, by failing if one does.
     private sealed class UnreachableHttpClientFactory : IHttpClientFactory
     {
         public HttpClient CreateClient(string name) =>
@@ -46,5 +46,17 @@ public class AnalysisSpawnerTests
         spawn.Started.Should().BeFalse();
         spawn.Reason.Should().Contain("marks no connection",
             "a model seeded without its compute connections is a gap in the model, not a discovery that failed");
+    }
+
+    [Fact]
+    public async Task AStudyAlreadyRelatedToEveryService_IsStartedWithoutWriting()
+    {
+        var analysis = new SiteAnalysis(Guid.NewGuid(),
+            [new AnalysisTrigger("balancesEnergy", Guid.NewGuid(), Guid.NewGuid(), AlreadyRelated: true)]);
+
+        var spawn = await Spawner().SpawnAsync(Guid.NewGuid(), analysis, CancellationToken.None);
+
+        spawn.Started.Should().BeTrue("the relationship that starts the analysis is already in the model");
+        spawn.Reason.Should().BeNull();
     }
 }
