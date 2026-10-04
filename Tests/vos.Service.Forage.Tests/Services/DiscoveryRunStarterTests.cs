@@ -183,7 +183,7 @@ public class DiscoveryRunStarterTests
         starter.Start(Guid.NewGuid(), _ => releaseFirst.Task);
         starter.Start(Guid.NewGuid(), _ => { secondStarted.SetResult(); return Task.CompletedTask; });
 
-        (await StartsWithin(secondStarted.Task, TimeSpan.FromSeconds(10))).Should().BeTrue(
+        (await StartsWithin(secondStarted.Task, StartsSoonEnough)).Should().BeTrue(
             "only runs for one subject are held; separate sites are still discovered in parallel");
         releaseFirst.SetResult();
     }
