@@ -20,8 +20,9 @@ public interface IDiscoveryRunStarter
 // still run together. A run reads which calls the model holds no answer for, then makes them and records
 // what came back, so two runs for one site read the same gaps and both fill them:
 //   - each mints a coverage for the same call, and from then on every run for that site fails, because
-//     the ledger indexes coverage by site and source and cannot hold two for one pair;
+//     the ledger indexes coverage by the Thing a call is about and its source, and cannot hold two;
 //   - each calls the same sources;
+//   - each replaces the same vocabulary relationships, and the second replacement is refused;
 //   - each writes the analysis relationship, which the model refuses the second time.
 // Running one site's discoveries in parallel needs those writes to stop duplicating first, and only then
 // can this hold go. It does not cover a source's run overlapping a site's run, which can mint the same
