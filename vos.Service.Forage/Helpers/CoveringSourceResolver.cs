@@ -46,7 +46,9 @@ public sealed record DivisionLookup(
 
 // One compute service to start on the site's study: the connection to relate through, and the service
 // prototype the relationship points at. The connection is the predicate, which is what makes the relationship dispatch.
-public sealed record AnalysisTrigger(string ConnectionName, Guid ConnectionId, Guid ServicePrototypeId);
+// A study already holding the relationship has its analysis running, and the model refuses a second copy.
+public sealed record AnalysisTrigger(
+    string ConnectionName, Guid ConnectionId, Guid ServicePrototypeId, bool AlreadyRelated);
 
 // The study to compute, and every service that computes part of it.
 public sealed record SiteAnalysis(Guid StudyId, IReadOnlyList<AnalysisTrigger> Triggers);
@@ -151,8 +153,8 @@ public static class CoveringSourceResolver
     {
         Ids = [siteId],
         Names = [.. PredicatesRead],
-        // Model-wide rather than reached from the site: the study is not related to its connections yet,
-        // because relating it is what this read is for.
+        // Model-wide rather than reached from the site: a study is related through a connection only once
+        // its analysis has started there, and finding the connections it has not started is what this read is for.
         MarkedTypes = [SiteAnalysisConnectionFlag],
         // The coverage archetype is asked for model-wide for a different reason: a run mints against it,
         // so it has to arrive before any coverage exists to traverse from. Alone, though — with its
@@ -650,6 +652,11 @@ public static class CoveringSourceResolver
 
         if (StudyOf(snapshot, namesById, siteId) is not { } studyId) return null;
 
+        var studyRelationships = new HashSet<(Guid Predicate, Guid Target)>();
+        foreach (var edge in snapshot.Relationships)
+            if (edge.SubjectId == studyId)
+                studyRelationships.Add((edge.PredicateId, edge.TargetId));
+
         var triggers = new List<AnalysisTrigger>();
         foreach (var connectionId in MembersOfArchetypesCarrying(
                      snapshot, thingsById, namesById, SiteAnalysisConnectionFlag))
@@ -658,7 +665,8 @@ public static class CoveringSourceResolver
                 continue;
 
             triggers.Add(new AnalysisTrigger(
-                thingsById[connectionId].Name ?? string.Empty, connectionId, prototypeId));
+                thingsById[connectionId].Name ?? string.Empty, connectionId, prototypeId,
+                studyRelationships.Contains((connectionId, prototypeId))));
         }
 
         // Ordered by name so a run writes its relationships the same way twice, which is what makes the log of

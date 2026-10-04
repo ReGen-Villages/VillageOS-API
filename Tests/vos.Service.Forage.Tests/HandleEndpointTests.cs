@@ -261,6 +261,21 @@ public class HandleEndpointTests
     }
 
     [Fact]
+    public async Task Handle_StartsTheRunUnderTheSubjectTheDispatchNamed()
+    {
+        // The starter holds a run back while another for the same subject is in flight, so the
+        // subject it is told is what keeps one site's runs apart and lets separate sites run together.
+        await using var factory = new ForageWebApplicationFactory();
+        await factory.InitializeAsync();
+        using var client = factory.CreateClient();
+        var subject = Guid.NewGuid();
+
+        await client.PostAsJsonAsync("/handle", new { subjectId = subject });
+
+        factory.StartedSubjects.Should().Equal(subject);
+    }
+
+    [Fact]
     public async Task Handle_ABodyNamingNoSubject_IsRefusedInTheSharedWords()
     {
         await using var factory = new ForageWebApplicationFactory();
