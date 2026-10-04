@@ -142,8 +142,8 @@ public class AnalysisSpawnTests
     [Fact]
     public async Task Handle_StudyAlreadyRelatedToTheService_WritesNothing()
     {
-        // A seed can carry the relationship, and every later run finds the one the first run wrote. The
-        // model refuses a second copy, so writing it again reported a running analysis as not started.
+        // A seed can carry the relationship, and every run after the first finds the one it wrote. The
+        // model refuses a second copy, so writing it again would report a running analysis as not started.
         var ids = SiteWithOneSource();
         var spawns = new SpawnRecorder();
         Edge[] edges =
