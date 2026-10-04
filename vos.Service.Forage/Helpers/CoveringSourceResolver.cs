@@ -652,6 +652,11 @@ public static class CoveringSourceResolver
 
         if (StudyOf(snapshot, namesById, siteId) is not { } studyId) return null;
 
+        var studyRelationships = new HashSet<(Guid Predicate, Guid Target)>();
+        foreach (var edge in snapshot.Relationships)
+            if (edge.SubjectId == studyId)
+                studyRelationships.Add((edge.PredicateId, edge.TargetId));
+
         var triggers = new List<AnalysisTrigger>();
         foreach (var connectionId in MembersOfArchetypesCarrying(
                      snapshot, thingsById, namesById, SiteAnalysisConnectionFlag))
@@ -659,10 +664,9 @@ public static class CoveringSourceResolver
             if (ServicePrototypeOf(snapshot, thingsById, namesById, connectionId) is not { } prototypeId)
                 continue;
 
-            var alreadyRelated = snapshot.Relationships.Any(edge =>
-                edge.SubjectId == studyId && edge.PredicateId == connectionId && edge.TargetId == prototypeId);
             triggers.Add(new AnalysisTrigger(
-                thingsById[connectionId].Name ?? string.Empty, connectionId, prototypeId, alreadyRelated));
+                thingsById[connectionId].Name ?? string.Empty, connectionId, prototypeId,
+                studyRelationships.Contains((connectionId, prototypeId))));
         }
 
         // Ordered by name so a run writes its relationships the same way twice, which is what makes the log of
