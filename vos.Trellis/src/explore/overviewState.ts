@@ -5,7 +5,7 @@
 import type { BasemapSource } from '../types/basemap';
 import type { DashboardSection, DashboardSpecification } from '../types/dashboard';
 
-/** The sections carrying a `tab`, in the order the spec lists them — the order the sheet draws them. */
+/** The sections carrying a `tab`, in the order the specificationlists them — the order the sheet draws them. */
 export function tabSections(specification: Pick<DashboardSpecification, 'sections'>): DashboardSection[] {
   return specification.sections.filter((section) => section.tab !== undefined);
 }

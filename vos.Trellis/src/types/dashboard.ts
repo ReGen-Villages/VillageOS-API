@@ -24,7 +24,7 @@ export const SCOPE_REFERENCE = '$scope';
 export const IS_PREDICATE = 'is';
 /** The property on a page's scope entity that says which clock offset its calendar is read in, which
  *  a `history` binding hands the platform so a fold by day or month is the entity's own day or month
- *  rather than the server's. The one property name this file states, like the spec's own. */
+ *  rather than the server's. The one property name this file states, like the specification's own. */
 export const UTC_OFFSET_PROPERTY = 'utcOffsetSeconds';
 
 export type NumberFormat =
@@ -39,7 +39,7 @@ export type NumberFormat =
   | 'bytes'     // 32_500_000_000 → "30.3 GiB"
   | 'money';
 
-/** A step of a history reduction as the spec writes it. A parameter — a percentile, a band's bound, a
+/** A step of a history reduction as the specificationwrites it. A parameter — a percentile, a band's bound, a
  *  threshold — is a number, or a binding onto the model's own value (a setpoint the study declares,
  *  a bound a class Thing carries) resolved to the number before the platform is asked. */
 export type BoundNumber = number | Binding;
@@ -55,7 +55,7 @@ export interface HistoryStepBinding {
 /**
  * A Binding is *how a widget slot gets its number/rows*. The `kind` set is
  * generic; the values (`state: 'active'`, `archetype: 'Device'`, property names)
- * are model-specific and come from the spec.
+ * are model-specific and come from the specification.
  *
  * The special thing reference `$scope` resolves to the compare-entity currently
  * selected in the page's scope switcher, or is averaged across all compare
@@ -165,8 +165,8 @@ export type Binding =
    *  declares nothing about is `unknown`. A renamed property answers the same way, and silence is
    *  never reported as a measurement.
    *
-   *  `reads` is the wording the spec gives that origin, and is the only wording there is — an origin
-   *  the spec leaves unworded says nothing rather than something Trellis made up. `source` names
+   *  `reads` is the wording the specificationgives that origin, and is the only wording there is — an origin
+   *  the specificationleaves unworded says nothing rather than something Trellis made up. `source` names
    *  what says so and `resolvedAt` when it last did: for an assumption, the archetype the value came
    *  from; otherwise what the `source` walk reaches from the Thing holding the value, which is how a
    *  fetched figure names its data source and a generated boundary says it was generated.
@@ -593,7 +593,7 @@ export interface RangeSeries {
 
 /** A band drawn behind a chart between two bounds the model states — a comfort zone, a danger limit.
  *  A bound left unbound runs to the chart's edge, which is how a limit with no upper end is drawn.
- *  The colour is the spec's: a band means what the model says it means, and the widget colours nothing
+ *  The colour is the specification's: a band means what the model says it means, and the widget colours nothing
  *  of its own. */
 export interface RangeBand {
   label: string;
@@ -653,7 +653,7 @@ export interface SunPosition {
 
 /** Every hour of every day of the year as one cell coloured by value — a `history` binding folded
  *  by `hourOfDay,dayOfYear` — painted on a canvas because the grid is thousands of cells, with the
- *  sunrise and sunset curves over it where the spec binds the coordinates. The ramp is one hue,
+ *  sunrise and sunset curves over it where the specificationbinds the coordinates. The ramp is one hue,
  *  light at the floor and dark at the ceiling, with a scale legend; `floor` and `ceiling` fix it,
  *  absent it fits the data. */
 export interface HeatmapWidget {
@@ -763,8 +763,8 @@ export interface ActionChoice {
 }
 
 /** What pressing a choice writes, and no service named anywhere in it. Which service wakes is the
- *  model's to decide from the relationship the endpoint lays down — a spec naming a handler would move that
- *  decision into the spec. */
+ *  model's to decide from the relationship the endpoint lays down — a specificationnaming a handler would move that
+ *  decision into the specification. */
 export interface ActionRecords {
   /** The endpoint that accepts the act, by the name `POST /api/endpoints/{name}` forwards to — or,
    *  beginning with `/`, a route on the platform itself, posted to as written. Either names a door,
@@ -887,7 +887,7 @@ export interface DashboardSection {
    *  reference from what it knows itself, so this section carries only what the page cannot know. */
   facts?: boolean;
   /** Names the section as a tab of the closing view over the land: the explore page draws every
-   *  section carrying one as a tab in a sheet along the bottom of the map, in spec order, and not in
+   *  section carrying one as a tab in a sheet along the bottom of the map, in specificationorder, and not in
    *  the report beneath. The word is the tab's key; the section's title is what the tab reads. */
   tab?: string;
 }
@@ -952,7 +952,7 @@ export interface DetailSpecification {
 }
 
 /**
- * Per-locale translations of the spec's own display strings, keyed first by
+ * Per-locale translations of the specification's own display strings, keyed first by
  * locale code (`es`, `nl`, …) then by the BASE (as-authored) string. Trellis
  * renders a display string `s` as `translations[activeLocale]?.[s] ?? s`, so an
  * absent locale or an untranslated string falls back to the base text — never a
@@ -967,7 +967,7 @@ export interface DashboardSpecification {
   title: string;
   subtitle?: string;
   /** Name of the icon the navigation entry draws, from the set Trellis renders with — the same
-   *  presentation vocabulary the spec already carries as colours and number formats. A spec that
+   *  presentation vocabulary the specificationalready carries as colours and number formats. A specificationthat
    *  names none, or names one Trellis cannot draw, gets a generic icon rather than no entry. */
   icon?: string;
   compare?: CompareConfiguration;
@@ -994,7 +994,7 @@ export interface DashboardDescriptor {
    *  so a link survives a reseeded model, and language-independent so an address does not change
    *  when the reader's language does. */
   routeKey: string;
-  /** Null where the Thing carries a spec that could not be read. Such a dashboard is still listed
+  /** Null where the Thing carries a specificationthat could not be read. Such a dashboard is still listed
    *  and still addressable, so the author sees the fault rather than a page that is simply missing. */
   specification: DashboardSpecification | null;
 }

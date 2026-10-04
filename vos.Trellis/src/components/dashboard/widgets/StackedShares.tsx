@@ -83,7 +83,7 @@ export function StackedShares({ widget, context }: { widget: StackedSharesWidget
           {months.map((month) => {
             const centre = centreOf(month.at);
             const left = centre - barWidth / 2;
-            // Segments stack from the axis upward in the order the spec lists the classes, so the
+            // Segments stack from the axis upward in the order the specificationlists the classes, so the
             // first class sits at the bottom of every bar and a reader can follow it across months.
             let stacked = 0;
             return (

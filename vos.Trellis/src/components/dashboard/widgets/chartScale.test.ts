@@ -29,11 +29,11 @@ describe('nice ticks', () => {
 });
 
 describe('a padded domain', () => {
-  it('takes the spec\'s floor and ceiling where it states them', () => {
+  it('takes the specification\'s floor and ceiling where it states them', () => {
     expect(paddedDomain([12, 31], -10, 40)).toEqual([-10, 40]);
   });
 
-  it('fits the data with a little air above and below where the spec states none', () => {
+  it('fits the data with a little air above and below where the specificationstates none', () => {
     const [floor, ceiling] = paddedDomain([12, 31]);
     expect(floor).toBeLessThan(12);
     expect(ceiling).toBeGreaterThan(31);

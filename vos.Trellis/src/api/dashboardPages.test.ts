@@ -48,7 +48,7 @@ describe('what the writes need from the model', () => {
 });
 
 describe('keeping a page', () => {
-  it('writes the Thing, what it is and its spec as one fragment, and nothing else', async () => {
+  it('writes the Thing, what it is and its specificationas one fragment, and nothing else', async () => {
     vi.mocked(modelApi.applyFragment).mockResolvedValue({ thingsCreated: 1, thingsUpdated: 0, relationshipsCreated: 1, things: [] });
 
     const id = await dashboardPages.keep('Springs by flow', PAGE, dashboardWriteContext(index())!);
@@ -64,14 +64,14 @@ describe('keeping a page', () => {
     expect(thingApi.setProperty).not.toHaveBeenCalled();
   });
 
-  it('refuses a spec the console’s own discovery could not read back, before anything is written', async () => {
+  it('refuses a specificationthe console’s own discovery could not read back, before anything is written', async () => {
     await expect(dashboardPages.keep('Broken', { title: 'Broken' } as DashboardSpecification, dashboardWriteContext(index())!)).rejects.toThrow(/could not read/);
     expect(modelApi.applyFragment).not.toHaveBeenCalled();
   });
 });
 
 describe('retitling a page', () => {
-  it('rewrites the spec’s title and leaves the Thing’s name, so the address stays', async () => {
+  it('rewrites the specification’s title and leaves the Thing’s name, so the address stays', async () => {
     await dashboardPages.retitle('kept', PAGE, 'Springs, fastest first');
 
     expect(thingApi.setProperty).toHaveBeenCalledWith('kept', 'specification','vos.String', JSON.stringify({ ...PAGE, title: 'Springs, fastest first' }));
@@ -79,14 +79,14 @@ describe('retitling a page', () => {
 });
 
 describe('writing a page over', () => {
-  it('rewrites the whole spec on the Thing the page stands as', async () => {
+  it('rewrites the whole specificationon the Thing the page stands as', async () => {
     const laidOut = { ...PAGE, designed: true as const };
     await dashboardPages.write('kept', laidOut);
 
     expect(thingApi.setProperty).toHaveBeenCalledWith('kept', 'specification','vos.String', JSON.stringify(laidOut));
   });
 
-  it('refuses a spec the discovery could not read back', async () => {
+  it('refuses a specificationthe discovery could not read back', async () => {
     await expect(dashboardPages.write('kept', { ...PAGE, sections: undefined } as never)).rejects.toThrow();
     expect(thingApi.setProperty).not.toHaveBeenCalled();
   });

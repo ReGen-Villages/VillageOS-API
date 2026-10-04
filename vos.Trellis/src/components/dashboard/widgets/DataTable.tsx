@@ -29,7 +29,7 @@ const ESTIMATED_BODY_ROW_HEIGHT = 12.5 * 1.5 + 16 + 1;
    already there rather than a gap waiting for the next render. */
 const OVERSCAN_ROWS = 6;
 
-/** Sortable, generic data table driven by a rows binding + column spec.
+/** Sortable, generic data table driven by a rows binding + column specification.
  *  Rows can come from a `rowsBinding` (resolved here) or be passed in directly
  *  via `rows` (e.g. the funnel's cross-stage search results). */
 export function DataTable({

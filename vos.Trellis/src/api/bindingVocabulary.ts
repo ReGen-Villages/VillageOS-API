@@ -1,7 +1,7 @@
 /**
  * The binding vocabulary this build can answer, and what a widget asks for that it cannot.
  *
- * A spec is model data. It can be authored against a newer client than the one reading it, and the
+ * A specificationis model data. It can be authored against a newer client than the one reading it, and the
  * client's tolerance for what it does not recognise is what lets a model and a console ship apart.
  * That tolerance is right for presentation and wrong for a binding: a binding is a question, and
  * answering half of one produces a number rather than a gap. A tile whose kind this build lacks

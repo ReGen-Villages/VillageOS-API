@@ -9,7 +9,7 @@
  * generic binding *kind* to a concrete data source — the loaded model for most of
  * them, and for the four it cannot answer, the {@link ModelReads} its context
  * carries. Nothing here opens a connection, which is what lets the page a
- * submitter opens with no credential resolve the same specs the application does.
+ * submitter opens with no credential resolve the same specificationsthe application does.
  * The binding *values* — state names, archetypes, properties — come from the
  * model, never from this file.
  */
@@ -78,7 +78,7 @@ export interface ModelIndex {
    *  without a new index, and a per-row binding repeats the same question once per row. */
   archetypeMembers: Map<string, Set<string>>;
   /** The model's dashboards, parsed the first time they are asked for and discarded with the index.
-   *  The navigation and the page both ask, and a spec is JSON in a property — parsing every one of
+   *  The navigation and the page both ask, and a specificationis JSON in a property — parsing every one of
    *  them twice per model change is work neither reader needs done again. */
   dashboards: DashboardDescriptor[] | null;
 }
@@ -224,7 +224,7 @@ export function thingsOfArchetype(archetype: string, index: ModelIndex): VosThin
  *  dashboard's position in the navigation would move whenever the model changed. */
 export function discoverDashboardsFromIndex(index: ModelIndex): DashboardDescriptor[] {
   if (index.dashboards) return index.dashboards;
-  // Every Dashboard Thing is listed, including one whose spec did not read. A spec is model data
+  // Every Dashboard Thing is listed, including one whose specificationdid not read. A specificationis model data
   // and can be authored wrong; dropping such a Thing here leaves its author a page that never
   // appears and nothing anywhere saying why.
   const found = thingsOfArchetype(DASHBOARD_ARCHETYPE, index).map((thing) => ({
@@ -307,10 +307,10 @@ export interface ResolveContext {
   nonce?: number;
   /** What answers the four questions a loaded model cannot — state membership, a Thing's ranges, a
    *  reduction over history, a model-side service. Supplied by whoever built the context, so this
-   *  file resolves the same specs whether the broker is reachable or not. */
+   *  file resolves the same specificationswhether the broker is reachable or not. */
   reads: ModelReads;
   /** The beat a binding the broker answers follows when nothing about its own question moved: the
-   *  cadence the page's spec states, and a model reload. Part of identity only. */
+   *  cadence the page's specificationstates, and a model reload. Part of identity only. */
   serverRefresh?: number;
   /** How many times each derived state has moved, read once for the page rather than by every
    *  widget on it. A binding the broker answers reads the counts of the states its own answer is
@@ -374,7 +374,7 @@ function scopeMemberIds(scope: ScopeReference | undefined, context: ResolveConte
  * Text is never parsed, however numeric it looks. The platform states a type for every property
  * and the value it sends already carries that answer — a text property arrives as text, and every
  * numeric type arrives as a number — so parsing would replace an answer with a guess about how the
- * characters look, and read an order number or a door number as a measurement. A spec that
+ * characters look, and read an order number or a door number as a measurement. A specificationthat
  * compares against a number must therefore write it as one, not as quoted text.
  */
 function number(v: unknown): number {
@@ -405,7 +405,7 @@ function passesFilters(thing: VosThing, filters: PropertyFilter[] | undefined, i
  *  `$scope` reference — the selected compare entity, which inside a computed column is the row's
  *  own Thing.
  *
- *  Every binding that names a Thing asks here, so one reference means one Thing wherever a spec
+ *  Every binding that names a Thing asks here, so one reference means one Thing wherever a specification
  *  spends it. The id is tried first because it is exact: Thing names are not unique in this model
  *  and the index keeps whichever Thing of a name it saw first, so a name is the weaker answer and
  *  belongs in the fallback. */
@@ -904,7 +904,7 @@ async function seriesPoints(
   context: ResolveContext,
 ): Promise<number[] | null> {
   // The refusals worth saying out loud: every other binding resolving to nothing is a value the
-  // model has not got, while these are questions the spec cannot ask, and an author has no other
+  // model has not got, while these are questions the specificationcannot ask, and an author has no other
   // sign of them.
   if (binding.scope?.direction === 'in') {
     console.warn(

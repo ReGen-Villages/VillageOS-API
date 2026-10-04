@@ -8,7 +8,7 @@ export interface EndpointAnswer {
 }
 
 /**
- * The post a writing widget makes: the body to the door the spec names, through the same port a
+ * The post a writing widget makes: the body to the door the specificationnames, through the same port a
  * `service` binding reads through, so a page holding no credential decides for itself what a post
  * does. Nothing here says who is asking; the platform holds the session and is what an endpoint
  * would have to be told the caller by.
@@ -29,7 +29,7 @@ export async function postToEndpoint(reads: ModelReads, via: string, body: Recor
   return answer;
 }
 
-/** Where a `via` posts: a route on the platform itself where the spec wrote one by its path, and
+/** Where a `via` posts: a route on the platform itself where the specificationwrote one by its path, and
  *  otherwise the endpoint the forwarder resolves by that name. */
 function doorOf(via: string): string {
   return via.startsWith('/') ? via : `/api/endpoints/${via}`;

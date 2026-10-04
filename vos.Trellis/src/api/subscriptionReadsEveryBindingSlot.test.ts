@@ -103,7 +103,7 @@ describe('the subscription a dashboard opens', () => {
   // If the vocabulary is renamed or restructured past what the patterns above read, this test finds
   // nothing and every assertion below passes vacuously. Saying so is the difference between a guard
   // and a decoration.
-  it('finds the widgets and binding slots the spec vocabulary declares', () => {
+  it('finds the widgets and binding slots the specificationvocabulary declares', () => {
     expect(widgets.length, `no members of the Widget union matched in ${VOCABULARY}`).toBeGreaterThan(0);
     expect([...arms.keys()].sort(), 'the collector has an arm for a widget the union does not list, or the other way about')
       .toEqual(widgets.map((widget) => widget.widgetType).sort());

@@ -8,7 +8,7 @@ import type { VosThing } from '../../src/types/vos';
 // only true if the selector the client writes is one the platform reads. Nothing in the offline
 // suite can check that: it asserts the shape of a request nobody sends.
 //
-// This signs in to a running platform, derives each of its dashboards' subscriptions from the spec
+// This signs in to a running platform, derives each of its dashboards' subscriptions from the specification
 // the model itself carries, and checks the platform answers each with the Things that dashboard
 // reads — and with fewer than the model holds, since a subscription that covers everything has
 // narrowed nothing.
@@ -80,8 +80,8 @@ function release(subscriptionId: string, token: string) {
   });
 }
 
-/** The specs the model publishes, read the way the client reads them: JSON in a property. */
-function specsIn(things: VosThing[]): { name: string; specification: DashboardSpecification }[] {
+/** The specificationsthe model publishes, read the way the client reads them: JSON in a property. */
+function specificationsIn(things: VosThing[]): { name: string; specification: DashboardSpecification }[] {
   const found: { name: string; specification: DashboardSpecification }[] = [];
   for (const thing of things) {
     const raw = (thing.Properties ?? {})[DASHBOARD_SPECIFICATION_PROPERTY];
@@ -90,7 +90,7 @@ function specsIn(things: VosThing[]): { name: string; specification: DashboardSp
     try {
       const specification = JSON.parse(value) as DashboardSpecification;
       if (Array.isArray(specification.sections)) found.push({ name: thing.Name, specification });
-    } catch { /* a property called `spec` that is not one */ }
+    } catch { /* a property called `specification` that is not one */ }
   }
   return found;
 }
@@ -106,7 +106,7 @@ describe('the subscription a dashboard opens', () => {
     if (!response.ok) throw new Error(`Could not read the model: ${response.status}`);
     const things = (await response.json()) as VosThing[];
     modelSize = things.length;
-    published = specsIn(things);
+    published = specificationsIn(things);
     if (!published.length) {
       throw new Error('The signed-in model publishes no dashboard, so there is no subscription to derive.');
     }
@@ -126,14 +126,14 @@ describe('the subscription a dashboard opens', () => {
 
   // A binding that names a Thing outright is the one case a walk cannot rescue: the page reads that
   // Thing's properties out of what it was sent, and reads nothing if it was not sent.
-  it('carries every Thing the specs name', async () => {
+  it('carries every Thing the specificationsname', async () => {
     for (const { name, specification } of published) {
       const selector = subscriptionForSpecification(specification, null);
       const opened = await open(selector, token);
       try {
         const sent = new Set(opened.snapshot.things.flatMap((thing) => [thing.Id, thing.Name]));
         const named = [...(selector.ids ?? []), ...(selector.names ?? [])];
-        // The two names every page asks for are the client's own, not the spec's, and a model need
+        // The two names every page asks for are the client's own, not the specification's, and a model need
         // not carry either — a model with no dashboards to list is the case.
         const fromTheSpec = named.filter((ref) => !['Dashboard', 'GUI_Settings'].includes(ref));
         expect(fromTheSpec.filter((ref) => !sent.has(ref)), `${name} names these and was not sent them`)

@@ -32,7 +32,7 @@ export function niceTicks(floor: number, ceiling: number, count: number): number
 /** How much air the fitted domain leaves above and below the data. */
 const AIR = 0.08;
 
-/** The floor and ceiling a chart draws between: what the spec states, or the data's own extent with
+/** The floor and ceiling a chart draws between: what the specificationstates, or the data's own extent with
  *  a little air on each side it left open. A flat series is given a span so it still has a scale. */
 export function paddedDomain(
   [lowest, highest]: [number, number], floor?: number, ceiling?: number,

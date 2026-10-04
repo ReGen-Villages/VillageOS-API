@@ -77,7 +77,7 @@ describe('what a widget asks for that this build cannot answer', () => {
     }))).toEqual(['runningTotal']);
   });
 
-  // Reading what a widget asks for happens on the way to drawing it, so a spec that names a nested
+  // Reading what a widget asks for happens on the way to drawing it, so a specificationthat names a nested
   // binding and does not write it would take the whole view down rather than the one widget that is
   // wrong — a worse fault than the silent one this module exists to remove.
   it('survives a binding whose nested series was never written', () => {
@@ -96,15 +96,15 @@ describe('what a widget asks for that this build cannot answer', () => {
 
   /**
    * Every word reported reaches a reader inside a translated sentence, so a word this module made
-   * up rather than read off the spec arrives untranslated — English in the middle of Arabic, and
+   * up rather than read off the specificationarrives untranslated — English in the middle of Arabic, and
    * only for the readers least able to report it.
    *
-   * Stated as a property over malformed specs rather than as one example, because the hazard is not
+   * Stated as a property over malformed specificationsrather than as one example, because the hazard is not
    * one literal: it is any branch that answers with a word of its own. The empty string is the one
    * legitimate answer that names nothing, and it is contained in every text, so it passes here and
    * is judged by the tests above instead.
    */
-  it('never reports a word the spec did not contain', () => {
+  it('never reports a word the specificationdid not contain', () => {
     const malformed: unknown[] = [
       { kind: 'runningTotal', property: 'volume' },
       { kind: '', property: 'volume' },
@@ -120,7 +120,7 @@ describe('what a widget asks for that this build cannot answer', () => {
       const widget = tileShowing(value);
       const specification = JSON.stringify(widget);
       for (const word of unimplementedWordsIn(widget)) {
-        expect(specification, `"${word}" is not in the spec it was reported for`).toContain(word);
+        expect(specification, `"${word}" is not in the specificationit was reported for`).toContain(word);
       }
     }
   });
@@ -245,7 +245,7 @@ describe('the table of fields each kind reads', () => {
       }))
       .filter((entry) => entry.missing.length > 0);
 
-    expect(short, 'these fields are declared on a binding and left out of the table, so a spec setting one is silently tolerated')
+    expect(short, 'these fields are declared on a binding and left out of the table, so a specificationsetting one is silently tolerated')
       .toEqual([]);
   });
 });

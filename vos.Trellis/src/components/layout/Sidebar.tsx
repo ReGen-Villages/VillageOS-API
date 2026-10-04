@@ -163,7 +163,7 @@ function GenericIcon() {
   return <Gauge size={18} />;
 }
 
-/** The icon a spec asks for, loaded on demand so a model can name any icon in the set without
+/** The icon a specificationasks for, loaded on demand so a model can name any icon in the set without
  *  Trellis holding a list of the ones it will accept. A name the set does not have — or none at
  *  all — draws the generic dashboard icon, so the entry is never missing. */
 function SpecificationIcon({ name }: { name?: string }) {

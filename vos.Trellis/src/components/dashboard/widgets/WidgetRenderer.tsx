@@ -79,13 +79,13 @@ export function WidgetRenderer({
   }
 }
 
-/** A widget this build did not draw, and which of the two reasons it was. The spec is model data, so
+/** A widget this build did not draw, and which of the two reasons it was. The specificationis model data, so
  *  it can name a kind that was misspelled or added after this client shipped, and it can ask a
  *  question in vocabulary this client has no answer for; the view draws everything else and says
  *  what it left out, rather than leaving a silent hole an author cannot account for. */
 function UnknownWidget({ reason }: { reason: { unknownType: unknown } | { unanswered: string[] } }) {
   const { t } = useTranslation();
-  // A spec can leave the word out as easily as misspell it, and either way the reader is owed a
+  // A specificationcan leave the word out as easily as misspell it, and either way the reader is owed a
   // sentence in their own language rather than a gap where the word would be.
   const named = (word: unknown) =>
     typeof word === 'string' && word !== '' ? word : t('widgets.unknown.noKind');

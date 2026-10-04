@@ -1,5 +1,5 @@
 /**
- * A dashboard spec's sections, laid out and drawn.
+ * A dashboard specification's sections, laid out and drawn.
  *
  * Shared by the two pages that draw one: the signed-in operations page, and the findings page a
  * submitter opens holding no credential. One definition, so a section that lays out one way for a
@@ -21,7 +21,7 @@ export function DashboardSections({
   context: ResolveContext;
   isWide: boolean;
   openDetail?: (thingId: string) => void;
-  /** What to say where the spec lists no sections. Each page says it in its own words; drawing
+  /** What to say where the specificationlists no sections. Each page says it in its own words; drawing
    *  nothing is how a figure the analysis has not computed reads, so a page with nothing to draw at
    *  all cannot look the same as one whose figures came back empty. */
   whenEmpty: React.ReactNode;

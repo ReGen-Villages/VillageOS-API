@@ -40,7 +40,7 @@ describe('loadPlatformPages', () => {
     expect(myceliumApi.getPages).toHaveBeenCalledTimes(2);
   });
 
-  it('lists a declared page whose spec could not be read, so the fault is seen rather than the page missing', async () => {
+  it('lists a declared page whose specificationcould not be read, so the fault is seen rather than the page missing', async () => {
     vi.mocked(myceliumApi.getPages).mockResolvedValue([{ name: 'Accounts', specification:{ title: 'Accounts' } }]);
 
     await loadPlatformPages('user-1');

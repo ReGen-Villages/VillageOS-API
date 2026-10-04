@@ -89,7 +89,7 @@ describe('RecordForm', () => {
     expect(screen.getByRole('button', { name: 'Book' })).toBeDisabled();
   });
 
-  it('posts the act and the filled fields to the endpoint the spec names, and nothing naming who asked', async () => {
+  it('posts the act and the filled fields to the endpoint the specificationnames, and nothing naming who asked', async () => {
     render(<RecordForm widget={BOOK} context={context} />);
     fill();
     fireEvent.click(screen.getByRole('button', { name: 'Book' }));
@@ -149,7 +149,7 @@ describe('RecordForm', () => {
     await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/api/endpoints/readings', { view: 'book', readers: ['Ada', 'Grace'] }));
   });
 
-  it('shows no preview at all where the spec names none', () => {
+  it('shows no preview at all where the specificationnames none', () => {
     render(<RecordForm widget={{ ...BOOK, preview: undefined }} context={context} />);
     expect(screen.queryByRole('button', { name: 'What this covers' })).toBeNull();
   });

@@ -124,7 +124,7 @@ public class FindingsReaderTests
             && answered.Contains(Guid.Parse(edge.GetProperty("TargetId").GetString()!)));
     }
 
-    // A verdict row is drawn only for a Thing in one of the states its spec names, and the target it reads
+    // A verdict row is drawn only for a Thing in one of the states its specificationnames, and the target it reads
     // comes off the range that judged it — so this is exactly the set the page will ask about, and no more.
     [Fact]
     public void Only_a_thing_holding_a_state_has_its_ranges_asked_for()

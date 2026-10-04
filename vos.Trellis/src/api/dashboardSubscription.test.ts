@@ -8,7 +8,7 @@ function specificationWith(over: Partial<DashboardSpecification>): DashboardSpec
   return { title: 'Ops', sections: [], ...over };
 }
 
-/** A spec whose one widget carries the binding under test. */
+/** A specificationwhose one widget carries the binding under test. */
 function specificationDrawing(value: DashboardSpecification['sections'][number]['widgets'][number]): DashboardSpecification {
   return specificationWith({ sections: [{ widgets: [value] }] });
 }
@@ -312,7 +312,7 @@ describe('subscriptionForSpec', () => {
     expect(selector.traverse!.map((rule) => rule.predicate)).toContain('supplies');
   });
 
-  // A spec's Thing reference is an id or a name, and the platform reads the two as different
+  // A specification's Thing reference is an id or a name, and the platform reads the two as different
   // questions: a name sent as an id is refused rather than looked up.
   it('tells a named Thing apart from one referred to by identifier', () => {
     const selector = subscriptionForSpecification(

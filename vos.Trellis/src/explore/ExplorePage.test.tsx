@@ -244,7 +244,7 @@ describe('the report as tiles', () => {
     expect(handed.map((section) => section.title)).toEqual(['Balances']);
   });
 
-  it('renders a spec naming no theme exactly as before', async () => {
+  it('renders a specificationnaming no theme exactly as before', async () => {
     vi.mocked(localizeSpecification).mockReturnValue({
       title: 'Site submission',
       sections: [{ title: 'Balances', widgets: [] }],

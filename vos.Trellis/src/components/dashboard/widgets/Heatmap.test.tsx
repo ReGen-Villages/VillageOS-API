@@ -117,7 +117,7 @@ describe('the hour-by-day heatmap', () => {
     expect(screen.getByText('Sunrise')).toBeInTheDocument();
   });
 
-  it('draws no curves where the spec binds no coordinates', () => {
+  it('draws no curves where the specificationbinds no coordinates', () => {
     const { container } = draw({ ...widget, sun: undefined });
 
     expect(container.querySelector('path[data-curve]')).toBeNull();

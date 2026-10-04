@@ -80,7 +80,7 @@ function WorkingRowView({
           )}
           {/* Where the model reduces over members the input's value is held by each of them, so the
               archetype they are of stands where a number would. The figure's own format is not applied
-              to an input: the spec declares that format for the figure, and its inputs are rarely in
+              to an input: the specificationdeclares that format for the figure, and its inputs are rarely in
               the same terms as it. */}
           <table className="mt-1 w-full text-xs">
             <tbody>

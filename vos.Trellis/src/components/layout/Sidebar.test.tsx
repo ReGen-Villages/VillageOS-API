@@ -112,7 +112,7 @@ describe('Sidebar', () => {
     expect(entryLabels()).toContain('Bronnen');
   });
 
-  it('still lists a dashboard whose spec names no icon', () => {
+  it('still lists a dashboard whose specificationnames no icon', () => {
     publish([{ name: 'Reservoirs', specification: { title: 'Reservoirs', sections: [] } }]);
     renderSidebar();
 

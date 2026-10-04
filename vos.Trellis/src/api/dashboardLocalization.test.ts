@@ -18,7 +18,7 @@ import type {
   FormWidget,
 } from '../types/dashboard';
 
-/** A spec exercising every widget type plus a detail card. The base strings are
+/** A specificationexercising every widget type plus a detail card. The base strings are
  *  deliberately plain English; `translations.es` renders them in Spanish. One
  *  key (the exceptions section title) is left untranslated to prove key-level
  *  fallback, and the state name "Harvested" doubles as a KPI unit to prove that a
@@ -200,7 +200,7 @@ describe('localizeSpec', () => {
     expect(specification.sections[0].title).toBe('Rendimiento');
   });
 
-  it('returns a spec with no translations block unchanged (no regression)', () => {
+  it('returns a specificationwith no translations block unchanged (no regression)', () => {
     const base = fixture();
     delete base.translations;
     const specification = localizeSpecification(base, 'es');
@@ -208,7 +208,7 @@ describe('localizeSpec', () => {
   });
 });
 
-// The verdict wording is the only display text the spec vocabulary keeps on a binding, so the
+// The verdict wording is the only display text the specificationvocabulary keeps on a binding, so the
 // invariant that binding values pass through untouched has to bend for it — and only for it.
 describe('localizeSpec over a verdict widget', () => {
   function verdictSpecification(): DashboardSpecification {
