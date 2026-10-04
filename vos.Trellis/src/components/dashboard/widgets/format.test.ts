@@ -81,6 +81,16 @@ describe('formatNumber', () => {
     expect(formatNumber(1023, 'bytes')).toBe('1,023 B');
   });
 
+  it('moves up a unit when the rounded figure would read 1,024 of the smaller one', () => {
+    expect(formatNumber(1024 ** 2 - 1, 'bytes')).toBe('1 MiB');
+    expect(formatNumber(1023.96, 'bytes')).toBe('1 KiB');
+    expect(formatNumber(1023.94, 'bytes')).toBe('1,023.9 B');
+  });
+
+  it('scales a negative byte count by its size', () => {
+    expect(formatNumber(-2 * 1024 ** 3, 'bytes')).toBe('-2 GiB');
+  });
+
   it('stops at the largest binary unit rather than running out of names', () => {
     expect(formatNumber(2 * 1024 ** 6, 'bytes')).toBe('2,048 PiB');
   });

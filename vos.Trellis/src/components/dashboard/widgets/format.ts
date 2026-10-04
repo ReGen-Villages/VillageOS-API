@@ -32,15 +32,20 @@ export function formatNumber(value: number | null | undefined, fmt?: NumberForma
 }
 
 const BYTE_UNITS = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'];
+const BYTE_FRACTION_DIGITS = 1;
+
+function roundedAsShown(figure: number): number {
+  return Math.round(figure * 10 ** BYTE_FRACTION_DIGITS) / 10 ** BYTE_FRACTION_DIGITS;
+}
 
 function formatBytes(value: number): string {
-  let scaled = value;
-  let unit = 0;
-  while (scaled >= 1024 && unit < BYTE_UNITS.length - 1) {
-    scaled /= 1024;
-    unit++;
+  const size = Math.abs(value);
+  let unitIndex = 0;
+  while (unitIndex < BYTE_UNITS.length - 1 && roundedAsShown(size / 1024 ** unitIndex) >= 1024) {
+    unitIndex++;
   }
-  return `${numberIn(scaled, { maximumFractionDigits: 1 })} ${BYTE_UNITS[unit]}`;
+  const figure = numberIn(value / 1024 ** unitIndex, { maximumFractionDigits: BYTE_FRACTION_DIGITS });
+  return `${figure} ${BYTE_UNITS[unitIndex]}`;
 }
 
 /** Tailwind classes colouring a status/state pill by its wording. Shared by the table
