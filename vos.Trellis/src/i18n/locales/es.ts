@@ -1317,9 +1317,9 @@ export const es: PartialResources = {
   operationsPage: {
     all: "Todos",
     noDashboard: "No hay panel configurado",
-    noDashboardBody: "Este modelo no define ninguna configuración de <0>Dashboard</0>. Añade una Thing del arquetipo <1>Dashboard</1> con una propiedad <2>spec</2> para gestionar esta página.",
+    noDashboardBody: "Este modelo no define ninguna configuración de <0>Dashboard</0>. Añade una Thing del arquetipo <1>Dashboard</1> con una propiedad <2>specification</2> para gestionar esta página.",
     unreadableSpecification: "No se pudo leer {{name}}",
-    unreadableSpecificationBody: "La propiedad spec de esta Thing Dashboard no contiene una especificación que esta aplicación pueda leer. Corrígela en el modelo y recarga.",
+    unreadableSpecificationBody: "La propiedad specification de esta Thing Dashboard no contiene una especificación que esta aplicación pueda leer. Corrígela en el modelo y recarga.",
     emptyView: "La especificación de este panel no indica ninguna sección, así que no hay nada que dibujar.",
   },
   ifcUpload: {

@@ -1317,9 +1317,9 @@ export const de: PartialResources = {
   operationsPage: {
     all: "Alle",
     noDashboard: "Kein Dashboard konfiguriert",
-    noDashboardBody: "Dieses Modell definiert keine <0>Dashboard</0>-Konfiguration. Fügen Sie ein Thing vom Archetyp <1>Dashboard</1> mit einer <2>spec</2>-Eigenschaft hinzu, um diese Seite zu steuern.",
+    noDashboardBody: "Dieses Modell definiert keine <0>Dashboard</0>-Konfiguration. Fügen Sie ein Thing vom Archetyp <1>Dashboard</1> mit einer <2>specification</2>-Eigenschaft hinzu, um diese Seite zu steuern.",
     unreadableSpecification: "{{name}} konnte nicht gelesen werden",
-    unreadableSpecificationBody: "Die spec-Eigenschaft dieses Dashboard-Things enthält keine Spezifikation, die diese Anwendung lesen kann. Korrigieren Sie sie im Modell und laden Sie neu.",
+    unreadableSpecificationBody: "Die specification-Eigenschaft dieses Dashboard-Things enthält keine Spezifikation, die diese Anwendung lesen kann. Korrigieren Sie sie im Modell und laden Sie neu.",
     emptyView: "Die Spezifikation dieses Dashboards nennt keine Abschnitte, es gibt also nichts zu zeichnen.",
   },
   ifcUpload: {

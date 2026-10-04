@@ -1315,9 +1315,9 @@ export const en = {
   operationsPage: {
     all: "All",
     noDashboard: "No dashboard configured",
-    noDashboardBody: "This model defines no <0>Dashboard</0> config. Add a Thing of archetype <1>Dashboard</1> with a <2>spec</2> property to drive this page.",
+    noDashboardBody: "This model defines no <0>Dashboard</0> config. Add a Thing of archetype <1>Dashboard</1> with a <2>specification</2> property to drive this page.",
     unreadableSpecification: "{{name}} could not be read",
-    unreadableSpecificationBody: "The spec property on this Dashboard Thing does not hold a specification this application can read. Correct it in the model and reload.",
+    unreadableSpecificationBody: "The specification property on this Dashboard Thing does not hold a specification this application can read. Correct it in the model and reload.",
     emptyView: "This dashboard's specification lists no sections, so there is nothing to draw.",
   },
   ifcUpload: {
