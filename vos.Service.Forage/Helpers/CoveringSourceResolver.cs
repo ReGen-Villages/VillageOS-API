@@ -153,8 +153,8 @@ public static class CoveringSourceResolver
     {
         Ids = [siteId],
         Names = [.. PredicatesRead],
-        // Model-wide rather than reached from the site: a study whose analysis has not started is related
-        // to none of its connections, because relating it is what this read is for.
+        // Model-wide rather than reached from the site: a study is related through a connection only once
+        // its analysis has started there, and finding the connections it has not started is what this read is for.
         MarkedTypes = [SiteAnalysisConnectionFlag],
         // The coverage archetype is asked for model-wide for a different reason: a run mints against it,
         // so it has to arrive before any coverage exists to traverse from. Alone, though — with its
