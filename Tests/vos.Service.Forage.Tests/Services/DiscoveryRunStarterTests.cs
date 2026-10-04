@@ -24,12 +24,14 @@ public class DiscoveryRunStarterTests
     private sealed class CapturingLogger : ILogger<DiscoveryRunStarter>
     {
         public readonly List<string> Errors = new();
+        public readonly List<string> Information = new();
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
         public bool IsEnabled(LogLevel level) => true;
         public void Log<TState>(LogLevel level, EventId id, TState state, Exception? exception,
             Func<TState, Exception?, string> formatter)
         {
             if (level == LogLevel.Error) lock (Errors) Errors.Add(formatter(state, exception));
+            if (level == LogLevel.Information) lock (Information) Information.Add(formatter(state, exception));
         }
     }
 
@@ -40,7 +42,7 @@ public class DiscoveryRunStarterTests
         var ran = new TaskCompletionSource<bool>();
         var starter = new DiscoveryRunStarter(lifetime, new CapturingLogger());
 
-        starter.Start(token =>
+        starter.Start(Guid.NewGuid(), token =>
         {
             ran.SetResult(token.IsCancellationRequested);
             return Task.CompletedTask;
@@ -55,7 +57,7 @@ public class DiscoveryRunStarterTests
         var lifetime = new FakeLifetime();
         var observed = new TaskCompletionSource<bool>();
         var starter = new DiscoveryRunStarter(lifetime, new CapturingLogger());
-        starter.Start(async token =>
+        starter.Start(Guid.NewGuid(), async token =>
         {
             using var registration = token.Register(() => observed.TrySetResult(true));
             await Task.Delay(Timeout.Infinite, token);
@@ -75,12 +77,116 @@ public class DiscoveryRunStarterTests
         var starter = new DiscoveryRunStarter(new FakeLifetime(), logger);
         var second = new TaskCompletionSource<bool>();
 
-        starter.Start(_ => throw new InvalidOperationException("the model is unreachable"));
-        starter.Start(_ => { second.SetResult(true); return Task.CompletedTask; });
+        starter.Start(Guid.NewGuid(), _ => throw new InvalidOperationException("the model is unreachable"));
+        starter.Start(Guid.NewGuid(), _ => { second.SetResult(true); return Task.CompletedTask; });
 
         (await second.Task).Should().BeTrue("one run failing does not stop the starter");
         await Settle.UntilAsync(() => { lock (logger.Errors) return logger.Errors.Count > 0; },
             "the run that threw is reported");
         logger.Errors.Should().ContainSingle().Which.Should().Contain("after its dispatch had been accepted");
+    }
+
+    // A run that could start is given this long to do so before a test concludes it was held.
+    private static readonly TimeSpan HeldLongEnough = TimeSpan.FromMilliseconds(300);
+
+    private static async Task<bool> StartsWithin(Task started, TimeSpan wait) =>
+        await Task.WhenAny(started, Task.Delay(wait)) == started;
+
+    [Fact]
+    public async Task ASecondRunForTheSameSubject_WaitsForTheFirstToEndAndSaysSo()
+    {
+        var logger = new CapturingLogger();
+        var starter = new DiscoveryRunStarter(new FakeLifetime(), logger);
+        var site = Guid.NewGuid();
+        var firstStarted = new TaskCompletionSource();
+        var releaseFirst = new TaskCompletionSource();
+        var secondStarted = new TaskCompletionSource();
+
+        starter.Start(site, async _ => { firstStarted.SetResult(); await releaseFirst.Task; });
+        await firstStarted.Task;
+        starter.Start(site, _ => { secondStarted.SetResult(); return Task.CompletedTask; });
+
+        (await StartsWithin(secondStarted.Task, HeldLongEnough)).Should().BeFalse(
+            "two runs for one site would each mint a coverage for the same call");
+        logger.Information.Should().ContainSingle().Which.Should().Contain(site.ToString()).And.Contain("in flight");
+        releaseFirst.SetResult();
+        await secondStarted.Task;
+    }
+
+    [Fact]
+    public async Task ARunForASubjectWithNothingInFlight_SaysNothingAboutWaiting()
+    {
+        var logger = new CapturingLogger();
+        var starter = new DiscoveryRunStarter(new FakeLifetime(), logger);
+        var ran = new TaskCompletionSource();
+
+        starter.Start(Guid.NewGuid(), _ => { ran.SetResult(); return Task.CompletedTask; });
+        await ran.Task;
+
+        logger.Information.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task AThirdRunForTheSameSubject_WaitsForTheSecondAsWellAsTheFirst()
+    {
+        var starter = new DiscoveryRunStarter(new FakeLifetime(), new CapturingLogger());
+        var site = Guid.NewGuid();
+        var releaseFirst = new TaskCompletionSource();
+        var secondStarted = new TaskCompletionSource();
+        var releaseSecond = new TaskCompletionSource();
+        var thirdStarted = new TaskCompletionSource();
+
+        starter.Start(site, _ => releaseFirst.Task);
+        starter.Start(site, async _ => { secondStarted.SetResult(); await releaseSecond.Task; });
+        starter.Start(site, _ => { thirdStarted.SetResult(); return Task.CompletedTask; });
+        releaseFirst.SetResult();
+        await secondStarted.Task;
+
+        (await StartsWithin(thirdStarted.Task, HeldLongEnough)).Should().BeFalse(
+            "the third run is held until the run in flight ends, not only the first one started");
+        releaseSecond.SetResult();
+        await thirdStarted.Task;
+    }
+
+    [Fact]
+    public async Task RunsForDifferentSubjects_RunAtTheSameTime()
+    {
+        var starter = new DiscoveryRunStarter(new FakeLifetime(), new CapturingLogger());
+        var releaseFirst = new TaskCompletionSource();
+        var secondStarted = new TaskCompletionSource();
+
+        starter.Start(Guid.NewGuid(), _ => releaseFirst.Task);
+        starter.Start(Guid.NewGuid(), _ => { secondStarted.SetResult(); return Task.CompletedTask; });
+
+        (await StartsWithin(secondStarted.Task, TimeSpan.FromSeconds(10))).Should().BeTrue(
+            "only runs for one subject are held; separate sites are still discovered in parallel");
+        releaseFirst.SetResult();
+    }
+
+    [Fact]
+    public async Task ARunThatThrows_DoesNotHoldTheNextRunForItsSubject()
+    {
+        var starter = new DiscoveryRunStarter(new FakeLifetime(), new CapturingLogger());
+        var site = Guid.NewGuid();
+        var secondStarted = new TaskCompletionSource();
+
+        starter.Start(site, _ => throw new InvalidOperationException("the model is unreachable"));
+        starter.Start(site, _ => { secondStarted.SetResult(); return Task.CompletedTask; });
+
+        (await StartsWithin(secondStarted.Task, TimeSpan.FromSeconds(10))).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ASubjectWhoseRunsHaveAllEnded_IsNoLongerHeld()
+    {
+        var starter = new DiscoveryRunStarter(new FakeLifetime(), new CapturingLogger());
+        var site = Guid.NewGuid();
+        var ended = new TaskCompletionSource();
+
+        starter.Start(site, _ => { ended.SetResult(); return Task.CompletedTask; });
+        await ended.Task;
+
+        await Settle.UntilAsync(() => starter.SubjectsWithRunsInFlight == 0,
+            "a subject is forgotten once its last run ends, or every site ever discovered stays in memory");
     }
 }
