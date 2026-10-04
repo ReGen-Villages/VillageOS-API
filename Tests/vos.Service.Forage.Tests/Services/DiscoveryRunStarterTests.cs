@@ -149,6 +149,28 @@ public class DiscoveryRunStarterTests
     }
 
     [Fact]
+    public async Task ARunStartedAfterTheFirstEnded_StillWaitsForOneQueuedBehindIt()
+    {
+        var starter = new DiscoveryRunStarter(new FakeLifetime(), new CapturingLogger());
+        var site = Guid.NewGuid();
+        var releaseFirst = new TaskCompletionSource();
+        var secondStarted = new TaskCompletionSource();
+        var releaseSecond = new TaskCompletionSource();
+        var thirdStarted = new TaskCompletionSource();
+
+        starter.Start(site, _ => releaseFirst.Task);
+        starter.Start(site, async _ => { secondStarted.SetResult(); await releaseSecond.Task; });
+        releaseFirst.SetResult();
+        await secondStarted.Task;
+        starter.Start(site, _ => { thirdStarted.SetResult(); return Task.CompletedTask; });
+
+        (await StartsWithin(thirdStarted.Task, HeldLongEnough)).Should().BeFalse(
+            "the first run ending must not forget the second, which is still in flight");
+        releaseSecond.SetResult();
+        await thirdStarted.Task;
+    }
+
+    [Fact]
     public async Task RunsForDifferentSubjects_RunAtTheSameTime()
     {
         var starter = new DiscoveryRunStarter(new FakeLifetime(), new CapturingLogger());
