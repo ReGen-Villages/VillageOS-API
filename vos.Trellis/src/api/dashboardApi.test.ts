@@ -72,7 +72,7 @@ function model(): { things: VosThing[]; relationships: VosRelationship[] } {
     t('is', 'is'),
     t('arch-dash', 'Dashboard'),
     t('arch-vil', 'Village'),
-    t('dash1', 'Operations Dashboard', { spec: JSON.stringify(SPECIFICATION) }),
+    t('dash1', 'Operations Dashboard', { specification: JSON.stringify(SPECIFICATION) }),
     t('vil1', 'V-1', { self_sufficiency_rate: 98.9, land_utilization: 0.81 }),
     t('vil2', 'V-2', { self_sufficiency_rate: 94.1, land_utilization: 0.93 }),
   ];
@@ -98,7 +98,7 @@ async function rowsOf(binding: Binding, context: ResolveContext): Promise<Record
 }
 
 describe('discovery', () => {
-  it('finds Dashboard config Things and parses their spec', () => {
+  it('finds Dashboard config Things and parses their specification', () => {
     const { things, relationships } = model();
     const found = discoverDashboards(things, relationships);
     expect(found).toHaveLength(1);
@@ -113,11 +113,11 @@ describe('discovery', () => {
     expect(entities.map((e) => e.name)).toEqual(['V-1', 'V-2']);
   });
 
-  // A spec authored wrong is still addressable, so its author can be told what is
+  // A specification authored wrong is still addressable, so its author can be told what is
   // wrong with it. Ordered by name like any other, so a broken one does not sort to the end.
-  it('lists a Dashboard Thing whose spec could not be read, carrying no spec', () => {
+  it('lists a Dashboard Thing whose specification could not be read, carrying no specification', () => {
     const { things, relationships } = model();
-    things.push({ Id: 'dash2', Name: 'Half a spec', Properties: { spec: '{ "title": "Ops"' } });
+    things.push({ Id: 'dash2', Name: 'Half a specification', Properties: { specification: '{ "title": "Ops"' } });
     relationships.push({
       Id: 'dash2-is', Name: 'dash2 is arch-dash',
       SubjectId: 'dash2', PredicateId: 'is', TargetId: 'arch-dash', Properties: {},
@@ -126,7 +126,7 @@ describe('discovery', () => {
     const found = discoverDashboards(declared(things, relationships), relationships);
 
     expect(found.map((d) => [d.name, d.specification === null])).toEqual([
-      ['Half a spec', true],
+      ['Half a specification', true],
       ['Operations Dashboard', false],
     ]);
   });
@@ -342,13 +342,13 @@ describe('resolveBinding', () => {
   });
 
   it('aggregate count over an archetype', async () => {
-    const v = await resolveBinding({ kind: 'aggregate', archetype: 'Village', op: 'count' }, contextFor(null));
+    const v = await resolveBinding({ kind: 'aggregate', archetype: 'Village', reduction: 'count' }, contextFor(null));
     expect(v).toBe(2);
   });
 
   it('aggregate avg over a property', async () => {
     const v = await resolveBinding(
-      { kind: 'aggregate', archetype: 'Village', op: 'avg', property: 'land_utilization' },
+      { kind: 'aggregate', archetype: 'Village', reduction: 'average', property: 'land_utilization' },
       contextFor(null),
     );
     expect(v).toBeCloseTo((0.81 + 0.93) / 2);
@@ -589,7 +589,7 @@ describe('resolveBinding', () => {
       });
 
       it('keeps the rows whose property satisfies the comparison and no other', async () => {
-        const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine', where: [{ property: 'duty_cycle', op: '>', value: 0.5 }] }, fleetContext(null));
+        const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine', where: [{ property: 'duty_cycle', operator: '>', value: 0.5 }] }, fleetContext(null));
         expect(rows.map((r) => r.name)).toEqual(['PMP-1', 'RBT-1']);
       });
 
@@ -602,7 +602,7 @@ describe('resolveBinding', () => {
 
       it('applies the state and the comparison together, and the cap after both', async () => {
         const rows = await rowsOf({
-          kind: 'thingList', archetype: 'Machine', inState: 'busy', where: [{ property: 'duty_cycle', op: '<', value: 0.7 }], limit: 5,
+          kind: 'thingList', archetype: 'Machine', inState: 'busy', where: [{ property: 'duty_cycle', operator: '<', value: 0.7 }], limit: 5,
         }, fleetContext(null));
         expect(rows.map((r) => r.name)).toEqual(['RBT-1']);
       });
@@ -911,9 +911,9 @@ describe('resolveBinding', () => {
     const LOCATION_SCOPE = { viaPredicate: 'contains', direction: 'out' as const };
     const utilization = {
       kind: 'ratio' as const,
-      numerator: { kind: 'aggregate' as const, archetype: 'Location', op: 'sum' as const,
+      numerator: { kind: 'aggregate' as const, archetype: 'Location', reduction: 'sum' as const,
         property: 'contained_units', scope: LOCATION_SCOPE },
-      denominator: { kind: 'aggregate' as const, archetype: 'Location', op: 'sum' as const,
+      denominator: { kind: 'aggregate' as const, archetype: 'Location', reduction: 'sum' as const,
         property: 'capacity_units', scope: LOCATION_SCOPE },
     };
 
@@ -1035,7 +1035,7 @@ describe('a text property is not a number', () => {
 
   it('an aggregate over a text property averages nothing, not the parsed codes', async () => {
     const v = await resolveBinding(
-      { kind: 'aggregate', archetype: 'Gate', op: 'avg', property: 'door_number' },
+      { kind: 'aggregate', archetype: 'Gate', reduction: 'average', property: 'door_number' },
       gateContext(),
     );
     expect(v).toBe(0);
@@ -1051,20 +1051,20 @@ describe('a text property is not a number', () => {
 
   it('an ordered filter on a text property matches nothing', async () => {
     const v = await resolveBinding(
-      { kind: 'aggregate', archetype: 'Gate', op: 'count', where: [{ property: 'door_number', op: '>', value: 1000 }] },
+      { kind: 'aggregate', archetype: 'Gate', reduction: 'count', where: [{ property: 'door_number', operator: '>', value: 1000 }] },
       gateContext(),
     );
     expect(v).toBe(0);
   });
 
   it('still reads a number, and still counts a boolean as one or nothing', async () => {
-    const avg = await resolveBinding(
-      { kind: 'aggregate', archetype: 'Gate', op: 'avg', property: 'open_ratio' },
+    const average = await resolveBinding(
+      { kind: 'aggregate', archetype: 'Gate', reduction: 'average', property: 'open_ratio' },
       gateContext(),
     );
-    expect(avg).toBeCloseTo(0.5);
+    expect(average).toBeCloseTo(0.5);
     const powered = await resolveBinding(
-      { kind: 'aggregate', archetype: 'Gate', op: 'sum', property: 'powered' },
+      { kind: 'aggregate', archetype: 'Gate', reduction: 'sum', property: 'powered' },
       gateContext(),
     );
     expect(powered).toBe(1);
@@ -1113,7 +1113,7 @@ describe('service bindings carry the selected scope', () => {
   });
 });
 
-// The target a balance is judged against comes from the range that judges it, never from the spec:
+// The target a balance is judged against comes from the range that judges it, never from the specification:
 // a view restating 14 days says the wrong thing the day the range moves.
 describe('verdict binding', () => {
   const ENERGY_STATES = [
@@ -1127,11 +1127,11 @@ describe('verdict binding', () => {
   }
 
   const ENERGY_RANGES: RangeDto[] = [
-    range('EnergyNetPositive', 'pctOfConsumption IS KNOWN AND pctOfConsumption >= 100',
-      [{ PropertyName: 'pctOfConsumption', Operator: '>=', Value: 100 }]),
-    range('EnergyShortOfTarget', 'pctOfConsumption IS KNOWN AND pctOfConsumption < 100',
-      [{ PropertyName: 'pctOfConsumption', Operator: '<', Value: 100 }]),
-    range('EnergyNotAssessed', 'pctOfConsumption IS UNKNOWN', []),
+    range('EnergyNetPositive', 'percentOfConsumption IS KNOWN AND percentOfConsumption >= 100',
+      [{ PropertyName: 'percentOfConsumption', Operator: '>=', Value: 100 }]),
+    range('EnergyShortOfTarget', 'percentOfConsumption IS KNOWN AND percentOfConsumption < 100',
+      [{ PropertyName: 'percentOfConsumption', Operator: '<', Value: 100 }]),
+    range('EnergyNotAssessed', 'percentOfConsumption IS UNKNOWN', []),
   ];
 
   /** The judge-ranges sit on the SiteStudy archetype, so every study reads them as inherited. */
@@ -1171,12 +1171,12 @@ describe('verdict binding', () => {
   it('names the target a clearing value was judged against', async () => {
     holding('EnergyNetPositive');
 
-    const rows = await resolveBinding(binding, studyContext({ pctOfConsumption: 112 })) as Row[];
+    const rows = await resolveBinding(binding, studyContext({ percentOfConsumption: 112 })) as Row[];
 
     expect(rows).toEqual([{
       state: 'EnergyNetPositive',
       reads: ENERGY_STATES[0].reads,
-      property: 'pctOfConsumption',
+      property: 'percentOfConsumption',
       operator: '>=',
       target: 100,
       value: 112,
@@ -1186,12 +1186,12 @@ describe('verdict binding', () => {
   it('names the target a value that fell short was judged against', async () => {
     holding('EnergyShortOfTarget');
 
-    const rows = await resolveBinding(binding, studyContext({ pctOfConsumption: 73 })) as Row[];
+    const rows = await resolveBinding(binding, studyContext({ percentOfConsumption: 73 })) as Row[];
 
     expect(rows).toEqual([{
       state: 'EnergyShortOfTarget',
       reads: ENERGY_STATES[1].reads,
-      property: 'pctOfConsumption',
+      property: 'percentOfConsumption',
       operator: '<',
       target: 100,
       value: 73,
@@ -1217,14 +1217,14 @@ describe('verdict binding', () => {
   it('reports no verdict at all when the study holds none of the candidates', async () => {
     holding();
 
-    expect(await resolveBinding(binding, studyContext({ pctOfConsumption: 73 }))).toEqual([]);
+    expect(await resolveBinding(binding, studyContext({ percentOfConsumption: 73 }))).toEqual([]);
   });
 
   // Ranges are independent criteria, so several can hold together.
   it('reports every verdict the study holds, not the first', async () => {
     holding('EnergyNetPositive', 'EnergyShortOfTarget');
 
-    const rows = await resolveBinding(binding, studyContext({ pctOfConsumption: 100 })) as Row[];
+    const rows = await resolveBinding(binding, studyContext({ percentOfConsumption: 100 })) as Row[];
 
     expect(rows.map((r) => r.state)).toEqual(['EnergyNetPositive', 'EnergyShortOfTarget']);
   });
@@ -1233,20 +1233,20 @@ describe('verdict binding', () => {
   it('takes the verdict from the state the study holds, not from comparing the value itself', async () => {
     holding('EnergyNetPositive');
 
-    const rows = await resolveBinding(binding, studyContext({ pctOfConsumption: 100 })) as Row[];
+    const rows = await resolveBinding(binding, studyContext({ percentOfConsumption: 100 })) as Row[];
 
     expect(rows).toHaveLength(1);
     expect(rows[0].state).toBe('EnergyNetPositive');
   });
 
-  it('names the moved target when the range moves, with no change to the spec', async () => {
+  it('names the moved target when the range moves, with no change to the specification', async () => {
     holding('EnergyShortOfTarget');
     vi.mocked(rangeApi.getAll).mockResolvedValue(rangesResponse([
-      range('EnergyShortOfTarget', 'pctOfConsumption IS KNOWN AND pctOfConsumption < 90',
-        [{ PropertyName: 'pctOfConsumption', Operator: '<', Value: 90 }]),
+      range('EnergyShortOfTarget', 'percentOfConsumption IS KNOWN AND percentOfConsumption < 90',
+        [{ PropertyName: 'percentOfConsumption', Operator: '<', Value: 90 }]),
     ]));
 
-    const rows = await resolveBinding(binding, studyContext({ pctOfConsumption: 73 })) as Row[];
+    const rows = await resolveBinding(binding, studyContext({ percentOfConsumption: 73 })) as Row[];
 
     expect(rows[0].target).toBe(90);
   });
@@ -1257,7 +1257,7 @@ describe('verdict binding', () => {
     holding('EnergyShortOfTarget');
     vi.mocked(rangeApi.getAll).mockRejectedValue(new Error('broker unreachable'));
 
-    const rows = await resolveBinding(binding, studyContext({ pctOfConsumption: 73 })) as Row[];
+    const rows = await resolveBinding(binding, studyContext({ percentOfConsumption: 73 })) as Row[];
 
     expect(rows).toEqual([{
       state: 'EnergyShortOfTarget',
@@ -1276,15 +1276,15 @@ describe('verdict binding', () => {
 
     const rows = await resolveBinding(binding, studyContext({})) as Row[];
 
-    expect(rows[0]).toMatchObject({ property: 'pctOfConsumption', target: 100, value: null });
+    expect(rows[0]).toMatchObject({ property: 'percentOfConsumption', target: 100, value: null });
   });
 
-  it('reports no verdict when the spec names a thing the model does not hold', async () => {
+  it('reports no verdict when the specification names a thing the model does not hold', async () => {
     holding('EnergyShortOfTarget');
 
     const rows = await resolveBinding(
       { kind: 'verdict', thing: 'no-such-study', states: ENERGY_STATES } as Binding,
-      studyContext({ pctOfConsumption: 73 }),
+      studyContext({ percentOfConsumption: 73 }),
     );
 
     expect(rows).toEqual([]);
@@ -1294,7 +1294,7 @@ describe('verdict binding', () => {
     holding('EnergyShortOfTarget');
     vi.mocked(rangeApi.getAll).mockResolvedValue(rangesResponse([]));
 
-    const rows = await resolveBinding(binding, studyContext({ pctOfConsumption: 73 })) as Row[];
+    const rows = await resolveBinding(binding, studyContext({ percentOfConsumption: 73 })) as Row[];
 
     expect(rows[0]).toMatchObject({ state: 'EnergyShortOfTarget', target: null, value: null });
   });
@@ -1303,7 +1303,7 @@ describe('verdict binding', () => {
   it('asks for one study\'s ranges once however many balances a refresh reads', async () => {
     holding('EnergyShortOfTarget');
     const shared: ResolveContext = {
-      ...studyContext({ pctOfConsumption: 73 }),
+      ...studyContext({ percentOfConsumption: 73 }),
       reads: brokerModelReads(),
     };
 
@@ -1313,10 +1313,10 @@ describe('verdict binding', () => {
     expect(vi.mocked(rangeApi.getAll)).toHaveBeenCalledTimes(1);
   });
 
-  it('reads the ranges of the selected scope entity when the spec names no thing', async () => {
+  it('reads the ranges of the selected scope entity when the specification names no thing', async () => {
     holding('EnergyShortOfTarget');
 
-    await resolveBinding({ kind: 'verdict', states: ENERGY_STATES } as Binding, studyContext({ pctOfConsumption: 73 }));
+    await resolveBinding({ kind: 'verdict', states: ENERGY_STATES } as Binding, studyContext({ percentOfConsumption: 73 }));
 
     expect(rangeApi.getAll).toHaveBeenCalledWith('study1');
   });
@@ -1359,13 +1359,13 @@ describe('verdict binding', () => {
 
       const rows = await resolveBinding(
         { kind: 'verdict', states: ENERGY_STATES, via: toTheStudy } as Binding,
-        siteContext([{ name: 'study1', properties: { pctOfConsumption: 73 } }]),
+        siteContext([{ name: 'study1', properties: { percentOfConsumption: 73 } }]),
       ) as Row[];
 
       expect(rows).toEqual([{
         state: 'EnergyShortOfTarget',
         reads: ENERGY_STATES[1].reads,
-        property: 'pctOfConsumption',
+        property: 'percentOfConsumption',
         operator: '<',
         target: 100,
         value: 73,
@@ -1379,7 +1379,7 @@ describe('verdict binding', () => {
 
       const rows = await resolveBinding(
         { kind: 'verdict', states: ENERGY_STATES, via: [{ predicate: 'surveys', direction: 'in' }] } as Binding,
-        siteContext([{ name: 'study1', properties: { pctOfConsumption: 73 } }]),
+        siteContext([{ name: 'study1', properties: { percentOfConsumption: 73 } }]),
       );
 
       expect(rows).toEqual([]);
@@ -1393,8 +1393,8 @@ describe('verdict binding', () => {
       const rows = await resolveBinding(
         { kind: 'verdict', states: ENERGY_STATES, via: toTheStudy } as Binding,
         siteContext([
-          { name: 'study2', properties: { pctOfConsumption: 61 } },
-          { name: 'study1', properties: { pctOfConsumption: 73 } },
+          { name: 'study2', properties: { percentOfConsumption: 61 } },
+          { name: 'study1', properties: { percentOfConsumption: 73 } },
         ]),
       ) as Row[];
 
@@ -1751,7 +1751,7 @@ describe('timeseries reads the platform bucketed aggregate', () => {
   const QUARTER_HOUR = 900;
   const trace: Binding = {
     kind: 'timeseries', archetype: 'Building', happenedAt: 'recorded_at', property: 'volume',
-    op: 'sum', bucketSeconds: QUARTER_HOUR, buckets: 32,
+    reduction: 'sum', bucketSeconds: QUARTER_HOUR, buckets: 32,
   };
 
   beforeEach(() => {
@@ -1771,7 +1771,7 @@ describe('timeseries reads the platform bucketed aggregate', () => {
   // A count reduces members, so naming a measure would ask the platform to reduce a value the
   // question is not about.
   it('names no measure when it is counting members', async () => {
-    await resolveBinding({ ...trace, op: 'count', property: 'volume' } as Binding, seriesContext(null));
+    await resolveBinding({ ...trace, reduction: 'count', property: 'volume' } as Binding, seriesContext(null));
     expect(temporalApi.aggregate).toHaveBeenCalledWith(expect.objectContaining({ function: 'Count' }));
     expect(vi.mocked(temporalApi.aggregate).mock.calls[0][0].measureProperty).toBeUndefined();
   });
@@ -1852,11 +1852,11 @@ describe('the working behind a figure', () => {
 
   it('reads the formula off the archetype and each input off the Thing computing it', async () => {
     const context = study(
-      { pctOfConsumption: { Expression: 'generated / consumed * 100', Reads: ['generated', 'consumed'] } },
+      { percentOfConsumption: { Expression: 'generated / consumed * 100', Reads: ['generated', 'consumed'] } },
       { generated: 4420, consumed: 4000 },
     );
 
-    expect(await resolveBinding(working('pctOfConsumption'), context as never)).toEqual([
+    expect(await resolveBinding(working('percentOfConsumption'), context as never)).toEqual([
       { formula: 'generated / consumed * 100', term: 'generated', value: 4420 },
       { formula: 'generated / consumed * 100', term: 'consumed', value: 4000 },
     ]);
@@ -1873,11 +1873,11 @@ describe('the working behind a figure', () => {
   // withheld verdict rests on.
   it('reports an input the Thing does not carry as absent rather than nought', async () => {
     const context = study(
-      { pctOfConsumption: { Expression: 'generated / consumed * 100', Reads: ['generated', 'consumed'] } },
+      { percentOfConsumption: { Expression: 'generated / consumed * 100', Reads: ['generated', 'consumed'] } },
       { generated: 4420 },
     );
 
-    expect(await resolveBinding(working('pctOfConsumption'), context as never)).toEqual([
+    expect(await resolveBinding(working('percentOfConsumption'), context as never)).toEqual([
       { formula: 'generated / consumed * 100', term: 'generated', value: 4420 },
       { formula: 'generated / consumed * 100', term: 'consumed', value: null },
     ]);
@@ -1943,7 +1943,7 @@ describe('levers under a shortfall', () => {
   // The energy chain the shipped analysis declares, cut down: the judged percentage stands on the
   // total, the total on a reduction and a plain input, and the consumption divides.
   const DEFINITIONS = {
-    pctOfConsumption: {
+    percentOfConsumption: {
       Expression: 'totalGeneration / consumed * 100',
       Reads: ['totalGeneration', 'consumed'],
       RisesWith: ['totalGeneration'],
@@ -1982,8 +1982,8 @@ describe('levers under a shortfall', () => {
 
   beforeEach(() => {
     vi.mocked(rangeApi.getAll).mockReset().mockResolvedValue(rangesResponse([
-      range('EnergyNetPositive', [{ PropertyName: 'pctOfConsumption', Operator: '>=', Value: 100 }]),
-      range('EnergyShortOfTarget', [{ PropertyName: 'pctOfConsumption', Operator: '<', Value: 100 }]),
+      range('EnergyNetPositive', [{ PropertyName: 'percentOfConsumption', Operator: '>=', Value: 100 }]),
+      range('EnergyShortOfTarget', [{ PropertyName: 'percentOfConsumption', Operator: '<', Value: 100 }]),
       range('EnergyNotAssessed', []),
     ]));
   });
@@ -2002,7 +2002,7 @@ describe('levers under a shortfall', () => {
 
   // The author marks where levers appear; the arithmetic decides what and which way. A state left
   // unmarked gets none, however it was judged.
-  it('offers no levers on a state the spec does not mark', async () => {
+  it('offers no levers on a state the specification does not mark', async () => {
     holding('EnergyNetPositive');
 
     const rows = await resolveBinding(binding, studyContext(DEFINITIONS)) as Row[];
@@ -2033,7 +2033,7 @@ describe('levers under a shortfall', () => {
     holding('EnergyShortOfTarget');
 
     const rows = await resolveBinding(binding, studyContext({
-      pctOfConsumption: {
+      percentOfConsumption: {
         Expression: 'totalGeneration / consumed * 100',
         Reads: ['totalGeneration', 'consumed'],
         FallsWith: ['consumed'],
@@ -2051,7 +2051,7 @@ describe('levers under a shortfall', () => {
 
     const rows = await resolveBinding(binding, studyContext({
       ...DEFINITIONS,
-      pctOfConsumption: {
+      percentOfConsumption: {
         Expression: 'totalGeneration * 100',
         Reads: ['totalGeneration'],
         RisesWith: ['totalGeneration'],
@@ -2066,7 +2066,7 @@ describe('levers under a shortfall', () => {
   it('reads an at-most comparison the same way as a below one', async () => {
     holding('EnergyShortOfTarget');
     vi.mocked(rangeApi.getAll).mockResolvedValue(rangesResponse([
-      range('EnergyShortOfTarget', [{ PropertyName: 'pctOfConsumption', Operator: '<=', Value: 99 }]),
+      range('EnergyShortOfTarget', [{ PropertyName: 'percentOfConsumption', Operator: '<=', Value: 99 }]),
     ]));
 
     const rows = await resolveBinding(binding, studyContext(DEFINITIONS)) as Row[];
@@ -2080,7 +2080,7 @@ describe('levers under a shortfall', () => {
   it('flips every direction when the held state sits above its target', async () => {
     holding('EnergyShortOfTarget');
     vi.mocked(rangeApi.getAll).mockResolvedValue(rangesResponse([
-      range('EnergyShortOfTarget', [{ PropertyName: 'pctOfConsumption', Operator: '>', Value: 100 }]),
+      range('EnergyShortOfTarget', [{ PropertyName: 'percentOfConsumption', Operator: '>', Value: 100 }]),
     ]));
 
     const rows = await resolveBinding(binding, studyContext(DEFINITIONS)) as Row[];
@@ -2098,7 +2098,7 @@ describe('levers under a shortfall', () => {
     holding('EnergyShortOfTarget');
 
     const rows = await resolveBinding(binding, studyContext({
-      pctOfConsumption: {
+      percentOfConsumption: {
         Expression: 'generated + boost - losses',
         Reads: ['generated', 'boost', 'losses'],
         RisesWith: ['generated', 'boost'],
@@ -2130,7 +2130,7 @@ describe('levers under a shortfall', () => {
     holding('EnergyShortOfTarget');
 
     const rows = await resolveBinding(binding, studyContext({
-      pctOfConsumption: {
+      percentOfConsumption: {
         Expression: 'stored / 2', Reads: ['stored'], RisesWith: ['stored'],
       },
       stored: { Expression: 'held * 2', Reads: ['held'], RisesWith: ['held'] },
@@ -2258,7 +2258,7 @@ describe('origin binding', () => {
     }]);
   });
 
-  it('leaves an origin the spec gave no wording without any', async () => {
+  it('leaves an origin the specification gave no wording without any', async () => {
     const binding = { kind: 'origin', property: 'untracked', reads: { stated: 'as submitted' } } as Binding;
     const rows = await resolveBinding(binding, siteContext()) as Row[];
     expect(rows).toEqual([{ origin: 'unknown', reads: null, source: null, resolvedAt: null }]);
@@ -2288,12 +2288,12 @@ function seriesContext(): ResolveContext {
 }
 
 // A point covering several buckets, and the tile that reads the newest one. The platform
-// reduces onto a fixed grid; a spec that wants an hourly figure plotted every quarter hour asks for
+// reduces onto a fixed grid; a specification that wants an hourly figure plotted every quarter hour asks for
 // quarter-hour buckets and says how many of them each point covers.
 describe('a series whose points cover several buckets', () => {
   const trace: Binding = {
     kind: 'timeseries', archetype: 'Building', happenedAt: 'recorded_at', property: 'volume',
-    op: 'sum', bucketSeconds: QUARTER_HOUR, buckets: 3, bucketsPerPoint: 2,
+    reduction: 'sum', bucketSeconds: QUARTER_HOUR, buckets: 3, bucketsPerPoint: 2,
   };
 
   function answers(buckets: number[]) {
@@ -2320,21 +2320,21 @@ describe('a series whose points cover several buckets', () => {
   });
 
   it('takes the least of the buckets a point covers when the reduction is a minimum', async () => {
-    expect(await resolveBinding({ ...trace, op: 'min' } as Binding, seriesContext())).toEqual([1, 2, 3]);
+    expect(await resolveBinding({ ...trace, reduction: 'min' } as Binding, seriesContext())).toEqual([1, 2, 3]);
   });
 
   it('takes the greatest of the buckets a point covers when the reduction is a maximum', async () => {
-    expect(await resolveBinding({ ...trace, op: 'max' } as Binding, seriesContext())).toEqual([2, 3, 4]);
+    expect(await resolveBinding({ ...trace, reduction: 'max' } as Binding, seriesContext())).toEqual([2, 3, 4]);
   });
 
   it('counts the same way it sums, because counts add', async () => {
-    expect(await resolveBinding({ ...trace, op: 'count' } as Binding, seriesContext())).toEqual([3, 5, 7]);
+    expect(await resolveBinding({ ...trace, reduction: 'count' } as Binding, seriesContext())).toEqual([3, 5, 7]);
   });
 
   // The average of the buckets is not the average of what went into them unless every bucket holds
   // the same number of members, which nothing here knows.
   it('refuses an average spread over several buckets rather than approximating it', async () => {
-    const value = await resolveBinding({ ...trace, op: 'avg' } as Binding, seriesContext());
+    const value = await resolveBinding({ ...trace, reduction: 'average' } as Binding, seriesContext());
     expect(value).toBeNull();
     expect(temporalApi.aggregate).not.toHaveBeenCalled();
   });
@@ -2343,7 +2343,7 @@ describe('a series whose points cover several buckets', () => {
   it('averages a point covering one bucket, which is that bucket', async () => {
     answers([5, 6, 7]);
     const value = await resolveBinding(
-      { ...trace, op: 'avg', buckets: 3, bucketsPerPoint: 1 } as Binding, seriesContext());
+      { ...trace, reduction: 'average', buckets: 3, bucketsPerPoint: 1 } as Binding, seriesContext());
     expect(value).toEqual([5, 6, 7]);
   });
 
@@ -2359,7 +2359,7 @@ describe('a series whose points cover several buckets', () => {
 describe('the newest point of a series', () => {
   const series = {
     kind: 'timeseries', archetype: 'Building', happenedAt: 'recorded_at', property: 'volume',
-    op: 'sum', bucketSeconds: QUARTER_HOUR, buckets: 3, bucketsPerPoint: 2,
+    reduction: 'sum', bucketSeconds: QUARTER_HOUR, buckets: 3, bucketsPerPoint: 2,
   } as const;
 
   beforeEach(() => {
@@ -2383,7 +2383,7 @@ describe('the newest point of a series', () => {
   });
 
   it('resolves to nothing when its series is refused', async () => {
-    const refused = { ...series, op: 'avg' } as const;
+    const refused = { ...series, reduction: 'average' } as const;
     expect(await resolveBinding({ kind: 'latest', series: refused } as Binding, seriesContext())).toBeNull();
   });
 
@@ -2422,7 +2422,7 @@ describe('history reads the platform reduction over a property series', () => {
     });
   });
 
-  it('asks about the scope entity, in its own clock offset, with the steps as the spec wrote them', async () => {
+  it('asks about the scope entity, in its own clock offset, with the steps as the specification wrote them', async () => {
     await resolveBinding(monthlyHigh, siteContext('site1', { [UTC_OFFSET_PROPERTY]: 7200 }));
 
     expect(temporalApi.reduce).toHaveBeenCalledWith({

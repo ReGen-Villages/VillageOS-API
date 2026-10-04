@@ -60,11 +60,11 @@ public class ModelBridgeNodeTests
     public async Task Write_posts_the_input_value_as_a_fact()
     {
         var handler = new RecordingHandler((_, _) => new HttpResponseMessage(HttpStatusCode.OK));
-        var response = await NewNode(handler).HandleNodeAsync(Envelope("write", "pctOfConsumption", inputs: """{ "value": 120 }"""));
+        var response = await NewNode(handler).HandleNodeAsync(Envelope("write", "percentOfConsumption", inputs: """{ "value": 120 }"""));
 
         Assert.True(response.Success);
         Assert.Equal(HttpMethod.Post, handler.LastRequest!.Method);
-        Assert.Contains("/properties/pctOfConsumption/facts", handler.LastRequest.RequestUri!.ToString());
+        Assert.Contains("/properties/percentOfConsumption/facts", handler.LastRequest.RequestUri!.ToString());
         Assert.Contains("120", handler.LastBody);
     }
 

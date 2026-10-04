@@ -119,15 +119,6 @@ function keptIn(where: string, reason: string, ...names: string[]): void {
   for (const name of names) KEPT_IN.set(`${where}::${name}`, reason);
 }
 
-/** Clipped words held whole under a work item, because the identifiers carrying them are JSON keys a
- *  page specification shares with the platform's templates and change together with those. */
-const HELD_WORDS = new Set<string>();
-
-function held(reason: string, words: string[], ...names: string[]): void {
-  for (const word of words) HELD_WORDS.add(word);
-  kept(reason, ...names);
-}
-
 kept("React's word for a component's inputs, and the type naming them; `properties` here are a Thing's",
   'props', 'Props', 'baseProps', 'orbitControlsProps', 'StepProps', 'EntityPickerProps', 'NodeProps',
   'BimFragmentsSceneProps', 'BimFragmentsViewerProps', 'BuildingDetail3DProps', 'ChangePasswordFormProps',
@@ -149,13 +140,8 @@ keptIn('feedback/screenCapture.ts', "the browser's own properties: what an image
 kept("i18next's start-up", 'initReactI18next', '.init');
 kept("the platform's wire: the property envelope, a pipeline node's bindings, the service registry's figures",
   'typeInfo', 'paramBindings', 'Stats', 'AverageResponseMs', 'TotalResponseMs');
-kept("property names the platform's templates declare; renaming them is a model change, listed on Task 7123",
-  'pctOfConsumption', 'sharePct');
 keptIn('components/map/MapView.tsx', "maplibre's export, aliased on import", 'config');
 keptIn('components/map/MapView.test.tsx', "the mocked maplibre module exports maplibre's name", 'config');
-kept("the wire's own name for a page's specification: the property a Dashboard Thing carries, the field the platform's declared pages and the intake service's findings answer with", 'spec');
-held("JSON keys a page specification shares with the platform's templates and the seed generators; Task 7123 renames them together",
-  [], 'op', 'avg', 'sortDir', 'setSortDir');
 
 const IDENTIFIER = /[A-Za-z_$][A-Za-z0-9_$]*/g;
 
@@ -229,7 +215,7 @@ function clippedNames(): { path: string; line: number; identifier: string; word:
       for (const written of line.matchAll(IDENTIFIER)) {
         const identifier = written[0];
         if (allowed(identifier, path, line.slice(0, written.index), line.slice(written.index! + identifier.length))) continue;
-        const clipped = wordsIn(identifier).find((word) => isClipped(word) && !HELD_WORDS.has(word.toLowerCase()));
+        const clipped = wordsIn(identifier).find(isClipped);
         if (clipped) found.push({ path, line: index + 1, identifier, word: clipped.toLowerCase() });
       }
     });

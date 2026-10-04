@@ -9,11 +9,11 @@ namespace vos.Service.Intake.Services;
 //
 // Nothing here names a dashboard, an archetype or a predicate. The page is whichever Thing the model
 // marks as the one a submitter may read; the Things that never travel are whichever archetype it marks
-// as carrying personal details; and the relationships the reading follows are the ones that page's own spec
-// walks. So a project may re-author the page, and what a submitter is sent follows it without a change
+// as carrying personal details; and the relationships the reading follows are the ones that page's own
+// specification walks. So a project may re-author the page, and what a submitter is sent follows it without a change
 // here.
 //
-// The walk is rooted at one site and follows each relationship the way the spec follows it. A selector naming
+// The walk is rooted at one site and follows each relationship the way the specification follows it. A selector naming
 // the archetypes instead would answer with every Thing of that kind in the model — which in a staging
 // model is every other submitter's land.
 //
@@ -30,7 +30,7 @@ public static class FindingsReader
     // The mark on the archetype whose members never leave the model.
     public const string PersonalDetailFlag = "__IsPersonalDetailArchetype";
 
-    public const string SpecProperty = "spec";
+    public const string SpecificationProperty = "specification";
     public const string EmailAddressProperty = "emailAddress";
 
     // What the model declares, plus the contact of the one submission being asked about. Read
@@ -52,24 +52,24 @@ public static class FindingsReader
         var personal = things.Where(thing => Marked(thing, PersonalDetailFlag)).ToArray();
         RefuseAModelThatCannotAnswerSafely(page, personal);
 
-        var spec = PropertyText(page[0], SpecProperty)
+        var specification = PropertyText(page[0], SpecificationProperty)
             ?? throw new ModelNotSeededError(
-                $"the page marked '{FindingsDashboardFlag}' carries no '{SpecProperty}', so there is "
+                $"the page marked '{FindingsDashboardFlag}' carries no '{SpecificationProperty}', so there is "
                 + "nothing to draw. Seed the model from the analysis templates.");
 
         var contact = things.FirstOrDefault(thing => Identifier(thing) == contactId);
         return new SubmitterDeclarations(
-            spec,
+            specification,
             Identifier(personal[0]),
             contact is { } named ? PropertyText(named, EmailAddressProperty) : null);
     }
 
-    // The reading the page is drawn from: the site, and what the spec's own walks reach from
+    // The reading the page is drawn from: the site, and what the specification's own walks reach from
     // it. Depth is unbounded because a walk that nests — a site to its parcel to where the boundary came
-    // from — is one the spec writes as one step; the platform stops as soon as a hop reaches nothing new.
-    public static SubscriptionSelector FindingsSelector(Guid siteId, string spec)
+    // from — is one the specification writes as one step; the platform stops as soon as a hop reaches nothing new.
+    public static SubscriptionSelector FindingsSelector(Guid siteId, string specification)
     {
-        var walked = WalksIn(spec);
+        var walked = WalksIn(specification);
         return new SubscriptionSelector
         {
             Ids = [siteId],
@@ -117,7 +117,7 @@ public static class FindingsReader
     }
 
     // Whose ranges the answer has to carry: every Thing holding a state. A verdict row is drawn
-    // only for a Thing in one of the states its spec names, and the target it reads comes off the range
+    // only for a Thing in one of the states its specification names, and the target it reads comes off the range
     // that judged it — so this is exactly the set the page will ask about, and no more.
     public static List<Guid> JudgedThings(IEnumerable<JsonElement> things) =>
     [
@@ -147,13 +147,13 @@ public static class FindingsReader
                 + "Seed the model from the analysis templates.");
     }
 
-    // One relationship a spec follows. Both shapes a spec writes a walk in — a step in a binding's
-    // via, and the predicate a scope narrows through — are the same question of the model.
+    // One relationship a specification follows. Both shapes a specification writes a walk in — a step in
+    // a binding's via, and the predicate a scope narrows through — are the same question of the model.
     private readonly record struct Walk(string Predicate, bool Inbound);
 
-    private static List<Walk> WalksIn(string spec)
+    private static List<Walk> WalksIn(string specification)
     {
-        using var parsed = JsonDocument.Parse(spec);
+        using var parsed = JsonDocument.Parse(specification);
         var found = new HashSet<Walk>();
         Collect(parsed.RootElement, found);
         // In a settled order, so one page always asks the platform the same question — a set's own order

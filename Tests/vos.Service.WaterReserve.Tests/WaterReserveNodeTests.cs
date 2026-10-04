@@ -24,7 +24,7 @@ public class WaterReserveNodeTests
 
         response.Success.Should().BeTrue();
         ((double)response.Outputs["daysOfSupply"]!).Should().BeApproximately(730.0, 1e-6);
-        ((double)response.Outputs["pctAnnualConsumption"]!).Should().BeApproximately(200.0, 1e-9);
+        ((double)response.Outputs["percentOfAnnualConsumption"]!).Should().BeApproximately(200.0, 1e-9);
         ((double)response.Outputs["emergencyReserveM3"]!).Should().Be(100000);
     }
 

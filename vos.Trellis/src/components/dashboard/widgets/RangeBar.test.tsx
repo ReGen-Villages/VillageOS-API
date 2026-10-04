@@ -132,7 +132,7 @@ describe('the stacked range bar', () => {
     expect(screen.getByText('Comfort')).toBeInTheDocument();
   });
 
-  it('labels the axis in the spec\'s floor and ceiling and the widget\'s unit', () => {
+  it('labels the axis in the specification\'s floor and ceiling and the widget\'s unit', () => {
     draw();
 
     expect(screen.getByText('-10')).toBeInTheDocument();

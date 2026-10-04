@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 /**
  * The dashboard client ships widgets and a binding resolver; every word a reader sees comes from the
- * spec a model authors. That contract is what makes a second model cost nothing, and it decays one
+ * specification a model authors. That contract is what makes a second model cost nothing, and it decays one
  * widget at a time: each new widget written under pressure is a chance to spell a domain into the
  * client, and nothing else notices when one does.
  *

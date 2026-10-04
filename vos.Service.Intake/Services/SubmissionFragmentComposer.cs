@@ -389,7 +389,7 @@ public static class SubmissionFragmentComposer
     private static Dictionary<string, TypedValue> AllocationProperties(SubmittedAllocation allocation)
     {
         var properties = new Dictionary<string, TypedValue>();
-        Write(properties, "sharePct", VosTypeNames.Double, allocation.SharePct);
+        Write(properties, "sharePercent", VosTypeNames.Double, allocation.SharePercent);
         return properties;
     }
 

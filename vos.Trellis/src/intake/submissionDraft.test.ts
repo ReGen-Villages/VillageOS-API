@@ -320,8 +320,8 @@ describe('the document that is posted', () => {
         householdSize: 2.4,
       },
       allocations: [
-        { category: 'residential', sharePct: 40 },
-        { category: 'food-and-agriculture', sharePct: 60 },
+        { category: 'residential', sharePercent: 40 },
+        { category: 'food-and-agriculture', sharePercent: 60 },
       ],
     });
   });

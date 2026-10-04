@@ -600,7 +600,7 @@ export const en = {
       reduced: "Each row contributed its {{measure}}. The figure is their {{reduction}}.",
       buckets: "The platform reduced this over time, so there are no Things to list. Below is the same question over the same window, in {{count}} equal parts, oldest first.",
     },
-    reduction: { sum: "total", avg: "average", min: "smallest", max: "largest" },
+    reduction: { sum: "total", average: "average", min: "smallest", max: "largest" },
     division: { top: "What is divided", bottom: "What it is divided by" },
     terms: {
       archetype: "Archetype",
@@ -848,7 +848,7 @@ export const en = {
       columns: 'Columns',
       minWidth: 'Least width',
       sortKey: 'Sorted by',
-      sortDir: 'Sort order',
+      sortDirection: 'Sort order',
       visibleRows: 'Rows shown',
       ticks: 'Ticks',
       now: 'Now marker',
@@ -912,7 +912,7 @@ export const en = {
       computed: 'Columns worked out per row',
       inState: 'In state',
       where: 'Where',
-      op: 'Reduction',
+      reduction: 'Reduction',
       property: 'Property',
       thing: 'Thing',
       via: 'Path',
@@ -1315,9 +1315,9 @@ export const en = {
   operationsPage: {
     all: "All",
     noDashboard: "No dashboard configured",
-    noDashboardBody: "This model defines no <0>Dashboard</0> config. Add a Thing of archetype <1>Dashboard</1> with a <2>spec</2> property to drive this page.",
+    noDashboardBody: "This model defines no <0>Dashboard</0> config. Add a Thing of archetype <1>Dashboard</1> with a <2>specification</2> property to drive this page.",
     unreadableSpecification: "{{name}} could not be read",
-    unreadableSpecificationBody: "The spec property on this Dashboard Thing does not hold a specification this application can read. Correct it in the model and reload.",
+    unreadableSpecificationBody: "The specification property on this Dashboard Thing does not hold a specification this application can read. Correct it in the model and reload.",
     emptyView: "This dashboard's specification lists no sections, so there is nothing to draw.",
   },
   ifcUpload: {

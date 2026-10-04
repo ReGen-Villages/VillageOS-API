@@ -1,7 +1,7 @@
 /**
  * The binding vocabulary this build can answer, and what a widget asks for that it cannot.
  *
- * A spec is model data. It can be authored against a newer client than the one reading it, and the
+ * A specification is model data. It can be authored against a newer client than the one reading it, and the
  * client's tolerance for what it does not recognise is what lets a model and a console ship apart.
  * That tolerance is right for presentation and wrong for a binding: a binding is a question, and
  * answering half of one produces a number rather than a gap. A tile whose kind this build lacks
@@ -38,7 +38,7 @@ export const BINDING_FIELDS: BindingFields = {
   stateCount: ['state', 'scope', 'archetype', 'excludeState'],
   stateList: ['state', 'excludeState', 'scope', 'limit', 'archetype', 'properties', 'computed'],
   thingList: ['archetype', 'scope', 'limit', 'computed', 'inState', 'where'],
-  aggregate: ['archetype', 'op', 'property', 'where', 'scope'],
+  aggregate: ['archetype', 'reduction', 'property', 'where', 'scope'],
   property: ['thing', 'property'],
   related: ['via', 'thing', 'property'],
   stateOf: ['states', 'thing'],
@@ -47,7 +47,7 @@ export const BINDING_FIELDS: BindingFields = {
   working: ['property', 'thing', 'via'],
   ratio: ['numerator', 'denominator'],
   compareEntities: ['properties', 'computed'],
-  timeseries: ['archetype', 'happenedAt', 'property', 'op', 'bucketSeconds', 'buckets', 'bucketsPerPoint', 'scope'],
+  timeseries: ['archetype', 'happenedAt', 'property', 'reduction', 'bucketSeconds', 'buckets', 'bucketsPerPoint', 'scope'],
   latest: ['series'],
   service: ['endpoint', 'body', 'select'],
   history: ['property', 'windowSeconds', 'steps'],

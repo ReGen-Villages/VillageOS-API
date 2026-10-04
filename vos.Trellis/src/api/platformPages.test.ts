@@ -16,8 +16,8 @@ describe('loadPlatformPages', () => {
 
   it('keeps each page the platform declares as a descriptor with its own address, in the order declared', async () => {
     vi.mocked(myceliumApi.getPages).mockResolvedValue([
-      { name: 'Accounts', spec: ACCOUNTS },
-      { name: 'Signing keys', spec: { title: 'Signing keys', sections: [] } },
+      { name: 'Accounts', specification: ACCOUNTS },
+      { name: 'Signing keys', specification: { title: 'Signing keys', sections: [] } },
     ]);
 
     await loadPlatformPages('user-1');
@@ -30,7 +30,7 @@ describe('loadPlatformPages', () => {
   });
 
   it('reads once per signed-in account, and again for another', async () => {
-    vi.mocked(myceliumApi.getPages).mockResolvedValue([{ name: 'Accounts', spec: ACCOUNTS }]);
+    vi.mocked(myceliumApi.getPages).mockResolvedValue([{ name: 'Accounts', specification: ACCOUNTS }]);
 
     await loadPlatformPages('user-1');
     await loadPlatformPages('user-1');
@@ -40,8 +40,8 @@ describe('loadPlatformPages', () => {
     expect(myceliumApi.getPages).toHaveBeenCalledTimes(2);
   });
 
-  it('lists a declared page whose spec could not be read, so the fault is seen rather than the page missing', async () => {
-    vi.mocked(myceliumApi.getPages).mockResolvedValue([{ name: 'Accounts', spec: { title: 'Accounts' } }]);
+  it('lists a declared page whose specification could not be read, so the fault is seen rather than the page missing', async () => {
+    vi.mocked(myceliumApi.getPages).mockResolvedValue([{ name: 'Accounts', specification: { title: 'Accounts' } }]);
 
     await loadPlatformPages('user-1');
 
@@ -55,7 +55,7 @@ describe('loadPlatformPages', () => {
     await loadPlatformPages('user-1');
     expect(usePlatformPagesStore.getState().pages).toEqual([]);
 
-    vi.mocked(myceliumApi.getPages).mockResolvedValue([{ name: 'Accounts', spec: ACCOUNTS }]);
+    vi.mocked(myceliumApi.getPages).mockResolvedValue([{ name: 'Accounts', specification: ACCOUNTS }]);
     await loadPlatformPages('user-1');
     expect(usePlatformPagesStore.getState().pages).toHaveLength(1);
   });

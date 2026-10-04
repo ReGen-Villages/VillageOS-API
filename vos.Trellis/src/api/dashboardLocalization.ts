@@ -1,9 +1,9 @@
 /**
  * Render-time localization of a model-supplied {@link DashboardSpec}.
  *
- * A model author keeps writing the spec in one base language and adds a single
+ * A model author keeps writing the specification in one base language and adds a single
  * `translations` block: `{ [locale]: { [baseString]: translatedString } }`.
- * `localizeSpec` returns a copy of the spec with every human-facing label
+ * `localizeSpecification` returns a copy of the specification with every human-facing label
  * replaced by its translation in the active locale, falling back to the base
  * text whenever the locale — or a given string within it — is absent.
  *
@@ -154,7 +154,7 @@ function localizeWidget(widget: Widget, tr: SpecificationTranslator): Widget {
       return w;
     }
     case 'working': {
-      // The label and the unit are the spec's words. The formula and the input names are not — they are
+      // The label and the unit are the specification's words. The formula and the input names are not — they are
       // the model's own property names, and a translation of one would name a property the model does
       // not have.
       const w: WorkingWidget = {
@@ -244,7 +244,7 @@ function localizeWidget(widget: Widget, tr: SpecificationTranslator): Widget {
       };
       return w;
     }
-    // A choice's label and a field's label are the spec's words; the act, the reason and the key
+    // A choice's label and a field's label are the specification's words; the act, the reason and the key
     // each is sent under are what the endpoint reads, and stay as written.
     case 'action': {
       const w: ActionWidget = {

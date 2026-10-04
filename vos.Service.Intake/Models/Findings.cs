@@ -15,7 +15,7 @@ namespace vos.Service.Intake.Models;
 // identifier. A verdict reads its target off the comparison the range makes, and those ranges sit on an
 // archetype rather than on the Thing, so a reading alone cannot answer them.
 public sealed record Findings(
-    string Spec,
+    string Specification,
     Guid ScopeId,
     IReadOnlyList<JsonElement> Things,
     IReadOnlyList<JsonElement> Relationships,
@@ -23,4 +23,4 @@ public sealed record Findings(
 
 // What the model says about answering somebody who holds no account: which page they may read,
 // which Things never travel, and — for the one submission being asked about — the address it names.
-public sealed record SubmitterDeclarations(string Spec, Guid PersonalDetailArchetype, string? ContactAddress);
+public sealed record SubmitterDeclarations(string Specification, Guid PersonalDetailArchetype, string? ContactAddress);

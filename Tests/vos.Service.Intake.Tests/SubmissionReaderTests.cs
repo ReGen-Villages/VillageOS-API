@@ -17,6 +17,19 @@ public class SubmissionReaderTests
     }
 
     [Fact]
+    public void A_share_is_read_as_a_percent_and_refused_under_its_shortened_name()
+    {
+        string Sharing(string field) =>
+            "{\"submissionId\":\"" + WillowBend.SubmissionId + "\",\"allocations\":[{\"category\":\"residential\",\"" + field + "\":22}]}";
+
+        var submission = SubmissionReader.Read(Sharing("sharePercent"));
+        var refusal = Assert.Throws<SubmissionError>(() => SubmissionReader.Read(Sharing("sharePct")));
+
+        submission.Allocations!.Single().SharePercent.Should().Be(22);
+        refusal.Message.Should().Contain("sharePct");
+    }
+
+    [Fact]
     public void A_document_that_is_not_a_submission_is_refused()
     {
         Assert.Throws<SubmissionError>(() => SubmissionReader.Read("{ this is not json"));

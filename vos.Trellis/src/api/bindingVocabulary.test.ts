@@ -38,14 +38,14 @@ describe('what a widget asks for that this build cannot answer', () => {
 
   it('names a field the kind it belongs to does not read', () => {
     expect(unimplementedWordsIn(tileShowing({
-      kind: 'timeseries', archetype: 'Reading', happenedAt: 'recordedAt', op: 'sum',
+      kind: 'timeseries', archetype: 'Reading', happenedAt: 'recordedAt', reduction: 'sum',
       property: 'volume', bucketSeconds: 900, buckets: 32, smoothing: 'exponential',
     }))).toEqual(['smoothing']);
   });
 
   it('says nothing about a field the kind does read', () => {
     expect(unimplementedWordsIn(tileShowing({
-      kind: 'timeseries', archetype: 'Reading', happenedAt: 'recordedAt', op: 'sum',
+      kind: 'timeseries', archetype: 'Reading', happenedAt: 'recordedAt', reduction: 'sum',
       property: 'volume', bucketSeconds: 900, buckets: 32, bucketsPerPoint: 4,
     }))).toEqual([]);
   });
@@ -54,7 +54,7 @@ describe('what a widget asks for that this build cannot answer', () => {
   it('judges the halves of a ratio', () => {
     expect(unimplementedWordsIn(tileShowing({
       kind: 'ratio',
-      numerator: { kind: 'aggregate', archetype: 'Reading', op: 'sum', property: 'volume' },
+      numerator: { kind: 'aggregate', archetype: 'Reading', reduction: 'sum', property: 'volume' },
       denominator: { kind: 'runningTotal', property: 'volume' },
     }))).toEqual(['runningTotal']);
   });
@@ -63,7 +63,7 @@ describe('what a widget asks for that this build cannot answer', () => {
     expect(unimplementedWordsIn(tileShowing({
       kind: 'latest',
       series: {
-        kind: 'timeseries', archetype: 'Reading', happenedAt: 'recordedAt', op: 'sum',
+        kind: 'timeseries', archetype: 'Reading', happenedAt: 'recordedAt', reduction: 'sum',
         property: 'volume', bucketSeconds: 900, buckets: 32, smoothing: 'exponential',
       },
     }))).toEqual(['smoothing']);
@@ -77,7 +77,7 @@ describe('what a widget asks for that this build cannot answer', () => {
     }))).toEqual(['runningTotal']);
   });
 
-  // Reading what a widget asks for happens on the way to drawing it, so a spec that names a nested
+  // Reading what a widget asks for happens on the way to drawing it, so a specification that names a nested
   // binding and does not write it would take the whole view down rather than the one widget that is
   // wrong — a worse fault than the silent one this module exists to remove.
   it('survives a binding whose nested series was never written', () => {
@@ -96,15 +96,15 @@ describe('what a widget asks for that this build cannot answer', () => {
 
   /**
    * Every word reported reaches a reader inside a translated sentence, so a word this module made
-   * up rather than read off the spec arrives untranslated — English in the middle of Arabic, and
+   * up rather than read off the specification arrives untranslated — English in the middle of Arabic, and
    * only for the readers least able to report it.
    *
-   * Stated as a property over malformed specs rather than as one example, because the hazard is not
+   * Stated as a property over malformed specifications rather than as one example, because the hazard is not
    * one literal: it is any branch that answers with a word of its own. The empty string is the one
    * legitimate answer that names nothing, and it is contained in every text, so it passes here and
    * is judged by the tests above instead.
    */
-  it('never reports a word the spec did not contain', () => {
+  it('never reports a word the specification did not contain', () => {
     const malformed: unknown[] = [
       { kind: 'runningTotal', property: 'volume' },
       { kind: '', property: 'volume' },
@@ -120,7 +120,7 @@ describe('what a widget asks for that this build cannot answer', () => {
       const widget = tileShowing(value);
       const specification = JSON.stringify(widget);
       for (const word of unimplementedWordsIn(widget)) {
-        expect(specification, `"${word}" is not in the spec it was reported for`).toContain(word);
+        expect(specification, `"${word}" is not in the specification it was reported for`).toContain(word);
       }
     }
   });
@@ -245,7 +245,7 @@ describe('the table of fields each kind reads', () => {
       }))
       .filter((entry) => entry.missing.length > 0);
 
-    expect(short, 'these fields are declared on a binding and left out of the table, so a spec setting one is silently tolerated')
+    expect(short, 'these fields are declared on a binding and left out of the table, so a specification setting one is silently tolerated')
       .toEqual([]);
   });
 });

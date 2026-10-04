@@ -838,7 +838,7 @@ function ReportMap({
 
 /** The model's own dashboard, drawn as the tile design draws it: the sections naming a theme as tiles,
  *  the section marked as the facts beside the map, and everything else as the list the findings page
- *  draws. A spec naming neither renders exactly as it did. */
+ *  draws. A specification naming neither renders exactly as it did. */
 function Drawn({
   findings,
   options,

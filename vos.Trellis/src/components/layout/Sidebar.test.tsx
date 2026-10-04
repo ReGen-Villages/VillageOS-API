@@ -22,7 +22,7 @@ function publish(dashboards: PublishedDashboard[]) {
   const things: VosThing[] = [
     { Id: 'is', Name: 'is', Properties: {} },
     { Id: 'arch-dash', Name: 'Dashboard', Properties: {}, IsArchetype: true },
-    ...dashboards.map((d, i) => ({ Id: `dash-${i}`, Name: d.name, Properties: { spec: JSON.stringify(d.specification) } })),
+    ...dashboards.map((d, i) => ({ Id: `dash-${i}`, Name: d.name, Properties: { specification: JSON.stringify(d.specification) } })),
   ];
   const relationships: VosRelationship[] = dashboards.map((_, i) => ({
     Id: `dash-${i}-is`,
@@ -112,7 +112,7 @@ describe('Sidebar', () => {
     expect(entryLabels()).toContain('Bronnen');
   });
 
-  it('still lists a dashboard whose spec names no icon', () => {
+  it('still lists a dashboard whose specification names no icon', () => {
     publish([{ name: 'Reservoirs', specification: { title: 'Reservoirs', sections: [] } }]);
     renderSidebar();
 
