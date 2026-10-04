@@ -11,9 +11,11 @@ import { en } from '../i18n/locales/en';
  * English words do not name does not compile.
  */
 
-const NUMBER_FORMATS: readonly NumberFormat[] = [
-  'integer', 'decimal1', 'decimal2', 'percent', 'percent1', 'pct100', 'hours', 'compact', 'bytes', 'money',
-];
+const EVERY_NUMBER_FORMAT: Record<NumberFormat, true> = {
+  integer: true, decimal1: true, decimal2: true, percent: true, percent1: true, pct100: true, hours: true,
+  compact: true, bytes: true, money: true,
+};
+const NUMBER_FORMATS = Object.keys(EVERY_NUMBER_FORMAT) as NumberFormat[];
 const DIRECTIONS = ['up-good', 'down-good', 'neither-good'] as const;
 const BOUND_DIRECTIONS = ['up-good', 'down-good'] as const;
 const RENDERS = ['text', 'badge', 'agebar', 'id'] as const;
