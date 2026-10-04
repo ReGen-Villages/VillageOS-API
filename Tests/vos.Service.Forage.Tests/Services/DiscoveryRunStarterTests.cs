@@ -89,6 +89,8 @@ public class DiscoveryRunStarterTests
     // A run that could start is given this long to do so before a test concludes it was held.
     private static readonly TimeSpan HeldLongEnough = TimeSpan.FromMilliseconds(300);
 
+    private static readonly TimeSpan StartsSoonEnough = TimeSpan.FromSeconds(10);
+
     private static async Task<bool> StartsWithin(Task started, TimeSpan wait) =>
         await Task.WhenAny(started, Task.Delay(wait)) == started;
 
@@ -110,7 +112,7 @@ public class DiscoveryRunStarterTests
             "two runs for one site would each mint a coverage for the same call");
         logger.Information.Should().ContainSingle().Which.Should().Contain(site.ToString()).And.Contain("in flight");
         releaseFirst.SetResult();
-        await secondStarted.Task;
+        (await StartsWithin(secondStarted.Task, StartsSoonEnough)).Should().BeTrue("the held run starts once the first ends");
     }
 
     [Fact]
@@ -127,25 +129,25 @@ public class DiscoveryRunStarterTests
     }
 
     [Fact]
-    public async Task AThirdRunForTheSameSubject_WaitsForTheSecondAsWellAsTheFirst()
+    public async Task ADispatchWhileOneRunIsInFlightAndAnotherWaits_IsDroppedAndSaysSo()
     {
-        var starter = new DiscoveryRunStarter(new FakeLifetime(), new CapturingLogger());
+        var logger = new CapturingLogger();
+        var starter = new DiscoveryRunStarter(new FakeLifetime(), logger);
         var site = Guid.NewGuid();
         var releaseFirst = new TaskCompletionSource();
-        var secondStarted = new TaskCompletionSource();
-        var releaseSecond = new TaskCompletionSource();
-        var thirdStarted = new TaskCompletionSource();
+        var secondEnded = new TaskCompletionSource();
+        var thirdRan = false;
 
         starter.Start(site, _ => releaseFirst.Task);
-        starter.Start(site, async _ => { secondStarted.SetResult(); await releaseSecond.Task; });
-        starter.Start(site, _ => { thirdStarted.SetResult(); return Task.CompletedTask; });
+        starter.Start(site, _ => { secondEnded.SetResult(); return Task.CompletedTask; });
+        starter.Start(site, _ => { thirdRan = true; return Task.CompletedTask; });
         releaseFirst.SetResult();
-        await secondStarted.Task;
+        await secondEnded.Task;
+        await Settle.UntilAsync(() => starter.SubjectsWithRunsInFlight == 0, "every run for the site has ended");
 
-        (await StartsWithin(thirdStarted.Task, HeldLongEnough)).Should().BeFalse(
-            "the third run is held until the run in flight ends, not only the first one started");
-        releaseSecond.SetResult();
-        await thirdStarted.Task;
+        thirdRan.Should().BeFalse(
+            "the waiting run reads the model only once the first ends, so it finds whatever the third would have");
+        logger.Information.Should().HaveCount(2).And.Contain(line => line.Contains("already waiting"));
     }
 
     [Fact]
@@ -167,7 +169,8 @@ public class DiscoveryRunStarterTests
         (await StartsWithin(thirdStarted.Task, HeldLongEnough)).Should().BeFalse(
             "the first run ending must not forget the second, which is still in flight");
         releaseSecond.SetResult();
-        await thirdStarted.Task;
+        (await StartsWithin(thirdStarted.Task, StartsSoonEnough)).Should().BeTrue(
+            "once the waiting run has started, the next dispatch waits for it rather than being dropped");
     }
 
     [Fact]
@@ -195,7 +198,7 @@ public class DiscoveryRunStarterTests
         starter.Start(site, _ => throw new InvalidOperationException("the model is unreachable"));
         starter.Start(site, _ => { secondStarted.SetResult(); return Task.CompletedTask; });
 
-        (await StartsWithin(secondStarted.Task, TimeSpan.FromSeconds(10))).Should().BeTrue();
+        (await StartsWithin(secondStarted.Task, StartsSoonEnough)).Should().BeTrue();
     }
 
     [Fact]

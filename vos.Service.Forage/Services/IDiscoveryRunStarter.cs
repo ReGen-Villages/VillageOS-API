@@ -26,12 +26,22 @@ public interface IDiscoveryRunStarter
 // Running one site's discoveries in parallel needs those writes to stop duplicating first, and only then
 // can this hold go. It does not cover a source's run overlapping a site's run, which can mint the same
 // coverage too, and it holds within one process only.
+//
+// At most one run waits. A waiting run reads the model only once the run in flight ends, so a dispatch
+// arriving while one already waits would find nothing it will not; dropping it keeps a site dispatched
+// faster than it is discovered from piling up runs.
 public sealed class DiscoveryRunStarter : IDiscoveryRunStarter
 {
     private readonly IHostApplicationLifetime _lifetime;
     private readonly ILogger<DiscoveryRunStarter> _logger;
-    private readonly Dictionary<Guid, Task> _lastRunBySubject = new();
-    private readonly Lock _lastRunGate = new();
+    private readonly Dictionary<Guid, SubjectRuns> _runsBySubject = new();
+    private readonly Lock _runsGate = new();
+
+    private sealed class SubjectRuns
+    {
+        public required Task LastEnded;
+        public bool OneWaiting;
+    }
 
     public DiscoveryRunStarter(IHostApplicationLifetime lifetime, ILogger<DiscoveryRunStarter> logger)
     {
@@ -41,26 +51,54 @@ public sealed class DiscoveryRunStarter : IDiscoveryRunStarter
 
     public int SubjectsWithRunsInFlight
     {
-        get { lock (_lastRunGate) return _lastRunBySubject.Count; }
+        get { lock (_runsGate) return _runsBySubject.Count; }
     }
 
     public void Start(Guid subjectId, Func<CancellationToken, Task> run)
     {
         var ended = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        SubjectRuns? runs;
         Task previous;
-        lock (_lastRunGate)
+        var dropped = false;
+        lock (_runsGate)
         {
-            previous = _lastRunBySubject.GetValueOrDefault(subjectId, Task.CompletedTask);
-            _lastRunBySubject[subjectId] = ended.Task;
+            if (!_runsBySubject.TryGetValue(subjectId, out runs))
+            {
+                _runsBySubject[subjectId] = new SubjectRuns { LastEnded = ended.Task };
+                previous = Task.CompletedTask;
+            }
+            else if (runs.OneWaiting)
+            {
+                dropped = true;
+                previous = Task.CompletedTask;
+            }
+            else
+            {
+                runs.OneWaiting = true;
+                previous = runs.LastEnded;
+                runs.LastEnded = ended.Task;
+            }
         }
 
-        if (!previous.IsCompleted)
+        if (dropped)
+        {
+            _logger.LogInformation(
+                "A discovery run for {SubjectId} is already waiting and reads the model after the one in flight; " +
+                "this dispatch adds nothing to it", subjectId);
+            return;
+        }
+
+        var waits = runs != null;
+        if (waits)
             _logger.LogInformation(
                 "A discovery run for {SubjectId} is in flight; this one starts when it ends", subjectId);
 
         _ = Task.Run(async () =>
         {
             await previous;
+            if (waits)
+                lock (_runsGate) runs!.OneWaiting = false;
+
             // Nothing awaits this task, so an exception escaping here would be unobserved: reported by
             // nothing, and on some configurations taking the process with it.
             try
@@ -73,9 +111,9 @@ public sealed class DiscoveryRunStarter : IDiscoveryRunStarter
             }
             finally
             {
-                lock (_lastRunGate)
-                    if (_lastRunBySubject.GetValueOrDefault(subjectId) == ended.Task)
-                        _lastRunBySubject.Remove(subjectId);
+                lock (_runsGate)
+                    if (_runsBySubject.TryGetValue(subjectId, out var current) && current.LastEnded == ended.Task)
+                        _runsBySubject.Remove(subjectId);
                 ended.SetResult();
             }
         });
