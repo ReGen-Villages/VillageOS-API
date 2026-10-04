@@ -71,6 +71,37 @@ describe('formatNumber', () => {
     expect(formatNumber(0.42, 'percent')).toBe('42\u00a0%');
   });
 
+  // The compact style wrote 32.5 billion bytes as "32.5B", which read as bytes, or as 32.5 of the
+  // binary gigabytes memory is sold in, when it is 30.3 of them.
+  it('writes a byte count in binary units, the unit memory is sold and reported in', () => {
+    expect(formatNumber(32_500_000_000, 'bytes')).toBe('30.3 GiB');
+    expect(formatNumber(5 * 1024 ** 3, 'bytes')).toBe('5 GiB');
+    expect(formatNumber(1536, 'bytes')).toBe('1.5 KiB');
+    expect(formatNumber(1024, 'bytes')).toBe('1 KiB');
+    expect(formatNumber(1023, 'bytes')).toBe('1,023 B');
+  });
+
+  it('moves up a unit when the rounded figure would read 1,024 of the smaller one', () => {
+    expect(formatNumber(1024 ** 2 - 1, 'bytes')).toBe('1 MiB');
+    expect(formatNumber(1023.96, 'bytes')).toBe('1 KiB');
+    expect(formatNumber(1023.94, 'bytes')).toBe('1,023.9 B');
+    expect(formatNumber(1_030_000, 'bytes')).toBe('1,005.9 KiB');
+  });
+
+  it('scales a negative byte count by its size', () => {
+    expect(formatNumber(-2 * 1024 ** 3, 'bytes')).toBe('-2 GiB');
+  });
+
+  it('stops at the largest binary unit rather than running out of names', () => {
+    expect(formatNumber(2 * 1024 ** 6, 'bytes')).toBe('2,048 PiB');
+  });
+
+  it('writes the number of a byte count the way the chosen language writes it', async () => {
+    await i18n.changeLanguage('de');
+
+    expect(formatNumber(32_500_000_000, 'bytes')).toBe('30,3 GiB');
+  });
+
   it('keeps the digits the rest of the page uses when the language is Arabic', async () => {
     // Every count the translations interpolate is written in Western digits, so a figure beside one
     // in Arabic-Indic digits would read as two different number systems on one line.
