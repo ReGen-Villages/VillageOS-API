@@ -35,7 +35,7 @@ describe('the editors on a screen narrower than a tablet', () => {
     expect(classes).toContain('md:max-h-none');
   });
 
-  it.each(['pages/DesignPage.tsx', 'pages/PipelinePage.tsx'])('%s stacks its panels and canvas, and lays them in a row from a tablet up', (path) => {
+  it.each(['pages/DesignPage.tsx', 'pages/PipelinePage.tsx', 'pages/RequestsPage.tsx'])('%s stacks its panels and canvas, and lays them in a row from a tablet up', (path) => {
     const classLists = [...read(path).matchAll(/className="([^"]*)"/g)].map((match) => match[1].split(/\s+/));
 
     expect(classLists.some((names) => names.includes('flex-col') && names.includes('md:flex-row'))).toBe(true);

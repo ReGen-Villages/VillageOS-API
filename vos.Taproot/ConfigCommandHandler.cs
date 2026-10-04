@@ -73,6 +73,7 @@ namespace vos.Taproot
             _writer.WriteLine($"  Default Mode:     {GetStringProperty(result, "Mode")}");
             _writer.WriteLine($"  Ring Buffer Size: {GetIntProperty(result, "RingBufferSize")}");
             _writer.WriteLine($"  Sample Rate:      {GetIntProperty(result, "SampleRate")}");
+            _writer.WriteLine($"  Sample Seconds:   {GetIntProperty(result, "SampleSeconds")}");
             _writer.WriteLine();
             _writer.WriteLine($"Available modes: {AvailableModes(result)}");
         }
@@ -98,8 +99,8 @@ namespace vos.Taproot
                     await HandleSetPropertyModeAsync(args);
                     return;
                 default:
-                    var (_, ringBufferSize, sampleRate) = ParseModeArgs(args);
-                    await SetDefaultModeInternalAsync(action, ringBufferSize, sampleRate);
+                    var (_, sizes) = ParseModeArgs(args);
+                    await SetDefaultModeInternalAsync(action, sizes);
                     return;
             }
         }
@@ -151,6 +152,16 @@ namespace vos.Taproot
                 _writer.WriteLine($"  Ring Buffer Capacity: {capacity}");
                 _writer.WriteLine($"  Ring Buffer Count: {GetIntProperty(result, "RingBufferCount")}");
             }
+
+            switch (GetStringProperty(result, "Mode"))
+            {
+                case "SampledByObservations":
+                    _writer.WriteLine($"  Sample Rate: 1 in {GetIntProperty(result, "SampleRate")}");
+                    break;
+                case "SampledByTime":
+                    _writer.WriteLine($"  Sample Seconds: {GetIntProperty(result, "SampleSeconds")}");
+                    break;
+            }
         }
 
         private async Task HandleSetPropertyModeAsync(string[] args)
@@ -161,15 +172,15 @@ namespace vos.Taproot
                 return;
             }
 
-            var (positionalArgs, ringBufferSize, sampleRate) = ParseModeArgs(args);
+            var (positionalArgs, sizes) = ParseModeArgs(args);
 
             switch (positionalArgs.Count)
             {
                 case 1:
-                    await SetDefaultModeInternalAsync(positionalArgs[0], ringBufferSize, sampleRate);
+                    await SetDefaultModeInternalAsync(positionalArgs[0], sizes);
                     break;
                 case >= 3:
-                    await SetSpecificPropertyModeAsync(positionalArgs[0], positionalArgs[1], positionalArgs[2], ringBufferSize, sampleRate);
+                    await SetSpecificPropertyModeAsync(positionalArgs[0], positionalArgs[1], positionalArgs[2], sizes);
                     break;
                 default:
                     ShowSetPropertyModeUsage();
@@ -177,7 +188,7 @@ namespace vos.Taproot
             }
         }
 
-        private async Task SetSpecificPropertyModeAsync(string thingNameOrId, string propertyName, string mode, int? ringBufferSize, int? sampleRate)
+        private async Task SetSpecificPropertyModeAsync(string thingNameOrId, string propertyName, string mode, ModeSizes sizes)
         {
             var resolveResult = await _resolver.ResolveThingAsync(thingNameOrId);
             if (!resolveResult.IsSuccess)
@@ -186,7 +197,8 @@ namespace vos.Taproot
                 return;
             }
 
-            var result = await _mycelium.SetPropertyModeAsync(resolveResult.Id, propertyName, mode, ringBufferSize, sampleRate);
+            var result = await _mycelium.SetPropertyModeAsync(
+                resolveResult.Id, propertyName, mode, sizes.RingBufferSize, sizes.SampleRate, sizes.SampleSeconds);
             _writer.WriteLine($"Set property '{propertyName}' mode to {GetStringProperty(result, "Mode")}");
         }
 
@@ -197,22 +209,27 @@ namespace vos.Taproot
             _writer.WriteLine("  config mode set <thing> <property> <ModeName>      - Set mode for specific property");
             _writer.WriteLine();
             _writer.WriteLine("Optional parameters:");
-            _writer.WriteLine("  --ringbuffer=N  - Ring buffer size (for RingBuffer mode)");
-            _writer.WriteLine("  --samplerate=N  - Sample rate (for Sampled mode)");
+            _writer.WriteLine("  --ringbuffer=N     - Ring buffer size (for RingBuffer mode)");
+            _writer.WriteLine("  --samplerate=N     - Keep 1 in N readings (for SampledByObservations mode)");
+            _writer.WriteLine("  --sampleseconds=N  - Keep the newest reading in each N seconds (for SampledByTime mode)");
         }
 
-        private async Task SetDefaultModeInternalAsync(string mode, int? ringBufferSize, int? sampleRate)
+        private async Task SetDefaultModeInternalAsync(string mode, ModeSizes sizes)
         {
-            var result = await _mycelium.SetDefaultPropertyModeAsync(mode, ringBufferSize, sampleRate);
+            var result = await _mycelium.SetDefaultPropertyModeAsync(mode, sizes.RingBufferSize, sizes.SampleRate, sizes.SampleSeconds);
             _writer.WriteLine($"Default property mode set to: {GetStringProperty(result, "Mode")}");
             _writer.WriteLine($"  Ring Buffer Size: {GetIntProperty(result, "RingBufferSize")}");
             _writer.WriteLine($"  Sample Rate: {GetIntProperty(result, "SampleRate")}");
+            _writer.WriteLine($"  Sample Seconds: {GetIntProperty(result, "SampleSeconds")}");
         }
 
-        private static (List<string> positionalArgs, int? ringBufferSize, int? sampleRate) ParseModeArgs(string[] args)
+        private sealed record ModeSizes(int? RingBufferSize, int? SampleRate, int? SampleSeconds);
+
+        private static (List<string> positionalArgs, ModeSizes sizes) ParseModeArgs(string[] args)
         {
             int? ringBufferSize = null;
             int? sampleRate = null;
+            int? sampleSeconds = null;
             var positionalArgs = new List<string>();
 
             foreach (var arg in args)
@@ -221,11 +238,13 @@ namespace vos.Taproot
                     ringBufferSize = size;
                 else if (TryParseNamedArg(arg, "--samplerate=", out var rate))
                     sampleRate = rate;
+                else if (TryParseNamedArg(arg, "--sampleseconds=", out var seconds))
+                    sampleSeconds = seconds;
                 else
                     positionalArgs.Add(arg);
             }
 
-            return (positionalArgs, ringBufferSize, sampleRate);
+            return (positionalArgs, new ModeSizes(ringBufferSize, sampleRate, sampleSeconds));
         }
 
         private static bool TryParseNamedArg(string arg, string prefix, out int value)
@@ -263,8 +282,9 @@ namespace vos.Taproot
             _writer.WriteLine("Run 'config mode' to see the modes this platform accepts.");
             _writer.WriteLine();
             _writer.WriteLine("Options:");
-            _writer.WriteLine("  --ringbuffer=N   Ring buffer size for RingBuffer mode (default: 100)");
-            _writer.WriteLine("  --samplerate=N   Keep 1 in N changes for Sampled mode (default: 100)");
+            _writer.WriteLine("  --ringbuffer=N      Ring buffer size for RingBuffer mode (default: 100)");
+            _writer.WriteLine("  --samplerate=N      Keep 1 in N readings for SampledByObservations mode (default: 100)");
+            _writer.WriteLine("  --sampleseconds=N   Keep the newest reading in each N seconds for SampledByTime mode (default: 60)");
         }
     }
 }

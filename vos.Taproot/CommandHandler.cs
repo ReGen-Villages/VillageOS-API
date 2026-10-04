@@ -84,8 +84,8 @@ namespace vos.Taproot
             _writer.WriteLine("  seed [file]                                 - Alias for serialize");
             _writer.WriteLine("  deserialize <file>                          - Deserialize model from JSON file");
             _writer.WriteLine("  plant <file> [mode] [options]               - Load seed and set property modes");
-            _writer.WriteLine("    Modes: CurrentOnly, RingBuffer, Sampled, FullHistory");
-            _writer.WriteLine("    Options: --ringbuffer=N, --samplerate=N");
+            _writer.WriteLine("    Modes: FullHistory, RingBuffer, SampledByObservations, SampledByTime, CurrentOnly");
+            _writer.WriteLine("    Options: --ringbuffer=N, --samplerate=N, --sampleseconds=N");
             _writer.WriteLine("  apply <file.json>                           - Upsert a fragment (Things + Relationships) into the live model");
             _writer.WriteLine("  ingest <file.ifc> [--new] [--url=<url>]     - Upload an IFC to the Xylem service to build/merge the model");
             _writer.WriteLine("  pwd                                         - Show current directory");
@@ -130,6 +130,10 @@ namespace vos.Taproot
             _writer.WriteLine("  logs follow [--for=SECONDS] [--service=<name>] - Print lines as they are appended, then return (default 30 s)");
             _writer.WriteLine("  logs download [--service=<name>] [file]     - Save the whole current log file");
             _writer.WriteLine("  events watch [--for=SECONDS]                - Print each model event as it arrives, then return (default 30 s)");
+            _writer.WriteLine("  requests latest [--limit=N] [--connection=<connection>] - The newest requests the broker passed to services");
+            _writer.WriteLine("  requests follow [--for=SECONDS] [--connection=<connection>] - Print requests as they are recorded, then return");
+            _writer.WriteLine("  requests download [--hour=yyyyMMddHH] [file] - Save one hour's requests, this hour's by default");
+            _writer.WriteLine("  requests show <request-id>                  - One request in full; a pipeline run names the one it started from");
             _writer.WriteLine();
             _writer.WriteLine("Submissions:");
             _writer.WriteLine("  submissions list                            - What has arrived, and its state");
@@ -234,6 +238,7 @@ namespace vos.Taproot
             ["submissions"] = async (_, a) => await new SubmissionsCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["logs"] = async (_, a) => await new LogsCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["events"] = async (_, a) => await new EventsCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["requests"] = async (_, a) => await new RequestsCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["call"] = async (_, a) => await new CallCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["pipeline"] = async (_, a) => await new PipelineCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
         };

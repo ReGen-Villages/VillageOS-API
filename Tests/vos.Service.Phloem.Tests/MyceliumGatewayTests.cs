@@ -369,6 +369,23 @@ public class MyceliumGatewayTests
         toSubject.GetProperty("targetId").GetString().Should().Be(subject.Id.ToString());
     }
 
+    // What the identifier names is outside the model, so the run carries it as a plain property.
+    [Fact]
+    public async Task CreateRunAsync_WithTheRequestThatStartedIt_CarriesItsIdentifier_AndWithoutOneCarriesNone()
+    {
+        var requestId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway();
+
+        await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None, requestId: requestId);
+        await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        var created = new List<JsonElement>();
+        foreach (var request in RequestsTo(handler, "/api/things", HttpMethod.Post))
+            created.Add((await ReadJson(request)).GetProperty("properties"));
+        created[0].GetProperty("requestId").GetProperty("value").GetString().Should().Be(requestId.ToString());
+        created[1].TryGetProperty("requestId", out _).Should().BeFalse();
+    }
+
     // A model marking no such predicate still records the run; it only loses what it cannot say.
     [Fact]
     public async Task CreateRunAsync_WhenTheModelMarksNoSubjectPredicate_RecordsTheRunWithoutIt()

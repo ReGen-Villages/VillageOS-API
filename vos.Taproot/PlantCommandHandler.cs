@@ -17,7 +17,7 @@ public class PlantCommandHandler
 
     public async Task ExecuteAsync()
     {
-        var (filePath, mode, ringBufferSize, sampleRate) = ParseArguments();
+        var (filePath, mode, ringBufferSize, sampleRate, sampleSeconds) = ParseArguments();
 
         if (string.IsNullOrEmpty(filePath))
         {
@@ -27,7 +27,7 @@ public class PlantCommandHandler
 
         try
         {
-            await PlantSeedAsync(filePath, mode, ringBufferSize, sampleRate);
+            await PlantSeedAsync(filePath, mode, ringBufferSize, sampleRate, sampleSeconds);
         }
         catch (Exception ex)
         {
@@ -35,7 +35,7 @@ public class PlantCommandHandler
         }
     }
 
-    private async Task PlantSeedAsync(string filePath, string? mode, int? ringBufferSize, int? sampleRate)
+    private async Task PlantSeedAsync(string filePath, string? mode, int? ringBufferSize, int? sampleRate, int? sampleSeconds)
     {
         if (!Path.HasExtension(filePath))
             filePath += ".json";
@@ -53,10 +53,10 @@ public class PlantCommandHandler
         if (string.IsNullOrEmpty(mode))
             return;
 
-        await SetAllPropertyModesAsync(mode, ringBufferSize, sampleRate);
+        await SetAllPropertyModesAsync(mode, ringBufferSize, sampleRate, sampleSeconds);
     }
 
-    private async Task SetAllPropertyModesAsync(string mode, int? ringBufferSize, int? sampleRate)
+    private async Task SetAllPropertyModesAsync(string mode, int? ringBufferSize, int? sampleRate, int? sampleSeconds)
     {
         _writer.WriteLine($"Setting all properties to {mode} mode...");
 
@@ -79,7 +79,7 @@ public class PlantCommandHandler
                 {
                     try
                     {
-                        await _mycelium.SetPropertyModeAsync(thingId, prop.Name, mode, ringBufferSize, sampleRate);
+                        await _mycelium.SetPropertyModeAsync(thingId, prop.Name, mode, ringBufferSize, sampleRate, sampleSeconds);
                         propertyCount++;
                         thingPropertyCount++;
                     }
@@ -98,11 +98,13 @@ public class PlantCommandHandler
 
         if (mode.Equals("ringbuffer", StringComparison.OrdinalIgnoreCase) && ringBufferSize.HasValue)
             _writer.WriteLine($"  Ring buffer size: {ringBufferSize}");
-        else if (mode.Equals("sampled", StringComparison.OrdinalIgnoreCase) && sampleRate.HasValue)
+        else if (mode.Equals("sampledbyobservations", StringComparison.OrdinalIgnoreCase) && sampleRate.HasValue)
             _writer.WriteLine($"  Sample rate: 1 in {sampleRate}");
+        else if (mode.Equals("sampledbytime", StringComparison.OrdinalIgnoreCase) && sampleSeconds.HasValue)
+            _writer.WriteLine($"  Sample seconds: {sampleSeconds}");
     }
 
-    private (string? filePath, string? mode, int? ringBufferSize, int? sampleRate) ParseArguments()
+    private (string? filePath, string? mode, int? ringBufferSize, int? sampleRate, int? sampleSeconds) ParseArguments()
     {
         var tokens = _arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
@@ -110,6 +112,7 @@ public class PlantCommandHandler
         string? mode = null;
         int? ringBufferSize = null;
         int? sampleRate = null;
+        int? sampleSeconds = null;
 
         foreach (var token in tokens)
         {
@@ -120,6 +123,10 @@ public class PlantCommandHandler
             else if (TryParseNamedArg(token, "--samplerate=", out var sr))
             {
                 sampleRate = sr;
+            }
+            else if (TryParseNamedArg(token, "--sampleseconds=", out var seconds))
+            {
+                sampleSeconds = seconds;
             }
             else if (filePath == null)
             {
@@ -132,7 +139,7 @@ public class PlantCommandHandler
             }
         }
 
-        return (filePath, mode, ringBufferSize, sampleRate);
+        return (filePath, mode, ringBufferSize, sampleRate, sampleSeconds);
     }
 
     private static bool TryParseNamedArg(string arg, string prefix, out int value)
@@ -160,7 +167,8 @@ public class PlantCommandHandler
         _writer.WriteLine();
         _writer.WriteLine("Options:");
         _writer.WriteLine("  --ringbuffer=N      Ring buffer size (for RingBuffer mode, default: 100)");
-        _writer.WriteLine("  --samplerate=N      Sample rate (for Sampled mode, default: 100)");
+        _writer.WriteLine("  --samplerate=N      Keep 1 in N readings (for SampledByObservations mode, default: 100)");
+        _writer.WriteLine("  --sampleseconds=N   Keep the newest reading in each N seconds (for SampledByTime mode, default: 60)");
         _writer.WriteLine();
         _writer.WriteLine("Examples:");
         _writer.WriteLine("  plant mymodel.json                         Load seed with default mode");

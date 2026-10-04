@@ -14,10 +14,12 @@ public class PipelineCommandHandler : CommandHandlerWithOutputOptions
     // The orchestrator is reached as the endpoint service at this subdomain, as Trellis reaches it.
     public const string OrchestratorSubdomain = "phloem";
 
-    // The platform's own predicate a run is written through, and the property the orchestrator polls
-    // for a cooperative cancellation; neither is a model's vocabulary.
+    // The platform's own predicate a run is written through, the property the orchestrator polls for a
+    // cooperative cancellation, and the one naming the request-log entry a run started from; none is a
+    // model's vocabulary.
     private const string OfPredicateName = "of";
     private const string CancelRequestedProperty = "cancelRequested";
+    private const string RequestIdProperty = "requestId";
 
     public PipelineCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions? options = null)
         : base(arg, writer, mycelium, options)
@@ -140,7 +142,11 @@ public class PipelineCommandHandler : CommandHandlerWithOutputOptions
             .EnumerateArray()
             .Select(run => Identifier(run, "Id"))
             .Where(ofThisPipeline.Contains)
-            .Select(id => (Id: id, Started: Value(model, id, "startedUtc") ?? "", Status: Value(model, id, "status") ?? ""))
+            .Select(id => (
+                Id: id,
+                Started: Value(model, id, "startedUtc") ?? "",
+                Status: Value(model, id, "status") ?? "",
+                Request: Value(model, id, RequestIdProperty)))
             .OrderByDescending(run => run.Started, StringComparer.Ordinal)
             .ToList();
 
@@ -153,7 +159,7 @@ public class PipelineCommandHandler : CommandHandlerWithOutputOptions
 
         _writer.WriteLine($"Runs of {_options.FormatIdentifier(pipelineName, resolved.Id)}, newest first:");
         foreach (var run in runs)
-            _writer.WriteLine($"  {run.Started,-28} {run.Status,-10} {run.Id}");
+            _writer.WriteLine($"  {run.Started,-28} {run.Status,-10} {run.Id}{(run.Request is null ? "" : $"  request {run.Request}")}");
     }
 
     private void ShowUsage()

@@ -29,6 +29,8 @@ public static class ModelNames
     public const string OnItemError = "onItemError";
     // The pipeline's published result — the Output boundary node's collected inputs, stored on the PipelineRun.
     public const string Result = "result";
+    // The broker's request-log entry that started a run. A plain identifier: what it names is outside the model.
+    public const string RequestId = "requestId";
     public const string Payload = "payload";
     public const string Error = "error";
 

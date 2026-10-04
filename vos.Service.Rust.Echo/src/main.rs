@@ -108,6 +108,9 @@ struct AppState {
     handler_id: String,
     requests: AtomicU64,
     stop_requested: tokio::sync::Notify,
+    /// Built once: reading the machine's certificate store takes tens of milliseconds, which a
+    /// client built for each request would pay every time.
+    platform: reqwest::Client,
 }
 
 impl AppState {
@@ -117,6 +120,7 @@ impl AppState {
             handler_id: uuid::Uuid::new_v4().to_string(),
             requests: AtomicU64::new(0),
             stop_requested: tokio::sync::Notify::new(),
+            platform: platform_client().expect("a client for calls to Mycelium"),
         }
     }
 }
@@ -225,6 +229,27 @@ const NO_CREDENTIAL: &str = "neither ApiKey nor Token is set";
 /// that expires on the way.
 const REPLACEMENT_LEAD_SECONDS: u64 = 30;
 
+/// A client for calls to Mycelium, which carry the key or a token. It checks the platform's
+/// certificate against what this machine trusts, so a Mycelium on the same machine presenting the
+/// development certificate is reached once that certificate is trusted, and anything else presenting
+/// a certificate nothing vouches for is never sent the credential.
+fn platform_client() -> reqwest::Result<reqwest::Client> {
+    reqwest::Client::builder().build()
+}
+
+/// A failed call with every cause beneath it. The outermost says only that the request could not be
+/// sent; why — a certificate refused, a connection refused — is further down.
+fn reason_of(failure: reqwest::Error) -> String {
+    let mut reason = failure.to_string();
+    let mut cause = std::error::Error::source(&failure);
+    while let Some(beneath) = cause {
+        reason.push_str(": ");
+        reason.push_str(&beneath.to_string());
+        cause = beneath.source();
+    }
+    reason
+}
+
 async fn get_token(cfg: &Config, http: &reqwest::Client) -> Result<String, String> {
     let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |since| since.as_secs());
     token_at(cfg, http, now).await
@@ -246,7 +271,7 @@ async fn token_at(cfg: &Config, http: &reqwest::Client, now_seconds: u64) -> Res
         .header("X-API-Key", api_key)
         .send()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(reason_of)?;
     if !resp.status().is_success() {
         return Err(format!("mycelium refused to exchange the API key ({})", resp.status().as_u16()));
     }
@@ -274,17 +299,18 @@ fn expiry_of(token: &str) -> Result<u64, String> {
 
 /// Registers with Mycelium and says what happened. A call carrying no credential is always
 /// refused, so with none the service makes no call.
-async fn registration(state: &AppState, http: &reqwest::Client) -> String {
+async fn registration(state: &AppState) -> String {
     if state.config.api_key.is_none() && state.config.token.is_none() {
         return format!("{NO_CREDENTIAL}, so this service has not registered with mycelium");
     }
-    match register(state, http).await {
+    match register(state).await {
         Ok(()) => format!("registered with mycelium as {}", state.handler_id),
         Err(reason) => format!("registration failed: {reason}"),
     }
 }
 
-async fn register(state: &AppState, http: &reqwest::Client) -> Result<(), String> {
+async fn register(state: &AppState) -> Result<(), String> {
+    let http = &state.platform;
     let token = get_token(&state.config, http).await?;
     let base = format!("http://localhost:{}", state.config.port);
     let payload = json!({
@@ -301,7 +327,7 @@ async fn register(state: &AppState, http: &reqwest::Client) -> Result<(), String
         .send()
         .await
         .and_then(reqwest::Response::error_for_status)
-        .map_err(|e| e.to_string())?;
+        .map_err(reason_of)?;
     Ok(())
 }
 
@@ -350,7 +376,7 @@ fn enc(s: &str) -> String {
 async fn set_fact(cfg: &Config, http: &reqwest::Client, thing_id: &str, property: &str, value: Value) -> Result<i64, String> {
     let token = get_token(cfg, http).await?;
     let url = format!("{}/api/things/{}/properties/{}/facts", cfg.mycelium_url, thing_id, enc(property));
-    let resp = http.post(url).bearer_auth(token).json(&json!({ "value": value })).send().await.map_err(|e| e.to_string())?;
+    let resp = http.post(url).bearer_auth(token).json(&json!({ "value": value })).send().await.map_err(reason_of)?;
     if resp.status().as_u16() != 201 {
         return Err(format!("fact write returned {}", resp.status()));
     }
@@ -366,7 +392,7 @@ async fn record_observation(cfg: &Config, http: &reqwest::Client, thing_id: &str
         body["observedAt"] = json!(at);
     }
     let url = format!("{}/api/things/{}/properties/{}/observations", cfg.mycelium_url, thing_id, enc(property));
-    let resp = http.post(url).bearer_auth(token).json(&body).send().await.map_err(|e| e.to_string())?;
+    let resp = http.post(url).bearer_auth(token).json(&body).send().await.map_err(reason_of)?;
     if !resp.status().is_success() {
         return Err(format!("observation write returned {}", resp.status()));
     }
@@ -380,7 +406,7 @@ async fn record_observations(cfg: &Config, http: &reqwest::Client, thing_id: &st
     }
     let token = get_token(cfg, http).await?;
     let url = format!("{}/api/things/{}/observations", cfg.mycelium_url, thing_id);
-    let resp = http.post(url).bearer_auth(token).json(&samples).send().await.map_err(|e| e.to_string())?;
+    let resp = http.post(url).bearer_auth(token).json(&samples).send().await.map_err(reason_of)?;
     if !resp.status().is_success() {
         return Err(format!("observation batch returned {}", resp.status()));
     }
@@ -395,7 +421,7 @@ async fn deposit_sediment(cfg: &Config, http: &reqwest::Client, readings: &[Sedi
     }
     let token = get_token(cfg, http).await?;
     let url = format!("{}/api/sediment", cfg.mycelium_url);
-    let resp = http.post(url).bearer_auth(token).json(&readings).send().await.map_err(|e| e.to_string())?;
+    let resp = http.post(url).bearer_auth(token).json(&readings).send().await.map_err(reason_of)?;
     if !resp.status().is_success() {
         return Err(format!("sediment deposit returned {}", resp.status()));
     }
@@ -414,20 +440,17 @@ async fn demo_write_kinds(State(state): State<Arc<AppState>>, body: Option<Json<
         Some(t) if !t.is_empty() => t,
         _ => return (StatusCode::BAD_REQUEST, Json(json!({ "error": "thingId is required" }))).into_response(),
     };
-    let http = match reqwest::Client::builder().danger_accept_invalid_certs(true).build() {
-        Ok(c) => c,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
-    };
+    let http = &state.platform;
     let cfg = &state.config;
 
     let run = async {
-        let seq = set_fact(cfg, &http, &thing_id, "status", json!("active")).await?;
-        record_observation(cfg, &http, &thing_id, "temperature", json!(21.5), Some("2026-06-20T12:00:00Z")).await?;
-        let accepted = record_observations(cfg, &http, &thing_id, &[
+        let seq = set_fact(cfg, http, &thing_id, "status", json!("active")).await?;
+        record_observation(cfg, http, &thing_id, "temperature", json!(21.5), Some("2026-06-20T12:00:00Z")).await?;
+        let accepted = record_observations(cfg, http, &thing_id, &[
             ObservationSample { property: "temperature".into(), value: json!(21.7), observed_at: None },
             ObservationSample { property: "flow".into(), value: json!(3.1), observed_at: None },
         ]).await?;
-        let deposit = deposit_sediment(cfg, &http, &[
+        let deposit = deposit_sediment(cfg, http, &[
             SedimentReading { object_id: thing_id.clone(), property: "temperature".into(), value: json!(19.8), observed_at: "2026-06-19T12:00:00Z".into() },
             SedimentReading { object_id: thing_id.clone(), property: "temperature".into(), value: json!(20.4), observed_at: "2026-06-19T13:00:00Z".into() },
         ]).await?;
@@ -520,7 +543,7 @@ fn slice_by_type_and_traverse(type_: &str, predicate: &str) -> Selector {
 async fn subscribe(cfg: &Config, http: &reqwest::Client, selector: &Selector) -> Result<SubscribeResult, String> {
     let token = get_token(cfg, http).await?;
     let url = format!("{}/api/subscriptions", cfg.mycelium_url);
-    let resp = http.post(url).bearer_auth(token).json(selector).send().await.map_err(|e| e.to_string())?;
+    let resp = http.post(url).bearer_auth(token).json(selector).send().await.map_err(reason_of)?;
     if !resp.status().is_success() {
         return Err(format!("subscribe returned {}", resp.status()));
     }
@@ -550,15 +573,12 @@ async fn demo_subscribe(State(state): State<Arc<AppState>>, body: Option<Json<Su
     let (type_, predicate) = body.map(|Json(b)| (b.type_, b.predicate)).unwrap_or((None, None));
     let type_ = type_.unwrap_or_else(|| "Battery".into());
     let predicate = predicate.unwrap_or_else(|| "powers".into());
-    let http = match reqwest::Client::builder().danger_accept_invalid_certs(true).build() {
-        Ok(c) => c,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
-    };
+    let http = &state.platform;
     let cfg = &state.config;
-    match subscribe(cfg, &http, &slice_by_type_and_traverse(&type_, &predicate)).await {
+    match subscribe(cfg, http, &slice_by_type_and_traverse(&type_, &predicate)).await {
         Ok(sub) => {
             let names = names_of(&sub.snapshot);
-            unsubscribe(cfg, &http, &sub.subscription_id).await;
+            unsubscribe(cfg, http, &sub.subscription_id).await;
             Json(json!({
                 "subscriptionId": sub.subscription_id,
                 "watermark": sub.watermark,
@@ -592,11 +612,7 @@ async fn main() {
     let reg_state = state.clone();
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-        let http = reqwest::Client::builder()
-            .danger_accept_invalid_certs(true) // dev: Mycelium uses a self-signed cert
-            .build()
-            .expect("http client");
-        println!("{}", registration(&reg_state, &http).await);
+        println!("{}", registration(&reg_state).await);
     });
 
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", port))
@@ -1003,6 +1019,45 @@ mod tests {
         assert_eq!(calls[1].0, "/api/subscriptions/s-1");
     }
 
+    // ---- The demo routes, on the client the service holds ----
+
+    async fn answered(answer: Response) -> (StatusCode, Value) {
+        let status = answer.status();
+        let body = axum::body::to_bytes(answer.into_body(), usize::MAX).await.unwrap();
+        (status, serde_json::from_slice(&body).unwrap())
+    }
+
+    #[tokio::test]
+    async fn the_write_kinds_route_makes_each_write_and_answers_what_the_platform_said() {
+        let cap: Captured = Arc::new(Mutex::new(Vec::new()));
+        let state = Arc::new(AppState::serving(test_cfg(spawn_mock(cap.clone()).await)));
+        let thing: DemoReq = serde_json::from_value(json!({ "thingId": "t1" })).unwrap();
+
+        let (status, said) = answered(demo_write_kinds(State(state), Some(Json(thing))).await).await;
+
+        assert_eq!(status, StatusCode::OK, "{said}");
+        assert_eq!(said, json!({ "factSequence": 42, "observationsAccepted": 3, "sedimentBatchId": "b-1", "sedimentSamples": 10 }));
+        assert_eq!(cap.lock().unwrap().len(), 4);
+    }
+
+    #[tokio::test]
+    async fn the_subscribe_route_answers_the_slice_and_gives_the_subscription_up() {
+        let cap: Cap = Arc::new(Mutex::new(Vec::new()));
+        let app = Router::new().fallback(sub_mock).with_state(cap.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let state = Arc::new(AppState::serving(test_cfg(format!("http://{addr}"))));
+
+        let (status, said) = answered(demo_subscribe(State(state), None).await).await;
+
+        assert_eq!(status, StatusCode::OK, "{said}");
+        assert_eq!(said["subscriptionId"], "s-1");
+        assert_eq!(said["thingNames"], json!(["Battery-1", "t2"]));
+        let calls = cap.lock().unwrap();
+        assert_eq!(calls.last().unwrap().0, "/api/subscriptions/s-1", "the subscription was left open");
+    }
+
     // ---- Presenting a key ----
 
     use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -1142,7 +1197,7 @@ mod tests {
         let cap: Captured = Arc::new(Mutex::new(Vec::new()));
         let cfg = Config { token: None, ..test_cfg(spawn_mock(cap.clone()).await) };
 
-        let said = registration(&AppState::serving(cfg), &reqwest::Client::new()).await;
+        let said = registration(&AppState::serving(cfg)).await;
 
         assert!(cap.lock().unwrap().is_empty(), "a call carrying no credential is always refused");
         assert!(said.contains("ApiKey") && said.contains("Token"), "{said}");
@@ -1167,5 +1222,119 @@ mod tests {
             .await
             .expect("the service was still serving five seconds after it answered /shutdown")
             .unwrap();
+    }
+
+    // ---- A platform presenting a certificate made for the test ----
+
+    async fn untrusted_platform() -> (String, Arc<AtomicU64>) {
+        let (url, requests, _) = platform_with_a_certificate_of_its_own().await;
+        (url, requests)
+    }
+
+    /// An HTTPS server presenting a certificate made for this test alone, which counts every request
+    /// that gets past the handshake. The certificate comes back so that a test can have it trusted.
+    async fn platform_with_a_certificate_of_its_own() -> (String, Arc<AtomicU64>, String) {
+        let certified = rcgen::generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
+        let certificate = certified.cert.pem();
+        let chain = vec![certified.cert.der().clone()];
+        let key = tokio_rustls::rustls::pki_types::PrivateKeyDer::Pkcs8(certified.key_pair.serialize_der().into());
+        let tls = tokio_rustls::rustls::ServerConfig::builder_with_provider(Arc::new(
+            tokio_rustls::rustls::crypto::ring::default_provider()))
+            .with_safe_default_protocol_versions().unwrap()
+            .with_no_client_auth()
+            .with_single_cert(chain, key).unwrap();
+        let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(tls));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let requests = Arc::new(AtomicU64::new(0));
+        let counted = requests.clone();
+        tokio::spawn(async move {
+            loop {
+                let Ok((stream, _)) = listener.accept().await else { return };
+                let (acceptor, counted) = (acceptor.clone(), counted.clone());
+                tokio::spawn(async move {
+                    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+                    let Ok(mut stream) = acceptor.accept(stream).await else { return };
+                    let mut request = [0u8; 4096];
+                    if matches!(stream.read(&mut request).await, Ok(read) if read > 0) {
+                        counted.fetch_add(1, Ordering::SeqCst);
+                        let _ = stream.write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 17\r\n\r\n{\"token\":\"never\"}").await;
+                    }
+                });
+            }
+        });
+        (format!("https://localhost:{port}"), requests, certificate)
+    }
+
+    const PLATFORM_UNDER_TEST: &str = "VOS_RUST_ECHO_PLATFORM_UNDER_TEST";
+
+    // What the machine trusts cannot be changed from inside a test, so the trusted case runs in a
+    // process of its own, which SSL_CERT_FILE tells to trust the certificate the server presents.
+    #[tokio::test]
+    async fn registration_reaches_a_platform_whose_certificate_the_machine_trusts() {
+        let (url, requests, certificate) = platform_with_a_certificate_of_its_own().await;
+        let trusted = std::env::temp_dir().join(format!("vos-rust-echo-trusted-{}.pem", uuid::Uuid::new_v4()));
+        std::fs::write(&trusted, certificate).unwrap();
+
+        let registering = tokio::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "tests::registers_with_the_platform_named_in_the_environment", "--ignored"])
+            .env("SSL_CERT_FILE", &trusted)
+            .env(PLATFORM_UNDER_TEST, &url)
+            .output()
+            .await
+            .unwrap();
+        std::fs::remove_file(&trusted).unwrap();
+
+        assert!(registering.status.success(), "{}", String::from_utf8_lossy(&registering.stdout));
+        assert_eq!(requests.load(Ordering::SeqCst), 1, "registration never reached the platform");
+    }
+
+    #[tokio::test]
+    #[ignore = "run by registration_reaches_a_platform_whose_certificate_the_machine_trusts, in a process of its own"]
+    async fn registers_with_the_platform_named_in_the_environment() {
+        let Ok(url) = std::env::var(PLATFORM_UNDER_TEST) else { return };
+
+        let said = registration(&AppState::serving(test_cfg(url))).await;
+
+        assert!(said.starts_with("registered with mycelium"), "{said}");
+    }
+
+    #[tokio::test]
+    async fn a_key_is_not_sent_to_a_platform_whose_certificate_the_machine_does_not_trust() {
+        let (url, requests) = untrusted_platform().await;
+        let cfg = Config { api_key: Some("vos_ak_example".into()), token: None, ..test_cfg(url) };
+
+        let refusal = token_at(&cfg, &platform_client().unwrap(), A_MOMENT).await.unwrap_err();
+
+        assert_eq!(requests.load(Ordering::SeqCst), 0, "the key reached a server whose certificate nothing vouches for");
+        assert!(refusal.contains("certificate"), "the refusal does not say the certificate was refused: {refusal}");
+    }
+
+    #[tokio::test]
+    async fn registration_does_not_send_a_token_to_a_platform_whose_certificate_the_machine_does_not_trust() {
+        let (url, requests) = untrusted_platform().await;
+
+        let said = registration(&AppState::serving(test_cfg(url))).await;
+
+        assert_eq!(requests.load(Ordering::SeqCst), 0, "the token reached a server whose certificate nothing vouches for");
+        assert!(said.contains("certificate"), "{said}");
+    }
+
+    // Each demo route reaches the platform on its own, so each is held to checking the certificate.
+    #[tokio::test]
+    async fn each_demo_route_answers_a_refused_certificate_and_sends_nothing() {
+        let (url, requests) = untrusted_platform().await;
+        let state = Arc::new(AppState::serving(test_cfg(url)));
+        let thing: DemoReq = serde_json::from_value(json!({ "thingId": "t1" })).unwrap();
+
+        for answer in [
+            demo_write_kinds(State(state.clone()), Some(Json(thing))).await,
+            demo_subscribe(State(state.clone()), None).await,
+        ] {
+            let (status, said) = answered(answer).await;
+            assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+            assert!(said["error"].as_str().unwrap().contains("certificate"), "{said}");
+        }
+        assert_eq!(requests.load(Ordering::SeqCst), 0, "the token reached a server whose certificate nothing vouches for");
     }
 }

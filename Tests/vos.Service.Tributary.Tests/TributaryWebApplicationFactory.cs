@@ -56,8 +56,8 @@ public class TributaryWebApplicationFactory : WebApplicationFactory<Program>, IA
         builder.UseEnvironment("Testing");
         builder.UseSetting("Port", "5000");
         builder.UseSetting("MyceliumUrl", "http://localhost");
-        // Bypass MyceliumClientBase.GetTokenAsync's /api/auth/token round-trip; the test
-        // MyceliumClient just needs a non-empty token to short-circuit the cache miss.
+        // A service holding no credential makes no call to the platform, so the test's MyceliumClient
+        // needs a token for the cache miss to reach it.
         builder.UseSetting("Token", "test-token");
         if (VerificationKey != null) builder.UseSetting("VerificationKey", VerificationKey);
         if (Issuer != null) builder.UseSetting("Issuer", Issuer);

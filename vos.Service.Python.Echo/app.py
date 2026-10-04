@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import base64
 import os
+import ssl
 import sys
 import uuid
 from collections.abc import Mapping
@@ -25,6 +26,7 @@ from urllib.parse import quote
 
 import httpx
 import jwt
+import truststore
 from cryptography.hazmat.primitives.serialization import load_der_public_key
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -94,6 +96,17 @@ requests_processed = 0
 #: A held token is exchanged again this long before it runs out.
 REPLACEMENT_LEAD = timedelta(seconds=30)
 
+
+def platform_client(timeout: float) -> httpx.AsyncClient:
+    """A client for calls to Mycelium, which carry the key or a token.
+
+    It checks the platform's certificate against what this machine trusts, so a Mycelium on the same
+    machine presenting the development certificate is reached once that certificate is trusted, and
+    anything else presenting a certificate nothing vouches for is never sent the credential.
+    """
+    return httpx.AsyncClient(timeout=timeout, verify=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT))
+
+
 _held_token: tuple[str, datetime] | None = None
 
 
@@ -125,7 +138,7 @@ async def _exchange_the_key(client: httpx.AsyncClient | None) -> tuple[str, date
     if client is not None:
         res = await client.post(url, headers=headers)
     else:
-        async with httpx.AsyncClient(timeout=5, verify=False) as c:
+        async with platform_client(timeout=5) as c:
             res = await c.post(url, headers=headers)
     if not res.is_success:
         raise RuntimeError(f"Mycelium refused to exchange the API key ({res.status_code})")
@@ -149,7 +162,7 @@ async def register_with_mycelium() -> bool:
         "stopEndpoint": f"{base}/shutdown",
         "healthEndpoint": f"{base}/health",
     }
-    async with httpx.AsyncClient(timeout=5, verify=False) as client:
+    async with platform_client(timeout=5) as client:
         res = await client.post(
             f"{config.mycelium_url}/api/mycelium/register",
             json=payload,
@@ -168,7 +181,7 @@ async def _authed_post(path: str, json_body, *, client: httpx.AsyncClient | None
     headers = {"Authorization": f"Bearer {token}"}
     if client is not None:
         return await client.post(url, json=json_body, headers=headers)
-    async with httpx.AsyncClient(timeout=30, verify=False) as c:
+    async with platform_client(timeout=30) as c:
         return await c.post(url, json=json_body, headers=headers)
 
 
@@ -239,7 +252,7 @@ async def unsubscribe(subscription_id: str, *, client: httpx.AsyncClient | None 
     if client is not None:
         await client.delete(url, headers=headers)
     else:
-        async with httpx.AsyncClient(timeout=10, verify=False) as c:
+        async with platform_client(timeout=10) as c:
             await c.delete(url, headers=headers)
 
 
@@ -362,7 +375,7 @@ async def demo_write_kinds(request: Request, _: None = Depends(verify_request)) 
                 sediment_reading(thing_id, "temperature", 20.4, (day_ago + timedelta(hours=1)).isoformat()),
             ]
         )
-    except RuntimeError as refused:
+    except (RuntimeError, httpx.HTTPError) as refused:
         return JSONResponse({"error": str(refused)}, status_code=500)
     return JSONResponse(
         {
@@ -383,7 +396,7 @@ async def demo_subscribe_endpoint(request: Request, _: None = Depends(verify_req
         payload = {}
     try:
         result = await demo_subscribe(payload.get("type", "Battery"), payload.get("predicate", "powers"))
-    except RuntimeError as refused:
+    except (RuntimeError, httpx.HTTPError) as refused:
         return JSONResponse({"error": str(refused)}, status_code=500)
     return JSONResponse(result)
 

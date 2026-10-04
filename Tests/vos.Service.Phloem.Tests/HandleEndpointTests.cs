@@ -97,6 +97,47 @@ public class HandleEndpointTests
     private static readonly Guid Joined = Guid.Parse("70000000-0000-0000-0000-000000000001");
     private static readonly Guid WrittenAlongWatching = Guid.Parse("a0000000-0000-0000-0000-000000000007");
 
+    public enum Start { ByHandAnsweredAtOnce, ByHandAwaited, ByADispatch }
+
+    [Theory]
+    [InlineData(Start.ByHandAnsweredAtOnce)]
+    [InlineData(Start.ByHandAwaited)]
+    [InlineData(Start.ByADispatch)]
+    public async Task Handle_RecordsTheBrokersRequestIdentifierOnTheRun_HoweverTheRunIsStarted(Start start)
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+        var requestId = Guid.NewGuid();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/handle")
+        {
+            Content = start == Start.ByADispatch
+                ? StateEntry(target: Watching)
+                : new StringContent(
+                    JsonSerializer.Serialize(new { pipelineId = Drawn, async = start == Start.ByHandAnsweredAtOnce }),
+                    Encoding.UTF8, "application/json"),
+        };
+        request.Headers.Add("Vos-Request-Id", requestId.ToString());
+
+        (await client.SendAsync(request)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await Settle.UntilAsync(() => factory.RunsRecordedFor(Drawn) == 1, "the run record reaches the broker");
+        factory.RunRecordFor(Drawn).Should().Contain(requestId.ToString());
+    }
+
+    [Fact]
+    public async Task Handle_AHeaderThatIsNoIdentifier_StillStartsTheRun_WhichRecordsNoRequest()
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/handle") { Content = StateEntry(target: Watching) };
+        request.Headers.Add("Vos-Request-Id", "not an identifier");
+
+        (await client.SendAsync(request)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await Settle.UntilAsync(() => factory.RunsRecordedFor(Drawn) == 1, "the run record reaches the broker");
+        factory.RunRecordFor(Drawn).Should().NotContain("requestId");
+    }
+
     private static StringContent StateEntry(Guid target, Guid? relationship = null) => new(JsonSerializer.Serialize(new
     {
         relationshipId = relationship ?? Guid.NewGuid(),
@@ -120,6 +161,11 @@ public class HandleEndpointTests
         public int RunsRecordedFor(Guid pipelineId) => _broker.Requests.Count(request =>
             request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/api/things"
             && request.Content!.ReadAsStringAsync().Result.Contains(pipelineId.ToString()));
+
+        public string RunRecordFor(Guid pipelineId) => _broker.Requests
+            .Where(request => request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/api/things")
+            .Select(request => request.Content!.ReadAsStringAsync().Result)
+            .Single(body => body.Contains(pipelineId.ToString()));
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {

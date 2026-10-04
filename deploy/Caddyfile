@@ -9,13 +9,16 @@
 app.example.org {
 	encode gzip
 
-	handle /api/* {
-		reverse_proxy localhost:7243
-	}
-
-	# Satellite map tiles, which a signed-in page asks this host for and the broker serves.
-	handle /basemaps/* {
-		reverse_proxy localhost:7243
+	# The broker's API, and the satellite map tiles a signed-in page asks this host for. The broker answers
+	# HTTPS alone, with a certificate of its own on loopback; the proxy checks it against a copy of that
+	# certificate, whose path replaces the one below.
+	@broker path /api/* /basemaps/*
+	handle @broker {
+		reverse_proxy https://localhost:7243 {
+			transport http {
+				tls_trust_pool file /srv/villageos/broker-certificate.pem
+			}
+		}
 	}
 
 	# The feedback relay, on the GUI's own host so a report is posted without crossing origins. The

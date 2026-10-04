@@ -15,7 +15,8 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import clsx from 'clsx';
-import { Play, Save, FilePlus, MousePointerClick, Ban, History, SlidersHorizontal, AlertTriangle, Undo2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Play, Save, FilePlus, MousePointerClick, Ban, History, SlidersHorizontal, AlertTriangle, Undo2, ArrowLeftRight } from 'lucide-react';
 import { useModelStore } from '../stores/modelStore';
 import { useThemeStore } from '../stores/themeStore';
 import { useSubscription } from '../hooks/useSse';
@@ -207,6 +208,7 @@ export function PipelinePage() {
   const liveRunStatus = runId ? model.runStatus(runId) : undefined;
   const runActive = !!runId && (liveRunStatus === undefined || liveRunStatus === 'running');
   const runs = useMemo(() => (savedId ? model.runsOf(savedId) : []), [savedId, model]);
+  const chosenRunRequest = runs.find((r) => r.runId === runId)?.requestId;
 
   const clearStatuses = useCallback(() => {
     setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined, progress: undefined } })));
@@ -527,6 +529,15 @@ export function PipelinePage() {
                   </option>
                 ))}
               </select>
+              {chosenRunRequest && (
+                <Link
+                  to={`/requests?entry=${encodeURIComponent(chosenRunRequest)}`}
+                  title={t('pipeline.openRequestTitle')}
+                  className="flex items-center gap-1 px-2 py-1 text-sm rounded text-blue-600 hover:underline"
+                >
+                  <ArrowLeftRight size={14} /> {t('pipeline.openRequest')}
+                </Link>
+              )}
             </div>
           )}
           {dirty ? (

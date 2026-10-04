@@ -29,7 +29,7 @@ const REFRESH_EVENTS = [
   'PropertyChanged',
   'RelationshipPropertyChanged',
   'ModelChanged',
-];
+] as const;
 
 /** Coalesce a burst of live events into one refresh generation. Widgets resolving together then
  *  share one read per question, and a reader is not shown a page assembled from two moments. */

@@ -43,6 +43,10 @@ export const PREDICATE_FLAG = {
 
 const EVALUATION_INTERVAL_PROPERTY = 'EvaluationIntervalSeconds';
 
+/** Written by the orchestrator onto a run it starts from a request; the request log is outside the model,
+ *  so the run names the entry rather than relating to it. */
+const REQUEST_ID_PROPERTY = 'requestId';
+
 /** What a boundary node may stand for, told by what the Thing it points at is. */
 export type EndKind = 'messageKind' | 'externalSystem' | 'door' | 'state' | 'relationship' | 'pipeline' | 'other';
 
@@ -102,6 +106,8 @@ export interface RunInformation {
   runId: string;
   status: string;
   startedUtc: string;
+  /** The request-log entry the run started from, where a request started it. */
+  requestId?: string;
 }
 
 export interface PortInformation {
@@ -555,7 +561,13 @@ export class PipelineModel {
     for (const t of this.things) {
       if (!this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.PipelineRun)) continue;
       if (!this.outgoing(t.Id, 'of').some((p) => p.Id === pipelineId)) continue;
-      runs.push({ runId: t.Id, status: String(t.Properties.status ?? ''), startedUtc: String(t.Properties.startedUtc ?? '') });
+      const requestId = t.Properties[REQUEST_ID_PROPERTY];
+      runs.push({
+        runId: t.Id,
+        status: String(t.Properties.status ?? ''),
+        startedUtc: String(t.Properties.startedUtc ?? ''),
+        ...(typeof requestId === 'string' && requestId ? { requestId } : {}),
+      });
     }
     return runs.sort((a, b) => b.startedUtc.localeCompare(a.startedUtc));
   }

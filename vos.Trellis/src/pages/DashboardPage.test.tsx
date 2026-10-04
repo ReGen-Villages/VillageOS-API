@@ -172,6 +172,78 @@ describe('DashboardPage registry refresh', () => {
   });
 });
 
+describe('DashboardPage engine figures when a range or definition is registered', () => {
+  const engineReads = () => vi.mocked(engineMetricsApi.getSummary).mock.calls.length;
+
+  /** Longer than the page's refresh window and shorter than the wait before it reads unprompted. */
+  const JUST_PAST_ONE_WINDOW = 2_500;
+
+  beforeEach(() => {
+    streamHandlers.clear();
+    HTMLElement.prototype.scrollTo = () => {};
+    vi.mocked(myceliumApi.getServices).mockResolvedValue([]);
+    vi.mocked(endpointApi.getAll).mockResolvedValue([]);
+    vi.mocked(engineMetricsApi.getSummary).mockRejectedValue(new Error('no engine'));
+    vi.mocked(configurationApi.getDefaultPropertyMode).mockRejectedValue(new Error('no such endpoint'));
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  it('reads the figures at once', async () => {
+    openDashboard();
+    await settled();
+    const before = engineReads();
+
+    await act(async () => { arrived('EngineConfigurationChanged', 1); });
+
+    expect(engineReads()).toBe(before + 1);
+  });
+
+  // The read walks every range and definition the model holds, so one read per registration would
+  // cost a bulk registration the square of its size.
+  it('answers a burst with one read at once and one when the window closes, not one for each', async () => {
+    openDashboard();
+    await settled();
+    const before = engineReads();
+
+    await act(async () => { arrived('EngineConfigurationChanged', 50); });
+    expect(engineReads()).toBe(before + 1);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(JUST_PAST_ONE_WINDOW); });
+    expect(engineReads()).toBe(before + 2);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(JUST_PAST_ONE_WINDOW); });
+    expect(engineReads()).toBe(before + 2);
+  });
+
+  it('reads once for a single registration and not again when the window closes', async () => {
+    openDashboard();
+    await settled();
+    const before = engineReads();
+
+    await act(async () => { arrived('EngineConfigurationChanged', 1); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(JUST_PAST_ONE_WINDOW); });
+
+    expect(engineReads()).toBe(before + 1);
+  });
+
+  it('does not read after the page is left', async () => {
+    const { unmount } = openDashboard();
+    await settled();
+
+    await act(async () => { arrived('EngineConfigurationChanged', 2); });
+    const before = engineReads();
+    unmount();
+    await act(async () => { await vi.advanceTimersByTimeAsync(JUST_PAST_ONE_WINDOW); });
+
+    expect(engineReads()).toBe(before);
+  });
+});
+
 describe('DashboardPage while the model loads and the connection opens', () => {
   const service: RegisteredService = {
     HandlerId: 'h1', ServiceName: 'consumes', EndpointUrl: 'http://localhost:7102',

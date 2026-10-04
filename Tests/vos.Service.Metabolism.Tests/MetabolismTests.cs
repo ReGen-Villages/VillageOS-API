@@ -236,24 +236,14 @@ public class MetabolismTests : IAsyncLifetime
             Content = new StringContent("{\"newValue\":1}", System.Text.Encoding.UTF8, "application/json")
         };
 
-        var mock = new MockHttpMessageHandler(req =>
-        {
-            if (req.RequestUri!.AbsolutePath == "/api/auth/token")
-            {
-                return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
-                {
-                    Content = new StringContent("{\"token\":\"fake-jwt\"}", System.Text.Encoding.UTF8, "application/json")
-                };
-            }
-            return apiResponder(req);
-        });
+        var mock = new MockHttpMessageHandler(apiResponder);
 
         var httpFactory = new Mock<IHttpClientFactory>();
         httpFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(() =>
             new HttpClient(mock, disposeHandler: false) { BaseAddress = new Uri("http://test-mycelium") });
 
         var myceliumLogger = new Mock<ILogger<MyceliumClient>>();
-        var myceliumClient = new MyceliumClient(httpFactory.Object, myceliumLogger.Object, "http://test-mycelium", direction);
+        var myceliumClient = new MyceliumClient(httpFactory.Object, myceliumLogger.Object, "http://test-mycelium", direction, serviceToken: "fake-jwt");
 
         engineLogger ??= new Mock<ILogger<Services.Metabolism>>().Object;
         var engine = new Services.Metabolism(myceliumClient, engineLogger, direction);
@@ -357,21 +347,11 @@ public class MetabolismTests : IAsyncLifetime
     [Fact]
     public async Task RunSimulationLoop_MyceliumError_SetsLastError()
     {
-        var engine = CreateEngineWithMockedMycelium(req =>
-        {
-            // Token requests succeed, quantity requests fail
-            if (req.RequestUri!.AbsolutePath == "/api/auth/token")
-            {
-                return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
-                {
-                    Content = new StringContent("{\"token\":\"fake-jwt\"}", System.Text.Encoding.UTF8, "application/json")
-                };
-            }
-            return new HttpResponseMessage(System.Net.HttpStatusCode.InternalServerError)
+        var engine = CreateEngineWithMockedMycelium(_ =>
+            new HttpResponseMessage(System.Net.HttpStatusCode.InternalServerError)
             {
                 Content = new StringContent("Mycelium down", System.Text.Encoding.UTF8, "text/plain")
-            };
-        });
+            });
 
         var entry = engine.Register(MakePastConfig(freqSeconds: 1));
 
