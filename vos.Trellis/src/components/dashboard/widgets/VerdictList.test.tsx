@@ -35,11 +35,11 @@ describe('VerdictList', () => {
   it('reads a balance that clears as a sentence naming the target it was judged against', () => {
     draw(widgetWith({
       label: 'Energy',
-      format: 'pct100',
+      format: 'percentOutOf100',
       verdicts: bind([{
         state: 'EnergyNetPositive',
         reads: '{value} of assumed consumption — meets the {target} target',
-        property: 'pctOfConsumption',
+        property: 'percentOfConsumption',
         operator: '>=',
         target: 100,
         value: 112,
@@ -53,11 +53,11 @@ describe('VerdictList', () => {
   it('reads a balance that falls short as short of its target', () => {
     draw(widgetWith({
       label: 'Energy',
-      format: 'pct100',
+      format: 'percentOutOf100',
       verdicts: bind([{
         state: 'EnergyShortOfTarget',
         reads: '{value} of assumed consumption — short of the {target} target',
-        property: 'pctOfConsumption',
+        property: 'percentOfConsumption',
         operator: '<',
         target: 100,
         value: 73,
@@ -91,10 +91,10 @@ describe('VerdictList', () => {
   it('reads every verdict a balance holds, not just the first', () => {
     draw(widgetWith({
       label: 'Energy',
-      format: 'pct100',
+      format: 'percentOutOf100',
       verdicts: bind([
-        { state: 'EnergyNetPositive', reads: 'meets the {target} target', property: 'pctOfConsumption', operator: '>=', target: 100, value: 100 },
-        { state: 'EnergyShortOfTarget', reads: 'short of the {target} target', property: 'pctOfConsumption', operator: '<', target: 100, value: 100 },
+        { state: 'EnergyNetPositive', reads: 'meets the {target} target', property: 'percentOfConsumption', operator: '>=', target: 100, value: 100 },
+        { state: 'EnergyShortOfTarget', reads: 'short of the {target} target', property: 'percentOfConsumption', operator: '<', target: 100, value: 100 },
       ]),
     }));
 
@@ -140,7 +140,7 @@ describe('VerdictList', () => {
     values.set(JSON.stringify(binding), [{
       state: 'EnergyShortOfTarget',
       reads: 'short of the {target} target',
-      property: 'pctOfConsumption',
+      property: 'percentOfConsumption',
       operator: '<',
       target: 100,
       value: 73,
@@ -150,7 +150,7 @@ describe('VerdictList', () => {
       ],
     }]);
 
-    draw(widgetWith({ label: 'Energy', format: 'pct100', verdicts: binding }));
+    draw(widgetWith({ label: 'Energy', format: 'percentOutOf100', verdicts: binding }));
 
     expect(screen.getByText('panelAreaM2')).toBeInTheDocument();
     expect(screen.getByText(/SolarArray/)).toBeInTheDocument();
@@ -162,11 +162,11 @@ describe('VerdictList', () => {
   it('draws no lever lines for a verdict that carries none', () => {
     draw(widgetWith({
       label: 'Energy',
-      format: 'pct100',
+      format: 'percentOutOf100',
       verdicts: bind([{
         state: 'EnergyNetPositive',
         reads: 'meets the {target} target',
-        property: 'pctOfConsumption',
+        property: 'percentOfConsumption',
         operator: '>=',
         target: 100,
         value: 112,
@@ -180,8 +180,8 @@ describe('VerdictList', () => {
     draw(widgetWith(
       {
         label: 'Energy',
-        format: 'pct100',
-        verdicts: bind([{ state: 'EnergyShortOfTarget', reads: 'short of the {target} target', property: 'pctOfConsumption', operator: '<', target: 100, value: 73 }]),
+        format: 'percentOutOf100',
+        verdicts: bind([{ state: 'EnergyShortOfTarget', reads: 'short of the {target} target', property: 'percentOfConsumption', operator: '<', target: 100, value: 73 }]),
       },
       {
         label: 'Water',

@@ -2,8 +2,8 @@
  * Dashboard discovery + generic binding resolver.
  *
  * Discovery: a model declares Things of archetype `Dashboard` (see
- * DASHBOARD_ARCHETYPE) each with a `spec` JSON property. We find them in the
- * already-loaded model store and parse their specs.
+ * DASHBOARD_ARCHETYPE) each with a `specification` JSON property. We find them in the
+ * already-loaded model store and parse their specifications.
  *
  * Resolution: every widget slot is a {@link Binding}. `resolveBinding` maps the
  * generic binding *kind* to a concrete data source — the loaded model for most of
@@ -248,11 +248,11 @@ export function discoverDashboardsFromIndex(index: ModelIndex): DashboardDescrip
 /** A page the platform declares, as the same descriptor a model's `Dashboard` Thing becomes, so the
  *  navigation and the operations page draw both alike. Its id is minted under a prefix no Thing id
  *  carries, and its address is its name's — a name a segment can carry nothing of falls back to that
- *  id, as a Thing's does. A spec that could not be read is kept as null, so the page is listed and
- *  says so rather than going missing. */
-export function declaredPageDescriptor(page: { name: string; spec: unknown }): DashboardDescriptor {
+ *  id, as a Thing's does. A specification that could not be read is kept as null, so the page is listed
+ *  and says so rather than going missing. */
+export function declaredPageDescriptor(page: { name: string; specification: unknown }): DashboardDescriptor {
   const id = `declared:${page.name}`;
-  return { id, name: page.name, routeKey: slugOf(page.name) || id, specification: parseSpecification(page.spec) };
+  return { id, name: page.name, routeKey: slugOf(page.name) || id, specification: parseSpecification(page.specification) };
 }
 
 /** A Thing's name reduced to what a URL segment can carry: accents folded onto their base letters,
@@ -388,7 +388,7 @@ function passesFilters(thing: VosThing, filters: PropertyFilter[] | undefined, i
   const properties = effectiveProperties(thing, index);
   for (const f of filters) {
     const v = properties[f.property];
-    switch (f.op) {
+    switch (f.operator) {
       case '=': if (v !== f.value) return false; break;
       case '!=': if (v === f.value) return false; break;
       case '>': if (!(number(v) > number(f.value))) return false; break;
@@ -626,14 +626,14 @@ export function aggregateValue(
   members: VosThing[],
   context: ResolveContext,
 ): number {
-  if (binding.op === 'count') return members.length;
+  if (binding.reduction === 'count') return members.length;
   const values = members
     .map((t) => number(effectiveProperties(t, context.index)[binding.property ?? '']))
     .filter((n) => !isNaN(n));
   if (!values.length) return 0;
-  switch (binding.op) {
+  switch (binding.reduction) {
     case 'sum': return values.reduce((a, b) => a + b, 0);
-    case 'avg': return values.reduce((a, b) => a + b, 0) / values.length;
+    case 'average': return values.reduce((a, b) => a + b, 0) / values.length;
     case 'min': return Math.min(...values);
     case 'max': return Math.max(...values);
   }
@@ -878,16 +878,16 @@ export async function resolveBinding(binding: Binding, context: ResolveContext):
   }
 }
 
-/** The platform's reduction names, which the binding says in the spec's own words. */
-const REDUCTIONS: Record<Extract<Binding, { kind: 'timeseries' }>['op'], TemporalAggregateQuery['function']> = {
-  count: 'Count', sum: 'Sum', avg: 'Average', min: 'Min', max: 'Max',
+/** The platform's reduction names, which the binding says in the specification's own words. */
+const REDUCTIONS: Record<Extract<Binding, { kind: 'timeseries' }>['reduction'], TemporalAggregateQuery['function']> = {
+  count: 'Count', sum: 'Sum', average: 'Average', min: 'Min', max: 'Max',
 };
 
 /** How the buckets of one point combine into it. A sum of sums is a sum, counts add, and the least
  *  of the least is the least. An average is missing on purpose: it is not the average of its parts
  *  unless every part holds the same number of members, which nothing here knows. */
 const FOLDS: Partial<
-  Record<Extract<Binding, { kind: 'timeseries' }>['op'], (buckets: number[]) => number>
+  Record<Extract<Binding, { kind: 'timeseries' }>['reduction'], (buckets: number[]) => number>
 > = {
   count: (buckets) => buckets.reduce((total, bucket) => total + bucket, 0),
   sum: (buckets) => buckets.reduce((total, bucket) => total + bucket, 0),
@@ -915,22 +915,22 @@ async function seriesPoints(
   }
   const bucketsPerPoint = binding.bucketsPerPoint ?? 1;
   // A point of one bucket is that bucket, whatever the reduction — an average included.
-  const fold = bucketsPerPoint === 1 ? (buckets: number[]) => buckets[0] : FOLDS[binding.op];
+  const fold = bucketsPerPoint === 1 ? (buckets: number[]) => buckets[0] : FOLDS[binding.reduction];
   if (!fold) {
     console.warn(
-      `timeseries over ${binding.archetype}: an ${binding.op} of several buckets is not the ` +
-        `${binding.op} of their values, so a point cannot be folded up from them.`,
+      `timeseries over ${binding.archetype}: an ${binding.reduction} of several buckets is not the ` +
+        `${binding.reduction} of their values, so a point cannot be folded up from them.`,
     );
     return null;
   }
   try {
     const answer = await context.reads.aggregate({
-      function: REDUCTIONS[binding.op],
+      function: REDUCTIONS[binding.reduction],
       memberType: binding.archetype,
       timestampProperty: binding.happenedAt,
       // A count reduces the members themselves, so naming a measure would ask for a value the
       // question is not about.
-      measureProperty: binding.op === 'count' ? undefined : binding.property,
+      measureProperty: binding.reduction === 'count' ? undefined : binding.property,
       // The oldest point covers buckets that start before it does, so the window runs back further
       // than the points do.
       windowSeconds: binding.bucketSeconds * (binding.buckets + bucketsPerPoint - 1),

@@ -16,7 +16,7 @@ export function formatNumber(value: number | null | undefined, fmt?: NumberForma
       return numberIn(value, { style: 'percent', maximumFractionDigits: 0 });
     case 'percent1':
       return numberIn(value, { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 });
-    case 'pct100':
+    case 'percentOutOf100':
       return numberIn(value / 100, { style: 'percent', maximumFractionDigits: 0 });
     case 'hours':
       return `${numberIn(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h`;

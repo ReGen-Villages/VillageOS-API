@@ -82,7 +82,7 @@ function fixture(): DashboardSpecification {
             type: 'exceptionBar',
             title: 'Problems',
             note: 'needs attention',
-            buckets: [{ label: 'Late', value: { kind: 'const', value: 2 }, severity: 'warn' }],
+            buckets: [{ label: 'Late', value: { kind: 'const', value: 2 }, severity: 'warning' }],
           },
         ],
       },

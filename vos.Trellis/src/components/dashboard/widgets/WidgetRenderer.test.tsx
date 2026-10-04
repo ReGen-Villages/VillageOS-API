@@ -48,7 +48,7 @@ describe('a widget asking for binding vocabulary this build cannot answer', () =
     draw({
       type: 'kpi', title: 'Throughput',
       value: {
-        kind: 'timeseries', archetype: 'Reading', happenedAt: 'recordedAt', op: 'sum',
+        kind: 'timeseries', archetype: 'Reading', happenedAt: 'recordedAt', reduction: 'sum',
         property: 'volume', bucketSeconds: 900, buckets: 32, smoothing: 'exponential',
       },
     });
@@ -76,7 +76,7 @@ describe('a widget asking for binding vocabulary this build cannot answer', () =
     draw({
       type: 'kpi', title: 'Throughput',
       value: {
-        kind: 'timeseries', archetype: 'Reading', happenedAt: 'recordedAt', op: 'sum',
+        kind: 'timeseries', archetype: 'Reading', happenedAt: 'recordedAt', reduction: 'sum',
         property: 'volume', bucketSeconds: 900, buckets: 32, bucketsPerPoint: 4,
       },
     });

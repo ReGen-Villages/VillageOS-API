@@ -161,7 +161,7 @@ public class SubmissionLimitsTests
     [Fact]
     public void An_area_the_model_works_out_for_itself_is_refused_by_name()
     {
-        Refusing("'allocations':[{'category':'residential','sharePct':22,'allocatedAreaHectares':5.28}]")
+        Refusing("'allocations':[{'category':'residential','sharePercent':22,'allocatedAreaHectares':5.28}]")
             .Message.Should().Contain("allocatedAreaHectares");
     }
 
@@ -182,8 +182,8 @@ public class SubmissionLimitsTests
     [InlineData(101)]
     public void A_share_that_is_not_a_percentage_is_refused(double share)
     {
-        Refusing("'allocations':[{'category':'residential','sharePct':" + Number(share) + "}]")
-            .Message.Should().Contain("allocation.sharePct");
+        Refusing("'allocations':[{'category':'residential','sharePercent':" + Number(share) + "}]")
+            .Message.Should().Contain("allocation.sharePercent");
     }
 
     [Fact]

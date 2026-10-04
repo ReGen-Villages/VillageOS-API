@@ -4,7 +4,7 @@ using vos.Service.Shared.DagNode;
 namespace vos.Service.EnergyBalance.Services;
 
 // The EnergyBalance analysis as a pipeline node.
-// pctOfConsumption is what the "EnergyNetPositive" range (>= 100%) judges.
+// percentOfConsumption is what the "EnergyNetPositive" range (>= 100%) judges.
 public sealed class EnergyBalanceNode : DagNodeService
 {
     public EnergyBalanceNode(IHttpClientFactory httpClientFactory, ILogger<EnergyBalanceNode> logger,
@@ -23,7 +23,7 @@ public sealed class EnergyBalanceNode : DagNodeService
         PortDescriptor.Input("annualConsumptionMwhPerYear", "number", required: true),
         PortDescriptor.Output("solarGenerationMwhPerYear", "number"),
         PortDescriptor.Output("totalGenerationMwhPerYear", "number"),
-        PortDescriptor.Output("pctOfConsumption", "number"),
+        PortDescriptor.Output("percentOfConsumption", "number"),
         PortDescriptor.Output("netPositive", "boolean"),
     };
 
@@ -40,7 +40,7 @@ public sealed class EnergyBalanceNode : DagNodeService
         return Task.FromResult(NodeResult.Ok(
             ("solarGenerationMwhPerYear", (object?)result.SolarGenerationMwhPerYear),
             ("totalGenerationMwhPerYear", result.TotalGenerationMwhPerYear),
-            ("pctOfConsumption", result.PctOfConsumption),
+            ("percentOfConsumption", result.PercentOfConsumption),
             ("netPositive", result.NetPositive)));
     }
 

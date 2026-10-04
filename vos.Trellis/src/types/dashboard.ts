@@ -3,19 +3,19 @@
  *
  * Trellis ships the *widgets* and a *binding resolver*; the model supplies the
  * mapping. A model declares one or more Things of archetype `Dashboard`, each
- * carrying a `spec` property (JSON) that conforms to {@link DashboardSpec}.
+ * carrying a `specification` property (JSON) that conforms to {@link DashboardSpecification}.
  *
  * Nothing in this file names a domain (no domain-specific nouns at all).
- * Every domain word lives in the model's spec — see the discovery + resolver in
+ * Every domain word lives in the model's specification — see the discovery + resolver in
  * `src/api/dashboardApi.ts`.
  */
 import type { HistoryFold, HistoryFunction, OriginKind } from './vos';
 
 /** The archetype a model-resident dashboard configuration Thing must be `is`-linked to. */
 export const DASHBOARD_ARCHETYPE = 'Dashboard';
-/** The Thing property holding the JSON-encoded {@link DashboardSpec}. */
-export const DASHBOARD_SPECIFICATION_PROPERTY = 'spec';
-/** The spec's reference to "the compare entity currently selected in the scope switcher", which
+/** The Thing property holding the JSON-encoded {@link DashboardSpecification}. */
+export const DASHBOARD_SPECIFICATION_PROPERTY = 'specification';
+/** The specification's reference to "the compare entity currently selected in the scope switcher", which
  *  inside a computed column is the row's own Thing. */
 export const SCOPE_REFERENCE = '$scope';
 /** The relationship saying what a Thing is. Every reader here follows it to resolve a type's members and
@@ -33,7 +33,7 @@ export type NumberFormat =
   | 'decimal2'
   | 'percent'   // value is 0..1 → "81%"
   | 'percent1'  // value is 0..1 → "81.3%"
-  | 'pct100'    // value is 0..100 → "81%"
+  | 'percentOutOf100'  // value is 0..100 → "81%"
   | 'hours'     // "2.8 h"
   | 'compact'   // 12_400 → "12.4k"
   | 'bytes'     // 32_500_000_000 → "30.3 GiB"
@@ -111,7 +111,7 @@ export type Binding =
   | {
       kind: 'aggregate';
       archetype: string;
-      op: 'count' | 'sum' | 'avg' | 'min' | 'max';
+      reduction: 'count' | 'sum' | 'average' | 'min' | 'max';
       property?: string;
       where?: PropertyFilter[];
       scope?: ScopeReference;
@@ -231,7 +231,7 @@ export type Binding =
       archetype: string;
       happenedAt: string;
       property?: string;
-      op: 'count' | 'sum' | 'avg' | 'min' | 'max';
+      reduction: 'count' | 'sum' | 'average' | 'min' | 'max';
       bucketSeconds: number;
       buckets: number;
       /** Omitted means one, which is the platform's own grid. */
@@ -319,7 +319,7 @@ export interface Composition {
   /** Keep only the rows whose properties satisfy every comparison. */
   where?: PropertyFilter[];
   sortKey?: string;
-  sortDir?: 'asc' | 'desc';
+  sortDirection?: 'ascending' | 'descending';
 }
 
 /**
@@ -364,7 +364,7 @@ export interface OriginSource {
 
 export interface PropertyFilter {
   property: string;
-  op: '=' | '!=' | '>' | '>=' | '<' | '<=' | 'in';
+  operator: '=' | '!=' | '>' | '>=' | '<' | '<=' | 'in';
   value: unknown;
 }
 
@@ -473,7 +473,7 @@ export interface TableWidget {
   minWidth?: number;
   /** Column key to sort by initially. */
   sortKey?: string;
-  sortDir?: 'asc' | 'desc';
+  sortDirection?: 'ascending' | 'descending';
   /** Cap the table body at this many rows; further rows scroll vertically under the pinned header.
    *  Only the rows inside that window reach the document, so the cap is also what lets a roster
    *  binding drop its `limit` — sorting and searching still run over every row it returned. */
@@ -525,7 +525,7 @@ export interface LeaderboardWidget {
 export interface ExceptionBucket {
   label: string;
   value: Binding;
-  severity: 'good' | 'warn' | 'crit';
+  severity: 'good' | 'warning' | 'critical';
 }
 
 export interface ExceptionWidget {

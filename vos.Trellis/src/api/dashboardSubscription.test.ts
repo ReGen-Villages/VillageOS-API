@@ -61,7 +61,7 @@ describe('subscriptionForSpec', () => {
                 kind: 'timeseries',
                 archetype: 'Reading',
                 happenedAt: 'happenedAt',
-                op: 'count',
+                reduction: 'count',
                 bucketSeconds: 3600,
                 buckets: 8,
               },
@@ -166,7 +166,7 @@ describe('subscriptionForSpec', () => {
       specificationWith({
         sections: [{
           widgets: [
-            { type: 'kpi', title: 'a', value: { kind: 'aggregate', archetype: 'Parcel', op: 'count', scope: { viaPredicate: 'contains' } } },
+            { type: 'kpi', title: 'a', value: { kind: 'aggregate', archetype: 'Parcel', reduction: 'count', scope: { viaPredicate: 'contains' } } },
             { type: 'kpi', title: 'b', value: { kind: 'related', via: [{ predicate: 'studies', direction: 'in' }] } },
           ],
         }],
@@ -289,8 +289,8 @@ describe('subscriptionForSpec', () => {
               title: 'rate',
               value: {
                 kind: 'ratio',
-                numerator: { kind: 'aggregate', archetype: 'Harvest', op: 'sum', property: 'volume' },
-                denominator: { kind: 'aggregate', archetype: 'Parcel', op: 'count' },
+                numerator: { kind: 'aggregate', archetype: 'Harvest', reduction: 'sum', property: 'volume' },
+                denominator: { kind: 'aggregate', archetype: 'Parcel', reduction: 'count' },
               },
             },
             {
@@ -341,7 +341,7 @@ describe('a tile reading the newest point of a series', () => {
     kind: 'timeseries',
     archetype: 'Reading',
     happenedAt: 'happenedAt',
-    op: 'sum',
+    reduction: 'sum',
     property: 'volume',
     bucketSeconds: 900,
     buckets: 32,
@@ -420,12 +420,12 @@ describe('subscriptionForSpec over a rangeBar widget', () => {
               hint: 'by month',
               unit: 'degrees',
               months: {
-                recordedHigh: { kind: 'aggregate', archetype: 'RecordedHigh', op: 'count' }, designHigh: { kind: 'aggregate', archetype: 'DesignHigh', op: 'count' },
-                averageHigh: { kind: 'aggregate', archetype: 'AverageHigh', op: 'count' }, mean: { kind: 'aggregate', archetype: 'Mean', op: 'count' },
-                averageLow: { kind: 'aggregate', archetype: 'AverageLow', op: 'count' }, designLow: { kind: 'aggregate', archetype: 'DesignLow', op: 'count' },
-                recordedLow: { kind: 'aggregate', archetype: 'RecordedLow', op: 'count' },
+                recordedHigh: { kind: 'aggregate', archetype: 'RecordedHigh', reduction: 'count' }, designHigh: { kind: 'aggregate', archetype: 'DesignHigh', reduction: 'count' },
+                averageHigh: { kind: 'aggregate', archetype: 'AverageHigh', reduction: 'count' }, mean: { kind: 'aggregate', archetype: 'Mean', reduction: 'count' },
+                averageLow: { kind: 'aggregate', archetype: 'AverageLow', reduction: 'count' }, designLow: { kind: 'aggregate', archetype: 'DesignLow', reduction: 'count' },
+                recordedLow: { kind: 'aggregate', archetype: 'RecordedLow', reduction: 'count' },
               },
-              bands: [{ label: 'Comfort', from: { kind: 'aggregate', archetype: 'BandFrom', op: 'count' }, to: { kind: 'aggregate', archetype: 'BandTo', op: 'count' }, colour: '#0f0' }],
+              bands: [{ label: 'Comfort', from: { kind: 'aggregate', archetype: 'BandFrom', reduction: 'count' }, to: { kind: 'aggregate', archetype: 'BandTo', reduction: 'count' }, colour: '#0f0' }],
             }),
       null,
     );
@@ -440,7 +440,7 @@ describe('subscriptionForSpec over a lineSeries widget', () => {
       specificationDrawing({
               type: 'lineSeries',
               title: 'Rain',
-              series: [{ label: 'This year', value: { kind: 'aggregate', archetype: 'ThisYear', op: 'count' } }, { label: 'Last year', value: { kind: 'aggregate', archetype: 'LastYear', op: 'count' } }],
+              series: [{ label: 'This year', value: { kind: 'aggregate', archetype: 'ThisYear', reduction: 'count' } }, { label: 'Last year', value: { kind: 'aggregate', archetype: 'LastYear', reduction: 'count' } }],
             }),
       null,
     );
@@ -455,8 +455,8 @@ describe('subscriptionForSpec over a heatmap widget', () => {
       specificationDrawing({
               type: 'heatmap',
               title: 'Sun',
-              value: { kind: 'aggregate', archetype: 'Reading', op: 'count' },
-              sun: { latitude: { kind: 'aggregate', archetype: 'Latitude', op: 'count' }, longitude: { kind: 'aggregate', archetype: 'Longitude', op: 'count' }, utcOffsetSeconds: { kind: 'aggregate', archetype: 'Offset', op: 'count' } },
+              value: { kind: 'aggregate', archetype: 'Reading', reduction: 'count' },
+              sun: { latitude: { kind: 'aggregate', archetype: 'Latitude', reduction: 'count' }, longitude: { kind: 'aggregate', archetype: 'Longitude', reduction: 'count' }, utcOffsetSeconds: { kind: 'aggregate', archetype: 'Offset', reduction: 'count' } },
             }),
       null,
     );
@@ -472,8 +472,8 @@ describe('subscriptionForSpec over a stackedShares widget', () => {
               type: 'stackedShares',
               title: 'Cover',
               classes: [
-                { label: 'Trees', colour: '#080', share: { kind: 'aggregate', archetype: 'Trees', op: 'count' } },
-                { label: 'Grass', colour: { kind: 'aggregate', archetype: 'GrassColour', op: 'count' }, share: { kind: 'aggregate', archetype: 'Grass', op: 'count' } },
+                { label: 'Trees', colour: '#080', share: { kind: 'aggregate', archetype: 'Trees', reduction: 'count' } },
+                { label: 'Grass', colour: { kind: 'aggregate', archetype: 'GrassColour', reduction: 'count' }, share: { kind: 'aggregate', archetype: 'Grass', reduction: 'count' } },
               ],
             }),
       null,
@@ -489,8 +489,8 @@ describe('subscriptionForSpec over a divergingBar widget', () => {
       specificationDrawing({
               type: 'divergingBar',
               title: 'Balance',
-              up: { label: 'Gain', value: { kind: 'aggregate', archetype: 'Gain', op: 'count' }, threshold: { kind: 'aggregate', archetype: 'GainLine', op: 'count' } },
-              down: { label: 'Loss', value: { kind: 'aggregate', archetype: 'Loss', op: 'count' }, threshold: { kind: 'aggregate', archetype: 'LossLine', op: 'count' } },
+              up: { label: 'Gain', value: { kind: 'aggregate', archetype: 'Gain', reduction: 'count' }, threshold: { kind: 'aggregate', archetype: 'GainLine', reduction: 'count' } },
+              down: { label: 'Loss', value: { kind: 'aggregate', archetype: 'Loss', reduction: 'count' }, threshold: { kind: 'aggregate', archetype: 'LossLine', reduction: 'count' } },
             }),
       null,
     );
@@ -505,9 +505,9 @@ describe('subscriptionForSpec over a smallMultiples widget', () => {
       specificationDrawing({
               type: 'smallMultiples',
               title: 'Months',
-              bars: { label: 'Rain', value: { kind: 'aggregate', archetype: 'Rain', op: 'count' } },
-              line: { label: 'Heat', value: { kind: 'aggregate', archetype: 'Heat', op: 'count' } },
-              band: { label: 'Comfort', from: { kind: 'aggregate', archetype: 'BandFrom', op: 'count' }, to: { kind: 'aggregate', archetype: 'BandTo', op: 'count' }, colour: '#0f0' },
+              bars: { label: 'Rain', value: { kind: 'aggregate', archetype: 'Rain', reduction: 'count' } },
+              line: { label: 'Heat', value: { kind: 'aggregate', archetype: 'Heat', reduction: 'count' } },
+              band: { label: 'Comfort', from: { kind: 'aggregate', archetype: 'BandFrom', reduction: 'count' }, to: { kind: 'aggregate', archetype: 'BandTo', reduction: 'count' }, colour: '#0f0' },
             }),
       null,
     );

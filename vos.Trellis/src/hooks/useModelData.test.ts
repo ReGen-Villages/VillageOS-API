@@ -101,7 +101,7 @@ describe('useModelData', () => {
     await mountLoaded();
 
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
-    expect(mockGetAllThings).toHaveBeenCalledWith(['ifcClass', 'ifcGlobalId', 'spec']);
+    expect(mockGetAllThings).toHaveBeenCalledWith(['ifcClass', 'ifcGlobalId', 'specification']);
   });
 
   // The navigation lists a model's dashboards on every page and reads each one out of `spec`. A
@@ -116,7 +116,7 @@ describe('useModelData', () => {
 
     await mountLoaded();
 
-    await waitFor(() => expect(mockGetAllThings).toHaveBeenCalledWith(['ifcClass', 'spec']));
+    await waitFor(() => expect(mockGetAllThings).toHaveBeenCalledWith(['ifcClass', 'specification']));
   });
 
   it('loads every property when the model declares none', async () => {

@@ -90,7 +90,7 @@ function seedStore() {
     t('is', 'is'),
     t('arch-dash', 'Dashboard'),
     t('arch-vil', 'Village'),
-    t('dash1', 'Operations Dashboard', { spec: JSON.stringify(SPECIFICATION) }),
+    t('dash1', 'Operations Dashboard', { specification: JSON.stringify(SPECIFICATION) }),
     t('vil1', 'V-1', { self_sufficiency_rate: 98.9 }),
     t('vil2', 'V-2', { self_sufficiency_rate: 94.1 }),
   ];
@@ -215,7 +215,7 @@ describe('OperationsPage addressing', () => {
     vi.clearAllMocks();
     seedStore();
     useModelStore.setState((s) => ({
-      things: [...s.things, { Id: 'dash2', Name: 'Roster', Properties: { spec: JSON.stringify(ROSTER_SPECIFICATION) } }],
+      things: [...s.things, { Id: 'dash2', Name: 'Roster', Properties: { specification: JSON.stringify(ROSTER_SPECIFICATION) } }],
       relationships: [
         ...s.relationships,
         { Id: 'dash2-is', Name: 'dash2 is arch-dash', SubjectId: 'dash2', PredicateId: 'is', TargetId: 'arch-dash', Properties: {} },
@@ -278,7 +278,7 @@ describe('OperationsPage section widths', () => {
       things: [
         { Id: 'is', Name: 'is', Properties: {} },
         { Id: 'arch-dash', Name: 'Dashboard', Properties: {} },
-        { Id: 'dash1', Name: 'Widths', Properties: { spec: JSON.stringify(WIDTH_SPECIFICATION) } },
+        { Id: 'dash1', Name: 'Widths', Properties: { specification: JSON.stringify(WIDTH_SPECIFICATION) } },
       ],
       relationships: [
         { Id: 'dash1-is', Name: 'dash1 is arch-dash', SubjectId: 'dash1', PredicateId: 'is', TargetId: 'arch-dash', Properties: {} },
@@ -316,7 +316,7 @@ describe('OperationsPage section widths', () => {
 describe('OperationsPage on a spec authored wrong', () => {
   function publish(name: string, specification: string) {
     useModelStore.setState((s) => ({
-      things: [...s.things, { Id: name, Name: name, Properties: { spec: specification } }],
+      things: [...s.things, { Id: name, Name: name, Properties: { specification } }],
       relationships: [
         ...s.relationships,
         { Id: `${name}-is`, Name: `${name} is arch-dash`, SubjectId: name, PredicateId: 'is', TargetId: 'arch-dash', Properties: {} },
@@ -408,7 +408,7 @@ describe('what a live event makes the page ask again', () => {
   function withCadence(): void {
     useModelStore.setState((s) => ({
       things: s.things.map((thing) =>
-        thing.Id === 'dash1' ? { ...thing, Properties: { spec: JSON.stringify({ ...SPECIFICATION, refreshSeconds: 15 }) } } : thing),
+        thing.Id === 'dash1' ? { ...thing, Properties: { specification: JSON.stringify({ ...SPECIFICATION, refreshSeconds: 15 }) } } : thing),
     }));
   }
 

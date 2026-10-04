@@ -39,7 +39,7 @@ export function DataTable({
   context,
   minWidth = 520,
   sortKey,
-  sortDir = 'desc',
+  sortDirection = 'descending',
   visibleRows,
   emptyLabel,
   footnote,
@@ -54,7 +54,7 @@ export function DataTable({
   context: ResolveContext;
   minWidth?: number;
   sortKey?: string;
-  sortDir?: 'asc' | 'desc';
+  sortDirection?: 'ascending' | 'descending';
   visibleRows?: number;
   emptyLabel?: string;
   footnote?: string;
@@ -77,7 +77,7 @@ export function DataTable({
   const rows = useMemo(() => filterRows(resolved, query, searchKeys), [resolved, query, searchKeys]);
   const [sort, setSort] = useState<{ key: string; direction: 1 | -1 }>({
     key: sortKey ?? columns[0]?.key ?? '',
-    direction: sortDir === 'asc' ? 1 : -1,
+    direction: sortDirection === 'ascending' ? 1 : -1,
   });
 
   const sorted = useMemo(() => {

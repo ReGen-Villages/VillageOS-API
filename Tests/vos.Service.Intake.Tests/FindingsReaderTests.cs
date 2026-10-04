@@ -21,7 +21,7 @@ public class FindingsReaderTests
 
         var declared = FindingsReader.ReadDeclarations(model.RootElement, ThisContact);
 
-        declared.Spec.Should().Contain("Site submission");
+        declared.Specification.Should().Contain("Site submission");
         declared.PersonalDetailArchetype.Should().Be(BrokerSnapshot.ContactArchetype);
         declared.ContactAddress.Should().Be(BrokerSnapshot.AddressOn("Willow Bend"));
     }
@@ -49,7 +49,7 @@ public class FindingsReaderTests
             .Thing(Guid.NewGuid(), "A second page", properties: new Dictionary<string, object>
             {
                 [FindingsReader.FindingsDashboardFlag] = new { typeInfo = "vos.Boolean", value = true },
-                [FindingsReader.SpecProperty] = new { typeInfo = "vos.String", value = "{}" },
+                [FindingsReader.SpecificationProperty] = new { typeInfo = "vos.String", value = "{}" },
             })
             .Parsed();
 
@@ -73,7 +73,7 @@ public class FindingsReaderTests
     [Fact]
     public void The_findings_read_follows_the_edges_the_page_walks()
     {
-        var selector = FindingsReader.FindingsSelector(ThisSite, BrokerSnapshot.PageSpec);
+        var selector = FindingsReader.FindingsSelector(ThisSite, BrokerSnapshot.PageSpecification);
 
         selector.Ids.Should().Equal(ThisSite);
         selector.Names.Should().BeEquivalentTo(["has", "obtainedBy", "studies", "is"]);
@@ -90,7 +90,7 @@ public class FindingsReaderTests
     [Fact]
     public void The_findings_read_names_no_archetype_to_be_answered_with_the_members_of()
     {
-        var selector = FindingsReader.FindingsSelector(ThisSite, BrokerSnapshot.PageSpec);
+        var selector = FindingsReader.FindingsSelector(ThisSite, BrokerSnapshot.PageSpecification);
 
         selector.Types.Should().BeNull();
         selector.All.Should().BeFalse();

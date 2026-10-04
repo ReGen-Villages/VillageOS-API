@@ -45,7 +45,7 @@ public class EnergyBalanceReactiveHandlerTests
 
         await NewHandler(http).RecomputeAsync(Anchor);
 
-        foreach (var derived in new[] { "pctOfConsumption", "solarGenerationMwhPerYear", "totalGenerationMwhPerYear" })
+        foreach (var derived in new[] { "percentOfConsumption", "solarGenerationMwhPerYear", "totalGenerationMwhPerYear" })
             Assert.DoesNotContain(http.Requests,
                 r => r.Method == HttpMethod.Post && r.Uri.Contains($"/properties/{derived}/facts"));
     }
@@ -57,7 +57,7 @@ public class EnergyBalanceReactiveHandlerTests
 
         var answer = await NewHandler(http).RecomputeAsync(Anchor);
 
-        Assert.Equal(110.5, answer.Outputs!.PctOfConsumption, 3);
+        Assert.Equal(110.5, answer.Outputs!.PercentOfConsumption, 3);
         Assert.True(answer.Outputs.NetPositive);
         Assert.Empty(answer.WaitingFor);
 
@@ -81,7 +81,7 @@ public class EnergyBalanceReactiveHandlerTests
 
         var answer = await TestCulture.InAsync(TestCulture.CommaDecimal, () => NewHandler(http).RecomputeAsync(Anchor));
 
-        Assert.Equal(110.5, answer.Outputs!.PctOfConsumption, 3);
+        Assert.Equal(110.5, answer.Outputs!.PercentOfConsumption, 3);
     }
 
     // The platform withholds a roll-up whose member type resolves to nothing rather than answering

@@ -10,7 +10,7 @@ namespace vos.Service.EnergyBalance.Services;
 // them as expressions over the study's own values, so the model derives them and refuses a written one — and
 // because the refusal throws, a service that still wrote the first would abandon every write after it. What is
 // left here is the one output an expression cannot hold: an expression yields a number, and this is a verdict.
-// The ranges never read it — all three judge pctOfConsumption — so nothing about a balance now waits on this
+// The ranges never read it — all three judge percentOfConsumption — so nothing about a balance now waits on this
 // service. The node form beside it still answers for the same figures over wired ports.
 public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
 {

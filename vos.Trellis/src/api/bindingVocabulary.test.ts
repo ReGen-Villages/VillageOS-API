@@ -38,14 +38,14 @@ describe('what a widget asks for that this build cannot answer', () => {
 
   it('names a field the kind it belongs to does not read', () => {
     expect(unimplementedWordsIn(tileShowing({
-      kind: 'timeseries', archetype: 'Reading', happenedAt: 'recordedAt', op: 'sum',
+      kind: 'timeseries', archetype: 'Reading', happenedAt: 'recordedAt', reduction: 'sum',
       property: 'volume', bucketSeconds: 900, buckets: 32, smoothing: 'exponential',
     }))).toEqual(['smoothing']);
   });
 
   it('says nothing about a field the kind does read', () => {
     expect(unimplementedWordsIn(tileShowing({
-      kind: 'timeseries', archetype: 'Reading', happenedAt: 'recordedAt', op: 'sum',
+      kind: 'timeseries', archetype: 'Reading', happenedAt: 'recordedAt', reduction: 'sum',
       property: 'volume', bucketSeconds: 900, buckets: 32, bucketsPerPoint: 4,
     }))).toEqual([]);
   });
@@ -54,7 +54,7 @@ describe('what a widget asks for that this build cannot answer', () => {
   it('judges the halves of a ratio', () => {
     expect(unimplementedWordsIn(tileShowing({
       kind: 'ratio',
-      numerator: { kind: 'aggregate', archetype: 'Reading', op: 'sum', property: 'volume' },
+      numerator: { kind: 'aggregate', archetype: 'Reading', reduction: 'sum', property: 'volume' },
       denominator: { kind: 'runningTotal', property: 'volume' },
     }))).toEqual(['runningTotal']);
   });
@@ -63,7 +63,7 @@ describe('what a widget asks for that this build cannot answer', () => {
     expect(unimplementedWordsIn(tileShowing({
       kind: 'latest',
       series: {
-        kind: 'timeseries', archetype: 'Reading', happenedAt: 'recordedAt', op: 'sum',
+        kind: 'timeseries', archetype: 'Reading', happenedAt: 'recordedAt', reduction: 'sum',
         property: 'volume', bucketSeconds: 900, buckets: 32, smoothing: 'exponential',
       },
     }))).toEqual(['smoothing']);

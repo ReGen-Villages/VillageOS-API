@@ -6,7 +6,7 @@ describe('verdictSentence', () => {
     const sentence = verdictSentence(
       '{value} of assumed consumption — short of the {target} target',
       { value: 73, target: 100 },
-      'pct100',
+      'percentOutOf100',
     );
 
     expect(sentence).toBe('73% of assumed consumption — short of the 100% target');
@@ -32,11 +32,11 @@ describe('verdictSentence', () => {
   // A missing figure must never read as a measurement of zero, and `formatNumber` would render one
   // as the dash it uses for an absent number if it were handed one.
   it('never substitutes a zero or a dash for a figure the verdict does not have', () => {
-    expect(verdictSentence('{value} of consumption', { value: null, target: 100 }, 'pct100'))
+    expect(verdictSentence('{value} of consumption', { value: null, target: 100 }, 'percentOutOf100'))
       .toBe('of consumption');
   });
 
   it('shows a real zero as a zero', () => {
-    expect(verdictSentence('{value} of consumption', { value: 0, target: 100 }, 'pct100')).toBe('0% of consumption');
+    expect(verdictSentence('{value} of consumption', { value: 0, target: 100 }, 'percentOutOf100')).toBe('0% of consumption');
   });
 });

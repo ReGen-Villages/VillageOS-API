@@ -89,7 +89,7 @@ public class FindingsEndpointTests
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var answered = await response.Content.ReadFromJsonAsync<JsonElement>();
-        answered.GetProperty("spec").GetString().Should().Contain("Site submission");
+        answered.GetProperty("specification").GetString().Should().Contain("Site submission");
         answered.GetProperty("scopeId").GetString().Should().Be(ThisSite.ToString());
         Identifiers(answered, "things").Should().Contain(ThisSite.ToString());
     }

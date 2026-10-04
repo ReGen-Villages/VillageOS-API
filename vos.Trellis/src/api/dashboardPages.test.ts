@@ -58,7 +58,7 @@ describe('keeping a page', () => {
     const fragment = JSON.parse(vi.mocked(modelApi.applyFragment).mock.calls[0][0]);
     expect(fragment).toEqual({
       Name: 'Springs by flow',
-      Things: [{ Id: 'minted-id', Name: 'Springs by flow', Properties: { spec: { typeInfo: 'vos.String', value: JSON.stringify(PAGE) } } }],
+      Things: [{ Id: 'minted-id', Name: 'Springs by flow', Properties: { specification: { typeInfo: 'vos.String', value: JSON.stringify(PAGE) } } }],
       Relationships: [{ Subject: 'minted-id', Predicate: 'is', Target: 'dashboard' }],
     });
     expect(thingApi.setProperty).not.toHaveBeenCalled();
@@ -74,7 +74,7 @@ describe('retitling a page', () => {
   it('rewrites the spec’s title and leaves the Thing’s name, so the address stays', async () => {
     await dashboardPages.retitle('kept', PAGE, 'Springs, fastest first');
 
-    expect(thingApi.setProperty).toHaveBeenCalledWith('kept', 'spec', 'vos.String', JSON.stringify({ ...PAGE, title: 'Springs, fastest first' }));
+    expect(thingApi.setProperty).toHaveBeenCalledWith('kept', 'specification','vos.String', JSON.stringify({ ...PAGE, title: 'Springs, fastest first' }));
   });
 });
 
@@ -83,7 +83,7 @@ describe('writing a page over', () => {
     const laidOut = { ...PAGE, designed: true as const };
     await dashboardPages.write('kept', laidOut);
 
-    expect(thingApi.setProperty).toHaveBeenCalledWith('kept', 'spec', 'vos.String', JSON.stringify(laidOut));
+    expect(thingApi.setProperty).toHaveBeenCalledWith('kept', 'specification','vos.String', JSON.stringify(laidOut));
   });
 
   it('refuses a spec the discovery could not read back', async () => {
