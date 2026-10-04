@@ -58,26 +58,25 @@ public sealed class DiscoveryRunStarter : IDiscoveryRunStarter
     public void Start(Guid subjectId, Func<CancellationToken, Task> run)
     {
         var ended = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        SubjectRuns? runs;
-        Task previous;
+        SubjectRuns? waitingBehind = null;
+        var previous = Task.CompletedTask;
         var dropped = false;
         lock (_runsGate)
         {
-            if (!_runsBySubject.TryGetValue(subjectId, out runs))
+            if (!_runsBySubject.TryGetValue(subjectId, out var runs))
             {
                 _runsBySubject[subjectId] = new SubjectRuns { LastEnded = ended.Task };
-                previous = Task.CompletedTask;
             }
             else if (runs.OneWaiting)
             {
                 dropped = true;
-                previous = Task.CompletedTask;
             }
             else
             {
-                runs.OneWaiting = true;
+                waitingBehind = runs;
                 previous = runs.LastEnded;
                 runs.LastEnded = ended.Task;
+                runs.OneWaiting = true;
             }
         }
 
@@ -89,16 +88,15 @@ public sealed class DiscoveryRunStarter : IDiscoveryRunStarter
             return;
         }
 
-        var waits = runs != null;
-        if (waits)
+        if (waitingBehind != null)
             _logger.LogInformation(
                 "A discovery run for {SubjectId} is in flight; this one starts when it ends", subjectId);
 
         _ = Task.Run(async () =>
         {
             await previous;
-            if (waits)
-                lock (_runsGate) runs!.OneWaiting = false;
+            if (waitingBehind != null)
+                lock (_runsGate) waitingBehind.OneWaiting = false;
 
             // Nothing awaits this task, so an exception escaping here would be unobserved: reported by
             // nothing, and on some configurations taking the process with it.
