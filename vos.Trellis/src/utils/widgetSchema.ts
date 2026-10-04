@@ -12,7 +12,7 @@ import { en } from '../i18n/locales/en';
  */
 
 const NUMBER_FORMATS: readonly NumberFormat[] = [
-  'integer', 'decimal1', 'decimal2', 'percent', 'percent1', 'pct100', 'hours', 'compact', 'money',
+  'integer', 'decimal1', 'decimal2', 'percent', 'percent1', 'pct100', 'hours', 'compact', 'bytes', 'money',
 ];
 const DIRECTIONS = ['up-good', 'down-good', 'neither-good'] as const;
 const BOUND_DIRECTIONS = ['up-good', 'down-good'] as const;

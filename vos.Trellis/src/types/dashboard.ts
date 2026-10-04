@@ -36,6 +36,7 @@ export type NumberFormat =
   | 'pct100'    // value is 0..100 → "81%"
   | 'hours'     // "2.8 h"
   | 'compact'   // 12_400 → "12.4k"
+  | 'bytes'     // 32_500_000_000 → "30.3 GiB"
   | 'money';
 
 /** A step of a history reduction as the spec writes it. A parameter — a percentile, a band's bound, a
