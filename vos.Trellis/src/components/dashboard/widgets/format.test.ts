@@ -85,6 +85,7 @@ describe('formatNumber', () => {
     expect(formatNumber(1024 ** 2 - 1, 'bytes')).toBe('1 MiB');
     expect(formatNumber(1023.96, 'bytes')).toBe('1 KiB');
     expect(formatNumber(1023.94, 'bytes')).toBe('1,023.9 B');
+    expect(formatNumber(1_030_000, 'bytes')).toBe('1,005.9 KiB');
   });
 
   it('scales a negative byte count by its size', () => {
