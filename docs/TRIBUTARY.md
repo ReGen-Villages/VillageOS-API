@@ -425,8 +425,8 @@ Tributary's contract is **fetch-and-shape**:
    model's rather than service code. `$now()` takes no arguments here; a transform wanting a
    formatted instant writes `$fromMillis($millis(), picture)`, which reads the same clock.
 3. **Ingest** (hybrid ingest) — readings are grouped by entity `name`. Each entity is a
-   Thing created **once** (its first reading seeds the observable properties, each bounded to
-   `Sampled` PropertyMode) and related to the endpoint through an `observed` relationship — **one per
+   Thing created **once** (its first reading seeds the observable properties, each bounded to the
+   `SampledByTime` PropertyMode with a 60-second slot) and related to the endpoint through an `observed` relationship — **one per
    entity**,
    written whether this call created it or found it already there;
    every reading's values are then written as **observations** on that entity's property series

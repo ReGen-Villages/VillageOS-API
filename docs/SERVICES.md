@@ -177,7 +177,9 @@ service-agnostic plumbing:
 - `MyceliumUrl`
 - `GetTokenAsync()` — answers the token the service presents: the `Token`
   setting, or the one exchanged for its `ApiKey` (§12). A service holding
-  neither gets no token, because the exchange route refuses a call with no key
+  neither gets no token, because the exchange route refuses a call with no key:
+  it makes no call for one, its registration logs that neither `ApiKey` nor
+  `Token` is set, and a call that needs a token fails with that reason
 - `CreateAuthenticatedClientAsync(timeout?)` — returns an `HttpClient` with
   Bearer auth
 - `RegisterAsync(port, serviceName, startCommand)` — POSTs the registration
@@ -593,7 +595,7 @@ embedded as resources in the shared assembly. The validator runtime lives in
 | Schema | Producer → Consumer | Source of truth in code |
 |---|---|---|
 | `mycelium-register-request` | a registering microservice → Mycelium `POST /api/mycelium/register` | `MyceliumClientBase.RegisterAsync` |
-| `token-response` | Mycelium `POST /api/auth/token` → a microservice | `MyceliumClientBase.GetTokenAsync` |
+| `token-response` | Mycelium `POST /api/auth/token` → a microservice | No client checks a reply against it now: the key exchange (`ApiKeyTokenSource`) reads the same reply without the schema check |
 | `handle-request-metabolism` | Mycelium → Metabolism `POST /handle` | `vos.Service.Metabolism.Models.HandleRequest` |
 | `apply-quantity-request` | Metabolism → Mycelium `POST /api/things/{id}/properties/{path}/{decrements\|increments}` | `vos.Service.Metabolism.Services.MyceliumClient.ApplyQuantityAsync` |
 | `relationship-property-increment-request` | Metabolism → Mycelium `POST /api/relationships/{id}/properties/{path}/increments` | `vos.Service.Metabolism.Services.MyceliumClient.IncrementRelationshipPropertyAsync` |
@@ -670,10 +672,10 @@ per-service: tag the request DTO with `[ContractSchema]` and add
 `.RequireContract<T>()` to the route. Metabolism is the one service that
 validates its `/handle` body this way.
 
-### 9.5 Outbound and response validation in `MyceliumClientBase`
+### 9.5 Outbound validation in `MyceliumClientBase`
 
-The `RegisterAsync` body, the `GetTokenAsync` response and the body of every
-write helper (§15) are validated on every call. What a violation does is set by
+The `RegisterAsync` body and the body of every write helper (§15) are validated
+on every call. What a violation does is set by
 `SchemaViolationMode`:
 
 - **Debug** builds throw `ContractValidationException`.
@@ -1262,6 +1264,11 @@ are the params. So **any service can start a pipeline** by creating that relatio
 trigger fires during a relationship-create (Mycelium waits ~15s), it is **fire-and-forget**: Phloem
 ACKs immediately and runs the pipeline in the background, persisting the result to the `PipelineRun`.
 
+**Spawn — graph (any other predicate bound to Phloem).** A relationship written along a connection's
+predicate that is bound to Phloem, other than `runs`, starts the pipeline whose start node stands for
+that predicate. The envelope names the relationship, and the orchestrator reads it by its id to find
+the predicate and so the pipeline.
+
 **Spawn — state (a Thing enters a watched state).** A **state Connection** bound to the Phloem Service
 starts the pipeline drawn from it when a Thing enters the state it watches, with the entering Thing as
 the run's `subject` — the name the Pipelines page gives a start node's port, carrying the Thing's id and
@@ -1295,7 +1302,14 @@ endpoint-forward and routing outputs→inputs; a node failure halts dependents; 
 best-effort — each node is written `running` before dispatch and its terminal status after, on **one
 `NodeRun` Thing per node** (deterministic id, so the SSE view sees a property change, not duplicate Things) —
 and between dispatches Phloem polls the run's `cancelRequested` flag for **cooperative cancellation**
-(already-running nodes finish; pending ones are marked `cancelled`).
+(already-running nodes finish; pending ones are marked `cancelled`). A run carries `requestId`, the
+broker's request-log entry that started it, read from the `Vos-Request-Id` header on `/handle`.
+
+**A run ending at an external system** sends what reached the end node: the end standing for the
+system writes a Thing under the archetype marked `__IsSentMessageArchetype`, holding that value,
+held on the run along `has` and related to the system along the connection the system is told
+through (the predicate marked `__IsToldThroughPredicate`). The broker delivers it once, as it does any
+relationship written along a connection. A system naming no such connection refuses the run.
 
 *Internals:* `IMyceliumGateway` is the seam between orchestration and HTTP (so `PipelineExecutor` is
 unit-tested without a network); `PipelineGraph` + `PipelineDagBuilder` build the `PipelineDag`,

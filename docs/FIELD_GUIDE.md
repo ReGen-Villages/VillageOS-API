@@ -67,8 +67,9 @@ VillageOS unites the four on one foundation, so history, connections, judgement 
 the *same* system rather than four integrations to maintain. Two rules make that possible, and
 every chapter of this guide comes back to them:
 
-- **Nothing is ever silently overwritten or lost.** Every value and every relationship keeps its
-  full history, so "how did we get here?" always has an answer.
+- **Nothing is ever silently overwritten or lost.** Every change is recorded, and every value keeps
+  as much history as the model declares for it — all of it unless the model says otherwise — so
+  "how did we get here?" has an answer.
 - **The platform stays small and general.** The specifics of any domain live in the model and in
   small plug-in services, never in the core. That is why it can grow from one sensor to a whole
   village without becoming a tangle.
@@ -109,8 +110,9 @@ millimetres of rain a year are genuinely different sorts of claim. The platform 
 which, and a page can say where every figure came from.
 
 ### 5. Time is built in
-Every value and every relationship carries its history. You can ask what a reservoir held on any
-past afternoon, how a property changed between two dates, or what the whole model looked like at a
+Every value and every relationship carries its history, as much of it as the model declares, which
+is all of it unless the model says otherwise. You can ask what a reservoir held on any past
+afternoon, how a property changed between two dates, or what the whole model looked like at a
 given moment. Nothing is overwritten: a new value is laid down beside the old one, and a deletion is
 recorded as a deletion rather than an erasure. A restart rebuilds the model from that record, so
 the answer to "what was true then" is the same before and after one.
@@ -377,7 +379,7 @@ Two more settings belong to a property:
 | Setting | Choices | Meaning |
 | --- | --- | --- |
 | **Write kind** | both, Facts only, Observations only | Which of the two kinds of write it accepts. A planner's stated area takes Facts only; a fetched climate zone takes Observations only, so nobody can type one in |
-| **Retention** | full history, a ring buffer of the last so-many readings, a sample of every so-many, or the current value only | How much history it keeps, and therefore how far back a question about the past can reach |
+| **Retention** | full history; a ring buffer, holding the last so-many readings in memory and keeping every one on disk; sampled by observations, keeping one reading in so-many; sampled by time, keeping the newest reading in each slot of so-many seconds; or the current value only | How much history it keeps, and therefore how far back a question about the past can reach |
 
 Full history is the default. A property keeping only its current value is a deliberate choice —
 the contact details on a submission are declared that way, so clearing the submission clears
@@ -614,9 +616,9 @@ any_connection_failed   ANY [connected_to].state HAS 'failed'
 isolated                NONE [connected_to].status = 'ok'
 
 # A guarded verdict and its two companions
-EnergyNetPositive     pctOfConsumption IS KNOWN AND pctOfConsumption >= 100
-EnergyShortOfTarget   pctOfConsumption IS KNOWN AND pctOfConsumption < 100
-EnergyNotAssessed     pctOfConsumption IS UNKNOWN
+EnergyNetPositive     percentOfConsumption IS KNOWN AND percentOfConsumption >= 100
+EnergyShortOfTarget   percentOfConsumption IS KNOWN AND percentOfConsumption < 100
+EnergyNotAssessed     percentOfConsumption IS UNKNOWN
 
 # Recent behaviour
 flow_stopped   SUM [feeds].volume OVER flowed_at LAST 3600 < 100
@@ -690,12 +692,16 @@ service by hand; what started a run is a fact in the model afterwards.
 - **The dispatch is durable.** Entering the state writes a **dispatch record** — a relationship
   from the Thing to the connection — before the service is called. The record carries how the
   dispatch is going: pending, in flight, done, failed or refused. A record is delivered once while
-  its delivery runs, a failed one is driven again, a refused one (the service said the request
-  itself was wrong) is not, and a server restart re-identifies every open record and drives it on.
+  its delivery runs, a failed one is driven again, and a refused one (the service said the request
+  itself was wrong) is not. A server restart brings every record back as it stood: a finished,
+  refused or held one is not sent again, one sent before the restart is given its in-flight window,
+  and one never sent is driven on at once.
 - **Done is proved by the model, not by the reply.** A connection may name a **completion range**:
   the state the Thing must enter for the work to count. The service's reply then means only
   *accepted*, and the record is marked done when the Thing reaches that state — which the
-  service's own last write usually causes. A connection also says how long an in-flight dispatch
+  service's own last write usually causes. A connection may instead, or as well, wait for the
+  service to **acknowledge** the dispatch once its work has committed, by a call naming the
+  relationship it was handed; an acknowledged dispatch is not sent again. A connection also says how long an in-flight dispatch
   may take before it is presumed dead and driven again. Discovery works this way: a site entering
   *awaiting discovery* starts a run that outlasts any single call, and the site reaching
   *discovered* is what closes it.
@@ -728,13 +734,13 @@ costs.
 | --- | --- |
 | What is true now: a value, a relationship, who is in state S | The live model, at once |
 | What was true at instant T; how did X change between T1 and T2 | Rings, the store of every value over time, reading only the layers that hold the span asked for |
-| The model, or one Thing, as it stood at T | The model's own history; a Thing not yet created, or already deleted, at T is answered as absent |
+| The model, or one Thing, as it stood at T | The live model's recent versions, and Rings for a value memory has let go of; a Thing not yet created, or already deleted, at T is answered as absent. One Thing asked about by itself is also read back after the server has let go of it entirely, from the record of its lifetime kept on disk |
 | Which states a Thing held, and when; how long it spent in one | The engine's state history, which says how far back it reaches |
 | How much happened per slice of time across a kind: litres pumped per quarter hour over the last eight hours | A bucketed reduction over the live model's members and the instant each carries |
 | What one property's readings come to by calendar: the monthly mean of the daily high, the frost days a year, the share of hours inside a comfort band | A reduction over the property's retained readings, folded in steps — by day, then by month, then across the years |
 
-A value whose retention cannot reach the instant asked for is left out of the answer, never
-answered with what it holds now. An absent property means *no value can be known for that
+A value memory no longer holds for the instant asked for is read from Rings, and is left out of the
+answer only when Rings holds nothing for it either — never answered with what it holds now. An absent property means *no value can be known for that
 instant*; a property that genuinely held nothing reports nothing. The two are different answers.
 
 ### 31. Where every value comes to rest
@@ -939,7 +945,9 @@ site as subject (chapter 28). A run:
    vocabulary does not hold writes no relationship and is reported.
 5. **Starts the analysis** by relating the site's study to each marked compute connection. A
    connection bound to a service is a handled predicate, so creating that relationship is what
-   dispatches it — one way to start an analysis, and one answerable from the model afterwards.
+   dispatches it — one way to start an analysis, and one answerable from the model afterwards. A
+   connection the study is already related through, by the seed or an earlier run, is left as it
+   is and counts as started.
 
 Partial failure is normal. A source that fails leaves its value undiscovered and its coverage
 outstanding; the site stays in the state and is driven again; and the analysis starts on whatever
@@ -977,13 +985,17 @@ The **Pipelines** page in the console is the editor.
 
 - **The catalysts**, in the rail on the left, are everything in the model that sets a run off,
   listed by kind — a state a Thing enters, a kind of message an external system sends, a request —
-  each saying what it starts or what happens to it. Clicking one places a **start node**
-  standing for it; *By hand* places a start whose ports are filled from the run's parameters. Beside
+  each saying what it starts or what happens to it. A state row says it starts its drawing only when
+  the orchestrator receives the state's entries; otherwise it names the drawing and the service that
+  receives them, and offers **Handle with the orchestrator**, which rebinds the state's connection.
+  Clicking a row places a **start node** standing for it; *By hand* places a start whose ports are filled from the run's parameters. Beside
   the catalysts the **roster** lists the model's pipelines; one opens from it, and the first opens on
   arrival.
 - **The outputs**, in the rail on the right, offer the answer, the other pipelines and the external
   systems; clicking one places an **end node**, and the value wired into an end becomes the run's
-  published result or what the system is told. The **services** stand under the outputs: clicking
+  published result or what the system is told. An end standing for a system writes a **sent
+  message** holding that value, related to the system along the connection it is told through,
+  which the server delivers once; a system naming no such connection refuses the run. The **services** stand under the outputs: clicking
   one drops a node bound to its connection, with the typed ports the service declares.
 - **A boundary node stands for its catalyst or its outcome**, read by marks, never by name. The
   **findings** under the canvas list what stops a run, including an end standing for the wrong kind of
@@ -1022,9 +1034,11 @@ input receives a list — the other inputs are the same for every item — and e
 into a list for downstream. The node may continue past a failed item, marking the run partial, or
 fail as a whole.
 
-A pipeline can also be started **from the model**, two ways. A `runs` predicate bound to Phloem makes
+A pipeline can also be started **from the model**, three ways. A `runs` predicate bound to Phloem makes
 creating *X runs Pipeline* start it, so any service can start a pipeline by creating one
-relationship. And a **state connection** bound to Phloem starts the pipeline drawn from it — the one
+relationship. A relationship written along any other predicate bound to Phloem starts the pipeline
+whose start node stands for that predicate; the orchestrator reads the relationship by its
+identifier to find it. And a **state connection** bound to Phloem starts the pipeline drawn from it — the one
 whose start node stands for the connection, or for the state it watches, since several connections
 may watch one state — when a Thing enters the state, with the entering Thing as the run's `subject`:
 the name the Pipelines page gives a start node's port, carrying the Thing's id and name, which a wire
@@ -1119,6 +1133,7 @@ beside it, and closes again once a page is chosen.
 | **Temporal** | Every change to a property over a time range you choose; a property whose values name stored images shows them, with a slider across them and one moment pinned beside another to compare |
 | **Things**, **Properties** | Search the whole model by name, or by property name |
 | **Logs** | The server's log, live |
+| **Requests** | The requests the server passed to services in the last day, newest first, each added as it is recorded (chapter 55) |
 
 ![The same page with the sidebar collapsed to its icon strip](assets/trellis-sidebar-collapsed.png)
 
@@ -1131,8 +1146,10 @@ server, so a model that names recipients for operator alerts hears of them.
 
 Above the controls a **model statement** says three things. The first is the state of the live
 stream, as a coloured mark and in words: amber *Connecting…* while a stream is being opened, green
-*Live* once it is open, red *Connection lost* after a stream fails and while the console retries.
-The second is how many Things and relationships the model holds — *Reading the model…* until it is
+*Live* once it is open, red *Connection lost* after a stream fails and while the console retries. A
+stream that has sent nothing for thirty seconds counts as failed: the server sends a heartbeat every
+fifteen seconds, and the console asks for it as an event so the page can notice it stopping. The
+second is how many Things and relationships the model holds — *Reading the model…* until it is
 loaded, and *On this page:* before the count where the open page holds only its own set of Things
 and not the whole model. The third is when the newest event arrived (*Nothing has moved yet* before
 one). Collapsed, only the mark stays, with the statement as its tooltip.
@@ -1341,7 +1358,10 @@ and a **Delete** control that removes the connection from the model after a conf
 from Stop, which only ends the process.
 
 **Property storage mode.** The default retention a new property takes (chapter 17), with the ring
-buffer's size or the sample rate where the mode has one, and **Apply** to change it.
+buffer's size, the sample rate or the sample slot where the mode has one, and **Apply** to change
+it. The panel also shows, for the whole model, how many versions a full-history property keeps in
+memory and how many seconds a replaced version stays there; zero means no limit. Older versions are
+read from disk, so these limits bound memory and not history.
 
 **Activity feed.** Every change to the model, live: a Thing created, a relationship created, a
 property changed, a service called, each in its own colour. A *property observed* is a reading
@@ -1443,6 +1463,11 @@ another.
 download.
 
 ![The Logs page streaming the server's log](assets/trellis-logs.png)
+
+**Requests** lists the requests the server passed to services in the last day, newest first, and
+adds each as it is recorded. It narrows to one connection, downloads one hour's file, and opens one
+request in full — or says it is no longer kept, once it is past the log's retention period. A
+pipeline run's history panel links the run to the request that started it.
 
 ### 56. Creating and changing data
 Everything is done in place on the graph page.
@@ -1626,17 +1651,18 @@ written `2026-01-15T12:30:00Z`, in universal time, or as `now`.
 | `list handlers`, `list services` (`list agents`) | Every connection bound to a service with what the platform resolves for it; every registered service with its running state, endpoint, health, request statistics (count, average milliseconds, errors, last request) and, while running, its process id, whether it was started outside the Mycelium and its last contact; a failure count when not zero |
 | `start service <service>`, `stop service <service>` | Start a service's process; stop it |
 | `call endpoint <subdomain> <json>`, `call service <handler> <json>` | Post the rest of the line as a JSON body to the endpoint service at that subdomain, or to the handler's daemon (started if needed), and print the answer, formatted when it is JSON; a body that is not JSON is refused before anything is sent |
-| `pipeline list`, `pipeline run <pipeline> [json params] [--wait]`, `pipeline cancel <run-id>`, `pipeline history <pipeline>` | Every pipeline, found by the flag its archetype carries; start a run through the orchestrator (`--wait` prints the per-node result instead of the run id); ask a running pipeline to stop; the runs, newest first |
+| `pipeline list`, `pipeline run <pipeline> [json params] [--wait]`, `pipeline cancel <run-id>`, `pipeline history <pipeline>` | Every pipeline, found by the flag its archetype carries; start a run through the orchestrator (`--wait` prints the per-node result instead of the run id); ask a running pipeline to stop; the runs, newest first, a run started by a request ending with `request <id>`, the request-log entry it started from |
+| `requests latest [--limit=N] [--connection=<connection>]`, `requests follow [--for=SECONDS] [--connection=<connection>]`, `requests download [--hour=yyyyMMddHH] [file]`, `requests show <request-id>` | The request log: the newest requests the server passed to services in the last day; entries as they are recorded for the given seconds (default 30); one hour's file; one entry in full, or that it is no longer kept once past the log's retention period. A connection is named by identifier or by a unique name |
 | `events watch [--for=SECONDS]` | Each model event as it arrives — time, name, payload — for the given number of seconds (default 30), then return; a watch that received nothing says so |
 | `logs tail [--lines=N] [--service=name]`, `logs follow [--for=SECONDS] [--service=name]`, `logs download [--service=name] [file]` | The last lines of the Mycelium log, or of the named service daemon's log; lines as they are appended for the given number of seconds (default 30); the whole current log file saved into the working directory, under the platform's file name unless one is given |
 | `serialize [file]` (`seed`) | Export the model as a seed, to the screen or a file |
 | `deserialize <file>` | Replace the model from a seed |
-| `plant <file> [mode] [--ringbuffer=N] [--samplerate=N]` | Import a seed and set every property's retention |
+| `plant <file> [mode] [--ringbuffer=N] [--samplerate=N] [--sampleseconds=N]` | Import a seed and set every property's retention |
 | `apply <file>` | Merge a fragment into the live model |
 | `ingest <file.ifc> [--new] [--name=] [--url=]` | Upload a building model to Xylem, merging or replacing |
 | `seeds list`, `seeds status`, `seeds load <name>`, `seeds save <name>`, `seeds reload` | The seed library and the startup load |
 | `model list`, `model switch <id or name>` | The models the server holds; move the session to another |
-| `config mode [Mode]`, `config mode get <thing> <property>`, `config mode set <thing> <property> <Mode>` | Retention: the default, and one property's |
+| `config mode [Mode]`, `config mode get <thing> <property>`, `config mode set <thing> <property> <Mode>` | Retention: the default, and one property's. With the default, `--versionsinmemory=N` and `--secondsinmemory=N` set for the whole model how many versions a full-history property keeps in memory and for how long; one property's mode refuses them |
 | `mycelium status`, `mycelium endpoints` | Startup progress; the request connections the model registers |
 | `submissions list`, `submissions reject <id>`, `submissions promote <id> <template> <predicates> <name>`, `submissions dispose <predicates>` | Review, and the retention pass |
 | `user list` | Every account, its role, the models it may enter, whether its password must change, and when it was created |
@@ -1801,8 +1827,8 @@ give the unanswered case a range of its own, because every other comparison read
 *not satisfied*, exactly as it reads a value that fell short:
 
 ```text
-> range create "Site Study" EnergyNetPositive "pctOfConsumption IS KNOWN AND pctOfConsumption >= 100"
-> range create "Site Study" EnergyNotAssessed "pctOfConsumption IS UNKNOWN"
+> range create "Site Study" EnergyNetPositive "percentOfConsumption IS KNOWN AND percentOfConsumption >= 100"
+> range create "Site Study" EnergyNotAssessed "percentOfConsumption IS UNKNOWN"
 ```
 
 ### 65. The engines and the cost of reading
@@ -1891,13 +1917,17 @@ Available models:
   MarthasVineyard (8e9bafbd-07b8-5a0c-9997-cac2e8ccba9e)
   Regenerative Village — Ecosystem Model (373be6a2-997e-4f5f-bad5-d3a9e1560a71)
 > model switch MarthasVineyard
-> config mode                # the default retention, its ring-buffer size and sample rate
+> config mode                # the default retention, its sizes, and what full history keeps in memory
 Property Mode Configuration:
   Default Mode:     FullHistory
   Ring Buffer Size: 100
   Sample Rate:      100
+  Sample Seconds:   60
+  Full-History Versions In Memory: 10
+  Full-History Seconds In Memory:  3600
 > config mode RingBuffer --ringbuffer=100
-> config mode set Home-1 temperature Sampled --samplerate=10
+> config mode FullHistory --versionsinmemory=20 --secondsinmemory=7200
+> config mode set Home-1 temperature SampledByTime --sampleseconds=60
 ```
 
 **Accounts.** An account holds one role — `admin`, `editor` or `viewer` — and enters only the
@@ -1944,9 +1974,9 @@ empty.
 ### 70. When something looks wrong
 | What you see | Where to look |
 | --- | --- |
-| Every request is refused as unavailable | The server is still rebuilding from its record or loading seeds; the console shows the progress, and `seeds status` reports it |
+| Every request is refused as unavailable | The server is still rebuilding from its record or loading seeds; the console shows the progress, and `seeds status` reports it. If start-up failed, the progress reads *Failed* and the server's log says why |
 | The console says *not signed in* over a plain `http` address | Sessions need a secure `https` origin; use the server's own secure address or the reverse proxy |
-| The console's stream light is red and reads *Connection lost* | The stream has failed; the console retries on its own, waiting at most half a minute between tries. Amber *Connecting…* is a stream being opened and is not a fault. A red **Mycelium** light means the server itself does not answer |
+| The console's stream light is red and reads *Connection lost* | The stream has failed, or has sent nothing for thirty seconds while the browser still shows it open; the console retries on its own, waiting at most half a minute between tries. Amber *Connecting…* is a stream being opened and is not a fault. A red **Mycelium** light means the server itself does not answer |
 | A created Thing never appears on a page | The page's subscription did not cover it. A narrowed page is sent a Thing later typed into one of its kinds, but not one named by identifier or reached by a walk after the page opened; those arrive on the next open |
 | The graph never settles | **Pause** it and read it as it stands |
 | Search finds nothing | Check the case-sensitive, exact-match and pattern toggles; a pattern gives `.` and `(` special meaning |
@@ -1954,7 +1984,7 @@ empty.
 | Taproot: *The SSL connection could not be established* | The server presents a certificate the machine does not trust — a development certificate. Set `VOS_INSECURE_TLS=true` for development only; install a trusted certificate for anything else |
 | Taproot: *Unknown command* | Commands are case-insensitive; `help` lists them |
 | A refused sign-in or key | Get a fresh key or pass; search the server log for the refusal, which names the key, the reason and the caller |
-| A service reads *Unreachable* | Its health check failed three times. Check the service's own log in the server's data directory, that its port answers, and its executable path |
+| A service reads *Unreachable* | Its health check failed three times. Check the server's log, where a service the server launched has its error output written when it exits, that its port answers, and its executable path |
 | A dashboard figure reads *absent* | Nothing has written that property yet, or the page names something the model does not hold; the page says which |
 | A balance reads *not assessed* | Its input is unknown. Look for the service or discovery run that should have written it |
 | The seed will not load | Run the validator (chapter 76): it names every problem in one pass |
@@ -2118,8 +2148,8 @@ service it started and asks every other known service to stop, and reports any t
 ![A deployment: one proxy hears the internet; everything else answers only on the machine itself](assets/field-guide-deployment.svg)
 
 **One host, one proxy.** The reference deployment puts a reverse proxy in front: one hostname
-sends requests to the server, `/feedback` to the feedback relay, and every other path to the built
-console; a second hostname sends everything to the intake service. The proxy provisions its own
+sends `/api` and `/basemaps` to the server, over a secure connection whose certificate the proxy
+checks, `/feedback` to the feedback relay, and every other path to the built console; a second hostname sends everything to the intake service. The proxy provisions its own
 certificates. Every service answers only on the machine itself and is unreachable except through the
 proxy; the server itself never reads a request's host name.
 
@@ -2167,9 +2197,9 @@ on the router is opened. The deployment guide beside this one walks the account 
 ### 79. What is on disk, and what to protect
 | What | Why it matters |
 | --- | --- |
-| The data directory: the account store, the signing key, the first-start credentials, one log per launched service | Every account and every key that can be trusted |
+| The data directory: the account store, the signing key, the first-start credentials | Every account and every key that can be trusted |
 | The seeds directory, and `templates/` beneath it | The seed a model was planted from is not needed to restart it, but is needed to plant it again elsewhere |
-| The persistence directory: per model, its durable record, its checkpoints, and the sealed history files | The record of every Fact, and the only copy of every reading once its record segment has been compacted |
+| The persistence directory: per model, its durable record, its checkpoints with the lifetimes of the Things and relationships they left out, and the sealed history files | The record of every Fact, and the only copy of every reading, and of every deleted Thing, once its record segment has been compacted |
 | The asset directory: the bytes kept for every ticket a property holds | The only copy of each kept image or file; a property holding its ticket names it and does not hold it |
 | The master key | Without it the encrypted files above cannot be read |
 
@@ -2193,7 +2223,7 @@ administrator account, and launches nothing.
 - [ ] The service kind's executable-path template matches the deployed layout
 - [ ] The reverse proxy routes the server, the console and the intake service, and forwards the caller's address
 - [ ] The intake service has its origins, its mail relay and its confined key
-- [ ] Backups cover the data directory, the persistence directory and the master key
+- [ ] Backups cover the data directory, the persistence directory, the asset directory and the master key
 
 ---
 
@@ -2294,6 +2324,7 @@ effects on a live change, the decimal precisions, and which properties a load se
 | `/intake` | The land-intake wizard |
 | `/submissions` | The review page |
 | `/graph`, `/model`, `/temporal`, `/things`, `/properties`, `/pipelines`, `/logs` | As chapter 46 describes them |
+| `/requests` | The request log; `?connection=` narrows it to one connection and `?entry=` opens one request |
 
 Every address renders only after sign-in; an unauthenticated visitor sees the sign-in form whatever
 they opened.
@@ -2343,6 +2374,10 @@ from the last sequence applied; the **events stream** carries operational events
 A browser cannot set a header on a stream, so both carry a short-lived **stream pass** in the
 address, minted for every open and reconnect — viewer role, minutes of life, refused on every route
 that is not a stream — because an address is recorded in logs and history where a header is not.
+Each stream sends a heartbeat every fifteen seconds whatever else it sends. It is a comment line
+unless the reader adds `heartbeatAsEvent=true` to the address, and then an event named `Heartbeat`;
+a browser hands a page an event and never a comment, so the console asks for the event and counts a
+stream silent for thirty seconds as failed. Every stream ends when the server begins to stop.
 
 | Event | Carries | On |
 | --- | --- | --- |
@@ -2421,6 +2456,7 @@ Almost every command has an equivalent on the graph page; where one has none, th
 | `pipeline list`, `pipeline run`, `pipeline cancel`, `pipeline history` | The Pipelines page: the palette, **Run**, **Cancel** and the history panel |
 | `events watch` | The Dashboard page's activity feed, without the pause, the filters or the colours |
 | `logs tail`, `logs follow`, `logs download` | The Logs page's tail, live stream and download |
+| `requests latest`, `requests follow`, `requests download`, `requests show` | The Requests page's list, live stream, hour download and entry panel; the Pipelines history panel links a chosen run to its request |
 | `submissions list` | The Submissions page; **Show decided** widens it |
 | `submissions reject` | **Reject** on a row |
 | `submissions promote` | **Promote** on a row, with the dialog for the template, what travels, and the name |
@@ -2431,7 +2467,7 @@ A test reads every `submissions` subcommand off the command line's own handler a
 table names it, so a command added on one branch cannot leave the table quietly incomplete.
 
 ### 89. Authoring a page: the description and its navigation
-A page is a `Dashboard` Thing whose `spec` property holds a description in JSON: a title, an
+A page is a `Dashboard` Thing whose `specification` property holds a description in JSON: a title, an
 optional subtitle and icon, an optional compare block, sections of widgets, an optional detail
 block, and optional translations. The console discovers every such Thing, parses each once, and
 draws one rail entry per page labelled with its translated title and the icon its description names
@@ -2456,7 +2492,7 @@ declares and be drawn as a tile, carry `facts: true` to be drawn beside the map,
 the closing view (chapter 94).
 
 **When a description is wrong**, the reader gets something to act on rather than a blank page: a
-`spec` that is not readable is still listed under the Thing's name and says so when opened; a
+`specification` that is not readable is still listed under the Thing's name and says so when opened; a
 description with no sections draws its title and says the view is empty; a widget of a kind this
 build does not know draws a card naming the kind, and every other widget draws; a binding that
 resolves to nothing reads as *absent*, never as zero. The seed validator resolves the model names a
@@ -2562,7 +2598,7 @@ an inbound one is refused; a refused question resolves to nothing rather than to
 ```json
 { "type": "kpi", "title": "Water pumped", "format": "integer",
   "value": { "kind": "latest", "series": { "kind": "timeseries", "archetype": "PumpRun",
-             "happenedAt": "finishedAt", "property": "litres", "op": "sum",
+             "happenedAt": "finishedAt", "property": "litres", "reduction": "sum",
              "bucketSeconds": 900, "buckets": 32, "bucketsPerPoint": 4 } } }
 ```
 
@@ -2654,8 +2690,8 @@ translated. No request: the definition travels with the Thing.
 dispatched on a Thing — the connection, when the platform last tried, how it ended, and what the
 service said — read from the handled relationships and dispatch records the platform leaves in the
 model, found by the marks it puts on its own wiring. Only the subject of a relationship counts as
-handled. The platform stamps a dispatch's state onto the relationship rather than as a committed
-Fact, so each dispatched relationship is read back in the same request round as the states.
+handled. The platform announces no change to a dispatch's state on the live stream, so each
+dispatched relationship is read back in the same request round as the states.
 
 **Why a service decided about a Thing.** For a Thing a service decided about, the card opens a second
 block: the kind of decision, the instant, what was chosen and the rule it was decided under. Both halves
@@ -2718,7 +2754,7 @@ there as a list of sections. The themes reach the public pages through the intak
 route, found by the mark.
 
 **What a page is sent.** A page opens the subscription its description implies (chapter
-85), so a binding reaches its subject either by naming it or by walking to it; a
+87), so a binding reaches its subject either by naming it or by walking to it; a
 Thing the description never mentions is not sent, and a binding over it resolves to nothing. A walk
 of two steps is asked for as one path, because the second step applied to the scope entity would
 reach nothing.
@@ -2800,7 +2836,7 @@ runs it during a play and keeps the file with its readings.
 | **Step 0, 1, 2** | The three steps of reacting to a change: derived values, then states, then bindings |
 | **Predicate** | The name of a relationship's kind; itself a Thing. `is` is the only built-in |
 | **Range** | A named condition over a Thing's values; the states a Thing holds are the ranges that hold |
-| **Retention** | How much history a property keeps: everything, a ring buffer, a sample, or the current value only |
+| **Retention** | How much history a property keeps: everything, a ring buffer in memory, a sample by observations or by time, or the current value only |
 | **Rings** | The store of every value over time, in three layers |
 | **Seed** | The file a model is planted from; also the shape of a template and a fragment |
 | **Selector** | What a subscription names: everything, or identifiers, names, kinds, marks and walks, and which relationships travel with them |
@@ -2822,7 +2858,7 @@ runs it during a play and keeps the file with its readings.
 | Arithmetic | `+`, `-`, `*`, `/`, parentheses | `storedM3 / dailyDemandM3 > 14` |
 | Logic | `AND`, `OR`, `NOT` | `NOT (maintenance = true)` |
 | Membership and pattern | `IN (…)`, `MATCHES 'pattern'` | `status IN ('open', 'held')` |
-| Known or unknown | `IS KNOWN`, `IS UNKNOWN` | `pctOfConsumption IS UNKNOWN` |
+| Known or unknown | `IS KNOWN`, `IS UNKNOWN` | `percentOfConsumption IS UNKNOWN` |
 | A state, own or across a relationship | `self.state HAS 'name'`, `[predicate].state HAS 'name'`, `NOT HAS` | `[poweredBy].state HAS 'Running'` |
 | Quantifiers over related Things | `ANY` (default), `ALL`, `NONE` | `ALL [feeds].quantity > 0` |
 | Totals over related Things | `MIN`, `MAX`, `SUM`, `AVG`, `COUNT` over `[path.Kind].property`, on the left of a comparison | `SUM [<-is.SolarArray].area > 5000` |

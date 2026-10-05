@@ -26,8 +26,8 @@ Everything talks to **Mycelium**, the VillageOS server that stores the graph and
 - Three.js + `@thatopen/fragments` for the IFC Model viewer (loader, picking, plan/section toolbar, and shared `NodeDetailPanel`)
 - Server-Sent Events (SSE) real-time updates with flash effects
 - Zustand state management
-- Config-driven **Operations** dashboard — a model supplies a JSON spec and Trellis renders KPI, chart, funnel, table, and leaderboard widgets against it (the GUI stays domain-agnostic)
-- Dashboard, Operations, Compose, Design, Land intake, Submissions, Graph, Model, Pipelines, Temporal, Things, Properties and Logs pages, plus every page the platform declares for the signed-in account (Accounts and API keys, for an administrator), drawn like a model's own
+- Config-driven **Operations** dashboard — a model supplies a JSON specification and Trellis renders KPI, chart, funnel, table, and leaderboard widgets against it (the GUI stays domain-agnostic)
+- Dashboard, Operations, Compose, Design, Land intake, Submissions, Graph, Model, Pipelines, Temporal, Things, Properties, Logs and Requests pages, plus every page the platform declares for the signed-in account (Accounts and API keys, for an administrator), drawn like a model's own
 
 ### Taproot (CLI)
 
@@ -91,16 +91,17 @@ npm run lint     # Lint
 ```
 
 The build runs `npm run lint`, `npm test` and `npm run build`, so a failure in any of them fails the
-build — and on `develop` stops the wiki publish and the GitHub mirror. It runs when `develop` or
-`main` moves and when a pull request into `develop` is validated; a push to a branch with no pull
-request open builds nothing. Run them before pushing rather than finding out from the build.
+build — and on `develop` stops the wiki publish and the wiki mirror. It runs when `develop` or
+`main` moves and for every pull request into `develop` or `main` on GitHub; a pull request from
+outside the organisation waits for an owner's comment. Run them before pushing rather than finding
+out from the build.
 
 A build **against `main`** compiles Release — a merge to it, and a pull request targeting it, since
 a merge is too late to learn that Release does not compile. Every other build compiles Debug, which
 is what you run locally. The difference is not only optimization here: `MyceliumClientBase` throws
 on an outbound contract violation in Debug and logs it in Release. `develop` is the branch that
-publishes: the documentation to the project wiki, and the repository and that wiki to GitHub, so
-what is public is what has been integrated rather than what was last promoted.
+publishes the documentation to the project wiki and copies that wiki to the GitHub wiki. The
+repository itself lives on GitHub; nothing copies it.
 
 `npm test` runs offline. `npm run test:integration` covers what only a live
 platform can answer: that the property type names Trellis holds are

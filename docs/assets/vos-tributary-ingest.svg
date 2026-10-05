@@ -60,7 +60,7 @@
   <text x="820" y="194" fill="#9be8b4" font-size="10">→ EntityCreated + PropertyValueAsserted × each seeded property</text>
 
   <g filter="url(#sh)"><rect x="804" y="218" width="500" height="44" rx="10" fill="#11301f" stroke="#34d399" stroke-width="1.1"/></g>
-  <text x="820" y="237" fill="#bbf7d0" font-size="11.5" font-weight="700">SetPropertyMode(prop, "Sampled")</text>
+  <text x="820" y="237" fill="#bbf7d0" font-size="11.5" font-weight="700">SetPropertyMode(prop, "SampledByTime", 60)</text>
   <text x="820" y="253" fill="#9be8b4" font-size="10">→ PropertyModeSet — bounds retention for the series</text>
 
   <g filter="url(#sh)"><rect x="804" y="272" width="500" height="56" rx="10" fill="#11301f" stroke="#34d399" stroke-width="1.1"/></g>
@@ -95,7 +95,7 @@
   <text x="1374" y="500" fill="#7dd3fc" font-size="10.5" font-weight="700" text-anchor="middle">Rings</text>
   <text x="1374" y="516" fill="#9fc7cf" font-size="9" text-anchor="middle">Canopy→</text>
   <text x="1374" y="528" fill="#9fc7cf" font-size="9" text-anchor="middle">Sapwood</text>
-  <text x="1374" y="544" fill="#9fc7cf" font-size="9" text-anchor="middle">(Sampled)</text>
+  <text x="1374" y="544" fill="#9fc7cf" font-size="9" text-anchor="middle">(by time, 60 s)</text>
   <text x="1374" y="566" fill="#9fc7cf" font-size="9" text-anchor="middle">current value</text>
   <text x="1374" y="582" fill="#9fc7cf" font-size="9" text-anchor="middle">Hyphae → SSE</text>
 
@@ -127,7 +127,7 @@
   <text x="74" y="496" fill="#cbd5cd" font-size="12.5" font-weight="700">Worked example — sensor-12 (new)</text>
   <circle cx="82" cy="520" r="5" fill="#34d399"/>
   <text x="96" y="524" fill="#bfe9d4" font-size="11">reading[0] → <tspan font-weight="700">3 Facts</tspan>: EntityCreated, temp=22.7,</text>
-  <text x="96" y="540" fill="#9fb3ab" font-size="11">flow=3.1 (+ Sampled mode + observed relationship)</text>
+  <text x="96" y="540" fill="#9fb3ab" font-size="11">flow=3.1 (+ SampledByTime mode + observed relationship)</text>
   <circle cx="82" cy="566" r="5" fill="#22d3ee"/>
   <text x="96" y="570" fill="#c5e9ec" font-size="11">reading[1] → <tspan font-weight="700">1 Observation</tspan> (temp 22.9 @ 14:05)</text>
   <circle cx="82" cy="592" r="5" fill="#22d3ee"/>

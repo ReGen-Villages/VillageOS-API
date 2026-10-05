@@ -120,10 +120,10 @@
   <path d="M1040,370 L1040,448" fill="none" stroke="#4f7d68" stroke-width="1.4"/>
   <rect x="980" y="448" width="246" height="94" rx="10" fill="#0e1a15" stroke="#2f4a3e" stroke-width="1"/>
   <text x="996" y="468" fill="#9be8b4" font-size="10.5" font-weight="700">Retention · PropertyMode (per property)</text>
-  <text x="996" y="484" fill="#9fb3ab" font-size="9.5">CurrentOnly · RingBuffer · Sampled · FullHistory</text>
-  <text x="996" y="499" fill="#9fb3ab" font-size="9.5">CurrentOnly = current value only, no history</text>
-  <text x="996" y="515" fill="#9fb3ab" font-size="9.5">RingBuffer / Sampled bound the series;</text>
-  <text x="996" y="530" fill="#9fb3ab" font-size="9.5">FullHistory keeps everything</text>
+  <text x="996" y="484" fill="#9fb3ab" font-size="9.5">CurrentOnly · RingBuffer · FullHistory ·</text>
+  <text x="996" y="499" fill="#9fb3ab" font-size="9.5">SampledByObservations · SampledByTime</text>
+  <text x="996" y="515" fill="#9fb3ab" font-size="9.5">only the sampled modes bound the series;</text>
+  <text x="996" y="530" fill="#9fb3ab" font-size="9.5">CurrentOnly keeps none, the rest keep all</text>
 
   <g filter="url(#sh)"><rect x="1070" y="250" width="250" height="120" rx="12" fill="#102a1c" stroke="#34d399" stroke-width="1.5"/></g>
   <text x="1088" y="274" fill="#6ee7b7" font-size="13.5" font-weight="700">🍄 Cascade</text>
