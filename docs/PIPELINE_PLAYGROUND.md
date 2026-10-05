@@ -30,7 +30,9 @@ on arrival. On the right are the **outputs** and, under them, the **services**.
 
 - **Catalysts (left)** — what starts a run, by kind: a state a Thing enters, a kind of message an external
   system sends, a request. Click one to place a start node standing for it; **By hand** places a start
-  filled from the run's parameters.
+  filled from the run's parameters. A state row whose entries go to a service other than the
+  orchestrator names the drawing and that service, and offers **Handle with the orchestrator**, which
+  rebinds the state's connection so entering the state starts the drawing.
 - **Roster (left, beside the catalysts)** — the model's pipelines. Click one to open it.
 - **Outputs (right)** — the answer, the other pipelines and the external systems. Click one to place an end
   node.
@@ -93,7 +95,7 @@ These bind inputs to **run parameters** — the **Params** bar appears above the
 | Pipeline | What it shows |
 |----------|---------------|
 | **Readings Arrive** | A start standing for the kind of message the `Sensor gateway` sends — a batch of readings arriving at a connection — ending at the answer. |
-| **Daily Report** | A pipeline ending at the `Reporting office`, an external system that is told the report. |
+| **Daily Report** | A pipeline ending at the `Reporting office`, an external system that is told the report. The office is told through `tells Reporting office`, a connection bound to the `Publish` stand-in, so the rail also lists that connection as a relationship row; a run writes a sent message the server delivers to it once. |
 
 ## Running a pipeline
 

@@ -19,10 +19,9 @@ page:
   a name collision rather than silently overwriting.
 - **Rewrites internal links** — `[Delta](/Services/Delta)` →
   `[Delta](https://github.com/ReGen-Villages/VillageOS-API/wiki/Delta)`.
-- **Rewrites DevOps repo links** — `…/_git/VillageOS-API?path=/docs/X.md` →
-  `…/blob/develop/docs/X.md`; bare relative `X.md` links → `…/blob/develop/docs/X.md`.
-  The branch is the one the build's *Mirror to GitHub* step pushes; a test reads the build file to
-  hold the two together.
+- **Rewrites bare relative links** — `X.md` → `…/blob/develop/docs/X.md`. The branch is the one
+  the build's *Mirror Wiki to GitHub* step runs on; a test reads the build file to hold the two
+  together.
 - **Rewrites the DevOps `_wiki` root** → the GitHub wiki root.
 - **Strips private-only `_boards` links** to plain text (no public equivalent).
 - **Converts mermaid** — DevOps `::: mermaid … :::` → GitHub ` ```mermaid … ``` `.
@@ -55,4 +54,5 @@ One-time prerequisites:
 - **`AZURE_DEVOPS_PAT`** — a secret pipeline variable holding a PAT with *Code: Read*
   on the project wiki repo. `System.AccessToken` cannot be used here (it is scoped to
   checked-out repos only, so cloning the wiki with it fails TF401019).
-- **`GITHUB_PAT`** — the same secret pipeline variable used by the repo mirror.
+- **`GITHUB_PAT`** — a secret pipeline variable holding a classic GitHub token with repo scope,
+  which pushes to the GitHub wiki.
