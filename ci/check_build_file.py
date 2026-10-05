@@ -2,8 +2,10 @@
 
 A widened trigger, a configuration that no longer follows the branch, and a publishing step gated
 to main all produce more green builds rather than a failure, so nothing in a build result would
-look wrong. A job with no time limit shows nothing in a green build either, and holds a shared agent
-for an hour on a red one. This reads the build file and says what has drifted.
+look wrong. A pull request trigger that names no branch produces no build at all, which the GitHub
+branch rules then read as a pull request that cannot merge. A job with no time limit shows nothing in
+a green build either, and holds a shared agent for an hour on a red one. This reads the build file
+and says what has drifted.
 
 Stock Python: the build agents carry python3 and nothing else, and a guard that needed installing
 would be one more thing able to fail.
@@ -12,19 +14,23 @@ would be one more thing able to fail.
 MAIN = 'refs/heads/main'
 DEVELOP = 'refs/heads/develop'
 
-# develop is the branch that moves, so develop is what the public copy follows: gated to main it
-# published nothing at all, because main has never been promoted. The wiki mirror publishes whatever
-# the docs publish left on the project wiki, so the pair only agree while both run on the same
-# branch — which is why a condition naming main is refused whether it moved the step there or
-# widened it to both.
-PUBLISHING_STEPS = ('Publish Docs to Wiki', 'Mirror to GitHub', 'Mirror Wiki to GitHub')
+# The wiki describes develop, the branch that moves. The wiki mirror publishes whatever the docs
+# publish left on the project wiki, so the pair only agree while both run on the same branch — which
+# is why a condition naming main is refused whether it moved the step there or widened it to both.
+PUBLISHING_STEPS = ('Publish Docs to Wiki', 'Mirror Wiki to GitHub')
 
 # A build against main compiles Release, which is what a release is built in; everything else
-# compiles Debug, which is what a developer runs. Both branch variables, because a pull request into
-# main has to compile Release too — a merge is too late to learn that it does not.
-CONFIGURATION_MUST_READ = (
-    MAIN, 'Release', 'Debug', 'Build.SourceBranch', 'System.PullRequest.TargetBranch',
-)
+# compiles Debug, which is what a developer runs. A pull request into main has to compile Release
+# too — a merge is too late to learn that it does not.
+CONFIGURATION_MUST_READ = (MAIN, 'Release', 'Debug', 'Build.SourceBranch')
+
+# A repository on GitHub gives a pull request's target as the bare branch name, where Azure Repos gave
+# the full ref; compared against the full ref, a pull request into main compiles Debug and passes.
+PULL_REQUEST_INTO_MAIN = "eq(variables['System.PullRequest.TargetBranch'], 'main')"
+
+# A build that pushes to the repository it builds, as the old copy to GitHub did with a generated
+# commit on top, changes the history every clone has to follow.
+OWN_REPOSITORY = 'github.com/ReGen-Villages/VillageOS-API.git'
 
 # A release is handed over as an archive of the running platform, not as libraries on a package feed:
 # a feed needs a credential scoped for packaging that this organization does not issue, and a
@@ -49,10 +55,10 @@ def indented_block(build_file_text, opening):
     return []
 
 
-def push_trigger_branches(build_file_text):
+def trigger_branches(build_file_text, opening):
     return [
         line.strip()[2:].strip().strip("'\"")
-        for line in indented_block(build_file_text, 'trigger:')
+        for line in indented_block(build_file_text, opening)
         if line.strip().startswith('- ')
     ]
 
@@ -116,9 +122,15 @@ def problems(build_file_text):
     if len(declarations) != 1:
         found.append('Expected one push trigger in the build file, found %d' % len(declarations))
     else:
-        branches = push_trigger_branches(build_file_text)
+        branches = trigger_branches(build_file_text, 'trigger:')
         if branches != ['develop', 'main']:
             found.append('A push must build develop and main only; the trigger names %s' % branches)
+
+    pull_request_branches = trigger_branches(build_file_text, 'pr:')
+    if pull_request_branches != ['develop', 'main']:
+        found.append(
+            'A pull request into develop or main must be built, and no other; the pr block names %s'
+            % pull_request_branches)
 
     configuration = build_configuration_value(build_file_text)
     if not configuration:
@@ -130,6 +142,14 @@ def problems(build_file_text):
             found.append(
                 'A build against main must compile Release and every other build Debug, and '
                 'buildConfiguration never mentions %s' % ', '.join(missing))
+        if PULL_REQUEST_INTO_MAIN not in configuration:
+            found.append(
+                "A pull request into main must compile Release, and only %s names a pull request's "
+                "target as main on GitHub" % PULL_REQUEST_INTO_MAIN)
+
+    if OWN_REPOSITORY in build_file_text:
+        found.append(
+            'The build file names %s, so it pushes to the repository it builds' % OWN_REPOSITORY)
 
     for marker in PACKAGING_MARKERS:
         if marker in build_file_text:

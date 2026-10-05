@@ -1,7 +1,6 @@
-# The build: it runs when develop or main moves and when a branch policy validates a pull request;
-# builds and tests the .NET solution, Trellis, the tools and the echo services; publishes test results
-# and coverage; and on develop publishes the docs to the project wiki and mirrors the repository and
-# the wiki to GitHub.
+# The build: it runs when develop or main moves and for every pull request into either; builds and
+# tests the .NET solution, Trellis, the tools and the echo services; publishes test results and
+# coverage; and on develop publishes the docs to the project wiki and mirrors that wiki to GitHub.
 
 # A feature branch is built when its pull request is validated and again after the merge; building
 # every push as well took an agent from the pool a third time for a result nothing waits on.
@@ -11,10 +10,13 @@ trigger:
       - develop
       - main
 
-# Pull requests are still built: the branch policy on develop queues this pipeline itself, against
-# the merge commit, and reads nothing here. Azure Repos ignores this block entirely — it applies
-# only to a pipeline driven from GitHub.
-pr: none
+# A pull request is built against its merge commit. One from outside the organisation waits for an
+# owner's comment and never receives the secret values; both are pipeline settings, not in this file.
+pr:
+  branches:
+    include:
+      - develop
+      - main
 
 pool:
   name: 'Amsterdam'
@@ -30,12 +32,14 @@ variables:
   # until now the build exercised neither the policy developers run nor a branch that could fail on
   # it first.
   #
+  # GitHub gives a pull request's target as the bare branch name, not the full ref.
+  #
   # A runtime expression rather than ${{ }}: the pull-request variables are not populated when a
   # compile-time expression is evaluated, so the target branch would read as empty on every build.
   # Replacing the two values a boolean can have is how a configuration name comes out of it, because
   # Azure Pipelines has no conditional operator.
   - name: buildConfiguration
-    value: $[ replace(replace(or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq(variables['System.PullRequest.TargetBranch'], 'refs/heads/main')), 'True', 'Release'), 'False', 'Debug') ]
+    value: $[ replace(replace(or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq(variables['System.PullRequest.TargetBranch'], 'main')), 'True', 'Release'), 'False', 'Debug') ]
   - name: testResultsDirectory
     value: '$(Agent.TempDirectory)/TestResults'
   # MSBuild's worker processes outlive the build that started them by a quarter of an hour — here,
@@ -63,8 +67,8 @@ jobs:
     clean: true
 
   # Fail fast if proprietary engine code ever reappears in the public repo (it must not — the
-  # engine lives only in the private VillageOS repo). Runs before build AND before the GitHub
-  # mirror step (which is gated on succeeded()), so a violation can never be published.
+  # engine lives only in the private VillageOS repo). Runs before the build, so a pull request that
+  # brings it back fails before anything else.
   #
   # A script rather than the greps this used to be, because those could not be proved and one of them
   # was wrong in a way nobody could see: it matched a prefix, so it refused the one piece of the engine
@@ -242,7 +246,7 @@ jobs:
   # lint errors accumulated across the pages, panels and hooks with nothing to fail, and the
   # GUI test suite — the guard for the binding resolver, the property panels and the live-update path
   # — had never gated a merge. Each step runs even when an earlier one failed, so one run reports
-  # every problem rather than one per push. They sit ahead of the mirror and the wiki publish, whose
+  # every problem rather than one per push. They sit ahead of the wiki publish and its mirror, whose
   # succeeded() conditions then stop a red GUI from being published.
   - script: npm ci
     displayName: 'Install Trellis dependencies'
@@ -325,49 +329,13 @@ jobs:
     displayName: 'Build Summary'
     condition: always()
 
-  # Mirror to GitHub, on develop only. Requires pipeline variable GITHUB_PAT (secret) — fine-grained PAT with
-  # Contents:Read+Write on ReGen-Villages/VillageOS-API, or a classic token with repo scope.
-  # Set in Azure DevOps > Pipelines > Edit > Variables
-  - bash: |
-      # Without this the step's exit code is the final git push's, so anything failing before it goes
-      # unreported — which is how an unrewritten README reached the public mirror.
-      set -euo pipefail
-      git remote add github "https://x-access-token:${GITHUB_PAT}@github.com/ReGen-Villages/VillageOS-API.git" 2>/dev/null || true
-
-      # Rewrite Azure DevOps wiki URLs → GitHub wiki URLs so the GitHub README
-      # links to the GitHub wiki (the canonical README keeps DevOps links).
-      # The canonical README uses the ID-stable pagePath form
-      # (.../VillageOS-API-Wiki?pagePath=%2FPage); the page name maps to the
-      # GitHub wiki slug. The wiki-root link and the VillageOS project link are
-      # rewritten by exact match. Keep these patterns in sync with README.md.
-      # Written through a temporary file rather than edited in place: `sed -i` means "no backup" to
-      # GNU sed and "the next argument is the backup extension" to the BSD sed macOS ships, and the
-      # agents are macOS.
-      sed \
-        -e 's|https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2F\([^)]*\)|https://github.com/ReGen-Villages/VillageOS-API/wiki/\1|g' \
-        -e 's|\[VillageOS\](https://dev.azure.com/ReGenVillages/VillageOS)|VillageOS|g' \
-        -e 's|\[VillageOS API Wiki\](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki)|[VillageOS API Wiki](https://github.com/ReGen-Villages/VillageOS-API/wiki)|g' \
-        README.md > "$AGENT_TEMPDIRECTORY/README.mirror.md"
-      mv "$AGENT_TEMPDIRECTORY/README.mirror.md" README.md
-      git add README.md
-      git -c user.name="Azure Pipelines" -c user.email="azuredevops@regenvillages.com" \
-        commit -m "ci: rewrite wiki links for GitHub mirror" --allow-empty || true
-
-      # Fully-qualified ref so the first push to a freshly (re)created empty repo works —
-      # a short ref (HEAD:develop) only resolves when the branch already exists on the remote.
-      git push github "HEAD:refs/heads/develop" --force
-    displayName: 'Mirror to GitHub'
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
-    env:
-      GITHUB_PAT: $(GITHUB_PAT)
-
   # Publish the docs to the project wiki, on develop only.
   # The repository is the source of truth for the wiki: tools/docs-to-wiki generates every page
   # from a document listed in its manifest. This runs before the GitHub wiki mirror below, so a
   # single build carries a documentation change from the merge all the way to the public GitHub
-  # wiki — and on the same branch the repository mirror runs on, because that mirror publishes
-  # whatever this step left on the project wiki. Split across two branches, the public wiki would
-  # describe one branch beside the other branch's code.
+  # wiki — and on the same branch as that mirror, because it publishes whatever this step left on
+  # the project wiki. Split across two branches, the public wiki would describe one branch beside
+  # the other branch's code.
   #
   # Prerequisite: AZURE_DEVOPS_PAT needs the Wiki scope, Read & Write. Publishing goes through the
   # wiki REST API rather than git precisely so that is enough: a project wiki is a git repository,
@@ -404,8 +372,8 @@ jobs:
   #     bypasses that scoping. Declaring the wiki as a repository resource does NOT
   #     extend the scoped token (verified), and a `checkout: wiki` step would remap
   #     the self-repo source dir and break the build.
-  #   - GITHUB_PAT: classic token with repo scope (covers both the repo push and the
-  #     wiki push; fine-grained PATs cannot reliably push to GitHub wikis).
+  #   - GITHUB_PAT: classic token with repo scope (fine-grained PATs cannot reliably push to
+  #     GitHub wikis).
   - bash: |
       set -euo pipefail
       SRC="$AGENT_TEMPDIRECTORY/devops-wiki"

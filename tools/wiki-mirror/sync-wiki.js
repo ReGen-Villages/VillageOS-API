@@ -22,8 +22,8 @@ const WIKI = `${REPO}/wiki`;
 const RAW_WIKI = 'https://raw.githubusercontent.com/wiki/ReGen-Villages/VillageOS-API';
 // The folder the wiki generator attaches every image to, on both wikis.
 const ATTACHMENTS = '.attachments';
-// The branch GitHub file links point at: the one the repository mirror pushes, which the build file
-// names in its "Mirror to GitHub" step. A link against any other branch answers 404, and the test
+// The branch GitHub file links point at: the one the build mirrors the wiki from, which the build file
+// names in its "Mirror Wiki to GitHub" step. A link against any other branch answers 404, and the test
 // beside this reads the build file so the two cannot drift apart again.
 const REPO_BRANCH = 'develop';
 
@@ -58,33 +58,27 @@ function convert(content) {
     '$1'
   );
 
-  // 2. DevOps repo file links (?path=/...) -> GitHub blob links.
-  out = out.replace(
-    /https?:\/\/dev\.azure\.com\/ReGenVillages\/VillageOS-API\/_git\/VillageOS-API\?path=(\/[^)\s]+)/g,
-    (_m, p) => `${REPO}/blob/${REPO_BRANCH}${p}`
-  );
-
-  // 3. DevOps wiki root (VillageOS%20API or VillageOS-API) -> GitHub wiki root.
+  // 2. DevOps wiki root (VillageOS%20API or VillageOS-API) -> GitHub wiki root.
   out = out.replace(
     /https?:\/\/dev\.azure\.com\/ReGenVillages\/VillageOS(?:%20|-)API\/_wiki(?:\/[^)\s]*)?/g,
     WIKI
   );
 
-  // 4. Attached images: [text](/.attachments/name) -> the raw file on the GitHub wiki repository.
+  // 3. Attached images: [text](/.attachments/name) -> the raw file on the GitHub wiki repository.
   //    Left alone, GitHub resolves the absolute path against github.com itself.
   out = out.replace(
     /\]\((\/\.attachments\/[^)\s]+)\)/g,
     (_m, attachment) => `](${RAW_WIKI}${attachment})`
   );
 
-  // 5. Internal wiki links: [text](/Page) or [text](/Folder/Page) -> absolute
+  // 4. Internal wiki links: [text](/Page) or [text](/Folder/Page) -> absolute
   //    GitHub wiki URL. Folders are flattened, so only the last segment is used.
   out = out.replace(
     /\]\((\/[A-Za-z0-9%][^)\s]*)\)/g,
     (_m, p) => `](${WIKI}/${pageSlug(p)})`
   );
 
-  // 6. Stray relative repo-doc links: [text](Foo.md) or [text](docs/Foo.md)
+  // 5. Stray relative repo-doc links: [text](Foo.md) or [text](docs/Foo.md)
   //    -> GitHub blob link. A bare name is assumed to live under docs/.
   out = out.replace(
     /\]\((?!https?:\/\/|\/|#)([^)\s]+\.md)\)/g,
@@ -95,7 +89,7 @@ function convert(content) {
     }
   );
 
-  // 7. Mermaid: DevOps ":::​ mermaid ... :::" -> GitHub "```mermaid ... ```".
+  // 6. Mermaid: DevOps ":::​ mermaid ... :::" -> GitHub "```mermaid ... ```".
   out = convertMermaid(out);
 
   return out;

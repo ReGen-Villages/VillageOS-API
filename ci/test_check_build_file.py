@@ -5,6 +5,14 @@ from check_build_file import problems
 
 REPOSITORY_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+PULL_REQUEST_TRIGGER = """\
+pr:
+  branches:
+    include:
+      - develop
+      - main
+"""
+
 PREAMBLE = """\
 trigger:
   branches:
@@ -12,10 +20,11 @@ trigger:
       - develop
       - main
 
+""" + PULL_REQUEST_TRIGGER + """
 variables:
   - name: buildConfiguration
     value: $[ replace(replace(or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), \
-eq(variables['System.PullRequest.TargetBranch'], 'refs/heads/main')), 'True', 'Release'), \
+eq(variables['System.PullRequest.TargetBranch'], 'main')), 'True', 'Release'), \
 'False', 'Debug') ]
 
 """
@@ -32,10 +41,6 @@ jobs:
     displayName: 'Publish Docs to Wiki'
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
 
-  - bash: echo mirror
-    displayName: 'Mirror to GitHub'
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
-
   - task: SomeTask@1
     displayName: 'Mirror Wiki to GitHub'
     inputs:
@@ -49,10 +54,6 @@ STEPS_IN_NO_JOB = PREAMBLE + """\
 steps:
 - bash: echo publish
   displayName: 'Publish Docs to Wiki'
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
-
-- bash: echo mirror
-  displayName: 'Mirror to GitHub'
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
 
 - task: SomeTask@1
@@ -89,25 +90,54 @@ class CheckBuildFileTests(unittest.TestCase):
 
     def test_a_configuration_blind_to_pull_requests_is_reported(self):
         branch_only = COMPLIANT.replace(
-            "eq(variables['System.PullRequest.TargetBranch'], 'refs/heads/main')), ", '), ')
+            "eq(variables['System.PullRequest.TargetBranch'], 'main')), ", '), ')
 
         self.assertIn('System.PullRequest.TargetBranch', problems(branch_only)[0])
+
+    def test_a_pull_request_target_compared_in_the_azure_repos_form_is_reported(self):
+        azure_repos_form = COMPLIANT.replace(
+            "eq(variables['System.PullRequest.TargetBranch'], 'main')",
+            "eq(variables['System.PullRequest.TargetBranch'], 'refs/heads/main')")
+
+        self.assertIn("names a pull request's target as main", problems(azure_repos_form)[0])
+
+    def test_a_build_file_that_builds_no_pull_request_is_reported(self):
+        unbuilt = COMPLIANT.replace(PULL_REQUEST_TRIGGER, 'pr: none\n')
+
+        self.assertIn('the pr block names []', problems(unbuilt)[0])
+
+    def test_a_pull_request_trigger_that_leaves_out_main_is_reported(self):
+        develop_only = COMPLIANT.replace(
+            PULL_REQUEST_TRIGGER, PULL_REQUEST_TRIGGER.replace('      - main\n', ''))
+
+        self.assertIn("the pr block names ['develop']", problems(develop_only)[0])
+
+    def test_a_step_that_pushes_to_the_repository_it_builds_is_reported(self):
+        mirroring = COMPLIANT + (
+            "\n  - bash: git push https://github.com/ReGen-Villages/VillageOS-API.git HEAD:refs/heads/develop\n"
+            "    displayName: 'Mirror to GitHub'\n")
+
+        self.assertIn('pushes to the repository it builds', problems(mirroring)[0])
+
+    def test_pushing_the_wiki_is_not_pushing_the_repository(self):
+        self.assertEqual([], problems(COMPLIANT.replace(
+            'script: echo wiki', 'script: git push https://github.com/ReGen-Villages/VillageOS-API.wiki.git')))
 
     def test_a_publishing_step_moved_to_main_is_reported(self):
         on_main = COMPLIANT.replace(
             "    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))\n\n"
-            "  - bash: echo mirror",
+            "  - task: SomeTask@1",
             "    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))"
-            "\n\n  - bash: echo mirror")
+            "\n\n  - task: SomeTask@1")
 
         self.assertIn('"Publish Docs to Wiki" must run on develop only', problems(on_main)[0])
 
     def test_a_publishing_step_widened_to_both_branches_is_reported(self):
         on_both = COMPLIANT.replace(
             "    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))\n\n"
-            "  - bash: echo mirror",
+            "  - task: SomeTask@1",
             "    condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/develop'), "
-            "eq(variables['Build.SourceBranch'], 'refs/heads/main')))\n\n  - bash: echo mirror")
+            "eq(variables['Build.SourceBranch'], 'refs/heads/main')))\n\n  - task: SomeTask@1")
 
         self.assertIn('"Publish Docs to Wiki" must run on develop only', problems(on_both)[0])
 
