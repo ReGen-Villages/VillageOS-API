@@ -26,7 +26,7 @@ Everything talks to **Mycelium**, the VillageOS server that stores the graph and
 - Three.js + `@thatopen/fragments` for the IFC Model viewer (loader, picking, plan/section toolbar, and shared `NodeDetailPanel`)
 - Server-Sent Events (SSE) real-time updates with flash effects
 - Zustand state management
-- Config-driven **Operations** dashboard — a model supplies a JSON spec and Trellis renders KPI, chart, funnel, table, and leaderboard widgets against it (the GUI stays domain-agnostic)
+- Config-driven **Operations** dashboard — a model supplies a JSON specification and Trellis renders KPI, chart, funnel, table, and leaderboard widgets against it (the GUI stays domain-agnostic)
 - Dashboard, Operations, Compose, Design, Land intake, Submissions, Graph, Model, Pipelines, Temporal, Things, Properties and Logs pages, plus every page the platform declares for the signed-in account (Accounts and API keys, for an administrator), drawn like a model's own
 
 ### Taproot (CLI)

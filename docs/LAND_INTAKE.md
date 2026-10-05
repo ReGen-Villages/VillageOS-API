@@ -268,7 +268,7 @@ before the questions.
 - **The report is a grid of tiles.** Each section of the submission dashboard that names a theme the
   model declares is a tile faced in the theme's colour and icon; its figures show on hover or focus,
   a click opens its charts as a gallery, and a card opens full width. A section naming no theme
-  draws as a list, so the same spec serves the findings page. See
+  draws as a list, so the same specification serves the findings page. See
   [the Field Guide](FIELD_GUIDE.md#94-tiles-and-what-a-page-is-sent).
 - **The only questions are a name for the land, the person's name, and the mailbox** — the same
   verification exchange as the wizard, and nothing else. The programme starts from the default share
@@ -342,8 +342,8 @@ the work.
     ]
   },
   "allocations": [                            // shares are taken as given and normalised later
-    { "category": "residential", "sharePct": 22 },
-    { "category": "food-and-agriculture", "sharePct": 34 }
+    { "category": "residential", "sharePercent": 22 },
+    { "category": "food-and-agriculture", "sharePercent": 34 }
     // …one entry per category, each naming a category only once
   ],
   "hazards": [                                // no level here: that is read from the source
@@ -361,7 +361,7 @@ the work.
 ```
 
 **An allocation carries a share and nothing else.** The shared analysis declares
-`allocatedAreaHectares` and `normalisedSharePct` as formulas on the allocation itself, computed from its
+`allocatedAreaHectares` and `normalisedSharePercent` as formulas on the allocation itself, computed from its
 own share and the parcel its site holds, so a submitted area is a second answer to a question the model
 already answers — and writing one would fail the whole fragment, since a derived property refuses every
 value write. The wire therefore does not take one, and a caller that sends it is told which field by
@@ -686,7 +686,7 @@ A dispatched relationship names the study; the service answers with what it comp
   "subjectId": "…",   // the study             "outputs": {
   "targetId":  "…",                              "solarGenerationMwhPerYear": 1180.4,
   "properties": { }                              "totalGenerationMwhPerYear": 1380.4,
-}                                                "pctOfConsumption": 104.2,
+}                                                "percentOfConsumption": 104.2,
                                                  "netPositive": true
                                                }
                                              }
@@ -838,7 +838,7 @@ Using a synthetic example throughout — **Willow Bend**, a fictional 24-hectare
 | | `householdSize` | 2.4 | Fact |
 | | `solarResourceKwhPerM2PerYear` | 1750 | **Observation** — discovered |
 | | `rainfallMillimetresPerYear` | 700 | **Observation** — discovered |
-| Willow Bend Site Study *(SiteStudy)* | `pctOfConsumption` | 90.7 | Derived — the model computes it, and `EnergyShortOfTarget` judges it |
+| Willow Bend Site Study *(SiteStudy)* | `percentOfConsumption` | 90.7 | Derived — the model computes it, and `EnergyShortOfTarget` judges it |
 | Parcel-01 *(Parcel)* | `boundary` | GeoJSON polygon | Fact |
 | | `measuredAreaHectares` | 23.4 | Fact |
 | | `obtainedBy` → `drawn-by-hand` | a relationship to the Thing | Relationship — the only place it is recorded |
@@ -857,7 +857,7 @@ Each computed output is **declared on the study with its type and no value** unt
 A seeded zero cannot be told from a real result, and a range reading it would report a verdict
 about an analysis that never ran.
 
-**`pctOfConsumption` is answered in one place.** The shared `SiteStudy` archetype declares the formula
+**`percentOfConsumption` is answered in one place.** The shared `SiteStudy` archetype declares the formula
 for it, the model computes it, and that archetype's `EnergyNetPositive` range reads it. A submission's
 study declares no computed output of its own — it `is` the archetype and inherits every one, so there is
 one place the name is answered rather than two that can disagree.
@@ -920,7 +920,7 @@ times energy per person until somebody states a figure or the model holds occupi
 of energy ranges judges the balance throughout. The estimate stays on the study as
 `estimatedArrayAreaM2`, sized on the categories marked `__IsArrayHostCategory` (residential, in the
 shipped programme) at the `arrayCoverageFraction` the shared study declares, and is reported against
-the measured area as `arrayAreaDivergencePct`.
+the measured area as `arrayAreaDivergencePercent`.
 
 ### What the land could support
 
@@ -1280,7 +1280,7 @@ sequenceDiagram
   LI-->>S: a ticket, signed against that address
   S->>LI: POST /submissions/findings { submissionId, emailAddress }<br/>X-Submission-Ticket: …
   LI->>M: the address this reference names
-  LI->>M: the site this reference names, and what the page's own spec walks
+  LI->>M: the site this reference names, and what the page's own specification walks
   LI-->>S: the page to draw, and the reading to draw it from
 ```
 
@@ -1291,14 +1291,14 @@ to whoever tried one.
 **Three things decide what may travel, and all three are the model's.** Which page a submitter may read
 is the Thing marked `__IsSubmitterFindingsDashboard`; what never leaves the model is whatever `is` the
 archetype marked `__IsPersonalDetailArchetype`, dropped whatever walk reached it rather than by trusting
-that no walk does; and the relationships the reading follows are the ones that page's own spec walks. A model
+that no walk does; and the relationships the reading follows are the ones that page's own specification walks. A model
 missing either mark is a deployment that was never seeded for this, answered `503` as an unseeded model
 is — not `200` with a page drawn from a reading nothing was filtered out of.
 
 **The walk is rooted at one site.** A selector naming the archetypes instead would answer with every
 Thing of that kind, which in a staging model is every other submitter's land.
 
-**The page is the model's own dashboard, not a second telling of it.** It renders the same spec, through
+**The page is the model's own dashboard, not a second telling of it.** It renders the same specification, through
 the same resolver and the same widgets the signed-in page uses, so a figure added to that dashboard
 appears for the submitter with no code change, and a balance nobody assessed reads as *not assessed* in
 the same words on both. That works because the resolver opens no connection of its own: see
@@ -1390,7 +1390,7 @@ Most of land intake is the platform's general machinery, pointed at land by data
 | Fetching outside data as configuration, reshaping it, ingesting onto a Thing | Tributary |
 | Validating and registering data sources | Delta |
 | Working out which sources cover a site, calling each, and starting the analysis from what resolved | Forage |
-| Rendering a report from a spec stored in the model | The dashboard pages |
+| Rendering a report from a specification stored in the model | The dashboard pages |
 | Posting a whole submission in one idempotent call | Fragments |
 | Authentication, model isolation, service supervision | Mycelium |
 | Composing a submission into the model's own shape | `vos.Service.Intake` |
@@ -1398,7 +1398,7 @@ Most of land intake is the platform's general machinery, pointed at land by data
 | Anonymous submission: rate limits, size caps, field bounds, a verified address | `vos.Service.Intake`, guarded as [§9](#what-guards-the-route) describes |
 | The public form, the findings page and the plot-first page | A build of their own from `vos.Trellis`, drawn from the intake service because they hold no credential to read the model with — see [§9](#where-the-form-lives) |
 | The parcel boundary at a clicked position, and a place search, answered to a page with no credential | `POST /submissions/parcel-at-position` and `POST /submissions/place-search`, from the registrations marked in the model |
-| Land-intake archetypes, registrations, compute connections, dashboard spec | Data in the platform's templates, not code |
+| Land-intake archetypes, registrations, compute connections, dashboard specification | Data in the platform's templates, not code |
 
 The one message the intake service sends is the verification code. A reviewer's decision is recorded
 in the model and is not mailed to the submitter. A submitter reads their findings with the mailbox

@@ -92,6 +92,20 @@ body and turned it down, and the same body would earn the same answer — record
 handler's own words and never re-driven. A 2xx with no `success` field, or with a body that is not
 JSON, counts as done.
 
+**An acknowledgement, where the connection asks for one.** A connection whose `completion` is `ack`
+or `both` reads a 2xx from `/handle` as accepted. The service then calls
+`POST /api/relationships/{relationshipId}/acknowledgement` with its own token once its work has
+committed. Under `ack` that completes the dispatch (`200`). Under `both` it is recorded, and the
+dispatch completes when the subject reaches the done state (`202`); if the subject has not reached it
+within the connection's `done_within`, counted from the acknowledgement, the dispatch is marked
+failed and not sent again. An acknowledged dispatch is not sent again. Only the service the dispatch
+was sent to, or an administrator, may call it; anyone else gets `403`. A connection that waits for no
+acknowledgement answers `409`.
+
+**Every call carries `Vos-Request-Id`**, naming the broker's request-log entry for that call, so a
+service can quote it in its own log and an operator can find the request in the console's Requests
+page. It is new on every delivery, so it is not a key for recognising a repeat; `relationshipId` is.
+
 ## Registration
 
 - `POST /api/mycelium/register` (Bearer) — `{ handlerId, serviceName, endpointUrl, startCommand, stopEndpoint, healthEndpoint }`
@@ -470,7 +484,7 @@ Bearer-authed POST. Pick by intent:
 | **Fact** | structural truth that must survive replay (status, config, a corrected value) — synchronous, never lossy | `POST /api/things/{id}/properties/{property}/facts` | `{ "value": <scalar> }` | `201 { sequenceNumber, value }` |
 | **Observation** (single) | one sampled telemetry value — queued & batched | `POST /api/things/{id}/properties/{property}/observations` | `{ "value": <scalar>, "observedAt"?: <iso8601> }` | `202` |
 | **Observation** (batch) | many samples across one entity's properties, one call | `POST /api/things/{id}/observations` | `[{ "property", "value", "observedAt"? }]` | `202 { accepted }` |
-| **Sediment** | bulk historical load written straight to sealed Sapwood; entities must already exist; `observedAt` **required** | `POST /api/sediment` | `[{ "thingId", "property", "value", "observedAt" }]` | `202 { batchId, series, buckets, samples }` |
+| **Sediment** | bulk historical load written straight to sealed Sapwood; entities must already exist; `observedAt` **required** | `POST /api/sediment` | `[{ "objectId", "property", "value", "observedAt" }]` | `202 { batchId, series, buckets, samples }` |
 
 **Computed properties refuse every write kind.** A property whose value the platform computes
 — a roll-up over related Things or a formula, serialized with a `typeInfo` of `vos.DecimalRollup`,
@@ -492,7 +506,9 @@ over that property counts it. Write `1` if that is what you mean.
 
 **Runnable demo.** Every reference handler exposes `POST /demo/write-kinds { "thingId": "<existing>" }`,
 which performs one of each kind against a Thing whose `status` accepts Facts and `temperature`/`flow`
-accept Observations.
+accept Observations. A demo route whose call is refused, or cannot be made for want of a credential,
+answers `500` with the reason in `error`, in every reference handler. In the C#, Python and Rust
+handlers a call the platform does not answer in time is answered the same way.
 
 ## Writing structure back: the fragment upsert
 
@@ -538,7 +554,8 @@ never told it created a Thing the model no longer holds live.
   typed envelope (`{ "typeInfo": "vos.Decimal", "value": 2.5 }`) so decimals/measures don't truncate.
 - **An envelope can configure the property, not only value it.** Alongside `typeInfo` and `value` it
   may carry `writeKind` (the `AllowedWriteKinds` gating above: `Both` / `FactOnly` / `ObservationOnly`)
-  and `mode` / `ringBufferSize` / `sampleRate` (the `PropertyMode` and its size — see
+  and `mode` / `ringBufferSize` / `sampleRate` / `sampleSeconds` (the `PropertyMode` and its size, or
+  the slot of a property sampled by time — see
   [TEMPORAL_READS.md](TEMPORAL_READS.md)). This is how a fragment sets up a property that records
   sampled readings, in the same call that creates it:
 
@@ -585,7 +602,7 @@ SedimentDepositResult d = await mycelium.DepositSedimentAsync(new[] {           
 seq, _ := s.setFact(thingID, "status", "active")                                   // Fact
 _ = s.recordObservation(thingID, "temperature", 21.5, time.Now().UTC().Format(time.RFC3339))
 n, _ := s.recordObservations(thingID, []observationSample{{Property: "temperature", Value: 21.7}})
-res, _ := s.depositSediment([]sedimentReading{{ThingID: thingID, Property: "temperature",
+res, _ := s.depositSediment([]sedimentReading{{ObjectID: thingID, Property: "temperature",
     Value: 19.8, ObservedAt: "2026-06-19T12:00:00Z"}})
 ```
 
@@ -596,7 +613,7 @@ const seq = await setFact(cfg, thingId, "status", "active");
 await recordObservation(cfg, thingId, "temperature", 21.5, new Date().toISOString());
 const n = await recordObservations(cfg, thingId, [{ property: "temperature", value: 21.7 }]);
 const res = await depositSediment(cfg, [
-  { thingId, property: "temperature", value: 19.8, observedAt: "2026-06-19T12:00:00Z" },
+  { objectId: thingId, property: "temperature", value: 19.8, observedAt: "2026-06-19T12:00:00Z" },
 ]);
 ```
 
@@ -606,8 +623,7 @@ const res = await depositSediment(cfg, [
 seq = await set_fact(thing_id, "status", "active")
 await record_observation(thing_id, "temperature", 21.5, datetime.now(timezone.utc).isoformat())
 n = await record_observations(thing_id, [{"property": "temperature", "value": 21.7}])
-res = await deposit_sediment([{"thingId": thing_id, "property": "temperature",
-    "value": 19.8, "observedAt": "2026-06-19T12:00:00Z"}])
+res = await deposit_sediment([sediment_reading(thing_id, "temperature", 19.8, "2026-06-19T12:00:00Z")])
 ```
 
 #### Rust
@@ -618,7 +634,7 @@ record_observation(cfg, &http, thing_id, "temperature", json!(21.5), Some("2026-
 let n = record_observations(cfg, &http, thing_id,
     &[ObservationSample { property: "temperature".into(), value: json!(21.7), observed_at: None }]).await?;
 let res = deposit_sediment(cfg, &http,
-    &[SedimentReading { thing_id: thing_id.into(), property: "temperature".into(),
+    &[SedimentReading { object_id: thing_id.into(), property: "temperature".into(),
         value: json!(19.8), observed_at: "2026-06-19T12:00:00Z".into() }]).await?;
 ```
 

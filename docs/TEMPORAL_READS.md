@@ -1,7 +1,8 @@
 # Temporal Reads
 
 VillageOS is a temporal knowledge graph: every property value and relationship carries its
-history, and you can query state "as of now" or "as of a past time." This page is the canonical
+history — as much as the model declares, which is all of it unless the model says otherwise — and
+you can query state "as of now" or "as of a past time." This page is the canonical
 reference for *how* those reads are served — the tiered time-series store behind history queries,
 how data is addressed across tiers, and why current-state reads stay fast.
 
@@ -89,8 +90,8 @@ series pointing at the tier its data moved to. Stubs are avoided because:
 - a single series' history lives across several tiers at once (recent in Canopy, older in
   Sapwood, oldest in Heartwood), so there is no one "moved-to" tier to point at — only a union
   read across the intersecting tiers is correct;
-- data moves continually (compaction, age-out, cache re-warm on restart, late or out-of-order
-  arrivals), so coverage is derived from what is actually stored on each read — reads stay correct
+- data moves continually (a bucket leaving memory by count or by age, age-out, a restart putting
+  back in memory what never reached disk, late or out-of-order arrivals), so coverage is derived from what is actually stored on each read — reads stay correct
   with no bookkeeping to maintain.
 
 The one thing a stub would buy — knowing where the data is without asking the tier — is provided
@@ -105,15 +106,20 @@ per property by its **PropertyMode**:
 | PropertyMode | Kept in Rings |
 |--------------|---------------|
 | **CurrentOnly** | nothing (current value only) |
-| **RingBuffer** | the most recent N samples |
-| **Sampled** | a decimated trend (every Kth sample, or rate-bucketed) |
+| **RingBuffer** | every sample; the most recent N are held in memory |
+| **SampledByObservations** | every Nth reading; memory holds the current value only |
+| **SampledByTime** | the newest reading in each slot of so many seconds; memory holds the current value only |
 | **FullHistory** | every sample, tiered Canopy → Sapwood → Heartwood |
 
 `FullHistory` is the default. A model can set another default for the properties created in it, and
-a property declares its own mode where it differs: a fast-moving reading is usually given
-`RingBuffer` or `Sampled`, so its storage is bounded where it is written. Where a deployment turns
-compaction on (`Persistence:CompactionEnabled`, off by default), a background compactor enforces
-each mode on sealed buckets.
+a property declares its own mode where it differs: a fast-moving reading is usually given one of the
+two sampled modes, so its storage is bounded where it is written, or `RingBuffer`, which bounds only
+what memory holds. Where a deployment turns `Persistence:CompactionEnabled` on (off by default), the
+hot tier keeps only a sampled series' samples as readings arrive; there is no background pass.
+
+Memory holds a `FullHistory` property's first version and its newest ones, within a count and an age
+the model sets (ten versions and an hour unless changed); a past read takes anything older from Rings,
+so these limits bound memory and not history.
 
 ### What a read answers beyond a property's retention
 
@@ -148,6 +154,12 @@ answers about the graph as it stood rather than the graph as it is now:
 
 The instant is taken when the object **joins the model**, not when a client composed it, so composing
 a relationship and inserting it later dates it from the insertion.
+
+Some time after a deletion the server lets the object go from memory. A Thing asked about by itself
+(`GET /api/things/{id}?timestamp=`) is still answered for an instant it stood, from the record of its
+lifetime kept on disk: the name it held then, its values, and its relationships live then, and only
+for a caller the Thing's categories admit. The whole-model read (`GET /api/model?timestamp=`) answers
+only what the server still holds.
 
 ## What a Thing at an instant carries
 
