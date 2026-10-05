@@ -252,6 +252,8 @@ export const ar: WithArabicPluralForms<Resources> = {
       sampleExample: 'مثال: 10',
       sampleSeconds: 'فاصل أخذ العينات (بالثواني)',
       sampleSecondsExample: 'مثال: 60',
+      versionsInMemory: 'إصدارات السجل الكامل المحفوظة في الذاكرة (0 = بلا حد)',
+      secondsInMemory: 'عدد الثواني التي يبقى فيها الإصدار المستبدَل في الذاكرة (0 = بلا حد)',
       updated: 'تم تحديث وضع الخاصية',
       updateFailed: 'تعذّر تحديث وضع الخاصية',
       loadFailed: 'تعذّر قراءة وضع الخاصية',

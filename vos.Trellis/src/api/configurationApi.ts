@@ -5,13 +5,21 @@ export const configurationApi = {
   getDefaultPropertyMode: () =>
     apiClient.get<PropertyModeConfiguration>('/api/config/property-mode'),
 
-  setDefaultPropertyMode: (mode: string, ringBufferSize?: number, sampleRate?: number, sampleSeconds?: number) =>
+  setDefaultPropertyMode: (
+    mode: string,
+    ringBufferSize?: number,
+    sampleRate?: number,
+    sampleSeconds?: number,
+    fullHistoryInMemory?: { versions?: number; seconds?: number },
+  ) =>
     apiClient.action(`set the default property mode to ${mode}`, () =>
       apiClient.put<PropertyModeConfiguration>('/api/config/property-mode', {
         Mode: mode,
         ...(ringBufferSize != null && { RingBufferSize: ringBufferSize }),
         ...(sampleRate != null && { SampleRate: sampleRate }),
         ...(sampleSeconds != null && { SampleSeconds: sampleSeconds }),
+        ...(fullHistoryInMemory?.versions != null && { FullHistoryVersionsInMemory: fullHistoryInMemory.versions }),
+        ...(fullHistoryInMemory?.seconds != null && { FullHistorySecondsInMemory: fullHistoryInMemory.seconds }),
       }),
     ),
 

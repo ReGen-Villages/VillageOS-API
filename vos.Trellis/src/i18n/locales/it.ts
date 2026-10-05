@@ -223,6 +223,8 @@ export const it: PartialResources = {
       sampleExample: 'es. 10',
       sampleSeconds: 'Intervallo di campionamento (secondi)',
       sampleSecondsExample: 'es. 60',
+      versionsInMemory: 'Versioni della cronologia completa mantenute in memoria (0 = nessun limite)',
+      secondsInMemory: 'Secondi per cui una versione sostituita resta in memoria (0 = nessun limite)',
       updated: 'Modalità proprietà aggiornata',
       updateFailed: 'Impossibile aggiornare la modalità proprietà',
       loadFailed: 'Impossibile leggere la modalità proprietà',

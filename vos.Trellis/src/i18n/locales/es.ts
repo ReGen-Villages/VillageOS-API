@@ -223,6 +223,8 @@ export const es: PartialResources = {
       sampleExample: 'p. ej. 10',
       sampleSeconds: 'Intervalo de muestreo (segundos)',
       sampleSecondsExample: 'p. ej. 60',
+      versionsInMemory: 'Versiones del historial completo que se mantienen en memoria (0 = sin límite)',
+      secondsInMemory: 'Segundos que una versión reemplazada permanece en memoria (0 = sin límite)',
       updated: 'Modo de propiedad actualizado',
       updateFailed: 'No se pudo actualizar el modo de propiedad',
       loadFailed: 'No se pudo leer el modo de propiedad',
