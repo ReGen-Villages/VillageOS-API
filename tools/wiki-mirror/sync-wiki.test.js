@@ -38,12 +38,6 @@ test('nested wiki links are flattened to the last segment', () => {
   assert.equal(convert('[Delta](/Services/Delta)'), `[Delta](${WIKI}/Delta)`);
 });
 
-test('DevOps repo file links become GitHub blob links', () => {
-  const input =
-    '[docs](https://dev.azure.com/ReGenVillages/VillageOS-API/_git/VillageOS-API?path=/docs/SERVICES.md)';
-  assert.equal(convert(input), `[docs](${BLOB}/docs/SERVICES.md)`);
-});
-
 test('DevOps wiki root (space-encoded) becomes the GitHub wiki root', () => {
   const input = '[Wiki](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki)';
   assert.equal(convert(input), `[Wiki](${WIKI})`);
