@@ -233,7 +233,7 @@ public class SubmissionFragmentComposerTests
         var refusal = Assert.Throws<ModelNotSeededError>(() => Compose(
             WillowBend.Submission() with
             {
-                Allocations = [new SubmittedAllocation { Category = "residential", SharePct = 100 }],
+                Allocations = [new SubmittedAllocation { Category = "residential", SharePercent =100 }],
             },
             vocabulary));
 
@@ -245,7 +245,7 @@ public class SubmissionFragmentComposerTests
     {
         var composed = Compose(WillowBend.Submission());
 
-        AllocationFor(composed, "residential").Properties["sharePct"].Value.Should().Be(22.0);
+        AllocationFor(composed, "residential").Properties["sharePercent"].Value.Should().Be(22.0);
     }
 
     // The shared analysis declares an allocation's area as a formula over its own share and the parcel its
@@ -257,10 +257,10 @@ public class SubmissionFragmentComposerTests
     {
         var composed = Compose(WillowBend.Submission() with
         {
-            Allocations = [new SubmittedAllocation { Category = "residential", SharePct = 22 }],
+            Allocations = [new SubmittedAllocation { Category = "residential", SharePercent =22 }],
         });
 
-        AllocationFor(composed, "residential").Properties.Keys.Should().Equal("sharePct");
+        AllocationFor(composed, "residential").Properties.Keys.Should().Equal("sharePercent");
     }
 
     // Shares are normalised across the chosen categories further down the analysis, so a set that does not
@@ -270,10 +270,10 @@ public class SubmissionFragmentComposerTests
     {
         var composed = Compose(WillowBend.Submission() with
         {
-            Allocations = [new SubmittedAllocation { Category = "residential", SharePct = 12 }],
+            Allocations = [new SubmittedAllocation { Category = "residential", SharePercent =12 }],
         });
 
-        Allocations(composed).Single().Properties["sharePct"].Value.Should().Be(12.0);
+        Allocations(composed).Single().Properties["sharePercent"].Value.Should().Be(12.0);
     }
 
     // The vocabulary is the model's, so a project whose programme divides differently declares its own terms
@@ -292,7 +292,7 @@ public class SubmissionFragmentComposerTests
         var composed = Compose(
             WillowBend.Submission() with
             {
-                Allocations = [new SubmittedAllocation { Category = "silvopasture", SharePct = 100 }],
+                Allocations = [new SubmittedAllocation { Category = "silvopasture", SharePercent =100 }],
             },
             vocabulary);
 
@@ -308,7 +308,7 @@ public class SubmissionFragmentComposerTests
     {
         var refusal = Assert.Throws<SubmissionError>(() => Compose(WillowBend.Submission() with
         {
-            Allocations = [new SubmittedAllocation { Category = "Silvopasture", SharePct = 100 }],
+            Allocations = [new SubmittedAllocation { Category = "Silvopasture", SharePercent =100 }],
         }));
 
         refusal.Message.Should().Contain("Silvopasture").And.Contain("food-and-agriculture");
@@ -321,7 +321,7 @@ public class SubmissionFragmentComposerTests
     {
         var composed = Compose(WillowBend.Submission() with
         {
-            Allocations = [new SubmittedAllocation { Category = "  Food-And-Agriculture ", SharePct = 100 }],
+            Allocations = [new SubmittedAllocation { Category = "  Food-And-Agriculture ", SharePercent =100 }],
         });
 
         var allocation = Allocations(composed).Single();
@@ -339,8 +339,8 @@ public class SubmissionFragmentComposerTests
         {
             Allocations =
             [
-                new SubmittedAllocation { Category = "Residential", SharePct = 22 },
-                new SubmittedAllocation { Category = " residential ", SharePct = 30 },
+                new SubmittedAllocation { Category = "Residential", SharePercent =22 },
+                new SubmittedAllocation { Category = " residential ", SharePercent =30 },
             ],
         }));
 

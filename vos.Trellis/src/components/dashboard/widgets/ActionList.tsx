@@ -12,7 +12,7 @@ import { actionRequest, complete, nameOf, type Entered } from './writeRequest';
  * The one widget that acts on what it lists. Every other widget reports what the model holds;
  * this records what somebody decided about it.
  *
- * A press posts the row, the choice and whatever the row was asked for to the endpoint the spec
+ * A press posts the row, the choice and whatever the row was asked for to the endpoint the specification
  * names. It sends no actor: the session the request travels under is the only answer to who is
  * asking, and a body naming a person could name somebody else. What the write summons is not
  * decided here either: the endpoint lays down a relationship or a Fact and the model decides what that

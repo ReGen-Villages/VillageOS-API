@@ -11,15 +11,17 @@ import { en } from '../i18n/locales/en';
  * English words do not name does not compile.
  */
 
-const NUMBER_FORMATS: readonly NumberFormat[] = [
-  'integer', 'decimal1', 'decimal2', 'percent', 'percent1', 'pct100', 'hours', 'compact', 'money',
-];
+const EVERY_NUMBER_FORMAT: Record<NumberFormat, true> = {
+  integer: true, decimal1: true, decimal2: true, percent: true, percent1: true, percentOutOf100: true, hours: true,
+  compact: true, bytes: true, money: true,
+};
+const NUMBER_FORMATS = Object.keys(EVERY_NUMBER_FORMAT) as NumberFormat[];
 const DIRECTIONS = ['up-good', 'down-good', 'neither-good'] as const;
 const BOUND_DIRECTIONS = ['up-good', 'down-good'] as const;
 const RENDERS = ['text', 'badge', 'agebar', 'id'] as const;
-const SEVERITIES = ['good', 'warn', 'crit'] as const;
-const SORT_DIRECTIONS = ['asc', 'desc'] as const;
-const REDUCTIONS = ['count', 'sum', 'avg', 'min', 'max'] as const;
+const SEVERITIES = ['good', 'warning', 'critical'] as const;
+const SORT_DIRECTIONS = ['ascending', 'descending'] as const;
+const REDUCTIONS = ['count', 'sum', 'average', 'min', 'max'] as const;
 const FOLDS: readonly HistoryFold[] = ['hour', 'day', 'month', 'year', 'hourOfDay', 'dayOfYear', 'monthOfYear', 'hourOfDay,dayOfYear', 'monthOfYear,hourOfDay', 'all'];
 const FUNCTIONS: readonly HistoryFunction[] = ['Min', 'Max', 'Average', 'Sum', 'Count', 'Percentile', 'ShareWithin', 'CountAtOrBelow', 'CountAbove', 'SumAbove', 'SumBelow'];
 export const FILTER_OPERATORS = ['=', '!=', '>', '>=', '<', '<=', 'in'] as const;
@@ -114,7 +116,7 @@ export const WIDGET_SCHEMAS: Record<Widget['type'], FieldSpecification[]> = {
   ],
   table: [
     title, hint, { key: 'columns', kind: 'columns' }, binding('rows', 'rows'), number('minWidth'), text('sortKey', 'rowKey', true),
-    choice('sortDir', SORT_DIRECTIONS), number('visibleRows'), boolean('searchable'), strings('searchKeys', 'rowKey'), boolean('rowDetail'),
+    choice('sortDirection', SORT_DIRECTIONS), number('visibleRows'), boolean('searchable'), strings('searchKeys', 'rowKey'), boolean('rowDetail'),
   ],
   gantt: [title, hint, binding('rows', 'rows'), strings('ticks'), number('now')],
   leaderboard: [
@@ -149,7 +151,7 @@ export const BINDING_SCHEMAS: Record<Binding['kind'], FieldSpecification[]> = {
   stateCount: [state, text('excludeState', 'state', true), archetype, scope],
   stateList: [state, text('excludeState', 'state', true), archetype, scope, number('limit'), { ...strings('properties', 'property'), derived: true }, computed],
   thingList: [archetype, scope, number('limit'), computed, text('inState', 'state', true), where],
-  aggregate: [archetype, choice('op', REDUCTIONS), property, where, scope],
+  aggregate: [archetype, choice('reduction', REDUCTIONS), property, where, scope],
   property: [thing, property],
   related: [steps, thing, property],
   stateOf: [strings('states', 'state'), thing],
@@ -158,7 +160,7 @@ export const BINDING_SCHEMAS: Record<Binding['kind'], FieldSpecification[]> = {
   origin: [property, thing, steps, { key: 'reads', kind: 'json' }, group('source', [steps, text('resolvedAt', 'property', true)])],
   ratio: [binding('numerator', 'number'), binding('denominator', 'number')],
   compareEntities: [strings('properties', 'property'), computed],
-  timeseries: [archetype, text('happenedAt', 'property', true), property, choice('op', REDUCTIONS), number('bucketSeconds'), number('buckets'), number('bucketsPerPoint'), scope],
+  timeseries: [archetype, text('happenedAt', 'property', true), property, choice('reduction', REDUCTIONS), number('bucketSeconds'), number('buckets'), number('bucketsPerPoint'), scope],
   latest: [binding('series', 'series')],
   service: [text('endpoint', 'endpoint', true), { key: 'body', kind: 'json' }, text('select', undefined, true)],
   history: [property, number('windowSeconds'), list('steps', historyStep)],

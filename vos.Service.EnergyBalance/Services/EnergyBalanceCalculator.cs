@@ -11,11 +11,11 @@ public sealed record EnergyBalanceInputs(
 public sealed record EnergyBalanceOutputs(
     double SolarGenerationMwhPerYear,
     double TotalGenerationMwhPerYear,
-    double PctOfConsumption,
+    double PercentOfConsumption,
     bool NetPositive);
 
 // Site energy balance: solar plus other sources, measured against annual consumption. Net-positive when
-// generation covers consumption. Scale-independent — areas and consumption are inputs. PctOfConsumption
+// generation covers consumption. Scale-independent — areas and consumption are inputs. PercentOfConsumption
 // feeds the EnergyNetPositive range.
 //
 // Solar takes both factors rather than one combined efficiency because a single port accepts a module

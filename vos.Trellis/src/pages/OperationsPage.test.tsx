@@ -90,7 +90,7 @@ function seedStore() {
     t('is', 'is'),
     t('arch-dash', 'Dashboard'),
     t('arch-vil', 'Village'),
-    t('dash1', 'Operations Dashboard', { spec: JSON.stringify(SPECIFICATION) }),
+    t('dash1', 'Operations Dashboard', { specification: JSON.stringify(SPECIFICATION) }),
     t('vil1', 'V-1', { self_sufficiency_rate: 98.9 }),
     t('vil2', 'V-2', { self_sufficiency_rate: 94.1 }),
   ];
@@ -190,9 +190,9 @@ describe('OperationsPage', () => {
     expect(screen.getByText('No dashboard configured')).toBeInTheDocument();
   });
 
-  // The store this page reads holds nothing but what its own spec asks for — every figure above is
+  // The store this page reads holds nothing but what its own specification asks for — every figure above is
   // resolved from that set. What makes the set arrive is the page saying so.
-  it('declares the subscription its spec describes', () => {
+  it('declares the subscription its specification describes', () => {
     renderAt();
 
     expect(declaredSubscriptions).toContainEqual(subscriptionForSpecification(SPECIFICATION as DashboardSpecification, null));
@@ -215,7 +215,7 @@ describe('OperationsPage addressing', () => {
     vi.clearAllMocks();
     seedStore();
     useModelStore.setState((s) => ({
-      things: [...s.things, { Id: 'dash2', Name: 'Roster', Properties: { spec: JSON.stringify(ROSTER_SPECIFICATION) } }],
+      things: [...s.things, { Id: 'dash2', Name: 'Roster', Properties: { specification: JSON.stringify(ROSTER_SPECIFICATION) } }],
       relationships: [
         ...s.relationships,
         { Id: 'dash2-is', Name: 'dash2 is arch-dash', SubjectId: 'dash2', PredicateId: 'is', TargetId: 'arch-dash', Properties: {} },
@@ -278,7 +278,7 @@ describe('OperationsPage section widths', () => {
       things: [
         { Id: 'is', Name: 'is', Properties: {} },
         { Id: 'arch-dash', Name: 'Dashboard', Properties: {} },
-        { Id: 'dash1', Name: 'Widths', Properties: { spec: JSON.stringify(WIDTH_SPECIFICATION) } },
+        { Id: 'dash1', Name: 'Widths', Properties: { specification: JSON.stringify(WIDTH_SPECIFICATION) } },
       ],
       relationships: [
         { Id: 'dash1-is', Name: 'dash1 is arch-dash', SubjectId: 'dash1', PredicateId: 'is', TargetId: 'arch-dash', Properties: {} },
@@ -311,12 +311,12 @@ describe('OperationsPage section widths', () => {
   });
 });
 
-// A spec is model data and can be authored wrong. Every one of these draws something a
+// A specification is model data and can be authored wrong. Every one of these draws something a
 // reader can act on, rather than an empty page that looks like a model with nothing in it.
-describe('OperationsPage on a spec authored wrong', () => {
+describe('OperationsPage on a specification authored wrong', () => {
   function publish(name: string, specification: string) {
     useModelStore.setState((s) => ({
-      things: [...s.things, { Id: name, Name: name, Properties: { spec: specification } }],
+      things: [...s.things, { Id: name, Name: name, Properties: { specification } }],
       relationships: [
         ...s.relationships,
         { Id: `${name}-is`, Name: `${name} is arch-dash`, SubjectId: name, PredicateId: 'is', TargetId: 'arch-dash', Properties: {} },
@@ -329,15 +329,15 @@ describe('OperationsPage on a spec authored wrong', () => {
     seedStore();
   });
 
-  it('names the dashboard whose spec it could not read', () => {
-    publish('Unreadable', '{ "title": "Half a spec"');
+  it('names the dashboard whose specification it could not read', () => {
+    publish('Unreadable', '{ "title": "Half a specification"');
 
     renderAt('/operations/unreadable');
 
     expect(screen.getByText('Unreadable could not be read')).toBeInTheDocument();
   });
 
-  it('tells a spec it could not read apart from a model publishing no dashboard', () => {
+  it('tells a specification it could not read apart from a model publishing no dashboard', () => {
     publish('Unreadable', 'not a specification at all');
 
     renderAt('/operations/unreadable');
@@ -408,7 +408,7 @@ describe('what a live event makes the page ask again', () => {
   function withCadence(): void {
     useModelStore.setState((s) => ({
       things: s.things.map((thing) =>
-        thing.Id === 'dash1' ? { ...thing, Properties: { spec: JSON.stringify({ ...SPECIFICATION, refreshSeconds: 15 }) } } : thing),
+        thing.Id === 'dash1' ? { ...thing, Properties: { specification: JSON.stringify({ ...SPECIFICATION, refreshSeconds: 15 }) } } : thing),
     }));
   }
 
@@ -453,7 +453,7 @@ describe('what a live event makes the page ask again', () => {
     expect(stateReads()).toBe(before);
   });
 
-  it('asks the platform again on the cadence the spec states', async () => {
+  it('asks the platform again on the cadence the specification states', async () => {
     withCadence();
     renderAt();
     expect(await screen.findByText('2')).toBeInTheDocument();
@@ -491,7 +491,7 @@ describe('what a live event makes the page ask again', () => {
 });
 
 // A page the platform declares is drawn exactly as a model's own: one address, the same renderer,
-// and its bindings and presses on the platform route the spec names.
+// and its bindings and presses on the platform route the specification names.
 describe('a page the platform declares', () => {
   const ACCOUNTS: DashboardSpecification = {
     title: 'Accounts',

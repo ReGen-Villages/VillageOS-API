@@ -1269,6 +1269,26 @@ public class MyceliumClientTests
         body.GetProperty("Mode").GetString().Should().Be("CurrentOnly");
         body.TryGetProperty("RingBufferSize", out _).Should().BeFalse();
         body.TryGetProperty("SampleRate", out _).Should().BeFalse();
+        body.TryGetProperty("FullHistoryVersionsInMemory", out _).Should().BeFalse();
+        body.TryGetProperty("FullHistorySecondsInMemory", out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SetDefaultPropertyModeAsync_IncludesTheLimitsOnVersionsInMemoryWhenSupplied_AZeroAmongThem()
+    {
+        JsonElement? capturedBody = null;
+        var (client, _) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            capturedBody = ReadJsonBody(req);
+            return JsonResponse("{}");
+        });
+
+        await client.SetDefaultPropertyModeAsync("FullHistory", fullHistoryVersionsInMemory: 5, fullHistorySecondsInMemory: 0);
+
+        var body = capturedBody!.Value;
+        body.GetProperty("FullHistoryVersionsInMemory").GetInt32().Should().Be(5);
+        body.GetProperty("FullHistorySecondsInMemory").GetInt32().Should().Be(0);
     }
 
     [Fact]

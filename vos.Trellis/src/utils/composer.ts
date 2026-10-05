@@ -91,7 +91,7 @@ export function tableOf(chosen: Composition, title: string): TableWidget {
     columns: [{ key: NAME_COLUMN, label: composition.kind, render: 'id' }, ...composition.columns.map(tableColumn)],
     rows,
     sortKey: composition.sortKey,
-    sortDir: composition.sortDir,
+    sortDirection: composition.sortDirection,
     searchable: true,
     rowDetail: true,
     visibleRows: 25,

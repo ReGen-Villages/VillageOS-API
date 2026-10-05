@@ -38,7 +38,7 @@ interface Tile {
 }
 
 /** The themed sections in the order the themes declare; a section whose theme the model does not
- *  order, or does not declare, comes after every ordered one in the order the spec lists them. */
+ *  order, or does not declare, comes after every ordered one in the order the specification lists them. */
 function tilesOf(sections: DashboardSection[], themes: DeclaredTheme[]): Tile[] {
   const byName = new Map(themes.map((theme) => [theme.name, theme]));
   return sections

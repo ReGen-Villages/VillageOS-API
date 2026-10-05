@@ -178,7 +178,7 @@ public class PipelineExecutorTests
             {
                 subdomain.Should().Be("energy-balance");
                 seenInputs = envelope.GetProperty("inputs").Clone();
-                return NodeOk(("pctOfConsumption", "112"), ("netPositive", "true"));
+                return NodeOk(("percentOfConsumption", "112"), ("netPositive", "true"));
             },
         };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());

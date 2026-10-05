@@ -28,7 +28,7 @@ import { columnKey, hopsOf, pageOf, tableOf, unresolvedNames } from '../utils/co
  * in the sidebar for everyone who opens the console.
  */
 
-const OPERATORS: PropertyFilter['op'][] = ['=', '!=', '>', '>=', '<', '<='];
+const OPERATORS: PropertyFilter['operator'][] =['=', '!=', '>', '>=', '<', '<='];
 
 /** A row's card shows what it holds and every relationship it sits on: no page names the relations, since
  *  the rows behind one composition can be of any kind. */
@@ -58,10 +58,10 @@ export function ComposerPage() {
   const [columns, setColumns] = useState<ComposedColumn[]>([]);
   const [inState, setInState] = useState('');
   const [whereProperty, setWhereProperty] = useState('');
-  const [whereOperator, setWhereOperator] = useState<PropertyFilter['op']>('=');
+  const [whereOperator, setWhereOperator] = useState<PropertyFilter['operator']>('=');
   const [whereValue, setWhereValue] = useState('');
   const [sortKey, setSortKey] = useState('');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [sortDirection, setSortDirection] = useState<'ascending' | 'descending'>('ascending');
   const [pageName, setPageName] = useState('');
   const [keeping, setKeeping] = useState(false);
   const [moment, setMoment] = useState('');
@@ -108,7 +108,7 @@ export function ComposerPage() {
     if (!whereProperty || whereValue === '') return null;
     const numeric = properties.find((p) => p.name === whereProperty)?.numeric;
     const parsed = numeric ? Number(whereValue) : whereValue;
-    return { property: whereProperty, op: whereOperator, value: parsed };
+    return { property: whereProperty, operator: whereOperator, value: parsed };
   }, [whereProperty, whereOperator, whereValue, properties]);
 
   const composition: Composition | null = useMemo(() => {
@@ -119,10 +119,10 @@ export function ComposerPage() {
       inState: inState || undefined,
       where: where ? [where] : undefined,
       sortKey: sortKey || undefined,
-      sortDir,
+      sortDirection,
       moment: instant,
     };
-  }, [kind, columns, inState, where, sortKey, sortDir, instant]);
+  }, [kind, columns, inState, where, sortKey, sortDirection, instant]);
 
   const table = useMemo(
     () => (composition ? tableOf(composition, t('composer.tableTitle', { kind: composition.kind })) : null),
@@ -264,8 +264,8 @@ export function ComposerPage() {
                 </label>
                 <label className="flex items-center gap-1">
                   <span className="sr-only">{t('composer.operator')}</span>
-                  <select className={selectClass} value={whereOperator} onChange={(e) => setWhereOperator(e.target.value as PropertyFilter['op'])}>
-                    {OPERATORS.map((op) => <option key={op} value={op}>{op}</option>)}
+                  <select className={selectClass} value={whereOperator} onChange={(e) => setWhereOperator(e.target.value as PropertyFilter['operator'])}>
+                    {OPERATORS.map((operator) => <option key={operator} value={operator}>{operator}</option>)}
                   </select>
                 </label>
                 <label className="flex items-center gap-1">
@@ -309,9 +309,9 @@ export function ComposerPage() {
                 <button
                   type="button"
                   className={`${selectClass} whitespace-nowrap`}
-                  onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                  onClick={() => setSortDirection((direction) => (direction === 'ascending' ? 'descending' : 'ascending'))}
                 >
-                  {sortDir === 'asc' ? t('composer.ascending') : t('composer.descending')}
+                  {sortDirection === 'ascending' ? t('composer.ascending') : t('composer.descending')}
                 </button>
               </div>
             </section>
@@ -391,7 +391,7 @@ export function ComposerPage() {
               rowsBinding={table.rows}
               context={context}
               sortKey={table.sortKey}
-              sortDir={table.sortDir}
+              sortDirection={table.sortDirection}
               visibleRows={table.visibleRows}
               onRowClick={openDetail ? (row) => openDetail(String(row.id)) : undefined}
             />

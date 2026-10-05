@@ -47,7 +47,7 @@ describe('useResolveContext', () => {
 describe('useBinding waits on what its answer is made of', () => {
   const reads = () => ({}) as ModelReads;
   const flaggedCount: Binding = { kind: 'stateCount', state: 'flagged' };
-  const buildingsHeld: Binding = { kind: 'aggregate', archetype: 'Building', op: 'count' };
+  const buildingsHeld: Binding = { kind: 'aggregate', archetype: 'Building', reduction: 'count' };
   const reservoirs: Binding = { kind: 'service', endpoint: '/api/endpoints/reservoirs' };
 
   const onThePage = (binding: Binding) =>

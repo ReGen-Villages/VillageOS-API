@@ -35,7 +35,7 @@ function seedStore() {
       t('is', 'is'),
       t('feeds', 'feeds'),
       t('dashboard', 'Dashboard', {}, true),
-      t('seeded', 'Water overview', { spec: JSON.stringify({ title: 'Water overview', sections: [{ widgets: [] }] }) }),
+      t('seeded', 'Water overview', { specification: JSON.stringify({ title: 'Water overview', sections: [{ widgets: [] }] }) }),
       t('spring', 'Spring', { flow: 0 }, true),
       t('reservoir', 'Reservoir', { capacity: 0 }, true),
       t('s1', 'SPRING-1', { flow: 12.5 }),
@@ -132,7 +132,7 @@ describe('ComposerPage', () => {
     await waitFor(() => expect(modelApi.applyFragment).toHaveBeenCalledTimes(1));
     const fragment = JSON.parse(vi.mocked(modelApi.applyFragment).mock.calls[0][0]);
     expect(fragment.Things[0].Name).toBe('Springs by flow');
-    const specification = JSON.parse(fragment.Things[0].Properties.spec.value);
+    const specification = JSON.parse(fragment.Things[0].Properties.specification.value);
     expect(specification.composed).toMatchObject({ kind: 'Spring', columns: [{ source: 'property', name: 'flow' }] });
     expect(fragment.Relationships).toEqual([{ Subject: 'minted-id', Predicate: 'is', Target: 'dashboard' }]);
   });

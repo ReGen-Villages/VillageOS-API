@@ -74,9 +74,19 @@ namespace vos.Taproot
             _writer.WriteLine($"  Ring Buffer Size: {GetIntProperty(result, "RingBufferSize")}");
             _writer.WriteLine($"  Sample Rate:      {GetIntProperty(result, "SampleRate")}");
             _writer.WriteLine($"  Sample Seconds:   {GetIntProperty(result, "SampleSeconds")}");
+            WriteWhatFullHistoryKeepsInMemory(result);
             _writer.WriteLine();
             _writer.WriteLine($"Available modes: {AvailableModes(result)}");
         }
+
+        private void WriteWhatFullHistoryKeepsInMemory(System.Text.Json.JsonElement result)
+        {
+            _writer.WriteLine($"  Full-History Versions In Memory: {LimitOrNone(result, "FullHistoryVersionsInMemory")}");
+            _writer.WriteLine($"  Full-History Seconds In Memory:  {LimitOrNone(result, "FullHistorySecondsInMemory")}");
+        }
+
+        private static string LimitOrNone(System.Text.Json.JsonElement result, string name) =>
+            GetIntProperty(result, name) is > 0 and var limit ? limit.ToString() : "no limit";
 
         // The platform reports which modes it accepts; printing anything else would be this client's
         // guess at another component's vocabulary.
@@ -190,6 +200,13 @@ namespace vos.Taproot
 
         private async Task SetSpecificPropertyModeAsync(string thingNameOrId, string propertyName, string mode, ModeSizes sizes)
         {
+            if (sizes.LimitsVersionsInMemory)
+            {
+                _writer.WriteLine("Error: how many versions a FullHistory property keeps in memory, and for how long, is set for the whole model.");
+                _writer.WriteLine("Use: config mode set <ModeName> --versionsinmemory=N --secondsinmemory=N");
+                return;
+            }
+
             var resolveResult = await _resolver.ResolveThingAsync(thingNameOrId);
             if (!resolveResult.IsSuccess)
             {
@@ -212,24 +229,36 @@ namespace vos.Taproot
             _writer.WriteLine("  --ringbuffer=N     - Ring buffer size (for RingBuffer mode)");
             _writer.WriteLine("  --samplerate=N     - Keep 1 in N readings (for SampledByObservations mode)");
             _writer.WriteLine("  --sampleseconds=N  - Keep the newest reading in each N seconds (for SampledByTime mode)");
+            _writer.WriteLine();
+            _writer.WriteLine("For the whole model only, with the default mode (0 = no limit):");
+            _writer.WriteLine("  --versionsinmemory=N  - Most versions a FullHistory property keeps in memory besides its first");
+            _writer.WriteLine("  --secondsinmemory=N   - Seconds a replaced version of a FullHistory property stays in memory");
         }
 
         private async Task SetDefaultModeInternalAsync(string mode, ModeSizes sizes)
         {
-            var result = await _mycelium.SetDefaultPropertyModeAsync(mode, sizes.RingBufferSize, sizes.SampleRate, sizes.SampleSeconds);
+            var result = await _mycelium.SetDefaultPropertyModeAsync(
+                mode, sizes.RingBufferSize, sizes.SampleRate, sizes.SampleSeconds, sizes.VersionsInMemory, sizes.SecondsInMemory);
             _writer.WriteLine($"Default property mode set to: {GetStringProperty(result, "Mode")}");
             _writer.WriteLine($"  Ring Buffer Size: {GetIntProperty(result, "RingBufferSize")}");
             _writer.WriteLine($"  Sample Rate: {GetIntProperty(result, "SampleRate")}");
             _writer.WriteLine($"  Sample Seconds: {GetIntProperty(result, "SampleSeconds")}");
+            WriteWhatFullHistoryKeepsInMemory(result);
         }
 
-        private sealed record ModeSizes(int? RingBufferSize, int? SampleRate, int? SampleSeconds);
+        private sealed record ModeSizes(
+            int? RingBufferSize, int? SampleRate, int? SampleSeconds, int? VersionsInMemory, int? SecondsInMemory)
+        {
+            public bool LimitsVersionsInMemory => VersionsInMemory is not null || SecondsInMemory is not null;
+        }
 
         private static (List<string> positionalArgs, ModeSizes sizes) ParseModeArgs(string[] args)
         {
             int? ringBufferSize = null;
             int? sampleRate = null;
             int? sampleSeconds = null;
+            int? versionsInMemory = null;
+            int? secondsInMemory = null;
             var positionalArgs = new List<string>();
 
             foreach (var arg in args)
@@ -240,11 +269,15 @@ namespace vos.Taproot
                     sampleRate = rate;
                 else if (TryParseNamedArg(arg, "--sampleseconds=", out var seconds))
                     sampleSeconds = seconds;
+                else if (TryParseNamedArg(arg, "--versionsinmemory=", out var versions))
+                    versionsInMemory = versions;
+                else if (TryParseNamedArg(arg, "--secondsinmemory=", out var held))
+                    secondsInMemory = held;
                 else
                     positionalArgs.Add(arg);
             }
 
-            return (positionalArgs, new ModeSizes(ringBufferSize, sampleRate, sampleSeconds));
+            return (positionalArgs, new ModeSizes(ringBufferSize, sampleRate, sampleSeconds, versionsInMemory, secondsInMemory));
         }
 
         private static bool TryParseNamedArg(string arg, string prefix, out int value)

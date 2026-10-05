@@ -11,6 +11,8 @@ export function PropertyModePanel() {
   const [ringBufferSize, setRingBufferSize] = useState('');
   const [sampleRate, setSampleRate] = useState('');
   const [sampleSeconds, setSampleSeconds] = useState('');
+  const [versionsInMemory, setVersionsInMemory] = useState('');
+  const [secondsInMemory, setSecondsInMemory] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -22,6 +24,8 @@ export function PropertyModePanel() {
       setRingBufferSize(data.RingBufferSize?.toString() ?? '');
       setSampleRate(data.SampleRate?.toString() ?? '');
       setSampleSeconds(data.SampleSeconds?.toString() ?? '');
+      setVersionsInMemory(data.FullHistoryVersionsInMemory?.toString() ?? '');
+      setSecondsInMemory(data.FullHistorySecondsInMemory?.toString() ?? '');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('dashboard.propertyMode.loadFailed'));
     } finally {
@@ -40,6 +44,10 @@ export function PropertyModePanel() {
         ringBufferSize ? parseInt(ringBufferSize, 10) : undefined,
         sampleRate ? parseInt(sampleRate, 10) : undefined,
         sampleSeconds ? parseInt(sampleSeconds, 10) : undefined,
+        {
+          versions: versionsInMemory ? parseInt(versionsInMemory, 10) : undefined,
+          seconds: secondsInMemory ? parseInt(secondsInMemory, 10) : undefined,
+        },
       );
       setConfiguration(data);
       toast.success(t('dashboard.propertyMode.updated'));
@@ -54,7 +62,9 @@ export function PropertyModePanel() {
     mode !== configuration.Mode ||
     (ringBufferSize || '') !== (configuration.RingBufferSize?.toString() ?? '') ||
     (sampleRate || '') !== (configuration.SampleRate?.toString() ?? '') ||
-    (sampleSeconds || '') !== (configuration.SampleSeconds?.toString() ?? '')
+    (sampleSeconds || '') !== (configuration.SampleSeconds?.toString() ?? '') ||
+    versionsInMemory !== (configuration.FullHistoryVersionsInMemory?.toString() ?? '') ||
+    secondsInMemory !== (configuration.FullHistorySecondsInMemory?.toString() ?? '')
   );
 
   // The platform names the modes it accepts, so the panel offers those rather than a copy that could disagree.
@@ -119,6 +129,28 @@ export function PropertyModePanel() {
               />
             </div>
           )}
+          <div>
+            <label htmlFor="property-mode-versions-in-memory" className="block text-xs font-medium text-zinc-500 mb-1">{t('dashboard.propertyMode.versionsInMemory')}</label>
+            <input
+              id="property-mode-versions-in-memory"
+              type="number"
+              min={0}
+              value={versionsInMemory}
+              onChange={(e) => setVersionsInMemory(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="property-mode-seconds-in-memory" className="block text-xs font-medium text-zinc-500 mb-1">{t('dashboard.propertyMode.secondsInMemory')}</label>
+            <input
+              id="property-mode-seconds-in-memory"
+              type="number"
+              min={0}
+              value={secondsInMemory}
+              onChange={(e) => setSecondsInMemory(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
           <button
             onClick={save}
             disabled={saving || !dirty}

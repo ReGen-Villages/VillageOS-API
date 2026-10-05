@@ -2,7 +2,7 @@
  * What the platform worked out about what one submitter submitted, as the submitter reaches it: a page
  * on a public website, holding no account and no credential of any kind.
  *
- * It draws the page the model declares — the same spec, the same widgets and the same words the
+ * It draws the page the model declares — the same specification, the same widgets and the same words the
  * signed-in dashboard draws, so a figure added to that page appears here without a change. What differs
  * is where the reading comes from: the application reads the model over the authenticated broker, and
  * this page cannot, so the intake service reads it under its own credential and answers with one

@@ -28,7 +28,7 @@ import {
 
 /** How the rows became the figure. `read` is the one that reduces nothing: the figure is a value a
  *  Thing already carries, and the row behind it is that Thing. */
-export type Reduction = 'count' | 'sum' | 'avg' | 'min' | 'max' | 'read';
+export type Reduction = 'count' | 'sum' | 'average' | 'min' | 'max' | 'read';
 
 /** The model's own words for what a figure names, carried to the reader as the model wrote them. */
 export interface FigureTerms {
@@ -113,7 +113,7 @@ export async function breakdownOf(binding: Binding, context: ResolveContext): Pr
 
     case 'aggregate': {
       const members = aggregateMembers(binding, context);
-      const measure = binding.op === 'count' ? null : (binding.property ?? null);
+      const measure = binding.reduction === 'count' ? null : (binding.property ?? null);
       return {
         value: aggregateValue(binding, members, context),
         terms: {
@@ -124,7 +124,7 @@ export async function breakdownOf(binding: Binding, context: ResolveContext): Pr
         },
         behind: {
           kind: 'things',
-          reduction: binding.op,
+          reduction: binding.reduction,
           measure,
           rows: members.map((thing) => rowOfThing(thing.Id, thing.Name, context)),
         },
@@ -146,7 +146,7 @@ export async function breakdownOf(binding: Binding, context: ResolveContext): Pr
         terms: { property: binding.property, archetype: averaged.length ? context.compareArchetype : undefined },
         behind: {
           kind: 'things',
-          reduction: averaged.length ? 'avg' : 'read',
+          reduction: averaged.length ? 'average' : 'read',
           measure: binding.property,
           rows: holders.map((thing) => rowOfThing(thing.Id, thing.Name, context)),
         },
@@ -180,7 +180,7 @@ export async function breakdownOf(binding: Binding, context: ResolveContext): Pr
         behind: values.length
           ? {
               kind: 'buckets',
-              reduction: series.op,
+              reduction: series.reduction,
               values,
               bucketSeconds: series.bucketSeconds,
               windowSeconds: series.bucketSeconds * bucketsPerPoint,

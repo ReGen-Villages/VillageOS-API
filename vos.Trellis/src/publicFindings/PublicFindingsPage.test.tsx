@@ -32,7 +32,7 @@ const SPECIFICATION = JSON.stringify({
 });
 
 const ANSWER: FindingsAnswer = {
-  spec: SPECIFICATION,
+  specification: SPECIFICATION,
   scopeId: 'site-1',
   things: [
     { Id: 'site-1', Name: 'Willow Bend', Properties: { statedAreaHectares: { typeInfo: 'vos.Double', value: 24 } } },
@@ -112,7 +112,7 @@ describe('the page a submitter reads their own findings on', () => {
   it('says so when the page it was sent lists no sections', async () => {
     vi.mocked(findingsApi.read).mockResolvedValue({
       ticket: 'ticket-1',
-      findings: { ...ANSWER, spec: JSON.stringify({ title: 'Site submission', sections: [] }) },
+      findings: { ...ANSWER, specification: JSON.stringify({ title: 'Site submission', sections: [] }) },
     });
     render(<PublicFindingsPage />);
 
@@ -124,7 +124,7 @@ describe('the page a submitter reads their own findings on', () => {
   // Drawing nothing is how a figure the analysis has not computed reads. A page that cannot be drawn at
   // all has to say so, in the place every other refusal is said.
   it('says so when the service answered a page it cannot draw', async () => {
-    vi.mocked(findingsApi.read).mockResolvedValue({ ticket: 'ticket-1', findings: { ...ANSWER, spec: 'not a spec' } });
+    vi.mocked(findingsApi.read).mockResolvedValue({ ticket: 'ticket-1', findings: { ...ANSWER, specification: 'not a specification' } });
     render(<PublicFindingsPage />);
 
     await read();
@@ -157,7 +157,7 @@ describe('a chart on the findings page', () => {
       ticket: 'ticket-1',
       findings: {
         ...ANSWER,
-        spec: JSON.stringify({
+        specification: JSON.stringify({
           title: 'Site submission',
           sections: [{
             title: 'Climate',

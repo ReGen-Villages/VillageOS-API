@@ -409,7 +409,7 @@ public static class TestGraphs
         NumberPort(fx, vocabulary, proto, "performanceRatio", "in", required: true);
         NumberPort(fx, vocabulary, proto, "otherGenerationMwhPerYear", "in", required: true);
         NumberPort(fx, vocabulary, proto, "annualConsumptionMwhPerYear", "in", required: true);
-        NumberPort(fx, vocabulary, proto, "pctOfConsumption", "out");
+        NumberPort(fx, vocabulary, proto, "percentOfConsumption", "out");
 
         var svc = fx.Thing("energySvc");
         fx.Rel(svc, vocabulary.Is, proto);

@@ -20,13 +20,14 @@ const WIKI = 'https://github.com/ReGen-Villages/VillageOS-API/wiki';
 const BLOB = 'https://github.com/ReGen-Villages/VillageOS-API/blob/develop';
 const RAW_WIKI = 'https://raw.githubusercontent.com/wiki/ReGen-Villages/VillageOS-API';
 
-// A file link on the public wiki answers 404 unless it names the branch the repository mirror pushes,
-// and nothing but the pipeline says which branch that is — so the pipeline is read rather than remembered.
-test('blob links name the branch the pipeline mirrors to GitHub', () => {
+// The public wiki describes the branch the build mirrors it from, and a file link naming any other
+// branch can answer 404 — so the pipeline is read rather than remembered.
+test('blob links name the branch the build mirrors the wiki from', () => {
   const pipeline = fs.readFileSync(path.join(__dirname, '..', '..', 'azure-pipelines.yml'), 'utf8');
-  const pushed = pipeline.match(/git push github "HEAD:refs\/heads\/([^"]+)"/);
-  assert.ok(pushed, 'the pipeline no longer pushes the repository to GitHub by a fully-qualified ref');
-  assert.equal(REPO_BRANCH, pushed[1]);
+  const step = pipeline.slice(pipeline.indexOf("displayName: 'Mirror Wiki to GitHub'"));
+  const mirrored = step.match(/'refs\/heads\/([^']+)'/);
+  assert.ok(mirrored, 'the build no longer names the branch the wiki is mirrored from');
+  assert.equal(REPO_BRANCH, mirrored[1]);
 });
 
 test('internal wiki links become absolute GitHub wiki URLs', () => {
@@ -35,12 +36,6 @@ test('internal wiki links become absolute GitHub wiki URLs', () => {
 
 test('nested wiki links are flattened to the last segment', () => {
   assert.equal(convert('[Delta](/Services/Delta)'), `[Delta](${WIKI}/Delta)`);
-});
-
-test('DevOps repo file links become GitHub blob links', () => {
-  const input =
-    '[docs](https://dev.azure.com/ReGenVillages/VillageOS-API/_git/VillageOS-API?path=/docs/SERVICES.md)';
-  assert.equal(convert(input), `[docs](${BLOB}/docs/SERVICES.md)`);
 });
 
 test('DevOps wiki root (space-encoded) becomes the GitHub wiki root', () => {

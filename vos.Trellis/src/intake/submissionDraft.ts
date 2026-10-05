@@ -87,7 +87,7 @@ export interface SubmissionDocument {
     householdSize?: number;
   };
   parcel?: { boundarySource: string; boundary: { latitude: number; longitude: number }[] };
-  allocations?: { category: string; sharePct: number }[];
+  allocations?: { category: string; sharePercent: number }[];
   hazards?: { hazardType: string; reportedLevel: string }[];
 }
 
@@ -288,7 +288,7 @@ export function withHazardReported(
 }
 
 export function documentFrom(draft: SubmissionDraft): SubmissionDocument {
-  const allocations = Object.entries(draft.shares).map(([category, sharePct]) => ({ category, sharePct }));
+  const allocations = Object.entries(draft.shares).map(([category, sharePercent]) => ({ category, sharePercent }));
   const hazards = Object.entries(draft.reportedHazards)
     .filter(([, reportedLevel]) => reportedLevel.length > 0)
     .map(([hazardType, reportedLevel]) => ({ hazardType, reportedLevel }));

@@ -101,10 +101,10 @@ describe('useModelData', () => {
     await mountLoaded();
 
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
-    expect(mockGetAllThings).toHaveBeenCalledWith(['ifcClass', 'ifcGlobalId', 'spec']);
+    expect(mockGetAllThings).toHaveBeenCalledWith(['ifcClass', 'ifcGlobalId', 'specification']);
   });
 
-  // The navigation lists a model's dashboards on every page and reads each one out of `spec`. A
+  // The navigation lists a model's dashboards on every page and reads each one out of `specification`. A
   // model narrowing its load without naming it is describing what its pages draw, not asking for a
   // navigation with nothing in it.
   it('loads the property a dashboard is written in even when the model does not name it', async () => {
@@ -116,7 +116,7 @@ describe('useModelData', () => {
 
     await mountLoaded();
 
-    await waitFor(() => expect(mockGetAllThings).toHaveBeenCalledWith(['ifcClass', 'spec']));
+    await waitFor(() => expect(mockGetAllThings).toHaveBeenCalledWith(['ifcClass', 'specification']));
   });
 
   it('loads every property when the model declares none', async () => {

@@ -36,6 +36,9 @@ public sealed class AnalysisSpawner
         var unstarted = new List<string>();
         foreach (var trigger in analysis.Triggers)
         {
+            if (trigger.AlreadyRelated)
+                continue;
+
             if (await _mycelium.CreateRelationshipAsync(
                     analysis.StudyId, trigger.ConnectionId, trigger.ServicePrototypeId, cancellationToken))
                 continue;
@@ -51,8 +54,10 @@ public sealed class AnalysisSpawner
         if (unstarted.Count > 0)
             return new AnalysisSpawn(false, "Could not start: " + string.Join(", ", unstarted) + ".");
 
-        _logger.LogInformation("Analysis started for study {StudyId} of site {SiteId} on {Count} services.",
-            analysis.StudyId, siteId, analysis.Triggers.Count);
+        var alreadyRelated = analysis.Triggers.Count(trigger => trigger.AlreadyRelated);
+        _logger.LogInformation(
+            "Analysis started for study {StudyId} of site {SiteId} on {Count} services, {AlreadyRelated} of them by an earlier run or the seed.",
+            analysis.StudyId, siteId, analysis.Triggers.Count, alreadyRelated);
         return new AnalysisSpawn(true, null);
     }
 }

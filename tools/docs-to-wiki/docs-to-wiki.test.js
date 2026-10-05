@@ -57,6 +57,7 @@ function repositoryWithManifest({ extraDocument } = {}) {
         organisation: 'https://dev.azure.com/Somewhere',
         project: 'A Project',
         repository: 'A Repository',
+        repositoryFileAddress: 'https://github.com/Somewhere/A-Repository/blob/develop/',
         name: 'A-Wiki',
         removeUnlistedPages: false,
       },
@@ -91,13 +92,14 @@ test('the generator refuses to run on a document the manifest does not account f
   }
 });
 
-test('the banner and the file links name the repository the manifest declares', () => {
+test('the banner names the repository and its file link the address the manifest declares', () => {
   const repository = repositoryWithManifest();
   try {
     generate(repository.root, repository.manifest, repository.output);
     const page = fs.readFileSync(path.join(repository.output, 'Guide.md'), 'utf8');
     assert.match(page, /in the\n> A Repository repository/);
-    assert.match(page, /https:\/\/dev\.azure\.com\/Somewhere\/A Project\/_git\/A Repository\?path=\/docs\/GUIDE\.md/);
+    assert.ok(page.includes('](https://github.com/Somewhere/A-Repository/blob/develop/docs/GUIDE.md)'),
+      'the banner does not link the file at the address the manifest declares');
     const attachment = attachmentName('docs/assets/diagram.svg', Buffer.from('<svg/>\n'));
     assert.ok(fs.existsSync(path.join(repository.output, '.attachments', attachment)), 'the image was not copied');
     assert.ok(page.includes(`](/.attachments/${attachment})`), 'the page does not link the attachment by its content name');
@@ -122,6 +124,32 @@ test('a manifest with no wiki block is refused, by the field it is missing', () 
   } finally {
     discard(repository);
   }
+});
+
+test('a manifest with no file address is refused by that name', () => {
+  const repository = repositoryWithManifest();
+  try {
+    const manifest = JSON.parse(fs.readFileSync(repository.manifest, 'utf8'));
+    delete manifest.wiki.repositoryFileAddress;
+    fs.writeFileSync(repository.manifest, JSON.stringify(manifest));
+
+    assert.throws(
+      () => generate(repository.root, repository.manifest, repository.output),
+      /no wiki\.repositoryFileAddress/,
+    );
+  } finally {
+    discard(repository);
+  }
+});
+
+// A file link answers 404 unless it names a branch the file is on, and the wiki describes the branch
+// the build publishes it from.
+test('the file address names the branch the build publishes the wiki from', () => {
+  const pipeline = fs.readFileSync(path.join(REPO_ROOT, 'azure-pipelines.yml'), 'utf8');
+  const step = pipeline.slice(pipeline.indexOf("displayName: 'Publish Docs to Wiki'"));
+  const published = step.match(/'refs\/heads\/([^']+)'/);
+  assert.ok(published, 'the build no longer names the branch the wiki is published from');
+  assert.equal(manifest.wiki.repositoryFileAddress, `https://github.com/ReGen-Villages/VillageOS-API/blob/${published[1]}/`);
 });
 
 // What makes the manifest a guard rather than a suggestion is the build going red, and that is the
@@ -270,7 +298,7 @@ test('only an index links to the wiki root; a document is cited by name', () => 
     .filter(Boolean);
 
   const rootLinks = tracked.filter((file) =>
-    /VillageOS-API\/_wiki(?![/?])/.test(fs.readFileSync(path.join(REPO_ROOT, file), 'utf8')),
+    /VillageOS-API\/_?wiki(?![/?])/.test(fs.readFileSync(path.join(REPO_ROOT, file), 'utf8')),
   );
 
   assert.deepEqual(rootLinks.sort(), allowed.sort(),
@@ -372,7 +400,8 @@ test('an anchor with no matching heading is left untouched rather than guessed a
 });
 
 test('a link to an unmapped repository file points at the file in the repository', () => {
-  assert.match(rewrite('[notes](UNMAPPED_NOTES.md)'), /_git\/VillageOS-API\?path=\/docs\/UNMAPPED_NOTES\.md\)$/);
+  assert.equal(rewrite('[notes](UNMAPPED_NOTES.md)'),
+    `[notes](${manifest.wiki.repositoryFileAddress}docs/UNMAPPED_NOTES.md)`);
 });
 
 test('external links are left alone', () => {

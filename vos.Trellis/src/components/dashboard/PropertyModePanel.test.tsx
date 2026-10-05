@@ -53,7 +53,43 @@ describe('PropertyModePanel', () => {
     fireEvent.click(screen.getByRole('button'));
 
     await waitFor(() => expect(configurationApi.setDefaultPropertyMode)
-      .toHaveBeenCalledWith('SampledByTime', undefined, undefined, 30));
+      .toHaveBeenCalledWith('SampledByTime', undefined, undefined, 30, { versions: undefined, seconds: undefined }));
+  });
+
+  it('shows how many full-history versions memory keeps and for how long, and sends a changed limit', async () => {
+    vi.mocked(configurationApi.getDefaultPropertyMode).mockResolvedValue({
+      Mode: 'RingBuffer', FullHistoryVersionsInMemory: 10, FullHistorySecondsInMemory: 3600,
+    });
+    vi.mocked(configurationApi.setDefaultPropertyMode).mockResolvedValue({
+      Mode: 'RingBuffer', FullHistoryVersionsInMemory: 10, FullHistorySecondsInMemory: 0,
+    });
+
+    render(<PropertyModePanel />);
+    await waitFor(() => expect(screen.getByLabelText(/versions kept in memory/i)).toHaveValue(10));
+
+    fireEvent.change(screen.getByLabelText(/versions kept in memory/i), { target: { value: '25' } });
+    fireEvent.change(screen.getByLabelText(/seconds a replaced version stays/i), { target: { value: '0' } });
+    fireEvent.click(screen.getByRole('button'));
+
+    await waitFor(() => expect(configurationApi.setDefaultPropertyMode)
+      .toHaveBeenCalledWith('RingBuffer', undefined, undefined, undefined, { versions: 25, seconds: 0 }));
+  });
+
+  it('sends no limit when the platform reported none and the fields were left empty', async () => {
+    vi.mocked(configurationApi.getDefaultPropertyMode).mockResolvedValue({
+      Mode: 'FullHistory', AvailableModes: ['FullHistory', 'CurrentOnly'],
+    });
+    vi.mocked(configurationApi.setDefaultPropertyMode).mockResolvedValue({ Mode: 'CurrentOnly' });
+
+    render(<PropertyModePanel />);
+    await waitFor(() => expect(screen.getByDisplayValue('FullHistory')).toBeInTheDocument());
+    expect(screen.getByLabelText(/versions kept in memory/i)).toHaveValue(null);
+
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'CurrentOnly' } });
+    fireEvent.click(screen.getByRole('button'));
+
+    await waitFor(() => expect(configurationApi.setDefaultPropertyMode)
+      .toHaveBeenCalledWith('CurrentOnly', undefined, undefined, undefined, { versions: undefined, seconds: undefined }));
   });
 
   it('asks for a rate when sampling by observations', async () => {

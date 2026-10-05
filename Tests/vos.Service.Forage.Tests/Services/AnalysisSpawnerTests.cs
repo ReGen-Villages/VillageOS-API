@@ -1,7 +1,9 @@
+using System.Net;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Forage.Helpers;
 using vos.Service.Forage.Services;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Forage.Tests.Services;
@@ -20,7 +22,7 @@ public class AnalysisSpawnerTests
                 "http://localhost"),
             NullLogger<AnalysisSpawner>.Instance);
 
-    // Neither case below reaches the network; the factory exists to prove that, by failing if one does.
+    // The cases built on this never reach the network; the factory exists to prove that, by failing if one does.
     private sealed class UnreachableHttpClientFactory : IHttpClientFactory
     {
         public HttpClient CreateClient(string name) =>
@@ -46,5 +48,40 @@ public class AnalysisSpawnerTests
         spawn.Started.Should().BeFalse();
         spawn.Reason.Should().Contain("marks no connection",
             "a model seeded without its compute connections is a gap in the model, not a discovery that failed");
+    }
+
+    [Fact]
+    public async Task AStudyAlreadyRelatedToEveryService_IsStartedWithoutWriting()
+    {
+        var analysis = new SiteAnalysis(Guid.NewGuid(),
+            [new AnalysisTrigger("balancesEnergy", Guid.NewGuid(), Guid.NewGuid(), AlreadyRelated: true)]);
+
+        var spawn = await Spawner().SpawnAsync(Guid.NewGuid(), analysis, CancellationToken.None);
+
+        spawn.Started.Should().BeTrue("the relationship that starts the analysis is already in the model");
+        spawn.Reason.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task AStudyAlreadyRelatedToOneOfTwoServices_WritesTheOtherAndSaysHowManyWereAlreadyStarted()
+    {
+        var handler = new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK));
+        var logger = new CapturingLogger<AnalysisSpawner>();
+        var spawner = new AnalysisSpawner(
+            new MyceliumRelationshipClient(
+                new PerCallHttpClientFactory(handler), NullLogger<MyceliumRelationshipClient>.Instance,
+                "http://localhost", "test-token"),
+            logger);
+        var analysis = new SiteAnalysis(Guid.NewGuid(),
+        [
+            new AnalysisTrigger("balancesEnergy", Guid.NewGuid(), Guid.NewGuid(), AlreadyRelated: true),
+            new AnalysisTrigger("secondBalance", Guid.NewGuid(), Guid.NewGuid(), AlreadyRelated: false),
+        ]);
+
+        var spawn = await spawner.SpawnAsync(Guid.NewGuid(), analysis, CancellationToken.None);
+
+        spawn.Started.Should().BeTrue();
+        handler.Requests.Should().ContainSingle();
+        logger.Lines.Should().ContainSingle().Which.Should().Contain("on 2 services, 1 of them");
     }
 }
