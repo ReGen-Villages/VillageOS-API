@@ -223,6 +223,8 @@ export const nl: PartialResources = {
       sampleExample: 'bijv. 10',
       sampleSeconds: 'Bemonsteringsinterval (seconden)',
       sampleSecondsExample: 'bijv. 60',
+      versionsInMemory: 'Versies van de volledige geschiedenis die in het geheugen blijven (0 = geen limiet)',
+      secondsInMemory: 'Seconden dat een vervangen versie in het geheugen blijft (0 = geen limiet)',
       updated: 'Eigenschapsmodus bijgewerkt',
       updateFailed: 'Bijwerken van eigenschapsmodus mislukt',
       loadFailed: 'Lezen van eigenschapsmodus mislukt',

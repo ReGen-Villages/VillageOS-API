@@ -210,7 +210,7 @@ public class ConfigCommandHandlerTests
     {
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
             @"{""Mode"":""SampledByTime"",""RingBufferSize"":100,""SampleRate"":50,""SampleSeconds"":60}");
-        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("SampledByTime", null, null, null)).ReturnsAsync(modeConfig);
+        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("SampledByTime", null, null, null, null, null)).ReturnsAsync(modeConfig);
 
         await ExecuteHandler("mode set SampledByTime");
 
@@ -225,7 +225,7 @@ public class ConfigCommandHandlerTests
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
             @"{""Mode"":""CurrentOnly"",""RingBufferSize"":100,""SampleRate"":100}");
         // The mode name gets lowercased in HandlePropertyModeAsync before being passed to SetDefaultModeAsync
-        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("currentonly", null, null, null)).ReturnsAsync(modeConfig);
+        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("currentonly", null, null, null, null, null)).ReturnsAsync(modeConfig);
 
         await ExecuteHandler("mode CurrentOnly");
 
@@ -253,7 +253,7 @@ public class ConfigCommandHandlerTests
     [Fact]
     public async Task Mode_WithAWordThatIsNotASubcommand_SendsItAsAModeAndShowsThePlatformsRefusal()
     {
-        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("everyotherchange", null, null, null))
+        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("everyotherchange", null, null, null, null, null))
             .ThrowsAsync(new HttpRequestException(
                 """400 Bad Request: {"error":"Invalid mode: everyotherchange","availableModes":["CurrentOnly","RingBuffer","Sampled","FullHistory"]}"""));
 
@@ -280,34 +280,34 @@ public class ConfigCommandHandlerTests
     [Fact]
     public async Task Execute_DefaultModeRingBufferWithSize_ParsesNamedArg()
     {
-        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("ringbuffer", 50, null, null))
+        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("ringbuffer", 50, null, null, null, null))
             .ReturnsAsync(JsonDocument.Parse("{}").RootElement);
 
         await ExecuteHandler("mode ringbuffer --ringbuffer=50");
 
-        _myceliumMock.Verify(b => b.SetDefaultPropertyModeAsync("ringbuffer", 50, null, null), Times.Once);
+        _myceliumMock.Verify(b => b.SetDefaultPropertyModeAsync("ringbuffer", 50, null, null, null, null), Times.Once);
     }
 
     [Fact]
     public async Task Execute_DefaultModeSampledWithRate_ParsesNamedArg()
     {
-        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("sampledbyobservations", null, 100, null))
+        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("sampledbyobservations", null, 100, null, null, null))
             .ReturnsAsync(JsonDocument.Parse("{}").RootElement);
 
         await ExecuteHandler("mode sampledbyobservations --samplerate=100");
 
-        _myceliumMock.Verify(b => b.SetDefaultPropertyModeAsync("sampledbyobservations", null, 100, null), Times.Once);
+        _myceliumMock.Verify(b => b.SetDefaultPropertyModeAsync("sampledbyobservations", null, 100, null, null, null), Times.Once);
     }
 
     [Fact]
     public async Task Execute_DefaultModeSampledByTimeWithSeconds_ParsesNamedArg()
     {
-        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("sampledbytime", null, null, 15))
+        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("sampledbytime", null, null, 15, null, null))
             .ReturnsAsync(JsonDocument.Parse("{}").RootElement);
 
         await ExecuteHandler("mode sampledbytime --sampleseconds=15");
 
-        _myceliumMock.Verify(b => b.SetDefaultPropertyModeAsync("sampledbytime", null, null, 15), Times.Once);
+        _myceliumMock.Verify(b => b.SetDefaultPropertyModeAsync("sampledbytime", null, null, 15, null, null), Times.Once);
     }
 
     [Fact]
@@ -322,5 +322,47 @@ public class ConfigCommandHandlerTests
         await ExecuteHandler("mode set Gauge level SampledByTime --sampleseconds=30");
 
         _myceliumMock.Verify(b => b.SetPropertyModeAsync(thingId, "level", "SampledByTime", null, null, 30), Times.Once);
+    }
+
+    [Fact]
+    public async Task Execute_ModeCommand_PrintsWhatAFullHistoryPropertyKeepsInMemory()
+    {
+        _myceliumMock.Setup(b => b.GetDefaultPropertyModeAsync()).ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(
+            @"{""Mode"":""FullHistory"",""FullHistoryVersionsInMemory"":10,""FullHistorySecondsInMemory"":0}"));
+
+        await ExecuteHandler("mode");
+
+        var output = _writer.ToString();
+        Assert.Contains("Full-History Versions In Memory: 10", output);
+        Assert.Contains("Full-History Seconds In Memory:  no limit", output);
+    }
+
+    [Fact]
+    public async Task Execute_DefaultModeWithVersionsAndSecondsInMemory_ParsesNamedArgsAndPrintsTheAnswer()
+    {
+        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("fullhistory", null, null, null, 5, 0))
+            .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(
+                @"{""Mode"":""FullHistory"",""FullHistoryVersionsInMemory"":5,""FullHistorySecondsInMemory"":0}"));
+
+        await ExecuteHandler("mode fullhistory --versionsinmemory=5 --secondsinmemory=0");
+
+        _myceliumMock.Verify(b => b.SetDefaultPropertyModeAsync("fullhistory", null, null, null, 5, 0), Times.Once);
+        var output = _writer.ToString();
+        Assert.Contains("Full-History Versions In Memory: 5", output);
+        Assert.Contains("Full-History Seconds In Memory:  no limit", output);
+    }
+
+    [Theory]
+    [InlineData("--versionsinmemory=5")]
+    [InlineData("--secondsinmemory=60")]
+    public async Task Execute_SetSpecificPropertyModeWithALimitOnVersionsInMemory_IsRefusedBeforeAnyRequest(string option)
+    {
+        await ExecuteHandler($"mode set Gauge level FullHistory {option}");
+
+        Assert.Contains("set for the whole model", _writer.ToString());
+        _myceliumMock.Verify(
+            b => b.SetPropertyModeAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<int?>()),
+            Times.Never);
+        _myceliumMock.Verify(b => b.GetAllThingsAsync(), Times.Never);
     }
 }

@@ -223,6 +223,8 @@ export const de: PartialResources = {
       sampleExample: 'z. B. 10',
       sampleSeconds: 'Abtastintervall (Sekunden)',
       sampleSecondsExample: 'z. B. 60',
+      versionsInMemory: 'Im Speicher gehaltene Versionen bei vollständigem Verlauf (0 = keine Grenze)',
+      secondsInMemory: 'Sekunden, die eine ersetzte Version im Speicher bleibt (0 = keine Grenze)',
       updated: 'Eigenschaftsmodus aktualisiert',
       updateFailed: 'Eigenschaftsmodus konnte nicht aktualisiert werden',
       loadFailed: 'Eigenschaftsmodus konnte nicht gelesen werden',

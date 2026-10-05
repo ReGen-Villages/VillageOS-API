@@ -215,6 +215,8 @@ export const en = {
       sampleExample: 'e.g. 10',
       sampleSeconds: 'Sample Interval (seconds)',
       sampleSecondsExample: 'e.g. 60',
+      versionsInMemory: 'Full-history versions kept in memory (0 = no limit)',
+      secondsInMemory: 'Seconds a replaced version stays in memory (0 = no limit)',
       updated: 'Property mode updated',
       updateFailed: 'Failed to update property mode',
       loadFailed: 'Failed to read the property mode',

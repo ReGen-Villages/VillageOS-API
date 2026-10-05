@@ -674,10 +674,13 @@ public class MyceliumClient
     }
 
     public virtual async Task<JsonElement> SetDefaultPropertyModeAsync(
-        string mode, int? ringBufferSize = null, int? sampleRate = null, int? sampleSeconds = null)
+        string mode, int? ringBufferSize = null, int? sampleRate = null, int? sampleSeconds = null,
+        int? fullHistoryVersionsInMemory = null, int? fullHistorySecondsInMemory = null)
     {
         await SetAuthHeaderAsync();
         var payload = ModePayload(mode, ringBufferSize, sampleRate, sampleSeconds);
+        if (fullHistoryVersionsInMemory.HasValue) payload["FullHistoryVersionsInMemory"] = fullHistoryVersionsInMemory.Value;
+        if (fullHistorySecondsInMemory.HasValue) payload["FullHistorySecondsInMemory"] = fullHistorySecondsInMemory.Value;
 
         var content = new StringContent(
             JsonSerializer.Serialize(payload),
