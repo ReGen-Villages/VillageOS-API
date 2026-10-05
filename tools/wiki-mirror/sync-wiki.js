@@ -22,8 +22,8 @@ const WIKI = `${REPO}/wiki`;
 const RAW_WIKI = 'https://raw.githubusercontent.com/wiki/ReGen-Villages/VillageOS-API';
 // The folder the wiki generator attaches every image to, on both wikis.
 const ATTACHMENTS = '.attachments';
-// The branch GitHub file links point at: the one the repository mirror pushes, which the build file
-// names in its "Mirror to GitHub" step. A link against any other branch answers 404, and the test
+// The branch GitHub file links point at: the one the build mirrors the wiki from, which the build file
+// names in its "Mirror Wiki to GitHub" step. A link against any other branch answers 404, and the test
 // beside this reads the build file so the two cannot drift apart again.
 const REPO_BRANCH = 'develop';
 
