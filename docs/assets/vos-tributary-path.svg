@@ -24,7 +24,7 @@
   <g filter="url(#sh)"><rect x="430" y="132" width="500" height="74" rx="12" fill="#13301e" stroke="#22c55e" stroke-width="1.4"/></g>
   <text x="448" y="156" fill="#86efac" font-size="13" font-weight="700">Endpoint Thing — lives in the model</text>
   <text x="448" y="176" fill="#bfe9d4" font-size="10.5">config props: url · query · responseTransform (JSONata)</text>
-  <text x="448" y="192" fill="#bfe9d4" font-size="10.5">· PropertyMode = Sampled · is → template</text>
+  <text x="448" y="192" fill="#bfe9d4" font-size="10.5">· PropertyMode = SampledByTime, 60 s · is → template</text>
   <path d="M356,169 L430,169" fill="none" stroke="#34d399" stroke-width="2" marker-end="url(#aE)"/>
   <text x="360" y="162" fill="#6ee7b7" font-size="9.5">creates</text>
 
@@ -57,7 +57,7 @@
   <text x="338" y="498" fill="#a5e9f2" font-size="12.5" font-weight="700">④ Ingest <tspan fill="#7fb8c0" font-size="10" font-weight="400">— ObservationIngestService</tspan></text>
   <text x="338" y="518" fill="#bfe9ec" font-size="10.5">per entity: ensure the entity Thing exists (created once), then</text>
   <text x="338" y="533" fill="#bfe9ec" font-size="10.5">batch its samples — cost scales with entities, not readings.</text>
-  <text x="338" y="550" fill="#7fb8c0" font-size="10">default PropertyMode = Sampled (bounded memory for high-volume series)</text>
+  <text x="338" y="550" fill="#7fb8c0" font-size="10">default PropertyMode = SampledByTime, a 60-second slot (bounded series)</text>
 
   <text x="322" y="596" fill="#6f9aa6" font-size="10">returns { entitiesAffected, observationsSubmitted } · "Readings ingested as observations on entity series."</text>
   <text x="322" y="616" fill="#6f9aa6" font-size="10">entities created via Delta/structural Facts; readings never create Facts — only observations.</text>
@@ -83,7 +83,7 @@
   <g filter="url(#sh)"><rect x="1256" y="300" width="468" height="256" rx="12" fill="#13301e" stroke="#22c55e" stroke-width="1.4"/></g>
   <text x="1274" y="326" fill="#86efac" font-size="13.5" font-weight="700">⑦ ObservationsCommitted — fan-out</text>
   <text x="1274" y="354" fill="#bfe9d4" font-size="11">🪵 Rings: Canopy (hot) → Sapwood (sealed),</text>
-  <text x="1274" y="370" fill="#9fb3ab" font-size="10.5">retained per PropertyMode (Sampled here)</text>
+  <text x="1274" y="370" fill="#9fb3ab" font-size="10.5">retained per PropertyMode (SampledByTime here)</text>
   <text x="1274" y="398" fill="#bfe9d4" font-size="11">🌿 VosModel: current value updated</text>
   <text x="1274" y="414" fill="#9fb3ab" font-size="10.5">latest-by-observed-time</text>
   <text x="1274" y="442" fill="#bfe9d4" font-size="11">🍄 Hyphae: coalesced cascade → StatesChanged</text>

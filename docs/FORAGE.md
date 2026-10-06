@@ -224,8 +224,15 @@ routinely. Judged by the call, finished work would be recorded Failed and driven
 the dispatch is the model: the connection relates to `SiteDiscovered` as what proves a dispatch done,
 the record stays in flight until the site's coverage has been matched and no coverage of it is
 outstanding — the run's own last write is what closes it — and `done_within` presumes dead a run
-nobody will finish. Completion is *observed* rather than *announced* because nothing exposes a route
-for a service to announce one.
+nobody will finish. Completion is *observed* by choice: the platform does take an acknowledgement
+from a service, but the site reaching the done state is the evidence, and an acknowledgement would
+add nothing to it.
+
+**One site's runs do not overlap.** A run for a site, or for a source, waits while another run for it
+is in flight; runs for different sites still run together. At most one run waits: a dispatch arriving
+while one already waits is dropped, because the waiting run reads the model only after the run in
+flight ends. Two runs for one site would each mint a coverage for the same call, which makes every
+later run for that site fail, and would call the same sources and write the same relationships twice.
 
 **A coverage read that fails writes nothing.** It cannot refuse in the answer, because the answer has
 already been given, so it says so by leaving no trace: no fetch, no analysis started, and the site
@@ -414,7 +421,9 @@ until something runs discovery again.
 ## Starting the analysis
 
 **When the run finishes, Forage relates the site's study to each compute service** — one
-`SiteStudy -connection-> prototype` relationship per marked connection. A connection bound to a service
+`SiteStudy -connection-> prototype` relationship per marked connection the study is not already
+related through. A relationship already in the model, from the seed or an earlier run, is left as it
+is and counts as started. A connection bound to a service
 is a handled predicate, so creating that relationship is what dispatches it; no compute service is
 called from
 here. The model carries the trigger, which means there is one way to start an analysis rather than

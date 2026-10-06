@@ -11,9 +11,9 @@ It's the Python analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
-Token=<service-jwt> .venv/bin/python app.py --port=5103 --myceliumUrl=https://localhost:7243
+ApiKey=<api-key> .venv/bin/python app.py --port=5103 --myceliumUrl=https://localhost:7243
 
-# with inbound auth, as Mycelium launches it:
+# with inbound auth, as Mycelium launches it (Mycelium hands a launched service a Token):
 Token=<service-jwt> VerificationKey=<base64-public-key> \
   .venv/bin/python app.py --port=5103 --myceliumUrl=https://localhost:7243 \
     --issuer=VillageOS --audience=python-echo-handler
@@ -21,6 +21,11 @@ Token=<service-jwt> VerificationKey=<base64-public-key> \
 
 macOS has no `python` command, and the `python3` on your PATH usually refuses to install packages
 into itself, so the virtual environment is not optional.
+
+The service checks the platform's certificate against what the machine trusts, through the
+`truststore` package. A Mycelium on the same machine is reached once its development certificate is
+trusted (`dotnet dev-certs https --trust`). A platform presenting a certificate the machine does not
+trust is refused before the key or token is sent.
 
 Interactive OpenAPI docs are available at `/docs` (FastAPI built-in).
 
@@ -35,11 +40,12 @@ Interactive OpenAPI docs are available at `/docs` (FastAPI built-in).
 
 ## Credentials
 
-Both come from the environment and are never flags. A command line is readable by every process on the host and is recorded by anything that logs the line a service was started with, so a `--token=` or `--verificationKey=` argument is ignored.
+All come from the environment and are never flags. A command line is readable by every process on the host and is recorded by anything that logs the line a service was started with, so a `--token=` or `--verificationKey=` argument is ignored.
 
 | Variable | Meaning |
 |----------|---------|
-| `Token` | Pre-minted service JWT. With none set the service asks `POST /api/auth/token` for one with no key, which Mycelium refuses, so a run by hand needs one |
+| `ApiKey` | An API key, exchanged for a token in the `X-API-Key` header of `POST /api/auth/token`. The token is held and exchanged again thirty seconds before it runs out. A key is used before a `Token` given beside it. A run by hand uses this |
+| `Token` | A service JWT, used when no `ApiKey` is set; Mycelium hands one to a service it launches. With neither set, the service makes no call to Mycelium, says so in one line, and still answers its own routes |
 | `VerificationKey` | Base64 of Mycelium's public signing key; when set, `/handle` and `/shutdown` require a valid Mycelium-signed JWT addressed to this service. It checks a signature and cannot make one |
 
 ## Endpoints
@@ -57,7 +63,7 @@ Both come from the environment and are never flags. A command line is readable b
 
 - **Registration** — `register_with_mycelium()` POSTs the registration envelope to `/api/mycelium/register` with a bearer token; runs from the FastAPI `lifespan` startup hook.
 - **JWT validation** — `verify_request()` (a FastAPI dependency) uses PyJWT with `algorithms=["ES256"]` — naming the one algorithm rather than honouring the token's own — against the public key read from `VerificationKey`, plus issuer, this service's own recipient name, and expiry with 30s leeway (matching `ServiceTokenValidator`).
-- **Shutdown** — the `lifespan` hook makes no call to the broker on the way out. It does not deregister: `DELETE /api/mycelium/services/{handler_id}` is admin-only, and the broker's liveness monitor removes a registration whose service stops answering.
+- **Shutdown** — `POST /shutdown` stops the service once it has answered. The `lifespan` hook makes no call to the broker on the way out. It does not deregister: `DELETE /api/mycelium/services/{handler_id}` is admin-only, and the broker's liveness monitor removes a registration whose service stops answering.
 
 ## Test
 
@@ -83,8 +89,8 @@ a runnable demo at `POST /demo/write-kinds {"thingId": "<existing>"}` that drive
 seq = await set_fact(thing_id, "status", "active")                                  # Fact → 201
 await record_observation(thing_id, "temperature", 21.5, datetime.now(timezone.utc).isoformat())  # 202
 n = await record_observations(thing_id, [{"property": "temperature", "value": 21.7}])
-res = await deposit_sediment([{"thingId": thing_id, "property": "temperature",      # bulk → sealed Sapwood
-    "value": 19.8, "observedAt": "2026-06-19T12:00:00Z"}])
+res = await deposit_sediment([sediment_reading(thing_id, "temperature", 19.8,    # bulk → sealed Sapwood
+    "2026-06-19T12:00:00Z")])
 ```
 
 Full wire contract (routes, status codes, 405/404 gating): [`docs/SERVICE_CONTRACT.md`](../docs/SERVICE_CONTRACT.md) § "Writing data back".
