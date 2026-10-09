@@ -55,10 +55,11 @@ export function useResolveContext(
   wrote?: () => void,
 ): ResolveContext {
   const stateVersions = useUiStore((s) => s.stateVersions);
+  const loadsApplied = useModelStore((s) => s.loadsApplied);
   return useMemo(
-    () => ({ index, scopeId, compareArchetype, nonce, serverRefresh, stateVersions, reads: makeReads(), wrote }),
+    () => ({ index, scopeId, compareArchetype, nonce, serverRefresh, stateVersions, loadsApplied, reads: makeReads(), wrote }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [index, scopeId, compareArchetype, nonce, serverRefresh, stateVersions, wrote],
+    [index, scopeId, compareArchetype, nonce, serverRefresh, stateVersions, loadsApplied, wrote],
   );
 }
 
@@ -90,12 +91,13 @@ function waitOf(binding: Binding, context: ResolveContext): string {
   if (!askedOfTheBroker(binding)) return `model:${generationOf(context.index)}`;
   const versions = context.stateVersions ?? {};
   const states = statesRead(binding).map((state) => `${state}=${versions[state] ?? 0}`);
-  return `broker:${context.serverRefresh ?? 0}:${states.join(',')}`;
+  return `broker:${context.serverRefresh ?? 0}:${context.loadsApplied ?? 0}:${states.join(',')}`;
 }
 
 /** What these bindings are waiting for, as one value that moves when — and only when — one of them
  *  has to be resolved again. A figure read from the loaded model follows that model; a figure the
- *  broker answers follows the states its own answer is made of, and the page's cadence. */
+ *  broker answers follows the states its own answer is made of, the page's cadence, and each load
+ *  that replaces the page's set. */
 function waitFor(bindings: (Binding | undefined)[], context: ResolveContext): string {
   return bindings.map((binding) => (binding ? waitOf(binding, context) : '')).join('|');
 }

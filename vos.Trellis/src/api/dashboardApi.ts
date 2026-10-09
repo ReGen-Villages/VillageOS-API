@@ -316,6 +316,10 @@ export interface ResolveContext {
    *  widget on it. A binding the broker answers reads the counts of the states its own answer is
    *  made of, and resolves again only when one of those moved. Part of identity only. */
   stateVersions?: Record<string, number>;
+  /** How many loads have replaced the Things the page holds. A binding the broker answers also reads
+   *  the page's set — the Thing a verdict judges and the value it states — so it resolves again after
+   *  each one. Part of identity only. */
+  loadsApplied?: number;
   /** What a writing widget calls once a press was taken, so the page reads again what the press
    *  changed. A write to the model announces itself on the stream; a write the platform records
    *  outside the model — an account — does not, and this is the only word the page gets. */
