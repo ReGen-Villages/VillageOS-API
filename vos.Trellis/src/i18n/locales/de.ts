@@ -349,6 +349,7 @@ export const de: PartialResources = {
   },
   widgets: {
     stateCountMissing: "Die Anzahl der Dinge in „{{state}}“ konnte nicht gelesen werden.",
+    chooseOneEntity: "Wird für jeweils eine Auswahl unter „{{label}}“ gezeigt: oben eine wählen.",
     funnel: {
       rows: "Zeilen",
       stage: "Stufe",

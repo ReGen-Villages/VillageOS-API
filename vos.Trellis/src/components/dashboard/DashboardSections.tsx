@@ -15,12 +15,15 @@ export function DashboardSections({
   context,
   isWide,
   openDetail,
+  entityToChoose,
   whenEmpty,
 }: {
   sections: DashboardSection[];
   context: ResolveContext;
   isWide: boolean;
   openDetail?: (thingId: string) => void;
+  /** The word for the compared entity while none is selected and several could be. */
+  entityToChoose?: string;
   /** What to say where the specification lists no sections. Each page says it in its own words; drawing
    *  nothing is how a figure the analysis has not computed reads, so a page with nothing to draw at
    *  all cannot look the same as one whose figures came back empty. */
@@ -31,7 +34,7 @@ export function DashboardSections({
   return (
     <>
       {sections.map((section, i) => (
-        <Section key={i} section={section} context={context} isWide={isWide} openDetail={openDetail} />
+        <Section key={i} section={section} context={context} isWide={isWide} openDetail={openDetail} entityToChoose={entityToChoose} />
       ))}
     </>
   );
@@ -42,11 +45,13 @@ function Section({
   context,
   isWide,
   openDetail,
+  entityToChoose,
 }: {
   section: DashboardSection;
   context: ResolveContext;
   isWide: boolean;
   openDetail?: (thingId: string) => void;
+  entityToChoose?: string;
 }) {
   const grid = sectionGrid(section, isWide);
 
@@ -62,7 +67,7 @@ function Section({
       <div className="grid gap-3.5" style={{ gridTemplateColumns: grid.gridTemplateColumns, gridAutoRows: grid.gridAutoRows }}>
         {section.widgets.map((widget, i) => (
           <div key={i} className="grid min-w-0 min-h-0" style={grid.cells[i]}>
-            <WidgetRenderer widget={widget} context={context} openDetail={openDetail} />
+            <WidgetRenderer widget={widget} context={context} openDetail={openDetail} entityToChoose={entityToChoose} />
           </div>
         ))}
       </div>

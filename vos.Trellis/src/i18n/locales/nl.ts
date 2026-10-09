@@ -349,6 +349,7 @@ export const nl: PartialResources = {
   },
   widgets: {
     stateCountMissing: "Het aantal dingen in ‘{{state}}’ kon niet worden gelezen.",
+    chooseOneEntity: "Wordt per keuze uit ‘{{label}}’ getoond: kies er hierboven een.",
     funnel: {
       rows: "rijen",
       stage: "Fase",

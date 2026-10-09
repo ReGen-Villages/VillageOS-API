@@ -349,6 +349,7 @@ export const es: PartialResources = {
   },
   widgets: {
     stateCountMissing: "No se ha podido leer el número de cosas en «{{state}}».",
+    chooseOneEntity: "Se muestra para una sola opción de «{{label}}» a la vez: elija una arriba.",
     funnel: {
       rows: "filas",
       stage: "Etapa",
