@@ -187,3 +187,31 @@ describe('the mark that says the model derived a figure', () => {
     expect(screen.getByText('99')).toBeInTheDocument();
   });
 });
+
+// A binding can answer a word — the name of the Thing a walk reaches — and a dash would say there is no answer.
+describe('KpiCard shows a word its binding answers', () => {
+  it('shows the word in place of a number', () => {
+    const widget: KpiWidget = { type: 'kpi', title: 'Climate zone', value: bind('climate_class', 'Cwb') };
+
+    render(<KpiCard widget={widget} context={{} as ResolveContext} />);
+
+    expect(screen.getByText('Cwb')).toBeInTheDocument();
+    expect(screen.queryByText('—')).toBeNull();
+  });
+
+  it('judges no target for a word', () => {
+    const widget: KpiWidget = { type: 'kpi', title: 'Climate zone', value: bind('climate_class_judged', 'Cwb'), target: 1 };
+
+    render(<KpiCard widget={widget} context={{} as ResolveContext} />);
+
+    expect(screen.queryByText(/on target|watch/i)).toBeNull();
+  });
+
+  it('still shows a dash where the binding answers nothing', () => {
+    const widget: KpiWidget = { type: 'kpi', title: 'Climate zone', value: bind('climate_class_unknown', null) };
+
+    render(<KpiCard widget={widget} context={{} as ResolveContext} />);
+
+    expect(screen.getByText('—')).toBeInTheDocument();
+  });
+});
