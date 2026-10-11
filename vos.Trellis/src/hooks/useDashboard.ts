@@ -91,7 +91,7 @@ function waitOf(binding: Binding, context: ResolveContext): string {
   if (!askedOfTheBroker(binding)) return `model:${generationOf(context.index)}`;
   const versions = context.stateVersions ?? {};
   const states = statesRead(binding).map((state) => `${state}=${versions[state] ?? 0}`);
-  return `broker:${context.serverRefresh ?? 0}:${context.loadsApplied ?? 0}:${states.join(',')}`;
+  return `broker:${context.serverRefresh ?? 0}:${context.loadsApplied}:${states.join(',')}`;
 }
 
 /** What these bindings are waiting for, as one value that moves when — and only when — one of them
