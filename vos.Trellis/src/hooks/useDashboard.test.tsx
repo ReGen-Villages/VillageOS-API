@@ -151,6 +151,17 @@ describe('useBinding waits on what its answer is made of', () => {
     expect(answered).toHaveBeenCalledTimes(1);
   });
 
+  // A clear is followed by the load that refills the page, and that load asks again.
+  it('stays put when the page\'s Things are cleared', async () => {
+    const { result } = onThePage(reserveVerdict);
+    await waitFor(() => expect(result.current.value).toBe(3));
+
+    act(() => useModelStore.getState().clear());
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+
+    expect(answered).toHaveBeenCalledTimes(1);
+  });
+
   it('resolves against the newest generation\'s reads when it does resolve', async () => {
     const { result, rerender } = onThePage(flaggedCount);
     await waitFor(() => expect(result.current.value).toBe(3));
