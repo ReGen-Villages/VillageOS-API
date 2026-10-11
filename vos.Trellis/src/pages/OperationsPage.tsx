@@ -55,7 +55,7 @@ export function OperationsPage() {
   const entities = useMemo(() => (specification ? computeScopeEntities(specification, index) : []), [specification, index]);
 
   const [chosenScopeId, setScopeId] = useState<string | null>(null);
-  // All of one entity is that entity, and it is the only way a figure walking from it can be drawn.
+  // With only one entity, All means that entity, and selecting it is what lets a figure that follows a relationship from it be drawn.
   const scopeId = chosenScopeId ?? (entities.length === 1 ? entities[0].id : null);
   const entityToChoose = specification?.compare && scopeId === null && entities.length > 1 ? specification.compare.label : undefined;
   const [nonce, setNonce] = useState(0);

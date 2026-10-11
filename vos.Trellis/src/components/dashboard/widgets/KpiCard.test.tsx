@@ -199,6 +199,14 @@ describe('KpiCard shows a word its binding answers', () => {
     expect(screen.queryByText('—')).toBeNull();
   });
 
+  it('shows no unit after a word', () => {
+    const widget: KpiWidget = { type: 'kpi', title: 'Climate zone', value: bind('climate_class_with_unit', 'Cwb'), unit: 'mm' };
+
+    render(<KpiCard widget={widget} context={{} as ResolveContext} />);
+
+    expect(screen.queryByText('mm')).toBeNull();
+  });
+
   it('judges no target for a word', () => {
     const widget: KpiWidget = { type: 'kpi', title: 'Climate zone', value: bind('climate_class_judged', 'Cwb'), target: 1 };
 

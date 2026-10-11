@@ -85,10 +85,6 @@ export function WidgetRenderer({
   }
 }
 
-/** A widget this build did not draw, and which of the two reasons it was. The specification is model data, so
- *  it can name a kind that was misspelled or added after this client shipped, and it can ask a
- *  question in vocabulary this client has no answer for; the view draws everything else and says
- *  what it left out, rather than leaving a silent hole an author cannot account for. */
 function ChooseOneEntity({ title, label }: { title?: string; label: string }) {
   const { t } = useTranslation();
   return (
@@ -98,6 +94,10 @@ function ChooseOneEntity({ title, label }: { title?: string; label: string }) {
   );
 }
 
+/** A widget this build did not draw, and which of the two reasons it was. The specification is model data, so
+ *  it can name a kind that was misspelled or added after this client shipped, and it can ask a
+ *  question in vocabulary this client has no answer for; the view draws everything else and says
+ *  what it left out, rather than leaving a silent hole an author cannot account for. */
 function UnknownWidget({ reason }: { reason: { unknownType: unknown } | { unanswered: string[] } }) {
   const { t } = useTranslation();
   // A specification can leave the word out as easily as misspell it, and either way the reader is owed a
