@@ -183,7 +183,7 @@ export const useModelStore = create<ModelState>((set) => ({
     relationshipsById.forget();
     set((s) => ({
       things: [], relationships: [], loaded: false, holdsWholeModel: false,
-      thingStates: new Map(), thingStatesVersion: s.thingStatesVersion + 1, loadsApplied: s.loadsApplied + 1,
+      thingStates: new Map(), thingStatesVersion: s.thingStatesVersion + 1,
     }));
   },
 }));
