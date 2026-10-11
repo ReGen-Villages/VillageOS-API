@@ -233,6 +233,17 @@ describe('OperationsPage', () => {
       expect(declaredSubscriptions).toContainEqual(subscriptionForSpecification(SPECIFICATION as DashboardSpecification, 'vil1')));
   });
 
+  it('asks for no choice where the compared archetype has no entity to choose', async () => {
+    useModelStore.setState({
+      relationships: useModelStore.getState().relationships.filter((relationship) => !['vil1', 'vil2'].includes(relationship.SubjectId)),
+    });
+
+    renderAt();
+
+    expect(await screen.findByText('Water stored')).toBeInTheDocument();
+    expect(screen.queryByText(/choose one above/)).toBeNull();
+  });
+
   it('names the selected entity in what it declares', async () => {
     renderAt();
     await screen.findByText('96.5');

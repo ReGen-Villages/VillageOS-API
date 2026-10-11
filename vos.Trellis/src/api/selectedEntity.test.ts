@@ -15,7 +15,8 @@ describe('needsOneEntity', () => {
     ['an origin naming no Thing', originOfTheSite],
     ['a working naming no Thing', { kind: 'working', property: 'peopleFed' }],
     ['a history, which reads one entity\'s series', { kind: 'history', property: 'temperatureCelsius', windowSeconds: 86400, steps: [] }],
-    ['a ratio with a walking side', { kind: 'ratio', numerator: averagedAcrossSites, denominator: walkFromTheSite }],
+    ['a ratio walking below the line', { kind: 'ratio', numerator: averagedAcrossSites, denominator: walkFromTheSite }],
+    ['a ratio walking above the line', { kind: 'ratio', numerator: walkFromTheSite, denominator: averagedAcrossSites }],
   ] as [string, Binding][])('holds for %s', (_, binding) => {
     expect(needsOneEntity(binding)).toBe(true);
   });

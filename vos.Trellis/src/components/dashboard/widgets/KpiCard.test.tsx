@@ -222,4 +222,12 @@ describe('KpiCard shows a word its binding answers', () => {
 
     expect(screen.getByText('—')).toBeInTheDocument();
   });
+
+  it('shows a dash for an empty word', () => {
+    const widget: KpiWidget = { type: 'kpi', title: 'Climate zone', value: bind('climate_class_empty', '') };
+
+    render(<KpiCard widget={widget} context={{} as ResolveContext} />);
+
+    expect(screen.getByText('—')).toBeInTheDocument();
+  });
 });
