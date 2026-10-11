@@ -181,6 +181,41 @@ public class SlicedWindowFetcherTests
         clock.Waits.Should().BeEmpty();
     }
 
+    private sealed class ClockThatNeverFires : TimeProvider
+    {
+        public TaskCompletionSource Waiting { get; } = new();
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            Waiting.TrySetResult();
+            return new NeverFires();
+        }
+
+        private sealed class NeverFires : ITimer
+        {
+            public bool Change(TimeSpan dueTime, TimeSpan period) => true;
+            public void Dispose() { }
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        }
+    }
+
+    [Fact]
+    public async Task A_run_cancelled_while_a_slice_waits_stops_waiting_and_asks_nothing_more()
+    {
+        var clock = new ClockThatNeverFires();
+        var inner = new RecordingFetcher(_ => TooManyRequests(TimeSpan.FromMinutes(1)));
+        using var run = new CancellationTokenSource();
+
+        var fetching = Slicing(inner, clock: clock).FetchAsync(
+            Site, Source, Endpoint, Window("2016-09-23", "2026-09-22"), run.Token);
+        await clock.Waiting.Task;
+        await run.CancelAsync();
+
+        await FluentActions.Awaiting(() => fetching.WaitAsync(TimeSpan.FromSeconds(10)))
+            .Should().ThrowAsync<OperationCanceledException>();
+        inner.Calls.Should().ContainSingle();
+    }
+
     [Fact]
     public async Task A_failure_that_names_no_wait_is_not_asked_for_again()
     {
