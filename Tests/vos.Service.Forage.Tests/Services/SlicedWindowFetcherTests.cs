@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Forage.Helpers;
 using vos.Service.Forage.Services;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Forage.Tests.Services;
@@ -211,7 +212,7 @@ public class SlicedWindowFetcherTests
         await clock.Waiting.Task;
         await run.CancelAsync();
 
-        await FluentActions.Awaiting(() => fetching.WaitAsync(TimeSpan.FromSeconds(10)))
+        await FluentActions.Awaiting(() => fetching.WaitAsync(Settle.Ceiling))
             .Should().ThrowAsync<OperationCanceledException>();
         inner.Calls.Should().ContainSingle();
     }
