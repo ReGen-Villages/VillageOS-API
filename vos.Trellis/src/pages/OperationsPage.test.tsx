@@ -212,6 +212,10 @@ describe('OperationsPage', () => {
 
     await waitFor(() => expect(screen.queryByText(askingForOne)).toBeNull());
     expect(screen.getByText('Water stored')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'All' }));
+
+    expect(await screen.findByText(askingForOne)).toBeInTheDocument();
   });
 
   // A model made from one site submission holds one site, and All of one is that one.
