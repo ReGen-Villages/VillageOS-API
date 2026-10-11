@@ -163,7 +163,8 @@ public sealed class EndpointServiceSourceFetcher : MyceliumClientBase, ISourceFe
         refused.Headers.RetryAfter switch
         {
             { Delta: { } delta } => delta,
-            { Date: { } until } when refused.Headers.Date is { } providersNow => until - providersNow,
+            { Date: { } until } when refused.Headers.Date is { } providersNow =>
+                until > providersNow ? until - providersNow : TimeSpan.Zero,
             _ => WaitWhenNoneIsStated,
         };
 }

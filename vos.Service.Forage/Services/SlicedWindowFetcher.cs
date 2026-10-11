@@ -87,8 +87,7 @@ public sealed class SlicedWindowFetcher : ISourceFetcher
         for (var attempt = 1; ; attempt++)
         {
             var outcome = await _inner.FetchAsync(subjectId, sourceName, endpointName, sliceParameters, cancellationToken);
-            if (outcome.Resolved
-                || outcome.RetryAfter is not { } wait
+            if (outcome.RetryAfter is not { } wait
                 || wait > LongestWaitForARefusedSlice
                 || attempt == MostAttemptsAtOneSlice)
                 return outcome;

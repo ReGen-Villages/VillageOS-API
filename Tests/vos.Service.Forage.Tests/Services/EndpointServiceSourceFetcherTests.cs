@@ -121,6 +121,21 @@ public class EndpointServiceSourceFetcherTests
     }
 
     [Fact]
+    public async Task FetchAsync_TooManyRequests_StatingATimeAlreadyPassed_WaitsNoTime()
+    {
+        var providersNow = new DateTimeOffset(2026, 10, 5, 12, 0, 0, TimeSpan.Zero);
+        var handler = new MockHttpMessageHandler(_ => TooManyRequests(refused =>
+        {
+            refused.Headers.Date = providersNow;
+            refused.Headers.RetryAfter = new(providersNow.AddSeconds(-30));
+        }));
+
+        var outcome = await Fetcher(handler).FetchAsync(Site, "Climate", "ClimateEndpoint", Coordinates, default);
+
+        outcome.RetryAfter.Should().Be(TimeSpan.Zero);
+    }
+
+    [Fact]
     public async Task FetchAsync_TooManyRequests_StatingNoWait_WaitsOneMinute()
     {
         var handler = new MockHttpMessageHandler(_ => TooManyRequests());
