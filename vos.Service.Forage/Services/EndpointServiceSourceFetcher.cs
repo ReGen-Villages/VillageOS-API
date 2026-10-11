@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -58,7 +59,8 @@ public sealed class EndpointServiceSourceFetcher : MyceliumClientBase, ISourceFe
             // and replaced with a generic line.
             var body = await response.Content.ReadAsStringAsync(bounded.Token);
             return new SourceOutcome(sourceName, false, $"{(int)response.StatusCode}: {Summarize(body)}",
-                SubjectId: subjectId);
+                SubjectId: subjectId,
+                RetryAfter: response.StatusCode == HttpStatusCode.TooManyRequests ? WaitAsked(response) : null);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -153,4 +155,15 @@ public sealed class EndpointServiceSourceFetcher : MyceliumClientBase, ISourceFe
         var trimmed = body.Trim();
         return trimmed.Length <= LongestReason ? trimmed : trimmed[..LongestReason] + "…";
     }
+
+    private static readonly TimeSpan WaitWhenNoneIsStated = TimeSpan.FromMinutes(1);
+
+    // A stated time is measured against the provider's own Date header, so a difference between its clock and this host's does not shorten or stretch the wait.
+    private static TimeSpan WaitAsked(HttpResponseMessage refused) =>
+        refused.Headers.RetryAfter switch
+        {
+            { Delta: { } delta } => delta,
+            { Date: { } until } when refused.Headers.Date is { } providersNow => until - providersNow,
+            _ => WaitWhenNoneIsStated,
+        };
 }
