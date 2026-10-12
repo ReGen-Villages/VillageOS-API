@@ -31,6 +31,7 @@ export function KpiCard({
   const origin = useBinding(widget.origin, context);
 
   const v = asNumber(value.value);
+  const word = typeof value.value === 'string' && value.value !== '' ? value.value : null;
   const d = asNumber(delta.value);
   const series = asSeries(spark.value);
   const baseline = asNumber(sparkBaseline.value);
@@ -79,8 +80,8 @@ export function KpiCard({
               footnote={widget.footnote}
               openDetail={openDetail}
             >
-              {value.loading ? <span className="text-zinc-300 dark:text-zinc-600">···</span> : formatNumber(v, widget.format)}
-              {widget.unit && <span className="text-sm text-zinc-400 dark:text-zinc-500 font-semibold ml-1">{widget.unit}</span>}
+              {value.loading ? <span className="text-zinc-300 dark:text-zinc-600">···</span> : word ?? formatNumber(v, widget.format)}
+              {widget.unit && word === null && <span className="text-sm text-zinc-400 dark:text-zinc-500 font-semibold ml-1">{widget.unit}</span>}
             </DerivedFigure>
           </div>
           {d !== null && (

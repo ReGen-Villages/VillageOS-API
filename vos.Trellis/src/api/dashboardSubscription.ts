@@ -106,12 +106,15 @@ function withNested(binding: Binding): Binding[] {
   return [binding, ...inner.filter((nested): nested is Binding => !!nested).flatMap(withNested)];
 }
 
+/** The bindings a widget declares in its own slots, without what is nested inside them. */
+export function slotsOf(widget: Widget): Binding[] {
+  return (widgetBindings(widget) ?? []).filter((binding): binding is Binding => !!binding);
+}
+
 /** Every binding one widget holds: the slots it declares, and everything nested inside them. A
  *  widget of a kind this build has no arm for holds none that can be found this way. */
 export function bindingsOf(widget: Widget): Binding[] {
-  return (widgetBindings(widget) ?? [])
-    .filter((binding): binding is Binding => !!binding)
-    .flatMap(withNested);
+  return slotsOf(widget).flatMap(withNested);
 }
 
 function specificationBindings(specification: DashboardSpecification): Binding[] {
