@@ -34,6 +34,7 @@ Find yourself in the left column and read the parts on the right. Every part sta
 - Appendix A — Glossary
 - Appendix B — The criteria language on one page
 - Appendix C — The guides beside this one
+- Appendix D — How every site figure is worked out
 
 Chapters are numbered straight through, so a chapter can be named from anywhere.
 
@@ -202,7 +203,8 @@ the balances from the site's own figures: how much land each part of the program
 energy the site generates against what it consumes, how many days of water it holds in reserve,
 how many people its growing land could feed, and how far the rain it captures goes towards each
 demand on it. Each balance has three verdicts, so a site nobody has assessed reads as *not
-assessed*, never as *failed*.
+assessed*, never as *failed*. [Appendix D](#appendix-d--how-every-site-figure-is-worked-out) lists
+every figure, how it is worked out and why.
 
 **The dashboard.** A page the model itself publishes shows every figure with where it came from,
 how it was worked out, and what would move it. A shortfall names the levers: raise this input, or
@@ -2884,3 +2886,222 @@ whether anything produced a value at all.
 | Temporal Reads | How now and then are served, retention, the model clock, the two reductions |
 | Land Intake | Taking in a piece of land and analysing it: the model, the intake, discovery, the calculations worked through, the public pages |
 | Deployment, and the tunnel | The reverse proxy, what every service must bind, and reaching a machine with no public address |
+
+## Appendix D — How every site figure is worked out
+
+**Every figure the site analysis shows is worked out by the model, from a formula or a sum declared
+once on the shared study kind. This appendix lists each one: how it is worked out, and why.** The
+Land Intake guide works the same figures through with numbers for an invented site.
+
+Four rules hold for every figure:
+
+- **A missing input leaves the figure unknown, never nought.** A site nobody has assessed reads as
+  *not assessed*, not as a site that failed.
+- **An input takes the first of its sources that has a value**, always in the same order: measured from
+  the building model, then stated by a person, then estimated from the land. A measured figure needs at
+  least one object to measure, so with none it stays unknown and the next source is read.
+- **Assumptions live on the shared study kind.** Every study inherits them. A project changes one by
+  stating its own value on its study, and every figure that reads it recomputes.
+- **Nothing is rounded where it is worked out.** Rounding belongs where figures are shown together, so
+  two figures on one page cannot disagree.
+
+In the tables, *first known of a, b* means the first of a and b that has a value. Names in `code` are
+the property names in the model.
+
+### The assumptions
+
+An assumption is a value nobody measured. Each one below is a starting point, and a project overrides it
+on its own study. Where no source for the value is recorded, the table says so.
+
+| Assumption | Default | What it stands for | Why this value |
+| --- | --- | --- | --- |
+| `moduleEfficiency` | 0.17 | The share of sunlight a solar panel turns into electricity under test conditions | No source recorded |
+| `performanceRatio` | 0.77 | The share of the panel's output that reaches the meter, after the inverter, wiring, dirt, heat and downtime | No source recorded |
+| `arrayCoverageFraction` | 0.06 | The share of the land set aside for solar arrays that panels cover, read until a building model holds arrays | No source recorded |
+| `energyPerPersonKwhPerYear` | 2,500 kWh | The electricity one resident uses in a year | No source recorded |
+| `perCapitaConsumptionM3` | 55 m³ | The water one person uses in a year: 150 litres a day | No source recorded for 150 litres a day |
+| `irrigationDemandM3PerHectarePerYear` | 5,000 m³ | The water a hectare of growing land takes in a year | No source recorded |
+| `runoffCoefficient` | 0.8 | The share of the rain falling on hard surfaces that can be captured | No source recorded |
+| `peopleFedPerHectareBaseline` | 2.5 | The people a hectare of growing land feeds in the baseline climate | Regenerative mixed farming that produces a full diet supports roughly two to three people a hectare. It is a proposal, not a sourced figure |
+| `householdSize` (on the site) | 2.4 | The people who share one home | A planning norm every site starts from. A submission states its own. No source recorded for the value |
+| Comfort band: `comfortLowCelsius`, `comfortHighCelsius` | 20 °C to 26.5 °C | The temperatures counted as comfortable | No source recorded |
+| `frostCelsius` | 0 °C | A day at or below this is a frost day | Water freezes at 0 °C |
+| `hotDayCelsius` | 30 °C | A day above this is a hot day | No source recorded |
+| `heatingSetpointCelsius`, `coolingSetpointCelsius` | 10 °C, 18 °C | The temperatures the climate charts count heating and cooling need from | No source recorded |
+| Wet-bulb limits: `wetBulbCautionCelsius`, `wetBulbDangerCelsius`, `wetBulbUnsafeCelsius`, `wetBulbFatalCelsius` | 26, 29, 32 and 35 °C | The four levels of heat stress the climate charts mark. Wet-bulb temperature combines heat and humidity | No source recorded |
+
+### Land
+
+| Figure | How it is worked out | Why |
+| --- | --- | --- |
+| `totalSharePercent` (each allocation) | Every `sharePercent` on the same site, added up | |
+| `normalisedSharePercent` (each allocation) | `sharePercent ÷ totalSharePercent × 100` | A planner moving a slider states a proportion, not a number that has to add up to 100. Dividing by the total makes the shares describe the whole parcel whatever they add up to |
+| `parcelAreaHectares` (each allocation) | The `measuredAreaHectares` of the site's parcel | |
+| `allocatedAreaHectares` (each allocation) | `normalisedSharePercent ÷ 100 × parcelAreaHectares` | The areas of a site's allocations always add up to its parcel |
+| `statedAreaHectares` (the parcel) | The area stated on the site, read back onto the parcel | So the parcel can compare the two areas itself |
+| `statedAreaDivergencePercent` (the parcel) | `(measuredAreaHectares − statedAreaHectares) ÷ statedAreaHectares × 100` | What a person said the land measures and what the drawn boundary encloses are two different claims. Showing how far apart they are stops a wrong area being carried silently into every figure that grows with it. Unknown when nobody stated an area |
+| `productiveFootprintHectares` | The areas of the allocations whose category is marked as growing land, added up | Which categories count is a mark each category carries, not a list of names in code, so a project whose land divides differently moves a mark and changes no code. At least one allocation must count, so a programme with no growing land reads as not assessed rather than as nought hectares |
+| `allocatedBuiltFootprintHectares` | The areas of the allocations whose category is marked as built land, added up | As above |
+| `arrayHostHectares` | The areas of the allocations whose category is marked as hosting solar arrays, added up | As above |
+| `measuredRoofAreaM2` | The area of every roof in the building model, added up | |
+| `builtFootprintHectares` | first known of `measuredRoofAreaM2 ÷ 10,000`, `allocatedBuiltFootprintHectares` | The order every input follows: the roofs once the building model holds any, the land set aside for building until then. 10,000 square metres make a hectare |
+| `builtFootprintDivergencePercent` | `(measuredRoofAreaM2 ÷ 10,000 − allocatedBuiltFootprintHectares) ÷ allocatedBuiltFootprintHectares × 100` | Shows how far the building model's roofs are from the land the programme set aside for building |
+| Dwellings (worked out by the page) | `population ÷ householdSize` | |
+| People a hectare (worked out by the page) | `population ÷` the parcel's measured area | |
+
+### Population
+
+| Figure | How it is worked out | Why |
+| --- | --- | --- |
+| `statedPopulation` | The population stated on the site | |
+| `measuredPopulation` | The occupancy number of every space in the building model, added up | |
+| `population` | first known of `measuredPopulation`, `statedPopulation` | The order every input follows: measured before stated |
+
+### Energy
+
+| Figure | How it is worked out | Why |
+| --- | --- | --- |
+| `estimatedArrayAreaM2` | `arrayHostHectares × arrayCoverageFraction × 10,000` | Gives a first energy answer before any building model exists |
+| `measuredArrayAreaM2` | The area of every solar array in the building model, added up | |
+| `solarPvAreaM2` | first known of `measuredArrayAreaM2`, `estimatedArrayAreaM2` | Measured before estimated |
+| `arrayAreaDivergencePercent` | `(measuredArrayAreaM2 − estimatedArrayAreaM2) ÷ estimatedArrayAreaM2 × 100` | Shows how far the design has moved from the estimate |
+| `solarResourceKwhPerM2PerYear` | The site's value, fetched by discovery | Sunlight belongs to the site, not to the study |
+| `solarGenerationMwhPerYear` | `solarPvAreaM2 × solarResourceKwhPerM2PerYear × moduleEfficiency × performanceRatio ÷ 1,000` | Two factors, not one: the panel's efficiency and what is lost between panel and meter. Kept apart, leaving the losses out is a visible omission. Efficiency alone would overstate output by about a third. Dividing by 1,000 turns kilowatt-hours into megawatt-hours |
+| `otherGenerationMwhPerYear` | `annualGenerationMwhPerUnit` of every generator in the building model, added up | |
+| `totalGenerationMwhPerYear` | `solarGenerationMwhPerYear +` first known of `otherGenerationMwhPerYear`, 0 | The one place a missing value counts as nought: a model with no other generators has no other generation to add |
+| `estimatedConsumptionMwhPerYear` | `statedPopulation × energyPerPersonKwhPerYear ÷ 1,000` | |
+| `measuredConsumptionMwhPerYear` | `measuredPopulation × energyPerPersonKwhPerYear ÷ 1,000` | |
+| `annualConsumptionMwhPerYear` | first known of `measuredConsumptionMwhPerYear`, `statedConsumptionMwhPerYear`, `estimatedConsumptionMwhPerYear` | Measured, then stated, then estimated |
+| `percentOfConsumption` | `totalGenerationMwhPerYear ÷ annualConsumptionMwhPerYear × 100` | |
+| `peoplePowered` | `totalGenerationMwhPerYear × 1,000 ÷ energyPerPersonKwhPerYear` | Reads no population, so a submission carrying only a boundary still gets an answer |
+
+**Verdict.** Net positive at 100% or more, short of target below it, not assessed while unknown. A
+site that generates at least what it uses is net positive by definition. This verdict is the one figure
+still written by a service, the energy balance, because a verdict is a yes or no where a formula gives
+a number.
+
+### Water
+
+| Figure | How it is worked out | Why |
+| --- | --- | --- |
+| `rainfallMillimetresPerYear` | The site's value, fetched by discovery | Rainfall belongs to the site, not to the study |
+| `harvestM3PerYear` | `builtFootprintHectares × rainfallMillimetresPerYear × runoffCoefficient × 10` | The 10 is two unit changes at once: a hectare is 10,000 square metres and a millimetre is a thousandth of a metre |
+| `domesticConsumptionM3PerYear` | `population × perCapitaConsumptionM3` | |
+| `irrigationConsumptionM3PerYear` | `productiveFootprintHectares × irrigationDemandM3PerHectarePerYear` | |
+| `totalWaterDemandM3PerYear` | Every demand's `demandM3PerYear`, added up | |
+| `percentOfWaterDemand` | `harvestM3PerYear ÷ totalWaterDemandM3PerYear × 100` | |
+| `peopleWatered` | `harvestM3PerYear ÷ perCapitaConsumptionM3` | Reads no population, so a submission carrying only a boundary still gets an answer |
+
+**Each demand on the harvest works out its own share.** Each demand states its `servingOrder`:
+drinking water 1, irrigation 2. Both the demands and their order are declared in the model, not
+written into a service.
+
+| Figure (each demand) | How it is worked out | Why |
+| --- | --- | --- |
+| `takenBeforeThisM3PerYear` | What every demand served before this one took, added up | |
+| `takenM3PerYear` | The smaller of `harvestM3PerYear − takenBeforeThisM3PerYear` and `demandM3PerYear` | One harvest serves every demand. Measuring it against each demand on its own counts the same cubic metre twice |
+| `percentOfDemand` | `takenM3PerYear ÷ demandM3PerYear × 100` | Each demand is judged on its own. A site with plenty of drinking water and too little for irrigation reads the same combined figure as a site short on both, and the two call for opposite decisions |
+| `shortfallM3PerYear` | `demandM3PerYear − takenM3PerYear` | The water that has to come from somewhere else |
+
+**Storage — how long the tanks last.**
+
+| Figure | How it is worked out | Why |
+| --- | --- | --- |
+| `measuredStorageCapacityM3` | The nominal capacity of every tank in the building model, added up | |
+| `storageCapacityM3` | first known of `measuredStorageCapacityM3`, `statedStorageCapacityM3` | Storage has no estimate, so it is never worked out from the target it is judged against |
+| `emergencyReserveM3` | `storageCapacityM3` | The analysis assumes the whole store is held back for an emergency. The formula is where that assumption lives: a project that holds back only part of its storage writes the fraction here, and nothing else changes |
+| `percentOfAnnualConsumption` | `emergencyReserveM3 ÷ domesticConsumptionM3PerYear × 100` | |
+| `daysOfSupply` | `emergencyReserveM3 ÷ domesticConsumptionM3PerYear × 365` | |
+
+**Verdicts.** Water resilient at 14 days of supply or more; no source is recorded for 14 days. Each
+demand is covered at 100%: a demand is met by the harvest or it is not.
+
+### Food
+
+| Figure | How it is worked out | Why |
+| --- | --- | --- |
+| `peopleFedPerHectarePerYear` | `peopleFedPerHectareBaseline ×` the climate factor of the class the site is classified as | Growing land feeds more people in some climates than in others. Every class's factor is listed under [The climate factor for each class](#the-climate-factor-for-each-class) |
+| `peopleFed` | `productiveFootprintHectares × peopleFedPerHectarePerYear` | Reads no population, so a submission carrying only a boundary still gets an answer |
+| `percentOfPopulationFed` | `peopleFed ÷ population × 100` | |
+
+**Verdict.** Target met when a quarter of the population or more is fed. A quarter is a proposal, not a
+sourced figure, like the yield it is worked out from. It is set where one site can be told from another,
+rather than at a level of self-sufficiency no site reaches.
+
+### Climate
+
+Each figure is folded from the last ten years of hourly temperature readings that discovery fetched for
+the site.
+
+| Figure | How it is worked out | Why |
+| --- | --- | --- |
+| `comfortHoursShare` | The share of the hours whose temperature lies inside the comfort band | |
+| `coldHoursShare` | The share of the hours below the comfort band | |
+| `warmHoursShare` | The share of the hours above the comfort band | |
+| `frostDaysPerYear` | Each day's lowest temperature; the days at or below `frostCelsius`, counted for each year; the yearly counts averaged | The figure describes a typical year, not any single one |
+| `hotDaysPerYear` | Each day's highest temperature; the days above `hotDayCelsius`, counted for each year; the yearly counts averaged | As above |
+
+Every threshold these read is an assumption on the study, so nothing that reads one holds a number of
+its own. A study that moves its frost threshold recomputes its frost days.
+
+### The climate factor for each class
+
+A site's climate class is a Köppen-Geiger code, fetched by discovery. The first letter is the climate
+group: A tropical, B dry, C mild, D continental, E polar. In the C and D groups the second letter says
+when rain falls (`f` all year, `w` dry winter, `s` dry summer) and the third says how warm the summer is
+(`a` hot, `b` warm, `c` cool, `d` very cold winter).
+
+The factor comes from an estimate table that gives each climate a **growing-days factor** (how long the
+growing season is) and a **rainfall factor** (how much rain falls), and multiplies them. The baseline
+climate, hot-summer continental, has a factor of 1. A class the table has no row for takes its factor by
+one of the rules in the next section.
+
+| Class | Climate | Growing days × rainfall | Factor | Where it comes from |
+| --- | --- | --- | --- | --- |
+| Af | Tropical rainforest | 2.0 × 1.1 | 2.2 | Table |
+| Am | Tropical monsoon | 2.0 × 1.1 | 2.2 | Table |
+| As, Aw | Tropical savanna | 1.6 × 1.0 | 1.6 | Table, one row for both |
+| BWh | Hot desert | 1.8 × 0.3 | 0.54 | Table |
+| BWk | Cold desert | 1.0 × 0.3 | 0.3 | Table |
+| BSh | Hot semi-arid | 1.4 × 0.6 | 0.84 | Table |
+| BSk | Cold semi-arid | 1.0 × 0.6 | 0.6 | Table |
+| Cfa | Humid subtropical | 1.4 × 1.1 | 1.54 | Table |
+| Cfb, Cfc | Oceanic | 1.2 × 1.0 | 1.2 | Table, one row for both |
+| Csa, Csb | Mediterranean | 1.3 × 0.8 | 1.04 | Table, one row for both |
+| Csc | Cool-summer Mediterranean | 1.3 × 0.8 | 1.04 | Rule 2: the Mediterranean row |
+| Cwa | Dry-winter humid subtropical | 1.4 × 1.1 | 1.54 | Rule 1: as Cfa |
+| Cwb | Subtropical highland | 1.2 × 1.0 | 1.2 | Rule 1: as Cfb |
+| Cwc | Cold subtropical highland | 1.2 × 1.0 | 1.2 | Rule 1: as Cfc |
+| Dfa, Dwa | Hot-summer continental | 1.0 × 1.0 | 1.0 | Table, one row for both |
+| Dfb, Dwb | Warm-summer continental | 0.8 × 1.0 | 0.8 | Table, one row for both |
+| Dfc, Dfd | Subarctic | 0.4 × 0.6 | 0.24 | Table, one row for both |
+| Dwc, Dwd | Dry-winter subarctic | 0.4 × 0.6 | 0.24 | Rule 1: as Dfc and Dfd |
+| Dsa | Dry-summer hot continental | 1.0 × 0.8 | 0.8 | Rule 3 |
+| Dsb | Dry-summer warm continental | 0.8 × 0.8 | 0.64 | Rule 3 |
+| Dsc, Dsd | Dry-summer subarctic | 0.4 × 0.6 | 0.24 | Rule 3 |
+| ET | Tundra | 0.1 × 0.4 | 0.04 | Table |
+| EF | Ice cap | — | 0 | Rule 4 |
+
+### Why each rule for a class the table has no row for
+
+1. **A dry winter counts the same as rain all year.** The table already does this: it puts Dwa in one
+   row with Dfa, and Dwb with Dfb. The same grouping gives Cwa, Cwb and Cwc the factors of Cfa, Cfb and
+   Cfc, and Dwc and Dwd the factor of Dfc and Dfd. Two other ways were weighed for Cwb and turned down,
+   because each mixes factors from two different rows, which the table never does: charging Cwb the
+   Mediterranean row's dry-season rainfall factor (giving 0.96), or giving a nearly frost-free highland
+   the tropical savanna's growing days (giving 1.28). If a highland site deserves more credit, that is a
+   farming judgement for the table, not for this rule.
+2. **Csc joins the Mediterranean row.** That row already covers both a hot summer (Csa) and a warm
+   one (Csb). What defines it is the dry summer, which Csc shares.
+3. **A dry-summer continental class takes its all-year class's growing days, times the lower of that
+   class's rainfall factor and the Mediterranean row's 0.8.** The table has no dry-summer continental
+   row and no grouping to extend. A dry summer falls in the growing season, so it costs more than a dry
+   winter, when continental ground is frozen anyway. The table charges the Mediterranean climates 0.8 for
+   it, so the same charge applies here. Taking the lower of the two keeps a dry-summer class from
+   scoring above its all-year class: Dfc and Dfd already have a rainfall factor of 0.6, below 0.8, so Dsc
+   and Dsd keep it.
+4. **EF is nought.** Permanent ice grows nothing. Nought is an assessed answer; leaving the figure
+   unknown would read as *not assessed*.
+
+A class a project adds without a factor still reads its food figures as unknown, rather than borrowing
+the factor of some other climate.

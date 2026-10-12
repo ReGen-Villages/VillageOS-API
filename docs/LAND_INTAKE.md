@@ -929,23 +929,25 @@ carrying only a boundary get a first answer: **people fed** (the growing land ti
 **people watered** (the harvest divided by what one person drinks in a year), and **people powered**
 (the generation the balance reads — the estimate until a building model arrives — divided by what one
 person consumes). For Willow Bend they come to about
-20, 900 and 290 people — the growing land is the binding constraint, which is itself the finding.
+21, 900 and 290 people — the growing land is the binding constraint, which is itself the finding.
 The submitter dashboard leads with them, and a population dialled in afterwards is what turns the
 percentages and the demand coverages from *not assessed* into verdicts.
 
 ### Food
 
 ```text
-  People fed       = 8.16 ha × 2.5 people/ha/yr                   = 20.4 people
-  Population fed   = 20.4 ÷ 320                                   = 6.4%
+  People fed       = 8.16 ha × 2.5 people/ha/yr × 1.04            = 21.2 people
+  Population fed   = 21.2 ÷ 320                                   = 6.6%
 ```
 
 The yield is a baseline times a factor for the climate. `peopleFedPerHectareBaseline` on the shared
 study archetype is 2.5: regenerative mixed farming producing a full diet supports roughly two to three
 people per hectare. Each climate zone Thing carries a `peopleFedMultiplier`, and the study multiplies
 the baseline by the multiplier of the zone its site is classified as. Willow Bend is `Csa`, whose
-multiplier is 1.0. Correcting the baseline moves the answer for every study; a site whose zone carries
-no multiplier, or which has no zone yet, reads as not assessed.
+multiplier is 1.04. Every class the shared template declares carries one; the Field Guide's
+[Appendix D](FIELD_GUIDE.md#appendix-d--how-every-site-figure-is-worked-out) gives each class's factor
+and where it comes from. Correcting the baseline moves the answer for every study; a site with no zone
+yet, or in a zone a project adds without a multiplier, reads as not assessed.
 
 Two lines of arithmetic, and both are declared on the study rather than run by a service. The result
 still carries which yield assumption produced it and which parcel area it read, and still moves on its
@@ -953,7 +955,7 @@ own when either changes — that is what a declared formula gives, without an ex
 number worked out in a page carries neither.
 
 Neither figure is rounded where it is computed. People fed is conceptually a whole number, but rounding
-20.4 to 20 leaves it disagreeing with the 6.4% worked out from it, so the rounding belongs where the two
+21.2 to 21 leaves it disagreeing with the 6.6% worked out from it, so the rounding belongs where the two
 are displayed together.
 
 > Yield-per-hectare is a coarse abstraction that hides crop mix, climate and diet. That is fine for
