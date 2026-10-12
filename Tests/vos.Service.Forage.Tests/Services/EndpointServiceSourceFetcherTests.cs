@@ -82,6 +82,78 @@ public class EndpointServiceSourceFetcherTests
 
         outcome.Resolved.Should().BeFalse();
         outcome.Reason.Should().Contain("503").And.Contain("portal is down for maintenance");
+        outcome.RetryAfter.Should().BeNull("only a refusal for too many requests says that asking again later will work");
+    }
+
+    private static HttpResponseMessage TooManyRequests(Action<HttpResponseMessage>? stating = null)
+    {
+        var refused = Text(HttpStatusCode.TooManyRequests, "Minutely API request limit exceeded.");
+        stating?.Invoke(refused);
+        return refused;
+    }
+
+    [Fact]
+    public async Task FetchAsync_TooManyRequests_CarriesTheWaitTheProviderStates()
+    {
+        var handler = new MockHttpMessageHandler(_ => TooManyRequests(
+            refused => refused.Headers.RetryAfter = new(TimeSpan.FromSeconds(30))));
+
+        var outcome = await Fetcher(handler).FetchAsync(Site, "Climate", "ClimateEndpoint", Coordinates, default);
+
+        outcome.Resolved.Should().BeFalse();
+        outcome.Reason.Should().StartWith("429").And.Contain("Minutely API request limit exceeded.");
+        outcome.RetryAfter.Should().Be(TimeSpan.FromSeconds(30));
+    }
+
+    [Fact]
+    public async Task FetchAsync_TooManyRequests_StatedAsATime_WaitsUntilThenByTheProvidersOwnClock()
+    {
+        var providersNow = new DateTimeOffset(2026, 10, 5, 12, 0, 0, TimeSpan.Zero);
+        var handler = new MockHttpMessageHandler(_ => TooManyRequests(refused =>
+        {
+            refused.Headers.Date = providersNow;
+            refused.Headers.RetryAfter = new(providersNow.AddSeconds(45));
+        }));
+
+        var outcome = await Fetcher(handler).FetchAsync(Site, "Climate", "ClimateEndpoint", Coordinates, default);
+
+        outcome.RetryAfter.Should().Be(TimeSpan.FromSeconds(45));
+    }
+
+    [Fact]
+    public async Task FetchAsync_TooManyRequests_StatingATimeAlreadyPassed_WaitsNoTime()
+    {
+        var providersNow = new DateTimeOffset(2026, 10, 5, 12, 0, 0, TimeSpan.Zero);
+        var handler = new MockHttpMessageHandler(_ => TooManyRequests(refused =>
+        {
+            refused.Headers.Date = providersNow;
+            refused.Headers.RetryAfter = new(providersNow.AddSeconds(-30));
+        }));
+
+        var outcome = await Fetcher(handler).FetchAsync(Site, "Climate", "ClimateEndpoint", Coordinates, default);
+
+        outcome.RetryAfter.Should().Be(TimeSpan.Zero);
+    }
+
+    [Fact]
+    public async Task FetchAsync_TooManyRequests_StatingNoWait_WaitsOneMinute()
+    {
+        var handler = new MockHttpMessageHandler(_ => TooManyRequests());
+
+        var outcome = await Fetcher(handler).FetchAsync(Site, "Climate", "ClimateEndpoint", Coordinates, default);
+
+        outcome.RetryAfter.Should().Be(TimeSpan.FromMinutes(1));
+    }
+
+    [Fact]
+    public async Task FetchAsync_TooManyRequests_StatedAsATimeWithNoDateToMeasureFrom_WaitsOneMinute()
+    {
+        var handler = new MockHttpMessageHandler(_ => TooManyRequests(
+            refused => refused.Headers.RetryAfter = new(DateTimeOffset.UtcNow.AddHours(1))));
+
+        var outcome = await Fetcher(handler).FetchAsync(Site, "Climate", "ClimateEndpoint", Coordinates, default);
+
+        outcome.RetryAfter.Should().Be(TimeSpan.FromMinutes(1));
     }
 
     [Fact]
