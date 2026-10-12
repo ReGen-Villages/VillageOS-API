@@ -13,6 +13,7 @@ vi.mock('../api/dashboardApi', async (importOriginal) => ({
 const { useResolveContext, useBinding } = await import('./useDashboard');
 const { buildModelIndex } = await import('../api/dashboardApi');
 const { useUiStore } = await import('../stores/uiStore');
+const { useModelStore } = await import('../stores/modelStore');
 
 // Widgets each resolve their own bindings, so without something shared between them a page
 // showing the same state in a count, a funnel stage and a table asks for it three times per
@@ -49,6 +50,11 @@ describe('useBinding waits on what its answer is made of', () => {
   const flaggedCount: Binding = { kind: 'stateCount', state: 'flagged' };
   const buildingsHeld: Binding = { kind: 'aggregate', archetype: 'Building', reduction: 'count' };
   const reservoirs: Binding = { kind: 'service', endpoint: '/api/endpoints/reservoirs' };
+  const reserveVerdict: Binding = {
+    kind: 'verdict',
+    thing: 'Reservoir-3',
+    states: [{ state: 'ReserveLow', reads: 'Stored water lasts {value}.' }],
+  };
 
   const onThePage = (binding: Binding) =>
     renderHook(
@@ -123,6 +129,37 @@ describe('useBinding waits on what its answer is made of', () => {
 
     rerender({ model: buildModelIndex([], []), events: 0, cadence: 0 });
     await waitFor(() => expect(answered).toHaveBeenCalledTimes(2));
+  });
+
+  // A verdict reads the Thing it judges from the page's set, which the page's own snapshot replaces after the verdict first resolves.
+  it('asks again when a load replaces the Things the page holds', async () => {
+    const { result } = onThePage(reserveVerdict);
+    await waitFor(() => expect(result.current.value).toBe(3));
+
+    act(() => useModelStore.getState().setThings([]));
+
+    await waitFor(() => expect(answered).toHaveBeenCalledTimes(2));
+  });
+
+  it('stays put when a live batch changes the Things the page holds', async () => {
+    const { result } = onThePage(reserveVerdict);
+    await waitFor(() => expect(result.current.value).toBe(3));
+
+    act(() => useModelStore.getState().applyBatch({ thingRemovals: ['reservoir-3'] }));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+
+    expect(answered).toHaveBeenCalledTimes(1);
+  });
+
+  // A clear is followed by the load that refills the page, and that load asks again.
+  it('stays put when the page\'s Things are cleared', async () => {
+    const { result } = onThePage(reserveVerdict);
+    await waitFor(() => expect(result.current.value).toBe(3));
+
+    act(() => useModelStore.getState().clear());
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+
+    expect(answered).toHaveBeenCalledTimes(1);
   });
 
   it('resolves against the newest generation\'s reads when it does resolve', async () => {
