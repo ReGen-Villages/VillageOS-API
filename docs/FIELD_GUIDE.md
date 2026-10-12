@@ -2936,7 +2936,7 @@ on its own study. Where no source for the value is recorded, the table says so.
 | --- | --- | --- |
 | `totalSharePercent` (each allocation) | Every `sharePercent` on the same site, added up | |
 | `normalisedSharePercent` (each allocation) | `sharePercent ÷ totalSharePercent × 100` | A planner moving a slider states a proportion, not a number that has to add up to 100. Dividing by the total makes the shares describe the whole parcel whatever they add up to |
-| `parcelAreaHectares` (each allocation) | The `measuredAreaHectares` of the site's parcel, worked out from its boundary | |
+| `parcelAreaHectares` (each allocation) | The `measuredAreaHectares` of the site's parcel | |
 | `allocatedAreaHectares` (each allocation) | `normalisedSharePercent ÷ 100 × parcelAreaHectares` | The areas of a site's allocations always add up to its parcel |
 | `statedAreaHectares` (the parcel) | The area stated on the site, read back onto the parcel | So the parcel can compare the two areas itself |
 | `statedAreaDivergencePercent` (the parcel) | `(measuredAreaHectares − statedAreaHectares) ÷ statedAreaHectares × 100` | What a person said the land measures and what the drawn boundary encloses are two different claims. Showing how far apart they are stops a wrong area being carried silently into every figure that grows with it. Unknown when nobody stated an area |
@@ -3020,7 +3020,7 @@ demand is covered at 100%: a demand is met by the harvest or it is not.
 
 | Figure | How it is worked out | Why |
 | --- | --- | --- |
-| `peopleFedPerHectarePerYear` | `peopleFedPerHectareBaseline ×` the climate factor of the class the site is classified as | Growing land feeds more people in some climates than in others. The factor for every class is in the next section |
+| `peopleFedPerHectarePerYear` | `peopleFedPerHectareBaseline ×` the climate factor of the class the site is classified as | Growing land feeds more people in some climates than in others. Every class's factor is listed under [The climate factor for each class](#the-climate-factor-for-each-class) |
 | `peopleFed` | `productiveFootprintHectares × peopleFedPerHectarePerYear` | Reads no population, so a submission carrying only a boundary still gets an answer |
 | `percentOfPopulationFed` | `peopleFed ÷ population × 100` | |
 
