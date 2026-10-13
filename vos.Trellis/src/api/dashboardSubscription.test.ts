@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { NAVIGATION_AND_SETTINGS, subscriptionForSpecification } from './dashboardSubscription';
 import type { DashboardSpecification } from '../types/dashboard';
+import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ARCHETYPE_MARK } from './propertyNames';
 
 const SCOPE_ID = '11111111-2222-3333-4444-555555555555';
 
@@ -513,5 +514,37 @@ describe('subscriptionForSpec over a smallMultiples widget', () => {
     );
 
     expect(selector.types).toEqual(expect.arrayContaining(['Rain', 'Heat', 'BandFrom', 'BandTo']));
+  });
+});
+
+describe('a verdict that offers levers', () => {
+  function verdictWidget(levers: boolean): DashboardSpecification {
+    return specificationDrawing({
+      type: 'verdict',
+      title: 'Balances',
+      rows: [{
+        label: 'Balance',
+        verdicts: {
+          kind: 'verdict',
+          thing: 'Study',
+          states: [{ state: 'Short', reads: 'short', ...(levers ? { levers: { raise: 'More {term}', lower: 'Less {term}' } } : {}) }],
+        },
+      }],
+    });
+  }
+
+  it('asks for the names a model declares for its inputs, and the archetypes they name', () => {
+    const selector = subscriptionForSpecification(verdictWidget(true), null);
+
+    expect(selector.markedTypes).toEqual([PROPERTY_NAME_ARCHETYPE_MARK]);
+    expect(selector.traverse?.at(-1)).toEqual({ predicate: NAMES_PROPERTY_OF_PREDICATE, direction: 'outgoing', depth: 1 });
+    expect(selector.names).toContain(NAMES_PROPERTY_OF_PREDICATE);
+  });
+
+  it('asks for no names when no verdict offers a lever', () => {
+    const selector = subscriptionForSpecification(verdictWidget(false), null);
+
+    expect(selector.markedTypes).toBeUndefined();
+    expect(selector.names).not.toContain(NAMES_PROPERTY_OF_PREDICATE);
   });
 });

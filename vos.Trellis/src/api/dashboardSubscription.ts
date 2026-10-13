@@ -19,6 +19,7 @@ import {
   type Widget,
 } from '../types/dashboard';
 import { GUI_SETTINGS_TYPE_NAME } from '../utils/guiSettings';
+import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ARCHETYPE_MARK } from './propertyNames';
 import type { SubscriptionSelector, TraverseDirection, TraverseRule } from '../types/subscription';
 
 /**
@@ -246,7 +247,13 @@ function namedThings(specification: DashboardSpecification): { ids: string[]; na
  */
 export function subscriptionForSpecification(specification: DashboardSpecification, scopeId: string | null): SubscriptionSelector {
   const named = namedThings(specification);
-  const traverse = [...scopeRules(specification), ...walkRules(specificationWalks(specification))];
+  const levers = offersLevers(specification);
+  // Followed last, so no walk the specification takes is applied to the archetypes it reaches.
+  const traverse = [
+    ...scopeRules(specification),
+    ...walkRules(specificationWalks(specification)),
+    ...(levers ? [ruleFor(NAMES_PROPERTY_OF_PREDICATE, 'out', 1)] : []),
+  ];
   // A Thing is created before it is typed, so only a subscription that keeps following its types is
   // sent the Thing when its `is` relationship admits it — which is what lets a roster grow on a page left open.
   const selector: SubscriptionSelector = {
@@ -262,5 +269,13 @@ export function subscriptionForSpecification(specification: DashboardSpecificati
   const ids = scopeId ? [...new Set([scopeId, ...named.ids])] : named.ids;
   if (ids.length) selector.ids = ids;
   if (traverse.length) selector.traverse = traverse;
+  if (levers) selector.markedTypes = [PROPERTY_NAME_ARCHETYPE_MARK];
   return selector;
+}
+
+/** Whether any verdict marks a state as offering levers, each of which names its input by a Thing the
+ *  page reads nothing else from. */
+function offersLevers(specification: DashboardSpecification): boolean {
+  return specificationBindings(specification)
+    .some((binding) => binding.kind === 'verdict' && binding.states.some((state) => !!state.levers));
 }

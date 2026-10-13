@@ -5,11 +5,14 @@ import { BASE_LANGUAGE, primarySubtag } from './languages';
  *  then a language code, then the words. The name is still what a submission sends. */
 export type TermWording = Readonly<Record<string, Readonly<Record<string, string>>>>;
 
-/** The words for a term in a language: the regional entry, then the language's, then English, then the
- *  term's own name — so a term the model words in no language still reads as the model names it. */
+export function wordsInLanguage(words: Readonly<Record<string, string>> | undefined, language: string): string | undefined {
+  return words?.[language] ?? words?.[primarySubtag(language)] ?? words?.[BASE_LANGUAGE];
+}
+
+/** The words for a term in a language, or the term's own name — so a term the model words in no
+ *  language still reads as the model names it. */
 export function wordsFor(wording: TermWording, term: string, language: string): string {
-  const words = wording[term];
-  return words?.[language] ?? words?.[primarySubtag(language)] ?? words?.[BASE_LANGUAGE] ?? term;
+  return wordsInLanguage(wording[term], language) ?? term;
 }
 
 /** Words by language read from a term's `wording` property, which holds them as JSON text. Anything
