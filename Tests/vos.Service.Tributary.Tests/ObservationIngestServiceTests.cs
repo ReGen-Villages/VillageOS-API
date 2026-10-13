@@ -112,6 +112,28 @@ public class ObservationIngestServiceTests
     }
 
     [Fact]
+    public async Task NamedEntity_TheCallsCancellationReachesTheWrite()
+    {
+        var entityId = Guid.NewGuid();
+        var observedId = Guid.NewGuid();
+        using var call = new CancellationTokenSource();
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        client.FindThingByNameAsync("Sensor-1").Returns(new MyceliumClient.MyceliumThing(entityId, "Sensor-1"));
+        client.FindThingByNameAsync("observed").Returns(new MyceliumClient.MyceliumThing(observedId, "observed"));
+        client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, entityId).Returns(true);
+        client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>(), call.Token).Returns(true);
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
+
+        var query = new JsonataTransform("{\"name\":\"Sensor-1\",\"properties\":{\"temp\":5.8}}");
+        var result = await sut.CreateObservationsAsync(
+            Guid.NewGuid(), query, "{\"x\":1}", cancellationToken: call.Token);
+
+        result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
+        await client.Received(1).SubmitObservationsAsync(
+            entityId, Arg.Any<IReadOnlyList<ObservationSample>>(), call.Token);
+    }
+
+    [Fact]
     public async Task SuppliedSubject_IsRelatedToTheEndpointThatWroteOntoIt()
     {
         var endpointThingId = Guid.NewGuid();

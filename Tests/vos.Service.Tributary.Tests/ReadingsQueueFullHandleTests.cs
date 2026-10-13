@@ -52,8 +52,10 @@ public class ReadingsQueueFullHandleTests
         });
     }
 
-    [Fact]
-    public async Task Handle_ModelAssetCallGivenUpWhileTheReadingsQueueIsFull_StopsSendingTheTicket()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Handle_ModelAssetCallGivenUpWhileTheReadingsQueueIsFull_StopsSendingTheTicket(bool binaryResponse)
     {
         var thingId = Guid.NewGuid();
         var subjectId = Guid.NewGuid();
@@ -65,6 +67,8 @@ public class ReadingsQueueFullHandleTests
           "Endpoint.assetSubject":  {"Value":"SiteAlpha"}
         }
         """;
+        var keeping = new Kind(EndpointKindRoles.Keeping, "ModelAsset", "assetProperty", "assetSubject");
+        Kind[] kinds = binaryResponse ? [new Kind(EndpointKindRoles.ResponseBody, "BinaryResponse"), keeping] : [keeping];
         using var callGivenUp = new CancellationTokenSource();
         var writes = 0;
 
@@ -76,12 +80,11 @@ public class ReadingsQueueFullHandleTests
                 callGivenUp.Cancel();
                 return ReadingsQueueFull("1");
             }
-            if (req.RequestUri!.Host == "tiles.test") return Binary(PngBytes, "image/png");
+            if (req.RequestUri!.Host == "tiles.test")
+                return binaryResponse ? Binary(PngBytes, "image/png") : Json("""{"n":1}""");
             return RouteFindThing(req, thingId, "EP") ?? RouteFindThing(req, subjectId, "SiteAlpha")
                 ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKinds(req, thingId,
-                    new Kind(EndpointKindRoles.ResponseBody, "BinaryResponse"),
-                    new Kind(EndpointKindRoles.Keeping, "ModelAsset", "assetProperty", "assetSubject"))
+                ?? RouteKinds(req, thingId, kinds)
                 ?? RouteAssetDeposit(req, Ticket)
                 ?? RouteRelationshipWrite(req)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
