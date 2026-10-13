@@ -1960,17 +1960,130 @@ describe('levers under a shortfall', () => {
     },
   };
 
-  function studyContext(definitions: Record<string, unknown>): ResolveContext {
+  function studyContext(
+    definitions: Record<string, unknown>,
+    named: { things: unknown[]; relationships: VosRelationship[] } = { things: [], relationships: [] },
+  ): ResolveContext {
     const things = [
       { Id: 'is', Name: 'is', Properties: {} },
       { Id: 'arch-study', Name: 'SiteStudy', Properties: {}, IsArchetype: true, RollupProperties: definitions },
       { Id: 'study1', Name: 'Site Study', Properties: {} },
+      ...named.things,
     ] as unknown as VosThing[];
     const relationships: VosRelationship[] = [
       { Id: 'r1', Name: 'study1 is arch-study', SubjectId: 'study1', PredicateId: 'is', TargetId: 'arch-study', Properties: {} },
+      ...named.relationships,
     ];
     return { index: buildModelIndex(things, relationships), scopeId: 'study1', reads: brokerModelReads() };
   }
+
+  const PANEL_AREA_WORDS = { en: 'panel area', de: 'Modulfläche' };
+  const CONSUMPTION_WORDS = { en: 'consumption', de: 'Verbrauch' };
+
+  function edge(Id: string, SubjectId: string, PredicateId: string, TargetId: string): VosRelationship {
+    return { Id, Name: Id, SubjectId, PredicateId, TargetId, Properties: {} };
+  }
+
+  /** The archetypes the levers name, and one property name per [property, words, archetype id]. */
+  function namedInputs(...names: [string, Record<string, string>, string][]) {
+    return {
+      things: [
+        { Id: 'arch-generator', Name: 'Generator', Properties: {}, IsArchetype: true },
+        { Id: 'arch-solar', Name: 'SolarArray', Properties: {}, IsArchetype: true },
+        { Id: 'arch-tank', Name: 'Tank', Properties: {}, IsArchetype: true },
+        { Id: 'arch-name', Name: 'PropertyName', Properties: { __IsPropertyNameArchetype: true }, IsArchetype: true },
+        { Id: 'names-property-of', Name: 'namesPropertyOf', Properties: {} },
+        ...names.map(([property, words], i) => ({
+          Id: `name-${i}`,
+          Name: `${property} name`,
+          Properties: { namedProperty: property, wording: JSON.stringify(words) },
+        })),
+      ],
+      relationships: [
+        edge('solar-is-generator', 'arch-solar', 'is', 'arch-generator'),
+        ...names.flatMap(([, , archetype], i) => [
+          edge(`name-${i}-is`, `name-${i}`, 'is', 'arch-name'),
+          edge(`name-${i}-names`, `name-${i}`, 'names-property-of', archetype),
+        ]),
+      ],
+    };
+  }
+
+  it('carries the name the model declares for an input on the archetype of the members holding it', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS,
+      namedInputs(['panelAreaM2', PANEL_AREA_WORDS, 'arch-solar']))) as Row[];
+
+    expect(rows[0].levers).toContainEqual(
+      { term: 'panelAreaM2', memberArchetype: 'SolarArray', direction: 'raise', words: PANEL_AREA_WORDS });
+  });
+
+  it('carries the name of an input the judged Thing holds itself, declared on its own archetype', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS,
+      namedInputs(['consumed', CONSUMPTION_WORDS, 'arch-study']))) as Row[];
+
+    expect(rows[0].levers).toContainEqual({ term: 'consumed', direction: 'lower', words: CONSUMPTION_WORDS });
+  });
+
+  it('finds a name declared on an archetype above the one the members are of', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS,
+      namedInputs(['panelAreaM2', PANEL_AREA_WORDS, 'arch-generator']))) as Row[];
+
+    expect(rows[0].levers).toContainEqual(
+      { term: 'panelAreaM2', memberArchetype: 'SolarArray', direction: 'raise', words: PANEL_AREA_WORDS });
+  });
+
+  it('prefers the name on the nearest archetype when one above names the property too', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS, namedInputs(
+      ['panelAreaM2', { en: 'generator area' }, 'arch-generator'],
+      ['panelAreaM2', PANEL_AREA_WORDS, 'arch-solar'],
+    ))) as Row[];
+
+    expect(rows[0].levers).toContainEqual(
+      { term: 'panelAreaM2', memberArchetype: 'SolarArray', direction: 'raise', words: PANEL_AREA_WORDS });
+  });
+
+  // One property can mean different things on different archetypes, so another archetype's name for it does not apply.
+  it('leaves an input with the model\'s own name when only another archetype names that property', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS,
+      namedInputs(['panelAreaM2', PANEL_AREA_WORDS, 'arch-tank']))) as Row[];
+
+    expect(rows[0].levers).toContainEqual({ term: 'panelAreaM2', memberArchetype: 'SolarArray', direction: 'raise' });
+  });
+
+  // A value written under a name the archetype declares is stored as an override, not as an own property.
+  it('reads a name whose values the model holds as overrides', async () => {
+    holding('EnergyShortOfTarget');
+    const named = namedInputs(['consumed', CONSUMPTION_WORDS, 'arch-study']);
+    const name = named.things.at(-1) as { Properties: Record<string, unknown>; InheritedOverrides?: unknown };
+    name.InheritedOverrides = {
+      'arch-name': { SourceId: 'arch-name', SourceName: 'PropertyName', InheritedAt: '', Properties: name.Properties },
+    };
+    name.Properties = {};
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS, named)) as Row[];
+
+    expect(rows[0].levers).toContainEqual({ term: 'consumed', direction: 'lower', words: CONSUMPTION_WORDS });
+  });
+
+  it('leaves an input with the model\'s own name when its declared words are not words by language', async () => {
+    holding('EnergyShortOfTarget');
+    const named = namedInputs(['consumed', CONSUMPTION_WORDS, 'arch-study']);
+    (named.things.at(-1) as { Properties: Record<string, unknown> }).Properties.wording = 'consumption';
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS, named)) as Row[];
+
+    expect(rows[0].levers).toContainEqual({ term: 'consumed', direction: 'lower' });
+  });
 
   function holding(...states: string[]) {
     vi.mocked(stateApi.getThingsInState).mockImplementation(async (state: string) =>

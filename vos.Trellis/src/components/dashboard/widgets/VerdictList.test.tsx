@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { act, render, screen } from '@testing-library/react';
+import i18n from '../../../i18n';
 import type { Binding, VerdictWidget } from '../../../types/dashboard';
 import type { BindingResult, ResolveContext } from '../../../api/dashboardApi';
 
@@ -32,6 +33,10 @@ function draw(widget: VerdictWidget) {
 }
 
 describe('VerdictList', () => {
+  afterEach(async () => {
+    await act(() => i18n.changeLanguage('en'));
+  });
+
   it('reads a balance that clears as a sentence naming the target it was judged against', () => {
     draw(widgetWith({
       label: 'Energy',
@@ -157,6 +162,65 @@ describe('VerdictList', () => {
     expect(screen.getByText('consumed')).toBeInTheDocument();
     expect(screen.getByText(/more/)).toBeInTheDocument();
     expect(screen.getByText(/less/)).toBeInTheDocument();
+  });
+
+  function shortfallWithLever(lever: Record<string, unknown>): Binding {
+    const binding = {
+      kind: 'verdict',
+      thing: `study-named-${bindingCount++}`,
+      states: [{
+        state: 'EnergyShortOfTarget',
+        reads: 'short of the {target} target',
+        levers: { raise: 'More {term} helps.', lower: 'Less {term} helps.' },
+      }],
+    } as unknown as Binding;
+    values.set(JSON.stringify(binding), [{
+      state: 'EnergyShortOfTarget', reads: 'short of the {target} target',
+      property: 'percentOfConsumption', operator: '<', target: 100, value: 73,
+      levers: [lever],
+    }]);
+    return binding;
+  }
+
+  const NAMED_PANEL_AREA = {
+    term: 'Dimensions_Area',
+    memberArchetype: 'SolarArray',
+    direction: 'raise',
+    words: { en: 'solar panel area', de: 'Fläche der Solarmodule' },
+  };
+
+  // The name is declared for the property on that archetype, so it already says whose property it is.
+  it('reads a lever by the name the model declares, with no archetype beside it', () => {
+    const { container } = render(
+      <VerdictList widget={widgetWith({ label: 'Energy', format: 'percentOutOf100', verdicts: shortfallWithLever(NAMED_PANEL_AREA) })}
+                   context={{} as ResolveContext} />,
+    );
+
+    expect(container.textContent).toContain('More solar panel area helps.');
+    expect(screen.queryByText(/Dimensions_Area/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/SolarArray/)).not.toBeInTheDocument();
+  });
+
+  it('reads a declared name in the language the page is read in', async () => {
+    await act(() => i18n.changeLanguage('de'));
+
+    const { container } = render(
+      <VerdictList widget={widgetWith({ label: 'Energy', format: 'percentOutOf100', verdicts: shortfallWithLever(NAMED_PANEL_AREA) })}
+                   context={{} as ResolveContext} />,
+    );
+
+    expect(container.textContent).toContain('Fläche der Solarmodule');
+  });
+
+  it('reads a declared name in English where it has no words in the page\'s language', async () => {
+    await act(() => i18n.changeLanguage('fr'));
+
+    const { container } = render(
+      <VerdictList widget={widgetWith({ label: 'Energy', format: 'percentOutOf100', verdicts: shortfallWithLever(NAMED_PANEL_AREA) })}
+                   context={{} as ResolveContext} />,
+    );
+
+    expect(container.textContent).toContain('solar panel area');
   });
 
   it('draws no lever lines for a verdict that carries none', () => {
