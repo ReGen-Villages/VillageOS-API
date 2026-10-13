@@ -490,7 +490,7 @@ function propertyNamesByArchetype(index: ModelIndex): Map<string, Map<string, Re
     for (const archetypeId of namedArchetypes.get(nameId) ?? []) {
       const byProperty = names.get(archetypeId) ?? new Map<string, Readonly<Record<string, string>>>();
       names.set(archetypeId, byProperty);
-      if (!byProperty.has(property)) byProperty.set(property, words);
+      byProperty.set(property, words);
     }
   }
   return names;
@@ -499,7 +499,6 @@ function propertyNamesByArchetype(index: ModelIndex): Map<string, Map<string, Re
 /** The words the nearest archetype up the `is` chain from the holders declares as the property's name. */
 function declaredWords(property: string, holderIds: string[], index: ModelIndex): Readonly<Record<string, string>> | undefined {
   const names = propertyNamesByArchetype(index);
-  if (!names.size) return undefined;
   const seen = new Set<string>();
   let level = holderIds;
   while (level.length) {

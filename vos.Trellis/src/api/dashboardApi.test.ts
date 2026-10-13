@@ -2073,6 +2073,18 @@ describe('levers under a shortfall', () => {
     expect(rows[0].levers).toContainEqual({ term: 'consumed', direction: 'lower', words: CONSUMPTION_WORDS });
   });
 
+  it('ignores a name that names a property of no archetype', async () => {
+    holding('EnergyShortOfTarget');
+    const named = namedInputs(['consumed', CONSUMPTION_WORDS, 'arch-study'], ['panelAreaM2', PANEL_AREA_WORDS, 'arch-solar']);
+    named.relationships = named.relationships.filter((relationship) => relationship.Id !== 'name-0-names');
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS, named)) as Row[];
+
+    expect(rows[0].levers).toContainEqual({ term: 'consumed', direction: 'lower' });
+    expect(rows[0].levers).toContainEqual(
+      { term: 'panelAreaM2', memberArchetype: 'SolarArray', direction: 'raise', words: PANEL_AREA_WORDS });
+  });
+
   it('ignores a name that does not say which property it names', async () => {
     holding('EnergyShortOfTarget');
     const named = namedInputs(['consumed', CONSUMPTION_WORDS, 'arch-study']);
