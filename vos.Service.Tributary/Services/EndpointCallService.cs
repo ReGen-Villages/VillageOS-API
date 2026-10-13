@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -205,7 +206,7 @@ public sealed class EndpointCallService
                 // Bytes must be read before any string decode: ReadAsStringAsync replaces non-UTF-8
                 // sequences with U+FFFD, which is lossy and irreversible. The envelope stays
                 // application/json so the result flows through existing proxying unchanged.
-                var (binaryStatus, bytes, upstreamContentType) = await CallEndpointBinaryAsync(
+                var (binaryStatus, bytes, upstreamContentType, binaryRetryAfter) = await CallEndpointBinaryAsync(
                     _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, effectiveQueryParams, requestContentType, acceptHeader, timeout, cancellationToken);
 
                 var servedContentType = string.IsNullOrWhiteSpace(upstreamContentType) ? "application/octet-stream" : upstreamContentType;
@@ -215,7 +216,7 @@ public sealed class EndpointCallService
                 if (ProviderRefused(binaryStatus))
                 {
                     var refusalWords = Encoding.UTF8.GetString(bytes);
-                    return EndpointCallResult.Body(refusalWords, servedContentType, binaryStatus);
+                    return EndpointCallResult.Refused(refusalWords, servedContentType, binaryStatus, binaryRetryAfter);
                 }
 
                 if (keep != null && binaryStatus is >= 200 and < 300
@@ -228,6 +229,7 @@ public sealed class EndpointCallService
             int status;
             string body;
             string? contentType;
+            RetryConditionHeaderValue? retryAfter = null;
 
             if (cached is { } cachedText)
             {
@@ -248,10 +250,10 @@ public sealed class EndpointCallService
                         if (paging.PageSizeParam != null && paging.PageSize is > 0)
                             pageParams[paging.PageSizeParam] = paging.PageSize.Value.ToString(CultureInfo.InvariantCulture);
 
-                        var (pageStatus, pageBody, pageContentType) = await CallEndpointAsync(
+                        var (pageStatus, pageBody, pageContentType, pageRetryAfter) = await CallEndpointAsync(
                             _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, pageParams, requestContentType, acceptHeader, timeout, ct);
                         if (pageStatus is < 200 or >= 300)
-                            throw new PageNotAnsweredException(pageStatus, pageBody, pageContentType, offset);
+                            throw new PageNotAnsweredException(pageStatus, pageBody, pageContentType, pageRetryAfter, offset);
                         return pageBody;
                     },
                     paging);
@@ -260,7 +262,7 @@ public sealed class EndpointCallService
             }
             else
             {
-                (status, body, contentType) = await CallEndpointAsync(
+                (status, body, contentType, retryAfter) = await CallEndpointAsync(
                     _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, effectiveQueryParams, requestContentType, acceptHeader, timeout, cancellationToken);
 
                 if (cacheKey != null && status is >= 200 and < 300)
@@ -273,7 +275,7 @@ public sealed class EndpointCallService
             }
 
             if (ProviderRefused(status))
-                return EndpointCallResult.Body(body, contentType ?? "application/json", status);
+                return EndpointCallResult.Refused(body, contentType ?? "application/json", status, retryAfter);
 
             if (reshape.Transform is { } transform && status is >= 200 and < 300)
             {
@@ -296,8 +298,9 @@ public sealed class EndpointCallService
             _logger.LogWarning(
                 "Endpoint {EndpointName} was answered {Status} at offset {Offset}; the pages before it are dropped",
                 request.EndpointName, unanswered.StatusCode, unanswered.Offset);
-            return EndpointCallResult.Body(
-                unanswered.Body, unanswered.ContentType ?? "application/json", unanswered.StatusCode);
+            return EndpointCallResult.Refused(
+                unanswered.Body, unanswered.ContentType ?? "application/json", unanswered.StatusCode,
+                unanswered.RetryAfter);
         }
         catch (Exception ex)
         {
@@ -308,12 +311,14 @@ public sealed class EndpointCallService
 
     // Any page outside 2xx ends the walk, 404 included — which a single call takes for "holds
     // nothing about this subject" and a page cannot, because the aggregate can never be completed.
-    private sealed class PageNotAnsweredException(int statusCode, string body, string? contentType, int offset)
+    private sealed class PageNotAnsweredException(
+        int statusCode, string body, string? contentType, RetryConditionHeaderValue? retryAfter, int offset)
         : Exception($"The provider answered {statusCode} at offset {offset}.")
     {
         public int StatusCode { get; } = statusCode;
         public string Body { get; } = body;
         public string? ContentType { get; } = contentType;
+        public RetryConditionHeaderValue? RetryAfter { get; } = retryAfter;
         public int Offset { get; } = offset;
     }
 
@@ -356,7 +361,7 @@ public sealed class EndpointCallService
     private static EndpointCallResult Problem(int status, string title, string detail) =>
         EndpointCallResult.Failure(new ProblemError(status, title, detail));
 
-    private static async Task<(int StatusCode, string Body, string? ContentType)> CallEndpointAsync(
+    private static async Task<(int StatusCode, string Body, string? ContentType, RetryConditionHeaderValue? RetryAfter)> CallEndpointAsync(
         IHttpClientFactory httpClientFactory,
         Uri endpointUri,
         string method,
@@ -376,10 +381,10 @@ public sealed class EndpointCallService
         using var response = await client.SendAsync(request, cancellationToken);
         var content = await response.Content.ReadAsStringAsync(cancellationToken);
         var contentType = response.Content.Headers.ContentType?.ToString();
-        return ((int)response.StatusCode, content, contentType);
+        return ((int)response.StatusCode, content, contentType, response.Headers.RetryAfter);
     }
 
-    private static async Task<(int StatusCode, byte[] Body, string? ContentType)> CallEndpointBinaryAsync(
+    private static async Task<(int StatusCode, byte[] Body, string? ContentType, RetryConditionHeaderValue? RetryAfter)> CallEndpointBinaryAsync(
         IHttpClientFactory httpClientFactory,
         Uri endpointUri,
         string method,
@@ -399,6 +404,6 @@ public sealed class EndpointCallService
         using var response = await client.SendAsync(request, cancellationToken);
         var content = await response.Content.ReadAsByteArrayAsync(cancellationToken);
         var contentType = response.Content.Headers.ContentType?.ToString();
-        return ((int)response.StatusCode, content, contentType);
+        return ((int)response.StatusCode, content, contentType, response.Headers.RetryAfter);
     }
 }
