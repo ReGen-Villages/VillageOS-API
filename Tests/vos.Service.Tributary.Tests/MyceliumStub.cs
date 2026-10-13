@@ -80,6 +80,18 @@ internal static class MyceliumStub
         return Json("""{"accepted":1}""");
     }
 
+    internal static HttpResponseMessage ReadingsQueueFull(string? retryAfter)
+    {
+        var refusal = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+        {
+            Content = new StringContent("""{"error":"The readings queue is full; nothing in this request was queued."}""",
+                Encoding.UTF8, "application/json")
+        };
+        if (retryAfter is not null)
+            refusal.Headers.TryAddWithoutValidation("Retry-After", retryAfter);
+        return refusal;
+    }
+
     // One kind an endpoint reaches, and the keys that kind requires of it.
     internal readonly record struct Kind(string Role, string Name, params string[] Requires);
 
