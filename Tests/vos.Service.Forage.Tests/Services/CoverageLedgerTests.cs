@@ -224,18 +224,22 @@ public class CoverageLedgerTests
         _writer.Facts.Should().NotContain(fact => fact.Property == "failureReason");
     }
 
-    [Fact]
-    public async Task AStampTheBrokerRefusedOnceIsWrittenAgainAndLands()
+    [Theory]
+    [InlineData("resolvedAt", true)]
+    [InlineData("lastAttemptAt", true)]
+    [InlineData("attempts", true)]
+    [InlineData("failureReason", false)]
+    public async Task AStampTheBrokerRefusedOnceIsWrittenAgainAndLands(string stamp, bool resolved)
     {
         var coverageId = Guid.NewGuid();
         var call = new OutstandingCall(SourceCalling(Guid.NewGuid(), SiteId), Call(SiteId), coverageId, 0);
-        _writer.RefusedProperty = "resolvedAt";
+        _writer.RefusedProperty = stamp;
         _writer.RefusalsLeft = 1;
 
-        await Ledger().RecordAsync(call, new SourceOutcome("ThinkHazard", true, null), default);
+        await Ledger().RecordAsync(call, new SourceOutcome("ThinkHazard", resolved, "503 from the provider"), default);
 
-        _writer.Facts.Should().Contain((coverageId, "resolvedAt", Now.UtcDateTime));
-        _writer.FactsAsked.Count(property => property == "resolvedAt").Should().Be(2);
+        _writer.Facts.Should().ContainSingle(fact => fact.Thing == coverageId && fact.Property == stamp);
+        _writer.FactsAsked.Count(property => property == stamp).Should().Be(2);
     }
 
     [Fact]
