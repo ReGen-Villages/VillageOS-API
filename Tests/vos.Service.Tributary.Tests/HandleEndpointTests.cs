@@ -592,6 +592,47 @@ public class HandleEndpointTests
             "a refusal answered as 200 reads to a run as a call that resolved and wrote nothing");
         (await response.Content.ReadAsStringAsync())
             .Should().Be("this caller may not read the catalogue");
+        response.Headers.RetryAfter.Should().BeNull("a wait the provider never asked for is not Tributary's to invent");
+    }
+
+    [Theory]
+    [InlineData("30")]
+    [InlineData("Mon, 12 Oct 2026 21:00:30 GMT")]
+    public async Task Handle_ProviderRefusesWithAWait_PassesTheWaitBack(string providersWait)
+    {
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":        {"Value":"https://api.test/x"},
+          "Endpoint.httpMethod": {"Value":"GET"}
+        }
+        """;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "api.test")
+            {
+                var refused = new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+                {
+                    Content = new StringContent("Minutely API request limit exceeded.", Encoding.UTF8, "text/plain")
+                };
+                refused.Headers.Add("Retry-After", providersWait);
+                return refused;
+            }
+            return RouteFindThing(req, thingId, "EP")
+                ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        (await response.Content.ReadAsStringAsync()).Should().Be("Minutely API request limit exceeded.");
+        response.Headers.GetValues("Retry-After").Should().ContainSingle()
+            .Which.Should().Be(providersWait, "a caller that cannot see the provider's wait guesses one");
     }
 
     [Fact]

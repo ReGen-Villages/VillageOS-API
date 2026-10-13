@@ -88,6 +88,42 @@ public class BinaryResponseKindTests
     }
 
     [Fact]
+    public async Task Handle_ResponseKindBinary_ProviderRefusesWithAWait_PassesTheWaitBack()
+    {
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":          {"Value":"https://tiles.test/tile/0/0/0"},
+          "Endpoint.httpMethod":   {"Value":"GET"},
+          "Endpoint.responseKind": {"Value":"binary"}
+        }
+        """;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "tiles.test")
+            {
+                var refused = new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+                {
+                    Content = new StringContent("too many tiles", Encoding.UTF8, "text/plain")
+                };
+                refused.Headers.RetryAfter = new(TimeSpan.FromSeconds(30));
+                return refused;
+            }
+            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        response.Headers.RetryAfter!.Delta.Should().Be(TimeSpan.FromSeconds(30));
+    }
+
+    [Fact]
     public async Task Handle_ResponseKindBinary_MissingUpstreamContentType_FallsBackToOctetStream()
     {
         var thingId = Guid.NewGuid();

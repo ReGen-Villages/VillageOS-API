@@ -1,3 +1,5 @@
+using System.Net.Http.Headers;
+
 namespace vos.Service.Tributary.Services;
 
 // The outcome of an endpoint call, free of any HTTP-framework (IResult) type so the calling
@@ -12,10 +14,15 @@ public sealed class EndpointCallResult
     // The status the provider answered with, so a refusal does not reach the caller as a 200.
     public int StatusCode { get; private init; } = 200;
 
+    public RetryConditionHeaderValue? RetryAfter { get; private init; }
+
     public static EndpointCallResult Failure(EndpointCallError error) => new() { Error = error };
     public static EndpointCallResult Ingested(IngestSummary ingest) => new() { Ingest = ingest };
-    public static EndpointCallResult Body(string content, string? contentType, int statusCode = 200) =>
-        new() { Content = content, ContentType = contentType, StatusCode = statusCode };
+    public static EndpointCallResult Body(string content, string? contentType) =>
+        new() { Content = content, ContentType = contentType };
+    public static EndpointCallResult Refused(
+        string content, string? contentType, int statusCode, RetryConditionHeaderValue? retryAfter) =>
+        new() { Content = content, ContentType = contentType, StatusCode = statusCode, RetryAfter = retryAfter };
 }
 
 // A failure carrying the exact HTTP status the legacy endpoint returned, plus a human message
