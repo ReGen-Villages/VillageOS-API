@@ -2060,6 +2060,49 @@ describe('levers under a shortfall', () => {
     expect(rows[0].levers).toContainEqual({ term: 'panelAreaM2', memberArchetype: 'SolarArray', direction: 'raise' });
   });
 
+  it('finds a name a model files under an archetype of its own below the marked one', async () => {
+    holding('EnergyShortOfTarget');
+    const named = namedInputs(['consumed', CONSUMPTION_WORDS, 'arch-study']);
+    named.things.push({ Id: 'arch-study-names', Name: 'StudyName', Properties: {}, IsArchetype: true });
+    named.relationships = named.relationships.map((relationship) =>
+      relationship.Id === 'name-0-is' ? { ...relationship, TargetId: 'arch-study-names' } : relationship);
+    named.relationships.push(edge('study-names-is-names', 'arch-study-names', 'is', 'arch-name'));
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS, named)) as Row[];
+
+    expect(rows[0].levers).toContainEqual({ term: 'consumed', direction: 'lower', words: CONSUMPTION_WORDS });
+  });
+
+  it('ignores a name that does not say which property it names', async () => {
+    holding('EnergyShortOfTarget');
+    const named = namedInputs(['consumed', CONSUMPTION_WORDS, 'arch-study']);
+    delete (named.things.at(-1) as { Properties: Record<string, unknown> }).Properties.namedProperty;
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS, named)) as Row[];
+
+    expect(rows[0].levers).toContainEqual({ term: 'consumed', direction: 'lower' });
+  });
+
+  it('survives an `is` chain that loops back on itself', async () => {
+    holding('EnergyShortOfTarget');
+    const named = namedInputs(['consumed', CONSUMPTION_WORDS, 'arch-study']);
+    named.relationships.push(edge('generator-is-solar', 'arch-generator', 'is', 'arch-solar'));
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS, named)) as Row[];
+
+    expect(rows[0].levers).toContainEqual({ term: 'panelAreaM2', memberArchetype: 'SolarArray', direction: 'raise' });
+  });
+
+  it('offers its levers when an `is` relationship names a Thing the page has not loaded', async () => {
+    holding('EnergyShortOfTarget');
+    const named = namedInputs(['consumed', CONSUMPTION_WORDS, 'arch-study']);
+    named.relationships.push(edge('unloaded-is-name', 'unloaded', 'is', 'arch-name'));
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS, named)) as Row[];
+
+    expect(rows[0].levers).toContainEqual({ term: 'consumed', direction: 'lower', words: CONSUMPTION_WORDS });
+  });
+
   // A value written under a name the archetype declares is stored as an override, not as an own property.
   it('reads a name whose values the model holds as overrides', async () => {
     holding('EnergyShortOfTarget');

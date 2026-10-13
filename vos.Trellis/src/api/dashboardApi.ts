@@ -44,6 +44,12 @@ import { valueOrigin } from '../utils/propertyOrigin';
 import { findRange } from '../utils/rangeHelpers';
 import i18n from '../i18n';
 import { wordingIn } from '../i18n/termWording';
+import {
+  NAMED_PROPERTY,
+  NAMES_PROPERTY_OF_PREDICATE,
+  PROPERTY_NAME_ARCHETYPE_MARK,
+  PROPERTY_NAME_WORDING,
+} from './propertyNames';
 
 export type Row = Record<string, unknown>;
 export type BindingResult = number | string | Row[] | number[] | null;
@@ -194,12 +200,20 @@ function adjacency(predicateId: string, inbound: boolean, index: ModelIndex): Ma
 export function thingIdsOfArchetype(archetype: string, index: ModelIndex): Set<string> {
   const answered = index.archetypeMembers.get(archetype);
   if (answered) return answered;
-  const archetypeThing = index.byName.get(archetype);
-  const out = new Set<string>();
+  const out = instancesBelow(typeIdsNamed(archetype, index), index);
   index.archetypeMembers.set(archetype, out);
-  if (!archetypeThing) return out;
+  return out;
+}
+
+function typeIdsNamed(name: string, index: ModelIndex): string[] {
+  const first = index.byName.get(name);
+  return first ? [first.Id, ...(index.otherTypesByName.get(name) ?? [])] : [];
+}
+
+function instancesBelow(typeIds: string[], index: ModelIndex): Set<string> {
+  const out = new Set<string>();
   const seen = new Set<string>();          // archetype nodes already descended (cycle guard)
-  const frontier = [archetypeThing.Id, ...(index.otherTypesByName.get(archetype) ?? [])];
+  const frontier = [...typeIds];
   while (frontier.length) {
     const current = frontier.pop()!;
     if (seen.has(current)) continue;
@@ -457,12 +471,6 @@ export type Lever = {
   words?: Readonly<Record<string, string>>;
 };
 
-// The platform's seed validator states the same names; nothing but these strings keeps the two in step.
-const PROPERTY_NAME_ARCHETYPE_MARK = '__IsPropertyNameArchetype';
-const NAMED_PROPERTY = 'namedProperty';
-const PROPERTY_NAME_WORDING = 'wording';
-const NAMES_PROPERTY_OF_PREDICATE = 'namesPropertyOf';
-
 function propertyNamesByArchetype(index: ModelIndex): Map<string, Map<string, Readonly<Record<string, string>>>> {
   if (index.propertyNames) return index.propertyNames;
   const names = new Map<string, Map<string, Readonly<Record<string, string>>>>();
@@ -470,7 +478,9 @@ function propertyNamesByArchetype(index: ModelIndex): Map<string, Map<string, Re
   const predicateId = index.predicateNameToId.get(NAMES_PROPERTY_OF_PREDICATE);
   if (!predicateId) return names;
   const namedArchetypes = adjacency(predicateId, false, index);
-  for (const nameId of instancesOfMarkedArchetypes(PROPERTY_NAME_ARCHETYPE_MARK, index)) {
+  const markedTypeIds = [...index.archetypeIds]
+    .filter((id) => index.byId.get(id)?.Properties[PROPERTY_NAME_ARCHETYPE_MARK] === true);
+  for (const nameId of instancesBelow(markedTypeIds, index)) {
     const name = index.byId.get(nameId);
     if (!name) continue;
     const properties = effectiveProperties(name, index);
@@ -484,23 +494,6 @@ function propertyNamesByArchetype(index: ModelIndex): Map<string, Map<string, Re
     }
   }
   return names;
-}
-
-/** Ids of the instances below any archetype carrying the mark as its own property, at any depth. */
-function instancesOfMarkedArchetypes(mark: string, index: ModelIndex): Set<string> {
-  const instances = new Set<string>();
-  const frontier = [...index.archetypeIds].filter((id) => index.byId.get(id)?.Properties[mark] === true);
-  const seen = new Set<string>();
-  while (frontier.length) {
-    const current = frontier.pop()!;
-    if (seen.has(current)) continue;
-    seen.add(current);
-    for (const childId of index.isChildren.get(current) ?? []) {
-      if (index.archetypeIds.has(childId)) frontier.push(childId);
-      else instances.add(childId);
-    }
-  }
-  return instances;
 }
 
 /** The words the nearest archetype up the `is` chain from the holders declares as the property's name. */
@@ -522,11 +515,6 @@ function declaredWords(property: string, holderIds: string[], index: ModelIndex)
     level = above;
   }
   return undefined;
-}
-
-function typeIdsNamed(name: string, index: ModelIndex): string[] {
-  const first = index.byName.get(name);
-  return first ? [first.Id, ...(index.otherTypesByName.get(name) ?? [])] : [];
 }
 
 /** Every input at the bottom of a figure's derivation, each with the way the figure moves as it

@@ -33,6 +33,11 @@ public static class FindingsReader
     public const string SpecificationProperty = "specification";
     public const string EmailAddressProperty = "emailAddress";
 
+    // How a lever names its input in words a reader knows. Declared in the platform repository's
+    // site-analysis.template.json; the two agree by these strings and nothing else.
+    public const string PropertyNameArchetypeFlag = "__IsPropertyNameArchetype";
+    public const string NamesPropertyOfPredicate = "namesPropertyOf";
+
     // What the model declares, plus the contact of the one submission being asked about. Read
     // together because none of it is answered to anybody: the address is compared against the ticket and
     // dropped, and the marks decide what the second read may carry.
@@ -69,7 +74,9 @@ public static class FindingsReader
     // from — is one the specification writes as one step; the platform stops as soon as a hop reaches nothing new.
     public static SubscriptionSelector FindingsSelector(Guid siteId, string specification)
     {
-        var walked = WalksIn(specification);
+        using var parsed = JsonDocument.Parse(specification);
+        var walked = WalksIn(parsed.RootElement);
+        var offersLevers = OffersLevers(parsed.RootElement);
         return new SubscriptionSelector
         {
             Ids = [siteId],
@@ -80,8 +87,10 @@ public static class FindingsReader
             [
                 .. walked.Select(walk => walk.Predicate)
                     .Append(SubmissionFragmentComposer.IsPredicateName)
+                    .Concat(offersLevers ? [NamesPropertyOfPredicate] : [])
                     .Distinct(),
             ],
+            // The names are followed to their archetypes last, so none of the page's walks is applied to those archetypes.
             Traverse =
             [
                 .. walked.Select(walk => new TraverseRule
@@ -90,9 +99,18 @@ public static class FindingsReader
                     Direction = walk.Inbound ? "incoming" : "outgoing",
                     Depth = int.MaxValue,
                 }),
+                .. offersLevers ? [new TraverseRule { Predicate = NamesPropertyOfPredicate, Direction = "outgoing", Depth = 1 }] : Array.Empty<TraverseRule>(),
             ],
+            MarkedTypes = offersLevers ? [PropertyNameArchetypeFlag] : null,
         };
     }
+
+    private static bool OffersLevers(JsonElement element) => element.ValueKind switch
+    {
+        JsonValueKind.Object => element.EnumerateObject().Any(property => property.Name == "levers" || OffersLevers(property.Value)),
+        JsonValueKind.Array => element.EnumerateArray().Any(OffersLevers),
+        _ => false,
+    };
 
     // Everything the reading reached except what carries personal details, which is dropped
     // whatever walk arrived at it rather than by trusting that no walk does.
@@ -151,11 +169,10 @@ public static class FindingsReader
     // a binding's via, and the predicate a scope narrows through — are the same question of the model.
     private readonly record struct Walk(string Predicate, bool Inbound);
 
-    private static List<Walk> WalksIn(string specification)
+    private static List<Walk> WalksIn(JsonElement specification)
     {
-        using var parsed = JsonDocument.Parse(specification);
         var found = new HashSet<Walk>();
-        Collect(parsed.RootElement, found);
+        Collect(specification, found);
         // In a settled order, so one page always asks the platform the same question — a set's own order
         // is not one, and a selector that varied between reads would be one nobody could reproduce.
         return [.. found.OrderBy(walk => walk.Predicate, StringComparer.Ordinal).ThenBy(walk => walk.Inbound)];

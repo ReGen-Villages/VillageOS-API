@@ -85,6 +85,30 @@ public class FindingsReaderTests
         ], options => options.ExcludingMissingMembers());
     }
 
+    [Fact]
+    public void A_page_offering_levers_also_reads_the_names_its_inputs_are_given_and_the_archetypes_they_name()
+    {
+        var offeringLevers = BrokerSnapshot.PageSpecification.Replace(
+            "\"reads\": \"the site makes what it uses\"",
+            "\"reads\": \"the site makes what it uses\", \"levers\": {\"raise\": \"More {term}\", \"lower\": \"Less {term}\"}");
+
+        var selector = FindingsReader.FindingsSelector(ThisSite, offeringLevers);
+
+        selector.MarkedTypes.Should().Equal(FindingsReader.PropertyNameArchetypeFlag);
+        selector.Names.Should().Contain(FindingsReader.NamesPropertyOfPredicate);
+        selector.Traverse![^1].Should().BeEquivalentTo(
+            new { Predicate = FindingsReader.NamesPropertyOfPredicate, Direction = "outgoing", Depth = 1 });
+    }
+
+    [Fact]
+    public void A_page_offering_no_levers_reads_no_names()
+    {
+        var selector = FindingsReader.FindingsSelector(ThisSite, BrokerSnapshot.PageSpecification);
+
+        selector.MarkedTypes.Should().BeNull();
+        selector.Names.Should().NotContain(FindingsReader.NamesPropertyOfPredicate);
+    }
+
     // A selector naming the archetypes would answer with every Thing of that kind, which in a staging
     // model is every other submitter's land.
     [Fact]
