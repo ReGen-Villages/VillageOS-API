@@ -432,6 +432,10 @@ Tributary's contract is **fetch-and-shape**:
    every reading's values are then written as **observations** on that entity's property series
    (`POST /api/things/{id}/observations`). So Things scale with the number of entities, not
    readings — the readings live in the time-series tier (Canopy → Sapwood), not the structural graph.
+   A broker whose readings queue is full refuses the batch whole with `503` and `Retry-After`;
+   Tributary waits the seconds given and sends the same batch again, a bounded number of times,
+   and only then drops it and reports the ingest as failed. A refusal that names no wait, or a wait
+   too long for the retries to fit inside the call the broker is waiting on, is not sent again.
 
 **What decides ingest** is the expression *in effect*: the one on the registration, or the one it
 inherits from its template. An endpoint with none fetches and returns the body unchanged — a plain

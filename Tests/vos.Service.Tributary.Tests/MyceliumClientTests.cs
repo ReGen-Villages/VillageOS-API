@@ -372,6 +372,89 @@ public class MyceliumClientTests
     }
 
     [Fact]
+    public async Task SubmitObservationsAsync_QueueFullOnce_SendsTheSameBatchAgainAfterRetryAfter()
+    {
+        var bodies = new List<string>();
+        var handler = new MockHttpMessageHandler(req =>
+        {
+            bodies.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+            return bodies.Count == 1 ? QueueFull("1") : new HttpResponseMessage(HttpStatusCode.Accepted);
+        });
+        var clock = new ClockThatWaitsNoTime();
+        var sut = CreateClient(handler, clock);
+
+        var ok = await sut.SubmitObservationsAsync(Guid.NewGuid(), OneReading());
+
+        ok.Should().BeTrue();
+        bodies.Should().HaveCount(2);
+        bodies[1].Should().Be(bodies[0], "the batch sent again is the one the broker refused");
+        clock.Waits.Should().Equal([TimeSpan.FromSeconds(1)], "the wait is the one Retry-After gave");
+    }
+
+    [Fact]
+    public async Task SubmitObservationsAsync_QueueFullEveryTime_DropsTheBatchAfterTheBoundAndSaysSo()
+    {
+        var handler = new MockHttpMessageHandler(_ => QueueFull("1"));
+        var clock = new ClockThatWaitsNoTime();
+        var logger = new CapturingLogger<MyceliumClient>();
+        var sut = CreateClient(handler, clock, logger);
+
+        var ok = await sut.SubmitObservationsAsync(Guid.NewGuid(), OneReading());
+
+        ok.Should().BeFalse();
+        handler.Requests.Should().HaveCount(MyceliumClient.MostAttemptsAtOneBatch);
+        clock.Waits.Should().HaveCount(MyceliumClient.MostAttemptsAtOneBatch - 1, "nothing is waited for after the last attempt");
+        logger.Lines.Should().ContainSingle(line => line.Contains("Dropped") && line.Contains("attempts"));
+    }
+
+    [Fact]
+    public async Task SubmitObservationsAsync_QueueFullWithoutRetryAfter_DropsTheBatchAtOnce()
+    {
+        var handler = new MockHttpMessageHandler(_ => QueueFull(retryAfter: null));
+        var clock = new ClockThatWaitsNoTime();
+        var sut = CreateClient(handler, clock);
+
+        var ok = await sut.SubmitObservationsAsync(Guid.NewGuid(), OneReading());
+
+        ok.Should().BeFalse();
+        handler.Requests.Should().HaveCount(1);
+        clock.Waits.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SubmitObservationsAsync_RefusedForAnotherReasonWithRetryAfter_DropsTheBatchAtOnce()
+    {
+        var handler = new MockHttpMessageHandler(_ =>
+        {
+            var refusal = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+            refusal.Headers.TryAddWithoutValidation("Retry-After", "1");
+            return refusal;
+        });
+        var clock = new ClockThatWaitsNoTime();
+        var sut = CreateClient(handler, clock);
+
+        var ok = await sut.SubmitObservationsAsync(Guid.NewGuid(), OneReading());
+
+        ok.Should().BeFalse();
+        handler.Requests.Should().HaveCount(1);
+        clock.Waits.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SubmitObservationsAsync_RetryAfterLongerThanTheBatchCallAllows_DropsTheBatchAtOnce()
+    {
+        var handler = new MockHttpMessageHandler(_ => QueueFull("3600"));
+        var clock = new ClockThatWaitsNoTime();
+        var sut = CreateClient(handler, clock);
+
+        var ok = await sut.SubmitObservationsAsync(Guid.NewGuid(), OneReading());
+
+        ok.Should().BeFalse();
+        handler.Requests.Should().HaveCount(1);
+        clock.Waits.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task SetPropertyModeAsync_PutsModeToPropertyModeRoute()
     {
         var thingId = Guid.NewGuid();
@@ -485,14 +568,31 @@ public class MyceliumClientTests
         (await sut.DepositAssetAsync(new byte[] { 1 }, "image/png")).Should().BeNull();
     }
 
-    private static MyceliumClient CreateClient(HttpMessageHandler handler)
+    private static MyceliumClient CreateClient(
+        HttpMessageHandler handler, ClockThatWaitsNoTime? clock = null, ILogger<MyceliumClient>? logger = null)
     {
         // Fresh HttpClient per CreateClient call so MyceliumClientBase.CreateAuthenticatedClientAsync
         // can set client.Timeout without tripping the "already started" guard on a reused client.
         var factory = new PerCallFactory(handler);
-        var logger = Substitute.For<ILogger<MyceliumClient>>();
-        return new MyceliumClient(factory, logger, "http://localhost", "test-token");
+        return new MyceliumClient(
+            factory, logger ?? Substitute.For<ILogger<MyceliumClient>>(), "http://localhost",
+            clock ?? new ClockThatWaitsNoTime(), "test-token");
     }
+
+    private static HttpResponseMessage QueueFull(string? retryAfter = "1")
+    {
+        var refusal = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+        {
+            Content = new StringContent("""{"error":"The readings queue is full; nothing in this request was queued."}""",
+                Encoding.UTF8, "application/json")
+        };
+        if (retryAfter is not null)
+            refusal.Headers.TryAddWithoutValidation("Retry-After", retryAfter);
+        return refusal;
+    }
+
+    private static ObservationSample[] OneReading() =>
+        [new ObservationSample("temp", 21.0, new DateTime(2026, 3, 3, 0, 0, 0, DateTimeKind.Utc))];
 
     private sealed class PerCallFactory : IHttpClientFactory
     {
