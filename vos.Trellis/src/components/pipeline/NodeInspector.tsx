@@ -18,7 +18,7 @@ const FIELD = 'flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zin
 export function NodeInspector({ nodeId, data, wiredInputs, onSetPorts, onSetBinding, onClose }: Props) {
   const { t } = useTranslation();
   const inputs = data.ports.filter((p) => p.direction === 'in');
-  const bindings = data.paramBindings ?? {};
+  const bindings = data.parameterBindings ?? {};
 
   return (
     <div className="absolute top-2 right-2 w-64 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded shadow-lg p-2 text-xs z-10">

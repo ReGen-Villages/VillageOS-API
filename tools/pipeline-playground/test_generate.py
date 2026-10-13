@@ -173,6 +173,11 @@ class CatalystVocabularyTests(unittest.TestCase):
             bound = [r for r in self.kit.rels.values() if r["Subject"] == connection and r["Predicate"] == has]
             self.assertEqual(len(bound), 1, self.kit.things[system]["Name"])
 
+    def test_a_node_binding_inputs_to_run_parameters_spells_the_property_in_full(self):
+        bound = [t for t in self.kit.things.values() if G._prop(t.get("Properties"), "parameterBindings")]
+        self.assertGreater(len(bound), 0)
+        self.assertEqual([t for t in self.kit.things.values() if G._prop(t.get("Properties"), "paramBindings")], [])
+
     def test_the_two_pipelines_drawn_from_outside_stand_for_their_ends(self):
         [stands_for] = self.carriers("__IsStandsForPredicate")
         stood = {(self.kit.things[r["Subject"]]["Name"], self.kit.things[r["Target"]]["Name"])

@@ -22,8 +22,8 @@ export interface EditorNode {
   x: number;
   y: number;
   ports: PortInformation[];
-  /** Input-port name → run-param key. Persisted as a JSON `paramBindings` property on the node. */
-  paramBindings?: Record<string, string>;
+  /** Input-port name → run-parameter key. Persisted as a JSON `parameterBindings` property on the node. */
+  parameterBindings?: Record<string, string>;
   /** Boundary node: 'input' (a param source) or 'output' (the run's result sink). A boundary node
    * binds no connection — its `ports` are user-declared and persisted as its own port child-Things. */
   kind?: 'input' | 'output';
@@ -126,8 +126,8 @@ export async function savePipeline(
   for (const n of nodes) {
     const thingId = nodeThingId.get(n.id)!;
     const props: Record<string, unknown> = { x: env(DOUBLE, n.x), y: env(DOUBLE, n.y) };
-    if (n.paramBindings && Object.keys(n.paramBindings).length > 0)
-      props.paramBindings = env(STRING, JSON.stringify(n.paramBindings));
+    if (n.parameterBindings && Object.keys(n.parameterBindings).length > 0)
+      props.parameterBindings = env(STRING, JSON.stringify(n.parameterBindings));
     things.push({ Id: thingId, Name: n.label, Properties: props });
     // Boundary nodes are pipeline nodes too (so the run + editor pick them up), plus the archetype marked
     // as the pipeline's input or its output, which is what makes one a param source or a result sink.
@@ -230,7 +230,7 @@ export async function savePipeline(
   return { pipelineId, nodeIdMap: Object.fromEntries(nodeThingId) };
 }
 
-/** Parse a node's persisted `paramBindings` JSON property (input-port → run-param key); tolerant of junk. */
+/** Parse a node's persisted `parameterBindings` JSON property (input-port → run-parameter key); tolerant of junk. */
 function parseParameterBindings(raw: unknown): Record<string, string> | undefined {
   if (typeof raw !== 'string' || raw.trim() === '') return undefined;
   try {
@@ -259,7 +259,7 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
       label: t.Name,
       x: Number(stated.x ?? i * 280),
       y: Number(stated.y ?? 80),
-      paramBindings: parseParameterBindings(stated.paramBindings),
+      parameterBindings: parseParameterBindings(stated.parameterBindings),
     };
     // Boundary node: its ports are declared on the node itself, and it binds no connection.
     const kind = model.boundaryKind(t.Id);

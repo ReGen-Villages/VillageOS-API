@@ -24,7 +24,7 @@ public static class ModelNames
     // An optional JSONata transform on a wire: reshape the (from-path-extracted) upstream value before
     // it is placed at the to-path of the downstream input.
     public const string Transform = "transform";
-    public const string ParamBindings = "paramBindings";
+    public const string ParameterBindings = "parameterBindings";
     public const string Collection = "collection";
     public const string OnItemError = "onItemError";
     // The pipeline's published result — the Output boundary node's collected inputs, stored on the PipelineRun.

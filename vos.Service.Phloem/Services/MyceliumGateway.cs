@@ -174,9 +174,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         if (TryGetPropertyCaseInsensitive(root, "Properties", out var props) && props.ValueKind == JsonValueKind.Object
             && props.TryGetProperty("cancelRequested", out var cr))
         {
-            var v = Unwrap(cr);
-            return v.ValueKind == JsonValueKind.True
-                || (v.ValueKind == JsonValueKind.String && string.Equals(v.GetString(), "true", StringComparison.OrdinalIgnoreCase));
+            return Truth.IsTrue(Unwrap(cr));
         }
         return false;
     }

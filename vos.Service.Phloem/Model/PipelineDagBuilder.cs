@@ -101,7 +101,7 @@ public static class PipelineDagBuilder
             Subdomain = subdomain!,
             Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
             Ports = ResolvePorts(graph, service).ToList(),
-            ParamBindings = ParseParamBindings(nodeThing),
+            ParameterBindings = ParseParameterBindings(nodeThing),
             OnItemError = string.Equals(nodeThing.PropertyString(ModelNames.OnItemError), ModelNames.OnItemErrorContinue, StringComparison.OrdinalIgnoreCase)
                 ? ModelNames.OnItemErrorContinue
                 : ModelNames.OnItemErrorFail,
@@ -121,7 +121,7 @@ public static class PipelineDagBuilder
             Subdomain = string.Empty,
             Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
             Ports = ResolvePorts(graph, nodeThing).ToList(),
-            ParamBindings = ParseParamBindings(nodeThing),
+            ParameterBindings = ParseParameterBindings(nodeThing),
             Tells = kind == DagNodeKind.Output ? TellingOf(graph, nodeThing) : null,
         };
     }
@@ -141,11 +141,11 @@ public static class PipelineDagBuilder
         return new Telling(system.Id, system.Name, connection.Id);
     }
 
-    // Parse the node's paramBindings property — a JSON object mapping input-port name → the
-    // run-param key that fills it. Malformed/absent → no bindings (never fails a build).
-    private static IReadOnlyDictionary<string, string> ParseParamBindings(GraphThing nodeThing)
+    // Parse the node's parameterBindings property — a JSON object mapping input-port name → the
+    // run-parameter key that fills it. Malformed/absent → no bindings (never fails a build).
+    private static IReadOnlyDictionary<string, string> ParseParameterBindings(GraphThing nodeThing)
     {
-        var raw = nodeThing.PropertyString(ModelNames.ParamBindings);
+        var raw = nodeThing.PropertyString(ModelNames.ParameterBindings);
         if (string.IsNullOrWhiteSpace(raw)) return EmptyBindings;
         try
         {
@@ -183,8 +183,8 @@ public static class PipelineDagBuilder
                     portThing.PropertyString(ModelNames.PortName) ?? portThing.Name,
                     portThing.PropertyString(ModelNames.Direction) ?? ModelNames.DirectionIn,
                     portThing.PropertyString(ModelNames.PortType) ?? string.Empty,
-                    string.Equals(portThing.PropertyString(ModelNames.Required), "true", StringComparison.OrdinalIgnoreCase),
-                    string.Equals(portThing.PropertyString(ModelNames.Collection), "true", StringComparison.OrdinalIgnoreCase));
+                    portThing.CarriesFlag(ModelNames.Required),
+                    portThing.CarriesFlag(ModelNames.Collection));
             foreach (var parent in graph.OutgoingTargets(current, ModelNames.Is))
                 stack.Push(parent);
         }

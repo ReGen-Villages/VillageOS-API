@@ -350,7 +350,7 @@ public static class TestGraphs
         fx.Rel(echConn, vocabulary.Is, vocabulary.Connection);
         fx.Rel(echConn, vocabulary.Has, echSvc);
 
-        var ech = fx.Thing("Echo", ("paramBindings", "{\"message\":\"greeting\"}"));
+        var ech = fx.Thing("Echo", ("parameterBindings","{\"message\":\"greeting\"}"));
         fx.Rel(ech, vocabulary.Is, vocabulary.PipelineNode);
         fx.Rel(ech, vocabulary.Has, echConn);
 
@@ -382,7 +382,7 @@ public static class TestGraphs
         fx.Rel(conn, vocabulary.Has, svc);
 
         var node = fx.Thing("WaterReserve",
-            ("paramBindings", "{\"population\":\"population\",\"perCapitaConsumptionM3\":\"perCapitaConsumptionM3\",\"storageCapacityM3\":\"storageCapacityM3\"}"));
+            ("parameterBindings","{\"population\":\"population\",\"perCapitaConsumptionM3\":\"perCapitaConsumptionM3\",\"storageCapacityM3\":\"storageCapacityM3\"}"));
         fx.Rel(node, vocabulary.Is, vocabulary.PipelineNode);
         fx.Rel(node, vocabulary.Has, conn);
 
@@ -418,7 +418,7 @@ public static class TestGraphs
         fx.Rel(conn, vocabulary.Has, svc);
 
         var node = fx.Thing("EnergyBalance",
-            ("paramBindings", "{\"solarPvAreaM2\":\"solarPvAreaM2\",\"solarResourceKwhPerM2PerYear\":\"solarResourceKwhPerM2PerYear\",\"moduleEfficiency\":\"moduleEfficiency\",\"performanceRatio\":\"performanceRatio\",\"otherGenerationMwhPerYear\":\"otherGenerationMwhPerYear\",\"annualConsumptionMwhPerYear\":\"annualConsumptionMwhPerYear\"}"));
+            ("parameterBindings","{\"solarPvAreaM2\":\"solarPvAreaM2\",\"solarResourceKwhPerM2PerYear\":\"solarResourceKwhPerM2PerYear\",\"moduleEfficiency\":\"moduleEfficiency\",\"performanceRatio\":\"performanceRatio\",\"otherGenerationMwhPerYear\":\"otherGenerationMwhPerYear\",\"annualConsumptionMwhPerYear\":\"annualConsumptionMwhPerYear\"}"));
         fx.Rel(node, vocabulary.Is, vocabulary.PipelineNode);
         fx.Rel(node, vocabulary.Has, conn);
 
@@ -455,7 +455,7 @@ public static class TestGraphs
         fx.Rel(conn, vocabulary.Is, vocabulary.Connection);
         fx.Rel(conn, vocabulary.Has, svc);
 
-        var node = fx.Thing("Scorer", ("onItemError", onItemError), ("paramBindings", "{\"item\":\"items\",\"weight\":\"w\"}"));
+        var node = fx.Thing("Scorer", ("onItemError", onItemError), ("parameterBindings","{\"item\":\"items\",\"weight\":\"w\"}"));
         fx.Rel(node, vocabulary.Is, vocabulary.PipelineNode);
         fx.Rel(node, vocabulary.Has, conn);
 

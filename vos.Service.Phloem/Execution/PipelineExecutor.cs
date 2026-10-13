@@ -228,7 +228,7 @@ public sealed class PipelineExecutor
         IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, JsonElement runParams)
     {
         var accumulated = new Dictionary<string, JsonNode?>(StringComparer.Ordinal);
-        foreach (var (port, paramKey) in node.ParamBindings)
+        foreach (var (port, paramKey) in node.ParameterBindings)
             if (TryGetParam(runParams, paramKey, out var bound))
                 accumulated[port] = JsonSerializer.SerializeToNode(bound);
         foreach (var wire in dag.WiresInto(node.NodeId))
