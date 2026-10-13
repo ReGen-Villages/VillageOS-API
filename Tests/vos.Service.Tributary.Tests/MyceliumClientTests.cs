@@ -441,7 +441,7 @@ public class MyceliumClientTests
     }
 
     [Fact]
-    public async Task SubmitObservationsAsync_RetryAfterLongerThanTheBatchCallAllows_DropsTheBatchAtOnce()
+    public async Task SubmitObservationsAsync_RetryAfterLongerThanTheLongestAllowed_DropsTheBatchAtOnce()
     {
         var handler = new MockHttpMessageHandler(_ => MyceliumStub.ReadingsQueueFull("3600"));
         var clock = new ClockThatWaitsNoTime();

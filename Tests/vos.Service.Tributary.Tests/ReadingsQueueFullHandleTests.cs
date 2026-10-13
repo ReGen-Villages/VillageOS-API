@@ -94,8 +94,8 @@ public class ReadingsQueueFullHandleTests
     private static bool IsObservationWrite(HttpRequestMessage request, Guid thingId) =>
         request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == $"/api/things/{thingId}/observations";
 
-    // The clock fires every wait at once, so a wait the call's cancellation did not reach would send the batch
-    // again straight away rather than hold the test until the clock ran out.
+    // The clock fires every wait at once, so a wait the cancellation did not reach sends the batch again
+    // straight away, where this test sees it.
     private static async Task AssertTheBatchIsSentOnceAsync(
         CancellationTokenSource callGivenUp, Func<int> writes, object handleRequest,
         Func<HttpRequestMessage, HttpResponseMessage> broker)
