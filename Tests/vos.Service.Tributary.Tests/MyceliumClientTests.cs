@@ -378,7 +378,7 @@ public class MyceliumClientTests
         var handler = new MockHttpMessageHandler(req =>
         {
             bodies.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
-            return bodies.Count == 1 ? QueueFull("1") : new HttpResponseMessage(HttpStatusCode.Accepted);
+            return bodies.Count == 1 ? MyceliumStub.ReadingsQueueFull("1") : new HttpResponseMessage(HttpStatusCode.Accepted);
         });
         var clock = new ClockThatWaitsNoTime();
         var sut = CreateClient(handler, clock);
@@ -394,7 +394,7 @@ public class MyceliumClientTests
     [Fact]
     public async Task SubmitObservationsAsync_QueueFullEveryTime_DropsTheBatchAfterTheBoundAndSaysSo()
     {
-        var handler = new MockHttpMessageHandler(_ => QueueFull("1"));
+        var handler = new MockHttpMessageHandler(_ => MyceliumStub.ReadingsQueueFull("1"));
         var clock = new ClockThatWaitsNoTime();
         var logger = new CapturingLogger<MyceliumClient>();
         var sut = CreateClient(handler, clock, logger);
@@ -410,7 +410,7 @@ public class MyceliumClientTests
     [Fact]
     public async Task SubmitObservationsAsync_QueueFullWithoutRetryAfter_DropsTheBatchAtOnce()
     {
-        var handler = new MockHttpMessageHandler(_ => QueueFull(retryAfter: null));
+        var handler = new MockHttpMessageHandler(_ => MyceliumStub.ReadingsQueueFull(retryAfter: null));
         var clock = new ClockThatWaitsNoTime();
         var sut = CreateClient(handler, clock);
 
@@ -443,7 +443,7 @@ public class MyceliumClientTests
     [Fact]
     public async Task SubmitObservationsAsync_RetryAfterLongerThanTheBatchCallAllows_DropsTheBatchAtOnce()
     {
-        var handler = new MockHttpMessageHandler(_ => QueueFull("3600"));
+        var handler = new MockHttpMessageHandler(_ => MyceliumStub.ReadingsQueueFull("3600"));
         var clock = new ClockThatWaitsNoTime();
         var sut = CreateClient(handler, clock);
 
@@ -452,6 +452,42 @@ public class MyceliumClientTests
         ok.Should().BeFalse();
         handler.Requests.Should().HaveCount(1);
         clock.Waits.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SubmitObservationsAsync_RetryAfterExactlyTheLongestAllowed_IsWaitedFor()
+    {
+        var longest = MyceliumClient.LongestWaitForARefusedBatch;
+        var attempts = 0;
+        var handler = new MockHttpMessageHandler(_ => ++attempts == 1
+            ? MyceliumStub.ReadingsQueueFull(((int)longest.TotalSeconds).ToString())
+            : new HttpResponseMessage(HttpStatusCode.Accepted));
+        var clock = new ClockThatWaitsNoTime();
+        var sut = CreateClient(handler, clock);
+
+        var ok = await sut.SubmitObservationsAsync(Guid.NewGuid(), OneReading());
+
+        ok.Should().BeTrue();
+        clock.Waits.Should().Equal([longest]);
+    }
+
+    [Fact]
+    public async Task SubmitObservationsAsync_CallGivenUpWhileTheQueueIsFull_DropsTheBatchWithoutSendingItAgain()
+    {
+        using var callGivenUp = new CancellationTokenSource();
+        var handler = new MockHttpMessageHandler(_ =>
+        {
+            callGivenUp.Cancel();
+            return MyceliumStub.ReadingsQueueFull("1");
+        });
+        var logger = new CapturingLogger<MyceliumClient>();
+        var sut = CreateClient(handler, new ClockThatWaitsNoTime(), logger);
+
+        var ok = await sut.SubmitObservationsAsync(Guid.NewGuid(), OneReading(), callGivenUp.Token);
+
+        ok.Should().BeFalse();
+        handler.Requests.Should().HaveCount(1);
+        logger.Lines.Should().ContainSingle(line => line.Contains("Dropped") && line.Contains("given up"));
     }
 
     [Fact]
@@ -577,18 +613,6 @@ public class MyceliumClientTests
         return new MyceliumClient(
             factory, logger ?? Substitute.For<ILogger<MyceliumClient>>(), "http://localhost",
             clock ?? new ClockThatWaitsNoTime(), "test-token");
-    }
-
-    private static HttpResponseMessage QueueFull(string? retryAfter = "1")
-    {
-        var refusal = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
-        {
-            Content = new StringContent("""{"error":"The readings queue is full; nothing in this request was queued."}""",
-                Encoding.UTF8, "application/json")
-        };
-        if (retryAfter is not null)
-            refusal.Headers.TryAddWithoutValidation("Retry-After", retryAfter);
-        return refusal;
     }
 
     private static ObservationSample[] OneReading() =>
