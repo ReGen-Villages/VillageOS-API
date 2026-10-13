@@ -113,17 +113,30 @@ public sealed class CoverageLedger
         if (outstanding.CoverageId is not { } coverageId) return;
 
         var now = _clock.GetUtcNow().UtcDateTime;
-        await _writer.WriteFactAsync(coverageId, LastAttemptAtProperty, now, cancellationToken);
-        await _writer.WriteFactAsync(coverageId, AttemptsProperty, outstanding.Attempts + 1, cancellationToken);
+        await WriteOntoCoverageAsync(outstanding, coverageId, LastAttemptAtProperty, now, cancellationToken);
+        await WriteOntoCoverageAsync(outstanding, coverageId, AttemptsProperty, outstanding.Attempts + 1, cancellationToken);
 
         if (outcome.Resolved)
         {
-            await _writer.WriteFactAsync(coverageId, ResolvedAtProperty, now, cancellationToken);
+            await WriteOntoCoverageAsync(outstanding, coverageId, ResolvedAtProperty, now, cancellationToken);
             return;
         }
 
-        await _writer.WriteFactAsync(
-            coverageId, FailureReasonProperty, outcome.Reason ?? string.Empty, cancellationToken);
+        await WriteOntoCoverageAsync(
+            outstanding, coverageId, FailureReasonProperty, outcome.Reason ?? string.Empty, cancellationToken);
+    }
+
+    // Sent once more when refused: the one refusal seen was a single stamp lost while the broker was busy,
+    // and without it the coverage reads as a source never asked until the reconciler sends the whole run again.
+    private async Task WriteOntoCoverageAsync(
+        OutstandingCall outstanding, Guid coverageId, string property, object? value, CancellationToken cancellationToken)
+    {
+        if (await _writer.WriteFactAsync(coverageId, property, value, cancellationToken)) return;
+        if (await _writer.WriteFactAsync(coverageId, property, value, cancellationToken)) return;
+
+        _logger.LogError(
+            "Could not write {Property} onto the coverage of {Subject} by {Source} in two attempts; the coverage " +
+            "carries what earlier runs wrote", property, outstanding.Call.SubjectName, outstanding.Source.Name);
     }
 
     // Stamped whatever the run found, including nothing: a Thing no source covers was looked at, and

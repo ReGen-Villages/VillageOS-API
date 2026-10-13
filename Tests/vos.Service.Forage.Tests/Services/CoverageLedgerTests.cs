@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Forage.Helpers;
 using vos.Service.Forage.Services;
@@ -60,9 +61,12 @@ public class CoverageLedgerTests
         public readonly List<(Guid Subject, Guid Predicate, Guid Target)> Edges = new();
         public readonly List<(Guid Thing, string Property, object? Value)> Facts = new();
         public readonly List<string> Minted = new();
+        public readonly List<string> FactsAsked = new();
 
         public Guid? NextMint { get; set; } = Guid.NewGuid();
         public bool RelateSucceeds { get; set; } = true;
+        public string? RefusedProperty { get; set; }
+        public int RefusalsLeft { get; set; }
 
         public Task<Guid?> MintAsync(string name, CancellationToken cancellationToken)
         {
@@ -78,8 +82,26 @@ public class CoverageLedgerTests
 
         public Task<bool> WriteFactAsync(Guid thingId, string property, object? value, CancellationToken _)
         {
+            FactsAsked.Add(property);
+            if (property == RefusedProperty && RefusalsLeft > 0)
+            {
+                RefusalsLeft--;
+                return Task.FromResult(false);
+            }
             Facts.Add((thingId, property, value));
             return Task.FromResult(true);
+        }
+    }
+
+    private sealed class CapturingLogger : ILogger<CoverageLedger>
+    {
+        public readonly List<string> Errors = new();
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel level) => true;
+        public void Log<TState>(LogLevel level, EventId id, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (level == LogLevel.Error) Errors.Add(formatter(state, exception));
         }
     }
 
@@ -200,6 +222,38 @@ public class CoverageLedgerTests
 
         _writer.Facts.Should().Contain((coverageId, "resolvedAt", Now.UtcDateTime));
         _writer.Facts.Should().NotContain(fact => fact.Property == "failureReason");
+    }
+
+    [Fact]
+    public async Task AStampTheBrokerRefusedOnceIsWrittenAgainAndLands()
+    {
+        var coverageId = Guid.NewGuid();
+        var call = new OutstandingCall(SourceCalling(Guid.NewGuid(), SiteId), Call(SiteId), coverageId, 0);
+        _writer.RefusedProperty = "resolvedAt";
+        _writer.RefusalsLeft = 1;
+
+        await Ledger().RecordAsync(call, new SourceOutcome("ThinkHazard", true, null), default);
+
+        _writer.Facts.Should().Contain((coverageId, "resolvedAt", Now.UtcDateTime));
+        _writer.FactsAsked.Count(property => property == "resolvedAt").Should().Be(2);
+    }
+
+    [Fact]
+    public async Task AStampRefusedTwiceIsGivenUpOnAndTheCoverageIsNamed()
+    {
+        var coverageId = Guid.NewGuid();
+        var call = new OutstandingCall(SourceCalling(Guid.NewGuid(), SiteId), Call(SiteId), coverageId, 0);
+        _writer.RefusedProperty = "resolvedAt";
+        _writer.RefusalsLeft = 2;
+        var logger = new CapturingLogger();
+
+        await new CoverageLedger(_writer, _clock, logger)
+            .RecordAsync(call, new SourceOutcome("ThinkHazard", true, null), default);
+
+        _writer.Facts.Should().NotContain(fact => fact.Property == "resolvedAt");
+        _writer.FactsAsked.Count(property => property == "resolvedAt").Should().Be(2);
+        logger.Errors.Should().ContainSingle()
+            .Which.Should().Contain("resolvedAt").And.Contain("subject by ThinkHazard");
     }
 
     // A run of a simulated day stands a year from the machine playing it. What the ledger writes is

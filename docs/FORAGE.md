@@ -158,6 +158,11 @@ Things: a source answering for one subject and failing for another leaves exactl
 and a run over the same site afterwards calls only that one. A source every one of whose calls has been
 answered drops out of the run entirely rather than being called with nothing to fetch.
 
+**A stamp the broker refuses is written once more.** A coverage missing its `resolvedAt` reads as a
+source never asked, and nothing else in the model says the answer landed, so one refused write would
+cost the whole call again on the next run. A stamp refused twice is given up on, logged with the
+coverage it was meant for, and the call stays outstanding as any unanswered one does.
+
 **The subject, not the site.** A source that `resolvesOnto` an archetype is called once per Thing the
 site has of it, so its coverage of one assessment is a different Thing from its coverage of another. A
 portal answering for five of a site's assessments and not the sixth records five resolved and one
