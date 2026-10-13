@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,8 +8,20 @@ namespace vos.Service.Tributary.Services;
 
 public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
 {
-    public MyceliumClient(IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, string? serviceToken = null, string? apiKey = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey) { }
+    // One batch's waits fit inside the 30 seconds the broker gives the call it forwards. A call writing
+    // several batches can still outlast that, so the call's cancellation also ends a wait.
+    public const int MostAttemptsAtOneBatch = 5;
+    public static readonly TimeSpan LongestWaitForARefusedBatch = TimeSpan.FromSeconds(5);
+
+    private readonly TimeProvider _clock;
+
+    public MyceliumClient(
+        IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, TimeProvider clock,
+        string? serviceToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
+    {
+        _clock = clock;
+    }
 
     public readonly record struct MyceliumThing(Guid Id, string Name);
 
@@ -93,7 +106,8 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
     }
 
-    public async Task<bool> SubmitObservationsAsync(Guid thingId, IReadOnlyList<ObservationSample> samples)
+    public async Task<bool> SubmitObservationsAsync(
+        Guid thingId, IReadOnlyList<ObservationSample> samples, CancellationToken cancellationToken = default)
     {
         if (samples.Count == 0) return true;
         try
@@ -109,13 +123,39 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
                     : new { property = s.Property, value };
             });
 
-            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/things/{thingId}/observations", payload);
-            if (response.IsSuccessStatusCode)
-                return true;
+            // A full readings queue refuses the batch whole, so sending it again queues nothing twice.
+            for (var attempt = 1; ; attempt++)
+            {
+                var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/things/{thingId}/observations", payload);
+                if (response.IsSuccessStatusCode)
+                    return true;
 
-            var error = await response.Content.ReadAsStringAsync();
-            Logger.LogWarning("Failed to submit {Count} observations to thing {ThingId}. Status: {StatusCode}. Error: {Error}",
-                samples.Count, thingId, response.StatusCode, error);
+                var error = await response.Content.ReadAsStringAsync();
+                if (response.StatusCode != HttpStatusCode.ServiceUnavailable
+                    || response.Headers.RetryAfter?.Delta is not { } wait
+                    || wait > LongestWaitForARefusedBatch)
+                {
+                    Logger.LogWarning("Failed to submit {Count} observations to thing {ThingId}. Status: {StatusCode}. Error: {Error}",
+                        samples.Count, thingId, response.StatusCode, error);
+                    return false;
+                }
+
+                if (attempt == MostAttemptsAtOneBatch)
+                {
+                    Logger.LogWarning("Dropped {Count} observations to thing {ThingId}: the broker's readings queue was still full after {Attempts} attempts. Error: {Error}",
+                        samples.Count, thingId, attempt, error);
+                    return false;
+                }
+
+                Logger.LogInformation("The broker's readings queue is full; sending {Count} observations to thing {ThingId} again in {Seconds} seconds",
+                    samples.Count, thingId, wait.TotalSeconds);
+                await Task.Delay(wait, _clock, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            Logger.LogWarning("Dropped {Count} observations to thing {ThingId}: the call they were part of was given up while the broker's readings queue was full",
+                samples.Count, thingId);
             return false;
         }
         catch (Exception ex)

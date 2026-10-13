@@ -220,7 +220,7 @@ public sealed class EndpointCallService
                 }
 
                 if (keep != null && binaryStatus is >= 200 and < 300
-                    && await KeepAsync(keep, bytes, servedContentType, thing.Value.Id, endpoint.Observed) is { } notKept)
+                    && await KeepAsync(keep, bytes, servedContentType, thing.Value.Id, endpoint.Observed, cancellationToken) is { } notKept)
                     return notKept;
 
                 return EndpointCallResult.Body(BinaryEnvelope(bytes, servedContentType), "application/json");
@@ -270,7 +270,7 @@ public sealed class EndpointCallService
 
                 if (keep != null && status is >= 200 and < 300
                     && await KeepAsync(keep, Encoding.UTF8.GetBytes(body), contentType ?? "application/json",
-                        thing.Value.Id, endpoint.Observed) is { } notKept)
+                        thing.Value.Id, endpoint.Observed, cancellationToken) is { } notKept)
                     return notKept;
             }
 
@@ -280,7 +280,7 @@ public sealed class EndpointCallService
             if (reshape.Transform is { } transform && status is >= 200 and < 300)
             {
                 var ingestResult = await _observationService.CreateObservationsAsync(
-                    thing.Value.Id, transform, body, request.SubjectId, endpoint.Observed);
+                    thing.Value.Id, transform, body, request.SubjectId, endpoint.Observed, cancellationToken);
                 if (!ingestResult.Success)
                     return new Refusal(400, ingestResult.Error ?? "Observation ingest failed.",
                         new Dictionary<string, object?> { ["detail"] = ingestResult.Detail }).ToResult();
@@ -329,7 +329,8 @@ public sealed class EndpointCallService
     // ticket write — fails the call rather than answering as though something was kept: null means
     // kept, anything else is the 502 every other broker write failure here produces.
     private async Task<EndpointCallResult?> KeepAsync(
-        KeepPlan keep, byte[] bytes, string contentType, Guid endpointThingId, ObservedEdges observed)
+        KeepPlan keep, byte[] bytes, string contentType, Guid endpointThingId, ObservedEdges observed,
+        CancellationToken cancellationToken)
     {
         var ticket = await _mycelium.DepositAssetAsync(bytes, contentType);
         if (ticket == null)
@@ -340,7 +341,8 @@ public sealed class EndpointCallService
             return Problem(502, "Asset keeping failed", $"Asset subject thing not found: {keep.AssetSubject}");
 
         if (await _observationService.ObserveValueAsync(
-                endpointThingId, subject.Value.Id, keep.AssetProperty, ticket, keep.ObservedAt, observed) is { } failure)
+                endpointThingId, subject.Value.Id, keep.AssetProperty, ticket, keep.ObservedAt, observed,
+                cancellationToken) is { } failure)
             return Problem(502, "Asset keeping failed", failure);
 
         return null;

@@ -8,7 +8,8 @@ public interface IEndpointMyceliumClient
     Task<MyceliumClient.MyceliumThing?> CreateThingAsync(string name, Dictionary<string, object?>? properties = null);
     Task<bool> CreateRelationshipAsync(Guid subjectId, Guid predicateId, Guid targetId);
 
-    Task<bool> SubmitObservationsAsync(Guid thingId, IReadOnlyList<ObservationSample> samples);
+    Task<bool> SubmitObservationsAsync(
+        Guid thingId, IReadOnlyList<ObservationSample> samples, CancellationToken cancellationToken = default);
 
     Task<bool> SetPropertyModeAsync(Guid thingId, string property, string mode, int? sampleSeconds = null);
 }
