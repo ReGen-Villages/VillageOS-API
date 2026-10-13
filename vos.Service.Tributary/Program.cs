@@ -57,6 +57,7 @@ try
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<MyceliumClient>>(),
             myceliumUrl,
+            sp.GetRequiredService<TimeProvider>(),
             serviceToken, apiKey: apiKey));
     builder.Services.AddSingleton<IEndpointMyceliumClient>(sp => sp.GetRequiredService<MyceliumClient>());
     // Reads which kinds an endpoint reaches. A scoped snapshot, not a property read, because a kind
