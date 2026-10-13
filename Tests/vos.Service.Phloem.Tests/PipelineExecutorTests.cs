@@ -515,6 +515,191 @@ public class PipelineExecutorTests
         gateway.RunsCreated.Single().RequestId.Should().Be(requestId);
     }
 
+    [Fact]
+    public async Task RunAsync_Decision_RunsTheBranchAnsweredUnder_RecordsTheOtherNotTaken_AndJoinsOnce()
+    {
+        var (fx, pipelineId) = TestGraphs.DecisionPipeline();
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnDispatch = (subdomain, envelope) => subdomain switch
+            {
+                "decide" => NodeOk(("accept", "yes: " + InputValue(envelope, "in"))),
+                "notify" => NodeOk(("out", "told " + InputValue(envelope, "in"))),
+                "return" => NodeOk(("out", "returned")),
+                _ => NodeFail("unexpected subdomain"),
+            },
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "order 7" }), CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        gateway.Dispatched.Should().Equal("decide", "notify");
+        result.Nodes.Single(n => n.Name == "Return").Status.Should().Be(RunStatus.NotTaken);
+        gateway.NodeStatuses.Where(s => s.Name == "Return").Select(s => s.Status).Should().Equal(RunStatus.NotTaken);
+        result.Nodes.Single(n => n.Name == "End").Status.Should().Be(RunStatus.Succeeded);
+        result.Result!.Value.GetProperty("result").GetString().Should().Be("told yes: order 7");
+    }
+
+    [Fact]
+    public async Task RunAsync_Decision_AnsweringUnderNoOutcome_LeavesEveryBranchAndTheEndNotTaken()
+    {
+        var (fx, pipelineId) = TestGraphs.DecisionPipeline();
+        var gateway = new FakeGateway(fx.Build()) { OnDispatch = (_, _) => NodeOk() };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "order 7" }), CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        gateway.Dispatched.Should().Equal("decide");
+        result.Nodes.Where(n => n.Name is "Notify" or "Return" or "End").Should().OnlyContain(n => n.Status == RunStatus.NotTaken);
+        result.Result.Should().BeNull();
+        gateway.RunResult.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task RunAsync_AThingChosenOnTheNode_FillsItsPortsInput()
+    {
+        var choice = TestGraphs.ChoicePipeline();
+        choice.Fixture.Rel(choice.Node, choice.Offers, choice.Offered[1]);
+        var gateway = new FakeGateway(choice.Fixture.Build()) { OnDispatch = (_, _) => NodeOk(("out", "chosen")) };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(choice.PipelineId, default, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        var strategy = gateway.Envelopes.Single().Envelope.GetProperty("inputs").GetProperty("strategy");
+        strategy.GetProperty("id").GetString().Should().Be(choice.Offered[1].Id.ToString());
+        strategy.GetProperty("name").GetString().Should().Be("Cheapest first");
+    }
+
+    [Fact]
+    public async Task RunAsync_AParameterBoundToThePort_WinsOverTheThingChosen()
+    {
+        var choice = TestGraphs.ChoicePipeline(nodeProperties: ("parameterBindings", "{\"strategy\":\"strategy\"}"));
+        choice.Fixture.Rel(choice.Node, choice.Offers, choice.Offered[1]);
+        var gateway = new FakeGateway(choice.Fixture.Build()) { OnDispatch = (_, _) => NodeOk(("out", "chosen")) };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(choice.PipelineId, JsonSerializer.SerializeToElement(new { strategy = "by hand" }), CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        gateway.Envelopes.Single().Envelope.GetProperty("inputs").GetProperty("strategy").GetString().Should().Be("by hand");
+    }
+
+    [Fact]
+    public async Task RunAsync_AWireIntoThePort_WinsOverTheThingChosen()
+    {
+        var choice = TestGraphs.ChoicePipeline(wiredFromASource: true);
+        choice.Fixture.Rel(choice.Node, choice.Offers, choice.Offered[1]);
+        var gateway = new FakeGateway(choice.Fixture.Build())
+        {
+            OnDispatch = (subdomain, _) => subdomain == "source" ? NodeOk(("out", "from the wire")) : NodeOk(("out", "chosen")),
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(choice.PipelineId, default, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        gateway.Envelopes.Single(e => e.Subdomain == "choose").Envelope.GetProperty("inputs").GetProperty("strategy").GetString().Should().Be("from the wire");
+    }
+
+    [Fact]
+    public async Task RunAsync_AChoiceNoPortOffers_IsRefusedBeforeAnythingRuns()
+    {
+        var choice = TestGraphs.ChoicePipeline();
+        var stranger = choice.Fixture.Thing("At random");
+        choice.Fixture.Rel(choice.Node, choice.Offers, stranger);
+        var gateway = new FakeGateway(choice.Fixture.Build());
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(choice.PipelineId, default, CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.Error.Should().Contain("Choose").And.Contain("At random").And.Contain("no in port of it offers");
+        gateway.Dispatched.Should().BeEmpty();
+        gateway.RunError.Should().Be(result.Error);
+    }
+
+    [Fact]
+    public async Task RunAsync_SeveralWiresIntoOneCollectionInput_GatherAsOneListInWireOrder()
+    {
+        var (fx, pipelineId) = TestGraphs.GatheredCollectionPipeline();
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnDispatch = (subdomain, _) => subdomain switch
+            {
+                "a" => NodeAnswering("""{"out":["a1","a2"]}"""),
+                "b" => NodeAnswering("""{"out":["b1"]}"""),
+                "gather" => NodeOk(("out", "gathered")),
+                _ => NodeFail("unexpected subdomain"),
+            },
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        ItemsDispatchedTo(gateway, "gather").Should().Equal("a1", "a2", "b1");
+    }
+
+    [Fact]
+    public async Task RunAsync_AWireThatCarriedNothing_AddsNothingToACollectionInput()
+    {
+        var (fx, pipelineId) = TestGraphs.GatheredCollectionPipeline();
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnDispatch = (subdomain, _) => subdomain switch
+            {
+                "a" => NodeOk(),
+                "b" => NodeAnswering("""{"out":["b1"]}"""),
+                _ => NodeOk(("out", "gathered")),
+            },
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        ItemsDispatchedTo(gateway, "gather").Should().Equal("b1");
+    }
+
+    private static IEnumerable<string?> ItemsDispatchedTo(FakeGateway gateway, string subdomain) =>
+        gateway.Envelopes.Where(e => e.Subdomain == subdomain)
+            .OrderBy(e => e.Envelope.GetProperty("index").GetInt32())
+            .Select(e => e.Envelope.GetProperty("inputs").GetProperty("items").GetString());
+
+    [Fact]
+    public async Task RunAsync_FanOut_ACollectionOutPortGathersFlat_AndAnotherPortPerItem()
+    {
+        var (fx, pipelineId) = TestGraphs.FanOutWithCollectionOutPipeline("continue");
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnDispatch = (_, envelope) =>
+            {
+                var item = envelope.GetProperty("inputs").GetProperty("item").GetString()!;
+                return item switch
+                {
+                    "a" => NodeAnswering("""{"score":"A","parts":["a1","a2"]}"""),
+                    "b" => NodeFail("boom"),
+                    _ => NodeAnswering("""{"score":"C","parts":["c1"]}"""),
+                };
+            },
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+        var runParams = JsonSerializer.SerializeToElement(new { items = new[] { "a", "b", "c" }, w = 1 });
+
+        var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
+
+        var node = result.Nodes.Single();
+        node.Status.Should().Be(RunStatus.Partial);
+        node.Outputs["parts"].EnumerateArray().Select(e => e.GetString()).Should().Equal("a1", "a2", "c1");
+        node.Outputs["score"].EnumerateArray().Select(e => e.ValueKind == JsonValueKind.Null ? null : e.GetString()).Should().Equal("A", null, "C");
+    }
+
+    private static NodeDispatchResult NodeAnswering(string outputsJson) =>
+        new(200, $$"""{"success":true,"outputs":{{outputsJson}},"error":null}""");
+
     private static NodeDispatchResult NodeOk(params (string Port, string Value)[] outputs)
     {
         var outs = outputs.ToDictionary(o => o.Port, o => o.Value);

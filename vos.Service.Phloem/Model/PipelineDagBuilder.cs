@@ -94,18 +94,39 @@ public static class PipelineDagBuilder
             .FirstOrDefault(t => graph.IsOfArchetypeCarrying(t, PipelineArchetypes.ServiceFlag))
             ?? throw new PipelineModelException($"Connection '{connection.Name}' binds no service.");
 
+        // The node's own ports come first so one of them wins a name clash with the service's.
+        var portThings = ResolvePortThings(graph, nodeThing).Concat(ResolvePortThings(graph, service)).ToList();
         return new DagNode
         {
             NodeId = nodeThing.Id,
             Name = nodeThing.Name,
             Subdomain = subdomain!,
             Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
-            Ports = ResolvePorts(graph, service).ToList(),
+            Ports = portThings.Select(ToPort).ToList(),
             ParameterBindings = ParseParameterBindings(nodeThing),
+            Choices = ChoicesOf(graph, nodeThing, portThings),
             OnItemError = string.Equals(nodeThing.PropertyString(ModelNames.OnItemError), ModelNames.OnItemErrorContinue, StringComparison.OrdinalIgnoreCase)
                 ? ModelNames.OnItemErrorContinue
                 : ModelNames.OnItemErrorFail,
         };
+    }
+
+    // Each Thing the node chose is matched to the in port offering it; a choice no port offers refuses the
+    // build, since the run could neither fill an input with it nor say which it meant.
+    private static IReadOnlyDictionary<string, ChosenThing> ChoicesOf(PipelineGraph graph, GraphThing nodeThing, IReadOnlyList<GraphThing> portThings)
+    {
+        var choices = new Dictionary<string, ChosenThing>(StringComparer.OrdinalIgnoreCase);
+        foreach (var chosen in graph.OutgoingAlongPredicateMarked(nodeThing, PipelinePredicates.ChoiceFlag))
+        {
+            var offering = portThings.FirstOrDefault(port => ToPort(port).IsInput
+                && graph.OutgoingAlongPredicateMarked(port, PipelinePredicates.ChoiceFlag).Any(offered => offered.Id == chosen.Id))
+                ?? throw new PipelineModelException($"Node '{nodeThing.Name}' chose '{chosen.Name}', which no in port of it offers.");
+            var portName = ToPort(offering).PortName;
+            if (choices.ContainsKey(portName))
+                throw new PipelineModelException($"Node '{nodeThing.Name}' chose two Things for its port '{portName}'.");
+            choices[portName] = new ChosenThing(chosen.Id, chosen.Name);
+        }
+        return choices;
     }
 
     // A boundary node: ports are declared on the node itself (its own has → Port chain),
@@ -120,7 +141,7 @@ public static class PipelineDagBuilder
             Kind = kind,
             Subdomain = string.Empty,
             Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
-            Ports = ResolvePorts(graph, nodeThing).ToList(),
+            Ports = ResolvePortThings(graph, nodeThing).Select(ToPort).ToList(),
             ParameterBindings = ParseParameterBindings(nodeThing),
             Tells = kind == DagNodeKind.Output ? TellingOf(graph, nodeThing) : null,
         };
@@ -166,27 +187,29 @@ public static class PipelineDagBuilder
     private static readonly IReadOnlyDictionary<string, string> EmptyBindings =
         new Dictionary<string, string>();
 
-    // Collect Port child-Things by walking the service's is-chain — relationships do not
+    // Collect Port child-Things by walking the owner's is-chain — relationships do not
     // inherit through is, so ports resolve at read time at each level of the chain.
-    private static IEnumerable<DagPort> ResolvePorts(PipelineGraph graph, GraphThing service)
+    private static IEnumerable<GraphThing> ResolvePortThings(PipelineGraph graph, GraphThing owner)
     {
         var seen = new HashSet<Guid>();
         var stack = new Stack<GraphThing>();
-        stack.Push(service);
+        stack.Push(owner);
         while (stack.Count > 0)
         {
             var current = stack.Pop();
             if (!seen.Add(current.Id)) continue;
             foreach (var portThing in graph.OutgoingTargets(current, ModelNames.Has)
                          .Where(t => graph.IsOfArchetypeCarrying(t, PipelineArchetypes.PortFlag)))
-                yield return new DagPort(
-                    portThing.PropertyString(ModelNames.PortName) ?? portThing.Name,
-                    portThing.PropertyString(ModelNames.Direction) ?? ModelNames.DirectionIn,
-                    portThing.PropertyString(ModelNames.PortType) ?? string.Empty,
-                    portThing.CarriesFlag(ModelNames.Required),
-                    portThing.CarriesFlag(ModelNames.Collection));
+                yield return portThing;
             foreach (var parent in graph.OutgoingTargets(current, ModelNames.Is))
                 stack.Push(parent);
         }
     }
+
+    private static DagPort ToPort(GraphThing portThing) =>
+        new(portThing.PropertyString(ModelNames.PortName) ?? portThing.Name,
+            portThing.PropertyString(ModelNames.Direction) ?? ModelNames.DirectionIn,
+            portThing.PropertyString(ModelNames.PortType) ?? string.Empty,
+            portThing.CarriesFlag(ModelNames.Required),
+            portThing.CarriesFlag(ModelNames.Collection));
 }

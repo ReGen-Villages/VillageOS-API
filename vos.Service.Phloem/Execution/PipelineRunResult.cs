@@ -10,6 +10,8 @@ public static class RunStatus
     public const string Skipped = "skipped";
     public const string Cancelled = "cancelled";
     public const string Partial = "partial";
+    // Every wire into the node was settled and none carried a value: the branch was not the one taken.
+    public const string NotTaken = "notTaken";
 }
 
 public sealed record NodeRunResult(
