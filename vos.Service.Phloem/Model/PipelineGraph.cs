@@ -51,14 +51,35 @@ public sealed class PipelineGraph
 
     private const string HasPredicate = "has";
 
-    private readonly Dictionary<Guid, GraphThing> _things;
-    private readonly List<GraphRelationship> _relationships;
+    private static readonly IReadOnlyList<GraphRelationship> NoRelationships = Array.Empty<GraphRelationship>();
 
+    private readonly Dictionary<Guid, GraphThing> _things;
+    private readonly Dictionary<Guid, List<GraphRelationship>> _bySubject = new();
+    private readonly Dictionary<Guid, List<GraphRelationship>> _byTarget = new();
+
+    // Indexed by each end once, because the builder walks out of every node, port and connection, and a
+    // walk that scanned every relationship cost a third of a drawing's build.
     public PipelineGraph(IReadOnlyDictionary<Guid, GraphThing> things, IReadOnlyList<GraphRelationship> relationships)
     {
         _things = new Dictionary<Guid, GraphThing>(things);
-        _relationships = relationships.ToList();
+        foreach (var relationship in relationships)
+        {
+            Index(_bySubject, relationship.SubjectId, relationship);
+            Index(_byTarget, relationship.TargetId, relationship);
+        }
     }
+
+    private static void Index(Dictionary<Guid, List<GraphRelationship>> index, Guid end, GraphRelationship relationship)
+    {
+        if (!index.TryGetValue(end, out var list)) index[end] = list = new List<GraphRelationship>();
+        list.Add(relationship);
+    }
+
+    private IReadOnlyList<GraphRelationship> From(GraphThing subject) =>
+        _bySubject.TryGetValue(subject.Id, out var list) ? list : NoRelationships;
+
+    private IReadOnlyList<GraphRelationship> Into(GraphThing target) =>
+        _byTarget.TryGetValue(target.Id, out var list) ? list : NoRelationships;
 
     public IReadOnlyCollection<GraphThing> Things => _things.Values;
 
@@ -90,9 +111,8 @@ public sealed class PipelineGraph
     // built-in is/has).
     public IEnumerable<GraphThing> OutgoingTargets(GraphThing subject, string predicateName)
     {
-        foreach (var rel in _relationships)
+        foreach (var rel in From(subject))
         {
-            if (rel.SubjectId != subject.Id) continue;
             var predicate = Thing(rel.PredicateId);
             if (predicate != null && string.Equals(predicate.Name, predicateName, StringComparison.OrdinalIgnoreCase)
                 && Thing(rel.TargetId) is { } target)
@@ -103,9 +123,8 @@ public sealed class PipelineGraph
     // Subjects reaching the target via a predicate matched by name (use for the built-in is/has).
     public IEnumerable<GraphThing> IncomingSubjects(GraphThing target, string predicateName)
     {
-        foreach (var rel in _relationships)
+        foreach (var rel in Into(target))
         {
-            if (rel.TargetId != target.Id) continue;
             var predicate = Thing(rel.PredicateId);
             if (predicate != null && string.Equals(predicate.Name, predicateName, StringComparison.OrdinalIgnoreCase)
                 && Thing(rel.SubjectId) is { } subject)
@@ -118,9 +137,8 @@ public sealed class PipelineGraph
     // archetype.
     public IEnumerable<GraphThing> OutgoingAlongPredicateMarked(GraphThing subject, string predicateFlag)
     {
-        foreach (var rel in _relationships)
+        foreach (var rel in From(subject))
         {
-            if (rel.SubjectId != subject.Id) continue;
             if (Thing(rel.PredicateId) is { } predicate && predicate.CarriesFlag(predicateFlag)
                 && Thing(rel.TargetId) is { } target)
                 yield return target;
@@ -130,9 +148,8 @@ public sealed class PipelineGraph
     // Subjects reaching the target along a predicate that itself carries the given flag.
     public IEnumerable<GraphThing> IncomingAlongPredicateMarked(GraphThing target, string predicateFlag)
     {
-        foreach (var rel in _relationships)
+        foreach (var rel in Into(target))
         {
-            if (rel.TargetId != target.Id) continue;
             if (Thing(rel.PredicateId) is { } predicate && predicate.CarriesFlag(predicateFlag)
                 && Thing(rel.SubjectId) is { } subject)
                 yield return subject;
@@ -143,9 +160,8 @@ public sealed class PipelineGraph
     // is found without naming either the predicate or the archetype it comes from.
     public IEnumerable<GraphRelationship> OutgoingByPredicateCarrying(GraphThing subject, string roleFlag)
     {
-        foreach (var rel in _relationships)
+        foreach (var rel in From(subject))
         {
-            if (rel.SubjectId != subject.Id) continue;
             if (Thing(rel.PredicateId) is { } predicate && IsOfArchetypeCarrying(predicate, roleFlag))
                 yield return rel;
         }
@@ -163,9 +179,8 @@ public sealed class PipelineGraph
         foreach (var held in OutgoingTargets(subject, HasPredicate))
         {
             if (!IsOfArchetypeCarrying(held, roleFlag)) continue;
-            foreach (var rel in _relationships)
+            foreach (var rel in From(held))
             {
-                if (rel.SubjectId != held.Id) continue;
                 if (Thing(rel.TargetId) is { } target && IsOfArchetypeCarrying(target, targetRoleFlag))
                 {
                     yield return (held, target);
