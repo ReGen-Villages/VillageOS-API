@@ -126,8 +126,8 @@ public sealed class CoverageLedger
             outstanding, coverageId, FailureReasonProperty, outcome.Reason ?? string.Empty, cancellationToken);
     }
 
-    // Sent once more when refused: the one refusal seen was a single stamp lost while the broker was busy,
-    // and without it the coverage reads as a source never asked until the reconciler sends the whole run again.
+    // Sent once more when refused, because a coverage missing a stamp reads as a source never asked until
+    // the reconciler sends the whole run again.
     private async Task WriteOntoCoverageAsync(
         OutstandingCall outstanding, Guid coverageId, string property, object? value, CancellationToken cancellationToken)
     {
