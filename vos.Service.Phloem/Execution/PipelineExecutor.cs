@@ -259,7 +259,7 @@ public sealed class PipelineExecutor
                 : new JsonataTransform(wire.Transform).Eval(extracted.Value, _clock);
             if (node.Port(wire.ToPort) is { IsInput: true, Collection: true })
             {
-                var gathered = accumulated.TryGetValue(wire.ToPort, out var sofar) && sofar is JsonArray list ? list : new JsonArray();
+                var gathered = accumulated.TryGetValue(wire.ToPort, out var soFar) ? AsList(soFar) : new JsonArray();
                 AppendItems(gathered, reshaped);
                 accumulated[wire.ToPort] = gathered;
                 continue;
@@ -384,6 +384,11 @@ public sealed class PipelineExecutor
         else
             list.Add(JsonSerializer.SerializeToNode(value));
     }
+
+    // A value already on a collection input, bound from a parameter or chosen on the node, is the first item
+    // unless it is a list already.
+    private static JsonArray AsList(JsonNode? value) =>
+        value is JsonArray list ? list : new JsonArray { value?.DeepClone() };
 
     private async Task<NodeRunResult> DispatchAndParseAsync(
         DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> inputs, int? index, CancellationToken cancellationToken)

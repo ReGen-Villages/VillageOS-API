@@ -95,16 +95,17 @@ public static class PipelineDagBuilder
             ?? throw new PipelineModelException($"Connection '{connection.Name}' binds no service.");
 
         // The node's own ports come first so one of them wins a name clash with the service's.
-        var portThings = ResolvePortThings(graph, nodeThing).Concat(ResolvePortThings(graph, service)).ToList();
+        var ports = ResolvePortThings(graph, nodeThing).Concat(ResolvePortThings(graph, service))
+            .Select(portThing => (Thing: portThing, Port: ToPort(portThing))).ToList();
         return new DagNode
         {
             NodeId = nodeThing.Id,
             Name = nodeThing.Name,
             Subdomain = subdomain!,
             Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
-            Ports = portThings.Select(ToPort).ToList(),
+            Ports = ports.Select(p => p.Port).ToList(),
             ParameterBindings = ParseParameterBindings(nodeThing),
-            Choices = ChoicesOf(graph, nodeThing, portThings),
+            Choices = ChoicesOf(graph, nodeThing, ports),
             OnItemError = string.Equals(nodeThing.PropertyString(ModelNames.OnItemError), ModelNames.OnItemErrorContinue, StringComparison.OrdinalIgnoreCase)
                 ? ModelNames.OnItemErrorContinue
                 : ModelNames.OnItemErrorFail,
@@ -113,18 +114,19 @@ public static class PipelineDagBuilder
 
     // Each Thing the node chose is matched to the in port offering it; a choice no port offers refuses the
     // build, since the run could neither fill an input with it nor say which it meant.
-    private static IReadOnlyDictionary<string, ChosenThing> ChoicesOf(PipelineGraph graph, GraphThing nodeThing, IReadOnlyList<GraphThing> portThings)
+    private static IReadOnlyDictionary<string, ChosenThing> ChoicesOf(
+        PipelineGraph graph, GraphThing nodeThing, IReadOnlyList<(GraphThing Thing, DagPort Port)> ports)
     {
         var choices = new Dictionary<string, ChosenThing>(StringComparer.OrdinalIgnoreCase);
         foreach (var chosen in graph.OutgoingAlongPredicateMarked(nodeThing, PipelinePredicates.ChoiceFlag))
         {
-            var offering = portThings.FirstOrDefault(port => ToPort(port).IsInput
-                && graph.OutgoingAlongPredicateMarked(port, PipelinePredicates.ChoiceFlag).Any(offered => offered.Id == chosen.Id))
-                ?? throw new PipelineModelException($"Node '{nodeThing.Name}' chose '{chosen.Name}', which no in port of it offers.");
-            var portName = ToPort(offering).PortName;
-            if (choices.ContainsKey(portName))
-                throw new PipelineModelException($"Node '{nodeThing.Name}' chose two Things for its port '{portName}'.");
-            choices[portName] = new ChosenThing(chosen.Id, chosen.Name);
+            var offering = ports.FirstOrDefault(p => p.Port.IsInput
+                && graph.OutgoingAlongPredicateMarked(p.Thing, PipelinePredicates.ChoiceFlag).Any(offered => offered.Id == chosen.Id));
+            if (offering.Thing is null)
+                throw new PipelineModelException($"Node '{nodeThing.Name}' chose '{chosen.Name}', which no in port of it offers.");
+            if (choices.ContainsKey(offering.Port.PortName))
+                throw new PipelineModelException($"Node '{nodeThing.Name}' chose two Things for its port '{offering.Port.PortName}'.");
+            choices[offering.Port.PortName] = new ChosenThing(chosen.Id, chosen.Name);
         }
         return choices;
     }

@@ -568,8 +568,9 @@ public static class TestGraphs
         return new ChoiceFixture(fx, pipe.Id, offers, node, offered);
     }
 
-    // A (out `out`) and B (out `out`) both wired into Gather's collection input `items`; Gather answers `out`.
-    public static (GraphFixture Fixture, Guid PipelineId) GatheredCollectionPipeline()
+    // A (out `out`) and B (out `out`) both wired into Gather's collection input `items`, which may also be
+    // bound to a run parameter; Gather answers `out`.
+    public static (GraphFixture Fixture, Guid PipelineId) GatheredCollectionPipeline(string? boundTo = null)
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
@@ -588,7 +589,9 @@ public static class TestGraphs
 
         var a = ServiceNode(fx, vocabulary, sourceProto, "A", "a");
         var b = ServiceNode(fx, vocabulary, sourceProto, "B", "b");
-        var gather = ServiceNode(fx, vocabulary, gatherProto, "Gather", "gather");
+        var gather = boundTo is null
+            ? ServiceNode(fx, vocabulary, gatherProto, "Gather", "gather")
+            : ServiceNode(fx, vocabulary, gatherProto, "Gather", "gather", ("parameterBindings", $"{{\"items\":\"{boundTo}\"}}"));
         var pipe = fx.Thing("GatherDemo");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
         foreach (var node in new[] { a, b, gather }) fx.Rel(pipe, vocabulary.Has, node);
@@ -613,14 +616,15 @@ public static class TestGraphs
     }
 
     private static GraphThing ServiceNode(
-        GraphFixture fx, PipelineVocabulary vocabulary, GraphThing prototype, string name, string subdomain)
+        GraphFixture fx, PipelineVocabulary vocabulary, GraphThing prototype, string name, string subdomain,
+        params (string Name, object Value)[] nodeProperties)
     {
         var service = fx.Thing($"{name}Svc");
         fx.Rel(service, vocabulary.Is, prototype);
         var connection = fx.Thing($"{name}Conn", ("Subdomain", subdomain));
         fx.Rel(connection, vocabulary.Is, vocabulary.Connection);
         fx.Rel(connection, vocabulary.Has, service);
-        var node = fx.Thing(name);
+        var node = fx.Thing(name, nodeProperties);
         fx.Rel(node, vocabulary.Is, vocabulary.PipelineNode);
         fx.Rel(node, vocabulary.Has, connection);
         return node;

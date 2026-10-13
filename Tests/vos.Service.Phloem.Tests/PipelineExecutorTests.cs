@@ -670,6 +670,27 @@ public class PipelineExecutorTests
             .Select(e => e.Envelope.GetProperty("inputs").GetProperty("items").GetString());
 
     [Fact]
+    public async Task RunAsync_AScalarWireAndABoundScalar_EachCountAsOneItemOfACollectionInput()
+    {
+        var (fx, pipelineId) = TestGraphs.GatheredCollectionPipeline(boundTo: "first");
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnDispatch = (subdomain, _) => subdomain switch
+            {
+                "a" => NodeOk(("out", "a1")),
+                "b" => NodeAnswering("""{"out":["b1","b2"]}"""),
+                _ => NodeOk(("out", "gathered")),
+            },
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { first = "f0" }), CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        ItemsDispatchedTo(gateway, "gather").Should().Equal("f0", "a1", "b1", "b2");
+    }
+
+    [Fact]
     public async Task RunAsync_FanOut_ACollectionOutPortGathersFlat_AndAnotherPortPerItem()
     {
         var (fx, pipelineId) = TestGraphs.FanOutWithCollectionOutPipeline("continue");
@@ -682,19 +703,21 @@ public class PipelineExecutorTests
                 {
                     "a" => NodeAnswering("""{"score":"A","parts":["a1","a2"]}"""),
                     "b" => NodeFail("boom"),
-                    _ => NodeAnswering("""{"score":"C","parts":["c1"]}"""),
+                    "c" => NodeAnswering("""{"score":"C","parts":"c1"}"""),
+                    _ => NodeAnswering("""{"score":"D"}"""),
                 };
             },
         };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
-        var runParams = JsonSerializer.SerializeToElement(new { items = new[] { "a", "b", "c" }, w = 1 });
+        var runParams = JsonSerializer.SerializeToElement(new { items = new[] { "a", "b", "c", "d" }, w = 1 });
 
         var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
 
         var node = result.Nodes.Single();
         node.Status.Should().Be(RunStatus.Partial);
+        // a's list contributes its items, c's single value is one item, b failed and d answered nothing under the port
         node.Outputs["parts"].EnumerateArray().Select(e => e.GetString()).Should().Equal("a1", "a2", "c1");
-        node.Outputs["score"].EnumerateArray().Select(e => e.ValueKind == JsonValueKind.Null ? null : e.GetString()).Should().Equal("A", null, "C");
+        node.Outputs["score"].EnumerateArray().Select(e => e.ValueKind == JsonValueKind.Null ? null : e.GetString()).Should().Equal("A", null, "C", "D");
     }
 
     private static NodeDispatchResult NodeAnswering(string outputsJson) =>
