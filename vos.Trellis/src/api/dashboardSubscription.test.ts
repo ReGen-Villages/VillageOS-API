@@ -533,7 +533,6 @@ describe('a verdict that offers levers', () => {
     });
   }
 
-  // A lever names its input by a Thing the page reads nothing else from, found by the mark its archetype carries.
   it('asks for the names a model declares for its inputs, and the archetypes they name', () => {
     const selector = subscriptionForSpecification(verdictWidget(true), null);
 

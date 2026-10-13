@@ -189,7 +189,6 @@ describe('VerdictList', () => {
     words: { en: 'solar panel area', de: 'Fläche der Solarmodule' },
   };
 
-  // The name is declared for the property on that archetype, so it already says whose property it is.
   it('reads a lever by the name the model declares, with no archetype beside it', () => {
     const { container } = render(
       <VerdictList widget={widgetWith({ label: 'Energy', format: 'percentOutOf100', verdicts: shortfallWithLever(NAMED_PANEL_AREA) })}
