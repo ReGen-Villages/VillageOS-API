@@ -96,6 +96,8 @@ try
         HttpContext httpContext) =>
     {
         var result = await endpointCallService.ExecuteAsync(request, httpContext.RequestAborted);
+        if (result.RetryAfter is { } providersWait)
+            httpContext.Response.Headers.RetryAfter = providersWait.ToString();
         return ToHttpResult(result);
     });
     if (authEnabled) handleEndpoint.RequireAuthorization();
