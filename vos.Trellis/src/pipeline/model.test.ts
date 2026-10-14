@@ -131,6 +131,18 @@ describe('PipelineModel', () => {
     expect(model.boundTo('a role nothing binds')).toBeUndefined();
   });
 
+  it('takes neither Thing a role binds when it binds two, rather than whichever the model lists first', () => {
+    const is: VosThing = { Id: 'is', Name: 'is', Properties: {} };
+    const workflow: VosThing = { Id: 'workflow', Name: 'Workflow', Properties: playing(ROLE.Pipeline) };
+    const routine: VosThing = { Id: 'routine', Name: 'Routine', Properties: playing(ROLE.Pipeline) };
+    const digest: VosThing = { Id: 'digest', Name: 'Digest', Properties: {} };
+    const model = new PipelineModel(...withRoles([is, workflow, routine, digest],
+      [{ Id: 'digest is', Name: '', SubjectId: digest.Id, PredicateId: is.Id, TargetId: workflow.Id, Properties: {} }]));
+
+    expect(model.boundTo(ROLE.Pipeline)).toBeUndefined();
+    expect(model.isOf(digest.Id, ROLE.Pipeline)).toBe(false);
+  });
+
   it('does not count an archetype as playing its own role, so the picker lists pipelines and not the archetype', () => {
     const { model, pipelineId, pipelineArchetypeId } = demoModel();
     expect(model.isOf(pipelineId, ROLE.Pipeline)).toBe(true);
