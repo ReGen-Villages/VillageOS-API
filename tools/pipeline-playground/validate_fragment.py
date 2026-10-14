@@ -25,6 +25,7 @@ TOLD = "__IsToldPredicate"
 TOLD_THROUGH = "__IsToldThroughPredicate"
 ARRIVES_AT = "__IsArrivesAtPredicate"
 STANDS_FOR = "__IsStandsForPredicate"
+CHOICE = "__IsChoicePredicate"
 
 # The roles a DAG is resolved from. Marked on no archetype, every question below answers "no" and a model
 # full of pipelines reads as empty — which is why Phloem refuses such a model outright.
@@ -76,8 +77,9 @@ class Model:
                 return True
         return False
 
-    def resolve_ports(self, svc_id):
-        ports, seen, stack = [], set(), [svc_id]
+    def resolve_ports(self, owner_id):
+        """The Port Things an owner `has`, up its `is` chain: a service's, or the ones a node holds itself."""
+        ports, seen, stack = [], set(), [owner_id]
         while stack:
             i = stack.pop()
             if i in seen:
@@ -86,7 +88,8 @@ class Model:
             for t in self.outgoing(i, "has"):
                 if self.is_of(t["Id"], PORT):
                     p = t["P"]
-                    ports.append({"portName": str(p.get("portName", t["Name"])),
+                    ports.append({"id": t["Id"],
+                                  "portName": str(p.get("portName", t["Name"])),
                                   "direction": "out" if str(p.get("direction", "in")).lower() == "out" else "in",
                                   "type": str(p.get("type", "")),
                                   "required": str(p.get("required", "false")).lower() == "true"})
@@ -160,7 +163,13 @@ def main():
                     problems.append(f"[{pipe['Name']}] node '{t['Name']}' binds no connection")
                     ports = []
                 else:
-                    ports = conn_by_id.get(conn["Id"], {}).get("ports", [])
+                    ports = m.resolve_ports(t["Id"]) + conn_by_id.get(conn["Id"], {}).get("ports", [])
+                # A Thing the node chose must be offered by one of its in ports along the same predicate, or
+                # the orchestrator refuses the run.
+                for chosen in m.reached_along(t["Id"], CHOICE):
+                    if not any(p["direction"] == "in" and any(o["Id"] == chosen["Id"] for o in m.reached_along(p["id"], CHOICE))
+                               for p in ports):
+                        problems.append(f"[{pipe['Name']}] node '{t['Name']}' chose '{chosen['Name']}', which no in port of it offers")
             pb = t["P"].get("parameterBindings")
             bindings = json.loads(pb) if isinstance(pb, str) and pb else {}
             nodes.append({"id": t["Id"], "name": t["Name"], "kind": kind, "ports": ports, "bindings": bindings})
