@@ -17,7 +17,7 @@ public class ForageStartsASiteAnalysisOnceTests : IClassFixture<TheEngine>
 
     public ForageStartsASiteAnalysisOnceTests(TheEngine engine) => _engine = engine;
 
-    [Fact]
+    [FactAgainstTheEngine]
     public async Task A_run_after_the_one_that_started_the_analysis_finds_it_started_and_writes_nothing()
     {
         var studies = await _engine.DeclareOnceAsync(CoveringSourceResolver.StudiesPredicate);

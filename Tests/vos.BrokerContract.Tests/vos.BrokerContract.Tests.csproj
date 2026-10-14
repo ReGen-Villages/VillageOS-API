@@ -9,8 +9,8 @@
   </PropertyGroup>
 
   <!-- Where a staged engine is. ci/stage-the-engine.sh writes one here; the build points VosRelease
-       at the one it stages for itself. Absent, this project still compiles and its suite reports that
-       it did not run — a checkout without an engine builds like any other. -->
+       at the one it stages for itself. Absent, every case still compiles and is reported as skipped,
+       so a constructor change a case calls fails this repository's build too. -->
   <PropertyGroup>
     <VosRelease Condition="'$(VosRelease)' == ''">$(MSBuildThisFileDirectory)..\..\.vos-engine</VosRelease>
     <VosTestingProperties>$(VosRelease)\tools\testing\vos.Mycelium.Testing.props</VosTestingProperties>
@@ -23,11 +23,7 @@
 
   <Import Project="$(VosTestingProperties)" Condition="'$(VosEngineIsStaged)' == 'true'" />
 
-  <ItemGroup Condition="'$(VosEngineIsStaged)' != 'true'">
-    <Compile Remove="AgainstTheEngine\**\*.cs" />
-  </ItemGroup>
-
-  <!-- A suite that compiles to nothing passes, and a build that staged the engine wrongly would
+  <!-- A suite whose cases are all skipped passes, and a build that staged the engine wrongly would
        report that pass as a green run over the cases it was added for. The build sets this, so a
        staging step that silently produced nothing fails here instead. -->
   <Target Name="RefuseAMissingEngineWhenTheBuildRequiresOne" BeforeTargets="BeforeBuild"
