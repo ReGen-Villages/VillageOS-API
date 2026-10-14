@@ -1,7 +1,9 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+#if VOS_ENGINE_IS_STAGED
 using vos.Mycelium.Testing;
+#endif
 using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
@@ -20,8 +22,6 @@ public sealed class TheEngine : IAsyncLifetime
     // by concatenation, so this is a base without a trailing slash rather than a host to reach.
     public const string Url = "http://localhost";
 
-    private MyceliumTestHost _host = null!;
-
     public string AdminToken { get; private set; } = "";
 
     public IHttpClientFactory ClientFactory { get; private set; } = null!;
@@ -29,6 +29,14 @@ public sealed class TheEngine : IAsyncLifetime
     // Signed in as the administrator, for a test to arrange a model with and to read back
     // what a service wrote.
     public HttpClient Admin { get; private set; } = null!;
+
+#if !VOS_ENGINE_IS_STAGED
+    public Task InitializeAsync() => throw new InvalidOperationException(
+        "No engine is staged, so this case cannot run. Mark it [FactAgainstTheEngine], which skips it here.");
+
+    public Task DisposeAsync() => Task.CompletedTask;
+#else
+    private MyceliumTestHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -53,6 +61,7 @@ public sealed class TheEngine : IAsyncLifetime
         _host.Dispose();
         return Task.CompletedTask;
     }
+#endif
 
     // A Thing, written the way the engine takes one. Tests arrange with this so that an
     // arrangement cannot be refused for the reason a case is looking for in the service.

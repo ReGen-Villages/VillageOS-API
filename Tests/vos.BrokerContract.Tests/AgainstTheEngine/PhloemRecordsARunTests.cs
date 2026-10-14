@@ -40,7 +40,7 @@ public class PhloemRecordsARunTests : IClassFixture<TheEngine>
         return await _engine.DeclareAsync($"Pipeline {Guid.NewGuid():N}");
     }
 
-    [Fact]
+    [FactAgainstTheEngine]
     public async Task A_run_is_recorded_with_what_it_started_as()
     {
         var pipelineId = await AModelThatMarksItsRunArchetypesAsync();
@@ -54,7 +54,7 @@ public class PhloemRecordsARunTests : IClassFixture<TheEngine>
 
     // The result is known only when the run ends, and the engine sets only a property the
     // Thing already carries — so publishing it proves the run was created carrying it.
-    [Fact]
+    [FactAgainstTheEngine]
     public async Task A_run_publishes_the_result_it_ends_with()
     {
         var pipelineId = await AModelThatMarksItsRunArchetypesAsync();
@@ -70,7 +70,7 @@ public class PhloemRecordsARunTests : IClassFixture<TheEngine>
         (await _engine.ValueOfAsync(runId, ModelNames.Result)).Should().Contain("\"total\":3");
     }
 
-    [Fact]
+    [FactAgainstTheEngine]
     public async Task A_node_run_is_recorded_and_moves_from_running_to_its_outcome()
     {
         var pipelineId = await AModelThatMarksItsRunArchetypesAsync();

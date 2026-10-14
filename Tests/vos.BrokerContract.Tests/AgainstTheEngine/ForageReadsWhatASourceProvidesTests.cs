@@ -23,7 +23,7 @@ public class ForageReadsWhatASourceProvidesTests : IClassFixture<TheEngine>
     private SubscriptionClient Subscriptions() => new(
         _engine.ClientFactory, NullLogger<SubscriptionClient>.Instance, TheEngine.Url, _engine.AdminToken);
 
-    [Fact]
+    [FactAgainstTheEngine]
     public async Task A_site_read_reaches_the_variables_a_source_provides_and_the_predicate_it_provides_them_through()
     {
         var isIn = await _engine.DeclareOnceAsync(CoveringSourceResolver.IsInPredicate);

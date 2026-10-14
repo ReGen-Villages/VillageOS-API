@@ -21,7 +21,7 @@ public class FeedbackChecksACallerTests : IClassFixture<TheEngine>
 
     private PlatformCallers Callers() => new(_engine.ClientFactory, TheEngine.Url);
 
-    [Fact]
+    [FactAgainstTheEngine]
     public async Task A_person_signed_in_to_the_engine_is_accepted_under_their_own_name()
     {
         var (verdict, holder) = await Callers().CheckAsync(_engine.AdminToken, CancellationToken.None);
@@ -33,7 +33,7 @@ public class FeedbackChecksACallerTests : IClassFixture<TheEngine>
         holder.ModelName.Should().NotBeNullOrEmpty("the engine names the model the token was issued for");
     }
 
-    [Fact]
+    [FactAgainstTheEngine]
     public async Task An_event_stream_token_is_refused()
     {
         var minted = await _engine.Admin.PostAsync("/api/auth/stream-token", null);
@@ -45,7 +45,7 @@ public class FeedbackChecksACallerTests : IClassFixture<TheEngine>
         verdict.Should().Be(CallerVerdict.Refused);
     }
 
-    [Fact]
+    [FactAgainstTheEngine]
     public async Task A_token_signed_by_anyone_but_the_engine_is_refused()
     {
         var forged = new MyceliumSigner().Token("VillageOS", "VosClients",
