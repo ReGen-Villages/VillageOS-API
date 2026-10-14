@@ -5,9 +5,11 @@ const PLAYS = 'plays a role in this fixture';
 /** Says, in a fixture's properties, which role a Thing plays. `withRoles` turns it into what a model holds. */
 export const playing = (roleId: string): Record<string, unknown> => ({ [PLAYS]: roleId });
 
+export const BINDS_ID = 'binds';
+
 /** The fixture as a model holds it: each role a Thing, binding the Thing that plays it along `binds`. */
 export function withRoles(things: VosThing[], relationships: VosRelationship[]): [VosThing[], VosRelationship[]] {
-  const binds: VosThing = { Id: 'binds', Name: 'binds', Properties: {} };
+  const binds: VosThing = { Id: BINDS_ID, Name: 'binds', Properties: {} };
   const held: VosThing[] = [binds];
   const bindings: VosRelationship[] = [];
   for (const thing of things) {

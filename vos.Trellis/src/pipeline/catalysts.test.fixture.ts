@@ -1,5 +1,6 @@
 import type { VosThing, VosRelationship } from '../types/vos';
 import { PipelineModel, ROLE } from './model';
+import { BINDS_ID, playing, withRoles } from './roles.test.fixture';
 
 /** A model holding one of every catalyst and every output the Pipelines page reads. Every archetype
  *  and predicate is named something the console has never heard of and says what it is through the role
@@ -35,36 +36,30 @@ export function catalystFixture({ orchestrators = 1 }: { orchestrators?: number 
     relationships.push({ Id: id, Name: '', SubjectId: subject, PredicateId: predicate, TargetId: target, Properties: properties });
     return id;
   };
-  const is = thing('is'), has = thing('has'), binds = thing('binds');
-  const playing = (name: string, roleId: string, isArchetype = false): string => {
-    const id = thing(name, {}, isArchetype);
-    things.push({ Id: roleId, Name: 'a role', Properties: {} });
-    relate(roleId, binds, id);
-    return id;
-  };
+  const is = thing('is'), has = thing('has');
 
-  const triggeredBy = playing('triggeredBy', ROLE.Trigger);
-  const watches = playing('watches', ROLE.StateWatch);
-  const judges = playing('judges', ROLE.JudgedThing);
-  const sends = playing('sends', ROLE.Sends);
-  const tells = playing('tells', ROLE.Told);
-  const arrivesAt = playing('arrivesAt', ROLE.ArrivesAt);
-  const standsFor = playing('standsFor', ROLE.StandsFor);
-  const starts = playing('starts', ROLE.PipelineStart);
+  const triggeredBy = thing('triggeredBy', playing(ROLE.Trigger));
+  const watches = thing('watches', playing(ROLE.StateWatch));
+  const judges = thing('judges', playing(ROLE.JudgedThing));
+  const sends = thing('sends', playing(ROLE.Sends));
+  const tells = thing('tells', playing(ROLE.Told));
+  const arrivesAt = thing('arrivesAt', playing(ROLE.ArrivesAt));
+  const standsFor = thing('standsFor', playing(ROLE.StandsFor));
+  const starts = thing('starts', playing(ROLE.PipelineStart));
 
   const http = thing('http'), graph = thing('graph'), state = thing('state');
 
-  const pipelineArchetype = playing('Workflow', ROLE.Pipeline, true);
-  const nodeArchetype = playing('Step', ROLE.PipelineNode, true);
-  const inputArchetype = playing('Doorway', ROLE.PipelineInput, true);
-  const outputArchetype = playing('Outcome', ROLE.PipelineOutput, true);
-  const connectionArchetype = playing('Binding', ROLE.Connection, true);
-  const serviceArchetype = playing('Capability', ROLE.Service, true);
-  const rangeArchetype = playing('Band', ROLE.Range, true);
-  const systemArchetype = playing('Neighbour', ROLE.ExternalSystem, true);
-  const kindArchetype = playing('Letter', ROLE.MessageKind, true);
-  const wireArchetype = playing('Link', ROLE.PipelineWire, true);
-  const portArchetype = playing('Socket', ROLE.Port, true);
+  const pipelineArchetype = thing('Workflow', playing(ROLE.Pipeline), true);
+  const nodeArchetype = thing('Step', playing(ROLE.PipelineNode), true);
+  const inputArchetype = thing('Doorway', playing(ROLE.PipelineInput), true);
+  const outputArchetype = thing('Outcome', playing(ROLE.PipelineOutput), true);
+  const connectionArchetype = thing('Binding', playing(ROLE.Connection), true);
+  const serviceArchetype = thing('Capability', playing(ROLE.Service), true);
+  const rangeArchetype = thing('Band', playing(ROLE.Range), true);
+  const systemArchetype = thing('Neighbour', playing(ROLE.ExternalSystem), true);
+  const kindArchetype = thing('Letter', playing(ROLE.MessageKind), true);
+  const wireArchetype = thing('Link', playing(ROLE.PipelineWire), true);
+  const portArchetype = thing('Socket', playing(ROLE.Port), true);
   const carries = thing('carries');
   relate(carries, is, wireArchetype);
   relate(inputArchetype, is, nodeArchetype);
@@ -76,7 +71,7 @@ export function catalystFixture({ orchestrators = 1 }: { orchestrators?: number 
     return id;
   };
   const reader = service('Reader'), watcher = service('Watcher'), handler = service('Handler');
-  const orchestratorArchetype = playing('Conductor kind', ROLE.Orchestrator, true);
+  const orchestratorArchetype = thing('Conductor kind', playing(ROLE.Orchestrator), true);
   relate(orchestratorArchetype, is, serviceArchetype);
   const conductors = Array.from({ length: orchestrators }, (_, index) => {
     const id = thing(index === 0 ? 'Conductor' : `Conductor ${index + 1}`);
@@ -170,14 +165,15 @@ export function catalystFixture({ orchestrators = 1 }: { orchestrators?: number 
   const storeSurplus = pipeline('Store surplus');
   boundary(storeSurplus, 'A reservoir overflows', 'input', surplus);
 
+  const [held, heldRelationships] = withRoles(things, relationships);
   return {
-    model: new PipelineModel(things, relationships),
-    things,
-    relationships,
+    model: new PipelineModel(held, heldRelationships),
+    things: held,
+    relationships: heldRelationships,
     id: {
       intakeDoor, spareDoor, weatherStation, hourlyReading, reportingOffice, dailyDigest,
       belowReorder, overdue, reservoir, feeds, readingsArrive, refill, digest,
-      readingsStart, readingsEnd, refillStart, digestEnd, standsFor, is, has, binds,
+      readingsStart, readingsEnd, refillStart, digestEnd, standsFor, is, has, binds: BINDS_ID,
       watcher, watchesReorder, reorderBinding: bindings.get(watchesReorder)!, conductor, surplus, drought, storeSurplus,
       dry, watchesDry,
     },
