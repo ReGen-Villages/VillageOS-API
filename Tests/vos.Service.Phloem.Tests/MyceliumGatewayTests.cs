@@ -186,12 +186,14 @@ public class MyceliumGatewayTests
         // nowhere rather than that this pipeline has no node playing it, beside the two predicates an end
         // standing for a system is read through.
         selector.GetProperty("markedArchetypes").EnumerateArray().Select(flag => flag.GetString())
-            .Should().BeEquivalentTo(PipelineArchetypes.DagRoleFlags.Concat([PipelinePredicates.StandsForFlag, PipelinePredicates.ToldThroughFlag]));
+            .Should().BeEquivalentTo(PipelineArchetypes.DagRoleFlags.Concat(
+                [PipelinePredicates.StandsForFlag, PipelinePredicates.ToldThroughFlag, PipelinePredicates.ChoiceFlag]));
 
-        // The system an end stands for, and the connection it is told through, are reached after the nodes.
+        // The system an end stands for, the connection it is told through, and what a port offers and a node
+        // chose, are reached after the nodes.
         selector.GetProperty("traverse").EnumerateArray()
             .Select(rule => rule.TryGetProperty("predicateFlag", out var flag) ? flag.GetString() : rule.GetProperty("predicate").GetString())
-            .Should().Equal(ModelNames.Has, PipelinePredicates.StandsForFlag, PipelinePredicates.ToldThroughFlag);
+            .Should().Equal(ModelNames.Has, PipelinePredicates.StandsForFlag, PipelinePredicates.ToldThroughFlag, PipelinePredicates.ChoiceFlag);
     }
 
     [Fact]

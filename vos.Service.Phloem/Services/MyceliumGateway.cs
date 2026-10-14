@@ -41,12 +41,13 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             names = new[] { ModelNames.Is, ModelNames.Has },
             markedTypes = new[] { PipelineArchetypes.PortFlag, PipelineArchetypes.PipelineWireFlag },
             markedArchetypes = PipelineArchetypes.DagRoleFlags
-                .Concat([PipelinePredicates.StandsForFlag, PipelinePredicates.ToldThroughFlag]).ToArray(),
+                .Concat([PipelinePredicates.StandsForFlag, PipelinePredicates.ToldThroughFlag, PipelinePredicates.ChoiceFlag]).ToArray(),
             traverse = new object[]
             {
                 new { predicate = ModelNames.Has, direction = "outgoing", depth = 8 },
                 new { predicateFlag = PipelinePredicates.StandsForFlag, direction = "outgoing", depth = 1 },
                 new { predicateFlag = PipelinePredicates.ToldThroughFlag, direction = "outgoing", depth = 1 },
+                new { predicateFlag = PipelinePredicates.ChoiceFlag, direction = "outgoing", depth = 1 },
             },
             includeIsAncestors = true,
             includeRelationships = true,
@@ -174,9 +175,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         if (TryGetPropertyCaseInsensitive(root, "Properties", out var props) && props.ValueKind == JsonValueKind.Object
             && props.TryGetProperty("cancelRequested", out var cr))
         {
-            var v = Unwrap(cr);
-            return v.ValueKind == JsonValueKind.True
-                || (v.ValueKind == JsonValueKind.String && string.Equals(v.GetString(), "true", StringComparison.OrdinalIgnoreCase));
+            return Truth.IsTrue(Unwrap(cr));
         }
         return false;
     }

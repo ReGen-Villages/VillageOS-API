@@ -24,4 +24,7 @@ public static class PipelinePredicates
     // An external system reaches the connection it is told through: a predicate bound to the service that
     // sends what a run leaves for the system.
     public const string ToldThroughFlag = "__IsToldThroughPredicate";
+
+    // An in port reaches the Things it offers, and a node reaches the one it chose, along the same predicate.
+    public const string ChoiceFlag = "__IsChoicePredicate";
 }

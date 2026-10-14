@@ -2,8 +2,8 @@ using System.Text.Json;
 
 namespace vos.Service.Phloem.Model;
 
-// A resolved port on a node (from the bound service's is-chain). Collection
-// marks an input the node consumes as a list — the node fans out over it.
+// A resolved port on a node: the bound service's, up its is-chain, and the node's own. Collection marks an
+// input the node consumes as a list — the node fans out over it — or an output a fan-out gathers flat.
 public sealed record DagPort(string PortName, string Direction, string Type, bool Required, bool Collection = false)
 {
     public bool IsInput => string.Equals(Direction, ModelNames.DirectionIn, StringComparison.OrdinalIgnoreCase);
@@ -19,6 +19,10 @@ public enum DagNodeKind { Service, Input, Output }
 // The external system an end node stands for, and the connection that system is told through.
 public sealed record Telling(Guid SystemId, string SystemName, Guid ConnectionId);
 
+// A Thing the node chose among those an in port offers; the input is filled with it unless a wire or a
+// parameter fills it.
+public sealed record ChosenThing(Guid Id, string Name);
+
 public sealed class DagNode
 {
     public Guid NodeId { get; init; }
@@ -29,9 +33,9 @@ public sealed class DagNode
         new Dictionary<string, JsonElement>(StringComparer.Ordinal);
     public IReadOnlyList<DagPort> Ports { get; init; } = Array.Empty<DagPort>();
 
-    // Input-port → run-param-key bindings: at dispatch each bound input is filled from the
-    // run's params (an explicit wire into the same port takes precedence).
-    public IReadOnlyDictionary<string, string> ParamBindings { get; init; } =
+    // Input-port → run-parameter-key bindings: at dispatch each bound input is filled from the
+    // run's parameters (an explicit wire into the same port takes precedence).
+    public IReadOnlyDictionary<string, string> ParameterBindings { get; init; } =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
     // Per-item failure policy when fanning out: fail (fail-fast, default) or
@@ -40,6 +44,9 @@ public sealed class DagNode
 
     // For an end node standing for an external system: who is sent what reaches it, and through what.
     public Telling? Tells { get; init; }
+
+    public IReadOnlyDictionary<string, ChosenThing> Choices { get; init; } =
+        new Dictionary<string, ChosenThing>(StringComparer.OrdinalIgnoreCase);
 
     public IEnumerable<DagPort> OutputPorts => Ports.Where(p => p.IsOutput);
 
