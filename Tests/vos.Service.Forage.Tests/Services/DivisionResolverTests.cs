@@ -61,10 +61,6 @@ public class DivisionResolverTests
 
     private static SiteCoverage CoverageOf(
         DivisionLookup? lookup, params (string Name, string Value)[] address) =>
-        CoverageOf(lookup, null, address);
-
-    private static SiteCoverage CoverageOf(
-        DivisionLookup? lookup, CodedPlaces? codedPlaces, params (string Name, string Value)[] address) =>
         new(
             [
                 new CoveringSource(Guid.NewGuid(), "ThinkHazard", "hazard-grading",
@@ -77,8 +73,7 @@ public class DivisionResolverTests
                 ]),
             ],
             null, [], null, lookup,
-            address.ToDictionary(stated => stated.Name, stated => stated.Value, StringComparer.OrdinalIgnoreCase),
-            codedPlaces);
+            address.ToDictionary(stated => stated.Name, stated => stated.Value, StringComparer.OrdinalIgnoreCase));
 
     private static SiteCoverage AtWillowBend() =>
         CoverageOf(Lookup, ("latitude", "39.5012"), ("longitude", "-8.4137"));
@@ -98,8 +93,8 @@ public class DivisionResolverTests
             : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { [CodeProperty] = division };
 
     private static SiteCoverage AtKirsztajnowAmong(params CodedPlace[] places) =>
-        CoverageOf(LookupWithCodedPlaces, new CodedPlaces(NestingPredicateId, places),
-            ("latitude", "52.2833"), ("longitude", "20.3439"));
+        CoverageOf(LookupWithCodedPlaces, ("latitude", "52.2833"), ("longitude", "20.3439"))
+            with { CodedPlaces = new CodedPlaces(NestingPredicateId, places) };
 
     private static DivisionResolver ResolverOver(ScriptedReader reader, RecordingWriter writer) =>
         new(reader, writer, NullLogger<DivisionResolver>.Instance);

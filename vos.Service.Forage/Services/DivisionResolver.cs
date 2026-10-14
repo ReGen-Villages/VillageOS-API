@@ -100,12 +100,11 @@ public sealed class DivisionResolver
         return null;
     }
 
-    // A Place a project coded is found by the standard's code the geocoder answered beside the names, so
-    // the match holds in whatever language either provider speaks. The finest code first: a region's Place
-    // says more about the site than its country's. The Place's own division, where it carries one, then
-    // addresses this run's gradings the way its Places' values address every later run's; a Place carrying
-    // none is still related, and the search goes on. Null where nothing was supplied, for whatever reason:
-    // a refused relationship is the model's to explain, and the search still grades the site on this run.
+    // By the standard's code the geocoder answers beside the names, because a name matches in one
+    // provider's language and not the other's. The finest code first: a region's Place says more about
+    // the site than its country's. A Place carrying no division is still related, since the next run
+    // reads its values through the relationship, and the search goes on. Null for whatever nothing was
+    // supplied: a refused relationship is the model's to explain, and the search still grades the site.
     private async Task<IReadOnlyDictionary<string, string>?> RelateToCodedPlaceAsync(
         Guid siteId, SiteCoverage coverage, DivisionLookup lookup, GeocodedPosition position,
         CancellationToken cancellationToken)

@@ -159,11 +159,13 @@ public class DivisionLookupTests
         coded.Places.Single(place => place.Name == "Mazowieckie").SiteIsIn.Should().BeFalse();
     }
 
-    // A site related through an unmarked predicate would stand in a Place no coverage walk follows.
+    // A site related through an unmarked predicate would stand in a Place no coverage walk follows, and
+    // without the archetype's mark nothing says which Things are Places.
     [Theory]
     [InlineData("isIn", CoveringSourceResolver.PlaceNestingPredicateFlag)]
+    [InlineData("Place", CoveringSourceResolver.PlaceArchetypeFlag)]
     [InlineData("area-name-at-position", "placeCodeProperty")]
-    public void AModelMissingTheNestingMarkOrTheCodePropertyOffersNoPlaces(string thing, string property)
+    public void AModelMissingAMarkOrTheCodePropertyOffersNoPlaces(string thing, string property)
     {
         var model = WithCodedPlaces().Without(thing, property);
 
