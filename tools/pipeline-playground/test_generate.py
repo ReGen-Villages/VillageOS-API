@@ -1,7 +1,8 @@
-"""Spec for the playground generator's id derivation and for the marks its archetypes carry. --namespace
-makes the same DAGs disjoint per model so two seeds can coexist in one broker; the default (no namespace)
-keeps the shared standalone identity; merge reconciles the built-in predicates against a target by name and
-an archetype by the role flag it carries, so a target that renamed one keeps its own.
+"""Spec for the playground generator's id derivation and for the roles its archetypes and predicates play.
+--namespace makes the same DAGs disjoint per model so two seeds can coexist in one broker; the default (no
+namespace) keeps the shared standalone identity; merge reconciles the built-in predicates against a target by
+name and a Thing playing a role by what the target's role Thing binds, so a target that renamed one keeps its
+own.
 """
 import unittest
 
@@ -16,13 +17,27 @@ def build_with_namespace(name):
         G.set_namespace(None)  # never leak the namespace into another test
 
 
+def bound_by(things, relationships, word):
+    """The Things the role Thing for `word` binds, read the way the editor and the orchestrator read them."""
+    binds = {t["Id"] for t in things if t["Name"] == "binds"}
+    return [r["Target"] for r in relationships
+            if r["Subject"] == G.role_id(word) and r["Predicate"] in binds]
+
+
+def bound_in_seed(seed, word):
+    return bound_by(seed["Things"], seed["Relationships"], word)
+
+
+EVERY_ROLE = set(G.ARCHETYPE_ROLE.values()) | set(G.PREDICATE_ROLE.values())
+
+
 class NamespaceTests(unittest.TestCase):
-    def test_two_namespaces_share_no_thing_ids(self):
+    def test_two_namespaces_share_no_thing_ids_but_the_role_things(self):
         alpha = build_with_namespace("Alpha")
         beta = build_with_namespace("Beta")
         self.assertTrue(alpha.things and beta.things)
-        self.assertEqual(set(alpha.things) & set(beta.things), set(),
-                         "namespaced builds must not share any Thing id")
+        self.assertEqual(set(alpha.things) & set(beta.things), {G.role_id(word) for word in EVERY_ROLE},
+                         "namespaced builds share only the role Things, which every model declares alike")
 
     def test_same_namespace_is_stable(self):
         first = build_with_namespace("Alpha")
@@ -34,7 +49,7 @@ class NamespaceTests(unittest.TestCase):
         G.set_namespace(None)
         default = G.build()
         namespaced = build_with_namespace("Alpha")
-        self.assertEqual(set(default.things) & set(namespaced.things), set())
+        self.assertEqual(set(default.things) & set(namespaced.things), {G.role_id(word) for word in EVERY_ROLE})
 
     def test_merge_reconciles_shared_vocabulary_by_name_regardless_of_namespace(self):
         # A target that already has `is` keeps its own id; the namespaced kit's `is` reconciles onto it
@@ -53,48 +68,63 @@ class NamespaceTests(unittest.TestCase):
         self.assertEqual(is_things[0]["Id"], "target-is")
 
 
-class RoleFlagTests(unittest.TestCase):
-    """What the editor and the orchestrator read: a model says what an archetype is for by marking it, and
-    a merge finds the target's archetype by that mark rather than by the name this generator happens to use."""
+class RoleBindingTests(unittest.TestCase):
+    """What the editor and the orchestrator read: a role Thing binds what plays it, and a merge finds the
+    target's archetype through that binding rather than by the name this generator happens to use."""
 
-    def test_every_archetype_carries_the_flag_for_its_role(self):
+    def test_every_role_binds_one_thing_and_nothing_carries_a_mark(self):
         kit = G.build()
-        self.assertEqual(set(kit.role_flag.values()), set(G.ROLE_FLAG.values()) | set(G.PREDICATE_FLAG.values()))
-        for tid, flag in kit.role_flag.items():
-            self.assertEqual(kit.things[tid]["Properties"][flag], {"typeInfo": "vos.Boolean", "value": True})
+        things, rels = list(kit.things.values()), list(kit.rels.values())
+        for word in EVERY_ROLE:
+            self.assertEqual(len(bound_by(things, rels, word)), 1, word)
+            self.assertEqual(kit.things[G.role_id(word)]["Name"], f"{word} role")
+        self.assertEqual([(t["Name"], name) for t in things for name in t["Properties"] if name.startswith("__Is")], [])
 
-    def test_merge_reuses_a_renamed_archetype_the_target_has_marked(self):
+    def test_a_role_thing_has_the_standard_identifier_of_its_word(self):
+        self.assertEqual(G.role_id("pipeline"), "f8bc9986-6eef-54d9-9940-4aca2497109b")
+
+    def test_merge_reuses_a_renamed_archetype_the_target_binds(self):
         seed = {"Name": "Target",
-                "Things": [{"Id": "target-pipeline", "Name": "Workflow",
-                            "Properties": {"__IsPipelineArchetype": {"typeInfo": "vos.Boolean", "value": True}}}],
-                "Relationships": []}
+                "Things": [{"Id": "target-binds", "Name": "binds", "Properties": {}},
+                           {"Id": G.role_id("pipeline"), "Name": "the target's pipeline role", "Properties": {}},
+                           {"Id": "target-pipeline", "Name": "Workflow", "Properties": {}}],
+                "Relationships": [{"Id": "target-binding", "Name": "", "Subject": G.role_id("pipeline"),
+                                   "Predicate": "target-binds", "Target": "target-pipeline", "Properties": {}}]}
         G.merge_into(G.build(), seed)
 
-        carriers = [t for t in seed["Things"] if "__IsPipelineArchetype" in t["Properties"]]
-        self.assertEqual([(t["Id"], t["Name"]) for t in carriers], [("target-pipeline", "Workflow")])
-        self.assertTrue(any(r["Target"] == "target-pipeline" for r in seed["Relationships"]),
+        self.assertEqual(bound_in_seed(seed, "pipeline"), ["target-pipeline"])
+        self.assertEqual([t["Name"] for t in seed["Things"] if t["Id"] == G.role_id("pipeline")],
+                         ["the target's pipeline role"])
+        self.assertEqual([t for t in seed["Things"] if t["Name"] == "Pipeline"], [])
+        self.assertTrue(any(r["Target"] == "target-pipeline" for r in seed["Relationships"]
+                            if r["Id"] != "target-binding"),
                         "the playground's pipelines must `is` the target's own archetype")
 
-    def test_merging_twice_leaves_one_carrier_per_role_and_adds_nothing(self):
+    def test_merging_twice_leaves_one_binding_per_role_and_adds_nothing(self):
         seed = {"Name": "Target", "Things": [], "Relationships": []}
         G.merge_into(G.build(), seed)
         after_first = (len(seed["Things"]), len(seed["Relationships"]))
         G.merge_into(G.build(), seed)
 
         self.assertEqual((len(seed["Things"]), len(seed["Relationships"])), after_first)
-        for flag in G.ROLE_FLAG.values():
-            carriers = [t for t in seed["Things"] if flag in t["Properties"]]
-            self.assertEqual(len(carriers), 1, f"{flag} must be carried by exactly one archetype")
+        for word in EVERY_ROLE:
+            self.assertEqual(len(bound_in_seed(seed, word)), 1, f"the {word} role must bind exactly one Thing")
 
-    def test_merge_marks_an_archetype_the_target_left_unmarked(self):
+    def test_remove_leaves_the_target_its_role_things_and_what_they_bind(self):
+        seed = {"Name": "Target", "Things": [], "Relationships": []}
+        G.merge_into(G.build(), seed)
+        G.remove_from(G.build(), seed)
+
+        for word in EVERY_ROLE:
+            self.assertEqual(len(bound_in_seed(seed, word)), 1, word)
+
+    def test_merge_binds_an_archetype_the_target_holds_by_name_but_never_bound(self):
         seed = {"Name": "Target",
                 "Things": [{"Id": "target-pipeline", "Name": "Pipeline", "Properties": {}}],
                 "Relationships": []}
         G.merge_into(G.build(), seed)
 
-        carriers = [t for t in seed["Things"] if "__IsPipelineArchetype" in t["Properties"]]
-        self.assertEqual([t["Id"] for t in carriers], ["target-pipeline"])
-        self.assertIs(carriers[0]["Properties"]["__IsPipelineArchetype"]["value"], True)
+        self.assertEqual(bound_in_seed(seed, "pipeline"), ["target-pipeline"])
 
 
 if __name__ == "__main__":
@@ -103,38 +133,30 @@ if __name__ == "__main__":
 
 class CatalystVocabularyTests(unittest.TestCase):
     """The rails of the Pipeline page read external systems, kinds of message and what a boundary node
-    stands for off marks, so the kit declares each once and relates through marked predicates."""
+    stands for through the roles that bind them, so the kit declares each once and relates through the
+    predicates those roles bind."""
 
     def setUp(self):
         G.set_namespace(None)
         self.kit = G.build()
 
-    def carriers(self, flag):
-        return [tid for tid, t in self.kit.things.items()
-                if G._prop(t.get("Properties"), flag) is True]
+    def carriers(self, word):
+        return bound_by(list(self.kit.things.values()), list(self.kit.rels.values()), word)
 
-    def test_each_new_role_is_marked_on_one_thing(self):
-        for flag in ("__IsExternalSystemArchetype", "__IsMessageKindArchetype", "__IsTriggerPredicate", "__IsSendsPredicate",
-                     "__IsToldPredicate", "__IsArrivesAtPredicate", "__IsStandsForPredicate", "__IsRunSubjectPredicate",
-                     "__IsToldThroughPredicate", "__IsSentMessageArchetype", "__IsChoicePredicate",
-                     "__IsProducedThingPredicate"):
-            self.assertEqual(len(self.carriers(flag)), 1, flag)
-
-    def test_a_marked_predicate_reconciles_onto_a_target_that_holds_it_by_name(self):
+    def test_a_predicate_playing_a_role_reconciles_onto_a_target_that_holds_it_by_name(self):
         seed = {"Name": "Target",
                 "Things": [{"Id": "target-stands-for", "Name": "standsFor", "Properties": {}}],
                 "Relationships": []}
         G.merge_into(self.kit, seed)
         stands_for = [t for t in seed["Things"] if t["Name"] == "standsFor"]
-        self.assertEqual(len(stands_for), 1)
-        self.assertEqual(stands_for[0]["Id"], "target-stands-for")
-        self.assertIs(G._prop(stands_for[0]["Properties"], "__IsStandsForPredicate"), True)
+        self.assertEqual([t["Id"] for t in stands_for], ["target-stands-for"])
+        self.assertEqual(bound_in_seed(seed, "standsFor"), ["target-stands-for"])
 
     def test_every_sent_kind_arrives_at_a_door_and_every_told_kind_is_a_kind(self):
-        [sends] = self.carriers("__IsSendsPredicate")
-        [told] = self.carriers("__IsToldPredicate")
-        [arrives_at] = self.carriers("__IsArrivesAtPredicate")
-        [kind_archetype] = self.carriers("__IsMessageKindArchetype")
+        [sends] = self.carriers("sends")
+        [told] = self.carriers("told")
+        [arrives_at] = self.carriers("arrivesAt")
+        [kind_archetype] = self.carriers("messageKind")
         [is_] = [tid for tid, t in self.kit.things.items() if t["Name"] == "is"]
         rels = list(self.kit.rels.values())
         kinds = {r["Subject"] for r in rels if r["Predicate"] == is_ and r["Target"] == kind_archetype}
@@ -148,23 +170,23 @@ class CatalystVocabularyTests(unittest.TestCase):
             self.assertIn("Subdomain", self.kit.things[doors[0]]["Properties"])
 
     def triggers_of(self, connection):
-        [triggered_by] = self.carriers("__IsTriggerPredicate")
+        [triggered_by] = self.carriers("trigger")
         return [self.kit.things[r["Target"]]["Name"] for r in self.kit.rels.values()
                 if r["Subject"] == connection and r["Predicate"] == triggered_by]
 
     def told_through(self):
-        [told_through] = self.carriers("__IsToldThroughPredicate")
+        [told_through] = self.carriers("toldThrough")
         return {r["Subject"]: r["Target"] for r in self.kit.rels.values() if r["Predicate"] == told_through}
 
     def test_every_service_connection_is_reached_over_http(self):
-        [connection_archetype] = self.carriers("__IsConnectionArchetype")
+        [connection_archetype] = self.carriers("connection")
         [is_] = [tid for tid, t in self.kit.things.items() if t["Name"] == "is"]
         connections = {r["Subject"] for r in self.kit.rels.values() if r["Predicate"] == is_ and r["Target"] == connection_archetype}
         for connection in connections - set(self.told_through().values()):
             self.assertEqual(self.triggers_of(connection), ["http"], self.kit.things[connection]["Name"])
 
     def test_a_system_that_is_told_names_a_connection_written_along_and_bound_to_a_service(self):
-        [told] = self.carriers("__IsToldPredicate")
+        [told] = self.carriers("told")
         [has] = [tid for tid, t in self.kit.things.items() if t["Name"] == "has"]
         told_systems = {r["Subject"] for r in self.kit.rels.values() if r["Predicate"] == told}
         through = self.told_through()
@@ -181,7 +203,7 @@ class CatalystVocabularyTests(unittest.TestCase):
 
     def test_the_decision_node_holds_its_own_out_ports(self):
         decide = G.stable_id(G._TAG, "node", "Branching Decision", "decide")
-        [port_archetype] = self.carriers("__IsPortArchetype")
+        [port_archetype] = self.carriers("port")
         has = next(tid for tid, t in self.kit.things.items() if t["Name"] == "has")
         is_ = next(tid for tid, t in self.kit.things.items() if t["Name"] == "is")
         held = [r["Target"] for r in self.kit.rels.values() if r["Subject"] == decide and r["Predicate"] == has
@@ -192,7 +214,7 @@ class CatalystVocabularyTests(unittest.TestCase):
         self.assertEqual(ports, {("accept", "out"), ("refuse", "out")})
 
     def test_the_strategy_port_offers_three_things_and_the_node_chose_one_of_them(self):
-        [offers] = self.carriers("__IsChoicePredicate")
+        [offers] = self.carriers("choice")
         port = G.stable_id(G._TAG, "port", "decide", "strategy", "in")
         decide = G.stable_id(G._TAG, "node", "Branching Decision", "decide")
         offered = {r["Target"] for r in self.kit.rels.values() if r["Subject"] == port and r["Predicate"] == offers}
@@ -207,7 +229,7 @@ class CatalystVocabularyTests(unittest.TestCase):
         self.assertIn("Branching Decision", run.stdout)
 
     def test_the_fragment_validator_refuses_a_choice_no_port_offers(self):
-        [offers] = self.carriers("__IsChoicePredicate")
+        [offers] = self.carriers("choice")
         decide = G.stable_id(G._TAG, "node", "Branching Decision", "decide")
         fragment = G.as_fragment(self.kit)
         fragment["Things"].append({"Id": "unoffered", "Name": "At random", "Properties": {}})
@@ -218,6 +240,15 @@ class CatalystVocabularyTests(unittest.TestCase):
 
         self.assertEqual(run.returncode, 1, run.stdout + run.stderr)
         self.assertIn("'Decide' chose 'At random', which no in port of it offers", run.stdout)
+
+    def test_the_fragment_validator_refuses_a_model_whose_pipeline_role_binds_nothing(self):
+        fragment = G.as_fragment(self.kit)
+        fragment["Relationships"] = [r for r in fragment["Relationships"] if r["Subject"] != G.role_id("pipeline")]
+
+        run = self.validate(fragment)
+
+        self.assertEqual(run.returncode, 1, run.stdout + run.stderr)
+        self.assertIn("no Thing is bound to the roles: pipeline", run.stdout)
 
     @staticmethod
     def validate(fragment):
@@ -230,7 +261,7 @@ class CatalystVocabularyTests(unittest.TestCase):
                                   capture_output=True, text=True)
 
     def test_the_two_pipelines_drawn_from_outside_stand_for_their_ends(self):
-        [stands_for] = self.carriers("__IsStandsForPredicate")
+        [stands_for] = self.carriers("standsFor")
         stood = {(self.kit.things[r["Subject"]]["Name"], self.kit.things[r["Target"]]["Name"])
                  for r in self.kit.rels.values() if r["Predicate"] == stands_for}
         self.assertEqual(stood, {("A reading batch arrives", "reading batch"), ("The office is told", "Reporting office")})
