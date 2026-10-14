@@ -271,7 +271,7 @@ export function DashboardPage() {
           <div className={`space-y-6 ${feedCollapsed ? '' : 'lg:col-span-2'}`}>
             <ModelStatisticsCard things={things} relationships={relationships} wholeModelHeld={holdsWholeModel} />
             <EngineMetricsPanel metrics={connectionLost ? null : engineMetrics} />
-            <ServicesPanel services={displayedServices} endpoints={endpointServices} onStart={handleStartService} onStop={handleStopService} onDelete={(thingId, name) => setDeleteTarget({ thingId, name })} onViewLogs={(serviceKey) => navigate(`/logs?service=${serviceKey}`)} onDownloadLogs={handleDownloadServiceLog} />
+            <ServicesPanel services={displayedServices} endpoints={endpointServices} onStart={handleStartService} onStop={handleStopService} onDelete={(thingId, name) => setDeleteTarget({ thingId, name })} onViewLogs={(connectionId, name) => navigate(`/logs?service=${connectionId}&name=${encodeURIComponent(name)}`)} onDownloadLogs={handleDownloadServiceLog} />
             <PropertyModePanel />
           </div>
           {!feedCollapsed && (

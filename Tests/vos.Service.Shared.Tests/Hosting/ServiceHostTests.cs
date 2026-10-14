@@ -234,6 +234,7 @@ public class ServiceHostTests
         try
         {
             ServiceHost.ConfigureLogging("ServiceHostFileTest", $"{prefix}.log");
+            ServiceHost.LogFilePrefix.Should().Be(prefix, "the broker is told what the file is written under");
             Serilog.Log.Information("a message that must reach the file");
             Serilog.Log.CloseAndFlush();
 
@@ -246,4 +247,18 @@ public class ServiceHostTests
             foreach (var file in LogFilesNamed(prefix)) file.Delete();
         }
     }
+
+    [Fact]
+    public void ConfigureLogging_WithTheFileSinkOff_LeavesNoLogFilePrefix()
+    {
+        ServiceHost.ConfigureLogging("ServiceHostNoFileTest", "no-file-.log", writeToFile: false);
+
+        ServiceHost.LogFilePrefix.Should().BeNull("there is no file for the broker to find");
+    }
+
+    [Theory]
+    [InlineData("metabolism-outgoing-.log", "metabolism-outgoing-")]
+    [InlineData("intake-.log", "intake-")]
+    public void LogFilePrefixOf_IsTheFileNameWithoutItsExtension(string logFileName, string prefix) =>
+        ServiceHost.LogFilePrefixOf(logFileName).Should().Be(prefix);
 }
