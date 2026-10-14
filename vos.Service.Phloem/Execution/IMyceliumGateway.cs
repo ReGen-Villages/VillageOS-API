@@ -25,13 +25,21 @@ public interface IMyceliumGateway
 
     // The subject, when the run has one, is related to the run along the predicate the model marks for it.
     // The request that started it, when the broker named one, is the identifier of its request-log entry.
-    Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null, Guid? requestId = null);
+    // The parameters are kept on the run as given, so a trace and a resumed run read what it was asked.
+    Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null, Guid? requestId = null,
+        JsonElement? parameters = null);
 
     // Upsert a NodeRun Thing and set its status — running before dispatch, then the terminal
     // status — on one Thing per key (deterministic id) so the SSE view sees a property change, not duplicate
     // Things. With index null this is the node's aggregate NodeRun (drives the
-    // ring); with an index it's a per-item NodeRun of a fan-out, carrying index/total.
-    Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken cancellationToken, int? index = null, int total = 0);
+    // ring); with an index it's a per-item NodeRun of a fan-out, carrying index/total. A terminal status
+    // carries the outputs, which a resumed run reads back from the model.
+    Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken cancellationToken, int? index = null, int total = 0,
+        IReadOnlyDictionary<string, JsonElement>? outputs = null);
+
+    // The node run is related to every Thing the node answered under an out port marked as producing one,
+    // along the predicate the model marks for it, so a trace is a read of the Thing's own relationships.
+    Task RelateProducedAsync(Guid runId, Guid nodeId, int? index, IReadOnlyList<Guid> producedThingIds, CancellationToken cancellationToken);
 
     // The reason travels with a failure, so a run started by a state entry — one nobody awaits — still
     // says in the model why it failed.

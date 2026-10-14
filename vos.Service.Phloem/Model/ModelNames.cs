@@ -26,9 +26,18 @@ public static class ModelNames
     public const string Transform = "transform";
     public const string ParameterBindings = "parameterBindings";
     public const string Collection = "collection";
+    // An out port whose answers are Things: the node run is related to each.
+    public const string Produces = "produces";
     public const string OnItemError = "onItemError";
     // The pipeline's published result — the Output boundary node's collected inputs, stored on the PipelineRun.
     public const string Result = "result";
+    // The run's record: its parameters as given, and when it and each node run started and finished. A
+    // node run also keeps its outputs, which a resumed run reads back, and its attempts.
+    public const string Parameters = "parameters";
+    public const string StartedUtc = "startedUtc";
+    public const string FinishedUtc = "finishedUtc";
+    public const string Outputs = "outputs";
+    public const string Attempts = "attempts";
     // The broker's request-log entry that started a run. A plain identifier: what it names is outside the model.
     public const string RequestId = "requestId";
     public const string Payload = "payload";

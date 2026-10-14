@@ -43,7 +43,7 @@ public sealed class PipelineExecutor
     {
         var rid = runId ?? Guid.NewGuid();
         if (subject is not null) runParams = WithSubject(runParams, subject);
-        await BestEffort(() => _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject, requestId), "create run");
+        await BestEffort(() => _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject, requestId, runParams), "create run");
 
         PipelineDag dag;
         try
@@ -153,7 +153,37 @@ public sealed class PipelineExecutor
     }
 
     private Task PersistStatusAsync(Guid runId, NodeRunResult result, CancellationToken cancellationToken) =>
-        BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, result.NodeId, result.Name, result.Status, result.Error, cancellationToken), "persist node run");
+        BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, result.NodeId, result.Name, result.Status, result.Error, cancellationToken, outputs: result.Outputs), "persist node run");
+
+    // Each Thing answered under an out port marked as producing one: a value carrying an `id`, an identifier
+    // on its own, or a list of either.
+    private Task RecordProducedAsync(Guid runId, DagNode node, int? index, NodeRunResult result, CancellationToken cancellationToken)
+    {
+        var produced = new List<Guid>();
+        foreach (var port in node.OutputPorts)
+            if (port.Produces && result.Outputs.TryGetValue(port.PortName, out var answered))
+                produced.AddRange(ThingIdentifiersIn(answered));
+        return produced.Count == 0
+            ? Task.CompletedTask
+            : BestEffort(() => _gateway.RelateProducedAsync(runId, node.NodeId, index, produced, cancellationToken), "relate produced Things");
+    }
+
+    private static IEnumerable<Guid> ThingIdentifiersIn(JsonElement answered)
+    {
+        switch (answered.ValueKind)
+        {
+            case JsonValueKind.Array:
+                foreach (var item in answered.EnumerateArray())
+                    foreach (var id in ThingIdentifiersIn(item)) yield return id;
+                break;
+            case JsonValueKind.Object when answered.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String && Guid.TryParse(id.GetString(), out var parsed):
+                yield return parsed;
+                break;
+            case JsonValueKind.String when Guid.TryParse(answered.GetString(), out var bare):
+                yield return bare;
+                break;
+        }
+    }
 
     private async Task<bool> IsCancelledAsync(Guid runId, CancellationToken cancellationToken)
     {
@@ -228,7 +258,9 @@ public sealed class PipelineExecutor
         if (collection != null && inputs.TryGetValue(collection.PortName, out var collValue) && collValue.ValueKind == JsonValueKind.Array)
             return await RunFanOutAsync(node, runId, inputs, collection.PortName, collValue, cancellationToken);
 
-        return await DispatchAndParseAsync(node, runId, inputs, index: null, cancellationToken);
+        var result = await DispatchAndParseAsync(node, runId, inputs, index: null, cancellationToken);
+        await RecordProducedAsync(runId, node, index: null, result, cancellationToken);
+        return result;
     }
 
     private static bool Carried(DagWire wire, IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs) =>
@@ -338,7 +370,8 @@ public sealed class PipelineExecutor
             await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, RunStatus.Running, null, cancellationToken, index, total), "persist item running");
             var inputs = new Dictionary<string, JsonElement>(baseInputs, StringComparer.Ordinal) { [collectionPort] = item };
             var result = await DispatchAndParseAsync(node, runId, inputs, index, cancellationToken);
-            await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, result.Status, result.Error, cancellationToken, index, total), "persist item terminal");
+            await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, result.Status, result.Error, cancellationToken, index, total, result.Outputs), "persist item terminal");
+            await RecordProducedAsync(runId, node, index, result, cancellationToken);
             return result;
         }
         finally

@@ -20,6 +20,7 @@ public class MyceliumGatewayTests
     private static readonly Guid RunSubjectPredicateId = Guid.Parse("44444444-4444-4444-4444-444444444444");
     private static readonly Guid PredicateId = Guid.Parse("33333333-3333-3333-3333-333333333333");
     private static readonly Guid SentMessageArchetypeId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+    private static readonly Guid ProducedPredicateId = Guid.Parse("66666666-6666-6666-6666-666666666666");
 
     private static (MyceliumGateway Gateway, MockHttpMessageHandler Handler) NewGateway(
         Func<HttpRequestMessage, HttpResponseMessage>? respond = null)
@@ -57,6 +58,8 @@ public class MyceliumGatewayTests
                 return MarkedArchetypeSnapshot(RunSubjectPredicateId, PipelinePredicates.RunSubjectFlag);
             if (selector.Contains(PipelineArchetypes.SentMessageFlag))
                 return MarkedArchetypeSnapshot(SentMessageArchetypeId, PipelineArchetypes.SentMessageFlag);
+            if (selector.Contains(PipelinePredicates.ProducedThingFlag))
+                return MarkedArchetypeSnapshot(ProducedPredicateId, PipelinePredicates.ProducedThingFlag);
             return Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""");
         }
 
@@ -492,7 +495,8 @@ public class MyceliumGatewayTests
         var written = (await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single()))
             .GetProperty("properties").EnumerateObject().ToList();
         written.Select(property => property.Name)
-            .Should().BeEquivalentTo(["status", "nodeId", "error", "index", "total"]);
+            .Should().BeEquivalentTo(["status", "nodeId", "error", "index", "total",
+                ModelNames.StartedUtc, ModelNames.FinishedUtc, ModelNames.Outputs, ModelNames.Attempts]);
         foreach (var property in written)
             property.Value.GetProperty("typeInfo").GetString().Should().Be("vos.String");
     }
@@ -510,11 +514,11 @@ public class MyceliumGatewayTests
         await gateway.SetNodeRunStatusAsync(runId, nodeId, "Echo", RunStatus.Succeeded, null, CancellationToken.None);
 
         RequestsTo(handler, "/api/things", HttpMethod.Post).Should().HaveCount(1);
+        var nodeRunId = (await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single())).GetProperty("id").GetGuid();
         var propertyWrites = handler.Requests.Where(request =>
             request.Method == HttpMethod.Put && request.RequestUri!.AbsolutePath.EndsWith("/properties")).ToList();
-        propertyWrites.Should().HaveCount(1);
-        (await ReadJson(propertyWrites.Single())).GetProperty("value").GetString()
-            .Should().Be(RunStatus.Succeeded);
+        propertyWrites.Should().OnlyContain(request => request.RequestUri!.AbsolutePath.Contains(nodeRunId.ToString()));
+        (await PropertiesWritten(handler, nodeRunId)).Should().Contain(("status", RunStatus.Succeeded));
     }
 
     [Fact]
@@ -563,10 +567,106 @@ public class MyceliumGatewayTests
 
         await gateway.SetRunStatusAsync(runId, RunStatus.Succeeded, CancellationToken.None);
 
-        var request = RequestsTo(handler, $"/api/things/{runId}/properties", HttpMethod.Put).Single();
-        var body = await ReadJson(request);
-        body.GetProperty("name").GetString().Should().Be("status");
-        body.GetProperty("value").GetString().Should().Be(RunStatus.Succeeded);
+        var written = await PropertiesWritten(handler, runId);
+        written.Should().Contain(("status", RunStatus.Succeeded));
+        written.Select(w => w.Name).Should().Contain(ModelNames.FinishedUtc);
+    }
+
+    // A record read back by a trace or a resumed run needs what the run was asked and when it ended; both
+    // are declared at creation, because the property route sets only what a Thing already carries.
+    [Fact]
+    public async Task CreateRunAsync_KeepsTheParameters_AndDeclaresTheFinish()
+    {
+        var (gateway, handler) = NewGateway();
+
+        await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None,
+            parameters: JsonSerializer.SerializeToElement(new { greeting = "hello" }));
+
+        var properties = (await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single())).GetProperty("properties");
+        properties.GetProperty(ModelNames.Parameters).GetProperty("value").GetString().Should().Be("""{"greeting":"hello"}""");
+        properties.GetProperty(ModelNames.FinishedUtc).GetProperty("value").ValueKind.Should().Be(JsonValueKind.Null);
+        properties.GetProperty(ModelNames.StartedUtc).GetProperty("value").GetString().Should().NotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task SetNodeRunStatusAsync_Terminal_WritesTheOutputsAndTheFinish()
+    {
+        var runId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway();
+        var outputs = new Dictionary<string, JsonElement> { ["echo"] = JsonSerializer.SerializeToElement("hi") };
+
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Echo", RunStatus.Running, null, CancellationToken.None);
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Echo", RunStatus.Succeeded, null, CancellationToken.None, outputs: outputs);
+
+        var created = await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single());
+        var nodeRunId = created.GetProperty("id").GetGuid();
+        var written = await PropertiesWritten(handler, nodeRunId);
+        written.Should().Contain(("status", RunStatus.Succeeded));
+        written.Should().Contain((ModelNames.Outputs, """{"echo":"hi"}"""));
+        written.Select(w => w.Name).Should().Contain(ModelNames.FinishedUtc);
+    }
+
+    // A branch not taken, or a node whose first write is its last, is created already finished.
+    [Fact]
+    public async Task SetNodeRunStatusAsync_CreatedAlreadyTerminal_CarriesItsFinishAndOutputsFromTheStart()
+    {
+        var (gateway, handler) = NewGateway();
+        var outputs = new Dictionary<string, JsonElement> { ["echo"] = JsonSerializer.SerializeToElement("hi") };
+
+        await gateway.SetNodeRunStatusAsync(Guid.NewGuid(), Guid.NewGuid(), "Echo", RunStatus.NotTaken, null, CancellationToken.None, outputs: outputs);
+
+        var properties = (await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single())).GetProperty("properties");
+        properties.GetProperty(ModelNames.FinishedUtc).GetProperty("value").GetString().Should().NotBeNullOrEmpty();
+        properties.GetProperty(ModelNames.Outputs).GetProperty("value").GetString().Should().Be("""{"echo":"hi"}""");
+        handler.Requests.Where(request => request.Method == HttpMethod.Put).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task RelateProducedAsync_RelatesTheNodeRunToEachThingAlongTheMarkedPredicate()
+    {
+        var runId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var one = Guid.NewGuid();
+        var two = Guid.NewGuid();
+        var (gateway, handler) = NewGateway();
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Maker", RunStatus.Running, null, CancellationToken.None);
+        var nodeRunId = (await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single())).GetProperty("id").GetGuid();
+
+        await gateway.RelateProducedAsync(runId, nodeId, null, [one, two], CancellationToken.None);
+
+        var related = new List<(Guid Subject, Guid Predicate, Guid Target)>();
+        foreach (var request in RequestsTo(handler, "/api/relationships", HttpMethod.Post))
+        {
+            var body = await ReadJson(request);
+            related.Add((body.GetProperty("subjectId").GetGuid(), body.GetProperty("predicateId").GetGuid(), body.GetProperty("targetId").GetGuid()));
+        }
+        related.Should().Contain((nodeRunId, ProducedPredicateId, one)).And.Contain((nodeRunId, ProducedPredicateId, two));
+    }
+
+    [Fact]
+    public async Task RelateProducedAsync_WhenTheModelMarksNoPredicate_WritesNothing()
+    {
+        var (gateway, handler) = NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/subscriptions"
+                ? Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""")
+                : new HttpResponseMessage(HttpStatusCode.OK));
+
+        var relating = () => gateway.RelateProducedAsync(Guid.NewGuid(), Guid.NewGuid(), null, [Guid.NewGuid()], CancellationToken.None);
+
+        await relating.Should().NotThrowAsync();
+        RequestsTo(handler, "/api/relationships", HttpMethod.Post).Should().BeEmpty();
+    }
+
+    private static async Task<List<(string Name, string? Value)>> PropertiesWritten(MockHttpMessageHandler handler, Guid thingId)
+    {
+        var written = new List<(string Name, string? Value)>();
+        foreach (var request in RequestsTo(handler, $"/api/things/{thingId}/properties", HttpMethod.Put))
+        {
+            var body = await ReadJson(request);
+            written.Add((body.GetProperty("name").GetString()!, body.GetProperty("value").GetString()));
+        }
+        return written;
     }
 
     // A run started by a state entry is awaited by nobody, so the reason it failed has to be on the run

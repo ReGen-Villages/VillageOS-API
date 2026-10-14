@@ -338,6 +338,18 @@ public class PipelineModelTests
     }
 
     [Fact]
+    public void Build_ReadsWhetherAnOutPortProducesAThing()
+    {
+        var (fx, pipelineId) = TestGraphs.ProducingPipeline();
+
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
+
+        var maker = dag.Node(fx.Get("Maker").Id)!;
+        maker.Port("made")!.Produces.Should().BeTrue();
+        maker.Port("note")!.Produces.Should().BeFalse();
+    }
+
+    [Fact]
     public void Build_ReadsTheThingChosenOnTheNode_ForThePortOfferingIt()
     {
         var choice = TestGraphs.ChoicePipeline();

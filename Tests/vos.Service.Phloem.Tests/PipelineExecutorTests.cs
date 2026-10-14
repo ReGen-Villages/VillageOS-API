@@ -720,6 +720,79 @@ public class PipelineExecutorTests
         node.Outputs["score"].EnumerateArray().Select(e => e.ValueKind == JsonValueKind.Null ? null : e.GetString()).Should().Equal("A", null, "C", "D");
     }
 
+    [Fact]
+    public async Task RunAsync_RecordsTheParametersOnTheRun_AndEachNodesOutputsOnItsNodeRun()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnDispatch = (subdomain, _) => subdomain == "gen" ? NodeOk(("echo", "hi")) : NodeOk(("echo", "hi again")),
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { greeting = "hello" }), CancellationToken.None,
+            subject: new RunSubject(Guid.NewGuid(), "a Thing"));
+
+        gateway.ParametersRecorded!.Value.GetProperty("greeting").GetString().Should().Be("hello");
+        gateway.ParametersRecorded!.Value.GetProperty("subject").GetProperty("name").GetString().Should().Be("a Thing");
+        var echoRuns = gateway.NodeRunsPersisted.Where(n => n.Name == "Echo").ToList();
+        echoRuns.Select(n => n.Status).Should().Equal(RunStatus.Running, RunStatus.Succeeded);
+        echoRuns[0].Outputs.Should().BeNull();
+        echoRuns[1].Outputs!["echo"].GetString().Should().Be("hi again");
+    }
+
+    [Fact]
+    public async Task RunAsync_RelatesTheNodeRunToEachThingAnsweredUnderAProducingPort()
+    {
+        var (fx, pipelineId) = TestGraphs.ProducingPipeline();
+        var one = Guid.NewGuid(); var two = Guid.NewGuid(); var three = Guid.NewGuid();
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnDispatch = (_, _) => NodeAnswering($$"""{"made":[{"id":"{{one}}","name":"first"},"{{two}}",{"id":"{{three}}"},"not an identifier",{"name":"no id"}],"note":"{{Guid.NewGuid()}}"}"""),
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        var produced = gateway.Produced.Single();
+        produced.NodeId.Should().Be(fx.Get("Maker").Id);
+        produced.Index.Should().BeNull();
+        produced.Things.Should().Equal(one, two, three);
+    }
+
+    [Fact]
+    public async Task RunAsync_ANodeAnsweringNoThingUnderItsProducingPort_RelatesNothing()
+    {
+        var (fx, pipelineId) = TestGraphs.ProducingPipeline();
+        var gateway = new FakeGateway(fx.Build()) { OnDispatch = (_, _) => NodeAnswering("""{"made":"a plain word","note":"x"}""") };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        await executor.RunAsync(pipelineId, default, CancellationToken.None);
+
+        gateway.Produced.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task RunAsync_AFanOut_RelatesEachItemsNodeRunToWhatThatItemProduced()
+    {
+        var (fx, pipelineId) = TestGraphs.ProducingPipeline(perItem: true);
+        var a = Guid.NewGuid(); var b = Guid.NewGuid();
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnDispatch = (_, envelope) => envelope.GetProperty("inputs").GetProperty("in").GetString() == "x"
+                ? NodeAnswering("{\"made\":{\"id\":\"" + a + "\"}}")
+                : NodeAnswering("{\"made\":{\"id\":\"" + b + "\"}}"),
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { items = new[] { "x", "y" } }), CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        gateway.Produced.OrderBy(p => p.Index).Select(p => (p.Index, p.Things.Single())).Should().Equal((0, a), (1, b));
+        gateway.NodeRunsPersisted.Where(n => n.Index == 1 && n.Status == RunStatus.Succeeded).Single().Outputs!["made"].GetProperty("id").GetString().Should().Be(b.ToString());
+    }
+
     private static NodeDispatchResult NodeAnswering(string outputsJson) =>
         new(200, $$"""{"success":true,"outputs":{{outputsJson}},"error":null}""");
 
