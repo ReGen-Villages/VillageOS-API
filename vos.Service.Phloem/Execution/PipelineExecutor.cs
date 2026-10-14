@@ -79,7 +79,18 @@ public sealed class PipelineExecutor
             var ready = pending.Where(n => dag.WiresInto(n.NodeId).All(w => results.ContainsKey(w.FromNodeId))).ToList();
             if (ready.Count == 0) break; // validated DAG => only reachable when an upstream failed
 
-            var batch = await Task.WhenAll(ready.Select(node => RunNodeGuardedAsync(gate, dag, node, rid, outputs, runParams, cancellationToken)));
+            // A node wired only from outcomes that were not answered is the branch not taken: it is recorded
+            // and nothing is dispatched to it, so a node behind the alternatives runs once, from the one that
+            // carried.
+            var notTaken = ready.Where(n => dag.WiresInto(n.NodeId).Any() && !dag.WiresInto(n.NodeId).Any(w => Carried(w, outputs))).ToList();
+            foreach (var node in notTaken)
+            {
+                var result = new NodeRunResult(node.NodeId, node.Name, RunStatus.NotTaken, NoOutputs, null);
+                results[node.NodeId] = result;
+                await PersistStatusAsync(rid, result, cancellationToken);
+            }
+
+            var batch = await Task.WhenAll(ready.Except(notTaken).Select(node => RunNodeGuardedAsync(gate, dag, node, rid, outputs, runParams, cancellationToken)));
 
             foreach (var result in batch)
             {
@@ -117,7 +128,7 @@ public sealed class PipelineExecutor
         // PipelineRun Thing (so it streams over SSE and is temporally queryable) and returned to the caller.
         JsonElement? runResult = null;
         var outputNode = dag.Nodes.FirstOrDefault(n => n.Kind == DagNodeKind.Output);
-        if (outputNode != null && success)
+        if (outputNode != null && success && results[outputNode.NodeId].Status == RunStatus.Succeeded)
         {
             try
             {
@@ -220,14 +231,20 @@ public sealed class PipelineExecutor
         return await DispatchAndParseAsync(node, runId, inputs, index: null, cancellationToken);
     }
 
-    // Assemble a node's inputs: param-bound inputs first, then wires. Each wire extracts its
-    // from-path of the upstream output and deep-merges it at its to-path into the target input, so several
-    // wires compose one input value; empty paths carry the whole payload and a scalar wire overrides.
+    private static bool Carried(DagWire wire, IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs) =>
+        outputs.TryGetValue(wire.FromNodeId, out var upstream) && upstream.ContainsKey(wire.FromPort);
+
+    // Assemble a node's inputs: the Thing chosen on the node, then param-bound inputs, then wires. Each
+    // wire extracts its from-path of the upstream output and deep-merges it at its to-path into the target
+    // input, so several wires compose one input value; empty paths carry the whole payload and a scalar
+    // wire overrides. Wires into a collection input are gathered into one list instead, in wire order.
     private Dictionary<string, JsonElement> AssembleInputs(
         PipelineDag dag, DagNode node,
         IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, JsonElement runParams)
     {
         var accumulated = new Dictionary<string, JsonNode?>(StringComparer.Ordinal);
+        foreach (var (port, chosen) in node.Choices)
+            accumulated[port] = new JsonObject { ["id"] = chosen.Id.ToString(), ["name"] = chosen.Name };
         foreach (var (port, paramKey) in node.ParameterBindings)
             if (TryGetParam(runParams, paramKey, out var bound))
                 accumulated[port] = JsonSerializer.SerializeToNode(bound);
@@ -240,6 +257,13 @@ public sealed class PipelineExecutor
             var reshaped = string.IsNullOrEmpty(wire.Transform)
                 ? extracted.Value
                 : new JsonataTransform(wire.Transform).Eval(extracted.Value, _clock);
+            if (node.Port(wire.ToPort) is { IsInput: true, Collection: true })
+            {
+                var gathered = accumulated.TryGetValue(wire.ToPort, out var soFar) ? AsList(soFar) : new JsonArray();
+                AppendItems(gathered, reshaped);
+                accumulated[wire.ToPort] = gathered;
+                continue;
+            }
             var placed = PayloadMapping.Place(wire.ToPath, reshaped);
             accumulated[wire.ToPort] = accumulated.TryGetValue(wire.ToPort, out var existing)
                 ? PayloadMapping.Merge(existing, placed)
@@ -323,7 +347,9 @@ public sealed class PipelineExecutor
         }
     }
 
-    // Gather per-item results into one list per output port (item order; null for a failed item).
+    // Gather per-item results into one list per output port (item order; null for a failed item). An out
+    // port marked as a collection gathers flat: every item's list is concatenated, a failed item adds nothing,
+    // so a fan-out nested however deep still answers one list of items.
     private static IReadOnlyDictionary<string, JsonElement> GatherOutputs(DagNode node, NodeRunResult[] results)
     {
         var portNames = new HashSet<string>(node.OutputPorts.Select(p => p.PortName), StringComparer.Ordinal);
@@ -334,6 +360,15 @@ public sealed class PipelineExecutor
         var gathered = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
         foreach (var port in portNames)
         {
+            if (node.Port(port) is { IsOutput: true, Collection: true })
+            {
+                var flat = new JsonArray();
+                foreach (var r in results)
+                    if (r.Status == RunStatus.Succeeded && r.Outputs.TryGetValue(port, out var answered))
+                        AppendItems(flat, answered);
+                gathered[port] = PayloadMapping.ToElement(flat);
+                continue;
+            }
             var values = results
                 .Select(r => r.Status == RunStatus.Succeeded && r.Outputs.TryGetValue(port, out var v) ? v : NullJson)
                 .ToArray();
@@ -341,6 +376,19 @@ public sealed class PipelineExecutor
         }
         return gathered;
     }
+
+    private static void AppendItems(JsonArray list, JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Array)
+            foreach (var item in value.EnumerateArray()) list.Add(JsonSerializer.SerializeToNode(item));
+        else
+            list.Add(JsonSerializer.SerializeToNode(value));
+    }
+
+    // A value already on a collection input, bound from a parameter or chosen on the node, is the first item
+    // unless it is a list already.
+    private static JsonArray AsList(JsonNode? value) =>
+        value is JsonArray list ? list : new JsonArray { value?.DeepClone() };
 
     private async Task<NodeRunResult> DispatchAndParseAsync(
         DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> inputs, int? index, CancellationToken cancellationToken)

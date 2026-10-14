@@ -325,6 +325,49 @@ public class PipelineModelTests
     }
 
     [Fact]
+    public void Build_ResolvesTheNodesOwnOutPortsBesideItsServices()
+    {
+        var (fx, pipelineId) = TestGraphs.DecisionPipeline();
+
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
+
+        var decide = dag.Node(fx.Get("Decide").Id)!;
+        decide.Ports.Select(p => p.PortName).Should().BeEquivalentTo("accept", "refuse", "in", "out");
+        decide.Port("accept")!.IsOutput.Should().BeTrue();
+        DagValidator.Validate(dag).IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Build_ReadsTheThingChosenOnTheNode_ForThePortOfferingIt()
+    {
+        var choice = TestGraphs.ChoicePipeline();
+        choice.Fixture.Rel(choice.Node, choice.Offers, choice.Offered[2]);
+
+        var dag = PipelineDagBuilder.Build(choice.Fixture.Build(), choice.PipelineId);
+
+        dag.Node(choice.Node.Id)!.Choices.Should().Equal(new Dictionary<string, ChosenThing>
+        {
+            ["strategy"] = new(choice.Offered[2].Id, "Soonest first"),
+        });
+    }
+
+    [Fact]
+    public void Build_RefusesAChoiceNoPortOffers_AndTwoChoicesForOnePort()
+    {
+        var unoffered = TestGraphs.ChoicePipeline();
+        unoffered.Fixture.Rel(unoffered.Node, unoffered.Offers, unoffered.Fixture.Thing("At random"));
+        var twice = TestGraphs.ChoicePipeline();
+        twice.Fixture.Rel(twice.Node, twice.Offers, twice.Offered[0]);
+        twice.Fixture.Rel(twice.Node, twice.Offers, twice.Offered[1]);
+
+        var unofferedBuild = () => PipelineDagBuilder.Build(unoffered.Fixture.Build(), unoffered.PipelineId);
+        var twiceBuild = () => PipelineDagBuilder.Build(twice.Fixture.Build(), twice.PipelineId);
+
+        unofferedBuild.Should().Throw<PipelineModelException>().WithMessage("*'Choose' chose 'At random', which no in port of it offers*");
+        twiceBuild.Should().Throw<PipelineModelException>().WithMessage("*'Choose' chose two Things for its port 'strategy'*");
+    }
+
+    [Fact]
     public void Build_NodeWithoutConnection_Throws()
     {
         var fx = new GraphFixture();
