@@ -16,14 +16,27 @@ public class DivisionResolverTests
     private const string CodeProperty = "hazardPortalDivision";
     private const string NameProperty = "hazardPortalDivisionName";
     private const string AreaNameEndpoint = "area-name-at-position";
+    private const string LocalAreaNameEndpoint = "local-area-name-at-position";
     private const string SearchEndpoint = "hazard-division-search";
     private const string AreaNameParameter = "areaName";
 
     private static readonly DivisionLookup Lookup = new(
         AreaNameEndpoint, SearchEndpoint, AreaNameParameter, CodeProperty, NameProperty);
 
+    private static readonly DivisionLookup LookupWithLocalNames =
+        Lookup with { LocalAreaNameEndpoint = LocalAreaNameEndpoint };
+
     private const string InPortugal = """
         {"address": {"county": "Santarem", "country": "Portugal"}}
+        """;
+
+    private const string InPortugalWithItsCode = """
+        {"address": {"county": "Santarem", "country": "Portugal", "country_code": "pt"}}
+        """;
+
+    private const string InPolandLocally = """
+        {"address": {"county": "powiat warszawski zachodni", "state": "województwo mazowieckie",
+                     "ISO3166-2-lvl4": "PL-14", "country": "Polska", "country_code": "pl"}}
         """;
 
     private const string OnMarthasVineyard = """
@@ -49,13 +62,20 @@ public class DivisionResolverTests
         """;
 
     private const string DivisionsNamedMazowieckie = """
-        {"data": [{"code": 2376, "admin0": "Poland", "admin1": "Mazowieckie"}]}
+        {"data": [
+          {"code": 2376, "admin0": "Poland", "admin1": "Mazowieckie"},
+          {"code": 24511, "admin0": "Poland", "admin1": "Podlaskie", "admin2": "Wysokie Mazowieckie"}]}
+        """;
+
+    private const string DivisionsNamedDukes = """
+        {"data": [{"code": 29898, "admin0": "United States of America", "admin1": "Massachusetts", "admin2": "Dukes"}]}
         """;
 
     private static readonly Guid SiteId = Guid.NewGuid();
     private static readonly Guid NestingPredicateId = Guid.NewGuid();
     private static readonly Guid PolandId = Guid.NewGuid();
     private static readonly Guid MazowieckieId = Guid.NewGuid();
+    private static readonly Guid PortugalId = Guid.NewGuid();
 
     private static readonly DivisionLookup LookupWithCodedPlaces = Lookup with { PlaceCodeProperty = "iso3166Code" };
 
@@ -96,6 +116,16 @@ public class DivisionResolverTests
         CoverageOf(LookupWithCodedPlaces, ("latitude", "52.2833"), ("longitude", "20.3439"))
             with { CodedPlaces = new CodedPlaces(NestingPredicateId, places) };
 
+    private static SiteCoverage AtKirsztajnowWithLocalNames() =>
+        CoverageOf(LookupWithLocalNames, ("latitude", "52.2833"), ("longitude", "20.3439"));
+
+    private static CodedPlace Portugal(string? division = null) =>
+        new(PortugalId, "Portugal", "PT", false, ValuesOf(division));
+
+    private static SiteCoverage AtWillowBendAmong(params CodedPlace[] places) =>
+        CoverageOf(LookupWithCodedPlaces, ("latitude", "39.5012"), ("longitude", "-8.4137"))
+            with { CodedPlaces = new CodedPlaces(NestingPredicateId, places) };
+
     private static DivisionResolver ResolverOver(ScriptedReader reader, RecordingWriter writer) =>
         new(reader, writer, NullLogger<DivisionResolver>.Instance);
 
@@ -108,6 +138,7 @@ public class DivisionResolverTests
         private readonly string? _position;
 
         public readonly List<(string Endpoint, string? AreaName)> Asked = new();
+        public string? LocalPosition { get; init; }
 
         public ScriptedReader(string? position, params string?[] searchAnswers)
         {
@@ -121,9 +152,12 @@ public class DivisionResolverTests
             CancellationToken cancellationToken)
         {
             Asked.Add((endpointName, addressParameters.GetValueOrDefault(AreaNameParameter)));
-            return Task.FromResult(endpointName == AreaNameEndpoint
-                ? _position
-                : _searchAnswers.Count > 0 ? _searchAnswers.Dequeue() : null);
+            return Task.FromResult(endpointName switch
+            {
+                AreaNameEndpoint => _position,
+                LocalAreaNameEndpoint => LocalPosition,
+                _ => _searchAnswers.Count > 0 ? _searchAnswers.Dequeue() : null,
+            });
         }
     }
 
@@ -214,16 +248,16 @@ public class DivisionResolverTests
     [Fact]
     public async Task APlaceCarryingTheCodeButNoDivisionIsRelatedAndThePortalIsStillSearched()
     {
-        var reader = new ScriptedReader(InPoland, NoDivisionOfThatName, DivisionsNamedMazowieckie);
+        var reader = new ScriptedReader(InPortugalWithItsCode, DivisionsNamedSantarem);
         var writer = new RecordingWriter();
 
         var addressed = await ResolverOver(reader, writer)
-            .AddressAsync(SiteId, AtKirsztajnowAmong(Mazowieckie(division: null)), CancellationToken.None);
+            .AddressAsync(SiteId, AtWillowBendAmong(Portugal()), CancellationToken.None);
 
-        writer.Related.Should().Equal((SiteId, NestingPredicateId, MazowieckieId));
-        reader.Asked.Select(asked => asked.AreaName).Should().Equal(null, "Warsaw West County", "Masovian Voivodeship");
-        DivisionAddressing(addressed).Should().Be("2376");
-        writer.Facts.Should().Contain((SiteId, CodeProperty, "2376"));
+        writer.Related.Should().Equal((SiteId, NestingPredicateId, PortugalId));
+        reader.Asked.Select(asked => asked.AreaName).Should().Equal(null, "Santarem");
+        DivisionAddressing(addressed).Should().Be("24889");
+        writer.Facts.Should().Contain((SiteId, CodeProperty, "24889"));
     }
 
     [Fact]
@@ -243,12 +277,12 @@ public class DivisionResolverTests
     {
         var writer = new RecordingWriter { RefusesRelating = true };
 
-        var addressed = await ResolverOver(new ScriptedReader(InPoland, DivisionsNamedMazowieckie), writer)
-            .AddressAsync(SiteId, AtKirsztajnowAmong(Mazowieckie()), CancellationToken.None);
+        var addressed = await ResolverOver(new ScriptedReader(InPortugalWithItsCode, DivisionsNamedSantarem), writer)
+            .AddressAsync(SiteId, AtWillowBendAmong(Portugal("185")), CancellationToken.None);
 
         writer.Related.Should().BeEmpty();
-        DivisionAddressing(addressed).Should().Be("2376");
-        writer.Facts.Should().Contain((SiteId, CodeProperty, "2376"));
+        DivisionAddressing(addressed).Should().Be("24889");
+        writer.Facts.Should().Contain((SiteId, CodeProperty, "24889"));
     }
 
     // Two Places claiming one code cannot both be where the site is, and relating it to either would be a guess.
@@ -270,11 +304,61 @@ public class DivisionResolverTests
     {
         var writer = new RecordingWriter();
 
-        var addressed = await ResolverOver(new ScriptedReader(InPoland, NoDivisionOfThatName, DivisionsNamedMazowieckie), writer)
-            .AddressAsync(SiteId, AtKirsztajnowAmong(), CancellationToken.None);
+        var addressed = await ResolverOver(new ScriptedReader(InPortugalWithItsCode, DivisionsNamedSantarem), writer)
+            .AddressAsync(SiteId, AtWillowBendAmong(), CancellationToken.None);
 
         writer.Related.Should().BeEmpty();
+        DivisionAddressing(addressed).Should().Be("24889");
+    }
+
+    // The geocoder answers English and the portal holds the division's own name, so neither the English
+    // nor the whole local name finds the voivodeship; one word of the local name does, and the district
+    // whose name merely contains it is passed over. The local reply says "Polska", which the portal's
+    // "Poland" matches nowhere, so the country has to have come from the English reply.
+    [Fact]
+    public async Task APolishSiteIsGradedAtTheVoivodeshipOneWordOfItsLocalNameFinds()
+    {
+        var reader = new ScriptedReader(InPoland,
+            NoDivisionOfThatName, NoDivisionOfThatName, NoDivisionOfThatName, NoDivisionOfThatName,
+            NoDivisionOfThatName, NoDivisionOfThatName, NoDivisionOfThatName, NoDivisionOfThatName,
+            NoDivisionOfThatName, NoDivisionOfThatName, NoDivisionOfThatName, DivisionsNamedMazowieckie)
+        {
+            LocalPosition = InPolandLocally,
+        };
+        var writer = new RecordingWriter();
+
+        var addressed = await ResolverOver(reader, writer)
+            .AddressAsync(SiteId, AtKirsztajnowWithLocalNames(), CancellationToken.None);
+
+        reader.Asked.Select(asked => asked.AreaName).Should().Equal(
+            null, null,
+            "Warsaw West County", "powiat warszawski zachodni", "powiat", "warszawski", "zachodni", "Warsaw", "West", "County",
+            "Masovian Voivodeship", "województwo mazowieckie", "województwo", "mazowieckie");
         DivisionAddressing(addressed).Should().Be("2376");
+        writer.Facts.Should().Contain((SiteId, NameProperty, "Poland / Mazowieckie"));
+    }
+
+    [Fact]
+    public async Task ALocalLookupThatWasRefusedLeavesTheEnglishNamesToBeSearched()
+    {
+        var reader = new ScriptedReader(OnMarthasVineyard, NoDivisionOfThatName, DivisionsNamedDukes);
+        var writer = new RecordingWriter();
+
+        await ResolverOver(reader, writer)
+            .AddressAsync(SiteId, CoverageOf(LookupWithLocalNames, ("latitude", "41.4"), ("longitude", "-70.6")), CancellationToken.None);
+
+        reader.Asked.Select(asked => asked.Endpoint).Take(3).Should().Equal(AreaNameEndpoint, LocalAreaNameEndpoint, SearchEndpoint);
+        writer.Facts.Should().Contain((SiteId, CodeProperty, "29898"));
+    }
+
+    [Fact]
+    public async Task AModelDeclaringNoLocalLookupSearchesByTheEnglishNamesAlone()
+    {
+        var reader = new ScriptedReader(InPortugal, DivisionsNamedSantarem);
+
+        await ResolverOver(reader, new RecordingWriter()).AddressAsync(SiteId, AtWillowBend(), CancellationToken.None);
+
+        reader.Asked.Select(asked => asked.Endpoint).Should().Equal(AreaNameEndpoint, SearchEndpoint);
     }
 
     // A project that coded its own Place decides, and a site that needs no lookup costs two providers
@@ -292,12 +376,12 @@ public class DivisionResolverTests
         writer.Facts.Should().BeEmpty();
     }
 
-    // The geocoder answers "Dukes County" where the portal holds "Dukes", so the county finds nothing and
-    // the state it also gave is a division the portal does hold.
+    // The geocoder answers "Dukes County" where the portal holds "Dukes", so the whole name finds nothing
+    // and one word of it finds the county.
     [Fact]
-    public async Task AnAreaNameThePortalHoldsNoDivisionForFallsBackToTheCoarserName()
+    public async Task AWordOfTheAreaNameFindsTheDivisionTheWholeNameDoesNot()
     {
-        var reader = new ScriptedReader(OnMarthasVineyard, NoDivisionOfThatName, DivisionsNamedMassachusetts);
+        var reader = new ScriptedReader(OnMarthasVineyard, NoDivisionOfThatName, DivisionsNamedDukes);
         var writer = new RecordingWriter();
 
         await ResolverOver(reader, writer).AddressAsync(SiteId, AtWillowBend(), CancellationToken.None);
@@ -305,7 +389,21 @@ public class DivisionResolverTests
         reader.Asked.Should().Equal(
             (AreaNameEndpoint, null),
             (SearchEndpoint, "Dukes County"),
-            (SearchEndpoint, "Massachusetts"));
+            (SearchEndpoint, "Dukes"));
+        writer.Facts.Should().Contain((SiteId, CodeProperty, "29898"));
+    }
+
+    [Fact]
+    public async Task AnAreaNameThePortalHoldsNoDivisionForFallsBackToTheCoarserName()
+    {
+        var reader = new ScriptedReader(OnMarthasVineyard,
+            NoDivisionOfThatName, NoDivisionOfThatName, NoDivisionOfThatName, DivisionsNamedMassachusetts);
+        var writer = new RecordingWriter();
+
+        await ResolverOver(reader, writer).AddressAsync(SiteId, AtWillowBend(), CancellationToken.None);
+
+        reader.Asked.Select(asked => asked.AreaName).Should().Equal(
+            null, "Dukes County", "Dukes", "County", "Massachusetts");
         writer.Facts.Should().Contain((SiteId, CodeProperty, "3235"));
     }
 
