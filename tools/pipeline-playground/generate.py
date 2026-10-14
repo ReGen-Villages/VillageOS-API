@@ -269,7 +269,7 @@ def build():
             y = _ORIGIN + node["at"]["row"] * _ROW_HEIGHT
             props = {"x": typed(float(x), "vos.Double"), "y": typed(float(y), "vos.Double")}
             if node.get("params"):
-                props["paramBindings"] = typed(json.dumps(node["params"]), "vos.String")
+                props["parameterBindings"] = typed(json.dumps(node["params"]), "vos.String")
             if node.get("onItemError"):
                 props["onItemError"] = typed(node["onItemError"], "vos.String")
 

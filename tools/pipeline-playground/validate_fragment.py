@@ -161,7 +161,7 @@ def main():
                     ports = []
                 else:
                     ports = conn_by_id.get(conn["Id"], {}).get("ports", [])
-            pb = t["P"].get("paramBindings")
+            pb = t["P"].get("parameterBindings")
             bindings = json.loads(pb) if isinstance(pb, str) and pb else {}
             nodes.append({"id": t["Id"], "name": t["Name"], "kind": kind, "ports": ports, "bindings": bindings})
 

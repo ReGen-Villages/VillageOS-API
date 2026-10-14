@@ -11,8 +11,8 @@ export interface PipelineNodeData {
   subdomain?: string;
   ports: PortInformation[];
   status?: string;
-  /** Input-port name → run-param key. */
-  paramBindings?: Record<string, string>;
+  /** Input-port name → run-parameter key. */
+  parameterBindings?: Record<string, string>;
   /** Fan-out progress: terminal items / total. */
   progress?: { done: number; total: number };
   /** The Thing a boundary node stands for, held by id on the drawing and read off the model for display. */

@@ -9,7 +9,7 @@ export interface ValidationNode {
   id: string;
   label: string;
   ports: PortInformation[];
-  paramBindings?: Record<string, string>;
+  parameterBindings?: Record<string, string>;
   /** A boundary node: where a run comes from, or what it leaves behind. */
   kind?: 'input' | 'output';
   /** What a boundary node stands for, and which end it may be. */
@@ -97,7 +97,7 @@ export function validatePipeline(nodes: ValidationNode[], edges: ValidationEdge[
   for (const n of nodes) {
     for (const p of n.ports) {
       if (p.direction !== 'in' || !p.required) continue;
-      const satisfied = wiredInputs.has(key(n.id, p.portName)) || Boolean(n.paramBindings?.[p.portName]);
+      const satisfied = wiredInputs.has(key(n.id, p.portName)) || Boolean(n.parameterBindings?.[p.portName]);
       if (!satisfied) {
         issues.push({
           kind: 'unbound-required-input',

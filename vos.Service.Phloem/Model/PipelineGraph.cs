@@ -14,10 +14,16 @@ public sealed class GraphThing
             ? v.ValueKind == JsonValueKind.String ? v.GetString() : v.ToString()
             : null;
 
-    // True when the Thing carries this flag set to true. A model says a Thing plays a role by
-    // marking it; absent, false, and a non-boolean all mean it does not.
+    // A template declares a port's marks as booleans and the page writes them as text, so both are read as one.
     public bool CarriesFlag(string name) =>
-        Properties.TryGetValue(name, out var value) && value.ValueKind == JsonValueKind.True;
+        Properties.TryGetValue(name, out var value) && Truth.IsTrue(value);
+}
+
+public static class Truth
+{
+    public static bool IsTrue(JsonElement value) =>
+        value.ValueKind == JsonValueKind.True
+        || (value.ValueKind == JsonValueKind.String && string.Equals(value.GetString(), "true", StringComparison.OrdinalIgnoreCase));
 }
 
 public sealed class GraphRelationship

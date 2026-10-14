@@ -124,6 +124,16 @@ describe('savePipeline — create (no existing pipeline id)', () => {
       r.Subject === saved.pipelineId && r.Name === 'is' && r.Target === 'arch-pipeline')).toBe(true);
   });
 
+  it('persists a node’s parameter bindings under the property spelled in full', async () => {
+    const model = buildModel();
+    await savePipeline('Fresh', [{ ...node('n1', 'A'), parameterBindings: { message: 'greeting' } }], [], model);
+
+    const frag = JSON.parse(applyFragment.mock.calls[0][0]);
+    const a = frag.Things.find((t: { Name: string }) => t.Name === 'A');
+    expect(a.Properties.parameterBindings.value).toBe('{"message":"greeting"}');
+    expect(Object.keys(a.Properties)).toEqual(['x', 'y', 'parameterBindings']);
+  });
+
   it('refuses a model that marks no archetype, saying so rather than writing a pipeline nothing can find', async () => {
     const model = new PipelineModel(
       [{ Id: 'is', Name: 'is', Properties: {} }, { Id: 'has', Name: 'has', Properties: {} }],

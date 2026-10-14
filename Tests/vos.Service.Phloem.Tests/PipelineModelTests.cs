@@ -267,17 +267,61 @@ public class PipelineModelTests
     // A node whose bindings are unreadable runs with none rather than failing the whole pipeline: the
     // run-param routing is optional, and a required input left unfilled is caught by validation instead.
     [Fact]
-    public void Build_WhenParamBindingsAreNotReadable_LeavesTheNodeWithNone()
+    public void Build_WhenParameterBindingsAreNotReadable_LeavesTheNodeWithNone()
     {
         var (fx, pipelineId) = TestGraphs.DemoPipeline();
-        var broken = fx.Thing("Broken", ("paramBindings", "{not json"));
+        var broken = fx.Thing("Broken", ("parameterBindings", "{not json"));
         fx.Rel(broken, fx.Get("is"), fx.Get("PipelineNode"));
         fx.Rel(broken, fx.Get("has"), fx.Get("echConn"));
         fx.Rel(fx.Get("Demo"), fx.Get("has"), broken);
 
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
 
-        dag.Node(broken.Id)!.ParamBindings.Should().BeEmpty();
+        dag.Node(broken.Id)!.ParameterBindings.Should().BeEmpty();
+    }
+
+    // The platform keeps no fallback to a spelling it has moved past: a model still carrying the short form
+    // binds nothing, and is reseeded.
+    [Fact]
+    public void Build_ReadsTheBindingPropertySpelledInFull_AndIgnoresTheShortForm()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        var shortForm = fx.Thing("ShortForm", ("paramBindings", "{\"message\":\"greeting\"}"));
+        fx.Rel(shortForm, fx.Get("is"), fx.Get("PipelineNode"));
+        fx.Rel(shortForm, fx.Get("has"), fx.Get("echConn"));
+        fx.Rel(fx.Get("Demo"), fx.Get("has"), shortForm);
+        var full = fx.Thing("Full", ("parameterBindings", "{\"message\":\"greeting\"}"));
+        fx.Rel(full, fx.Get("is"), fx.Get("PipelineNode"));
+        fx.Rel(full, fx.Get("has"), fx.Get("echConn"));
+        fx.Rel(fx.Get("Demo"), fx.Get("has"), full);
+
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
+
+        dag.Node(shortForm.Id)!.ParameterBindings.Should().BeEmpty();
+        dag.Node(full.Id)!.ParameterBindings.Should().Equal(new Dictionary<string, string> { ["message"] = "greeting" });
+    }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData("true", true)]
+    [InlineData("TRUE", true)]
+    [InlineData(false, false)]
+    [InlineData("false", false)]
+    [InlineData("yes", false)]
+    [InlineData(1, false)]
+    public void Build_ReadsAPortMarkDeclaredAsABooleanOrAsTheWordAlike(object declared, bool expected)
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        var port = fx.Thing("p.marked", ("direction", "in"), ("type", "string"), ("portName", "marked"),
+            ("required", declared), ("collection", declared));
+        fx.Rel(port, fx.Get("is"), fx.Get("Port"));
+        fx.Rel(fx.Get("EchoProto"), fx.Get("has"), port);
+
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
+
+        var resolved = dag.Node(fx.Get("Echo").Id)!.Port("marked")!;
+        resolved.Required.Should().Be(expected);
+        resolved.Collection.Should().Be(expected);
     }
 
     [Fact]

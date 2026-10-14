@@ -8,11 +8,11 @@ const port = (portName: string, direction: 'in' | 'out', required = false): Vali
   required,
 });
 
-const node = (id: string, ports: ValidationNode['ports'], paramBindings?: Record<string, string>): ValidationNode => ({
+const node = (id: string, ports: ValidationNode['ports'], parameterBindings?: Record<string, string>): ValidationNode => ({
   id,
   label: id,
   ports,
-  paramBindings,
+  parameterBindings,
 });
 
 describe('validatePipeline', () => {

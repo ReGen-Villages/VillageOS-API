@@ -330,7 +330,7 @@ describe('loadPipeline', () => {
     expect(loadPipeline('does-not-exist', model)).toBeNull();
   });
 
-  it('parses a node\'s paramBindings property', () => {
+  it('parses a node\'s parameterBindings property', () => {
     const things: VosThing[] = [];
     const relationships: VosRelationship[] = [];
     let n = 0;
@@ -346,7 +346,7 @@ describe('loadPipeline', () => {
       connectionArchetype = T('Endpoint', marked(ARCHETYPE_FLAG.Connection));
     const conn = T('conn', { Subdomain: 'x' });
     relationship(conn.Id, is.Id, connectionArchetype.Id);
-    const node = T('N', { paramBindings: '{"message":"greeting"}' });
+    const node = T('N', { parameterBindings: '{"message":"greeting"}' });
     relationship(node.Id, is.Id, nodeArchetype.Id);
     relationship(node.Id, has.Id, conn.Id);
     const pipe = T('P');
@@ -354,7 +354,7 @@ describe('loadPipeline', () => {
     relationship(pipe.Id, has.Id, node.Id);
 
     const loaded = loadPipeline(pipe.Id, new PipelineModel(things, relationships))!;
-    expect(loaded.nodes[0].paramBindings).toEqual({ message: 'greeting' });
+    expect(loaded.nodes[0].parameterBindings).toEqual({ message: 'greeting' });
   });
 });
 
