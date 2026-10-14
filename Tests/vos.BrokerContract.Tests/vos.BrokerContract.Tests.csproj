@@ -10,7 +10,7 @@
 
   <!-- Where a staged engine is. ci/stage-the-engine.sh writes one here; the build points VosRelease
        at the one it stages for itself. Absent, every case still compiles and is reported as skipped,
-       so a constructor change a case calls fails this repository's build too. -->
+       so a change to a constructor a case calls fails this repository's build too. -->
   <PropertyGroup>
     <VosRelease Condition="'$(VosRelease)' == ''">$(MSBuildThisFileDirectory)..\..\.vos-engine</VosRelease>
     <VosTestingProperties>$(VosRelease)\tools\testing\vos.Mycelium.Testing.props</VosTestingProperties>
