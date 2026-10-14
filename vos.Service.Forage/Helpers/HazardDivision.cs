@@ -2,9 +2,10 @@ using System.Text.Json;
 
 namespace vos.Service.Forage.Helpers;
 
-// What a reverse geocoder answered about a position: the country the land is in, and the names it gave
-// for the area around it, finest first.
-public sealed record GeocodedPosition(string Country, IReadOnlyList<string> AreaNames);
+// What a reverse geocoder answered about a position: the country the land is in, the names it gave for
+// the area around it, finest first, and the standard's codes for the region and the country, finest first.
+public sealed record GeocodedPosition(
+    string Country, IReadOnlyList<string> AreaNames, IReadOnlyList<string> StandardCodes);
 
 // One division the hazard portal holds, as its search answers it: the code every route it serves is
 // addressed with, and the levels the division sits under from the country down.
@@ -33,6 +34,11 @@ public static class HazardDivision
     // state it also gave is a division the portal does hold.
     private static readonly string[] GeocodedAreaFields = ["county", "state"];
 
+    // A region's code is answered under the standard's level number, `ISO3166-2-lvl4` for a Polish
+    // voivodeship, and a finer region under a higher one. The country's two letters arrive in lower case.
+    private const string GeocodedRegionCodeFieldPrefix = "ISO3166-2-lvl";
+    private const string GeocodedCountryCodeField = "country_code";
+
     private const string SearchResultsField = "data";
     private const string SearchCodeField = "code";
 
@@ -56,7 +62,23 @@ public static class HazardDivision
             .OfType<string>()
             .ToList();
 
-        return areaNames.Count == 0 ? null : new GeocodedPosition(country, areaNames);
+        return areaNames.Count == 0 ? null : new GeocodedPosition(country, areaNames, StandardCodesIn(address));
+    }
+
+    private static List<string> StandardCodesIn(JsonElement address)
+    {
+        var codes = address.EnumerateObject()
+            .Where(field => field.Name.StartsWith(GeocodedRegionCodeFieldPrefix, StringComparison.Ordinal))
+            .Select(field => (
+                Level: int.TryParse(field.Name[GeocodedRegionCodeFieldPrefix.Length..], out var level) ? level : -1,
+                Code: TextIn(address, field.Name)))
+            .Where(region => region.Level >= 0 && region.Code is not null)
+            .OrderByDescending(region => region.Level)
+            .Select(region => region.Code!)
+            .ToList();
+
+        if (TextIn(address, GeocodedCountryCodeField) is { } country) codes.Add(country.ToUpperInvariant());
+        return codes;
     }
 
     // Every division the search answered, in the order it gave them. An entry naming no code or no

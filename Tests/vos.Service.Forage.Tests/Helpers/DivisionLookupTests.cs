@@ -94,6 +94,84 @@ public class DivisionLookupTests
         selector.MarkedArchetypes.Should().Contain(CoveringSourceResolver.HazardDivisionLookupFlag);
     }
 
+    // With its members: the Place a site is about to be related to is one no walk from the site reaches.
+    [Fact]
+    public void TheSitesReadAsksForEveryPlaceModelWide()
+    {
+        CoveringSourceResolver.SelectorFor(Guid.NewGuid()).MarkedTypes
+            .Should().Contain(CoveringSourceResolver.PlaceArchetypeFlag);
+    }
+
+    [Fact]
+    public void TheAreaNameLookupNamesThePropertyAPlaceStatesItsCodeIn()
+    {
+        var model = WithBothLookups().Stating("area-name-at-position", "placeCodeProperty", "iso3166Code").Build();
+
+        CoveringSourceResolver.DivisionLookupIn(model)!.PlaceCodeProperty.Should().Be("iso3166Code");
+    }
+
+    // The search alone is a whole declaration, as it was before Places carried a code.
+    [Fact]
+    public void AModelNamingNoPlaceCodePropertyStillOffersTheLookup()
+    {
+        var lookup = CoveringSourceResolver.DivisionLookupIn(WithBothLookups().Build());
+
+        lookup.Should().NotBeNull();
+        lookup!.PlaceCodeProperty.Should().BeNull();
+    }
+
+    private static ModelBuilder WithCodedPlaces() => WithBothLookups()
+        .Stating("area-name-at-position", "placeCodeProperty", "iso3166Code")
+        .Archetype("Place", CoveringSourceResolver.PlaceArchetypeFlag)
+        .Stating("isIn", CoveringSourceResolver.PlaceNestingPredicateFlag, true)
+        .Relate("Poland", "is", "Place")
+        .Relate("Mazowieckie", "is", "Place")
+        .Relate("Earth", "is", "Place")
+        .Relate("WillowBend", "isIn", "Earth")
+        .Stating("Poland", "iso3166Code", "PL")
+        .Stating("Mazowieckie", "iso3166Code", "PL-14")
+        .Stating("Mazowieckie", "hazardPortalDivision", "2376");
+
+    [Fact]
+    public void EveryPlaceStatingACodeIsOfferedWithWhatItStates()
+    {
+        var model = WithCodedPlaces();
+
+        var coded = CoveringSourceResolver.CodedPlacesIn(
+            model.Build(), model.Id("WillowBend"), CoveringSourceResolver.DivisionLookupIn(model.Build()));
+
+        coded!.NestingPredicateId.Should().Be(model.Id("isIn"));
+        coded.Places.Select(place => (place.Name, place.Code)).Should().BeEquivalentTo(
+            [("Poland", "PL"), ("Mazowieckie", "PL-14")]);
+        coded.Places.Single(place => place.Name == "Mazowieckie").Values["hazardPortalDivision"].Should().Be("2376");
+    }
+
+    // Relating a site to a Place it already stands in would be refused as a second copy on every run.
+    [Fact]
+    public void APlaceTheSiteAlreadyStandsInIsMarkedSo()
+    {
+        var model = WithCodedPlaces().Relate("WillowBend", "isIn", "Poland");
+
+        var coded = CoveringSourceResolver.CodedPlacesIn(
+            model.Build(), model.Id("WillowBend"), CoveringSourceResolver.DivisionLookupIn(model.Build()));
+
+        coded!.Places.Single(place => place.Name == "Poland").SiteIsIn.Should().BeTrue();
+        coded.Places.Single(place => place.Name == "Mazowieckie").SiteIsIn.Should().BeFalse();
+    }
+
+    // A site related through an unmarked predicate would stand in a Place no coverage walk follows.
+    [Theory]
+    [InlineData("isIn", CoveringSourceResolver.PlaceNestingPredicateFlag)]
+    [InlineData("area-name-at-position", "placeCodeProperty")]
+    public void AModelMissingTheNestingMarkOrTheCodePropertyOffersNoPlaces(string thing, string property)
+    {
+        var model = WithCodedPlaces().Without(thing, property);
+
+        CoveringSourceResolver.CodedPlacesIn(
+                model.Build(), model.Id("WillowBend"), CoveringSourceResolver.DivisionLookupIn(model.Build()))
+            .Should().BeNull();
+    }
+
     // The address a run asks both for the site's coordinates and for whether anything already supplies a
     // division code, so a project that coded its own Place keeps a run from resolving over it.
     [Fact]

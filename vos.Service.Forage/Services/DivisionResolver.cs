@@ -70,6 +70,9 @@ public sealed class DivisionResolver
             return null;
         }
 
+        if (await RelateToCodedPlaceAsync(siteId, coverage, lookup, position, cancellationToken) is { } supplied)
+            return supplied;
+
         foreach (var areaName in position.AreaNames)
         {
             var searched = new Dictionary<string, string>(coverage.Address, StringComparer.OrdinalIgnoreCase)
@@ -94,6 +97,60 @@ public sealed class DivisionResolver
         _logger.LogInformation(
             "The hazard portal holds no division in {Country} for {Areas}, so site {SiteId} keeps no "
             + "division code", position.Country, string.Join(", ", position.AreaNames), siteId);
+        return null;
+    }
+
+    // A Place a project coded is found by the standard's code the geocoder answered beside the names, so
+    // the match holds in whatever language either provider speaks. The finest code first: a region's Place
+    // says more about the site than its country's. The Place's own division, where it carries one, then
+    // addresses this run's gradings the way its Places' values address every later run's; a Place carrying
+    // none is still related, and the search goes on. Null where nothing was supplied, for whatever reason:
+    // a refused relationship is the model's to explain, and the search still grades the site on this run.
+    private async Task<IReadOnlyDictionary<string, string>?> RelateToCodedPlaceAsync(
+        Guid siteId, SiteCoverage coverage, DivisionLookup lookup, GeocodedPosition position,
+        CancellationToken cancellationToken)
+    {
+        if (coverage.CodedPlaces is not { } coded) return null;
+
+        foreach (var code in position.StandardCodes)
+        {
+            var carrying = coded.Places
+                .Where(place => string.Equals(place.Code, code, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (carrying.Count == 0) continue;
+
+            // Two Places claiming one code cannot both be where the site is, and relating it to either would
+            // be a guess that reads exactly like a right answer.
+            if (carrying.Count > 1)
+            {
+                _logger.LogWarning(
+                    "Places {Places} all carry the code {Code}, so site {SiteId} is related to none of them",
+                    string.Join(", ", carrying.Select(place => place.Name)), code, siteId);
+                continue;
+            }
+
+            var place = carrying[0];
+            if (!place.SiteIsIn
+                && !await _writer.RelateAsync(siteId, coded.NestingPredicateId, place.Id, cancellationToken))
+            {
+                _logger.LogError(
+                    "Site {SiteId} stands in {Place} by the code {Code}, and the relationship could not be "
+                    + "written; the portal is searched instead", siteId, place.Name, code);
+                return null;
+            }
+
+            if (!place.SiteIsIn)
+                _logger.LogInformation("Site {SiteId} stands in {Place}, by the code {Code}", siteId, place.Name, code);
+
+            if (!place.Values.TryGetValue(lookup.CodeProperty, out var division)) return null;
+
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                [lookup.CodeProperty] = division,
+                [lookup.NameProperty] = place.Values.GetValueOrDefault(lookup.NameProperty, place.Name),
+            };
+        }
+
         return null;
     }
 
