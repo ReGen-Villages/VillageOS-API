@@ -186,7 +186,6 @@ export class PipelineModel {
   /** Targets reached from `subjectId` along the predicate the role binds. */
   reachedAlong(subjectId: string, roleId: string): VosThing[] {
     const predicateId = this.boundTo(roleId);
-    if (!predicateId) return [];
     const out: VosThing[] = [];
     for (const relationship of this.bySubject.get(subjectId) ?? []) {
       if (relationship.PredicateId !== predicateId) continue;
@@ -199,7 +198,6 @@ export class PipelineModel {
   /** Subjects that reach `targetId` along the predicate the role binds. */
   private reachingAlong(targetId: string, roleId: string): VosThing[] {
     const predicateId = this.boundTo(roleId);
-    if (!predicateId) return [];
     const out: VosThing[] = [];
     for (const relationship of this.byTarget.get(targetId) ?? []) {
       if (relationship.PredicateId !== predicateId) continue;
@@ -305,9 +303,9 @@ export class PipelineModel {
    *  that relationship's id. Undefined for a node standing for nothing, which at the end of a run is the
    *  answer and at the start is a run started by hand. */
   standsFor(nodeId: string): { thingId: string; relationshipId: string } | undefined {
+    const standsForId = this.boundTo(ROLE.StandsFor);
     for (const relationship of this.bySubject.get(nodeId) ?? []) {
-      const predicate = this.byId.get(relationship.PredicateId);
-      if (predicate && predicate.Id === this.boundTo(ROLE.StandsFor) && this.byId.has(relationship.TargetId))
+      if (relationship.PredicateId === standsForId && this.byId.has(relationship.TargetId))
         return { thingId: relationship.TargetId, relationshipId: relationship.Id };
     }
     return undefined;
@@ -513,7 +511,6 @@ export class PipelineModel {
   private isHeld(thingId: string): boolean {
     return (this.byTarget.get(thingId) ?? []).some((r) => this.byId.get(r.PredicateId)?.Name.toLowerCase() === 'has');
   }
-
 
   /** Live per-node status for a run, keyed by the node Thing id — the SSE animation source.
    * Phloem records each node's progress on a node-run Thing the run `has`, carrying `nodeId` + `status`. Only the

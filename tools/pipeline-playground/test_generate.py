@@ -140,7 +140,7 @@ class CatalystVocabularyTests(unittest.TestCase):
         G.set_namespace(None)
         self.kit = G.build()
 
-    def carriers(self, word):
+    def bound(self, word):
         return bound_by(list(self.kit.things.values()), list(self.kit.rels.values()), word)
 
     def test_a_predicate_playing_a_role_reconciles_onto_a_target_that_holds_it_by_name(self):
@@ -153,10 +153,10 @@ class CatalystVocabularyTests(unittest.TestCase):
         self.assertEqual(bound_in_seed(seed, "standsFor"), ["target-stands-for"])
 
     def test_every_sent_kind_arrives_at_a_door_and_every_told_kind_is_a_kind(self):
-        [sends] = self.carriers("sends")
-        [told] = self.carriers("told")
-        [arrives_at] = self.carriers("arrivesAt")
-        [kind_archetype] = self.carriers("messageKind")
+        [sends] = self.bound("sends")
+        [told] = self.bound("told")
+        [arrives_at] = self.bound("arrivesAt")
+        [kind_archetype] = self.bound("messageKind")
         [is_] = [tid for tid, t in self.kit.things.items() if t["Name"] == "is"]
         rels = list(self.kit.rels.values())
         kinds = {r["Subject"] for r in rels if r["Predicate"] == is_ and r["Target"] == kind_archetype}
@@ -170,23 +170,23 @@ class CatalystVocabularyTests(unittest.TestCase):
             self.assertIn("Subdomain", self.kit.things[doors[0]]["Properties"])
 
     def triggers_of(self, connection):
-        [triggered_by] = self.carriers("trigger")
+        [triggered_by] = self.bound("trigger")
         return [self.kit.things[r["Target"]]["Name"] for r in self.kit.rels.values()
                 if r["Subject"] == connection and r["Predicate"] == triggered_by]
 
     def told_through(self):
-        [told_through] = self.carriers("toldThrough")
+        [told_through] = self.bound("toldThrough")
         return {r["Subject"]: r["Target"] for r in self.kit.rels.values() if r["Predicate"] == told_through}
 
     def test_every_service_connection_is_reached_over_http(self):
-        [connection_archetype] = self.carriers("connection")
+        [connection_archetype] = self.bound("connection")
         [is_] = [tid for tid, t in self.kit.things.items() if t["Name"] == "is"]
         connections = {r["Subject"] for r in self.kit.rels.values() if r["Predicate"] == is_ and r["Target"] == connection_archetype}
         for connection in connections - set(self.told_through().values()):
             self.assertEqual(self.triggers_of(connection), ["http"], self.kit.things[connection]["Name"])
 
     def test_a_system_that_is_told_names_a_connection_written_along_and_bound_to_a_service(self):
-        [told] = self.carriers("told")
+        [told] = self.bound("told")
         [has] = [tid for tid, t in self.kit.things.items() if t["Name"] == "has"]
         told_systems = {r["Subject"] for r in self.kit.rels.values() if r["Predicate"] == told}
         through = self.told_through()
@@ -203,7 +203,7 @@ class CatalystVocabularyTests(unittest.TestCase):
 
     def test_the_decision_node_holds_its_own_out_ports(self):
         decide = G.stable_id(G._TAG, "node", "Branching Decision", "decide")
-        [port_archetype] = self.carriers("port")
+        [port_archetype] = self.bound("port")
         has = next(tid for tid, t in self.kit.things.items() if t["Name"] == "has")
         is_ = next(tid for tid, t in self.kit.things.items() if t["Name"] == "is")
         held = [r["Target"] for r in self.kit.rels.values() if r["Subject"] == decide and r["Predicate"] == has
@@ -214,7 +214,7 @@ class CatalystVocabularyTests(unittest.TestCase):
         self.assertEqual(ports, {("accept", "out"), ("refuse", "out")})
 
     def test_the_strategy_port_offers_three_things_and_the_node_chose_one_of_them(self):
-        [offers] = self.carriers("choice")
+        [offers] = self.bound("choice")
         port = G.stable_id(G._TAG, "port", "decide", "strategy", "in")
         decide = G.stable_id(G._TAG, "node", "Branching Decision", "decide")
         offered = {r["Target"] for r in self.kit.rels.values() if r["Subject"] == port and r["Predicate"] == offers}
@@ -229,7 +229,7 @@ class CatalystVocabularyTests(unittest.TestCase):
         self.assertIn("Branching Decision", run.stdout)
 
     def test_the_fragment_validator_refuses_a_choice_no_port_offers(self):
-        [offers] = self.carriers("choice")
+        [offers] = self.bound("choice")
         decide = G.stable_id(G._TAG, "node", "Branching Decision", "decide")
         fragment = G.as_fragment(self.kit)
         fragment["Things"].append({"Id": "unoffered", "Name": "At random", "Properties": {}})
@@ -261,7 +261,7 @@ class CatalystVocabularyTests(unittest.TestCase):
                                   capture_output=True, text=True)
 
     def test_the_two_pipelines_drawn_from_outside_stand_for_their_ends(self):
-        [stands_for] = self.carriers("standsFor")
+        [stands_for] = self.bound("standsFor")
         stood = {(self.kit.things[r["Subject"]]["Name"], self.kit.things[r["Target"]]["Name"])
                  for r in self.kit.rels.values() if r["Predicate"] == stands_for}
         self.assertEqual(stood, {("A reading batch arrives", "reading batch"), ("The office is told", "Reporting office")})

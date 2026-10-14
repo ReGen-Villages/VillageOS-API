@@ -46,10 +46,9 @@ class Model:
         self.things = {t["Id"]: {"Id": t["Id"], "Name": t["Name"], "P": unwrap(t.get("Properties"))}
                        for t in seed["Things"]}
         self.bysubj = {}
-        for r in seed["Relationships"]:
-            self.bysubj.setdefault(r["Subject"], []).append(r)
         self.bound = {}
         for r in seed["Relationships"]:
+            self.bysubj.setdefault(r["Subject"], []).append(r)
             if self.name(r["Predicate"]).lower() == "binds" and r["Target"] in self.things:
                 self.bound.setdefault(r["Subject"], []).append(r["Target"])
 
@@ -64,7 +63,7 @@ class Model:
                 res.append(self.things[r["Target"]])
         return res
 
-    def carrier_of(self, role):
+    def bound_to(self, role):
         """The one Thing this model binds to a role, or None when it binds none or two."""
         played = self.bound.get(role, [])
         return played[0] if len(played) == 1 else None
@@ -72,7 +71,7 @@ class Model:
     def is_of(self, tid, role, seen=None):
         """Does this Thing `is`, directly or through its `is`-chain, what the role binds? The walk starts
         above the Thing, so an archetype never plays its own role."""
-        archetype = self.carrier_of(role)
+        archetype = self.bound_to(role)
         if archetype is None:
             return False
         seen = seen if seen is not None else {tid}
@@ -121,9 +120,9 @@ class Model:
     def reached_along(self, subj, role):
         """Targets reached from a Thing along the predicate the role binds — how the console reads what a
         system sends, where a kind arrives, and what a boundary node stands for."""
-        predicate = self.carrier_of(role)
+        predicate = self.bound_to(role)
         return [self.things[r["Target"]] for r in self.bysubj.get(subj, [])
-                if predicate is not None and r["Predicate"] == predicate and r["Target"] in self.things]
+                if r["Predicate"] == predicate and r["Target"] in self.things]
 
     def wires(self, subj):
         out = []
@@ -141,7 +140,7 @@ def main():
     m = Model(seed)
     problems = []
 
-    unbound = [word for role, word in DAG_ROLES.items() if m.carrier_of(role) is None]
+    unbound = [word for role, word in DAG_ROLES.items() if m.bound_to(role) is None]
     if unbound:
         problems.append("no Thing is bound to the roles: " + ", ".join(unbound))
 

@@ -416,10 +416,10 @@ def merge_into(kit, seed):
     for t in seed["Things"]:
         by_name.setdefault(t["Name"], t["Id"])
     binds_ids = {t["Id"] for t in seed["Things"] if t["Name"] == "binds"}
-    carrier_of = {}
+    bound_by_role = {}
     for r in seed["Relationships"]:
         if r.get("Predicate") in binds_ids:
-            carrier_of.setdefault(r.get("Subject"), r.get("Target"))
+            bound_by_role.setdefault(r.get("Subject"), r.get("Target"))
     thing_ids = {t["Id"] for t in seed["Things"]}
     rel_keys = {(r.get("Subject"), r.get("Predicate"), r.get("Target"),
                  _rel_prop(r, "fromPort"), _rel_prop(r, "toPort"), _rel_prop(r, "toPath"))
@@ -428,7 +428,7 @@ def merge_into(kit, seed):
     remap = {}
     for sid in kit.shared:
         role = kit.role_of.get(sid)
-        existing = carrier_of.get(role) if role else None
+        existing = bound_by_role.get(role) if role else None
         if existing is None:
             existing = by_name.get(kit.things[sid]["Name"])
         if existing and existing != sid:
