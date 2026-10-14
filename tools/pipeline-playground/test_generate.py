@@ -178,6 +178,56 @@ class CatalystVocabularyTests(unittest.TestCase):
         self.assertGreater(len(bound), 0)
         self.assertEqual([t for t in self.kit.things.values() if G._prop(t.get("Properties"), "paramBindings")], [])
 
+    def test_the_decision_node_holds_its_own_out_ports(self):
+        decide = G.stable_id(G._TAG, "node", "Branching Decision", "decide")
+        [port_archetype] = self.carriers("__IsPortArchetype")
+        has = next(tid for tid, t in self.kit.things.items() if t["Name"] == "has")
+        is_ = next(tid for tid, t in self.kit.things.items() if t["Name"] == "is")
+        held = [r["Target"] for r in self.kit.rels.values() if r["Subject"] == decide and r["Predicate"] == has
+                and any(p["Subject"] == r["Target"] and p["Predicate"] == is_ and p["Target"] == port_archetype
+                        for p in self.kit.rels.values())]
+        ports = {(G._prop(self.kit.things[p]["Properties"], "portName"), G._prop(self.kit.things[p]["Properties"], "direction"))
+                 for p in held}
+        self.assertEqual(ports, {("accept", "out"), ("refuse", "out")})
+
+    def test_the_strategy_port_offers_three_things_and_the_node_chose_one_of_them(self):
+        [offers] = self.carriers("__IsChoicePredicate")
+        port = G.stable_id(G._TAG, "port", "decide", "strategy", "in")
+        decide = G.stable_id(G._TAG, "node", "Branching Decision", "decide")
+        offered = {r["Target"] for r in self.kit.rels.values() if r["Subject"] == port and r["Predicate"] == offers}
+        chosen = {r["Target"] for r in self.kit.rels.values() if r["Subject"] == decide and r["Predicate"] == offers}
+        self.assertEqual({self.kit.things[t]["Name"] for t in offered}, {"Nearest first", "Cheapest first", "Soonest first"})
+        self.assertEqual({self.kit.things[t]["Name"] for t in chosen}, {"Cheapest first"})
+        self.assertTrue(chosen <= offered)
+
+    def test_the_fragment_validator_accepts_every_drawing(self):
+        run = self.validate(G.as_fragment(self.kit))
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertIn("Branching Decision", run.stdout)
+
+    def test_the_fragment_validator_refuses_a_choice_no_port_offers(self):
+        [offers] = self.carriers("__IsChoicePredicate")
+        decide = G.stable_id(G._TAG, "node", "Branching Decision", "decide")
+        fragment = G.as_fragment(self.kit)
+        fragment["Things"].append({"Id": "unoffered", "Name": "At random", "Properties": {}})
+        fragment["Relationships"].append({"Id": "unoffered-choice", "Name": "", "Subject": decide, "Predicate": offers,
+                                          "Target": "unoffered", "Properties": {}})
+
+        run = self.validate(fragment)
+
+        self.assertEqual(run.returncode, 1, run.stdout + run.stderr)
+        self.assertIn("'Decide' chose 'At random', which no in port of it offers", run.stdout)
+
+    @staticmethod
+    def validate(fragment):
+        import os, subprocess, sys, tempfile
+        with tempfile.TemporaryDirectory() as scratch:
+            path = os.path.join(scratch, "fragment.seed.json")
+            G.dump_seed(fragment, path)
+            here = os.path.dirname(os.path.abspath(__file__))
+            return subprocess.run([sys.executable, "-I", os.path.join(here, "validate_fragment.py"), path],
+                                  capture_output=True, text=True)
+
     def test_the_two_pipelines_drawn_from_outside_stand_for_their_ends(self):
         [stands_for] = self.carriers("__IsStandsForPredicate")
         stood = {(self.kit.things[r["Subject"]]["Name"], self.kit.things[r["Target"]]["Name"])
