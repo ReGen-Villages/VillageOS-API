@@ -96,16 +96,19 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     }
 
     public async Task CreateRunAsync(
-        Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null, Guid? requestId = null)
+        Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null, Guid? requestId = null,
+        JsonElement? parameters = null)
     {
-        // The result is declared here with no value. It is known only once the run ends, and the property
-        // route sets a property the Thing already carries — so a run given one only at the end is a run
-        // that can never be given one.
+        // The result, the error and the finish are declared here with no value. Each is known only once the
+        // run ends, and the property route sets a property the Thing already carries — so a run given one
+        // only at the end is a run that can never be given one.
         var properties = new Dictionary<string, string?>
         {
             ["status"] = RunStatus.Running,
             ["pipelineId"] = pipelineId.ToString(),
-            ["startedUtc"] = DateTime.UtcNow.ToString("o"),
+            [ModelNames.StartedUtc] = DateTime.UtcNow.ToString("o"),
+            [ModelNames.FinishedUtc] = null,
+            [ModelNames.Parameters] = parameters is { ValueKind: not JsonValueKind.Undefined } given ? given.GetRawText() : null,
             [ModelNames.Result] = null,
             [ModelNames.Error] = null,
         };
@@ -127,17 +130,25 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         await RelateAsync(runId, subjectPredicateId.Value, subject.Id, cancellationToken);
     }
 
-    public async Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken cancellationToken, int? index = null, int total = 0)
+    public async Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken cancellationToken, int? index = null, int total = 0,
+        IReadOnlyDictionary<string, JsonElement>? outputs = null)
     {
         var nodeRunId = index is int i ? DeterministicGuid(runId, nodeId, i) : DeterministicGuid(runId, nodeId);
+        var terminal = status != RunStatus.Running;
+        var now = DateTime.UtcNow.ToString("o");
         if (_createdNodeRuns.TryAdd(nodeRunId, 0))
         {
-            // First status for this NodeRun — create the Thing and wire it into the run.
+            // First status for this NodeRun — create the Thing and wire it into the run, declaring every
+            // property a later transition writes.
             var properties = new Dictionary<string, string?>
             {
                 ["status"] = status,
                 ["nodeId"] = nodeId.ToString(),
                 [ModelNames.Error] = error,
+                [ModelNames.StartedUtc] = now,
+                [ModelNames.FinishedUtc] = terminal ? now : null,
+                [ModelNames.Outputs] = outputs is null ? null : OutputsText(outputs),
+                [ModelNames.Attempts] = null,
             };
             if (index is int idx)
             {
@@ -154,12 +165,33 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         // Subsequent transition (running -> terminal) on the same Thing — a property change the SSE view sees.
         await SetPropertyAsync(nodeRunId, "status", status, cancellationToken);
         if (error != null) await SetPropertyAsync(nodeRunId, ModelNames.Error, error, cancellationToken);
+        if (terminal) await SetPropertyAsync(nodeRunId, ModelNames.FinishedUtc, now, cancellationToken);
+        if (outputs is not null) await SetPropertyAsync(nodeRunId, ModelNames.Outputs, OutputsText(outputs), cancellationToken);
     }
+
+    private static string OutputsText(IReadOnlyDictionary<string, JsonElement> outputs) =>
+        JsonSerializer.Serialize(outputs);
 
     public async Task SetRunStatusAsync(Guid runId, string status, CancellationToken cancellationToken, string? error = null)
     {
         await SetPropertyAsync(runId, "status", status, cancellationToken);
         if (error != null) await SetPropertyAsync(runId, ModelNames.Error, error, cancellationToken);
+        if (status != RunStatus.Running) await SetPropertyAsync(runId, ModelNames.FinishedUtc, DateTime.UtcNow.ToString("o"), cancellationToken);
+    }
+
+    public async Task RelateProducedAsync(Guid runId, Guid nodeId, int? index, IReadOnlyList<Guid> producedThingIds, CancellationToken cancellationToken)
+    {
+        if (producedThingIds.Count == 0) return;
+        var predicateId = await TryThingCarryingAsync(PipelinePredicates.ProducedThingFlag, cancellationToken);
+        if (predicateId is null)
+        {
+            Logger.LogWarning("The model marks no predicate with {Flag}; run {RunId} records what node {NodeId} produced without relating to it",
+                PipelinePredicates.ProducedThingFlag, runId, nodeId);
+            return;
+        }
+        var nodeRunId = index is int i ? DeterministicGuid(runId, nodeId, i) : DeterministicGuid(runId, nodeId);
+        foreach (var producedId in producedThingIds)
+            await RelateAsync(nodeRunId, predicateId.Value, producedId, cancellationToken);
     }
 
     public Task SetRunResultAsync(Guid runId, JsonElement result, CancellationToken cancellationToken) =>

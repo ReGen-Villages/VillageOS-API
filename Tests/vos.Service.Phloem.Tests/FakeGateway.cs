@@ -49,15 +49,29 @@ internal sealed class FakeGateway : IMyceliumGateway
         return Task.CompletedTask;
     }
 
-    public Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct, RunSubject? subject = null, Guid? requestId = null)
+    public JsonElement? ParametersRecorded { get; private set; }
+
+    public Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct, RunSubject? subject = null, Guid? requestId = null, JsonElement? parameters = null)
     {
         RunsCreated.Add((runId, pipelineId, subject, requestId));
+        ParametersRecorded = parameters is { ValueKind: not JsonValueKind.Undefined } given ? given.Clone() : null;
         return Task.CompletedTask;
     }
 
-    public Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken ct, int? index = null, int total = 0)
+    public List<(string Name, int? Index, string Status, IReadOnlyDictionary<string, JsonElement>? Outputs)> NodeRunsPersisted { get; } = new();
+
+    public Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken ct, int? index = null, int total = 0,
+        IReadOnlyDictionary<string, JsonElement>? outputs = null)
     {
-        lock (NodeStatuses) NodeStatuses.Add((nodeName, status));
+        lock (NodeStatuses) { NodeStatuses.Add((nodeName, status)); NodeRunsPersisted.Add((nodeName, index, status, outputs)); }
+        return Task.CompletedTask;
+    }
+
+    public List<(Guid NodeId, int? Index, IReadOnlyList<Guid> Things)> Produced { get; } = new();
+
+    public Task RelateProducedAsync(Guid runId, Guid nodeId, int? index, IReadOnlyList<Guid> producedThingIds, CancellationToken ct)
+    {
+        lock (Produced) Produced.Add((nodeId, index, producedThingIds));
         return Task.CompletedTask;
     }
 

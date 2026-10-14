@@ -213,5 +213,6 @@ public static class PipelineDagBuilder
             portThing.PropertyString(ModelNames.Direction) ?? ModelNames.DirectionIn,
             portThing.PropertyString(ModelNames.PortType) ?? string.Empty,
             portThing.CarriesFlag(ModelNames.Required),
-            portThing.CarriesFlag(ModelNames.Collection));
+            portThing.CarriesFlag(ModelNames.Collection),
+            portThing.CarriesFlag(ModelNames.Produces));
 }

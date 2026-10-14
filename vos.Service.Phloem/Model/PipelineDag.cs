@@ -4,7 +4,7 @@ namespace vos.Service.Phloem.Model;
 
 // A resolved port on a node: the bound service's, up its is-chain, and the node's own. Collection marks an
 // input the node consumes as a list — the node fans out over it — or an output a fan-out gathers flat.
-public sealed record DagPort(string PortName, string Direction, string Type, bool Required, bool Collection = false)
+public sealed record DagPort(string PortName, string Direction, string Type, bool Required, bool Collection = false, bool Produces = false)
 {
     public bool IsInput => string.Equals(Direction, ModelNames.DirectionIn, StringComparison.OrdinalIgnoreCase);
     public bool IsOutput => string.Equals(Direction, ModelNames.DirectionOut, StringComparison.OrdinalIgnoreCase);

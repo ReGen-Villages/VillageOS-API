@@ -27,4 +27,7 @@ public static class PipelinePredicates
 
     // An in port reaches the Things it offers, and a node reaches the one it chose, along the same predicate.
     public const string ChoiceFlag = "__IsChoicePredicate";
+
+    // A node run reaches every Thing the node answered under an out port marked as producing one.
+    public const string ProducedThingFlag = "__IsProducedThingPredicate";
 }

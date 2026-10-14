@@ -523,6 +523,31 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
+    // One Maker node whose service answers `made`, an out port marked as producing a Thing, beside `note`,
+    // which is not. Per item, its `in` port is a collection bound to the run parameter `items`.
+    public static (GraphFixture Fixture, Guid PipelineId) ProducingPipeline(bool perItem = false)
+    {
+        var fx = new GraphFixture();
+        var vocabulary = fx.DeclareVocabulary();
+        var proto = fx.Thing("MakerProto");
+        fx.Rel(proto, vocabulary.Is, vocabulary.Service);
+        var portIn = perItem
+            ? fx.Thing("m.in", ("direction", "in"), ("type", "any"), ("portName", "in"), ("collection", true))
+            : fx.Thing("m.in", ("direction", "in"), ("type", "any"), ("portName", "in"));
+        var made = fx.Thing("m.made", ("direction", "out"), ("type", "any"), ("portName", "made"), ("produces", true));
+        var note = fx.Thing("m.note", ("direction", "out"), ("type", "any"), ("portName", "note"));
+        foreach (var port in new[] { portIn, made, note })
+        {
+            fx.Rel(port, vocabulary.Is, vocabulary.Port);
+            fx.Rel(proto, vocabulary.Has, port);
+        }
+        var node = ServiceNode(fx, vocabulary, proto, "Maker", "maker", ("parameterBindings", "{\"in\":\"items\"}"));
+        var pipe = fx.Thing("MakerDemo");
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Rel(pipe, vocabulary.Has, node);
+        return (fx, pipe.Id);
+    }
+
     public sealed record ChoiceFixture(GraphFixture Fixture, Guid PipelineId, GraphThing Offers, GraphThing Node, GraphThing[] Offered);
 
     // One Choose node whose service's in port `strategy` offers three Things along a predicate marked as the
