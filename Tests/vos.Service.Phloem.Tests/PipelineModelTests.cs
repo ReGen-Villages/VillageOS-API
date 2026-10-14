@@ -206,7 +206,7 @@ public class PipelineModelTests
         var isPredicate = fx.Thing("is");
         // Named after the role each plays, because in this test the name is the one thing that cannot matter.
         foreach (var role in PipelineRoles.DagRoles.Where(role => role != PipelineRoles.PipelineWire))
-            fx.Archetype(role.Word, role);
+            fx.Playing(role.Word, role);
         var pipe = fx.Thing("P");
         fx.Rel(pipe, isPredicate, fx.Get(PipelineRoles.Pipeline.Word));
 

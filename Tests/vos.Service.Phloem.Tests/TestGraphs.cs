@@ -55,27 +55,25 @@ public sealed class GraphFixture
         return played;
     }
 
-    public GraphThing Archetype(string name, Role role) => Playing(name, role);
-
     public PipelineVocabulary DeclareVocabulary(string namePrefix = "")
     {
         var isPredicate = Thing("is");
         var has = Thing("has");
-        var node = Archetype(namePrefix + "PipelineNode", PipelineRoles.PipelineNode);
-        var input = Archetype(namePrefix + "PipelineInput", PipelineRoles.PipelineInput);
-        var output = Archetype(namePrefix + "PipelineOutput", PipelineRoles.PipelineOutput);
+        var node = Playing(namePrefix + "PipelineNode", PipelineRoles.PipelineNode);
+        var input = Playing(namePrefix + "PipelineInput", PipelineRoles.PipelineInput);
+        var output = Playing(namePrefix + "PipelineOutput", PipelineRoles.PipelineOutput);
         Rel(input, isPredicate, node);  // boundary archetypes ARE pipeline nodes (multiple inheritance)
         Rel(output, isPredicate, node);
 
         return new PipelineVocabulary(
             isPredicate,
             has,
-            Archetype(namePrefix + "Pipeline", PipelineRoles.Pipeline),
+            Playing(namePrefix + "Pipeline", PipelineRoles.Pipeline),
             node,
-            Archetype(namePrefix + "PlatformServiceConnection", PipelineRoles.Connection),
-            Archetype(namePrefix + "Service", PipelineRoles.Service),
-            Archetype(namePrefix + "Port", PipelineRoles.Port),
-            Archetype(namePrefix + "PipelineWire", PipelineRoles.PipelineWire),
+            Playing(namePrefix + "PlatformServiceConnection", PipelineRoles.Connection),
+            Playing(namePrefix + "Service", PipelineRoles.Service),
+            Playing(namePrefix + "Port", PipelineRoles.Port),
+            Playing(namePrefix + "PipelineWire", PipelineRoles.PipelineWire),
             input,
             output);
     }
@@ -205,7 +203,7 @@ public static class TestGraphs
         var isPredicate = fx.Get("is");
         var standsFor = fx.Playing("standsFor", PipelineRoles.StandsFor);
         var toldThrough = fx.Playing("toldThrough", PipelineRoles.ToldThrough);
-        var systemKind = fx.Archetype("Neighbour", PipelineRoles.ExternalSystem);
+        var systemKind = fx.Playing("Neighbour", PipelineRoles.ExternalSystem);
         var system = fx.Thing("Reporting office");
         fx.Rel(system, isPredicate, systemKind);
         fx.Rel(fx.Get("Out"), standsFor, system);
