@@ -76,6 +76,12 @@ SERVICES = [
 
     {"key": "publish", "label": "Publish", "subdomain": "publish",
      "ports": [_in("payload", "any", required=True)]},
+
+    # A block that decides: it answers under one of the out ports the node holds, and its `strategy` port
+    # offers the Things a node may choose between.
+    {"key": "decide", "label": "Decide", "subdomain": "decide",
+     "ports": [_in("in", "any", required=True), _in("strategy", "any")],
+     "offers": {"strategy": ["Nearest first", "Cheapest first", "Soonest first"]}},
 ]
 
 
@@ -102,9 +108,11 @@ EXTERNAL_SYSTEMS = [
 # the start for the kind of message the run comes from, ("externalSystem", key) at the end for the system
 # the run tells, or ("pipeline", name) for a pipeline a run starts or is started by. Node "at" is the canvas grid cell (column, row) — the generator turns it
 # into x/y. "params" binds an input port to a run-parameter key (Params bar on the Pipeline page); "onItemError"
-# = "continue" collects partial fan-out results instead of failing the run.
+# = "continue" collects partial fan-out results instead of failing the run. A service node may hold
+# "outPorts" of its own, the outcomes it answers under, and may say what it "chooses": (port, the offered
+# Thing's name) among what its service's port offers.
 #
-# Boundary port spec = (portName, type[, required]).
+# Boundary port spec = (portName, type[, required]); a node-held out port spec = (portName, type).
 def col(c, r=0):
     return {"col": c, "row": r}
 
@@ -342,6 +350,29 @@ PIPELINES = [
         "wires": [
             {"from": "site", "fromPort": "population", "to": "report", "toPort": "data"},
             {"from": "report", "fromPort": "text", "to": "out", "toPort": "payload"},
+        ],
+    },
+
+    # 15. A drawing that branches: the decision node holds out ports `accept` and `refuse` of its own and
+    #     answers under one, so only that branch runs and the end is reached once; its `strategy` input is
+    #     filled with the Thing chosen on the node unless a wire or a parameter fills it.
+    {
+        "name": "Branching Decision",
+        "nodes": [
+            {"key": "in", "input": [("subject", "any")], "at": col(0, 1)},
+            {"key": "decide", "service": "decide", "at": col(1, 1),
+             "outPorts": [("accept", "any"), ("refuse", "any")],
+             "chooses": ("strategy", "Cheapest first")},
+            {"key": "accepted", "service": "echo", "label": "Accepted", "at": col(2, 0)},
+            {"key": "refused", "service": "echo", "label": "Refused", "at": col(2, 2)},
+            {"key": "out", "output": [("result", "any", True)], "at": col(3, 1)},
+        ],
+        "wires": [
+            {"from": "in", "fromPort": "subject", "to": "decide", "toPort": "in"},
+            {"from": "decide", "fromPort": "accept", "to": "accepted", "toPort": "message"},
+            {"from": "decide", "fromPort": "refuse", "to": "refused", "toPort": "message"},
+            {"from": "accepted", "fromPort": "echo", "to": "out", "toPort": "result"},
+            {"from": "refused", "fromPort": "echo", "to": "out", "toPort": "result"},
         ],
     },
 ]

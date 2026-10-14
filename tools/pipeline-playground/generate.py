@@ -62,7 +62,7 @@ ROLE_FLAG = {
 
 # The role each predicate plays, as the flag it carries: how a connection is reached, what an external
 # system sends and is told, where a kind of message arrives, what a boundary node stands for, and what a
-# run is about. The names are this generator's own choice.
+# run is about, and what an in port offers and a node chose. The names are this generator's own choice.
 PREDICATE_FLAG = {
     "triggeredBy": "__IsTriggerPredicate",
     "sends": "__IsSendsPredicate",
@@ -71,6 +71,7 @@ PREDICATE_FLAG = {
     "arrivesAt": "__IsArrivesAtPredicate",
     "standsFor": "__IsStandsForPredicate",
     "about": "__IsRunSubjectPredicate",
+    "offers": "__IsChoicePredicate",
 }
 
 
@@ -168,6 +169,7 @@ def build():
     told_through = k.predicate("toldThrough")
     arrives_at = k.predicate("arrivesAt")
     stands_for = k.predicate("standsFor")
+    offers = k.predicate("offers")
     # Declared for the orchestrator, which relates a run to the Thing whose state entry started it.
     k.predicate("about")
 
@@ -213,12 +215,23 @@ def build():
     # entry, carrying the dispatch Subdomain).
     connection_by_key = {}
     service_by_key = {}
+    offered_by_key = {}
+    strategy_kind = k.thing(stable_id(_TAG, "kind", "Strategy"), "Strategy")
     for svc in SERVICES:
         svc_id = k.thing(stable_id(_TAG, "service", svc["key"]), f"{svc['label']} service")
         service_by_key[svc["key"]] = svc_id
         k.rel(svc_id, is_, Service)
+        port_by_name = {}
         for (name, direction, type, required, collection) in svc["ports"]:
-            make_port(svc_id, svc["key"], name, direction, type, required, collection)
+            port_by_name[name] = make_port(svc_id, svc["key"], name, direction, type, required, collection)
+        # What an in port offers is related to the port itself, so every node bound to the service may choose
+        # among the same Things.
+        for port_name, names in svc.get("offers", {}).items():
+            for name in names:
+                offered_id = k.thing(stable_id(_TAG, "offered", svc["key"], port_name, name), name)
+                k.rel(offered_id, is_, strategy_kind)
+                k.rel(port_by_name[port_name], offers, offered_id)
+                offered_by_key[(svc["key"], port_name, name)] = offered_id
 
         conn_id = k.thing(stable_id(_TAG, "connection", svc["key"]), svc["label"],
                           {"Subdomain": typed(svc["subdomain"], "vos.String")})
@@ -278,6 +291,11 @@ def build():
                 k.thing(nid, label, props)
                 k.rel(nid, is_, PipelineNode)
                 k.rel(nid, has, connection_by_key[node["service"]])
+                for (pname, ptype) in node.get("outPorts", []):
+                    make_port(nid, f"{pipe['name']}.{node['key']}", pname, "out", ptype, False, False)
+                if node.get("chooses"):
+                    port_name, name = node["chooses"]
+                    k.rel(nid, offers, offered_by_key[(node["service"], port_name, name)])
             else:
                 is_input = "input" in node
                 label = node.get("label", "Input" if is_input else "Output")
