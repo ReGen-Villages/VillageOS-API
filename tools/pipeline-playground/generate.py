@@ -78,6 +78,12 @@ PREDICATE_ROLE = {
     "produced": "producedThing",
 }
 
+# The two roots every archetype sits under: what a model sets up, and what then happens there.
+ROOT_ROLE = {
+    "Configuration": "configuration",
+    "Operation": "operation",
+}
+
 
 def set_namespace(name):
     """Rebind the id namespace to a per-model root so merged DAG ids are distinct per seed. An empty or
@@ -112,9 +118,11 @@ class Kit:
         self.role_things = set()  # ids of the role Things, which a target holds under the same ids or not at all
         self._name = {}           # id -> Name (for readable relationship labels)
 
-    def thing(self, tid, name, properties=None, shared=False):
+    def thing(self, tid, name, properties=None, shared=False, archetype=False):
         if tid not in self.things:
             self.things[tid] = {"Id": tid, "Name": name, "Properties": properties or {}}
+            if archetype:
+                self.things[tid]["IsArchetype"] = True
             self._name[tid] = name
             if shared:
                 self.shared.add(tid)
@@ -153,7 +161,7 @@ class Kit:
         """An archetype that says what it is through the role Thing that binds it. The name is this
         generator's own choice and defaults to the role; nothing reads it."""
         name = name or role
-        tid = self.thing(stable_id(_TAG, "archetype", name), name, shared=True)
+        tid = self.thing(stable_id(_TAG, "archetype", name), name, shared=True, archetype=True)
         return self.bind(ARCHETYPE_ROLE[role], tid)
 
 
@@ -179,8 +187,8 @@ def build():
     offers = k.predicate("offers")
     # Declared for the orchestrator, which relates a run to the Thing whose state entry started it, and a
     # node run to each Thing the node produced.
-    k.predicate("about")
-    k.predicate("produced")
+    about = k.predicate("about")
+    produced = k.predicate("produced")
 
     Pipeline = k.archetype("Pipeline")
     PipelineNode = k.archetype("PipelineNode")
@@ -194,7 +202,7 @@ def build():
     NodeRun = k.archetype("NodeRun")
     ExternalSystem = k.archetype("ExternalSystem")
     MessageKind = k.archetype("MessageKind")
-    k.archetype("SentMessage")
+    SentMessage = k.archetype("SentMessage")
 
     k.rel(carries, is_, PipelineWire)          # wires are the `carries` predicate, identified by this archetype
     # Every service's connection is a door reached over HTTP at its subdomain, which is what makes it a catalyst
@@ -225,7 +233,7 @@ def build():
     connection_by_key = {}
     service_by_key = {}
     offered_by_key = {}
-    strategy_kind = k.thing(stable_id(_TAG, "kind", "Strategy"), "Strategy")
+    strategy_kind = k.thing(stable_id(_TAG, "kind", "Strategy"), "Strategy", archetype=True)
     for svc in SERVICES:
         svc_id = k.thing(stable_id(_TAG, "service", svc["key"]), f"{svc['label']} service")
         service_by_key[svc["key"]] = svc_id
@@ -366,6 +374,21 @@ def build():
                         k.rel(item_id, is_, NodeRun)
                         k.rel(run_id, has, item_id)
 
+    # Configuration is what a model sets up and operation what then happens there. Every archetype here is under
+    # one root and every predicate and role Thing under Configuration; a target that declares the roots is reused
+    # through the roles, like the rest of the shared vocabulary.
+    Configuration, Operation = (
+        k.bind(word, k.thing(stable_id(_TAG, "archetype", name), name, shared=True, archetype=True))
+        for name, word in ROOT_ROLE.items())
+    binds = k.thing(stable_id(_TAG, "predicate", "binds"), "binds", shared=True)
+    for configured in (Pipeline, PipelineNode, Port, Service, Connection, PipelineWire, ExternalSystem,
+                       MessageKind, strategy_kind):
+        k.rel(configured, is_, Configuration)
+    for operational in (PipelineRun, NodeRun, SentMessage):
+        k.rel(operational, is_, Operation)
+    for written in (is_, has, of, binds, carries, triggered_by, sends, told, told_through, arrives_at, stands_for,
+                    offers, about, produced, *sorted(k.role_things)):
+        k.rel(written, is_, Configuration)
     return k
 
 
@@ -465,9 +488,10 @@ def merge_into(kit, seed):
 
 def remove_from(kit, seed):
     """Strip a previously-merged playground back out, leaving the reconciled shared vocabulary in place
-    along with the role Things and what they bind."""
-    drop_things = {tid for tid in kit.things if tid not in kit.shared and tid not in kit.role_things}
-    drop_rels = {r["Id"] for r in kit.rels.values() if r["Subject"] not in kit.role_things}
+    along with the role Things, what they bind, and where each sits under the roots."""
+    kept = kit.shared | kit.role_things
+    drop_things = {tid for tid in kit.things if tid not in kept}
+    drop_rels = {r["Id"] for r in kit.rels.values() if r["Subject"] not in kept or r["Target"] not in kept}
     before_t, before_r = len(seed.get("Things", [])), len(seed.get("Relationships", []))
     seed["Things"] = [t for t in seed.get("Things", []) if t["Id"] not in drop_things]
     seed["Relationships"] = [r for r in seed.get("Relationships", []) if r.get("Id") not in drop_rels]
