@@ -18,7 +18,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     private const string PropertyType = "vos.String";
 
     private readonly ConcurrentDictionary<string, Guid> _thingIdByName = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, Guid> _thingIdByFlag = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<Guid, Guid> _boundByRole = new();
     private readonly ConcurrentDictionary<Guid, byte> _createdNodeRuns = new();
 
     public MyceliumGateway(IHttpClientFactory httpClientFactory, ILogger<MyceliumGateway> logger, string myceliumUrl, string? serviceToken = null, string? apiKey = null)
@@ -26,28 +26,37 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 
     public Task<bool> RegisterAsync(int port) => RegisterAsync(port, "Phloem", "endpoint-service");
 
+    // A role is read off the drawing only when its role Thing is in it.
+    private static readonly IReadOnlyList<Role> DrawingRoles =
+        [.. PipelineRoles.DagRoles, PipelineRoles.ExternalSystem, PipelineRoles.StandsFor, PipelineRoles.ToldThrough, PipelineRoles.Choice];
+
+    private static readonly IReadOnlyList<Role> StartRoles =
+    [
+        PipelineRoles.Pipeline, PipelineRoles.PipelineInput, PipelineRoles.Connection,
+        PipelineRoles.StateWatch, PipelineRoles.StandsFor, PipelineRoles.PipelineStart,
+    ];
+
     public async Task<PipelineGraph> LoadPipelineSubgraphAsync(Guid pipelineId, CancellationToken cancellationToken)
     {
         // Pull the whole structural closure in one snapshot. Three things the traversal will not reach on
-        // its own are asked for outright: the built-in is/has predicate Things, because includeRelationships
+        // its own are asked for outright: the built-in predicate Things, because includeRelationships
         // does not pull predicate Things; every Port and wire Thing, because includeIsAncestors does not
-        // pull a prototype's has-children; and the archetype for each role, so that one missing from the
-        // snapshot means the model marks it on nothing rather than that this pipeline plays that role
+        // pull a prototype's has-children; and the role Things with what each binds, so that a role missing
+        // from the snapshot means the model binds it to nothing rather than that this pipeline plays that role
         // nowhere. See SelectorResolver. After the nodes come the system an end stands for and the connection
-        // that system is told through, with the two predicates that lead there so the graph reads their marks.
+        // that system is told through, along the predicates those roles bind.
         var selector = new
         {
-            ids = new[] { pipelineId },
-            names = new[] { ModelNames.Is, ModelNames.Has },
-            markedTypes = new[] { PipelineArchetypes.PortFlag, PipelineArchetypes.PipelineWireFlag },
-            markedArchetypes = PipelineArchetypes.DagRoleFlags
-                .Concat([PipelinePredicates.StandsForFlag, PipelinePredicates.ToldThroughFlag, PipelinePredicates.ChoiceFlag]).ToArray(),
+            ids = DrawingRoles.Select(role => role.Id).Prepend(pipelineId).ToArray(),
+            names = new[] { ModelNames.Is, ModelNames.Has, ModelNames.Binds },
+            boundTypes = new[] { PipelineRoles.Port.Id, PipelineRoles.PipelineWire.Id },
             traverse = new object[]
             {
                 new { predicate = ModelNames.Has, direction = "outgoing", depth = 8 },
-                new { predicateFlag = PipelinePredicates.StandsForFlag, direction = "outgoing", depth = 1 },
-                new { predicateFlag = PipelinePredicates.ToldThroughFlag, direction = "outgoing", depth = 1 },
-                new { predicateFlag = PipelinePredicates.ChoiceFlag, direction = "outgoing", depth = 1 },
+                new { predicate = ModelNames.Binds, direction = "outgoing", depth = 1 },
+                new { predicateRole = PipelineRoles.StandsFor.Id, direction = "outgoing", depth = 1 },
+                new { predicateRole = PipelineRoles.ToldThrough.Id, direction = "outgoing", depth = 1 },
+                new { predicateRole = PipelineRoles.Choice.Id, direction = "outgoing", depth = 1 },
             },
             includeIsAncestors = true,
             includeRelationships = true,
@@ -59,36 +68,33 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     public async Task<PipelineGraph> LoadStartSubgraphAsync(Guid targetId, CancellationToken cancellationToken)
     {
         // The target and what tells it apart: its `is` chain, the state it watches, the start nodes standing
-        // for either and the pipelines holding them, and any pipeline it reaches along the start mark. The
-        // marked predicates are asked for by their marks so the graph can read the mark off each edge, and
-        // the traversals run in order, so the watched state is reached before the nodes standing for it.
+        // for either and the pipelines holding them, and any pipeline it reaches along the start role. The role
+        // Things come with what each binds so the graph can tell what plays each role, and the traversals run in
+        // order, so the watched state is reached before the nodes standing for it.
         // Relationship rules keep the read to those edges: a state connection gains one dispatch record per
         // Thing that ever entered its state, and the wider reading would carry every one on every start.
         var selector = new
         {
-            ids = new[] { targetId },
-            names = new[] { ModelNames.Is, ModelNames.Has },
-            markedArchetypes = new[]
-            {
-                PipelineArchetypes.PipelineFlag, PipelineArchetypes.PipelineInputFlag,
-                PipelinePredicates.StateWatchFlag, PipelinePredicates.StandsForFlag, PipelinePredicates.PipelineStartFlag,
-            },
+            ids = StartRoles.Select(role => role.Id).Prepend(targetId).ToArray(),
+            names = new[] { ModelNames.Is, ModelNames.Has, ModelNames.Binds },
             traverse = new object[]
             {
-                new { predicateFlag = PipelinePredicates.StateWatchFlag, direction = "outgoing", depth = 1 },
-                new { predicateFlag = PipelinePredicates.StandsForFlag, direction = "incoming", depth = 1 },
+                new { predicate = ModelNames.Binds, direction = "outgoing", depth = 1 },
+                new { predicateRole = PipelineRoles.StateWatch.Id, direction = "outgoing", depth = 1 },
+                new { predicateRole = PipelineRoles.StandsFor.Id, direction = "incoming", depth = 1 },
                 new { predicate = ModelNames.Has, direction = "incoming", depth = 1 },
-                new { predicateFlag = PipelinePredicates.PipelineStartFlag, direction = "outgoing", depth = 1 },
+                new { predicateRole = PipelineRoles.PipelineStart.Id, direction = "outgoing", depth = 1 },
             },
             includeIsAncestors = true,
             includeRelationships = true,
             relationships = new object[]
             {
                 new { predicate = ModelNames.Is, direction = "outgoing" },
-                new { predicateFlag = PipelinePredicates.StateWatchFlag, direction = "outgoing" },
-                new { predicateFlag = PipelinePredicates.StandsForFlag, direction = "incoming" },
+                new { predicate = ModelNames.Binds, direction = "outgoing" },
+                new { predicateRole = PipelineRoles.StateWatch.Id, direction = "outgoing" },
+                new { predicateRole = PipelineRoles.StandsFor.Id, direction = "incoming" },
                 new { predicate = ModelNames.Has, direction = "incoming" },
-                new { predicateFlag = PipelinePredicates.PipelineStartFlag, direction = "outgoing" },
+                new { predicateRole = PipelineRoles.PipelineStart.Id, direction = "outgoing" },
             },
         };
 
@@ -115,16 +121,15 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         if (requestId is { } request) properties[ModelNames.RequestId] = request.ToString();
         await CreateThingWithIdAsync(runId, $"PipelineRun {runId:N}", properties, cancellationToken);
 
-        await RelateAsync(runId, ModelNames.Is,
-            await ArchetypeCarryingAsync(PipelineArchetypes.PipelineRunFlag, cancellationToken), cancellationToken);
+        await RelateAsync(runId, ModelNames.Is, await BoundAsync(PipelineRoles.PipelineRun, cancellationToken), cancellationToken);
         await RelateAsync(runId, ModelNames.Of, pipelineId, cancellationToken);
 
         if (subject is null) return;
-        var subjectPredicateId = await TryThingCarryingAsync(PipelinePredicates.RunSubjectFlag, cancellationToken);
+        var subjectPredicateId = await TryBoundAsync(PipelineRoles.RunSubject, cancellationToken);
         if (subjectPredicateId is null)
         {
-            Logger.LogWarning("The model marks no predicate with {Flag}; run {RunId} is recorded without its subject {SubjectId}",
-                PipelinePredicates.RunSubjectFlag, runId, subject.Id);
+            Logger.LogWarning("The model binds nothing to the role {Role}; run {RunId} is recorded without its subject {SubjectId}",
+                PipelineRoles.RunSubject.Word, runId, subject.Id);
             return;
         }
         await RelateAsync(runId, subjectPredicateId.Value, subject.Id, cancellationToken);
@@ -156,8 +161,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
                 properties["total"] = total.ToString();
             }
             await CreateThingWithIdAsync(nodeRunId, index is int x ? $"NodeRun {nodeName} #{x}" : $"NodeRun {nodeName}", properties, cancellationToken);
-            await RelateAsync(nodeRunId, ModelNames.Is,
-                await ArchetypeCarryingAsync(PipelineArchetypes.NodeRunFlag, cancellationToken), cancellationToken);
+            await RelateAsync(nodeRunId, ModelNames.Is, await BoundAsync(PipelineRoles.NodeRun, cancellationToken), cancellationToken);
             await RelateAsync(runId, ModelNames.Has, nodeRunId, cancellationToken);
             return;
         }
@@ -182,11 +186,11 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     public async Task RelateProducedAsync(Guid runId, Guid nodeId, int? index, IReadOnlyList<Guid> producedThingIds, CancellationToken cancellationToken)
     {
         if (producedThingIds.Count == 0) return;
-        var predicateId = await TryThingCarryingAsync(PipelinePredicates.ProducedThingFlag, cancellationToken);
+        var predicateId = await TryBoundAsync(PipelineRoles.ProducedThing, cancellationToken);
         if (predicateId is null)
         {
-            Logger.LogWarning("The model marks no predicate with {Flag}; run {RunId} records what node {NodeId} produced without relating to it",
-                PipelinePredicates.ProducedThingFlag, runId, nodeId);
+            Logger.LogWarning("The model binds nothing to the role {Role}; run {RunId} records what node {NodeId} produced without relating to it",
+                PipelineRoles.ProducedThing.Word, runId, nodeId);
             return;
         }
         var nodeRunId = index is int i ? DeterministicGuid(runId, nodeId, i) : DeterministicGuid(runId, nodeId);
@@ -232,8 +236,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         var messageId = Guid.NewGuid();
         await CreateThingWithIdAsync(messageId, $"Message to {telling.SystemName} {runId:N}",
             new Dictionary<string, string?> { [ModelNames.Payload] = payload.GetRawText() }, cancellationToken);
-        await RelateAsync(messageId, ModelNames.Is,
-            await ArchetypeCarryingAsync(PipelineArchetypes.SentMessageFlag, cancellationToken), cancellationToken);
+        await RelateAsync(messageId, ModelNames.Is, await BoundAsync(PipelineRoles.SentMessage, cancellationToken), cancellationToken);
         await RelateAsync(runId, ModelNames.Has, messageId, cancellationToken);
         await RelateAsync(messageId, telling.ConnectionId, telling.SystemId, cancellationToken);
     }
@@ -264,32 +267,31 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         return graph;
     }
 
-    // The archetype playing a role, found by the flag it carries rather than by a name this orchestrator
-    // was told. Asked for on its own: markedTypes would answer with every Thing that already `is`
-    // one, which for a run archetype is every run ever recorded. An archetype cannot change role while the
-    // process lives, and this runs once per node run, so the answer is kept.
-    private async Task<Guid> ArchetypeCarryingAsync(string roleFlag, CancellationToken cancellationToken) =>
-        await TryThingCarryingAsync(roleFlag, cancellationToken)
-        ?? throw new InvalidOperationException($"The model marks no archetype with {roleFlag} = true.");
+    // The Thing playing a role, found through the role Thing rather than by a name this orchestrator was told.
+    // Asked for on its own: boundTypes would answer with every Thing that already `is` it, which for a run
+    // archetype is every run ever recorded. This runs once per node run, so the answer is kept for the process.
+    private async Task<Guid> BoundAsync(Role role, CancellationToken cancellationToken) =>
+        await TryBoundAsync(role, cancellationToken)
+        ?? throw new InvalidOperationException($"The model binds nothing to the role {role.Word}.");
 
-    // The one Thing carrying a mark as its own property — an archetype for a role, or a predicate the model
-    // dispatches or records along. The selector answers the carrier alone, whether or not it is an archetype.
-    private async Task<Guid?> TryThingCarryingAsync(string flag, CancellationToken cancellationToken)
+    private async Task<Guid?> TryBoundAsync(Role role, CancellationToken cancellationToken)
     {
-        if (_thingIdByFlag.TryGetValue(flag, out var cached)) return cached;
+        if (_boundByRole.TryGetValue(role.Id, out var cached)) return cached;
 
         var selector = new
         {
-            markedArchetypes = new[] { flag },
+            ids = new[] { role.Id },
+            names = new[] { ModelNames.Binds },
+            traverse = new object[] { new { predicate = ModelNames.Binds, direction = "outgoing", depth = 1 } },
             includeIsAncestors = false,
-            includeRelationships = false,
+            includeRelationships = true,
+            relationships = new object[] { new { predicate = ModelNames.Binds, direction = "outgoing" } },
         };
         var graph = await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
 
-        var carrier = graph.ArchetypeCarrying(flag);
-        if (carrier is null) return null;
-        _thingIdByFlag[flag] = carrier.Id;
-        return carrier.Id;
+        if (graph.Bound(role) is not { } bound) return null;
+        _boundByRole[role.Id] = bound.Id;
+        return bound.Id;
     }
 
     // A property reaches the broker as a typed envelope, never as a bare value: the create route reads each

@@ -66,19 +66,19 @@ public sealed class TheEngine : IAsyncLifetime
     // A Thing, written the way the engine takes one. Tests arrange with this so that an
     // arrangement cannot be refused for the reason a case is looking for in the service.
     public async Task<Guid> DeclareAsync(
-        string name, bool isArchetype = false, IReadOnlyDictionary<string, object?>? properties = null)
+        string name, bool isArchetype = false, IReadOnlyDictionary<string, object?>? properties = null, Guid? identifier = null)
     {
-        var identifier = Guid.NewGuid();
+        var id = identifier ?? Guid.NewGuid();
         var written = await Admin.PostAsJsonAsync("/api/things", new
         {
-            Id = identifier,
+            Id = id,
             Name = name,
             IsArchetype = isArchetype,
             Properties = TypedProperties.Typed(properties),
         });
 
         written.EnsureSuccessStatusCode();
-        return identifier;
+        return id;
     }
 
     // A relationship, written the way the engine takes one, for the same reason as a Thing.

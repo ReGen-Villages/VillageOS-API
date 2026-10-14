@@ -203,14 +203,9 @@ public class HandleEndpointTests
             var hasPredicate = Guid.NewGuid();
             var standsFor = Guid.NewGuid();
             var arrival = Guid.NewGuid();
+            var binds = Guid.NewGuid();
 
-            object Thing(Guid id, string name, string? flag = null) => new
-            {
-                id, name,
-                properties = flag is null
-                    ? new Dictionary<string, object>()
-                    : new Dictionary<string, object> { [flag] = new { value = true, typeInfo = "vos.Boolean" } },
-            };
+            object Thing(Guid id, string name) => new { id, name, properties = new Dictionary<string, object>() };
             object Edge(Guid subject, Guid predicate, Guid target) =>
                 new { id = Guid.NewGuid(), subjectId = subject, predicateId = predicate, targetId = target };
 
@@ -220,12 +215,17 @@ public class HandleEndpointTests
                 {
                     things = new[]
                     {
-                        Thing(pipelineArchetype, "Workflow", PipelineArchetypes.PipelineFlag),
-                        Thing(startArchetype, "Doorway", PipelineArchetypes.PipelineInputFlag),
-                        Thing(connectionArchetype, "Binding", PipelineArchetypes.ConnectionFlag),
+                        Thing(pipelineArchetype, "Workflow"),
+                        Thing(startArchetype, "Doorway"),
+                        Thing(connectionArchetype, "Binding"),
                         Thing(isPredicate, "is"),
                         Thing(hasPredicate, "has"),
-                        Thing(standsFor, "standsFor", PipelinePredicates.StandsForFlag),
+                        Thing(binds, "binds"),
+                        Thing(standsFor, "standsFor"),
+                        Thing(PipelineRoles.Pipeline.Id, "pipeline role"),
+                        Thing(PipelineRoles.PipelineInput.Id, "pipelineInput role"),
+                        Thing(PipelineRoles.Connection.Id, "connection role"),
+                        Thing(PipelineRoles.StandsFor.Id, "standsFor role"),
                         Thing(Watching, "watchingConnection"),
                         Thing(Loose, "looseConnection"),
                         Thing(arrival, "Arrival"),
@@ -233,6 +233,10 @@ public class HandleEndpointTests
                     },
                     relationships = new[]
                     {
+                        Edge(PipelineRoles.Pipeline.Id, binds, pipelineArchetype),
+                        Edge(PipelineRoles.PipelineInput.Id, binds, startArchetype),
+                        Edge(PipelineRoles.Connection.Id, binds, connectionArchetype),
+                        Edge(PipelineRoles.StandsFor.Id, binds, standsFor),
                         Edge(Watching, isPredicate, connectionArchetype),
                         Edge(Loose, isPredicate, connectionArchetype),
                         Edge(arrival, isPredicate, startArchetype),

@@ -12,20 +12,20 @@ public sealed class PipelineModelException : Exception
 // Resolves a loaded PipelineGraph + pipelineId into a PipelineDag:
 // nodes, their dispatch subdomain (node has Connection, Subdomain property), ports (walk the
 // bound service's is-chain), and wires (the predicate is of the wire archetype, carrying fromPort/toPort).
-// Every role is read from the flag its archetype carries, never from a name.
+// Every role is read from the role Thing that binds it, never from a name.
 public static class PipelineDagBuilder
 {
     public static PipelineDag Build(PipelineGraph graph, Guid pipelineId)
     {
-        PipelineArchetypes.RequireRolesAreMarked(graph);
+        PipelineRoles.RequireRolesAreBound(graph);
 
         var pipeline = graph.Thing(pipelineId)
             ?? throw new PipelineModelException($"Pipeline {pipelineId} not found in the loaded subgraph.");
-        if (!graph.IsOfArchetypeCarrying(pipeline, PipelineArchetypes.PipelineFlag))
+        if (!graph.IsOf(pipeline, PipelineRoles.Pipeline))
             throw new PipelineModelException($"Thing {pipelineId} ('{pipeline.Name}') is not a pipeline.");
 
         var nodeThings = graph.OutgoingTargets(pipeline, ModelNames.Has)
-            .Where(t => graph.IsOfArchetypeCarrying(t, PipelineArchetypes.PipelineNodeFlag))
+            .Where(t => graph.IsOf(t, PipelineRoles.PipelineNode))
             .ToList();
         if (nodeThings.Count == 0)
             throw new PipelineModelException($"Pipeline '{pipeline.Name}' has no nodes.");
@@ -39,14 +39,13 @@ public static class PipelineDagBuilder
         var wires = new List<DagWire>();
         foreach (var nodeThing in nodeThings)
         {
-            foreach (var rel in graph.OutgoingByPredicateCarrying(nodeThing, PipelineArchetypes.PipelineWireFlag))
+            foreach (var rel in graph.OutgoingByPredicateOf(nodeThing, PipelineRoles.PipelineWire))
             {
                 if (!nodeIds.Contains(rel.TargetId)) continue; // ignore wires leaving the pipeline
                 wires.Add(WireFrom(nodeThing.Id, rel.TargetId, rel.PropertyString));
             }
 
-            foreach (var (wire, target) in graph.HeldThingsCarrying(
-                         nodeThing, PipelineArchetypes.PipelineWireFlag, PipelineArchetypes.PipelineNodeFlag))
+            foreach (var (wire, target) in graph.HeldThingsOf(nodeThing, PipelineRoles.PipelineWire, PipelineRoles.PipelineNode))
             {
                 if (!nodeIds.Contains(target.Id)) continue;
                 wires.Add(WireFrom(nodeThing.Id, target.Id, wire.PropertyString));
@@ -77,13 +76,13 @@ public static class PipelineDagBuilder
     {
         // Boundary nodes bind no Connection/Service: they declare their own ports (has → Port) and
         // are an Input source (params → outputs) or an Output sink (inputs → run result).
-        if (graph.IsOfArchetypeCarrying(nodeThing, PipelineArchetypes.PipelineInputFlag))
+        if (graph.IsOf(nodeThing, PipelineRoles.PipelineInput))
             return BuildBoundaryNode(graph, nodeThing, DagNodeKind.Input);
-        if (graph.IsOfArchetypeCarrying(nodeThing, PipelineArchetypes.PipelineOutputFlag))
+        if (graph.IsOf(nodeThing, PipelineRoles.PipelineOutput))
             return BuildBoundaryNode(graph, nodeThing, DagNodeKind.Output);
 
         var connection = graph.OutgoingTargets(nodeThing, ModelNames.Has)
-            .FirstOrDefault(t => graph.IsOfArchetypeCarrying(t, PipelineArchetypes.ConnectionFlag))
+            .FirstOrDefault(t => graph.IsOf(t, PipelineRoles.Connection))
             ?? throw new PipelineModelException($"Node '{nodeThing.Name}' binds no service connection.");
 
         var subdomain = connection.PropertyString(ModelNames.Subdomain);
@@ -91,7 +90,7 @@ public static class PipelineDagBuilder
             throw new PipelineModelException($"Connection '{connection.Name}' for node '{nodeThing.Name}' has no {ModelNames.Subdomain}.");
 
         var service = graph.OutgoingTargets(connection, ModelNames.Has)
-            .FirstOrDefault(t => graph.IsOfArchetypeCarrying(t, PipelineArchetypes.ServiceFlag))
+            .FirstOrDefault(t => graph.IsOf(t, PipelineRoles.Service))
             ?? throw new PipelineModelException($"Connection '{connection.Name}' binds no service.");
 
         // The node's own ports come first so one of them wins a name clash with the service's.
@@ -118,10 +117,10 @@ public static class PipelineDagBuilder
         PipelineGraph graph, GraphThing nodeThing, IReadOnlyList<(GraphThing Thing, DagPort Port)> ports)
     {
         var choices = new Dictionary<string, ChosenThing>(StringComparer.OrdinalIgnoreCase);
-        foreach (var chosen in graph.OutgoingAlongPredicateMarked(nodeThing, PipelinePredicates.ChoiceFlag))
+        foreach (var chosen in graph.OutgoingAlong(nodeThing, PipelineRoles.Choice))
         {
             var offering = ports.FirstOrDefault(p => p.Port.IsInput
-                && graph.OutgoingAlongPredicateMarked(p.Thing, PipelinePredicates.ChoiceFlag).Any(offered => offered.Id == chosen.Id));
+                && graph.OutgoingAlong(p.Thing, PipelineRoles.Choice).Any(offered => offered.Id == chosen.Id));
             if (offering.Thing is null)
                 throw new PipelineModelException($"Node '{nodeThing.Name}' chose '{chosen.Name}', which no in port of it offers.");
             if (choices.ContainsKey(offering.Port.PortName))
@@ -152,12 +151,12 @@ public static class PipelineDagBuilder
     // Refused at build rather than at the end, so a run that could never send its message does nothing first.
     private static Telling? TellingOf(PipelineGraph graph, GraphThing endNode)
     {
-        var system = graph.OutgoingAlongPredicateMarked(endNode, PipelinePredicates.StandsForFlag)
-            .FirstOrDefault(target => graph.IsOfArchetypeCarrying(target, PipelineArchetypes.ExternalSystemFlag));
+        var system = graph.OutgoingAlong(endNode, PipelineRoles.StandsFor)
+            .FirstOrDefault(target => graph.IsOf(target, PipelineRoles.ExternalSystem));
         if (system is null) return null;
 
-        var connection = graph.OutgoingAlongPredicateMarked(system, PipelinePredicates.ToldThroughFlag)
-            .FirstOrDefault(target => graph.IsOfArchetypeCarrying(target, PipelineArchetypes.ConnectionFlag))
+        var connection = graph.OutgoingAlong(system, PipelineRoles.ToldThrough)
+            .FirstOrDefault(target => graph.IsOf(target, PipelineRoles.Connection))
             ?? throw new PipelineModelException(
                 $"End node '{endNode.Name}' stands for '{system.Name}', which names no connection it is told through, "
                 + "so nothing could send it what reaches the node.");
@@ -201,7 +200,7 @@ public static class PipelineDagBuilder
             var current = stack.Pop();
             if (!seen.Add(current.Id)) continue;
             foreach (var portThing in graph.OutgoingTargets(current, ModelNames.Has)
-                         .Where(t => graph.IsOfArchetypeCarrying(t, PipelineArchetypes.PortFlag)))
+                         .Where(t => graph.IsOf(t, PipelineRoles.Port)))
                 yield return portThing;
             foreach (var parent in graph.OutgoingTargets(current, ModelNames.Is))
                 stack.Push(parent);
