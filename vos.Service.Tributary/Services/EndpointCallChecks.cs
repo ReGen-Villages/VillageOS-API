@@ -261,6 +261,30 @@ public static class EndpointCallChecks
         return true;
     }
 
+    public static bool TryUnavailability(
+        IReadOnlyDictionary<string, JsonElement> effective,
+        ProviderUnavailability configured,
+        out ProviderUnavailability unavailability,
+        [NotNullWhen(false)] out Refusal? refusal)
+    {
+        unavailability = configured;
+        if (!TryOptionalText(effective, ProviderUnavailability.AnswerProperty, out var answer, out refusal))
+            return false;
+        if (!string.IsNullOrWhiteSpace(answer))
+            unavailability = unavailability with { Answer = answer };
+
+        if (EffectivePropertyResolver.TryGetEffectiveProperty(
+                effective, ProviderUnavailability.RetryAfterProperty, out var element, out var conflicts)
+            && OutboundRequest.SecondsIn(element) is { } seconds and >= 0)
+            unavailability = unavailability with { RetryAfter = TimeSpan.FromSeconds(seconds) };
+        if (conflicts != null)
+        {
+            refusal = AmbiguousProperty(ProviderUnavailability.RetryAfterProperty, conflicts);
+            return false;
+        }
+        return true;
+    }
+
     // Reaching no kind is a plain call. TokenExchangeAuth uses a pre-minted token, or one minted from
     // a configured credential exchange — token endpoint, form fields, and response token/expiry paths
     // all come from the template, so nothing here is source-specific. The mint itself is a network
