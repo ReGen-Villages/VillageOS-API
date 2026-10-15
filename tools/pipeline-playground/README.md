@@ -46,6 +46,14 @@ same name but has never marked is marked as it reconciles — the flag is the on
 archetype is for, and the editor and the orchestrator both read it. Everything else is namespaced so it will
 not collide with a host model's own Things.
 
+The playground also declares the two roots every archetype in a model sits under, `Configuration` and
+`Operation`, bound by the `configuration` and `operation` roles, and places what it mints: the pipeline,
+node, port, wire, service, connection, external-system, message-kind and strategy archetypes and every
+predicate and role Thing under `Configuration`; the run, node-run and sent-message archetypes, which record
+what a run did, under `Operation`. Merged into a model that already binds the roots, the placements land on that model's own
+roots, like the rest of the shared vocabulary. Merged into one that does not, the roots arrive with the
+playground, and seed validation then holds the whole model to them.
+
 Those ids are the same in every seed by default, which is what you want for a standalone fragment but not
 when two model seeds carrying the playground load into one broker together — they would collide. Pass
 `--namespace <ModelName>` when merging to derive a per-model id root, so each seed's copy of the pipelines gets
