@@ -68,7 +68,7 @@ public class PipelineModelTests
         var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
 
-        DagValidator.Validate(dag).IsValid.Should().BeTrue();
+        DagValidator.Validate(dag).Errors.Should().BeEmpty();
     }
 
     [Fact] // A wire held as a Thing carries the same port mapping an edge-shaped wire carries.
@@ -101,7 +101,7 @@ public class PipelineModelTests
         var (fx, pipelineId) = TestGraphs.ParallelWirePipeline();
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
 
-        DagValidator.Validate(dag).IsValid.Should().BeTrue();
+        DagValidator.Validate(dag).Errors.Should().BeEmpty();
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public class PipelineModelTests
         dag.Nodes.Should().HaveCount(2);
         dag.Node(first.Id)!.Subdomain.Should().Be("one");
         dag.Wires.Should().ContainSingle();
-        DagValidator.Validate(dag).IsValid.Should().BeTrue();
+        DagValidator.Validate(dag).Errors.Should().BeEmpty();
     }
 
     // A model that binds nothing answers "no" to every question the orchestrator asks of it, so a pipeline
@@ -372,7 +372,7 @@ public class PipelineModelTests
         var decide = dag.Node(fx.Get("Decide").Id)!;
         decide.Ports.Select(p => p.PortName).Should().BeEquivalentTo("accept", "refuse", "in", "out");
         decide.Port("accept")!.IsOutput.Should().BeTrue();
-        DagValidator.Validate(dag).IsValid.Should().BeTrue();
+        DagValidator.Validate(dag).Errors.Should().BeEmpty();
     }
 
     [Fact]
@@ -567,7 +567,7 @@ public class PipelineModelTests
     {
         var waiting = TestGraphs.WaitingPipeline();
 
-        DagValidator.Validate(PipelineDagBuilder.Build(waiting.Fixture.Build(), waiting.PipelineId)).IsValid.Should().BeTrue();
+        DagValidator.Validate(PipelineDagBuilder.Build(waiting.Fixture.Build(), waiting.PipelineId)).Errors.Should().BeEmpty();
     }
 
     [Fact]
@@ -595,7 +595,7 @@ public class PipelineModelTests
 
         var result = DagValidator.Validate(dag);
 
-        result.IsValid.Should().BeTrue();
+        result.Errors.Should().BeEmpty();
         var order = result.Order.ToList();
         order.IndexOf(fx.Get("Generate").Id).Should().BeLessThan(order.IndexOf(fx.Get("Echo").Id));
     }
@@ -722,7 +722,7 @@ public class PipelineModelTests
 
         var result = DagValidator.Validate(dag);
 
-        result.IsValid.Should().BeFalse();
+        result.Errors.Should().NotBeEmpty();
         result.Errors.Should().Contain(e => e.Contains("cycle"));
     }
 
@@ -736,7 +736,7 @@ public class PipelineModelTests
 
         var result = DagValidator.Validate(dag);
 
-        result.IsValid.Should().BeFalse();
+        result.Errors.Should().NotBeEmpty();
         result.Errors.Should().Contain(e => e.Contains("not an input port"));
     }
 }

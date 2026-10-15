@@ -4,11 +4,7 @@ using vos.Service.Shared;
 
 namespace vos.Service.Phloem.Execution;
 
-public sealed record DagValidationResult(bool IsValid, IReadOnlyList<Guid> Order, IReadOnlyList<string> Errors)
-{
-    public static DagValidationResult Invalid(IReadOnlyList<string> errors) =>
-        new(false, Array.Empty<Guid>(), errors);
-}
+public sealed record DagValidationResult(IReadOnlyList<Guid> Order, IReadOnlyList<string> Errors);
 
 // Validates a PipelineDag up front (distinct from Hyphae's runtime oscillation
 // detection): every wire connects a real out-port to a real in-port of compatible type, and the graph is
@@ -44,9 +40,7 @@ public static class DagValidator
             errors.Add($"Pipeline has a cycle; unschedulable nodes: {string.Join(", ", names)}.");
         }
 
-        return errors.Count == 0
-            ? new DagValidationResult(true, order, errors)
-            : DagValidationResult.Invalid(errors);
+        return new DagValidationResult(errors.Count == 0 ? order : Array.Empty<Guid>(), errors);
     }
 
     private static void ValidateWire(PipelineDag dag, DagWire wire, List<string> errors)
