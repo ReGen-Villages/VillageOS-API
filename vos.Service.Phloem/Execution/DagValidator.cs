@@ -1,3 +1,4 @@
+using System.Text.Json;
 using vos.Service.Phloem.Model;
 using vos.Service.Shared;
 
@@ -16,10 +17,19 @@ public static class DagValidator
 {
     public static DagValidationResult Validate(PipelineDag dag)
     {
-        var errors = new List<string>();
+        var errors = new List<string>(dag.Problems);
 
         foreach (var wire in dag.Wires)
             ValidateWire(dag, wire, errors);
+
+        foreach (var node in dag.Nodes)
+        {
+            foreach (var port in RequiredInputs(node).Where(port => !Filled(dag, node, port.PortName)))
+                errors.Add($"'{node.Name}' needs its port '{port.PortName}' filled, but no wire, parameter or choice fills it.");
+            var collections = node.Ports.Where(port => port.IsInput && port.Collection).Select(port => port.PortName).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (collections.Count > 1)
+                errors.Add($"'{node.Name}' has {collections.Count} collection inputs ({string.Join(", ", collections.Select(name => $"'{name}'"))}); a node runs once for each item of one.");
+        }
 
         foreach (var node in dag.Nodes.Where(node => node.Waits is not null))
             ValidateWait(dag, node, node.Waits!, errors);
@@ -73,12 +83,37 @@ public static class DagValidator
         if (node.CollectionInput is { } collection)
             errors.Add($"'{node.Name}' waits, but runs once for each item of '{collection.PortName}'; a node that waits runs once.");
 
-        var filled = dag.WiresInto(node.NodeId).Any(w => string.Equals(w.ToPort, wait.PortName, StringComparison.OrdinalIgnoreCase))
-            || node.ParameterBindings.ContainsKey(wait.PortName)
-            || node.Choices.ContainsKey(wait.PortName);
-        if (!filled)
+        if (!Filled(dag, node, wait.PortName))
             errors.Add($"'{node.Name}' waits for the Thing reaching its port '{wait.PortName}', but nothing fills that port.");
     }
+
+    // Asked only when a run starts: a resumed run's parameters were judged when it started.
+    public static IReadOnlyList<string> UnfilledByParameters(PipelineDag dag, JsonElement parameters)
+    {
+        var errors = new List<string>();
+        foreach (var node in dag.Nodes)
+            foreach (var port in RequiredInputs(node))
+            {
+                if (WiredInto(dag, node, port.PortName) || node.Choices.ContainsKey(port.PortName)
+                    || !node.ParameterBindings.TryGetValue(port.PortName, out var key))
+                    continue;
+                if (parameters.ValueKind != JsonValueKind.Object || !parameters.TryGetProperty(key, out _))
+                    errors.Add($"'{node.Name}' needs its port '{port.PortName}' filled from the run parameter '{key}', which the run was not given.");
+            }
+        return errors;
+    }
+
+    // A node's own port is listed before its service's of the same name and wins, so each name is judged once.
+    private static IEnumerable<DagPort> RequiredInputs(DagNode node) =>
+        node.Ports.Where(port => port.IsInput)
+            .DistinctBy(port => port.PortName, StringComparer.OrdinalIgnoreCase)
+            .Where(port => port.Required);
+
+    private static bool Filled(PipelineDag dag, DagNode node, string portName) =>
+        WiredInto(dag, node, portName) || node.ParameterBindings.ContainsKey(portName) || node.Choices.ContainsKey(portName);
+
+    private static bool WiredInto(PipelineDag dag, DagNode node, string portName) =>
+        dag.WiresInto(node.NodeId).Any(wire => string.Equals(wire.ToPort, portName, StringComparison.OrdinalIgnoreCase));
 
     // Equal types are compatible; an empty/"any" type on either side is a wildcard.
     private static bool TypesCompatible(string outType, string inType) =>

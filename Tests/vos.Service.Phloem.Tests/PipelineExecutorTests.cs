@@ -487,6 +487,43 @@ public class PipelineExecutorTests
 
         result.Success.Should().BeFalse();
         gateway.RunError.Should().Be(result.Error).And.Contain("invalid");
+        gateway.StatusUpdates.Should().Equal(RunStatus.Refused);
+        gateway.NodeRunsPersisted.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task RunAsync_TwoRequiredInputsNothingFillsOnDifferentNodes_IsRefusedNamingBothAndDispatchesNothing()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        foreach (var prototype in new[] { "SourceProto", "EchoProto" })
+        {
+            var port = fx.Thing($"{prototype}.context", ("direction", "in"), ("type", "string"), ("portName", "context"), ("required", "true"));
+            fx.Rel(port, fx.Get("is"), fx.Get("Port"));
+            fx.Rel(fx.Get(prototype), fx.Get("has"), port);
+        }
+        var gateway = new FakeGateway(fx.Build());
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        gateway.Dispatched.Should().BeEmpty();
+        gateway.StatusUpdates.Should().Equal(RunStatus.Refused);
+        gateway.RunError.Should().Contain("'Generate' needs its port 'context'").And.Contain("'Echo' needs its port 'context'");
+    }
+
+    [Fact]
+    public async Task RunAsync_StartedWithoutAParameterARequiredPortIsBoundTo_IsRefusedNamingIt()
+    {
+        var (fx, pipelineId) = TestGraphs.ParamBoundPipeline();
+        var gateway = new FakeGateway(fx.Build());
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, default, CancellationToken.None, subject: new RunSubject(Guid.NewGuid(), "Site 3"));
+
+        result.Success.Should().BeFalse();
+        gateway.Dispatched.Should().BeEmpty();
+        gateway.RunError.Should().Contain("run parameter 'greeting'");
     }
 
     [Fact]

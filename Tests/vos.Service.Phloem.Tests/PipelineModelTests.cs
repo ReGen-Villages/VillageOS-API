@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
@@ -57,9 +58,8 @@ public class PipelineModelTests
     {
         var telling = TestGraphs.TellingPipeline(namesItsConnection: false);
 
-        var act = () => PipelineDagBuilder.Build(telling.Fixture.Build(), telling.PipelineId);
-
-        act.Should().Throw<PipelineModelException>().WithMessage("*'Reporting office'*names no connection it is told through*");
+        PipelineDagBuilder.Build(telling.Fixture.Build(), telling.PipelineId).Problems
+            .Should().ContainMatch("*'Reporting office'*names no connection it is told through*");
     }
 
     [Fact] // A boundary pipeline validates: every wire connects real ports and the graph is acyclic.
@@ -298,9 +298,8 @@ public class PipelineModelTests
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
         fx.Rel(pipe, vocabulary.Has, node);
 
-        var act = () => PipelineDagBuilder.Build(fx.Build(), pipe.Id);
-
-        act.Should().Throw<PipelineModelException>().WithMessage("*'addressless' for node 'Echo' has no Subdomain*");
+        PipelineDagBuilder.Build(fx.Build(), pipe.Id).Problems
+            .Should().ContainMatch("*'addressless' for node 'Echo' has no Subdomain*");
     }
 
     // A node whose bindings are unreadable runs with none rather than failing the whole pipeline: the
@@ -411,11 +410,10 @@ public class PipelineModelTests
         twice.Fixture.Rel(twice.Node, twice.Offers, twice.Offered[0]);
         twice.Fixture.Rel(twice.Node, twice.Offers, twice.Offered[1]);
 
-        var unofferedBuild = () => PipelineDagBuilder.Build(unoffered.Fixture.Build(), unoffered.PipelineId);
-        var twiceBuild = () => PipelineDagBuilder.Build(twice.Fixture.Build(), twice.PipelineId);
-
-        unofferedBuild.Should().Throw<PipelineModelException>().WithMessage("*'Choose' chose 'At random', which no in port of it offers*");
-        twiceBuild.Should().Throw<PipelineModelException>().WithMessage("*'Choose' chose two Things for its port 'strategy'*");
+        PipelineDagBuilder.Build(unoffered.Fixture.Build(), unoffered.PipelineId).Problems
+            .Should().ContainMatch("*'Choose' chose 'At random', which no in port of it offers*");
+        PipelineDagBuilder.Build(twice.Fixture.Build(), twice.PipelineId).Problems
+            .Should().ContainMatch("*'Choose' chose two Things for its port 'strategy'*");
     }
 
     [Fact]
@@ -437,13 +435,10 @@ public class PipelineModelTests
         var portOnly = TestGraphs.WaitingPipeline();
         portOnly.Fixture.Unrelate(portOnly.Review, portOnly.ProvenBy, portOnly.Decided);
 
-        var stateOnlyBuild = () => PipelineDagBuilder.Build(stateOnly.Fixture.Build(), stateOnly.PipelineId);
-        var portOnlyBuild = () => PipelineDagBuilder.Build(portOnly.Fixture.Build(), portOnly.PipelineId);
-
-        stateOnlyBuild.Should().Throw<PipelineModelException>()
-            .WithMessage("*'Review' waits for 'decided' but names no in port whose Thing must enter it*");
-        portOnlyBuild.Should().Throw<PipelineModelException>()
-            .WithMessage("*'Review' waits through its port 'submission' but names no state for it to enter*");
+        PipelineDagBuilder.Build(stateOnly.Fixture.Build(), stateOnly.PipelineId).Problems
+            .Should().ContainMatch("*'Review' waits for 'decided' but names no in port whose Thing must enter it*");
+        PipelineDagBuilder.Build(portOnly.Fixture.Build(), portOnly.PipelineId).Problems
+            .Should().ContainMatch("*'Review' waits through its port 'submission' but names no state for it to enter*");
     }
 
     [Fact]
@@ -462,10 +457,8 @@ public class PipelineModelTests
     {
         var itself = TestGraphs.StartingPipeline(itself: true);
 
-        var build = () => PipelineDagBuilder.Build(itself.Fixture.Build(), itself.PipelineId);
-
-        build.Should().Throw<PipelineModelException>()
-            .WithMessage("*'Out' stands for 'BoundaryDemo', the pipeline it is in, so a run would start another of itself without end*");
+        PipelineDagBuilder.Build(itself.Fixture.Build(), itself.PipelineId).Problems
+            .Should().ContainMatch("*'Out' stands for 'BoundaryDemo', the pipeline it is in, so a run would start another of itself without end*");
     }
 
     [Fact]
@@ -503,9 +496,7 @@ public class PipelineModelTests
             ? TestGraphs.RetryPipeline(policy: [("attempts", (int)value)])
             : TestGraphs.RetryPipeline(policy: [("attempts", 2), (name, value)]);
 
-        var build = () => PipelineDagBuilder.Build(policy.Fixture.Build(), policy.PipelineId);
-
-        build.Should().Throw<PipelineModelException>().WithMessage($"*'Echo'*{reason}*");
+        PipelineDagBuilder.Build(policy.Fixture.Build(), policy.PipelineId).Problems.Should().ContainMatch($"*'Echo'*{reason}*");
     }
 
     [Fact]
@@ -517,9 +508,8 @@ public class PipelineModelTests
 
         PipelineDagBuilder.Build(handsOver.Fixture.Build(), handsOver.PipelineId).Node(handsOver.Echo.Id)!.HandsOverTo
             .Should().Be(new Starting(handsOver.NextPipelineId, "What follows"));
-        var build = () => PipelineDagBuilder.Build(itself.Fixture.Build(), itself.PipelineId);
-        build.Should().Throw<PipelineModelException>()
-            .WithMessage("*'Echo' hands its subject to 'RetryDemo', the pipeline it is in, so a run would start another of itself without end*");
+        PipelineDagBuilder.Build(itself.Fixture.Build(), itself.PipelineId).Problems
+            .Should().ContainMatch("*'Echo' hands its subject to 'RetryDemo', the pipeline it is in, so a run would start another of itself without end*");
     }
 
     [Fact]
@@ -528,10 +518,8 @@ public class PipelineModelTests
         var twoPorts = TestGraphs.WaitingPipeline();
         twoPorts.Fixture.Rel(twoPorts.Review, twoPorts.AwaitsThrough, twoPorts.Fixture.Get("p.notice"));
 
-        var build = () => PipelineDagBuilder.Build(twoPorts.Fixture.Build(), twoPorts.PipelineId);
-
-        build.Should().Throw<PipelineModelException>()
-            .WithMessage("*'Review' waits through two ports, so no one Thing could be waited for*");
+        PipelineDagBuilder.Build(twoPorts.Fixture.Build(), twoPorts.PipelineId).Problems
+            .Should().ContainMatch("*'Review' waits through two ports, so no one Thing could be waited for*");
     }
 
     [Fact]
@@ -544,11 +532,10 @@ public class PipelineModelTests
         foreign.Fixture.Unrelate(foreign.Review, foreign.AwaitsThrough, foreign.Submission);
         foreign.Fixture.Rel(foreign.Review, foreign.AwaitsThrough, foreign.Fixture.Get("p.in"));
 
-        var outPortBuild = () => PipelineDagBuilder.Build(outPort.Fixture.Build(), outPort.PipelineId);
-        var foreignBuild = () => PipelineDagBuilder.Build(foreign.Fixture.Build(), foreign.PipelineId);
-
-        outPortBuild.Should().Throw<PipelineModelException>().WithMessage("*'Review' waits through 'notice', which is not an in port of it*");
-        foreignBuild.Should().Throw<PipelineModelException>().WithMessage("*'Review' waits through 'in', which is not an in port of it*");
+        PipelineDagBuilder.Build(outPort.Fixture.Build(), outPort.PipelineId).Problems
+            .Should().ContainMatch("*'Review' waits through 'notice', which is not an in port of it*");
+        PipelineDagBuilder.Build(foreign.Fixture.Build(), foreign.PipelineId).Problems
+            .Should().ContainMatch("*'Review' waits through 'in', which is not an in port of it*");
     }
 
     [Fact]
@@ -557,9 +544,7 @@ public class PipelineModelTests
         var waiting = TestGraphs.WaitingPipeline();
         waiting.Fixture.Rel(waiting.Review, waiting.ProvenBy, waiting.Fixture.Thing("withdrawn"));
 
-        var build = () => PipelineDagBuilder.Build(waiting.Fixture.Build(), waiting.PipelineId);
-
-        build.Should().Throw<PipelineModelException>().WithMessage("*'Review' waits for two states*");
+        PipelineDagBuilder.Build(waiting.Fixture.Build(), waiting.PipelineId).Problems.Should().ContainMatch("*'Review' waits for two states*");
     }
 
     [Fact]
@@ -586,7 +571,7 @@ public class PipelineModelTests
     }
 
     [Fact]
-    public void Build_NodeWithoutConnection_Throws()
+    public void Build_NodeWithoutConnection_IsListedAndLeftOut()
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
@@ -596,9 +581,10 @@ public class PipelineModelTests
         fx.Rel(node, vocabulary.Is, vocabulary.PipelineNode);
         fx.Rel(pipe, vocabulary.Has, node); // node binds no connection
 
-        var act = () => PipelineDagBuilder.Build(fx.Build(), pipe.Id);
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipe.Id);
 
-        act.Should().Throw<PipelineModelException>().WithMessage("*binds no service connection*");
+        dag.Problems.Should().ContainMatch("*binds no service connection*");
+        dag.Nodes.Should().BeEmpty("a node the build cannot read is left out rather than run half-read");
     }
 
     [Fact]
@@ -612,6 +598,118 @@ public class PipelineModelTests
         result.IsValid.Should().BeTrue();
         var order = result.Order.ToList();
         order.IndexOf(fx.Get("Generate").Id).Should().BeLessThan(order.IndexOf(fx.Get("Echo").Id));
+    }
+
+    [Fact]
+    public void Validate_RequiredInputsNothingFillsOnTwoNodes_NamesBoth()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        RequiredPortNothingFills(fx, "SourceProto");
+        RequiredPortNothingFills(fx, "EchoProto");
+
+        var errors = DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), pipelineId)).Errors;
+
+        errors.Should().ContainMatch("*'Generate' needs its port 'context' filled*")
+            .And.ContainMatch("*'Echo' needs its port 'context' filled*");
+    }
+
+    [Fact]
+    public void Validate_ARequiredInputFilledByAWireAParameterOrAChoice_IsNotRefused()
+    {
+        var (wired, wiredId) = TestGraphs.DemoPipeline();
+        var (bound, boundId) = TestGraphs.ParamBoundPipeline();
+        var chosen = TestGraphs.ChoicePipeline();
+        var lane = chosen.Fixture.Thing("p.lane", ("direction", "in"), ("type", "any"), ("portName", "lane"), ("required", "true"));
+        chosen.Fixture.Rel(lane, chosen.Fixture.Get("is"), chosen.Fixture.Get("Port"));
+        chosen.Fixture.Rel(chosen.Fixture.Get("ChooseProto"), chosen.Fixture.Get("has"), lane);
+        var leftLane = chosen.Fixture.Thing("Left lane");
+        chosen.Fixture.Rel(lane, chosen.Offers, leftLane);
+        chosen.Fixture.Rel(chosen.Node, chosen.Offers, leftLane);
+
+        DagValidator.Validate(PipelineDagBuilder.Build(wired.Build(), wiredId)).Errors.Should().BeEmpty();
+        DagValidator.Validate(PipelineDagBuilder.Build(bound.Build(), boundId)).Errors.Should().BeEmpty();
+        DagValidator.Validate(PipelineDagBuilder.Build(chosen.Fixture.Build(), chosen.PipelineId)).Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Validate_ANodesOwnPortOfTheSameName_IsJudgedInPlaceOfItsServicesRequiredOne()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        RequiredPortNothingFills(fx, "EchoProto");
+        var own = fx.Thing("Echo.context", ("direction", "in"), ("type", "string"), ("portName", "context"));
+        fx.Rel(own, fx.Get("is"), fx.Get("Port"));
+        fx.Rel(fx.Get("Echo"), fx.Get("has"), own);
+
+        DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), pipelineId)).Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Validate_ANodeWithTwoCollectionInputs_IsRefusedNamingBoth()
+    {
+        var (fx, pipelineId) = TestGraphs.FanOutPipeline();
+        var second = fx.Thing("p.batch", ("direction", "in"), ("type", "string"), ("portName", "batch"), ("collection", "true"));
+        fx.Rel(second, fx.Get("is"), fx.Get("Port"));
+        fx.Rel(fx.Get("ScoreProto"), fx.Get("has"), second);
+
+        DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), pipelineId)).Errors
+            .Should().ContainMatch("*'Scorer' has 2 collection inputs ('item', 'batch')*");
+    }
+
+    [Fact]
+    public void Validate_AProblemOnEachOfTwoNodes_ListsBoth()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        fx.Unrelate(fx.Get("genConn"), fx.Get("has"), fx.Get("genSvc"));
+        var addressless = fx.Thing("addressless");
+        fx.Rel(addressless, fx.Get("is"), fx.Get("PlatformServiceConnection"));
+        var broken = fx.Thing("Broken");
+        fx.Rel(broken, fx.Get("is"), fx.Get("PipelineNode"));
+        fx.Rel(broken, fx.Get("has"), addressless);
+        fx.Rel(fx.Get("Demo"), fx.Get("has"), broken);
+
+        DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), pipelineId)).Errors
+            .Should().ContainMatch("*'genConn' binds no service*")
+            .And.ContainMatch("*'addressless' for node 'Broken' has no Subdomain*");
+    }
+
+    [Fact]
+    public void UnfilledByParameters_ARequiredPortBoundToAParameterTheRunWasNotGiven_NamesTheParameter()
+    {
+        var (fx, pipelineId) = TestGraphs.ParamBoundPipeline();
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
+
+        DagValidator.UnfilledByParameters(dag, JsonSerializer.SerializeToElement(new { farewell = "bye" }))
+            .Should().ContainSingle().Which.Should().Contain("'Echo'").And.Contain("'message'").And.Contain("'greeting'");
+        DagValidator.UnfilledByParameters(dag, default).Should().ContainSingle();
+        DagValidator.UnfilledByParameters(dag, JsonSerializer.SerializeToElement(new { greeting = "hi" })).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void UnfilledByParameters_ARequiredPortAlsoWired_IsNotJudgedByTheParameter()
+    {
+        var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
+        var echo = fx.Get("Echo");
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
+        dag.Node(echo.Id)!.Port("message")!.Required.Should().BeTrue();
+        var bound = new PipelineDag
+        {
+            PipelineId = dag.PipelineId,
+            Nodes = dag.Nodes.Select(node => node.NodeId != echo.Id ? node : new DagNode
+            {
+                NodeId = node.NodeId, Name = node.Name, Subdomain = node.Subdomain, Ports = node.Ports,
+                ParameterBindings = new Dictionary<string, string> { ["message"] = "absent" },
+            }).ToList(),
+            Wires = dag.Wires,
+        };
+
+        DagValidator.UnfilledByParameters(bound, default).Should().BeEmpty();
+    }
+
+    private static void RequiredPortNothingFills(GraphFixture fx, string prototypeName)
+    {
+        var port = fx.Thing($"{prototypeName}.context", ("direction", "in"), ("type", "string"), ("portName", "context"), ("required", "true"));
+        fx.Rel(port, fx.Get("is"), fx.Get("Port"));
+        fx.Rel(fx.Get(prototypeName), fx.Get("has"), port);
     }
 
     [Fact]

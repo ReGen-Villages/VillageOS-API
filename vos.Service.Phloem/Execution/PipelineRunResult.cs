@@ -18,6 +18,8 @@ public static class RunStatus
     public const string Trying = "trying";
     // The node's trying ended without an answer and its subject went to the drawing the node names.
     public const string HandedOver = "handedOver";
+    // The drawing was judged unable to run, so nothing ran.
+    public const string Refused = "refused";
 
     public static bool IsFinished(string status) => status is not (Running or Waiting or Trying);
 }

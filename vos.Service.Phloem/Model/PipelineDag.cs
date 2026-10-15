@@ -75,7 +75,7 @@ public sealed class DagNode
 
     public IEnumerable<DagPort> OutputPorts => Ports.Where(p => p.IsOutput);
 
-    // The single collection input this node fans out over, if any (v1 supports exactly one).
+    // A node with more than one is refused before it runs.
     public DagPort? CollectionInput => Ports.FirstOrDefault(p => p.IsInput && p.Collection);
 
     public DagPort? Port(string portName) =>
@@ -94,6 +94,9 @@ public sealed class PipelineDag
     public string Name { get; init; } = string.Empty;
     public IReadOnlyList<DagNode> Nodes { get; init; } = Array.Empty<DagNode>();
     public IReadOnlyList<DagWire> Wires { get; init; } = Array.Empty<DagWire>();
+
+    // What the build could not read, one sentence each; a node it could not read at all is left out of Nodes.
+    public IReadOnlyList<string> Problems { get; init; } = Array.Empty<string>();
 
     public DagNode? Node(Guid id) => Nodes.FirstOrDefault(n => n.NodeId == id);
 
