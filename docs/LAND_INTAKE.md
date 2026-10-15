@@ -887,7 +887,8 @@ Two footprints are reduced from those shares, because several figures need them 
 defined in exactly one place:
 
 - **Built footprint** = residential + commercial + mobility = **8.88 ha** — the hard surface that
-  sheds rainwater.
+  sheds rainwater. Once the building model holds roofs, the built footprint is their area instead, and
+  the land set aside for building is reported against it as `builtFootprintDivergencePercent`.
 - **Productive footprint** = food and agriculture = **8.16 ha** — the land that grows food.
 
 Which categories roll into which footprint is **a flag each category carries in the model**, not a list
@@ -1057,7 +1058,9 @@ platform model carries; a word the vocabulary does not hold writes no
 relationship and is reported, and either way the word stays on the series as the record of what the portal
 answered. A division the
 portal holds no data about for a hazard is answered 404, so nothing is written and that hazard stays
-honestly unassessed. A site that carries no division code and whose position resolved to none has every
+honestly unassessed. The proxy in front of the portal answers 404 too while the portal restarts; that
+one is refused rather than taken as an answer, and the grading is asked again on the next run. A site
+that carries no division code and whose position resolved to none has every
 hazard call refused before the provider is contacted and reported with the unfilled placeholder named —
 the model gap said out loud, not an outage invented for the portal.
 
