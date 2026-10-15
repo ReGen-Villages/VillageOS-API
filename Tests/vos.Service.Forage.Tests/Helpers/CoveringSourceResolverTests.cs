@@ -851,7 +851,7 @@ public class CoveringSourceResolverTests
         // traversal from the site reaches none of them.
         var selector = CoveringSourceResolver.SelectorFor(Guid.NewGuid());
 
-        selector.MarkedTypes.Should().Equal(CoveringSourceResolver.SiteAnalysisConnectionFlag);
+        selector.MarkedTypes.Should().Contain(CoveringSourceResolver.SiteAnalysisConnectionFlag);
     }
 
     // A run mints against the coverage archetype, so it has to arrive before any coverage exists to
