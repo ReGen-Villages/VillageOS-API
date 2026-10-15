@@ -43,7 +43,21 @@ public class DivisionResolverTests
 
     private const string NoDivisionOfThatName = """{"data": []}""";
 
+    private const string InPoland = """
+        {"address": {"county": "Warsaw West County", "state": "Masovian Voivodeship",
+                     "ISO3166-2-lvl4": "PL-14", "country": "Poland", "country_code": "pl"}}
+        """;
+
+    private const string DivisionsNamedMazowieckie = """
+        {"data": [{"code": 2376, "admin0": "Poland", "admin1": "Mazowieckie"}]}
+        """;
+
     private static readonly Guid SiteId = Guid.NewGuid();
+    private static readonly Guid NestingPredicateId = Guid.NewGuid();
+    private static readonly Guid PolandId = Guid.NewGuid();
+    private static readonly Guid MazowieckieId = Guid.NewGuid();
+
+    private static readonly DivisionLookup LookupWithCodedPlaces = Lookup with { PlaceCodeProperty = "iso3166Code" };
 
     private static SiteCoverage CoverageOf(
         DivisionLookup? lookup, params (string Name, string Value)[] address) =>
@@ -66,6 +80,21 @@ public class DivisionResolverTests
 
     private static SiteCoverage AtWillowBendWithNoLookupDeclared() =>
         CoverageOf(null, ("latitude", "39.5012"), ("longitude", "-8.4137"));
+
+    private static CodedPlace Poland(string? division = null, bool siteIsIn = false) =>
+        new(PolandId, "Poland", "PL", siteIsIn, ValuesOf(division));
+
+    private static CodedPlace Mazowieckie(string? division = "2376", bool siteIsIn = false) =>
+        new(MazowieckieId, "Mazowieckie", "PL-14", siteIsIn, ValuesOf(division));
+
+    private static Dictionary<string, string> ValuesOf(string? division) =>
+        division is null
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { [CodeProperty] = division };
+
+    private static SiteCoverage AtKirsztajnowAmong(params CodedPlace[] places) =>
+        CoverageOf(LookupWithCodedPlaces, ("latitude", "52.2833"), ("longitude", "20.3439"))
+            with { CodedPlaces = new CodedPlaces(NestingPredicateId, places) };
 
     private static DivisionResolver ResolverOver(ScriptedReader reader, RecordingWriter writer) =>
         new(reader, writer, NullLogger<DivisionResolver>.Instance);
@@ -101,14 +130,20 @@ public class DivisionResolverTests
     private sealed class RecordingWriter : ICoverageWriter
     {
         public readonly List<(Guid Thing, string Property, object? Value)> Facts = new();
+        public readonly List<(Guid Subject, Guid Predicate, Guid Target)> Related = new();
         public string? RefusedProperty { get; init; }
+        public bool RefusesRelating { get; init; }
 
         public Task<Guid?> MintAsync(string name, CancellationToken cancellationToken) =>
             Task.FromResult<Guid?>(Guid.NewGuid());
 
         public Task<bool> RelateAsync(
-            Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken) =>
-            Task.FromResult(true);
+            Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken)
+        {
+            if (RefusesRelating) return Task.FromResult(false);
+            Related.Add((subjectId, predicateId, targetId));
+            return Task.FromResult(true);
+        }
 
         public Task<bool> WriteFactAsync(
             Guid thingId, string property, object? value, CancellationToken cancellationToken)
@@ -142,6 +177,104 @@ public class DivisionResolverTests
         var addressed = await resolver.AddressAsync(SiteId, AtWillowBend(), CancellationToken.None);
 
         DivisionAddressing(addressed).Should().Be("24889");
+    }
+
+    // Found by the standard's code rather than by a name: the geocoder answers English, the portal holds
+    // the division's own language, and neither matches a Polish site, while `PL-14` is the same on every
+    // side. The Place's own division then addresses the gradings, so the portal is not searched at all.
+    [Fact]
+    public async Task ASiteIsRelatedToThePlaceCarryingTheCodeTheGeocoderAnsweredAndGradedAtItsDivision()
+    {
+        var reader = new ScriptedReader(InPoland, DivisionsNamedMazowieckie);
+        var writer = new RecordingWriter();
+
+        var addressed = await ResolverOver(reader, writer)
+            .AddressAsync(SiteId, AtKirsztajnowAmong(Poland(), Mazowieckie()), CancellationToken.None);
+
+        writer.Related.Should().Equal((SiteId, NestingPredicateId, MazowieckieId));
+        DivisionAddressing(addressed).Should().Be("2376");
+        reader.Asked.Should().ContainSingle().Which.Endpoint.Should().Be(AreaNameEndpoint);
+        writer.Facts.Should().BeEmpty();
+    }
+
+    // The region's Place says more about the site than its country's, whichever the model lists first.
+    [Fact]
+    public async Task TheFinestCodedPlaceWins()
+    {
+        var writer = new RecordingWriter();
+
+        var addressed = await ResolverOver(new ScriptedReader(InPoland), writer)
+            .AddressAsync(SiteId, AtKirsztajnowAmong(Mazowieckie(), Poland("185")), CancellationToken.None);
+
+        writer.Related.Should().Equal((SiteId, NestingPredicateId, MazowieckieId));
+        DivisionAddressing(addressed).Should().Be("2376");
+    }
+
+    // The relationship is worth writing on its own: the next run reads the Place's values through it.
+    [Fact]
+    public async Task APlaceCarryingTheCodeButNoDivisionIsRelatedAndThePortalIsStillSearched()
+    {
+        var reader = new ScriptedReader(InPoland, NoDivisionOfThatName, DivisionsNamedMazowieckie);
+        var writer = new RecordingWriter();
+
+        var addressed = await ResolverOver(reader, writer)
+            .AddressAsync(SiteId, AtKirsztajnowAmong(Mazowieckie(division: null)), CancellationToken.None);
+
+        writer.Related.Should().Equal((SiteId, NestingPredicateId, MazowieckieId));
+        reader.Asked.Select(asked => asked.AreaName).Should().Equal(null, "Warsaw West County", "Masovian Voivodeship");
+        DivisionAddressing(addressed).Should().Be("2376");
+        writer.Facts.Should().Contain((SiteId, CodeProperty, "2376"));
+    }
+
+    [Fact]
+    public async Task ASiteAlreadyStandingInTheCodedPlaceIsNotRelatedAgain()
+    {
+        var writer = new RecordingWriter();
+
+        await ResolverOver(new ScriptedReader(InPoland, DivisionsNamedMazowieckie), writer)
+            .AddressAsync(SiteId, AtKirsztajnowAmong(Mazowieckie(division: null, siteIsIn: true)), CancellationToken.None);
+
+        writer.Related.Should().BeEmpty();
+    }
+
+    // A refused relationship is the model's to explain; the search still grades the site on this run.
+    [Fact]
+    public async Task ARelationshipTheModelRefusedLeavesTheSearchToResolveTheDivision()
+    {
+        var writer = new RecordingWriter { RefusesRelating = true };
+
+        var addressed = await ResolverOver(new ScriptedReader(InPoland, DivisionsNamedMazowieckie), writer)
+            .AddressAsync(SiteId, AtKirsztajnowAmong(Mazowieckie()), CancellationToken.None);
+
+        writer.Related.Should().BeEmpty();
+        DivisionAddressing(addressed).Should().Be("2376");
+        writer.Facts.Should().Contain((SiteId, CodeProperty, "2376"));
+    }
+
+    // Two Places claiming one code cannot both be where the site is, and relating it to either would be a guess.
+    [Fact]
+    public async Task TwoPlacesCarryingTheSameCodeAreNeitherTaken()
+    {
+        var writer = new RecordingWriter();
+        var twice = new CodedPlace(Guid.NewGuid(), "Masovia", "PL-14", false, ValuesOf("99"));
+
+        var addressed = await ResolverOver(new ScriptedReader(InPoland, DivisionsNamedMazowieckie), writer)
+            .AddressAsync(SiteId, AtKirsztajnowAmong(Mazowieckie(), twice, Poland("185")), CancellationToken.None);
+
+        writer.Related.Should().Equal((SiteId, NestingPredicateId, PolandId));
+        DivisionAddressing(addressed).Should().Be("185");
+    }
+
+    [Fact]
+    public async Task NoPlaceCarryingAnAnsweredCodeLeavesTheSearchAsItWas()
+    {
+        var writer = new RecordingWriter();
+
+        var addressed = await ResolverOver(new ScriptedReader(InPoland, NoDivisionOfThatName, DivisionsNamedMazowieckie), writer)
+            .AddressAsync(SiteId, AtKirsztajnowAmong(), CancellationToken.None);
+
+        writer.Related.Should().BeEmpty();
+        DivisionAddressing(addressed).Should().Be("2376");
     }
 
     // A project that coded its own Place decides, and a site that needs no lookup costs two providers

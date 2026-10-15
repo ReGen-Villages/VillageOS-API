@@ -42,7 +42,16 @@ public sealed record DivisionLookup(
     string SearchEndpoint,
     string SearchAreaNameParameter,
     string CodeProperty,
-    string NameProperty);
+    string NameProperty,
+    string? PlaceCodeProperty = null);
+
+// A Place stating the standard's code for the country or region it is, with every value it states, and
+// whether the site already stands in it — relating it again would be refused as a second copy.
+public sealed record CodedPlace(
+    Guid Id, string Name, string Code, bool SiteIsIn, IReadOnlyDictionary<string, string> Values);
+
+// Every such Place the model holds, and the predicate a site is related to one through.
+public sealed record CodedPlaces(Guid NestingPredicateId, IReadOnlyList<CodedPlace> Places);
 
 // One compute service to start on the site's study: the connection to relate through, and the service
 // prototype the relationship points at. The connection is the predicate, which is what makes the relationship dispatch.
@@ -133,6 +142,14 @@ public static class CoveringSourceResolver
     private const string DivisionCodeProperty = "divisionCodeProperty";
     private const string DivisionNameProperty = "divisionNameProperty";
 
+    // What the area-name lookup names as the property a Place states its own code in. The Place archetype
+    // carries a mark because a run asks for every Place: the one a site is about to be related to is one
+    // no walk from the site reaches. The nesting predicate's mark is the one the submission producer
+    // writes the site's first Place through.
+    public const string PlaceArchetypeFlag = "__IsPlaceArchetype";
+    public const string PlaceNestingPredicateFlag = "__IsPlaceNestingPredicate";
+    private const string PlaceCodePropertyName = "placeCodeProperty";
+
     // The address the search is called at. Its one placeholder is the area name a run fills, read from the
     // address itself rather than declared beside it, so the two cannot disagree.
     private const string AddressProperty = "url";
@@ -155,7 +172,7 @@ public static class CoveringSourceResolver
         Names = [.. PredicatesRead],
         // Model-wide rather than reached from the site: a study is related through a connection only once
         // its analysis has started there, and finding the connections it has not started is what this read is for.
-        MarkedTypes = [SiteAnalysisConnectionFlag],
+        MarkedTypes = [SiteAnalysisConnectionFlag, PlaceArchetypeFlag],
         // The coverage archetype is asked for model-wide for a different reason: a run mints against it,
         // so it has to arrive before any coverage exists to traverse from. Alone, though — with its
         // members, every coverage in the model arrived on every site's read; the ones about
@@ -386,7 +403,36 @@ public static class CoveringSourceResolver
         if (placeholders.Count != 1) return null;
 
         return new DivisionLookup(
-            areaNameEndpoint, searchEndpoint, placeholders[0], codeProperty, nameProperty);
+            areaNameEndpoint, searchEndpoint, placeholders[0], codeProperty, nameProperty,
+            StatedText(areaName, PlaceCodePropertyName));
+    }
+
+    // Every Place stating a code, or null where the model declares no code property or no marked nesting
+    // predicate: a site related through an unmarked predicate would stand in a Place no coverage walk follows.
+    public static CodedPlaces? CodedPlacesIn(SnapshotDocument snapshot, Guid siteId, DivisionLookup? lookup)
+    {
+        if (lookup?.PlaceCodeProperty is not { } codeProperty) return null;
+        if (snapshot.Things.FirstOrDefault(thing => thing.CarriesFlag(PlaceNestingPredicateFlag)) is not { } nesting)
+            return null;
+        if (snapshot.Things.FirstOrDefault(thing => thing.CarriesFlag(PlaceArchetypeFlag)) is not { } archetype)
+            return null;
+
+        var namesById = snapshot.Things.ToDictionary(thing => thing.Id, thing => thing.Name ?? string.Empty);
+        var reached = PlacesByDepth(snapshot, siteId, namesById).SelectMany(level => level).ToHashSet();
+
+        var places = new List<CodedPlace>();
+        foreach (var edge in snapshot.Relationships)
+        {
+            if (edge.TargetId != archetype.Id || !IsPredicate(namesById, edge.PredicateId, IsPredicateName)) continue;
+
+            var values = StatedValues.Of(snapshot, edge.SubjectId);
+            if (!values.TryGetValue(codeProperty, out var code)) continue;
+
+            places.Add(new CodedPlace(
+                edge.SubjectId, namesById[edge.SubjectId], code, reached.Contains(edge.SubjectId), values));
+        }
+
+        return new CodedPlaces(nesting.Id, places);
     }
 
     // The address a call about the site itself is made with. Read on its own by the step that resolves a

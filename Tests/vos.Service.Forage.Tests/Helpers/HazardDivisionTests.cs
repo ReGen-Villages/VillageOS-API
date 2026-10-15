@@ -44,6 +44,12 @@ public class HazardDivisionTests
 
     private const string NoDivisionOfThatName = """{"data": []}""";
 
+    private const string InPoland = """
+        {"address": {"village": "Kirsztajnów", "county": "Warsaw West County",
+                     "state": "Masovian Voivodeship", "ISO3166-2-lvl4": "PL-14",
+                     "country": "Poland", "country_code": "pl"}}
+        """;
+
     [Fact]
     public void APositionIsReadAsTheCountryAndTheAreaAroundIt()
     {
@@ -51,6 +57,38 @@ public class HazardDivisionTests
 
         position!.Country.Should().Be("Portugal");
         position.AreaNames.Should().Equal("Santarem");
+    }
+
+    // The region's code before the country's: a Place carrying the region's says more about where the site
+    // is. The country's two letters arrive in lower case and are matched as the standard writes them.
+    [Fact]
+    public void APositionCarriesTheStandardsCodesFinestFirst()
+    {
+        HazardDivision.PositionIn(InPoland)!.StandardCodes.Should().Equal("PL-14", "PL");
+    }
+
+    [Fact]
+    public void ADeeperRegionCodeComesBeforeAShallowerOne()
+    {
+        var position = HazardDivision.PositionIn("""
+            {"address": {"county": "Lisboa", "ISO3166-2-lvl4": "PT-11", "ISO3166-2-lvl6": "PT-11-06",
+                         "country": "Portugal", "country_code": "pt"}}
+            """);
+
+        position!.StandardCodes.Should().Equal("PT-11-06", "PT-11", "PT");
+    }
+
+    [Fact]
+    public void APositionAnsweringNoRegionCodeCarriesTheCountrysAlone()
+    {
+        HazardDivision.PositionIn(InPortugal)!.StandardCodes.Should().Equal("PT");
+    }
+
+    [Fact]
+    public void APositionAnsweringNoCodeCarriesNone()
+    {
+        HazardDivision.PositionIn("""{"address": {"county": "Santarem", "country": "Portugal"}}""")!
+            .StandardCodes.Should().BeEmpty();
     }
 
     // The county, because the same name at two levels is graded differently and the finer of the two is
