@@ -43,11 +43,11 @@ public sealed class PipelineExecutor
     // one value carrying the Thing's id and name, so a wire narrows it to either by its from-path.
     public async Task<PipelineRunResult> RunAsync(
         Guid pipelineId, JsonElement runParams, CancellationToken cancellationToken, Guid? runId = null, RunSubject? subject = null,
-        Guid? requestId = null)
+        Guid? requestId = null, Guid? startedBy = null)
     {
         var rid = runId ?? Guid.NewGuid();
         if (subject is not null) runParams = WithSubject(runParams, subject);
-        await BestEffort(() => _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject, requestId, runParams), "create run");
+        await BestEffort(() => _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject, requestId, runParams, startedBy), "create run");
 
         var (dag, refusal) = await LoadAsync(pipelineId, cancellationToken);
         if (dag is null) return await FailRunAsync(rid, pipelineId, refusal!, cancellationToken);
@@ -473,6 +473,37 @@ public sealed class PipelineExecutor
         }
     }
 
+    // The next run is recorded and swept on its own, as a run a state entry starts is, so the run that reached
+    // the end finishes without waiting for the drawing it started. The subject carries over; the end's inputs
+    // are the new run's parameters.
+    private NodeRunResult StartNext(
+        PipelineDag dag, DagNode node, Starting starting, Guid runId,
+        IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, JsonElement runParams)
+    {
+        JsonElement parameters;
+        try
+        {
+            parameters = JsonSerializer.SerializeToElement(AssembleInputs(dag, node, outputs, runParams));
+        }
+        catch (Exception ex)
+        {
+            return Failure(node, $"'{starting.PipelineName}' could not be started from '{node.Name}': {ex.Message}");
+        }
+
+        var subject = runParams.ValueKind == JsonValueKind.Object && runParams.TryGetProperty(SubjectParam, out var carried)
+            && ThingNamedBy(carried) is { } named
+            ? new RunSubject(named.Id, named.Name)
+            : null;
+        var nextRunId = Guid.NewGuid();
+        _ = Task.Run(async () =>
+        {
+            try { await RunAsync(starting.PipelineId, parameters, CancellationToken.None, nextRunId, subject, startedBy: runId); }
+            catch (Exception ex) { _logger.LogError(ex, "Run {NextRunId} of '{Pipeline}', started from run {RunId}, failed to run", nextRunId, starting.PipelineName, runId); }
+        });
+        return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded,
+            new Dictionary<string, JsonElement> { [ModelNames.StartedRun] = JsonSerializer.SerializeToElement(nextRunId.ToString()) }, null);
+    }
+
     private async Task<NodeRunResult> RunNodeAsync(
         PipelineDag dag, DagNode node, Guid runId,
         IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, JsonElement runParams, CancellationToken cancellationToken)
@@ -487,9 +518,12 @@ public sealed class PipelineExecutor
         if (node.Kind == DagNodeKind.Input)
             return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, ProjectParamsOntoOutputs(node, runParams), null);
         if (node.Kind == DagNodeKind.Output)
-            return node.Tells is null
-                ? new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, NoOutputs, null)
-                : await TellAsync(dag, node, node.Tells, runId, outputs, runParams, cancellationToken);
+            return node switch
+            {
+                { Tells: { } telling } => await TellAsync(dag, node, telling, runId, outputs, runParams, cancellationToken),
+                { Starts: { } starting } => StartNext(dag, node, starting, runId, outputs, runParams),
+                _ => new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, NoOutputs, null),
+            };
 
         Dictionary<string, JsonElement> inputs;
         try
@@ -579,13 +613,13 @@ public sealed class PipelineExecutor
     }
 
     // The subject is the broker's word on what entered, so it wins over a relationship property of the
-    // same name.
+    // same name, and it comes first.
     private static JsonElement WithSubject(JsonElement runParams, RunSubject subject)
     {
-        var merged = runParams.ValueKind == JsonValueKind.Object
-            ? JsonSerializer.SerializeToNode(runParams)!.AsObject()
-            : new JsonObject();
-        merged[SubjectParam] = new JsonObject { ["id"] = subject.Id.ToString(), ["name"] = subject.Name };
+        var merged = new JsonObject { [SubjectParam] = new JsonObject { ["id"] = subject.Id.ToString(), ["name"] = subject.Name } };
+        if (runParams.ValueKind == JsonValueKind.Object)
+            foreach (var given in runParams.EnumerateObject().Where(given => given.Name != SubjectParam))
+                merged[given.Name] = JsonSerializer.SerializeToNode(given.Value);
         return JsonSerializer.SerializeToElement(merged);
     }
 
