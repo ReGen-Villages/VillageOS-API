@@ -843,6 +843,7 @@ public class MyceliumGatewayTests
         var kind = Guid.NewGuid();
         var hourly = Guid.NewGuid();
         var daily = Guid.NewGuid();
+        var unset = Guid.NewGuid();
         var snapshot = JsonSerializer.Serialize(new
         {
             snapshot = new
@@ -872,6 +873,11 @@ public class MyceliumGatewayTests
                         id = daily, name = "Every day", isArchetype = false, states = Array.Empty<string>(),
                         properties = new Dictionary<string, object> { [ModelNames.IntervalMinutes] = new { value = "1440", typeInfo = "vos.String" } },
                     },
+                    new
+                    {
+                        id = unset, name = "Not yet set", isArchetype = false, states = Array.Empty<string>(),
+                        properties = new Dictionary<string, object> { [ModelNames.IntervalMinutes] = new { value = (double?)null, typeInfo = "vos.Double" } },
+                    },
                 },
                 relationships = Array.Empty<object>(),
             },
@@ -886,6 +892,7 @@ public class MyceliumGatewayTests
         {
             new Cadence(hourly, "Every hour", 60, new DateTimeOffset(2026, 10, 15, 9, 0, 0, TimeSpan.Zero)),
             new Cadence(daily, "Every day", 1440, null),
+            new Cadence(unset, "Not yet set", 0, null),
         });
         (await ReadJson(RequestsTo(handler, "/api/subscriptions", HttpMethod.Post).Single()))
             .GetProperty("boundTypes").EnumerateArray().Single().GetGuid().Should().Be(PipelineRoles.Cadence.Id);

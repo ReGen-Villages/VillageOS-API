@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
 using vos.Service.Shared;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Phloem.Tests;
@@ -133,7 +134,6 @@ public class CadenceTests
     {
         var (fixture, gateway, keeper, _, _) = Arrange(1, lastDue: null);
         fixture.Fixture.Unrelate(fixture.Fixture.Get("Arrival"), fixture.Fixture.Get("standsFor"), fixture.Fixture.Get("Every hour"));
-        gateway.Graph = fixture.Fixture.Build();
 
         var runs = await keeper.LookAsync(CancellationToken.None);
 
@@ -168,6 +168,22 @@ public class CadenceTests
         logger.Entries.Should().Equal(LogLevel.Warning, LogLevel.Information);
     }
 
+    [Fact]
+    public async Task Once_started_the_keeper_looks_by_itself_and_starts_what_is_due()
+    {
+        var (_, gateway, keeper, _, _) = Arrange(1, lastDue: null);
+
+        await keeper.StartAsync(CancellationToken.None);
+        try
+        {
+            await Settle.UntilAsync(() => gateway.RunsCreated.Count == 1, "the first look starts the cadence's run");
+        }
+        finally
+        {
+            await keeper.StopAsync(CancellationToken.None);
+        }
+    }
+
     private sealed class RecordingLogger : ILogger<CadenceKeeper>
     {
         public List<LogLevel> Entries { get; } = new();
@@ -187,7 +203,7 @@ public class CadenceTests
         double rate, DateTimeOffset? lastDue)
     {
         var fixture = TestGraphs.CadencePipeline();
-        var gateway = new FakeGateway(fixture.Fixture.Build());
+        var gateway = new FakeGateway(fixture.Fixture.Build()) { FreshGraph = fixture.Fixture.Build };
         gateway.Cadences.Add(new Cadence(fixture.CadenceId, "Every hour", 60, lastDue));
         var real = new MovableClock(new DateTimeOffset(2026, 10, 15, 20, 0, 0, TimeSpan.Zero));
         var clock = new ModelClock(real);

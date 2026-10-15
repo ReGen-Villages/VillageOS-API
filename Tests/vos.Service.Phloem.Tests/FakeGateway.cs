@@ -23,13 +23,17 @@ internal sealed class FakeGateway : IMyceliumGateway
     public List<Guid> StartTargetsAsked { get; } = new();
     public JsonElement? RunResult { get; private set; }
 
+    // A graph caches what it has resolved, as each snapshot the broker answers does, so runs read at once each need
+    // their own; set this where runs start concurrently.
+    public Func<PipelineGraph>? FreshGraph { get; set; }
+
     public Task<PipelineGraph> LoadPipelineSubgraphAsync(Guid pipelineId, CancellationToken ct) =>
-        LoadFailure is { } failure ? Task.FromException<PipelineGraph>(failure) : Task.FromResult(Graph);
+        LoadFailure is { } failure ? Task.FromException<PipelineGraph>(failure) : Task.FromResult(FreshGraph?.Invoke() ?? Graph);
 
     public Task<PipelineGraph> LoadStartSubgraphAsync(Guid targetId, CancellationToken ct)
     {
-        StartTargetsAsked.Add(targetId);
-        return Task.FromResult(Graph);
+        lock (StartTargetsAsked) StartTargetsAsked.Add(targetId);
+        return Task.FromResult(FreshGraph?.Invoke() ?? Graph);
     }
 
     // The relationships the model holds, by id, answered with their predicate; any other id is one it does not hold.
