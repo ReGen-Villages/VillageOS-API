@@ -14,7 +14,6 @@ internal sealed class FakeGateway : IMyceliumGateway
     public Exception? LoadFailure { get; set; }
 
     public Func<string, JsonElement, NodeDispatchResult> OnDispatch { get; set; } = (_, _) => new NodeDispatchResult(200, "{\"success\":true,\"outputs\":{}}");
-    public Func<Guid, bool> CancelRequested { get; set; } = _ => false;
     public List<string> Dispatched { get; } = new();
     public List<(string Subdomain, JsonElement Envelope)> Envelopes { get; } = new();
     public List<string> StatusUpdates { get; } = new();
@@ -66,8 +65,13 @@ internal sealed class FakeGateway : IMyceliumGateway
             StatusUpdates.Add(RunStatus.Refused);
             RunError = refusal;
         }
-        ParametersRecorded = parameters is { ValueKind: not JsonValueKind.Undefined } given ? given.Clone() : null;
-        lock (_model) Runs[runId] = (pipelineId, ParametersRecorded ?? default);
+        var recorded = parameters is { ValueKind: not JsonValueKind.Undefined } given ? given.Clone() : (JsonElement?)null;
+        ParametersRecorded = recorded;
+        lock (_model)
+        {
+            Runs[runId] = (pipelineId, recorded ?? default);
+            RunStatuses[runId] = refusal is null ? RunStatus.Running : RunStatus.Refused;
+        }
         return Task.CompletedTask;
     }
 
@@ -140,7 +144,7 @@ internal sealed class FakeGateway : IMyceliumGateway
             var nodes = Records.Where(record => record.Key.RunId == runId).ToDictionary(record => record.Key.NodeId, record => record.Value);
             bool rehearsal;
             lock (Rehearsals) rehearsal = Rehearsals.Contains(runId);
-            return Task.FromResult<RunRecord?>(new RunRecord(runId, run.PipelineId, run.Parameters, nodes, rehearsal));
+            return Task.FromResult<RunRecord?>(new RunRecord(runId, run.PipelineId, run.Parameters, nodes, rehearsal, RunStatuses.GetValueOrDefault(runId, RunStatus.Running)));
         }
     }
 
@@ -214,10 +218,49 @@ internal sealed class FakeGateway : IMyceliumGateway
     {
         StatusUpdates.Add(status);
         if (error != null) RunError = error;
+        lock (_model) RunStatuses[runId] = status;
+        return Task.CompletedTask;
+    }
+
+    public Dictionary<Guid, string> RunStatuses { get; } = new();
+
+    // The predicate the model binds to runStopping; a dispatched relationship written along it is a stop.
+    public Guid StopsConnection { get; } = Guid.NewGuid();
+    public string StopReason { get; set; } = "withdrawn by its owner";
+    public List<(Guid RunId, Guid StopRequestId)> StoppedBy { get; } = new();
+    public List<Guid> VigilsRetired { get; } = new();
+
+    public Task<bool> IsStopAsync(Guid relationshipId, CancellationToken ct) =>
+        Task.FromResult(PredicatesByRelationship.TryGetValue(relationshipId, out var predicate) && predicate == StopsConnection);
+
+    public Task<StopRequested> StopRequestedAsync(Guid stopRequestId, Guid targetId, CancellationToken ct)
+    {
+        lock (_model)
+        {
+            if (Runs.ContainsKey(targetId)) return Task.FromResult(new StopRequested(stopRequestId, StopReason, [targetId]));
+            List<Guid> about;
+            lock (RunsCreated) about = RunsCreated.Where(run => run.Subject?.Id == targetId).Select(run => run.RunId).ToList();
+            var going = about.Where(run => RunStatuses.GetValueOrDefault(run) is RunStatus.Running or RunStatus.Waiting or RunStatus.Trying).ToList();
+            return Task.FromResult(new StopRequested(stopRequestId, StopReason, going));
+        }
+    }
+
+    public Task RelateStoppedByAsync(Guid runId, Guid stopRequestId, CancellationToken ct)
+    {
+        lock (StoppedBy) StoppedBy.Add((runId, stopRequestId));
+        return Task.CompletedTask;
+    }
+
+    public Task RetireVigilAsync(Guid vigilId, CancellationToken ct)
+    {
+        lock (_model)
+        {
+            VigilsRetired.Add(vigilId);
+            LiveVigils.Remove(vigilId);
+        }
         return Task.CompletedTask;
     }
     public Task SetRunResultAsync(Guid runId, JsonElement result, CancellationToken ct) { RunResult = result.Clone(); return Task.CompletedTask; }
-    public Task<bool> IsCancelRequestedAsync(Guid runId, CancellationToken ct) => Task.FromResult(CancelRequested(runId));
 
     public Task<NodeDispatchResult> DispatchAsync(string subdomain, JsonElement envelope, CancellationToken ct)
     {

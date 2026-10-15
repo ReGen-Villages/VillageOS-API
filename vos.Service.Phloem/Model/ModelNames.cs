@@ -57,6 +57,8 @@ public static class ModelNames
     public const string Published = "published";
     public const string Rehearses = "rehearses";
     public const string Rehearsal = "rehearsal";
+    // On a stop request: the sentence a person wrote, which each run it stops records as its error.
+    public const string Reason = "reason";
     // The broker's request-log entry that started a run. A plain identifier: what it names is outside the model.
     public const string RequestId = "requestId";
     public const string Payload = "payload";

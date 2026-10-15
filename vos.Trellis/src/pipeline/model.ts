@@ -40,6 +40,9 @@ export const ROLE = {
   PipelineStart: '871174ab-c8e4-5712-81e1-b95accaea5ce',
   // The orchestrator's own connection, which a vigil answers through to resume a waiting run; no run starts from it.
   RunResumption: '50c894ed-a33d-56cc-a5a6-92aa82d32f4f',
+  // A stop request, and the orchestrator's own connection it is related to a run along; no run starts from it.
+  StopRequest: '159ef90f-8089-5055-b5a9-8839d5e28e7a',
+  RunStopping: '7acbab6c-58f3-5145-a9c0-18a907197131',
 } as const;
 
 const EVALUATION_INTERVAL_PROPERTY = 'EvaluationIntervalSeconds';

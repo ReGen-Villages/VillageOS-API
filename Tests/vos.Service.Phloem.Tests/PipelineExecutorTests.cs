@@ -71,26 +71,33 @@ public class PipelineExecutorTests
     }
 
     [Fact]
-    public async Task RunAsync_CancelRequested_HaltsRemainingNodesAndCancelsRun()
+    public async Task RunAsync_StoppedWhileANodeIsCalled_StopsAtTheNextNodeRecordingTheReason()
     {
         var (fx, pipelineId) = TestGraphs.DemoPipeline();
-        FakeGateway gateway = null!;
-        gateway = new FakeGateway(fx.Build())
+        var request = Guid.NewGuid();
+        PipelineExecutor executor = null!;
+        Task<int>? stopping = null;
+        var gateway = new FakeGateway(fx.Build());
+        gateway.OnDispatch = (_, envelope) =>
         {
-            OnDispatch = (_, _) => NodeOk(("echo", "x")),
-            // Cancel becomes true once the first node has run — checked before the next level dispatches.
-            CancelRequested = _ => gateway.Dispatched.Contains("gen"),
+            stopping ??= executor.StopAsync(request, envelope.GetProperty("runId").GetGuid(), CancellationToken.None);
+            return NodeOk(("echo", "x"));
         };
-        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+        executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
         var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
+        await stopping!;
 
         result.Success.Should().BeFalse();
-        result.Error.Should().Contain("cancelled");
+        result.Error.Should().Contain("withdrawn by its owner");
         result.Nodes.Single(n => n.Name == "Generate").Status.Should().Be(RunStatus.Succeeded);
-        result.Nodes.Single(n => n.Name == "Echo").Status.Should().Be(RunStatus.Cancelled);
-        gateway.Dispatched.Should().Equal("gen"); // Echo never dispatched
-        gateway.StatusUpdates.Should().Contain(RunStatus.Cancelled);
+        var echo = result.Nodes.Single(n => n.Name == "Echo");
+        echo.Status.Should().Be(RunStatus.Cancelled);
+        echo.Error.Should().Be("withdrawn by its owner");
+        gateway.Dispatched.Should().Equal("gen");
+        gateway.RunStatuses[result.RunId].Should().Be(RunStatus.Cancelled);
+        gateway.RunError.Should().Be("withdrawn by its owner");
+        gateway.StoppedBy.Should().Equal((result.RunId, request));
     }
 
     [Fact]

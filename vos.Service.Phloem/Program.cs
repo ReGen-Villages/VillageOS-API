@@ -119,6 +119,19 @@ try
                 var result = await executor.RunAsync(trigger.PipelineId, trigger.Params, httpContext.RequestAborted, requestId: requestId, rehearsal: trigger.Rehearsal);
                 return Results.Ok(result);
 
+            case SpawnKind.Relationship when trigger.RelationshipId is { } written && await executor.IsStopAsync(written, httpContext.RequestAborted):
+                // A stop request written along the orchestrator's own connection: to a run, or to a Thing whose runs
+                // it stops. Acknowledged first, since a run under way stops only at its next step.
+                if (trigger.Subject is not { } stopRequest)
+                    return Results.BadRequest(new { error = "A stop names no stop request as its subject." });
+                var stopping = trigger.TargetId;
+                _ = Task.Run(async () =>
+                {
+                    try { await executor.StopAsync(stopRequest.Id, stopping, CancellationToken.None); }
+                    catch (Exception ex) { Log.Error(ex, "Stopping the runs of {TargetId} failed", stopping); }
+                });
+                return Results.Ok(new { success = true, accepted = true, stops = stopping });
+
             case SpawnKind.Relationship when await executor.HoldsVigilAsync(trigger.TargetId, httpContext.RequestAborted):
                 // The answer to a vigil a waiting node run holds comes as a state entry whose target is the vigil.
                 // It is acknowledged before the run carries on, which can take longer than the broker waits.

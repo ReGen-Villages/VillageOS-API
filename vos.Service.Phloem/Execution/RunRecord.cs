@@ -12,9 +12,13 @@ public sealed record NodeRecord(string Status, IReadOnlyDictionary<string, JsonE
 }
 
 // A run as the model holds it, read back so a waiting run resumes from its record rather than from memory.
-public sealed record RunRecord(Guid RunId, Guid PipelineId, JsonElement Parameters, IReadOnlyDictionary<Guid, NodeRecord> Nodes, bool Rehearsal = false);
+public sealed record RunRecord(Guid RunId, Guid PipelineId, JsonElement Parameters, IReadOnlyDictionary<Guid, NodeRecord> Nodes, bool Rehearsal = false,
+    string Status = "");
 
 public sealed record VigilHolder(Guid RunId, Guid NodeId);
+
+// What a stop request asks: why, and which runs.
+public sealed record StopRequested(Guid RequestId, string Reason, IReadOnlyList<Guid> Runs);
 
 // A node run waiting for a Thing, with the vigil it holds; either may be missing from the model.
 public sealed record HeldWait(Guid RunId, Guid NodeId, Guid? AwaitedId, Guid? VigilId);
