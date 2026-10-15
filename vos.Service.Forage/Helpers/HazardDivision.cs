@@ -179,7 +179,7 @@ public static class HazardDivision
         foreach (var character in decomposed)
             if (CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
                 letters.Append(character);
-        return letters.ToString().Normalize(NormalizationForm.FormC);
+        return letters.ToString();
     }
 
     // One name starting with the other, because the two providers do not agree on a country's full name:

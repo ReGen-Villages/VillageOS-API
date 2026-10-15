@@ -231,8 +231,6 @@ public class HazardDivisionTests
             .Should().BeNull();
     }
 
-    // The geocoder writes the district with its accent even when asked in English, and the portal holds
-    // every name without one; its search already matches the two, so the choosing must as well.
     [Fact]
     public void ADivisionThePortalNamesWithoutTheAccentTheGeocoderWritesIsStillTaken()
     {
