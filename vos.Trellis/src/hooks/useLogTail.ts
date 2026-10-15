@@ -10,8 +10,8 @@ const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
 const TAIL_LINES = 200;
 
 /**
- * Tails a log over SSE — the Mycelium broker log by default, or a named service daemon's log when
- * `service` is given (e.g. 'irrigator' → watch-irrigator.log). Mirrors useSse's authentication approach:
+ * Tails a log over SSE — the Mycelium broker log by default, or a service's own log when `service`
+ * names it by connection id or name. Mirrors useSse's authentication approach:
  * EventSource can't set an Authorization header, so the address carries a stream token minted for
  * this one open (the /api/logs/stream path is one of Mycelium's BrowserStreamPaths). Reconnects
  * with backoff on error or when the stream goes quiet, and re-opens against the new source when
