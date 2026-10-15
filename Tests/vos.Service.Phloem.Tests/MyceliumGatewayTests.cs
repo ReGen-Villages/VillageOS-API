@@ -21,6 +21,7 @@ public class MyceliumGatewayTests
     private static readonly Guid PredicateId = Guid.Parse("33333333-3333-3333-3333-333333333333");
     private static readonly Guid SentMessageArchetypeId = Guid.Parse("55555555-5555-5555-5555-555555555555");
     private static readonly Guid ProducedPredicateId = Guid.Parse("66666666-6666-6666-6666-666666666666");
+    private static readonly Guid ResumptionConnectionId = Guid.Parse("88888888-8888-8888-8888-888888888888");
 
     private static (MyceliumGateway Gateway, MockHttpMessageHandler Handler) NewGateway(
         Func<HttpRequestMessage, HttpResponseMessage>? respond = null)
@@ -66,6 +67,7 @@ public class MyceliumGatewayTests
         (PipelineRoles.RunSubject, RunSubjectPredicateId),
         (PipelineRoles.SentMessage, SentMessageArchetypeId),
         (PipelineRoles.ProducedThing, ProducedPredicateId),
+        (PipelineRoles.RunResumption, ResumptionConnectionId),
     ];
 
     private static readonly Guid BindsPredicateId = Guid.Parse("77777777-7777-7777-7777-777777777777");
@@ -192,14 +194,15 @@ public class MyceliumGatewayTests
         // a system is read through.
         selector.GetProperty("ids").EnumerateArray().Select(id => id.GetGuid())
             .Should().BeEquivalentTo(PipelineRoles.DagRoles.Select(role => role.Id).Append(pipelineId).Concat(
-                [PipelineRoles.ExternalSystem.Id, PipelineRoles.StandsFor.Id, PipelineRoles.ToldThrough.Id, PipelineRoles.Choice.Id]));
+                [PipelineRoles.ExternalSystem.Id, PipelineRoles.StandsFor.Id, PipelineRoles.ToldThrough.Id, PipelineRoles.Choice.Id,
+                 PipelineRoles.CompletionRange.Id, PipelineRoles.AwaitsThrough.Id]));
 
-        // What each role binds, then the system an end stands for, the connection it is told through, and what a
-        // port offers and a node chose, are reached after the nodes.
+        // What each role binds, then the system an end stands for, the connection it is told through, what a port
+        // offers and a node chose, and the state a waiting node waits for, are reached after the nodes.
         selector.GetProperty("traverse").EnumerateArray()
             .Select(rule => rule.TryGetProperty("predicateRole", out var role) ? role.GetString() : rule.GetProperty("predicate").GetString())
             .Should().Equal(ModelNames.Has, ModelNames.Binds, PipelineRoles.StandsFor.Id.ToString(),
-                PipelineRoles.ToldThrough.Id.ToString(), PipelineRoles.Choice.Id.ToString());
+                PipelineRoles.ToldThrough.Id.ToString(), PipelineRoles.Choice.Id.ToString(), PipelineRoles.CompletionRange.Id.ToString());
     }
 
     [Fact]
@@ -591,6 +594,116 @@ public class MyceliumGatewayTests
         properties.GetProperty(ModelNames.Parameters).GetProperty("value").GetString().Should().Be("""{"greeting":"hello"}""");
         properties.GetProperty(ModelNames.FinishedUtc).GetProperty("value").ValueKind.Should().Be(JsonValueKind.Null);
         properties.GetProperty(ModelNames.StartedUtc).GetProperty("value").GetString().Should().NotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task Waiting_is_written_with_the_outputs_but_is_not_a_finish_for_a_node_run_or_a_run()
+    {
+        var runId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway();
+        await gateway.CreateRunAsync(runId, Guid.NewGuid(), CancellationToken.None);
+        var outputs = new Dictionary<string, JsonElement> { ["notice"] = JsonSerializer.SerializeToElement("sent") };
+
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Running, null, CancellationToken.None);
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Waiting, null, CancellationToken.None, outputs: outputs);
+        await gateway.SetRunStatusAsync(runId, RunStatus.Waiting, CancellationToken.None);
+
+        var nodeRunId = (await Task.WhenAll(RequestsTo(handler, "/api/things", HttpMethod.Post).Select(ReadJson)))
+            .Select(body => body.GetProperty("id").GetGuid()).Single(id => id != runId);
+        var nodeRunWritten = await PropertiesWritten(handler, nodeRunId);
+        nodeRunWritten.Should().Contain((ModelNames.Outputs, """{"notice":"sent"}"""));
+        nodeRunWritten.Select(w => w.Name).Should().NotContain(ModelNames.FinishedUtc);
+        (await PropertiesWritten(handler, runId)).Select(w => w.Name).Should().NotContain(ModelNames.FinishedUtc);
+    }
+
+    [Fact]
+    public async Task PlaceVigilAsync_AsksForAVigilNamingTheResumptionConnection_AndAnswersItsIdentifier()
+    {
+        var subjectId = Guid.NewGuid();
+        var rangeId = Guid.NewGuid();
+        var vigilId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/vigils"
+            ? Json(HttpStatusCode.Created, $$"""{"Id":"{{vigilId}}","Name":"Plot 7 enters decided","DispatchState":null}""")
+            : RespondLikeAModelThatBindsItsRoles(request));
+
+        var placement = await gateway.PlaceVigilAsync(subjectId, rangeId, CancellationToken.None);
+
+        placement.Should().Be(new VigilPlacement.Placed(vigilId));
+        var asked = await ReadJson(RequestsTo(handler, "/api/vigils", HttpMethod.Post).Single());
+        asked.GetProperty("subjectId").GetGuid().Should().Be(subjectId);
+        asked.GetProperty("rangeId").GetGuid().Should().Be(rangeId);
+        asked.GetProperty("connectionId").GetGuid().Should().Be(ResumptionConnectionId);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest)]
+    [InlineData(HttpStatusCode.NotFound)]
+    public async Task PlaceVigilAsync_WhenThePlatformRefuses_AnswersItsReason(HttpStatusCode refusal)
+    {
+        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/vigils"
+            ? Json(refusal, """{"error":"Range 'decided' does not judge 'Plot 7'"}""")
+            : RespondLikeAModelThatBindsItsRoles(request));
+
+        var placement = await gateway.PlaceVigilAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        placement.Should().Be(new VigilPlacement.Refused("Range 'decided' does not judge 'Plot 7'"));
+    }
+
+    [Fact]
+    public async Task PlaceVigilAsync_WhenThePlatformRefusesWithoutAReason_AnswersTheStatus()
+    {
+        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/vigils"
+            ? new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent("not a reason") }
+            : RespondLikeAModelThatBindsItsRoles(request));
+
+        var placement = await gateway.PlaceVigilAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        placement.Should().Be(new VigilPlacement.Refused("HTTP 400"));
+    }
+
+    [Fact]
+    public async Task ReadRunRecordAsync_ReadsANodeRunWhoseOutputsAreNotJsonAsOneWithNone()
+    {
+        var runId = Guid.NewGuid();
+        var pipelineId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var nodeRunId = Guid.NewGuid();
+        var hasId = Guid.NewGuid();
+        var ofId = Guid.NewGuid();
+        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post
+            ? Json(HttpStatusCode.OK, $$$"""
+                {"snapshot":{"things":[
+                  {"id":"{{{runId}}}","name":"PipelineRun","properties":{"parameters":{"typeInfo":"vos.String","value":"{}"} } },
+                  {"id":"{{{pipelineId}}}","name":"Review a submission","properties":{}},
+                  {"id":"{{{nodeRunId}}}","name":"NodeRun Review","properties":{
+                    "nodeId":{"typeInfo":"vos.String","value":"{{{nodeId}}}"},
+                    "status":{"typeInfo":"vos.String","value":"succeeded"},
+                    "outputs":{"typeInfo":"vos.String","value":"not an object"} } },
+                  {"id":"{{{hasId}}}","name":"has","properties":{}},
+                  {"id":"{{{ofId}}}","name":"of","properties":{}}],
+                 "relationships":[
+                  {"id":"{{{Guid.NewGuid()}}}","subjectId":"{{{runId}}}","predicateId":"{{{hasId}}}","targetId":"{{{nodeRunId}}}","properties":{}},
+                  {"id":"{{{Guid.NewGuid()}}}","subjectId":"{{{runId}}}","predicateId":"{{{ofId}}}","targetId":"{{{pipelineId}}}","properties":{}}]}}
+                """)
+            : RespondLikeAModelThatBindsItsRoles(request));
+
+        var record = await gateway.ReadRunRecordAsync(runId, CancellationToken.None);
+
+        record!.PipelineId.Should().Be(pipelineId);
+        record.Nodes[nodeId].Status.Should().Be("succeeded");
+        record.Nodes[nodeId].Outputs.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.OK, true)]
+    [InlineData(HttpStatusCode.NotFound, false)]
+    [InlineData(HttpStatusCode.InternalServerError, true)]
+    public async Task IsVigilLiveAsync_IsFalseOnlyWhenThePlatformNoLongerHoldsIt(HttpStatusCode answer, bool live)
+    {
+        var (gateway, _) = NewGateway(_ => new HttpResponseMessage(answer));
+
+        (await gateway.IsVigilLiveAsync(Guid.NewGuid(), CancellationToken.None)).Should().Be(live);
     }
 
     [Fact]

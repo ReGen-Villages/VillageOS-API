@@ -24,6 +24,7 @@ public class HandleEndpointTests
     private static readonly Guid Watching = Guid.Parse("c0000000-0000-0000-0000-000000000001");
     private static readonly Guid Loose = Guid.Parse("c0000000-0000-0000-0000-000000000002");
     private static readonly Guid Submission = Guid.Parse("50000000-0000-0000-0000-000000000042");
+    private static readonly Guid HeldVigil = Guid.Parse("e0000000-0000-0000-0000-000000000001");
 
     [Fact]
     public async Task Handle_AStateEntry_StartsThePipelineDrawnFromItsConnection()
@@ -40,6 +41,21 @@ public class HandleEndpointTests
 
         // The run is recorded against the pipeline the connection was resolved to, after the request returned.
         await Settle.UntilAsync(() => factory.RunsRecordedFor(Drawn) == 1, "the run record reaches the broker");
+    }
+
+    [Fact]
+    public async Task Handle_TheAnswerToAVigilANodeRunHolds_ResumesThatRunRatherThanStartingOne()
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/handle", StateEntry(target: HeldVigil));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("accepted").GetBoolean().Should().BeTrue();
+        body.GetProperty("resumes").GetGuid().Should().Be(HeldVigil);
+        factory.RunsRecordedFor(Drawn).Should().Be(0);
     }
 
     [Fact]
@@ -184,7 +200,7 @@ public class HandleEndpointTests
         {
             var uri = request.RequestUri!;
             if (uri.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post)
-                return Json(OneDrawing());
+                return Json(request.Content!.ReadAsStringAsync().Result.Contains(HeldVigil.ToString()) ? TheNodeRunHoldingTheVigil() : OneDrawing());
             if (uri.AbsolutePath == "/api/things" && uri.Query.Contains("name="))
                 return Json(JsonSerializer.Serialize(new { Id = Guid.NewGuid(), Name = "a predicate", Properties = new { } }));
             if (uri.AbsolutePath.StartsWith("/api/relationships/", StringComparison.Ordinal) && request.Method == HttpMethod.Get)
@@ -192,6 +208,40 @@ public class HandleEndpointTests
                     ? Json(JsonSerializer.Serialize(new { Id = WrittenAlongWatching, SubjectId = Submission, PredicateId = Watching, TargetId = Joined, Properties = new { } }))
                     : new HttpResponseMessage(HttpStatusCode.NotFound);
             return new HttpResponseMessage(HttpStatusCode.OK);
+        }
+
+        private static string TheNodeRunHoldingTheVigil()
+        {
+            var binds = Guid.NewGuid();
+            var waitsOn = Guid.NewGuid();
+            var has = Guid.NewGuid();
+            var nodeRun = Guid.NewGuid();
+            var run = Guid.NewGuid();
+            return JsonSerializer.Serialize(new
+            {
+                snapshot = new
+                {
+                    things = new object[]
+                    {
+                        new { id = HeldVigil, name = "Plot 7 enters decided", properties = new Dictionary<string, object>() },
+                        new { id = PipelineRoles.HeldVigil.Id, name = "heldVigil role", properties = new Dictionary<string, object>() },
+                        new { id = binds, name = "binds", properties = new Dictionary<string, object>() },
+                        new { id = waitsOn, name = "waitsOn", properties = new Dictionary<string, object>() },
+                        new { id = has, name = "has", properties = new Dictionary<string, object>() },
+                        new { id = nodeRun, name = "NodeRun Review", properties = new Dictionary<string, object>
+                        {
+                            ["nodeId"] = new { typeInfo = "vos.String", value = Guid.NewGuid().ToString() },
+                        } },
+                        new { id = run, name = "PipelineRun", properties = new Dictionary<string, object>() },
+                    },
+                    relationships = new[]
+                    {
+                        new { id = Guid.NewGuid(), subjectId = PipelineRoles.HeldVigil.Id, predicateId = binds, targetId = waitsOn },
+                        new { id = Guid.NewGuid(), subjectId = nodeRun, predicateId = waitsOn, targetId = HeldVigil },
+                        new { id = Guid.NewGuid(), subjectId = run, predicateId = has, targetId = nodeRun },
+                    },
+                },
+            });
         }
 
         private static string OneDrawing()

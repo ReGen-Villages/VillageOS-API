@@ -25,6 +25,7 @@ export interface PipelineNodeData {
 
 const STATUS_RING: Record<string, string> = {
   running: 'ring-2 ring-blue-400 animate-pulse',
+  waiting: 'ring-2 ring-amber-400',
   succeeded: 'ring-2 ring-green-500',
   failed: 'ring-2 ring-red-500',
   skipped: 'ring-2 ring-zinc-400 opacity-60',

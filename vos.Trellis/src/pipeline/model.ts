@@ -38,6 +38,8 @@ export const ROLE = {
   ArrivesAt: '79f0afcb-8c66-53dd-8081-43af167fc07a',
   StandsFor: '4277647a-93f8-5860-8717-da2a12673dbf',
   PipelineStart: '871174ab-c8e4-5712-81e1-b95accaea5ce',
+  // The orchestrator's own connection, which a vigil answers through to resume a waiting run; no run starts from it.
+  RunResumption: '50c894ed-a33d-56cc-a5a6-92aa82d32f4f',
 } as const;
 
 const EVALUATION_INTERVAL_PROPERTY = 'EvaluationIntervalSeconds';
@@ -248,7 +250,8 @@ export class PipelineModel {
   /** Every connection the model holds, as the catalyst its trigger makes it, whether or not a pipeline
    *  can dispatch it: a door reached over HTTP, a predicate written along, a state watched. */
   catalystConnections(): CatalystConnection[] {
-    return this.thingsOf(ROLE.Connection).map((connection) => {
+    const resumption = this.boundTo(ROLE.RunResumption);
+    return this.thingsOf(ROLE.Connection).filter((connection) => connection.Id !== resumption).map((connection) => {
       const watched = this.reachedAlong(connection.Id, ROLE.StateWatch)
         .find((range) => this.isOf(range.Id, ROLE.Range));
       const started = this.reachedAlong(connection.Id, ROLE.PipelineStart)

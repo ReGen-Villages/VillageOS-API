@@ -12,6 +12,10 @@ public static class RunStatus
     public const string Partial = "partial";
     // Every wire into the node was settled and none carried a value: the branch was not the one taken.
     public const string NotTaken = "notTaken";
+    // The node's service has answered and the run waits for the Thing it names to enter the node's state.
+    public const string Waiting = "waiting";
+
+    public static bool IsFinished(string status) => status is not (Running or Waiting);
 }
 
 public sealed record NodeRunResult(
@@ -19,7 +23,12 @@ public sealed record NodeRunResult(
     string Name,
     string Status,
     IReadOnlyDictionary<string, JsonElement> Outputs,
-    string? Error);
+    string? Error,
+    AwaitedThing? Awaits = null);
+
+public sealed record AwaitedThing(Guid Id, string Name);
+
+public enum ResumeOutcome { Resumed, AlreadyResumed, NotHeld }
 
 // The synchronous result Phloem returns to whoever spawned the run. Result is the
 // pipeline's published output — the Output boundary node's collected inputs — or null when the pipeline has

@@ -85,6 +85,14 @@ public sealed class PipelineGraph
     private IReadOnlyList<GraphRelationship> Into(GraphThing target) =>
         _byTarget.TryGetValue(target.Id, out var list) ? list : NoRelationships;
 
+    // The relationships themselves, for a read that needs their identifiers or an end the snapshot does not hold.
+    public IEnumerable<GraphRelationship> RelationshipsAlong(GraphThing subject, Role role) =>
+        Bound(role) is { } predicate ? From(subject).Where(rel => rel.PredicateId == predicate.Id) : [];
+
+    public IEnumerable<GraphRelationship> RelationshipsInto(GraphThing target, string predicateName) =>
+        Into(target).Where(rel => Thing(rel.PredicateId) is { } predicate
+            && string.Equals(predicate.Name, predicateName, StringComparison.OrdinalIgnoreCase));
+
     public IReadOnlyCollection<GraphThing> Things => _things.Values;
 
     public GraphThing? Thing(Guid id) => _things.TryGetValue(id, out var t) ? t : null;

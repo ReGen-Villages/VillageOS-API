@@ -15,7 +15,7 @@ export interface CatalystFixture {
     | 'belowReorder' | 'overdue' | 'reservoir' | 'feeds' | 'readingsArrive' | 'refill' | 'digest'
     | 'readingsStart' | 'readingsEnd' | 'refillStart' | 'digestEnd' | 'standsFor' | 'is' | 'has' | 'binds'
     | 'watcher' | 'watchesReorder' | 'reorderBinding' | 'conductor' | 'surplus' | 'drought' | 'storeSurplus'
-    | 'dry' | 'watchesDry',
+    | 'dry' | 'watchesDry' | 'resumes',
     string
   >;
 }
@@ -117,6 +117,7 @@ export function catalystFixture({ orchestrators = 1 }: { orchestrators?: number 
   const watchesOverdue = connection('watches overdue', state, watcher);
   relate(watchesOverdue, watches, overdue);
   const feeds = connection('feeds', graph, handler);
+  const resumes = connection('resumes', graph, conductor, playing(ROLE.RunResumption));
 
   const surplus = thing('surplus');
   relate(surplus, is, rangeArchetype);
@@ -175,7 +176,7 @@ export function catalystFixture({ orchestrators = 1 }: { orchestrators?: number 
       belowReorder, overdue, reservoir, feeds, readingsArrive, refill, digest,
       readingsStart, readingsEnd, refillStart, digestEnd, standsFor, is, has, binds: BINDS_ID,
       watcher, watchesReorder, reorderBinding: bindings.get(watchesReorder)!, conductor, surplus, drought, storeSurplus,
-      dry, watchesDry,
+      dry, watchesDry, resumes,
     },
   };
 }

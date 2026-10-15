@@ -419,6 +419,97 @@ public class PipelineModelTests
     }
 
     [Fact]
+    public void Build_ReadsTheStateAWaitingNodeWaitsFor_AndTheInPortWhoseThingMustEnterIt()
+    {
+        var waiting = TestGraphs.WaitingPipeline();
+
+        var dag = PipelineDagBuilder.Build(waiting.Fixture.Build(), waiting.PipelineId);
+
+        dag.Node(waiting.Review.Id)!.Waits.Should().Be(new DagWait(waiting.Decided.Id, "decided", "submission"));
+        dag.Node(waiting.Publish.Id)!.Waits.Should().BeNull();
+    }
+
+    [Fact]
+    public void Build_RefusesAWaitingNodeNamingOnlyTheStateOrOnlyThePort()
+    {
+        var stateOnly = TestGraphs.WaitingPipeline();
+        stateOnly.Fixture.Unrelate(stateOnly.Review, stateOnly.AwaitsThrough, stateOnly.Submission);
+        var portOnly = TestGraphs.WaitingPipeline();
+        portOnly.Fixture.Unrelate(portOnly.Review, portOnly.ProvenBy, portOnly.Decided);
+
+        var stateOnlyBuild = () => PipelineDagBuilder.Build(stateOnly.Fixture.Build(), stateOnly.PipelineId);
+        var portOnlyBuild = () => PipelineDagBuilder.Build(portOnly.Fixture.Build(), portOnly.PipelineId);
+
+        stateOnlyBuild.Should().Throw<PipelineModelException>()
+            .WithMessage("*'Review' waits for 'decided' but names no in port whose Thing must enter it*");
+        portOnlyBuild.Should().Throw<PipelineModelException>()
+            .WithMessage("*'Review' waits through its port 'submission' but names no state for it to enter*");
+    }
+
+    [Fact]
+    public void Build_RefusesAWaitingNodeWaitingThroughTwoPorts()
+    {
+        var twoPorts = TestGraphs.WaitingPipeline();
+        twoPorts.Fixture.Rel(twoPorts.Review, twoPorts.AwaitsThrough, twoPorts.Fixture.Get("p.notice"));
+
+        var build = () => PipelineDagBuilder.Build(twoPorts.Fixture.Build(), twoPorts.PipelineId);
+
+        build.Should().Throw<PipelineModelException>()
+            .WithMessage("*'Review' waits through two ports, so no one Thing could be waited for*");
+    }
+
+    [Fact]
+    public void Build_RefusesAWaitThroughAPortThatIsNotAnInPortOfTheNode()
+    {
+        var outPort = TestGraphs.WaitingPipeline();
+        outPort.Fixture.Unrelate(outPort.Review, outPort.AwaitsThrough, outPort.Submission);
+        outPort.Fixture.Rel(outPort.Review, outPort.AwaitsThrough, outPort.Fixture.Get("p.notice"));
+        var foreign = TestGraphs.WaitingPipeline();
+        foreign.Fixture.Unrelate(foreign.Review, foreign.AwaitsThrough, foreign.Submission);
+        foreign.Fixture.Rel(foreign.Review, foreign.AwaitsThrough, foreign.Fixture.Get("p.in"));
+
+        var outPortBuild = () => PipelineDagBuilder.Build(outPort.Fixture.Build(), outPort.PipelineId);
+        var foreignBuild = () => PipelineDagBuilder.Build(foreign.Fixture.Build(), foreign.PipelineId);
+
+        outPortBuild.Should().Throw<PipelineModelException>().WithMessage("*'Review' waits through 'notice', which is not an in port of it*");
+        foreignBuild.Should().Throw<PipelineModelException>().WithMessage("*'Review' waits through 'in', which is not an in port of it*");
+    }
+
+    [Fact]
+    public void Build_RefusesANodeWaitingForTwoStates()
+    {
+        var waiting = TestGraphs.WaitingPipeline();
+        waiting.Fixture.Rel(waiting.Review, waiting.ProvenBy, waiting.Fixture.Thing("withdrawn"));
+
+        var build = () => PipelineDagBuilder.Build(waiting.Fixture.Build(), waiting.PipelineId);
+
+        build.Should().Throw<PipelineModelException>().WithMessage("*'Review' waits for two states*");
+    }
+
+    [Fact]
+    public void Validate_RefusesAWaitingNodeWhoseAwaitedPortNothingFills_AndOneRunningOncePerItem()
+    {
+        var unfilled = TestGraphs.WaitingPipeline(wired: false);
+        var perItem = TestGraphs.WaitingPipeline(collection: true);
+
+        var unfilledResult = DagValidator.Validate(PipelineDagBuilder.Build(unfilled.Fixture.Build(), unfilled.PipelineId));
+        var perItemResult = DagValidator.Validate(PipelineDagBuilder.Build(perItem.Fixture.Build(), perItem.PipelineId));
+
+        unfilledResult.Errors.Should().ContainSingle(error =>
+            error == "'Review' waits for the Thing reaching its port 'submission', but nothing fills that port.");
+        perItemResult.Errors.Should().ContainSingle(error =>
+            error == "'Review' waits, but runs once for each item of 'submission'; a node that waits runs once.");
+    }
+
+    [Fact]
+    public void Validate_AWaitingPipelineWhoseAwaitedPortIsWired_IsValid()
+    {
+        var waiting = TestGraphs.WaitingPipeline();
+
+        DagValidator.Validate(PipelineDagBuilder.Build(waiting.Fixture.Build(), waiting.PipelineId)).IsValid.Should().BeTrue();
+    }
+
+    [Fact]
     public void Build_NodeWithoutConnection_Throws()
     {
         var fx = new GraphFixture();
