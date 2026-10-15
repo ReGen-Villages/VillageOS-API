@@ -51,6 +51,19 @@ describe('ServicesPanel (unified)', () => {
     expect(onStop).toHaveBeenCalledWith('h1');
   });
 
+  it('view-log and download-log fire with the connection id, never the name, and view-log carries the name for the title', () => {
+    const onViewLogs = vi.fn();
+    const onDownloadLogs = vi.fn();
+    render(<ServicesPanel services={[graphService({ ServiceName: 'Metabolism' })]} endpoints={[httpEndpoint()]} onStart={noop} onStop={noop} onViewLogs={onViewLogs} onDownloadLogs={onDownloadLogs} />);
+
+    fireEvent.click(screen.getByTitle('View log'));
+    fireEvent.click(screen.getByTitle('Download log'));
+
+    expect(onViewLogs).toHaveBeenCalledWith('h1', 'Metabolism');
+    expect(onDownloadLogs).toHaveBeenCalledWith('h1');
+    expect(screen.getAllByTitle('View log'), 'an http endpoint has no log to view').toHaveLength(1);
+  });
+
   it('renders the empty state when there are no connections', () => {
     render(<ServicesPanel services={[]} endpoints={[]} onStart={noop} onStop={noop} />);
     expect(screen.getByText('No services registered')).toBeInTheDocument();

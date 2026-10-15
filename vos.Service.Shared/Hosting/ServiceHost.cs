@@ -15,8 +15,14 @@ public static class ServiceHost
 {
     private const int ShutdownDelayMilliseconds = 300;
 
+    // Told to the broker at registration, so its log routes can find this service's file.
+    public static string? LogFilePrefix { get; private set; }
+
+    public static string LogFilePrefixOf(string logFileName) => Path.GetFileNameWithoutExtension(logFileName);
+
     public static void ConfigureLogging(string serviceName, string logFileName, bool writeToFile = true)
     {
+        LogFilePrefix = writeToFile ? LogFilePrefixOf(logFileName) : null;
         var configuration = new LoggerConfiguration()
             .MinimumLevel.Information()
             .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)

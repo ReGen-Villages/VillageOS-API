@@ -167,6 +167,34 @@ public class ServiceHostTests
         (await registered.Task).Method.Should().Be(HttpMethod.Post);
     }
 
+    [Fact]
+    public async Task AddMyceliumRegistration_AnnouncesThePrefixTheHostWritesItsLogUnder()
+    {
+        const string prefix = "service-host-registration-test-";
+        foreach (var stale in LogFilesNamed(prefix)) stale.Delete();
+        var registered = new TaskCompletionSource<JsonElement>();
+        try
+        {
+            ServiceHost.ConfigureLogging("ServiceHostRegistrationTest", $"{prefix}.log");
+            await using var app = BuildApp(request =>
+            {
+                if (request.RequestUri!.AbsolutePath == "/api/mycelium/register")
+                    registered.TrySetResult(JsonDocument.Parse(request.Content!.ReadAsStringAsync().Result).RootElement.Clone());
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            }, withMyceliumRegistration: true);
+
+            await app.StartAsync();
+
+            await Settle.ForAsync(registered.Task, "startup announces the service to the broker");
+            (await registered.Task).GetProperty("logFilePrefix").GetString().Should().Be(prefix);
+        }
+        finally
+        {
+            Serilog.Log.CloseAndFlush();
+            foreach (var file in LogFilesNamed(prefix)) file.Delete();
+        }
+    }
+
     // The deregistration route is admin-only, so a service asking to withdraw itself is refused on
     // every shutdown. The broker's liveness monitor removes a registration whose service stops
     // answering, so shutdown must not ask at all.
@@ -234,6 +262,7 @@ public class ServiceHostTests
         try
         {
             ServiceHost.ConfigureLogging("ServiceHostFileTest", $"{prefix}.log");
+            ServiceHost.LogFilePrefix.Should().Be(prefix, "the broker is told what the file is written under");
             Serilog.Log.Information("a message that must reach the file");
             Serilog.Log.CloseAndFlush();
 
@@ -246,4 +275,18 @@ public class ServiceHostTests
             foreach (var file in LogFilesNamed(prefix)) file.Delete();
         }
     }
+
+    [Fact]
+    public void ConfigureLogging_WithTheFileSinkOff_LeavesNoLogFilePrefix()
+    {
+        ServiceHost.ConfigureLogging("ServiceHostNoFileTest", "no-file-.log", writeToFile: false);
+
+        ServiceHost.LogFilePrefix.Should().BeNull("there is no file for the broker to find");
+    }
+
+    [Theory]
+    [InlineData("metabolism-outgoing-.log", "metabolism-outgoing-")]
+    [InlineData("intake-.log", "intake-")]
+    public void LogFilePrefixOf_IsTheFileNameWithoutItsExtension(string logFileName, string prefix) =>
+        ServiceHost.LogFilePrefixOf(logFileName).Should().Be(prefix);
 }

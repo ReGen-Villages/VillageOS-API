@@ -47,6 +47,35 @@ public class MyceliumClientBaseValidationTests
         myceliumCalls.Should().Be(0, "validation must fail-fast before the POST");
     }
 
+    [Theory]
+    [InlineData("../secret")]
+    [InlineData("Metabolism-")]
+    [InlineData("has space")]
+    [InlineData("")]
+    public async Task RegisterAsync_WithALogFilePrefixThatCouldNameAPathOrACase_ThrowMode_DoesNotPost(string prefix)
+    {
+        var myceliumCalls = 0;
+        var (client, _) = BuildClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/mycelium/register") myceliumCalls++;
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        }, serviceToken: TestToken, mode: SchemaViolationMode.Throw);
+
+        var act = async () => await client.RegisterAsync(7100, "Echo", "endpoint-service", prefix);
+
+        await act.Should().ThrowAsync<ContractValidationException>();
+        myceliumCalls.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RegisterAsync_WithAWellFormedLogFilePrefix_ThrowMode_Posts()
+    {
+        var (client, _) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.OK),
+            serviceToken: TestToken, mode: SchemaViolationMode.Throw);
+
+        (await client.RegisterAsync(7100, "Echo", "endpoint-service", "metabolism-outgoing-")).Should().BeTrue();
+    }
+
     [Fact]
     public async Task RegisterAsync_InvalidPayload_LogMode_LogsWarning_StillPosts()
     {
