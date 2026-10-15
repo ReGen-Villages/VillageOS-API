@@ -69,7 +69,7 @@ public static class ServiceHost
     // Short enough that a service launched before a simulation anchors the clock is stamping model
     // instants within seconds of the anchor, and one local request either way is nothing beside what
     // a service does for a single call it handles.
-    private static readonly TimeSpan ModelClockInterval = TimeSpan.FromSeconds(5);
+    public static readonly TimeSpan ModelClockInterval = TimeSpan.FromSeconds(5);
 
     // Returns nothing to gate on, unlike MapShutdown: the broker polls /health to decide whether the
     // service is alive, and it cannot do that behind authentication. The process id is how the broker

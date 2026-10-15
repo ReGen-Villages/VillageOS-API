@@ -837,6 +837,74 @@ public class MyceliumGatewayTests
         RequestsTo(handler, "/api/relationships", HttpMethod.Post).Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task CadencesAsync_ReadsEachCadenceButNotItsKind_WhereverItStatesItsValues()
+    {
+        var kind = Guid.NewGuid();
+        var hourly = Guid.NewGuid();
+        var daily = Guid.NewGuid();
+        var snapshot = JsonSerializer.Serialize(new
+        {
+            snapshot = new
+            {
+                things = new object[]
+                {
+                    new { id = kind, name = "Cadence", isArchetype = true, properties = new Dictionary<string, object>(), states = Array.Empty<string>() },
+                    new
+                    {
+                        id = hourly, name = "Every hour", isArchetype = false, states = Array.Empty<string>(),
+                        properties = new Dictionary<string, object>(),
+                        inheritedOverrides = new Dictionary<string, object>
+                        {
+                            [kind.ToString()] = new
+                            {
+                                sourceName = "Cadence",
+                                properties = new Dictionary<string, object>
+                                {
+                                    [ModelNames.IntervalMinutes] = new { value = 60, typeInfo = "vos.Double" },
+                                    [ModelNames.LastDue] = new { value = "2026-10-15T09:00:00.0000000+00:00", typeInfo = "vos.DateTime" },
+                                },
+                            },
+                        },
+                    },
+                    new
+                    {
+                        id = daily, name = "Every day", isArchetype = false, states = Array.Empty<string>(),
+                        properties = new Dictionary<string, object> { [ModelNames.IntervalMinutes] = new { value = "1440", typeInfo = "vos.String" } },
+                    },
+                },
+                relationships = Array.Empty<object>(),
+            },
+        });
+        var (gateway, handler) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post
+            ? Json(HttpStatusCode.OK, snapshot)
+            : new HttpResponseMessage(HttpStatusCode.OK));
+
+        var cadences = await gateway.CadencesAsync(CancellationToken.None);
+
+        cadences.Should().BeEquivalentTo(new[]
+        {
+            new Cadence(hourly, "Every hour", 60, new DateTimeOffset(2026, 10, 15, 9, 0, 0, TimeSpan.Zero)),
+            new Cadence(daily, "Every day", 1440, null),
+        });
+        (await ReadJson(RequestsTo(handler, "/api/subscriptions", HttpMethod.Post).Single()))
+            .GetProperty("boundTypes").EnumerateArray().Single().GetGuid().Should().Be(PipelineRoles.Cadence.Id);
+    }
+
+    [Fact]
+    public async Task SetLastDueAsync_WritesTheInstantAsADateTime()
+    {
+        var cadenceId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway(_ => new HttpResponseMessage(HttpStatusCode.OK));
+
+        await gateway.SetLastDueAsync(cadenceId, new DateTimeOffset(2026, 10, 15, 10, 0, 0, TimeSpan.Zero), CancellationToken.None);
+
+        var body = await ReadJson(RequestsTo(handler, $"/api/things/{cadenceId}/properties", HttpMethod.Put).Single());
+        body.GetProperty("name").GetString().Should().Be(ModelNames.LastDue);
+        body.GetProperty("type").GetString().Should().Be("vos.DateTime");
+        DateTimeOffset.Parse(body.GetProperty("value").GetString()!).Should().Be(new DateTimeOffset(2026, 10, 15, 10, 0, 0, TimeSpan.Zero));
+    }
+
     private static async Task<List<(string Name, string? Value)>> PropertiesWritten(MockHttpMessageHandler handler, Guid thingId)
     {
         var written = new List<(string Name, string? Value)>();

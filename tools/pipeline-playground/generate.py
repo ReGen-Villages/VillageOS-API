@@ -31,7 +31,7 @@ import uuid
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from catalog import SERVICES, PIPELINES, MESSAGE_KINDS, EXTERNAL_SYSTEMS
+from catalog import SERVICES, PIPELINES, MESSAGE_KINDS, EXTERNAL_SYSTEMS, CADENCES
 
 # Shared with tools/simulator so ids are consistent across the ecosystem. With no --namespace this root is
 # used directly, keeping the standalone fragment's ids stable. --namespace NAME derives a per-model root
@@ -64,6 +64,7 @@ ARCHETYPE_ROLE = {
     "ExternalSystem": "externalSystem",
     "MessageKind": "messageKind",
     "SentMessage": "sentMessage",
+    "Cadence": "cadence",
 }
 
 PREDICATE_ROLE = {
@@ -203,6 +204,7 @@ def build():
     ExternalSystem = k.archetype("ExternalSystem")
     MessageKind = k.archetype("MessageKind")
     SentMessage = k.archetype("SentMessage")
+    Cadence = k.archetype("Cadence")
 
     k.rel(carries, is_, PipelineWire)          # wires are the `carries` predicate, identified by this archetype
     # Every service's connection is a door reached over HTTP at its subdomain, which is what makes it a catalyst
@@ -284,7 +286,17 @@ def build():
             k.rel(system_id, told_through, through_id)
         system_by_key[system["key"]] = system_id
 
-    stood_for = {"messageKind": kind_by_key, "externalSystem": system_by_key,
+    # lastDue is declared empty because the orchestrator's write updates a property and never creates one.
+    cadence_by_key = {}
+    for cadence in CADENCES:
+        cadence_id = k.thing(stable_id(_TAG, "cadence", cadence["key"]), cadence["label"], {
+            "intervalMinutes": typed(float(cadence["intervalMinutes"]), "vos.Double"),
+            "lastDue": typed(None, "vos.DateTime"),
+        })
+        k.rel(cadence_id, is_, Cadence)
+        cadence_by_key[cadence["key"]] = cadence_id
+
+    stood_for = {"messageKind": kind_by_key, "externalSystem": system_by_key, "cadence": cadence_by_key,
                  "pipeline": {pipe["name"]: stable_id(_TAG, "pipeline", pipe["name"]) for pipe in PIPELINES}}
 
     for pipe in PIPELINES:
@@ -381,7 +393,7 @@ def build():
                        k.thing(stable_id(_TAG, "archetype", "Operation"), "Operation", shared=True, archetype=True))
     binds = k.thing(stable_id(_TAG, "predicate", "binds"), "binds", shared=True)
     for configured in (Pipeline, PipelineNode, Port, Service, Connection, PipelineWire, ExternalSystem,
-                       MessageKind, strategy_kind):
+                       MessageKind, Cadence, strategy_kind):
         k.rel(configured, is_, Configuration)
     for operational in (PipelineRun, NodeRun, SentMessage):
         k.rel(operational, is_, Operation)
