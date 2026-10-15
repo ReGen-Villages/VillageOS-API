@@ -170,7 +170,21 @@ public static class PipelineDagBuilder
             Ports = ResolvePortThings(graph, nodeThing).Select(ToPort).ToList(),
             ParameterBindings = ParseParameterBindings(nodeThing),
             Tells = kind == DagNodeKind.Output ? TellingOf(graph, nodeThing) : null,
+            Starts = kind == DagNodeKind.Output ? StartingOf(graph, nodeThing) : null,
         };
+    }
+
+    private static Starting? StartingOf(PipelineGraph graph, GraphThing endNode)
+    {
+        var pipeline = graph.OutgoingAlong(endNode, PipelineRoles.StandsFor)
+            .FirstOrDefault(target => graph.IsOf(target, PipelineRoles.Pipeline));
+        if (pipeline is null) return null;
+
+        var own = graph.RelationshipsInto(endNode, ModelNames.Has).Any(held => held.SubjectId == pipeline.Id);
+        if (own)
+            throw new PipelineModelException(
+                $"End node '{endNode.Name}' stands for '{pipeline.Name}', the pipeline it ends, so a run would start another of itself without end.");
+        return new Starting(pipeline.Id, pipeline.Name);
     }
 
     // Refused at build rather than at the end, so a run that could never send its message does nothing first.

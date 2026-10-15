@@ -44,6 +44,7 @@ public static class ModelNames
     public const string StartedUtc = "startedUtc";
     public const string FinishedUtc = "finishedUtc";
     public const string Outputs = "outputs";
+    public const string StartedRun = "startedRun";
     public const string Attempts = "attempts";
     // The broker's request-log entry that started a run. A plain identifier: what it names is outside the model.
     public const string RequestId = "requestId";

@@ -19,7 +19,7 @@ internal sealed class FakeGateway : IMyceliumGateway
     public List<(string Subdomain, JsonElement Envelope)> Envelopes { get; } = new();
     public List<string> StatusUpdates { get; } = new();
     public List<(string Name, string Status)> NodeStatuses { get; } = new();
-    public List<(Guid RunId, Guid PipelineId, RunSubject? Subject, Guid? RequestId)> RunsCreated { get; } = new();
+    public List<(Guid RunId, Guid PipelineId, RunSubject? Subject, Guid? RequestId, Guid? StartedBy)> RunsCreated { get; } = new();
     public List<Guid> StartTargetsAsked { get; } = new();
     public JsonElement? RunResult { get; private set; }
 
@@ -54,9 +54,9 @@ internal sealed class FakeGateway : IMyceliumGateway
 
     public JsonElement? ParametersRecorded { get; private set; }
 
-    public Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct, RunSubject? subject = null, Guid? requestId = null, JsonElement? parameters = null)
+    public Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct, RunSubject? subject = null, Guid? requestId = null, JsonElement? parameters = null, Guid? startedBy = null)
     {
-        RunsCreated.Add((runId, pipelineId, subject, requestId));
+        lock (RunsCreated) RunsCreated.Add((runId, pipelineId, subject, requestId, startedBy));
         ParametersRecorded = parameters is { ValueKind: not JsonValueKind.Undefined } given ? given.Clone() : null;
         lock (_model) Runs[runId] = (pipelineId, ParametersRecorded ?? default);
         return Task.CompletedTask;
