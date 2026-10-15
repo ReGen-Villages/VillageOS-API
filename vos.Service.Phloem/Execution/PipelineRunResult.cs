@@ -14,8 +14,12 @@ public static class RunStatus
     public const string NotTaken = "notTaken";
     // The node's service has answered and the run waits for the Thing it names to enter the node's state.
     public const string Waiting = "waiting";
+    // A call never reached the node's service and the node pauses before the next attempt.
+    public const string Trying = "trying";
+    // The node's trying ended without an answer and its subject went to the drawing the node names.
+    public const string HandedOver = "handedOver";
 
-    public static bool IsFinished(string status) => status is not (Running or Waiting);
+    public static bool IsFinished(string status) => status is not (Running or Waiting or Trying);
 }
 
 public sealed record NodeRunResult(

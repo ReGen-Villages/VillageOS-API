@@ -63,6 +63,7 @@ internal sealed class FakeGateway : IMyceliumGateway
     }
 
     public List<(string Name, int? Index, string Status, IReadOnlyDictionary<string, JsonElement>? Outputs)> NodeRunsPersisted { get; } = new();
+    public List<(string Name, string Status, string Error)> NodeErrorsWritten { get; } = new();
 
     // What the model holds, as the writes below leave it, so a run can be paused and resumed from its record.
     private readonly object _model = new();
@@ -82,13 +83,43 @@ internal sealed class FakeGateway : IMyceliumGateway
     public Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken ct, int? index = null, int total = 0,
         IReadOnlyDictionary<string, JsonElement>? outputs = null)
     {
-        lock (NodeStatuses) { NodeStatuses.Add((nodeName, status)); NodeRunsPersisted.Add((nodeName, index, status, outputs)); }
+        lock (NodeStatuses)
+        {
+            NodeStatuses.Add((nodeName, status));
+            NodeRunsPersisted.Add((nodeName, index, status, outputs));
+            if (error is not null) NodeErrorsWritten.Add((nodeName, status, error));
+        }
         if (RefuseNodeRunWrite(nodeId, status)) throw new HttpRequestException("the model refused the write");
         if (index is null)
             lock (_model)
-                Records[(runId, nodeId)] = new NodeRecord(status,
-                    outputs ?? (Records.TryGetValue((runId, nodeId), out var before) ? before.Outputs : new Dictionary<string, JsonElement>()));
+            {
+                var before = Records.TryGetValue((runId, nodeId), out var kept) ? kept : null;
+                Records[(runId, nodeId)] = new NodeRecord(status, outputs ?? before?.Outputs ?? new Dictionary<string, JsonElement>(), before?.Attempts);
+            }
         return Task.CompletedTask;
+    }
+
+    public List<(Guid RunId, Guid NodeId, int? Index, AttemptRecord Attempt)> AttemptsRecorded { get; } = new();
+
+    public Task RecordAttemptAsync(Guid runId, Guid nodeId, int? index, AttemptRecord attempt, CancellationToken ct)
+    {
+        lock (_model)
+        {
+            AttemptsRecorded.Add((runId, nodeId, index, attempt));
+            if (index is null && Records.TryGetValue((runId, nodeId), out var record))
+                Records[(runId, nodeId)] = record with { Attempts = [.. record.AttemptsMade, attempt] };
+        }
+        return Task.CompletedTask;
+    }
+
+    public List<TryingNodeRun> TryingItems { get; } = new();
+
+    public Task<IReadOnlyList<TryingNodeRun>> TryingNodeRunsAsync(CancellationToken ct)
+    {
+        lock (_model)
+            return Task.FromResult<IReadOnlyList<TryingNodeRun>>(Records.Where(record => record.Value.Status == RunStatus.Trying)
+                .Select(record => new TryingNodeRun(record.Key.RunId, record.Key.NodeId, PerItem: false))
+                .Concat(TryingItems).ToList());
     }
 
     public Task<RunRecord?> ReadRunRecordAsync(Guid runId, CancellationToken ct)

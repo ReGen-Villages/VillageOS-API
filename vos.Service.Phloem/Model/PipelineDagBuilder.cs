@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 
 namespace vos.Service.Phloem.Model;
@@ -106,6 +107,8 @@ public static class PipelineDagBuilder
             ParameterBindings = ParseParameterBindings(nodeThing),
             Choices = ChoicesOf(graph, nodeThing, ports),
             Waits = WaitOf(graph, nodeThing, ports),
+            Retries = RetryPolicyOf(nodeThing),
+            HandsOverTo = PipelineReachedAlong(graph, nodeThing, PipelineRoles.HandsOverTo, "hands its subject to"),
             OnItemError = string.Equals(nodeThing.PropertyString(ModelNames.OnItemError), ModelNames.OnItemErrorContinue, StringComparison.OrdinalIgnoreCase)
                 ? ModelNames.OnItemErrorContinue
                 : ModelNames.OnItemErrorFail,
@@ -170,21 +173,39 @@ public static class PipelineDagBuilder
             Ports = ResolvePortThings(graph, nodeThing).Select(ToPort).ToList(),
             ParameterBindings = ParseParameterBindings(nodeThing),
             Tells = kind == DagNodeKind.Output ? TellingOf(graph, nodeThing) : null,
-            Starts = kind == DagNodeKind.Output ? StartingOf(graph, nodeThing) : null,
+            Starts = kind == DagNodeKind.Output ? PipelineReachedAlong(graph, nodeThing, PipelineRoles.StandsFor, "stands for") : null,
         };
     }
 
-    private static Starting? StartingOf(PipelineGraph graph, GraphThing endNode)
+    // A node reaching its own pipeline is refused, since a run would start another of itself without end.
+    private static Starting? PipelineReachedAlong(PipelineGraph graph, GraphThing node, Role role, string reaching)
     {
-        var pipeline = graph.OutgoingAlong(endNode, PipelineRoles.StandsFor)
+        var pipeline = graph.OutgoingAlong(node, role)
             .FirstOrDefault(target => graph.IsOf(target, PipelineRoles.Pipeline));
         if (pipeline is null) return null;
 
-        var own = graph.RelationshipsInto(endNode, ModelNames.Has).Any(held => held.SubjectId == pipeline.Id);
+        var own = graph.RelationshipsInto(node, ModelNames.Has).Any(held => held.SubjectId == pipeline.Id);
         if (own)
             throw new PipelineModelException(
-                $"End node '{endNode.Name}' stands for '{pipeline.Name}', the pipeline it ends, so a run would start another of itself without end.");
+                $"Node '{node.Name}' {reaching} '{pipeline.Name}', the pipeline it is in, so a run would start another of itself without end.");
         return new Starting(pipeline.Id, pipeline.Name);
+    }
+
+    // A node with no attempts number has no policy and is called once, as before. The other numbers default to a
+    // pause that neither grows nor spreads and a trying time of one day, so a node needs only the count.
+    private static RetryPolicy? RetryPolicyOf(GraphThing nodeThing)
+    {
+        if (!int.TryParse(nodeThing.PropertyString(ModelNames.Attempts), out var attempts)) return null;
+        if (attempts < 1)
+            throw new PipelineModelException($"Node '{nodeThing.Name}' allows {attempts} attempts; a node that runs allows at least one.");
+
+        double Number(string name, double fallback) =>
+            double.TryParse(nodeThing.PropertyString(name), NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : fallback;
+        var policy = new RetryPolicy(attempts, Number(ModelNames.PauseMinutes, 1), Number(ModelNames.PauseGrowth, 1), Number(ModelNames.PauseSpread, 0),
+            Number(ModelNames.TryingMinutes, 24 * 60));
+        if (policy.PauseMinutes < 0 || policy.PauseGrowth < 1 || policy.PauseSpread < 0 || policy.TryingMinutes <= 0)
+            throw new PipelineModelException($"Node '{nodeThing.Name}' has a retry policy with a number out of range: the pause and the spread are at least 0, the growth at least 1, and the trying time above 0.");
+        return policy;
     }
 
     // Refused at build rather than at the end, so a run that could never send its message does nothing first.
