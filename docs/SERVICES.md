@@ -816,14 +816,18 @@ public class MyServiceWritesTests : IClassFixture<TheEngine>
     [FactAgainstTheEngine]
     public async Task What_it_writes_is_what_the_engine_holds()
     {
-        // arrange a model with _engine, call Client(), read back with _engine
+        var reservoir = await _engine.DeclareAsync($"Reservoir_{Guid.NewGuid():N}");
+
+        await Client().RecordLevelAsync(reservoir, "waterStored", 12m);
+
+        (await _engine.ValueOfAsync(reservoir, "waterStored")).Should().Be("12");
     }
 }
 ```
 
-Arrange a model with `_engine.DeclareAsync(...)`, relate its Things with
-`_engine.RelateAsync(...)`, and read back what the service wrote with
-`_engine.ValueOfAsync(...)`. A case in this project is marked `[FactAgainstTheEngine]` rather than
+`_engine.DeclareAsync(...)` and `_engine.RelateAsync(...)` arrange the model the way the engine takes
+it, so an arrangement cannot be refused for the reason a case is looking for in the service, and
+`_engine.ValueOfAsync(...)` reads back what the service wrote. A case in this project is marked `[FactAgainstTheEngine]` rather than
 `[Fact]`: without an engine a plain `[Fact]` in that folder fails, saying to use the attribute.
 
 It needs the platform's engine, which lives in the VillageOS repository, so it does
