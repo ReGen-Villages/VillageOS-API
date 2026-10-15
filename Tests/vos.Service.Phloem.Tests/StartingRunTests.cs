@@ -47,6 +47,24 @@ public class StartingRunTests
     }
 
     [Fact]
+    public async Task An_end_whose_inputs_cannot_be_assembled_fails_naming_the_pipeline_it_would_have_started_and_starts_nothing()
+    {
+        var starting = TestGraphs.StartingPipeline(transformIntoTheEnd: "$error(\"the wire refuses\")");
+        var gateway = new FakeGateway(starting.Fixture.Build())
+        {
+            OnDispatch = (_, _) => new NodeDispatchResult(200, JsonSerializer.Serialize(new { success = true, outputs = new { echo = "world" } })),
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(starting.PipelineId, JsonSerializer.SerializeToElement(new { seed = "world" }), CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.Nodes.Single(node => node.Name == "Out").Error.Should().StartWith("'What follows' could not be started from 'Out':");
+        await Settle.BeforeAssertingAbsenceAsync(TimeSpan.FromMilliseconds(200));
+        gateway.RunsCreated.Should().ContainSingle();
+    }
+
+    [Fact]
     public async Task A_run_nobody_started_from_an_end_names_no_starting_run()
     {
         var (starting, gateway, executor) = Arrange();
