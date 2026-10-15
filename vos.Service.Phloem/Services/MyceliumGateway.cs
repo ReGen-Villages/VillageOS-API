@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -112,7 +113,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         // only at the end is a run that can never be given one.
         var properties = new Dictionary<string, string?>
         {
-            ["status"] = RunStatus.Running,
+            [ModelNames.Status] = RunStatus.Running,
             ["pipelineId"] = pipelineId.ToString(),
             [ModelNames.StartedUtc] = DateTime.UtcNow.ToString("o"),
             [ModelNames.FinishedUtc] = null,
@@ -141,7 +142,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         IReadOnlyDictionary<string, JsonElement>? outputs = null)
     {
         var nodeRunId = index is int i ? DeterministicGuid(runId, nodeId, i) : DeterministicGuid(runId, nodeId);
-        var terminal = status != RunStatus.Running;
+        var terminal = RunStatus.IsFinished(status);
         var now = DateTime.UtcNow.ToString("o");
         if (_createdNodeRuns.TryAdd(nodeRunId, 0))
         {
@@ -149,8 +150,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             // property a later transition writes.
             var properties = new Dictionary<string, string?>
             {
-                ["status"] = status,
-                ["nodeId"] = nodeId.ToString(),
+                [ModelNames.Status] = status,
+                [ModelNames.NodeId] = nodeId.ToString(),
                 [ModelNames.Error] = error,
                 [ModelNames.StartedUtc] = now,
                 [ModelNames.FinishedUtc] = terminal ? now : null,
@@ -159,8 +160,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             };
             if (index is int idx)
             {
-                properties["index"] = idx.ToString();
-                properties["total"] = total.ToString();
+                properties[ModelNames.Index] = idx.ToString();
+                properties[ModelNames.Total] = total.ToString();
             }
             await CreateThingWithIdAsync(nodeRunId, index is int x ? $"NodeRun {nodeName} #{x}" : $"NodeRun {nodeName}", properties, cancellationToken);
             await RelateAsync(nodeRunId, ModelNames.Is, await BoundAsync(PipelineRoles.NodeRun, cancellationToken), cancellationToken);
@@ -169,7 +170,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         }
 
         // Subsequent transition (running -> terminal) on the same Thing — a property change the SSE view sees.
-        await SetPropertyAsync(nodeRunId, "status", status, cancellationToken);
+        await SetPropertyAsync(nodeRunId, ModelNames.Status, status, cancellationToken);
         if (error != null) await SetPropertyAsync(nodeRunId, ModelNames.Error, error, cancellationToken);
         if (terminal) await SetPropertyAsync(nodeRunId, ModelNames.FinishedUtc, now, cancellationToken);
         if (outputs is not null) await SetPropertyAsync(nodeRunId, ModelNames.Outputs, OutputsText(outputs), cancellationToken);
@@ -180,9 +181,198 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 
     public async Task SetRunStatusAsync(Guid runId, string status, CancellationToken cancellationToken, string? error = null)
     {
-        await SetPropertyAsync(runId, "status", status, cancellationToken);
+        await SetPropertyAsync(runId, ModelNames.Status, status, cancellationToken);
         if (error != null) await SetPropertyAsync(runId, ModelNames.Error, error, cancellationToken);
-        if (status != RunStatus.Running) await SetPropertyAsync(runId, ModelNames.FinishedUtc, DateTime.UtcNow.ToString("o"), cancellationToken);
+        if (RunStatus.IsFinished(status)) await SetPropertyAsync(runId, ModelNames.FinishedUtc, DateTime.UtcNow.ToString("o"), cancellationToken);
+    }
+
+    public async Task<RunRecord?> ReadRunRecordAsync(Guid runId, CancellationToken cancellationToken)
+    {
+        var selector = new
+        {
+            ids = new[] { runId },
+            names = new[] { ModelNames.Has, ModelNames.Of },
+            traverse = new object[]
+            {
+                new { predicate = ModelNames.Has, direction = "outgoing", depth = 1 },
+                new { predicate = ModelNames.Of, direction = "outgoing", depth = 1 },
+            },
+            includeIsAncestors = false,
+            includeRelationships = true,
+            relationships = new object[]
+            {
+                new { predicate = ModelNames.Has, direction = "outgoing" },
+                new { predicate = ModelNames.Of, direction = "outgoing" },
+            },
+        };
+        var graph = await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
+        if (graph.Thing(runId) is not { } run || graph.OutgoingTargets(run, ModelNames.Of).FirstOrDefault() is not { } pipeline)
+            return null;
+
+        var nodes = new Dictionary<Guid, NodeRecord>();
+        foreach (var held in graph.OutgoingTargets(run, ModelNames.Has))
+        {
+            if (!Guid.TryParse(held.PropertyString(ModelNames.NodeId), out var nodeId)) continue;
+            _createdNodeRuns.TryAdd(held.Id, 0);
+            if (!string.IsNullOrEmpty(held.PropertyString(ModelNames.Index))) continue;
+            nodes[nodeId] = new NodeRecord(held.PropertyString(ModelNames.Status) ?? string.Empty, OutputsOf(held));
+        }
+        return new RunRecord(runId, pipeline.Id, JsonOf(run.PropertyString(ModelNames.Parameters)), nodes);
+    }
+
+    private static IReadOnlyDictionary<string, JsonElement> OutputsOf(GraphThing nodeRun) =>
+        JsonOf(nodeRun.PropertyString(ModelNames.Outputs)) is { ValueKind: JsonValueKind.Object } outputs
+            ? outputs.EnumerateObject().ToDictionary(output => output.Name, output => output.Value.Clone(), StringComparer.Ordinal)
+            : new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+
+    private static JsonElement JsonOf(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return default;
+        try { return JsonDocument.Parse(text).RootElement.Clone(); }
+        catch (JsonException) { return default; }
+    }
+
+    public async Task RelateAwaitedAsync(Guid runId, Guid nodeId, Guid awaitedId, CancellationToken cancellationToken) =>
+        await RelateAsync(DeterministicGuid(runId, nodeId), await BoundAsync(PipelineRoles.AwaitedThing, cancellationToken), awaitedId, cancellationToken);
+
+    public Task ForgetAwaitedAsync(Guid runId, Guid nodeId, CancellationToken cancellationToken) =>
+        ForgetAlongAsync(DeterministicGuid(runId, nodeId), PipelineRoles.AwaitedThing, cancellationToken);
+
+    public async Task<VigilPlacement> PlaceVigilAsync(Guid subjectId, Guid rangeId, CancellationToken cancellationToken)
+    {
+        var connectionId = await BoundAsync(PipelineRoles.RunResumption, cancellationToken);
+        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
+        var response = await client.PostAsync($"{MyceliumUrl}/api/vigils",
+            JsonContent.Create(new { subjectId, rangeId, connectionId }), cancellationToken);
+        if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound)
+            return new VigilPlacement.Refused(await ErrorOfAsync(response, cancellationToken));
+        response.EnsureSuccessStatusCode();
+
+        var vigil = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
+        return TryGetPropertyCaseInsensitive(vigil, "Id", out var id) && id.ValueKind == JsonValueKind.String && Guid.TryParse(id.GetString(), out var vigilId)
+            ? new VigilPlacement.Placed(vigilId)
+            : throw new InvalidOperationException("The platform placed a vigil but named no identifier for it.");
+    }
+
+    private static async Task<string> ErrorOfAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            if (TryGetPropertyCaseInsensitive(document.RootElement, "error", out var error) && error.ValueKind == JsonValueKind.String)
+                return error.GetString()!;
+        }
+        catch (JsonException)
+        {
+        }
+        return $"HTTP {(int)response.StatusCode}";
+    }
+
+    public async Task RelateHeldVigilAsync(Guid runId, Guid nodeId, Guid vigilId, CancellationToken cancellationToken)
+    {
+        var nodeRunId = DeterministicGuid(runId, nodeId);
+        await ForgetAlongAsync(nodeRunId, PipelineRoles.HeldVigil, cancellationToken);
+        await RelateAsync(nodeRunId, await BoundAsync(PipelineRoles.HeldVigil, cancellationToken), vigilId, cancellationToken);
+    }
+
+    public async Task<VigilHolder?> HolderOfVigilAsync(Guid vigilId, CancellationToken cancellationToken)
+    {
+        var selector = new
+        {
+            ids = new[] { vigilId, PipelineRoles.HeldVigil.Id },
+            names = new[] { ModelNames.Binds, ModelNames.Has },
+            traverse = new object[]
+            {
+                new { predicate = ModelNames.Binds, direction = "outgoing", depth = 1 },
+                new { predicateRole = PipelineRoles.HeldVigil.Id, direction = "incoming", depth = 1 },
+                new { predicate = ModelNames.Has, direction = "incoming", depth = 1 },
+            },
+            includeIsAncestors = false,
+            includeRelationships = true,
+            relationships = new object[]
+            {
+                new { predicate = ModelNames.Binds, direction = "outgoing" },
+                new { predicateRole = PipelineRoles.HeldVigil.Id, direction = "incoming" },
+                new { predicate = ModelNames.Has, direction = "incoming" },
+            },
+        };
+        var graph = await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
+        if (graph.Thing(vigilId) is not { } vigil
+            || graph.IncomingAlong(vigil, PipelineRoles.HeldVigil).FirstOrDefault() is not { } nodeRun
+            || !Guid.TryParse(nodeRun.PropertyString(ModelNames.NodeId), out var nodeId)
+            || graph.RelationshipsInto(nodeRun, ModelNames.Has).FirstOrDefault() is not { } held)
+            return null;
+        return new VigilHolder(held.SubjectId, nodeId);
+    }
+
+    // Every node run the model holds is read, which is a startup cost that grows with the runs ever recorded.
+    public async Task<IReadOnlyList<HeldWait>> WaitingNodeRunsAsync(CancellationToken cancellationToken)
+    {
+        var selector = new
+        {
+            ids = new[] { PipelineRoles.AwaitedThing.Id, PipelineRoles.HeldVigil.Id },
+            names = new[] { ModelNames.Binds, ModelNames.Has },
+            boundTypes = new[] { PipelineRoles.NodeRun.Id },
+            traverse = new object[] { new { predicate = ModelNames.Binds, direction = "outgoing", depth = 1 } },
+            includeIsAncestors = false,
+            includeRelationships = true,
+            relationships = new object[]
+            {
+                new { predicate = ModelNames.Binds, direction = "outgoing" },
+                new { predicateRole = PipelineRoles.AwaitedThing.Id, direction = "outgoing" },
+                new { predicateRole = PipelineRoles.HeldVigil.Id, direction = "outgoing" },
+                new { predicate = ModelNames.Has, direction = "incoming" },
+            },
+        };
+        var graph = await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(60), cancellationToken);
+
+        var waits = new List<HeldWait>();
+        foreach (var nodeRun in graph.Things)
+        {
+            if (nodeRun.PropertyString(ModelNames.Status) != RunStatus.Waiting
+                || !Guid.TryParse(nodeRun.PropertyString(ModelNames.NodeId), out var nodeId)
+                || graph.RelationshipsInto(nodeRun, ModelNames.Has).FirstOrDefault() is not { } held)
+                continue;
+            waits.Add(new HeldWait(held.SubjectId, nodeId,
+                graph.RelationshipsAlong(nodeRun, PipelineRoles.AwaitedThing).Select(rel => (Guid?)rel.TargetId).FirstOrDefault(),
+                graph.RelationshipsAlong(nodeRun, PipelineRoles.HeldVigil).Select(rel => (Guid?)rel.TargetId).FirstOrDefault()));
+        }
+        return waits;
+    }
+
+    // Anything but a refusal to find it is read as live, so a broker that is unwell is never answered with a second vigil.
+    public async Task<bool> IsVigilLiveAsync(Guid vigilId, CancellationToken cancellationToken)
+    {
+        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+        var response = await client.GetAsync($"{MyceliumUrl}/api/things/{vigilId}", cancellationToken);
+        return response.StatusCode != HttpStatusCode.NotFound;
+    }
+
+    private async Task ForgetAlongAsync(Guid nodeRunId, Role role, CancellationToken cancellationToken)
+    {
+        var selector = new
+        {
+            ids = new[] { nodeRunId, role.Id },
+            names = new[] { ModelNames.Binds },
+            traverse = new object[] { new { predicate = ModelNames.Binds, direction = "outgoing", depth = 1 } },
+            includeIsAncestors = false,
+            includeRelationships = true,
+            relationships = new object[]
+            {
+                new { predicate = ModelNames.Binds, direction = "outgoing" },
+                new { predicateRole = role.Id, direction = "outgoing" },
+            },
+        };
+        var graph = await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
+        if (graph.Thing(nodeRunId) is not { } nodeRun) return;
+
+        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
+        foreach (var relationship in graph.RelationshipsAlong(nodeRun, role).ToList())
+        {
+            var response = await client.DeleteAsync($"{MyceliumUrl}/api/relationships/{relationship.Id}", cancellationToken);
+            if (response.StatusCode != HttpStatusCode.NotFound) response.EnsureSuccessStatusCode();
+        }
     }
 
     public async Task RelateProducedAsync(Guid runId, Guid nodeId, int? index, IReadOnlyList<Guid> producedThingIds, CancellationToken cancellationToken)

@@ -54,4 +54,26 @@ public interface IMyceliumGateway
     Task<bool> IsCancelRequestedAsync(Guid runId, CancellationToken cancellationToken);
 
     Task<NodeDispatchResult> DispatchAsync(string subdomain, JsonElement envelope, CancellationToken cancellationToken);
+
+    // Null when the model holds no such run. Reading a run's node runs back also tells the gateway they exist,
+    // so a later status is written to the same Thing after a restart.
+    Task<RunRecord?> ReadRunRecordAsync(Guid runId, CancellationToken cancellationToken);
+
+    // Along the predicate the awaitedThing role binds, from the node run to the Thing it waits for.
+    Task RelateAwaitedAsync(Guid runId, Guid nodeId, Guid awaitedId, CancellationToken cancellationToken);
+
+    Task ForgetAwaitedAsync(Guid runId, Guid nodeId, CancellationToken cancellationToken);
+
+    // A vigil over the Thing for the range, naming the connection the runResumption role binds.
+    Task<VigilPlacement> PlaceVigilAsync(Guid subjectId, Guid rangeId, CancellationToken cancellationToken);
+
+    // Along the predicate the heldVigil role binds, replacing any vigil the node run held before.
+    Task RelateHeldVigilAsync(Guid runId, Guid nodeId, Guid vigilId, CancellationToken cancellationToken);
+
+    Task<VigilHolder?> HolderOfVigilAsync(Guid vigilId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<HeldWait>> WaitingNodeRunsAsync(CancellationToken cancellationToken);
+
+    // The platform deletes a vigil once it has been answered or its Thing is gone.
+    Task<bool> IsVigilLiveAsync(Guid vigilId, CancellationToken cancellationToken);
 }

@@ -19,6 +19,10 @@ public sealed class PipelineExecutor
     private readonly ILogger<PipelineExecutor> _logger;
     private readonly int _maxConcurrency;
     private readonly ModelClock _clock;
+    private readonly RunTurns _turns = new();
+    // Held from placing a vigil until the node run is related to it, and by every lookup of a vigil's holder, so
+    // an answer arriving at once for a Thing already in the state finds the node run it was placed for.
+    private readonly SemaphoreSlim _placing = new(1, 1);
 
     public PipelineExecutor(
         IMyceliumGateway gateway,
@@ -45,6 +49,90 @@ public sealed class PipelineExecutor
         if (subject is not null) runParams = WithSubject(runParams, subject);
         await BestEffort(() => _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject, requestId, runParams), "create run");
 
+        var (dag, refusal) = await LoadAsync(pipelineId, cancellationToken);
+        if (dag is null) return await FailRunAsync(rid, pipelineId, refusal!, cancellationToken);
+
+        using var turn = await _turns.TakeAsync(rid, cancellationToken);
+        return await SweepAsync(rid, dag, runParams, new Progress(), cancellationToken);
+    }
+
+    // The vigil's answer: the node run holding it succeeds with the outputs its service answered before the wait,
+    // and the run carries on from its record. Nothing is dispatched a second time.
+    public async Task<ResumeOutcome> ResumeAsync(Guid vigilId, CancellationToken cancellationToken)
+    {
+        VigilHolder? holder;
+        await _placing.WaitAsync(cancellationToken);
+        try { holder = await _gateway.HolderOfVigilAsync(vigilId, cancellationToken); }
+        finally { _placing.Release(); }
+        if (holder is null) return ResumeOutcome.NotHeld;
+
+        using var turn = await _turns.TakeAsync(holder.RunId, cancellationToken);
+        var record = await _gateway.ReadRunRecordAsync(holder.RunId, cancellationToken);
+        if (record is null || !record.Nodes.TryGetValue(holder.NodeId, out var held) || held.Status != RunStatus.Waiting)
+            return ResumeOutcome.AlreadyResumed;
+
+        var (dag, refusal) = await LoadAsync(record.PipelineId, cancellationToken);
+        if (dag is null)
+        {
+            await FailRunAsync(record.RunId, record.PipelineId, refusal!, cancellationToken);
+            return ResumeOutcome.Resumed;
+        }
+
+        var (progress, missing) = ProgressFrom(dag, record);
+        if (missing is not null)
+        {
+            await FailRunAsync(record.RunId, record.PipelineId,
+                $"The record of '{missing.Name}' is missing, so the run cannot resume without running it again.", cancellationToken);
+            return ResumeOutcome.Resumed;
+        }
+
+        var resumed = progress.Waiting[holder.NodeId] with { Status = RunStatus.Succeeded, Awaits = null };
+        progress.Waiting.Remove(holder.NodeId);
+        progress.Results[holder.NodeId] = resumed;
+        progress.Outputs[holder.NodeId] = resumed.Outputs;
+        await PersistStatusAsync(record.RunId, resumed, cancellationToken);
+        await BestEffort(() => _gateway.ForgetAwaitedAsync(record.RunId, holder.NodeId, cancellationToken), "forget the awaited Thing");
+        await BestEffort(() => _gateway.SetRunStatusAsync(record.RunId, RunStatus.Running, cancellationToken), "set run running");
+
+        await SweepAsync(record.RunId, dag, record.Parameters, progress, cancellationToken);
+        return ResumeOutcome.Resumed;
+    }
+
+    // On start: every waiting node run whose vigil is gone gets one again, since a vigil answered while this
+    // orchestrator was not there to resume the run is retired with nothing resumed. Answers how many were placed.
+    public async Task<int> RecoverWaitsAsync(CancellationToken cancellationToken)
+    {
+        var placed = 0;
+        foreach (var wait in await _gateway.WaitingNodeRunsAsync(cancellationToken))
+        {
+            if (wait.VigilId is { } vigil && await _gateway.IsVigilLiveAsync(vigil, cancellationToken)) continue;
+
+            using var turn = await _turns.TakeAsync(wait.RunId, cancellationToken);
+            var record = await _gateway.ReadRunRecordAsync(wait.RunId, cancellationToken);
+            if (record is null) continue;
+            var (dag, _) = await LoadAsync(record.PipelineId, cancellationToken);
+            var node = dag?.Node(wait.NodeId);
+            var name = node?.Name ?? wait.NodeId.ToString();
+
+            string? failure = null;
+            if (wait.AwaitedId is not { } awaited)
+                failure = $"'{name}' waited for a Thing the model no longer names, so nothing could resume it.";
+            else if (node?.Waits is not { } waits)
+                failure = $"'{name}' no longer waits for a state, so nothing could resume it.";
+            else if (await PlaceAsync(record.RunId, node.NodeId, awaited, waits, cancellationToken) is { } refused)
+                failure = $"'{name}' cannot wait: {refused}";
+            else
+                placed++;
+
+            if (failure is null) continue;
+            await BestEffort(() => _gateway.SetNodeRunStatusAsync(record.RunId, wait.NodeId, name, RunStatus.Failed, failure, cancellationToken), "fail the wait");
+            await FailRunAsync(record.RunId, record.PipelineId, failure, cancellationToken);
+        }
+        return placed;
+    }
+
+    private async Task<(PipelineDag? Dag, string? Refusal)> LoadAsync(Guid pipelineId, CancellationToken cancellationToken)
+    {
         PipelineDag dag;
         try
         {
@@ -53,31 +141,86 @@ public sealed class PipelineExecutor
         }
         catch (PipelineModelException ex)
         {
-            return await FailRunAsync(rid, pipelineId, ex.Message, cancellationToken);
+            return (null, ex.Message);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load pipeline {PipelineId}", pipelineId);
-            return await FailRunAsync(rid, pipelineId, $"Failed to load pipeline: {ex.Message}", cancellationToken);
+            return (null, $"Failed to load pipeline: {ex.Message}");
         }
 
         var validation = DagValidator.Validate(dag);
-        if (!validation.IsValid)
-            return await FailRunAsync(rid, pipelineId, "Pipeline is invalid: " + string.Join(" ", validation.Errors), cancellationToken);
+        return validation.IsValid ? (dag, null) : (null, "Pipeline is invalid: " + string.Join(" ", validation.Errors));
+    }
 
-        var outputs = new Dictionary<Guid, IReadOnlyDictionary<string, JsonElement>>();
-        var results = new Dictionary<Guid, NodeRunResult>();
+    // What a sweep has settled so far: a fresh run starts with nothing, a resumed one with its record.
+    private sealed class Progress
+    {
+        public Dictionary<Guid, NodeRunResult> Results { get; } = new();
+        public Dictionary<Guid, IReadOnlyDictionary<string, JsonElement>> Outputs { get; } = new();
+        public Dictionary<Guid, NodeRunResult> Waiting { get; } = new();
+        // Waiting nodes that already hold a vigil from an earlier sweep.
+        public HashSet<Guid> Holding { get; } = new();
+    }
+
+    // A node with no record is one the run had not reached, which only a node behind a wait can be; any other
+    // missing record means the run would have to dispatch that node again to carry on.
+    private static (Progress Progress, DagNode? Missing) ProgressFrom(PipelineDag dag, RunRecord record)
+    {
+        var progress = new Progress();
+        foreach (var node in dag.Nodes)
+        {
+            if (!record.Nodes.TryGetValue(node.NodeId, out var recorded) || recorded.Status == RunStatus.Running) continue;
+            var result = new NodeRunResult(node.NodeId, node.Name, recorded.Status, recorded.Outputs, null);
+            if (recorded.Status == RunStatus.Waiting)
+            {
+                progress.Waiting[node.NodeId] = result;
+                progress.Holding.Add(node.NodeId);
+                continue;
+            }
+            progress.Results[node.NodeId] = result;
+            if (recorded.Status is RunStatus.Succeeded or RunStatus.Partial)
+                progress.Outputs[node.NodeId] = recorded.Outputs;
+        }
+
+        var behindAWait = Downstream(dag, progress.Waiting.Keys);
+        var missing = dag.Nodes.FirstOrDefault(node => !progress.Results.ContainsKey(node.NodeId)
+            && !progress.Waiting.ContainsKey(node.NodeId) && !behindAWait.Contains(node.NodeId));
+        return (progress, missing);
+    }
+
+    private static HashSet<Guid> Downstream(PipelineDag dag, IEnumerable<Guid> from)
+    {
+        var reached = new HashSet<Guid>();
+        var frontier = new Stack<Guid>(from);
+        while (frontier.Count > 0)
+        {
+            var node = frontier.Pop();
+            foreach (var wire in dag.Wires.Where(wire => wire.FromNodeId == node))
+                if (reached.Add(wire.ToNodeId))
+                    frontier.Push(wire.ToNodeId);
+        }
+        return reached;
+    }
+
+    private async Task<PipelineRunResult> SweepAsync(
+        Guid rid, PipelineDag dag, JsonElement runParams, Progress progress, CancellationToken cancellationToken)
+    {
+        var pipelineId = dag.PipelineId;
+        var results = progress.Results;
+        var outputs = progress.Outputs;
         var halted = false;
         var cancelled = false;
 
         using var gate = new SemaphoreSlim(_maxConcurrency);
-        var pending = dag.Nodes.ToList();
+        var pending = dag.Nodes.Where(n => !results.ContainsKey(n.NodeId) && !progress.Waiting.ContainsKey(n.NodeId)).ToList();
         while (pending.Count > 0 && !halted)
         {
             if (await IsCancelledAsync(rid, cancellationToken)) { cancelled = true; break; }
 
+            // A node behind a waiting one is not ready until the wait is over.
             var ready = pending.Where(n => dag.WiresInto(n.NodeId).All(w => results.ContainsKey(w.FromNodeId))).ToList();
-            if (ready.Count == 0) break; // validated DAG => only reachable when an upstream failed
+            if (ready.Count == 0) break;
 
             // A node wired only from outcomes that were not answered is the branch not taken: it is recorded
             // and nothing is dispatched to it, so a node behind the alternatives runs once, from the one that
@@ -94,7 +237,10 @@ public sealed class PipelineExecutor
 
             foreach (var result in batch)
             {
-                results[result.NodeId] = result;
+                if (result.Status == RunStatus.Waiting)
+                    progress.Waiting[result.NodeId] = result;
+                else
+                    results[result.NodeId] = result;
                 // Succeeded and partial (collect-partial) both route outputs downstream; only a hard
                 // failure halts dependents.
                 if (result.Status is RunStatus.Succeeded or RunStatus.Partial)
@@ -103,12 +249,30 @@ public sealed class PipelineExecutor
                     halted = true;
                 await PersistStatusAsync(rid, result, cancellationToken);
             }
-            pending = pending.Where(n => !results.ContainsKey(n.NodeId)).ToList();
+            pending = pending.Where(n => !results.ContainsKey(n.NodeId) && !progress.Waiting.ContainsKey(n.NodeId)).ToList();
         }
 
-        // Anything still pending was blocked by an upstream failure, or skipped because the run was cancelled.
+        if (!halted && !cancelled && progress.Waiting.Count > 0)
+        {
+            var failures = await HoldAsync(rid, dag, progress, cancellationToken);
+            foreach (var failure in failures)
+                await PersistStatusAsync(rid, failure, cancellationToken);
+            if (failures.Count == 0)
+            {
+                await BestEffort(() => _gateway.SetRunStatusAsync(rid, RunStatus.Waiting, cancellationToken), "set run waiting");
+                var waits = progress.Waiting.Values.Select(wait =>
+                    $"The run waits for {(wait.Awaits is { } thing ? $"'{thing.Name}'" : "its Thing")} to enter '{dag.Node(wait.NodeId)!.Waits!.RangeName}' at '{wait.Name}'.");
+                return new PipelineRunResult(rid, pipelineId, false,
+                    dag.Nodes.Where(n => results.ContainsKey(n.NodeId) || progress.Waiting.ContainsKey(n.NodeId))
+                        .Select(n => results.TryGetValue(n.NodeId, out var settled) ? settled : progress.Waiting[n.NodeId]).ToList(),
+                    string.Join(" ", waits));
+            }
+            halted = true;
+        }
+
+        // Anything still pending, or waiting, was blocked by an upstream failure, or skipped because the run was cancelled.
         var pendingStatus = cancelled ? RunStatus.Cancelled : RunStatus.Skipped;
-        foreach (var node in pending)
+        foreach (var node in pending.Concat(progress.Waiting.Keys.Select(id => dag.Node(id)!)))
         {
             var result = new NodeRunResult(node.NodeId, node.Name, pendingStatus, NoOutputs, null);
             results[node.NodeId] = result;
@@ -150,6 +314,80 @@ public sealed class PipelineExecutor
     {
         await BestEffort(() => _gateway.SetRunStatusAsync(runId, RunStatus.Failed, cancellationToken, error), "set run failed");
         return PipelineRunResult.Failed(runId, pipelineId, error);
+    }
+
+    // A resumed run reads every settled node back from the model, so the record is made whole before any vigil is
+    // placed. A node whose record still cannot be written fails, and the run with it, rather than waiting on a
+    // record it could not resume from. Answers the nodes that failed, none when every wait is held.
+    private async Task<IReadOnlyList<NodeRunResult>> HoldAsync(Guid runId, PipelineDag dag, Progress progress, CancellationToken cancellationToken)
+    {
+        var settled = progress.Results.Values.Concat(progress.Waiting.Values).ToList();
+        foreach (var unwritten in await UnrecordedAsync(runId, settled, cancellationToken))
+            await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, unwritten.NodeId, unwritten.Name, unwritten.Status, unwritten.Error,
+                cancellationToken, outputs: unwritten.Outputs), "write a missing record again");
+
+        var failures = new List<NodeRunResult>();
+        foreach (var unwritten in await UnrecordedAsync(runId, settled, cancellationToken))
+            FailHere(unwritten, $"'{unwritten.Name}' cannot wait: its record could not be written to the model, so the run could not resume from it.");
+        if (failures.Count > 0) return failures;
+
+        foreach (var wait in progress.Waiting.Values.Where(wait => !progress.Holding.Contains(wait.NodeId)).ToList())
+        {
+            if (await PlaceAsync(runId, wait.NodeId, wait.Awaits!.Id, dag.Node(wait.NodeId)!.Waits!, cancellationToken) is { } refused)
+                FailHere(wait, $"'{wait.Name}' cannot wait: {refused}");
+            else
+                progress.Holding.Add(wait.NodeId);
+        }
+        return failures;
+
+        void FailHere(NodeRunResult node, string reason)
+        {
+            var failed = node with { Status = RunStatus.Failed, Error = reason, Outputs = NoOutputs };
+            progress.Waiting.Remove(node.NodeId);
+            progress.Results[node.NodeId] = failed;
+            failures.Add(failed);
+        }
+    }
+
+    private async Task<IReadOnlyList<NodeRunResult>> UnrecordedAsync(Guid runId, IReadOnlyList<NodeRunResult> settled, CancellationToken cancellationToken)
+    {
+        RunRecord? record = null;
+        try { record = await _gateway.ReadRunRecordAsync(runId, cancellationToken); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Could not read run {RunId} back", runId); }
+        return settled.Where(node => record is null
+            || !record.Nodes.TryGetValue(node.NodeId, out var recorded) || recorded.Status != node.Status).ToList();
+    }
+
+    // The node run is related to what it waits for before the vigil exists, and to the vigil once it does. Answers
+    // why the vigil could not be placed, or null when it was.
+    private async Task<string?> PlaceAsync(Guid runId, Guid nodeId, Guid awaitedId, DagWait wait, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _gateway.RelateAwaitedAsync(runId, nodeId, awaitedId, cancellationToken);
+            await _placing.WaitAsync(cancellationToken);
+            try
+            {
+                switch (await _gateway.PlaceVigilAsync(awaitedId, wait.RangeId, cancellationToken))
+                {
+                    case VigilPlacement.Refused refused:
+                        return $"the platform refused its vigil: {refused.Reason}";
+                    case VigilPlacement.Placed placed:
+                        await _gateway.RelateHeldVigilAsync(runId, nodeId, placed.VigilId, cancellationToken);
+                        return null;
+                    default:
+                        return "the platform placed no vigil.";
+                }
+            }
+            finally
+            {
+                _placing.Release();
+            }
+        }
+        catch (Exception ex)
+        {
+            return $"its vigil could not be placed: {ex.Message}";
+        }
     }
 
     private Task PersistStatusAsync(Guid runId, NodeRunResult result, CancellationToken cancellationToken) =>
@@ -258,10 +496,29 @@ public sealed class PipelineExecutor
         if (collection != null && inputs.TryGetValue(collection.PortName, out var collValue) && collValue.ValueKind == JsonValueKind.Array)
             return await RunFanOutAsync(node, runId, inputs, collection.PortName, collValue, cancellationToken);
 
+        AwaitedThing? awaited = null;
+        if (node.Waits is { } wait
+            && (awaited = inputs.TryGetValue(wait.PortName, out var reaching) ? ThingNamedBy(reaching) : null) is null)
+            return Failure(node, $"'{node.Name}' waits for the Thing reaching its port '{wait.PortName}', but what reached it names no Thing.");
+
         var result = await DispatchAndParseAsync(node, runId, inputs, index: null, cancellationToken);
         await RecordProducedAsync(runId, node, index: null, result, cancellationToken);
-        return result;
+        return awaited is not null && result.Status == RunStatus.Succeeded
+            ? result with { Status = RunStatus.Waiting, Awaits = awaited }
+            : result;
     }
+
+    // A Thing as a run carries it: a value with an `id` and usually a `name`, or an identifier on its own.
+    private static AwaitedThing? ThingNamedBy(JsonElement value) => value.ValueKind switch
+    {
+        JsonValueKind.Object when value.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String
+                                  && Guid.TryParse(id.GetString(), out var parsed) =>
+            new AwaitedThing(parsed, value.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String
+                ? name.GetString()!
+                : parsed.ToString()),
+        JsonValueKind.String when Guid.TryParse(value.GetString(), out var bare) => new AwaitedThing(bare, bare.ToString()),
+        _ => null,
+    };
 
     private static bool Carried(DagWire wire, IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs) =>
         outputs.TryGetValue(wire.FromNodeId, out var upstream) && upstream.ContainsKey(wire.FromPort);

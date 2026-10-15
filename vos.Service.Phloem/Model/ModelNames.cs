@@ -36,6 +36,11 @@ public static class ModelNames
     // The run's record: its parameters as given, and when it and each node run started and finished. A
     // node run also keeps its outputs, which a resumed run reads back, and its attempts.
     public const string Parameters = "parameters";
+    public const string Status = "status";
+    public const string NodeId = "nodeId";
+    // A fan-out's node run for one item carries its index and how many items there were.
+    public const string Index = "index";
+    public const string Total = "total";
     public const string StartedUtc = "startedUtc";
     public const string FinishedUtc = "finishedUtc";
     public const string Outputs = "outputs";

@@ -646,7 +646,7 @@ public static class TestGraphs
 
     // A start node hands the run's subject to Review, which sends it for review and waits for it to enter `decided`;
     // Publish then runs on what Review answered.
-    public static WaitingFixture WaitingPipeline(bool wired = true, bool collection = false)
+    public static WaitingFixture WaitingPipeline(bool wired = true, bool collection = false, bool approvedBeside = false)
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
@@ -685,6 +685,16 @@ public static class TestGraphs
         fx.Rel(pipe, vocabulary.Has, publish);
         if (wired) fx.Rel(start, carries, review, ("fromPort", "subject"), ("toPort", "submission"));
         fx.Rel(review, carries, publish, ("fromPort", "notice"), ("toPort", "in"));
+
+        // A second branch waiting on the same Thing for another state, with nothing after it.
+        if (approvedBeside)
+        {
+            var approve = ServiceNode(fx, vocabulary, reviewProto, "Approve", "approve");
+            fx.Rel(approve, provenBy, fx.Thing("approved"));
+            fx.Rel(approve, awaitsThrough, submission);
+            fx.Rel(pipe, vocabulary.Has, approve);
+            fx.Rel(start, carries, approve, ("fromPort", "subject"), ("toPort", "submission"));
+        }
 
         return new WaitingFixture(fx, vocabulary, pipe.Id, review, publish, decided, submission, provenBy, awaitsThrough);
     }
