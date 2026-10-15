@@ -84,14 +84,35 @@ public class DivisionLookupTests
         CoveringSourceResolver.DivisionLookupIn(model).Should().BeNull();
     }
 
-    // No relationship reaches either: neither covers a Place, so a coverage walk finds nothing to traverse to them.
+    // No relationship reaches any of them: none covers a Place, so a coverage walk finds nothing to traverse to them.
     [Fact]
-    public void TheSitesReadAsksForBothMarksModelWide()
+    public void TheSitesReadAsksForEveryLookupMarkModelWide()
     {
         var selector = CoveringSourceResolver.SelectorFor(Guid.NewGuid());
 
         selector.MarkedArchetypes.Should().Contain(CoveringSourceResolver.AreaNameLookupFlag);
+        selector.MarkedArchetypes.Should().Contain(CoveringSourceResolver.LocalAreaNameLookupFlag);
         selector.MarkedArchetypes.Should().Contain(CoveringSourceResolver.HazardDivisionLookupFlag);
+    }
+
+    [Fact]
+    public void TheLocalAreaNameLookupIsReadWhereTheModelDeclaresOne()
+    {
+        var model = WithBothLookups()
+            .Stating("local-area-name-at-position", CoveringSourceResolver.LocalAreaNameLookupFlag, true)
+            .Build();
+
+        CoveringSourceResolver.DivisionLookupIn(model)!.LocalAreaNameEndpoint.Should().Be("local-area-name-at-position");
+    }
+
+    // The English lookup and the search are a whole declaration on their own, as they were before.
+    [Fact]
+    public void AModelDeclaringNoLocalLookupStillOffersTheLookup()
+    {
+        var lookup = CoveringSourceResolver.DivisionLookupIn(WithBothLookups().Build());
+
+        lookup.Should().NotBeNull();
+        lookup!.LocalAreaNameEndpoint.Should().BeNull();
     }
 
     // With its members: the Place a site is about to be related to is one no walk from the site reaches.

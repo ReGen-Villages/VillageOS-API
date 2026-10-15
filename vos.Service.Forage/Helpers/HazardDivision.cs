@@ -112,17 +112,55 @@ public static class HazardDivision
         return divisions;
     }
 
+    // A word shorter than this is an article or a preposition more often than a name, and the portal
+    // answers every division whose name contains the text searched.
+    private const int ShortestWordSearched = 4;
+
+    // Everything the portal is searched by, in order: for each level, finest first, the English name, the
+    // local name, then each word of either. Whole names first because a word finds more; the local name's
+    // words before the English name's because the portal holds a division under its own name.
+    public static IReadOnlyList<string> SearchTermsFor(
+        IReadOnlyList<string> englishNames, IReadOnlyList<string> localNames)
+    {
+        var terms = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void Add(string term)
+        {
+            if (seen.Add(term)) terms.Add(term);
+        }
+
+        for (var level = 0; level < Math.Max(englishNames.Count, localNames.Count); level++)
+        {
+            var english = level < englishNames.Count ? englishNames[level] : null;
+            var local = level < localNames.Count ? localNames[level] : null;
+            if (english is not null) Add(english);
+            if (local is not null) Add(local);
+
+            foreach (var name in new[] { local, english })
+                foreach (var word in (name ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                    if (word.Length >= ShortestWordSearched) Add(word);
+        }
+
+        return terms;
+    }
+
     // A search for one name answers every division of that name in every country — `Santarem` answers one
     // in Portugal and two in Brazil — so the country is what tells the site's land from somewhere else's.
-    // Two divisions standing equally deep are a tie nothing here can settle, and a guessed division reads
-    // exactly like a resolved one, so neither is taken.
-    public static PortalDivision? FinestIn(IReadOnlyList<PortalDivision> divisions, string country)
+    // And it answers every division whose name contains the text: `mazowieckie` answers Mazowieckie and
+    // the district Wysokie Mazowieckie in another voivodeship, so only a division named exactly what was
+    // searched is a candidate. Two standing equally deep are a tie nothing here can settle, and a guessed
+    // division reads exactly like a resolved one, so neither is taken.
+    public static PortalDivision? FinestIn(IReadOnlyList<PortalDivision> divisions, string country, string searched)
     {
-        var inCountry = divisions.Where(division => NamesTheSameCountry(division.Country, country)).ToList();
-        if (inCountry.Count == 0) return null;
+        var named = divisions
+            .Where(division => NamesTheSameCountry(division.Country, country))
+            .Where(division => string.Equals(division.Levels[^1], searched, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (named.Count == 0) return null;
 
-        var deepest = inCountry.Max(division => division.Levels.Count);
-        var finest = inCountry.Where(division => division.Levels.Count == deepest).ToList();
+        var deepest = named.Max(division => division.Levels.Count);
+        var finest = named.Where(division => division.Levels.Count == deepest).ToList();
 
         return finest.Count == 1 ? finest[0] : null;
     }
