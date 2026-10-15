@@ -23,6 +23,7 @@ public class MyceliumGatewayTests
     private static readonly Guid ProducedPredicateId = Guid.Parse("66666666-6666-6666-6666-666666666666");
     private static readonly Guid AttemptArchetypeId = Guid.Parse("99999999-9999-9999-9999-999999999999");
     private static readonly Guid ResumptionConnectionId = Guid.Parse("88888888-8888-8888-8888-888888888888");
+    private static readonly Guid StoppedByPredicateId = Guid.Parse("12121212-1212-1212-1212-121212121212");
 
     private static (MyceliumGateway Gateway, MockHttpMessageHandler Handler) NewGateway(
         Func<HttpRequestMessage, HttpResponseMessage>? respond = null)
@@ -70,7 +71,23 @@ public class MyceliumGatewayTests
         (PipelineRoles.ProducedThing, ProducedPredicateId),
         (PipelineRoles.RunResumption, ResumptionConnectionId),
         (PipelineRoles.Attempt, AttemptArchetypeId),
+        (PipelineRoles.StoppedBy, StoppedByPredicateId),
     ];
+
+    [Fact]
+    public async Task RelateStoppedByAsync_RelatesTheRunToTheRequestAlongThePredicateTheRoleBinds()
+    {
+        var run = Guid.NewGuid();
+        var request = Guid.NewGuid();
+        var (gateway, handler) = NewGateway(RespondLikeAModelThatBindsItsRoles);
+
+        await gateway.RelateStoppedByAsync(run, request, CancellationToken.None);
+
+        var related = await ReadJson(RequestsTo(handler, "/api/relationships", HttpMethod.Post).Single());
+        related.GetProperty("subjectId").GetGuid().Should().Be(run);
+        related.GetProperty("predicateId").GetGuid().Should().Be(StoppedByPredicateId);
+        related.GetProperty("targetId").GetGuid().Should().Be(request);
+    }
 
     [Fact]
     public async Task RecordAttemptAsync_WritesTheAttemptAsAThingTheNodeRunHolds_AndMovesTheNodeRunsCountToItsNumber()

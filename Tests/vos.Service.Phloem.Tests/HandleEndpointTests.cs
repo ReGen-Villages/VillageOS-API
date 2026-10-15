@@ -114,6 +114,18 @@ public class HandleEndpointTests
     }
 
     [Fact]
+    public async Task Handle_AStopNamingNoStopRequest_IsRefused()
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/handle", new StringContent(
+            JsonSerializer.Serialize(new { relationshipId = WrittenAlongStops, targetId = Joined }), Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task Handle_ARelationshipTheModelDoesNotHold_IsRefused()
     {
         await using var factory = new PhloemWebApplicationFactory();
