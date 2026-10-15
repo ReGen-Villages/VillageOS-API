@@ -231,6 +231,21 @@ public class HazardDivisionTests
             .Should().BeNull();
     }
 
+    // The geocoder writes the district with its accent even when asked in English, and the portal holds
+    // every name without one; its search already matches the two, so the choosing must as well.
+    [Fact]
+    public void ADivisionThePortalNamesWithoutTheAccentTheGeocoderWritesIsStillTaken()
+    {
+        HazardDivision.FinestIn(HazardDivision.DivisionsIn(DivisionsNamedSantarem), "Portugal", "Santarém")!
+            .Code.Should().Be("24889");
+    }
+
+    [Fact]
+    public void ANameAnsweredWithAndWithoutItsAccentIsSearchedOnce()
+    {
+        HazardDivision.SearchTermsFor(["Santarém"], ["Santarem"]).Should().Equal("Santarém");
+    }
+
     [Fact]
     public void TheSearchTermsAreEachLevelsNamesThenTheirWords()
     {

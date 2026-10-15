@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using System.Text.Json;
 
 namespace vos.Service.Forage.Helpers;
@@ -127,7 +129,7 @@ public static class HazardDivision
 
         void Add(string term)
         {
-            if (seen.Add(term)) terms.Add(term);
+            if (seen.Add(WithoutDiacritics(term))) terms.Add(term);
         }
 
         for (var level = 0; level < Math.Max(englishNames.Count, localNames.Count); level++)
@@ -155,7 +157,7 @@ public static class HazardDivision
     {
         var named = divisions
             .Where(division => NamesTheSameCountry(division.Country, country))
-            .Where(division => string.Equals(division.Levels[^1], searched, StringComparison.OrdinalIgnoreCase))
+            .Where(division => NamesTheSame(division.Levels[^1], searched))
             .ToList();
         if (named.Count == 0) return null;
 
@@ -163,6 +165,21 @@ public static class HazardDivision
         var finest = named.Where(division => division.Levels.Count == deepest).ToList();
 
         return finest.Count == 1 ? finest[0] : null;
+    }
+
+    // The portal writes every name without its accents and the geocoder keeps them even in English:
+    // `Santarém` against `Santarem`. The portal's own search already matches the two.
+    private static bool NamesTheSame(string held, string searched) =>
+        string.Equals(WithoutDiacritics(held), WithoutDiacritics(searched), StringComparison.OrdinalIgnoreCase);
+
+    private static string WithoutDiacritics(string name)
+    {
+        var decomposed = name.Normalize(NormalizationForm.FormD);
+        var letters = new StringBuilder(decomposed.Length);
+        foreach (var character in decomposed)
+            if (CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
+                letters.Append(character);
+        return letters.ToString().Normalize(NormalizationForm.FormC);
     }
 
     // One name starting with the other, because the two providers do not agree on a country's full name:
