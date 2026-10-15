@@ -8,8 +8,10 @@ namespace vos.Service.Phloem.Tests;
 // test can say what the orchestrator told the model.
 internal sealed class FakeGateway : IMyceliumGateway
 {
-    private readonly PipelineGraph _graph;
-    public FakeGateway(PipelineGraph graph) => _graph = graph;
+    public FakeGateway(PipelineGraph graph) => Graph = graph;
+
+    public PipelineGraph Graph { get; set; }
+    public Exception? LoadFailure { get; set; }
 
     public Func<string, JsonElement, NodeDispatchResult> OnDispatch { get; set; } = (_, _) => new NodeDispatchResult(200, "{\"success\":true,\"outputs\":{}}");
     public Func<Guid, bool> CancelRequested { get; set; } = _ => false;
@@ -21,12 +23,13 @@ internal sealed class FakeGateway : IMyceliumGateway
     public List<Guid> StartTargetsAsked { get; } = new();
     public JsonElement? RunResult { get; private set; }
 
-    public Task<PipelineGraph> LoadPipelineSubgraphAsync(Guid pipelineId, CancellationToken ct) => Task.FromResult(_graph);
+    public Task<PipelineGraph> LoadPipelineSubgraphAsync(Guid pipelineId, CancellationToken ct) =>
+        LoadFailure is { } failure ? Task.FromException<PipelineGraph>(failure) : Task.FromResult(Graph);
 
     public Task<PipelineGraph> LoadStartSubgraphAsync(Guid targetId, CancellationToken ct)
     {
         StartTargetsAsked.Add(targetId);
-        return Task.FromResult(_graph);
+        return Task.FromResult(Graph);
     }
 
     // The relationships the model holds, by id, answered with their predicate; any other id is one it does not hold.
@@ -70,8 +73,9 @@ internal sealed class FakeGateway : IMyceliumGateway
     public List<(Guid VigilId, Guid SubjectId, Guid RangeId)> VigilsPlaced { get; } = new();
     public HashSet<Guid> LiveVigils { get; } = new();
     public string? PlacementRefusal { get; set; }
+    public Exception? PlacementFailure { get; set; }
+    public Exception? RecordReadFailure { get; set; }
 
-    // Answers true for a node-run write the model refuses, by node and status.
     public Func<Guid, string, bool> RefuseNodeRunWrite { get; set; } = (_, _) => false;
 
     public Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken ct, int? index = null, int total = 0,
@@ -88,6 +92,7 @@ internal sealed class FakeGateway : IMyceliumGateway
 
     public Task<RunRecord?> ReadRunRecordAsync(Guid runId, CancellationToken ct)
     {
+        if (RecordReadFailure is { } failure) return Task.FromException<RunRecord?>(failure);
         lock (_model)
         {
             if (!Runs.TryGetValue(runId, out var run)) return Task.FromResult<RunRecord?>(null);
@@ -110,6 +115,7 @@ internal sealed class FakeGateway : IMyceliumGateway
 
     public Task<VigilPlacement> PlaceVigilAsync(Guid subjectId, Guid rangeId, CancellationToken ct)
     {
+        if (PlacementFailure is { } failure) return Task.FromException<VigilPlacement>(failure);
         if (PlacementRefusal is { } reason) return Task.FromResult<VigilPlacement>(new VigilPlacement.Refused(reason));
         var vigilId = Guid.NewGuid();
         lock (_model)

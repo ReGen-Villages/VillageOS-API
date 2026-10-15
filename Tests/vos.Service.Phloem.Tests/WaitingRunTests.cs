@@ -2,6 +2,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Phloem.Execution;
+using vos.Service.Phloem.Model;
 using vos.Service.Shared;
 using Xunit;
 
@@ -190,7 +191,7 @@ public class WaitingRunTests
         gateway.VigilsPlaced.Should().BeEmpty();
         var review = result.Nodes.Single(node => node.Name == "Review");
         review.Status.Should().Be(RunStatus.Failed);
-        review.Error.Should().Be("'Review' cannot wait: its record could not be written to the model, so the run could not resume from it.");
+        review.Error.Should().Be("The record of 'Review' could not be written to the model, so the run could not resume from it.");
         gateway.StatusUpdates.Last().Should().Be(RunStatus.Failed);
     }
 
@@ -252,6 +253,81 @@ public class WaitingRunTests
         gateway.Records[(runId, waiting.Review.Id)].Status.Should().Be(RunStatus.Failed);
         gateway.StatusUpdates.Last().Should().Be(RunStatus.Failed);
         gateway.RunError.Should().Be("'Review' waited for a Thing the model no longer names, so nothing could resume it.");
+    }
+
+    [Fact]
+    public async Task A_pipeline_that_cannot_be_loaded_when_its_vigil_is_answered_fails_the_run_with_the_reason()
+    {
+        var (waiting, gateway, executor) = Arrange();
+        var (_, vigilId) = await WaitAsync(waiting, gateway, executor);
+        gateway.LoadFailure = new PipelineModelException("Node 'Review' waits for two states, so no one answer could resume it.");
+
+        var outcome = await executor.ResumeAsync(vigilId, CancellationToken.None);
+
+        outcome.Should().Be(ResumeOutcome.Resumed);
+        gateway.Dispatched.Should().Equal("review");
+        gateway.StatusUpdates.Last().Should().Be(RunStatus.Failed);
+        gateway.RunError.Should().Be("Node 'Review' waits for two states, so no one answer could resume it.");
+    }
+
+    [Fact]
+    public async Task A_restarted_orchestrator_fails_a_wait_whose_node_no_longer_waits()
+    {
+        var (waiting, gateway, executor) = Arrange();
+        var (runId, vigilId) = await WaitAsync(waiting, gateway, executor);
+        gateway.LiveVigils.Remove(vigilId);
+        waiting.Fixture.Unrelate(waiting.Review, waiting.ProvenBy, waiting.Decided);
+        waiting.Fixture.Unrelate(waiting.Review, waiting.AwaitsThrough, waiting.Submission);
+        gateway.Graph = waiting.Fixture.Build();
+
+        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
+
+        gateway.Records[(runId, waiting.Review.Id)].Status.Should().Be(RunStatus.Failed);
+        gateway.RunError.Should().Be("'Review' no longer waits for a state, so nothing could resume it.");
+        gateway.VigilsPlaced.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task A_restarted_orchestrator_fails_a_wait_whose_vigil_the_platform_refuses_to_place_again()
+    {
+        var (waiting, gateway, executor) = Arrange();
+        var (runId, vigilId) = await WaitAsync(waiting, gateway, executor);
+        gateway.LiveVigils.Remove(vigilId);
+        gateway.PlacementRefusal = "Range 'decided' does not judge 'Plot 7'";
+
+        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
+
+        gateway.Records[(runId, waiting.Review.Id)].Status.Should().Be(RunStatus.Failed);
+        gateway.RunError.Should().Be("'Review' cannot wait: the platform refused its vigil: Range 'decided' does not judge 'Plot 7'");
+    }
+
+    [Fact]
+    public async Task A_vigil_whose_placing_throws_fails_the_node_with_the_reason()
+    {
+        var (waiting, gateway, executor) = Arrange();
+        gateway.PlacementFailure = new HttpRequestException("the broker is away");
+
+        var result = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
+
+        var review = result.Nodes.Single(node => node.Name == "Review");
+        review.Status.Should().Be(RunStatus.Failed);
+        review.Error.Should().Be("'Review' cannot wait: its vigil could not be placed: the broker is away");
+        gateway.StatusUpdates.Last().Should().Be(RunStatus.Failed);
+    }
+
+    [Fact]
+    public async Task A_record_that_cannot_be_read_back_is_written_again_in_full_and_then_fails_the_waiting_node_rather_than_placing_a_vigil()
+    {
+        var (waiting, gateway, executor) = Arrange();
+        gateway.RecordReadFailure = new HttpRequestException("the broker is away");
+
+        var result = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
+
+        gateway.NodeRunsPersisted.Where(node => node.Name == "Review" && node.Status == RunStatus.Waiting).Should().HaveCount(2);
+        result.Nodes.Single(node => node.Name == "Review").Error
+            .Should().Be("The record of 'Review' could not be written to the model, so the run could not resume from it.");
+        gateway.VigilsPlaced.Should().BeEmpty();
+        gateway.StatusUpdates.Last().Should().Be(RunStatus.Failed);
     }
 
     private static NodeDispatchResult NodeOk(params (string Port, string Value)[] outputs) =>

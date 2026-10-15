@@ -447,6 +447,18 @@ public class PipelineModelTests
     }
 
     [Fact]
+    public void Build_RefusesAWaitingNodeWaitingThroughTwoPorts()
+    {
+        var twoPorts = TestGraphs.WaitingPipeline();
+        twoPorts.Fixture.Rel(twoPorts.Review, twoPorts.AwaitsThrough, twoPorts.Fixture.Get("p.notice"));
+
+        var build = () => PipelineDagBuilder.Build(twoPorts.Fixture.Build(), twoPorts.PipelineId);
+
+        build.Should().Throw<PipelineModelException>()
+            .WithMessage("*'Review' waits through two ports, so no one Thing could be waited for*");
+    }
+
+    [Fact]
     public void Build_RefusesAWaitThroughAPortThatIsNotAnInPortOfTheNode()
     {
         var outPort = TestGraphs.WaitingPipeline();

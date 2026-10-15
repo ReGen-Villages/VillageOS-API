@@ -2,7 +2,7 @@ namespace vos.Service.Phloem.Execution;
 
 // One turn at a time per run, so a resume waits for the sweep or the resume already working on the same run. A run's
 // entry is dropped once nobody holds or waits for its turn.
-internal sealed class RunTurns
+public sealed class RunTurns
 {
     private readonly Dictionary<Guid, (SemaphoreSlim Gate, int Takers)> _turns = new();
 

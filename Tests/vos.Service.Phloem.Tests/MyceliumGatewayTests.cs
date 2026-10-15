@@ -650,6 +650,51 @@ public class MyceliumGatewayTests
         placement.Should().Be(new VigilPlacement.Refused("Range 'decided' does not judge 'Plot 7'"));
     }
 
+    [Fact]
+    public async Task PlaceVigilAsync_WhenThePlatformRefusesWithoutAReason_AnswersTheStatus()
+    {
+        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/vigils"
+            ? new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent("not a reason") }
+            : RespondLikeAModelThatBindsItsRoles(request));
+
+        var placement = await gateway.PlaceVigilAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        placement.Should().Be(new VigilPlacement.Refused("HTTP 400"));
+    }
+
+    [Fact]
+    public async Task ReadRunRecordAsync_ReadsANodeRunWhoseOutputsAreNotJsonAsOneWithNone()
+    {
+        var runId = Guid.NewGuid();
+        var pipelineId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var nodeRunId = Guid.NewGuid();
+        var hasId = Guid.NewGuid();
+        var ofId = Guid.NewGuid();
+        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post
+            ? Json(HttpStatusCode.OK, $$$"""
+                {"snapshot":{"things":[
+                  {"id":"{{{runId}}}","name":"PipelineRun","properties":{"parameters":{"typeInfo":"vos.String","value":"{}"} } },
+                  {"id":"{{{pipelineId}}}","name":"Review a submission","properties":{}},
+                  {"id":"{{{nodeRunId}}}","name":"NodeRun Review","properties":{
+                    "nodeId":{"typeInfo":"vos.String","value":"{{{nodeId}}}"},
+                    "status":{"typeInfo":"vos.String","value":"succeeded"},
+                    "outputs":{"typeInfo":"vos.String","value":"not an object"} } },
+                  {"id":"{{{hasId}}}","name":"has","properties":{}},
+                  {"id":"{{{ofId}}}","name":"of","properties":{}}],
+                 "relationships":[
+                  {"id":"{{{Guid.NewGuid()}}}","subjectId":"{{{runId}}}","predicateId":"{{{hasId}}}","targetId":"{{{nodeRunId}}}","properties":{}},
+                  {"id":"{{{Guid.NewGuid()}}}","subjectId":"{{{runId}}}","predicateId":"{{{ofId}}}","targetId":"{{{pipelineId}}}","properties":{}}]}}
+                """)
+            : RespondLikeAModelThatBindsItsRoles(request));
+
+        var record = await gateway.ReadRunRecordAsync(runId, CancellationToken.None);
+
+        record!.PipelineId.Should().Be(pipelineId);
+        record.Nodes[nodeId].Status.Should().Be("succeeded");
+        record.Nodes[nodeId].Outputs.Should().BeEmpty();
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.OK, true)]
     [InlineData(HttpStatusCode.NotFound, false)]

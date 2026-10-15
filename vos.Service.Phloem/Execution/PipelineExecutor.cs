@@ -334,7 +334,7 @@ public sealed class PipelineExecutor
 
         var failures = new List<NodeRunResult>();
         foreach (var unwritten in await UnrecordedAsync(runId, settled, cancellationToken))
-            FailHere(unwritten, $"'{unwritten.Name}' cannot wait: its record could not be written to the model, so the run could not resume from it.");
+            FailHere(unwritten, $"The record of '{unwritten.Name}' could not be written to the model, so the run could not resume from it.");
         if (failures.Count > 0) return failures;
 
         foreach (var wait in progress.Waiting.Values.Where(wait => !progress.Holding.Contains(wait.NodeId)).ToList())
