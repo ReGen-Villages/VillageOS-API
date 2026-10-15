@@ -226,11 +226,9 @@ public sealed class EndpointCallService
                 if (cacheKey != null && binaryStatus is >= 200 and < 300)
                     _diskCache.Write(request.EndpointName!, cacheKey, bytes, servedContentType);
 
-                if (ProviderRefused(binaryStatus) || unavailability.IsAnswered(binaryStatus, () => Encoding.UTF8.GetString(bytes)))
-                {
-                    var refusalWords = Encoding.UTF8.GetString(bytes);
-                    return EndpointCallResult.Refused(refusalWords, servedContentType, binaryStatus, binaryRetryAfter);
-                }
+                string Words() => Encoding.UTF8.GetString(bytes);
+                if (ProviderRefused(binaryStatus) || unavailability.IsAnswered(binaryStatus, Words))
+                    return EndpointCallResult.Refused(Words(), servedContentType, binaryStatus, binaryRetryAfter);
 
                 if (keep != null && binaryStatus is >= 200 and < 300
                     && await KeepAsync(keep, bytes, servedContentType, thing.Value.Id, endpoint.Observed, cancellationToken) is { } notKept)
