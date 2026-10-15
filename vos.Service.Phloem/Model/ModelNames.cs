@@ -45,7 +45,13 @@ public static class ModelNames
     public const string FinishedUtc = "finishedUtc";
     public const string Outputs = "outputs";
     public const string StartedRun = "startedRun";
+    // On a node, how many attempts its policy allows; on a node run, how many were made. An attempt carries its number.
     public const string Attempts = "attempts";
+    public const string Number = "number";
+    public const string PauseMinutes = "pauseMinutes";
+    public const string PauseGrowth = "pauseGrowth";
+    public const string PauseSpread = "pauseSpread";
+    public const string TryingMinutes = "tryingMinutes";
     // The broker's request-log entry that started a run. A plain identifier: what it names is outside the model.
     public const string RequestId = "requestId";
     public const string Payload = "payload";

@@ -21,6 +21,7 @@ public class MyceliumGatewayTests
     private static readonly Guid PredicateId = Guid.Parse("33333333-3333-3333-3333-333333333333");
     private static readonly Guid SentMessageArchetypeId = Guid.Parse("55555555-5555-5555-5555-555555555555");
     private static readonly Guid ProducedPredicateId = Guid.Parse("66666666-6666-6666-6666-666666666666");
+    private static readonly Guid AttemptArchetypeId = Guid.Parse("99999999-9999-9999-9999-999999999999");
     private static readonly Guid ResumptionConnectionId = Guid.Parse("88888888-8888-8888-8888-888888888888");
 
     private static (MyceliumGateway Gateway, MockHttpMessageHandler Handler) NewGateway(
@@ -68,7 +69,36 @@ public class MyceliumGatewayTests
         (PipelineRoles.SentMessage, SentMessageArchetypeId),
         (PipelineRoles.ProducedThing, ProducedPredicateId),
         (PipelineRoles.RunResumption, ResumptionConnectionId),
+        (PipelineRoles.Attempt, AttemptArchetypeId),
     ];
+
+    [Fact]
+    public async Task RecordAttemptAsync_WritesTheAttemptAsAThingTheNodeRunHolds_AndMovesTheNodeRunsCountToItsNumber()
+    {
+        var runId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var noon = new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero);
+        var (gateway, handler) = NewGateway();
+        await gateway.CreateRunAsync(runId, Guid.NewGuid(), CancellationToken.None);
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Echo", RunStatus.Running, null, CancellationToken.None);
+
+        await gateway.RecordAttemptAsync(runId, nodeId, null, new AttemptRecord(2, noon, noon.AddSeconds(1), RunStatus.Failed, "the service was away"), CancellationToken.None);
+
+        var created = (await Task.WhenAll(RequestsTo(handler, "/api/things", HttpMethod.Post).Select(ReadJson))).ToList();
+        var nodeRunId = created[1].GetProperty("id").GetGuid();
+        var attempt = created[2];
+        var attemptId = attempt.GetProperty("id").GetGuid();
+        var properties = attempt.GetProperty("properties");
+        properties.GetProperty(ModelNames.Number).GetProperty("value").GetString().Should().Be("2");
+        properties.GetProperty(ModelNames.StartedUtc).GetProperty("value").GetString().Should().Be(noon.ToString("o"));
+        properties.GetProperty(ModelNames.FinishedUtc).GetProperty("value").GetString().Should().Be(noon.AddSeconds(1).ToString("o"));
+        properties.GetProperty(ModelNames.Status).GetProperty("value").GetString().Should().Be(RunStatus.Failed);
+        properties.GetProperty(ModelNames.Error).GetProperty("value").GetString().Should().Be("the service was away");
+        var edges = (await Task.WhenAll(RequestsTo(handler, "/api/relationships", HttpMethod.Post).Select(ReadJson))).ToList();
+        edges.Should().Contain(edge => edge.GetProperty("subjectId").GetGuid() == attemptId && edge.GetProperty("targetId").GetGuid() == AttemptArchetypeId);
+        edges.Should().Contain(edge => edge.GetProperty("subjectId").GetGuid() == nodeRunId && edge.GetProperty("targetId").GetGuid() == attemptId);
+        (await PropertiesWritten(handler, nodeRunId)).Should().Contain((ModelNames.Attempts, "2"));
+    }
 
     private static readonly Guid BindsPredicateId = Guid.Parse("77777777-7777-7777-7777-777777777777");
 
@@ -195,14 +225,16 @@ public class MyceliumGatewayTests
         selector.GetProperty("ids").EnumerateArray().Select(id => id.GetGuid())
             .Should().BeEquivalentTo(PipelineRoles.DagRoles.Select(role => role.Id).Append(pipelineId).Concat(
                 [PipelineRoles.ExternalSystem.Id, PipelineRoles.StandsFor.Id, PipelineRoles.ToldThrough.Id, PipelineRoles.Choice.Id,
-                 PipelineRoles.CompletionRange.Id, PipelineRoles.AwaitsThrough.Id]));
+                 PipelineRoles.CompletionRange.Id, PipelineRoles.AwaitsThrough.Id, PipelineRoles.HandsOverTo.Id]));
 
         // What each role binds, then the system an end stands for, the connection it is told through, what a port
-        // offers and a node chose, and the state a waiting node waits for, are reached after the nodes.
+        // offers and a node chose, the state a waiting node waits for, and the drawing a node hands over to, are
+        // reached after the nodes.
         selector.GetProperty("traverse").EnumerateArray()
             .Select(rule => rule.TryGetProperty("predicateRole", out var role) ? role.GetString() : rule.GetProperty("predicate").GetString())
             .Should().Equal(ModelNames.Has, ModelNames.Binds, PipelineRoles.StandsFor.Id.ToString(),
-                PipelineRoles.ToldThrough.Id.ToString(), PipelineRoles.Choice.Id.ToString(), PipelineRoles.CompletionRange.Id.ToString());
+                PipelineRoles.ToldThrough.Id.ToString(), PipelineRoles.Choice.Id.ToString(), PipelineRoles.CompletionRange.Id.ToString(),
+                PipelineRoles.HandsOverTo.Id.ToString());
     }
 
     [Fact]
@@ -615,6 +647,24 @@ public class MyceliumGatewayTests
         nodeRunWritten.Should().Contain((ModelNames.Outputs, """{"notice":"sent"}"""));
         nodeRunWritten.Select(w => w.Name).Should().NotContain(ModelNames.FinishedUtc);
         (await PropertiesWritten(handler, runId)).Select(w => w.Name).Should().NotContain(ModelNames.FinishedUtc);
+    }
+
+    [Fact]
+    public async Task Trying_between_attempts_is_not_a_finish_for_a_node_run()
+    {
+        var runId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway();
+        await gateway.CreateRunAsync(runId, Guid.NewGuid(), CancellationToken.None);
+
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Echo", RunStatus.Running, null, CancellationToken.None);
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Echo", RunStatus.Trying, "the service was away", CancellationToken.None);
+
+        var nodeRunId = (await Task.WhenAll(RequestsTo(handler, "/api/things", HttpMethod.Post).Select(ReadJson)))
+            .Select(body => body.GetProperty("id").GetGuid()).Single(id => id != runId);
+        var nodeRunWritten = await PropertiesWritten(handler, nodeRunId);
+        nodeRunWritten.Should().Contain((ModelNames.Status, RunStatus.Trying));
+        nodeRunWritten.Select(w => w.Name).Should().NotContain(ModelNames.FinishedUtc);
     }
 
     [Fact]

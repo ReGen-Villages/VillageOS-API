@@ -77,4 +77,9 @@ public interface IMyceliumGateway
 
     // The platform deletes a vigil once it has been answered or its Thing is gone.
     Task<bool> IsVigilLiveAsync(Guid vigilId, CancellationToken cancellationToken);
+
+    // An attempt is a Thing the node run holds, and the node run's attempts count moves to the attempt's number.
+    Task RecordAttemptAsync(Guid runId, Guid nodeId, int? index, AttemptRecord attempt, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<TryingNodeRun>> TryingNodeRunsAsync(CancellationToken cancellationToken);
 }

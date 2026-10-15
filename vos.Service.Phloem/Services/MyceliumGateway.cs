@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -30,7 +31,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     // A role is read off the drawing only when its role Thing is in it.
     private static readonly IReadOnlyList<Role> DrawingRoles =
         [.. PipelineRoles.DagRoles, PipelineRoles.ExternalSystem, PipelineRoles.StandsFor, PipelineRoles.ToldThrough, PipelineRoles.Choice,
-         PipelineRoles.CompletionRange, PipelineRoles.AwaitsThrough];
+         PipelineRoles.CompletionRange, PipelineRoles.AwaitsThrough, PipelineRoles.HandsOverTo];
 
     private static readonly IReadOnlyList<Role> StartRoles =
     [
@@ -60,6 +61,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
                 new { predicateRole = PipelineRoles.ToldThrough.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.Choice.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.CompletionRange.Id, direction = "outgoing", depth = 1 },
+                new { predicateRole = PipelineRoles.HandsOverTo.Id, direction = "outgoing", depth = 1 },
             },
             includeIsAncestors = true,
             includeRelationships = true,
@@ -200,7 +202,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             names = new[] { ModelNames.Has, ModelNames.Of },
             traverse = new object[]
             {
-                new { predicate = ModelNames.Has, direction = "outgoing", depth = 1 },
+                new { predicate = ModelNames.Has, direction = "outgoing", depth = 2 },
                 new { predicate = ModelNames.Of, direction = "outgoing", depth = 1 },
             },
             includeIsAncestors = false,
@@ -221,9 +223,59 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             if (!Guid.TryParse(held.PropertyString(ModelNames.NodeId), out var nodeId)) continue;
             _createdNodeRuns.TryAdd(held.Id, 0);
             if (!string.IsNullOrEmpty(held.PropertyString(ModelNames.Index))) continue;
-            nodes[nodeId] = new NodeRecord(held.PropertyString(ModelNames.Status) ?? string.Empty, OutputsOf(held));
+            nodes[nodeId] = new NodeRecord(held.PropertyString(ModelNames.Status) ?? string.Empty, OutputsOf(held), AttemptsOf(graph, held));
         }
         return new RunRecord(runId, pipeline.Id, JsonOf(run.PropertyString(ModelNames.Parameters)), nodes);
+    }
+
+    private static IReadOnlyList<AttemptRecord> AttemptsOf(PipelineGraph graph, GraphThing nodeRun)
+    {
+        var attempts = new List<AttemptRecord>();
+        foreach (var held in graph.OutgoingTargets(nodeRun, ModelNames.Has))
+        {
+            if (!int.TryParse(held.PropertyString(ModelNames.Number), out var number)
+                || !DateTimeOffset.TryParse(held.PropertyString(ModelNames.StartedUtc), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var started)
+                || !DateTimeOffset.TryParse(held.PropertyString(ModelNames.FinishedUtc), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var finished))
+                continue;
+            attempts.Add(new AttemptRecord(number, started, finished, held.PropertyString(ModelNames.Status) ?? string.Empty, held.PropertyString(ModelNames.Error)));
+        }
+        return attempts.OrderBy(attempt => attempt.Number).ToList();
+    }
+
+    public async Task RecordAttemptAsync(Guid runId, Guid nodeId, int? index, AttemptRecord attempt, CancellationToken cancellationToken)
+    {
+        var nodeRunId = index is int i ? DeterministicGuid(runId, nodeId, i) : DeterministicGuid(runId, nodeId);
+        var attemptId = DeterministicGuid(nodeRunId, AttemptsOfANodeRun, attempt.Number);
+        var properties = new Dictionary<string, string?>
+        {
+            [ModelNames.Number] = attempt.Number.ToString(CultureInfo.InvariantCulture),
+            [ModelNames.StartedUtc] = attempt.StartedUtc.ToString("o"),
+            [ModelNames.FinishedUtc] = attempt.FinishedUtc.ToString("o"),
+            [ModelNames.Status] = attempt.Status,
+            [ModelNames.Error] = attempt.Error,
+        };
+        await CreateThingWithIdAsync(attemptId, $"Attempt {attempt.Number} {nodeRunId:N}", properties, cancellationToken);
+        await RelateAsync(attemptId, ModelNames.Is, await BoundAsync(PipelineRoles.Attempt, cancellationToken), cancellationToken);
+        await RelateAsync(nodeRunId, ModelNames.Has, attemptId, cancellationToken);
+        await SetPropertyAsync(nodeRunId, ModelNames.Attempts, attempt.Number.ToString(CultureInfo.InvariantCulture), cancellationToken);
+    }
+
+    // Attempts are numbered under their node run, so their identifiers are derived in a space of their own.
+    private static readonly Guid AttemptsOfANodeRun = new("a77e3b1c-6d0e-4c4f-9b2a-5f1e2d3c4b5a");
+
+    public async Task<IReadOnlyList<TryingNodeRun>> TryingNodeRunsAsync(CancellationToken cancellationToken)
+    {
+        var graph = await NodeRunsAsync(cancellationToken);
+        var trying = new List<TryingNodeRun>();
+        foreach (var nodeRun in graph.Things)
+        {
+            if (nodeRun.PropertyString(ModelNames.Status) != RunStatus.Trying
+                || !Guid.TryParse(nodeRun.PropertyString(ModelNames.NodeId), out var nodeId)
+                || graph.RelationshipsInto(nodeRun, ModelNames.Has).FirstOrDefault() is not { } held)
+                continue;
+            trying.Add(new TryingNodeRun(held.SubjectId, nodeId, !string.IsNullOrEmpty(nodeRun.PropertyString(ModelNames.Index))));
+        }
+        return trying;
     }
 
     private static IReadOnlyDictionary<string, JsonElement> OutputsOf(GraphThing nodeRun) =>
@@ -312,8 +364,25 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         return new VigilHolder(held.SubjectId, nodeId);
     }
 
-    // Every node run the model holds is read, which is a startup cost that grows with the runs ever recorded.
     public async Task<IReadOnlyList<HeldWait>> WaitingNodeRunsAsync(CancellationToken cancellationToken)
+    {
+        var graph = await NodeRunsAsync(cancellationToken);
+        var waits = new List<HeldWait>();
+        foreach (var nodeRun in graph.Things)
+        {
+            if (nodeRun.PropertyString(ModelNames.Status) != RunStatus.Waiting
+                || !Guid.TryParse(nodeRun.PropertyString(ModelNames.NodeId), out var nodeId)
+                || graph.RelationshipsInto(nodeRun, ModelNames.Has).FirstOrDefault() is not { } held)
+                continue;
+            waits.Add(new HeldWait(held.SubjectId, nodeId,
+                graph.RelationshipsAlong(nodeRun, PipelineRoles.AwaitedThing).Select(rel => (Guid?)rel.TargetId).FirstOrDefault(),
+                graph.RelationshipsAlong(nodeRun, PipelineRoles.HeldVigil).Select(rel => (Guid?)rel.TargetId).FirstOrDefault()));
+        }
+        return waits;
+    }
+
+    // Every node run the model holds is read, which is a startup cost that grows with the runs ever recorded.
+    private async Task<PipelineGraph> NodeRunsAsync(CancellationToken cancellationToken)
     {
         var selector = new
         {
@@ -331,20 +400,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
                 new { predicate = ModelNames.Has, direction = "incoming" },
             },
         };
-        var graph = await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(60), cancellationToken);
-
-        var waits = new List<HeldWait>();
-        foreach (var nodeRun in graph.Things)
-        {
-            if (nodeRun.PropertyString(ModelNames.Status) != RunStatus.Waiting
-                || !Guid.TryParse(nodeRun.PropertyString(ModelNames.NodeId), out var nodeId)
-                || graph.RelationshipsInto(nodeRun, ModelNames.Has).FirstOrDefault() is not { } held)
-                continue;
-            waits.Add(new HeldWait(held.SubjectId, nodeId,
-                graph.RelationshipsAlong(nodeRun, PipelineRoles.AwaitedThing).Select(rel => (Guid?)rel.TargetId).FirstOrDefault(),
-                graph.RelationshipsAlong(nodeRun, PipelineRoles.HeldVigil).Select(rel => (Guid?)rel.TargetId).FirstOrDefault()));
-        }
-        return waits;
+        return await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(60), cancellationToken);
     }
 
     // Anything but a refusal to find it is read as live, so a broker that is unwell is never answered with a second vigil.

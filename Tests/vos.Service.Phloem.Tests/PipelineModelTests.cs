@@ -465,7 +465,61 @@ public class PipelineModelTests
         var build = () => PipelineDagBuilder.Build(itself.Fixture.Build(), itself.PipelineId);
 
         build.Should().Throw<PipelineModelException>()
-            .WithMessage("*'Out' stands for 'BoundaryDemo', the pipeline it ends, so a run would start another of itself without end*");
+            .WithMessage("*'Out' stands for 'BoundaryDemo', the pipeline it is in, so a run would start another of itself without end*");
+    }
+
+    [Fact]
+    public void Build_ReadsANodesRetryPolicyWithTheOtherNumbersDefaulted_AndNoneWithoutAnAttemptsCount()
+    {
+        var withPolicy = TestGraphs.RetryPipeline(policy: [("attempts", 3), ("pauseMinutes", 2.5), ("pauseGrowth", 2), ("pauseSpread", 0.2), ("tryingMinutes", 90)]);
+        var countOnly = TestGraphs.RetryPipeline(policy: [("attempts", 2)]);
+        var without = TestGraphs.RetryPipeline();
+
+        PipelineDagBuilder.Build(withPolicy.Fixture.Build(), withPolicy.PipelineId).Node(withPolicy.Echo.Id)!.Retries
+            .Should().Be(new RetryPolicy(3, 2.5, 2, 0.2, 90));
+        PipelineDagBuilder.Build(countOnly.Fixture.Build(), countOnly.PipelineId).Node(countOnly.Echo.Id)!.Retries
+            .Should().Be(new RetryPolicy(2, 1, 1, 0, 24 * 60));
+        PipelineDagBuilder.Build(without.Fixture.Build(), without.PipelineId).Node(without.Echo.Id)!.Retries.Should().BeNull();
+    }
+
+    [Fact]
+    public void A_retry_pause_grows_by_its_multiplier_each_attempt_and_its_spread_adds_up_to_that_fraction()
+    {
+        var policy = new RetryPolicy(Attempts: 4, PauseMinutes: 2, PauseGrowth: 3, PauseSpread: 0.5, TryingMinutes: 60);
+
+        policy.PauseBefore(2, spreadDraw: 0).Should().Be(TimeSpan.FromMinutes(2));
+        policy.PauseBefore(3, spreadDraw: 0).Should().Be(TimeSpan.FromMinutes(6));
+        policy.PauseBefore(3, spreadDraw: 1).Should().Be(TimeSpan.FromMinutes(9));
+    }
+
+    [Theory]
+    [InlineData("attempts", 0, "allows 0 attempts")]
+    [InlineData("pauseGrowth", 0.5, "a number out of range")]
+    [InlineData("pauseMinutes", -1, "a number out of range")]
+    [InlineData("tryingMinutes", 0, "a number out of range")]
+    public void Build_RefusesARetryPolicyWithANumberOutOfRange(string name, double value, string reason)
+    {
+        var policy = name == "attempts"
+            ? TestGraphs.RetryPipeline(policy: [("attempts", (int)value)])
+            : TestGraphs.RetryPipeline(policy: [("attempts", 2), (name, value)]);
+
+        var build = () => PipelineDagBuilder.Build(policy.Fixture.Build(), policy.PipelineId);
+
+        build.Should().Throw<PipelineModelException>().WithMessage($"*'Echo'*{reason}*");
+    }
+
+    [Fact]
+    public void Build_ReadsTheDrawingANodeHandsItsSubjectTo_AndRefusesItsOwn()
+    {
+        var handsOver = TestGraphs.RetryPipeline(handsOver: true, policy: [("attempts", 2)]);
+        var itself = TestGraphs.RetryPipeline(policy: [("attempts", 2)]);
+        itself.Fixture.Rel(itself.Echo, itself.Fixture.Playing("handsOverTo", PipelineRoles.HandsOverTo), itself.Fixture.Get("RetryDemo"));
+
+        PipelineDagBuilder.Build(handsOver.Fixture.Build(), handsOver.PipelineId).Node(handsOver.Echo.Id)!.HandsOverTo
+            .Should().Be(new Starting(handsOver.NextPipelineId, "What follows"));
+        var build = () => PipelineDagBuilder.Build(itself.Fixture.Build(), itself.PipelineId);
+        build.Should().Throw<PipelineModelException>()
+            .WithMessage("*'Echo' hands its subject to 'RetryDemo', the pipeline it is in, so a run would start another of itself without end*");
     }
 
     [Fact]

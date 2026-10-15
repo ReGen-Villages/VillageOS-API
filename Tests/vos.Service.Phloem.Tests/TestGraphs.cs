@@ -234,6 +234,53 @@ public static class TestGraphs
         return new StartingFixture(fx, pipelineId, next.Id);
     }
 
+    public sealed record RetryFixture(GraphFixture Fixture, Guid PipelineId, Guid NextPipelineId, GraphThing In, GraphThing Echo);
+
+    // In → Echo → Out, with Echo carrying a retry policy as its properties and, when asked, naming the drawing its
+    // subject goes to when trying ends.
+    public static RetryFixture RetryPipeline(bool handsOver = false, bool besideAFailingNode = false, bool perItem = false,
+        params (string Name, object Value)[] policy)
+    {
+        var fx = new GraphFixture();
+        var vocabulary = fx.DeclareVocabulary();
+        var carries = fx.Thing("carries");
+        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+
+        var echoPrototype = perItem ? CollectionInPrototype(fx, vocabulary, "EchoProto") : InputOutputPrototype(fx, vocabulary, "EchoProto");
+        var echo = ServiceNode(fx, vocabulary, echoPrototype, "Echo", "ech", policy);
+
+        var input = fx.Thing("In");
+        fx.Rel(input, vocabulary.Is, vocabulary.PipelineInput);
+        var seedPort = fx.Thing("in.seed", ("direction", "out"), ("type", "any"), ("portName", "seed"));
+        fx.Rel(seedPort, vocabulary.Is, vocabulary.Port);
+        fx.Rel(input, vocabulary.Has, seedPort);
+
+        var output = fx.Thing("Out");
+        fx.Rel(output, vocabulary.Is, vocabulary.PipelineOutput);
+        var resultPort = fx.Thing("out.result", ("direction", "in"), ("type", "any"), ("portName", "result"));
+        fx.Rel(resultPort, vocabulary.Is, vocabulary.Port);
+        fx.Rel(output, vocabulary.Has, resultPort);
+
+        var pipe = fx.Thing("RetryDemo");
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Rel(pipe, vocabulary.Has, input);
+        fx.Rel(pipe, vocabulary.Has, echo);
+        fx.Rel(pipe, vocabulary.Has, output);
+        fx.Rel(input, carries, echo, ("fromPort", "seed"), ("toPort", "in"));
+        fx.Rel(echo, carries, output, ("fromPort", "out"), ("toPort", "result"));
+        if (besideAFailingNode)
+        {
+            var broken = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "BrokenProto"), "Broken", "broken");
+            fx.Rel(pipe, vocabulary.Has, broken);
+            fx.Rel(input, carries, broken, ("fromPort", "seed"), ("toPort", "in"));
+        }
+
+        var next = fx.Thing("What follows");
+        fx.Rel(next, vocabulary.Is, vocabulary.Pipeline);
+        if (handsOver) fx.Rel(echo, fx.Playing("handsOverTo", PipelineRoles.HandsOverTo), next);
+        return new RetryFixture(fx, pipe.Id, next.Id, input, echo);
+    }
+
     // The three ways a dispatched relationship's target can start a pipeline, and one way it cannot.
     public sealed record StartFixture(
         GraphFixture Fixture,
@@ -717,11 +764,16 @@ public static class TestGraphs
         return new WaitingFixture(fx, vocabulary, pipe.Id, review, publish, decided, submission, provenBy, awaitsThrough);
     }
 
-    private static GraphThing InputOutputPrototype(GraphFixture fx, PipelineVocabulary vocabulary, string name)
+    private static GraphThing CollectionInPrototype(GraphFixture fx, PipelineVocabulary vocabulary, string name) =>
+        InputOutputPrototype(fx, vocabulary, name, collectionIn: true);
+
+    private static GraphThing InputOutputPrototype(GraphFixture fx, PipelineVocabulary vocabulary, string name, bool collectionIn = false)
     {
         var proto = fx.Thing(name);
         fx.Rel(proto, vocabulary.Is, vocabulary.Service);
-        var portIn = fx.Thing("p.in", ("direction", "in"), ("type", "any"), ("portName", "in"));
+        var portIn = collectionIn
+            ? fx.Thing("p.in", ("direction", "in"), ("type", "any"), ("portName", "in"), ("collection", "true"))
+            : fx.Thing("p.in", ("direction", "in"), ("type", "any"), ("portName", "in"));
         var portOut = fx.Thing("p.out", ("direction", "out"), ("type", "any"), ("portName", "out"));
         fx.Rel(portIn, vocabulary.Is, vocabulary.Port);
         fx.Rel(portOut, vocabulary.Is, vocabulary.Port);

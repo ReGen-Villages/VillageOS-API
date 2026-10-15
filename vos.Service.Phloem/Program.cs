@@ -68,8 +68,11 @@ try
         {
             var registered = await app.Services.GetRequiredService<MyceliumGateway>().RegisterAsync(servicePort);
             Log.Information("Phloem orchestrator {Status} with mycelium", registered ? "registered" : "failed to register");
-            var placedAgain = await app.Services.GetRequiredService<PipelineExecutor>().RecoverWaitsAsync(CancellationToken.None);
+            var executor = app.Services.GetRequiredService<PipelineExecutor>();
+            var placedAgain = await executor.RecoverWaitsAsync(CancellationToken.None);
             if (placedAgain > 0) Log.Information("Placed {Count} vigil(s) again for runs that were waiting", placedAgain);
+            var carriedOn = await executor.RecoverTryingAsync(CancellationToken.None);
+            if (carriedOn > 0) Log.Information("Carried {Count} run(s) on from a node that was trying", carriedOn);
         }
         catch (Exception ex)
         {

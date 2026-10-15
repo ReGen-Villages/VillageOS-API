@@ -51,6 +51,10 @@ public static class PipelineRoles
     public static readonly Role RunResumption = new("runResumption", new("50c894ed-a33d-56cc-a5a6-92aa82d32f4f"));
     // A run started by another run's end reaches the run that started it.
     public static readonly Role StartingRun = new("startingRun", new("9dd7221e-f438-5ccc-b89d-25c9cd56f45c"));
+    // One call of a node's service, held by the node run that made it; and the pipeline a node hands its subject
+    // to when its trying ends without an answer.
+    public static readonly Role Attempt = new("attempt", new("d3014b77-c8f2-51d8-bb74-098c26296944"));
+    public static readonly Role HandsOverTo = new("handsOverTo", new("5ee3e03b-c8a6-5ed2-83c7-77448c913175"));
 
     // The roles a DAG is resolved from. The run roles are not among them: a run Thing is written before the
     // pipeline is loaded, so its archetype is looked up at the point of writing.

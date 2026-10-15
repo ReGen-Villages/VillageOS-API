@@ -24,6 +24,9 @@ public static class DagValidator
         foreach (var node in dag.Nodes.Where(node => node.Waits is not null))
             ValidateWait(dag, node, node.Waits!, errors);
 
+        foreach (var node in dag.Nodes.Where(node => node.HandsOverTo is not null && node.CollectionInput is not null))
+            errors.Add($"'{node.Name}' hands its subject over, but runs once for each item of '{node.CollectionInput!.PortName}'; a node that hands over runs once.");
+
         var order = TopoSort(dag, out var cyclicNodeIds);
         if (cyclicNodeIds.Count > 0)
         {

@@ -22,6 +22,17 @@ public sealed record Telling(Guid SystemId, string SystemName, Guid ConnectionId
 // The pipeline an end node stands for: a run reaching the end starts a run of it with what reached the end.
 public sealed record Starting(Guid PipelineId, string PipelineName);
 
+// How a node keeps calling a service it cannot reach: how many attempts, the pause before the second in model
+// minutes, the multiplier the pause grows by each attempt, the fraction of the pause added at random, and how long
+// trying may last from the first attempt.
+public sealed record RetryPolicy(int Attempts, double PauseMinutes, double PauseGrowth, double PauseSpread, double TryingMinutes)
+{
+    public TimeSpan PauseBefore(int attemptNumber, double spreadDraw) =>
+        TimeSpan.FromMinutes(PauseMinutes * Math.Pow(PauseGrowth, attemptNumber - 2) * (1 + PauseSpread * spreadDraw));
+
+    public TimeSpan TryingTime => TimeSpan.FromMinutes(TryingMinutes);
+}
+
 // A Thing the node chose among those an in port offers; the input is filled with it unless a wire or a
 // parameter fills it.
 public sealed record ChosenThing(Guid Id, string Name);
@@ -52,6 +63,10 @@ public sealed class DagNode
     public Telling? Tells { get; init; }
 
     public Starting? Starts { get; init; }
+
+    public RetryPolicy? Retries { get; init; }
+
+    public Starting? HandsOverTo { get; init; }
 
     public IReadOnlyDictionary<string, ChosenThing> Choices { get; init; } =
         new Dictionary<string, ChosenThing>(StringComparer.OrdinalIgnoreCase);
