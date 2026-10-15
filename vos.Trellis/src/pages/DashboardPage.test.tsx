@@ -1,10 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { ConnectionState } from '../types/connection';
 import type { RegisteredService } from '../types/mycelium';
 import type { EngineMetricsSummary } from '../types/engineMetrics';
 import type { VosThing } from '../types/vos';
+
+const { navigated } = vi.hoisted(() => ({ navigated: vi.fn() }));
+vi.mock('react-router-dom', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router-dom')>()),
+  useNavigate: () => navigated,
+}));
 
 const stream: { connection: ConnectionState } = { connection: 'live' };
 const streamHandlers = new Map<string, ((data?: unknown) => void)[]>();
@@ -287,6 +293,15 @@ describe('DashboardPage while the model loads and the connection opens', () => {
 
     act(() => useModelStore.setState({ holdsWholeModel: true }));
     expect(figure('Things')).toBe('3');
+  });
+
+  it('opens a service log by its connection id and carries the name for the title', async () => {
+    openDashboard();
+    await act(async () => {});
+
+    fireEvent.click(screen.getByTitle('View log'));
+
+    expect(navigated).toHaveBeenCalledWith('/logs?service=h1&name=consumes');
   });
 
   it('draws a service as the registry reports it while the connection opens, and unreachable once it is lost', async () => {

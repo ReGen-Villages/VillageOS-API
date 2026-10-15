@@ -232,6 +232,19 @@ public class HazardDivisionTests
     }
 
     [Fact]
+    public void ADivisionThePortalNamesWithoutTheAccentTheGeocoderWritesIsStillTaken()
+    {
+        HazardDivision.FinestIn(HazardDivision.DivisionsIn(DivisionsNamedSantarem), "Portugal", "Santarém")!
+            .Code.Should().Be("24889");
+    }
+
+    [Fact]
+    public void ANameAnsweredWithAndWithoutItsAccentIsSearchedOnce()
+    {
+        HazardDivision.SearchTermsFor(["Santarém"], ["Santarem"]).Should().Equal("Santarém");
+    }
+
+    [Fact]
     public void TheSearchTermsAreEachLevelsNamesThenTheirWords()
     {
         var terms = HazardDivision.SearchTermsFor(

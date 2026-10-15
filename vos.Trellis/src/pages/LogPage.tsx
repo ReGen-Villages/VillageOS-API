@@ -8,18 +8,19 @@ import { snapshotBlob, snapshotFileName, triggerDownload } from '../utils/logDow
 import { toast } from '../components/common/toastStore';
 import { ConnectionMark } from '../components/common/ConnectionMark';
 
-/** Live tail of the Mycelium broker log — or a service daemon's log when ?service=<key> is set.
- *  Keyed by service so switching sources remounts the view with fresh state. */
+/** Live tail of the Mycelium broker log — or a service's own log when ?service=<connection id> is
+ *  set, titled by ?name=. Keyed by service so switching sources remounts the view with fresh state. */
 export function LogPage() {
   const [parameters] = useSearchParams();
   const service = parameters.get('service') ?? undefined;
-  return <LogView key={service ?? 'broker'} service={service} />;
+  const name = parameters.get('name') ?? service;
+  return <LogView key={service ?? 'broker'} service={service} name={name} />;
 }
 
-function LogView({ service }: { service?: string }) {
+function LogView({ service, name }: { service?: string; name?: string }) {
   const { lines, connection, clear } = useLogTail(service);
   const { t } = useTranslation();
-  const title = service ? t('log.serviceTitle', { service }) : t('log.brokerTitle');
+  const title = service ? t('log.serviceTitle', { service: name }) : t('log.brokerTitle');
   const streamInWords = {
     connecting: t('connection.connecting'),
     live: t('log.streaming'),
@@ -30,7 +31,7 @@ function LogView({ service }: { service?: string }) {
   const scrollReference = useRef<HTMLDivElement>(null);
 
   const downloadSnapshot = () =>
-    triggerDownload(snapshotBlob(lines), snapshotFileName(service, new Date()));
+    triggerDownload(snapshotBlob(lines), snapshotFileName(name, new Date()));
 
   const downloadFullLog = async () => {
     setDownloadingFull(true);

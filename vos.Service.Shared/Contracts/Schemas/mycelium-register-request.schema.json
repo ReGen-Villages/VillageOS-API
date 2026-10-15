@@ -12,6 +12,7 @@
     "endpointUrl":    { "type": "string", "format": "uri",  "description": "Base URL Mycelium uses to reach the microservice." },
     "startCommand":   { "type": "string", "minLength": 1, "description": "Token Mycelium uses to restart the service." },
     "stopEndpoint":   { "type": "string", "format": "uri",  "description": "Shutdown endpoint URL." },
-    "healthEndpoint": { "type": "string", "format": "uri",  "description": "Liveness endpoint polled by LivenessMonitor." }
+    "healthEndpoint": { "type": "string", "format": "uri",  "description": "Liveness endpoint polled by LivenessMonitor." },
+    "logFilePrefix":  { "type": "string", "pattern": "^[a-z0-9-]+$", "description": "What the service writes its own log file under, so the broker's log routes can find the newest file; never a path." }
   }
 }

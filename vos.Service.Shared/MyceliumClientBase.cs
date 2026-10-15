@@ -86,17 +86,18 @@ public abstract class MyceliumClientBase
         return client;
     }
 
-    public async Task<bool> RegisterAsync(int port, string serviceName, string startCommand)
+    public async Task<bool> RegisterAsync(int port, string serviceName, string startCommand, string? logFilePrefix = null)
     {
-        var registration = new
+        var registration = new Dictionary<string, object>
         {
-            handlerId = HandlerId,
-            serviceName,
-            endpointUrl = $"http://localhost:{port}",
-            startCommand,
-            stopEndpoint = $"http://localhost:{port}/shutdown",
-            healthEndpoint = $"http://localhost:{port}/health"
+            ["handlerId"] = HandlerId,
+            ["serviceName"] = serviceName,
+            ["endpointUrl"] = $"http://localhost:{port}",
+            ["startCommand"] = startCommand,
+            ["stopEndpoint"] = $"http://localhost:{port}/shutdown",
+            ["healthEndpoint"] = $"http://localhost:{port}/health"
         };
+        if (logFilePrefix is not null) registration["logFilePrefix"] = logFilePrefix;
 
         var json = JsonSerializer.Serialize(registration);
 

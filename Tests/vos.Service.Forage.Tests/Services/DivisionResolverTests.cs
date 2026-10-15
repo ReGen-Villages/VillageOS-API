@@ -34,6 +34,10 @@ public class DivisionResolverTests
         {"address": {"county": "Santarem", "country": "Portugal", "country_code": "pt"}}
         """;
 
+    private const string InPortugalAsTheGeocoderWritesIt = """
+        {"address": {"county": "Santarém", "country": "Portugal", "country_code": "pt"}}
+        """;
+
     private const string InPolandLocally = """
         {"address": {"county": "powiat warszawski zachodni", "state": "województwo mazowieckie",
                      "ISO3166-2-lvl4": "PL-14", "country": "Polska", "country_code": "pl"}}
@@ -198,6 +202,20 @@ public class DivisionResolverTests
 
         writer.Facts.Should().Contain((SiteId, CodeProperty, "24889"));
         writer.Facts.Should().Contain((SiteId, NameProperty, "Portugal / Santarem / Santarem"));
+    }
+
+    // The geocoder writes "Santarém" even in English and the portal holds "Santarem"; read as different
+    // names, every Portuguese site keeps no division.
+    [Fact]
+    public async Task ACountyTheGeocoderWritesWithAnAccentIsGradedAtTheDivisionThePortalWritesWithout()
+    {
+        var writer = new RecordingWriter();
+        var reader = new ScriptedReader(InPortugalAsTheGeocoderWritesIt, DivisionsNamedSantarem);
+
+        await ResolverOver(reader, writer).AddressAsync(SiteId, AtWillowBend(), CancellationToken.None);
+
+        reader.Asked.Select(asked => asked.AreaName).Should().Equal(null, "Santarém");
+        writer.Facts.Should().Contain((SiteId, CodeProperty, "24889"));
     }
 
     // On this run, not the next: a site graded only after a whole dispatch had been waited out would sit
