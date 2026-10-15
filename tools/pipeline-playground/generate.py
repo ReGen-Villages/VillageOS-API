@@ -374,12 +374,11 @@ def build():
                         k.rel(item_id, is_, NodeRun)
                         k.rel(run_id, has, item_id)
 
-    # Configuration is what a model sets up and operation what then happens there. Every archetype here is under
-    # one root and every predicate and role Thing under Configuration; a target that declares the roots is reused
-    # through the roles, like the rest of the shared vocabulary.
-    Configuration, Operation = (
-        k.bind(word, k.thing(stable_id(_TAG, "archetype", name), name, shared=True, archetype=True))
-        for name, word in ROOT_ROLE.items())
+    # A target that already binds the roots is reused through the roles, like the rest of the shared vocabulary.
+    Configuration = k.bind(ROOT_ROLE["Configuration"],
+                           k.thing(stable_id(_TAG, "archetype", "Configuration"), "Configuration", shared=True, archetype=True))
+    Operation = k.bind(ROOT_ROLE["Operation"],
+                       k.thing(stable_id(_TAG, "archetype", "Operation"), "Operation", shared=True, archetype=True))
     binds = k.thing(stable_id(_TAG, "predicate", "binds"), "binds", shared=True)
     for configured in (Pipeline, PipelineNode, Port, Service, Connection, PipelineWire, ExternalSystem,
                        MessageKind, strategy_kind):
