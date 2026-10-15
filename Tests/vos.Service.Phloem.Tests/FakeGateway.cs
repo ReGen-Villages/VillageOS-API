@@ -54,9 +54,12 @@ internal sealed class FakeGateway : IMyceliumGateway
 
     public JsonElement? ParametersRecorded { get; private set; }
 
+    public HashSet<Guid> Rehearsals { get; } = new();
+
     public Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct, RunSubject? subject = null, Guid? requestId = null, JsonElement? parameters = null, Guid? startedBy = null,
-        string? refusal = null)
+        string? refusal = null, bool rehearsal = false)
     {
+        if (rehearsal) lock (Rehearsals) Rehearsals.Add(runId);
         lock (RunsCreated) RunsCreated.Add((runId, pipelineId, subject, requestId, startedBy));
         if (refusal is not null)
         {
@@ -135,7 +138,9 @@ internal sealed class FakeGateway : IMyceliumGateway
         {
             if (!Runs.TryGetValue(runId, out var run)) return Task.FromResult<RunRecord?>(null);
             var nodes = Records.Where(record => record.Key.RunId == runId).ToDictionary(record => record.Key.NodeId, record => record.Value);
-            return Task.FromResult<RunRecord?>(new RunRecord(runId, run.PipelineId, run.Parameters, nodes));
+            bool rehearsal;
+            lock (Rehearsals) rehearsal = Rehearsals.Contains(runId);
+            return Task.FromResult<RunRecord?>(new RunRecord(runId, run.PipelineId, run.Parameters, nodes, rehearsal));
         }
     }
 

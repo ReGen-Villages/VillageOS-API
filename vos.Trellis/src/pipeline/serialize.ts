@@ -13,6 +13,7 @@ import i18n from '../i18n';
 
 const DOUBLE: VosTypeName = 'vos.Double';
 const STRING: VosTypeName = 'vos.String';
+const BOOLEAN: VosTypeName = 'vos.Boolean';
 const env = (typeInfo: VosTypeName, value: unknown) => ({ typeInfo, value });
 
 export interface EditorNode {
@@ -114,7 +115,8 @@ export async function savePipeline(
     nodeThingId.set(n.id, model.isOf(n.id, ROLE.PipelineNode) ? n.id : crypto.randomUUID());
 
   const things: Array<{ Id: string; Name: string; Properties: Record<string, unknown> }> = [
-    { Id: pipelineId, Name: name, Properties: {} },
+    // Every pipeline the page saves is live until drafts and Publish reach the page.
+    { Id: pipelineId, Name: name, Properties: { published: env(BOOLEAN, true) } },
   ];
   const relationships: Array<{ Name: string; Subject: string; Predicate: string; Target: string }> = [
     { Name: 'is', Subject: pipelineId, Predicate: isId, Target: pipelineArchetype },

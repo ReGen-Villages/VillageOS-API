@@ -322,6 +322,19 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
+    public async Task CreateRunAsync_RecordsWhetherTheRunIsARehearsal()
+    {
+        var (gateway, handler) = NewGateway();
+
+        await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None, rehearsal: true);
+        await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        var written = (await Task.WhenAll(RequestsTo(handler, "/api/things", HttpMethod.Post).Select(ReadJson)))
+            .Select(run => run.GetProperty("properties").GetProperty(ModelNames.Rehearsal).GetProperty("value").GetString());
+        written.Should().Equal("true", "false");
+    }
+
+    [Fact]
     public async Task CreateRunAsync_WithARefusal_RecordsTheRunRefusedAndFinishedWithItsReasons()
     {
         var (gateway, handler) = NewGateway();

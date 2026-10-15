@@ -52,6 +52,11 @@ public static class ModelNames
     public const string PauseGrowth = "pauseGrowth";
     public const string PauseSpread = "pauseSpread";
     public const string TryingMinutes = "tryingMinutes";
+    // A pipeline the model starts is published; any other is a draft, run only as a rehearsal. A service that
+    // rehearses writes nothing but its answer, so a rehearsal may call it; a run and the envelope say rehearsal.
+    public const string Published = "published";
+    public const string Rehearses = "rehearses";
+    public const string Rehearsal = "rehearsal";
     // The broker's request-log entry that started a run. A plain identifier: what it names is outside the model.
     public const string RequestId = "requestId";
     public const string Payload = "payload";

@@ -166,6 +166,7 @@ public class PipelineModelTests
         var second = Node("Second", "two");
         var pipe = fx.Thing("Renamed pipeline");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, first);
         fx.Rel(pipe, vocabulary.Has, second);
         fx.Rel(first, carries, second, ("fromPort", "produced"), ("toPort", "consumed"));
@@ -227,6 +228,7 @@ public class PipelineModelTests
         fx.Rel(fx.Get($"{PipelineRoles.Pipeline.Word} role"), fx.Get(ModelNames.Binds), second);
         var pipe = fx.Thing("P");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
 
         var act = () => PipelineDagBuilder.Build(fx.Build(), pipe.Id);
 
@@ -276,6 +278,7 @@ public class PipelineModelTests
         var vocabulary = fx.DeclareVocabulary();
         var pipe = fx.Thing("Empty");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
 
         var act = () => PipelineDagBuilder.Build(fx.Build(), pipe.Id);
 
@@ -296,6 +299,7 @@ public class PipelineModelTests
         fx.Rel(node, vocabulary.Has, connection);
         var pipe = fx.Thing("P");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, node);
 
         PipelineDagBuilder.Build(fx.Build(), pipe.Id).Problems
@@ -577,6 +581,7 @@ public class PipelineModelTests
         var vocabulary = fx.DeclareVocabulary();
         var pipe = fx.Thing("P");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
         var node = fx.Thing("Lonely");
         fx.Rel(node, vocabulary.Is, vocabulary.PipelineNode);
         fx.Rel(pipe, vocabulary.Has, node); // node binds no connection

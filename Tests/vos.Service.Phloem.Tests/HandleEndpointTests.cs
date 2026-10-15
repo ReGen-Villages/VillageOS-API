@@ -116,6 +116,23 @@ public class HandleEndpointTests
     public enum Start { ByHandAnsweredAtOnce, ByHandAwaited, ByADispatch }
 
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Handle_ARunAskedForByHand_IsRecordedAsARehearsalOnlyWhenOneWasAskedFor(bool async)
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/handle", new StringContent(
+            JsonSerializer.Serialize(new { pipelineId = Drawn, async, rehearsal = true }), Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        await Settle.UntilAsync(() => factory.RunsRecordedFor(Drawn) == 1, "the run record reaches the broker");
+        JsonDocument.Parse(factory.RunRecordFor(Drawn)).RootElement.GetProperty("properties")
+            .GetProperty(ModelNames.Rehearsal).GetProperty("value").GetString().Should().Be("true");
+    }
+
+    [Theory]
     [InlineData(Start.ByHandAnsweredAtOnce)]
     [InlineData(Start.ByHandAwaited)]
     [InlineData(Start.ByADispatch)]
@@ -279,7 +296,7 @@ public class HandleEndpointTests
                         Thing(Watching, "watchingConnection"),
                         Thing(Loose, "looseConnection"),
                         Thing(arrival, "Arrival"),
-                        Thing(Drawn, "Drawn from the state"),
+                        new { id = Drawn, name = "Drawn from the state", properties = new Dictionary<string, object> { [ModelNames.Published] = new { value = true, typeInfo = "vos.Boolean" } } },
                     },
                     relationships = new[]
                     {

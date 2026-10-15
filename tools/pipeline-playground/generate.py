@@ -235,7 +235,8 @@ def build():
     offered_by_key = {}
     strategy_kind = k.thing(stable_id(_TAG, "kind", "Strategy"), "Strategy", archetype=True)
     for svc in SERVICES:
-        svc_id = k.thing(stable_id(_TAG, "service", svc["key"]), f"{svc['label']} service")
+        svc_id = k.thing(stable_id(_TAG, "service", svc["key"]), f"{svc['label']} service",
+                         {"rehearses": typed(svc.get("rehearses", True), "vos.Boolean")})
         service_by_key[svc["key"]] = svc_id
         k.rel(svc_id, is_, Service)
         port_by_name = {}
@@ -288,7 +289,7 @@ def build():
                  "pipeline": {pipe["name"]: stable_id(_TAG, "pipeline", pipe["name"]) for pipe in PIPELINES}}
 
     for pipe in PIPELINES:
-        pipe_id = k.thing(stable_id(_TAG, "pipeline", pipe["name"]), pipe["name"])
+        pipe_id = k.thing(stable_id(_TAG, "pipeline", pipe["name"]), pipe["name"], {"published": typed(True, "vos.Boolean")})
         k.rel(pipe_id, is_, Pipeline)
 
         node_id = {}

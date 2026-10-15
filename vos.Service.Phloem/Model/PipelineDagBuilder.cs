@@ -61,6 +61,7 @@ public static class PipelineDagBuilder
         {
             PipelineId = pipelineId,
             Name = pipeline.Name,
+            Published = pipeline.CarriesFlag(ModelNames.Published),
             Nodes = nodes,
             Wires = wires,
             Problems = problems,
@@ -127,6 +128,7 @@ public static class PipelineDagBuilder
             Choices = Judged(problems, () => ChoicesOf(graph, nodeThing, ports), NoChoices),
             Waits = Judged(problems, () => WaitOf(graph, nodeThing, ports), null),
             Retries = Judged(problems, () => RetryPolicyOf(nodeThing), null),
+            Rehearses = UpTheIsChain(graph, service).Any(kind => kind.CarriesFlag(ModelNames.Rehearses)),
             HandsOverTo = Judged(problems, () => PipelineReachedAlong(graph, nodeThing, PipelineRoles.HandsOverTo, "hands its subject to"), null),
             OnItemError = string.Equals(nodeThing.PropertyString(ModelNames.OnItemError), ModelNames.OnItemErrorContinue, StringComparison.OrdinalIgnoreCase)
                 ? ModelNames.OnItemErrorContinue
@@ -273,7 +275,12 @@ public static class PipelineDagBuilder
 
     // Collect Port child-Things by walking the owner's is-chain — relationships do not
     // inherit through is, so ports resolve at read time at each level of the chain.
-    private static IEnumerable<GraphThing> ResolvePortThings(PipelineGraph graph, GraphThing owner)
+    private static IEnumerable<GraphThing> ResolvePortThings(PipelineGraph graph, GraphThing owner) =>
+        UpTheIsChain(graph, owner).SelectMany(level => graph.OutgoingTargets(level, ModelNames.Has)
+            .Where(t => graph.IsOf(t, PipelineRoles.Port)));
+
+    // The Thing itself first, then each kind above it once.
+    private static IEnumerable<GraphThing> UpTheIsChain(PipelineGraph graph, GraphThing owner)
     {
         var seen = new HashSet<Guid>();
         var stack = new Stack<GraphThing>();
@@ -282,9 +289,7 @@ public static class PipelineDagBuilder
         {
             var current = stack.Pop();
             if (!seen.Add(current.Id)) continue;
-            foreach (var portThing in graph.OutgoingTargets(current, ModelNames.Has)
-                         .Where(t => graph.IsOf(t, PipelineRoles.Port)))
-                yield return portThing;
+            yield return current;
             foreach (var parent in graph.OutgoingTargets(current, ModelNames.Is))
                 stack.Push(parent);
         }

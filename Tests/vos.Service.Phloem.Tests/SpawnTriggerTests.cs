@@ -38,6 +38,16 @@ public class SpawnTriggerTests
     }
 
     [Fact]
+    public void Resolve_HttpBodyAskingForARehearsal_IsARehearsal_AndOneNotAskingIsNot()
+    {
+        var asked = SpawnTrigger.Resolve(Json(JsonSerializer.Serialize(new { pipelineId = Pipe.ToString(), rehearsal = true })));
+        var notAsked = SpawnTrigger.Resolve(Json(JsonSerializer.Serialize(new { pipelineId = Pipe.ToString() })));
+
+        asked.Rehearsal.Should().BeTrue();
+        notAsked.Rehearsal.Should().BeFalse();
+    }
+
+    [Fact]
     public void Resolve_DispatchedRelationship_CarriesTargetSubjectAndPropertiesAsParams()
     {
         // What Mycelium posts for `X runs Pipeline` and for a Thing entering a watched state

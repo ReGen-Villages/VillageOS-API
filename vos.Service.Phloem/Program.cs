@@ -106,16 +106,17 @@ try
                 var asyncRunId = Guid.NewGuid();
                 var asyncPipelineId = trigger.PipelineId;
                 var asyncParams = trigger.Params;
+                var asyncRehearsal = trigger.Rehearsal;
                 _ = Task.Run(async () =>
                 {
-                    try { await executor.RunAsync(asyncPipelineId, asyncParams, CancellationToken.None, asyncRunId, requestId: requestId); }
+                    try { await executor.RunAsync(asyncPipelineId, asyncParams, CancellationToken.None, asyncRunId, requestId: requestId, rehearsal: asyncRehearsal); }
                     catch (Exception ex) { Log.Error(ex, "Async pipeline run {RunId} ({PipelineId}) failed", asyncRunId, asyncPipelineId); }
                 });
                 return Results.Ok(new { success = true, accepted = true, runId = asyncRunId, pipelineId = trigger.PipelineId });
 
             case SpawnKind.Http:
                 // Synchronous spawn-and-wait — the caller (e.g. a programmatic client) blocks for the result.
-                var result = await executor.RunAsync(trigger.PipelineId, trigger.Params, httpContext.RequestAborted, requestId: requestId);
+                var result = await executor.RunAsync(trigger.PipelineId, trigger.Params, httpContext.RequestAborted, requestId: requestId, rehearsal: trigger.Rehearsal);
                 return Results.Ok(result);
 
             case SpawnKind.Relationship when await executor.HoldsVigilAsync(trigger.TargetId, httpContext.RequestAborted):
