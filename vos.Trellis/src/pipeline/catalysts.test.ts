@@ -44,6 +44,10 @@ describe('the rail of catalysts', () => {
     expect(row).toMatchObject({ kind: 'relationship', who: '', what: 'feeds', today: 'Handler' });
   });
 
+  it('leaves out the connection a vigil resumes a waiting run through, which nothing a person draws starts', () => {
+    expect(internal.rows.find((each) => each.standsForId === id.resumes)).toBeUndefined();
+  });
+
   it('groups the two sides and orders the internal side state, relationship, clock', () => {
     expect(external.side).toBe('external');
     expect(internal.side).toBe('internal');
