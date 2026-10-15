@@ -1,6 +1,6 @@
 # The build: it runs when develop or main moves and for every pull request into either; builds and
 # tests the .NET solution, Trellis, the tools and the echo services; publishes test results and
-# coverage; and on develop publishes the docs to the project wiki and mirrors that wiki to GitHub.
+# coverage; generates and converts the wiki pages; and on develop publishes them to the GitHub wiki.
 
 # A feature branch is built when its pull request is validated and again after the merge; building
 # every push as well took an agent from the pool a third time for a result nothing waits on.
@@ -47,10 +47,6 @@ variables:
   # looked at, so there is nothing for them to remember.
   - name: MSBUILDDISABLENODEREUSE
     value: '1'
-  # Azure DevOps project-wiki git repo id (from `az devops wiki list`). The wiki
-  # is mirrored from here to the GitHub wiki on develop.
-  - name: wikiRepoId
-    value: 'de73fcdb-2959-4209-a858-f3d697e8c632'
 
 # Every job says how long it may run. Left to the pool's default, a step that stops making progress
 # holds an agent for an hour, and a pull request in either repository waits behind it. The limit
@@ -214,6 +210,38 @@ jobs:
     workingDirectory: tools/docs-to-wiki
     condition: always()
 
+  # On every build, so a pull request whose change breaks the generation, the conversion or the
+  # publishing token shows it on its own validation build rather than on develop's. The token is
+  # proved by a push that sends nothing: the wiki repository is public, so a read answers any token,
+  # while a dry-run push is refused unless the token may write. A pull request from outside the
+  # organisation is built without the secret values and proves nothing.
+  - bash: |
+      set -euo pipefail
+      GENERATED="$AGENT_TEMPDIRECTORY/wiki-generated"
+      OUT="$AGENT_TEMPDIRECTORY/wiki-out"
+      PROOF="$AGENT_TEMPDIRECTORY/wiki-proof"
+      MANIFEST=tools/docs-to-wiki/wiki-map.json
+      node tools/docs-to-wiki/docs-to-wiki.js "$(Build.SourcesDirectory)" "$MANIFEST" "$GENERATED"
+      node tools/wiki-mirror/sync-wiki.js "$GENERATED" "$MANIFEST" "$OUT"
+      if [ -z "${GITHUB_PAT:-}" ]; then
+        echo "No publishing token on this build; the GitHub wiki is not asked."
+        exit 0
+      fi
+      rm -rf "$PROOF"
+      mkdir -p "$PROOF"
+      cp -R "$OUT"/. "$PROOF"/
+      git -C "$PROOF" init -q
+      git -C "$PROOF" add -A
+      git -C "$PROOF" -c user.name="Azure Pipelines" -c user.email="azuredevops@regenvillages.com" \
+        commit -q -m "what this build would publish"
+      git -C "$PROOF" push --dry-run --force \
+        "https://x-access-token:${GITHUB_PAT}@github.com/ReGen-Villages/VillageOS-API.wiki.git" HEAD:refs/heads/master
+      echo "The GitHub wiki accepted the publishing token; nothing was sent."
+    displayName: 'Generate and convert the wiki pages, and prove the publishing token'
+    condition: always()
+    env:
+      GITHUB_PAT: $(GITHUB_PAT)
+
   # The PDF renderer reads a guide's own shape — its parts, its chapters, the contents list it writes
   # for itself — and turns a figure drawn on a dark ground light for print. Every one of those is a
   # decision about a document nobody renders in a build, so the units are tested rather than the PDF.
@@ -246,8 +274,8 @@ jobs:
   # lint errors accumulated across the pages, panels and hooks with nothing to fail, and the
   # GUI test suite — the guard for the binding resolver, the property panels and the live-update path
   # — had never gated a merge. Each step runs even when an earlier one failed, so one run reports
-  # every problem rather than one per push. They sit ahead of the wiki publish and its mirror, whose
-  # succeeded() conditions then stop a red GUI from being published.
+  # every problem rather than one per push. They sit ahead of the wiki publish, whose succeeded()
+  # condition then stops a red GUI from being published.
   - script: npm ci
     displayName: 'Install Trellis dependencies'
     workingDirectory: vos.Trellis
@@ -329,67 +357,19 @@ jobs:
     displayName: 'Build Summary'
     condition: always()
 
-  # Publish the docs to the project wiki, on develop only.
-  # The repository is the source of truth for the wiki: tools/docs-to-wiki generates every page
-  # from a document listed in its manifest. This runs before the GitHub wiki mirror below, so a
-  # single build carries a documentation change from the merge all the way to the public GitHub
-  # wiki — and on the same branch as that mirror, because it publishes whatever this step left on
-  # the project wiki. Split across two branches, the public wiki would describe one branch beside
-  # the other branch's code.
-  #
-  # Prerequisite: AZURE_DEVOPS_PAT needs the Wiki scope, Read & Write. Publishing goes through the
-  # wiki REST API rather than git precisely so that is enough: a project wiki is a git repository,
-  # so pushing to it needs the Code scope, which on a classic token means write access to every
-  # repository in the organisation — far more than publishing a wiki should carry. The mirror step
-  # below still clones the wiki, which is what its Code: Read covers.
-  #
-  # Pages absent from the manifest are removed rather than left behind. Wiki history keeps every
-  # version, and a page whose content already matches is left untouched so a build that changes no
-  # documentation adds no revisions.
-  - bash: |
-      set -euo pipefail
-      OUT="$AGENT_TEMPDIRECTORY/wiki-generated"
-      MANIFEST=tools/docs-to-wiki/wiki-map.json
-      node tools/docs-to-wiki/docs-to-wiki.js "$(Build.SourcesDirectory)" "$MANIFEST" "$OUT"
-      node tools/docs-to-wiki/publish-wiki.js "$MANIFEST" "$OUT"
-    displayName: 'Publish Docs to Wiki'
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
-    env:
-      AZURE_DEVOPS_PAT: $(AZURE_DEVOPS_PAT)
-
-  # Mirror the wiki to GitHub, on develop only. Repopulates the GitHub wiki from the canonical Azure DevOps project wiki,
-  # converting every DevOps-specific link to its GitHub target (see
-  # tools/wiki-mirror/sync-wiki.js). Without this the GitHub README's wiki links
-  # 404 because the GitHub wiki is never populated.
+  # Publish the wiki to GitHub, on develop only: the pages the step above generated and converted
+  # replace the GitHub wiki's whole content, so a page no document produces goes with the build that
+  # dropped it. The repository is the source of truth; nothing is read from any wiki.
   #
   # Prerequisites (one-time):
   #   - GitHub: enable Wikis in repo Settings → Features (creates the .wiki.git repo).
-  #   - AZURE_DEVOPS_PAT (secret pipeline variable): a PAT with Code:Read used to
-  #     clone the canonical project wiki. System.AccessToken can NOT be used here:
-  #     the project has "Protect access to repositories in YAML pipelines"
-  #     (enforceReferencedRepoScopedToken), which scopes the build token to only
-  #     checked-out repos — the wiki isn't one, so it returns TF401019. A PAT
-  #     bypasses that scoping. Declaring the wiki as a repository resource does NOT
-  #     extend the scoped token (verified), and a `checkout: wiki` step would remap
-  #     the self-repo source dir and break the build.
-  #   - GITHUB_PAT: classic token with repo scope (fine-grained PATs cannot reliably push to
-  #     GitHub wikis).
+  #   - GITHUB_PAT (secret pipeline variable): classic token with repo scope (fine-grained PATs
+  #     cannot reliably push to GitHub wikis).
   - bash: |
       set -euo pipefail
-      SRC="$AGENT_TEMPDIRECTORY/devops-wiki"
       OUT="$AGENT_TEMPDIRECTORY/wiki-out"
       DEST="$AGENT_TEMPDIRECTORY/github-wiki"
       WIKI_URL="https://x-access-token:${GITHUB_PAT}@github.com/ReGen-Villages/VillageOS-API.wiki.git"
-
-      # The canonical project wiki is cloned with AZURE_DEVOPS_PAT: System.AccessToken is scoped to
-      # checked-out repos only and the wiki is not one, so it returns TF401019.
-      rm -rf "$SRC"
-      AZDO_AUTH=$(printf ':%s' "$AZURE_DEVOPS_PAT" | base64 | tr -d '\n')
-      git -c http.extraheader="Authorization: Basic ${AZDO_AUTH}" \
-        clone --depth 1 \
-        "https://dev.azure.com/ReGenVillages/VillageOS-API/_git/$(wikiRepoId)" "$SRC"
-
-      node tools/wiki-mirror/sync-wiki.js "$SRC" "$OUT"
 
       rm -rf "$DEST"
       git clone "$WIKI_URL" "$DEST" || {
@@ -405,11 +385,10 @@ jobs:
       # GitHub wikis use the master branch.
       git -C "$DEST" add -A
       git -C "$DEST" -c user.name="Azure Pipelines" -c user.email="azuredevops@regenvillages.com" \
-        commit -m "ci: sync wiki from Azure DevOps" || { echo "No wiki changes."; exit 0; }
+        commit -m "ci: publish the wiki from $(Build.SourceVersion)" || { echo "No wiki changes."; exit 0; }
       git -C "$DEST" push origin HEAD:refs/heads/master --force
-    displayName: 'Mirror Wiki to GitHub'
+    displayName: 'Publish the wiki to GitHub'
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
     env:
       GITHUB_PAT: $(GITHUB_PAT)
-      AZURE_DEVOPS_PAT: $(AZURE_DEVOPS_PAT)
 
