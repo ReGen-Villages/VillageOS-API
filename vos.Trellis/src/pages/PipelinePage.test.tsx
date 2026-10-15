@@ -9,7 +9,7 @@ vi.mock('../api/relationshipApi', () => ({ relationshipApi: { create: vi.fn(), s
 
 import { MemoryRouter } from 'react-router-dom';
 import { useModelStore } from '../stores/modelStore';
-import { ARCHETYPE_FLAG } from '../pipeline/model';
+import { ROLE } from '../pipeline/model';
 import { catalystFixture } from '../pipeline/catalysts.test.fixture';
 import { installResizeObserverDouble } from '../testResizeObserver';
 import { PipelinePage } from './PipelinePage';
@@ -62,10 +62,12 @@ describe('PipelinePage', () => {
       relationships.push({ Id: `${subject}-${predicate}-${target}`, Name: '', SubjectId: subject, PredicateId: predicate, TargetId: target, Properties: {} });
     things.push(
       { Id: 'of', Name: 'of', Properties: {} },
-      { Id: 'run-kind', Name: 'Execution', IsArchetype: true, Properties: { [ARCHETYPE_FLAG.PipelineRun]: true } },
+      { Id: 'run-kind', Name: 'Execution', IsArchetype: true, Properties: {} },
+      { Id: ROLE.PipelineRun, Name: 'pipelineRun role', Properties: {} },
       { Id: 'from-a-door', Name: 'run 1', Properties: { status: 'succeeded', startedUtc: '2026-10-03T11:00:00Z', requestId: 'r-door' } },
       { Id: 'by-hand', Name: 'run 2', Properties: { status: 'failed', startedUtc: '2026-10-03T12:00:00Z' } },
     );
+    relate(ROLE.PipelineRun, id.binds, 'run-kind');
     for (const run of ['from-a-door', 'by-hand']) {
       relate(run, id.is, 'run-kind');
       relate(run, 'of', id.digest);

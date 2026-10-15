@@ -34,10 +34,10 @@ public class MyceliumGatewayTests
         return (gateway, handler);
     }
 
-    // A broker holding a model that marks its run archetypes and answers every predicate name, so the calls
+    // A broker holding a model that binds its run roles and answers every predicate name, so the calls
     // under test get past resolution; everything else succeeds. A Thing is answered PascalCase, which is the
     // naming policy the broker shares with the seed files and not the camelCase of the bodies sent to it.
-    private static HttpResponseMessage RespondLikeAModelThatMarksItsArchetypes(HttpRequestMessage request)
+    private static HttpResponseMessage RespondLikeAModelThatBindsItsRoles(HttpRequestMessage request)
     {
         var uri = request.RequestUri!;
         if (uri.AbsolutePath == "/api/things" && uri.Query.Contains("name="))
@@ -50,40 +50,41 @@ public class MyceliumGatewayTests
         if (uri.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post)
         {
             var selector = request.Content!.ReadAsStringAsync().Result;
-            if (selector.Contains(PipelineArchetypes.PipelineRunFlag))
-                return MarkedArchetypeSnapshot(PipelineRunArchetypeId, PipelineArchetypes.PipelineRunFlag);
-            if (selector.Contains(PipelineArchetypes.NodeRunFlag))
-                return MarkedArchetypeSnapshot(NodeRunArchetypeId, PipelineArchetypes.NodeRunFlag);
-            if (selector.Contains(PipelinePredicates.RunSubjectFlag))
-                return MarkedArchetypeSnapshot(RunSubjectPredicateId, PipelinePredicates.RunSubjectFlag);
-            if (selector.Contains(PipelineArchetypes.SentMessageFlag))
-                return MarkedArchetypeSnapshot(SentMessageArchetypeId, PipelineArchetypes.SentMessageFlag);
-            if (selector.Contains(PipelinePredicates.ProducedThingFlag))
-                return MarkedArchetypeSnapshot(ProducedPredicateId, PipelinePredicates.ProducedThingFlag);
+            foreach (var (role, boundId) in BoundByTheModel)
+                if (selector.Contains(role.Id.ToString()))
+                    return BoundSnapshot(role, boundId);
             return Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""");
         }
 
         return new HttpResponseMessage(HttpStatusCode.OK);
     }
 
-    private static HttpResponseMessage MarkedArchetypeSnapshot(Guid archetypeId, string roleFlag) =>
+    private static readonly (Role Role, Guid BoundId)[] BoundByTheModel =
+    [
+        (PipelineRoles.PipelineRun, PipelineRunArchetypeId),
+        (PipelineRoles.NodeRun, NodeRunArchetypeId),
+        (PipelineRoles.RunSubject, RunSubjectPredicateId),
+        (PipelineRoles.SentMessage, SentMessageArchetypeId),
+        (PipelineRoles.ProducedThing, ProducedPredicateId),
+    ];
+
+    private static readonly Guid BindsPredicateId = Guid.Parse("77777777-7777-7777-7777-777777777777");
+
+    private static HttpResponseMessage BoundSnapshot(Role role, Guid boundId) =>
         Json(HttpStatusCode.OK, JsonSerializer.Serialize(new
         {
             snapshot = new
             {
                 things = new[]
                 {
-                    new
-                    {
-                        id = archetypeId,
-                        name = "whatever this model calls it",
-                        properties = new Dictionary<string, object>
-                        {
-                            [roleFlag] = new { value = true, type = "vos.Boolean" },
-                        },
-                    },
+                    new { id = role.Id, name = $"{role.Word} role" },
+                    new { id = BindsPredicateId, name = ModelNames.Binds },
+                    new { id = boundId, name = "whatever this model calls it" },
                 },
-                relationships = Array.Empty<object>(),
+                relationships = new[]
+                {
+                    new { id = Guid.NewGuid(), subjectId = role.Id, predicateId = BindsPredicateId, targetId = boundId },
+                },
             },
         }));
 
@@ -105,7 +106,7 @@ public class MyceliumGatewayTests
             if (path.EndsWith("/properties", StringComparison.Ordinal) && request.Method == HttpMethod.Put)
                 return SetProperty(request, path);
 
-            return RespondLikeAModelThatMarksItsArchetypes(request);
+            return RespondLikeAModelThatBindsItsRoles(request);
         }
 
         private HttpResponseMessage Create(HttpRequestMessage request)
@@ -173,30 +174,32 @@ public class MyceliumGatewayTests
         await gateway.LoadPipelineSubgraphAsync(pipelineId, CancellationToken.None);
 
         var selector = await ReadJson(RequestsTo(handler, "/api/subscriptions", HttpMethod.Post).Single());
-        selector.GetProperty("ids")[0].GetString().Should().Be(pipelineId.ToString());
         selector.GetProperty("includeRelationships").GetBoolean().Should().BeTrue();
         selector.GetProperty("includeIsAncestors").GetBoolean().Should().BeTrue();
-        // The only names on the selector are the two built-in predicates: an archetype name asked for here
+        // The only names on the selector are the built-in predicates: an archetype name asked for here
         // is what stopped finding anything the moment a model renamed one.
         selector.GetProperty("names").EnumerateArray().Select(name => name.GetString())
-            .Should().BeEquivalentTo(["is", "has"]);
+            .Should().BeEquivalentTo(["is", "has", "binds"]);
         selector.TryGetProperty("types", out _).Should().BeFalse();
+        selector.TryGetProperty("markedTypes", out _).Should().BeFalse();
+        selector.TryGetProperty("markedArchetypes", out _).Should().BeFalse();
 
-        selector.GetProperty("markedTypes").EnumerateArray().Select(flag => flag.GetString())
-            .Should().BeEquivalentTo([PipelineArchetypes.PortFlag, PipelineArchetypes.PipelineWireFlag]);
+        selector.GetProperty("boundTypes").EnumerateArray().Select(role => role.GetGuid())
+            .Should().BeEquivalentTo([PipelineRoles.Port.Id, PipelineRoles.PipelineWire.Id]);
 
-        // And the archetype for every role, so one missing from the snapshot means the model marks it
-        // nowhere rather than that this pipeline has no node playing it, beside the two predicates an end
-        // standing for a system is read through.
-        selector.GetProperty("markedArchetypes").EnumerateArray().Select(flag => flag.GetString())
-            .Should().BeEquivalentTo(PipelineArchetypes.DagRoleFlags.Concat(
-                [PipelinePredicates.StandsForFlag, PipelinePredicates.ToldThroughFlag, PipelinePredicates.ChoiceFlag]));
+        // The pipeline, and the Thing for every role, so one missing from the snapshot means the model binds it
+        // to nothing rather than that this pipeline has no node playing it, beside the roles an end standing for
+        // a system is read through.
+        selector.GetProperty("ids").EnumerateArray().Select(id => id.GetGuid())
+            .Should().BeEquivalentTo(PipelineRoles.DagRoles.Select(role => role.Id).Append(pipelineId).Concat(
+                [PipelineRoles.ExternalSystem.Id, PipelineRoles.StandsFor.Id, PipelineRoles.ToldThrough.Id, PipelineRoles.Choice.Id]));
 
-        // The system an end stands for, the connection it is told through, and what a port offers and a node
-        // chose, are reached after the nodes.
+        // What each role binds, then the system an end stands for, the connection it is told through, and what a
+        // port offers and a node chose, are reached after the nodes.
         selector.GetProperty("traverse").EnumerateArray()
-            .Select(rule => rule.TryGetProperty("predicateFlag", out var flag) ? flag.GetString() : rule.GetProperty("predicate").GetString())
-            .Should().Equal(ModelNames.Has, PipelinePredicates.StandsForFlag, PipelinePredicates.ToldThroughFlag, PipelinePredicates.ChoiceFlag);
+            .Select(rule => rule.TryGetProperty("predicateRole", out var role) ? role.GetString() : rule.GetProperty("predicate").GetString())
+            .Should().Equal(ModelNames.Has, ModelNames.Binds, PipelineRoles.StandsFor.Id.ToString(),
+                PipelineRoles.ToldThrough.Id.ToString(), PipelineRoles.Choice.Id.ToString());
     }
 
     [Fact]
@@ -391,14 +394,14 @@ public class MyceliumGatewayTests
         created[1].TryGetProperty("requestId", out _).Should().BeFalse();
     }
 
-    // A model marking no such predicate still records the run; it only loses what it cannot say.
+    // A model binding no such predicate still records the run; it only loses what it cannot say.
     [Fact]
-    public async Task CreateRunAsync_WhenTheModelMarksNoSubjectPredicate_RecordsTheRunWithoutIt()
+    public async Task CreateRunAsync_WhenTheModelBindsNoSubjectPredicate_RecordsTheRunWithoutIt()
     {
         var broker = new BrokerApplyingItsWriteRules();
         var (gateway, handler) = NewGateway(request =>
             request.RequestUri!.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post
-            && request.Content!.ReadAsStringAsync().Result.Contains(PipelinePredicates.RunSubjectFlag)
+            && request.Content!.ReadAsStringAsync().Result.Contains(PipelineRoles.RunSubject.Id.ToString())
                 ? Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""")
                 : broker.Respond(request));
 
@@ -424,23 +427,25 @@ public class MyceliumGatewayTests
         selector.GetProperty("ids")[0].GetString().Should().Be(targetId.ToString());
         selector.GetProperty("includeIsAncestors").GetBoolean().Should().BeTrue();
         selector.TryGetProperty("types", out _).Should().BeFalse();
+        selector.TryGetProperty("markedArchetypes", out _).Should().BeFalse();
 
-        // The marked predicates are asked for by their marks, so the mark can be read off each edge.
-        selector.GetProperty("markedArchetypes").EnumerateArray().Select(flag => flag.GetString())
-            .Should().Contain([PipelinePredicates.StateWatchFlag, PipelinePredicates.StandsForFlag,
-                PipelinePredicates.PipelineStartFlag, PipelineArchetypes.PipelineFlag, PipelineArchetypes.PipelineInputFlag]);
+        // The role Things are asked for by identifier, so what each binds can be read off the snapshot.
+        selector.GetProperty("ids").EnumerateArray().Select(id => id.GetGuid())
+            .Should().Contain([PipelineRoles.StateWatch.Id, PipelineRoles.StandsFor.Id, PipelineRoles.PipelineStart.Id,
+                PipelineRoles.Pipeline.Id, PipelineRoles.PipelineInput.Id, PipelineRoles.Connection.Id]);
 
         // Traversals expand in order, so the watched state has to be reached before the nodes standing for it.
         var traversals = selector.GetProperty("traverse").EnumerateArray()
-            .Select(rule => (Flag: rule.TryGetProperty("predicateFlag", out var f) ? f.GetString() : null,
+            .Select(rule => (Role: rule.TryGetProperty("predicateRole", out var r) ? r.GetString() : null,
                              Name: rule.TryGetProperty("predicate", out var n) ? n.GetString() : null,
                              Direction: rule.GetProperty("direction").GetString()))
             .ToList();
         traversals.Should().ContainInOrder(
-            (PipelinePredicates.StateWatchFlag, null, "outgoing"),
-            (PipelinePredicates.StandsForFlag, null, "incoming"),
+            (null, ModelNames.Binds, "outgoing"),
+            (PipelineRoles.StateWatch.Id.ToString(), null, "outgoing"),
+            (PipelineRoles.StandsFor.Id.ToString(), null, "incoming"),
             (null, ModelNames.Has, "incoming"));
-        traversals.Should().Contain((PipelinePredicates.PipelineStartFlag, null, "outgoing"));
+        traversals.Should().Contain((PipelineRoles.PipelineStart.Id.ToString(), null, "outgoing"));
 
         // Relationship rules keep the read to those edges: a state connection accumulates one dispatch
         // record per entry, and the wider reading would carry every one on every start.
@@ -458,7 +463,7 @@ public class MyceliumGatewayTests
         var (gateway, _) = NewGateway(request =>
             request.RequestUri!.AbsolutePath == "/api/things" && request.RequestUri.Query.Contains("name=")
                 ? Json(HttpStatusCode.OK, answer)
-                : RespondLikeAModelThatMarksItsArchetypes(request));
+                : RespondLikeAModelThatBindsItsRoles(request));
 
         var creating = () => gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
@@ -794,13 +799,13 @@ public class MyceliumGatewayTests
 
         var nodeRunLookups = 0;
         foreach (var request in RequestsTo(handler, "/api/subscriptions", HttpMethod.Post))
-            if ((await request.Content!.ReadAsStringAsync()).Contains(PipelineArchetypes.NodeRunFlag))
+            if ((await request.Content!.ReadAsStringAsync()).Contains(PipelineRoles.NodeRun.Id.ToString()))
                 nodeRunLookups++;
         nodeRunLookups.Should().Be(1);
     }
 
-    // The run archetype is asked for on its own. Through markedTypes the answer would have carried every
-    // Thing that already is one — every run the model has ever recorded.
+    // The run archetype is asked for on its own, with only the binding that reaches it. Through boundTypes, or
+    // with every relationship touching it, the answer would have carried every run the model has ever recorded.
     [Fact]
     public async Task ResolvingARoleArchetype_AsksForTheArchetypeWithoutItsMembers()
     {
@@ -809,14 +814,16 @@ public class MyceliumGatewayTests
         await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
         var lookup = await ReadJson(RequestsTo(handler, "/api/subscriptions", HttpMethod.Post).Single());
-        lookup.GetProperty("markedArchetypes").EnumerateArray().Select(flag => flag.GetString())
-            .Should().BeEquivalentTo([PipelineArchetypes.PipelineRunFlag]);
-        lookup.TryGetProperty("markedTypes", out _).Should().BeFalse();
+        lookup.GetProperty("ids").EnumerateArray().Select(id => id.GetGuid())
+            .Should().BeEquivalentTo([PipelineRoles.PipelineRun.Id]);
+        lookup.TryGetProperty("boundTypes", out _).Should().BeFalse();
         lookup.GetProperty("includeIsAncestors").GetBoolean().Should().BeFalse();
+        lookup.GetProperty("relationships").EnumerateArray()
+            .Select(rule => rule.GetProperty("predicate").GetString()).Should().Equal(ModelNames.Binds);
     }
 
     [Fact]
-    public async Task WhenTheModelMarksNoRunArchetype_TheFailureNamesTheFlag()
+    public async Task WhenTheModelBindsNoRunArchetype_TheFailureNamesTheRole()
     {
         var (gateway, _) = NewGateway(request =>
             request.RequestUri!.AbsolutePath == "/api/subscriptions"
@@ -826,7 +833,7 @@ public class MyceliumGatewayTests
         var creating = () => gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
         (await creating.Should().ThrowAsync<InvalidOperationException>())
-            .WithMessage($"*{PipelineArchetypes.PipelineRunFlag}*");
+            .WithMessage($"*role {PipelineRoles.PipelineRun.Word}*");
     }
 
     private static async Task<JsonElement> ReadJson(HttpRequestMessage request) =>

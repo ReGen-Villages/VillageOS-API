@@ -1,14 +1,16 @@
 namespace vos.Service.Phloem.Model;
 
-// The fixed model vocabulary the orchestrator reads: the built-in generic predicates (is, has, of),
+// The fixed model vocabulary the orchestrator reads: the built-in generic predicates (is, has, of, binds),
 // property names, and the port-direction values. These are the platform's own words, the same ones
 // Mycelium spells out for itself. Which Thing plays which role is not among them — that is read from the
-// flag its archetype carries, in PipelineArchetypes.
+// role Thing that binds it, in PipelineRoles.
 public static class ModelNames
 {
     public const string Is = "is";
     public const string Has = "has";
     public const string Of = "of";
+    // A role Thing reaches the Thing playing it along this.
+    public const string Binds = "binds";
 
     public const string Subdomain = "Subdomain";
     public const string Direction = "direction";

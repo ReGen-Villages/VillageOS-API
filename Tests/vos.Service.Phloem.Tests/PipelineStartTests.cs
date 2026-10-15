@@ -37,7 +37,7 @@ public class PipelineStartTests
     {
         var fixture = TestGraphs.StatePipeline();
         var fx = fixture.Fixture;
-        var watches = fx.Thing("watches", (PipelinePredicates.StateWatchFlag, true));
+        var watches = fx.Playing("watches", PipelineRoles.StateWatch);
         var state = fx.Thing("SubmissionHandled");
         fx.Rel(fx.Get("looseConn"), watches, state);
         var start = fx.Thing("Decided");

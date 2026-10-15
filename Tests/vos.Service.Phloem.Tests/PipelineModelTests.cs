@@ -130,7 +130,7 @@ public class PipelineModelTests
         wire.ToPort.Should().Be("message");
     }
 
-    // The whole point of the flags: a model may call its archetypes anything, and a deployment that
+    // The whole point of role Things: a model may call its archetypes anything, and a deployment that
     // renames them used to leave this orchestrator starting cleanly and finding nothing.
     [Fact]
     public void Build_WhenTheModelNamesEveryArchetypeSomethingElse_ResolvesTheSameDag()
@@ -178,10 +178,10 @@ public class PipelineModelTests
         DagValidator.Validate(dag).IsValid.Should().BeTrue();
     }
 
-    // A model that marks nothing answers "no" to every question the orchestrator asks of it, so a pipeline
+    // A model that binds nothing answers "no" to every question the orchestrator asks of it, so a pipeline
     // fully described in the model reads as one with nothing in it.
     [Fact]
-    public void Build_WhenTheModelMarksNoArchetypes_SaysWhichRolesAreUnmarked()
+    public void Build_WhenTheModelBindsNoRoles_SaysWhichRolesAreUnbound()
     {
         var fx = new GraphFixture();
         var isPredicate = fx.Thing("is");
@@ -192,29 +192,68 @@ public class PipelineModelTests
         var act = () => PipelineDagBuilder.Build(fx.Build(), pipe.Id);
 
         act.Should().Throw<PipelineModelException>()
-            .WithMessage("*The model marks no archetype for*")
-            .And.Message.Should().Contain(PipelineArchetypes.PipelineFlag)
-            .And.Contain(PipelineArchetypes.PortFlag);
+            .WithMessage("*The model binds no Thing to the roles*")
+            .And.Message.Should().Contain(PipelineRoles.Pipeline.Word)
+            .And.Contain(PipelineRoles.Port.Word);
     }
 
-    // One role left unmarked is refused by name rather than being read as "no node plays that role", which
+    // One role left unbound is refused by name rather than being read as "no node plays that role", which
     // is the silence this replaced.
     [Fact]
-    public void Build_WhenOneRoleIsUnmarked_NamesOnlyThatRole()
+    public void Build_WhenOneRoleIsUnbound_NamesOnlyThatRole()
     {
         var fx = new GraphFixture();
         var isPredicate = fx.Thing("is");
-        // Named after the flag each carries, because in this test the name is the one thing that cannot matter.
-        foreach (var roleFlag in PipelineArchetypes.DagRoleFlags.Where(f => f != PipelineArchetypes.PipelineWireFlag))
-            fx.Archetype(roleFlag, roleFlag);
+        // Named after the role each plays, because in this test the name is the one thing that cannot matter.
+        foreach (var role in PipelineRoles.DagRoles.Where(role => role != PipelineRoles.PipelineWire))
+            fx.Playing(role.Word, role);
         var pipe = fx.Thing("P");
-        fx.Rel(pipe, isPredicate, fx.Get(PipelineArchetypes.PipelineFlag));
+        fx.Rel(pipe, isPredicate, fx.Get(PipelineRoles.Pipeline.Word));
 
         var act = () => PipelineDagBuilder.Build(fx.Build(), pipe.Id);
 
         act.Should().Throw<PipelineModelException>()
-            .WithMessage($"*{PipelineArchetypes.PipelineWireFlag}*")
-            .And.Message.Should().NotContain(PipelineArchetypes.PortFlag);
+            .WithMessage($"*role {PipelineRoles.PipelineWire.Word}.*")
+            .And.Message.Should().NotContain(PipelineRoles.Port.Word + ",");
+    }
+
+    // A role answers which one Thing does a job, so a second binding is a mistake to report, never a list to read.
+    [Fact]
+    public void Build_WhenARoleBindsTwoThings_RefusesNamingBoth()
+    {
+        var fx = new GraphFixture();
+        var vocabulary = fx.DeclareVocabulary();
+        var second = fx.Thing("SecondPipelineArchetype");
+        fx.Rel(fx.Get($"{PipelineRoles.Pipeline.Word} role"), fx.Get(ModelNames.Binds), second);
+        var pipe = fx.Thing("P");
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+
+        var act = () => PipelineDagBuilder.Build(fx.Build(), pipe.Id);
+
+        act.Should().Throw<PipelineModelException>()
+            .WithMessage($"*role {PipelineRoles.Pipeline.Word} binds 2 Things*")
+            .And.Message.Should().Contain(vocabulary.Pipeline.Name).And.Contain(second.Name);
+    }
+
+    // Every model must derive the same identifier for a role, whatever language its seed is written in.
+    [Fact]
+    public void Each_role_identifier_is_the_standard_version_5_identifier_of_its_word()
+    {
+        var roles = typeof(PipelineRoles).GetFields().Where(field => field.FieldType == typeof(Role))
+            .Select(field => (Role)field.GetValue(null)!).ToList();
+
+        roles.Should().NotBeEmpty();
+        foreach (var role in roles)
+            role.Id.Should().Be(StandardVersion5(PipelineRoles.RoleNamespace, role.Word), $"the role {role.Word}");
+    }
+
+    private static Guid StandardVersion5(Guid @namespace, string name)
+    {
+        var hash = System.Security.Cryptography.SHA1.HashData(
+            [.. @namespace.ToByteArray(bigEndian: true), .. System.Text.Encoding.UTF8.GetBytes(name)]);
+        hash[6] = (byte)((hash[6] & 0x0F) | 0x50);
+        hash[8] = (byte)((hash[8] & 0x3F) | 0x80);
+        return new Guid(hash.AsSpan(0, 16), bigEndian: true);
     }
 
     [Fact]

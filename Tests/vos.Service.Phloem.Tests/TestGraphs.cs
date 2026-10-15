@@ -5,8 +5,8 @@ using vos.Service.Phloem.Model;
 namespace vos.Service.Phloem.Tests;
 
 // The two built-in predicates and the archetype for each role a pipeline is resolved from. The broker
-// selects the archetypes by the flag each carries, so a snapshot holds all of them whether or not the
-// pipeline in it has a node playing that role.
+// selects the role Things by identifier, so a snapshot holds all of them whether or not the pipeline in it
+// has a node playing that role.
 public sealed record PipelineVocabulary(
     GraphThing Is,
     GraphThing Has,
@@ -40,29 +40,40 @@ public sealed class GraphFixture
         return t;
     }
 
-    // An archetype carrying the flag that says which role it plays. The name is this fixture's own choice:
-    // nothing in the orchestrator reads it.
-    public GraphThing Archetype(string name, string roleFlag) => Thing(name, (roleFlag, true));
+    private GraphThing? _binds;
+
+    // The role Thing, under the identifier every model gives it, binding the Thing that plays the role. The
+    // played Thing's name is this fixture's own choice: nothing in the orchestrator reads it.
+    public GraphThing Playing(string name, Role role, params (string Name, object Value)[] props)
+    {
+        _binds ??= Thing(ModelNames.Binds);
+        var roleThing = new GraphThing { Id = role.Id, Name = $"{role.Word} role" };
+        _things[roleThing.Id] = roleThing;
+        _byName[roleThing.Name] = roleThing;
+        var played = Thing(name, props);
+        Rel(roleThing, _binds, played);
+        return played;
+    }
 
     public PipelineVocabulary DeclareVocabulary(string namePrefix = "")
     {
         var isPredicate = Thing("is");
         var has = Thing("has");
-        var node = Archetype(namePrefix + "PipelineNode", PipelineArchetypes.PipelineNodeFlag);
-        var input = Archetype(namePrefix + "PipelineInput", PipelineArchetypes.PipelineInputFlag);
-        var output = Archetype(namePrefix + "PipelineOutput", PipelineArchetypes.PipelineOutputFlag);
+        var node = Playing(namePrefix + "PipelineNode", PipelineRoles.PipelineNode);
+        var input = Playing(namePrefix + "PipelineInput", PipelineRoles.PipelineInput);
+        var output = Playing(namePrefix + "PipelineOutput", PipelineRoles.PipelineOutput);
         Rel(input, isPredicate, node);  // boundary archetypes ARE pipeline nodes (multiple inheritance)
         Rel(output, isPredicate, node);
 
         return new PipelineVocabulary(
             isPredicate,
             has,
-            Archetype(namePrefix + "Pipeline", PipelineArchetypes.PipelineFlag),
+            Playing(namePrefix + "Pipeline", PipelineRoles.Pipeline),
             node,
-            Archetype(namePrefix + "PlatformServiceConnection", PipelineArchetypes.ConnectionFlag),
-            Archetype(namePrefix + "Service", PipelineArchetypes.ServiceFlag),
-            Archetype(namePrefix + "Port", PipelineArchetypes.PortFlag),
-            Archetype(namePrefix + "PipelineWire", PipelineArchetypes.PipelineWireFlag),
+            Playing(namePrefix + "PlatformServiceConnection", PipelineRoles.Connection),
+            Playing(namePrefix + "Service", PipelineRoles.Service),
+            Playing(namePrefix + "Port", PipelineRoles.Port),
+            Playing(namePrefix + "PipelineWire", PipelineRoles.PipelineWire),
             input,
             output);
     }
@@ -185,14 +196,14 @@ public static class TestGraphs
     public sealed record TellingFixture(GraphFixture Fixture, Guid PipelineId, Guid SystemId, Guid ConnectionId);
 
     // BoundaryPipeline whose end node stands for an external system. Unless told otherwise the system names
-    // the connection it is told through, along a predicate carrying that mark itself.
+    // the connection it is told through, along the predicate bound to that role.
     public static TellingFixture TellingPipeline(bool namesItsConnection = true)
     {
         var (fx, pipelineId) = BoundaryPipeline();
         var isPredicate = fx.Get("is");
-        var standsFor = fx.Thing("standsFor", (PipelinePredicates.StandsForFlag, true));
-        var toldThrough = fx.Thing("toldThrough", (PipelinePredicates.ToldThroughFlag, true));
-        var systemKind = fx.Archetype("Neighbour", PipelineArchetypes.ExternalSystemFlag);
+        var standsFor = fx.Playing("standsFor", PipelineRoles.StandsFor);
+        var toldThrough = fx.Playing("toldThrough", PipelineRoles.ToldThrough);
+        var systemKind = fx.Playing("Neighbour", PipelineRoles.ExternalSystem);
         var system = fx.Thing("Reporting office");
         fx.Rel(system, isPredicate, systemKind);
         fx.Rel(fx.Get("Out"), standsFor, system);
@@ -214,16 +225,15 @@ public static class TestGraphs
     // A state connection with a pipeline drawn from it: Arrival (a start node standing for the connection,
     // out port `subject`, the name the page gives it) → Echo (message→echo, the wire narrowing the subject
     // to its id) → Out. Beside it a second connection reaching another
-    // pipeline along the predicate marked as starting one, and a third reaching nothing. The two marked
-    // predicates carry their marks themselves, the way the platform marks the predicates it dispatches on.
+    // pipeline along the predicate bound to starting one, and a third reaching nothing.
     public static StartFixture StatePipeline()
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
         var carries = fx.Thing("carries");
         fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
-        var standsFor = fx.Thing("standsFor", (PipelinePredicates.StandsForFlag, true));
-        var starts = fx.Thing("starts", (PipelinePredicates.PipelineStartFlag, true));
+        var standsFor = fx.Playing("standsFor", PipelineRoles.StandsFor);
+        var starts = fx.Playing("starts", PipelineRoles.PipelineStart);
 
         var proto = fx.Thing("EchoProto");
         fx.Rel(proto, vocabulary.Is, vocabulary.Service);
@@ -550,13 +560,13 @@ public static class TestGraphs
 
     public sealed record ChoiceFixture(GraphFixture Fixture, Guid PipelineId, GraphThing Offers, GraphThing Node, GraphThing[] Offered);
 
-    // One Choose node whose service's in port `strategy` offers three Things along a predicate marked as the
-    // choice predicate; which one the node chose, if any, is the caller's to relate along the same predicate.
+    // One Choose node whose service's in port `strategy` offers three Things along the predicate bound to the
+    // choice role; which one the node chose, if any, is the caller's to relate along the same predicate.
     public static ChoiceFixture ChoicePipeline(bool wiredFromASource = false, params (string Name, object Value)[] nodeProperties)
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var offers = fx.Thing("offers", (PipelinePredicates.ChoiceFlag, true));
+        var offers = fx.Playing("offers", PipelineRoles.Choice);
 
         var proto = fx.Thing("ChooseProto");
         fx.Rel(proto, vocabulary.Is, vocabulary.Service);

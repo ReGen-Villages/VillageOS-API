@@ -21,7 +21,7 @@ import { useModelStore } from '../stores/modelStore';
 import { useThemeStore } from '../stores/themeStore';
 import { useSubscription } from '../hooks/useSse';
 import { WHOLE_MODEL } from '../types/subscription';
-import { PipelineModel, ARCHETYPE_FLAG, typesCompatible, type ConnectionInformation, type PortInformation } from '../pipeline/model';
+import { PipelineModel, ROLE, typesCompatible, type ConnectionInformation, type PortInformation } from '../pipeline/model';
 import { savePipeline, loadPipeline, type EditorNode, type EditorEdge } from '../pipeline/serialize';
 import { validatePipeline, validateEnds } from '../pipeline/validate';
 import { catalystRail, outputRail, type CatalystRow, type OutputRow } from '../pipeline/catalysts';
@@ -76,11 +76,11 @@ export function PipelinePage() {
   const model = useMemo(() => new PipelineModel(things, relationships), [things, relationships]);
   const connections = useMemo(() => model.connections(), [model]);
   const pipelines = useMemo(
-    () => model.thingsOfArchetypeCarrying(ARCHETYPE_FLAG.Pipeline)
+    () => model.thingsOf(ROLE.Pipeline)
       .map((pipeline) => ({
         id: pipeline.Id,
         name: pipeline.Name,
-        nodeCount: model.outgoing(pipeline.Id, 'has').filter((held) => model.isOfArchetypeCarrying(held.Id, ARCHETYPE_FLAG.PipelineNode)).length,
+        nodeCount: model.outgoing(pipeline.Id, 'has').filter((held) => model.isOf(held.Id, ROLE.PipelineNode)).length,
       }))
       .sort((a, b) => a.name.localeCompare(b.name)),
     [model],
