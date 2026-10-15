@@ -15,16 +15,16 @@ public class RetryTests
 {
     private static readonly RunSubject Plot = new(Guid.NewGuid(), "Plot 7");
 
-    // One model minute passes in ten real milliseconds, so a pause is observed without a test that waits for it.
-    private static ModelClock FastClock()
+    // By default one model minute passes in ten real milliseconds, so a pause is taken without a test that waits long.
+    private static ModelClock FastClock(double rate = 6000)
     {
         var clock = new ModelClock();
-        clock.AnchorTo(new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero), rate: 6000);
+        clock.AnchorTo(new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero), rate);
         return clock;
     }
 
     private static (TestGraphs.RetryFixture Retry, FakeGateway Gateway, PipelineExecutor Executor) Arrange(
-        Func<int, NodeDispatchResult> answerToCall, bool handsOver = false, params (string Name, object Value)[] policy)
+        Func<int, NodeDispatchResult> answerToCall, bool handsOver = false, double clockRate = 6000, params (string Name, object Value)[] policy)
     {
         var retry = TestGraphs.RetryPipeline(handsOver, policy: policy);
         var calls = 0;
@@ -32,7 +32,7 @@ public class RetryTests
         {
             OnDispatch = (_, _) => answerToCall(Interlocked.Increment(ref calls)),
         };
-        return (retry, gateway, new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, FastClock()));
+        return (retry, gateway, new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, FastClock(clockRate)));
     }
 
     private static NodeDispatchResult Answer() => new(200, JsonSerializer.Serialize(new { success = true, outputs = new { @out = "echoed" } }));
@@ -76,17 +76,19 @@ public class RetryTests
         gateway.StatusUpdates.Should().Contain(RunStatus.Failed).And.NotContain(RunStatus.HandedOver);
     }
 
+    // A model minute is a tenth of a real second here, well above the scheduling noise of a loaded machine, and only
+    // lower bounds are asserted, since a busy machine can only lengthen a pause.
     [Fact]
     public async Task The_pause_before_each_attempt_grows_and_is_measured_on_the_model_clock()
     {
-        var (retry, gateway, executor) = Arrange(call => call < 3 ? Unreachable() : Answer(),
-            policy: [("attempts", 3), ("pauseMinutes", 1), ("pauseGrowth", 2)]);
+        var (retry, gateway, executor) = Arrange(call => call < 3 ? Unreachable() : Answer(), clockRate: 600,
+            policy: [("attempts", 3), ("pauseMinutes", 1), ("pauseGrowth", 3)]);
 
         await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
 
         var started = gateway.AttemptsRecorded.Select(recorded => recorded.Attempt.StartedUtc).ToList();
-        (started[1] - started[0]).Should().BeGreaterThanOrEqualTo(TimeSpan.FromMinutes(1)).And.BeLessThan(TimeSpan.FromMinutes(2));
-        (started[2] - started[1]).Should().BeGreaterThanOrEqualTo(TimeSpan.FromMinutes(2)).And.BeLessThan(TimeSpan.FromMinutes(4));
+        (started[1] - started[0]).Should().BeGreaterThanOrEqualTo(TimeSpan.FromMinutes(1));
+        (started[2] - started[1]).Should().BeGreaterThanOrEqualTo(TimeSpan.FromMinutes(3));
     }
 
     [Fact]

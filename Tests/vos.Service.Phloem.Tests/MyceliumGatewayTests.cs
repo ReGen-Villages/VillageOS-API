@@ -713,7 +713,7 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
-    public async Task ReadRunRecordAsync_ReadsANodeRunWhoseOutputsAreNotJsonAsOneWithNone()
+    public async Task ReadRunRecordAsync_ReadsANodeRunWhoseOutputsAreNotJsonAsOneWithNone_AndTakesOnlyNumberedAttemptsFromWhatItHolds()
     {
         var runId = Guid.NewGuid();
         var pipelineId = Guid.NewGuid();
@@ -721,6 +721,8 @@ public class MyceliumGatewayTests
         var nodeRunId = Guid.NewGuid();
         var hasId = Guid.NewGuid();
         var ofId = Guid.NewGuid();
+        var attemptId = Guid.NewGuid();
+        var notAnAttemptId = Guid.NewGuid();
         var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post
             ? Json(HttpStatusCode.OK, $$$"""
                 {"snapshot":{"things":[
@@ -730,10 +732,18 @@ public class MyceliumGatewayTests
                     "nodeId":{"typeInfo":"vos.String","value":"{{{nodeId}}}"},
                     "status":{"typeInfo":"vos.String","value":"succeeded"},
                     "outputs":{"typeInfo":"vos.String","value":"not an object"} } },
+                  {"id":"{{{attemptId}}}","name":"Attempt 1","properties":{
+                    "number":{"typeInfo":"vos.String","value":"1"},
+                    "startedUtc":{"typeInfo":"vos.String","value":"2026-10-15T12:00:00.0000000+00:00"},
+                    "finishedUtc":{"typeInfo":"vos.String","value":"2026-10-15T12:00:01.0000000+00:00"},
+                    "status":{"typeInfo":"vos.String","value":"succeeded"} } },
+                  {"id":"{{{notAnAttemptId}}}","name":"a note","properties":{} },
                   {"id":"{{{hasId}}}","name":"has","properties":{}},
                   {"id":"{{{ofId}}}","name":"of","properties":{}}],
                  "relationships":[
                   {"id":"{{{Guid.NewGuid()}}}","subjectId":"{{{runId}}}","predicateId":"{{{hasId}}}","targetId":"{{{nodeRunId}}}","properties":{}},
+                  {"id":"{{{Guid.NewGuid()}}}","subjectId":"{{{nodeRunId}}}","predicateId":"{{{hasId}}}","targetId":"{{{attemptId}}}","properties":{}},
+                  {"id":"{{{Guid.NewGuid()}}}","subjectId":"{{{nodeRunId}}}","predicateId":"{{{hasId}}}","targetId":"{{{notAnAttemptId}}}","properties":{}},
                   {"id":"{{{Guid.NewGuid()}}}","subjectId":"{{{runId}}}","predicateId":"{{{ofId}}}","targetId":"{{{pipelineId}}}","properties":{}}]}}
                 """)
             : RespondLikeAModelThatBindsItsRoles(request));
@@ -743,6 +753,7 @@ public class MyceliumGatewayTests
         record!.PipelineId.Should().Be(pipelineId);
         record.Nodes[nodeId].Status.Should().Be("succeeded");
         record.Nodes[nodeId].Outputs.Should().BeEmpty();
+        record.Nodes[nodeId].AttemptsMade.Should().ContainSingle().Which.Number.Should().Be(1);
     }
 
     [Theory]
