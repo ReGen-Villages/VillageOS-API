@@ -1,13 +1,12 @@
 using FluentAssertions;
 using vos.Service.Phloem.Execution;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Phloem.Tests;
 
 public class RunTurnsTests
 {
-    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(5);
-
     [Fact]
     public async Task A_second_turn_on_one_run_waits_for_the_first_and_is_handed_it_when_the_first_leaves()
     {
@@ -19,7 +18,8 @@ public class RunTurnsTests
         second.IsCompleted.Should().BeFalse();
         first.Dispose();
 
-        (await second.WaitAsync(Patience)).Dispose();
+        await Settle.ForAsync(second, "the second turn is handed the run once the first leaves");
+        (await second).Dispose();
     }
 
     [Fact]
@@ -35,6 +35,8 @@ public class RunTurnsTests
         await FluentActions.Awaiting(() => givenUp).Should().ThrowAsync<OperationCanceledException>();
         first.Dispose();
 
-        (await turns.TakeAsync(runId, CancellationToken.None).WaitAsync(Patience)).Dispose();
+        var next = turns.TakeAsync(runId, CancellationToken.None);
+        await Settle.ForAsync(next, "the run is free once the given-up turn and the first have left");
+        (await next).Dispose();
     }
 }

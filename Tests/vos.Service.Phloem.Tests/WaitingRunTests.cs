@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
 using vos.Service.Shared;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Phloem.Tests;
@@ -148,7 +149,8 @@ public class WaitingRunTests
         var paused = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
 
         paused.Error.Should().Be("The run waits for 'Plot 7' to enter 'decided' at 'Review'.");
-        (await answer!.WaitAsync(TimeSpan.FromSeconds(5))).Should().Be(ResumeOutcome.Resumed);
+        await Settle.ForAsync(answer!, "the answer that arrived during placement resumes the run");
+        (await answer!).Should().Be(ResumeOutcome.Resumed);
         gateway.Dispatched.Should().Equal("review", "publish");
         gateway.StatusUpdates.Last().Should().Be(RunStatus.Succeeded);
     }
