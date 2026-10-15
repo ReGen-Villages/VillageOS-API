@@ -447,6 +447,28 @@ public class PipelineModelTests
     }
 
     [Fact]
+    public void Build_ReadsThePipelineAnEndNodeStandsFor()
+    {
+        var starting = TestGraphs.StartingPipeline();
+
+        var dag = PipelineDagBuilder.Build(starting.Fixture.Build(), starting.PipelineId);
+
+        dag.Nodes.Single(node => node.Name == "Out").Starts.Should().Be(new Starting(starting.NextPipelineId, "What follows"));
+        dag.Nodes.Single(node => node.Name == "Out").Tells.Should().BeNull();
+    }
+
+    [Fact]
+    public void Build_RefusesAnEndNodeStandingForThePipelineItEnds()
+    {
+        var itself = TestGraphs.StartingPipeline(itself: true);
+
+        var build = () => PipelineDagBuilder.Build(itself.Fixture.Build(), itself.PipelineId);
+
+        build.Should().Throw<PipelineModelException>()
+            .WithMessage("*'Out' stands for 'BoundaryDemo', the pipeline it ends, so a run would start another of itself without end*");
+    }
+
+    [Fact]
     public void Build_RefusesAWaitingNodeWaitingThroughTwoPorts()
     {
         var twoPorts = TestGraphs.WaitingPipeline();

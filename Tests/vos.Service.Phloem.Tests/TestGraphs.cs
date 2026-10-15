@@ -216,6 +216,24 @@ public static class TestGraphs
         return new TellingFixture(fx, pipelineId, system.Id, tells.Id);
     }
 
+    public sealed record StartingFixture(GraphFixture Fixture, Guid PipelineId, Guid NextPipelineId);
+
+    // BoundaryPipeline whose end node stands for another pipeline, or for its own.
+    public static StartingFixture StartingPipeline(bool itself = false, string? transformIntoTheEnd = null)
+    {
+        var (fx, pipelineId) = BoundaryPipeline();
+        var standsFor = fx.Playing("standsFor", PipelineRoles.StandsFor);
+        var next = fx.Thing("What follows");
+        fx.Rel(next, fx.Get("is"), fx.Get("Pipeline"));
+        fx.Rel(fx.Get("Out"), standsFor, itself ? fx.Get("BoundaryDemo") : next);
+        if (transformIntoTheEnd is not null)
+        {
+            fx.Unrelate(fx.Get("Echo"), fx.Get("carries"), fx.Get("Out"));
+            fx.Rel(fx.Get("Echo"), fx.Get("carries"), fx.Get("Out"), ("fromPort", "echo"), ("toPort", "result"), ("transform", transformIntoTheEnd));
+        }
+        return new StartingFixture(fx, pipelineId, next.Id);
+    }
+
     // The three ways a dispatched relationship's target can start a pipeline, and one way it cannot.
     public sealed record StartFixture(
         GraphFixture Fixture,

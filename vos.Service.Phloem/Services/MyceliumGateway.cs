@@ -106,7 +106,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 
     public async Task CreateRunAsync(
         Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null, Guid? requestId = null,
-        JsonElement? parameters = null)
+        JsonElement? parameters = null, Guid? startedBy = null)
     {
         // The result, the error and the finish are declared here with no value. Each is known only once the
         // run ends, and the property route sets a property the Thing already carries — so a run given one
@@ -127,15 +127,21 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         await RelateAsync(runId, ModelNames.Is, await BoundAsync(PipelineRoles.PipelineRun, cancellationToken), cancellationToken);
         await RelateAsync(runId, ModelNames.Of, pipelineId, cancellationToken);
 
-        if (subject is null) return;
-        var subjectPredicateId = await TryBoundAsync(PipelineRoles.RunSubject, cancellationToken);
-        if (subjectPredicateId is null)
+        if (startedBy is { } starter) await RelateIfBoundAsync(runId, PipelineRoles.StartingRun, starter, cancellationToken);
+        if (subject is { } about) await RelateIfBoundAsync(runId, PipelineRoles.RunSubject, about.Id, cancellationToken);
+    }
+
+    // A run is recorded without the relationship rather than refused, since the run has already begun.
+    private async Task RelateIfBoundAsync(Guid runId, Role role, Guid targetId, CancellationToken cancellationToken)
+    {
+        var predicateId = await TryBoundAsync(role, cancellationToken);
+        if (predicateId is null)
         {
-            Logger.LogWarning("The model binds nothing to the role {Role}; run {RunId} is recorded without its subject {SubjectId}",
-                PipelineRoles.RunSubject.Word, runId, subject.Id);
+            Logger.LogWarning("The model binds nothing to the role {Role}; run {RunId} is recorded without its relationship to {TargetId}",
+                role.Word, runId, targetId);
             return;
         }
-        await RelateAsync(runId, subjectPredicateId.Value, subject.Id, cancellationToken);
+        await RelateAsync(runId, predicateId.Value, targetId, cancellationToken);
     }
 
     public async Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken cancellationToken, int? index = null, int total = 0,
