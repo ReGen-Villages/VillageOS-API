@@ -23,6 +23,9 @@ public sealed record Telling(Guid SystemId, string SystemName, Guid ConnectionId
 // parameter fills it.
 public sealed record ChosenThing(Guid Id, string Name);
 
+// What a node waits for once its service has answered: the Thing reaching PortName entering the range.
+public sealed record DagWait(Guid RangeId, string RangeName, string PortName);
+
 public sealed class DagNode
 {
     public Guid NodeId { get; init; }
@@ -47,6 +50,8 @@ public sealed class DagNode
 
     public IReadOnlyDictionary<string, ChosenThing> Choices { get; init; } =
         new Dictionary<string, ChosenThing>(StringComparer.OrdinalIgnoreCase);
+
+    public DagWait? Waits { get; init; }
 
     public IEnumerable<DagPort> OutputPorts => Ports.Where(p => p.IsOutput);
 

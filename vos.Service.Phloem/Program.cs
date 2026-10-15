@@ -68,6 +68,8 @@ try
         {
             var registered = await app.Services.GetRequiredService<MyceliumGateway>().RegisterAsync(servicePort);
             Log.Information("Phloem orchestrator {Status} with mycelium", registered ? "registered" : "failed to register");
+            var placedAgain = await app.Services.GetRequiredService<PipelineExecutor>().RecoverWaitsAsync(CancellationToken.None);
+            if (placedAgain > 0) Log.Information("Placed {Count} vigil(s) again for runs that were waiting", placedAgain);
         }
         catch (Exception ex)
         {
@@ -112,6 +114,17 @@ try
                 // Synchronous spawn-and-wait — the caller (e.g. a programmatic client) blocks for the result.
                 var result = await executor.RunAsync(trigger.PipelineId, trigger.Params, httpContext.RequestAborted, requestId: requestId);
                 return Results.Ok(result);
+
+            case SpawnKind.Relationship when await executor.HoldsVigilAsync(trigger.TargetId, httpContext.RequestAborted):
+                // The answer to a vigil a waiting node run holds comes as a state entry whose target is the vigil.
+                // It is acknowledged before the run carries on, which can take longer than the broker waits.
+                var vigilId = trigger.TargetId;
+                _ = Task.Run(async () =>
+                {
+                    try { await executor.ResumeAsync(vigilId, CancellationToken.None); }
+                    catch (Exception ex) { Log.Error(ex, "Resuming the run waiting on vigil {VigilId} failed", vigilId); }
+                });
+                return Results.Ok(new { success = true, accepted = true, resumes = vigilId });
 
             case SpawnKind.Relationship:
                 // A dispatched relationship — a `X runs Pipeline` write or a Thing entering a watched state —

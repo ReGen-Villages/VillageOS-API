@@ -84,6 +84,34 @@ describe('PipelinePage', () => {
     expect(screen.getByRole('link', { name: /Request/ })).toHaveAttribute('href', '/requests?entry=r-door');
   });
 
+  it('shows a run paused at a waiting node as waiting, with the node marked, and offers no cancel since the orchestrator would act on it only once the run resumes', async () => {
+    const { things, relationships, id } = catalystFixture();
+    const relate = (subject: string, predicate: string, target: string) =>
+      relationships.push({ Id: `${subject}-${predicate}-${target}`, Name: '', SubjectId: subject, PredicateId: predicate, TargetId: target, Properties: {} });
+    things.push(
+      { Id: 'of', Name: 'of', Properties: {} },
+      { Id: 'run-kind', Name: 'Execution', IsArchetype: true, Properties: {} },
+      { Id: ROLE.PipelineRun, Name: 'pipelineRun role', Properties: {} },
+      { Id: 'held-up', Name: 'run 3', Properties: { status: 'waiting', startedUtc: '2026-10-15T09:00:00Z' } },
+      { Id: 'held-up-at-the-end', Name: 'The office is told run', Properties: { nodeId: id.digestEnd, status: 'waiting' } },
+    );
+    relate(ROLE.PipelineRun, id.binds, 'run-kind');
+    relate('held-up', id.is, 'run-kind');
+    relate('held-up', 'of', id.digest);
+    relate('held-up', id.has, 'held-up-at-the-end');
+    useModelStore.setState({ things, relationships, loaded: true });
+
+    render(<MemoryRouter><PipelinePage /></MemoryRouter>);
+    const history = await screen.findByRole('combobox', { name: 'Run history' });
+    fireEvent.change(history, { target: { value: 'held-up' } });
+
+    expect(screen.getByText('Run waiting')).toHaveClass('text-amber-600');
+    await waitFor(() => expect(screen.getByText('The office is told: waiting')).toBeInTheDocument());
+    expect(document.querySelector('.ring-amber-400')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Run' })).toBeInTheDocument();
+  });
+
   it('names a new pipeline from the roster and leaves the canvas empty for it', async () => {
     render(<PipelinePage />);
     await waitFor(() => expect(screen.getByRole('textbox', { name: 'Pipeline name' })).toHaveValue('Digest'));

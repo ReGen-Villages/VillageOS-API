@@ -40,6 +40,16 @@ public static class PipelineRoles
     public static readonly Role Choice = new("choice", new("043b23a9-d2e8-5a8a-b81c-1a56bf0f525a"));
     public static readonly Role ProducedThing = new("producedThing", new("ea6e3988-2f5c-557e-818d-408bb7a2edd5"));
 
+    // A node that waits reaches the state it waits for along completionRange, and the in port whose Thing must
+    // enter that state along awaitsThrough.
+    public static readonly Role CompletionRange = new("completionRange", new("8855f3e8-6717-542a-9d49-2d91880d2751"));
+    public static readonly Role AwaitsThrough = new("awaitsThrough", new("4dd13e97-1305-566e-a922-7333e514aa64"));
+    // A waiting node run reaches the Thing it waits for and the vigil placed for it; the vigil names the
+    // runResumption connection, so its answer resumes the run.
+    public static readonly Role AwaitedThing = new("awaitedThing", new("6548fbdd-3474-5043-9864-abb665bb2d4b"));
+    public static readonly Role HeldVigil = new("heldVigil", new("6bd74ab0-4d87-5dd8-be69-6f12cceb80ee"));
+    public static readonly Role RunResumption = new("runResumption", new("50c894ed-a33d-56cc-a5a6-92aa82d32f4f"));
+
     // The roles a DAG is resolved from. The run roles are not among them: a run Thing is written before the
     // pipeline is loaded, so its archetype is looked up at the point of writing.
     public static readonly IReadOnlyList<Role> DagRoles =

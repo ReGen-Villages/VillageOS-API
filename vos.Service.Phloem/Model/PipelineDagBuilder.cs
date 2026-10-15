@@ -105,6 +105,7 @@ public static class PipelineDagBuilder
             Ports = ports.Select(p => p.Port).ToList(),
             ParameterBindings = ParseParameterBindings(nodeThing),
             Choices = ChoicesOf(graph, nodeThing, ports),
+            Waits = WaitOf(graph, nodeThing, ports),
             OnItemError = string.Equals(nodeThing.PropertyString(ModelNames.OnItemError), ModelNames.OnItemErrorContinue, StringComparison.OrdinalIgnoreCase)
                 ? ModelNames.OnItemErrorContinue
                 : ModelNames.OnItemErrorFail,
@@ -128,6 +129,30 @@ public static class PipelineDagBuilder
             choices[offering.Port.PortName] = new ChosenThing(chosen.Id, chosen.Name);
         }
         return choices;
+    }
+
+    private static DagWait? WaitOf(
+        PipelineGraph graph, GraphThing nodeThing, IReadOnlyList<(GraphThing Thing, DagPort Port)> ports)
+    {
+        var states = graph.OutgoingAlong(nodeThing, PipelineRoles.CompletionRange).ToList();
+        var through = graph.OutgoingAlong(nodeThing, PipelineRoles.AwaitsThrough).ToList();
+        if (states.Count == 0 && through.Count == 0) return null;
+
+        if (states.Count > 1)
+            throw new PipelineModelException($"Node '{nodeThing.Name}' waits for two states, so no one answer could resume it.");
+        if (through.Count > 1)
+            throw new PipelineModelException($"Node '{nodeThing.Name}' waits through two ports, so no one Thing could be waited for.");
+        if (through.Count == 0)
+            throw new PipelineModelException($"Node '{nodeThing.Name}' waits for '{states[0].Name}' but names no in port whose Thing must enter it.");
+
+        var portThing = through[0];
+        var port = ports.FirstOrDefault(p => p.Thing.Id == portThing.Id).Port;
+        var portName = port?.PortName ?? portThing.PropertyString(ModelNames.PortName) ?? portThing.Name;
+        if (states.Count == 0)
+            throw new PipelineModelException($"Node '{nodeThing.Name}' waits through its port '{portName}' but names no state for it to enter.");
+        if (port is not { IsInput: true })
+            throw new PipelineModelException($"Node '{nodeThing.Name}' waits through '{portName}', which is not an in port of it.");
+        return new DagWait(states[0].Id, states[0].Name, port.PortName);
     }
 
     // A boundary node: ports are declared on the node itself (its own has → Port chain),
