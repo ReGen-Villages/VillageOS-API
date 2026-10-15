@@ -32,7 +32,10 @@ public static class OutboundRequest
         return builder.Uri;
     }
 
-    public static TimeSpan ResolveTimeout(JsonElement value)
+    public static TimeSpan ResolveTimeout(JsonElement value) =>
+        SecondsIn(value) is { } seconds and > 0 ? TimeSpan.FromSeconds(seconds) : DefaultTimeout;
+
+    public static double? SecondsIn(JsonElement value)
     {
         double seconds;
         switch (value.ValueKind)
@@ -44,14 +47,14 @@ public static class OutboundRequest
                 seconds = s;
                 break;
             default:
-                return DefaultTimeout;
+                return null;
         }
 
         // >= the boundary, not >: TimeSpan.FromSeconds(TimeSpan.MaxValue.TotalSeconds) itself overflows.
-        if (double.IsNaN(seconds) || seconds <= 0 || seconds >= TimeSpan.MaxValue.TotalSeconds)
-            return DefaultTimeout;
+        if (double.IsNaN(seconds) || seconds >= TimeSpan.MaxValue.TotalSeconds)
+            return null;
 
-        return TimeSpan.FromSeconds(seconds);
+        return seconds;
     }
 
     public static Dictionary<string, string>? TryParseStringMap(JsonElement value)

@@ -271,6 +271,63 @@ public class EndpointCallChecksTests
         timeout.Should().Be(TimeSpan.FromSeconds(5));
     }
 
+    private static readonly ProviderUnavailability Configured = new("404 page not found", TimeSpan.FromSeconds(15));
+
+    [Fact]
+    public void TryUnavailability_NothingDeclared_IsTheConfigured()
+    {
+        EndpointCallChecks.TryUnavailability(Effective(), Configured, out var unavailability, out _).Should().BeTrue();
+
+        unavailability.Should().Be(Configured);
+    }
+
+    [Fact]
+    public void TryUnavailability_WordsDeclaredAlone_KeepTheConfiguredWait()
+    {
+        EndpointCallChecks.TryUnavailability(Effective(("unavailableAnswer", "Service Unavailable")), Configured,
+            out var unavailability, out _).Should().BeTrue();
+
+        unavailability.Should().Be(Configured with { Answer = "Service Unavailable" });
+    }
+
+    [Fact]
+    public void TryUnavailability_WaitDeclared_IsReadAsSeconds()
+    {
+        EndpointCallChecks.TryUnavailability(Effective(("unavailableRetryAfter", "3")), Configured,
+            out var unavailability, out _).Should().BeTrue();
+
+        unavailability.RetryAfter.Should().Be(TimeSpan.FromSeconds(3));
+    }
+
+    [Fact]
+    public void TryUnavailability_WaitDeclaredBelowZero_KeepsTheConfigured()
+    {
+        EndpointCallChecks.TryUnavailability(Effective(("unavailableRetryAfter", "-1")), Configured,
+            out var unavailability, out _).Should().BeTrue();
+
+        unavailability.RetryAfter.Should().Be(Configured.RetryAfter);
+    }
+
+    [Fact]
+    public void TryUnavailability_WordsDeclaredTwice_RefusesNamingTheKey()
+    {
+        EndpointCallChecks.TryUnavailability(
+            Effective(("a.unavailableAnswer", "x"), ("b.unavailableAnswer", "y")), Configured, out _, out var refusal)
+            .Should().BeFalse();
+
+        refusal!.Error.Should().Contain("unavailableAnswer");
+    }
+
+    [Fact]
+    public void TryUnavailability_WaitDeclaredTwice_RefusesNamingTheKey()
+    {
+        EndpointCallChecks.TryUnavailability(
+            Effective(("a.unavailableRetryAfter", "3"), ("b.unavailableRetryAfter", "5")), Configured, out _, out var refusal)
+            .Should().BeFalse();
+
+        refusal!.Error.Should().Contain("unavailableRetryAfter");
+    }
+
     [Fact]
     public void TryCredential_NoKind_IsAPlainCall()
     {
