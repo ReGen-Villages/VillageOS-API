@@ -115,6 +115,20 @@ public class DraftsAndRehearsalsTests
     }
 
     [Fact]
+    public async Task A_rehearsed_end_whose_inputs_cannot_be_put_together_fails_saying_so()
+    {
+        var starting = TestGraphs.StartingPipeline(transformIntoTheEnd: "$error(\"no shape for the end\")");
+        EveryServiceRehearses(starting.Fixture);
+        var (_, executor) = Arrange(starting.Fixture);
+
+        var result = await executor.RunAsync(starting.PipelineId, Seed, CancellationToken.None, rehearsal: true);
+
+        var end = result.Nodes.Single(node => node.Name == "Out");
+        end.Status.Should().Be(RunStatus.Failed);
+        end.Error.Should().Contain("could not be put together").And.Contain("no shape for the end");
+    }
+
+    [Fact]
     public async Task A_rehearsal_stops_at_a_waiting_node_and_places_no_vigil()
     {
         var waiting = TestGraphs.WaitingPipeline();
