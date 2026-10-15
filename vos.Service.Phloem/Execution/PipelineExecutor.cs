@@ -490,10 +490,7 @@ public sealed class PipelineExecutor
             return Failure(node, $"'{starting.PipelineName}' could not be started from '{node.Name}': {ex.Message}");
         }
 
-        var subject = runParams.ValueKind == JsonValueKind.Object && runParams.TryGetProperty(SubjectParam, out var carried)
-            && ThingNamedBy(carried) is { } named
-            ? new RunSubject(named.Id, named.Name)
-            : null;
+        var subject = SubjectCarriedBy(runParams);
         var nextRunId = Guid.NewGuid();
         _ = Task.Run(async () =>
         {
@@ -503,6 +500,12 @@ public sealed class PipelineExecutor
         return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded,
             new Dictionary<string, JsonElement> { [ModelNames.StartedRun] = JsonSerializer.SerializeToElement(nextRunId.ToString()) }, null);
     }
+
+    private static RunSubject? SubjectCarriedBy(JsonElement runParams) =>
+        runParams.ValueKind == JsonValueKind.Object && runParams.TryGetProperty(SubjectParam, out var carried)
+            && ThingNamedBy(carried) is { } named
+            ? new RunSubject(named.Id, named.Name)
+            : null;
 
     private async Task<NodeRunResult> RunNodeAsync(
         PipelineDag dag, DagNode node, Guid runId,

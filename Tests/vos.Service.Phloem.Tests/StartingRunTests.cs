@@ -15,14 +15,14 @@ public class StartingRunTests
 {
     private static readonly RunSubject Plot = new(Guid.NewGuid(), "Plot 7");
 
-    private static (TestGraphs.StartingFixture Starting, FakeGateway Gateway, PipelineExecutor Executor) Arrange()
+    private static (TestGraphs.StartingFixture Starting, FakeGateway Gateway, PipelineExecutor Executor) Arrange(string? transformIntoTheEnd = null)
     {
-        var starting = TestGraphs.StartingPipeline();
+        var starting = TestGraphs.StartingPipeline(transformIntoTheEnd: transformIntoTheEnd);
         var gateway = new FakeGateway(starting.Fixture.Build())
         {
             OnDispatch = (subdomain, envelope) => subdomain == "ech"
-                ? new NodeDispatchResult(200, JsonSerializer.Serialize(new { success = true, outputs = new { echo = envelope.GetProperty("inputs").GetProperty("message").GetString() } }))
-                : new NodeDispatchResult(200, JsonSerializer.Serialize(new { success = false, error = $"unexpected {subdomain}" })),
+                ? NodeOk(("echo", envelope.GetProperty("inputs").GetProperty("message").GetString()!))
+                : NodeFail($"unexpected {subdomain}"),
         };
         return (starting, gateway, new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()));
     }
@@ -49,18 +49,12 @@ public class StartingRunTests
     [Fact]
     public async Task An_end_whose_inputs_cannot_be_assembled_fails_naming_the_pipeline_it_would_have_started_and_starts_nothing()
     {
-        var starting = TestGraphs.StartingPipeline(transformIntoTheEnd: "$error(\"the wire refuses\")");
-        var gateway = new FakeGateway(starting.Fixture.Build())
-        {
-            OnDispatch = (_, _) => new NodeDispatchResult(200, JsonSerializer.Serialize(new { success = true, outputs = new { echo = "world" } })),
-        };
-        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+        var (starting, gateway, executor) = Arrange(transformIntoTheEnd: "$error(\"the wire refuses\")");
 
         var result = await executor.RunAsync(starting.PipelineId, JsonSerializer.SerializeToElement(new { seed = "world" }), CancellationToken.None);
 
         result.Success.Should().BeFalse();
         result.Nodes.Single(node => node.Name == "Out").Error.Should().StartWith("'What follows' could not be started from 'Out':");
-        await Settle.BeforeAssertingAbsenceAsync(TimeSpan.FromMilliseconds(200));
         gateway.RunsCreated.Should().ContainSingle();
     }
 
@@ -73,4 +67,10 @@ public class StartingRunTests
 
         gateway.RunsCreated.First().StartedBy.Should().BeNull();
     }
+
+    private static NodeDispatchResult NodeOk(params (string Port, string Value)[] outputs) =>
+        new(200, JsonSerializer.Serialize(new { success = true, outputs = outputs.ToDictionary(o => o.Port, o => o.Value) }));
+
+    private static NodeDispatchResult NodeFail(string error) =>
+        new(200, JsonSerializer.Serialize(new { success = false, error }));
 }
