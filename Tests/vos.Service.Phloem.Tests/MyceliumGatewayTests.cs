@@ -21,6 +21,7 @@ public class MyceliumGatewayTests
     private static readonly Guid PredicateId = Guid.Parse("33333333-3333-3333-3333-333333333333");
     private static readonly Guid SentMessageArchetypeId = Guid.Parse("55555555-5555-5555-5555-555555555555");
     private static readonly Guid ProducedPredicateId = Guid.Parse("66666666-6666-6666-6666-666666666666");
+    private static readonly Guid ResumptionConnectionId = Guid.Parse("88888888-8888-8888-8888-888888888888");
 
     private static (MyceliumGateway Gateway, MockHttpMessageHandler Handler) NewGateway(
         Func<HttpRequestMessage, HttpResponseMessage>? respond = null)
@@ -66,6 +67,7 @@ public class MyceliumGatewayTests
         (PipelineRoles.RunSubject, RunSubjectPredicateId),
         (PipelineRoles.SentMessage, SentMessageArchetypeId),
         (PipelineRoles.ProducedThing, ProducedPredicateId),
+        (PipelineRoles.RunResumption, ResumptionConnectionId),
     ];
 
     private static readonly Guid BindsPredicateId = Guid.Parse("77777777-7777-7777-7777-777777777777");
@@ -592,6 +594,71 @@ public class MyceliumGatewayTests
         properties.GetProperty(ModelNames.Parameters).GetProperty("value").GetString().Should().Be("""{"greeting":"hello"}""");
         properties.GetProperty(ModelNames.FinishedUtc).GetProperty("value").ValueKind.Should().Be(JsonValueKind.Null);
         properties.GetProperty(ModelNames.StartedUtc).GetProperty("value").GetString().Should().NotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task Waiting_is_written_with_the_outputs_but_is_not_a_finish_for_a_node_run_or_a_run()
+    {
+        var runId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway();
+        await gateway.CreateRunAsync(runId, Guid.NewGuid(), CancellationToken.None);
+        var outputs = new Dictionary<string, JsonElement> { ["notice"] = JsonSerializer.SerializeToElement("sent") };
+
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Running, null, CancellationToken.None);
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Waiting, null, CancellationToken.None, outputs: outputs);
+        await gateway.SetRunStatusAsync(runId, RunStatus.Waiting, CancellationToken.None);
+
+        var nodeRunId = (await Task.WhenAll(RequestsTo(handler, "/api/things", HttpMethod.Post).Select(ReadJson)))
+            .Select(body => body.GetProperty("id").GetGuid()).Single(id => id != runId);
+        var nodeRunWritten = await PropertiesWritten(handler, nodeRunId);
+        nodeRunWritten.Should().Contain((ModelNames.Outputs, """{"notice":"sent"}"""));
+        nodeRunWritten.Select(w => w.Name).Should().NotContain(ModelNames.FinishedUtc);
+        (await PropertiesWritten(handler, runId)).Select(w => w.Name).Should().NotContain(ModelNames.FinishedUtc);
+    }
+
+    [Fact]
+    public async Task PlaceVigilAsync_AsksForAVigilNamingTheResumptionConnection_AndAnswersItsIdentifier()
+    {
+        var subjectId = Guid.NewGuid();
+        var rangeId = Guid.NewGuid();
+        var vigilId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/vigils"
+            ? Json(HttpStatusCode.Created, $$"""{"Id":"{{vigilId}}","Name":"Plot 7 enters decided","DispatchState":null}""")
+            : RespondLikeAModelThatBindsItsRoles(request));
+
+        var placement = await gateway.PlaceVigilAsync(subjectId, rangeId, CancellationToken.None);
+
+        placement.Should().Be(new VigilPlacement.Placed(vigilId));
+        var asked = await ReadJson(RequestsTo(handler, "/api/vigils", HttpMethod.Post).Single());
+        asked.GetProperty("subjectId").GetGuid().Should().Be(subjectId);
+        asked.GetProperty("rangeId").GetGuid().Should().Be(rangeId);
+        asked.GetProperty("connectionId").GetGuid().Should().Be(ResumptionConnectionId);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest)]
+    [InlineData(HttpStatusCode.NotFound)]
+    public async Task PlaceVigilAsync_WhenThePlatformRefuses_AnswersItsReason(HttpStatusCode refusal)
+    {
+        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/vigils"
+            ? Json(refusal, """{"error":"Range 'decided' does not judge 'Plot 7'"}""")
+            : RespondLikeAModelThatBindsItsRoles(request));
+
+        var placement = await gateway.PlaceVigilAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        placement.Should().Be(new VigilPlacement.Refused("Range 'decided' does not judge 'Plot 7'"));
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.OK, true)]
+    [InlineData(HttpStatusCode.NotFound, false)]
+    [InlineData(HttpStatusCode.InternalServerError, true)]
+    public async Task IsVigilLiveAsync_IsFalseOnlyWhenThePlatformNoLongerHoldsIt(HttpStatusCode answer, bool live)
+    {
+        var (gateway, _) = NewGateway(_ => new HttpResponseMessage(answer));
+
+        (await gateway.IsVigilLiveAsync(Guid.NewGuid(), CancellationToken.None)).Should().Be(live);
     }
 
     [Fact]

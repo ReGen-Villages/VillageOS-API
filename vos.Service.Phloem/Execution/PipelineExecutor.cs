@@ -60,11 +60,7 @@ public sealed class PipelineExecutor
     // and the run carries on from its record. Nothing is dispatched a second time.
     public async Task<ResumeOutcome> ResumeAsync(Guid vigilId, CancellationToken cancellationToken)
     {
-        VigilHolder? holder;
-        await _placing.WaitAsync(cancellationToken);
-        try { holder = await _gateway.HolderOfVigilAsync(vigilId, cancellationToken); }
-        finally { _placing.Release(); }
-        if (holder is null) return ResumeOutcome.NotHeld;
+        if (await HolderOfAsync(vigilId, cancellationToken) is not { } holder) return ResumeOutcome.NotHeld;
 
         using var turn = await _turns.TakeAsync(holder.RunId, cancellationToken);
         var record = await _gateway.ReadRunRecordAsync(holder.RunId, cancellationToken);
@@ -96,6 +92,16 @@ public sealed class PipelineExecutor
 
         await SweepAsync(record.RunId, dag, record.Parameters, progress, cancellationToken);
         return ResumeOutcome.Resumed;
+    }
+
+    public async Task<bool> HoldsVigilAsync(Guid vigilId, CancellationToken cancellationToken) =>
+        await HolderOfAsync(vigilId, cancellationToken) is not null;
+
+    private async Task<VigilHolder?> HolderOfAsync(Guid vigilId, CancellationToken cancellationToken)
+    {
+        await _placing.WaitAsync(cancellationToken);
+        try { return await _gateway.HolderOfVigilAsync(vigilId, cancellationToken); }
+        finally { _placing.Release(); }
     }
 
     // On start: every waiting node run whose vigil is gone gets one again, since a vigil answered while this
