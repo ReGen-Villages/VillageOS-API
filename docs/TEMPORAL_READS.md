@@ -91,12 +91,14 @@ series pointing at the tier its data moved to. Stubs are avoided because:
   Sapwood, oldest in Heartwood), so there is no one "moved-to" tier to point at — only a union
   read across the intersecting tiers is correct;
 - data moves continually (a bucket leaving memory by count or by age, age-out, a restart putting
-  back in memory what never reached disk, late or out-of-order arrivals), so coverage is derived from what is actually stored on each read — reads stay correct
-  with no bookkeeping to maintain.
+  back in memory what never reached disk, late or out-of-order arrivals), so each tier keeps its
+  coverage from what it holds: Canopy works it out from its buckets, and a disk tier reads a series'
+  files once, on the series' first read or write after a start, keeps the span of bucket starts each
+  file holds, and keeps that current on every write and delete.
 
 The one thing a stub would buy — knowing where the data is without asking the tier — is provided
-instead by the per-tier coverage check: in-memory for Canopy, a small bucket-range index for the
-on-disk tiers.
+instead by the per-tier coverage check: in-memory for Canopy, and for the on-disk tiers the spans
+they keep, one per file per series and never one entry per bucket.
 
 ## Retention is per property
 
