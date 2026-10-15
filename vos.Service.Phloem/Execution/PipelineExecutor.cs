@@ -116,13 +116,15 @@ public sealed class PipelineExecutor
             using var turn = await _turns.TakeAsync(wait.RunId, cancellationToken);
             var record = await _gateway.ReadRunRecordAsync(wait.RunId, cancellationToken);
             if (record is null) continue;
-            var (dag, _) = await LoadAsync(record.PipelineId, cancellationToken);
+            var (dag, refusal) = await LoadAsync(record.PipelineId, cancellationToken);
             var node = dag?.Node(wait.NodeId);
             var name = node?.Name ?? wait.NodeId.ToString();
 
             string? failure = null;
             if (wait.AwaitedId is not { } awaited)
                 failure = $"'{name}' waited for a Thing the model no longer names, so nothing could resume it.";
+            else if (dag is null)
+                failure = refusal;
             else if (node?.Waits is not { } waits)
                 failure = $"'{name}' no longer waits for a state, so nothing could resume it.";
             else if (await PlaceAsync(record.RunId, node.NodeId, awaited, waits, cancellationToken) is { } refused)
@@ -218,8 +220,10 @@ public sealed class PipelineExecutor
         var halted = false;
         var cancelled = false;
 
+        bool Unsettled(DagNode node) => !results.ContainsKey(node.NodeId) && !progress.Waiting.ContainsKey(node.NodeId);
+
         using var gate = new SemaphoreSlim(_maxConcurrency);
-        var pending = dag.Nodes.Where(n => !results.ContainsKey(n.NodeId) && !progress.Waiting.ContainsKey(n.NodeId)).ToList();
+        var pending = dag.Nodes.Where(Unsettled).ToList();
         while (pending.Count > 0 && !halted)
         {
             if (await IsCancelledAsync(rid, cancellationToken)) { cancelled = true; break; }
@@ -255,7 +259,7 @@ public sealed class PipelineExecutor
                     halted = true;
                 await PersistStatusAsync(rid, result, cancellationToken);
             }
-            pending = pending.Where(n => !results.ContainsKey(n.NodeId) && !progress.Waiting.ContainsKey(n.NodeId)).ToList();
+            pending = pending.Where(Unsettled).ToList();
         }
 
         if (!halted && !cancelled && progress.Waiting.Count > 0)
@@ -269,8 +273,8 @@ public sealed class PipelineExecutor
                 var waits = progress.Waiting.Values.Select(wait =>
                     $"The run waits for {(wait.Awaits is { } thing ? $"'{thing.Name}'" : "its Thing")} to enter '{dag.Node(wait.NodeId)!.Waits!.RangeName}' at '{wait.Name}'.");
                 return new PipelineRunResult(rid, pipelineId, false,
-                    dag.Nodes.Where(n => results.ContainsKey(n.NodeId) || progress.Waiting.ContainsKey(n.NodeId))
-                        .Select(n => results.TryGetValue(n.NodeId, out var settled) ? settled : progress.Waiting[n.NodeId]).ToList(),
+                    dag.Nodes.Where(node => !Unsettled(node))
+                        .Select(node => results.TryGetValue(node.NodeId, out var settled) ? settled : progress.Waiting[node.NodeId]).ToList(),
                     string.Join(" ", waits));
             }
             halted = true;
@@ -503,9 +507,12 @@ public sealed class PipelineExecutor
             return await RunFanOutAsync(node, runId, inputs, collection.PortName, collValue, cancellationToken);
 
         AwaitedThing? awaited = null;
-        if (node.Waits is { } wait
-            && (awaited = inputs.TryGetValue(wait.PortName, out var reaching) ? ThingNamedBy(reaching) : null) is null)
-            return Failure(node, $"'{node.Name}' waits for the Thing reaching its port '{wait.PortName}', but what reached it names no Thing.");
+        if (node.Waits is { } wait)
+        {
+            awaited = inputs.TryGetValue(wait.PortName, out var reaching) ? ThingNamedBy(reaching) : null;
+            if (awaited is null)
+                return Failure(node, $"'{node.Name}' waits for the Thing reaching its port '{wait.PortName}', but what reached it names no Thing.");
+        }
 
         var result = await DispatchAndParseAsync(node, runId, inputs, index: null, cancellationToken);
         await RecordProducedAsync(runId, node, index: null, result, cancellationToken);

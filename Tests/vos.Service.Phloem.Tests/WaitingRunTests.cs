@@ -136,6 +136,23 @@ public class WaitingRunTests
         gateway.Dispatched.Should().Equal("review", "publish");
     }
 
+    // The platform answers at once for a Thing already in the state, which can be before the node run is related
+    // to its vigil.
+    [Fact]
+    public async Task An_answer_arriving_while_the_vigil_is_being_placed_finds_the_node_run_once_it_holds_the_vigil()
+    {
+        var (waiting, gateway, executor) = Arrange();
+        Task<ResumeOutcome>? answer = null;
+        gateway.OnVigilPlaced = vigilId => answer = executor.ResumeAsync(vigilId, CancellationToken.None);
+
+        var paused = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
+
+        paused.Error.Should().Be("The run waits for 'Plot 7' to enter 'decided' at 'Review'.");
+        (await answer!.WaitAsync(TimeSpan.FromSeconds(5))).Should().Be(ResumeOutcome.Resumed);
+        gateway.Dispatched.Should().Equal("review", "publish");
+        gateway.StatusUpdates.Last().Should().Be(RunStatus.Succeeded);
+    }
+
     [Fact]
     public async Task A_vigil_no_node_run_holds_resumes_nothing()
     {
@@ -285,6 +302,20 @@ public class WaitingRunTests
         gateway.Records[(runId, waiting.Review.Id)].Status.Should().Be(RunStatus.Failed);
         gateway.RunError.Should().Be("'Review' no longer waits for a state, so nothing could resume it.");
         gateway.VigilsPlaced.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task A_restarted_orchestrator_fails_a_wait_whose_pipeline_no_longer_loads_with_the_reason()
+    {
+        var (waiting, gateway, executor) = Arrange();
+        var (runId, vigilId) = await WaitAsync(waiting, gateway, executor);
+        gateway.LiveVigils.Remove(vigilId);
+        gateway.LoadFailure = new PipelineModelException("Node 'Review' chose two Things for its port 'submission'.");
+
+        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
+
+        gateway.Records[(runId, waiting.Review.Id)].Status.Should().Be(RunStatus.Failed);
+        gateway.RunError.Should().Be("Node 'Review' chose two Things for its port 'submission'.");
     }
 
     [Fact]

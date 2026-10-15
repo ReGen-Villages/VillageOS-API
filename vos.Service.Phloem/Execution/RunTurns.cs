@@ -11,9 +11,9 @@ public sealed class RunTurns
         SemaphoreSlim gate;
         lock (_turns)
         {
-            var entry = _turns.TryGetValue(runId, out var known) ? known : (new SemaphoreSlim(1, 1), 0);
-            _turns[runId] = (entry.Item1, entry.Item2 + 1);
-            gate = entry.Item1;
+            var (held, takers) = _turns.TryGetValue(runId, out var known) ? known : (new SemaphoreSlim(1, 1), 0);
+            _turns[runId] = (held, takers + 1);
+            gate = held;
         }
         try
         {

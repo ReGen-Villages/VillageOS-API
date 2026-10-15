@@ -74,6 +74,7 @@ internal sealed class FakeGateway : IMyceliumGateway
     public HashSet<Guid> LiveVigils { get; } = new();
     public string? PlacementRefusal { get; set; }
     public Exception? PlacementFailure { get; set; }
+    public Action<Guid> OnVigilPlaced { get; set; } = _ => { };
     public Exception? RecordReadFailure { get; set; }
 
     public Func<Guid, string, bool> RefuseNodeRunWrite { get; set; } = (_, _) => false;
@@ -123,6 +124,7 @@ internal sealed class FakeGateway : IMyceliumGateway
             VigilsPlaced.Add((vigilId, subjectId, rangeId));
             LiveVigils.Add(vigilId);
         }
+        OnVigilPlaced(vigilId);
         return Task.FromResult<VigilPlacement>(new VigilPlacement.Placed(vigilId));
     }
 
