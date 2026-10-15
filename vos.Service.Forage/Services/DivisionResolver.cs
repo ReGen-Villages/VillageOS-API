@@ -73,11 +73,14 @@ public sealed class DivisionResolver
         if (await RelateToCodedPlaceAsync(siteId, coverage, lookup, position, cancellationToken) is { } supplied)
             return supplied;
 
-        foreach (var areaName in position.AreaNames)
+        var terms = HazardDivision.SearchTermsFor(
+            position.AreaNames, await LocalAreaNamesAsync(siteId, coverage, lookup, cancellationToken));
+
+        foreach (var term in terms)
         {
             var searched = new Dictionary<string, string>(coverage.Address, StringComparer.OrdinalIgnoreCase)
             {
-                [lookup.SearchAreaNameParameter] = areaName,
+                [lookup.SearchAreaNameParameter] = term,
             };
 
             // A refused search is not a name the portal holds nothing for, so a coarser name is not asked
@@ -85,7 +88,7 @@ public sealed class DivisionResolver
             if (await _reader.ReadAsync(lookup.SearchEndpoint, searched, cancellationToken) is not { } answered)
                 return null;
 
-            if (HazardDivision.FinestIn(HazardDivision.DivisionsIn(answered), position.Country)
+            if (HazardDivision.FinestIn(HazardDivision.DivisionsIn(answered), position.Country, term)
                 is not { } division)
                 continue;
 
@@ -95,9 +98,29 @@ public sealed class DivisionResolver
         // Said out loud rather than left as an empty hazards table: the portal holds no division of any
         // name this site's position gave, in this site's country.
         _logger.LogInformation(
-            "The hazard portal holds no division in {Country} for {Areas}, so site {SiteId} keeps no "
-            + "division code", position.Country, string.Join(", ", position.AreaNames), siteId);
+            "The hazard portal holds no division in {Country} named {Terms}, so site {SiteId} keeps no "
+            + "division code", position.Country, string.Join(", ", terms), siteId);
         return null;
+    }
+
+    // The names the portal holds a division under, where the model declares the call that answers them.
+    // Empty where it was refused or answered nothing: the English names are still worth searching, and
+    // a run stopped for a lookup it could do without would grade no Portuguese site for a Polish gap.
+    private async Task<IReadOnlyList<string>> LocalAreaNamesAsync(
+        Guid siteId, SiteCoverage coverage, DivisionLookup lookup, CancellationToken cancellationToken)
+    {
+        if (lookup.LocalAreaNameEndpoint is not { } endpoint) return [];
+
+        if (await _reader.ReadAsync(endpoint, coverage.Address, cancellationToken) is not { } answered
+            || HazardDivision.PositionIn(answered) is not { } local)
+        {
+            _logger.LogInformation(
+                "The local area-name lookup answered nothing site {SiteId} can be searched by; the English "
+                + "names alone are searched", siteId);
+            return [];
+        }
+
+        return local.AreaNames;
     }
 
     // By the standard's code the geocoder answers beside the names, because a name matches in one

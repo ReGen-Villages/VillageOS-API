@@ -43,7 +43,8 @@ public sealed record DivisionLookup(
     string SearchAreaNameParameter,
     string CodeProperty,
     string NameProperty,
-    string? PlaceCodeProperty = null);
+    string? PlaceCodeProperty = null,
+    string? LocalAreaNameEndpoint = null);
 
 // A Place stating the standard's code for the country or region it is, with every value it states, and
 // whether the site already stands in it — relating it again would be refused as a second copy.
@@ -138,6 +139,10 @@ public static class CoveringSourceResolver
     public const string AreaNameLookupFlag = "__IsAreaNameLookup";
     public const string HazardDivisionLookupFlag = "__IsHazardDivisionLookup";
 
+    // The same geocoder call with no language, answering each name as the place itself writes it — the
+    // name the portal holds a division under. Optional: a model without it searches by the English names alone.
+    public const string LocalAreaNameLookupFlag = "__IsLocalAreaNameLookup";
+
     // What the search names as the properties a run writes what it settled on into.
     private const string DivisionCodeProperty = "divisionCodeProperty";
     private const string DivisionNameProperty = "divisionNameProperty";
@@ -183,7 +188,7 @@ public static class CoveringSourceResolver
         // the Thing it was followed through — and without that Thing no relationship reads as providing anything.
         MarkedArchetypes =
         [
-            SourceCoverageArchetypeFlag, AreaNameLookupFlag, HazardDivisionLookupFlag,
+            SourceCoverageArchetypeFlag, AreaNameLookupFlag, LocalAreaNameLookupFlag, HazardDivisionLookupFlag,
             ProvidedVariablePredicateFlag,
         ],
         Traverse =
@@ -402,9 +407,12 @@ public static class CoveringSourceResolver
             .ToList();
         if (placeholders.Count != 1) return null;
 
+        var localAreaName = snapshot.Things.FirstOrDefault(thing => thing.CarriesFlag(LocalAreaNameLookupFlag));
+
         return new DivisionLookup(
             areaNameEndpoint, searchEndpoint, placeholders[0], codeProperty, nameProperty,
-            StatedText(areaName, PlaceCodePropertyName));
+            StatedText(areaName, PlaceCodePropertyName),
+            localAreaName?.Name is { Length: > 0 } localEndpoint ? localEndpoint : null);
     }
 
     // Every Place stating a code, or null where the model declares no code property or no marked nesting

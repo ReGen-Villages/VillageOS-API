@@ -44,6 +44,12 @@ public class HazardDivisionTests
 
     private const string NoDivisionOfThatName = """{"data": []}""";
 
+    private const string DivisionsNamedMazowieckie = """
+        {"data": [
+          {"code": 2376, "admin0": "Poland", "admin1": "Mazowieckie"},
+          {"code": 24511, "admin0": "Poland", "admin1": "Podlaskie", "admin2": "Wysokie Mazowieckie"}]}
+        """;
+
     private const string InPoland = """
         {"address": {"village": "Kirsztajnów", "county": "Warsaw West County",
                      "state": "Masovian Voivodeship", "ISO3166-2-lvl4": "PL-14",
@@ -178,7 +184,7 @@ public class HazardDivisionTests
     [Fact]
     public void TheFinestDivisionOfTheSitesOwnCountryIsTaken()
     {
-        var finest = HazardDivision.FinestIn(HazardDivision.DivisionsIn(DivisionsNamedSantarem), "Portugal");
+        var finest = HazardDivision.FinestIn(HazardDivision.DivisionsIn(DivisionsNamedSantarem), "Portugal", "Santarem");
 
         finest!.Code.Should().Be("24889");
         finest.FullName.Should().Be("Portugal / Santarem / Santarem");
@@ -189,7 +195,7 @@ public class HazardDivisionTests
     [Fact]
     public void ADivisionOfAnotherCountryIsNeverTaken()
     {
-        HazardDivision.FinestIn(HazardDivision.DivisionsIn(DivisionsNamedSantarem), "Portugal")!
+        HazardDivision.FinestIn(HazardDivision.DivisionsIn(DivisionsNamedSantarem), "Portugal", "Santarem")!
             .Country.Should().Be("Portugal");
     }
 
@@ -197,15 +203,62 @@ public class HazardDivisionTests
     [Fact]
     public void ACountryOneProviderNamesMoreFullyThanTheOtherStillMatches()
     {
-        HazardDivision.FinestIn(HazardDivision.DivisionsIn(DivisionsNamedMassachusetts), "United States")!
+        HazardDivision.FinestIn(HazardDivision.DivisionsIn(DivisionsNamedMassachusetts), "United States", "Massachusetts")!
             .Code.Should().Be("3235");
     }
 
     [Fact]
     public void NoDivisionInTheSitesCountryResolvesToNone()
     {
-        HazardDivision.FinestIn(HazardDivision.DivisionsIn(DivisionsNamedSantarem), "Spain")
+        HazardDivision.FinestIn(HazardDivision.DivisionsIn(DivisionsNamedSantarem), "Spain", "Santarem")
             .Should().BeNull();
+    }
+
+    // The portal answers every division whose name contains the text, and the district stands deeper than
+    // the voivodeship it was searched for, so depth alone would grade the site 150 km away.
+    [Fact]
+    public void ADivisionWhoseNameMerelyContainsTheSearchedTextIsNotTaken()
+    {
+        var finest = HazardDivision.FinestIn(HazardDivision.DivisionsIn(DivisionsNamedMazowieckie), "Poland", "mazowieckie");
+
+        finest!.Code.Should().Be("2376");
+    }
+
+    [Fact]
+    public void ADivisionNamedOtherThanTheSearchedTextResolvesToNone()
+    {
+        HazardDivision.FinestIn(HazardDivision.DivisionsIn(DivisionsNamedMazowieckie), "Poland", "Masovian Voivodeship")
+            .Should().BeNull();
+    }
+
+    [Fact]
+    public void TheSearchTermsAreEachLevelsNamesThenTheirWords()
+    {
+        var terms = HazardDivision.SearchTermsFor(
+            ["Warsaw West County", "Masovian Voivodeship"],
+            ["powiat warszawski zachodni", "województwo mazowieckie"]);
+
+        terms.Should().Equal(
+            "Warsaw West County", "powiat warszawski zachodni",
+            "powiat", "warszawski", "zachodni", "Warsaw", "West", "County",
+            "Masovian Voivodeship", "województwo mazowieckie",
+            "województwo", "mazowieckie", "Masovian", "Voivodeship");
+    }
+
+    // The geocoder answers the same name in both calls for most of the world, and a word of three letters
+    // is an article or a preposition more often than a name.
+    [Fact]
+    public void ANameAnsweredTwiceAndAShortWordAreSearchedOnceAndNotAtAll()
+    {
+        HazardDivision.SearchTermsFor(["Vila Nova de Gaia", "Porto"], ["Vila Nova de Gaia", "Porto"])
+            .Should().Equal("Vila Nova de Gaia", "Vila", "Nova", "Gaia", "Porto");
+    }
+
+    [Fact]
+    public void WithNoLocalNamesTheEnglishNamesAndTheirWordsAreSearched()
+    {
+        HazardDivision.SearchTermsFor(["Dukes County", "Massachusetts"], [])
+            .Should().Equal("Dukes County", "Dukes", "County", "Massachusetts");
     }
 
     // Nothing here can settle which of the two is the land, and a guessed division reads exactly like a
@@ -219,6 +272,6 @@ public class HazardDivisionTests
               {"code": 9040, "admin0": "Brazil", "admin1": "Paraiba", "admin2": "Santarem"}]}
             """;
 
-        HazardDivision.FinestIn(HazardDivision.DivisionsIn(bothNamedSantarem), "Brazil").Should().BeNull();
+        HazardDivision.FinestIn(HazardDivision.DivisionsIn(bothNamedSantarem), "Brazil", "Santarem").Should().BeNull();
     }
 }
