@@ -14,10 +14,10 @@ would be one more thing able to fail.
 MAIN = 'refs/heads/main'
 DEVELOP = 'refs/heads/develop'
 
-# The wiki describes develop, the branch that moves. The wiki mirror publishes whatever the docs
-# publish left on the project wiki, so the pair only agree while both run on the same branch — which
-# is why a condition naming main is refused whether it moved the step there or widened it to both.
-PUBLISHING_STEPS = ('Publish Docs to Wiki', 'Mirror Wiki to GitHub')
+# The wiki describes develop, the branch that moves, and every file link on its pages names develop,
+# so a publish from main would put one branch's text beside the other branch's code. That is why a
+# condition naming main is refused whether it moved the step there or widened it to both.
+PUBLISHING_STEPS = ('Publish the wiki to GitHub',)
 
 # A build against main compiles Release, which is what a release is built in; everything else
 # compiles Debug, which is what a developer runs. A pull request into main has to compile Release

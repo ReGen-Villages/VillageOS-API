@@ -13,6 +13,7 @@ const {
   pageSlug,
   decodeName,
   mirror,
+  pagePathsOf,
   REPO_BRANCH,
 } = require('./sync-wiki');
 
@@ -20,14 +21,50 @@ const WIKI = 'https://github.com/ReGen-Villages/VillageOS-API/wiki';
 const BLOB = 'https://github.com/ReGen-Villages/VillageOS-API/blob/develop';
 const RAW_WIKI = 'https://raw.githubusercontent.com/wiki/ReGen-Villages/VillageOS-API';
 
-// The public wiki describes the branch the build mirrors it from, and a file link naming any other
+const PIPELINE = fs.readFileSync(path.join(__dirname, '..', '..', 'azure-pipelines.yml'), 'utf8');
+const PUBLISH_STEP = "displayName: 'Publish the wiki to GitHub'";
+const CONVERSION_STEP = "displayName: 'Generate and convert the wiki pages, and prove the publishing token'";
+
+// A step's display name sits near its end, so the step's text is found backwards from it.
+function stepNamed(displayName) {
+  const named = PIPELINE.indexOf(displayName);
+  assert.ok(named > -1, `the build no longer has the step ${displayName}`);
+  const start = PIPELINE.lastIndexOf('\n  - ', named);
+  const next = PIPELINE.indexOf('\n  - ', named);
+  return PIPELINE.slice(start, next > -1 ? next : undefined);
+}
+
+// The public wiki describes the branch the build publishes it from, and a file link naming any other
 // branch can answer 404 — so the pipeline is read rather than remembered.
-test('blob links name the branch the build mirrors the wiki from', () => {
-  const pipeline = fs.readFileSync(path.join(__dirname, '..', '..', 'azure-pipelines.yml'), 'utf8');
-  const step = pipeline.slice(pipeline.indexOf("displayName: 'Mirror Wiki to GitHub'"));
-  const mirrored = step.match(/'refs\/heads\/([^']+)'/);
-  assert.ok(mirrored, 'the build no longer names the branch the wiki is mirrored from');
-  assert.equal(REPO_BRANCH, mirrored[1]);
+test('blob links name the branch the build publishes the wiki from', () => {
+  const published = stepNamed(PUBLISH_STEP).match(/'refs\/heads\/([^']+)'/);
+  assert.ok(published, 'the build no longer names the branch the wiki is published from');
+  assert.equal(REPO_BRANCH, published[1]);
+});
+
+test('no build step reads or writes the Azure DevOps copy of the wiki', () => {
+  assert.ok(!PIPELINE.includes('publish-wiki.js'), 'the build still publishes to the Azure DevOps wiki');
+  assert.ok(!PIPELINE.includes('/_git/'), 'the build still clones a wiki from Azure DevOps');
+  assert.ok(!PIPELINE.includes('AZURE_DEVOPS_PAT'), 'the build still carries the Azure DevOps token');
+});
+
+test('every build generates and converts the wiki before the publish step, which does neither', () => {
+  const generated = PIPELINE.indexOf('node tools/docs-to-wiki/docs-to-wiki.js');
+  const converted = PIPELINE.indexOf('node tools/wiki-mirror/sync-wiki.js');
+  const published = PIPELINE.indexOf(PUBLISH_STEP);
+  assert.ok(generated > -1 && converted > generated && published > converted);
+  const publishStep = stepNamed(PUBLISH_STEP);
+  assert.ok(!publishStep.includes('docs-to-wiki.js') && !publishStep.includes('sync-wiki.js'));
+  const conversionStep = stepNamed(CONVERSION_STEP);
+  assert.ok(conversionStep.includes('sync-wiki.js'));
+  assert.ok(!conversionStep.includes("'refs/heads/"), 'the conversion runs on one branch only');
+  assert.ok(!/ push(?! --dry-run)/.test(conversionStep), 'a validation build must not publish');
+});
+
+test('the page order comes from the manifest the build passes', () => {
+  const pages = pagePathsOf(path.join(__dirname, '..', 'docs-to-wiki', 'wiki-map.json'));
+  assert.equal(pages[0], '/Home');
+  assert.ok(pages.every((page) => page.startsWith('/')));
 });
 
 test('internal wiki links become absolute GitHub wiki URLs', () => {
@@ -108,30 +145,33 @@ test('an attachment link is not mistaken for a wiki page', () => {
   assert.equal(output, `![x](${RAW_WIKI}/.attachments/a.svg) and [GUI](${WIKI}/GUI)`);
 });
 
-test('the mirror copies the attachments folder beside the pages', () => {
-  const source = fs.mkdtempSync(path.join(os.tmpdir(), 'devops-wiki-'));
+test('the mirror copies the attachments folder beside the pages and writes the sidebar from the page order', () => {
+  const source = fs.mkdtempSync(path.join(os.tmpdir(), 'wiki-generated-'));
   const output = fs.mkdtempSync(path.join(os.tmpdir(), 'github-wiki-'));
   fs.writeFileSync(path.join(source, 'Field Guide.md'), '![x](/.attachments/a.svg)');
+  fs.mkdirSync(path.join(source, 'Services'));
+  fs.writeFileSync(path.join(source, 'Services', 'Delta.md'), 'Delta');
   fs.mkdirSync(path.join(source, '.attachments'));
   fs.writeFileSync(path.join(source, '.attachments', 'a.svg'), '<svg/>');
-  fs.mkdirSync(path.join(source, '.git'));
-  fs.writeFileSync(path.join(source, '.git', 'HEAD'), 'ref: refs/heads/wikiMaster');
 
-  mirror(source, output);
+  mirror(source, output, ['/Field Guide', '/Services/Delta']);
 
   assert.equal(fs.readFileSync(path.join(output, '.attachments', 'a.svg'), 'utf8'), '<svg/>');
   assert.equal(
     fs.readFileSync(path.join(output, 'Field Guide.md'), 'utf8'),
     `![x](${RAW_WIKI}/.attachments/a.svg)`
   );
-  assert.ok(!fs.existsSync(path.join(output, '.git')));
+  assert.equal(fs.readFileSync(path.join(output, 'Delta.md'), 'utf8'), 'Delta');
+  assert.equal(
+    fs.readFileSync(path.join(output, '_Sidebar.md'), 'utf8'),
+    `- [Field-Guide](${WIKI}/Field-Guide)\n  - [Delta](${WIKI}/Delta)\n`
+  );
 });
 
 // The pipeline step, not this script, carries the output into the GitHub wiki clone.
-test('the pipeline carries the whole mirror output into the GitHub wiki clone', () => {
-  const pipeline = fs.readFileSync(path.join(__dirname, '..', '..', 'azure-pipelines.yml'), 'utf8');
-  const step = pipeline.slice(pipeline.indexOf('node tools/wiki-mirror/sync-wiki.js'));
-  assert.ok(step.includes('cp -R "$OUT"/. "$DEST"/'), 'the mirror step copies only part of the output');
+test('the pipeline carries the whole converted output into the GitHub wiki clone', () => {
+  const step = stepNamed(PUBLISH_STEP);
+  assert.ok(step.includes('cp -R "$OUT"/. "$DEST"/'), 'the publish step copies only part of the output');
   assert.ok(step.includes('rm -rf "$DEST"/.attachments'), 'a removed or renamed attachment would linger');
 });
 
@@ -167,12 +207,8 @@ test('pageSlug uses the decoded last segment with spaces as hyphens', () => {
   assert.equal(pageSlug('/API%2DReference'), 'API-Reference');
 });
 
-test('buildSidebar renders top-level and nested entries', () => {
-  const order = {
-    '': ['Home', 'API%2DReference', 'Services', 'GUI'],
-    Services: ['Delta', 'Tributary'],
-  };
-  const readOrder = (entry) => order[entry] || null;
+test('buildSidebar renders the manifest pages in order, a child indented under its parent', () => {
+  const pages = ['/Home', '/API-Reference', '/Services', '/Services/Delta', '/Services/Tributary', '/GUI'];
   const expected =
     `- [Home](${WIKI}/Home)\n` +
     `- [API-Reference](${WIKI}/API-Reference)\n` +
@@ -180,5 +216,13 @@ test('buildSidebar renders top-level and nested entries', () => {
     `  - [Delta](${WIKI}/Delta)\n` +
     `  - [Tributary](${WIKI}/Tributary)\n` +
     `- [GUI](${WIKI}/GUI)\n`;
-  assert.equal(buildSidebar(readOrder), expected);
+  assert.equal(buildSidebar(pages), expected);
+});
+
+test('run as a command with an argument missing, it says what it wants', () => {
+  const run = require('node:child_process').spawnSync('node', [path.join(__dirname, 'sync-wiki.js'), 'only-one'], {
+    encoding: 'utf8',
+  });
+  assert.equal(run.status, 2);
+  assert.match(run.stderr, /Usage: node sync-wiki\.js <generated-dir> <manifest> <output-dir>/);
 });
