@@ -21,6 +21,9 @@ public static class DagValidator
         foreach (var wire in dag.Wires)
             ValidateWire(dag, wire, errors);
 
+        foreach (var node in dag.Nodes.Where(node => node.Waits is not null))
+            ValidateWait(dag, node, node.Waits!, errors);
+
         var order = TopoSort(dag, out var cyclicNodeIds);
         if (cyclicNodeIds.Count > 0)
         {
@@ -58,6 +61,20 @@ public static class DagValidator
         // A wire's JSONata transform must compile — caught here before dispatch, not as a silent runtime failure.
         if (!string.IsNullOrEmpty(wire.Transform) && JsonataTransform.Validate(wire.Transform) is { } transformError)
             errors.Add($"Wire {from.Name}.{wire.FromPort} → {to.Name}.{wire.ToPort}: invalid transform — {transformError}");
+    }
+
+    // A vigil is placed over one Thing, so a node that would run once per item, or wait for a Thing nothing
+    // hands it, could never be resumed.
+    private static void ValidateWait(PipelineDag dag, DagNode node, DagWait wait, List<string> errors)
+    {
+        if (node.CollectionInput is { } collection)
+            errors.Add($"'{node.Name}' waits, but runs once for each item of '{collection.PortName}'; a node that waits runs once.");
+
+        var filled = dag.WiresInto(node.NodeId).Any(w => string.Equals(w.ToPort, wait.PortName, StringComparison.OrdinalIgnoreCase))
+            || node.ParameterBindings.ContainsKey(wait.PortName)
+            || node.Choices.ContainsKey(wait.PortName);
+        if (!filled)
+            errors.Add($"'{node.Name}' waits for the Thing reaching its port '{wait.PortName}', but nothing fills that port.");
     }
 
     // Equal types are compatible; an empty/"any" type on either side is a wildcard.

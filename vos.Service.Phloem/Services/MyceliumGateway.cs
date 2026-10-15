@@ -28,7 +28,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 
     // A role is read off the drawing only when its role Thing is in it.
     private static readonly IReadOnlyList<Role> DrawingRoles =
-        [.. PipelineRoles.DagRoles, PipelineRoles.ExternalSystem, PipelineRoles.StandsFor, PipelineRoles.ToldThrough, PipelineRoles.Choice];
+        [.. PipelineRoles.DagRoles, PipelineRoles.ExternalSystem, PipelineRoles.StandsFor, PipelineRoles.ToldThrough, PipelineRoles.Choice,
+         PipelineRoles.CompletionRange, PipelineRoles.AwaitsThrough];
 
     private static readonly IReadOnlyList<Role> StartRoles =
     [
@@ -43,8 +44,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         // does not pull predicate Things; every Port and wire Thing, because includeIsAncestors does not
         // pull a prototype's has-children; and the role Things with what each binds, so that a role missing
         // from the snapshot means the model binds it to nothing rather than that this pipeline plays that role
-        // nowhere. See SelectorResolver. After the nodes come the system an end stands for and the connection
-        // that system is told through, along the predicates those roles bind.
+        // nowhere. See SelectorResolver. After the nodes come the system an end stands for, the connection
+        // that system is told through, and the state a waiting node waits for, along the predicates those roles bind.
         var selector = new
         {
             ids = DrawingRoles.Select(role => role.Id).Prepend(pipelineId).ToArray(),
@@ -57,6 +58,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
                 new { predicateRole = PipelineRoles.StandsFor.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.ToldThrough.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.Choice.Id, direction = "outgoing", depth = 1 },
+                new { predicateRole = PipelineRoles.CompletionRange.Id, direction = "outgoing", depth = 1 },
             },
             includeIsAncestors = true,
             includeRelationships = true,

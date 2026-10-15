@@ -90,6 +90,9 @@ public sealed class GraphFixture
             Properties = props.ToDictionary(p => p.Name, p => JsonSerializer.SerializeToElement(p.Value), StringComparer.OrdinalIgnoreCase),
         });
 
+    public void Unrelate(GraphThing subject, GraphThing predicate, GraphThing target)
+        => _rels.RemoveAll(rel => rel.SubjectId == subject.Id && rel.PredicateId == predicate.Id && rel.TargetId == target.Id);
+
     public PipelineGraph Build() => new(_things, _rels);
 }
 
@@ -635,6 +638,55 @@ public static class TestGraphs
         fx.Rel(b, carries, gather, ("fromPort", "out"), ("toPort", "items"));
 
         return (fx, pipe.Id);
+    }
+
+    public sealed record WaitingFixture(
+        GraphFixture Fixture, PipelineVocabulary Vocabulary, Guid PipelineId, GraphThing Review, GraphThing Publish,
+        GraphThing Decided, GraphThing Submission, GraphThing ProvenBy, GraphThing AwaitsThrough);
+
+    // A start node hands the run's subject to Review, which sends it for review and waits for it to enter `decided`;
+    // Publish then runs on what Review answered.
+    public static WaitingFixture WaitingPipeline(bool wired = true, bool collection = false)
+    {
+        var fx = new GraphFixture();
+        var vocabulary = fx.DeclareVocabulary();
+        var provenBy = fx.Playing("provenBy", PipelineRoles.CompletionRange);
+        var awaitsThrough = fx.Playing("awaitsThrough", PipelineRoles.AwaitsThrough);
+        var carries = fx.Thing("carries");
+        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+
+        var reviewProto = fx.Thing("ReviewProto");
+        fx.Rel(reviewProto, vocabulary.Is, vocabulary.Service);
+        var submission = collection
+            ? fx.Thing("p.submission", ("direction", "in"), ("type", "any"), ("portName", "submission"), ("collection", "true"))
+            : fx.Thing("p.submission", ("direction", "in"), ("type", "any"), ("portName", "submission"));
+        var notice = fx.Thing("p.notice", ("direction", "out"), ("type", "any"), ("portName", "notice"));
+        fx.Rel(submission, vocabulary.Is, vocabulary.Port);
+        fx.Rel(notice, vocabulary.Is, vocabulary.Port);
+        fx.Rel(reviewProto, vocabulary.Has, submission);
+        fx.Rel(reviewProto, vocabulary.Has, notice);
+        var review = ServiceNode(fx, vocabulary, reviewProto, "Review", "review");
+        var decided = fx.Thing("decided");
+        fx.Rel(review, provenBy, decided);
+        fx.Rel(review, awaitsThrough, submission);
+
+        var publish = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "PublishProto"), "Publish", "publish");
+
+        var start = fx.Thing("A submission arrives");
+        fx.Rel(start, vocabulary.Is, vocabulary.PipelineInput);
+        var subject = fx.Thing("start.subject", ("direction", "out"), ("type", "any"), ("portName", "subject"));
+        fx.Rel(subject, vocabulary.Is, vocabulary.Port);
+        fx.Rel(start, vocabulary.Has, subject);
+
+        var pipe = fx.Thing("Review a submission");
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Rel(pipe, vocabulary.Has, start);
+        fx.Rel(pipe, vocabulary.Has, review);
+        fx.Rel(pipe, vocabulary.Has, publish);
+        if (wired) fx.Rel(start, carries, review, ("fromPort", "subject"), ("toPort", "submission"));
+        fx.Rel(review, carries, publish, ("fromPort", "notice"), ("toPort", "in"));
+
+        return new WaitingFixture(fx, vocabulary, pipe.Id, review, publish, decided, submission, provenBy, awaitsThrough);
     }
 
     private static GraphThing InputOutputPrototype(GraphFixture fx, PipelineVocabulary vocabulary, string name)

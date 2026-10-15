@@ -192,14 +192,15 @@ public class MyceliumGatewayTests
         // a system is read through.
         selector.GetProperty("ids").EnumerateArray().Select(id => id.GetGuid())
             .Should().BeEquivalentTo(PipelineRoles.DagRoles.Select(role => role.Id).Append(pipelineId).Concat(
-                [PipelineRoles.ExternalSystem.Id, PipelineRoles.StandsFor.Id, PipelineRoles.ToldThrough.Id, PipelineRoles.Choice.Id]));
+                [PipelineRoles.ExternalSystem.Id, PipelineRoles.StandsFor.Id, PipelineRoles.ToldThrough.Id, PipelineRoles.Choice.Id,
+                 PipelineRoles.CompletionRange.Id, PipelineRoles.AwaitsThrough.Id]));
 
-        // What each role binds, then the system an end stands for, the connection it is told through, and what a
-        // port offers and a node chose, are reached after the nodes.
+        // What each role binds, then the system an end stands for, the connection it is told through, what a port
+        // offers and a node chose, and the state a waiting node waits for, are reached after the nodes.
         selector.GetProperty("traverse").EnumerateArray()
             .Select(rule => rule.TryGetProperty("predicateRole", out var role) ? role.GetString() : rule.GetProperty("predicate").GetString())
             .Should().Equal(ModelNames.Has, ModelNames.Binds, PipelineRoles.StandsFor.Id.ToString(),
-                PipelineRoles.ToldThrough.Id.ToString(), PipelineRoles.Choice.Id.ToString());
+                PipelineRoles.ToldThrough.Id.ToString(), PipelineRoles.Choice.Id.ToString(), PipelineRoles.CompletionRange.Id.ToString());
     }
 
     [Fact]
