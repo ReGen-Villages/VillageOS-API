@@ -97,6 +97,12 @@ These bind inputs to **run parameters** — the **Params** bar appears above the
 | **Readings Arrive** | A start standing for the kind of message the `Sensor gateway` sends — a batch of readings arriving at a connection — ending at the answer. |
 | **Daily Report** | A pipeline ending at the `Reporting office`, an external system that is told the report. The office is told through `tells Reporting office`, a connection bound to the `Publish` stand-in, so the rail also lists that connection as a relationship row; a run writes a sent message the server delivers to it once. |
 
+### A drawing that branches
+
+| Pipeline | What it shows |
+|----------|---------------|
+| **Branching Decision** | A `Decide` node holding out ports `accept` and `refuse` of its own, beside the ports its service declares, with a `strategy` input that offers three Things to choose from. The node answers under one out port, so only that branch runs; the other branch is recorded *not taken*, and the end is reached once. The seed draws the node's own ports and its choice; the inspector does not yet edit them. |
+
 ## Running a pipeline
 
 1. **Open** the pipeline from the roster.

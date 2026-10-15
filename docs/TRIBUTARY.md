@@ -79,7 +79,7 @@ value and whether it is expected to be overridden.
 |------|---------|----------|
 | **required-structural** | A structural key (declared blank on a template) that a registration MUST fill. Admissible via `AllowedKeys`; rejected if missing at use. | `url`; `tokenUrl`, `tokenRequest` (when minting a token); `assetProperty`, `assetSubject` (when keeping retrievals) |
 | **canonical-default** | A value a *child* template fixes to define a source type's identity — not normally overridden per registration. | `tokenPath`, `expiryPath`, `expiryUnit`; `offsetParam`, `pageSizeParam`, `hasMorePath`, `itemsPath` |
-| **sensible-default** | Has a built-in fallback (in code or a generic template default); commonly overridden per endpoint. | `httpMethod` (GET), `requestContentType` (application/json), `timeout` (30s), `tokenParam` (token) |
+| **sensible-default** | Has a built-in fallback (in code or a generic template default); commonly overridden per endpoint. | `httpMethod` (GET), `requestContentType` (application/json), `timeout` (30s), `tokenParam` (token), `unavailableAnswer` and `unavailableRetryAfter` (the words and the wait a proxy's 404 is read with — see *404 is the exception* below) |
 | **optional** | May be absent entirely; the feature is simply off. | `responseTransform` (absent → the body is returned unchanged, nothing is ingested), `headers`, `queryParams`, `acceptHeader`, `token` (pre-minted), `tokenHeader` / `tokenScheme`, `pageSize`, `observedAtParameter` |
 
 Which *mechanisms* apply is not in the table because it is not a property: an endpoint
@@ -330,7 +330,9 @@ opens in any viewer. Expired entries simply miss and are overwritten by the next
 no sweeper. Combinations the cache cannot answer honestly are refused up front: offset
 paging, a credentialed (`TokenExchangeAuth`) call, and a request with an outbound body
 (none of which are part of the key). The cache root is deployment configuration
-(`CacheDirectory`, default `cache/` under the service's working directory).
+(`CacheDirectory`, default `cache/` under the service's working directory), and so is the
+`ProviderUnavailable` section below; the service reads `appsettings.json` beside its executable
+whatever the working directory, because Mycelium starts a service in its own.
 
 **Keeping what was retrieved: `keepsBy` → `ModelAsset`.** The cache above is a speed layer
 the model cannot see; an endpoint that reaches the **`ModelAsset`** kind through `keepsBy`
@@ -389,7 +391,8 @@ Graph composition is pinned by `EsriTileEndpointTemplateTests` and
 
 **A refusal is carried out with the provider's own status and words.** A call answered
 anything outside 2xx — other than the one case below — comes back to the caller with that
-status and that body, and nothing is reshaped or ingested. One rule for all three paths:
+status and that body — and the provider's `Retry-After` when it set one — and nothing is reshaped or
+ingested. One rule for all three paths:
 a plain call, a binary one, and a paged walk, where any page outside 2xx ends the walk and
 is the answer the caller gets. Answering 200 with a refusal inside it would let a run
 count a call resolved, stamp its coverage and move on, leaving a reading unassessed for a
@@ -398,7 +401,12 @@ reason nobody was told.
 **404 is the exception, because it is an answer.** A portal holding no entry for a
 division answers 404 (see the hazard grading below): the reshape is skipped, nothing is
 written, the subject stays honestly unassessed, and the call counts as done — asking again
-every quarter of an hour would never get a different answer. **A page answering 404 is not
+every quarter of an hour would never get a different answer. A 404 carrying the words configured
+under `ProviderUnavailable` in `appsettings.json` (`404 page not found` by default), or the endpoint's
+own `unavailableAnswer`, is the proxy's answer while the provider restarts, not the provider's:
+Tributary asks once more after `RetryAfterSeconds` (15 by default; the endpoint's
+`unavailableRetryAfter` overrides it) and, if it comes again, relays it as a refusal with the status
+and body as they came. **A page answering 404 is not
 that**, and is carried out like any other refusal: the caller asked for the whole walk, and
 a walk that cannot reach its last page has no aggregate to reshape. Which page it was goes
 to the log — that is about the walk, not about the provider, and the caller gets the
@@ -432,6 +440,11 @@ Tributary's contract is **fetch-and-shape**:
    every reading's values are then written as **observations** on that entity's property series
    (`POST /api/things/{id}/observations`). So Things scale with the number of entities, not
    readings — the readings live in the time-series tier (Canopy → Sapwood), not the structural graph.
+   A broker whose readings queue is full refuses the batch whole with 503 and `Retry-After`; Tributary
+   waits the seconds given and sends the same batch again, a bounded number of times, and only then
+   drops it and reports the ingest as failed. A refusal that names no wait, or a wait too long for the
+   retries to fit inside the call the broker is waiting on, is not sent again, and if the broker gives
+   up on the call first Tributary stops waiting and drops the batch.
 
 **What decides ingest** is the expression *in effect*: the one on the registration, or the one it
 inherits from its template. An endpoint with none fetches and returns the body unchanged — a plain

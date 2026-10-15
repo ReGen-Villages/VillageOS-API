@@ -90,8 +90,10 @@ every chapter of this guide comes back to them:
    instant a value drifts outside it, the platform reacts. It does not matter whether the value
    came from a simulation or from a real meter.
 
-Only one predicate is built into the platform: `is`, which says a Thing is a kind of another Thing
-and lets it inherit that kind's values and ranges. Every other predicate is data in the model, and
+Two predicates are built into the platform: `is`, which says a Thing is a kind of another Thing
+and lets it inherit that kind's values and ranges, and `binds`, along which a **role** — a Thing with
+a fixed identifier standing for something the platform asks for — reaches the one Thing playing it,
+so a reader asks for a role and never for a name. Every other predicate is data in the model, and
 any of them can be bound to a service.
 
 ### 4. Two kinds of knowledge
@@ -361,8 +363,9 @@ Predicates come in two flavours:
 | **Structural** | Describes how things are arranged. The platform reads it, pages draw it, ranges can follow it, and nothing else happens | `contains`, `has`, `feeds`, `powers`, `isIn` |
 | **Handled** | Bound to a service. Creating a relationship through it starts that service with the subject and the target | `consumes`, `produces`, `runs` |
 
-`is` is the only predicate with behaviour built into the server, and that behaviour is inheritance.
-Every other behaviour is a service (Part V). This is the platform's extension point: a new
+Two predicates have behaviour built into the server: `is`, whose behaviour is inheritance, and
+`binds`, along which a role Thing reaches the one Thing playing that role. Every other behaviour is a
+service (Part V). This is the platform's extension point: a new
 capability ships as a service bound to a predicate, and the server does not change.
 
 A model says which of its predicates mean *containment* — one Thing physically inside another — by
@@ -910,8 +913,11 @@ registration serves every site. The reply is reshaped by the registration's rule
 small expression language for reshaping structured data) into readings: which property, what value,
 observed when. Each reading is written as an Observation onto the subject, and the registration is
 related to that Thing through `observed`, so every fetched value leads back to what produced it.
-Tributary fetches and reshapes; it computes nothing and remembers nothing. A reply the provider
-refused is carried back with the provider's own status and words.
+When the server's readings queue is full it refuses the readings and says when to send them again;
+Tributary waits that long and sends them again, a few times at most, and stops if the call it is part
+of has been given up. Tributary fetches and reshapes; it computes nothing and remembers nothing. A
+reply the provider refused is carried back with the provider's own status and words, and with the
+wait the provider asked for where it gave one.
 
 Some sources return bytes rather than text — map tiles, imagery — and a registration says so by
 reaching the kind that reads its body as bytes; it may also cache the bytes on disk for the life the
@@ -972,8 +978,8 @@ carries a value from one node's output **port** to another node's input port, an
 from its sources to its sinks with no cycles. A pipeline is nothing but Things and relationships in
 the model — the pipeline `has` its nodes, a node `has` the connection it dispatches, a service
 declares its typed ports, a wire names the two ports it joins — so there is no second store, and a
-pipeline can be read, exported and judged like anything else. Every role is found by a mark, so a
-model may name its pipeline vocabulary as it likes.
+pipeline can be read, exported and judged like anything else. Every role is a role Thing that `binds`
+the archetype or predicate playing it, so a model may name its pipeline vocabulary as it likes.
 
 Pipelines and the reactive engine answer different questions. The engine recomputes and re-judges
 on its own every time anything changes. A pipeline runs a chosen set of services in a chosen order
@@ -987,7 +993,9 @@ The **Pipelines** page in the console is the editor.
 
 - **The catalysts**, in the rail on the left, are everything in the model that sets a run off,
   listed by kind — a state a Thing enters, a kind of message an external system sends, a request —
-  each saying what it starts or what happens to it. A state row says it starts its drawing only when
+  each saying what it starts or what happens to it; the one connection left out is the orchestrator's
+  own, which a vigil answers through to resume a waiting run, because no run starts from it. A state
+  row says it starts its drawing only when
   the orchestrator receives the state's entries; otherwise it names the drawing and the service that
   receives them, and offers **Handle with the orchestrator**, which rebinds the state's connection.
   Clicking a row places a **start node** standing for it; *By hand* places a start whose ports are filled from the run's parameters. Beside
@@ -1022,19 +1030,24 @@ The **Pipelines** page in the console is the editor.
 **Phloem** is the orchestrator, a service like any other. A run reads the pipeline in one
 snapshot, builds the graph — each node's dispatch address, its ports, its wires — and checks it up
 front: the nodes are put in dependency order (a cycle is refused) and every wire's types must
-agree. Then it runs the nodes in that order, independent nodes concurrently up to a bound,
-dispatching each through the server and routing its outputs to the inputs downstream. A node that
-fails halts everything that depends on it.
+agree. Then it runs each node once every wire into it has a settled source, independent nodes
+concurrently up to a bound, dispatching each through the server and routing its outputs to the inputs
+downstream. A node that fails halts everything that depends on it. A node may hold out ports of its
+own and answer under one of them, which is how a drawing branches: a node wired only from out ports
+nothing answered under is recorded *not taken* and never dispatched.
 
 A run and each node's run are recorded as Things, written *running* before dispatch and their
 final status after, so the console animates a run from the ordinary live stream and history is a
-read of the model. **Cancel** is cooperative: nodes already running finish, pending ones are marked
-cancelled.
+read of the model. A node may wait for a state: it names the range and the port whose Thing must
+enter it, the run records its answer as *waiting* — shown on the page with a ring and colour of its
+own — and resumes from its record when the vigil the orchestrator placed answers. **Cancel** is
+cooperative: nodes already running finish, pending ones are marked cancelled; the page offers no
+Cancel on a waiting run, because the orchestrator reads the request only between dispatches.
 
 **Fan-out.** A node whose service declares a **collection** input runs once per item when that
 input receives a list — the other inputs are the same for every item — and each output is gathered
-into a list for downstream. The node may continue past a failed item, marking the run partial, or
-fail as a whole.
+into a list for downstream, an output marked as a collection into one flat list. The node may
+continue past a failed item, marking the run partial, or fail as a whole.
 
 A pipeline can also be started **from the model**, three ways. A `runs` predicate bound to Phloem makes
 creating *X runs Pipeline* start it, so any service can start a pipeline by creating one
@@ -1044,8 +1057,8 @@ identifier to find it. And a **state connection** bound to Phloem starts the pip
 whose start node stands for the connection, or for the state it watches, since several connections
 may watch one state — when a Thing enters the state, with the entering Thing as the run's `subject`:
 the name the Pipelines page gives a start node's port, carrying the Thing's id and name, which a wire
-narrows by its from-path. The run relates to that Thing along the predicate marked as the run's
-subject. What the orchestrator is asked to run is resolved against the model: a pipeline runs itself,
+narrows by its from-path. The run relates to that Thing along the predicate the run-subject role
+binds. What the orchestrator is asked to run is resolved against the model: a pipeline runs itself,
 a connection runs the pipeline drawn from it or the one it reaches along the pipeline-start
 predicate, and anything else is refused.
 
@@ -1385,7 +1398,9 @@ about. Every word on it is the model's; the widgets are the console's. Chapter 2
 can show. As a reader:
 
 - A **switcher** at the top of a page that compares entities narrows every widget to one site, or
-  shows every site side by side.
+  shows every site side by side under *All*. A page comparing a single entity opens on it and offers
+  no *All*; under *All*, a widget whose figure needs one entity says to choose one, named by the
+  page's compare label.
 - A **dotted rule** under a figure means the model derived it, and it opens to show what it is
   made of: the Things counted, the members summed and what each contributed, the buckets a
   trailing-window figure was folded from. A row in the evidence opens that Thing's detail window.
@@ -1967,7 +1982,9 @@ Deleted bo
 The platform can measure what it costs — processor, memory, request timing, what each engine holds
 — as Observations on Things a model marks measurable, shown on a page any model can install by
 applying one fragment. Because a reading is an ordinary property value, history, retention,
-thresholds and totals come free. Sampling is off until a deployment turns it on, and a server started
+thresholds and totals come free. The read and write counts and average times leave out event
+streams, which stay open for as long as their reader is connected. Sampling is off until a
+deployment turns it on, and a server started
 without it writes one line saying so; that line is what to search the log for when the page is
 empty.
 
@@ -2403,7 +2420,8 @@ and the innermost declaration is the one in force. The application shell always 
 the navigation lists and the display-settings Thing. The graph, the two searches, the pipeline
 editor, the temporal page and the Dashboard read across the model and ask for the whole of it. A
 published page asks for what its description implies: the compare entities, the kinds its lists
-draw, the Things it names, the selected entity, and one traversal rule per relationship its bindings
+draw, the Things it names, the selected entity, the name Things a page offering levers reads and
+`namesPropertyOf` one step on from them, and one traversal rule per relationship its bindings
 walk — asked for in the order the walk takes them, because the platform applies each rule to what
 was selected before it — and it asks for readings too, so a figure bound to a reading moves without a
 reload, each series held to the platform's cadence. Two platform rules shape this: only the kinds a narrowed subscription names
@@ -2486,7 +2504,8 @@ Pages the platform itself declares for the signed-in account — an administrato
 keys pages — are read on sign-in and listed before the model's own, each at an address of its own,
 drawn by the same widgets.
 
-The widget kinds: a **kpi** figure with a unit, a target and a small trace; **funnel**, **bullet**,
+The widget kinds: a **kpi** figure with a unit, a target and a small trace, or a word its binding
+answers, such as a climate class, with no unit and no target judgement; **funnel**, **bullet**,
 **gantt**, **table**, **leaderboard**; **verdict** and **working** (chapter
 90); an **exception bar**; the six chart widgets (chapter 91); and the
 two widgets that write (chapter 93). A section may name a **theme** the model
@@ -2533,8 +2552,10 @@ description writes its number as a number.
 **The Thing a binding names.** `property`, `related`, `stateOf`, `verdict`, `origin` and `working`
 take a `thing`, read as an identifier first and a name second, because two Things may share a
 name. `$scope` means the entity selected in the compare switcher, and inside a computed column the
-row's own Thing; a binding naming nothing reads `$scope`. A reference matching neither resolves to
-nothing.
+row's own Thing; a binding naming nothing reads `$scope`. Under *All* nothing is selected: a
+`related`, `stateOf`, `verdict`, `origin`, `working` or `history` binding reading `$scope` has
+nothing to start from, and its widget says to choose one, while a `$scope` property averages across
+the entities instead. A reference matching neither resolves to nothing.
 
 | Binding | Reads | Costs |
 | --- | --- | --- |
@@ -2554,8 +2575,9 @@ nothing.
 A figure the platform answers — `stateCount`, `stateList`, `stateOf`, `verdict`, `timeseries`,
 `latest`, `service`, `history`, a `ratio` with either side among these, a walk step naming a state,
 a computed column doing any of these — resolves again when a state change names a state it reads, on
-the description's `refreshSeconds`, on a model reload, and after a press one of the page's writing
-widgets took; not on a property change. A page stating no cadence keeps the live event as its beat.
+the description's `refreshSeconds`, on a model reload, after a press one of the page's writing
+widgets took, and each time a load replaces the page's Things; not on a property change, and a live
+batch changing them does not count. A page stating no cadence keeps the live event as its beat.
 
 **Which Things.** Archetype membership is resolved through the whole `is` chain and counts members
 only — a kind declared as a kind never appears as a row, even before it has members. A `stateCount`
@@ -2668,7 +2690,10 @@ move comes from the held state's own comparison; the direction each input moves 
 from the derived definition, which declares what it rises and falls with. The console composes the
 two and parses nothing. Inputs with definitions of their own are expanded to the leaves a person
 could actually change; an input whose direction the definition does not settle is dropped with its
-subtree, because under a shortfall a wrong direction is worse than none.
+subtree, because under a shortfall a wrong direction is worse than none. Each input is named by the
+words the model declares for it — a Thing of the archetype marked `__IsPropertyNameArchetype`, reached
+through `namesPropertyOf` from the archetype holding the property — in the reader's language, else
+English, else the property's own name; a declared name is shown without the archetype beside it.
 
 **Origins.** The `origin` binding, in a kpi's `origin` slot, says where a figure came from, read
 from the declaration and never from the name: `stated` where the Thing holds the value and the
@@ -2738,7 +2763,8 @@ labels, a verdict's `reads` wording and its lever wordings, an origin's wordings
 submit label, and the detail block's labels. Model vocabulary is never looked up — binding values,
 state names, archetypes, property names, predicate names, row keys, colours, formats, the page
 Thing's own name — so a translation can never corrupt what a binding resolves; and resolved row data
-is model content, shown in the model's own language. A term a form offers — a programme category, a
+is model content, shown in the model's own language. A lever's input name is the one exception, read
+from the model's own words by language rather than from the page. A term a form offers — a programme category, a
 hazard — states its words in a `wording` property the model carries, read in the reader's language, and
 is still submitted by its name.
 
@@ -2836,10 +2862,11 @@ runs it during a play and keeps the file with its readings.
 | **Observation** | A value sampled at one instant; queued, batched, with retention decided per property |
 | **Override** | A value a member holds in place of the one it inherits |
 | **Step 0, 1, 2** | The three steps of reacting to a change: derived values, then states, then bindings |
-| **Predicate** | The name of a relationship's kind; itself a Thing. `is` is the only built-in |
+| **Predicate** | The name of a relationship's kind; itself a Thing. `is` and `binds` are the two built in |
 | **Range** | A named condition over a Thing's values; the states a Thing holds are the ranges that hold |
 | **Retention** | How much history a property keeps: everything, a ring buffer in memory, a sample by observations or by time, or the current value only |
 | **Rings** | The store of every value over time, in three layers |
+| **Role** | A Thing standing for something the platform asks for, with a fixed identifier, that `binds` the one Thing playing it |
 | **Seed** | The file a model is planted from; also the shape of a template and a fragment |
 | **Selector** | What a subscription names: everything, or identifiers, names, kinds, marks and walks, and which relationships travel with them |
 | **State** | The set of range names that currently hold for a Thing |

@@ -131,8 +131,8 @@ plain `dotnet test` here. Stage one and run it:
 dotnet test Tests/vos.BrokerContract.Tests
 ```
 
-With nothing staged the project still builds, and its suite reports one skipped case saying so
-rather than a green run over nothing. The VillageOS pipeline runs it in every build it does, because
+With nothing staged every case still compiles and each is reported as skipped, saying no engine is
+staged, rather than a green run over nothing. The VillageOS pipeline runs it in every build it does, because
 that build has the engine to stage; point it at a staged engine elsewhere with `-p:VosRelease=`.
 
 #### Building directly into a Mycelium's wwwroot

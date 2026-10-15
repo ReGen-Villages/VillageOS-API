@@ -16,7 +16,7 @@ Each reference is an **echo handler**: `/handle` acknowledges the relationship a
 
 ## A note on `is`
 
-`is` is the one **built-in** predicate. Mycelium applies `is` inheritance in-process and **never dispatches it to an external handler** — only predicates like `consumes`/`produces` are mapped to external services. So you cannot write an external "is handler"; register your service for a custom predicate (or `consumes`/`produces`) instead.
+`is` and `binds` are the two **built-in** predicates. Mycelium applies `is` inheritance in-process, reads `binds` — along which a role Thing reaches the one Thing playing that role — in-process too, and **never dispatches either to an external handler** — only predicates like `consumes`/`produces` are mapped to external services. So you cannot write an external "is handler"; register your service for a custom predicate (or `consumes`/`produces`) instead.
 
 ## Things and relations, not strings
 
@@ -110,11 +110,14 @@ On startup, obtain a bearer token then register.
   "endpointUrl": "http://localhost:<port>",
   "startCommand": "endpoint-service",
   "stopEndpoint": "http://localhost:<port>/shutdown",
-  "healthEndpoint": "http://localhost:<port>/health"
+  "healthEndpoint": "http://localhost:<port>/health",
+  "logFilePrefix": "yourservice-"
 }
 ```
 
-A 2xx means you're registered.
+`logFilePrefix` is optional: lowercase letters, digits and hyphens, the prefix of the file the service
+writes its own log under, so the broker's log routes can find the newest one. A service that writes
+no log file leaves it out. A 2xx means you're registered.
 
 ## Endpoints to expose
 

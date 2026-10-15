@@ -108,7 +108,7 @@ page. It is new on every delivery, so it is not a key for recognising a repeat; 
 
 ## Registration
 
-- `POST /api/mycelium/register` (Bearer) — `{ handlerId, serviceName, endpointUrl, startCommand, stopEndpoint, healthEndpoint }`
+- `POST /api/mycelium/register` (Bearer) — `{ handlerId, serviceName, endpointUrl, startCommand, stopEndpoint, healthEndpoint }`, and an optional `logFilePrefix`: lowercase letters, digits and hyphens, the prefix of the file the service writes its own log under, so the broker's log routes can find it. A service that writes no log file sends none; any other value is refused with `400`
 - There is no deregistration call for a service to make: `DELETE /api/mycelium/services/{handlerId}` is admin-only and refuses a service token. A service that stops answering `/health` is removed by the broker's liveness monitor.
 
 An open SSE subscription also counts as a liveness signal: a service that is actively streaming
@@ -130,7 +130,8 @@ Body is a selector:
   "types": ["Pump"],                  // seed by type (transitive `is`)
   "markedTypes": ["__IsPortArchetype"],       // same, by the flag the archetype carries
   "markedArchetypes": ["__IsPortArchetype"],  // the archetype itself, without its members
-  "traverse": [ { "predicate": "produces", "direction": "outgoing", "depth": 1 } ],
+  "boundTypes": ["<role thing guid>"],        // the archetype a role Thing binds, and every Thing that is it
+  "traverse": [ { "predicate": "produces", "direction": "outgoing", "depth": 1 } ],  // or predicateFlag, or predicateRole
   "includeIsAncestors": true,         // default true (keeps inherited values correct)
   "includeRelationships": true,
   "relationships": [ { "predicate": "holds", "direction": "outgoing" } ],  // which relationships travel; absent = every incident one
@@ -218,6 +219,7 @@ on a launch command: you ask for the slice **by shape** and get exactly that clo
 | Every Thing of a type (transitive `is`) | `{ "types": ["Pump"] }` |
 | The same, without knowing what the model calls the type | `{ "markedTypes": ["__IsPumpArchetype"] }` |
 | Just the archetype playing a role, to write `X is Y` | `{ "markedArchetypes": ["__IsPumpArchetype"] }` |
+| Every Thing playing a role, through the role Thing that binds the archetype | `{ "boundTypes": ["<role thing guid>"] }` |
 | A type **and** its neighbours along a relationship | `{ "types": ["Battery"], "traverse": [{ "predicate": "powers", "direction": "outgoing", "depth": 1 }] }` |
 | Drop inherited type-default values | add `"includeIsAncestors": false` |
 | Things only, no relationships | add `"includeRelationships": false` |
@@ -230,11 +232,12 @@ touching a selected Thing, in both directions and over every predicate. A long-l
 inbound relationship for every unit of work drawn against it and keeps them, so a handler that needs
 only the Thing's own outgoing relationships would otherwise read the whole history on every call, and
 pay more for it the longer the run. `relationships` is a list of rules — each a `direction` and a
-predicate by `predicate` or by `predicateFlag`, or neither for every predicate — and with it the
+predicate by `predicate`, by `predicateFlag` or by `predicateRole`, or none of the three for every
+predicate — and with it the
 snapshot carries the relationships a selected Thing holds in a rule's direction over its predicate,
 and no others. A subscription with `includeLaterMatches` admits later relationships under the same
 rules, so a later match arrives with the relationships its snapshot would have carried. A rule naming
-both a predicate and a flag, or rules given beside `"includeRelationships": false`, is refused with
+its predicate more than one way, or rules given beside `"includeRelationships": false`, is refused with
 `400` rather than guessed at.
 
 **Selecting by mark rather than by name.** An archetype's role is a boolean flag it carries, so a handler
@@ -245,6 +248,14 @@ relationship to it.
 Asking for a role with many members through `markedArchetypes` is the difference between one Thing and
 every instance ever recorded. Both scan the Things once, so they cost more than `types`, which answers
 from the name index.
+
+**Selecting by role.** A role is a Thing with a fixed identifier that `binds` the one archetype or
+predicate playing it. `boundTypes` is a list of role Thing identifiers; each selects the archetype the
+role binds and every Thing that `is` it, walked from the archetype rather than by scanning every Thing
+for a mark, so it costs less than either mark form. A traversal or relationship rule names its predicate
+the same way, as `predicateRole` — the role Thing's identifier, following the predicate it binds — and a
+rule names its predicate by name, by flag or by role, one way only. Both are how the pipeline
+orchestrator asks, and what a service reading role-bound vocabulary should use.
 
 `traverse.direction` is `outgoing` \| `incoming` \| `both`; `depth` walks N hops. Fields combine —
 the closure is the union of all seeds, then the traversal and `is`-ancestor expansion. Every

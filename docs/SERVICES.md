@@ -66,13 +66,14 @@ document is in [`LAND_INTAKE.md`](LAND_INTAKE.md) §4 and what guards the route 
 maps `/health` alone, and checks its caller by presenting the caller's own token to Mycelium. The
 Field Guide's chapter *Serving it to people* describes its settings.
 
-**Two kinds of predicates — the extension point.** `is` is the *only* predicate built into
-Mycelium; **every other predicate that does work is a *Handled Predicate*** dispatched to a
-microservice. That is the platform's extension point: a new capability — simulation, integration,
+**Two kinds of predicates — the extension point.** Two predicates are built into Mycelium and
+neither is dispatched: `is`, which gives inheritance, and `binds`, along which a role Thing reaches
+the one Thing playing that role; **every other predicate that does work is a *Handled Predicate***
+dispatched to a microservice. That is the platform's extension point: a new capability — simulation, integration,
 computation — ships as a microservice bound to a predicate, with no change to Mycelium (Metabolism
 backs `consumes`/`produces`; a pipeline node and the `runs` spawn-trigger are the same
 pattern). The dispatch machinery is load-bearing even with a single handler — don't flatten it, and
-don't add a second built-in predicate alongside `is`. The full relationship-service handler model,
+don't add a third built-in predicate beside `is` and `binds`. The full relationship-service handler model,
 the Mycelium API handlers use, and worked examples are in
 [`RELATIONSHIP_SERVICES.md`](RELATIONSHIP_SERVICES.md).
 
@@ -258,7 +259,7 @@ sequenceDiagram
     participant B  as VillageOS Mycelium
 
     Note over MS,B: The service has started
-    MS->>B: POST /api/mycelium/register<br/>Authorization: Bearer {token}<br/>{ handlerId, serviceName, endpointUrl, ... }
+    MS->>B: POST /api/mycelium/register<br/>Authorization: Bearer {token}<br/>{ handlerId, serviceName, endpointUrl, logFilePrefix?, ... }
     B-->>MS: 200 OK
 
     Note over MS,B: Service runs
@@ -269,6 +270,11 @@ sequenceDiagram
     B->>MS: GET /health
     Note over B: After repeated failures the monitor removes the registration
 ```
+
+The registration may carry `logFilePrefix` — lowercase letters, digits and hyphens, the prefix of the
+file the service writes its own log under — so the broker's log routes can find that log by the
+service's connection id or name. The shared host sends the prefix of the log file it configured, and
+a service that writes no file sends none.
 
 A service does not withdraw its own registration: the removal route is
 admin-only, so the call would be refused whatever the service holds.
@@ -594,7 +600,7 @@ embedded as resources in the shared assembly. The validator runtime lives in
 
 | Schema | Producer → Consumer | Source of truth in code |
 |---|---|---|
-| `mycelium-register-request` | a registering microservice → Mycelium `POST /api/mycelium/register` | `MyceliumClientBase.RegisterAsync` |
+| `mycelium-register-request` | a registering microservice → Mycelium `POST /api/mycelium/register` | `MyceliumClientBase.RegisterAsync`, which sends the optional `logFilePrefix` when the host writes a log file |
 | `token-response` | Mycelium `POST /api/auth/token` → a microservice | No client checks a reply against it now: the key exchange (`ApiKeyTokenSource`) reads the same reply without the schema check |
 | `handle-request-metabolism` | Mycelium → Metabolism `POST /handle` | `vos.Service.Metabolism.Models.HandleRequest` |
 | `apply-quantity-request` | Metabolism → Mycelium `POST /api/things/{id}/properties/{path}/{decrements\|increments}` | `vos.Service.Metabolism.Services.MyceliumClient.ApplyQuantityAsync` |
@@ -806,12 +812,19 @@ public class MyServiceWritesTests : IClassFixture<TheEngine>
     private MyceliumClient Client() => new(
         _engine.ClientFactory, NullLogger<MyceliumClient>.Instance,
         TheEngine.Url, _engine.AdminToken);
+
+    [FactAgainstTheEngine]
+    public async Task What_it_writes_is_what_the_engine_holds()
+    {
+        // arrange a model with _engine, call Client(), read back with _engine
+    }
 }
 ```
 
 Arrange a model with `_engine.DeclareAsync(...)`, relate its Things with
 `_engine.RelateAsync(...)`, and read back what the service wrote with
-`_engine.ValueOfAsync(...)`.
+`_engine.ValueOfAsync(...)`. A case in this project is marked `[FactAgainstTheEngine]` rather than
+`[Fact]`: without an engine a plain `[Fact]` in that folder fails, saying to use the attribute.
 
 It needs the platform's engine, which lives in the VillageOS repository, so it does
 not run from a plain `dotnet test`. Stage one first:
@@ -821,9 +834,8 @@ not run from a plain `dotnet test`. Stage one first:
 dotnet test Tests/vos.BrokerContract.Tests
 ```
 
-With nothing staged the project still builds and its suite reports one skipped case
-saying so. The VillageOS pipeline runs it in every build, because that build has the
-engine to stage.
+With nothing staged every case still compiles and each is reported as skipped, saying no engine is
+staged. The VillageOS pipeline runs it in every build, because that build has the engine to stage.
 
 **Put a case here whenever a service writes to the model** — a Thing, a property, a
 relationship. A write is where a service and the broker most easily come to disagree.
@@ -1136,15 +1148,18 @@ graph LR
 - The predicate name is the model's to choose, and it is deliberately not `feeds`: that word already names
   matter moving between built things (a swale into a buffer, a compost station into a greenhouse),
   and a dashboard scope resolves a predicate **by name**.
-- **Every role is a flag the archetype carries**, not a name: `__IsPipelineArchetype`,
-  `__IsPipelineNodeArchetype`, `__IsConnectionArchetype`, `__IsServiceArchetype`, `__IsPortArchetype`,
-  `__IsPipelineWireArchetype`, `__IsPipelineInputArchetype`, `__IsPipelineOutputArchetype`,
-  `__IsPipelineRunArchetype`, `__IsNodeRunArchetype`. The names below are only what the seed tool happens
-  to choose. Phloem asks for the marked archetypes through the subscription selector (`markedTypes` for a
-  role's members, `markedArchetypes` for the archetype alone), and the Trellis pipeline editor reads the same
-  marks off the model it has loaded, so renaming any of them changes nothing on either side.
+- **Every role is a role Thing that binds the archetype playing it**, never a name. The role words are
+  `pipeline`, `pipelineNode`, `connection`, `service`, `port`, `pipelineWire`, `pipelineInput`,
+  `pipelineOutput`, `pipelineRun` and `nodeRun`; each role Thing has a fixed identifier (the standard
+  version 5 identifier of its word) and reaches the one Thing playing it along `binds`. A model that
+  leaves a drawing role unbound is refused, naming each unbound role, and a role that binds two Things is
+  refused naming both. The names below are only what the seed tool happens to choose. Phloem asks for the
+  bound archetypes through the subscription selector (`boundTypes` for a role's members, `predicateRole` on
+  a traversal rule), and the Trellis pipeline editor reads the same bindings off the model it has loaded,
+  so renaming any of them changes nothing on either side.
 - Make any seed pipeline-ready with the `seed-migrate` tool in the private VillageOS repo (`tools/seed-migrate/pipeline-enable.js`),
-  which adds the archetypes, the Phloem Connection, example Echo node services with typed Ports, and a demo Pipeline.
+  which adds the archetypes, the Phloem Connection, example Echo node services with typed Ports, a demo
+  Pipeline, and a role Thing bound to each archetype and predicate playing a role.
 
 ### 16.2 Making a microservice a node — the envelope
 
@@ -1179,16 +1194,26 @@ graph or http body the service handles as its own; the two never collide.
   value at all, and yielding no value is the default. Handle a null reference input rather than assuming
   a number.
 - **Param-bound inputs.** An input port can be filled from the **run's params** instead of a wire: a
-  node's `paramBindings` property maps `inputPort → paramKey`, and Phloem fills that input from the spawn's
-  `params` before dispatch (an explicit wire into the same port wins). Lets a source node be parameterized
+  node's `parameterBindings` property maps an input port to a run-parameter key, and Phloem fills that
+  input from the spawn's `params` before dispatch (an explicit wire into the same port wins). Lets a source node be parameterized
   per-run without editing the graph; the editor's **Params** form supplies the values.
 - **Ports & `/manifest`.** A node advertises typed ports — `{ portName, direction: in|out, type, required }`
   — so the editor can type-check wires; expose them at `GET /manifest`.
 - **Collection inputs (fan-out).** A port may be `collection: true`: when that input receives a **list**,
   Phloem runs the node **once per item** (bounded), broadcasts the node's other inputs to every item, and
-  **gathers** each output port into a list for downstream. The node service still sees one item per call (a
+  **gathers** each output port into a list for downstream; an out port marked as a collection gathers every
+  item's list into one flat list. Several wires into one collection input are gathered as one list in wire
+  order. The node service still sees one item per call (a
   scalar on the collection port, plus the item `index` in the envelope). The node property `onItemError`
   chooses `fail` (any item fails → node fails) or `continue` (failed items become null holes → node `partial`).
+- **A node's own out ports, and a choice.** A node may hold `Port` Things of its own beside its service's:
+  out ports it answers under one of, so a drawing branches — a node wired only from out ports nothing
+  answered under is recorded `notTaken` and never dispatched. An in port may offer Things along the
+  predicate the `choice` role binds, and the node names the one chosen along the same predicate, which
+  fills the input unless a wire or a parameter does.
+- **A produced Thing.** An out port may carry `produces`. A Thing the node answers under it — a value with
+  an `id`, an identifier, or a list of either — is related from the node run along the predicate the
+  `producedThing` role binds.
 
 **.NET SDK base.** `DagNodeService` (`vos.Service.Shared`, namespace `…Shared.DagNode`) maps the
 envelope onto business logic:
@@ -1259,7 +1284,7 @@ forward the relationship envelope (`{relationshipId, subjectId, targetId, proper
 `/handle`; a body carrying `pipelineId` is an http spawn, and any other is resolved against the model
 (`PipelineStart`): a pipeline runs itself, a connection runs the pipeline drawn from it — the one whose
 start node stands for the connection, or for the state it watches — or the one it reaches along the
-predicate marked `__IsPipelineStartPredicate`, and anything else is refused with `400`; `properties`
+predicate the `pipelineStart` role binds, and anything else is refused with `400`; `properties`
 are the params. So **any service can start a pipeline** by creating that relationship. Because a graph
 trigger fires during a relationship-create (Mycelium waits ~15s), it is **fire-and-forget**: Phloem
 ACKs immediately and runs the pipeline in the background, persisting the result to the `PipelineRun`.
@@ -1272,8 +1297,8 @@ the predicate and so the pipeline.
 **Spawn — state (a Thing enters a watched state).** A **state Connection** bound to the Phloem Service
 starts the pipeline drawn from it when a Thing enters the state it watches, with the entering Thing as
 the run's `subject` — the name the Pipelines page gives a start node's port, carrying the Thing's id and
-name, which a wire narrows by its from-path. The run relates to that Thing along the predicate marked
-`__IsRunSubjectPredicate`.
+name, which a wire narrows by its from-path. The run relates to that Thing along the predicate the
+`runSubject` role binds.
 
 ```mermaid
 sequenceDiagram
@@ -1285,7 +1310,7 @@ sequenceDiagram
   Mycelium->>Phloem: lazy-start + forward
   Phloem->>Mycelium: load subgraph (subscription snapshot)
   Phloem->>Phloem: build the graph + validate (no cycle + port types)
-  loop each ready node (dependency order)
+  loop each node once every wire into it has a settled source
     Phloem->>Mycelium: POST /api/endpoints/<node-subdomain> {runId,nodeId,params,inputs}
     Mycelium->>Node: lazy-start + forward
     Node-->>Phloem: {success, outputs}
@@ -1297,24 +1322,38 @@ sequenceDiagram
 graph (node→Connection subdomain, ports via the `is`-chain, wires by `PipelineWire`); (3) validate up front —
 an ordering of the nodes by dependency, which fails when the graph has a cycle (distinct from Hyphae's
 runtime oscillation), and port-type compatibility;
-(4) execute in dependency order (independent nodes concurrently, bounded), dispatching each via
-endpoint-forward and routing outputs→inputs; a node failure halts dependents; (5) **persist the run live**,
-best-effort — each node is written `running` before dispatch and its terminal status after, on **one
-`NodeRun` Thing per node** (deterministic id, so the SSE view sees a property change, not duplicate Things) —
-and between dispatches Phloem polls the run's `cancelRequested` flag for **cooperative cancellation**
-(already-running nodes finish; pending ones are marked `cancelled`). A run carries `requestId`, the
-broker's request-log entry that started it, read from the `Vos-Request-Id` header on `/handle`.
+(4) execute as nodes become ready — a node is ready when every wire into it has a settled source;
+independent nodes run concurrently, bounded — dispatching each via endpoint-forward and routing
+outputs→inputs; a node failure halts dependents, and a node wired only from out ports nothing answered
+under is recorded `notTaken` and never dispatched; (5) **persist the run live**, best-effort — the node run
+is created with `startedUtc` and declares `outputs`, `finishedUtc` and `attempts`, and its terminal status
+writes `outputs` and `finishedUtc`, on **one `NodeRun` Thing per node** (deterministic id, so the SSE view
+sees a property change, not duplicate Things); a Thing answered under an out port marked `produces` is
+related from the node run along the predicate the `producedThing` role binds; the run itself keeps
+`parameters` as given and writes `finishedUtc` when it ends — and between dispatches Phloem polls the run's
+`cancelRequested` flag for **cooperative cancellation** (already-running nodes finish; pending ones are
+marked `cancelled`). A run carries `requestId`, the broker's request-log entry that started it, read from
+the `Vos-Request-Id` header on `/handle`.
+
+**A node may wait for a state.** A node that relates a range along `provenBy`, and the in port whose Thing
+must enter that range along `awaitsThrough`, is dispatched and its answer recorded with status `waiting`.
+The node run carries its outputs before the wait, relates to the Thing it waits for along the predicate
+the `awaitedThing` role binds and to its vigil along the one the `heldVigil` role binds; the vigil names
+the connection the `runResumption` role binds, which the orchestrator accepts only for a vigil it placed,
+and the run resumes from its record when the vigil answers. On start the orchestrator reads every waiting
+run back and places a missing vigil again. A node that waits runs once, so a collection port on it is
+refused, and so is a wait through a port nothing fills.
 
 **A run ending at an external system** sends what reached the end node: the end standing for the
-system writes a Thing under the archetype marked `__IsSentMessageArchetype`, holding that value,
+system writes a Thing under the archetype the `sentMessage` role binds, holding that value,
 held on the run along `has` and related to the system along the connection the system is told
-through (the predicate marked `__IsToldThroughPredicate`). The broker delivers it once, as it does any
+through (the predicate the `toldThrough` role binds). The broker delivers it once, as it does any
 relationship written along a connection. A system naming no such connection refuses the run.
 
 *Internals:* `IMyceliumGateway` is the seam between orchestration and HTTP (so `PipelineExecutor` is
 unit-tested without a network); `PipelineGraph` + `PipelineDagBuilder` build the `PipelineDag`,
 `DagValidator` checks it, `MyceliumGateway` is the HTTP implementation. Which archetype plays which role
-is read from the flag each one carries (`PipelineArchetypes`), so Phloem takes no archetype name at launch
+is read from the role Thing that binds it (`PipelineRoles`), so Phloem takes no archetype name at launch
 and a model may call its archetypes anything.
 
 ### 16.4 Creating & running a pipeline
@@ -1325,11 +1364,14 @@ and a model may call its archetypes anything.
 2. **Author:** Trellis → **Pipelines** (the Field Guide, Part VI) — drag services from the palette, wire output→input
    ports (type-checked), **Save**.
 3. **Run:** click **Run** — the editor uses the async spawn and **animates each node live over SSE**
-   (running → succeeded / failed / skipped); **Cancel** stops an in-flight run, marking pending nodes
-   `cancelled`. Or create an `X runs Pipeline` relationship to trigger it from the model (fire-and-forget).
+   (running → succeeded / failed / skipped / notTaken, and `waiting`, with a ring and colour of its own,
+   while a node waits for a state); **Cancel** stops an in-flight run, marking pending nodes
+   `cancelled`. The page offers no Cancel on a waiting run, because the orchestrator reads the cancel flag
+   only between dispatches. Or create an `X runs Pipeline` relationship to trigger it from the model
+   (fire-and-forget).
 
 > **Scope.** Synchronous + async spawn with level-by-level concurrency, **live SSE run animation + cancel**,
 > run-history replay, **run-level param routing**, and **fan-out over collections** (one collection input per
-> node). Every run executes every node: nothing is cached between runs. A wire's two port types are checked
+> node, several wires into it gathered as one list in wire order). Every run executes every node: nothing is cached between runs. A wire's two port types are checked
 > for equality, with an empty or `any` type matching everything; whether a list is wired into a collection
 > port is not checked before the run.

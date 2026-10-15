@@ -41,7 +41,7 @@ Service {__IsServiceArchetype, ExecutablePathTemplate, ServicePort, ServiceArgs,
             ← is ─ consumes service {ServicePort, ServiceArgs, AutoStart}   ← per-instance overrides
             ← is ─ produces service {ServicePort, ServiceArgs, AutoStart}
 
-is                                          ← built-in; in-process, not a PlatformServiceConnection
+is, binds                                   ← built in; in-process, not PlatformServiceConnections
 has, feeds, powers, ...                     ← passive predicates (not PlatformServiceConnections)
 ```
 
@@ -49,7 +49,7 @@ has, feeds, powers, ...                     ← passive predicates (not Platform
 - **Service** (archetype): the microservice process. Carries `ExecutablePathTemplate` (or a stated `ExecutablePath`), `ServicePort`, `ServiceArgs` and `AutoStart`, and reaches its **run mode** through the predicate carrying `__IsRunModePredicate` (`runsAs` above) — a Thing, not a word, and `daemon` is the only one the platform implements.
 - **Shared prototype** (e.g. `Metabolism prototype`): a Service holding one binary's shared values — its `ServiceAssembly`, which the archetype's `ExecutablePathTemplate` composes into a path by replacing `{service}`, and its `TokenScope`; concrete services `is` it and override only per-instance values (`ServicePort`, `ServiceArgs`, `AutoStart`). So `consumes` and `produces` share one binary definition but bind two distinct services.
 - **PlatformServiceConnection `has` Service**: the generic `has` relation; the service is identified as the related Thing that is (transitively) a `Service`, never by predicate name.
-- **Built-in `is`**: in-process (Mycelium's `is`-inheritance + the range engine); not a PlatformServiceConnection.
+- **Built-in `is` and `binds`**: in-process (Mycelium's `is`-inheritance and the range engine; a role Thing reaching the one Thing playing it along `binds`); neither is a PlatformServiceConnection.
 - **Passive predicates** (`contains`, `aggregates`, `has`, …): not PlatformServiceConnections; no service.
 
 At seed load, Mycelium discovers connections by transitive `is`-membership of the archetype marked `__IsConnectionArchetype` and registers graph connections whose bound Service has `AutoStart: true` for auto-invocation. At runtime, the service broker resolves the bound Service to build the daemon config (including `TokenScope`).
@@ -473,7 +473,7 @@ Relationship behaviors are a **platform extension point**, not a fixed set. This
 
 ### Why the handled-predicate machinery exists
 
-`is` is the only predicate whose semantics are built into Mycelium in-process (see [Built-in `is` inheritance](#built-in-is-inheritance)). Every other behaving predicate is a **plug-in**: its semantics live in an out-of-process microservice that Mycelium discovers and dispatches to. This keeps the platform core minimal — Mycelium owns the graph, the registry, and the dispatch contract, while domain behavior such as resource simulation ships independently as daemons. Adding a behavior is therefore a matter of authoring a handler and declaring a predicate that points at it; no change to Mycelium itself is required.
+`is` and `binds` are the only predicates whose semantics are built into Mycelium in-process — inheritance (see [Built-in `is` inheritance](#built-in-is-inheritance)), and a role Thing reaching the one Thing playing it. Every other behaving predicate is a **plug-in**: its semantics live in an out-of-process microservice that Mycelium discovers and dispatches to. This keeps the platform core minimal — Mycelium owns the graph, the registry, and the dispatch contract, while domain behavior such as resource simulation ships independently as daemons. Adding a behavior is therefore a matter of authoring a handler and declaring a predicate that points at it; no change to Mycelium itself is required.
 
 ### How the platform dispatches to a handler
 
