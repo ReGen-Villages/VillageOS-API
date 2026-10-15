@@ -9,10 +9,21 @@ using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Configuration;
 using vos.Service.Shared.Subscriptions;
 using vos.Service.Shared.Validation;
+using Microsoft.Extensions.Configuration.Json;
+using Microsoft.Extensions.FileProviders;
 using Serilog;
 
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Mycelium starts a service in its own working directory, which is where the default sources look, so
+// the settings beside the executable are read here, below every other source.
+builder.Configuration.Sources.Insert(0, new JsonConfigurationSource
+{
+    FileProvider = new PhysicalFileProvider(AppContext.BaseDirectory),
+    Path = "appsettings.json",
+    Optional = true,
+});
 
 var launchSettings = ServiceLaunchSettings.Parse(args, builder.Configuration);
 if (launchSettings == null)
@@ -80,6 +91,7 @@ try
         ?? Path.Combine(Directory.GetCurrentDirectory(), "cache");
     builder.Services.AddSingleton(sp =>
         new DiskResponseCache(cacheDirectory, sp.GetRequiredService<TimeProvider>()));
+    builder.Services.AddSingleton(ProviderUnavailability.FromConfiguration(builder.Configuration));
     builder.Services.AddSingleton<EndpointCallService>();
 
     var app = builder.Build();

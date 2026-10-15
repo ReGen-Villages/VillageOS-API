@@ -25,6 +25,8 @@ public sealed class EndpointCallService
     private readonly ISubscriptionClient _subscriptions;
 
     private readonly DiskResponseCache _diskCache;
+    private readonly ProviderUnavailability _unavailability;
+    private readonly TimeProvider _clock;
 
     public EndpointCallService(
         MyceliumClient mycelium,
@@ -33,6 +35,8 @@ public sealed class EndpointCallService
         TokenExchangeCache tokenExchangeCache,
         ISubscriptionClient subscriptions,
         DiskResponseCache diskCache,
+        ProviderUnavailability unavailability,
+        TimeProvider clock,
         ILogger<EndpointCallService> logger)
     {
         _mycelium = mycelium;
@@ -41,6 +45,8 @@ public sealed class EndpointCallService
         _tokenExchangeCache = tokenExchangeCache;
         _subscriptions = subscriptions;
         _diskCache = diskCache;
+        _unavailability = unavailability;
+        _clock = clock;
         _logger = logger;
     }
 
@@ -135,6 +141,8 @@ public sealed class EndpointCallService
             return refusal.ToResult();
         if (!EndpointCallChecks.TryTimeout(effective, out var timeout, out refusal))
             return refusal.ToResult();
+        if (!EndpointCallChecks.TryUnavailability(effective, _unavailability, out var unavailability, out refusal))
+            return refusal.ToResult();
         if (!EndpointCallChecks.TryCredential(kinds.Authentication, effective, out var credentialPlan, out refusal))
             return refusal.ToResult();
         if (!EndpointCallChecks.TryPaging(kinds.Paging, effective, out var pageConfig, out refusal))
@@ -206,14 +214,19 @@ public sealed class EndpointCallService
                 // Bytes must be read before any string decode: ReadAsStringAsync replaces non-UTF-8
                 // sequences with U+FFFD, which is lossy and irreversible. The envelope stays
                 // application/json so the result flows through existing proxying unchanged.
-                var (binaryStatus, bytes, upstreamContentType, binaryRetryAfter) = await CallEndpointBinaryAsync(
-                    _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, effectiveQueryParams, requestContentType, acceptHeader, timeout, cancellationToken);
+                var (binaryStatus, bytes, upstreamContentType, binaryRetryAfter) = await AskedOnceMoreWhileUnavailableAsync(
+                    unavailability, request.EndpointName!,
+                    token => CallEndpointBinaryAsync(
+                        _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, effectiveQueryParams, requestContentType, acceptHeader, timeout, token),
+                    answered => answered.StatusCode,
+                    answered => Encoding.UTF8.GetString(answered.Body),
+                    cancellationToken);
 
                 var servedContentType = string.IsNullOrWhiteSpace(upstreamContentType) ? "application/octet-stream" : upstreamContentType;
                 if (cacheKey != null && binaryStatus is >= 200 and < 300)
                     _diskCache.Write(request.EndpointName!, cacheKey, bytes, servedContentType);
 
-                if (ProviderRefused(binaryStatus))
+                if (ProviderRefused(binaryStatus) || unavailability.IsAnswered(binaryStatus, () => Encoding.UTF8.GetString(bytes)))
                 {
                     var refusalWords = Encoding.UTF8.GetString(bytes);
                     return EndpointCallResult.Refused(refusalWords, servedContentType, binaryStatus, binaryRetryAfter);
@@ -262,8 +275,13 @@ public sealed class EndpointCallService
             }
             else
             {
-                (status, body, contentType, retryAfter) = await CallEndpointAsync(
-                    _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, effectiveQueryParams, requestContentType, acceptHeader, timeout, cancellationToken);
+                (status, body, contentType, retryAfter) = await AskedOnceMoreWhileUnavailableAsync(
+                    unavailability, request.EndpointName!,
+                    token => CallEndpointAsync(
+                        _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, effectiveQueryParams, requestContentType, acceptHeader, timeout, token),
+                    answered => answered.StatusCode,
+                    answered => answered.Body,
+                    cancellationToken);
 
                 if (cacheKey != null && status is >= 200 and < 300)
                     _diskCache.Write(request.EndpointName!, cacheKey, Encoding.UTF8.GetBytes(body), contentType ?? "application/json");
@@ -274,7 +292,7 @@ public sealed class EndpointCallService
                     return notKept;
             }
 
-            if (ProviderRefused(status))
+            if (ProviderRefused(status) || unavailability.IsAnswered(status, () => body))
                 return EndpointCallResult.Refused(body, contentType ?? "application/json", status, retryAfter);
 
             if (reshape.Transform is { } transform && status is >= 200 and < 300)
@@ -362,6 +380,25 @@ public sealed class EndpointCallService
 
     private static EndpointCallResult Problem(int status, string title, string detail) =>
         EndpointCallResult.Failure(new ProblemError(status, title, detail));
+
+    private async Task<TAnswer> AskedOnceMoreWhileUnavailableAsync<TAnswer>(
+        ProviderUnavailability unavailability,
+        string endpointName,
+        Func<CancellationToken, Task<TAnswer>> ask,
+        Func<TAnswer, int> statusOf,
+        Func<TAnswer, string> wordsOf,
+        CancellationToken cancellationToken)
+    {
+        var first = await ask(cancellationToken);
+        if (!unavailability.IsAnswered(statusOf(first), () => wordsOf(first)))
+            return first;
+
+        _logger.LogWarning(
+            "Endpoint {EndpointName} was answered {Status} in the words of an unavailable provider; asking once more in {Seconds} seconds",
+            endpointName, statusOf(first), unavailability.RetryAfter.TotalSeconds);
+        await Task.Delay(unavailability.RetryAfter, _clock, cancellationToken);
+        return await ask(cancellationToken);
+    }
 
     private static async Task<(int StatusCode, string Body, string? ContentType, RetryConditionHeaderValue? RetryAfter)> CallEndpointAsync(
         IHttpClientFactory httpClientFactory,
