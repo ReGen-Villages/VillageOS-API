@@ -49,6 +49,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         // from the snapshot means the model binds it to nothing rather than that this pipeline plays that role
         // nowhere. See SelectorResolver. After the nodes come the system an end stands for, the connection
         // that system is told through, and the state a waiting node waits for, along the predicates those roles bind.
+        // Only outgoing relationships travel: every edge the drawing is read along runs outward from a Thing in the
+        // answer, and without the rule the broker also returns every `is` written to an ancestor such as Connection.
         var selector = new
         {
             ids = DrawingRoles.Select(role => role.Id).Prepend(pipelineId).ToArray(),
@@ -66,6 +68,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             },
             includeIsAncestors = true,
             includeRelationships = true,
+            relationships = new object[] { new { direction = "outgoing" } },
         };
 
         return await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(30), cancellationToken);
