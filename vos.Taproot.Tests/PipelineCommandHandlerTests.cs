@@ -137,15 +137,53 @@ public class PipelineCommandHandlerTests
         _myceliumMock.Verify(c => c.PostToEndpointAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 
-    [Fact]
-    public async Task Cancel_WritesTheCancellationFlagOntoTheRun()
+    private static readonly Guid IsPredicateId = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000004");
+    private static readonly Guid BindsPredicateId = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000005");
+    private static readonly Guid HaltKindId = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000006");
+    private static readonly Guid HaltsConnectionId = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000007");
+    private static readonly Guid StopRequestId = Guid.Parse("dddddddd-0000-0000-0000-000000000001");
+
+    private void SetupAModelThatStopsRuns(bool bindsStopping = true)
     {
-        _myceliumMock.Setup(c => c.SetPropertyAsync(LateRunId, "cancelRequested", "string", "true")).ReturnsAsync(Parse("{}"));
+        var things = new List<string> { Thing(IsPredicateId, "is"), Thing(BindsPredicateId, "binds"), Thing(LateRunId, "run-late") };
+        var edges = new List<string>();
+        if (bindsStopping)
+        {
+            things.AddRange([Thing(HaltKindId, "Halt", isArchetype: true), Thing(HaltsConnectionId, "halts"),
+                Thing(PipelineCommandHandler.StopRequestRoleId, "stopRequest role"), Thing(PipelineCommandHandler.RunStoppingRoleId, "runStopping role")]);
+            edges.AddRange([Edge(PipelineCommandHandler.StopRequestRoleId, BindsPredicateId, HaltKindId),
+                Edge(PipelineCommandHandler.RunStoppingRoleId, BindsPredicateId, HaltsConnectionId)]);
+        }
+        _myceliumMock.Setup(c => c.GetAllThingsAsync()).ReturnsAsync(Parse("[" + string.Join(",", things) + "]"));
+        _myceliumMock.Setup(c => c.GetAllRelationshipsAsync()).ReturnsAsync(Parse("[" + string.Join(",", edges) + "]"));
+        _myceliumMock.Setup(c => c.GetAllPropertiesAsync("effective")).ReturnsAsync(Parse("{}"));
+        _myceliumMock.Setup(c => c.CreateThingAsync(It.IsAny<string>(), false)).ReturnsAsync(Parse($"{{\"Id\":\"{StopRequestId}\"}}"));
+        _myceliumMock.Setup(c => c.CreateRelationshipAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>())).ReturnsAsync(Parse("{}"));
+        _myceliumMock.Setup(c => c.SetPropertyAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<object?>())).ReturnsAsync(Parse("{}"));
+    }
+
+    [Fact]
+    public async Task Cancel_WritesAStopRequestWithItsReasonAndRelatesItToTheRunAlongTheBoundConnection()
+    {
+        SetupAModelThatStopsRuns();
+
+        await Execute($"cancel {LateRunId} the survey was withdrawn");
+
+        _writer.ToString().Should().Contain($"Stop requested for run {LateRunId}");
+        _myceliumMock.Verify(c => c.CreateRelationshipAsync(StopRequestId, IsPredicateId, HaltKindId), Times.Once);
+        _myceliumMock.Verify(c => c.SetPropertyAsync(StopRequestId, "reason", "string", "the survey was withdrawn"), Times.Once);
+        _myceliumMock.Verify(c => c.CreateRelationshipAsync(StopRequestId, HaltsConnectionId, LateRunId), Times.Once);
+    }
+
+    [Fact]
+    public async Task Cancel_InAModelThatBindsNothingToStoppingRuns_SaysSoAndWritesNothing()
+    {
+        SetupAModelThatStopsRuns(bindsStopping: false);
 
         await Execute($"cancel {LateRunId}");
 
-        _writer.ToString().Should().Contain($"Cancellation requested for run {LateRunId}");
-        _myceliumMock.Verify(c => c.SetPropertyAsync(LateRunId, "cancelRequested", "string", "true"), Times.Once);
+        _writer.ToString().Should().Contain("binds nothing to stopping a run");
+        _myceliumMock.Verify(c => c.CreateThingAsync(It.IsAny<string>(), It.IsAny<bool>()), Times.Never);
     }
 
     [Fact]
@@ -154,8 +192,8 @@ public class PipelineCommandHandlerTests
         await Execute("cancel");
         await Execute("cancel run-late");
 
-        _writer.ToString().Should().Contain("Usage: pipeline cancel <run-id>");
-        _myceliumMock.Verify(c => c.SetPropertyAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<object?>()), Times.Never);
+        _writer.ToString().Should().Contain("Usage: pipeline cancel <run-id> [reason]");
+        _myceliumMock.Verify(c => c.CreateThingAsync(It.IsAny<string>(), It.IsAny<bool>()), Times.Never);
     }
 
     [Fact]

@@ -52,6 +52,7 @@ try
     builder.Services.AddModelClock<MyceliumGateway>("Phloem");
     builder.Services.AddSingleton<PipelineExecutor>();
     builder.Services.AddSingleton<PipelineStarter>();
+    builder.Services.AddHostedService<CadenceKeeper>();
 
     var app = builder.Build();
 
@@ -106,17 +107,31 @@ try
                 var asyncRunId = Guid.NewGuid();
                 var asyncPipelineId = trigger.PipelineId;
                 var asyncParameters = trigger.Parameters;
+                var asyncRehearsal = trigger.Rehearsal;
                 _ = Task.Run(async () =>
                 {
-                    try { await executor.RunAsync(asyncPipelineId, asyncParameters, CancellationToken.None, asyncRunId, requestId: requestId); }
+                    try { await executor.RunAsync(asyncPipelineId, asyncParameters, CancellationToken.None, asyncRunId, requestId: requestId, rehearsal: asyncRehearsal); }
                     catch (Exception ex) { Log.Error(ex, "Async pipeline run {RunId} ({PipelineId}) failed", asyncRunId, asyncPipelineId); }
                 });
                 return Results.Ok(new { success = true, accepted = true, runId = asyncRunId, pipelineId = trigger.PipelineId });
 
             case SpawnKind.Http:
                 // Synchronous spawn-and-wait — the caller (e.g. a programmatic client) blocks for the result.
-                var result = await executor.RunAsync(trigger.PipelineId, trigger.Parameters, httpContext.RequestAborted, requestId: requestId);
+                var result = await executor.RunAsync(trigger.PipelineId, trigger.Parameters, httpContext.RequestAborted, requestId: requestId, rehearsal: trigger.Rehearsal);
                 return Results.Ok(result);
+
+            case SpawnKind.Relationship when trigger.RelationshipId is { } written && await executor.IsStopAsync(written, httpContext.RequestAborted):
+                // A stop request written along the orchestrator's own connection: to a run, or to a Thing whose runs
+                // it stops. Acknowledged first, since a run under way stops only at its next step.
+                if (trigger.Subject is not { } stopRequest)
+                    return Results.BadRequest(new { error = "A stop names no stop request as its subject." });
+                var stopping = trigger.TargetId;
+                _ = Task.Run(async () =>
+                {
+                    try { await executor.StopAsync(stopRequest.Id, stopping, CancellationToken.None); }
+                    catch (Exception ex) { Log.Error(ex, "Stopping the runs of {TargetId} failed", stopping); }
+                });
+                return Results.Ok(new { success = true, accepted = true, stops = stopping });
 
             case SpawnKind.Relationship when await executor.HoldsVigilAsync(trigger.TargetId, httpContext.RequestAborted):
                 // The answer to a vigil a waiting node run holds comes as a state entry whose target is the vigil.

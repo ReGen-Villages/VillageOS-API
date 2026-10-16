@@ -1230,6 +1230,9 @@ export const de: PartialResources = {
     saveFailed: "Speichern fehlgeschlagen.",
     runFailed: "Ausführung fehlgeschlagen.",
     cancelFailed: "Abbrechen fehlgeschlagen.",
+    cancelledFromThePage: "Auf der Pipelines-Seite abgebrochen.",
+    stopRequestName: "Halteanfrage",
+    noStopRoles: "Dieses Modell sieht nicht vor, einen Lauf anzuhalten: Es bindet nichts an eine Halteanfrage oder an die Verbindung, die Läufe anhält.",
     runStatus: "Ausführung {{status}}",
     nodeStatus: "{{label}}: {{status}}",
     boundaryInput: "Eingabe",
@@ -1304,6 +1307,7 @@ export const de: PartialResources = {
       state: "Zustand",
       relationship: "Beziehung",
       pipeline: "Pipeline",
+      cadence: "Uhr",
       other: "",
     },
     note: {

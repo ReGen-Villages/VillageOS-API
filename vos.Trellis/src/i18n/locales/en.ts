@@ -1229,6 +1229,9 @@ export const en = {
     saveFailed: "Save failed.",
     runFailed: "Run failed.",
     cancelFailed: "Cancel failed.",
+    cancelledFromThePage: "Cancelled from the Pipelines page.",
+    stopRequestName: "Stop request",
+    noStopRoles: "This model declares no way to stop a run: it binds nothing to a stop request or to the connection that stops runs.",
     runStatus: "Run {{status}}",
     nodeStatus: "{{label}}: {{status}}",
     boundaryInput: "Input",
@@ -1302,6 +1305,7 @@ export const en = {
       state: "state",
       relationship: "relationship",
       pipeline: "pipeline",
+      cadence: "clock",
       other: "",
     },
     note: {

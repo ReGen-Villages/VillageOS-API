@@ -90,6 +90,20 @@ public sealed class GraphFixture
             Properties = props.ToDictionary(p => p.Name, p => JsonSerializer.SerializeToElement(p.Value), StringComparer.OrdinalIgnoreCase),
         });
 
+    // A pipeline the model may start; one left unpublished is a draft.
+    public void Publish(GraphThing pipeline) => State(pipeline, ModelNames.Published, true);
+
+    public void State(GraphThing thing, string property, object value) =>
+        _things[thing.Id] = new GraphThing
+        {
+            Id = thing.Id,
+            Name = thing.Name,
+            Properties = new Dictionary<string, JsonElement>(_things[thing.Id].Properties, StringComparer.OrdinalIgnoreCase)
+            {
+                [property] = JsonSerializer.SerializeToElement(value),
+            },
+        };
+
     public void Unrelate(GraphThing subject, GraphThing predicate, GraphThing target)
         => _rels.RemoveAll(rel => rel.SubjectId == subject.Id && rel.PredicateId == predicate.Id && rel.TargetId == target.Id);
 
@@ -116,8 +130,15 @@ public static class TestGraphs
         fx.Rel(proto, vocabulary.Has, portIn);
         fx.Rel(proto, vocabulary.Has, portOut);
 
+        // The first node is fed by nothing, so its service has no required input.
+        var sourceProto = fx.Thing("SourceProto");
+        fx.Rel(sourceProto, vocabulary.Is, vocabulary.Service);
+        var sourceOut = fx.Thing("s.out", ("direction", "out"), ("type", "string"), ("portName", "echo"));
+        fx.Rel(sourceOut, vocabulary.Is, vocabulary.Port);
+        fx.Rel(sourceProto, vocabulary.Has, sourceOut);
+
         var genSvc = fx.Thing("genSvc");
-        fx.Rel(genSvc, vocabulary.Is, proto);
+        fx.Rel(genSvc, vocabulary.Is, sourceProto);
         var echSvc = fx.Thing("echSvc");
         fx.Rel(echSvc, vocabulary.Is, proto);
 
@@ -137,6 +158,7 @@ public static class TestGraphs
 
         var pipe = fx.Thing("Demo");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, gen);
         fx.Rel(pipe, vocabulary.Has, ech);
 
@@ -186,6 +208,7 @@ public static class TestGraphs
 
         var pipe = fx.Thing("BoundaryDemo");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, input);
         fx.Rel(pipe, vocabulary.Has, ech);
         fx.Rel(pipe, vocabulary.Has, output);
@@ -225,6 +248,7 @@ public static class TestGraphs
         var standsFor = fx.Playing("standsFor", PipelineRoles.StandsFor);
         var next = fx.Thing("What follows");
         fx.Rel(next, fx.Get("is"), fx.Get("Pipeline"));
+        fx.Publish(next);
         fx.Rel(fx.Get("Out"), standsFor, itself ? fx.Get("BoundaryDemo") : next);
         if (transformIntoTheEnd is not null)
         {
@@ -263,6 +287,7 @@ public static class TestGraphs
 
         var pipe = fx.Thing("RetryDemo");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, input);
         fx.Rel(pipe, vocabulary.Has, echo);
         fx.Rel(pipe, vocabulary.Has, output);
@@ -277,6 +302,7 @@ public static class TestGraphs
 
         var next = fx.Thing("What follows");
         fx.Rel(next, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(next);
         if (handsOver) fx.Rel(echo, fx.Playing("handsOverTo", PipelineRoles.HandsOverTo), next);
         return new RetryFixture(fx, pipe.Id, next.Id, input, echo);
     }
@@ -338,6 +364,7 @@ public static class TestGraphs
 
         var drawn = fx.Thing("Drawn from the state");
         fx.Rel(drawn, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(drawn);
         fx.Rel(drawn, vocabulary.Has, arrival);
         fx.Rel(drawn, vocabulary.Has, ech);
         fx.Rel(drawn, vocabulary.Has, output);
@@ -346,6 +373,7 @@ public static class TestGraphs
 
         var reached = fx.Thing("Reached along the start mark");
         fx.Rel(reached, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(reached);
         var reaching = fx.Thing("reachingConn");
         fx.Rel(reaching, vocabulary.Is, vocabulary.Connection);
         fx.Rel(reaching, starts, reached);
@@ -354,6 +382,19 @@ public static class TestGraphs
         fx.Rel(loose, vocabulary.Is, vocabulary.Connection);
 
         return new StartFixture(fx, drawn.Id, watching.Id, reached.Id, reaching.Id, loose.Id);
+    }
+
+    public sealed record CadenceFixture(GraphFixture Fixture, Guid PipelineId, Guid CadenceId);
+
+    // StatePipeline's drawing, its start node standing for a cadence rather than for the state connection.
+    public static CadenceFixture CadencePipeline()
+    {
+        var state = StatePipeline();
+        var fx = state.Fixture;
+        var cadence = fx.Thing("Every hour");
+        fx.Unrelate(fx.Get("Arrival"), fx.Get("standsFor"), fx.Get("watchingConn"));
+        fx.Rel(fx.Get("Arrival"), fx.Get("standsFor"), cadence);
+        return new CadenceFixture(fx, state.DrawnPipelineId, cadence.Id);
     }
 
     // Field-merge demo: A and B both feed node C's single `in` input, A at to-path `a` and B
@@ -373,6 +414,7 @@ public static class TestGraphs
 
         var pipe = fx.Thing("MergeDemo");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, a);
         fx.Rel(pipe, vocabulary.Has, b);
         fx.Rel(pipe, vocabulary.Has, c);
@@ -399,6 +441,7 @@ public static class TestGraphs
 
         var pipe = fx.Thing("TransformDemo");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, a);
         fx.Rel(pipe, vocabulary.Has, c);
         fx.Rel(a, carries, c, ("fromPort", "out"), ("toPort", "in"), ("transform", transform));
@@ -434,6 +477,7 @@ public static class TestGraphs
 
         var pipe = fx.Thing("ParamDemo");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, ech);
 
         return (fx, pipe.Id);
@@ -466,6 +510,7 @@ public static class TestGraphs
 
         var pipe = fx.Thing("SiteAnalysis");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, node);
 
         return (fx, pipe.Id);
@@ -502,6 +547,7 @@ public static class TestGraphs
 
         var pipe = fx.Thing("EnergyAnalysis");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, node);
 
         return (fx, pipe.Id);
@@ -539,6 +585,7 @@ public static class TestGraphs
 
         var pipe = fx.Thing("FanDemo");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, node);
 
         return (fx, pipe.Id);
@@ -590,6 +637,7 @@ public static class TestGraphs
 
         var pipe = fx.Thing("DecisionDemo");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
         foreach (var node in new[] { start, decide, notify, giveBack, end }) fx.Rel(pipe, vocabulary.Has, node);
 
         fx.Rel(start, carries, decide, ("fromPort", "subject"), ("toPort", "in"));
@@ -622,6 +670,7 @@ public static class TestGraphs
         var node = ServiceNode(fx, vocabulary, proto, "Maker", "maker", ("parameterBindings", "{\"in\":\"items\"}"));
         var pipe = fx.Thing("MakerDemo");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, node);
         return (fx, pipe.Id);
     }
@@ -657,6 +706,7 @@ public static class TestGraphs
         fx.Rel(node, vocabulary.Has, connection);
         var pipe = fx.Thing("ChoiceDemo");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, node);
 
         if (wiredFromASource)
@@ -697,6 +747,7 @@ public static class TestGraphs
             : ServiceNode(fx, vocabulary, gatherProto, "Gather", "gather", ("parameterBindings", $"{{\"items\":\"{boundTo}\"}}"));
         var pipe = fx.Thing("GatherDemo");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
         foreach (var node in new[] { a, b, gather }) fx.Rel(pipe, vocabulary.Has, node);
 
         fx.Rel(a, carries, gather, ("fromPort", "out"), ("toPort", "items"));
@@ -745,6 +796,7 @@ public static class TestGraphs
 
         var pipe = fx.Thing("Review a submission");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, start);
         fx.Rel(pipe, vocabulary.Has, review);
         fx.Rel(pipe, vocabulary.Has, publish);
@@ -813,8 +865,13 @@ public static class TestGraphs
         Port(fx, vocabulary, proto, "echo", "out", "string");
         Port(fx, vocabulary, proto, "trace", "out", "string");
 
+        var sourceProto = fx.Thing("SourceProto");
+        fx.Rel(sourceProto, vocabulary.Is, vocabulary.Service);
+        Port(fx, vocabulary, sourceProto, "echo", "out", "string");
+        Port(fx, vocabulary, sourceProto, "trace", "out", "string");
+
         var genSvc = fx.Thing("genSvc");
-        fx.Rel(genSvc, vocabulary.Is, proto);
+        fx.Rel(genSvc, vocabulary.Is, sourceProto);
         var echSvc = fx.Thing("echSvc");
         fx.Rel(echSvc, vocabulary.Is, proto);
 
@@ -834,6 +891,7 @@ public static class TestGraphs
 
         var pipe = fx.Thing("Demo");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, gen);
         fx.Rel(pipe, vocabulary.Has, ech);
 

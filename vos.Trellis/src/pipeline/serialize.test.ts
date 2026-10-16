@@ -122,6 +122,18 @@ describe('savePipeline — create (no existing pipeline id)', () => {
       r.Subject === saved.pipelineId && r.Name === 'is' && r.Target === 'arch-pipeline')).toBe(true);
   });
 
+  it('saves every pipeline published, so the model starts what the page draws', async () => {
+    const model = buildModel();
+    await savePipeline('Fresh', [node('n1', 'A')], [], model);
+    await savePipeline('Kept', [node('n1', 'A')], [], model, 'P');
+
+    for (const call of applyFragment.mock.calls) {
+      const frag = JSON.parse(call[0]);
+      const pipeline = frag.Things.find((t: { Name: string }) => t.Name === 'Fresh' || t.Name === 'Kept');
+      expect(pipeline.Properties.published).toEqual({ typeInfo: 'vos.Boolean', value: true });
+    }
+  });
+
   it('persists a node’s parameter bindings under the property spelled in full', async () => {
     const model = buildModel();
     await savePipeline('Fresh', [{ ...node('n1', 'A'), parameterBindings: { message: 'greeting' } }], [], model);

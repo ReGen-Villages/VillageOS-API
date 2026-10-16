@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
 using vos.Service.Shared;
+using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Phloem.Services;
 
@@ -108,20 +109,22 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 
     public async Task CreateRunAsync(
         Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null, Guid? requestId = null,
-        JsonElement? parameters = null, Guid? startedBy = null)
+        JsonElement? parameters = null, Guid? startedBy = null, string? refusal = null, bool rehearsal = false)
     {
         // The result, the error and the finish are declared here with no value. Each is known only once the
         // run ends, and the property route sets a property the Thing already carries — so a run given one
         // only at the end is a run that can never be given one.
+        var now = DateTime.UtcNow.ToString("o");
         var properties = new Dictionary<string, string?>
         {
-            [ModelNames.Status] = RunStatus.Running,
+            [ModelNames.Status] = refusal is null ? RunStatus.Running : RunStatus.Refused,
             ["pipelineId"] = pipelineId.ToString(),
-            [ModelNames.StartedUtc] = DateTime.UtcNow.ToString("o"),
-            [ModelNames.FinishedUtc] = null,
+            [ModelNames.StartedUtc] = now,
+            [ModelNames.FinishedUtc] = refusal is null ? null : now,
             [ModelNames.Parameters] = parameters is { ValueKind: not JsonValueKind.Undefined } given ? given.GetRawText() : null,
             [ModelNames.Result] = null,
-            [ModelNames.Error] = null,
+            [ModelNames.Error] = refusal,
+            [ModelNames.Rehearsal] = rehearsal ? "true" : "false",
         };
         if (requestId is { } request) properties[ModelNames.RequestId] = request.ToString();
         await CreateThingWithIdAsync(runId, $"PipelineRun {runId:N}", properties, cancellationToken);
@@ -225,7 +228,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             if (!string.IsNullOrEmpty(held.PropertyString(ModelNames.Index))) continue;
             nodes[nodeId] = new NodeRecord(held.PropertyString(ModelNames.Status) ?? string.Empty, OutputsOf(held), AttemptsOf(graph, held));
         }
-        return new RunRecord(runId, pipeline.Id, JsonOf(run.PropertyString(ModelNames.Parameters)), nodes);
+        return new RunRecord(runId, pipeline.Id, JsonOf(run.PropertyString(ModelNames.Parameters)), nodes, run.CarriesFlag(ModelNames.Rehearsal),
+            run.PropertyString(ModelNames.Status) ?? string.Empty);
     }
 
     private static IReadOnlyList<AttemptRecord> AttemptsOf(PipelineGraph graph, GraphThing nodeRun)
@@ -455,19 +459,50 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     public Task SetRunResultAsync(Guid runId, JsonElement result, CancellationToken cancellationToken) =>
         SetPropertyAsync(runId, ModelNames.Result, result.GetRawText(), cancellationToken);
 
-    public async Task<bool> IsCancelRequestedAsync(Guid runId, CancellationToken cancellationToken)
-    {
-        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
-        var response = await client.GetAsync($"{MyceliumUrl}/api/things/{runId}", cancellationToken);
-        if (!response.IsSuccessStatusCode) return false;
+    public async Task<bool> IsStopAsync(Guid relationshipId, CancellationToken cancellationToken) =>
+        await PredicateOfAsync(relationshipId, cancellationToken) is { } predicateId
+        && await TryBoundAsync(PipelineRoles.RunStopping, cancellationToken) == predicateId;
 
-        var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-        if (TryGetPropertyCaseInsensitive(root, "Properties", out var props) && props.ValueKind == JsonValueKind.Object
-            && props.TryGetProperty("cancelRequested", out var cr))
+    public async Task<StopRequested> StopRequestedAsync(Guid stopRequestId, Guid targetId, CancellationToken cancellationToken)
+    {
+        var selector = new
         {
-            return Truth.IsTrue(Unwrap(cr));
-        }
-        return false;
+            ids = new[] { stopRequestId, targetId, PipelineRoles.RunSubject.Id, PipelineRoles.PipelineRun.Id },
+            names = new[] { ModelNames.Binds, ModelNames.Is },
+            traverse = new object[]
+            {
+                new { predicate = ModelNames.Binds, direction = "outgoing", depth = 1 },
+                new { predicateRole = PipelineRoles.RunSubject.Id, direction = "incoming", depth = 1 },
+            },
+            includeIsAncestors = false,
+            includeRelationships = true,
+            relationships = new object[]
+            {
+                new { predicate = ModelNames.Binds, direction = "outgoing" },
+                new { predicate = ModelNames.Is, direction = "outgoing" },
+                new { predicateRole = PipelineRoles.RunSubject.Id, direction = "incoming" },
+            },
+        };
+        var graph = await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
+        var reason = graph.Thing(stopRequestId)?.PropertyString(ModelNames.Reason) is { Length: > 0 } stated ? stated : "Stopped by request.";
+        if (graph.Thing(targetId) is not { } target) return new StopRequested(stopRequestId, reason, []);
+        if (graph.IsOf(target, PipelineRoles.PipelineRun)) return new StopRequested(stopRequestId, reason, [target.Id]);
+
+        var going = graph.IncomingAlong(target, PipelineRoles.RunSubject)
+            .Where(run => run.PropertyString(ModelNames.Status) is RunStatus.Running or RunStatus.Waiting or RunStatus.Trying)
+            .Select(run => run.Id)
+            .ToList();
+        return new StopRequested(stopRequestId, reason, going);
+    }
+
+    public Task RelateStoppedByAsync(Guid runId, Guid stopRequestId, CancellationToken cancellationToken) =>
+        RelateIfBoundAsync(runId, PipelineRoles.StoppedBy, stopRequestId, cancellationToken);
+
+    public async Task RetireVigilAsync(Guid vigilId, CancellationToken cancellationToken)
+    {
+        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
+        var response = await client.DeleteAsync($"{MyceliumUrl}/api/vigils/{vigilId}", cancellationToken);
+        if (response.StatusCode != HttpStatusCode.NotFound) response.EnsureSuccessStatusCode();
     }
 
     public async Task<Guid?> PredicateOfAsync(Guid relationshipId, CancellationToken cancellationToken)
@@ -504,7 +539,10 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         return new NodeDispatchResult((int)response.StatusCode, body);
     }
 
-    private async Task<PipelineGraph> LoadSnapshotAsync(object selector, TimeSpan timeout, CancellationToken cancellationToken)
+    private async Task<PipelineGraph> LoadSnapshotAsync(object selector, TimeSpan timeout, CancellationToken cancellationToken) =>
+        SnapshotParser.Parse(await SnapshotAsync(selector, timeout, cancellationToken));
+
+    private async Task<JsonElement> SnapshotAsync(object selector, TimeSpan timeout, CancellationToken cancellationToken)
     {
         var client = await CreateAuthenticatedClientAsync(timeout);
         var response = await client.PostAsync($"{MyceliumUrl}/api/subscriptions",
@@ -512,14 +550,50 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         response.EnsureSuccessStatusCode();
 
         var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-        var graph = SnapshotParser.Parse(root);
 
         // Tidy up the snapshot subscription — Phloem reads once and does not stream here.
         if (TryGetPropertyCaseInsensitive(root, "subscriptionId", out var subId) && subId.ValueKind == JsonValueKind.String)
             _ = TryUnsubscribeAsync(subId.GetString()!);
 
-        return graph;
+        return root;
     }
+
+    // Read on every look, so it asks for the cadences alone; a kind of cadence is not one.
+    public async Task<IReadOnlyList<Cadence>> CadencesAsync(CancellationToken cancellationToken)
+    {
+        var selector = new { boundTypes = new[] { PipelineRoles.Cadence.Id }, includeIsAncestors = false, includeRelationships = false };
+        var root = await SnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
+        var snapshot = root.Deserialize<SubscribeResult>(SnapshotJson)?.Snapshot ?? root.Deserialize<SnapshotDocument>(SnapshotJson);
+
+        var cadences = new List<Cadence>();
+        foreach (var thing in snapshot?.Things ?? [])
+        {
+            if (thing.IsArchetype) continue;
+            var values = thing.ValuesStated().ToDictionary(value => value.Key, value => value.Value.Value, StringComparer.OrdinalIgnoreCase);
+            cadences.Add(new Cadence(thing.Id, thing.Name ?? string.Empty,
+                values.TryGetValue(ModelNames.IntervalMinutes, out var interval) ? NumberOf(interval) : 0,
+                values.TryGetValue(ModelNames.LastDue, out var lastDue) ? InstantOf(lastDue) : null));
+        }
+        return cadences;
+    }
+
+    private static readonly JsonSerializerOptions SnapshotJson = new(JsonSerializerDefaults.Web);
+
+    private static double NumberOf(JsonElement value) => value.ValueKind switch
+    {
+        JsonValueKind.Number => value.GetDouble(),
+        JsonValueKind.String when double.TryParse(value.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) => parsed,
+        _ => 0,
+    };
+
+    private static DateTimeOffset? InstantOf(JsonElement value) =>
+        value.ValueKind == JsonValueKind.String
+        && DateTimeOffset.TryParse(value.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var instant)
+            ? instant
+            : null;
+
+    public Task SetLastDueAsync(Guid cadenceId, DateTimeOffset due, CancellationToken cancellationToken) =>
+        SetPropertyAsync(cadenceId, ModelNames.LastDue, due.ToString("o"), cancellationToken, "vos.DateTime");
 
     // The Thing playing a role, found through the role Thing rather than by a name this orchestrator was told.
     // Asked for on its own: boundTypes would answer with every Thing that already `is` it, which for a run
@@ -563,11 +637,11 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         response.EnsureSuccessStatusCode();
     }
 
-    private async Task SetPropertyAsync(Guid thingId, string name, string value, CancellationToken cancellationToken)
+    private async Task SetPropertyAsync(Guid thingId, string name, string value, CancellationToken cancellationToken, string type = PropertyType)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
         var response = await client.PutAsync($"{MyceliumUrl}/api/things/{thingId}/properties",
-            JsonContent.Create(new { name, type = PropertyType, value }), cancellationToken);
+            JsonContent.Create(new { name, type, value }), cancellationToken);
         response.EnsureSuccessStatusCode();
     }
 
@@ -590,10 +664,6 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         BitConverter.TryWriteBytes(buffer[32..], index);
         return new Guid(System.Security.Cryptography.MD5.HashData(buffer));
     }
-
-    // A property value comes wrapped as { value, typeInfo }.
-    private static JsonElement Unwrap(JsonElement value) =>
-        TryGetPropertyCaseInsensitive(value, "value", out var bare) ? bare : value;
 
     private async Task RelateAsync(Guid subjectId, string predicateName, Guid targetId, CancellationToken cancellationToken) =>
         await RelateAsync(subjectId, await ResolveByNameAsync(predicateName, cancellationToken), targetId, cancellationToken);

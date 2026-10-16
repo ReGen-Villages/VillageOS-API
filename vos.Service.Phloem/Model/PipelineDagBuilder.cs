@@ -3,8 +3,8 @@ using System.Text.Json;
 
 namespace vos.Service.Phloem.Model;
 
-// Thrown when a pipeline cannot be resolved into an executable DAG (missing binding, no subdomain,
-// unknown pipeline). Distinct from validation failures (cycles / port-type mismatches).
+// Thrown when nothing in a drawing can be judged: the roles are unbound, or the Thing is not a pipeline with
+// nodes. A problem with one node is listed on the DAG's Problems instead.
 public sealed class PipelineModelException : Exception
 {
     public PipelineModelException(string message) : base(message) { }
@@ -32,7 +32,11 @@ public static class PipelineDagBuilder
             throw new PipelineModelException($"Pipeline '{pipeline.Name}' has no nodes.");
 
         var nodeIds = nodeThings.Select(n => n.Id).ToHashSet();
-        var nodes = nodeThings.Select(n => BuildNode(graph, n)).ToList();
+        var problems = new List<string>();
+        var nodes = new List<DagNode>();
+        foreach (var nodeThing in nodeThings)
+            if (Judged(problems, () => BuildNode(graph, nodeThing, problems), null) is { } built)
+                nodes.Add(built);
 
         // A wire reaches the builder in either of two shapes, and the second is replacing the first: drawn as
         // a relationship, which caps a node pair at one because the model refuses a second relationship on one triple, or
@@ -57,9 +61,25 @@ public static class PipelineDagBuilder
         {
             PipelineId = pipelineId,
             Name = pipeline.Name,
+            Published = pipeline.CarriesFlag(ModelNames.Published),
             Nodes = nodes,
             Wires = wires,
+            Problems = problems,
         };
+    }
+
+    // Reading on past a problem is what lets a refusal list every problem rather than the first.
+    private static T Judged<T>(List<string> problems, Func<T> read, T unread)
+    {
+        try
+        {
+            return read();
+        }
+        catch (PipelineModelException ex)
+        {
+            problems.Add(ex.Message);
+            return unread;
+        }
     }
 
     // A relationship and a wire Thing are different types carrying the same five properties, so each hands over its
@@ -73,14 +93,14 @@ public static class PipelineDagBuilder
             property(ModelNames.ToPath) ?? string.Empty,
             property(ModelNames.Transform) ?? string.Empty);
 
-    private static DagNode BuildNode(PipelineGraph graph, GraphThing nodeThing)
+    private static DagNode BuildNode(PipelineGraph graph, GraphThing nodeThing, List<string> problems)
     {
         // Boundary nodes bind no Connection/Service: they declare their own ports (has → Port) and
         // are an Input source (params → outputs) or an Output sink (inputs → run result).
         if (graph.IsOf(nodeThing, PipelineRoles.PipelineInput))
-            return BuildBoundaryNode(graph, nodeThing, DagNodeKind.Input);
+            return BuildBoundaryNode(graph, nodeThing, DagNodeKind.Input, problems);
         if (graph.IsOf(nodeThing, PipelineRoles.PipelineOutput))
-            return BuildBoundaryNode(graph, nodeThing, DagNodeKind.Output);
+            return BuildBoundaryNode(graph, nodeThing, DagNodeKind.Output, problems);
 
         var connection = graph.OutgoingTargets(nodeThing, ModelNames.Has)
             .FirstOrDefault(t => graph.IsOf(t, PipelineRoles.Connection))
@@ -105,10 +125,11 @@ public static class PipelineDagBuilder
             Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
             Ports = ports.Select(p => p.Port).ToList(),
             ParameterBindings = ParseParameterBindings(nodeThing),
-            Choices = ChoicesOf(graph, nodeThing, ports),
-            Waits = WaitOf(graph, nodeThing, ports),
-            Retries = RetryPolicyOf(nodeThing),
-            HandsOverTo = PipelineReachedAlong(graph, nodeThing, PipelineRoles.HandsOverTo, "hands its subject to"),
+            Choices = Judged(problems, () => ChoicesOf(graph, nodeThing, ports), NoChoices),
+            Waits = Judged(problems, () => WaitOf(graph, nodeThing, ports), null),
+            Retries = Judged(problems, () => RetryPolicyOf(nodeThing), null),
+            Rehearses = UpTheIsChain(graph, service).Any(kind => kind.CarriesFlag(ModelNames.Rehearses)),
+            HandsOverTo = Judged(problems, () => PipelineReachedAlong(graph, nodeThing, PipelineRoles.HandsOverTo, "hands its subject to"), null),
             OnItemError = string.Equals(nodeThing.PropertyString(ModelNames.OnItemError), ModelNames.OnItemErrorContinue, StringComparison.OrdinalIgnoreCase)
                 ? ModelNames.OnItemErrorContinue
                 : ModelNames.OnItemErrorFail,
@@ -161,8 +182,9 @@ public static class PipelineDagBuilder
     // A boundary node: ports are declared on the node itself (its own has → Port chain),
     // there is no dispatch subdomain, and its DagNodeKind tells the executor to seed from params
     // (Input) or collect into the run result (Output).
-    private static DagNode BuildBoundaryNode(PipelineGraph graph, GraphThing nodeThing, DagNodeKind kind)
+    private static DagNode BuildBoundaryNode(PipelineGraph graph, GraphThing nodeThing, DagNodeKind kind, List<string> problems)
     {
+        var end = kind == DagNodeKind.Output;
         return new DagNode
         {
             NodeId = nodeThing.Id,
@@ -172,8 +194,8 @@ public static class PipelineDagBuilder
             Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
             Ports = ResolvePortThings(graph, nodeThing).Select(ToPort).ToList(),
             ParameterBindings = ParseParameterBindings(nodeThing),
-            Tells = kind == DagNodeKind.Output ? TellingOf(graph, nodeThing) : null,
-            Starts = kind == DagNodeKind.Output ? PipelineReachedAlong(graph, nodeThing, PipelineRoles.StandsFor, "stands for") : null,
+            Tells = end ? Judged(problems, () => TellingOf(graph, nodeThing), null) : null,
+            Starts = end ? Judged(problems, () => PipelineReachedAlong(graph, nodeThing, PipelineRoles.StandsFor, "stands for"), null) : null,
         };
     }
 
@@ -248,9 +270,17 @@ public static class PipelineDagBuilder
     private static readonly IReadOnlyDictionary<string, string> EmptyBindings =
         new Dictionary<string, string>();
 
+    private static readonly IReadOnlyDictionary<string, ChosenThing> NoChoices =
+        new Dictionary<string, ChosenThing>();
+
     // Collect Port child-Things by walking the owner's is-chain — relationships do not
     // inherit through is, so ports resolve at read time at each level of the chain.
-    private static IEnumerable<GraphThing> ResolvePortThings(PipelineGraph graph, GraphThing owner)
+    private static IEnumerable<GraphThing> ResolvePortThings(PipelineGraph graph, GraphThing owner) =>
+        UpTheIsChain(graph, owner).SelectMany(level => graph.OutgoingTargets(level, ModelNames.Has)
+            .Where(t => graph.IsOf(t, PipelineRoles.Port)));
+
+    // The Thing itself first, then each kind above it once.
+    private static IEnumerable<GraphThing> UpTheIsChain(PipelineGraph graph, GraphThing owner)
     {
         var seen = new HashSet<Guid>();
         var stack = new Stack<GraphThing>();
@@ -259,9 +289,7 @@ public static class PipelineDagBuilder
         {
             var current = stack.Pop();
             if (!seen.Add(current.Id)) continue;
-            foreach (var portThing in graph.OutgoingTargets(current, ModelNames.Has)
-                         .Where(t => graph.IsOf(t, PipelineRoles.Port)))
-                yield return portThing;
+            yield return current;
             foreach (var parent in graph.OutgoingTargets(current, ModelNames.Is))
                 stack.Push(parent);
         }

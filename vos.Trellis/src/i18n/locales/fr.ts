@@ -1230,6 +1230,9 @@ export const fr: PartialResources = {
     saveFailed: "Échec de l'enregistrement.",
     runFailed: "Échec de l'exécution.",
     cancelFailed: "Échec de l'annulation.",
+    cancelledFromThePage: "Annulée depuis la page des pipelines.",
+    stopRequestName: "Demande d'arrêt",
+    noStopRoles: "Ce modèle ne prévoit aucun moyen d'arrêter une exécution : il ne lie rien à une demande d'arrêt ni à la connexion qui arrête les exécutions.",
     runStatus: "Exécution {{status}}",
     nodeStatus: "{{label}} : {{status}}",
     boundaryInput: "Entrée",
@@ -1304,6 +1307,7 @@ export const fr: PartialResources = {
       state: "état",
       relationship: "relation",
       pipeline: "pipeline",
+      cadence: "horloge",
       other: "",
     },
     note: {

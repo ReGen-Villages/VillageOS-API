@@ -20,10 +20,10 @@ public enum SpawnKind
 // Detected by shape — pipelineId ⇒ http, else targetId ⇒ relationship.
 // Async: for an http spawn, {"async":true} asks Phloem to return the run id immediately and run the DAG in
 // the background (the editor animates over SSE) instead of blocking for the result. A relationship never
-// blocks for the result.
+// blocks for the result. {"rehearsal":true} on an http spawn asks for a rehearsal; the model never starts one.
 public sealed record SpawnTrigger(
     SpawnKind Kind, Guid PipelineId, Guid TargetId, RunSubject? Subject, JsonElement Parameters, bool Async, string? Error,
-    Guid? RelationshipId = null)
+    Guid? RelationshipId = null, bool Rehearsal = false)
 {
     public static SpawnTrigger Resolve(JsonElement root)
     {
@@ -32,7 +32,8 @@ public sealed record SpawnTrigger(
 
         if (root.TryGetProperty("pipelineId", out var pid))
             return pid.ValueKind == JsonValueKind.String && Guid.TryParse(pid.GetString(), out var httpId)
-                ? new SpawnTrigger(SpawnKind.Http, httpId, Guid.Empty, null, CloneProp(root, "parameters"), IsAsync(root), null)
+                ? new SpawnTrigger(SpawnKind.Http, httpId, Guid.Empty, null, CloneProp(root, "parameters"), IsAsync(root), null,
+                    Rehearsal: root.TryGetProperty("rehearsal", out var rehearsal) && rehearsal.ValueKind == JsonValueKind.True)
                 : Invalid("'pipelineId' must be a guid.");
 
         if (root.TryGetProperty("targetId", out var tid))

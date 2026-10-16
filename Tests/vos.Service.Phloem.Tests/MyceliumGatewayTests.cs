@@ -23,6 +23,7 @@ public class MyceliumGatewayTests
     private static readonly Guid ProducedPredicateId = Guid.Parse("66666666-6666-6666-6666-666666666666");
     private static readonly Guid AttemptArchetypeId = Guid.Parse("99999999-9999-9999-9999-999999999999");
     private static readonly Guid ResumptionConnectionId = Guid.Parse("88888888-8888-8888-8888-888888888888");
+    private static readonly Guid StoppedByPredicateId = Guid.Parse("12121212-1212-1212-1212-121212121212");
 
     private static (MyceliumGateway Gateway, MockHttpMessageHandler Handler) NewGateway(
         Func<HttpRequestMessage, HttpResponseMessage>? respond = null)
@@ -70,7 +71,23 @@ public class MyceliumGatewayTests
         (PipelineRoles.ProducedThing, ProducedPredicateId),
         (PipelineRoles.RunResumption, ResumptionConnectionId),
         (PipelineRoles.Attempt, AttemptArchetypeId),
+        (PipelineRoles.StoppedBy, StoppedByPredicateId),
     ];
+
+    [Fact]
+    public async Task RelateStoppedByAsync_RelatesTheRunToTheRequestAlongThePredicateTheRoleBinds()
+    {
+        var run = Guid.NewGuid();
+        var request = Guid.NewGuid();
+        var (gateway, handler) = NewGateway(RespondLikeAModelThatBindsItsRoles);
+
+        await gateway.RelateStoppedByAsync(run, request, CancellationToken.None);
+
+        var related = await ReadJson(RequestsTo(handler, "/api/relationships", HttpMethod.Post).Single());
+        related.GetProperty("subjectId").GetGuid().Should().Be(run);
+        related.GetProperty("predicateId").GetGuid().Should().Be(StoppedByPredicateId);
+        related.GetProperty("targetId").GetGuid().Should().Be(request);
+    }
 
     [Fact]
     public async Task RecordAttemptAsync_WritesTheAttemptAsAThingTheNodeRunHolds_AndMovesTheNodeRunsCountToItsNumber()
@@ -319,6 +336,32 @@ public class MyceliumGatewayTests
             .Should().Be(pipelineId.ToString());
 
         RequestsTo(handler, "/api/relationships", HttpMethod.Post).Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task CreateRunAsync_RecordsWhetherTheRunIsARehearsal()
+    {
+        var (gateway, handler) = NewGateway();
+
+        await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None, rehearsal: true);
+        await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        var written = (await Task.WhenAll(RequestsTo(handler, "/api/things", HttpMethod.Post).Select(ReadJson)))
+            .Select(run => run.GetProperty("properties").GetProperty(ModelNames.Rehearsal).GetProperty("value").GetString());
+        written.Should().Equal("true", "false");
+    }
+
+    [Fact]
+    public async Task CreateRunAsync_WithARefusal_RecordsTheRunRefusedAndFinishedWithItsReasons()
+    {
+        var (gateway, handler) = NewGateway();
+
+        await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None, refusal: "Pipeline is invalid: 'Echo' needs its port 'message' filled.");
+
+        var properties = (await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single())).GetProperty("properties");
+        properties.GetProperty(ModelNames.Status).GetProperty("value").GetString().Should().Be(RunStatus.Refused);
+        properties.GetProperty(ModelNames.Error).GetProperty("value").GetString().Should().Contain("'Echo' needs its port 'message'");
+        properties.GetProperty(ModelNames.FinishedUtc).GetProperty("value").GetString().Should().NotBeNullOrEmpty();
     }
 
     // The broker reads each property as { typeInfo, value } and refuses a bare one with a 400 carrying no
@@ -701,6 +744,98 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
+    public async Task IsStopAsync_IsTrueOnlyForARelationshipWrittenAlongTheConnectionTheRunStoppingRoleBinds()
+    {
+        var stopsConnection = Guid.NewGuid();
+        var alongStops = Guid.NewGuid();
+        var alongAnother = Guid.NewGuid();
+        var (gateway, _) = NewGateway(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.EndsWith(alongStops.ToString(), StringComparison.Ordinal))
+                return Json(HttpStatusCode.OK, $$"""{"Id":"{{alongStops}}","PredicateId":"{{stopsConnection}}"}""");
+            if (path.EndsWith(alongAnother.ToString(), StringComparison.Ordinal))
+                return Json(HttpStatusCode.OK, $$"""{"Id":"{{alongAnother}}","PredicateId":"{{Guid.NewGuid()}}"}""");
+            if (path == "/api/subscriptions" && request.Method == HttpMethod.Post)
+                return BoundSnapshot(PipelineRoles.RunStopping, stopsConnection);
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+
+        (await gateway.IsStopAsync(alongStops, CancellationToken.None)).Should().BeTrue();
+        (await gateway.IsStopAsync(alongAnother, CancellationToken.None)).Should().BeFalse();
+        (await gateway.IsStopAsync(Guid.NewGuid(), CancellationToken.None)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task StopRequestedAsync_ReadsTheReasonAndTheRunsStillGoingAboutTheTarget()
+    {
+        var request = Guid.NewGuid();
+        var plot = Guid.NewGuid();
+        var waitingRun = Guid.NewGuid();
+        var finishedRun = Guid.NewGuid();
+        var runArchetype = Guid.NewGuid();
+        var about = Guid.NewGuid();
+        var binds = Guid.NewGuid();
+        var stopKind = Guid.NewGuid();
+        var isPredicate = Guid.NewGuid();
+        object Thing(Guid id, string name, object properties, object? overrides = null) =>
+            new { id, name, isArchetype = false, properties, inheritedOverrides = overrides, states = Array.Empty<string>() };
+        object Edge(Guid subject, Guid predicate, Guid target) =>
+            new { id = Guid.NewGuid(), subjectId = subject, predicateId = predicate, targetId = target, properties = new { } };
+        var snapshot = JsonSerializer.Serialize(new
+        {
+            snapshot = new
+            {
+                things = new[]
+                {
+                    Thing(request, "Stop request", new { }, new Dictionary<string, object>
+                    {
+                        [stopKind.ToString()] = new { sourceName = "StopRequest", properties = new { reason = new { value = "site withdrawn", typeInfo = "vos.String" } } },
+                    }),
+                    Thing(plot, "Plot 7", new { }),
+                    Thing(waitingRun, "PipelineRun a", new { status = new { value = RunStatus.Waiting, typeInfo = "vos.String" } }),
+                    Thing(finishedRun, "PipelineRun b", new { status = new { value = RunStatus.Succeeded, typeInfo = "vos.String" } }),
+                    Thing(binds, ModelNames.Binds, new { }),
+                    Thing(PipelineRoles.RunSubject.Id, "runSubject role", new { }),
+                    Thing(PipelineRoles.PipelineRun.Id, "pipelineRun role", new { }),
+                    Thing(about, "about", new { }),
+                    Thing(runArchetype, "PipelineRun", new { }),
+                    Thing(isPredicate, ModelNames.Is, new { }),
+                },
+                relationships = new[]
+                {
+                    Edge(PipelineRoles.RunSubject.Id, binds, about),
+                    Edge(PipelineRoles.PipelineRun.Id, binds, runArchetype),
+                    Edge(waitingRun, about, plot),
+                    Edge(finishedRun, about, plot),
+                    Edge(waitingRun, isPredicate, runArchetype),
+                },
+            },
+        });
+        var (gateway, _) = NewGateway(_ => Json(HttpStatusCode.OK, snapshot));
+
+        var stop = await gateway.StopRequestedAsync(request, plot, CancellationToken.None);
+
+        stop.Should().BeEquivalentTo(new StopRequested(request, "site withdrawn", [waitingRun]));
+        (await gateway.StopRequestedAsync(request, waitingRun, CancellationToken.None)).Runs.Should().Equal(waitingRun);
+    }
+
+    [Fact]
+    public async Task RetireVigilAsync_DeletesTheVigil_AndTakesOneAlreadyGoneAsDone()
+    {
+        var vigil = Guid.NewGuid();
+        var gone = Guid.NewGuid();
+        var (gateway, handler) = NewGateway(request => request.RequestUri!.AbsolutePath.EndsWith(gone.ToString(), StringComparison.Ordinal)
+            ? new HttpResponseMessage(HttpStatusCode.NotFound)
+            : new HttpResponseMessage(HttpStatusCode.NoContent));
+
+        await gateway.RetireVigilAsync(vigil, CancellationToken.None);
+        await gateway.RetireVigilAsync(gone, CancellationToken.None);
+
+        RequestsTo(handler, $"/api/vigils/{vigil}", HttpMethod.Delete).Should().ContainSingle();
+    }
+
+    [Fact]
     public async Task PlaceVigilAsync_WhenThePlatformRefusesWithoutAReason_AnswersTheStatus()
     {
         var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/vigils"
@@ -837,6 +972,81 @@ public class MyceliumGatewayTests
         RequestsTo(handler, "/api/relationships", HttpMethod.Post).Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task CadencesAsync_ReadsEachCadenceButNotItsKind_WhereverItStatesItsValues()
+    {
+        var kind = Guid.NewGuid();
+        var hourly = Guid.NewGuid();
+        var daily = Guid.NewGuid();
+        var unset = Guid.NewGuid();
+        var snapshot = JsonSerializer.Serialize(new
+        {
+            snapshot = new
+            {
+                things = new object[]
+                {
+                    new { id = kind, name = "Cadence", isArchetype = true, properties = new Dictionary<string, object>(), states = Array.Empty<string>() },
+                    new
+                    {
+                        id = hourly, name = "Every hour", isArchetype = false, states = Array.Empty<string>(),
+                        properties = new Dictionary<string, object>(),
+                        inheritedOverrides = new Dictionary<string, object>
+                        {
+                            [kind.ToString()] = new
+                            {
+                                sourceName = "Cadence",
+                                properties = new Dictionary<string, object>
+                                {
+                                    [ModelNames.IntervalMinutes] = new { value = 60, typeInfo = "vos.Double" },
+                                    [ModelNames.LastDue] = new { value = "2026-10-15T09:00:00.0000000+00:00", typeInfo = "vos.DateTime" },
+                                },
+                            },
+                        },
+                    },
+                    new
+                    {
+                        id = daily, name = "Every day", isArchetype = false, states = Array.Empty<string>(),
+                        properties = new Dictionary<string, object> { [ModelNames.IntervalMinutes] = new { value = "1440", typeInfo = "vos.String" } },
+                    },
+                    new
+                    {
+                        id = unset, name = "Not yet set", isArchetype = false, states = Array.Empty<string>(),
+                        properties = new Dictionary<string, object> { [ModelNames.IntervalMinutes] = new { value = (double?)null, typeInfo = "vos.Double" } },
+                    },
+                },
+                relationships = Array.Empty<object>(),
+            },
+        });
+        var (gateway, handler) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post
+            ? Json(HttpStatusCode.OK, snapshot)
+            : new HttpResponseMessage(HttpStatusCode.OK));
+
+        var cadences = await gateway.CadencesAsync(CancellationToken.None);
+
+        cadences.Should().BeEquivalentTo(new[]
+        {
+            new Cadence(hourly, "Every hour", 60, new DateTimeOffset(2026, 10, 15, 9, 0, 0, TimeSpan.Zero)),
+            new Cadence(daily, "Every day", 1440, null),
+            new Cadence(unset, "Not yet set", 0, null),
+        });
+        (await ReadJson(RequestsTo(handler, "/api/subscriptions", HttpMethod.Post).Single()))
+            .GetProperty("boundTypes").EnumerateArray().Single().GetGuid().Should().Be(PipelineRoles.Cadence.Id);
+    }
+
+    [Fact]
+    public async Task SetLastDueAsync_WritesTheInstantAsADateTime()
+    {
+        var cadenceId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway(_ => new HttpResponseMessage(HttpStatusCode.OK));
+
+        await gateway.SetLastDueAsync(cadenceId, new DateTimeOffset(2026, 10, 15, 10, 0, 0, TimeSpan.Zero), CancellationToken.None);
+
+        var body = await ReadJson(RequestsTo(handler, $"/api/things/{cadenceId}/properties", HttpMethod.Put).Single());
+        body.GetProperty("name").GetString().Should().Be(ModelNames.LastDue);
+        body.GetProperty("type").GetString().Should().Be("vos.DateTime");
+        DateTimeOffset.Parse(body.GetProperty("value").GetString()!).Should().Be(new DateTimeOffset(2026, 10, 15, 10, 0, 0, TimeSpan.Zero));
+    }
+
     private static async Task<List<(string Name, string? Value)>> PropertiesWritten(MockHttpMessageHandler handler, Guid thingId)
     {
         var written = new List<(string Name, string? Value)>();
@@ -886,35 +1096,6 @@ public class MyceliumGatewayTests
         body.GetProperty("value").GetString().Should().Contain("\"total\":3");
     }
 
-    // The property set is named the way the broker names it; only the flag inside keeps the casing the
-    // model gave it. Read as camelCase the set is never found, so a cancelled run runs on to the end.
-    [Theory]
-    [InlineData("""{"Properties":{"cancelRequested":{"value":true,"typeInfo":"vos.Boolean"}}}""", true)]
-    [InlineData("""{"Properties":{"cancelRequested":{"value":"true","typeInfo":"vos.String"}}}""", true)]
-    [InlineData("""{"Properties":{"cancelRequested":{"value":"TRUE","typeInfo":"vos.String"}}}""", true)]
-    [InlineData("""{"Properties":{"cancelRequested":true}}""", true)]
-    [InlineData("""{"Properties":{"cancelRequested":{"value":false,"typeInfo":"vos.Boolean"}}}""", false)]
-    [InlineData("""{"Properties":{"cancelRequested":{"value":"no","typeInfo":"vos.String"}}}""", false)]
-    [InlineData("""{"Properties":{}}""", false)]
-    [InlineData("""{}""", false)]
-    public async Task IsCancelRequestedAsync_ReadsTheFlagThroughItsPropertyEnvelope(string thingJson, bool expected)
-    {
-        var (gateway, _) = NewGateway(_ => Json(HttpStatusCode.OK, thingJson));
-
-        var cancelRequested = await gateway.IsCancelRequestedAsync(Guid.NewGuid(), CancellationToken.None);
-
-        cancelRequested.Should().Be(expected);
-    }
-
-    // A run whose Thing cannot be read is not a cancelled run; cancelling on a read failure would
-    // stop pipelines whenever the broker hiccups.
-    [Fact]
-    public async Task IsCancelRequestedAsync_WhenTheRunCannotBeRead_DoesNotReportCancellation()
-    {
-        var (gateway, _) = NewGateway(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
-
-        (await gateway.IsCancelRequestedAsync(Guid.NewGuid(), CancellationToken.None)).Should().BeFalse();
-    }
 
     [Fact]
     public async Task PredicateOfAsync_ReadsTheRelationshipAndAnswersItsPredicate()

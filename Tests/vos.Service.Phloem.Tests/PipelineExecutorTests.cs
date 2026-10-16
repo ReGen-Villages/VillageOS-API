@@ -71,26 +71,33 @@ public class PipelineExecutorTests
     }
 
     [Fact]
-    public async Task RunAsync_CancelRequested_HaltsRemainingNodesAndCancelsRun()
+    public async Task RunAsync_StoppedWhileANodeIsCalled_StopsAtTheNextNodeRecordingTheReason()
     {
         var (fx, pipelineId) = TestGraphs.DemoPipeline();
-        FakeGateway gateway = null!;
-        gateway = new FakeGateway(fx.Build())
+        var request = Guid.NewGuid();
+        PipelineExecutor executor = null!;
+        Task? stopping = null;
+        var gateway = new FakeGateway(fx.Build());
+        gateway.OnDispatch = (_, envelope) =>
         {
-            OnDispatch = (_, _) => NodeOk(("echo", "x")),
-            // Cancel becomes true once the first node has run — checked before the next level dispatches.
-            CancelRequested = _ => gateway.Dispatched.Contains("gen"),
+            stopping ??= executor.StopAsync(request, envelope.GetProperty("runId").GetGuid(), CancellationToken.None);
+            return NodeOk(("echo", "x"));
         };
-        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+        executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
         var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
+        await stopping!;
 
         result.Success.Should().BeFalse();
-        result.Error.Should().Contain("cancelled");
+        result.Error.Should().Contain("withdrawn by its owner");
         result.Nodes.Single(n => n.Name == "Generate").Status.Should().Be(RunStatus.Succeeded);
-        result.Nodes.Single(n => n.Name == "Echo").Status.Should().Be(RunStatus.Cancelled);
-        gateway.Dispatched.Should().Equal("gen"); // Echo never dispatched
-        gateway.StatusUpdates.Should().Contain(RunStatus.Cancelled);
+        var echo = result.Nodes.Single(n => n.Name == "Echo");
+        echo.Status.Should().Be(RunStatus.Cancelled);
+        echo.Error.Should().Be("withdrawn by its owner");
+        gateway.Dispatched.Should().Equal("gen");
+        gateway.RunStatuses[result.RunId].Should().Be(RunStatus.Cancelled);
+        gateway.RunError.Should().Be("withdrawn by its owner");
+        gateway.StoppedBy.Should().Equal((result.RunId, request));
     }
 
     [Fact]
@@ -487,6 +494,43 @@ public class PipelineExecutorTests
 
         result.Success.Should().BeFalse();
         gateway.RunError.Should().Be(result.Error).And.Contain("invalid");
+        gateway.StatusUpdates.Should().Equal(RunStatus.Refused);
+        gateway.NodeRunsPersisted.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task RunAsync_TwoRequiredInputsNothingFillsOnDifferentNodes_IsRefusedNamingBothAndDispatchesNothing()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        foreach (var prototype in new[] { "SourceProto", "EchoProto" })
+        {
+            var port = fx.Thing($"{prototype}.context", ("direction", "in"), ("type", "string"), ("portName", "context"), ("required", "true"));
+            fx.Rel(port, fx.Get("is"), fx.Get("Port"));
+            fx.Rel(fx.Get(prototype), fx.Get("has"), port);
+        }
+        var gateway = new FakeGateway(fx.Build());
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        gateway.Dispatched.Should().BeEmpty();
+        gateway.StatusUpdates.Should().Equal(RunStatus.Refused);
+        gateway.RunError.Should().Contain("'Generate' needs its port 'context'").And.Contain("'Echo' needs its port 'context'");
+    }
+
+    [Fact]
+    public async Task RunAsync_StartedWithoutAParameterARequiredPortIsBoundTo_IsRefusedNamingIt()
+    {
+        var (fx, pipelineId) = TestGraphs.ParamBoundPipeline();
+        var gateway = new FakeGateway(fx.Build());
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, default, CancellationToken.None, subject: new RunSubject(Guid.NewGuid(), "Site 3"));
+
+        result.Success.Should().BeFalse();
+        gateway.Dispatched.Should().BeEmpty();
+        gateway.RunError.Should().Contain("run parameter 'greeting'");
     }
 
     [Fact]

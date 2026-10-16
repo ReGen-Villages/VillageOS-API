@@ -12,6 +12,7 @@ anything. A port with `collection` true drives fan-out on the Pipeline page (one
 # to) bound to a Service that declares the ports. `subdomain` values match real Managed Microservices where
 # one exists (echo, water-reserve, energy-balance, metabolism, model-bridge), so a saved pipeline can also be
 # Run against a live platform; the rest are dispatch-only stand-ins that still exercise the editor end to end.
+# Every service rehearses except the real ones nobody has yet checked to write nothing, marked "rehearses": False.
 #
 # port tuple = (portName, direction, type, required, collection)
 def _in(name, type="any", required=False, collection=False):
@@ -48,12 +49,12 @@ SERVICES = [
     {"key": "sum", "label": "Sum", "subdomain": "sum",
      "ports": [_in("a", "number", required=True), _in("b", "number", required=True), _out("total", "number")]},
 
-    {"key": "water-reserve", "label": "Water Reserve", "subdomain": "water-reserve",
+    {"key": "water-reserve", "label": "Water Reserve", "subdomain": "water-reserve", "rehearses": False,
      "ports": [_in("population", "number", required=True),
                _in("perCapitaConsumptionM3", "number", required=True),
                _in("storageCapacityM3", "number", required=True),
                _out("daysOfSupply", "number")]},
-    {"key": "energy-balance", "label": "Energy Balance", "subdomain": "energy-balance",
+    {"key": "energy-balance", "label": "Energy Balance", "subdomain": "energy-balance", "rehearses": False,
      "ports": [_in("solarPvAreaM2", "number", required=True),
                _in("solarResourceKwhPerM2PerYear", "number", required=True),
                _in("moduleEfficiency", "number", required=True),
@@ -61,11 +62,11 @@ SERVICES = [
                _in("otherGenerationMwhPerYear", "number", required=True),
                _in("annualConsumptionMwhPerYear", "number", required=True),
                _out("percentOfConsumption", "number")]},
-    {"key": "metabolism", "label": "Metabolism", "subdomain": "metabolism",
+    {"key": "metabolism", "label": "Metabolism", "subdomain": "metabolism", "rehearses": False,
      "ports": [_in("intakeKcal", "number", required=True),
                _in("populationCount", "number", required=True),
                _out("balanceKcal", "number")]},
-    {"key": "model-bridge", "label": "Model Bridge", "subdomain": "model-bridge",
+    {"key": "model-bridge", "label": "Model Bridge", "subdomain": "model-bridge", "rehearses": False,
      "ports": [_in("query", "string", required=True), _out("result", "any")]},
 
     {"key": "score", "label": "Scorer", "subdomain": "score",
@@ -102,11 +103,17 @@ EXTERNAL_SYSTEMS = [
     {"key": "reporting-office", "label": "Reporting office", "sends": [], "told": ["daily-report"], "toldThrough": "publish"},
 ]
 
+# A cadence starts the pipeline drawn from it every intervalMinutes of model time.
+CADENCES = [
+    {"key": "every-hour", "label": "Every hour", "intervalMinutes": 60},
+]
+
 
 # A pipeline node is either a service node ("service": <catalog key>) or a boundary node
 # ("input"/"output": [port specs]). A boundary node may say what it "standsFor": ("messageKind", key) at
-# the start for the kind of message the run comes from, ("externalSystem", key) at the end for the system
-# the run tells, or ("pipeline", name) for a pipeline a run starts or is started by. Node "at" is the canvas grid cell (column, row) — the generator turns it
+# the start for the kind of message the run comes from, ("cadence", key) at the start for the cadence that
+# starts it, ("externalSystem", key) at the end for the system the run tells, or ("pipeline", name) for a
+# pipeline a run starts or is started by. Node "at" is the canvas grid cell (column, row) — the generator turns it
 # into x/y. "params" binds an input port to a run-parameter key (Params bar on the Pipeline page); "onItemError"
 # = "continue" collects partial fan-out results instead of failing the run. A service node may hold
 # "outPorts" of its own, the outcomes it answers under, and may say what it "chooses": (port, the offered
@@ -373,6 +380,22 @@ PIPELINES = [
             {"from": "decide", "fromPort": "refuse", "to": "refused", "toPort": "message"},
             {"from": "accepted", "fromPort": "echo", "to": "out", "toPort": "result"},
             {"from": "refused", "fromPort": "echo", "to": "out", "toPort": "result"},
+        ],
+    },
+
+    # 16. A run the clock starts: the start node stands for the hourly cadence, and its `due` port carries the
+    #     instant the run was due.
+    {
+        "name": "Hourly Tally",
+        "nodes": [
+            {"key": "in", "input": [("due", "string")], "at": col(0), "label": "The hour strikes",
+             "standsFor": ("cadence", "every-hour")},
+            {"key": "echo", "service": "echo", "at": col(1)},
+            {"key": "out", "output": [("tally", "string", True)], "at": col(2)},
+        ],
+        "wires": [
+            {"from": "in", "fromPort": "due", "to": "echo", "toPort": "message"},
+            {"from": "echo", "fromPort": "echo", "to": "out", "toPort": "tally"},
         ],
     },
 ]
