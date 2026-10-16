@@ -105,7 +105,7 @@ public class PipelineCommandHandlerTests
     {
         SetupMarkedModel();
         _myceliumMock.Setup(c => c.PostToEndpointAsync(PipelineCommandHandler.OrchestratorSubdomain,
-                $"{{\"pipelineId\":\"{NightlyId}\",\"params\":{{\"site\": \"north\"}},\"async\":true}}"))
+                $"{{\"pipelineId\":\"{NightlyId}\",\"parameters\":{{\"site\": \"north\"}},\"async\":true}}"))
             .ReturnsAsync($"{{\"accepted\":true,\"runId\":\"{LateRunId}\"}}");
 
         await Execute("run Nightly {\"site\": \"north\"}");
@@ -118,7 +118,7 @@ public class PipelineCommandHandlerTests
     {
         SetupMarkedModel();
         _myceliumMock.Setup(c => c.PostToEndpointAsync(PipelineCommandHandler.OrchestratorSubdomain,
-                $"{{\"pipelineId\":\"{NightlyId}\",\"params\":{{}},\"async\":false}}"))
+                $"{{\"pipelineId\":\"{NightlyId}\",\"parameters\":{{}},\"async\":false}}"))
             .ReturnsAsync("{\"success\":true,\"nodes\":[]}");
 
         await Execute("run Nightly --wait");

@@ -4,7 +4,7 @@ namespace vos.Service.Phloem.Execution;
 
 public enum SpawnKind
 {
-    // http endpoint-forward: { pipelineId, params } — synchronous spawn-and-wait.
+    // http endpoint-forward: { pipelineId, parameters } — synchronous spawn-and-wait.
     Http,
     // A relationship the broker dispatched: a `X runs Pipeline` write, or a Thing entering a watched state.
     // Which pipeline it starts is read from the model, not from the body, and nothing waits on the run.
@@ -13,16 +13,16 @@ public enum SpawnKind
 }
 
 // Classifies a /handle body into a spawn. Phloem is reachable two ways through Mycelium, both via the
-// same /handle: an http endpoint-forward carrying {pipelineId, params} (Trellis Run, or any caller), or a
+// same /handle: an http endpoint-forward carrying {pipelineId, parameters} (Trellis Run, or any caller), or a
 // relationship the broker dispatches as {relationshipId, subjectId, targetId, subjectName, targetName,
-// properties}, whose properties are the run params. The body alone cannot say what the target starts —
+// properties}, whose properties are the run's parameters. The body alone cannot say what the target starts —
 // PipelineStart reads that from the model — so it travels as it came, with the subject.
 // Detected by shape — pipelineId ⇒ http, else targetId ⇒ relationship.
 // Async: for an http spawn, {"async":true} asks Phloem to return the run id immediately and run the DAG in
 // the background (the editor animates over SSE) instead of blocking for the result. A relationship never
 // blocks for the result. {"rehearsal":true} on an http spawn asks for a rehearsal; the model never starts one.
 public sealed record SpawnTrigger(
-    SpawnKind Kind, Guid PipelineId, Guid TargetId, RunSubject? Subject, JsonElement Params, bool Async, string? Error,
+    SpawnKind Kind, Guid PipelineId, Guid TargetId, RunSubject? Subject, JsonElement Parameters, bool Async, string? Error,
     Guid? RelationshipId = null, bool Rehearsal = false)
 {
     public static SpawnTrigger Resolve(JsonElement root)
@@ -32,7 +32,7 @@ public sealed record SpawnTrigger(
 
         if (root.TryGetProperty("pipelineId", out var pid))
             return pid.ValueKind == JsonValueKind.String && Guid.TryParse(pid.GetString(), out var httpId)
-                ? new SpawnTrigger(SpawnKind.Http, httpId, Guid.Empty, null, CloneProp(root, "params"), IsAsync(root), null,
+                ? new SpawnTrigger(SpawnKind.Http, httpId, Guid.Empty, null, CloneProp(root, "parameters"), IsAsync(root), null,
                     Rehearsal: root.TryGetProperty("rehearsal", out var rehearsal) && rehearsal.ValueKind == JsonValueKind.True)
                 : Invalid("'pipelineId' must be a guid.");
 
