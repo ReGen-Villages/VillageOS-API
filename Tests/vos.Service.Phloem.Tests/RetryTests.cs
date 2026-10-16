@@ -112,6 +112,20 @@ public class RetryTests
     }
 
     [Fact]
+    public async Task A_clock_that_stands_still_takes_the_pause_once_in_real_time()
+    {
+        var (retry, gateway, executor) = Arrange(call => call < 2 ? Unreachable() : Answer(), clockRate: 0,
+            policy: [("attempts", 2), ("pauseMinutes", 0.001)]);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+
+        var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        gateway.Dispatched.Should().HaveCount(2);
+        watch.Elapsed.Should().BeGreaterThanOrEqualTo(TimeSpan.FromMilliseconds(60));
+    }
+
+    [Fact]
     public async Task A_refusal_is_never_retried()
     {
         var (retry, gateway, executor) = Arrange(_ => new NodeDispatchResult(400, "{\"error\":\"no\"}"), policy: [("attempts", 3), ("pauseMinutes", 0)]);
