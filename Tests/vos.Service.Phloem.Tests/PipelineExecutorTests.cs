@@ -76,7 +76,7 @@ public class PipelineExecutorTests
         var (fx, pipelineId) = TestGraphs.DemoPipeline();
         var request = Guid.NewGuid();
         PipelineExecutor executor = null!;
-        Task<int>? stopping = null;
+        Task? stopping = null;
         var gateway = new FakeGateway(fx.Build());
         gateway.OnDispatch = (_, envelope) =>
         {

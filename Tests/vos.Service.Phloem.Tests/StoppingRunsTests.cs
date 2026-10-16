@@ -35,9 +35,8 @@ public class StoppingRunsTests
         var vigil = gateway.VigilsPlaced.Single().VigilId;
         var request = Guid.NewGuid();
 
-        var stopped = await executor.StopAsync(request, run.RunId, CancellationToken.None);
+        await executor.StopAsync(request, run.RunId, CancellationToken.None);
 
-        stopped.Should().Be(1);
         gateway.VigilsRetired.Should().Equal(vigil);
         gateway.Awaited.Should().NotContainKey((run.RunId, waiting.Review.Id));
         gateway.Records[(run.RunId, waiting.Review.Id)].Status.Should().Be(RunStatus.Cancelled);
@@ -54,7 +53,7 @@ public class StoppingRunsTests
     public async Task A_stop_arriving_while_a_waiting_node_is_called_ends_the_run_with_no_vigil_left()
     {
         var (waiting, gateway, executor) = ArrangeWaiting();
-        Task<int>? stopping = null;
+        Task? stopping = null;
         gateway.OnDispatch = (_, envelope) =>
         {
             stopping ??= executor.StopAsync(Guid.NewGuid(), envelope.GetProperty("runId").GetGuid(), CancellationToken.None);
@@ -73,7 +72,7 @@ public class StoppingRunsTests
     {
         var (fx, pipelineId) = TestGraphs.DemoPipeline();
         PipelineExecutor executor = null!;
-        Task<int>? stopping = null;
+        Task? stopping = null;
         var gateway = new FakeGateway(fx.Build());
         gateway.OnDispatch = (subdomain, envelope) =>
         {
@@ -111,13 +110,57 @@ public class StoppingRunsTests
         var second = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
         var other = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: OtherPlot);
 
-        var stopped = await executor.StopAsync(Guid.NewGuid(), Plot.Id, CancellationToken.None);
+        await executor.StopAsync(Guid.NewGuid(), Plot.Id, CancellationToken.None);
 
-        stopped.Should().Be(2);
         gateway.RunStatuses[first.RunId].Should().Be(RunStatus.Cancelled);
         gateway.RunStatuses[second.RunId].Should().Be(RunStatus.Cancelled);
         gateway.RunStatuses[other.RunId].Should().Be(RunStatus.Waiting);
         gateway.Records[(other.RunId, waiting.Review.Id)].Status.Should().Be(RunStatus.Waiting);
+    }
+
+    [Fact]
+    public async Task A_stop_is_forgotten_once_it_has_ended_its_run_so_a_run_later_started_under_that_identifier_runs()
+    {
+        var (waiting, gateway, executor) = ArrangeWaiting();
+        var run = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
+        await executor.StopAsync(Guid.NewGuid(), run.RunId, CancellationToken.None);
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        gateway.Graph = fx.Build();
+        gateway.OnDispatch = (_, _) => Answer("echo", "x");
+
+        var again = await executor.RunAsync(pipelineId, default, CancellationToken.None, runId: run.RunId);
+
+        again.Success.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task A_run_in_the_middle_of_a_long_call_holds_up_no_other_run_the_stop_names()
+    {
+        var (waiting, gateway, executor) = ArrangeWaiting();
+        var callAnswered = new ManualResetEventSlim();
+        var calls = 0;
+        gateway.OnDispatch = (_, _) =>
+        {
+            if (Interlocked.Increment(ref calls) == 1) callAnswered.Wait();
+            return Answer("notice", "sent for review");
+        };
+        var calling = Task.Run(() => executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot));
+        await Settle.UntilAsync(() => gateway.RunsCreated.Count == 1 && gateway.Dispatched.Count == 1, "the first run is in the middle of its call");
+        var waitingRun = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
+
+        var stopping = executor.StopAsync(Guid.NewGuid(), Plot.Id, CancellationToken.None);
+        try
+        {
+            await Settle.UntilAsync(() => gateway.RunStatusOf(waitingRun.RunId) == RunStatus.Cancelled, "the waiting run stops while the other's call goes on");
+        }
+        finally
+        {
+            callAnswered.Set();
+        }
+        await stopping;
+        var called = await calling;
+
+        gateway.RunStatusOf(called.RunId).Should().Be(RunStatus.Cancelled, "the run that was calling stops at its next step");
     }
 
     [Fact]

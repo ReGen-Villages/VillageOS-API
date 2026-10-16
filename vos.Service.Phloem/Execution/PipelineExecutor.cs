@@ -67,28 +67,28 @@ public sealed class PipelineExecutor
     // A run whose sweep is under way here stops at its next step, or at once from a pause between attempts, and its
     // sweep records the stop. A run waiting for a state, or left running by an orchestrator that stopped, has no sweep
     // to see it, so it is ended here under its turn: its vigils retired, each node not finished recorded stopped.
-    // Answers how many of the runs about the target were still in the model to stop.
-    public async Task<int> StopAsync(Guid stopRequestId, Guid targetId, CancellationToken cancellationToken)
+    // Every run is told before any turn is waited for, and each is ended on its own, so a run in the middle of a
+    // long call holds up none of the others.
+    public async Task StopAsync(Guid stopRequestId, Guid targetId, CancellationToken cancellationToken)
     {
         var request = await _gateway.StopRequestedAsync(stopRequestId, targetId, cancellationToken);
-        var ended = 0;
         foreach (var runId in request.Runs)
-        {
             _stops.GetOrAdd(runId, _ => NewStop()).TrySetResult(request);
-            try
-            {
-                using var turn = await _turns.TakeAsync(runId, cancellationToken);
-                var record = await _gateway.ReadRunRecordAsync(runId, cancellationToken);
-                if (record is null) continue;
-                if (!RunStatus.IsFinished(record.Status)) await EndStoppedRunAsync(record, request, cancellationToken);
-                ended++;
-            }
-            finally
-            {
-                _stops.TryRemove(runId, out _);
-            }
+        await Task.WhenAll(request.Runs.Select(runId => EndUnlessItsSweepDoesAsync(runId, request, cancellationToken)));
+    }
+
+    private async Task EndUnlessItsSweepDoesAsync(Guid runId, StopRequested request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var turn = await _turns.TakeAsync(runId, cancellationToken);
+            if (await _gateway.ReadRunRecordAsync(runId, cancellationToken) is { } record && !RunStatus.IsFinished(record.Status))
+                await EndStoppedRunAsync(record, request, cancellationToken);
         }
-        return ended;
+        finally
+        {
+            _stops.TryRemove(runId, out _);
+        }
     }
 
     private async Task EndStoppedRunAsync(RunRecord record, StopRequested request, CancellationToken cancellationToken)

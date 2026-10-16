@@ -224,6 +224,11 @@ internal sealed class FakeGateway : IMyceliumGateway
 
     public Dictionary<Guid, string> RunStatuses { get; } = new();
 
+    public string? RunStatusOf(Guid runId)
+    {
+        lock (_model) return RunStatuses.GetValueOrDefault(runId);
+    }
+
     // The predicate the model binds to runStopping; a dispatched relationship written along it is a stop.
     public Guid StopsConnection { get; } = Guid.NewGuid();
     public string StopReason { get; set; } = "withdrawn by its owner";
