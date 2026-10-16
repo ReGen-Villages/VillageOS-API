@@ -4,14 +4,10 @@ using vos.Service.Shared;
 
 namespace vos.Service.Phloem.Execution;
 
-public sealed record DagValidationResult(IReadOnlyList<Guid> Order, IReadOnlyList<string> Errors);
-
-// Validates a PipelineDag up front (distinct from Hyphae's runtime oscillation
-// detection): every wire connects a real out-port to a real in-port of compatible type, and the graph is
-// acyclic — proven by a Kahn topological sort that orders every node.
+// Every reason a drawing cannot run, judged before anything runs; Hyphae's oscillation detection judges a run while it runs.
 public static class DagValidator
 {
-    public static DagValidationResult Validate(PipelineDag dag)
+    public static IReadOnlyList<string> Validate(PipelineDag dag)
     {
         var errors = new List<string>(dag.Problems);
 
@@ -33,21 +29,22 @@ public static class DagValidator
         foreach (var node in dag.Nodes.Where(node => node.HandsOverTo is not null && node.CollectionInput is not null))
             errors.Add($"'{node.Name}' hands its subject over, but runs once for each item of '{node.CollectionInput!.PortName}'; a node that hands over runs once.");
 
-        var order = TopoSort(dag, out var cyclicNodeIds);
-        if (cyclicNodeIds.Count > 0)
+        var unschedulable = UnschedulableNodes(dag);
+        if (unschedulable.Count > 0)
         {
-            var names = cyclicNodeIds.Select(id => dag.Node(id)?.Name ?? id.ToString());
+            var names = unschedulable.Select(id => dag.Node(id)?.Name ?? id.ToString());
             errors.Add($"Pipeline has a cycle; unschedulable nodes: {string.Join(", ", names)}.");
         }
 
-        return new DagValidationResult(errors.Count == 0 ? order : Array.Empty<Guid>(), errors);
+        return errors;
     }
 
     private static void ValidateWire(PipelineDag dag, DagWire wire, List<string> errors)
     {
         var from = dag.Node(wire.FromNodeId);
         var to = dag.Node(wire.ToNodeId);
-        if (from == null || to == null) return; // builder already drops wires leaving the pipeline
+        // The builder drops a wire leaving the pipeline, and a node it could not read is already a listed problem.
+        if (from == null || to == null) return;
 
         var outPort = from.Port(wire.FromPort);
         var inPort = to.Port(wire.ToPort);
@@ -116,7 +113,8 @@ public static class DagValidator
         || string.Equals(inType, "any", StringComparison.OrdinalIgnoreCase)
         || string.Equals(outType, inType, StringComparison.OrdinalIgnoreCase);
 
-    public static IReadOnlyList<Guid> TopoSort(PipelineDag dag, out IReadOnlyList<Guid> cyclic)
+    // A Kahn topological sort, which never reaches a node on a cycle or after one.
+    private static IReadOnlyList<Guid> UnschedulableNodes(PipelineDag dag)
     {
         var indeg = dag.Nodes.ToDictionary(n => n.NodeId, _ => 0);
         var outEdges = dag.Nodes.ToDictionary(n => n.NodeId, _ => new List<Guid>());
@@ -137,9 +135,6 @@ public static class DagValidator
                 if (--indeg[next] == 0) queue.Enqueue(next);
         }
 
-        cyclic = order.Count == dag.Nodes.Count
-            ? Array.Empty<Guid>()
-            : dag.Nodes.Select(n => n.NodeId).Except(order).ToList();
-        return order;
+        return dag.Nodes.Select(n => n.NodeId).Except(order).ToList();
     }
 }

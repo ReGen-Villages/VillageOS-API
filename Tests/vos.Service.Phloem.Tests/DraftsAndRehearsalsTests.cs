@@ -99,6 +99,8 @@ public class DraftsAndRehearsalsTests
         end.Status.Should().Be(RunStatus.Rehearsed);
         end.Outputs["result"].GetString().Should().Be("heard");
         result.Success.Should().BeTrue();
+        result.Result!.Value.GetProperty("result").GetString().Should().Be("heard", "the run's result is what reached its end, rehearsed or not");
+        gateway.RunResult!.Value.GetProperty("result").GetString().Should().Be("heard");
     }
 
     [Fact]

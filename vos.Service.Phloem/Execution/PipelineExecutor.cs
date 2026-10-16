@@ -264,7 +264,7 @@ public sealed class PipelineExecutor
             return (null, $"Failed to load pipeline: {ex.Message}");
         }
 
-        var reasons = DagValidator.Validate(dag).Errors.ToList();
+        var reasons = DagValidator.Validate(dag).ToList();
         if (start is not null)
         {
             reasons.AddRange(DagValidator.UnfilledByParameters(dag, start.Parameters));
