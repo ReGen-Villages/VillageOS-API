@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
@@ -23,6 +24,9 @@ public sealed class PipelineExecutor
     // Held from placing a vigil until the node run is related to it, and by every lookup of a vigil's holder, so
     // an answer arriving at once for a Thing already in the state finds the node run it was placed for.
     private readonly SemaphoreSlim _placing = new(1, 1);
+    // A stop asked for a run whose sweep is under way here, read between its steps and by a pause between attempts.
+    // Held only while the sweep or the stop that set it is working, so nothing outlives a run.
+    private readonly ConcurrentDictionary<Guid, TaskCompletionSource<StopRequested>> _stops = new();
 
     public PipelineExecutor(
         IMyceliumGateway gateway,
@@ -43,18 +47,78 @@ public sealed class PipelineExecutor
     // one value carrying the Thing's id and name, so a wire narrows it to either by its from-path.
     public async Task<PipelineRunResult> RunAsync(
         Guid pipelineId, JsonElement runParams, CancellationToken cancellationToken, Guid? runId = null, RunSubject? subject = null,
-        Guid? requestId = null, Guid? startedBy = null)
+        Guid? requestId = null, Guid? startedBy = null, bool rehearsal = false)
     {
         var rid = runId ?? Guid.NewGuid();
         if (subject is not null) runParams = WithSubject(runParams, subject);
 
-        var (dag, refusal) = await LoadAsync(pipelineId, cancellationToken, startingWith: runParams);
-        await BestEffort(() => _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject, requestId, runParams, startedBy, refusal), "create run");
+        // Held from before the run exists, so a stop finds either no run or one whose sweep sees the stop.
+        using var turn = await _turns.TakeAsync(rid, cancellationToken);
+        var (dag, refusal) = await LoadAsync(pipelineId, cancellationToken, new Start(runParams, rehearsal));
+        await BestEffort(() => _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject, requestId, runParams, startedBy, refusal, rehearsal), "create run");
         if (dag is null) return PipelineRunResult.Failed(rid, pipelineId, refusal!);
 
-        using var turn = await _turns.TakeAsync(rid, cancellationToken);
-        return await SweepAsync(rid, dag, runParams, new Progress(), cancellationToken);
+        return await SweepAsync(rid, dag, runParams, new Progress(), rehearsal, cancellationToken);
     }
+
+    public Task<bool> IsStopAsync(Guid relationshipId, CancellationToken cancellationToken) =>
+        _gateway.IsStopAsync(relationshipId, cancellationToken);
+
+    // A run whose sweep is under way here stops at its next step, or at once from a pause between attempts, and its
+    // sweep records the stop. A run waiting for a state, or left running by an orchestrator that stopped, has no sweep
+    // to see it, so it is ended here under its turn: its vigils retired, each node not finished recorded stopped.
+    // Every run is told before any turn is waited for, and each is ended on its own, so a run in the middle of a
+    // long call holds up none of the others.
+    public async Task StopAsync(Guid stopRequestId, Guid targetId, CancellationToken cancellationToken)
+    {
+        var request = await _gateway.StopRequestedAsync(stopRequestId, targetId, cancellationToken);
+        foreach (var runId in request.Runs)
+            _stops.GetOrAdd(runId, _ => NewStop()).TrySetResult(request);
+        await Task.WhenAll(request.Runs.Select(runId => EndUnlessItsSweepDoesAsync(runId, request, cancellationToken)));
+    }
+
+    private async Task EndUnlessItsSweepDoesAsync(Guid runId, StopRequested request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var turn = await _turns.TakeAsync(runId, cancellationToken);
+            if (await _gateway.ReadRunRecordAsync(runId, cancellationToken) is { } record && !RunStatus.IsFinished(record.Status))
+                await EndStoppedRunAsync(record, request, cancellationToken);
+        }
+        finally
+        {
+            _stops.TryRemove(runId, out _);
+        }
+    }
+
+    private async Task EndStoppedRunAsync(RunRecord record, StopRequested request, CancellationToken cancellationToken)
+    {
+        var (dag, _) = await LoadAsync(record.PipelineId, cancellationToken);
+        var waits = record.Nodes.Values.Any(node => node.Status == RunStatus.Waiting)
+            ? (await _gateway.WaitingNodeRunsAsync(cancellationToken)).Where(wait => wait.RunId == record.RunId).ToList()
+            : [];
+        foreach (var wait in waits)
+        {
+            if (wait.VigilId is { } vigil) await BestEffort(() => _gateway.RetireVigilAsync(vigil, cancellationToken), "retire the vigil");
+            await BestEffort(() => _gateway.ForgetAwaitedAsync(record.RunId, wait.NodeId, cancellationToken), "forget the awaited Thing");
+        }
+
+        foreach (var node in dag?.Nodes ?? [])
+        {
+            if (record.Nodes.TryGetValue(node.NodeId, out var recorded) && RunStatus.IsFinished(recorded.Status)) continue;
+            await PersistStatusAsync(record.RunId, new NodeRunResult(node.NodeId, node.Name, RunStatus.Cancelled, NoOutputs, request.Reason), cancellationToken);
+        }
+        await BestEffort(() => _gateway.SetRunStatusAsync(record.RunId, RunStatus.Cancelled, cancellationToken, request.Reason), "set run stopped");
+        await BestEffort(() => _gateway.RelateStoppedByAsync(record.RunId, request.RequestId, cancellationToken), "relate the stop");
+    }
+
+    private static TaskCompletionSource<StopRequested> NewStop() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    private StopRequested? StopOf(Guid runId) =>
+        _stops.TryGetValue(runId, out var stop) && stop.Task.IsCompletedSuccessfully ? stop.Task.Result : null;
+
+    // What a run is judged against when it starts, beside its drawing.
+    private sealed record Start(JsonElement Parameters, bool Rehearsal);
 
     // The vigil's answer: the node run holding it succeeds with the outputs its service answered before the wait,
     // and the run carries on from its record. Nothing is dispatched a second time.
@@ -90,7 +154,7 @@ public sealed class PipelineExecutor
         await BestEffort(() => _gateway.ForgetAwaitedAsync(record.RunId, holder.NodeId, cancellationToken), "forget the awaited Thing");
         await BestEffort(() => _gateway.SetRunStatusAsync(record.RunId, RunStatus.Running, cancellationToken), "set run running");
 
-        await SweepAsync(record.RunId, dag, record.Parameters, progress, cancellationToken);
+        await SweepAsync(record.RunId, dag, record.Parameters, progress, record.Rehearsal, cancellationToken);
         return ResumeOutcome.Resumed;
     }
 
@@ -174,7 +238,7 @@ public sealed class PipelineExecutor
                 try
                 {
                     using var ownTurn = await _turns.TakeAsync(record.RunId, CancellationToken.None);
-                    await SweepAsync(record.RunId, dag!, record.Parameters, progress!, CancellationToken.None);
+                    await SweepAsync(record.RunId, dag!, record.Parameters, progress!, record.Rehearsal, CancellationToken.None);
                 }
                 catch (Exception ex) { _logger.LogError(ex, "Carrying on run {RunId} from its trying node failed", record.RunId); }
             });
@@ -182,7 +246,7 @@ public sealed class PipelineExecutor
         return carriedOn;
     }
 
-    private async Task<(PipelineDag? Dag, string? Refusal)> LoadAsync(Guid pipelineId, CancellationToken cancellationToken, JsonElement? startingWith = null)
+    private async Task<(PipelineDag? Dag, string? Refusal)> LoadAsync(Guid pipelineId, CancellationToken cancellationToken, Start? start = null)
     {
         PipelineDag dag;
         try
@@ -200,8 +264,13 @@ public sealed class PipelineExecutor
             return (null, $"Failed to load pipeline: {ex.Message}");
         }
 
-        var reasons = DagValidator.Validate(dag)
-            .Concat(startingWith is { } parameters ? DagValidator.UnfilledByParameters(dag, parameters) : []).ToList();
+        var reasons = DagValidator.Validate(dag).ToList();
+        if (start is not null)
+        {
+            reasons.AddRange(DagValidator.UnfilledByParameters(dag, start.Parameters));
+            if (!dag.Published && !start.Rehearsal)
+                reasons.Add($"'{dag.Name}' is a draft, so it runs only as a rehearsal.");
+        }
         return reasons.Count == 0 ? (dag, null) : (null, "Pipeline is invalid: " + string.Join(" ", reasons));
     }
 
@@ -263,13 +332,26 @@ public sealed class PipelineExecutor
     }
 
     private async Task<PipelineRunResult> SweepAsync(
-        Guid rid, PipelineDag dag, JsonElement runParams, Progress progress, CancellationToken cancellationToken)
+        Guid rid, PipelineDag dag, JsonElement runParams, Progress progress, bool rehearsal, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await SweepUntilSettledAsync(rid, dag, runParams, progress, rehearsal, cancellationToken);
+        }
+        finally
+        {
+            _stops.TryRemove(rid, out _);
+        }
+    }
+
+    private async Task<PipelineRunResult> SweepUntilSettledAsync(
+        Guid rid, PipelineDag dag, JsonElement runParams, Progress progress, bool rehearsal, CancellationToken cancellationToken)
     {
         var pipelineId = dag.PipelineId;
         var results = progress.Results;
         var outputs = progress.Outputs;
         var halted = false;
-        var cancelled = false;
+        StopRequested? stopped = null;
 
         bool Unsettled(DagNode node) => !results.ContainsKey(node.NodeId) && !progress.Waiting.ContainsKey(node.NodeId);
 
@@ -277,7 +359,7 @@ public sealed class PipelineExecutor
         var pending = dag.Nodes.Where(Unsettled).ToList();
         while (pending.Count > 0 && !halted)
         {
-            if (await IsCancelledAsync(rid, cancellationToken)) { cancelled = true; break; }
+            if (StopOf(rid) is { } stop) { stopped = stop; break; }
 
             // A node behind a waiting one is not ready until the wait is over.
             var ready = pending.Where(n => dag.WiresInto(n.NodeId).All(w => results.ContainsKey(w.FromNodeId))).ToList();
@@ -295,7 +377,7 @@ public sealed class PipelineExecutor
             }
 
             var batch = await Task.WhenAll(ready.Except(notTaken).Select(node => RunNodeGuardedAsync(gate, dag, node, rid, outputs, runParams,
-                progress.Trying.TryGetValue(node.NodeId, out var made) ? made : [], cancellationToken)));
+                progress.Trying.TryGetValue(node.NodeId, out var made) ? made : [], rehearsal, cancellationToken)));
 
             foreach (var result in batch)
             {
@@ -307,14 +389,13 @@ public sealed class PipelineExecutor
                 // failure halts dependents.
                 if (result.Status is RunStatus.Succeeded or RunStatus.Partial)
                     outputs[result.NodeId] = result.Outputs;
-                if (result.Status is RunStatus.Failed or RunStatus.HandedOver)
+                if (result.Status is RunStatus.Failed or RunStatus.HandedOver or RunStatus.CannotRehearse)
                     halted = true;
                 await PersistStatusAsync(rid, result, cancellationToken);
             }
             pending = pending.Where(Unsettled).ToList();
         }
-
-        if (!halted && !cancelled && progress.Waiting.Count > 0)
+        if (!halted && stopped is null && progress.Waiting.Count > 0)
         {
             var failures = await HoldAsync(rid, dag, progress, cancellationToken);
             foreach (var failure in failures)
@@ -332,30 +413,33 @@ public sealed class PipelineExecutor
             halted = true;
         }
 
-        // Anything still pending, or waiting, was blocked by an upstream failure, or skipped because the run was cancelled.
-        var pendingStatus = cancelled ? RunStatus.Cancelled : RunStatus.Skipped;
-        foreach (var node in pending.Concat(progress.Waiting.Keys.Select(id => dag.Node(id)!)))
+        // Anything still pending, or waiting, was blocked by an upstream failure, or not reached because the run was stopped.
+        var pendingStatus = stopped is not null ? RunStatus.Cancelled : RunStatus.Skipped;
+        foreach (var node in pending.Concat(progress.Waiting.Keys.Select(id => dag.Node(id)!)).Where(node => !results.ContainsKey(node.NodeId)))
         {
-            var result = new NodeRunResult(node.NodeId, node.Name, pendingStatus, NoOutputs, null);
+            var result = new NodeRunResult(node.NodeId, node.Name, pendingStatus, NoOutputs, stopped?.Reason);
             results[node.NodeId] = result;
             await PersistStatusAsync(rid, result, cancellationToken);
         }
 
         // A partial node (collect-partial fan-out) does not fail the run; only a hard node failure does.
-        var runStatus = cancelled ? RunStatus.Cancelled
+        var runStatus = stopped is not null ? RunStatus.Cancelled
             : results.Values.Any(r => r.Status == RunStatus.Failed) ? RunStatus.Failed
+            : results.Values.Any(r => r.Status == RunStatus.CannotRehearse) ? RunStatus.CannotRehearse
             : results.Values.Any(r => r.Status == RunStatus.HandedOver) ? RunStatus.HandedOver
+            : rehearsal ? RunStatus.Rehearsed
             : RunStatus.Succeeded;
-        await BestEffort(() => _gateway.SetRunStatusAsync(rid, runStatus, cancellationToken), "set run status");
+        await BestEffort(() => _gateway.SetRunStatusAsync(rid, runStatus, cancellationToken, stopped?.Reason), "set run status");
+        if (stopped is not null) await BestEffort(() => _gateway.RelateStoppedByAsync(rid, stopped.RequestId, cancellationToken), "relate the stop");
 
-        var success = runStatus == RunStatus.Succeeded;
+        var success = runStatus is RunStatus.Succeeded or RunStatus.Rehearsed;
         var ordered = dag.Nodes.Select(n => results[n.NodeId]).ToList();
 
         // The pipeline's published result: the Output boundary node's collected inputs. Persisted on the
         // PipelineRun Thing (so it streams over SSE and is temporally queryable) and returned to the caller.
         JsonElement? runResult = null;
         var outputNode = dag.Nodes.FirstOrDefault(n => n.Kind == DagNodeKind.Output);
-        if (outputNode != null && success && results[outputNode.NodeId].Status == RunStatus.Succeeded)
+        if (outputNode != null && success && results[outputNode.NodeId].Status is RunStatus.Succeeded or RunStatus.Rehearsed)
         {
             try
             {
@@ -371,7 +455,8 @@ public sealed class PipelineExecutor
 
         return new PipelineRunResult(rid, pipelineId, success, ordered,
             success ? null
-                : cancelled ? "Run cancelled."
+                : stopped is not null ? $"Run stopped: {stopped.Reason}"
+                : runStatus == RunStatus.CannotRehearse ? "The rehearsal stopped at a node it cannot rehearse."
                 : runStatus == RunStatus.HandedOver ? "The run handed its subject to another drawing."
                 : "One or more nodes failed.",
             runResult);
@@ -490,21 +575,15 @@ public sealed class PipelineExecutor
         }
     }
 
-    private async Task<bool> IsCancelledAsync(Guid runId, CancellationToken cancellationToken)
-    {
-        try { return await _gateway.IsCancelRequestedAsync(runId, cancellationToken); }
-        catch (Exception ex) { _logger.LogWarning(ex, "Cancel check failed for run {RunId}", runId); return false; }
-    }
-
     private async Task<NodeRunResult> RunNodeGuardedAsync(
         SemaphoreSlim gate, PipelineDag dag, DagNode node, Guid runId,
         IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, JsonElement runParams,
-        IReadOnlyList<AttemptRecord> attemptsMade, CancellationToken cancellationToken)
+        IReadOnlyList<AttemptRecord> attemptsMade, bool rehearsal, CancellationToken cancellationToken)
     {
         await gate.WaitAsync(cancellationToken);
         try
         {
-            return await RunNodeAsync(dag, node, runId, outputs, runParams, attemptsMade, cancellationToken);
+            return await RunNodeAsync(dag, node, runId, outputs, runParams, attemptsMade, rehearsal, cancellationToken);
         }
         finally
         {
@@ -528,6 +607,21 @@ public sealed class PipelineExecutor
         {
             return new NodeRunResult(node.NodeId, node.Name, RunStatus.Failed, NoOutputs,
                 $"The message to '{telling.SystemName}' could not be written: {ex.Message}");
+        }
+    }
+
+    // What would have been sent, or would have started the next run, is kept as the end's outputs, so the page can
+    // show it; nothing is written but the record.
+    private NodeRunResult RehearseEnd(
+        PipelineDag dag, DagNode node, IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, JsonElement runParams)
+    {
+        try
+        {
+            return new NodeRunResult(node.NodeId, node.Name, RunStatus.Rehearsed, AssembleInputs(dag, node, outputs, runParams), null);
+        }
+        catch (Exception ex)
+        {
+            return Failure(node, $"What reaches '{node.Name}' could not be put together: {ex.Message}");
         }
     }
 
@@ -575,7 +669,7 @@ public sealed class PipelineExecutor
     private async Task<NodeRunResult> RunNodeAsync(
         PipelineDag dag, DagNode node, Guid runId,
         IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, JsonElement runParams,
-        IReadOnlyList<AttemptRecord> attemptsMade, CancellationToken cancellationToken)
+        IReadOnlyList<AttemptRecord> attemptsMade, bool rehearsal, CancellationToken cancellationToken)
     {
         // Mark the node (aggregate) running before dispatch so the editor animates it live; the terminal status
         // is written by RunAsync from the value returned here.
@@ -589,6 +683,7 @@ public sealed class PipelineExecutor
         if (node.Kind == DagNodeKind.Output)
             return node switch
             {
+                { Tells: not null } or { Starts: not null } when rehearsal => RehearseEnd(dag, node, outputs, runParams),
                 { Tells: { } telling } => await TellAsync(dag, node, telling, runId, outputs, runParams, cancellationToken),
                 { Starts: { } starting } => StartFromEnd(dag, node, starting, runId, outputs, runParams),
                 _ => new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, NoOutputs, null),
@@ -604,10 +699,17 @@ public sealed class PipelineExecutor
             return new NodeRunResult(node.NodeId, node.Name, RunStatus.Failed, NoOutputs, $"Wire transform failed: {ex.Message}");
         }
 
+        if (rehearsal && node.Waits is { } awaitedState)
+            return new NodeRunResult(node.NodeId, node.Name, RunStatus.CannotRehearse, NoOutputs,
+                $"'{node.Name}' waits for '{awaitedState.RangeName}', which a rehearsal cannot do, so the rehearsal stops here.");
+        if (rehearsal && !node.Rehearses)
+            return new NodeRunResult(node.NodeId, node.Name, RunStatus.CannotRehearse, NoOutputs,
+                $"'{node.Name}' calls '{node.Subdomain}', whose service does not rehearse, so the rehearsal stops here.");
+
         // Fan-out: if the node has a collection input and it carries a list, run the node once per item.
         var collection = node.CollectionInput;
         if (collection != null && inputs.TryGetValue(collection.PortName, out var collValue) && collValue.ValueKind == JsonValueKind.Array)
-            return await RunFanOutAsync(node, runId, inputs, collection.PortName, collValue, cancellationToken);
+            return await RunFanOutAsync(node, runId, inputs, collection.PortName, collValue, rehearsal, cancellationToken);
 
         AwaitedThing? awaited = null;
         if (node.Waits is { } wait)
@@ -617,11 +719,11 @@ public sealed class PipelineExecutor
                 return Failure(node, $"'{node.Name}' waits for the Thing reaching its port '{wait.PortName}', but what reached it names no Thing.");
         }
 
-        var (result, gaveUp) = await AttemptAsync(node, runId, inputs, index: null, total: 0, attemptsMade, cancellationToken);
-        if (gaveUp && node.HandsOverTo is { } next)
+        var (result, gaveUp) = await AttemptAsync(node, runId, inputs, index: null, total: 0, attemptsMade, rehearsal, cancellationToken);
+        if (gaveUp && node.HandsOverTo is { } next && !rehearsal)
             result = StartNext(node, next, runId, inputs, runParams, RunStatus.HandedOver,
                 $"{result.Error} The subject went to '{next.PipelineName}'.");
-        await RecordProducedAsync(runId, node, index: null, result, cancellationToken);
+        if (!rehearsal) await RecordProducedAsync(runId, node, index: null, result, cancellationToken);
         return awaited is not null && result.Status == RunStatus.Succeeded
             ? result with { Status = RunStatus.Waiting, Awaits = awaited }
             : result;
@@ -712,13 +814,13 @@ public sealed class PipelineExecutor
     // and gather each output port into a list. onItemError chooses fail-fast vs collect-partial.
     private async Task<NodeRunResult> RunFanOutAsync(
         DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> baseInputs,
-        string collectionPort, JsonElement items, CancellationToken cancellationToken)
+        string collectionPort, JsonElement items, bool rehearsal, CancellationToken cancellationToken)
     {
         var itemList = items.EnumerateArray().ToList();
         var total = itemList.Count;
         using var itemGate = new SemaphoreSlim(_maxConcurrency);
         var results = await Task.WhenAll(itemList.Select((item, i) =>
-            RunItemAsync(node, runId, baseInputs, collectionPort, item, i, total, itemGate, cancellationToken)));
+            RunItemAsync(node, runId, baseInputs, collectionPort, item, i, total, itemGate, rehearsal, cancellationToken)));
 
         var failures = results.Count(r => r.Status != RunStatus.Succeeded);
         var continueOnError = string.Equals(node.OnItemError, ModelNames.OnItemErrorContinue, StringComparison.OrdinalIgnoreCase);
@@ -738,16 +840,16 @@ public sealed class PipelineExecutor
 
     private async Task<NodeRunResult> RunItemAsync(
         DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> baseInputs,
-        string collectionPort, JsonElement item, int index, int total, SemaphoreSlim itemGate, CancellationToken cancellationToken)
+        string collectionPort, JsonElement item, int index, int total, SemaphoreSlim itemGate, bool rehearsal, CancellationToken cancellationToken)
     {
         await itemGate.WaitAsync(cancellationToken);
         try
         {
             await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, RunStatus.Running, null, cancellationToken, index, total), "persist item running");
             var inputs = new Dictionary<string, JsonElement>(baseInputs, StringComparer.Ordinal) { [collectionPort] = item };
-            var (result, _) = await AttemptAsync(node, runId, inputs, index, total, [], cancellationToken);
+            var (result, _) = await AttemptAsync(node, runId, inputs, index, total, [], rehearsal, cancellationToken);
             await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, result.Status, result.Error, cancellationToken, index, total, result.Outputs), "persist item terminal");
-            await RecordProducedAsync(runId, node, index, result, cancellationToken);
+            if (!rehearsal) await RecordProducedAsync(runId, node, index, result, cancellationToken);
             return result;
         }
         finally
@@ -804,21 +906,23 @@ public sealed class PipelineExecutor
     // among them. GaveUp says the attempts or the trying time ran out, which is what a hand-over acts on.
     private async Task<(NodeRunResult Result, bool GaveUp)> AttemptAsync(
         DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> inputs, int? index, int total,
-        IReadOnlyList<AttemptRecord> attemptsMade, CancellationToken cancellationToken)
+        IReadOnlyList<AttemptRecord> attemptsMade, bool rehearsal, CancellationToken cancellationToken)
     {
         if (node.Retries is not { } policy)
-            return ((await DispatchOnceAsync(node, runId, inputs, index, cancellationToken)).Result, false);
+            return ((await DispatchOnceAsync(node, runId, inputs, index, rehearsal, cancellationToken)).Result, false);
 
         var firstStarted = attemptsMade.Count > 0 ? attemptsMade[0].StartedUtc : _clock.GetUtcNow();
         var number = attemptsMade.Count;
         if (attemptsMade.Count > 0)
-            await PauseAsync(attemptsMade[^1].FinishedUtc + policy.PauseBefore(number + 1, 0) - _clock.GetUtcNow(), cancellationToken);
+            await PauseAsync(runId, attemptsMade[^1].FinishedUtc + policy.PauseBefore(number + 1, 0) - _clock.GetUtcNow(), cancellationToken);
 
         while (true)
         {
+            if (StopOf(runId) is { } stop)
+                return (new NodeRunResult(node.NodeId, node.Name, RunStatus.Cancelled, NoOutputs, stop.Reason), false);
             number++;
             var started = _clock.GetUtcNow();
-            var outcome = await DispatchOnceAsync(node, runId, inputs, index, cancellationToken);
+            var outcome = await DispatchOnceAsync(node, runId, inputs, index, rehearsal, cancellationToken);
             var attempt = new AttemptRecord(number, started, _clock.GetUtcNow(), outcome.Result.Status, outcome.Result.Error);
             await BestEffort(() => _gateway.RecordAttemptAsync(runId, node.NodeId, index, attempt, cancellationToken), "record attempt");
             if (outcome.ReachedTheService) return (outcome.Result, false);
@@ -827,22 +931,25 @@ public sealed class PipelineExecutor
             var pause = policy.PauseBefore(number + 1, Random.Shared.NextDouble());
             if (attempt.FinishedUtc + pause > firstStarted + policy.TryingTime) return (outcome.Result, true);
             await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, RunStatus.Trying, null, cancellationToken, index, total), "persist node trying");
-            await PauseAsync(pause, cancellationToken);
+            await PauseAsync(runId, pause, cancellationToken);
         }
     }
 
-    // A pause in model time takes real time by the model clock's rate; a clock that stands still runs the pause in real time.
-    private Task PauseAsync(TimeSpan modelTime, CancellationToken cancellationToken) =>
-        modelTime <= TimeSpan.Zero ? Task.CompletedTask : Task.Delay(modelTime / (_clock.Rate > 0 ? _clock.Rate : 1.0), cancellationToken);
+    // A pause in model time takes real time by the model clock's rate; a clock that stands still runs the pause in real
+    // time. A stop asked for the run ends the pause at once.
+    private Task PauseAsync(Guid runId, TimeSpan modelTime, CancellationToken cancellationToken) =>
+        modelTime <= TimeSpan.Zero
+            ? Task.CompletedTask
+            : Task.WhenAny(Task.Delay(modelTime / (_clock.Rate > 0 ? _clock.Rate : 1.0), cancellationToken), _stops.GetOrAdd(runId, _ => NewStop()).Task);
 
     private sealed record DispatchOutcome(NodeRunResult Result, bool ReachedTheService);
 
     // A call that threw, or that the broker's door answered for a service it could not reach, never reached the
     // service; any other answer came from it.
     private async Task<DispatchOutcome> DispatchOnceAsync(
-        DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> inputs, int? index, CancellationToken cancellationToken)
+        DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> inputs, int? index, bool rehearsal, CancellationToken cancellationToken)
     {
-        var envelope = BuildEnvelope(runId, node, inputs, index);
+        var envelope = BuildEnvelope(runId, node, inputs, index, rehearsal);
 
         NodeDispatchResult dispatch;
         try
@@ -899,19 +1006,20 @@ public sealed class PipelineExecutor
         return false;
     }
 
-    // Serialize the node envelope {runId,nodeId,index?,params,inputs}. index is the
-    // fan-out item index (null for a normal single dispatch).
-    private static JsonElement BuildEnvelope(Guid runId, DagNode node, IReadOnlyDictionary<string, JsonElement> inputs, int? index = null)
+    // index is the fan-out item's, null for a single call; rehearsal is sent only when true, so a block that knows
+    // nothing of rehearsals reads the envelope it always has.
+    private static JsonElement BuildEnvelope(Guid runId, DagNode node, IReadOnlyDictionary<string, JsonElement> inputs, int? index, bool rehearsal)
     {
-        var json = JsonSerializer.Serialize(new
+        var envelope = new JsonObject
         {
-            runId,
-            nodeId = node.NodeId,
-            index,
-            @params = node.Params,
-            inputs,
-        });
-        return JsonSerializer.Deserialize<JsonElement>(json);
+            ["runId"] = runId,
+            ["nodeId"] = node.NodeId,
+            ["index"] = index,
+            ["params"] = JsonSerializer.SerializeToNode(node.Params),
+            ["inputs"] = JsonSerializer.SerializeToNode(inputs),
+        };
+        if (rehearsal) envelope[ModelNames.Rehearsal] = true;
+        return JsonSerializer.SerializeToElement(envelope);
     }
 
     private async Task BestEffort(Func<Task> action, string what)

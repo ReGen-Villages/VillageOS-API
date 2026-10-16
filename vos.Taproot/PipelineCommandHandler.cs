@@ -14,12 +14,16 @@ public class PipelineCommandHandler : CommandHandlerWithOutputOptions
     // The orchestrator is reached as the endpoint service at this subdomain, as Trellis reaches it.
     public const string OrchestratorSubdomain = "phloem";
 
-    // The platform's own predicate a run is written through, the property the orchestrator polls for a
-    // cooperative cancellation, and the one naming the request-log entry a run started from; none is a
-    // model's vocabulary.
+    // The platform's own predicate a run is written through, and the property naming the request-log entry a run
+    // started from; neither is a model's vocabulary.
     private const string OfPredicateName = "of";
-    private const string CancelRequestedProperty = "cancelRequested";
     private const string RequestIdProperty = "requestId";
+
+    // A run is stopped by a stop request related to it along the orchestrator's own connection; both are found
+    // through the role Things binding them, whose identifiers are the standard version 5 identifiers of their words.
+    public static readonly Guid StopRequestRoleId = new("159ef90f-8089-5055-b5a9-8839d5e28e7a");
+    public static readonly Guid RunStoppingRoleId = new("7acbab6c-58f3-5145-a9c0-18a907197131");
+    private const string BindsPredicateName = "binds";
 
     public PipelineCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions? options = null)
         : base(arg, writer, mycelium, options)
@@ -104,13 +108,38 @@ public class PipelineCommandHandler : CommandHandlerWithOutputOptions
     {
         if (args.Length == 0 || !Guid.TryParse(args[0], out var runId))
         {
-            _writer.WriteLine("Usage: pipeline cancel <run-id>");
+            _writer.WriteLine("Usage: pipeline cancel <run-id> [reason]");
             return;
         }
 
-        await _mycelium.SetPropertyAsync(runId, CancelRequestedProperty, "string", "true");
-        _writer.WriteLine($"Cancellation requested for run {runId}.");
+        var model = await ModelSnapshot.ReadAsync(_mycelium);
+        var isPredicate = OneNamed(model, IsPredicateName);
+        var kind = BoundBy(model, StopRequestRoleId);
+        var stops = BoundBy(model, RunStoppingRoleId);
+        if (isPredicate is null || kind is null || stops is null)
+        {
+            _writer.WriteLine("Error: this model binds nothing to stopping a run, so no stop request was written.");
+            return;
+        }
+
+        var reason = args.Length > 1 ? string.Join(" ", args.Skip(1)) : "Cancelled from Taproot.";
+        var request = Identifier(await _mycelium.CreateThingAsync("Stop request", false), "Id");
+        await _mycelium.CreateRelationshipAsync(request, isPredicate.Value, kind.Value);
+        await _mycelium.SetPropertyAsync(request, "reason", "string", reason);
+        await _mycelium.CreateRelationshipAsync(request, stops.Value, runId);
+        _writer.WriteLine($"Stop requested for run {runId}.");
     }
+
+    private static Guid? OneNamed(ModelSnapshot model, string name)
+    {
+        var named = model.ThingsById.Keys.Where(id => NameOf(model, id) == name).ToList();
+        return named.Count == 1 ? named[0] : null;
+    }
+
+    private static Guid? BoundBy(ModelSnapshot model, Guid roleId) =>
+        OneNamed(model, BindsPredicateName) is { } binds
+            ? EdgesThrough(model, binds).Where(edge => Subject(edge) == roleId).Select(edge => (Guid?)Target(edge)).FirstOrDefault()
+            : null;
 
     private async Task HistoryAsync(string[] args)
     {
@@ -167,7 +196,7 @@ public class PipelineCommandHandler : CommandHandlerWithOutputOptions
         _writer.WriteLine("Usage: pipeline list [--showguids]               - Every pipeline the model holds");
         _writer.WriteLine("       pipeline run <pipeline> [json params] [--wait]");
         _writer.WriteLine("                                                 - Start a run; --wait prints the per-node result instead of the run id");
-        _writer.WriteLine("       pipeline cancel <run-id>                  - Ask a running pipeline to stop");
+        _writer.WriteLine("       pipeline cancel <run-id> [reason]         - Ask a running, waiting or trying pipeline to stop");
         _writer.WriteLine("       pipeline history <pipeline>               - The runs of a pipeline, newest first");
         _writer.WriteLine();
         _writer.WriteLine("<pipeline> can be a GUID or a unique name. Pipelines and runs are found by the flags");

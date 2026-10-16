@@ -73,6 +73,8 @@ public sealed class DagNode
 
     public DagWait? Waits { get; init; }
 
+    public bool Rehearses { get; init; }
+
     public IEnumerable<DagPort> OutputPorts => Ports.Where(p => p.IsOutput);
 
     // A node with more than one is refused before it runs.
@@ -92,6 +94,7 @@ public sealed class PipelineDag
 {
     public Guid PipelineId { get; init; }
     public string Name { get; init; } = string.Empty;
+    public bool Published { get; init; }
     public IReadOnlyList<DagNode> Nodes { get; init; } = Array.Empty<DagNode>();
     public IReadOnlyList<DagWire> Wires { get; init; } = Array.Empty<DagWire>();
 
