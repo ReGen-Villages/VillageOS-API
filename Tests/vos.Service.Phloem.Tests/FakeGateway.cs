@@ -58,9 +58,15 @@ internal sealed class FakeGateway : IMyceliumGateway
 
     public JsonElement? ParametersRecorded { get; private set; }
 
-    public Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct, RunSubject? subject = null, Guid? requestId = null, JsonElement? parameters = null, Guid? startedBy = null)
+    public Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct, RunSubject? subject = null, Guid? requestId = null, JsonElement? parameters = null, Guid? startedBy = null,
+        string? refusal = null)
     {
         lock (RunsCreated) RunsCreated.Add((runId, pipelineId, subject, requestId, startedBy));
+        if (refusal is not null)
+        {
+            StatusUpdates.Add(RunStatus.Refused);
+            RunError = refusal;
+        }
         var recorded = parameters is { ValueKind: not JsonValueKind.Undefined } given ? given.Clone() : (JsonElement?)null;
         ParametersRecorded = recorded;
         lock (_model) Runs[runId] = (pipelineId, recorded ?? default);

@@ -116,8 +116,15 @@ public static class TestGraphs
         fx.Rel(proto, vocabulary.Has, portIn);
         fx.Rel(proto, vocabulary.Has, portOut);
 
+        // The first node is fed by nothing, so its service has no required input.
+        var sourceProto = fx.Thing("SourceProto");
+        fx.Rel(sourceProto, vocabulary.Is, vocabulary.Service);
+        var sourceOut = fx.Thing("s.out", ("direction", "out"), ("type", "string"), ("portName", "echo"));
+        fx.Rel(sourceOut, vocabulary.Is, vocabulary.Port);
+        fx.Rel(sourceProto, vocabulary.Has, sourceOut);
+
         var genSvc = fx.Thing("genSvc");
-        fx.Rel(genSvc, vocabulary.Is, proto);
+        fx.Rel(genSvc, vocabulary.Is, sourceProto);
         var echSvc = fx.Thing("echSvc");
         fx.Rel(echSvc, vocabulary.Is, proto);
 
@@ -826,8 +833,13 @@ public static class TestGraphs
         Port(fx, vocabulary, proto, "echo", "out", "string");
         Port(fx, vocabulary, proto, "trace", "out", "string");
 
+        var sourceProto = fx.Thing("SourceProto");
+        fx.Rel(sourceProto, vocabulary.Is, vocabulary.Service);
+        Port(fx, vocabulary, sourceProto, "echo", "out", "string");
+        Port(fx, vocabulary, sourceProto, "trace", "out", "string");
+
         var genSvc = fx.Thing("genSvc");
-        fx.Rel(genSvc, vocabulary.Is, proto);
+        fx.Rel(genSvc, vocabulary.Is, sourceProto);
         var echSvc = fx.Thing("echSvc");
         fx.Rel(echSvc, vocabulary.Is, proto);
 

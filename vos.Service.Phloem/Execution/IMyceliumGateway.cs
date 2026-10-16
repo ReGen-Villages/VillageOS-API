@@ -27,8 +27,9 @@ public interface IMyceliumGateway
     // The request that started it, when the broker named one, is the identifier of its request-log entry.
     // The parameters are kept on the run as given, so a trace and a resumed run read what it was asked.
     // A run another run's end started reaches that run along the predicate the startingRun role binds.
+    // A refused run is written finished with its refusal, so a run nobody awaits still says in the model why it never ran.
     Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null, Guid? requestId = null,
-        JsonElement? parameters = null, Guid? startedBy = null);
+        JsonElement? parameters = null, Guid? startedBy = null, string? refusal = null);
 
     // Upsert a NodeRun Thing and set its status — running before dispatch, then the terminal
     // status — on one Thing per key (deterministic id) so the SSE view sees a property change, not duplicate

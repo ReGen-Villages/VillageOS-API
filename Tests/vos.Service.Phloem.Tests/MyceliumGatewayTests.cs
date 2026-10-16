@@ -321,6 +321,19 @@ public class MyceliumGatewayTests
         RequestsTo(handler, "/api/relationships", HttpMethod.Post).Should().HaveCount(2);
     }
 
+    [Fact]
+    public async Task CreateRunAsync_WithARefusal_RecordsTheRunRefusedAndFinishedWithItsReasons()
+    {
+        var (gateway, handler) = NewGateway();
+
+        await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None, refusal: "Pipeline is invalid: 'Echo' needs its port 'message' filled.");
+
+        var properties = (await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single())).GetProperty("properties");
+        properties.GetProperty(ModelNames.Status).GetProperty("value").GetString().Should().Be(RunStatus.Refused);
+        properties.GetProperty(ModelNames.Error).GetProperty("value").GetString().Should().Contain("'Echo' needs its port 'message'");
+        properties.GetProperty(ModelNames.FinishedUtc).GetProperty("value").GetString().Should().NotBeNullOrEmpty();
+    }
+
     // The broker reads each property as { typeInfo, value } and refuses a bare one with a 400 carrying no
     // body, so a run answered its caller and left nothing behind.
     [Fact]

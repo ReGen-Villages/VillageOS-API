@@ -109,20 +109,21 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 
     public async Task CreateRunAsync(
         Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null, Guid? requestId = null,
-        JsonElement? parameters = null, Guid? startedBy = null)
+        JsonElement? parameters = null, Guid? startedBy = null, string? refusal = null)
     {
         // The result, the error and the finish are declared here with no value. Each is known only once the
         // run ends, and the property route sets a property the Thing already carries — so a run given one
         // only at the end is a run that can never be given one.
+        var now = DateTime.UtcNow.ToString("o");
         var properties = new Dictionary<string, string?>
         {
-            [ModelNames.Status] = RunStatus.Running,
+            [ModelNames.Status] = refusal is null ? RunStatus.Running : RunStatus.Refused,
             ["pipelineId"] = pipelineId.ToString(),
-            [ModelNames.StartedUtc] = DateTime.UtcNow.ToString("o"),
-            [ModelNames.FinishedUtc] = null,
+            [ModelNames.StartedUtc] = now,
+            [ModelNames.FinishedUtc] = refusal is null ? null : now,
             [ModelNames.Parameters] = parameters is { ValueKind: not JsonValueKind.Undefined } given ? given.GetRawText() : null,
             [ModelNames.Result] = null,
-            [ModelNames.Error] = null,
+            [ModelNames.Error] = refusal,
         };
         if (requestId is { } request) properties[ModelNames.RequestId] = request.ToString();
         await CreateThingWithIdAsync(runId, $"PipelineRun {runId:N}", properties, cancellationToken);

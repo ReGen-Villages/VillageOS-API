@@ -44,6 +44,7 @@ const RUN_STATUS_COLOR: Record<string, string> = {
   waiting: 'text-amber-600',
   succeeded: 'text-green-600',
   failed: 'text-red-500',
+  refused: 'text-red-500',
   cancelled: 'text-amber-600',
   partial: 'text-orange-500',
 };

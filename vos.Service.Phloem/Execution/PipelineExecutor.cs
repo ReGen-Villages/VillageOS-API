@@ -47,10 +47,10 @@ public sealed class PipelineExecutor
     {
         var rid = runId ?? Guid.NewGuid();
         if (subject is not null) runParams = WithSubject(runParams, subject);
-        await BestEffort(() => _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject, requestId, runParams, startedBy), "create run");
 
-        var (dag, refusal) = await LoadAsync(pipelineId, cancellationToken);
-        if (dag is null) return await FailRunAsync(rid, pipelineId, refusal!, cancellationToken);
+        var (dag, refusal) = await LoadAsync(pipelineId, cancellationToken, startingWith: runParams);
+        await BestEffort(() => _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject, requestId, runParams, startedBy, refusal), "create run");
+        if (dag is null) return PipelineRunResult.Failed(rid, pipelineId, refusal!);
 
         using var turn = await _turns.TakeAsync(rid, cancellationToken);
         return await SweepAsync(rid, dag, runParams, new Progress(), cancellationToken);
@@ -182,7 +182,7 @@ public sealed class PipelineExecutor
         return carriedOn;
     }
 
-    private async Task<(PipelineDag? Dag, string? Refusal)> LoadAsync(Guid pipelineId, CancellationToken cancellationToken)
+    private async Task<(PipelineDag? Dag, string? Refusal)> LoadAsync(Guid pipelineId, CancellationToken cancellationToken, JsonElement? startingWith = null)
     {
         PipelineDag dag;
         try
@@ -200,8 +200,9 @@ public sealed class PipelineExecutor
             return (null, $"Failed to load pipeline: {ex.Message}");
         }
 
-        var validation = DagValidator.Validate(dag);
-        return validation.IsValid ? (dag, null) : (null, "Pipeline is invalid: " + string.Join(" ", validation.Errors));
+        var reasons = DagValidator.Validate(dag)
+            .Concat(startingWith is { } parameters ? DagValidator.UnfilledByParameters(dag, parameters) : []).ToList();
+        return reasons.Count == 0 ? (dag, null) : (null, "Pipeline is invalid: " + string.Join(" ", reasons));
     }
 
     // What a sweep has settled so far: a fresh run starts with nothing, a resumed one with its record.
