@@ -260,6 +260,20 @@ class CatalystVocabularyTests(unittest.TestCase):
             return subprocess.run([sys.executable, "-I", os.path.join(here, "validate_fragment.py"), path],
                                   capture_output=True, text=True)
 
+    def test_every_drawing_is_published_so_the_model_starts_it(self):
+        [pipeline_archetype] = self.bound("pipeline")
+        [is_] = [tid for tid, t in self.kit.things.items() if t["Name"] == "is"]
+        drawings = [r["Subject"] for r in self.kit.rels.values() if r["Predicate"] == is_ and r["Target"] == pipeline_archetype]
+        self.assertTrue(drawings)
+        for drawing in drawings:
+            self.assertEqual(self.kit.things[drawing]["Properties"]["published"], {"typeInfo": "vos.Boolean", "value": True})
+
+    def test_only_the_services_known_to_write_nothing_rehearse(self):
+        rehearsing = {t["Name"] for t in self.kit.things.values() if t["Properties"].get("rehearses", {}).get("value") is True}
+        self.assertIn("Echo service", rehearsing)
+        self.assertIn("Decide service", rehearsing)
+        self.assertNotIn("Water Reserve service", rehearsing)
+
     def test_the_two_pipelines_drawn_from_outside_stand_for_their_ends(self):
         [stands_for] = self.bound("standsFor")
         stood = {(self.kit.things[r["Subject"]]["Name"], self.kit.things[r["Target"]]["Name"])

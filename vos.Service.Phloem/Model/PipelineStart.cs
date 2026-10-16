@@ -21,7 +21,9 @@ public static class PipelineStart
             return new StartResolution(null, $"Nothing in the model has the identifier {targetId}.");
 
         if (graph.IsOf(target, PipelineRoles.Pipeline))
-            return new StartResolution(target.Id, null);
+            return target.CarriesFlag(ModelNames.Published)
+                ? new StartResolution(target.Id, null)
+                : new StartResolution(null, $"'{target.Name}' is a draft, and the model starts only a published pipeline.");
 
         var drawnFrom = PipelineWhoseStartNodeStandsFor(graph, target)
             ?? graph.OutgoingAlong(target, PipelineRoles.StateWatch)
@@ -30,17 +32,18 @@ public static class PipelineStart
             ?? PipelineReachedFrom(graph, target);
         return drawnFrom is null
             ? new StartResolution(null,
-                $"No pipeline is drawn from '{target.Name}': no start node stands for it or for a state it watches, and it starts none.")
+                $"No published pipeline is drawn from '{target.Name}': no start node of one stands for it or for a state it watches, and it starts none.")
             : new StartResolution(drawnFrom.Id, null);
     }
 
+    // A draft drawn from the same catalyst stands beside the pipeline it revises, and is never the one started.
     private static GraphThing? PipelineWhoseStartNodeStandsFor(PipelineGraph graph, GraphThing target)
     {
         foreach (var node in graph.IncomingAlong(target, PipelineRoles.StandsFor))
         {
             if (!graph.IsOf(node, PipelineRoles.PipelineInput)) continue;
             var pipeline = graph.IncomingSubjects(node, ModelNames.Has)
-                .FirstOrDefault(holder => graph.IsOf(holder, PipelineRoles.Pipeline));
+                .FirstOrDefault(holder => graph.IsOf(holder, PipelineRoles.Pipeline) && holder.CarriesFlag(ModelNames.Published));
             if (pipeline is not null) return pipeline;
         }
         return null;
@@ -48,5 +51,5 @@ public static class PipelineStart
 
     private static GraphThing? PipelineReachedFrom(PipelineGraph graph, GraphThing target) =>
         graph.OutgoingAlong(target, PipelineRoles.PipelineStart)
-            .FirstOrDefault(reached => graph.IsOf(reached, PipelineRoles.Pipeline));
+            .FirstOrDefault(reached => graph.IsOf(reached, PipelineRoles.Pipeline) && reached.CarriesFlag(ModelNames.Published));
 }

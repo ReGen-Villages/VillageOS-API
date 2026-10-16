@@ -12,6 +12,7 @@ anything. A port with `collection` true drives fan-out on the Pipeline page (one
 # to) bound to a Service that declares the ports. `subdomain` values match real Managed Microservices where
 # one exists (echo, water-reserve, energy-balance, metabolism, model-bridge), so a saved pipeline can also be
 # Run against a live platform; the rest are dispatch-only stand-ins that still exercise the editor end to end.
+# Every service rehearses except the real ones nobody has yet checked to write nothing, marked "rehearses": False.
 #
 # port tuple = (portName, direction, type, required, collection)
 def _in(name, type="any", required=False, collection=False):
@@ -48,12 +49,12 @@ SERVICES = [
     {"key": "sum", "label": "Sum", "subdomain": "sum",
      "ports": [_in("a", "number", required=True), _in("b", "number", required=True), _out("total", "number")]},
 
-    {"key": "water-reserve", "label": "Water Reserve", "subdomain": "water-reserve",
+    {"key": "water-reserve", "label": "Water Reserve", "subdomain": "water-reserve", "rehearses": False,
      "ports": [_in("population", "number", required=True),
                _in("perCapitaConsumptionM3", "number", required=True),
                _in("storageCapacityM3", "number", required=True),
                _out("daysOfSupply", "number")]},
-    {"key": "energy-balance", "label": "Energy Balance", "subdomain": "energy-balance",
+    {"key": "energy-balance", "label": "Energy Balance", "subdomain": "energy-balance", "rehearses": False,
      "ports": [_in("solarPvAreaM2", "number", required=True),
                _in("solarResourceKwhPerM2PerYear", "number", required=True),
                _in("moduleEfficiency", "number", required=True),
@@ -61,11 +62,11 @@ SERVICES = [
                _in("otherGenerationMwhPerYear", "number", required=True),
                _in("annualConsumptionMwhPerYear", "number", required=True),
                _out("percentOfConsumption", "number")]},
-    {"key": "metabolism", "label": "Metabolism", "subdomain": "metabolism",
+    {"key": "metabolism", "label": "Metabolism", "subdomain": "metabolism", "rehearses": False,
      "ports": [_in("intakeKcal", "number", required=True),
                _in("populationCount", "number", required=True),
                _out("balanceKcal", "number")]},
-    {"key": "model-bridge", "label": "Model Bridge", "subdomain": "model-bridge",
+    {"key": "model-bridge", "label": "Model Bridge", "subdomain": "model-bridge", "rehearses": False,
      "ports": [_in("query", "string", required=True), _out("result", "any")]},
 
     {"key": "score", "label": "Scorer", "subdomain": "score",

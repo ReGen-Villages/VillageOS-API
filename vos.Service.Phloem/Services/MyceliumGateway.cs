@@ -109,7 +109,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 
     public async Task CreateRunAsync(
         Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null, Guid? requestId = null,
-        JsonElement? parameters = null, Guid? startedBy = null, string? refusal = null)
+        JsonElement? parameters = null, Guid? startedBy = null, string? refusal = null, bool rehearsal = false)
     {
         // The result, the error and the finish are declared here with no value. Each is known only once the
         // run ends, and the property route sets a property the Thing already carries — so a run given one
@@ -124,6 +124,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             [ModelNames.Parameters] = parameters is { ValueKind: not JsonValueKind.Undefined } given ? given.GetRawText() : null,
             [ModelNames.Result] = null,
             [ModelNames.Error] = refusal,
+            [ModelNames.Rehearsal] = rehearsal ? "true" : "false",
         };
         if (requestId is { } request) properties[ModelNames.RequestId] = request.ToString();
         await CreateThingWithIdAsync(runId, $"PipelineRun {runId:N}", properties, cancellationToken);
@@ -227,7 +228,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             if (!string.IsNullOrEmpty(held.PropertyString(ModelNames.Index))) continue;
             nodes[nodeId] = new NodeRecord(held.PropertyString(ModelNames.Status) ?? string.Empty, OutputsOf(held), AttemptsOf(graph, held));
         }
-        return new RunRecord(runId, pipeline.Id, JsonOf(run.PropertyString(ModelNames.Parameters)), nodes);
+        return new RunRecord(runId, pipeline.Id, JsonOf(run.PropertyString(ModelNames.Parameters)), nodes, run.CarriesFlag(ModelNames.Rehearsal));
     }
 
     private static IReadOnlyList<AttemptRecord> AttemptsOf(PipelineGraph graph, GraphThing nodeRun)

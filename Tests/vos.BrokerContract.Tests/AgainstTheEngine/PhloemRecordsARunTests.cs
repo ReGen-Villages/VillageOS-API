@@ -48,6 +48,20 @@ public class PhloemRecordsARunTests : IClassFixture<TheEngine>
     }
 
     [FactAgainstTheEngine]
+    public async Task A_rehearsal_is_read_back_as_one_and_a_run_for_real_is_not()
+    {
+        var pipelineId = await AModelThatBindsItsRunRolesAsync();
+        var rehearsal = Guid.NewGuid();
+        var forReal = Guid.NewGuid();
+
+        await Gateway().CreateRunAsync(rehearsal, pipelineId, CancellationToken.None, rehearsal: true);
+        await Gateway().CreateRunAsync(forReal, pipelineId, CancellationToken.None);
+
+        (await Gateway().ReadRunRecordAsync(rehearsal, CancellationToken.None))!.Rehearsal.Should().BeTrue();
+        (await Gateway().ReadRunRecordAsync(forReal, CancellationToken.None))!.Rehearsal.Should().BeFalse();
+    }
+
+    [FactAgainstTheEngine]
     public async Task A_run_is_recorded_with_what_it_started_as()
     {
         var pipelineId = await AModelThatBindsItsRunRolesAsync();

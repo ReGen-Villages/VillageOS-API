@@ -29,7 +29,7 @@ public interface IMyceliumGateway
     // A run another run's end started reaches that run along the predicate the startingRun role binds.
     // A refused run is written finished with its refusal, so a run nobody awaits still says in the model why it never ran.
     Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null, Guid? requestId = null,
-        JsonElement? parameters = null, Guid? startedBy = null, string? refusal = null);
+        JsonElement? parameters = null, Guid? startedBy = null, string? refusal = null, bool rehearsal = false);
 
     // Upsert a NodeRun Thing and set its status — running before dispatch, then the terminal
     // status — on one Thing per key (deterministic id) so the SSE view sees a property change, not duplicate
