@@ -225,6 +225,10 @@ public class MyceliumGatewayTests
         var selector = await ReadJson(RequestsTo(handler, "/api/subscriptions", HttpMethod.Post).Single());
         selector.GetProperty("includeRelationships").GetBoolean().Should().BeTrue();
         selector.GetProperty("includeIsAncestors").GetBoolean().Should().BeTrue();
+        var onlyRule = selector.GetProperty("relationships").EnumerateArray().Should().ContainSingle().Which;
+        onlyRule.GetProperty("direction").GetString().Should().Be("outgoing");
+        onlyRule.TryGetProperty("predicate", out _).Should().BeFalse("a rule naming no predicate takes every predicate");
+        onlyRule.TryGetProperty("predicateRole", out _).Should().BeFalse();
         // The only names on the selector are the built-in predicates: an archetype name asked for here
         // is what stopped finding anything the moment a model renamed one.
         selector.GetProperty("names").EnumerateArray().Select(name => name.GetString())
