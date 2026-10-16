@@ -914,7 +914,7 @@ public sealed class PipelineExecutor
         var firstStarted = attemptsMade.Count > 0 ? attemptsMade[0].StartedUtc : _clock.GetUtcNow();
         var number = attemptsMade.Count;
         if (attemptsMade.Count > 0)
-            await PauseAsync(runId, attemptsMade[^1].FinishedUtc + policy.PauseBefore(number + 1, 0) - _clock.GetUtcNow(), cancellationToken);
+            await PauseUntilAsync(runId, attemptsMade[^1].FinishedUtc + policy.PauseBefore(number + 1, 0), cancellationToken);
 
         while (true)
         {
@@ -931,16 +931,22 @@ public sealed class PipelineExecutor
             var pause = policy.PauseBefore(number + 1, Random.Shared.NextDouble());
             if (attempt.FinishedUtc + pause > firstStarted + policy.TryingTime) return (outcome.Result, true);
             await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, RunStatus.Trying, null, cancellationToken, index, total), "persist node trying");
-            await PauseAsync(runId, pause, cancellationToken);
+            await PauseUntilAsync(runId, attempt.FinishedUtc + pause, cancellationToken);
         }
     }
 
-    // A pause in model time takes real time by the model clock's rate; a clock that stands still runs the pause in real
-    // time. A stop asked for the run ends the pause at once.
-    private Task PauseAsync(Guid runId, TimeSpan modelTime, CancellationToken cancellationToken) =>
-        modelTime <= TimeSpan.Zero
-            ? Task.CompletedTask
-            : Task.WhenAny(Task.Delay(modelTime / (_clock.Rate > 0 ? _clock.Rate : 1.0), cancellationToken), _stops.GetOrAdd(runId, _ => NewStop()).Task);
+    // The pause is over when the model clock says so, not when the timer fires: a timer can fire a little early, and the
+    // clock's rate can change while the pause runs. A clock that stands still can never reach the end, so it takes the
+    // pause once in real time.
+    private async Task PauseUntilAsync(Guid runId, DateTimeOffset modelEnd, CancellationToken cancellationToken)
+    {
+        var stop = _stops.GetOrAdd(runId, _ => NewStop()).Task;
+        for (var remaining = modelEnd - _clock.GetUtcNow(); remaining > TimeSpan.Zero; remaining = modelEnd - _clock.GetUtcNow())
+        {
+            var ended = await Task.WhenAny(Task.Delay(remaining / (_clock.Rate > 0 ? _clock.Rate : 1.0), cancellationToken), stop);
+            if (ended == stop || ended.IsCanceled || _clock.Rate <= 0) return;
+        }
+    }
 
     private sealed record DispatchOutcome(NodeRunResult Result, bool ReachedTheService);
 
