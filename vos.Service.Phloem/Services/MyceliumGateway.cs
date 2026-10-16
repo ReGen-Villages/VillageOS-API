@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
 using vos.Service.Shared;
+using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Phloem.Services;
 
@@ -505,7 +506,10 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         return new NodeDispatchResult((int)response.StatusCode, body);
     }
 
-    private async Task<PipelineGraph> LoadSnapshotAsync(object selector, TimeSpan timeout, CancellationToken cancellationToken)
+    private async Task<PipelineGraph> LoadSnapshotAsync(object selector, TimeSpan timeout, CancellationToken cancellationToken) =>
+        SnapshotParser.Parse(await SnapshotAsync(selector, timeout, cancellationToken));
+
+    private async Task<JsonElement> SnapshotAsync(object selector, TimeSpan timeout, CancellationToken cancellationToken)
     {
         var client = await CreateAuthenticatedClientAsync(timeout);
         var response = await client.PostAsync($"{MyceliumUrl}/api/subscriptions",
@@ -513,14 +517,50 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         response.EnsureSuccessStatusCode();
 
         var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-        var graph = SnapshotParser.Parse(root);
 
         // Tidy up the snapshot subscription — Phloem reads once and does not stream here.
         if (TryGetPropertyCaseInsensitive(root, "subscriptionId", out var subId) && subId.ValueKind == JsonValueKind.String)
             _ = TryUnsubscribeAsync(subId.GetString()!);
 
-        return graph;
+        return root;
     }
+
+    // Read on every look, so it asks for the cadences alone; a kind of cadence is not one.
+    public async Task<IReadOnlyList<Cadence>> CadencesAsync(CancellationToken cancellationToken)
+    {
+        var selector = new { boundTypes = new[] { PipelineRoles.Cadence.Id }, includeIsAncestors = false, includeRelationships = false };
+        var root = await SnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
+        var snapshot = root.Deserialize<SubscribeResult>(SnapshotJson)?.Snapshot ?? root.Deserialize<SnapshotDocument>(SnapshotJson);
+
+        var cadences = new List<Cadence>();
+        foreach (var thing in snapshot?.Things ?? [])
+        {
+            if (thing.IsArchetype) continue;
+            var values = thing.ValuesStated().ToDictionary(value => value.Key, value => value.Value.Value, StringComparer.OrdinalIgnoreCase);
+            cadences.Add(new Cadence(thing.Id, thing.Name ?? string.Empty,
+                values.TryGetValue(ModelNames.IntervalMinutes, out var interval) ? NumberOf(interval) : 0,
+                values.TryGetValue(ModelNames.LastDue, out var lastDue) ? InstantOf(lastDue) : null));
+        }
+        return cadences;
+    }
+
+    private static readonly JsonSerializerOptions SnapshotJson = new(JsonSerializerDefaults.Web);
+
+    private static double NumberOf(JsonElement value) => value.ValueKind switch
+    {
+        JsonValueKind.Number => value.GetDouble(),
+        JsonValueKind.String when double.TryParse(value.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) => parsed,
+        _ => 0,
+    };
+
+    private static DateTimeOffset? InstantOf(JsonElement value) =>
+        value.ValueKind == JsonValueKind.String
+        && DateTimeOffset.TryParse(value.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var instant)
+            ? instant
+            : null;
+
+    public Task SetLastDueAsync(Guid cadenceId, DateTimeOffset due, CancellationToken cancellationToken) =>
+        SetPropertyAsync(cadenceId, ModelNames.LastDue, due.ToString("o"), cancellationToken, "vos.DateTime");
 
     // The Thing playing a role, found through the role Thing rather than by a name this orchestrator was told.
     // Asked for on its own: boundTypes would answer with every Thing that already `is` it, which for a run
@@ -564,11 +604,11 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         response.EnsureSuccessStatusCode();
     }
 
-    private async Task SetPropertyAsync(Guid thingId, string name, string value, CancellationToken cancellationToken)
+    private async Task SetPropertyAsync(Guid thingId, string name, string value, CancellationToken cancellationToken, string type = PropertyType)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
         var response = await client.PutAsync($"{MyceliumUrl}/api/things/{thingId}/properties",
-            JsonContent.Create(new { name, type = PropertyType, value }), cancellationToken);
+            JsonContent.Create(new { name, type, value }), cancellationToken);
         response.EnsureSuccessStatusCode();
     }
 
