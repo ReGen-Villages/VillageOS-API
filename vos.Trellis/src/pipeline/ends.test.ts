@@ -20,6 +20,7 @@ describe('what a boundary node stands for', () => {
     expect(model.endInformation(id.belowReorder)).toMatchObject({ kind: 'state', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.feeds)).toMatchObject({ kind: 'relationship', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.refill)).toMatchObject({ kind: 'pipeline', mayStart: true, mayEnd: true });
+    expect(model.endInformation(id.everyHour)).toMatchObject({ kind: 'cadence', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.reservoir)).toMatchObject({ kind: 'other', mayStart: false, mayEnd: false });
   });
 

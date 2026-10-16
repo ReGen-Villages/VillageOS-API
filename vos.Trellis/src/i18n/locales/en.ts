@@ -1305,6 +1305,7 @@ export const en = {
       state: "state",
       relationship: "relationship",
       pipeline: "pipeline",
+      cadence: "clock",
       other: "",
     },
     note: {

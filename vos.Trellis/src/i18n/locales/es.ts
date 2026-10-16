@@ -1307,6 +1307,7 @@ export const es: PartialResources = {
       state: "estado",
       relationship: "relación",
       pipeline: "canalización",
+      cadence: "reloj",
       other: "",
     },
     note: {

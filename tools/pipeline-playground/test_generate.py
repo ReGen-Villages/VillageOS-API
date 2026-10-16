@@ -278,7 +278,17 @@ class CatalystVocabularyTests(unittest.TestCase):
         [stands_for] = self.bound("standsFor")
         stood = {(self.kit.things[r["Subject"]]["Name"], self.kit.things[r["Target"]]["Name"])
                  for r in self.kit.rels.values() if r["Predicate"] == stands_for}
-        self.assertEqual(stood, {("A reading batch arrives", "reading batch"), ("The office is told", "Reporting office")})
+        self.assertEqual(stood, {("A reading batch arrives", "reading batch"), ("The office is told", "Reporting office"),
+                                 ("The hour strikes", "Every hour")})
+
+    def test_the_hourly_cadence_is_a_cadence_declaring_its_interval_and_its_last_due_instant(self):
+        [cadence_archetype] = self.bound("cadence")
+        [is_] = [tid for tid, t in self.kit.things.items() if t["Name"] == "is"]
+        [hourly] = [r["Subject"] for r in self.kit.rels.values() if r["Predicate"] == is_ and r["Target"] == cadence_archetype]
+        properties = self.kit.things[hourly]["Properties"]
+        self.assertEqual(properties["intervalMinutes"], {"typeInfo": "vos.Double", "value": 60.0})
+        self.assertEqual(properties["lastDue"]["typeInfo"], "vos.DateTime")
+        self.assertIsNone(properties["lastDue"]["value"])
 
 
 def is_ancestors(things, relationships, tid):

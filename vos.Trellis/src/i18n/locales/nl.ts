@@ -1307,6 +1307,7 @@ export const nl: PartialResources = {
       state: "toestand",
       relationship: "relatie",
       pipeline: "pijplijn",
+      cadence: "klok",
       other: "",
     },
     note: {

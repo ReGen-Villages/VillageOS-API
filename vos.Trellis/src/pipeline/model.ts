@@ -28,6 +28,7 @@ export const ROLE = {
   // that boundary.
   ExternalSystem: '03164f47-30c0-5984-9215-a81317000ec5',
   MessageKind: '0b2082d2-eec5-5eec-85dd-66431d776731',
+  Cadence: 'f3883eaf-4e52-5c0c-887b-1bc696578812',
   // The orchestrator's prototype: the rail binds a state's connection to the one service of it.
   Orchestrator: 'da0ee18e-c157-5f94-b2f8-cca2d7337929',
   Trigger: 'd619eb5c-8cca-5234-8826-2f01bd6b4e7b',
@@ -52,7 +53,7 @@ const EVALUATION_INTERVAL_PROPERTY = 'EvaluationIntervalSeconds';
 const REQUEST_ID_PROPERTY = 'requestId';
 
 /** What a boundary node may stand for, told by what the Thing it points at is. */
-export type EndKind = 'messageKind' | 'externalSystem' | 'door' | 'state' | 'relationship' | 'pipeline' | 'other';
+export type EndKind = 'messageKind' | 'externalSystem' | 'door' | 'state' | 'relationship' | 'pipeline' | 'cadence' | 'other';
 
 /** A Thing at one end of a pipeline: what it is, and whether a run may come from it or leave it behind. */
 export interface EndInformation {
@@ -349,6 +350,8 @@ export class PipelineModel {
       return { ...named, kind: 'pipeline', mayStart: true, mayEnd: true };
     if (this.isOf(thingId, ROLE.Range))
       return { ...named, kind: 'state', mayStart: true, mayEnd: false };
+    if (this.isOf(thingId, ROLE.Cadence))
+      return { ...named, kind: 'cadence', mayStart: true, mayEnd: false };
     if (this.isOf(thingId, ROLE.Connection)) {
       const trigger = this.triggerOf(thingId);
       const kind: EndKind = trigger === 'graph' ? 'relationship' : trigger === 'state' ? 'state' : 'door';

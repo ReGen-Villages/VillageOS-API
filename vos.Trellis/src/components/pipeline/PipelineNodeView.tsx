@@ -40,6 +40,7 @@ const END_KIND_LABEL_KEY = {
   state: 'pipeline.endKind.state',
   relationship: 'pipeline.endKind.relationship',
   pipeline: 'pipeline.endKind.pipeline',
+  cadence: 'pipeline.endKind.cadence',
   other: 'pipeline.endKind.other',
 } as const satisfies Record<EndKind, string>;
 

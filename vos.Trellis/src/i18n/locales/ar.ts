@@ -1408,6 +1408,7 @@ export const ar: WithArabicPluralForms<Resources> = {
       state: "حالة",
       relationship: "علاقة",
       pipeline: "خط أنابيب",
+      cadence: "ساعة",
       other: "",
     },
     note: {

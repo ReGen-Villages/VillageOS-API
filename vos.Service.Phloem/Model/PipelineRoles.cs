@@ -55,6 +55,7 @@ public static class PipelineRoles
     // to when its trying ends without an answer.
     public static readonly Role Attempt = new("attempt", new("d3014b77-c8f2-51d8-bb74-098c26296944"));
     public static readonly Role HandsOverTo = new("handsOverTo", new("5ee3e03b-c8a6-5ed2-83c7-77448c913175"));
+    public static readonly Role Cadence = new("cadence", new("f3883eaf-4e52-5c0c-887b-1bc696578812"));
     // A stop request reaches a run, or any Thing whose runs it stops, along the orchestrator's own runStopping
     // connection; each run stopped reaches the request along stoppedBy.
     public static readonly Role StopRequest = new("stopRequest", new("159ef90f-8089-5055-b5a9-8839d5e28e7a"));

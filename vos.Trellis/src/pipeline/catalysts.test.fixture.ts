@@ -15,7 +15,7 @@ export interface CatalystFixture {
     | 'belowReorder' | 'overdue' | 'reservoir' | 'feeds' | 'readingsArrive' | 'refill' | 'digest'
     | 'readingsStart' | 'readingsEnd' | 'refillStart' | 'digestEnd' | 'standsFor' | 'is' | 'has' | 'binds'
     | 'watcher' | 'watchesReorder' | 'reorderBinding' | 'conductor' | 'surplus' | 'drought' | 'storeSurplus'
-    | 'dry' | 'watchesDry' | 'resumes',
+    | 'dry' | 'watchesDry' | 'resumes' | 'everyHour',
     string
   >;
 }
@@ -62,6 +62,8 @@ export function catalystFixture({ orchestrators = 1 }: { orchestrators?: number 
   const portArchetype = thing('Socket', playing(ROLE.Port), true);
   const carries = thing('carries');
   relate(carries, is, wireArchetype);
+  const everyHour = thing('every hour');
+  relate(everyHour, is, thing('Metronome', playing(ROLE.Cadence), true));
   relate(inputArchetype, is, nodeArchetype);
   relate(outputArchetype, is, nodeArchetype);
 
@@ -176,7 +178,7 @@ export function catalystFixture({ orchestrators = 1 }: { orchestrators?: number 
       belowReorder, overdue, reservoir, feeds, readingsArrive, refill, digest,
       readingsStart, readingsEnd, refillStart, digestEnd, standsFor, is, has, binds: BINDS_ID,
       watcher, watchesReorder, reorderBinding: bindings.get(watchesReorder)!, conductor, surplus, drought, storeSurplus,
-      dry, watchesDry, resumes,
+      dry, watchesDry, resumes, everyHour,
     },
   };
 }

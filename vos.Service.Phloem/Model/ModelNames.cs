@@ -59,6 +59,11 @@ public static class ModelNames
     public const string Rehearsal = "rehearsal";
     // On a stop request: the sentence a person wrote, which each run it stops records as its error.
     public const string Reason = "reason";
+    // On a cadence: the model minutes between its runs, and the instant the last run it started was due. A run a
+    // cadence starts carries that instant as its parameter `due`.
+    public const string IntervalMinutes = "intervalMinutes";
+    public const string LastDue = "lastDue";
+    public const string Due = "due";
     // The broker's request-log entry that started a run. A plain identifier: what it names is outside the model.
     public const string RequestId = "requestId";
     public const string Payload = "payload";
