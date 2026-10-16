@@ -16,15 +16,23 @@ public class RetryTests
     private static readonly RunSubject Plot = new(Guid.NewGuid(), "Plot 7");
 
     // By default one model minute passes in ten real milliseconds, so a pause is taken without a test that waits long.
-    private static ModelClock FastClock(double rate = 6000)
+    private static ModelClock FastClock(double rate = 6000, TimeProvider? real = null)
     {
-        var clock = new ModelClock();
+        var clock = new ModelClock(real);
         clock.AnchorTo(new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero), rate);
         return clock;
     }
 
+    private sealed class ClockBehindTheTimer : TimeProvider
+    {
+        private readonly DateTimeOffset _started = System.GetUtcNow();
+
+        public override DateTimeOffset GetUtcNow() => _started + (System.GetUtcNow() - _started) / 2;
+    }
+
     private static (TestGraphs.RetryFixture Retry, FakeGateway Gateway, PipelineExecutor Executor) Arrange(
-        Func<int, NodeDispatchResult> answerToCall, bool handsOver = false, double clockRate = 6000, params (string Name, object Value)[] policy)
+        Func<int, NodeDispatchResult> answerToCall, bool handsOver = false, double clockRate = 6000, TimeProvider? real = null,
+        params (string Name, object Value)[] policy)
     {
         var retry = TestGraphs.RetryPipeline(handsOver, policy: policy);
         var calls = 0;
@@ -32,7 +40,7 @@ public class RetryTests
         {
             OnDispatch = (_, _) => answerToCall(Interlocked.Increment(ref calls)),
         };
-        return (retry, gateway, new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, FastClock(clockRate)));
+        return (retry, gateway, new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, FastClock(clockRate, real)));
     }
 
     private static NodeDispatchResult Answer() => new(200, JsonSerializer.Serialize(new { success = true, outputs = new { @out = "echoed" } }));
@@ -89,6 +97,18 @@ public class RetryTests
         var started = gateway.AttemptsRecorded.Select(recorded => recorded.Attempt.StartedUtc).ToList();
         (started[1] - started[0]).Should().BeGreaterThanOrEqualTo(TimeSpan.FromMinutes(1));
         (started[2] - started[1]).Should().BeGreaterThanOrEqualTo(TimeSpan.FromMinutes(3));
+    }
+
+    [Fact]
+    public async Task A_pause_ends_when_the_model_clock_reaches_its_end_even_where_the_timer_fires_early()
+    {
+        var (retry, gateway, executor) = Arrange(call => call < 2 ? Unreachable() : Answer(), real: new ClockBehindTheTimer(),
+            policy: [("attempts", 2), ("pauseMinutes", 1)]);
+
+        await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
+
+        var attempts = gateway.AttemptsRecorded.Select(recorded => recorded.Attempt).ToList();
+        (attempts[1].StartedUtc - attempts[0].FinishedUtc).Should().BeGreaterThanOrEqualTo(TimeSpan.FromMinutes(1));
     }
 
     [Fact]
