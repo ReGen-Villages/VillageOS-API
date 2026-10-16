@@ -200,7 +200,7 @@ public sealed class PipelineExecutor
             return (null, $"Failed to load pipeline: {ex.Message}");
         }
 
-        var reasons = DagValidator.Validate(dag).Errors
+        var reasons = DagValidator.Validate(dag)
             .Concat(startingWith is { } parameters ? DagValidator.UnfilledByParameters(dag, parameters) : []).ToList();
         return reasons.Count == 0 ? (dag, null) : (null, "Pipeline is invalid: " + string.Join(" ", reasons));
     }
