@@ -384,6 +384,19 @@ public static class TestGraphs
         return new StartFixture(fx, drawn.Id, watching.Id, reached.Id, reaching.Id, loose.Id);
     }
 
+    public sealed record CadenceFixture(GraphFixture Fixture, Guid PipelineId, Guid CadenceId);
+
+    // StatePipeline's drawing, its start node standing for a cadence rather than for the state connection.
+    public static CadenceFixture CadencePipeline()
+    {
+        var state = StatePipeline();
+        var fx = state.Fixture;
+        var cadence = fx.Thing("Every hour");
+        fx.Unrelate(fx.Get("Arrival"), fx.Get("standsFor"), fx.Get("watchingConn"));
+        fx.Rel(fx.Get("Arrival"), fx.Get("standsFor"), cadence);
+        return new CadenceFixture(fx, state.DrawnPipelineId, cadence.Id);
+    }
+
     // Field-merge demo: A and B both feed node C's single `in` input, A at to-path `a` and B
     // at to-path `b`, so C receives the two outputs deep-merged into one object. All three nodes share an IO
     // prototype with an `in` input and an `out` output.

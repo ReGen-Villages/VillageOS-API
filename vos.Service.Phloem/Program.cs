@@ -52,6 +52,7 @@ try
     builder.Services.AddModelClock<MyceliumGateway>("Phloem");
     builder.Services.AddSingleton<PipelineExecutor>();
     builder.Services.AddSingleton<PipelineStarter>();
+    builder.Services.AddHostedService<CadenceKeeper>();
 
     var app = builder.Build();
 
