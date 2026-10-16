@@ -76,7 +76,7 @@ public class PipelineCommandHandler : CommandHandlerWithOutputOptions
     {
         if (args.Length == 0)
         {
-            _writer.WriteLine("Usage: pipeline run <pipeline> [json params] [--wait]");
+            _writer.WriteLine("Usage: pipeline run <pipeline> [json parameters] [--wait]");
             return;
         }
 
@@ -96,7 +96,7 @@ public class PipelineCommandHandler : CommandHandlerWithOutputOptions
             return;
         }
 
-        var body = $"{{\"pipelineId\":\"{resolved.Id}\",\"params\":{parameters},\"async\":{(wait ? "false" : "true")}}}";
+        var body = $"{{\"pipelineId\":\"{resolved.Id}\",\"parameters\":{parameters},\"async\":{(wait ? "false" : "true")}}}";
         CommandParser.WriteJsonOrText(_writer, await _mycelium.PostToEndpointAsync(OrchestratorSubdomain, body));
     }
 
@@ -165,7 +165,7 @@ public class PipelineCommandHandler : CommandHandlerWithOutputOptions
     private void ShowUsage()
     {
         _writer.WriteLine("Usage: pipeline list [--showguids]               - Every pipeline the model holds");
-        _writer.WriteLine("       pipeline run <pipeline> [json params] [--wait]");
+        _writer.WriteLine("       pipeline run <pipeline> [json parameters] [--wait]");
         _writer.WriteLine("                                                 - Start a run; --wait prints the per-node result instead of the run id");
         _writer.WriteLine("       pipeline cancel <run-id>                  - Ask a running pipeline to stop");
         _writer.WriteLine("       pipeline history <pipeline>               - The runs of a pipeline, newest first");
