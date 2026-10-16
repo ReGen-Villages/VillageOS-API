@@ -1,5 +1,4 @@
 import { apiClient } from './client';
-import { thingApi } from './thingApi';
 
 /** Phloem's immediate ACK for an async spawn: the run id to animate over SSE while the DAG runs. */
 export interface PipelineSpawnAccepted {
@@ -37,7 +36,4 @@ export const pipelineApi = {
     apiClient.action(`start pipeline ${pipelineId}`, () =>
       apiClient.post<PipelineSpawnAccepted>('/api/endpoints/phloem', { pipelineId, parameters, async: true }),
     ),
-
-  /** Request cooperative cancellation of an in-flight run — Phloem polls this flag between dispatches. */
-  cancel: (runId: string) => thingApi.setProperty(runId, 'cancelRequested', 'vos.String', 'true'),
 };

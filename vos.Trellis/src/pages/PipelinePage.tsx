@@ -23,6 +23,7 @@ import { useSubscription } from '../hooks/useSse';
 import { WHOLE_MODEL } from '../types/subscription';
 import { PipelineModel, ROLE, typesCompatible, type ConnectionInformation, type PortInformation } from '../pipeline/model';
 import { savePipeline, loadPipeline, type EditorNode, type EditorEdge } from '../pipeline/serialize';
+import { stopRun } from '../pipeline/stop';
 import { validatePipeline, validateEnds } from '../pipeline/validate';
 import { catalystRail, outputRail, type CatalystRow, type OutputRow } from '../pipeline/catalysts';
 import { EditorHistory } from '../pipeline/history';
@@ -208,7 +209,7 @@ export function PipelinePage() {
   }, [setEdges, recordSnapshot]);
 
   const liveRunStatus = runId ? model.runStatus(runId) : undefined;
-  const runActive = !!runId && (liveRunStatus === undefined || liveRunStatus === 'running');
+  const runActive = !!runId && (liveRunStatus === undefined || ['running', 'waiting', 'trying'].includes(liveRunStatus));
   const runs = useMemo(() => (savedId ? model.runsOf(savedId) : []), [savedId, model]);
   const chosenRunRequest = runs.find((r) => r.runId === runId)?.requestId;
 
@@ -424,11 +425,11 @@ export function PipelinePage() {
   const onCancel = useCallback(async () => {
     if (!runId) return;
     try {
-      await pipelineApi.cancel(runId);
+      await stopRun(runId, t('pipeline.cancelledFromThePage'), model);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('pipeline.cancelFailed'));
     }
-  }, [runId, t]);
+  }, [runId, t, model]);
 
   // Record once at the start of a node drag (not per position tick), and before a delete — so undo restores
   // the pre-move / pre-delete canvas. Deletes also mark the canvas dirty relative to the last save.

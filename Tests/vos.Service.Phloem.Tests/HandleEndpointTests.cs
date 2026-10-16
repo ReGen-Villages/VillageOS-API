@@ -99,6 +99,33 @@ public class HandleEndpointTests
     }
 
     [Fact]
+    public async Task Handle_ARelationshipWrittenAlongTheStopsConnection_IsAcknowledgedAsAStop_AndStartsNothing()
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/handle", StateEntry(target: Joined, relationship: WrittenAlongStops));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("stops").GetGuid().Should().Be(Joined);
+        body.TryGetProperty("pipelineId", out _).Should().BeFalse();
+        factory.RunsRecordedFor(Drawn).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Handle_AStopNamingNoStopRequest_IsRefused()
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/handle", new StringContent(
+            JsonSerializer.Serialize(new { relationshipId = WrittenAlongStops, targetId = Joined }), Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task Handle_ARelationshipTheModelDoesNotHold_IsRefused()
     {
         await using var factory = new PhloemWebApplicationFactory();
@@ -112,6 +139,8 @@ public class HandleEndpointTests
 
     private static readonly Guid Joined = Guid.Parse("70000000-0000-0000-0000-000000000001");
     private static readonly Guid WrittenAlongWatching = Guid.Parse("a0000000-0000-0000-0000-000000000007");
+    private static readonly Guid WrittenAlongStops = Guid.Parse("a0000000-0000-0000-0000-000000000008");
+    private static readonly Guid StopsConnection = Guid.Parse("c0000000-0000-0000-0000-000000000009");
 
     public enum Start { ByHandAnsweredAtOnce, ByHandAwaited, ByADispatch }
 
@@ -217,14 +246,42 @@ public class HandleEndpointTests
         {
             var uri = request.RequestUri!;
             if (uri.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post)
-                return Json(request.Content!.ReadAsStringAsync().Result.Contains(HeldVigil.ToString()) ? TheNodeRunHoldingTheVigil() : OneDrawing());
+            {
+                var selector = request.Content!.ReadAsStringAsync().Result;
+                return Json(selector.Contains(HeldVigil.ToString()) ? TheNodeRunHoldingTheVigil()
+                    : selector.Contains(PipelineRoles.RunStopping.Id.ToString()) ? TheStopsConnection()
+                    : OneDrawing());
+            }
             if (uri.AbsolutePath == "/api/things" && uri.Query.Contains("name="))
                 return Json(JsonSerializer.Serialize(new { Id = Guid.NewGuid(), Name = "a predicate", Properties = new { } }));
             if (uri.AbsolutePath.StartsWith("/api/relationships/", StringComparison.Ordinal) && request.Method == HttpMethod.Get)
                 return uri.AbsolutePath.EndsWith(WrittenAlongWatching.ToString(), StringComparison.Ordinal)
                     ? Json(JsonSerializer.Serialize(new { Id = WrittenAlongWatching, SubjectId = Submission, PredicateId = Watching, TargetId = Joined, Properties = new { } }))
-                    : new HttpResponseMessage(HttpStatusCode.NotFound);
+                    : uri.AbsolutePath.EndsWith(WrittenAlongStops.ToString(), StringComparison.Ordinal)
+                        ? Json(JsonSerializer.Serialize(new { Id = WrittenAlongStops, SubjectId = Submission, PredicateId = StopsConnection, TargetId = Joined, Properties = new { } }))
+                        : new HttpResponseMessage(HttpStatusCode.NotFound);
             return new HttpResponseMessage(HttpStatusCode.OK);
+        }
+
+        private static string TheStopsConnection()
+        {
+            var binds = Guid.NewGuid();
+            return JsonSerializer.Serialize(new
+            {
+                snapshot = new
+                {
+                    things = new object[]
+                    {
+                        new { id = PipelineRoles.RunStopping.Id, name = "runStopping role", properties = new Dictionary<string, object>() },
+                        new { id = binds, name = "binds", properties = new Dictionary<string, object>() },
+                        new { id = StopsConnection, name = "stops", properties = new Dictionary<string, object>() },
+                    },
+                    relationships = new object[]
+                    {
+                        new { id = Guid.NewGuid(), subjectId = PipelineRoles.RunStopping.Id, predicateId = binds, targetId = StopsConnection, properties = new Dictionary<string, object>() },
+                    },
+                },
+            });
         }
 
         private static string TheNodeRunHoldingTheVigil()

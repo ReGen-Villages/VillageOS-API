@@ -51,9 +51,18 @@ public interface IMyceliumGateway
     // PipelineRun Thing, so it persists in the model and streams over SSE like any other property.
     Task SetRunResultAsync(Guid runId, JsonElement result, CancellationToken cancellationToken);
 
-    // True if the run's cancelRequested flag has been set (by Trellis). Polled between
-    // dispatches for cooperative cancellation.
-    Task<bool> IsCancelRequestedAsync(Guid runId, CancellationToken cancellationToken);
+    // Whether a dispatched relationship was written along the connection the runStopping role binds.
+    Task<bool> IsStopAsync(Guid relationshipId, CancellationToken cancellationToken);
+
+    // The reason a stop request carries, and the runs it stops: the target itself when it is a run, otherwise the
+    // runs about it still running, waiting or trying, read off its run-subject relationships.
+    Task<StopRequested> StopRequestedAsync(Guid stopRequestId, Guid targetId, CancellationToken cancellationToken);
+
+    // Along the predicate the stoppedBy role binds; a model binding nothing to it records the reason alone.
+    Task RelateStoppedByAsync(Guid runId, Guid stopRequestId, CancellationToken cancellationToken);
+
+    // The platform answers a vigil already gone as not found, which is the outcome asked for.
+    Task RetireVigilAsync(Guid vigilId, CancellationToken cancellationToken);
 
     Task<NodeDispatchResult> DispatchAsync(string subdomain, JsonElement envelope, CancellationToken cancellationToken);
 
