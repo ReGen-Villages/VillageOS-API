@@ -23,13 +23,17 @@ internal sealed class FakeGateway : IMyceliumGateway
     public List<Guid> StartTargetsAsked { get; } = new();
     public JsonElement? RunResult { get; private set; }
 
+    // A graph caches what it has resolved, as each snapshot the broker answers does, so runs read at once each need
+    // their own; set this where runs start concurrently.
+    public Func<PipelineGraph>? FreshGraph { get; set; }
+
     public Task<PipelineGraph> LoadPipelineSubgraphAsync(Guid pipelineId, CancellationToken ct) =>
-        LoadFailure is { } failure ? Task.FromException<PipelineGraph>(failure) : Task.FromResult(Graph);
+        LoadFailure is { } failure ? Task.FromException<PipelineGraph>(failure) : Task.FromResult(FreshGraph?.Invoke() ?? Graph);
 
     public Task<PipelineGraph> LoadStartSubgraphAsync(Guid targetId, CancellationToken ct)
     {
-        StartTargetsAsked.Add(targetId);
-        return Task.FromResult(Graph);
+        lock (StartTargetsAsked) StartTargetsAsked.Add(targetId);
+        return Task.FromResult(FreshGraph?.Invoke() ?? Graph);
     }
 
     // The relationships the model holds, by id, answered with their predicate; any other id is one it does not hold.
@@ -57,8 +61,9 @@ internal sealed class FakeGateway : IMyceliumGateway
     public Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct, RunSubject? subject = null, Guid? requestId = null, JsonElement? parameters = null, Guid? startedBy = null)
     {
         lock (RunsCreated) RunsCreated.Add((runId, pipelineId, subject, requestId, startedBy));
-        ParametersRecorded = parameters is { ValueKind: not JsonValueKind.Undefined } given ? given.Clone() : null;
-        lock (_model) Runs[runId] = (pipelineId, ParametersRecorded ?? default);
+        var recorded = parameters is { ValueKind: not JsonValueKind.Undefined } given ? given.Clone() : (JsonElement?)null;
+        ParametersRecorded = recorded;
+        lock (_model) Runs[runId] = (pipelineId, recorded ?? default);
         return Task.CompletedTask;
     }
 
@@ -113,6 +118,30 @@ internal sealed class FakeGateway : IMyceliumGateway
     }
 
     public List<TryingNodeRun> TryingItems { get; } = new();
+
+    public List<Cadence> Cadences { get; } = new();
+    public List<(Guid CadenceId, DateTimeOffset Due)> LastDueWritten { get; } = new();
+    public Exception? LastDueFailure { get; set; }
+
+    public Exception? CadencesFailure { get; set; }
+
+    public Task<IReadOnlyList<Cadence>> CadencesAsync(CancellationToken ct)
+    {
+        if (CadencesFailure is { } failure) return Task.FromException<IReadOnlyList<Cadence>>(failure);
+        lock (Cadences) return Task.FromResult<IReadOnlyList<Cadence>>(Cadences.ToList());
+    }
+
+    public Task SetLastDueAsync(Guid cadenceId, DateTimeOffset due, CancellationToken ct)
+    {
+        if (LastDueFailure is { } failure) return Task.FromException(failure);
+        lock (Cadences)
+        {
+            LastDueWritten.Add((cadenceId, due));
+            var index = Cadences.FindIndex(cadence => cadence.Id == cadenceId);
+            if (index >= 0) Cadences[index] = Cadences[index] with { LastDue = due };
+        }
+        return Task.CompletedTask;
+    }
 
     public Task<IReadOnlyList<TryingNodeRun>> TryingNodeRunsAsync(CancellationToken ct)
     {

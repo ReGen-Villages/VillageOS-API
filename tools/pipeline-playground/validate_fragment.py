@@ -20,6 +20,7 @@ PIPELINE_WIRE = "adfe0071-bbaf-5e7f-abc3-255c08d8735a"
 PIPELINE_RUN = "b682b68f-0101-5ab4-a7a9-13c3e43df873"
 EXTERNAL_SYSTEM = "03164f47-30c0-5984-9215-a81317000ec5"
 MESSAGE_KIND = "0b2082d2-eec5-5eec-85dd-66431d776731"
+CADENCE = "f3883eaf-4e52-5c0c-887b-1bc696578812"
 SENDS = "ab3334f4-cb8e-5513-94b4-43debdb73acd"
 TOLD = "08104fb0-e74f-511a-9598-62c20da9083c"
 TOLD_THROUGH = "d94c1844-76e6-56fa-ae38-d10405d52826"
@@ -205,7 +206,7 @@ def main():
                         problems.append(f"[{pipe['Name']}] required input '{p['portName']}' on '{n['name']}' unwired/unbound")
 
         # What each boundary node stands for (model.ts endInformation): a start may stand for a kind some
-        # system sends, a system that sends, a door or a pipeline; an end for a kind some system is told, a
+        # system sends, a system that sends, a door, a cadence or a pipeline; an end for a kind some system is told, a
         # system naming the connection it is told through (Phloem refuses the run otherwise), or a pipeline.
         # Standing for nothing is fine at either end.
         stands = []
@@ -221,7 +222,7 @@ def main():
                         m.is_of(c["Id"], CONNECTION) for c in m.reached_along(sid, TOLD_THROUGH))
                 elif m.is_of(sid, PIPELINE):
                     may = True
-                elif m.is_of(sid, CONNECTION):
+                elif m.is_of(sid, CONNECTION) or m.is_of(sid, CADENCE):
                     may = is_start
                 else:
                     may = False
