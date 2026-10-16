@@ -20,6 +20,10 @@ public static class RunStatus
     public const string HandedOver = "handedOver";
     // The drawing was judged unable to run, so nothing ran.
     public const string Refused = "refused";
+    // A rehearsal reached its ends; an end that would have sent or started something did neither.
+    public const string Rehearsed = "rehearsed";
+    // A rehearsal stopped at a node whose service does not rehearse, or that waits.
+    public const string CannotRehearse = "cannotRehearse";
 
     public static bool IsFinished(string status) => status is not (Running or Waiting or Trying);
 }

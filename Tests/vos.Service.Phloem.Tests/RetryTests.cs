@@ -112,6 +112,20 @@ public class RetryTests
     }
 
     [Fact]
+    public async Task A_cancelled_run_leaves_its_pause_at_once()
+    {
+        var (retry, gateway, executor) = Arrange(call => call < 2 ? Unreachable() : Answer(), clockRate: 600,
+            policy: [("attempts", 2), ("pauseMinutes", 600)]);
+        using var cancelling = new CancellationTokenSource();
+
+        var running = executor.RunAsync(retry.PipelineId, Seed(), cancelling.Token);
+        await Settle.UntilAsync(() => gateway.NodeStatuses.Contains(("Echo", RunStatus.Trying)), "the node pauses before its second attempt");
+        cancelling.Cancel();
+
+        await Settle.UntilAsync(() => running.IsCompleted, "the pause ends when the run is cancelled");
+    }
+
+    [Fact]
     public async Task A_clock_that_stands_still_takes_the_pause_once_in_real_time()
     {
         var (retry, gateway, executor) = Arrange(call => call < 2 ? Unreachable() : Answer(), clockRate: 0,
@@ -269,6 +283,38 @@ public class RetryTests
         gateway.Dispatched.Should().ContainSingle();
         gateway.AttemptsRecorded.Should().ContainSingle().Which.Attempt.Number.Should().Be(2);
         gateway.Records[(runId, retry.Echo.Id)].Status.Should().Be(RunStatus.Succeeded);
+    }
+
+    [Fact]
+    public async Task A_rehearsal_carried_on_after_a_restart_is_still_a_rehearsal()
+    {
+        var (retry, gateway, executor) = Arrange(_ => Answer(), policy: [("attempts", 3), ("pauseMinutes", 0)]);
+        retry.Fixture.State(retry.Fixture.Get("Service"), ModelNames.Rehearses, true);
+        gateway.Graph = retry.Fixture.Build();
+        var runId = Guid.NewGuid();
+        var anHourAgo = new DateTimeOffset(2026, 10, 15, 11, 0, 0, TimeSpan.Zero);
+        await gateway.CreateRunAsync(runId, retry.PipelineId, CancellationToken.None, parameters: Seed(), rehearsal: true);
+        gateway.Records[(runId, retry.In.Id)] = new NodeRecord(RunStatus.Succeeded, new Dictionary<string, JsonElement> { ["seed"] = JsonSerializer.SerializeToElement("world") });
+        gateway.Records[(runId, retry.Echo.Id)] = new NodeRecord(RunStatus.Trying, new Dictionary<string, JsonElement>(),
+            [new AttemptRecord(1, anHourAgo, anHourAgo.AddSeconds(1), RunStatus.Failed, "the service was away")]);
+
+        await executor.RecoverTryingAsync(CancellationToken.None);
+
+        await Settle.UntilAsync(() => gateway.StatusUpdates.Contains(RunStatus.Rehearsed), "the rehearsal carries on to its end");
+        gateway.Envelopes.Single().Envelope.GetProperty(ModelNames.Rehearsal).GetBoolean().Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task A_rehearsal_whose_trying_ends_hands_nothing_over()
+    {
+        var (retry, gateway, executor) = Arrange(_ => Unreachable(), handsOver: true, policy: [("attempts", 2), ("pauseMinutes", 0)]);
+        retry.Fixture.State(retry.Fixture.Get("Service"), ModelNames.Rehearses, true);
+        gateway.Graph = retry.Fixture.Build();
+
+        var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None, rehearsal: true);
+
+        result.Nodes.Single(node => node.NodeId == retry.Echo.Id).Status.Should().Be(RunStatus.Failed);
+        gateway.RunsCreated.Should().ContainSingle("the drawing it would hand over to is not started");
     }
 
     [Fact]
