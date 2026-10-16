@@ -187,6 +187,20 @@ public class HandleEndpointTests
     }
 
     [Fact]
+    public async Task Handle_ARunStartedByHand_RecordsTheParametersItWasGiven()
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+        var body = JsonSerializer.Serialize(new { pipelineId = Drawn, parameters = new { site = "north" }, async = true });
+
+        (await client.PostAsync("/handle", new StringContent(body, Encoding.UTF8, "application/json"))).StatusCode
+            .Should().Be(HttpStatusCode.OK);
+
+        await Settle.UntilAsync(() => factory.RunsRecordedFor(Drawn) == 1, "the run record reaches the broker");
+        factory.RunRecordFor(Drawn).Should().Contain("north");
+    }
+
+    [Fact]
     public async Task Handle_AHeaderThatIsNoIdentifier_StillStartsTheRun_WhichRecordsNoRequest()
     {
         await using var factory = new PhloemWebApplicationFactory();
