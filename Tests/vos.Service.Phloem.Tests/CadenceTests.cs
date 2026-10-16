@@ -169,6 +169,46 @@ public class CadenceTests
     }
 
     [Fact]
+    public async Task A_cadence_not_yet_due_is_left_unmarked_and_nothing_is_said_of_it()
+    {
+        var logger = new RecordingLogger();
+        var (_, gateway, keeper, _, _) = Arrange(1, lastDue: Nine, logger);
+
+        (await keeper.LookAsync(CancellationToken.None)).Should().BeEmpty();
+
+        gateway.LastDueWritten.Should().BeEmpty();
+        logger.Entries.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_cadence_is_reported_when_what_is_wrong_with_it_changes_and_when_it_starts_runs_again()
+    {
+        var logger = new RecordingLogger();
+        var (fixture, gateway, keeper, real, _) = Arrange(1, lastDue: null, logger);
+        var fx = fixture.Fixture;
+        async Task LookAsync()
+        {
+            real.Advance(Hour);
+            await Task.WhenAll(await keeper.LookAsync(CancellationToken.None));
+        }
+
+        gateway.LastDueFailure = new HttpRequestException("the broker refused the write");
+        await LookAsync();
+        await LookAsync();
+        gateway.LastDueFailure = null;
+        fx.Unrelate(fx.Get("Arrival"), fx.Get("standsFor"), fx.Get("Every hour"));
+        await LookAsync();
+        await LookAsync();
+        fx.Rel(fx.Get("Arrival"), fx.Get("standsFor"), fx.Get("Every hour"));
+        await LookAsync();
+        await LookAsync();
+        fx.Unrelate(fx.Get("Arrival"), fx.Get("standsFor"), fx.Get("Every hour"));
+        await LookAsync();
+
+        logger.Entries.Should().Equal(LogLevel.Warning, LogLevel.Warning, LogLevel.Information, LogLevel.Warning);
+    }
+
+    [Fact]
     public async Task Once_started_the_keeper_looks_by_itself_and_starts_what_is_due()
     {
         var (_, gateway, keeper, _, _) = Arrange(1, lastDue: null);
@@ -200,7 +240,7 @@ public class CadenceTests
         gateway.Runs.Values.Select(run => DateTimeOffset.Parse(run.Parameters.GetProperty(ModelNames.Due).GetString()!)).Order().ToList();
 
     private static (TestGraphs.CadenceFixture Fixture, FakeGateway Gateway, CadenceKeeper Keeper, MovableClock Real, ModelClock Clock) Arrange(
-        double rate, DateTimeOffset? lastDue)
+        double rate, DateTimeOffset? lastDue, ILogger<CadenceKeeper>? logger = null)
     {
         var fixture = TestGraphs.CadencePipeline();
         var gateway = new FakeGateway(fixture.Fixture.Build()) { FreshGraph = fixture.Fixture.Build };
@@ -209,7 +249,7 @@ public class CadenceTests
         var clock = new ModelClock(real);
         clock.AnchorTo(Nine, rate);
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, clock);
-        var keeper = new CadenceKeeper(gateway, new PipelineStarter(gateway), executor, clock, NullLogger<CadenceKeeper>.Instance, real);
+        var keeper = new CadenceKeeper(gateway, new PipelineStarter(gateway), executor, clock, logger ?? NullLogger<CadenceKeeper>.Instance, real);
         return (fixture, gateway, keeper, real, clock);
     }
 

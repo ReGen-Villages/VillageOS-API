@@ -17,7 +17,7 @@ public sealed class CadenceKeeper : BackgroundService
     private readonly ModelClock _clock;
     private readonly TimeProvider _real;
     private readonly ILogger<CadenceKeeper> _logger;
-    private readonly HashSet<Guid> _reported = new();
+    private readonly Dictionary<Guid, string> _reported = new();
     private (DateTimeOffset Model, DateTimeOffset Real)? _lastLook;
 
     public CadenceKeeper(IMyceliumGateway gateway, PipelineStarter starter, PipelineExecutor executor, ModelClock clock,
@@ -91,16 +91,17 @@ public sealed class CadenceKeeper : BackgroundService
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                ReportOnce(cadence, ex, "Cadence '{Cadence}' could not be marked due, so nothing is started from it");
+                ReportUnlessAlreadySaid(cadence, ex,"Cadence '{Cadence}' could not be marked due, so nothing is started from it");
                 continue;
             }
 
             var start = await _starter.ResolveAsync(cadence.Id, null, cancellationToken);
             if (!start.Started)
             {
-                ReportOnce(cadence, null, "Cadence '{Cadence}' starts nothing: " + start.Refusal);
+                ReportUnlessAlreadySaid(cadence, null,"Cadence '{Cadence}' starts nothing: " + start.Refusal);
                 continue;
             }
+            if (_reported.Remove(cadence.Id)) _logger.LogInformation("Cadence '{Cadence}' starts runs again", cadence.Name);
             var subject = new RunSubject(cadence.Id, cadence.Name);
             foreach (var instant in due)
             {
@@ -113,10 +114,11 @@ public sealed class CadenceKeeper : BackgroundService
 
     private static DateTimeOffset Later(DateTimeOffset first, DateTimeOffset second) => first > second ? first : second;
 
-    private void ReportOnce(Cadence cadence, Exception? failure, string message)
+    // Looked at every second, so a cadence is reported when what is wrong with it changes, not on every look.
+    private void ReportUnlessAlreadySaid(Cadence cadence, Exception? failure, string message)
     {
-        lock (_reported)
-            if (!_reported.Add(cadence.Id)) return;
+        if (_reported.TryGetValue(cadence.Id, out var said) && said == message) return;
+        _reported[cadence.Id] = message;
         _logger.LogWarning(failure, message, cadence.Name);
     }
 }
