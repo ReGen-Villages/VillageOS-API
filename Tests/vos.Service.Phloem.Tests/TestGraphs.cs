@@ -901,6 +901,60 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
+    // Generate (out `text`) → Uppercase → Reverse, the last two sharing a prototype that declares an in port `text` before
+    // an out port `text`, as the playground's transform services do.
+    public static (GraphFixture Fixture, Guid PipelineId) PassThroughPipeline()
+    {
+        var fx = new GraphFixture();
+        var vocabulary = fx.DeclareVocabulary();
+        var carries = fx.Thing("carries");
+        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+
+        var transformProto = fx.Thing("TransformProto");
+        fx.Rel(transformProto, vocabulary.Is, vocabulary.Service);
+        var textIn = fx.Thing("transform.text.in", ("direction", "in"), ("type", "string"), ("portName", "text"), ("required", "true"));
+        var textOut = fx.Thing("transform.text.out", ("direction", "out"), ("type", "string"), ("portName", "text"));
+        fx.Rel(textIn, vocabulary.Is, vocabulary.Port);
+        fx.Rel(textOut, vocabulary.Is, vocabulary.Port);
+        fx.Rel(transformProto, vocabulary.Has, textIn);
+        fx.Rel(transformProto, vocabulary.Has, textOut);
+
+        var sourceProto = fx.Thing("SourceProto");
+        fx.Rel(sourceProto, vocabulary.Is, vocabulary.Service);
+        Port(fx, vocabulary, sourceProto, "text", "out", "string");
+
+        var generate = ServiceNode(fx, vocabulary, sourceProto, "Generate", "generate");
+        var uppercase = ServiceNode(fx, vocabulary, transformProto, "Uppercase", "uppercase");
+        var reverse = ServiceNode(fx, vocabulary, transformProto, "Reverse", "reverse");
+
+        var pipe = fx.Thing("Text Studio");
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
+        fx.Rel(pipe, vocabulary.Has, generate);
+        fx.Rel(pipe, vocabulary.Has, uppercase);
+        fx.Rel(pipe, vocabulary.Has, reverse);
+
+        fx.Rel(generate, carries, uppercase, ("fromPort", "text"), ("toPort", "text"));
+        fx.Rel(uppercase, carries, reverse, ("fromPort", "text"), ("toPort", "text"));
+
+        return (fx, pipe.Id);
+    }
+
+    // FanOutPipeline whose prototype also takes a scalar in port `parts` and answers a collection out port `parts`, the
+    // in port declared first.
+    public static (GraphFixture Fixture, Guid PipelineId) FanOutWithAnInPortNamedLikeItsCollectionOut()
+    {
+        var (fx, pipelineId) = FanOutPipeline("continue");
+        var partsIn = fx.Thing("p.parts.in", ("direction", "in"), ("type", "any"), ("portName", "parts"));
+        var partsOut = fx.Thing("p.parts.out", ("direction", "out"), ("type", "any"), ("portName", "parts"), ("collection", "true"));
+        foreach (var port in new[] { partsIn, partsOut })
+        {
+            fx.Rel(port, fx.Get("is"), fx.Get("Port"));
+            fx.Rel(fx.Get("ScoreProto"), fx.Get("has"), port);
+        }
+        return (fx, pipelineId);
+    }
+
     private static void WireThing(
         GraphFixture fx, PipelineVocabulary vocabulary, GraphThing carries,
         GraphThing from, GraphThing to, string fromPort, string toPort)

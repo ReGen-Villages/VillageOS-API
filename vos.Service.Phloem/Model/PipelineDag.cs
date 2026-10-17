@@ -8,6 +8,7 @@ public sealed record DagPort(string PortName, string Direction, string Type, boo
 {
     public bool IsInput => string.Equals(Direction, ModelNames.DirectionIn, StringComparison.OrdinalIgnoreCase);
     public bool IsOutput => string.Equals(Direction, ModelNames.DirectionOut, StringComparison.OrdinalIgnoreCase);
+    public bool IsNamed(string portName) => string.Equals(PortName, portName, StringComparison.OrdinalIgnoreCase);
 }
 
 // What a node does at execution: a dispatchable Service node (the default), or a
@@ -80,18 +81,34 @@ public sealed class DagNode
     // A node with more than one is refused before it runs.
     public DagPort? CollectionInput => Ports.FirstOrDefault(p => p.IsInput && p.Collection);
 
-    public DagPort? Port(string portName) =>
-        Ports.FirstOrDefault(p => string.Equals(p.PortName, portName, StringComparison.OrdinalIgnoreCase));
+    public DagPort? InputPort(string portName) => Ports.FirstOrDefault(p => p.IsInput && p.IsNamed(portName));
+
+    public DagPort? OutputPort(string portName) => Ports.FirstOrDefault(p => p.IsOutput && p.IsNamed(portName));
 }
+
+// One end of a wire: the node, the name the wire gives the port, and that port in the end's direction — the out port
+// the wire leaves or the in port it reaches — or null when the node has no such port.
+public sealed record WireEnd(DagNode Node, string PortName, DagPort? Port);
 
 // A wire: an output port on one node carries its value to an input port on another. FromPath and
 // ToPath (both optional, empty = the whole payload) select a field of the upstream output
 // and place it at a field of the downstream input, so several wires can compose one input. An optional
 // Transform is a JSONata expression that reshapes the extracted value before placement.
-public sealed record DagWire(Guid FromNodeId, string FromPort, Guid ToNodeId, string ToPort, string FromPath = "", string ToPath = "", string Transform = "");
+public sealed record DagWire(WireEnd From, WireEnd To, string FromPath = "", string ToPath = "", string Transform = "");
 
 public sealed class PipelineDag
 {
+    private readonly Lazy<Dictionary<Guid, DagNode>> _nodesById;
+    private readonly Lazy<ILookup<Guid, DagWire>> _wiresInto;
+    private readonly Lazy<ILookup<Guid, DagWire>> _wiresOutOf;
+
+    public PipelineDag()
+    {
+        _nodesById = new(() => Nodes.DistinctBy(node => node.NodeId).ToDictionary(node => node.NodeId));
+        _wiresInto = new(() => Wires.ToLookup(wire => wire.To.Node.NodeId));
+        _wiresOutOf = new(() => Wires.ToLookup(wire => wire.From.Node.NodeId));
+    }
+
     public Guid PipelineId { get; init; }
     public string Name { get; init; } = string.Empty;
     public bool Published { get; init; }
@@ -101,7 +118,9 @@ public sealed class PipelineDag
     // What the build could not read, one sentence each; a node it could not read at all is left out of Nodes.
     public IReadOnlyList<string> Problems { get; init; } = Array.Empty<string>();
 
-    public DagNode? Node(Guid id) => Nodes.FirstOrDefault(n => n.NodeId == id);
+    public DagNode? Node(Guid id) => _nodesById.Value.GetValueOrDefault(id);
 
-    public IEnumerable<DagWire> WiresInto(Guid nodeId) => Wires.Where(w => w.ToNodeId == nodeId);
+    public IEnumerable<DagWire> WiresInto(Guid nodeId) => _wiresInto.Value[nodeId];
+
+    public IEnumerable<DagWire> WiresOutOf(Guid nodeId) => _wiresOutOf.Value[nodeId];
 }

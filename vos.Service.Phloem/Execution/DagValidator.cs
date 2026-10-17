@@ -12,7 +12,7 @@ public static class DagValidator
         var errors = new List<string>(dag.Problems);
 
         foreach (var wire in dag.Wires)
-            ValidateWire(dag, wire, errors);
+            ValidateWire(wire, errors);
 
         foreach (var node in dag.Nodes)
         {
@@ -39,32 +39,27 @@ public static class DagValidator
         return errors;
     }
 
-    private static void ValidateWire(PipelineDag dag, DagWire wire, List<string> errors)
+    private static void ValidateWire(DagWire wire, List<string> errors)
     {
-        var from = dag.Node(wire.FromNodeId);
-        var to = dag.Node(wire.ToNodeId);
-        // The builder drops a wire leaving the pipeline, and a node it could not read is already a listed problem.
-        if (from == null || to == null) return;
+        var (from, to) = (wire.From, wire.To);
+        var named = $"Wire {from.Node.Name}.{from.PortName} → {to.Node.Name}.{to.PortName}";
 
-        var outPort = from.Port(wire.FromPort);
-        var inPort = to.Port(wire.ToPort);
-
-        if (outPort is null || !outPort.IsOutput)
+        if (from.Port is null)
         {
-            errors.Add($"Wire {from.Name}.{wire.FromPort} → {to.Name}.{wire.ToPort}: '{wire.FromPort}' is not an output port on '{from.Name}'.");
+            errors.Add($"{named}: '{from.PortName}' is not an output port on '{from.Node.Name}'.");
             return;
         }
-        if (inPort is null || !inPort.IsInput)
+        if (to.Port is null)
         {
-            errors.Add($"Wire {from.Name}.{wire.FromPort} → {to.Name}.{wire.ToPort}: '{wire.ToPort}' is not an input port on '{to.Name}'.");
+            errors.Add($"{named}: '{to.PortName}' is not an input port on '{to.Node.Name}'.");
             return;
         }
-        if (!TypesCompatible(outPort.Type, inPort.Type))
-            errors.Add($"Wire {from.Name}.{wire.FromPort} → {to.Name}.{wire.ToPort}: type '{outPort.Type}' is not compatible with '{inPort.Type}'.");
+        if (!TypesCompatible(from.Port.Type, to.Port.Type))
+            errors.Add($"{named}: type '{from.Port.Type}' is not compatible with '{to.Port.Type}'.");
 
         // A wire's JSONata transform must compile — caught here before dispatch, not as a silent runtime failure.
         if (!string.IsNullOrEmpty(wire.Transform) && JsonataTransform.Validate(wire.Transform) is { } transformError)
-            errors.Add($"Wire {from.Name}.{wire.FromPort} → {to.Name}.{wire.ToPort}: invalid transform — {transformError}");
+            errors.Add($"{named}: invalid transform — {transformError}");
     }
 
     // A vigil is placed over one Thing, so a node that would run once per item, or wait for a Thing nothing
@@ -104,7 +99,7 @@ public static class DagValidator
         WiredInto(dag, node, portName) || node.ParameterBindings.ContainsKey(portName) || node.Choices.ContainsKey(portName);
 
     private static bool WiredInto(PipelineDag dag, DagNode node, string portName) =>
-        dag.WiresInto(node.NodeId).Any(wire => string.Equals(wire.ToPort, portName, StringComparison.OrdinalIgnoreCase));
+        dag.WiresInto(node.NodeId).Any(wire => string.Equals(wire.To.PortName, portName, StringComparison.OrdinalIgnoreCase));
 
     // Equal types are compatible; an empty/"any" type on either side is a wildcard.
     private static bool TypesCompatible(string outType, string inType) =>
@@ -119,11 +114,10 @@ public static class DagValidator
         var indeg = dag.Nodes.ToDictionary(n => n.NodeId, _ => 0);
         var outEdges = dag.Nodes.ToDictionary(n => n.NodeId, _ => new List<Guid>());
         foreach (var wire in dag.Wires)
-            if (indeg.ContainsKey(wire.FromNodeId) && indeg.ContainsKey(wire.ToNodeId))
-            {
-                outEdges[wire.FromNodeId].Add(wire.ToNodeId);
-                indeg[wire.ToNodeId]++;
-            }
+        {
+            outEdges[wire.From.Node.NodeId].Add(wire.To.Node.NodeId);
+            indeg[wire.To.Node.NodeId]++;
+        }
 
         var queue = new Queue<Guid>(dag.Nodes.Where(n => indeg[n.NodeId] == 0).Select(n => n.NodeId));
         var order = new List<Guid>();

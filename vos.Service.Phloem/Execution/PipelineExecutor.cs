@@ -324,9 +324,9 @@ public sealed class PipelineExecutor
         while (frontier.Count > 0)
         {
             var node = frontier.Pop();
-            foreach (var wire in dag.Wires.Where(wire => wire.FromNodeId == node))
-                if (reached.Add(wire.ToNodeId))
-                    frontier.Push(wire.ToNodeId);
+            foreach (var wire in dag.WiresOutOf(node))
+                if (reached.Add(wire.To.Node.NodeId))
+                    frontier.Push(wire.To.Node.NodeId);
         }
         return reached;
     }
@@ -362,7 +362,7 @@ public sealed class PipelineExecutor
             if (StopOf(rid) is { } stop) { stopped = stop; break; }
 
             // A node behind a waiting one is not ready until the wait is over.
-            var ready = pending.Where(n => dag.WiresInto(n.NodeId).All(w => results.ContainsKey(w.FromNodeId))).ToList();
+            var ready = pending.Where(n => dag.WiresInto(n.NodeId).All(w => results.ContainsKey(w.From.Node.NodeId))).ToList();
             if (ready.Count == 0) break;
 
             // A node wired only from outcomes that were not answered is the branch not taken: it is recorded
@@ -742,7 +742,7 @@ public sealed class PipelineExecutor
     };
 
     private static bool Carried(DagWire wire, IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs) =>
-        outputs.TryGetValue(wire.FromNodeId, out var upstream) && upstream.ContainsKey(wire.FromPort);
+        outputs.TryGetValue(wire.From.Node.NodeId, out var upstream) && upstream.ContainsKey(wire.From.PortName);
 
     // Assemble a node's inputs: the Thing chosen on the node, then param-bound inputs, then wires. Each
     // wire extracts its from-path of the upstream output and deep-merges it at its to-path into the target
@@ -760,22 +760,22 @@ public sealed class PipelineExecutor
                 accumulated[port] = JsonSerializer.SerializeToNode(bound);
         foreach (var wire in dag.WiresInto(node.NodeId))
         {
-            if (!outputs.TryGetValue(wire.FromNodeId, out var upstream) || !upstream.TryGetValue(wire.FromPort, out var value))
+            if (!outputs.TryGetValue(wire.From.Node.NodeId, out var upstream) || !upstream.TryGetValue(wire.From.PortName, out var value))
                 continue;
             var extracted = PayloadMapping.Extract(value, wire.FromPath);
             if (extracted is null) continue; // the from-path is not present in the upstream output
             var reshaped = string.IsNullOrEmpty(wire.Transform)
                 ? extracted.Value
                 : new JsonataTransform(wire.Transform).Eval(extracted.Value, _clock);
-            if (node.Port(wire.ToPort) is { IsInput: true, Collection: true })
+            if (wire.To.Port is { Collection: true })
             {
-                var gathered = accumulated.TryGetValue(wire.ToPort, out var soFar) ? AsList(soFar) : new JsonArray();
+                var gathered = accumulated.TryGetValue(wire.To.PortName, out var soFar) ? AsList(soFar) : new JsonArray();
                 AppendItems(gathered, reshaped);
-                accumulated[wire.ToPort] = gathered;
+                accumulated[wire.To.PortName] = gathered;
                 continue;
             }
             var placed = PayloadMapping.Place(wire.ToPath, reshaped);
-            accumulated[wire.ToPort] = accumulated.TryGetValue(wire.ToPort, out var existing)
+            accumulated[wire.To.PortName] = accumulated.TryGetValue(wire.To.PortName, out var existing)
                 ? PayloadMapping.Merge(existing, placed)
                 : placed;
         }
@@ -871,7 +871,7 @@ public sealed class PipelineExecutor
         var gathered = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
         foreach (var port in portNames)
         {
-            if (node.Port(port) is { IsOutput: true, Collection: true })
+            if (node.OutputPort(port) is { Collection: true })
             {
                 var flat = new JsonArray();
                 foreach (var r in results)

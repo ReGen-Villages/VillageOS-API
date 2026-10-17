@@ -765,6 +765,24 @@ public class PipelineExecutorTests
     }
 
     [Fact]
+    public async Task RunAsync_FanOut_ACollectionOutPortNamedLikeAnInPort_StillGathersFlat()
+    {
+        var (fx, pipelineId) = TestGraphs.FanOutWithAnInPortNamedLikeItsCollectionOut();
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnDispatch = (_, envelope) => envelope.GetProperty("inputs").GetProperty("item").GetString() == "a"
+                ? NodeAnswering("""{"score":"A","parts":["a1","a2"]}""")
+                : NodeAnswering("""{"score":"C","parts":"c1"}"""),
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+        var runParams = JsonSerializer.SerializeToElement(new { items = new[] { "a", "c" }, w = 1 });
+
+        var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
+
+        result.Nodes.Single().Outputs["parts"].EnumerateArray().Select(e => e.GetString()).Should().Equal("a1", "a2", "c1");
+    }
+
+    [Fact]
     public async Task RunAsync_RecordsTheParametersOnTheRun_AndEachNodesOutputsOnItsNodeRun()
     {
         var (fx, pipelineId) = TestGraphs.DemoPipeline();
