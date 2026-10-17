@@ -104,7 +104,7 @@ public sealed class PipelineDag
 
     public PipelineDag()
     {
-        _nodesById = new(() => Nodes.DistinctBy(node => node.NodeId).ToDictionary(node => node.NodeId));
+        _nodesById = new(() => Nodes.ToDictionary(node => node.NodeId));
         _wiresInto = new(() => Wires.ToLookup(wire => wire.To.Node.NodeId));
         _wiresOutOf = new(() => Wires.ToLookup(wire => wire.From.Node.NodeId));
     }
