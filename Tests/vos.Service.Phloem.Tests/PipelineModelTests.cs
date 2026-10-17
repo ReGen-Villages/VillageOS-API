@@ -80,8 +80,8 @@ public class PipelineModelTests
 
         var generate = dag.Node(fx.Get("Generate").Id)!;
         var echo = dag.Node(fx.Get("Echo").Id)!;
-        dag.Wires.Should().OnlyContain(w => w.FromNodeId == generate.NodeId && w.ToNodeId == echo.NodeId);
-        dag.Wires.Select(w => (w.FromPort, w.ToPort)).Should()
+        dag.Wires.Should().OnlyContain(w => w.From.Node == generate && w.To.Node == echo);
+        dag.Wires.Select(w => (w.From.PortName, w.To.PortName)).Should()
             .BeEquivalentTo(new[] { ("echo", "message"), ("trace", "context") });
     }
 
@@ -118,16 +118,13 @@ public class PipelineModelTests
         echo.Subdomain.Should().Be("ech");
 
         // ports resolve from the bound service's is-chain (proto)
-        generate.Port("echo")!.IsOutput.Should().BeTrue();
-        echo.Port("message")!.IsInput.Should().BeTrue();
-        echo.Port("message")!.Required.Should().BeTrue();
+        generate.OutputPort("echo").Should().NotBeNull();
+        echo.InputPort("message")!.Required.Should().BeTrue();
 
         dag.Wires.Should().ContainSingle();
         var wire = dag.Wires[0];
-        wire.FromNodeId.Should().Be(generate.NodeId);
-        wire.ToNodeId.Should().Be(echo.NodeId);
-        wire.FromPort.Should().Be("echo");
-        wire.ToPort.Should().Be("message");
+        wire.From.Should().Be(new WireEnd(generate, "echo", generate.OutputPort("echo")));
+        wire.To.Should().Be(new WireEnd(echo, "message", echo.InputPort("message")));
     }
 
     // The whole point of role Things: a model may call its archetypes anything, and a deployment that
@@ -361,7 +358,7 @@ public class PipelineModelTests
 
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
 
-        var resolved = dag.Node(fx.Get("Echo").Id)!.Port("marked")!;
+        var resolved = dag.Node(fx.Get("Echo").Id)!.InputPort("marked")!;
         resolved.Required.Should().Be(expected);
         resolved.Collection.Should().Be(expected);
     }
@@ -375,7 +372,7 @@ public class PipelineModelTests
 
         var decide = dag.Node(fx.Get("Decide").Id)!;
         decide.Ports.Select(p => p.PortName).Should().BeEquivalentTo("accept", "refuse", "in", "out");
-        decide.Port("accept")!.IsOutput.Should().BeTrue();
+        decide.OutputPort("accept").Should().NotBeNull();
         DagValidator.Validate(dag).Should().BeEmpty();
     }
 
@@ -387,8 +384,8 @@ public class PipelineModelTests
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
 
         var maker = dag.Node(fx.Get("Maker").Id)!;
-        maker.Port("made")!.Produces.Should().BeTrue();
-        maker.Port("note")!.Produces.Should().BeFalse();
+        maker.OutputPort("made")!.Produces.Should().BeTrue();
+        maker.OutputPort("note")!.Produces.Should().BeFalse();
     }
 
     [Fact]
@@ -735,7 +732,7 @@ public class PipelineModelTests
         var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
         var echo = fx.Get("Echo");
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
-        dag.Node(echo.Id)!.Port("message")!.Required.Should().BeTrue();
+        dag.Node(echo.Id)!.InputPort("message")!.Required.Should().BeTrue();
         PipelineDag BoundToAnAbsentParameter(IReadOnlyList<DagWire> wires, IReadOnlyDictionary<string, ChosenThing> choices) => new()
         {
             PipelineId = dag.PipelineId,
@@ -747,7 +744,7 @@ public class PipelineModelTests
             }).ToList(),
             Wires = wires,
         };
-        var unwired = dag.Wires.Where(wire => wire.ToNodeId != echo.Id).ToList();
+        var unwired = dag.Wires.Where(wire => wire.To.Node.NodeId != echo.Id).ToList();
         var chosen = new Dictionary<string, ChosenThing> { ["message"] = new(Guid.NewGuid(), "Hello") };
 
         DagValidator.UnfilledByParameters(BoundToAnAbsentParameter(dag.Wires, new Dictionary<string, ChosenThing>()), default).Should().BeEmpty();
@@ -783,5 +780,23 @@ public class PipelineModelTests
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
 
         DagValidator.Validate(dag).Should().Contain(e => e.Contains("not an input port"));
+    }
+
+    [Fact]
+    public void Validate_WireFromAPortTheNodeDoesNotHave_IsRejectedNamingIt()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        fx.Rel(fx.Get("Generate"), fx.Get("carries"), fx.Get("Echo"), ("fromPort", "nope"), ("toPort", "message"));
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
+
+        DagValidator.Validate(dag).Should().ContainSingle().Which.Should().Contain("'nope' is not an output port on 'Generate'");
+    }
+
+    [Fact]
+    public void Validate_AWireFromAnOutPortWhoseServiceAlsoHasAnInPortOfTheSameName_IsValid()
+    {
+        var (fx, pipelineId) = TestGraphs.PassThroughPipeline();
+
+        DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), pipelineId)).Should().BeEmpty();
     }
 }
