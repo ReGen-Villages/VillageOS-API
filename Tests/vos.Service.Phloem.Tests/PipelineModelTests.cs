@@ -783,6 +783,16 @@ public class PipelineModelTests
     }
 
     [Fact]
+    public void Validate_WireFromAPortTheNodeDoesNotHave_IsRejectedNamingIt()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        fx.Rel(fx.Get("Generate"), fx.Get("carries"), fx.Get("Echo"), ("fromPort", "nope"), ("toPort", "message"));
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
+
+        DagValidator.Validate(dag).Should().ContainSingle().Which.Should().Contain("'nope' is not an output port on 'Generate'");
+    }
+
+    [Fact]
     public void Validate_AWireFromAnOutPortWhoseServiceAlsoHasAnInPortOfTheSameName_IsValid()
     {
         var (fx, pipelineId) = TestGraphs.PassThroughPipeline();
