@@ -71,7 +71,7 @@ public class SnapshotParserTests
             ],
             "relationships": [
               { "id": "{{rel}}", "subjectId": "{{pipe}}", "predicateId": "{{isPred}}", "targetId": "{{arch}}",
-                "properties": { "fromPort": { "value": "echo", "type": "vos.String" } } }
+                "properties": { "fromPath": { "value": "echo", "type": "vos.String" } } }
             ]
           }
         }
@@ -115,8 +115,8 @@ public class SnapshotParserTests
                 "TargetId": "{{wireArchetype}}", "Properties": {} },
               { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{from}}", "PredicateId": "{{carries}}", "TargetId": "{{to}}",
                 "Properties": {
-                  "fromPort": { "typeInfo": "vos.String", "value": "echo" },
-                  "toPort": { "typeInfo": "vos.String", "value": "message" } } }
+                  "fromPath": { "typeInfo": "vos.String", "value": "echo" },
+                  "toPath": { "typeInfo": "vos.String", "value": "message" } } }
             ]
           }
         }
@@ -126,8 +126,8 @@ public class SnapshotParserTests
 
         var wire = graph.OutgoingByPredicateOf(graph.Thing(from)!, PipelineRoles.PipelineWire).Single();
         wire.TargetId.Should().Be(to);
-        wire.PropertyString("fromPort").Should().Be("echo");
-        wire.PropertyString("toPort").Should().Be("message");
+        wire.PropertyString("fromPath").Should().Be("echo");
+        wire.PropertyString("toPath").Should().Be("message");
     }
 
     // A value written for a name the Thing's archetype declares is kept in the Thing's override store, not
@@ -213,7 +213,7 @@ public class SnapshotParserTests
               { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{from}}", "PredicateId": "{{carries}}", "TargetId": "{{to}}",
                 "Properties": {},
                 "InheritedOverrides": { "{{Guid.NewGuid()}}": { "SourceName": "PipelineWire",
-                  "Properties": { "fromPort": { "typeInfo": "vos.String", "value": "echo" } } } } }
+                  "Properties": { "fromPath": { "typeInfo": "vos.String", "value": "echo" } } } } }
             ]
           }
         }
@@ -224,7 +224,7 @@ public class SnapshotParserTests
 
         var wire = graph.OutgoingByPredicateOf(graph.Thing(from)!, PipelineRoles.PipelineWire).Single();
         wire.TargetId.Should().Be(to);
-        wire.PropertyString("fromPort").Should().Be("echo");
+        wire.PropertyString("fromPath").Should().Be("echo");
     }
 
     // A relationship short of one of its four identifiers is dropped rather than failing the load, and the Things
