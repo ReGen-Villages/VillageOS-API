@@ -16,6 +16,9 @@ public static class PipelineRoles
     public static readonly Role PipelineOutput = new("pipelineOutput", new("880d2158-25a8-5b2b-8b6a-923f21ca153d"));
     public static readonly Role Port = new("port", new("318d6995-e07b-5c83-acb5-86cd935ba4c6"));
     public static readonly Role PipelineWire = new("pipelineWire", new("adfe0071-bbaf-5e7f-abc3-255c08d8735a"));
+    // Named from the wire's side: its input connector reaches an out port, its output connector an in port.
+    public static readonly Role InputConnector = new("inputConnector", new("1f13d260-b2cc-5757-a475-7eb9b7d2323f"));
+    public static readonly Role OutputConnector = new("outputConnector", new("7788a338-5eb6-5733-a208-0cf90b4269dd"));
     public static readonly Role PipelineRun = new("pipelineRun", new("b682b68f-0101-5ab4-a7a9-13c3e43df873"));
     public static readonly Role NodeRun = new("nodeRun", new("ca731d14-5acb-5236-b0da-fe8b0836d0d7"));
     public static readonly Role Connection = new("connection", new("d5a3c29f-67c1-55a5-b0e4-9241378bd08d"));
@@ -65,7 +68,7 @@ public static class PipelineRoles
     // The roles a DAG is resolved from. The run roles are not among them: a run Thing is written before the
     // pipeline is loaded, so its archetype is looked up at the point of writing.
     public static readonly IReadOnlyList<Role> DagRoles =
-        [Connection, Service, Pipeline, PipelineNode, PipelineInput, PipelineOutput, Port, PipelineWire];
+        [Connection, Service, Pipeline, PipelineNode, PipelineInput, PipelineOutput, Port, PipelineWire, InputConnector, OutputConnector];
 
     // Left unbound, every question this orchestrator asks of the drawing answers "no", and a pipeline fully
     // described in the model would read as one with nothing in it.

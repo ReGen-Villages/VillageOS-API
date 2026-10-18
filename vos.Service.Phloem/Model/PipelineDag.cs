@@ -4,7 +4,7 @@ namespace vos.Service.Phloem.Model;
 
 // A resolved port on a node: the bound service's, up its is-chain, and the node's own. Collection marks an
 // input the node consumes as a list — the node fans out over it — or an output a fan-out gathers flat.
-public sealed record DagPort(string PortName, string Direction, string Type, bool Required, bool Collection = false, bool Produces = false)
+public sealed record DagPort(Guid Id, string PortName, string Direction, string Type, bool Required, bool Collection = false, bool Produces = false)
 {
     public bool IsInput => string.Equals(Direction, ModelNames.DirectionIn, StringComparison.OrdinalIgnoreCase);
     public bool IsOutput => string.Equals(Direction, ModelNames.DirectionOut, StringComparison.OrdinalIgnoreCase);
@@ -81,14 +81,12 @@ public sealed class DagNode
     // A node with more than one is refused before it runs.
     public DagPort? CollectionInput => Ports.FirstOrDefault(p => p.IsInput && p.Collection);
 
-    public DagPort? InputPort(string portName) => Ports.FirstOrDefault(p => p.IsInput && p.IsNamed(portName));
+    public DagPort? InPort(string portName) => Ports.FirstOrDefault(p => p.IsInput && p.IsNamed(portName));
 
-    public DagPort? OutputPort(string portName) => Ports.FirstOrDefault(p => p.IsOutput && p.IsNamed(portName));
+    public DagPort? OutPort(string portName) => Ports.FirstOrDefault(p => p.IsOutput && p.IsNamed(portName));
 }
 
-// One end of a wire: the node, the name the wire gives the port, and that port in the end's direction — the out port
-// the wire leaves or the in port it reaches — or null when the node has no such port.
-public sealed record WireEnd(DagNode Node, string PortName, DagPort? Port);
+public sealed record WireEnd(DagNode Node, DagPort Port);
 
 // A wire: an output port on one node carries its value to an input port on another. FromPath and
 // ToPath (both optional, empty = the whole payload) select a field of the upstream output

@@ -71,7 +71,7 @@ public class PipelineModelTests
         DagValidator.Validate(dag).Should().BeEmpty();
     }
 
-    [Fact] // A wire held as a Thing carries the same port mapping an edge-shaped wire carries.
+    [Fact]
     public void Build_WiresHeldAsThings_ResolveTheirPorts()
     {
         var (fx, pipelineId) = TestGraphs.ParallelWirePipeline();
@@ -81,11 +81,11 @@ public class PipelineModelTests
         var generate = dag.Node(fx.Get("Generate").Id)!;
         var echo = dag.Node(fx.Get("Echo").Id)!;
         dag.Wires.Should().OnlyContain(w => w.From.Node == generate && w.To.Node == echo);
-        dag.Wires.Select(w => (w.From.PortName, w.To.PortName)).Should()
+        dag.Wires.Select(w => (w.From.Port.PortName, w.To.Port.PortName)).Should()
             .BeEquivalentTo(new[] { ("echo", "message"), ("trace", "context") });
     }
 
-    [Fact] // Two wires between one node pair — the case an edge-shaped wire cannot express at all.
+    [Fact] // The model refuses a second relationship on one subject, predicate and target, so only wire Things allow this.
     public void Build_TwoWireThingsBetweenOneNodePair_YieldsBoth()
     {
         var (fx, pipelineId) = TestGraphs.ParallelWirePipeline();
@@ -95,7 +95,7 @@ public class PipelineModelTests
         dag.Wires.Should().HaveCount(2);
     }
 
-    [Fact] // Ports are proved whichever shape the wire arrived in.
+    [Fact]
     public void Validate_ParallelWirePipeline_IsValid()
     {
         var (fx, pipelineId) = TestGraphs.ParallelWirePipeline();
@@ -118,13 +118,13 @@ public class PipelineModelTests
         echo.Subdomain.Should().Be("ech");
 
         // ports resolve from the bound service's is-chain (proto)
-        generate.OutputPort("echo").Should().NotBeNull();
-        echo.InputPort("message")!.Required.Should().BeTrue();
+        generate.OutPort("echo").Should().NotBeNull();
+        echo.InPort("message")!.Required.Should().BeTrue();
 
         dag.Wires.Should().ContainSingle();
         var wire = dag.Wires[0];
-        wire.From.Should().Be(new WireEnd(generate, "echo", generate.OutputPort("echo")));
-        wire.To.Should().Be(new WireEnd(echo, "message", echo.InputPort("message")));
+        wire.From.Should().Be(new WireEnd(generate, generate.OutPort("echo")!));
+        wire.To.Should().Be(new WireEnd(echo, echo.InPort("message")!));
     }
 
     // The whole point of role Things: a model may call its archetypes anything, and a deployment that
@@ -166,7 +166,7 @@ public class PipelineModelTests
         fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, first);
         fx.Rel(pipe, vocabulary.Has, second);
-        fx.Rel(first, carries, second, ("fromPort", "produced"), ("toPort", "consumed"));
+        fx.Wire(first, "produced", second, "consumed");
 
         var dag = PipelineDagBuilder.Build(fx.Build(), pipe.Id);
 
@@ -358,7 +358,7 @@ public class PipelineModelTests
 
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
 
-        var resolved = dag.Node(fx.Get("Echo").Id)!.InputPort("marked")!;
+        var resolved = dag.Node(fx.Get("Echo").Id)!.InPort("marked")!;
         resolved.Required.Should().Be(expected);
         resolved.Collection.Should().Be(expected);
     }
@@ -372,7 +372,7 @@ public class PipelineModelTests
 
         var decide = dag.Node(fx.Get("Decide").Id)!;
         decide.Ports.Select(p => p.PortName).Should().BeEquivalentTo("accept", "refuse", "in", "out");
-        decide.OutputPort("accept").Should().NotBeNull();
+        decide.OutPort("accept").Should().NotBeNull();
         DagValidator.Validate(dag).Should().BeEmpty();
     }
 
@@ -384,8 +384,8 @@ public class PipelineModelTests
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
 
         var maker = dag.Node(fx.Get("Maker").Id)!;
-        maker.OutputPort("made")!.Produces.Should().BeTrue();
-        maker.OutputPort("note")!.Produces.Should().BeFalse();
+        maker.OutPort("made")!.Produces.Should().BeTrue();
+        maker.OutPort("note")!.Produces.Should().BeFalse();
     }
 
     [Fact]
@@ -732,7 +732,7 @@ public class PipelineModelTests
         var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
         var echo = fx.Get("Echo");
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
-        dag.Node(echo.Id)!.InputPort("message")!.Required.Should().BeTrue();
+        dag.Node(echo.Id)!.InPort("message")!.Required.Should().BeTrue();
         PipelineDag BoundToAnAbsentParameter(IReadOnlyList<DagWire> wires, IReadOnlyDictionary<string, ChosenThing> choices) => new()
         {
             PipelineId = dag.PipelineId,
@@ -763,33 +763,10 @@ public class PipelineModelTests
     [Fact]
     public void Validate_Cycle_IsRejected()
     {
-        var (fx, pipelineId) = TestGraphs.DemoPipeline();
-        // add the back-relationship Echo –carries(echo→message)→ Generate to make a cycle
-        fx.Rel(fx.Get("Echo"), fx.Get("carries"), fx.Get("Generate"), ("fromPort", "echo"), ("toPort", "message"));
+        var (fx, pipelineId) = TestGraphs.DemoPipelineInACycle();
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
 
         DagValidator.Validate(dag).Should().Contain(e => e.Contains("cycle"));
-    }
-
-    [Fact]
-    public void Validate_WireToUnknownPort_IsRejected()
-    {
-        var (fx, pipelineId) = TestGraphs.DemoPipeline();
-        // a wire whose target port does not exist on Echo
-        fx.Rel(fx.Get("Generate"), fx.Get("carries"), fx.Get("Echo"), ("fromPort", "echo"), ("toPort", "nope"));
-        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
-
-        DagValidator.Validate(dag).Should().Contain(e => e.Contains("not an input port"));
-    }
-
-    [Fact]
-    public void Validate_WireFromAPortTheNodeDoesNotHave_IsRejectedNamingIt()
-    {
-        var (fx, pipelineId) = TestGraphs.DemoPipeline();
-        fx.Rel(fx.Get("Generate"), fx.Get("carries"), fx.Get("Echo"), ("fromPort", "nope"), ("toPort", "message"));
-        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
-
-        DagValidator.Validate(dag).Should().ContainSingle().Which.Should().Contain("'nope' is not an output port on 'Generate'");
     }
 
     [Fact]
@@ -798,5 +775,83 @@ public class PipelineModelTests
         var (fx, pipelineId) = TestGraphs.PassThroughPipeline();
 
         DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), pipelineId)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Build_AWireIsFoundByThePortsItRelatesTo_SoRenamingBothPortsKeepsTheWire()
+    {
+        var (fx, pipelineId) = TestGraphs.PassThroughPipeline();
+        fx.State(fx.Get("transform.text.out"), ModelNames.PortName, "shouted");
+        fx.State(fx.Get("transform.text.in"), ModelNames.PortName, "words");
+
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
+
+        var intoReverse = dag.WiresInto(fx.Get("Reverse").Id).Single();
+        (intoReverse.From.Port.PortName, intoReverse.To.Port.PortName).Should().Be(("shouted", "words"));
+        DagValidator.Validate(dag).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Build_AWireCarryingOnlyPortNames_IsRefusedForTakingItsValueFromNoPort()
+    {
+        var (fx, pipelineId) = TestGraphs.PassThroughPipeline();
+        var reverse = fx.Get("Reverse");
+        fx.WireBetween(fx.Get("Uppercase"), null, reverse, fx.Get("transform.text.in"), ("fromPort", "text"), ("toPort", "text"));
+
+        DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), pipelineId)).Should()
+            .Contain("The wire from 'Uppercase' to 'Reverse' takes its value from no port: it relates to none along inputConnector.");
+    }
+
+    [Fact]
+    public void Build_AWireTakingItsValueFromAnInPortOfItsNode_IsRefusedNamingThePort()
+    {
+        var (fx, pipelineId) = TestGraphs.PassThroughPipeline();
+        fx.WireBetween(fx.Get("Uppercase"), fx.Get("transform.text.in"), fx.Get("Reverse"), fx.Get("transform.text.in"));
+
+        DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), pipelineId)).Should()
+            .Contain("The wire from 'Uppercase' to 'Reverse' takes its value from 'transform.text.in', which is not an out port of 'Uppercase'.");
+    }
+
+    [Fact]
+    public void Build_AWireDeliveringToAPortOfAnotherNode_IsRefusedNamingThePort()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        var echo = fx.Get("Echo");
+        fx.WireBetween(fx.Get("Generate"), fx.PortOf(fx.Get("Generate"), "echo", "out"), echo, fx.Get("s.out"));
+
+        DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), pipelineId)).Should()
+            .Contain("The wire from 'Generate' to 'Echo' delivers its value to 's.out', which is not an in port of 'Echo'.");
+    }
+
+    [Fact]
+    public void Build_AWireRelatedToNoInPort_IsRefused()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        fx.WireBetween(fx.Get("Generate"), fx.Get("s.out"), fx.Get("Echo"), null);
+
+        DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), pipelineId)).Should()
+            .Contain("The wire from 'Generate' to 'Echo' delivers its value to no port: it relates to none along outputConnector.");
+    }
+
+    [Fact]
+    public void Build_AWireRelatedToTwoOutPorts_IsRefused()
+    {
+        var (fx, pipelineId) = TestGraphs.ParallelWirePipeline();
+        var generate = fx.Get("Generate");
+        var wire = fx.WireBetween(generate, fx.PortOf(generate, "echo", "out"), fx.Get("Echo"), fx.PortOf(fx.Get("Echo"), "context", "in"));
+        fx.Rel(wire, fx.Get("inputConnector"), fx.PortOf(generate, "trace", "out"));
+
+        DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), pipelineId)).Should()
+            .Contain("The wire from 'Generate' to 'Echo' relates to 2 ports along inputConnector; a wire takes its value from one.");
+    }
+
+    [Fact]
+    public void Build_AWireDrawnAsARelationshipBetweenTwoNodes_IsRefused()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        fx.Rel(fx.Get("Echo"), fx.Get("carries"), fx.Get("Generate"), ("fromPort", "echo"), ("toPort", "message"));
+
+        DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), pipelineId)).Should()
+            .Contain("The wire from 'Echo' to 'Generate' is drawn as a relationship between the two nodes; a wire is a Thing the node it leaves has, related to the two ports it connects.");
     }
 }
