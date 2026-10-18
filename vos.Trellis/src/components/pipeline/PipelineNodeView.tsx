@@ -79,11 +79,11 @@ export function PipelineNodeView({ data }: NodeProps) {
       <div className="flex justify-between gap-4 py-2 text-xs">
         <div className="flex flex-col gap-2">
           {inputs.map((p) => (
-            <div key={p.portName} className="relative pl-3 text-zinc-600 dark:text-zinc-300">
+            <div key={p.portId} className="relative pl-3 text-zinc-600 dark:text-zinc-300">
               <Handle
                 type="target"
                 position={Position.Left}
-                id={p.portName}
+                id={p.portId}
                 className="!w-2.5 !h-2.5 !bg-blue-500"
               />
               {p.portName}
@@ -93,12 +93,12 @@ export function PipelineNodeView({ data }: NodeProps) {
         </div>
         <div className="flex flex-col gap-2 items-end">
           {outputs.map((p) => (
-            <div key={p.portName} className="relative pr-3 text-zinc-600 dark:text-zinc-300">
+            <div key={p.portId} className="relative pr-3 text-zinc-600 dark:text-zinc-300">
               {p.portName}
               <Handle
                 type="source"
                 position={Position.Right}
-                id={p.portName}
+                id={p.portId}
                 className="!w-2.5 !h-2.5 !bg-green-500"
               />
             </div>

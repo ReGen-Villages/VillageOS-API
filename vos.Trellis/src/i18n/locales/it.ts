@@ -1181,6 +1181,8 @@ export const it: PartialResources = {
       nodeArchetype: "archetipo associato al ruolo di nodo di pipeline",
       wireArchetype: "archetipo associato al ruolo di collegamento",
       wirePredicate: "predicato di collegamento (un predicato dell'archetipo di collegamento che nessun nodo contiene)",
+      inputConnector: "predicato associato al ruolo di connettore d'ingresso (da un collegamento alla porta di uscita da cui prende il valore)",
+      outputConnector: "predicato associato al ruolo di connettore d'uscita (da un collegamento alla porta di ingresso a cui consegna il valore)",
     },
     noPortRoles: "Questo modello non associa alcun archetipo al ruolo di porta, ingresso di pipeline o uscita di pipeline: carica un seed che li associ.",
     noStandsForRole: "Questo modello non associa alcun predicato al ruolo che indica cosa rappresenta un nodo di confine: carica un seed che ne associ uno.",

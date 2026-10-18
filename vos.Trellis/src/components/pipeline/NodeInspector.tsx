@@ -30,7 +30,7 @@ export function NodeInspector({ nodeId, data, wiredInputs, onSetPorts, onSetBind
         <div className="flex flex-col gap-1">
           <div className="text-zinc-400">{t('pipeline.ports', { direction: data.kind === 'input' ? t('pipeline.outputs.word') : t('pipeline.inputs') })}</div>
           {data.ports.map((p, i) => (
-            <div key={i} className="flex items-center gap-1">
+            <div key={p.portId} className="flex items-center gap-1">
               <input
                 aria-label={t('pipeline.portName', { index: i + 1 })}
                 value={p.portName}
@@ -45,7 +45,7 @@ export function NodeInspector({ nodeId, data, wiredInputs, onSetPorts, onSetBind
             </div>
           ))}
           <button
-            onClick={() => onSetPorts(nodeId, [...data.ports, { portName: `port${data.ports.length + 1}`, direction: data.kind === 'input' ? 'out' : 'in', type: 'any', required: data.kind === 'output' }])}
+            onClick={() => onSetPorts(nodeId, [...data.ports, { portId: crypto.randomUUID(), portName: `port${data.ports.length + 1}`, direction: data.kind === 'input' ? 'out' : 'in', type: 'any', required: data.kind === 'output' }])}
             className="mt-1 text-blue-500 hover:text-blue-600 text-left"
           >{t('pipeline.addPort')}</button>
         </div>
@@ -55,9 +55,9 @@ export function NodeInspector({ nodeId, data, wiredInputs, onSetPorts, onSetBind
         <div className="flex flex-col gap-1">
           <div className="text-zinc-400">{t('pipeline.bindInput')}</div>
           {inputs.map((p) => (
-            <label key={p.portName} className="flex items-center gap-1">
+            <label key={p.portId} className="flex items-center gap-1">
               <span className="w-16 truncate text-zinc-600 dark:text-zinc-300">{p.portName}</span>
-              {wiredInputs.has(p.portName) ? (
+              {wiredInputs.has(p.portId) ? (
                 <span className="flex-1 italic text-zinc-400">{t('pipeline.wired')}</span>
               ) : (
                 <input

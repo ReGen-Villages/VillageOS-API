@@ -62,6 +62,8 @@ export function catalystFixture({ orchestrators = 1 }: { orchestrators?: number 
   const portArchetype = thing('Socket', playing(ROLE.Port), true);
   const carries = thing('carries');
   relate(carries, is, wireArchetype);
+  const inputConnector = thing('takesFrom', playing(ROLE.InputConnector));
+  const outputConnector = thing('deliversTo', playing(ROLE.OutputConnector));
   const everyHour = thing('every hour');
   relate(everyHour, is, thing('Metronome', playing(ROLE.Cadence), true));
   relate(inputArchetype, is, nodeArchetype);
@@ -143,6 +145,7 @@ export function catalystFixture({ orchestrators = 1 }: { orchestrators?: number 
     relate(id, is, pipelineArchetype);
     return id;
   };
+  const portOf = new Map<string, string>();
   const boundary = (pipelineId: string, name: string, end: 'input' | 'output', standingFor?: string) => {
     const id = thing(name, { x: 0, y: 0 });
     relate(id, is, nodeArchetype);
@@ -153,13 +156,19 @@ export function catalystFixture({ orchestrators = 1 }: { orchestrators?: number 
     const port = thing(`${name}.${direction}`, { portName: end === 'input' ? 'payload' : 'value', direction, type: 'any', required: String(end === 'output') });
     relate(port, is, portArchetype);
     relate(id, has, port);
+    portOf.set(id, port);
     return id;
   };
 
   const readingsArrive = pipeline('Readings arrive');
   const readingsStart = boundary(readingsArrive, 'A reading arrives', 'input', hourlyReading);
   const readingsEnd = boundary(readingsArrive, 'The answer', 'output');
-  relate(readingsStart, carries, readingsEnd, { fromPort: 'payload', toPort: 'value' });
+  const readingsWire = thing('payload to value', { fromPath: '', toPath: '', transform: '' });
+  relate(readingsWire, is, wireArchetype);
+  relate(readingsStart, has, readingsWire);
+  relate(readingsWire, carries, readingsEnd);
+  relate(readingsWire, inputConnector, portOf.get(readingsStart)!);
+  relate(readingsWire, outputConnector, portOf.get(readingsEnd)!);
   const refill = pipeline('Refill');
   const refillStart = boundary(refill, 'A reservoir runs low', 'input', belowReorder);
   relate(watchesReorder, starts, refill);
