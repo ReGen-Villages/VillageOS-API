@@ -308,9 +308,9 @@ def is_ancestors(things, relationships, tid):
 
 
 class ModelRootsTests(unittest.TestCase):
-    """Configuration is what a model sets up, operation what then happens; a reader finds each root through
-    its role and asks for everything below it, so every archetype must be under exactly one and every
-    predicate and role Thing under Configuration."""
+    """Configuration is what a model sets up, operation what then happens, and a predicate what a relationship
+    runs along; a reader finds each root through its role and asks for everything below it, so every archetype
+    must be under exactly one, every predicate under Predicate, and every role Thing under Configuration."""
 
     def setUp(self):
         G.set_namespace(None)
@@ -318,13 +318,31 @@ class ModelRootsTests(unittest.TestCase):
         self.things, self.rels = list(self.kit.things.values()), list(self.kit.rels.values())
         [self.configuration] = bound_by(self.things, self.rels, "configuration")
         [self.operation] = bound_by(self.things, self.rels, "operation")
+        [self.predicate] = bound_by(self.things, self.rels, "predicate")
+        self.roots = {self.configuration, self.operation, self.predicate}
 
     def test_every_archetype_is_under_exactly_one_root(self):
         for thing in self.things:
-            if not thing.get("IsArchetype") or thing["Id"] in (self.configuration, self.operation):
+            if not thing.get("IsArchetype") or thing["Id"] in self.roots:
                 continue
             above = is_ancestors(self.things, self.rels, thing["Id"])
-            self.assertEqual(len(above & {self.configuration, self.operation}), 1, thing["Name"])
+            self.assertEqual(len(above & self.roots), 1, thing["Name"])
+
+    def test_every_predicate_it_relates_along_or_declares_is_under_the_predicate_root(self):
+        for tid in {r["Predicate"] for r in self.rels} | self.kit.predicates:
+            self.assertIn(self.predicate, is_ancestors(self.things, self.rels, tid), self.kit.things[tid]["Name"])
+
+    def test_a_predicate_declared_for_the_orchestrator_alone_is_under_the_predicate_root_too(self):
+        about = next(t["Id"] for t in self.things if t["Name"] == "about")
+        self.assertNotIn(about, {r["Predicate"] for r in self.rels})
+        self.assertIn(self.predicate, is_ancestors(self.things, self.rels, about))
+
+    def test_no_predicate_is_placed_directly_under_configuration(self):
+        placed = {r["Subject"] for r in self.rels if r["Predicate"] == self.kit_is() and r["Target"] == self.configuration}
+        self.assertEqual(sorted(self.kit.things[tid]["Name"] for tid in placed & self.kit.predicates), [])
+
+    def kit_is(self):
+        return next(t["Id"] for t in self.things if t["Name"] == "is")
 
     def test_runs_are_operation_and_the_rest_is_configuration(self):
         by_name = {t["Name"]: t["Id"] for t in self.things}
@@ -333,9 +351,8 @@ class ModelRootsTests(unittest.TestCase):
         for configured in ("Pipeline", "Service", "PlatformServiceConnection", "Strategy"):
             self.assertIn(self.configuration, is_ancestors(self.things, self.rels, by_name[configured]), configured)
 
-    def test_every_predicate_and_role_thing_is_under_configuration(self):
-        predicates = {r["Predicate"] for r in self.rels}
-        for tid in predicates | self.kit.role_things:
+    def test_every_role_thing_is_under_configuration(self):
+        for tid in self.kit.role_things:
             self.assertIn(self.configuration, is_ancestors(self.things, self.rels, tid), self.kit.things[tid]["Name"])
 
     def test_merge_places_onto_the_roots_the_target_binds_and_adds_no_second_root(self):
@@ -343,17 +360,22 @@ class ModelRootsTests(unittest.TestCase):
                 "Things": [{"Id": "target-binds", "Name": "binds", "Properties": {}},
                            {"Id": G.role_id("configuration"), "Name": "configuration role", "Properties": {}},
                            {"Id": G.role_id("operation"), "Name": "operation role", "Properties": {}},
+                           {"Id": G.role_id("predicate"), "Name": "predicate role", "Properties": {}},
                            {"Id": "target-set-up", "Name": "Set-up", "IsArchetype": True, "Properties": {}},
-                           {"Id": "target-doing", "Name": "Doing", "IsArchetype": True, "Properties": {}}],
+                           {"Id": "target-doing", "Name": "Doing", "IsArchetype": True, "Properties": {}},
+                           {"Id": "target-joining", "Name": "Joining", "IsArchetype": True, "Properties": {}}],
                 "Relationships": [{"Id": "b1", "Name": "", "Subject": G.role_id("configuration"), "Predicate": "target-binds", "Target": "target-set-up", "Properties": {}},
-                                  {"Id": "b2", "Name": "", "Subject": G.role_id("operation"), "Predicate": "target-binds", "Target": "target-doing", "Properties": {}}]}
+                                  {"Id": "b2", "Name": "", "Subject": G.role_id("operation"), "Predicate": "target-binds", "Target": "target-doing", "Properties": {}},
+                                  {"Id": "b3", "Name": "", "Subject": G.role_id("predicate"), "Predicate": "target-binds", "Target": "target-joining", "Properties": {}}]}
         G.merge_into(G.build(), seed)
 
-        self.assertEqual([t["Name"] for t in seed["Things"] if t["Name"] in ("Configuration", "Operation")], [])
+        self.assertEqual([t["Name"] for t in seed["Things"] if t["Name"] in ("Configuration", "Operation", "Predicate")], [])
         [pipeline] = bound_in_seed(seed, "pipeline")
         [run] = bound_in_seed(seed, "pipelineRun")
+        about = next(t["Id"] for t in seed["Things"] if t["Name"] == "about")
         self.assertIn("target-set-up", is_ancestors(seed["Things"], seed["Relationships"], pipeline))
         self.assertIn("target-doing", is_ancestors(seed["Things"], seed["Relationships"], run))
+        self.assertIn("target-joining", is_ancestors(seed["Things"], seed["Relationships"], about))
 
     def test_remove_leaves_the_vocabulary_where_the_roots_hold_it(self):
         seed = {"Name": "Target", "Things": [], "Relationships": []}
