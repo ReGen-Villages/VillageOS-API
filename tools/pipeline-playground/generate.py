@@ -81,10 +81,12 @@ PREDICATE_ROLE = {
     "outputConnector": "outputConnector",
 }
 
-# The two roots every archetype sits under: what a model sets up, and what then happens there.
+# The three roots every archetype sits under: what a model sets up, what then happens there, and what a
+# relationship runs along.
 ROOT_ROLE = {
     "Configuration": "configuration",
     "Operation": "operation",
+    "Predicate": "predicate",
 }
 
 
@@ -119,6 +121,7 @@ class Kit:
         self.shared = set()       # ids of the vocabulary reconciled against a target model
         self.role_of = {}         # id of a Thing playing a role -> the role's id (how a target's copy is found)
         self.role_things = set()  # ids of the role Things, which a target holds under the same ids or not at all
+        self.predicates = set()   # ids of every predicate declared, whether or not a relationship runs along it
         self._name = {}           # id -> Name (for readable relationship labels)
 
     def thing(self, tid, name, properties=None, shared=False, archetype=False):
@@ -157,6 +160,7 @@ class Kit:
         """A predicate found on merge by the role it plays, or by name: the built-in `is`, `has` and `of`, or
         one a target already holds under the name, which then plays the role as it reconciles."""
         tid = self.thing(stable_id(_TAG, "predicate", name), name, shared=True)
+        self.predicates.add(tid)
         return self.bind(PREDICATE_ROLE[name], tid) if name in PREDICATE_ROLE else tid
 
     def archetype(self, role, name=None):
@@ -401,15 +405,18 @@ def build():
                            k.thing(stable_id(_TAG, "archetype", "Configuration"), "Configuration", shared=True, archetype=True))
     Operation = k.bind(ROOT_ROLE["Operation"],
                        k.thing(stable_id(_TAG, "archetype", "Operation"), "Operation", shared=True, archetype=True))
+    Predicate = k.bind(ROOT_ROLE["Predicate"],
+                       k.thing(stable_id(_TAG, "archetype", "Predicate"), "Predicate", shared=True, archetype=True))
     binds = k.thing(stable_id(_TAG, "predicate", "binds"), "binds", shared=True)
     for configured in (Pipeline, PipelineNode, Port, Service, Connection, PipelineWire, ExternalSystem,
                        MessageKind, Cadence, strategy_kind):
         k.rel(configured, is_, Configuration)
     for operational in (PipelineRun, NodeRun, SentMessage):
         k.rel(operational, is_, Operation)
-    for written in (is_, has, of, binds, carries, triggered_by, sends, told, told_through, arrives_at, stands_for,
-                    offers, about, produced, input_connector, output_connector, *sorted(k.role_things)):
-        k.rel(written, is_, Configuration)
+    for predicate in (binds, *sorted(k.predicates)):
+        k.rel(predicate, is_, Predicate)
+    for role in sorted(k.role_things):
+        k.rel(role, is_, Configuration)
     return k
 
 
