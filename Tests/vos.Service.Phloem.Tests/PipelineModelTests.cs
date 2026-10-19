@@ -813,6 +813,16 @@ public class PipelineModelTests
     }
 
     [Fact]
+    public void Build_AWireDeliveringToAnOutPortOfItsTarget_IsRefusedNamingThePort()
+    {
+        var (fx, pipelineId) = TestGraphs.PassThroughPipeline();
+        fx.WireBetween(fx.Get("Uppercase"), fx.Get("transform.text.out"), fx.Get("Reverse"), fx.Get("transform.text.out"));
+
+        DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), pipelineId)).Should()
+            .Contain("The wire from 'Uppercase' to 'Reverse' delivers its value to 'transform.text.out', which is not an in port of 'Reverse'.");
+    }
+
+    [Fact]
     public void Build_AWireDeliveringToAPortOfAnotherNode_IsRefusedNamingThePort()
     {
         var (fx, pipelineId) = TestGraphs.DemoPipeline();
