@@ -1,3 +1,4 @@
+using System.Text.Json;
 using vos.Auth.Shared;
 using vos.Service.Delta.Helpers;
 using vos.Service.Delta.Models;
@@ -56,8 +57,6 @@ try
             myceliumUrl,
             serviceToken, apiKey: apiKey));
 
-    // Reads the relationships the template catalog already carries. A scoped snapshot, not a property read,
-    // because what provisioning needs to know is which relationships exist.
     builder.Services.AddSingleton<ISubscriptionClient>(sp =>
         new SubscriptionClient(
             sp.GetRequiredService<IHttpClientFactory>(),
@@ -65,11 +64,9 @@ try
             myceliumUrl,
             serviceToken, apiKey: apiKey));
 
-    builder.Services.AddSingleton<IEndpointSeedProvider, FileEndpointSeedProvider>();
+    builder.Services.AddSingleton<EndpointTemplateReader>();
 
     var app = builder.Build();
-    // An invalid template graph throws here and fails boot.
-    var graph = app.Services.GetRequiredService<IEndpointSeedProvider>().LoadGraph();
 
     if (authEnabled)
     {
@@ -78,18 +75,8 @@ try
         app.UseMyceliumModelToken();
     }
 
-    // Find-or-create every template thing on a model's first registration, under the token that named
-    // that model. Provisioning at startup instead would put the whole catalog in the one model Delta's
-    // launch token names, and one Delta process answers every project.
-    var provisioner = new TemplateCatalogProvisioner(
-        app.Services.GetRequiredService<MyceliumClient>(),
-        app.Services.GetRequiredService<ISubscriptionClient>(),
-        graph,
-        app.Services.GetRequiredService<ILogger<TemplateCatalogProvisioner>>());
-    var templateCatalog = new ModelTemplateCatalog();
-
-    var register = async (RegisterEndpointRequest request, MyceliumClient myceliumClient) =>
-        await HandleRegisterEndpointRequestAsync(request, myceliumClient, graph, provisioner, templateCatalog);
+    var register = async (RegisterEndpointRequest request, MyceliumClient myceliumClient, EndpointTemplateReader templates) =>
+        await HandleRegisterEndpointRequestAsync(request, myceliumClient, templates);
 
     var handleEndpoint = app.MapPost("/handle", register);
     if (authEnabled) handleEndpoint.RequireAuthorization();
@@ -125,9 +112,7 @@ finally
 static async Task<IResult> HandleRegisterEndpointRequestAsync(
     RegisterEndpointRequest request,
     MyceliumClient myceliumClient,
-    EndpointSeedGraph graph,
-    TemplateCatalogProvisioner provisioner,
-    ModelTemplateCatalog templateCatalog)
+    EndpointTemplateReader templates)
 {
     MyceliumClient.MyceliumThing? registeredThing = null;
     try
@@ -139,7 +124,7 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
             return Results.BadRequest(new { error = "Request must include properties." });
 
         // Template selection is an `is` relationship, not a scalar field. No `is` row means the root.
-        var isRelationships = (request.Relationships ?? new List<SeedRelationship>())
+        var isRelationships = (request.Relationships ?? new List<RequestedRelationship>())
             .Where(r => r != null
                 && string.Equals(r.Predicate, "is", StringComparison.OrdinalIgnoreCase)
                 && string.Equals(r.Subject, request.Name, StringComparison.OrdinalIgnoreCase))
@@ -147,29 +132,39 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
         if (isRelationships.Count > 1)
             return Results.BadRequest(new { error = "Registration declares more than one 'is' relationship." });
 
-        var templateName = isRelationships.Count == 1 ? isRelationships[0].Target : graph.Root.Name;
-        if (string.IsNullOrWhiteSpace(templateName))
+        var templateName = isRelationships.Count == 1 ? isRelationships[0].Target : null;
+        if (isRelationships.Count == 1 && string.IsNullOrWhiteSpace(templateName))
             return Results.BadRequest(new { error = "Registration 'is' relationship has an empty target template." });
 
-        // Single-rooted + acyclic, so membership in the graph proves descent from the root.
-        if (!graph.ContainsTemplate(templateName))
+        // url stays request-required even though it is a structural key in the chain.
+        if (!JsonValueCoercion.TryGetStringProperty(request.Properties, "url", out var url) || string.IsNullOrWhiteSpace(url))
+            return Results.BadRequest(new { error = "Endpoint url must be a non-empty string." });
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out _))
+            return Results.BadRequest(new { error = $"Invalid endpoint url: {url}" });
+
+        var (template, refusal) = await templates.ReadAsync(templateName);
+        if (template is null)
         {
-            return Results.BadRequest(new
-            {
-                error = $"Unknown endpoint template '{templateName}'; it does not descend from the root '{graph.Root.Name}'."
-            });
+            return refusal!.StatusCode >= 500
+                ? Results.Problem(detail: refusal.Reason, statusCode: refusal.StatusCode, title: "Registration failed")
+                : Results.Json(new { error = refusal.Reason }, statusCode: refusal.StatusCode);
         }
 
-        var allowedSet = graph.AllowedKeys(templateName);
-        if (allowedSet.Count == 0)
+        if (template.Properties.Count == 0)
         {
             return Results.Problem(
-                detail: "Endpoint seed does not define any allowed properties.",
+                detail: $"Endpoint template '{template.Name}' declares no properties.",
                 statusCode: 500,
                 title: "Registration failed");
         }
 
-        var invalidKeys = request.Properties.Keys.Where(k => !allowedSet.Contains(k)).ToList();
+        // The broker names an inherited key by the path of archetypes it comes through ("Endpoint.url"), so a
+        // key is looked up the way Tributary looks it up when it calls the endpoint.
+        var invalidKeys = request.Properties.Keys
+            .Where(key => !EffectivePropertyResolver.TryGetEffectiveProperty(template.Properties, key, out _, out var conflicts)
+                && conflicts is null)
+            .ToList();
         if (invalidKeys.Count > 0)
         {
             return Results.BadRequest(new
@@ -178,52 +173,21 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
             });
         }
 
-        // url stays request-required even though it is a structural key in the chain.
-        if (!JsonValueCoercion.TryGetStringProperty(request.Properties, "url", out var url) || string.IsNullOrWhiteSpace(url))
-            return Results.BadRequest(new { error = "Endpoint url must be a non-empty string." });
-
-        // httpMethod is inheritable: validate the effective value (request over seed chain), not the body alone.
+        // httpMethod is inheritable: validate the effective value (request over template), not the body alone.
         string? effectiveMethod = null;
         if (JsonValueCoercion.TryGetStringProperty(request.Properties, "httpMethod", out var requestMethod)
             && !string.IsNullOrWhiteSpace(requestMethod))
             effectiveMethod = requestMethod;
-        else if (graph.TryGetEffectiveSeedValue(templateName, "httpMethod", out var seedMethod))
-            effectiveMethod = seedMethod?.ToString();
+        else if (EffectivePropertyResolver.TryGetEffectiveProperty(template.Properties, "httpMethod", out var templateMethod, out _)
+            && templateMethod.ValueKind == JsonValueKind.String)
+            effectiveMethod = templateMethod.GetString();
 
         if (string.IsNullOrWhiteSpace(effectiveMethod))
             return Results.BadRequest(new { error = "Endpoint httpMethod must be a non-empty string." });
 
-        if (!Uri.TryCreate(url, UriKind.Absolute, out _))
-            return Results.BadRequest(new { error = $"Invalid endpoint url: {url}" });
-
         var normalizedMethod = effectiveMethod.Trim().ToUpperInvariant();
         if (!HttpMethodValidator.IsSupportedMethod(normalizedMethod))
             return Results.BadRequest(new { error = $"Unsupported httpMethod: {effectiveMethod}" });
-
-        // The registration lands in the model the caller's bearer names, so the template it is wired to
-        // has to be in that same model — provisioned there on the first registration it sends. Resolved
-        // after the validation above so a request that was going to be refused provisions nothing.
-        var callerModelId = ModelScopedBearer.Read(await myceliumClient.GetTokenAsync())?.ModelId
-            ?? ModelTemplateCatalog.UnnamedModel;
-        var catalog = await templateCatalog.ProvisionedForAsync(callerModelId, provisioner.ProvisionAsync);
-        if (catalog == null)
-        {
-            return Results.Problem(
-                detail: "Missing required 'is' predicate thing in mycelium model.",
-                statusCode: 500,
-                title: "Registration failed");
-        }
-
-        // Absent means this model's provisioning pass could not create it; a later pass would create a
-        // second Thing of the same name rather than repair the first, so it is not retried here.
-        var templateSeed = graph.Templates[templateName];
-        if (!catalog.TemplateIdsByName.TryGetValue(templateSeed.Name, out var templateThingId))
-        {
-            return Results.Problem(
-                detail: $"Endpoint template '{templateSeed.Name}' is not provisioned in mycelium.",
-                statusCode: 500,
-                title: "Registration failed");
-        }
 
         registeredThing = await myceliumClient.CreateThingAsync(new RegisterEndpointRequest
         {
@@ -241,15 +205,11 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
         // Mycelium awaits the is-handler synchronously, so inherited properties exist once this returns.
         var relationshipCreated = await myceliumClient.CreateRelationshipAsync(
             registeredThing.Value.Id,
-            catalog.IsPredicateId,
-            templateThingId);
+            template.IsPredicateId,
+            template.Id);
 
         if (!relationshipCreated)
         {
-            // The held ids are the likeliest reason the wire failed — a Thing deleted since it was
-            // provisioned is still named here. Discard them so the next registration provisions again
-            // rather than failing on the same two ids forever.
-            templateCatalog.Forget(callerModelId);
             await CompensateAsync(myceliumClient, registeredThing.Value.Id);
             return Results.Problem(
                 detail: "Failed to create 'is' relationship for registered endpoint.",
@@ -276,8 +236,8 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
             success = true,
             message = "Endpoint registered successfully",
             registeredThingId = registeredThing.Value.Id,
-            endpointTemplateId = templateThingId,
-            predicateId = catalog.IsPredicateId
+            endpointTemplateId = template.Id,
+            predicateId = template.IsPredicateId
         });
     }
     catch (Exception ex)
