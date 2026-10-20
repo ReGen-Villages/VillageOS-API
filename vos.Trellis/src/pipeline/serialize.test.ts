@@ -12,7 +12,6 @@ vi.mock('../api/thingApi', () => ({
 vi.mock('../api/relationshipApi', () => ({
   relationshipApi: {
     create: vi.fn().mockResolvedValue({ Id: 'new-rel' }),
-    setProperty: vi.fn().mockResolvedValue({}),
     remove: vi.fn().mockResolvedValue({}),
   },
 }));
@@ -32,7 +31,6 @@ const thingAddProperty = vi.mocked(thingApi.addProperty);
 const thingSetProperty = vi.mocked(thingApi.setProperty);
 const relationshipRemove = vi.mocked(relationshipApi.remove);
 const relationshipCreate = vi.mocked(relationshipApi.create);
-const relationshipSetProperty = vi.mocked(relationshipApi.setProperty);
 
 // The starting graph every fixture below builds on: the built-in predicates, and each archetype named as
 // some model chose and bound to the role it plays. A fixture that resolves at all therefore proves nothing
@@ -418,13 +416,12 @@ describe('a wire held as a Thing', () => {
     expect(relationshipRemove).not.toHaveBeenCalled();
   });
 
-  it('re-writes a changed field-path on the wire Thing, not on an edge', async () => {
+  it('re-writes a changed field-path on the wire Thing', async () => {
     await savePipeline('P', [node('N1', 'Node1'), node('N2', 'Node2')],
       [{ ...wire('svc.out', 'svc.in'), fromPath: 'body.id' }, wire('svc.trace', 'svc.context')],
       buildModelWithHeldWires(), 'P');
 
-    expect(thingSetProperty).toHaveBeenCalledWith('W1', 'fromPath', 'vos.String', 'body.id');
-    expect(relationshipSetProperty).not.toHaveBeenCalled();
+    expect(thingSetProperty.mock.calls).toEqual([['W1', 'fromPath', 'vos.String', 'body.id']]);
   });
 });
 

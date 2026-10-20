@@ -8,8 +8,8 @@ export interface WirePaths {
 
 interface Props {
   wireId: string;
-  fromPort: string;
-  toPort: string;
+  fromPortName: string;
+  toPortName: string;
   paths: WirePaths;
   onSetPath: (wireId: string, which: keyof WirePaths, value: string) => void;
   onClose: () => void;
@@ -18,12 +18,12 @@ interface Props {
 const FIELD = 'flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900';
 
 /** The selected wire: the field it picks from the upstream value, where it lands it, and a transform on the way. */
-export function WireInspector({ wireId, fromPort, toPort, paths, onSetPath, onClose }: Props) {
+export function WireInspector({ wireId, fromPortName, toPortName, paths, onSetPath, onClose }: Props) {
   const { t } = useTranslation();
   return (
     <div className="absolute top-2 right-2 w-64 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded shadow-lg p-2 text-xs z-10">
       <div className="font-semibold mb-1.5 flex items-center justify-between gap-2">
-        <span className="truncate">{t('pipeline.wireLabel', { from: fromPort, to: toPort })}</span>
+        <span className="truncate">{t('pipeline.wireLabel', { from: fromPortName, to: toPortName })}</span>
         <button onClick={onClose} aria-label={t('pipeline.closeInspector')} className="text-zinc-400 hover:text-zinc-600">×</button>
       </div>
       <div className="text-zinc-400 mb-1">{t('pipeline.mapField')}</div>

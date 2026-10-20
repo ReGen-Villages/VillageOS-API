@@ -119,12 +119,12 @@ public class PipelineModelTests
 
         // ports resolve from the bound service's is-chain (proto)
         generate.OutPort("echo").Should().NotBeNull();
-        echo.InPort("message")!.Required.Should().BeTrue();
+        InPortOf(echo, "message").Required.Should().BeTrue();
 
         dag.Wires.Should().ContainSingle();
         var wire = dag.Wires[0];
         wire.From.Should().Be(new WireEnd(generate, generate.OutPort("echo")!));
-        wire.To.Should().Be(new WireEnd(echo, echo.InPort("message")!));
+        wire.To.Should().Be(new WireEnd(echo, InPortOf(echo, "message")));
     }
 
     // The whole point of role Things: a model may call its archetypes anything, and a deployment that
@@ -358,7 +358,7 @@ public class PipelineModelTests
 
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
 
-        var resolved = dag.Node(fx.Get("Echo").Id)!.InPort("marked")!;
+        var resolved = InPortOf(dag.Node(fx.Get("Echo").Id)!, "marked");
         resolved.Required.Should().Be(expected);
         resolved.Collection.Should().Be(expected);
     }
@@ -732,7 +732,7 @@ public class PipelineModelTests
         var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
         var echo = fx.Get("Echo");
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
-        dag.Node(echo.Id)!.InPort("message")!.Required.Should().BeTrue();
+        InPortOf(dag.Node(echo.Id)!, "message").Required.Should().BeTrue();
         PipelineDag BoundToAnAbsentParameter(IReadOnlyList<DagWire> wires, IReadOnlyDictionary<string, ChosenThing> choices) => new()
         {
             PipelineId = dag.PipelineId,
@@ -752,6 +752,8 @@ public class PipelineModelTests
         DagValidator.UnfilledByParameters(BoundToAnAbsentParameter(unwired, new Dictionary<string, ChosenThing>()), default)
             .Should().ContainSingle("the same port with neither a wire nor a choice is judged by its parameter");
     }
+
+    private static DagPort InPortOf(DagNode node, string portName) => node.Ports.Single(port => port.IsInput && port.IsNamed(portName));
 
     private static void RequiredPortNothingFills(GraphFixture fx, string prototypeName)
     {

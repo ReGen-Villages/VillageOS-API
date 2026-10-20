@@ -601,8 +601,8 @@ export function PipelinePage() {
           {selectedEdge && (
             <WireInspector
               wireId={selectedEdge.id}
-              fromPort={portNameOf(selectedEdge.source, selectedEdge.sourceHandle)}
-              toPort={portNameOf(selectedEdge.target, selectedEdge.targetHandle)}
+              fromPortName={portNameOf(selectedEdge.source, selectedEdge.sourceHandle)}
+              toPortName={portNameOf(selectedEdge.target, selectedEdge.targetHandle)}
               paths={(selectedEdge.data as WirePaths | undefined) ?? {}}
               onSetPath={setEdgePath}
               onClose={() => setSelectedEdgeId(null)}

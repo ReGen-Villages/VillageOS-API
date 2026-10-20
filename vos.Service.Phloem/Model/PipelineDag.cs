@@ -81,8 +81,6 @@ public sealed class DagNode
     // A node with more than one is refused before it runs.
     public DagPort? CollectionInput => Ports.FirstOrDefault(p => p.IsInput && p.Collection);
 
-    public DagPort? InPort(string portName) => Ports.FirstOrDefault(p => p.IsInput && p.IsNamed(portName));
-
     public DagPort? OutPort(string portName) => Ports.FirstOrDefault(p => p.IsOutput && p.IsNamed(portName));
 }
 
