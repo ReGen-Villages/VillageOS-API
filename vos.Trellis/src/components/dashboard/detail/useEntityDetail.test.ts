@@ -21,6 +21,7 @@ vi.mock('../../../api/relationshipApi', () => ({
 }));
 
 import { buildModelIndex } from '../../../api/dashboardApi';
+import { ROLE } from '../../../pipeline/model';
 import type { VosThing, VosRelationship } from '../../../types/vos';
 import { useModelStore } from '../../../stores/modelStore';
 import { useEntityDetail } from './useEntityDetail';
@@ -48,12 +49,17 @@ function indexWithAService() {
       thing('child', 'CHILD-1'),
       thing('is', 'is'),
       thing('runs', 'runs'),
-      { Id: 'connectionArchetype', Name: 'Connection', Properties: { __IsConnectionArchetype: true }, IsArchetype: true },
-      { Id: 'serviceArchetype', Name: 'Service', Properties: { __IsServiceArchetype: true }, IsArchetype: true },
+      thing('binds', 'binds'),
+      thing(ROLE.Connection, 'connection role'),
+      thing(ROLE.Service, 'service role'),
+      { Id: 'connectionArchetype', Name: 'Connection', Properties: {}, IsArchetype: true },
+      { Id: 'serviceArchetype', Name: 'Service', Properties: {}, IsArchetype: true },
       thing('has', 'has'),
       thing('keeper', 'keeper service'),
     ],
     [
+      relationship('b1', ROLE.Connection, 'binds', 'connectionArchetype'),
+      relationship('b2', ROLE.Service, 'binds', 'serviceArchetype'),
       relationship('w1', 'has', 'is', 'connectionArchetype'),
       relationship('w2', 'has', 'runs', 'keeper'),
       relationship('w3', 'keeper', 'is', 'serviceArchetype'),
