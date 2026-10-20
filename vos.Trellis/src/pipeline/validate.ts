@@ -1,4 +1,4 @@
-import type { PortInformation } from './model';
+import { wireEnds, type PortInformation } from './model';
 import i18n from '../i18n';
 
 // Pure pre-run validation for the pipeline editor: explains why a DAG will not run before the
@@ -65,17 +65,13 @@ export function validateEnds(nodes: ValidationNode[], _edges: ValidationEdge[]):
 export function validatePipeline(nodes: ValidationNode[], edges: ValidationEdge[]): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const byId = new Map(nodes.map((n) => [n.id, n]));
-  const portOf = (n: ValidationNode | undefined, portId: string, direction: 'in' | 'out') =>
-    n?.ports.find((p) => p.portId === portId && p.direction === direction);
-
   // A wire is dangling if either endpoint node, or the port on it, no longer exists. Only
   // well-formed wires count toward satisfying a required input.
   const wiredInputs = new Set<string>();
   for (const e of edges) {
     const source = byId.get(e.source);
     const dst = byId.get(e.target);
-    const outPort = portOf(source, e.sourceHandle, 'out');
-    const inPort = portOf(dst, e.targetHandle, 'in');
+    const { outPort, inPort } = wireEnds(source?.ports, e.sourceHandle, dst?.ports, e.targetHandle);
     if (!outPort || !inPort) {
       issues.push({
         kind: 'dangling-wire',

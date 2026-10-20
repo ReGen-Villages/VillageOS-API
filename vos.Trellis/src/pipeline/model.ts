@@ -561,6 +561,19 @@ export class PipelineModel {
   }
 }
 
+/** The port a wire end reaches: the one with this identifier in this direction, so an in port and an out port of one
+ *  name are never taken for each other. */
+export function portOf(ports: PortInformation[] | undefined, portId: string | null | undefined, direction: 'in' | 'out'): PortInformation | undefined {
+  return ports?.find((port) => port.portId === portId && port.direction === direction);
+}
+
+export function wireEnds(
+  sourcePorts: PortInformation[] | undefined, sourceHandle: string | null | undefined,
+  targetPorts: PortInformation[] | undefined, targetHandle: string | null | undefined,
+): { outPort?: PortInformation; inPort?: PortInformation } {
+  return { outPort: portOf(sourcePorts, sourceHandle, 'out'), inPort: portOf(targetPorts, targetHandle, 'in') };
+}
+
 /** Are two ports type-compatible? Empty/"any" on either side is a wildcard (mirrors DagValidator). */
 export function typesCompatible(outType: string, inType: string): boolean {
   const a = outType.trim().toLowerCase();

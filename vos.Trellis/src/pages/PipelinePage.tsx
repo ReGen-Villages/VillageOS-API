@@ -21,7 +21,7 @@ import { useModelStore } from '../stores/modelStore';
 import { useThemeStore } from '../stores/themeStore';
 import { useSubscription } from '../hooks/useSse';
 import { WHOLE_MODEL } from '../types/subscription';
-import { PipelineModel, ROLE, typesCompatible, type ConnectionInformation, type PortInformation } from '../pipeline/model';
+import { PipelineModel, ROLE, typesCompatible, wireEnds, type ConnectionInformation, type PortInformation } from '../pipeline/model';
 import { savePipeline, loadPipeline, type EditorNode, type EditorEdge } from '../pipeline/serialize';
 import { stopRun } from '../pipeline/stop';
 import { validatePipeline, validateEnds } from '../pipeline/validate';
@@ -289,8 +289,7 @@ export function PipelinePage() {
   const onConnect = useCallback((c: Connection) => {
     const source = nodes.find((n) => n.id === c.source)?.data as PipelineNodeData | undefined;
     const tgt = nodes.find((n) => n.id === c.target)?.data as PipelineNodeData | undefined;
-    const outPort = source?.ports.find((p) => p.portId === c.sourceHandle && p.direction === 'out');
-    const inPort = tgt?.ports.find((p) => p.portId === c.targetHandle && p.direction === 'in');
+    const { outPort, inPort } = wireEnds(source?.ports, c.sourceHandle, tgt?.ports, c.targetHandle);
     if (!outPort || !inPort) return;
     if (!typesCompatible(outPort.type, inPort.type)) {
       setError(t('pipeline.incompatibleWire', { from: outPort.type || 'any', to: inPort.type || 'any' }));

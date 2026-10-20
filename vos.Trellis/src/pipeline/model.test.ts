@@ -4,7 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { basename, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { VosThing, VosRelationship } from '../types/vos';
-import { PipelineModel, ROLE, typesCompatible } from './model';
+import { PipelineModel, ROLE, portOf, typesCompatible, wireEnds } from './model';
 import { loadPipeline } from './serialize';
 import { playing, withRoles } from './roles.test.fixture';
 
@@ -225,6 +225,24 @@ describe('the vocabulary the editor holds', () => {
     );
     for (const roleId of Object.values(ROLE))
       if (!READ_BY_THE_PAGE_ALONE.has(roleId)) expect(phloem).toContain(`"${roleId}"`);
+  });
+});
+
+describe('portOf', () => {
+  const textIn = { portId: 'upper.in.text', portName: 'text', direction: 'in' as const, type: 'string', required: true };
+  const textOut = { portId: 'upper.out.text', portName: 'text', direction: 'out' as const, type: 'string', required: false };
+
+  it('finds a wire end by the port identifier in the direction asked, never by name', () => {
+    expect(portOf([textIn, textOut], 'upper.out.text', 'out')).toBe(textOut);
+    expect(portOf([textIn, textOut], 'upper.out.text', 'in')).toBeUndefined();
+    expect(portOf([textIn, textOut], 'text', 'out')).toBeUndefined();
+    expect(portOf(undefined, 'upper.out.text', 'out')).toBeUndefined();
+  });
+
+  it('takes a wire from an out port of the node it leaves to an in port of the node it reaches', () => {
+    const reverseIn = { ...textIn, portId: 'reverse.in.text' };
+    expect(wireEnds([textIn, textOut], 'upper.out.text', [reverseIn], 'reverse.in.text')).toEqual({ outPort: textOut, inPort: reverseIn });
+    expect(wireEnds([textIn, textOut], 'upper.in.text', [reverseIn], 'reverse.in.text')).toEqual({ outPort: undefined, inPort: reverseIn });
   });
 });
 

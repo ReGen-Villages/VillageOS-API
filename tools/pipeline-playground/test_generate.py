@@ -283,6 +283,34 @@ class CatalystVocabularyTests(unittest.TestCase):
         self.assertIn("[Text Studio] the wire from 'Uppercase' to 'Reverse' takes its value from 'uppercase.in.text', "
                       "which is not an out port of 'Uppercase'", run.stdout)
 
+    def test_the_fragment_validator_refuses_a_wire_with_two_input_connectors(self):
+        [connector] = self.bound("inputConnector")
+        fragment = G.as_fragment(self.kit)
+        upper = G.stable_id(G._TAG, "node", "Text Studio", "upper")
+        has = next(tid for tid, t in self.kit.things.items() if t["Name"] == "has")
+        [wire] = [r["Target"] for r in self.kit.rels.values() if r["Subject"] == upper and r["Predicate"] == has
+                  and r["Target"] in self.wires()]
+        fragment["Relationships"].append({"Id": "second-input-connector", "Name": "", "Subject": wire, "Predicate": connector,
+                                          "Target": G.stable_id(G._TAG, "port", "uppercase", "text", "in"), "Properties": {}})
+
+        run = self.validate(fragment)
+
+        self.assertEqual(run.returncode, 1, run.stdout + run.stderr)
+        self.assertIn("[Text Studio] the wire from 'Uppercase' to 'Reverse' relates to 2 ports along inputConnector", run.stdout)
+
+    def test_the_fragment_validator_refuses_a_wire_drawn_as_a_relationship_between_two_nodes(self):
+        carries = next(tid for tid, t in self.kit.things.items() if t["Name"] == "carries")
+        fragment = G.as_fragment(self.kit)
+        upper = G.stable_id(G._TAG, "node", "Text Studio", "upper")
+        reverse = G.stable_id(G._TAG, "node", "Text Studio", "rev")
+        fragment["Relationships"].append({"Id": "node-to-node-wire", "Name": "", "Subject": upper, "Predicate": carries,
+                                          "Target": reverse, "Properties": {}})
+
+        run = self.validate(fragment)
+
+        self.assertEqual(run.returncode, 1, run.stdout + run.stderr)
+        self.assertIn("[Text Studio] the wire from 'Uppercase' to 'Reverse' is drawn as a relationship between the two nodes", run.stdout)
+
     def test_the_fragment_validator_accepts_every_drawing(self):
         run = self.validate(G.as_fragment(self.kit))
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
