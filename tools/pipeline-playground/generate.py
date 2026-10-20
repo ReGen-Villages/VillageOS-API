@@ -192,8 +192,8 @@ def build():
     offers = k.predicate("offers")
     # Declared for the orchestrator, which relates a run to the Thing whose state entry started it, and a
     # node run to each Thing the node produced.
-    about = k.predicate("about")
-    produced = k.predicate("produced")
+    k.predicate("about")
+    k.predicate("produced")
 
     Pipeline = k.archetype("Pipeline")
     PipelineNode = k.archetype("PipelineNode")
