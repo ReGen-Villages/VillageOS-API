@@ -12,25 +12,41 @@ public class MyceliumClient : MyceliumClientBase
 
     public readonly record struct MyceliumThing(Guid Id, string Name, Dictionary<string, object?> Properties);
 
-    public async Task<MyceliumThing?> FindThingByNameAsync(string name)
+    public async Task<IReadOnlyDictionary<string, JsonElement>?> GetResolvedPropertiesAsync(Guid thingId)
     {
         try
         {
             var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
-            var encodedName = Uri.EscapeDataString(name);
-            var response = await client.GetAsync($"{MyceliumUrl}/api/things?name={encodedName}");
+            var response = await client.GetAsync($"{MyceliumUrl}{MyceliumRoutes.ThingProperties(thingId)}");
             if (!response.IsSuccessStatusCode)
             {
-                Logger.LogWarning("Failed to find thing by name {Name}. Status: {StatusCode}", name, response.StatusCode);
+                Logger.LogWarning("Failed to read the properties of thing {ThingId}. Status: {StatusCode}",
+                    thingId, response.StatusCode);
                 return null;
             }
 
             var root = await response.Content.ReadFromJsonAsync<JsonElement>();
-            return TryParseThing(root, out var thing) ? thing : null;
+            if (root.ValueKind != JsonValueKind.Object)
+                return null;
+
+            // The broker names an inherited value by the path of archetypes it comes through ("Endpoint.url"); the
+            // nearest one, the shortest path, wins for a name declared more than once.
+            return root.EnumerateObject()
+                .Where(property => TryGetPropertyCaseInsensitive(property.Value, "Value", out _))
+                .GroupBy(property => property.Name[(property.Name.LastIndexOf('.') + 1)..], StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    byName => byName.Key,
+                    byName =>
+                    {
+                        var nearest = byName.MinBy(property => property.Name.Count(character => character == '.'));
+                        TryGetPropertyCaseInsensitive(nearest.Value, "Value", out var value);
+                        return value;
+                    },
+                    StringComparer.OrdinalIgnoreCase);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error finding thing by name {Name}", name);
+            Logger.LogError(ex, "Error reading the properties of thing {ThingId}", thingId);
             return null;
         }
     }
