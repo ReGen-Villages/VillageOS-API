@@ -4,12 +4,12 @@ using static vos.Taproot.ModelReading;
 namespace vos.Taproot;
 
 // `pipeline list`, `pipeline run`, `pipeline cancel` and `pipeline history`. Which Thing is a pipeline
-// or a run is read from the flag its archetype carries, the same contract the orchestrator reads, so a
+// or a run is read from the role Thing binding its archetype, the same contract the orchestrator reads, so a
 // model may call those archetypes whatever suits it.
 public class PipelineCommandHandler : CommandHandlerWithOutputOptions
 {
-    public const string PipelineFlag = "__IsPipelineArchetype";
-    public const string PipelineRunFlag = "__IsPipelineRunArchetype";
+    public static readonly Guid PipelineRoleId = new("f8bc9986-6eef-54d9-9940-4aca2497109b");
+    public static readonly Guid PipelineRunRoleId = new("b682b68f-0101-5ab4-a7a9-13c3e43df873");
 
     // The orchestrator is reached as the endpoint service at this subdomain, as Trellis reaches it.
     public const string OrchestratorSubdomain = "phloem";
@@ -58,13 +58,13 @@ public class PipelineCommandHandler : CommandHandlerWithOutputOptions
     private async Task ListAsync()
     {
         var model = await ModelSnapshot.ReadAsync(_mycelium);
-        if (OneOwning(model, PipelineFlag) is not { } archetype)
+        if (BoundBy(model, PipelineRoleId) is not { } archetype)
         {
-            _writer.WriteLine($"This model marks no archetype with '{PipelineFlag}'.");
+            _writer.WriteLine("This model binds no archetype to the pipeline role.");
             return;
         }
 
-        var pipelines = await _mycelium.GetThingsAsync(new ThingListNarrowing(Type: archetype.Name));
+        var pipelines = await _mycelium.GetThingsAsync(new ThingListNarrowing(Type: NameOf(model, archetype)));
         if (pipelines.GetArrayLength() == 0)
         {
             _writer.WriteLine("No pipelines.");
@@ -157,9 +157,9 @@ public class PipelineCommandHandler : CommandHandlerWithOutputOptions
         }
 
         var model = await ModelSnapshot.ReadAsync(_mycelium);
-        if (OneOwning(model, PipelineRunFlag) is not { } runArchetype)
+        if (BoundBy(model, PipelineRunRoleId) is not { } runArchetype)
         {
-            _writer.WriteLine($"This model marks no archetype with '{PipelineRunFlag}'.");
+            _writer.WriteLine("This model binds no archetype to the pipeline run role.");
             return;
         }
 
@@ -167,7 +167,7 @@ public class PipelineCommandHandler : CommandHandlerWithOutputOptions
             .Where(edge => Target(edge) == resolved.Id && NameOf(model, Predicate(edge)) == OfPredicateName)
             .Select(Subject)
             .ToHashSet();
-        var runs = (await _mycelium.GetThingsAsync(new ThingListNarrowing(Type: runArchetype.Name)))
+        var runs = (await _mycelium.GetThingsAsync(new ThingListNarrowing(Type: NameOf(model, runArchetype))))
             .EnumerateArray()
             .Select(run => Identifier(run, "Id"))
             .Where(ofThisPipeline.Contains)
@@ -199,7 +199,7 @@ public class PipelineCommandHandler : CommandHandlerWithOutputOptions
         _writer.WriteLine("       pipeline cancel <run-id> [reason]         - Ask a running, waiting or trying pipeline to stop");
         _writer.WriteLine("       pipeline history <pipeline>               - The runs of a pipeline, newest first");
         _writer.WriteLine();
-        _writer.WriteLine("<pipeline> can be a GUID or a unique name. Pipelines and runs are found by the flags");
-        _writer.WriteLine("the model marks its archetypes with, never by an archetype's name.");
+        _writer.WriteLine("<pipeline> can be a GUID or a unique name. Pipelines and runs are found through the role");
+        _writer.WriteLine("Things the model binds their archetypes to, never by an archetype's name.");
     }
 }
