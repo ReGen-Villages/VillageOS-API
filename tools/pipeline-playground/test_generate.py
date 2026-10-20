@@ -426,11 +426,9 @@ class ModelRootsTests(unittest.TestCase):
         self.assertIn(self.predicate, is_ancestors(self.things, self.rels, about))
 
     def test_no_predicate_is_placed_directly_under_configuration(self):
-        placed = {r["Subject"] for r in self.rels if r["Predicate"] == self.kit_is() and r["Target"] == self.configuration}
+        is_ = next(t["Id"] for t in self.things if t["Name"] == "is")
+        placed = {r["Subject"] for r in self.rels if r["Predicate"] == is_ and r["Target"] == self.configuration}
         self.assertEqual(sorted(self.kit.things[tid]["Name"] for tid in placed & self.kit.predicates), [])
-
-    def kit_is(self):
-        return next(t["Id"] for t in self.things if t["Name"] == "is")
 
     def test_runs_are_operation_and_the_rest_is_configuration(self):
         by_name = {t["Name"]: t["Id"] for t in self.things}

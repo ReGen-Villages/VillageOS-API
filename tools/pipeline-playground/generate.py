@@ -187,10 +187,10 @@ def build():
     offers = k.predicate("offers")
     input_connector = k.predicate("inputConnector")
     output_connector = k.predicate("outputConnector")
-    # Declared for the orchestrator, which relates a run to the Thing whose state entry started it, and a
-    # node run to each Thing the node produced.
-    about = k.predicate("about")
-    produced = k.predicate("produced")
+    # Declared for the orchestrator, which relates a run to its subject and a node run to each Thing the node
+    # produced.
+    k.predicate("about")
+    k.predicate("produced")
 
     Pipeline = k.archetype("Pipeline")
     PipelineNode = k.archetype("PipelineNode")
