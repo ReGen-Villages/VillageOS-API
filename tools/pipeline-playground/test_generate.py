@@ -94,6 +94,13 @@ class RoleBindingTests(unittest.TestCase):
         self.assertTrue(any(r["Subject"] == role["Id"] and r["Predicate"] in is_ids and r["Target"] == configuration
                             for r in rels))
 
+    def test_merge_keeps_the_targets_own_role_archetype(self):
+        target_role = {"Id": G.role_id("role"), "Name": "the target's Role", "IsArchetype": True, "Properties": {}}
+        seed = {"Name": "Target", "Things": [dict(target_role)], "Relationships": []}
+        G.merge_into(G.build(), seed)
+
+        self.assertEqual([t for t in seed["Things"] if t["Id"] == G.role_id("role")], [target_role])
+
     def test_merge_never_takes_a_role_for_a_thing_that_shares_its_name(self):
         seed = {"Name": "Target",
                 "Things": [{"Id": "target-is", "Name": "is", "Properties": {}},
