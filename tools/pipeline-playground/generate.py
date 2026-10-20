@@ -456,19 +456,10 @@ def as_fragment(kit):
 
 
 def _roles_in(seed):
-    """The Things anywhere below Role through `is`."""
+    """The Things directly `is` Role, as the platform's seed validation requires of a role."""
     is_ids = {t["Id"] for t in seed["Things"] if t["Name"] == "is"}
-    children = {}
-    for r in seed["Relationships"]:
-        if r.get("Predicate") in is_ids:
-            children.setdefault(r.get("Target"), []).append(r.get("Subject"))
-    roles, pending = set(), list(children.get(ROLE_ARCHETYPE, ()))
-    while pending:
-        below = pending.pop()
-        if below not in roles:
-            roles.add(below)
-            pending.extend(children.get(below, ()))
-    return roles
+    return {r.get("Subject") for r in seed["Relationships"]
+            if r.get("Predicate") in is_ids and r.get("Target") == ROLE_ARCHETYPE}
 
 
 def merge_into(kit, seed):
