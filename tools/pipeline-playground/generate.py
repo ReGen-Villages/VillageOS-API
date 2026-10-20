@@ -50,6 +50,14 @@ def role_id(word):
     return str(uuid.uuid5(ROLE_NAMESPACE, word))
 
 
+# Every role Thing `is` this archetype, so a lookup by name passes over a role named like the Thing it binds.
+ROLE_ARCHETYPE = role_id("role")
+
+
+def role_name(word):
+    return word[0].upper() + word[1:]
+
+
 ARCHETYPE_ROLE = {
     "Pipeline": "pipeline",
     "PipelineNode": "pipelineNode",
@@ -149,7 +157,7 @@ class Kit:
         """The role Thing for `word`, binding the Thing that plays it."""
         binds = self.thing(stable_id(_TAG, "predicate", "binds"), "binds", shared=True)
         role = role_id(word)
-        self.thing(role, f"{word} role")
+        self.thing(role, role_name(word))
         self.role_things.add(role)
         self.rel(role, binds, tid)
         self.role_of[tid] = role
@@ -406,8 +414,10 @@ def build():
         k.rel(operational, is_, Operation)
     for predicate in (binds, *sorted(k.predicates)):
         k.rel(predicate, is_, Predicate)
+    Role = k.thing(ROLE_ARCHETYPE, "Role", archetype=True)
+    k.rel(Role, is_, Configuration)
     for role in sorted(k.role_things):
-        k.rel(role, is_, Configuration)
+        k.rel(role, is_, Role)
     return k
 
 
@@ -445,6 +455,22 @@ def as_fragment(kit):
     }
 
 
+def _roles_in(seed):
+    """The Things anywhere below Role through `is`."""
+    is_ids = {t["Id"] for t in seed["Things"] if t["Name"] == "is"}
+    children = {}
+    for r in seed["Relationships"]:
+        if r.get("Predicate") in is_ids:
+            children.setdefault(r.get("Target"), []).append(r.get("Subject"))
+    roles, pending = set(), list(children.get(ROLE_ARCHETYPE, ()))
+    while pending:
+        below = pending.pop()
+        if below not in roles:
+            roles.add(below)
+            pending.extend(children.get(below, ()))
+    return roles
+
+
 def merge_into(kit, seed):
     """Merge the kit into a loaded seed in place, reusing the target's own vocabulary instead of duplicating
     it: a Thing playing a role is found through what the target's role Thing binds, so a model that renamed
@@ -454,9 +480,11 @@ def merge_into(kit, seed):
     a target's own is kept, since every model declares it under the same one."""
     seed.setdefault("Things", [])
     seed.setdefault("Relationships", [])
+    roles = _roles_in(seed)
     by_name = {}
     for t in seed["Things"]:
-        by_name.setdefault(t["Name"], t["Id"])
+        if t["Id"] not in roles:
+            by_name.setdefault(t["Name"], t["Id"])
     binds_ids = {t["Id"] for t in seed["Things"] if t["Name"] == "binds"}
     bound_by_role = {}
     for r in seed["Relationships"]:
@@ -481,7 +509,7 @@ def merge_into(kit, seed):
 
     added_things = added_rels = 0
     for tid, t in kit.things.items():
-        if tid in remap or (tid in thing_ids and tid in kit.role_things):
+        if tid in remap or (tid in thing_ids and (tid in kit.role_things or tid == ROLE_ARCHETYPE)):
             continue
         if tid in thing_ids:
             for i, existing in enumerate(seed["Things"]):
