@@ -15,7 +15,7 @@ public class MyceliumClientTests
 {
 
     [Fact]
-    public async Task GetResolvedProperties_NamesAnInheritedValueByItsOwnNameRatherThanItsPath()
+    public async Task GetResolvedProperties_KeepsEachKeyAsTheBrokerNamedIt()
     {
         var thingId = Guid.NewGuid();
         var handler = new MockHttpMessageHandler(request =>
@@ -31,23 +31,8 @@ public class MyceliumClientTests
         var resolved = await CreateClient(handler).GetResolvedPropertiesAsync(thingId);
 
         resolved.Should().NotBeNull();
-        resolved!.Keys.Should().BeEquivalentTo("layer", "url");
-        resolved["URL"].GetString().Should().BeEmpty("a key is matched whatever its case");
-    }
-
-    [Fact]
-    public async Task GetResolvedProperties_ANameReachedTwice_TakesTheNearerValue()
-    {
-        var handler = new MockHttpMessageHandler(_ => JsonResponse("""
-            {
-              "EsriEndpoint.Endpoint.httpMethod": { "Value": "GET" },
-              "EsriEndpoint.httpMethod": { "Value": "POST" }
-            }
-            """));
-
-        var resolved = await CreateClient(handler).GetResolvedPropertiesAsync(Guid.NewGuid());
-
-        resolved!["httpMethod"].GetString().Should().Be("POST");
+        resolved!.Keys.Should().BeEquivalentTo("layer", "EsriEndpoint.Endpoint.url");
+        resolved["LAYER"].GetString().Should().Be("4", "a key is matched whatever its case");
     }
 
     [Fact]

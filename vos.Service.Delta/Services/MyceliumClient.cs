@@ -29,20 +29,11 @@ public class MyceliumClient : MyceliumClientBase
             if (root.ValueKind != JsonValueKind.Object)
                 return null;
 
-            // The broker names an inherited value by the path of archetypes it comes through ("Endpoint.url"); the
-            // nearest one, the shortest path, wins for a name declared more than once.
-            return root.EnumerateObject()
-                .Where(property => TryGetPropertyCaseInsensitive(property.Value, "Value", out _))
-                .GroupBy(property => property.Name[(property.Name.LastIndexOf('.') + 1)..], StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(
-                    byName => byName.Key,
-                    byName =>
-                    {
-                        var nearest = byName.MinBy(property => property.Name.Count(character => character == '.'));
-                        TryGetPropertyCaseInsensitive(nearest.Value, "Value", out var value);
-                        return value;
-                    },
-                    StringComparer.OrdinalIgnoreCase);
+            var resolved = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+            foreach (var property in root.EnumerateObject())
+                if (TryGetPropertyCaseInsensitive(property.Value, "Value", out var value))
+                    resolved[property.Name] = value;
+            return resolved;
         }
         catch (Exception ex)
         {

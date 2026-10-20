@@ -27,6 +27,8 @@ public sealed class EndpointModelStandIn
     public bool RefusePropertySet { get; set; }
     public bool RefuseThingDelete { get; set; }
     public bool RefuseSubscription { get; set; }
+    public bool RefusePropertyRead { get; set; }
+    public bool DropSubscriptionRelease { get; set; }
 
     public Guid Declare(Guid model, string name, bool isArchetype = false, IReadOnlyDictionary<string, string?>? properties = null)
     {
@@ -64,7 +66,6 @@ public sealed class EndpointModelStandIn
         Relate(model, EndpointRoleId, "binds", root);
     }
 
-    // The child narrows the method and declares a key of its own.
     public (Guid Root, Guid Child) SeedTree(Guid model, string childName = "EsriEndpoint")
     {
         var root = Declare(model, "Endpoint", isArchetype: true,
@@ -111,13 +112,14 @@ public sealed class EndpointModelStandIn
 
             if (request.Method == HttpMethod.Delete && path.StartsWith("/api/subscriptions/", StringComparison.Ordinal))
             {
+                if (DropSubscriptionRelease) throw new HttpRequestException("connection dropped");
                 SubscriptionsClosed.Add(Guid.Parse(path["/api/subscriptions/".Length..]));
                 return Status(HttpStatusCode.NoContent);
             }
 
             if (request.Method == HttpMethod.Get && path.StartsWith("/api/things/", StringComparison.Ordinal)
                 && path.EndsWith("/properties", StringComparison.Ordinal))
-                return Resolved(held, Guid.Parse(path.Split('/')[3]));
+                return RefusePropertyRead ? Status(HttpStatusCode.InternalServerError) : Resolved(held, Guid.Parse(path.Split('/')[3]));
 
             if (request.Method == HttpMethod.Post && path == "/api/things")
             {

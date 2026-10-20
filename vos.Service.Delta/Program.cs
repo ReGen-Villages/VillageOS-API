@@ -159,7 +159,12 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
                 title: "Registration failed");
         }
 
-        var invalidKeys = request.Properties.Keys.Where(key => !template.Properties.ContainsKey(key)).ToList();
+        // The broker names an inherited key by the path of archetypes it comes through ("Endpoint.url"), so a
+        // key is looked up the way Tributary looks it up when it calls the endpoint.
+        var invalidKeys = request.Properties.Keys
+            .Where(key => !EffectivePropertyResolver.TryGetEffectiveProperty(template.Properties, key, out _, out var conflicts)
+                && conflicts is null)
+            .ToList();
         if (invalidKeys.Count > 0)
         {
             return Results.BadRequest(new
@@ -173,7 +178,7 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
         if (JsonValueCoercion.TryGetStringProperty(request.Properties, "httpMethod", out var requestMethod)
             && !string.IsNullOrWhiteSpace(requestMethod))
             effectiveMethod = requestMethod;
-        else if (template.Properties.TryGetValue("httpMethod", out var templateMethod)
+        else if (EffectivePropertyResolver.TryGetEffectiveProperty(template.Properties, "httpMethod", out var templateMethod, out _)
             && templateMethod.ValueKind == JsonValueKind.String)
             effectiveMethod = templateMethod.GetString();
 

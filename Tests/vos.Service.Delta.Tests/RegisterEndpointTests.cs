@@ -148,6 +148,30 @@ public class RegisterEndpointTests
     }
 
     [Fact]
+    public async Task Handle_TheTemplatesPropertiesCannotBeRead_Returns500AndWritesNothing()
+    {
+        var model = Seeded();
+        model.RefusePropertyRead = true;
+
+        var response = await HandleAsync(model, Under("EsriEndpoint"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+        (await response.Content.ReadAsStringAsync()).Should().Contain("EsriEndpoint");
+        model.ThingsCreated.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_TheSubscriptionCannotBeReleased_StillRegisters()
+    {
+        var model = Seeded();
+        model.DropSubscriptionRelease = true;
+
+        var response = await HandleAsync(model, Under("EsriEndpoint"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task Handle_RegisteredThingCreationFails_Returns500()
     {
         var model = Seeded();

@@ -4,6 +4,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Delta.Models;
 using vos.Service.Delta.Services;
+using vos.Service.Shared;
 using vos.Service.Shared.Subscriptions;
 using Xunit;
 using DeltaClient = vos.Service.Delta.Services.MyceliumClient;
@@ -43,11 +44,18 @@ public class DeltaReadsAnEndpointTemplateTests : IClassFixture<TheEngine>
         namedRefusal.Should().BeNull();
         named!.Id.Should().Be(child);
         named.IsPredicateId.Should().Be(isPredicate);
-        named.Properties.Keys.Should().Contain(["url", "responseTransform", "layer", "httpMethod"]);
-        named.Properties["httpMethod"].GetString().Should().Be("POST");
-        named.Properties["url"].ValueKind.Should().Be(JsonValueKind.String);
+        foreach (var key in new[] { "url", "responseTransform", "layer" })
+            Value(named.Properties, key).ValueKind.Should().Be(JsonValueKind.String, key);
+        Value(named.Properties, "httpMethod").GetString().Should().Be("POST");
         bareRefusal.Should().BeNull();
         bare!.Id.Should().Be(root);
-        bare.Properties["httpMethod"].GetString().Should().Be("GET");
+        Value(bare.Properties, "httpMethod").GetString().Should().Be("GET");
+    }
+
+    private static JsonElement Value(IReadOnlyDictionary<string, JsonElement> properties, string name)
+    {
+        EffectivePropertyResolver.TryGetEffectiveProperty(properties, name, out var value, out var conflicts)
+            .Should().BeTrue($"'{name}' resolves to one value; matches: {string.Join(", ", conflicts ?? [])}");
+        return value;
     }
 }

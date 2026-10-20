@@ -66,7 +66,7 @@ public static class EndpointTemplateTree
         return candidates.Count switch
         {
             0 => Refused(400, $"Unknown endpoint template '{templateName}'; it does not descend from the root '{root.Name}'."),
-            1 => (new LocatedTemplate(candidates[0].Id, candidates[0].Name ?? "", isPredicate), null),
+            1 => (new LocatedTemplate(candidates[0].Id, candidates[0].Name!, isPredicate), null),
             _ => Refused(409, $"{candidates.Count} endpoint templates beneath '{root.Name}' are named '{templateName}': "
                 + $"{Listed(candidates)}. Rename all but one."),
         };
