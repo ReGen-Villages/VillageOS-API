@@ -15,79 +15,82 @@ public class MyceliumClientTests
 {
 
     [Fact]
-    public async Task FindThingByName_HappyPath_ReturnsParsedThing()
+    public async Task GetResolvedProperties_KeepsEachKeyAsTheBrokerNamedIt()
     {
         var thingId = Guid.NewGuid();
-        var handler = new MockHttpMessageHandler(req =>
-        {
-            if (req.RequestUri!.AbsolutePath == "/api/things")
-                return JsonResponse("{\"Id\":\"" + thingId + "\",\"Name\":\"Endpoint\",\"Properties\":{}}");
-            return new HttpResponseMessage(HttpStatusCode.NotFound);
-        });
+        var handler = new MockHttpMessageHandler(request =>
+            request.Method == HttpMethod.Get && request.RequestUri!.AbsolutePath == $"/api/things/{thingId}/properties"
+                ? JsonResponse($$"""
+                  {
+                    "layer": { "Value": "4", "Type": "vos.String", "IsInherited": false, "InheritedFrom": null },
+                    "EsriEndpoint.Endpoint.url": { "Value": "", "Type": "vos.String", "IsInherited": true, "InheritedFrom": "{{Guid.NewGuid()}}" }
+                  }
+                  """)
+                : new HttpResponseMessage(HttpStatusCode.NotFound));
 
-        var result = await CreateClient(handler).FindThingByNameAsync("Endpoint");
+        var resolved = await CreateClient(handler).GetResolvedPropertiesAsync(thingId);
 
-        result.Should().NotBeNull();
-        result!.Value.Id.Should().Be(thingId);
-        result.Value.Name.Should().Be("Endpoint");
+        resolved.Should().NotBeNull();
+        resolved!.Keys.Should().BeEquivalentTo("layer", "EsriEndpoint.Endpoint.url");
+        resolved["LAYER"].GetString().Should().Be("4", "a key is matched whatever its case");
     }
 
     [Fact]
-    public async Task FindThingByName_NonSuccessStatus_ReturnsNull()
+    public async Task GetResolvedProperties_NonSuccessStatus_ReturnsNull()
     {
         var handler = new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
-        (await CreateClient(handler).FindThingByNameAsync("X")).Should().BeNull();
+        (await CreateClient(handler).GetResolvedPropertiesAsync(Guid.NewGuid())).Should().BeNull();
     }
 
     [Fact]
-    public async Task FindThingByName_NonObjectBody_ReturnsNull()
+    public async Task GetResolvedProperties_NonObjectBody_ReturnsNull()
     {
         var handler = new MockHttpMessageHandler(_ => JsonResponse("[1,2,3]"));
-        (await CreateClient(handler).FindThingByNameAsync("X")).Should().BeNull();
+        (await CreateClient(handler).GetResolvedPropertiesAsync(Guid.NewGuid())).Should().BeNull();
     }
 
     [Fact]
-    public async Task FindThingByName_ObjectMissingId_ReturnsNull()
+    public async Task GetResolvedProperties_TransportThrows_ReturnsNull()
+    {
+        var handler = new MockHttpMessageHandler(_ => throw new HttpRequestException("boom"));
+        (await CreateClient(handler).GetResolvedPropertiesAsync(Guid.NewGuid())).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CreateThing_ObjectMissingId_ReturnsNull()
     {
         var handler = new MockHttpMessageHandler(_ => JsonResponse("""{"Name":"NoIdHere"}"""));
-        (await CreateClient(handler).FindThingByNameAsync("X")).Should().BeNull();
+        (await CreateClient(handler).CreateThingAsync(new() { Name = "X" })).Should().BeNull();
     }
 
     [Fact]
-    public async Task FindThingByName_ObjectIdNotAGuid_ReturnsNull()
+    public async Task CreateThing_ObjectIdNotAGuid_ReturnsNull()
     {
         var handler = new MockHttpMessageHandler(_ => JsonResponse("""{"Id":"not-a-guid","Name":"X"}"""));
-        (await CreateClient(handler).FindThingByNameAsync("X")).Should().BeNull();
+        (await CreateClient(handler).CreateThingAsync(new() { Name = "X" })).Should().BeNull();
     }
 
     [Fact]
-    public async Task FindThingByName_ObjectMissingName_ReturnsNull()
+    public async Task CreateThing_ObjectMissingName_ReturnsNull()
     {
         var handler = new MockHttpMessageHandler(_ =>
             JsonResponse($$"""{"Id":"{{Guid.NewGuid()}}"}"""));
-        (await CreateClient(handler).FindThingByNameAsync("X")).Should().BeNull();
+        (await CreateClient(handler).CreateThingAsync(new() { Name = "X" })).Should().BeNull();
     }
 
     [Fact]
-    public async Task FindThingByName_TransportThrows_ReturnsNull()
-    {
-        var handler = new MockHttpMessageHandler(_ => throw new HttpRequestException("boom"));
-        (await CreateClient(handler).FindThingByNameAsync("X")).Should().BeNull();
-    }
-
-    [Fact]
-    public async Task FindThingByName_CaseInsensitiveIdNameKeys_ParsesThing()
+    public async Task CreateThing_CaseInsensitiveIdNameKeys_ParsesThing()
     {
         var id = Guid.NewGuid();
         var handler = new MockHttpMessageHandler(_ =>
             JsonResponse($$"""{"id":"{{id}}","name":"lower"}"""));
-        var result = await CreateClient(handler).FindThingByNameAsync("lower");
+        var result = await CreateClient(handler).CreateThingAsync(new() { Name = "lower" });
         result.Should().NotBeNull();
         result!.Value.Name.Should().Be("lower");
     }
 
     [Fact]
-    public async Task FindThingByName_PropertiesObjectPresent_PopulatesEveryValueKind()
+    public async Task CreateThing_PropertiesObjectPresent_PopulatesEveryValueKind()
     {
         // Exercises every JsonValueKind switch arm in TryParseThing's properties loop:
         // String, Number(Int64), Number(Double), True, False, Null, default.
@@ -108,7 +111,7 @@ public class MyceliumClientTests
         }
         """));
 
-        var result = await CreateClient(handler).FindThingByNameAsync("WithProps");
+        var result = await CreateClient(handler).CreateThingAsync(new() { Name = "WithProps" });
 
         result.Should().NotBeNull();
         result!.Value.Properties["s"].Should().Be("hello");

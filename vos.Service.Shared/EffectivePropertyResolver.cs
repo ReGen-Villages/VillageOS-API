@@ -1,12 +1,12 @@
 using System.Text.Json;
 
-namespace vos.Service.Tributary.Helpers;
+namespace vos.Service.Shared;
 
 // Looks up a property by name in a dictionary keyed by potentially-namespaced strings
 // (e.g. "http.url", "resource.url"). An exact key match wins; otherwise the segment after the
 // last dot is matched case-insensitively against the requested name. Several matches produce a
 // conflict list so callers can surface the ambiguity instead of picking one arbitrarily — a key
-// reaching Tributary twice means the model declared it twice, which the platform forbids.
+// reaching a reader twice means the model declared it twice, which the platform forbids.
 // It reads and nothing more, so it asks for a map it cannot write to: a caller holding a read-only
 // view would otherwise copy every property it has to ask about one of them.
 public static class EffectivePropertyResolver

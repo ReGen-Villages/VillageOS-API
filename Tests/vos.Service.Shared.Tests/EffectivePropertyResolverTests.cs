@@ -1,10 +1,9 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
 using FluentAssertions;
-using vos.Service.Tributary.Helpers;
 using Xunit;
 
-namespace vos.Service.Tributary.Tests.Helpers;
+namespace vos.Service.Shared.Tests;
 
 public class EffectivePropertyResolverTests
 {
