@@ -29,6 +29,7 @@ vi.mock('../../../api/thingApi', () => ({
 }));
 
 import { buildModelIndex } from '../../../api/dashboardApi';
+import { ROLE } from '../../../pipeline/model';
 import type { VosThing, VosRelationship } from '../../../types/vos';
 import type { DetailSpecification } from '../../../types/dashboard';
 import { formatTimestamp } from '../../../utils/formatters';
@@ -60,14 +61,19 @@ function indexWithAService() {
     [
       thing('is', 'is'),
       thing('runs', 'runs'),
-      thing('connectionArchetype', 'Connection', { __IsConnectionArchetype: true }, true),
-      thing('serviceArchetype', 'Service', { __IsServiceArchetype: true }, true),
+      thing('binds', 'binds'),
+      thing(ROLE.Connection, 'connection role'),
+      thing(ROLE.Service, 'service role'),
+      thing('connectionArchetype', 'Connection', {}, true),
+      thing('serviceArchetype', 'Service', {}, true),
       thing('measures', 'measures'),
       thing('meteringService', 'metering service'),
       thing('catchment', 'CATCHMENT-7', { area: 12.5 }),
       thing('reservoir', 'RESERVOIR-1'),
     ],
     [
+      relationship('b1', ROLE.Connection, 'binds', 'connectionArchetype'),
+      relationship('b2', ROLE.Service, 'binds', 'serviceArchetype'),
       relationship('w1', 'measures', 'is', 'connectionArchetype'),
       relationship('w2', 'measures', 'runs', 'meteringService'),
       relationship('w3', 'meteringService', 'is', 'serviceArchetype'),

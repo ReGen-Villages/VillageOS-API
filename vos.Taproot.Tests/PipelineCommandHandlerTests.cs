@@ -30,17 +30,18 @@ public class PipelineCommandHandlerTests
     private static string Edge(Guid subject, Guid predicate, Guid target) =>
         $"{{\"Id\":\"{Guid.NewGuid()}\",\"SubjectId\":\"{subject}\",\"PredicateId\":\"{predicate}\",\"TargetId\":\"{target}\"}}";
 
-    private static string Mark(string flag, bool inherited) =>
-        $"\"{flag}\":{{\"Value\":true,\"IsInherited\":{(inherited ? "true" : "false")}}}";
-
     private static string Held(string name, string value) => $"\"{name}\":{{\"Value\":\"{value}\",\"IsInherited\":false}}";
 
-    private void SetupMarkedModel()
+    // The archetypes are named nothing like the roles, so only the bindings can say which is which.
+    private void SetupBoundModel()
     {
         _myceliumMock.Setup(c => c.GetAllThingsAsync()).ReturnsAsync(Parse("["
             + string.Join(",",
-                Thing(PipelineArchetypeId, "Pipeline", isArchetype: true),
-                Thing(RunArchetypeId, "PipelineRun", isArchetype: true),
+                Thing(BindsPredicateId, "binds"),
+                Thing(PipelineCommandHandler.PipelineRoleId, "pipeline role"),
+                Thing(PipelineCommandHandler.PipelineRunRoleId, "pipelineRun role"),
+                Thing(PipelineArchetypeId, "Workflow", isArchetype: true),
+                Thing(RunArchetypeId, "WorkflowRun", isArchetype: true),
                 Thing(OfPredicateId, "of"),
                 Thing(NightlyId, "Nightly"),
                 Thing(OtherPipelineId, "Weekly"),
@@ -50,21 +51,20 @@ public class PipelineCommandHandlerTests
             + "]"));
         _myceliumMock.Setup(c => c.GetAllRelationshipsAsync()).ReturnsAsync(Parse("["
             + string.Join(",",
+                Edge(PipelineCommandHandler.PipelineRoleId, BindsPredicateId, PipelineArchetypeId),
+                Edge(PipelineCommandHandler.PipelineRunRoleId, BindsPredicateId, RunArchetypeId),
                 Edge(EarlyRunId, OfPredicateId, NightlyId),
                 Edge(LateRunId, OfPredicateId, NightlyId),
                 Edge(OtherRunId, OfPredicateId, OtherPipelineId))
             + "]"));
         _myceliumMock.Setup(c => c.GetAllPropertiesAsync("effective")).ReturnsAsync(Parse("{"
-            + $"\"{PipelineArchetypeId}\":{{{Mark(PipelineCommandHandler.PipelineFlag, false)}}},"
-            + $"\"{RunArchetypeId}\":{{{Mark(PipelineCommandHandler.PipelineRunFlag, false)}}},"
-            + $"\"{NightlyId}\":{{{Mark(PipelineCommandHandler.PipelineFlag, true)}}},"
-            + $"\"{EarlyRunId}\":{{{Mark(PipelineCommandHandler.PipelineRunFlag, true)},{Held("startedUtc", "2026-09-20T08:00:00Z")},{Held("status", "succeeded")}}},"
-            + $"\"{LateRunId}\":{{{Mark(PipelineCommandHandler.PipelineRunFlag, true)},{Held("startedUtc", "2026-09-20T11:00:00Z")},{Held("status", "running")},{Held("requestId", LateRunRequestId.ToString())}}},"
-            + $"\"{OtherRunId}\":{{{Mark(PipelineCommandHandler.PipelineRunFlag, true)},{Held("startedUtc", "2026-09-20T12:00:00Z")},{Held("status", "failed")}}}"
+            + $"\"{EarlyRunId}\":{{{Held("startedUtc", "2026-09-20T08:00:00Z")},{Held("status", "succeeded")}}},"
+            + $"\"{LateRunId}\":{{{Held("startedUtc", "2026-09-20T11:00:00Z")},{Held("status", "running")},{Held("requestId", LateRunRequestId.ToString())}}},"
+            + $"\"{OtherRunId}\":{{{Held("startedUtc", "2026-09-20T12:00:00Z")},{Held("status", "failed")}}}"
             + "}"));
-        _myceliumMock.Setup(c => c.GetThingsAsync(It.Is<ThingListNarrowing>(n => n.Type == "Pipeline")))
+        _myceliumMock.Setup(c => c.GetThingsAsync(It.Is<ThingListNarrowing>(n => n.Type == "Workflow")))
             .ReturnsAsync(Parse($"[{Thing(NightlyId, "Nightly")},{Thing(OtherPipelineId, "Weekly")}]"));
-        _myceliumMock.Setup(c => c.GetThingsAsync(It.Is<ThingListNarrowing>(n => n.Type == "PipelineRun")))
+        _myceliumMock.Setup(c => c.GetThingsAsync(It.Is<ThingListNarrowing>(n => n.Type == "WorkflowRun")))
             .ReturnsAsync(Parse($"[{Thing(EarlyRunId, "run-early")},{Thing(LateRunId, "run-late")},{Thing(OtherRunId, "run-other")}]"));
     }
 
@@ -78,9 +78,9 @@ public class PipelineCommandHandlerTests
     }
 
     [Fact]
-    public async Task List_FindsPipelinesByTheFlagTheirArchetypeCarries()
+    public async Task List_FindsPipelinesThroughTheRoleBindingTheirArchetype()
     {
-        SetupMarkedModel();
+        SetupBoundModel();
 
         await Execute("list");
 
@@ -88,7 +88,7 @@ public class PipelineCommandHandlerTests
     }
 
     [Fact]
-    public async Task List_WhenTheModelMarksNoPipelineArchetype_SaysSoAndAsksForNoThings()
+    public async Task List_WhenTheModelBindsNoPipelineArchetype_SaysSoAndAsksForNoThings()
     {
         _myceliumMock.Setup(c => c.GetAllThingsAsync()).ReturnsAsync(Parse($"[{Thing(NightlyId, "Nightly")}]"));
         _myceliumMock.Setup(c => c.GetAllRelationshipsAsync()).ReturnsAsync(Parse("[]"));
@@ -96,14 +96,14 @@ public class PipelineCommandHandlerTests
 
         await Execute("list");
 
-        _writer.ToString().Should().Contain($"marks no archetype with '{PipelineCommandHandler.PipelineFlag}'");
+        _writer.ToString().Should().Contain("binds no archetype to the pipeline role");
         _myceliumMock.Verify(c => c.GetThingsAsync(It.IsAny<ThingListNarrowing>()), Times.Never);
     }
 
     [Fact]
     public async Task Run_PostsThePipelineIdAndParametersToTheOrchestratorAndPrintsTheAnswer()
     {
-        SetupMarkedModel();
+        SetupBoundModel();
         _myceliumMock.Setup(c => c.PostToEndpointAsync(PipelineCommandHandler.OrchestratorSubdomain,
                 $"{{\"pipelineId\":\"{NightlyId}\",\"parameters\":{{\"site\": \"north\"}},\"async\":true}}"))
             .ReturnsAsync($"{{\"accepted\":true,\"runId\":\"{LateRunId}\"}}");
@@ -116,7 +116,7 @@ public class PipelineCommandHandlerTests
     [Fact]
     public async Task Run_WithWait_AsksForTheResultAndSendsEmptyParametersWhenNoneAreGiven()
     {
-        SetupMarkedModel();
+        SetupBoundModel();
         _myceliumMock.Setup(c => c.PostToEndpointAsync(PipelineCommandHandler.OrchestratorSubdomain,
                 $"{{\"pipelineId\":\"{NightlyId}\",\"parameters\":{{}},\"async\":false}}"))
             .ReturnsAsync("{\"success\":true,\"nodes\":[]}");
@@ -129,7 +129,7 @@ public class PipelineCommandHandlerTests
     [Fact]
     public async Task Run_WithParametersThatAreNotJson_SendsNothing()
     {
-        SetupMarkedModel();
+        SetupBoundModel();
 
         await Execute("run Nightly {not json");
 
@@ -199,7 +199,7 @@ public class PipelineCommandHandlerTests
     [Fact]
     public async Task History_ListsTheRunsOfThePipelineNewestFirstAndNoOthers()
     {
-        SetupMarkedModel();
+        SetupBoundModel();
 
         await Execute("history Nightly");
 
@@ -214,7 +214,7 @@ public class PipelineCommandHandlerTests
     [Fact]
     public async Task History_NamesTheRequestARunStartedFromAndNothingForARunStartedWithoutOne()
     {
-        SetupMarkedModel();
+        SetupBoundModel();
 
         await Execute("history Nightly");
 
@@ -224,10 +224,24 @@ public class PipelineCommandHandlerTests
     }
 
     [Fact]
+    public async Task History_WhenTheModelBindsNoRunArchetype_SaysSoAndAsksForNoThings()
+    {
+        _myceliumMock.Setup(c => c.GetAllThingsAsync()).ReturnsAsync(Parse($"[{Thing(NightlyId, "Nightly")}]"));
+        _myceliumMock.Setup(c => c.GetAllRelationshipsAsync()).ReturnsAsync(Parse("[]"));
+        _myceliumMock.Setup(c => c.GetAllPropertiesAsync("effective")).ReturnsAsync(Parse("{}"));
+        _myceliumMock.Setup(c => c.GetThingAsync(NightlyId)).ReturnsAsync((JsonElement?)Parse(Thing(NightlyId, "Nightly")));
+
+        await Execute($"history {NightlyId}");
+
+        _writer.ToString().Should().Contain("binds no archetype to the pipeline run role");
+        _myceliumMock.Verify(c => c.GetThingsAsync(It.IsAny<ThingListNarrowing>()), Times.Never);
+    }
+
+    [Fact]
     public async Task History_OfAPipelineNeverRun_SaysSo()
     {
-        SetupMarkedModel();
-        _myceliumMock.Setup(c => c.GetThingsAsync(It.Is<ThingListNarrowing>(n => n.Type == "PipelineRun"))).ReturnsAsync(Parse("[]"));
+        SetupBoundModel();
+        _myceliumMock.Setup(c => c.GetThingsAsync(It.Is<ThingListNarrowing>(n => n.Type == "WorkflowRun"))).ReturnsAsync(Parse("[]"));
 
         await Execute("history Weekly");
 
