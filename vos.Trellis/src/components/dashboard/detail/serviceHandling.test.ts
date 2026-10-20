@@ -136,6 +136,26 @@ describe('serviceEdgesOn', () => {
     expect(serviceEdgesOn('catchment', index)).toEqual([]);
   });
 
+  it('follows no vigil where two archetypes both claim the vigil mark, as neither can be the one', () => {
+    const base = site();
+    const index = buildModelIndex(
+      [...base.byId.values(), thing('rivalLookout', 'Rival lookout', { __IsVigilArchetype: true }, true)],
+      base.relationships,
+    );
+
+    expect(serviceEdgesOn('well', index)).toEqual([]);
+  });
+
+  it('reads the connection role from its binding, not from another relationship the role Thing holds', () => {
+    const base = site();
+    const index = buildModelIndex(
+      [...base.byId.values(), thing('configuration', 'Configuration', {}, true)],
+      [relationship('r0', ROLE.Connection, 'is', 'configuration'), ...base.relationships],
+    );
+
+    expect(serviceEdgesOn('catchment', index).map((edge) => edge.serviceName)).toEqual(['metering service']);
+  });
+
   it('finds nothing where the connection role binds two archetypes, as neither can be the one', () => {
     const index = buildModelIndex(
       [

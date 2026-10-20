@@ -95,8 +95,12 @@ function soleClaimants(modelIndex: ModelIndex): Partial<Record<WiringRole, VosTh
 /** The Thing a role binds, read from the role Thing's own `binds` relationship, never from a name. A role bound
  *  twice answers nothing, as the pipeline editor reads it, because seed validation refuses that model. */
 function boundBy(modelIndex: ModelIndex, roleId: string): VosThing | undefined {
-  const bindings = modelIndex.relationships.filter((edge) =>
-    edge.SubjectId === roleId && modelIndex.predicateIdToName.get(edge.PredicateId) === BINDS_PREDICATE);
+  const bindings: VosRelationship[] = [];
+  for (const [predicateId, name] of modelIndex.predicateIdToName) {
+    if (name !== BINDS_PREDICATE) continue;
+    for (const edge of modelIndex.relationshipsByPredicate.get(predicateId) ?? [])
+      if (edge.SubjectId === roleId) bindings.push(edge);
+  }
   return bindings.length === 1 ? modelIndex.byId.get(bindings[0].TargetId) : undefined;
 }
 
