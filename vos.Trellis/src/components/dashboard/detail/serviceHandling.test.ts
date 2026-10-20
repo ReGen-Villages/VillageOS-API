@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildModelIndex } from '../../../api/dashboardApi';
+import { ROLE } from '../../../pipeline/model';
 import type { VosThing, VosRelationship } from '../../../types/vos';
 import { serviceEdgesOn, dispatchesFrom } from './serviceHandling';
 
@@ -19,7 +20,7 @@ function relationship(
 /**
  * A site whose wiring is named nothing like the platform's own words: the connection archetype
  * is `Wiring`, the service archetype is `Daemon`, and the predicate binding one to the other is
- * `runs`. Only the flags say which is which, which is the whole point of reading them.
+ * `runs`. Only the roles say which is which, which is the whole point of reading them.
  *
  * `measures` is a handled predicate — a relationship on it dispatches the metering daemon. `spring when
  * dry` is a state connection, reached by the record relationship the platform writes under `handled-by`.
@@ -29,10 +30,13 @@ function site() {
   return buildModelIndex(
     [
       thing('is', 'is'),
+      thing('binds', 'binds'),
+      thing(ROLE.Connection, 'connection role'),
+      thing(ROLE.Service, 'service role'),
       thing('runs', 'runs'),
       thing('tells', 'tells', { __IsNotifiedConnectionPredicate: true }),
-      thing('wiring', 'Wiring', { __IsConnectionArchetype: true }, true),
-      thing('daemon', 'Daemon', { __IsServiceArchetype: true }, true),
+      thing('wiring', 'Wiring', {}, true),
+      thing('daemon', 'Daemon', {}, true),
       thing('lookout', 'Lookout', { __IsVigilArchetype: true }, true),
       thing('record', 'handled-by', { __IsDispatchRecordPredicate: true }),
 
@@ -49,6 +53,8 @@ function site() {
       thing('well', 'WELL-1'),
     ],
     [
+      relationship('b1', ROLE.Connection, 'binds', 'wiring'),
+      relationship('b2', ROLE.Service, 'binds', 'daemon'),
       relationship('w1', 'measures', 'is', 'wiring'),
       relationship('w2', 'measures', 'runs', 'meteringService'),
       relationship('w3', 'meteringService', 'is', 'daemon'),
@@ -122,7 +128,7 @@ describe('serviceEdgesOn', () => {
     expect(serviceEdgesOn('springWhenDry', site())).toEqual([]);
   });
 
-  it('finds nothing where the model marks no connection archetype, rather than guessing at one', () => {
+  it('finds nothing where the model binds no connection archetype, rather than guessing at one', () => {
     const index = buildModelIndex(
       [thing('is', 'is'), thing('measures', 'measures'), thing('catchment', 'CATCHMENT-1'), thing('reservoir', 'RESERVOIR-1')],
       [relationship('e1', 'catchment', 'measures', 'reservoir', { __DispatchState: 'Done' })],
@@ -130,26 +136,46 @@ describe('serviceEdgesOn', () => {
     expect(serviceEdgesOn('catchment', index)).toEqual([]);
   });
 
-  it('finds nothing where two archetypes both claim the connection flag, as neither can be the one', () => {
+  it('follows no vigil where two archetypes both claim the vigil mark, as neither can be the one', () => {
+    const base = site();
+    const index = buildModelIndex(
+      [...base.byId.values(), thing('rivalLookout', 'Rival lookout', { __IsVigilArchetype: true }, true)],
+      base.relationships,
+    );
+
+    expect(serviceEdgesOn('well', index)).toEqual([]);
+  });
+
+  it('reads the connection role from its binding, not from another relationship the role Thing holds', () => {
+    const base = site();
+    const index = buildModelIndex(
+      [...base.byId.values(), thing('configuration', 'Configuration', {}, true)],
+      [relationship('r0', ROLE.Connection, 'is', 'configuration'), ...base.relationships],
+    );
+
+    expect(serviceEdgesOn('catchment', index).map((edge) => edge.serviceName)).toEqual(['metering service']);
+  });
+
+  it('finds nothing where the connection role binds two archetypes, as neither can be the one', () => {
     const index = buildModelIndex(
       [
         thing('is', 'is'),
-        thing('wiring', 'Wiring', { __IsConnectionArchetype: true }, true),
-        thing('rival', 'Rival', { __IsConnectionArchetype: true }, true),
+        thing('binds', 'binds'),
+        thing(ROLE.Connection, 'connection role'),
+        thing('wiring', 'Wiring', {}, true),
+        thing('rival', 'Rival', {}, true),
         thing('measures', 'measures'),
         thing('catchment', 'CATCHMENT-1'),
         thing('reservoir', 'RESERVOIR-1'),
       ],
-      [relationship('w1', 'measures', 'is', 'wiring'), relationship('e1', 'catchment', 'measures', 'reservoir', { __DispatchState: 'Done' })],
+      [
+        relationship('b1', ROLE.Connection, 'binds', 'wiring'),
+        relationship('b2', ROLE.Connection, 'binds', 'rival'),
+        relationship('w1', 'measures', 'is', 'wiring'),
+        relationship('e1', 'catchment', 'measures', 'reservoir', { __DispatchState: 'Done' }),
+      ],
     );
     expect(serviceEdgesOn('catchment', index)).toEqual([]);
-  });
-
-  it('reads the flag off the archetype that owns it, not off a member that inherited it', () => {
-    const index = site();
-    // `measures` is a member of Wiring; were the flag read as inherited, `measures` would contest
-    // the archetype's claim and the whole model would answer nothing.
-    expect(serviceEdgesOn('catchment', index)).toHaveLength(1);
   });
 });
 

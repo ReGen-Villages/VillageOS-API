@@ -38,15 +38,19 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
         await _engine.DeclareOnceAsync("Vigil", isArchetype: true, Marked("__IsVigilArchetype"));
         await _engine.DeclareOnceAsync("keptOver", properties: Marked("__IsVigilSubjectPredicate"));
         await _engine.DeclareOnceAsync("notifies", properties: Marked("__IsNotifiedConnectionPredicate"));
-        await _engine.DeclareOnceAsync("watches", properties: Marked("__IsStateWatchPredicate"));
+        await BindOnceAsync(PipelineRoles.StateWatch, await _engine.DeclareOnceAsync("watches", properties: Marked("__IsStateWatchPredicate")));
         var judges = await _engine.DeclareOnceAsync("judges", properties: Marked("__IsJudgedThingPredicate"));
+        await BindOnceAsync(JudgedThingRole, judges);
         var range = await _engine.DeclareOnceAsync("Range", isArchetype: true, Marked("__IsRangeArchetype"));
+        await BindOnceAsync(RangeRole, range);
         var plotArchetype = await _engine.DeclareOnceAsync("Plot", isArchetype: true);
 
         if (await _engine.FindAsync("resumesRun") is null)
         {
             var connectionArchetype = await _engine.DeclareAsync("PlatformServiceConnection", isArchetype: true, Marked("__IsConnectionArchetype"));
             var serviceArchetype = await _engine.DeclareAsync("Service", isArchetype: true, Marked("__IsServiceArchetype"));
+            await BindOnceAsync(PipelineRoles.Connection, connectionArchetype);
+            await BindOnceAsync(PipelineRoles.Service, serviceArchetype);
             var resumes = await _engine.DeclareAsync("resumesRun");
             var service = await _engine.DeclareAsync("orchestrator service");
             await _engine.RelateAsync(resumes, isPredicate, connectionArchetype);
@@ -64,7 +68,11 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
         return new Village(await _engine.DeclareAsync($"Pipeline {Guid.NewGuid():N}"), plot, await _engine.TheOnlyThingNamedAsync("decided"));
     }
 
+    // The marks stay beside the bindings while the platform moves from one to the other, so this runs against both.
     private static IReadOnlyDictionary<string, object?> Marked(string mark) => new Dictionary<string, object?> { [mark] = true };
+
+    private static readonly Role RangeRole = new("range", new("c081de17-c325-55b7-99ca-16fb835ae545"));
+    private static readonly Role JudgedThingRole = new("judgedThing", new("63d59765-a9b7-53b8-8a2b-0de3899add18"));
 
     private async Task BindOnceAsync(Role role, Guid played)
     {
