@@ -190,6 +190,7 @@ public class MyceliumClient : MyceliumClientBase
             ? element.ValueKind switch
             {
                 JsonValueKind.String => element.GetString(),
+                JsonValueKind.Number when element.TryGetInt64(out var whole) => whole,
                 JsonValueKind.Number => element.GetDouble(),
                 JsonValueKind.True => true,
                 JsonValueKind.False => false,

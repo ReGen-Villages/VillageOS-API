@@ -291,6 +291,14 @@ public class MyceliumClientTests
         body.Should().Contain($"\"value\":{expectedValueJson}");
     }
 
+    [Fact]
+    public async Task SetThingPropertyAsync_AWholeNumberTooLargeForADouble_IsSentExactly()
+    {
+        var body = await CaptureSetPropertyBody(JsonDocument.Parse("9007199254740993").RootElement);
+
+        body.Should().Contain("\"value\":9007199254740993");
+    }
+
     [Theory]
     [InlineData("\"hello\"")]
     [InlineData("42")]

@@ -8,8 +8,7 @@ using DeltaClient = vos.Service.Delta.Services.MyceliumClient;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
-// The values a registration states arrive in its request as JSON, and Delta writes each one onto the Thing it has
-// just joined to its template. The broker takes only its own type names on that write.
+// The broker takes only its own type names on a property write; the stand-in Delta's own tests use accepts any.
 public class DeltaWritesARegistrationsPropertiesTests : IClassFixture<TheEngine>
 {
     private readonly TheEngine _engine;
