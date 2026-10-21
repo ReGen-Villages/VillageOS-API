@@ -28,7 +28,8 @@ def bound_in_seed(seed, word):
     return bound_by(seed["Things"], seed["Relationships"], word)
 
 
-EVERY_ROLE = set(G.ARCHETYPE_ROLE.values()) | set(G.PREDICATE_ROLE.values()) | set(G.ROOT_ROLE.values())
+EVERY_ROLE = (set(G.ARCHETYPE_ROLE.values()) | set(G.PREDICATE_ROLE.values()) | set(G.ROOT_ROLE.values())
+              | set(G.TRIGGER_ROLE.values()))
 SHARED_BY_EVERY_MODEL = {G.role_id(word) for word in EVERY_ROLE | {"role"}}
 
 
@@ -93,6 +94,13 @@ class RoleBindingTests(unittest.TestCase):
         [configuration] = bound_by(things, rels, "configuration")
         self.assertTrue(any(r["Subject"] == role["Id"] and r["Predicate"] in is_ids and r["Target"] == configuration
                             for r in rels))
+
+    def test_each_trigger_is_the_thing_its_role_binds(self):
+        kit = G.build()
+        things, rels = list(kit.things.values()), list(kit.rels.values())
+        for trigger, word in G.TRIGGER_ROLE.items():
+            [bound] = bound_by(things, rels, word)
+            self.assertEqual(kit.things[bound]["Name"], trigger)
 
     def test_merge_keeps_the_targets_own_role_archetype(self):
         target_role = {"Id": G.role_id("role"), "Name": "the target's Role", "IsArchetype": True, "Properties": {}}
