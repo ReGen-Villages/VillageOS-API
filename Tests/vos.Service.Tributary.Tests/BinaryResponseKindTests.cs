@@ -317,7 +317,7 @@ public class BinaryResponseKindTests
           "Endpoint.httpMethod":   {"Value":"GET"},
           "Endpoint.responseKind": {"Value":"binary"},
           "Esri.pagingKind":       {"Value":"offset"},
-          "Esri.offsetParam":      {"Value":"resultOffset"},
+          "Esri.offsetParameter":  {"Value":"resultOffset"},
           "Esri.hasMorePath":      {"Value":"exceededTransferLimit"},
           "Esri.itemsPath":        {"Value":"features"}
         }

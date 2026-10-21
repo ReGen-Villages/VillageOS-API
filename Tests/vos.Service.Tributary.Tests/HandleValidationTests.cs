@@ -72,7 +72,7 @@ public class HandleValidationTests
             return MyceliumStub.RouteFindThing(req, thingId, "EP")
                 ?? MyceliumStub.RouteEffectiveProperties(req, thingId, props)
                 ?? MyceliumStub.RouteKinds(req, thingId, new MyceliumStub.Kind(
-                    EndpointKindRoles.Authentication, "TokenExchangeAuth", "tokenUrl", "tokenRequest", "tokenPath"))
+                    EndpointKindRoles.Authentication, "TokenExchangeAuthentication", "tokenUrl", "tokenRequest", "tokenPath"))
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -81,7 +81,7 @@ public class HandleValidationTests
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("TokenExchangeAuth", "the refusal names the kind that was not satisfied");
+        body.Should().Contain("TokenExchangeAuthentication", "the refusal names the kind that was not satisfied");
         body.Should().Contain("tokenRequest").And.Contain("tokenPath", "and every key still outstanding");
         body.Should().NotContain("tokenUrl", "the one key the endpoint does supply is not reported missing");
         calledOut.Should().BeFalse("an endpoint that cannot satisfy its kind must not be called at all");
