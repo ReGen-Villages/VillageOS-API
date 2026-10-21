@@ -43,6 +43,13 @@ import { effectiveProperties, effectiveDerivedDefinitions } from '../utils/prope
 import { valueOrigin } from '../utils/propertyOrigin';
 import { findRange } from '../utils/rangeHelpers';
 import i18n from '../i18n';
+import { wordingIn } from '../i18n/termWording';
+import {
+  NAMED_PROPERTY,
+  NAMES_PROPERTY_OF_PREDICATE,
+  PROPERTY_NAME_ARCHETYPE_MARK,
+  PROPERTY_NAME_WORDING,
+} from './propertyNames';
 
 export type Row = Record<string, unknown>;
 export type BindingResult = number | string | Row[] | number[] | null;
@@ -81,6 +88,10 @@ export interface ModelIndex {
    *  The navigation and the page both ask, and a specification is JSON in a property — parsing every one of
    *  them twice per model change is work neither reader needs done again. */
   dashboards: DashboardDescriptor[] | null;
+  /** Archetype id → property → the words the model declares as that property's name there. Built
+   *  the first time a lever asks and discarded with the index, because a page offers levers on every
+   *  refresh and the names change only with the model. */
+  propertyNames: Map<string, Map<string, Readonly<Record<string, string>>>> | null;
 }
 
 export function buildModelIndex(things: VosThing[], relationships: VosRelationship[]): ModelIndex {
@@ -133,6 +144,7 @@ export function buildModelIndex(things: VosThing[], relationships: VosRelationsh
     archetypeMembers: new Map(),
     adjacencyByPredicate: new Map(),
     dashboards: null,
+    propertyNames: null,
   };
 }
 
@@ -188,12 +200,20 @@ function adjacency(predicateId: string, inbound: boolean, index: ModelIndex): Ma
 export function thingIdsOfArchetype(archetype: string, index: ModelIndex): Set<string> {
   const answered = index.archetypeMembers.get(archetype);
   if (answered) return answered;
-  const archetypeThing = index.byName.get(archetype);
-  const out = new Set<string>();
+  const out = instancesBelow(typeIdsNamed(archetype, index), index);
   index.archetypeMembers.set(archetype, out);
-  if (!archetypeThing) return out;
+  return out;
+}
+
+function typeIdsNamed(name: string, index: ModelIndex): string[] {
+  const first = index.byName.get(name);
+  return first ? [first.Id, ...(index.otherTypesByName.get(name) ?? [])] : [];
+}
+
+function instancesBelow(typeIds: string[], index: ModelIndex): Set<string> {
+  const out = new Set<string>();
   const seen = new Set<string>();          // archetype nodes already descended (cycle guard)
-  const frontier = [archetypeThing.Id, ...(index.otherTypesByName.get(archetype) ?? [])];
+  const frontier = [...typeIds];
   while (frontier.length) {
     const current = frontier.pop()!;
     if (seen.has(current)) continue;
@@ -316,6 +336,10 @@ export interface ResolveContext {
    *  widget on it. A binding the broker answers reads the counts of the states its own answer is
    *  made of, and resolves again only when one of those moved. Part of identity only. */
   stateVersions?: Record<string, number>;
+  /** How many loads have replaced the Things the page holds. A binding the broker answers also reads
+   *  the page's set — the Thing a verdict judges and the value it states — so it resolves again after
+   *  each one. Part of identity only. */
+  loadsApplied?: number;
   /** What a writing widget calls once a press was taken, so the page reads again what the press
    *  changed. A write to the model announces itself on the stream; a write the platform records
    *  outside the model — an account — does not, and this is the only word the page gets. */
@@ -439,7 +463,58 @@ async function followStep(fromIds: string[], step: RelationStep, context: Resolv
   return ids;
 }
 
-export type Lever = { term: string; memberArchetype?: string; direction: 'raise' | 'lower' };
+export type Lever = {
+  term: string;
+  memberArchetype?: string;
+  direction: 'raise' | 'lower';
+  /** The input's name by language, where the model declares one. */
+  words?: Readonly<Record<string, string>>;
+};
+
+function propertyNamesByArchetype(index: ModelIndex): Map<string, Map<string, Readonly<Record<string, string>>>> {
+  if (index.propertyNames) return index.propertyNames;
+  const names = new Map<string, Map<string, Readonly<Record<string, string>>>>();
+  index.propertyNames = names;
+  const predicateId = index.predicateNameToId.get(NAMES_PROPERTY_OF_PREDICATE);
+  if (!predicateId) return names;
+  const namedArchetypes = adjacency(predicateId, false, index);
+  const markedTypeIds = [...index.archetypeIds]
+    .filter((id) => index.byId.get(id)?.Properties[PROPERTY_NAME_ARCHETYPE_MARK] === true);
+  for (const nameId of instancesBelow(markedTypeIds, index)) {
+    const name = index.byId.get(nameId);
+    if (!name) continue;
+    const properties = effectiveProperties(name, index);
+    const property = properties[NAMED_PROPERTY];
+    const words = wordingIn(properties[PROPERTY_NAME_WORDING]);
+    if (typeof property !== 'string' || !words) continue;
+    for (const archetypeId of namedArchetypes.get(nameId) ?? []) {
+      const byProperty = names.get(archetypeId) ?? new Map<string, Readonly<Record<string, string>>>();
+      names.set(archetypeId, byProperty);
+      byProperty.set(property, words);
+    }
+  }
+  return names;
+}
+
+/** The words the nearest archetype up the `is` chain from the holders declares as the property's name. */
+function declaredWords(property: string, holderIds: string[], index: ModelIndex): Readonly<Record<string, string>> | undefined {
+  const names = propertyNamesByArchetype(index);
+  const seen = new Set<string>();
+  let level = holderIds;
+  while (level.length) {
+    for (const id of level) {
+      const words = names.get(id)?.get(property);
+      if (words) return words;
+    }
+    const above: string[] = [];
+    for (const id of level) {
+      seen.add(id);
+      for (const parentId of index.isParents.get(id) ?? []) if (!seen.has(parentId)) above.push(parentId);
+    }
+    level = above;
+  }
+  return undefined;
+}
 
 /** Every input at the bottom of a figure's derivation, each with the way the figure moves as it
  *  rises. A term with its own definition is expanded into that definition's terms with the signs
@@ -482,13 +557,16 @@ function leafInfluences(
  * below its target is left by rising, one held by sitting above it by falling — and each leaf's
  * composed sign says which way that input goes. An input reached along two agreeing routes is one
  * offer; one whose routes disagree is dropped, since offering either direction would be the client
- * taking a side.
+ * taking a side. An input held by members is named from their archetype, any other from the judged
+ * Thing's own.
  */
 function leversFor(
   property: string,
   operator: string,
-  definitions: Readonly<Record<string, DerivedDefinition>>,
+  judged: VosThing,
+  index: ModelIndex,
 ): Lever[] {
+  const definitions = effectiveDerivedDefinitions(judged, index);
   const resultMustMove = operator === '<' || operator === '<=' ? 1
     : operator === '>' || operator === '>=' ? -1
     : null;
@@ -502,11 +580,16 @@ function leversFor(
   }
   return [...routes.values()]
     .filter((leaf) => leaf.sign !== 0)
-    .map((leaf) => ({
-      term: leaf.term,
-      ...(leaf.memberArchetype !== undefined ? { memberArchetype: leaf.memberArchetype } : {}),
-      direction: resultMustMove * leaf.sign > 0 ? 'raise' as const : 'lower' as const,
-    }));
+    .map((leaf) => {
+      const holderIds = leaf.memberArchetype !== undefined ? typeIdsNamed(leaf.memberArchetype, index) : [judged.Id];
+      const words = declaredWords(leaf.term, holderIds, index);
+      return {
+        term: leaf.term,
+        ...(leaf.memberArchetype !== undefined ? { memberArchetype: leaf.memberArchetype } : {}),
+        direction: resultMustMove * leaf.sign > 0 ? 'raise' as const : 'lower' as const,
+        ...(words ? { words } : {}),
+      };
+    });
 }
 
 /** The Things a binding reads: the one its reference names, or — when it declares a path — the
@@ -725,8 +808,7 @@ export async function resolveBinding(binding: Binding, context: ResolveContext):
           // the criteria for a balance nobody assessed — leaves the whole sentence without a figure.
           const judgedAgainst = ranges ? findRange(candidate.state, ranges)?.Comparisons?.[0] : undefined;
           const levers = candidate.levers && judgedAgainst
-            ? leversFor(judgedAgainst.PropertyName, judgedAgainst.Operator,
-                effectiveDerivedDefinitions(thing, context.index))
+            ? leversFor(judgedAgainst.PropertyName, judgedAgainst.Operator, thing, context.index)
             : [];
           return {
             state: candidate.state,

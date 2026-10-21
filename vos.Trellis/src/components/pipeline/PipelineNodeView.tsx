@@ -11,8 +11,8 @@ export interface PipelineNodeData {
   subdomain?: string;
   ports: PortInformation[];
   status?: string;
-  /** Input-port name → run-param key. */
-  paramBindings?: Record<string, string>;
+  /** Input-port name → run-parameter key. */
+  parameterBindings?: Record<string, string>;
   /** Fan-out progress: terminal items / total. */
   progress?: { done: number; total: number };
   /** The Thing a boundary node stands for, held by id on the drawing and read off the model for display. */
@@ -25,6 +25,7 @@ export interface PipelineNodeData {
 
 const STATUS_RING: Record<string, string> = {
   running: 'ring-2 ring-blue-400 animate-pulse',
+  waiting: 'ring-2 ring-amber-400',
   succeeded: 'ring-2 ring-green-500',
   failed: 'ring-2 ring-red-500',
   skipped: 'ring-2 ring-zinc-400 opacity-60',
@@ -39,6 +40,7 @@ const END_KIND_LABEL_KEY = {
   state: 'pipeline.endKind.state',
   relationship: 'pipeline.endKind.relationship',
   pipeline: 'pipeline.endKind.pipeline',
+  cadence: 'pipeline.endKind.cadence',
   other: 'pipeline.endKind.other',
 } as const satisfies Record<EndKind, string>;
 

@@ -29,7 +29,7 @@
 <text x="335.8" y="90.0" font-size="11" fill="#1f6047" text-anchor="start">wire: population → population</text>
 <path d="M 324.1,152.0 L 324.1,176.0 L 301.8,176.0 L 301.8,200.0" fill="none" stroke="#1f6047" stroke-width="1.7"/>
 <path d="M 0,0 l -7,-4 l 0,8 z" fill="#1f6047" transform="translate(301.8,200.0) rotate(90.0)"/>
-<text x="332.1" y="168.0" font-size="11" fill="#1f6047" text-anchor="start">wire: pctOfConsumption → value</text>
+<text x="332.1" y="168.0" font-size="11" fill="#1f6047" text-anchor="start">wire: percentOfConsumption → value</text>
 <path d="M 388.2,131.0 L 520.0,131.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
 <path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(520.0,131.0) rotate(0.0)"/>
 <text x="454.1" y="125.0" font-size="11" fill="#74857a" text-anchor="middle">has</text>
@@ -56,5 +56,5 @@
 <text x="584.1" y="233.0" font-size="12" font-weight="normal" fill="#47574d" text-anchor="middle">(a service)</text>
 <text x="520.0" y="37.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">ports it declares:</text>
 <text x="520.0" y="53.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">in  population, solarResource, …</text>
-<text x="520.0" y="69.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">out pctOfConsumption</text>
+<text x="520.0" y="69.0" font-size="11" font-weight="normal" fill="#74857a" text-anchor="start">out percentOfConsumption</text>
 </svg>

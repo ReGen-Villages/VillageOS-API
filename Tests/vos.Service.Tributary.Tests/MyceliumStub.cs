@@ -80,6 +80,18 @@ internal static class MyceliumStub
         return Json("""{"accepted":1}""");
     }
 
+    internal static HttpResponseMessage ReadingsQueueFull(string? retryAfter)
+    {
+        var refusal = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+        {
+            Content = new StringContent("""{"error":"The readings queue is full; nothing in this request was queued."}""",
+                Encoding.UTF8, "application/json")
+        };
+        if (retryAfter is not null)
+            refusal.Headers.TryAddWithoutValidation("Retry-After", retryAfter);
+        return refusal;
+    }
+
     // One kind an endpoint reaches, and the keys that kind requires of it.
     internal readonly record struct Kind(string Role, string Name, params string[] Requires);
 
@@ -87,7 +99,7 @@ internal static class MyceliumStub
     // Things are included because a real snapshot only carries them when the selector names them —
     // leaving them out here would make every test agree with a resolver that reads nothing.
     // Derives the relationships from the same effective-properties document the test already writes, the way
-    // Delta derives them from a seed. A test keeps declaring its endpoint's shape in one place, and
+    // a seed declares them beside its templates. A test keeps declaring its endpoint's shape in one place, and
     // the words it uses there are the ones the old string-valued keys used, so the tests read as they
     // did before while the service under test sees only relationships.
     private static readonly (string Key, string Word, string Role, string Kind)[] DerivedKinds =

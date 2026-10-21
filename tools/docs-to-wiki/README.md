@@ -48,15 +48,18 @@ should appear) and `excluded` (documents that deliberately have no page, each wi
     "organisation": "https://dev.azure.com/ReGenVillages",
     "project": "VillageOS-API",
     "repository": "VillageOS-API",
+    "repositoryFileAddress": "https://github.com/ReGen-Villages/VillageOS-API/blob/develop/",
     "name": "VillageOS-API-Wiki",
     "removeUnlistedPages": true
   }
 }
 ```
 
-`organisation`, `project` and `repository` build the banner and the links back to files in the
-repository; `name` is the wiki published to. All four are required — a manifest missing one is
-refused rather than publishing a page whose banner names nothing.
+`organisation` and `project` say where the wiki lives; `repository` is the name the banner gives;
+`repositoryFileAddress` is the address a repository-relative path is appended to, for the banner
+and for links to files that have no wiki page; `name` is the wiki published to. All five are
+required — a manifest missing one is refused rather than publishing a page whose banner names
+nothing.
 
 `removeUnlistedPages` decides what happens to a page the manifest does not produce. A wiki that is
 entirely generated, like this one, removes it. A wiki that also holds pages written on it and
@@ -88,10 +91,9 @@ documentation adds no revisions.
 
 The `Publish Docs to Wiki` step in [`azure-pipelines.yml`](../../azure-pipelines.yml) runs both
 scripts on `develop`, **before** the `Mirror Wiki to GitHub` step, so one build carries a
-documentation change from a merge all the way to the public GitHub wiki. On the same branch the
-repository mirror runs on, because that wiki mirror publishes whatever this step left on the project
-wiki: split across two branches, the public wiki would describe one branch beside the other
-branch's code.
+documentation change from a merge all the way to the public GitHub wiki. Both run on the same
+branch because the wiki mirror publishes whatever this step left on the project wiki: split across
+two branches, the public wiki would describe one branch beside the other branch's code.
 
 ### Why the API and not git
 

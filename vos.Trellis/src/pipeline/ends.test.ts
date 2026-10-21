@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { catalystFixture } from './catalysts.test.fixture';
+import { ROLE } from './model';
 
 describe('what a boundary node stands for', () => {
   const { model, id } = catalystFixture();
@@ -19,12 +20,13 @@ describe('what a boundary node stands for', () => {
     expect(model.endInformation(id.belowReorder)).toMatchObject({ kind: 'state', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.feeds)).toMatchObject({ kind: 'relationship', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.refill)).toMatchObject({ kind: 'pipeline', mayStart: true, mayEnd: true });
+    expect(model.endInformation(id.everyHour)).toMatchObject({ kind: 'cadence', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.reservoir)).toMatchObject({ kind: 'other', mayStart: false, mayEnd: false });
   });
 
-  it('finds the predicate a stands-for relationship is written through by its mark', () => {
-    expect(model.predicateCarrying('__IsStandsForPredicate')).toBe(id.standsFor);
-    expect(model.predicateCarrying('__IsNoSuchPredicate')).toBeUndefined();
+  it('finds the predicate a stands-for relationship is written through by the role that binds it', () => {
+    expect(model.boundTo(ROLE.StandsFor)).toBe(id.standsFor);
+    expect(model.boundTo('a role nothing binds')).toBeUndefined();
   });
 
   it('reads a connection trigger off the connection or the nearest kind above it', () => {

@@ -48,11 +48,14 @@ site, to the Place carrying `__IsRootPlace` through the predicate carrying
 by mark, because a producer naming `Earth` would relate nothing, and say nothing, in a model that
 called its root something else.
 
-**The root is enough for a source that covers everything, and no more is claimed.** A submitted site
-is not related to a country or a region: `country` on a submission is optional and stays text, it
-names an open set nobody can enumerate, and the vocabulary pattern used elsewhere here *refuses* a
-term the model does not hold — which would turn "we have not declared your country" into "your land
-cannot be submitted". The hazard portal covers the root too — it is global — but its address needs an
+**The root is enough for a source that covers everything, and the producer claims no more.** A
+submitted site is related by its producer to the root alone: `country` on a submission is optional and
+stays text, it names an open set nobody can enumerate, and the vocabulary pattern used elsewhere here
+*refuses* a term the model does not hold — which would turn "we have not declared your country" into
+"your land cannot be submitted". A discovery run then relates the site to the finest Place carrying
+the standard's code (`iso3166Code`) that the geocoder answered for its position, so a project's Place
+with a division code reaches it; the typed country still relates nothing. The hazard portal covers
+the root too — it is global — but its address needs an
 administrative division code (`hazardPortalDivision`), which a project can put on a Place its sites are
 related into and which a run otherwise works out for itself from the site's position — see
 [Resolving the hazard division](#resolving-the-hazard-division). A site that reaches no such Place and
@@ -106,7 +109,9 @@ have declared the connection that dispatches a source either.
 
 **A site's read** then answers everything about it: the site's Places, then every source whose coverage
 reaches one of them, then those sources' registrations — and, model-wide, the two division lookups, which
-no relationship reaches because neither covers a Place. Traverse rules compose over the set built so
+no relationship reaches because neither covers a Place, and every Place, asked for by the mark
+`__IsPlaceArchetype`, so the run can relate the site to the one carrying the code the geocoder answers.
+Traverse rules compose over the set built so
 far, so the walk must ask for `isIn` **first** — asking for the incoming `covers` relationships before the
 Places are in the set finds nothing. That is the same ordering trap the Tributary endpoint kinds hit;
 see [`TRIBUTARY.md`](TRIBUTARY.md). **A source's read** is the same walk from the other end: the Places
@@ -156,7 +161,10 @@ the model has none for, relating it `appliesTo` the subject and `sourcedFrom` th
 **A call whose coverage already carries `resolvedAt` is not made again.** That is the point of the
 Things: a source answering for one subject and failing for another leaves exactly the second outstanding,
 and a run over the same site afterwards calls only that one. A source every one of whose calls has been
-answered drops out of the run entirely rather than being called with nothing to fetch.
+answered drops out of the run entirely rather than being called with nothing to fetch. Each stamp the
+broker refuses is written once more, because a coverage missing its `resolvedAt` reads as a source
+never asked; a stamp refused twice is given up on and logged with the coverage it was meant for, and
+the call stays outstanding as any unanswered one does.
 
 **The subject, not the site.** A source that `resolvesOnto` an archetype is called once per Thing the
 site has of it, so its coverage of one assessment is a different Thing from its coverage of another. A
@@ -224,8 +232,15 @@ routinely. Judged by the call, finished work would be recorded Failed and driven
 the dispatch is the model: the connection relates to `SiteDiscovered` as what proves a dispatch done,
 the record stays in flight until the site's coverage has been matched and no coverage of it is
 outstanding — the run's own last write is what closes it — and `done_within` presumes dead a run
-nobody will finish. Completion is *observed* rather than *announced* because nothing exposes a route
-for a service to announce one.
+nobody will finish. Completion is *observed* by choice: the platform does take an acknowledgement
+from a service, but the site reaching the done state is the evidence, and an acknowledgement would
+add nothing to it.
+
+**One site's runs do not overlap.** A run for a site, or for a source, waits while another run for it
+is in flight; runs for different sites still run together. At most one run waits: a dispatch arriving
+while one already waits is dropped, because the waiting run reads the model only after the run in
+flight ends. Two runs for one site would each mint a coverage for the same call, which makes every
+later run for that site fail, and would call the same sources and write the same relationships twice.
 
 **A coverage read that fails writes nothing.** It cannot refuse in the answer, because the answer has
 already been given, so it says so by leaving no trace: no fetch, no analysis started, and the site
@@ -288,13 +303,17 @@ that failed outright.
 
 **Bounds.** Calls run concurrently up to `--maxConcurrentSources`, held across every call rather
 than per source, so a site covered by many sources — or a source called once per assessment — cannot
-open a burst of connections that reads as abuse. Any one source is bounded by
-`--sourceTimeoutSeconds`: a provider that accepts the connection and then goes quiet is more common
-than one that refuses outright, and it must not hold up the run. A run cancelled by its caller is
+open a burst of connections that reads as abuse. Any one call is bounded by
+`--sourceTimeoutSeconds` — a sliced source, and a slice asked again, can take longer in total: a
+provider that accepts the connection and then goes quiet is more common than one that refuses
+outright, and it must not hold up the run. A run cancelled by its caller is
 never reported as a timeout — that would put a fabricated outage in front of a planner.
 
 **A source reaching back years is asked for a slice of that reach at a time**, `--sourceWindowDays`
-of it per call, and the outcome is reported when every slice has answered. The reach is the model's
+of it per call, and the outcome is reported when every slice has answered. A slice refused with 429
+is asked again after the provider's `Retry-After`, or one minute where none reaches Forage, up to
+three attempts; a wait over five minutes is left to the next pass, and any other refusal ends the
+fetch at once. The reach is the model's
 to declare and a long one is legitimate; what one pass can carry is a fact about the deployment. A
 whole reach in one call makes the provider's answer, the reshape that follows it and the write it
 becomes each as large as the reach — at a decade of hourly readings, millions of readings in each,
@@ -330,27 +349,39 @@ takes a *name*, and answers every division of that name in every country: `Santa
 Portugal and two in Brazil. A reshape expression sees only the provider's reply, and the provider takes
 no country to filter by, so the choosing has to happen where the site's values are known.
 
-Four rules, each of which a wrong answer would break:
+Five rules, each of which a wrong answer would break:
 
 - **A model that supplies a code decides.** The site's own value and its Places' are already layered
   into the call's address, so a run resolves only where neither supplies one. A project that coded its
   own Place keeps it, and a site that needs no lookup costs two providers nothing on every run.
-- **English is asked for.** Left to a geocoder's default a Dutch site answers `Nederland`, which the
-  portal matches to nothing. The address the model holds asks for English.
+- **A Place carrying the geocoder's code comes before the search.** A Place carrying a code the
+  geocoder answered for the position (`ISO3166-2-lvl<n>`, then `country_code`) is related to the site,
+  and its own division, where it carries one, addresses the gradings. Two Places carrying one code are
+  neither taken, and a refused relationship leaves the search to grade the site.
+- **English is asked for the country, and the local names beside it.** Left to a geocoder's default a
+  Dutch site answers `Nederland`, which the portal matches to nothing, so the address the model holds
+  asks for English. Where the model declares `local-area-name-at-position` (mark
+  `__IsLocalAreaNameLookup`) the same call is made with no language, for the names the portal holds a
+  division under; a refused local call leaves the English names to be searched.
 - **Only the site's own country counts**, and the two providers do not agree on a country's full name —
   the geocoder says `United States` where the portal holds `United States of America` — so they are
   matched by one name starting with the other rather than by equality.
-- **The finest division of those left is taken.** The same name exists as a region and as the district
-  inside it, graded differently: Portugal / Santarem reads high river flood as the region and medium as
+- **The finest division of those left is taken, among the divisions named exactly what was searched**,
+  with accents folded away — the geocoder writes `Santarém` even in English and the portal holds
+  `Santarem` — because the portal's search answers every division whose name contains the text:
+  `mazowieckie` answers Wysokie Mazowieckie in another voivodeship, deeper than Mazowieckie. The same
+  name exists as a region and as the district inside it, graded differently: Portugal / Santarem reads high river flood as the region and medium as
   the district. The district is the land the site is actually in. Two divisions standing equally deep
   are a tie nothing here can settle, so neither is taken — a guessed division reads exactly like a
   resolved one, and telling a landowner their land does not flood is the failure this whole path exists
   to prevent.
 
-**The county is searched before the state that holds it, and the state is searched when the county finds
-nothing.** A geocoder answering `Dukes County` where the portal holds `Dukes` finds no division at all,
-and the state it also gave is one the portal does hold — so the site is graded at the coarser division
-rather than not at all. A search that was *refused* is not a name the portal holds nothing for: the run
+**The portal is searched per level, finest first, by the English name, the local name, then each word
+of four letters or more of either, local words first, each name once; the state is searched when the
+county finds nothing.** A geocoder answering `Dukes County` where the portal holds `Dukes` reaches the
+division by its word, and a county the portal holds under no name at all falls to the state the geocoder
+also gave, which the portal does hold — so the site is graded at the coarser division rather than not
+at all. A search that was *refused* is not a name the portal holds nothing for: the run
 stops there rather than asking a coarser question, or one provider's outage would become a coarser
 grading nobody chose.
 
@@ -414,7 +445,9 @@ until something runs discovery again.
 ## Starting the analysis
 
 **When the run finishes, Forage relates the site's study to each compute service** — one
-`SiteStudy -connection-> prototype` relationship per marked connection. A connection bound to a service
+`SiteStudy -connection-> prototype` relationship per marked connection the study is not already
+related through. A relationship already in the model, from the seed or an earlier run, is left as it
+is and counts as started. A connection bound to a service
 is a handled predicate, so creating that relationship is what dispatches it; no compute service is
 called from
 here. The model carries the trigger, which means there is one way to start an analysis rather than

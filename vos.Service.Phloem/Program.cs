@@ -52,6 +52,7 @@ try
     builder.Services.AddModelClock<MyceliumGateway>("Phloem");
     builder.Services.AddSingleton<PipelineExecutor>();
     builder.Services.AddSingleton<PipelineStarter>();
+    builder.Services.AddHostedService<CadenceKeeper>();
 
     var app = builder.Build();
 
@@ -68,6 +69,11 @@ try
         {
             var registered = await app.Services.GetRequiredService<MyceliumGateway>().RegisterAsync(servicePort);
             Log.Information("Phloem orchestrator {Status} with mycelium", registered ? "registered" : "failed to register");
+            var executor = app.Services.GetRequiredService<PipelineExecutor>();
+            var placedAgain = await executor.RecoverWaitsAsync(CancellationToken.None);
+            if (placedAgain > 0) Log.Information("Placed {Count} vigil(s) again for runs that were waiting", placedAgain);
+            var carriedOn = await executor.RecoverTryingAsync(CancellationToken.None);
+            if (carriedOn > 0) Log.Information("Carried {Count} run(s) on from a node that was trying", carriedOn);
         }
         catch (Exception ex)
         {
@@ -100,18 +106,43 @@ try
                 // animates over SSE rather than blocking. A detached token lets the run outlive the request.
                 var asyncRunId = Guid.NewGuid();
                 var asyncPipelineId = trigger.PipelineId;
-                var asyncParams = trigger.Params;
+                var asyncParameters = trigger.Parameters;
+                var asyncRehearsal = trigger.Rehearsal;
                 _ = Task.Run(async () =>
                 {
-                    try { await executor.RunAsync(asyncPipelineId, asyncParams, CancellationToken.None, asyncRunId, requestId: requestId); }
+                    try { await executor.RunAsync(asyncPipelineId, asyncParameters, CancellationToken.None, asyncRunId, requestId: requestId, rehearsal: asyncRehearsal); }
                     catch (Exception ex) { Log.Error(ex, "Async pipeline run {RunId} ({PipelineId}) failed", asyncRunId, asyncPipelineId); }
                 });
                 return Results.Ok(new { success = true, accepted = true, runId = asyncRunId, pipelineId = trigger.PipelineId });
 
             case SpawnKind.Http:
                 // Synchronous spawn-and-wait — the caller (e.g. a programmatic client) blocks for the result.
-                var result = await executor.RunAsync(trigger.PipelineId, trigger.Params, httpContext.RequestAborted, requestId: requestId);
+                var result = await executor.RunAsync(trigger.PipelineId, trigger.Parameters, httpContext.RequestAborted, requestId: requestId, rehearsal: trigger.Rehearsal);
                 return Results.Ok(result);
+
+            case SpawnKind.Relationship when trigger.RelationshipId is { } written && await executor.IsStopAsync(written, httpContext.RequestAborted):
+                // A stop request written along the orchestrator's own connection: to a run, or to a Thing whose runs
+                // it stops. Acknowledged first, since a run under way stops only at its next step.
+                if (trigger.Subject is not { } stopRequest)
+                    return Results.BadRequest(new { error = "A stop names no stop request as its subject." });
+                var stopping = trigger.TargetId;
+                _ = Task.Run(async () =>
+                {
+                    try { await executor.StopAsync(stopRequest.Id, stopping, CancellationToken.None); }
+                    catch (Exception ex) { Log.Error(ex, "Stopping the runs of {TargetId} failed", stopping); }
+                });
+                return Results.Ok(new { success = true, accepted = true, stops = stopping });
+
+            case SpawnKind.Relationship when await executor.HoldsVigilAsync(trigger.TargetId, httpContext.RequestAborted):
+                // The answer to a vigil a waiting node run holds comes as a state entry whose target is the vigil.
+                // It is acknowledged before the run carries on, which can take longer than the broker waits.
+                var vigilId = trigger.TargetId;
+                _ = Task.Run(async () =>
+                {
+                    try { await executor.ResumeAsync(vigilId, CancellationToken.None); }
+                    catch (Exception ex) { Log.Error(ex, "Resuming the run waiting on vigil {VigilId} failed", vigilId); }
+                });
+                return Results.Ok(new { success = true, accepted = true, resumes = vigilId });
 
             case SpawnKind.Relationship:
                 // A dispatched relationship — a `X runs Pipeline` write or a Thing entering a watched state —
@@ -124,11 +155,11 @@ try
                     return Results.BadRequest(new { error = start.Refusal });
 
                 var pipelineId = start.PipelineId!.Value;
-                var runParams = trigger.Params;
+                var runParameters = trigger.Parameters;
                 var subject = trigger.Subject;
                 _ = Task.Run(async () =>
                 {
-                    try { await executor.RunAsync(pipelineId, runParams, CancellationToken.None, subject: subject, requestId: requestId); }
+                    try { await executor.RunAsync(pipelineId, runParameters,CancellationToken.None, subject: subject, requestId: requestId); }
                     catch (Exception ex) { Log.Error(ex, "Dispatched pipeline run {PipelineId} failed", pipelineId); }
                 });
                 return Results.Ok(new { success = true, accepted = true, pipelineId });

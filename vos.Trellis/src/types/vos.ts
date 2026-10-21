@@ -425,6 +425,10 @@ export interface PropertyModeConfiguration {
   RingBufferSize?: number;
   SampleRate?: number;
   SampleSeconds?: number;
+  /** For the whole model: the most versions a full-history property keeps in memory besides its first. Zero sets no limit. */
+  FullHistoryVersionsInMemory?: number;
+  /** For the whole model: how long a replaced version of a full-history property stays in memory. Zero sets no limit. */
+  FullHistorySecondsInMemory?: number;
   AvailableModes?: string[];
 }
 

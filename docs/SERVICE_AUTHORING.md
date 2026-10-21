@@ -18,7 +18,7 @@ A Python service does not reimplement the contract. [`vos.Service.Python.Shared`
 
 ## A note on `is`
 
-`is` is the one **built-in** predicate. Mycelium applies `is` inheritance in-process and **never dispatches it to an external handler** — only predicates like `consumes`/`produces` are mapped to external services. So you cannot write an external "is handler"; register your service for a custom predicate (or `consumes`/`produces`) instead.
+`is` and `binds` are the two **built-in** predicates. Mycelium applies `is` inheritance in-process, reads `binds` — along which a role Thing reaches the one Thing playing that role — in-process too, and **never dispatches either to an external handler** — only predicates like `consumes`/`produces` are mapped to external services. So you cannot write an external "is handler"; register your service for a custom predicate (or `consumes`/`produces`) instead.
 
 ## Things and relations, not strings
 
@@ -92,7 +92,7 @@ child's environment, not in its arguments. Xylem hands the IFC ingest tool its `
 | Setting | Meaning |
 |---------|---------|
 | `Token` | Pre-minted service JWT for outbound calls |
-| `ApiKey` | For a service nobody launches on demand, in place of `Token`: a key exchanged at `POST /api/auth/token`, in the `X-API-Key` header, for a short-lived JWT, and exchanged again shortly before that expires. The route refuses a call that carries no key |
+| `ApiKey` | For a service nobody launches on demand, in place of `Token`: a key exchanged at `POST /api/auth/token`, in the `X-API-Key` header, for a short-lived JWT, and exchanged again shortly before that expires. The route refuses a call that carries no key, so a service holding neither setting should make no call for a token and say so |
 | `VerificationKey` | Base64 of Mycelium's **public** signing key (its SubjectPublicKeyInfo encoding), for checking **inbound** requests. When present, `/handle` and `/shutdown` require auth; when absent, auth is disabled |
 
 `VerificationKey` checks a signature and cannot produce one. Mycelium keeps the private half and
@@ -112,11 +112,14 @@ On startup, obtain a bearer token then register.
   "endpointUrl": "http://localhost:<port>",
   "startCommand": "endpoint-service",
   "stopEndpoint": "http://localhost:<port>/shutdown",
-  "healthEndpoint": "http://localhost:<port>/health"
+  "healthEndpoint": "http://localhost:<port>/health",
+  "logFilePrefix": "yourservice-"
 }
 ```
 
-A 2xx means you're registered.
+`logFilePrefix` is optional: lowercase letters, digits and hyphens, the prefix of the file the service
+writes its own log under, so the broker's log routes can find the newest one. A service that writes
+no log file leaves it out. A 2xx means you're registered.
 
 ## Endpoints to expose
 
@@ -159,7 +162,13 @@ the reconciler sends it again — so answer that way only when a retry could suc
 work behind a claim per `relationshipId` (below) so the retry does not repeat it. A **`400`** is
 different: it says you read the body and turned it down, the same body would earn the same answer,
 so it is recorded as **refused** with your words and is never re-driven. A 2xx with no `success`
-field, or a body that is not JSON, counts as done.
+field, or a body that is not JSON, counts as done — unless the connection asks for an
+**acknowledgement** (`completion` of `ack` or `both`): then a 2xx means only accepted, and your
+service calls `POST /api/relationships/{relationshipId}/acknowledgement` once its work has committed.
+[SERVICE_CONTRACT.md](SERVICE_CONTRACT.md) has what each answer to that call means.
+
+Every call also carries a `Vos-Request-Id` header naming Mycelium's request-log entry for it, worth
+quoting in your own log. It is new on every delivery.
 
 **The same relationship can be delivered more than once.** Dispatch is at-least-once: when Mycelium
 cannot confirm that a handler finished, it sends the relation again, and a handler that reconnects

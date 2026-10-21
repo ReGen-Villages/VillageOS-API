@@ -11,9 +11,9 @@ It's the Python analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
-Token=<service-jwt> .venv/bin/python app.py --port=5103 --myceliumUrl=https://localhost:7243
+ApiKey=<api-key> .venv/bin/python app.py --port=5103 --myceliumUrl=https://localhost:7243
 
-# with inbound auth, as Mycelium launches it:
+# with inbound auth, as Mycelium launches it (Mycelium hands a launched service a Token):
 Token=<service-jwt> VerificationKey=<base64-public-key> \
   .venv/bin/python app.py --port=5103 --myceliumUrl=https://localhost:7243 \
     --issuer=VillageOS --audience=python-echo-handler
@@ -21,6 +21,11 @@ Token=<service-jwt> VerificationKey=<base64-public-key> \
 
 macOS has no `python` command, and the `python3` on your PATH usually refuses to install packages
 into itself, so the virtual environment is not optional.
+
+The service checks the platform's certificate against what the machine trusts, through the
+`truststore` package. A Mycelium on the same machine is reached once its development certificate is
+trusted (`dotnet dev-certs https --trust`). A platform presenting a certificate the machine does not
+trust is refused before the key or token is sent.
 
 Interactive OpenAPI docs are available at `/docs` (FastAPI built-in).
 
@@ -35,12 +40,12 @@ Interactive OpenAPI docs are available at `/docs` (FastAPI built-in).
 
 ## Credentials
 
-Both come from the environment and are never flags. A command line is readable by every process on the host and is recorded by anything that logs the line a service was started with, so a `--token=` or `--verificationKey=` argument is ignored.
+All come from the environment and are never flags. A command line is readable by every process on the host and is recorded by anything that logs the line a service was started with, so a `--token=` or `--verificationKey=` argument is ignored.
 
 | Variable | Meaning |
 |----------|---------|
-| `ApiKey` | A service API key. It is exchanged at `POST /api/auth/token` (`X-API-Key` header) for a token that is held and exchanged again shortly before it runs out. Presented before a `Token` given beside it |
-| `Token` | Pre-minted service JWT, used when there is no `ApiKey`. With neither set the service makes no call to Mycelium and says so at startup, because a call carrying no credential is always refused |
+| `ApiKey` | An API key, exchanged for a token in the `X-API-Key` header of `POST /api/auth/token`. The token is held and exchanged again thirty seconds before it runs out. A key is used before a `Token` given beside it. A run by hand uses this |
+| `Token` | A service JWT, used when no `ApiKey` is set; Mycelium hands one to a service it launches. With neither set, the service makes no call to Mycelium, says so in one line, and still answers its own routes |
 | `VerificationKey` | Base64 of Mycelium's public signing key; when set, `/handle` and `/shutdown` require a valid Mycelium-signed JWT addressed to this service. It checks a signature and cannot make one |
 
 ## Endpoints
@@ -86,8 +91,8 @@ a runnable demo at `POST /demo/write-kinds {"thingId": "<existing>"}` that drive
 seq = await mycelium.set_fact(thing_id, "status", "active")                         # Fact → 201
 await mycelium.record_observation(thing_id, "temperature", 21.5, datetime.now(timezone.utc).isoformat())  # 202
 n = await mycelium.record_observations(thing_id, [{"property": "temperature", "value": 21.7}])
-res = await mycelium.deposit_sediment([{"thingId": thing_id, "property": "temperature",      # bulk → sealed Sapwood
-    "value": 19.8, "observedAt": "2026-06-19T12:00:00Z"}])
+res = await mycelium.deposit_sediment([sediment_reading(thing_id, "temperature", 19.8,   # bulk → sealed Sapwood
+    "2026-06-19T12:00:00Z")])
 ```
 
 Full wire contract (routes, status codes, 405/404 gating): [`docs/SERVICE_CONTRACT.md`](../docs/SERVICE_CONTRACT.md) § "Writing data back".

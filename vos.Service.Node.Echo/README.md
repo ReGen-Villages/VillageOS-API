@@ -11,13 +11,20 @@ It's the Node analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.Se
 ```bash
 npm install            # dev-only deps: typescript + @types/node
 npm run build          # compile src → dist
-Token=<service-jwt> node dist/index.js --port=5102 --myceliumUrl=https://localhost:7243
+ApiKey=<api-key> NODE_EXTRA_CA_CERTS=<certificate.pem> \
+  node dist/index.js --port=5102 --myceliumUrl=https://localhost:7243
 
-# with inbound auth, as Mycelium launches it:
+# with inbound auth, as Mycelium launches it (Mycelium hands a launched service a Token):
 Token=<service-jwt> VerificationKey=<base64-public-key> \
   node dist/index.js --port=5102 --myceliumUrl=https://localhost:7243 \
     --issuer=VillageOS --audience=node-echo-handler
 ```
+
+**Trusting a local Mycelium.** Node does not trust the development certificate a local Mycelium
+presents, and `--use-system-ca` does not change that on macOS. Start the service with
+`NODE_EXTRA_CA_CERTS` naming a file that holds the certificate in PEM form.
+`dotnet dev-certs https --export-path <file>.pem --format PEM --no-password` writes one, with a key
+file beside it that is not needed and should be deleted.
 
 ## CLI arguments
 
@@ -30,11 +37,12 @@ Token=<service-jwt> VerificationKey=<base64-public-key> \
 
 ## Credentials
 
-Both come from the environment and are never flags. A command line is readable by every process on the host and is recorded by anything that logs the line a service was started with, so a `--token=` or `--verificationKey=` argument is ignored.
+All come from the environment and are never flags. A command line is readable by every process on the host and is recorded by anything that logs the line a service was started with, so a `--token=` or `--verificationKey=` argument is ignored.
 
 | Variable | Meaning |
 |----------|---------|
-| `Token` | Pre-minted service JWT. With none set the service asks `POST /api/auth/token` for one with no key, which Mycelium refuses, so a run by hand needs one |
+| `ApiKey` | An API key, exchanged for a token in the `X-API-Key` header of `POST /api/auth/token`. The token is held and exchanged again thirty seconds before it runs out. A key is used before a `Token` given beside it. A run by hand uses this |
+| `Token` | A service JWT, used when no `ApiKey` is set; Mycelium hands one to a service it launches. With neither set, the service makes no call to Mycelium, says so in one line, and still answers its own routes |
 | `VerificationKey` | Base64 of Mycelium's public signing key; when set, `/handle` and `/shutdown` require a valid Mycelium-signed JWT addressed to this service. It checks a signature and cannot make one |
 
 ## Endpoints
@@ -71,7 +79,7 @@ const seq = await setFact(cfg, thingId, "status", "active");                    
 await recordObservation(cfg, thingId, "temperature", 21.5, new Date().toISOString()); // 202
 const n = await recordObservations(cfg, thingId, [{ property: "temperature", value: 21.7 }]);
 const res = await depositSediment(cfg, [                                           // bulk → sealed Sapwood
-  { thingId, property: "temperature", value: 19.8, observedAt: "2026-06-19T12:00:00Z" },
+  { objectId: thingId, property: "temperature", value: 19.8, observedAt: "2026-06-19T12:00:00Z" },
 ]);
 ```
 

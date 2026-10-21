@@ -94,7 +94,7 @@ public class ObservationIngestService
     // or created from it, whether or not the expression produced one.
     public async Task<ObservationIngestResult> CreateObservationsAsync(
         Guid endpointThingId, JsonataTransform query, string body, Guid? subjectId = null,
-        ObservedEdges? alreadyObserved = null)
+        ObservedEdges? alreadyObserved = null, CancellationToken cancellationToken = default)
     {
         if (!TryTransform(body, query, out var transformed, out var transformError))
             return new ObservationIngestResult(false, 0, 0, "Endpoint response transform failed", transformError);
@@ -106,7 +106,7 @@ public class ObservationIngestService
             _myceliumClient, endpointThingId, alreadyObserved ?? ObservedEdges.None);
 
         if (subjectId != null)
-            return await ObserveOntoSubjectAsync(subjectId.Value, readings, provenance);
+            return await ObserveOntoSubjectAsync(subjectId.Value, readings, provenance, cancellationToken);
 
         // Things scale with entities, observations with readings — so group by entity name and
         // touch each entity's structure once.
@@ -154,7 +154,7 @@ public class ObservationIngestService
 
             if (samples.Count > 0)
             {
-                if (!await _myceliumClient.SubmitObservationsAsync(entity.Value.Id, samples))
+                if (!await _myceliumClient.SubmitObservationsAsync(entity.Value.Id, samples, cancellationToken))
                     return new ObservationIngestResult(false, entitiesTouched, observationsSubmitted,
                         "Failed to submit observations for entity.", name);
                 observationsSubmitted += samples.Count;
@@ -171,7 +171,7 @@ public class ObservationIngestService
     // the words saying which half was refused.
     public async Task<string?> ObserveValueAsync(
         Guid endpointThingId, Guid subjectId, string property, object? value, DateTime? observedAt,
-        ObservedEdges? alreadyObserved = null)
+        ObservedEdges? alreadyObserved = null, CancellationToken cancellationToken = default)
     {
         var provenance = new ProvenanceWriter(
             _myceliumClient, endpointThingId, alreadyObserved ?? ObservedEdges.None);
@@ -180,14 +180,14 @@ public class ObservationIngestService
             return failure;
 
         if (!await _myceliumClient.SubmitObservationsAsync(
-                subjectId, [new ObservationSample(property, value, observedAt)]))
+                subjectId, [new ObservationSample(property, value, observedAt)], cancellationToken))
             return "Failed to submit observations for entity.";
 
         return null;
     }
 
     private async Task<ObservationIngestResult> ObserveOntoSubjectAsync(
-        Guid subjectId, List<Reading> readings, ProvenanceWriter provenance)
+        Guid subjectId, List<Reading> readings, ProvenanceWriter provenance, CancellationToken cancellationToken)
     {
         var samples = SamplesOf(readings);
 
@@ -202,7 +202,7 @@ public class ObservationIngestService
         if (await provenance.EnsureObservedAsync(subjectId) is { } failure)
             return new ObservationIngestResult(false, 1, 0, failure, null);
 
-        if (!await _myceliumClient.SubmitObservationsAsync(subjectId, samples))
+        if (!await _myceliumClient.SubmitObservationsAsync(subjectId, samples, cancellationToken))
             return new ObservationIngestResult(false, 1, 0, "Failed to submit observations for entity.", null);
 
         return new ObservationIngestResult(true, 1, samples.Count, null, null, WrittenOf(samples));

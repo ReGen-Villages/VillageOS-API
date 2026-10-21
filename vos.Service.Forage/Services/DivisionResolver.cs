@@ -70,11 +70,17 @@ public sealed class DivisionResolver
             return null;
         }
 
-        foreach (var areaName in position.AreaNames)
+        if (await RelateToCodedPlaceAsync(siteId, coverage, lookup, position, cancellationToken) is { } supplied)
+            return supplied;
+
+        var terms = HazardDivision.SearchTermsFor(
+            position.AreaNames, await LocalAreaNamesAsync(siteId, coverage, lookup, cancellationToken));
+
+        foreach (var term in terms)
         {
             var searched = new Dictionary<string, string>(coverage.Address, StringComparer.OrdinalIgnoreCase)
             {
-                [lookup.SearchAreaNameParameter] = areaName,
+                [lookup.SearchAreaNameParameter] = term,
             };
 
             // A refused search is not a name the portal holds nothing for, so a coarser name is not asked
@@ -82,7 +88,7 @@ public sealed class DivisionResolver
             if (await _reader.ReadAsync(lookup.SearchEndpoint, searched, cancellationToken) is not { } answered)
                 return null;
 
-            if (HazardDivision.FinestIn(HazardDivision.DivisionsIn(answered), position.Country)
+            if (HazardDivision.FinestIn(HazardDivision.DivisionsIn(answered), position.Country, term)
                 is not { } division)
                 continue;
 
@@ -92,8 +98,81 @@ public sealed class DivisionResolver
         // Said out loud rather than left as an empty hazards table: the portal holds no division of any
         // name this site's position gave, in this site's country.
         _logger.LogInformation(
-            "The hazard portal holds no division in {Country} for {Areas}, so site {SiteId} keeps no "
-            + "division code", position.Country, string.Join(", ", position.AreaNames), siteId);
+            "The hazard portal holds no division in {Country} named {Terms}, so site {SiteId} keeps no "
+            + "division code", position.Country, string.Join(", ", terms), siteId);
+        return null;
+    }
+
+    // The names the portal holds a division under, where the model declares the call that answers them.
+    // Empty where it was refused or answered nothing: the English names are still worth searching, and
+    // a run stopped for a lookup it could do without would grade no Portuguese site for a Polish gap.
+    private async Task<IReadOnlyList<string>> LocalAreaNamesAsync(
+        Guid siteId, SiteCoverage coverage, DivisionLookup lookup, CancellationToken cancellationToken)
+    {
+        if (lookup.LocalAreaNameEndpoint is not { } endpoint) return [];
+
+        if (await _reader.ReadAsync(endpoint, coverage.Address, cancellationToken) is not { } answered
+            || HazardDivision.PositionIn(answered) is not { } local)
+        {
+            _logger.LogInformation(
+                "The local area-name lookup answered nothing site {SiteId} can be searched by; the English "
+                + "names alone are searched", siteId);
+            return [];
+        }
+
+        return local.AreaNames;
+    }
+
+    // By the standard's code the geocoder answers beside the names, because a name matches in one
+    // provider's language and not the other's. The finest code first: a region's Place says more about
+    // the site than its country's. A Place carrying no division is still related, since the next run
+    // reads its values through the relationship, and the search goes on. Null for whatever nothing was
+    // supplied: a refused relationship is the model's to explain, and the search still grades the site.
+    private async Task<IReadOnlyDictionary<string, string>?> RelateToCodedPlaceAsync(
+        Guid siteId, SiteCoverage coverage, DivisionLookup lookup, GeocodedPosition position,
+        CancellationToken cancellationToken)
+    {
+        if (coverage.CodedPlaces is not { } coded) return null;
+
+        foreach (var code in position.StandardCodes)
+        {
+            var carrying = coded.Places
+                .Where(place => string.Equals(place.Code, code, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (carrying.Count == 0) continue;
+
+            // Two Places claiming one code cannot both be where the site is, and relating it to either would
+            // be a guess that reads exactly like a right answer.
+            if (carrying.Count > 1)
+            {
+                _logger.LogWarning(
+                    "Places {Places} all carry the code {Code}, so site {SiteId} is related to none of them",
+                    string.Join(", ", carrying.Select(place => place.Name)), code, siteId);
+                continue;
+            }
+
+            var place = carrying[0];
+            if (!place.SiteIsIn
+                && !await _writer.RelateAsync(siteId, coded.NestingPredicateId, place.Id, cancellationToken))
+            {
+                _logger.LogError(
+                    "Site {SiteId} stands in {Place} by the code {Code}, and the relationship could not be "
+                    + "written; the portal is searched instead", siteId, place.Name, code);
+                return null;
+            }
+
+            if (!place.SiteIsIn)
+                _logger.LogInformation("Site {SiteId} stands in {Place}, by the code {Code}", siteId, place.Name, code);
+
+            if (!place.Values.TryGetValue(lookup.CodeProperty, out var division)) return null;
+
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                [lookup.CodeProperty] = division,
+                [lookup.NameProperty] = place.Values.GetValueOrDefault(lookup.NameProperty, place.Name),
+            };
+        }
+
         return null;
     }
 

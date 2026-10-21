@@ -53,6 +53,11 @@ const SPECIFICATION = {
           unit: '%',
           target: 99,
         },
+        {
+          type: 'kpi',
+          title: 'Water stored',
+          value: { kind: 'related', via: [{ predicate: 'has' }], property: 'storedCubicMetres' },
+        },
       ],
     },
     {
@@ -196,6 +201,47 @@ describe('OperationsPage', () => {
     renderAt();
 
     expect(declaredSubscriptions).toContainEqual(subscriptionForSpecification(SPECIFICATION as DashboardSpecification, null));
+  });
+
+  it('asks for one entity on a figure that walks from it while All is showing, and draws it once one is chosen', async () => {
+    renderAt();
+    const askingForOne = 'Shown for one choice of “site” at a time: choose one above.';
+    expect(await screen.findByText(askingForOne)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'V-1' }));
+
+    await waitFor(() => expect(screen.queryByText(askingForOne)).toBeNull());
+    expect(screen.getByText('Water stored')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'All' }));
+
+    expect(await screen.findByText(askingForOne)).toBeInTheDocument();
+  });
+
+  // A model made from one site submission holds one site, and All of one is that one.
+  it('opens on the only entity a compared archetype has, and offers no All', async () => {
+    useModelStore.setState({
+      relationships: useModelStore.getState().relationships.filter((relationship) => relationship.SubjectId !== 'vil2'),
+    });
+
+    renderAt();
+
+    expect(await screen.findByRole('button', { name: 'V-1' })).toBeInTheDocument();
+    expect(screen.queryByText('All')).toBeNull();
+    expect(screen.queryByText(/choose one above/)).toBeNull();
+    await waitFor(() =>
+      expect(declaredSubscriptions).toContainEqual(subscriptionForSpecification(SPECIFICATION as DashboardSpecification, 'vil1')));
+  });
+
+  it('asks for no choice where the compared archetype has no entity to choose', async () => {
+    useModelStore.setState({
+      relationships: useModelStore.getState().relationships.filter((relationship) => !['vil1', 'vil2'].includes(relationship.SubjectId)),
+    });
+
+    renderAt();
+
+    expect(await screen.findByText('Water stored')).toBeInTheDocument();
+    expect(screen.queryByText(/choose one above/)).toBeNull();
   });
 
   it('names the selected entity in what it declares', async () => {

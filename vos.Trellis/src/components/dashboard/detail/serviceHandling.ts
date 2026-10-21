@@ -5,22 +5,23 @@
  * record relationship the platform writes when a Thing enters a watched state. Either way the platform
  * stamps that relationship with the state of the dispatch and the instant of its last attempt, and the
  * connection reaches the service bound to it. So the model itself says who ran and when — nothing
- * here names a service, a predicate or an archetype, only the flags the platform marks its own
- * wiring with.
+ * here names a service, a predicate or an archetype, only the roles and flags the platform finds its
+ * own wiring by.
  *
  * The stamps live in the running platform's memory and are not written down, so a dispatch from
  * before this model was loaded leaves the relationship with no time on it. That is why {@link ServiceDispatch}
  * carries `at` as absent rather than guessing one.
  */
 import { type ModelIndex, thingIdsOfArchetype } from '../../../api/dashboardApi';
+import { ROLE } from '../../../pipeline/model';
 import type { VosRelationship, VosThing } from '../../../types/vos';
 
-/** How the platform marks the wiring it recognises, whatever this model calls the Things carrying it.
- *  A vigil is a service's request to be told once when one Thing enters one state; its record relationship
- *  targets the vigil, which names the connection to dispatch through. */
+const BINDS_PREDICATE = 'binds';
+
+/** How the platform marks the wiring it does not yet find through a role, whatever this model calls the
+ *  Things carrying it. A vigil is a service's request to be told once when one Thing enters one state; its
+ *  record relationship targets the vigil, which names the connection to dispatch through. */
 const WIRING_FLAGS = {
-  connection: '__IsConnectionArchetype',
-  service: '__IsServiceArchetype',
   recordPredicate: '__IsDispatchRecordPredicate',
   vigil: '__IsVigilArchetype',
   notifiedConnectionPredicate: '__IsNotifiedConnectionPredicate',
@@ -91,6 +92,18 @@ function soleClaimants(modelIndex: ModelIndex): Partial<Record<WiringRole, VosTh
   return found;
 }
 
+/** The Thing a role binds, read from the role Thing's own `binds` relationship, never from a name. A role bound
+ *  twice answers nothing, as the pipeline editor reads it, because seed validation refuses that model. */
+function boundBy(modelIndex: ModelIndex, roleId: string): VosThing | undefined {
+  const bindings: VosRelationship[] = [];
+  for (const [predicateId, name] of modelIndex.predicateIdToName) {
+    if (name !== BINDS_PREDICATE) continue;
+    for (const edge of modelIndex.relationshipsByPredicate.get(predicateId) ?? [])
+      if (edge.SubjectId === roleId) bindings.push(edge);
+  }
+  return bindings.length === 1 ? modelIndex.byId.get(bindings[0].TargetId) : undefined;
+}
+
 function serviceWiring(modelIndex: ModelIndex): ServiceWiring {
   const remembered = wiringByIndex.get(modelIndex);
   if (remembered) return remembered;
@@ -98,8 +111,8 @@ function serviceWiring(modelIndex: ModelIndex): ServiceWiring {
   const roles = soleClaimants(modelIndex);
   const membersOf = (archetype: VosThing | undefined) =>
     archetype ? thingIdsOfArchetype(archetype.Name, modelIndex) : new Set<string>();
-  const connectionIds = membersOf(roles.connection);
-  const serviceIds = membersOf(roles.service);
+  const connectionIds = membersOf(boundBy(modelIndex, ROLE.Connection));
+  const serviceIds = membersOf(boundBy(modelIndex, ROLE.Service));
   const vigilIds = membersOf(roles.vigil);
 
   // A connection binds its service through a relation of the model's own choosing, so the service

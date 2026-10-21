@@ -80,6 +80,21 @@ public class EndpointServiceMyceliumClientTests
     }
 
     [Fact]
+    public async Task RegisterAsync_PassesTheLogFilePrefixOn()
+    {
+        JsonElement? capturedBody = null;
+        var (client, _) = NewClient(request =>
+        {
+            capturedBody = ReadJsonBody(request);
+            return Ok();
+        });
+
+        await client.RegisterAsync(port: 7100, logFilePrefix: "echo-");
+
+        capturedBody!.Value.GetProperty("logFilePrefix").GetString().Should().Be("echo-");
+    }
+
+    [Fact]
     public async Task RegisterAsync_WhenMyceliumRefuses_ReturnsFalse()
     {
         var (client, _) = NewClient(_ => new HttpResponseMessage(HttpStatusCode.BadRequest));

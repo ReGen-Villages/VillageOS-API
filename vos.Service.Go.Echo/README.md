@@ -9,10 +9,10 @@ This is the Go analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.S
 ## Run
 
 ```bash
-# Standalone (against a running Mycelium on https://localhost:7243):
-Token=<service-jwt> go run . --port=5101 --myceliumUrl=https://localhost:7243
+# Standalone (against a running Mycelium on https://localhost:7243), with an API key:
+ApiKey=<api-key> go run . --port=5101 --myceliumUrl=https://localhost:7243
 
-# with inbound auth, as Mycelium launches it:
+# with inbound auth, as Mycelium launches it (Mycelium hands a launched service a Token):
 Token=<service-jwt> VerificationKey=<base64-public-key> \
   go run . --port=5101 --myceliumUrl=https://localhost:7243 \
            --issuer=VillageOS --audience=go-echo-handler
@@ -31,11 +31,12 @@ Normally you don't run it by hand — Mycelium launches it as a daemon when a re
 
 ## Credentials
 
-Both come from the environment and are never flags. A command line is readable by every process on the host and is recorded by anything that logs the line a service was started with, so a `--token=` or `--verificationKey=` argument is ignored.
+All come from the environment and are never flags. A command line is readable by every process on the host and is recorded by anything that logs the line a service was started with, so a `--token=` or `--verificationKey=` argument is ignored.
 
 | Variable | Meaning |
 |----------|---------|
-| `Token` | Pre-minted service JWT. With none set the service asks `POST /api/auth/token` for one with no key, which Mycelium refuses, so a run by hand needs one |
+| `ApiKey` | An API key, exchanged for a token in the `X-API-Key` header of `POST /api/auth/token`. The token is held and exchanged again thirty seconds before it runs out. A key is used before a `Token` given beside it. A run by hand uses this |
+| `Token` | A service JWT, used when no `ApiKey` is set; Mycelium hands one to a service it launches. With neither set, the service makes no call to Mycelium, says so in one line, and still answers its own routes |
 | `VerificationKey` | Base64 of Mycelium's public signing key; when set, `/handle` and `/shutdown` require a valid Mycelium-signed JWT addressed to this service. It checks a signature and cannot make one |
 
 ## Endpoints
@@ -82,7 +83,7 @@ demo at `POST /demo/write-kinds { "thingId": "<existing>" }` that drives one of 
 seq, _ := s.setFact(thingID, "status", "active")                                  // Fact → 201
 _ = s.recordObservation(thingID, "temperature", 21.5, time.Now().UTC().Format(time.RFC3339)) // 202
 n, _ := s.recordObservations(thingID, []observationSample{{Property: "temperature", Value: 21.7}})
-res, _ := s.depositSediment([]sedimentReading{{ThingID: thingID, Property: "temperature",
+res, _ := s.depositSediment([]sedimentReading{{ObjectID: thingID, Property: "temperature",
     Value: 19.8, ObservedAt: "2026-06-19T12:00:00Z"}})                            // bulk → sealed Sapwood
 ```
 

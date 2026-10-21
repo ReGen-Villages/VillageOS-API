@@ -41,7 +41,7 @@ Service {__IsServiceArchetype, ExecutablePathTemplate, ServicePort, ServiceArgs,
             ← is ─ consumes service {ServicePort, ServiceArgs, AutoStart}   ← per-instance overrides
             ← is ─ produces service {ServicePort, ServiceArgs, AutoStart}
 
-is                                          ← built-in; in-process, not a PlatformServiceConnection
+is, binds                                   ← built in; in-process, not PlatformServiceConnections
 has, feeds, powers, ...                     ← passive predicates (not PlatformServiceConnections)
 ```
 
@@ -49,7 +49,7 @@ has, feeds, powers, ...                     ← passive predicates (not Platform
 - **Service** (archetype): the microservice process. Carries `ExecutablePathTemplate` (or a stated `ExecutablePath`), `ServicePort`, `ServiceArgs` and `AutoStart`, and reaches its **run mode** through the predicate carrying `__IsRunModePredicate` (`runsAs` above) — a Thing, not a word, and `daemon` is the only one the platform implements.
 - **Shared prototype** (e.g. `Metabolism prototype`): a Service holding one binary's shared values — its `ServiceAssembly`, which the archetype's `ExecutablePathTemplate` composes into a path by replacing `{service}`, and its `TokenScope`; concrete services `is` it and override only per-instance values (`ServicePort`, `ServiceArgs`, `AutoStart`). So `consumes` and `produces` share one binary definition but bind two distinct services.
 - **PlatformServiceConnection `has` Service**: the generic `has` relation; the service is identified as the related Thing that is (transitively) a `Service`, never by predicate name.
-- **Built-in `is`**: in-process (Mycelium's `is`-inheritance + the range engine); not a PlatformServiceConnection.
+- **Built-in `is` and `binds`**: in-process (Mycelium's `is`-inheritance and the range engine; a role Thing reaching the one Thing playing it along `binds`); neither is a PlatformServiceConnection.
 - **Passive predicates** (`contains`, `aggregates`, `has`, …): not PlatformServiceConnections; no service.
 
 At seed load, Mycelium discovers connections by transitive `is`-membership of the archetype marked `__IsConnectionArchetype` and registers graph connections whose bound Service has `AutoStart: true` for auto-invocation. At runtime, the service broker resolves the bound Service to build the daemon config (including `TokenScope`).
@@ -99,7 +99,7 @@ flowchart TB
 ### How Relationship Services Work
 
 1. **PlatformServiceConnection + Service definition**: A dispatched predicate `is PlatformServiceConnection`, is `triggeredBy` the `graph` trigger, and `has` a Service Thing carrying the handler configuration properties (typically inherited from a shared prototype):
-   - `ExecutablePathTemplate` -- on the `Service` archetype, a path with a `{service}` placeholder that each prototype's `ServiceAssembly` fills; a stated `ExecutablePath` wins where both are present. `.dll` files are run via `dotnet`. A relative path resolves from the folder Mycelium runs in, not from the seed file, so a service built in another repository needs a path that climbs out of Mycelium's own; a composed path naming no file refuses the seed at load.
+   - `ExecutablePathTemplate` -- on the `Service` archetype, a path with a `{service}` placeholder that each prototype's `ServiceAssembly` fills; a stated `ExecutablePath` wins where both are present. `.dll` files are run via `dotnet`, and `.py` files via `python3`. A relative path resolves from the folder Mycelium runs in, not from the seed file, so a service built in another repository needs a path that climbs out of Mycelium's own; a composed path naming no file refuses the seed at load.
    - `ServicePort` -- port for the daemon to listen on
    - `ServiceArgs` -- extra CLI arguments (e.g., `--mode=consumes`) passed verbatim to the daemon.
    - the run mode -- a Thing reached through `runsAs`, declared on the `Service` archetype and inherited; `daemon` is the only one implemented
@@ -473,7 +473,7 @@ Relationship behaviors are a **platform extension point**, not a fixed set. This
 
 ### Why the handled-predicate machinery exists
 
-`is` is the only predicate whose semantics are built into Mycelium in-process (see [Built-in `is` inheritance](#built-in-is-inheritance)). Every other behaving predicate is a **plug-in**: its semantics live in an out-of-process microservice that Mycelium discovers and dispatches to. This keeps the platform core minimal — Mycelium owns the graph, the registry, and the dispatch contract, while domain behavior such as resource simulation ships independently as daemons. Adding a behavior is therefore a matter of authoring a handler and declaring a predicate that points at it; no change to Mycelium itself is required.
+`is` and `binds` are the only predicates whose semantics are built into Mycelium in-process — inheritance (see [Built-in `is` inheritance](#built-in-is-inheritance)), and a role Thing reaching the one Thing playing it. Every other behaving predicate is a **plug-in**: its semantics live in an out-of-process microservice that Mycelium discovers and dispatches to. This keeps the platform core minimal — Mycelium owns the graph, the registry, and the dispatch contract, while domain behavior such as resource simulation ships independently as daemons. Adding a behavior is therefore a matter of authoring a handler and declaring a predicate that points at it; no change to Mycelium itself is required.
 
 ### How the platform dispatches to a handler
 
@@ -497,7 +497,7 @@ Every call a handler makes to Mycelium carries a JWT as a bearer. Which one it p
 2. **The token exchanged for the service's API key**, where it holds one in the `ApiKey` setting. The key is exchanged at `POST /api/auth/token` in the `X-API-Key` header for a JWT that lasts five minutes, and exchanged again shortly before that expires.
 3. **The `Token` setting.** Mycelium mints a service JWT that lasts a day and sets it on the environment of every daemon it launches, so a launched daemon can authenticate at once.
 
-A service started by hand with neither an `ApiKey` nor a `Token` has nothing to present, and its calls are refused: `POST /api/auth/token` answers `401` to a call that carries no key.
+A service started by hand with neither an `ApiKey` nor a `Token` has nothing to present, since `POST /api/auth/token` answers `401` to a call that carries no key. It therefore makes no call for a token: its registration logs that neither setting is set, and a call that needs a token fails with that reason.
 
 ### Available Endpoints
 
@@ -509,6 +509,7 @@ A service started by hand with neither an `ApiKey` nor a `Token` has nothing to 
 | `https://localhost:7243/api/things/{id}/properties/{propertyName}/decrements` | POST | Decrement numeric property (used by `consumes`) |
 | `https://localhost:7243/api/things/{id}/properties/by-path/{path}` | GET | Get property by path |
 | `https://localhost:7243/api/relationships/{id}/properties/{propertyName}/increments` | POST | Increment a relationship property |
+| `https://localhost:7243/api/relationships/{id}/acknowledgement` | POST | Acknowledge a dispatch whose connection waits for one (see [`SERVICE_CONTRACT.md`](SERVICE_CONTRACT.md)) |
 | `https://localhost:7243/api/mycelium/register` | POST | Register handler with Mycelium |
 | `https://localhost:7243/api/mycelium/services/{handlerId}` | DELETE | Remove a handler's registration (admin-only) |
 
@@ -541,7 +542,7 @@ Every model mutation is a durable, sequenced **Fact** in the model's own commit 
 | Add / remove a range | `RangeCreated` / `RangeRetracted` | thing or relationship |
 | Clear the model | `ModelCleared` | replay drops all things/relationships |
 
-On replay, the model's current value for a property is reconstructed from the **latest** `PropertyValueAsserted` for it, so a stream of increment Facts sums to the correct total. Observations remain a separate, deliberately lossy/coalesced telemetry channel (sampled values; history-only, not replayed into authoritative state) — never used for cumulative deltas. The platform Field Guide's write-path chapter has the whole of it.
+On replay, the model's current value for a property is reconstructed from the **latest** `PropertyValueAsserted` for it, so a stream of increment Facts sums to the correct total. Observations remain a separate telemetry channel — queued and written in batches, with the reaction to them coalesced — and are never used for cumulative deltas; a restart sets each observed property to its latest reading. The platform Field Guide's write-path chapter has the whole of it.
 
 ---
 
@@ -687,7 +688,7 @@ Each example reads the `ApiKey` or `Token` exported above. Without a `Verificati
 | Simulation stuck in "delayed" | `startDelaySeconds` is set | Wait for the delay to elapse, or set `startDelaySeconds` to 0 |
 | Inherited property not resolving | The `is` relationship isn't wired | Check both subject and target things exist and the `is` relationship was created; check the Mycelium log for range-evaluation errors |
 | Status events missing | The client is not on the operational stream | Connect to `GET /api/events/stream`; daemon status events are published there, not on a subscription's object stream |
-| A handler's console output is nowhere to be found | Mycelium does not capture a daemon's standard output | Handler console output goes to Mycelium's own console, or nowhere if Mycelium has none. **Use file-based logging (Serilog `WriteTo.File`) for reliable diagnostics** |
+| A handler's console output is nowhere to be found | Mycelium does not capture a daemon's standard output | Handler console output goes to Mycelium's own console, or nowhere if Mycelium has none; its error output is written into Mycelium's log, as one warning, when the daemon exits. **Use file-based logging (Serilog `WriteTo.File`) for reliable diagnostics** |
 
 ### Verifying Daemon State
 
@@ -716,7 +717,7 @@ Mycelium tracks daemon state internally via its daemon state tracking. Key field
 
 1. **Bidirectional Auth**: Handler → Mycelium presents a JWT (see [Authentication](#authentication)); Mycelium → handler signs each `/handle` call with a short-lived, model-scoped service JWT carrying the request's `vos:model_id`, validated via `vos.Auth.Shared`
 2. **Per-request model scope**: Mycelium signs each `/handle` call with a 5-minute service JWT carrying the requesting user's `vos:model_id`. The handler reuses this inbound token for its callbacks into Mycelium (via the shared `UseMyceliumModelToken` middleware), so a daemon shared by several models acts on the model of the current request — never the model that first launched it. The startup JWT from the `Token` setting is used for the daemon's own registration, and as the model of last resort for work that begins outside any request.
-3. **Localhost Only**: Handlers bind to `http://localhost:{port}` (not exposed externally)
+3. **Localhost Only**: Handlers bind to `localhost:{port}` — over `https` when Mycelium runs with `Https:Only` — and are not exposed externally
 4. **Checked callers**: With a `VerificationKey` set, a handler's `/handle` and `/shutdown` refuse a call that Mycelium did not sign for that service
 5. **Startup Lock**: A per-daemon lock prevents two concurrent launches of one daemon
 

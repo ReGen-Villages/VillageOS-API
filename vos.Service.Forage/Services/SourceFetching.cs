@@ -31,6 +31,7 @@ public static class SourceFetching
         services.AddSingleton<ISourceFetcher>(provider => new SlicedWindowFetcher(
             provider.GetRequiredService<EndpointServiceSourceFetcher>(),
             launchSettings.SourceWindowDays,
+            provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<ILogger<SlicedWindowFetcher>>()));
 
         return services.AddSingleton<IEndpointBodyReader>(

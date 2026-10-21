@@ -21,8 +21,9 @@ import { useModelStore } from '../stores/modelStore';
 import { useThemeStore } from '../stores/themeStore';
 import { useSubscription } from '../hooks/useSse';
 import { WHOLE_MODEL } from '../types/subscription';
-import { PipelineModel, ARCHETYPE_FLAG, typesCompatible, type ConnectionInformation, type PortInformation } from '../pipeline/model';
+import { PipelineModel, ROLE, typesCompatible, type ConnectionInformation, type PortInformation } from '../pipeline/model';
 import { savePipeline, loadPipeline, type EditorNode, type EditorEdge } from '../pipeline/serialize';
+import { stopRun } from '../pipeline/stop';
 import { validatePipeline, validateEnds } from '../pipeline/validate';
 import { catalystRail, outputRail, type CatalystRow, type OutputRow } from '../pipeline/catalysts';
 import { EditorHistory } from '../pipeline/history';
@@ -41,8 +42,10 @@ const nodeTypes: NodeTypes = { pipelineNode: PipelineNodeView };
 
 const RUN_STATUS_COLOR: Record<string, string> = {
   running: 'text-blue-600',
+  waiting: 'text-amber-600',
   succeeded: 'text-green-600',
   failed: 'text-red-500',
+  refused: 'text-red-500',
   cancelled: 'text-amber-600',
   partial: 'text-orange-500',
 };
@@ -76,11 +79,11 @@ export function PipelinePage() {
   const model = useMemo(() => new PipelineModel(things, relationships), [things, relationships]);
   const connections = useMemo(() => model.connections(), [model]);
   const pipelines = useMemo(
-    () => model.thingsOfArchetypeCarrying(ARCHETYPE_FLAG.Pipeline)
+    () => model.thingsOf(ROLE.Pipeline)
       .map((pipeline) => ({
         id: pipeline.Id,
         name: pipeline.Name,
-        nodeCount: model.outgoing(pipeline.Id, 'has').filter((held) => model.isOfArchetypeCarrying(held.Id, ARCHETYPE_FLAG.PipelineNode)).length,
+        nodeCount: model.outgoing(pipeline.Id, 'has').filter((held) => model.isOf(held.Id, ROLE.PipelineNode)).length,
       }))
       .sort((a, b) => a.name.localeCompare(b.name)),
     [model],
@@ -148,7 +151,7 @@ export function PipelinePage() {
   const parameterKeys = useMemo(() => {
     const keys = new Set<string>();
     for (const n of nodes) {
-      const b = (n.data as unknown as PipelineNodeData).paramBindings;
+      const b = (n.data as unknown as PipelineNodeData).parameterBindings;
       if (b) for (const k of Object.values(b)) keys.add(k);
     }
     return [...keys].sort();
@@ -162,7 +165,7 @@ export function PipelinePage() {
       const d = n.data as unknown as PipelineNodeData;
       const stood = d.standsForId ? model.endInformation(d.standsForId) : undefined;
       return {
-        id: n.id, label: d.label, ports: d.ports, paramBindings: d.paramBindings, kind: d.kind,
+        id: n.id, label: d.label, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind,
         ...(stood ? { standsFor: { name: stood.name, mayStart: stood.mayStart, mayEnd: stood.mayEnd } } : {}),
       };
     });
@@ -206,7 +209,7 @@ export function PipelinePage() {
   }, [setEdges, recordSnapshot]);
 
   const liveRunStatus = runId ? model.runStatus(runId) : undefined;
-  const runActive = !!runId && (liveRunStatus === undefined || liveRunStatus === 'running');
+  const runActive = !!runId && (liveRunStatus === undefined || ['running', 'waiting', 'trying'].includes(liveRunStatus));
   const runs = useMemo(() => (savedId ? model.runsOf(savedId) : []), [savedId, model]);
   const chosenRunRequest = runs.find((r) => r.runId === runId)?.requestId;
 
@@ -302,7 +305,7 @@ export function PipelinePage() {
   const toEditorNodes = (): EditorNode[] =>
     nodes.map((n) => {
       const d = n.data as unknown as PipelineNodeData;
-      return { id: n.id, connectionId: d.connectionId ?? '', label: d.label, x: n.position.x, y: n.position.y, ports: d.ports, paramBindings: d.paramBindings, kind: d.kind, standsForId: d.standsForId };
+      return { id: n.id, connectionId: d.connectionId ?? '', label: d.label, x: n.position.x, y: n.position.y, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind, standsForId: d.standsForId };
     });
 
   const toEditorEdges = (): EditorEdge[] =>
@@ -361,7 +364,7 @@ export function PipelinePage() {
       id: n.id,
       type: 'pipelineNode',
       position: { x: n.x, y: n.y },
-      data: { label: n.label, kind: n.kind, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, paramBindings: n.paramBindings, standsForId: n.standsForId } as unknown as Record<string, unknown>,
+      data: { label: n.label, kind: n.kind, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, parameterBindings: n.parameterBindings, standsForId: n.standsForId } as unknown as Record<string, unknown>,
     }));
     const loadedEdges: Edge[] = loadedPipeline.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle, label: pathLabel(e.fromPath, e.toPath, e.transform), data: { fromPath: e.fromPath, toPath: e.toPath, transform: e.transform } }));
     setNodes(loadedNodes);
@@ -411,10 +414,10 @@ export function PipelinePage() {
     setNodes((ns) => ns.map((n) => {
       if (n.id !== nodeId) return n;
       const d = n.data as unknown as PipelineNodeData;
-      const next = { ...(d.paramBindings ?? {}) };
+      const next = { ...(d.parameterBindings ?? {}) };
       if (parameterKey.trim()) next[port] = parameterKey.trim();
       else delete next[port];
-      return { ...n, data: { ...n.data, paramBindings: next } };
+      return { ...n, data: { ...n.data, parameterBindings: next } };
     }));
     setSavedId(null);
   }, [setNodes, recordSnapshot]);
@@ -422,11 +425,11 @@ export function PipelinePage() {
   const onCancel = useCallback(async () => {
     if (!runId) return;
     try {
-      await pipelineApi.cancel(runId);
+      await stopRun(runId, t('pipeline.cancelledFromThePage'), model);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('pipeline.cancelFailed'));
     }
-  }, [runId, t]);
+  }, [runId, t, model]);
 
   // Record once at the start of a node drag (not per position tick), and before a delete — so undo restores
   // the pre-move / pre-delete canvas. Deletes also mark the canvas dirty relative to the last save.

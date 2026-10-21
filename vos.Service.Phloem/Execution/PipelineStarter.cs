@@ -22,7 +22,7 @@ public sealed class PipelineStarter
         {
             var predicateGraph = await _gateway.LoadStartSubgraphAsync(predicateId, cancellationToken);
             if (predicateGraph.Thing(predicateId) is { } predicate
-                && predicateGraph.IsOfArchetypeCarrying(predicate, PipelineArchetypes.ConnectionFlag))
+                && predicateGraph.IsOf(predicate, PipelineRoles.Connection))
                 return PipelineStart.Resolve(predicateGraph, predicateId);
         }
 
@@ -31,6 +31,5 @@ public sealed class PipelineStarter
 
     private static bool NamesWhatStarts(PipelineGraph graph, Guid targetId) =>
         graph.Thing(targetId) is { } target
-        && (graph.IsOfArchetypeCarrying(target, PipelineArchetypes.PipelineFlag)
-            || graph.IsOfArchetypeCarrying(target, PipelineArchetypes.ConnectionFlag));
+        && (graph.IsOf(target, PipelineRoles.Pipeline) || graph.IsOf(target, PipelineRoles.Connection));
 }

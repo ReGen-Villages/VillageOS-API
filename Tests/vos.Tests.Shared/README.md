@@ -22,6 +22,7 @@ Cross-project test helpers used by every `Tests/*.Tests/` project. Class library
   - `Settle.BeforeAssertingAbsenceAsync(window)` is the pause before asserting that something did **not** happen, and the only short wait a test keeps: a machine too busy to get to it lets such a test pass without proof, and can never make it fail.
 - `DeclaredOutputs.Of<THandler>()` — the property names a compute handler writes, read off the handler's public string constants. Use it wherever a test needs the whole output set: a list restated in the test stays one short the day an output is added, and the assertion it was making quietly stops covering the new one.
 - `EffectiveProperties.Carrying(names)` — a study's effective properties in the shape the broker answers with, every value set to one. Use it when the test is about **which** properties a handler reads rather than what it computes from them.
+- `ClockThatWaitsNoTime` — a `TimeProvider` whose every timer fires at once and which keeps each wait it was asked for in `Waits`. Hand it to a subject that waits before asking again, so a test can say how long it would have waited without waiting it.
 
 ## No mocking library here
 

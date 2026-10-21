@@ -51,6 +51,20 @@ describe('configurationApi.setDefaultPropertyMode', () => {
     await configurationApi.setDefaultPropertyMode('SampledByTime', undefined, undefined, 60);
     expect(mockPut).toHaveBeenCalledWith('/api/config/property-mode', { Mode: 'SampledByTime', SampleSeconds: 60 });
   });
+
+  it('includes the limits on full-history versions kept in memory, a zero among them', async () => {
+    mockPut.mockResolvedValue({ Mode: 'FullHistory' });
+    await configurationApi.setDefaultPropertyMode('FullHistory', undefined, undefined, undefined, { versions: 10, seconds: 0 });
+    expect(mockPut).toHaveBeenCalledWith('/api/config/property-mode', {
+      Mode: 'FullHistory', FullHistoryVersionsInMemory: 10, FullHistorySecondsInMemory: 0,
+    });
+  });
+
+  it('leaves out a limit it was not given', async () => {
+    mockPut.mockResolvedValue({ Mode: 'FullHistory' });
+    await configurationApi.setDefaultPropertyMode('FullHistory', undefined, undefined, undefined, { seconds: 600 });
+    expect(mockPut).toHaveBeenCalledWith('/api/config/property-mode', { Mode: 'FullHistory', FullHistorySecondsInMemory: 600 });
+  });
 });
 
 describe('configurationApi.getPropertyMode', () => {

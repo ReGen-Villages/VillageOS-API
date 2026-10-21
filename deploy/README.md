@@ -5,14 +5,19 @@ main one. The split lives in the reverse proxy and nowhere else.**
 
 ## What the Caddyfile does
 
-- `app.example.org` — `/api/*` goes to the broker on `localhost:7243`; `/feedback/*` goes to the
-  feedback relay on `localhost:7310` with the prefix removed; every other path serves the built GUI
-  (`vos.Trellis`'s build output).
+- `app.example.org` — `/api/*` and `/basemaps/*` go to the broker at `https://localhost:7243`;
+  `/basemaps/*` carries the satellite map tiles a signed-in page asks for. The proxy checks the
+  broker's certificate against the file the Caddyfile names (`/srv/villageos/broker-certificate.pem`).
+  `/feedback/*` goes to the feedback relay on `localhost:7310` with the prefix removed; every other
+  path serves the built GUI (`vos.Trellis`'s build output).
 - `intake.example.org` — everything goes to the intake service on `localhost:7300`.
 - TLS terminates at the proxy for both hosts. Caddy provisions and renews the certificates itself.
 
-Replace the hostnames and the intake port with the deployment's own, put the GUI's build output
-where `root` points, and run `caddy run --config deploy/Caddyfile`.
+Replace the hostnames and the intake and feedback ports with the deployment's own, put the GUI's
+build output where `root` points, put a copy of the certificate the broker presents at the path the
+Caddyfile names, and run `caddy run --config deploy/Caddyfile`. For the development certificate,
+`dotnet dev-certs https --export-path broker-certificate.pem --format PEM --no-password` writes it,
+with a key file beside it that is not needed and should be deleted.
 
 ## Reaching the hosts through a tunnel
 

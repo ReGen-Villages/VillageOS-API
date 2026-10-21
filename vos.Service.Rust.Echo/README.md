@@ -9,13 +9,18 @@ It's the Rust analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.Se
 ## Run
 
 ```bash
-Token=<service-jwt> cargo run -- --port=5104 --myceliumUrl=https://localhost:7243
+ApiKey=<api-key> cargo run -- --port=5104 --myceliumUrl=https://localhost:7243
 
-# with inbound auth, as Mycelium launches it:
+# with inbound auth, as Mycelium launches it (Mycelium hands a launched service a Token):
 Token=<service-jwt> VerificationKey=<base64-public-key> \
   cargo run -- --port=5104 --myceliumUrl=https://localhost:7243 \
     --issuer=VillageOS --audience=rust-echo-handler
 ```
+
+The service checks the platform's certificate against what the machine trusts. A Mycelium on the
+same machine is reached once its development certificate is trusted (`dotnet dev-certs https
+--trust`), and a file named in `SSL_CERT_FILE` is trusted in place of the machine's store. A platform
+presenting a certificate the machine does not trust is refused before the key or token is sent.
 
 ## CLI arguments
 
@@ -28,11 +33,12 @@ Token=<service-jwt> VerificationKey=<base64-public-key> \
 
 ## Credentials
 
-Both come from the environment and are never flags. A command line is readable by every process on the host and is recorded by anything that logs the line a service was started with, so a `--token=` or `--verificationKey=` argument is ignored.
+All come from the environment and are never flags. A command line is readable by every process on the host and is recorded by anything that logs the line a service was started with, so a `--token=` or `--verificationKey=` argument is ignored.
 
 | Variable | Meaning |
 |----------|---------|
-| `Token` | Pre-minted service JWT. With none set the service asks `POST /api/auth/token` for one with no key, which Mycelium refuses, so a run by hand needs one |
+| `ApiKey` | An API key, exchanged for a token in the `X-API-Key` header of `POST /api/auth/token`. The token is held and exchanged again thirty seconds before it runs out. A key is used before a `Token` given beside it. A run by hand uses this |
+| `Token` | A service JWT, used when no `ApiKey` is set; Mycelium hands one to a service it launches. With neither set, the service makes no call to Mycelium, says so in one line, and still answers its own routes |
 | `VerificationKey` | Base64 of Mycelium's public signing key; when set, `/handle` and `/shutdown` require a valid Mycelium-signed JWT addressed to this service. It checks a signature and cannot make one |
 
 ## Endpoints
@@ -50,7 +56,7 @@ Both come from the environment and are never flags. A command line is readable b
 
 - **Registration** — `register()` POSTs the registration envelope to `/api/mycelium/register` with a bearer token, spawned once the listener is bound.
 - **JWT validation** — `verify_jwt()` uses `jsonwebtoken` with `Validation::new(Algorithm::ES256)` — naming the one algorithm rather than honouring the token's own — against the public key read from `VerificationKey`, plus issuer, this service's own recipient name, and expiry with 30s leeway (matching `ServiceTokenValidator`).
-- **Shutdown** — Axum's graceful-shutdown hook on Ctrl-C makes no call to the broker. It does not deregister: `DELETE /api/mycelium/services/{handler_id}` is admin-only, and the broker's liveness monitor removes a registration whose service stops answering.
+- **Shutdown** — `POST /shutdown` stops the service once it has answered, and so does Ctrl-C; Axum's graceful-shutdown hook makes no call to the broker. It does not deregister: `DELETE /api/mycelium/services/{handler_id}` is admin-only, and the broker's liveness monitor removes a registration whose service stops answering.
 
 ## Verify
 
@@ -71,7 +77,7 @@ record_observation(cfg, &http, thing_id, "temperature", json!(21.5), Some("2026-
 let n = record_observations(cfg, &http, thing_id,
     &[ObservationSample { property: "temperature".into(), value: json!(21.7), observed_at: None }]).await?;
 let res = deposit_sediment(cfg, &http,                                             // bulk → sealed Sapwood
-    &[SedimentReading { thing_id: thing_id.into(), property: "temperature".into(),
+    &[SedimentReading { object_id: thing_id.into(), property: "temperature".into(),
         value: json!(19.8), observed_at: "2026-06-19T12:00:00Z".into() }]).await?;
 ```
 

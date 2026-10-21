@@ -3,6 +3,7 @@
     "organisation": "https://dev.azure.com/ReGenVillages",
     "project": "VillageOS-API",
     "repository": "VillageOS-API",
+    "repositoryFileAddress": "https://github.com/ReGen-Villages/VillageOS-API/blob/develop/",
     "name": "VillageOS-API-Wiki",
     "removeUnlistedPages": true
   },

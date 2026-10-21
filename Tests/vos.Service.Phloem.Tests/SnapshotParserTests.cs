@@ -29,7 +29,7 @@ public class SnapshotParserTests
                 "RollupProperties": {}, "InheritedOverrides": {}, "States": [],
                 "Relationships": [ "{{relationship}}" ] },
               { "Id": "{{archetype}}", "Name": "Pipeline", "IsArchetype": true,
-                "Properties": { "__IsPipelineArchetype": { "typeInfo": "vos.Boolean", "value": true } },
+                "Properties": { "collection": { "typeInfo": "vos.Boolean", "value": true } },
                 "RollupProperties": {}, "InheritedOverrides": {}, "States": [],
                 "Relationships": [ "{{relationship}}" ] },
               { "Id": "{{isPredicate}}", "Name": "is", "IsArchetype": false,
@@ -49,8 +49,8 @@ public class SnapshotParserTests
 
         graph.Things.Should().HaveCount(3);
         graph.Thing(pipeline)!.PropertyString("Subdomain").Should().Be("gen");
-        graph.ArchetypeCarrying(PipelineArchetypes.PipelineFlag)!.Id.Should().Be(archetype);
-        graph.IsOfArchetypeCarrying(graph.Thing(pipeline)!, PipelineArchetypes.PipelineFlag).Should().BeTrue();
+        graph.Thing(archetype)!.CarriesFlag("collection").Should().BeTrue();
+        graph.OutgoingTargets(graph.Thing(pipeline)!, "is").Single().Id.Should().Be(archetype);
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public class SnapshotParserTests
             "things": [
               { "id": "{{pipe}}", "name": "Demo", "properties": { "Subdomain": { "value": "gen", "type": "vos.String" } } },
               { "id": "{{arch}}", "name": "Pipeline",
-                "properties": { "__IsPipelineArchetype": { "value": true, "type": "vos.Boolean" } } },
+                "properties": { "collection": { "value": true, "type": "vos.Boolean" } } },
               { "id": "{{isPred}}", "name": "is", "properties": {} }
             ],
             "relationships": [
@@ -81,7 +81,8 @@ public class SnapshotParserTests
 
         graph.Things.Should().HaveCount(3);
         graph.Thing(pipe)!.PropertyString("Subdomain").Should().Be("gen");
-        graph.IsOfArchetypeCarrying(graph.Thing(pipe)!, PipelineArchetypes.PipelineFlag).Should().BeTrue();
+        graph.Thing(arch)!.CarriesFlag("collection").Should().BeTrue();
+        graph.OutgoingTargets(graph.Thing(pipe)!, "is").Single().PropertyString("collection").Should().NotBeNull();
     }
 
     // A wire's ports live on the relationship, so a relationship read wrongly leaves the DAG builder two nodes with
@@ -94,6 +95,7 @@ public class SnapshotParserTests
         var carries = Guid.NewGuid();
         var wireArchetype = Guid.NewGuid();
         var isPredicate = Guid.NewGuid();
+        var binds = Guid.NewGuid();
         var json = $$"""
         {
           "snapshot": {
@@ -101,11 +103,14 @@ public class SnapshotParserTests
               { "Id": "{{from}}", "Name": "Generate", "Properties": {} },
               { "Id": "{{to}}", "Name": "Echo", "Properties": {} },
               { "Id": "{{isPredicate}}", "Name": "is", "Properties": {} },
-              { "Id": "{{wireArchetype}}", "Name": "PipelineWire", "IsArchetype": true,
-                "Properties": { "__IsPipelineWireArchetype": { "typeInfo": "vos.Boolean", "value": true } } },
+              { "Id": "{{wireArchetype}}", "Name": "PipelineWire", "IsArchetype": true, "Properties": {} },
+              { "Id": "{{PipelineRoles.PipelineWire.Id}}", "Name": "pipelineWire role", "Properties": {} },
+              { "Id": "{{binds}}", "Name": "binds", "Properties": {} },
               { "Id": "{{carries}}", "Name": "carries", "Properties": {} }
             ],
             "relationships": [
+              { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{PipelineRoles.PipelineWire.Id}}", "PredicateId": "{{binds}}",
+                "TargetId": "{{wireArchetype}}", "Properties": {} },
               { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{carries}}", "PredicateId": "{{isPredicate}}",
                 "TargetId": "{{wireArchetype}}", "Properties": {} },
               { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{from}}", "PredicateId": "{{carries}}", "TargetId": "{{to}}",
@@ -119,7 +124,7 @@ public class SnapshotParserTests
 
         var graph = SnapshotParser.Parse(JsonDocument.Parse(json).RootElement);
 
-        var wire = graph.OutgoingByPredicateCarrying(graph.Thing(from)!, PipelineArchetypes.PipelineWireFlag).Single();
+        var wire = graph.OutgoingByPredicateOf(graph.Thing(from)!, PipelineRoles.PipelineWire).Single();
         wire.TargetId.Should().Be(to);
         wire.PropertyString("fromPort").Should().Be("echo");
         wire.PropertyString("toPort").Should().Be("message");
@@ -189,6 +194,7 @@ public class SnapshotParserTests
         var carries = Guid.NewGuid();
         var wireArchetype = Guid.NewGuid();
         var isPredicate = Guid.NewGuid();
+        var binds = Guid.NewGuid();
         var json = $$"""
         {
           "Snapshot": {
@@ -196,11 +202,13 @@ public class SnapshotParserTests
               { "Id": "{{from}}", "Name": "a", "Properties": {} },
               { "Id": "{{to}}", "Name": "b", "Properties": {} },
               { "Id": "{{isPredicate}}", "Name": "is", "Properties": {} },
-              { "Id": "{{wireArchetype}}", "Name": "PipelineWire", "IsArchetype": true,
-                "Properties": { "__IsPipelineWireArchetype": { "typeInfo": "vos.Boolean", "value": true } } },
+              { "Id": "{{wireArchetype}}", "Name": "PipelineWire", "IsArchetype": true, "Properties": {} },
+              { "Id": "{{PipelineRoles.PipelineWire.Id}}", "Name": "pipelineWire role", "Properties": {} },
+              { "Id": "{{binds}}", "Name": "binds", "Properties": {} },
               { "Id": "{{carries}}", "Name": "carries", "Properties": {} }
             ],
             "relationships": [
+              { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{PipelineRoles.PipelineWire.Id}}", "PredicateId": "{{binds}}", "TargetId": "{{wireArchetype}}" },
               { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{carries}}", "PredicateId": "{{isPredicate}}", "TargetId": "{{wireArchetype}}" },
               { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{from}}", "PredicateId": "{{carries}}", "TargetId": "{{to}}",
                 "Properties": {},
@@ -214,7 +222,7 @@ public class SnapshotParserTests
         // Wrapped under a capitalised key on purpose: the wrapper is read as the records are, without regard to case.
         var graph = SnapshotParser.Parse(JsonDocument.Parse(json).RootElement);
 
-        var wire = graph.OutgoingByPredicateCarrying(graph.Thing(from)!, PipelineArchetypes.PipelineWireFlag).Single();
+        var wire = graph.OutgoingByPredicateOf(graph.Thing(from)!, PipelineRoles.PipelineWire).Single();
         wire.TargetId.Should().Be(to);
         wire.PropertyString("fromPort").Should().Be("echo");
     }

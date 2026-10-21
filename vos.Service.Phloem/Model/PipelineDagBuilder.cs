@@ -1,9 +1,10 @@
+using System.Globalization;
 using System.Text.Json;
 
 namespace vos.Service.Phloem.Model;
 
-// Thrown when a pipeline cannot be resolved into an executable DAG (missing binding, no subdomain,
-// unknown pipeline). Distinct from validation failures (cycles / port-type mismatches).
+// Thrown when nothing in a drawing can be judged: the roles are unbound, or the Thing is not a pipeline with
+// nodes. A problem with one node is listed on the DAG's Problems instead.
 public sealed class PipelineModelException : Exception
 {
     public PipelineModelException(string message) : base(message) { }
@@ -12,78 +13,99 @@ public sealed class PipelineModelException : Exception
 // Resolves a loaded PipelineGraph + pipelineId into a PipelineDag:
 // nodes, their dispatch subdomain (node has Connection, Subdomain property), ports (walk the
 // bound service's is-chain), and wires (the predicate is of the wire archetype, carrying fromPort/toPort).
-// Every role is read from the flag its archetype carries, never from a name.
+// Every role is read from the role Thing that binds it, never from a name.
 public static class PipelineDagBuilder
 {
     public static PipelineDag Build(PipelineGraph graph, Guid pipelineId)
     {
-        PipelineArchetypes.RequireRolesAreMarked(graph);
+        PipelineRoles.RequireRolesAreBound(graph);
 
         var pipeline = graph.Thing(pipelineId)
             ?? throw new PipelineModelException($"Pipeline {pipelineId} not found in the loaded subgraph.");
-        if (!graph.IsOfArchetypeCarrying(pipeline, PipelineArchetypes.PipelineFlag))
+        if (!graph.IsOf(pipeline, PipelineRoles.Pipeline))
             throw new PipelineModelException($"Thing {pipelineId} ('{pipeline.Name}') is not a pipeline.");
 
         var nodeThings = graph.OutgoingTargets(pipeline, ModelNames.Has)
-            .Where(t => graph.IsOfArchetypeCarrying(t, PipelineArchetypes.PipelineNodeFlag))
+            .Where(t => graph.IsOf(t, PipelineRoles.PipelineNode))
             .ToList();
         if (nodeThings.Count == 0)
             throw new PipelineModelException($"Pipeline '{pipeline.Name}' has no nodes.");
 
-        var nodeIds = nodeThings.Select(n => n.Id).ToHashSet();
-        var nodes = nodeThings.Select(n => BuildNode(graph, n)).ToList();
+        var problems = new List<string>();
+        var nodes = new List<DagNode>();
+        foreach (var nodeThing in nodeThings)
+            if (Judged(problems, () => BuildNode(graph, nodeThing, problems), null) is { } built)
+                nodes.Add(built);
+        var nodesById = nodes.ToDictionary(node => node.NodeId);
 
         // A wire reaches the builder in either of two shapes, and the second is replacing the first: drawn as
         // a relationship, which caps a node pair at one because the model refuses a second relationship on one triple, or
-        // held as a Thing, which does not. Both carry the same port mapping and yield the same DagWire.
+        // held as a Thing, which does not. Both carry the same port mapping and yield the same DagWire. A wire leaving the
+        // pipeline, or touching a node that could not be read, is left out; the node's problem is already listed.
         var wires = new List<DagWire>();
         foreach (var nodeThing in nodeThings)
         {
-            foreach (var rel in graph.OutgoingByPredicateCarrying(nodeThing, PipelineArchetypes.PipelineWireFlag))
-            {
-                if (!nodeIds.Contains(rel.TargetId)) continue; // ignore wires leaving the pipeline
-                wires.Add(WireFrom(nodeThing.Id, rel.TargetId, rel.PropertyString));
-            }
+            if (!nodesById.TryGetValue(nodeThing.Id, out var from)) continue;
 
-            foreach (var (wire, target) in graph.HeldThingsCarrying(
-                         nodeThing, PipelineArchetypes.PipelineWireFlag, PipelineArchetypes.PipelineNodeFlag))
-            {
-                if (!nodeIds.Contains(target.Id)) continue;
-                wires.Add(WireFrom(nodeThing.Id, target.Id, wire.PropertyString));
-            }
+            foreach (var rel in graph.OutgoingByPredicateOf(nodeThing, PipelineRoles.PipelineWire))
+                if (nodesById.TryGetValue(rel.TargetId, out var to))
+                    wires.Add(WireFrom(from, to, rel.PropertyString));
+
+            foreach (var (wire, target) in graph.HeldThingsOf(nodeThing, PipelineRoles.PipelineWire, PipelineRoles.PipelineNode))
+                if (nodesById.TryGetValue(target.Id, out var to))
+                    wires.Add(WireFrom(from, to, wire.PropertyString));
         }
 
         return new PipelineDag
         {
             PipelineId = pipelineId,
             Name = pipeline.Name,
+            Published = pipeline.CarriesFlag(ModelNames.Published),
             Nodes = nodes,
             Wires = wires,
+            Problems = problems,
         };
     }
 
+    // Reading on past a problem is what lets a refusal list every problem rather than the first.
+    private static T Judged<T>(List<string> problems, Func<T> read, T unread)
+    {
+        try
+        {
+            return read();
+        }
+        catch (PipelineModelException ex)
+        {
+            problems.Add(ex.Message);
+            return unread;
+        }
+    }
+
     // A relationship and a wire Thing are different types carrying the same five properties, so each hands over its
-    // own reader rather than the mapping being written out twice.
-    private static DagWire WireFrom(Guid fromNodeId, Guid toNodeId, Func<string, string?> property) =>
-        new(fromNodeId,
-            property(ModelNames.FromPort) ?? string.Empty,
-            toNodeId,
-            property(ModelNames.ToPort) ?? string.Empty,
+    // own reader rather than the mapping being written out twice. Each end's port is found here, once, in the end's
+    // direction, so a service whose in port and out port share a name never has one read for the other.
+    private static DagWire WireFrom(DagNode from, DagNode to, Func<string, string?> property)
+    {
+        var fromPort = property(ModelNames.FromPort) ?? string.Empty;
+        var toPort = property(ModelNames.ToPort) ?? string.Empty;
+        return new(new WireEnd(from, fromPort, from.OutputPort(fromPort)),
+            new WireEnd(to, toPort, to.InputPort(toPort)),
             property(ModelNames.FromPath) ?? string.Empty,
             property(ModelNames.ToPath) ?? string.Empty,
             property(ModelNames.Transform) ?? string.Empty);
+    }
 
-    private static DagNode BuildNode(PipelineGraph graph, GraphThing nodeThing)
+    private static DagNode BuildNode(PipelineGraph graph, GraphThing nodeThing, List<string> problems)
     {
         // Boundary nodes bind no Connection/Service: they declare their own ports (has → Port) and
         // are an Input source (params → outputs) or an Output sink (inputs → run result).
-        if (graph.IsOfArchetypeCarrying(nodeThing, PipelineArchetypes.PipelineInputFlag))
-            return BuildBoundaryNode(graph, nodeThing, DagNodeKind.Input);
-        if (graph.IsOfArchetypeCarrying(nodeThing, PipelineArchetypes.PipelineOutputFlag))
-            return BuildBoundaryNode(graph, nodeThing, DagNodeKind.Output);
+        if (graph.IsOf(nodeThing, PipelineRoles.PipelineInput))
+            return BuildBoundaryNode(graph, nodeThing, DagNodeKind.Input, problems);
+        if (graph.IsOf(nodeThing, PipelineRoles.PipelineOutput))
+            return BuildBoundaryNode(graph, nodeThing, DagNodeKind.Output, problems);
 
         var connection = graph.OutgoingTargets(nodeThing, ModelNames.Has)
-            .FirstOrDefault(t => graph.IsOfArchetypeCarrying(t, PipelineArchetypes.ConnectionFlag))
+            .FirstOrDefault(t => graph.IsOf(t, PipelineRoles.Connection))
             ?? throw new PipelineModelException($"Node '{nodeThing.Name}' binds no service connection.");
 
         var subdomain = connection.PropertyString(ModelNames.Subdomain);
@@ -91,28 +113,80 @@ public static class PipelineDagBuilder
             throw new PipelineModelException($"Connection '{connection.Name}' for node '{nodeThing.Name}' has no {ModelNames.Subdomain}.");
 
         var service = graph.OutgoingTargets(connection, ModelNames.Has)
-            .FirstOrDefault(t => graph.IsOfArchetypeCarrying(t, PipelineArchetypes.ServiceFlag))
+            .FirstOrDefault(t => graph.IsOf(t, PipelineRoles.Service))
             ?? throw new PipelineModelException($"Connection '{connection.Name}' binds no service.");
 
+        // The node's own ports come first so one of them wins a name clash with the service's.
+        var ports = ResolvePortThings(graph, nodeThing).Concat(ResolvePortThings(graph, service))
+            .Select(portThing => (Thing: portThing, Port: ToPort(portThing))).ToList();
         return new DagNode
         {
             NodeId = nodeThing.Id,
             Name = nodeThing.Name,
             Subdomain = subdomain!,
             Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
-            Ports = ResolvePorts(graph, service).ToList(),
-            ParamBindings = ParseParamBindings(nodeThing),
+            Ports = ports.Select(p => p.Port).ToList(),
+            ParameterBindings = ParseParameterBindings(nodeThing),
+            Choices = Judged(problems, () => ChoicesOf(graph, nodeThing, ports), NoChoices),
+            Waits = Judged(problems, () => WaitOf(graph, nodeThing, ports), null),
+            Retries = Judged(problems, () => RetryPolicyOf(nodeThing), null),
+            Rehearses = UpTheIsChain(graph, service).Any(kind => kind.CarriesFlag(ModelNames.Rehearses)),
+            HandsOverTo = Judged(problems, () => PipelineReachedAlong(graph, nodeThing, PipelineRoles.HandsOverTo, "hands its subject to"), null),
             OnItemError = string.Equals(nodeThing.PropertyString(ModelNames.OnItemError), ModelNames.OnItemErrorContinue, StringComparison.OrdinalIgnoreCase)
                 ? ModelNames.OnItemErrorContinue
                 : ModelNames.OnItemErrorFail,
         };
     }
 
+    // Each Thing the node chose is matched to the in port offering it; a choice no port offers refuses the
+    // build, since the run could neither fill an input with it nor say which it meant.
+    private static IReadOnlyDictionary<string, ChosenThing> ChoicesOf(
+        PipelineGraph graph, GraphThing nodeThing, IReadOnlyList<(GraphThing Thing, DagPort Port)> ports)
+    {
+        var choices = new Dictionary<string, ChosenThing>(StringComparer.OrdinalIgnoreCase);
+        foreach (var chosen in graph.OutgoingAlong(nodeThing, PipelineRoles.Choice))
+        {
+            var offering = ports.FirstOrDefault(p => p.Port.IsInput
+                && graph.OutgoingAlong(p.Thing, PipelineRoles.Choice).Any(offered => offered.Id == chosen.Id));
+            if (offering.Thing is null)
+                throw new PipelineModelException($"Node '{nodeThing.Name}' chose '{chosen.Name}', which no in port of it offers.");
+            if (choices.ContainsKey(offering.Port.PortName))
+                throw new PipelineModelException($"Node '{nodeThing.Name}' chose two Things for its port '{offering.Port.PortName}'.");
+            choices[offering.Port.PortName] = new ChosenThing(chosen.Id, chosen.Name);
+        }
+        return choices;
+    }
+
+    private static DagWait? WaitOf(
+        PipelineGraph graph, GraphThing nodeThing, IReadOnlyList<(GraphThing Thing, DagPort Port)> ports)
+    {
+        var states = graph.OutgoingAlong(nodeThing, PipelineRoles.CompletionRange).ToList();
+        var through = graph.OutgoingAlong(nodeThing, PipelineRoles.AwaitsThrough).ToList();
+        if (states.Count == 0 && through.Count == 0) return null;
+
+        if (states.Count > 1)
+            throw new PipelineModelException($"Node '{nodeThing.Name}' waits for two states, so no one answer could resume it.");
+        if (through.Count > 1)
+            throw new PipelineModelException($"Node '{nodeThing.Name}' waits through two ports, so no one Thing could be waited for.");
+        if (through.Count == 0)
+            throw new PipelineModelException($"Node '{nodeThing.Name}' waits for '{states[0].Name}' but names no in port whose Thing must enter it.");
+
+        var portThing = through[0];
+        var port = ports.FirstOrDefault(p => p.Thing.Id == portThing.Id).Port;
+        var portName = port?.PortName ?? portThing.PropertyString(ModelNames.PortName) ?? portThing.Name;
+        if (states.Count == 0)
+            throw new PipelineModelException($"Node '{nodeThing.Name}' waits through its port '{portName}' but names no state for it to enter.");
+        if (port is not { IsInput: true })
+            throw new PipelineModelException($"Node '{nodeThing.Name}' waits through '{portName}', which is not an in port of it.");
+        return new DagWait(states[0].Id, states[0].Name, port.PortName);
+    }
+
     // A boundary node: ports are declared on the node itself (its own has → Port chain),
     // there is no dispatch subdomain, and its DagNodeKind tells the executor to seed from params
     // (Input) or collect into the run result (Output).
-    private static DagNode BuildBoundaryNode(PipelineGraph graph, GraphThing nodeThing, DagNodeKind kind)
+    private static DagNode BuildBoundaryNode(PipelineGraph graph, GraphThing nodeThing, DagNodeKind kind, List<string> problems)
     {
+        var end = kind == DagNodeKind.Output;
         return new DagNode
         {
             NodeId = nodeThing.Id,
@@ -120,32 +194,64 @@ public static class PipelineDagBuilder
             Kind = kind,
             Subdomain = string.Empty,
             Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
-            Ports = ResolvePorts(graph, nodeThing).ToList(),
-            ParamBindings = ParseParamBindings(nodeThing),
-            Tells = kind == DagNodeKind.Output ? TellingOf(graph, nodeThing) : null,
+            Ports = ResolvePortThings(graph, nodeThing).Select(ToPort).ToList(),
+            ParameterBindings = ParseParameterBindings(nodeThing),
+            Tells = end ? Judged(problems, () => TellingOf(graph, nodeThing), null) : null,
+            Starts = end ? Judged(problems, () => PipelineReachedAlong(graph, nodeThing, PipelineRoles.StandsFor, "stands for"), null) : null,
         };
+    }
+
+    // A node reaching its own pipeline is refused, since a run would start another of itself without end.
+    private static Starting? PipelineReachedAlong(PipelineGraph graph, GraphThing node, Role role, string reaching)
+    {
+        var pipeline = graph.OutgoingAlong(node, role)
+            .FirstOrDefault(target => graph.IsOf(target, PipelineRoles.Pipeline));
+        if (pipeline is null) return null;
+
+        var own = graph.RelationshipsInto(node, ModelNames.Has).Any(held => held.SubjectId == pipeline.Id);
+        if (own)
+            throw new PipelineModelException(
+                $"Node '{node.Name}' {reaching} '{pipeline.Name}', the pipeline it is in, so a run would start another of itself without end.");
+        return new Starting(pipeline.Id, pipeline.Name);
+    }
+
+    // A node with no attempts number has no policy and is called once, as before. The other numbers default to a
+    // pause that neither grows nor spreads and a trying time of one day, so a node needs only the count.
+    private static RetryPolicy? RetryPolicyOf(GraphThing nodeThing)
+    {
+        if (!int.TryParse(nodeThing.PropertyString(ModelNames.Attempts), out var attempts)) return null;
+        if (attempts < 1)
+            throw new PipelineModelException($"Node '{nodeThing.Name}' allows {attempts} attempts; a node that runs allows at least one.");
+
+        double Number(string name, double fallback) =>
+            double.TryParse(nodeThing.PropertyString(name), NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : fallback;
+        var policy = new RetryPolicy(attempts, Number(ModelNames.PauseMinutes, 1), Number(ModelNames.PauseGrowth, 1), Number(ModelNames.PauseSpread, 0),
+            Number(ModelNames.TryingMinutes, 24 * 60));
+        if (policy.PauseMinutes < 0 || policy.PauseGrowth < 1 || policy.PauseSpread < 0 || policy.TryingMinutes <= 0)
+            throw new PipelineModelException($"Node '{nodeThing.Name}' has a retry policy with a number out of range: the pause and the spread are at least 0, the growth at least 1, and the trying time above 0.");
+        return policy;
     }
 
     // Refused at build rather than at the end, so a run that could never send its message does nothing first.
     private static Telling? TellingOf(PipelineGraph graph, GraphThing endNode)
     {
-        var system = graph.OutgoingAlongPredicateMarked(endNode, PipelinePredicates.StandsForFlag)
-            .FirstOrDefault(target => graph.IsOfArchetypeCarrying(target, PipelineArchetypes.ExternalSystemFlag));
+        var system = graph.OutgoingAlong(endNode, PipelineRoles.StandsFor)
+            .FirstOrDefault(target => graph.IsOf(target, PipelineRoles.ExternalSystem));
         if (system is null) return null;
 
-        var connection = graph.OutgoingAlongPredicateMarked(system, PipelinePredicates.ToldThroughFlag)
-            .FirstOrDefault(target => graph.IsOfArchetypeCarrying(target, PipelineArchetypes.ConnectionFlag))
+        var connection = graph.OutgoingAlong(system, PipelineRoles.ToldThrough)
+            .FirstOrDefault(target => graph.IsOf(target, PipelineRoles.Connection))
             ?? throw new PipelineModelException(
                 $"End node '{endNode.Name}' stands for '{system.Name}', which names no connection it is told through, "
                 + "so nothing could send it what reaches the node.");
         return new Telling(system.Id, system.Name, connection.Id);
     }
 
-    // Parse the node's paramBindings property — a JSON object mapping input-port name → the
-    // run-param key that fills it. Malformed/absent → no bindings (never fails a build).
-    private static IReadOnlyDictionary<string, string> ParseParamBindings(GraphThing nodeThing)
+    // Parse the node's parameterBindings property — a JSON object mapping input-port name → the
+    // run-parameter key that fills it. Malformed/absent → no bindings (never fails a build).
+    private static IReadOnlyDictionary<string, string> ParseParameterBindings(GraphThing nodeThing)
     {
-        var raw = nodeThing.PropertyString(ModelNames.ParamBindings);
+        var raw = nodeThing.PropertyString(ModelNames.ParameterBindings);
         if (string.IsNullOrWhiteSpace(raw)) return EmptyBindings;
         try
         {
@@ -166,27 +272,36 @@ public static class PipelineDagBuilder
     private static readonly IReadOnlyDictionary<string, string> EmptyBindings =
         new Dictionary<string, string>();
 
-    // Collect Port child-Things by walking the service's is-chain — relationships do not
+    private static readonly IReadOnlyDictionary<string, ChosenThing> NoChoices =
+        new Dictionary<string, ChosenThing>();
+
+    // Collect Port child-Things by walking the owner's is-chain — relationships do not
     // inherit through is, so ports resolve at read time at each level of the chain.
-    private static IEnumerable<DagPort> ResolvePorts(PipelineGraph graph, GraphThing service)
+    private static IEnumerable<GraphThing> ResolvePortThings(PipelineGraph graph, GraphThing owner) =>
+        UpTheIsChain(graph, owner).SelectMany(level => graph.OutgoingTargets(level, ModelNames.Has)
+            .Where(t => graph.IsOf(t, PipelineRoles.Port)));
+
+    // The Thing itself first, then each kind above it once.
+    private static IEnumerable<GraphThing> UpTheIsChain(PipelineGraph graph, GraphThing owner)
     {
         var seen = new HashSet<Guid>();
         var stack = new Stack<GraphThing>();
-        stack.Push(service);
+        stack.Push(owner);
         while (stack.Count > 0)
         {
             var current = stack.Pop();
             if (!seen.Add(current.Id)) continue;
-            foreach (var portThing in graph.OutgoingTargets(current, ModelNames.Has)
-                         .Where(t => graph.IsOfArchetypeCarrying(t, PipelineArchetypes.PortFlag)))
-                yield return new DagPort(
-                    portThing.PropertyString(ModelNames.PortName) ?? portThing.Name,
-                    portThing.PropertyString(ModelNames.Direction) ?? ModelNames.DirectionIn,
-                    portThing.PropertyString(ModelNames.PortType) ?? string.Empty,
-                    string.Equals(portThing.PropertyString(ModelNames.Required), "true", StringComparison.OrdinalIgnoreCase),
-                    string.Equals(portThing.PropertyString(ModelNames.Collection), "true", StringComparison.OrdinalIgnoreCase));
+            yield return current;
             foreach (var parent in graph.OutgoingTargets(current, ModelNames.Is))
                 stack.Push(parent);
         }
     }
+
+    private static DagPort ToPort(GraphThing portThing) =>
+        new(portThing.PropertyString(ModelNames.PortName) ?? portThing.Name,
+            portThing.PropertyString(ModelNames.Direction) ?? ModelNames.DirectionIn,
+            portThing.PropertyString(ModelNames.PortType) ?? string.Empty,
+            portThing.CarriesFlag(ModelNames.Required),
+            portThing.CarriesFlag(ModelNames.Collection),
+            portThing.CarriesFlag(ModelNames.Produces));
 }

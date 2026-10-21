@@ -28,7 +28,7 @@ python3 generate.py --into /path/to/Some.seed.json
 # ...with per-model ids so the same pipelines in two seeds don't collide when both load into one broker
 python3 generate.py --into /path/to/Some.seed.json --namespace SomeModel
 
-# take it back out again (leaves the shared archetypes/predicates in place; pass the same --namespace)
+# take it back out again (leaves the shared archetypes, predicates, role Things and what they bind in place; pass the same --namespace)
 python3 generate.py --into /path/to/Some.seed.json --remove
 
 # check the output resolves the way Trellis and Phloem read it
@@ -39,18 +39,27 @@ python3 validate_fragment.py PipelinePlayground.seed.json
 
 Every id is a deterministic UUIDv5 of a stable key, so a re-run replaces the same Things instead of forking
 duplicates — merging is idempotent. When merging, the target's own vocabulary is reused rather than doubled:
-the `is` / `has` / `of` predicates are matched **by name**, and each archetype is matched **by the
-role flag it carries** (`__IsPipelineArchetype`, `__IsPipelineNodeArchetype`, `__IsPortArchetype`, …), so a
-model that calls its pipeline archetype something else keeps its own. An archetype the target has under the
-same name but has never marked is marked as it reconciles — the flag is the only thing that says what an
-archetype is for, and the editor and the orchestrator both read it. Everything else is namespaced so it will
-not collide with a host model's own Things.
+the `is` / `has` / `of` predicates are matched **by name**, and each archetype or predicate playing a role is
+matched **through what the target's role Thing binds**, then by name, so a model that calls its pipeline
+archetype something else keeps its own. One the target holds under the same name but has never bound comes
+to play the role as it reconciles, and the target's own role Things are kept — the binding is what says
+what an archetype is for, and the editor and the orchestrator both read it. Everything else is namespaced
+so it will not collide with a host model's own Things.
+
+The playground also declares the two roots every archetype in a model sits under, `Configuration` and
+`Operation`, bound by the `configuration` and `operation` roles, and places what it mints: the pipeline,
+node, port, wire, service, connection, external-system, message-kind and strategy archetypes and every
+predicate and role Thing under `Configuration`; the run, node-run and sent-message archetypes, which record
+what a run did, under `Operation`. Merged into a model that already binds the roots, the placements land on that model's own
+roots, like the rest of the shared vocabulary. Merged into one that does not, the roots arrive with the
+playground, and seed validation then holds the whole model to them.
 
 Those ids are the same in every seed by default, which is what you want for a standalone fragment but not
 when two model seeds carrying the playground load into one broker together — they would collide. Pass
 `--namespace <ModelName>` when merging to derive a per-model id root, so each seed's copy of the pipelines gets
 its own ids. Reconciliation stays name-based, so the shared vocabulary still folds onto the target's own
-`is` / `has` / archetypes either way. Use the same `--namespace` with `--remove`.
+`is` / `has` / archetypes either way. Role Things are the one set of identifiers `--namespace` does not
+change, because every model declares them alike. Use the same `--namespace` with `--remove`.
 
 ## What's in the catalog
 
@@ -58,7 +67,8 @@ its own ids. Reconciliation stays name-based, so the shared vocabulary still fol
 a `Service` that declares typed ports): text and data transforms (Echo, Uppercase, Reverse, JSON Merge,
 Format Report), sources (Generate Text, Timer Tick, Random Number, Site Parameters), arithmetic (Multiply,
 Sum), the site-analysis domains (Water Reserve, Energy Balance, Metabolism, Model Bridge), a fan-out Scorer
-and Batch Enrich, and a Publish sink. Subdomains match a shipped service where one exists
+and Batch Enrich, a Decide block whose `strategy` port offers three Things to choose from, and a Publish
+sink. Subdomains match a shipped service where one exists
 (`echo`, `water-reserve`, `energy-balance`, `metabolism`, `model-bridge`), so a saved pipeline can also be
 Run against a live platform; the rest are dispatch-only stand-ins that still drive the editor end to end.
 
@@ -84,6 +94,7 @@ a connection; every connection is `triggeredBy` `http`.
 | Enrichment Batch | Fan-out into a sink. |
 | Readings Arrive | A start standing for the kind of message the Sensor gateway sends, ending at the answer. |
 | Daily Report | A pipeline ending at the Reporting office, which is told the report. |
+| Branching Decision | A node holding out ports `accept` and `refuse` of its own and answering under one; the other branch is recorded not taken and the end is reached once. |
 
 ## The graph shape it writes
 
@@ -91,8 +102,10 @@ The contract read by `vos.Trellis/src/pipeline/model.ts` and `vos.Service.Phloem
 
 - A **pipeline** `is Pipeline` and `has` its nodes.
 - A **node** `is PipelineNode` and `has` a `PlatformServiceConnection` (a boundary node instead `is`
-  `PipelineInput` / `PipelineOutput` and declares its own `has → Port` children). Node canvas position rides
-  as `x` / `y`; a param binding rides as a `paramBindings` JSON property.
+  `PipelineInput` / `PipelineOutput` and declares its own `has → Port` children). A service node may also
+  `has` Port Things of its own, and an in port offers Things along the predicate the `choice` role binds,
+  the node relating to the one chosen along the same predicate. Node canvas position rides
+  as `x` / `y`; a parameter binding rides as a `parameterBindings` JSON property.
 - A **connection** `is PlatformServiceConnection`, carries a `Subdomain`, and `has` a `Service`; the service
   `has` its `Port` children (`portName` / `direction` / `type` / `required` / `collection`).
 - A **wire** is the `carries` predicate (which `is PipelineWire`), carrying `fromPort` / `toPort` and optional
@@ -101,6 +114,6 @@ The contract read by `vos.Trellis/src/pipeline/model.ts` and `vos.Service.Phloem
   `NodeRun` carrying `index` / `total` drives fan-out progress).
 - An **external system** `is ExternalSystem` and `sends` or is `told` message kinds; a **message kind**
   `is MessageKind` and `arrivesAt` a connection; a **boundary node** `standsFor` the Thing it stands for
-  — a connection, a state, a message kind or an external system. Each of these predicates carries its
-  mark (`__IsSendsPredicate`, `__IsToldPredicate`, `__IsArrivesAtPredicate`, `__IsStandsForPredicate`),
-  and each archetype its own, so the page reads roles and never names.
+  — a connection, a state, a message kind or an external system. Each of these predicates and
+  archetypes is bound by its role Thing (`sends`, `told`, `arrivesAt`, `standsFor`, …), so the page
+  reads roles and never names.

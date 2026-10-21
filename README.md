@@ -6,7 +6,7 @@
 > describe intended scope, not a stability or support guarantee. Expect rough edges, incomplete features,
 > and breaking changes. Do not rely on it for production workloads.
 
-This repository holds the **client-facing tools** for [VillageOS](https://dev.azure.com/ReGenVillages/VillageOS), a *temporal graph platform* — a database that stores everything as connected "Things" and remembers how they change over time.
+This repository holds the **client-facing tools** for VillageOS, a *temporal graph platform* — a database that stores everything as connected "Things" and remembers how they change over time.
 
 Three kinds of tool live here:
 
@@ -26,8 +26,8 @@ Everything talks to **Mycelium**, the VillageOS server that stores the graph and
 - Three.js + `@thatopen/fragments` for the IFC Model viewer (loader, picking, plan/section toolbar, and shared `NodeDetailPanel`)
 - Server-Sent Events (SSE) real-time updates with flash effects
 - Zustand state management
-- Config-driven **Operations** dashboard — a model supplies a JSON spec and Trellis renders KPI, chart, funnel, table, and leaderboard widgets against it (the GUI stays domain-agnostic)
-- Dashboard, Operations, Compose, Design, Land intake, Submissions, Graph, Model, Pipelines, Temporal, Things, Properties and Logs pages, plus every page the platform declares for the signed-in account (Accounts and API keys, for an administrator), drawn like a model's own
+- Config-driven **Operations** dashboard — a model supplies a JSON specification and Trellis renders KPI, chart, funnel, table, and leaderboard widgets against it (the GUI stays domain-agnostic)
+- Dashboard, Operations, Compose, Design, Land intake, Submissions, Graph, Model, Pipelines, Temporal, Things, Properties, Logs and Requests pages, plus every page the platform declares for the signed-in account (Accounts and API keys, for an administrator), drawn like a model's own
 
 ### Taproot (CLI)
 
@@ -91,16 +91,17 @@ npm run lint     # Lint
 ```
 
 The build runs `npm run lint`, `npm test` and `npm run build`, so a failure in any of them fails the
-build — and on `develop` stops the wiki publish and the GitHub mirror. It runs when `develop` or
-`main` moves and when a pull request into `develop` is validated; a push to a branch with no pull
-request open builds nothing. Run them before pushing rather than finding out from the build.
+build — and on `develop` stops the wiki publish and the wiki mirror. It runs when `develop` or
+`main` moves and for every pull request into `develop` or `main` on GitHub; a pull request from
+outside the organisation waits for an owner's comment. Run them before pushing rather than finding
+out from the build.
 
 A build **against `main`** compiles Release — a merge to it, and a pull request targeting it, since
 a merge is too late to learn that Release does not compile. Every other build compiles Debug, which
 is what you run locally. The difference is not only optimization here: `MyceliumClientBase` throws
 on an outbound contract violation in Debug and logs it in Release. `develop` is the branch that
-publishes: the documentation to the project wiki, and the repository and that wiki to GitHub, so
-what is public is what has been integrated rather than what was last promoted.
+publishes the documentation to the project wiki and copies that wiki to the GitHub wiki. The
+repository itself lives on GitHub; nothing copies it.
 
 `npm test` runs offline. `npm run test:integration` covers what only a live
 platform can answer: that the property type names Trellis holds are
@@ -130,8 +131,8 @@ plain `dotnet test` here. Stage one and run it:
 dotnet test Tests/vos.BrokerContract.Tests
 ```
 
-With nothing staged the project still builds, and its suite reports one skipped case saying so
-rather than a green run over nothing. The VillageOS pipeline runs it in every build it does, because
+With nothing staged every case still compiles and each is reported as skipped, saying no engine is
+staged, rather than a green run over nothing. The VillageOS pipeline runs it in every build it does, because
 that build has the engine to stage; point it at a staged engine elsewhere with `-p:VosRelease=`.
 
 #### Building directly into a Mycelium's wwwroot
@@ -150,12 +151,12 @@ local artifact.
 
 In-repo docs live in **[docs/](docs/README.md)** — an indexed map grouped by client tools, platform concepts, and microservice authoring.
 
-The same documentation is published to the [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki), which is **generated from the files in `docs/`** on every build of `develop` — edit the file, never the wiki page. See [tools/docs-to-wiki](tools/docs-to-wiki/).
+The same documentation is published to the [VillageOS API Wiki](https://github.com/ReGen-Villages/VillageOS-API/wiki), which is **generated from the files in `docs/`** on every build of `develop` — edit the file, never the wiki page. See [tools/docs-to-wiki](tools/docs-to-wiki/).
 
 Key pages:
 
-- [Field Guide](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FField%20Guide) — the whole platform for every reader: the console page by page, the command line command by command, and the page-authoring contract
-- [Services](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FServices) — the service host, the wire contract, and each service
+- [Field Guide](https://github.com/ReGen-Villages/VillageOS-API/wiki/Field%20Guide) — the whole platform for every reader: the console page by page, the command line command by command, and the page-authoring contract
+- [Services](https://github.com/ReGen-Villages/VillageOS-API/wiki/Services) — the service host, the wire contract, and each service
 
 ## License
 

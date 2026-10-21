@@ -17,6 +17,7 @@ public class SourceFetchingTests
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddHttpClient();
+        services.AddSingleton(TimeProvider.System);
         services.AddSourceFetching(
             new ForageLaunchSettings(
                 new ServiceLaunchSettings(7100, "http://localhost:7243"),

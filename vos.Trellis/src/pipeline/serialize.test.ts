@@ -18,7 +18,8 @@ vi.mock('../api/relationshipApi', () => ({
 }));
 
 import type { VosThing, VosRelationship } from '../types/vos';
-import { PipelineModel, ARCHETYPE_FLAG } from './model';
+import { PipelineModel, ROLE } from './model';
+import { playing, withRoles } from './roles.test.fixture';
 import { savePipeline, loadPipeline, type EditorNode } from './serialize';
 import { modelApi } from '../api/modelApi';
 import { thingApi } from '../api/thingApi';
@@ -33,12 +34,9 @@ const relationshipRemove = vi.mocked(relationshipApi.remove);
 const relationshipCreate = vi.mocked(relationshipApi.create);
 const relationshipSetProperty = vi.mocked(relationshipApi.setProperty);
 
-/** An archetype's own mark, which is the only thing that says what role it plays. */
-const marked = (roleFlag: string): Record<string, unknown> => ({ [roleFlag]: true });
-
 // The starting graph every fixture below builds on: the built-in predicates, and each archetype named as
-// some model chose and marked as what it is. A fixture that resolves at all therefore proves nothing here
-// is found by name. `T` and `R` add Things and relationships to it.
+// some model chose and bound to the role it plays. A fixture that resolves at all therefore proves nothing
+// here is found by name. `T` and `R` add Things and relationships to it.
 function graphWithVocabulary() {
   const things: VosThing[] = [];
   const relationships: VosRelationship[] = [];
@@ -50,15 +48,15 @@ function graphWithVocabulary() {
     relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
 
   T('is', 'is'); T('has', 'has'); T('carries', 'carries');
-  T('arch-pipeline', 'Workflow', marked(ARCHETYPE_FLAG.Pipeline));
-  T('arch-node', 'Step', marked(ARCHETYPE_FLAG.PipelineNode));
-  T('arch-connection', 'Endpoint', marked(ARCHETYPE_FLAG.Connection));
-  T('arch-service', 'Capability', marked(ARCHETYPE_FLAG.Service));
-  T('arch-port', 'Socket', marked(ARCHETYPE_FLAG.Port));
-  T('arch-wire', 'Link', marked(ARCHETYPE_FLAG.PipelineWire));
+  T('arch-pipeline', 'Workflow', playing(ROLE.Pipeline));
+  T('arch-node', 'Step', playing(ROLE.PipelineNode));
+  T('arch-connection', 'Endpoint', playing(ROLE.Connection));
+  T('arch-service', 'Capability', playing(ROLE.Service));
+  T('arch-port', 'Socket', playing(ROLE.Port));
+  T('arch-wire', 'Link', playing(ROLE.PipelineWire));
   // Boundary-node archetypes; each is-a pipeline node so the node collection picks its instances up.
-  T('arch-input', 'Start', marked(ARCHETYPE_FLAG.PipelineInput)); R('arch-input', 'is', 'arch-node');
-  T('arch-output', 'Finish', marked(ARCHETYPE_FLAG.PipelineOutput)); R('arch-output', 'is', 'arch-node');
+  T('arch-input', 'Start', playing(ROLE.PipelineInput)); R('arch-input', 'is', 'arch-node');
+  T('arch-output', 'Finish', playing(ROLE.PipelineOutput)); R('arch-output', 'is', 'arch-node');
   R('carries', 'is', 'arch-wire');
 
   return { T, R, things, relationships };
@@ -77,7 +75,7 @@ function buildModel(): PipelineModel {
   T('N2', 'Node2'); R('N2', 'is', 'arch-node'); R('N2', 'has', 'conn'); R('P', 'has', 'N2');
   R('N1', 'carries', 'N2', { fromPort: 'out', toPort: 'in' });
 
-  return new PipelineModel(things, relationships);
+  return new PipelineModel(...withRoles(things, relationships));
 }
 
 // The same pipeline, wired by Things instead of relationships, and wired twice between one pair — the case an
@@ -97,7 +95,7 @@ function buildModelWithHeldWires(): PipelineModel {
   T('W2', 'w.trace.context', { fromPort: 'trace', toPort: 'context', fromPath: '', toPath: '', transform: '' });
   R('W2', 'is', 'arch-wire'); R('N1', 'has', 'W2'); R('W2', 'carries', 'N2');
 
-  return new PipelineModel(things, relationships);
+  return new PipelineModel(...withRoles(things, relationships));
 }
 
 const node = (id: string, label: string, connectionId = 'conn'): EditorNode =>
@@ -119,12 +117,34 @@ describe('savePipeline — create (no existing pipeline id)', () => {
     expect(frag.Things.some((t: { Name: string }) => t.Name === 'A')).toBe(true);
     expect(thingRemove).not.toHaveBeenCalled();
     expect(saved.pipelineId).not.toBe('P');
-    // …and `is` the archetype this model marks as its pipeline, whatever that archetype is called.
+    // …and `is` the archetype this model binds to the pipeline role, whatever that archetype is called.
     expect(frag.Relationships.some((r: { Subject: string; Name: string; Target: string }) =>
       r.Subject === saved.pipelineId && r.Name === 'is' && r.Target === 'arch-pipeline')).toBe(true);
   });
 
-  it('refuses a model that marks no archetype, saying so rather than writing a pipeline nothing can find', async () => {
+  it('saves every pipeline published, so the model starts what the page draws', async () => {
+    const model = buildModel();
+    await savePipeline('Fresh', [node('n1', 'A')], [], model);
+    await savePipeline('Kept', [node('n1', 'A')], [], model, 'P');
+
+    for (const call of applyFragment.mock.calls) {
+      const frag = JSON.parse(call[0]);
+      const pipeline = frag.Things.find((t: { Name: string }) => t.Name === 'Fresh' || t.Name === 'Kept');
+      expect(pipeline.Properties.published).toEqual({ typeInfo: 'vos.Boolean', value: true });
+    }
+  });
+
+  it('persists a node’s parameter bindings under the property spelled in full', async () => {
+    const model = buildModel();
+    await savePipeline('Fresh', [{ ...node('n1', 'A'), parameterBindings: { message: 'greeting' } }], [], model);
+
+    const frag = JSON.parse(applyFragment.mock.calls[0][0]);
+    const a = frag.Things.find((t: { Name: string }) => t.Name === 'A');
+    expect(a.Properties.parameterBindings.value).toBe('{"message":"greeting"}');
+    expect(Object.keys(a.Properties)).toEqual(['x', 'y', 'parameterBindings']);
+  });
+
+  it('refuses a model that binds no archetype, saying so rather than writing a pipeline nothing can find', async () => {
     const model = new PipelineModel(
       [{ Id: 'is', Name: 'is', Properties: {} }, { Id: 'has', Name: 'has', Properties: {} }],
       [],
@@ -180,7 +200,7 @@ type Frag = {
 };
 
 describe('savePipeline — boundary nodes', () => {
-  it('persists an Input node under the archetypes marked as input and as node, with its declared output port and no connection', async () => {
+  it('persists an Input node under the archetypes bound as input and as node, with its declared output port and no connection', async () => {
     const model = buildModel();
     const inputNode: EditorNode = {
       id: 'nin', label: 'Input', connectionId: '', x: 0, y: 0, kind: 'input',
@@ -213,7 +233,7 @@ describe('loadPipeline — boundary nodes', () => {
     T('OUT.result', 'result', { portName: 'result', direction: 'in', type: 'any', required: 'true' });
     R('OUT.result', 'is', 'arch-port'); R('OUT', 'has', 'OUT.result');
 
-    const loaded = loadPipeline('BP', new PipelineModel(things, relationships))!;
+    const loaded = loadPipeline('BP', new PipelineModel(...withRoles(things, relationships)))!;
     const out = loaded.nodes.find((node) => node.id === 'OUT')!;
     expect(out.kind).toBe('output');
     expect(out.connectionId).toBe('');
@@ -251,7 +271,7 @@ describe('loadPipeline — wire field-paths', () => {
     T('N2', 'N2'); R('N2', 'is', 'arch-node'); R('FP', 'has', 'N2');
     R('N1', 'carries', 'N2', { fromPort: 'out', toPort: 'in', fromPath: 'user.id', toPath: 'a' });
 
-    const loaded = loadPipeline('FP', new PipelineModel(things, relationships))!;
+    const loaded = loadPipeline('FP', new PipelineModel(...withRoles(things, relationships)))!;
     const edge = loaded.edges[0];
     expect(edge.fromPath).toBe('user.id');
     expect(edge.toPath).toBe('a');
@@ -274,7 +294,7 @@ describe('savePipeline / loadPipeline — wire transform', () => {
     T('N2', 'N2'); R('N2', 'is', 'arch-node'); R('TP', 'has', 'N2');
     R('N1', 'carries', 'N2', { fromPort: 'out', toPort: 'in', transform: '{"x": y}' });
 
-    const loaded = loadPipeline('TP', new PipelineModel(things, relationships))!;
+    const loaded = loadPipeline('TP', new PipelineModel(...withRoles(things, relationships)))!;
     expect(loaded.edges[0].transform).toBe('{"x": y}');
   });
 });
@@ -324,7 +344,7 @@ describe('a wire held as a Thing', () => {
     T('W-half', 'w.half', { fromPort: 'x', toPort: 'y' });
     R('W-half', 'is', 'arch-wire'); R('N1', 'has', 'W-half');
 
-    const loaded = loadPipeline('P', new PipelineModel(things, relationships))!;
+    const loaded = loadPipeline('P', new PipelineModel(...withRoles(things, relationships)))!;
 
     expect(loaded.edges.map((e) => e.sourceHandle)).toEqual(['out']);
   });
@@ -342,7 +362,7 @@ describe('a wire held as a Thing', () => {
     // The relationships of a wire whose Thing is no longer in the model.
     R('N1', 'has', 'W-gone'); R('W-gone', 'carries', 'N2');
 
-    const loaded = loadPipeline('P', new PipelineModel(things, relationships))!;
+    const loaded = loadPipeline('P', new PipelineModel(...withRoles(things, relationships)))!;
 
     expect(loaded.edges.map((e) => e.sourceHandle)).toEqual(['out']);
   });
@@ -383,7 +403,7 @@ describe('savePipeline / loadPipeline — what a boundary node stands for', () =
     expect(loaded.nodes.find((node) => node.id === id.readingsEnd)?.standsForId).toBeUndefined();
   });
 
-  it('writes the stands-for relationship through the predicate marked for it, and retracts the one it replaces', async () => {
+  it('writes the stands-for relationship through the predicate bound to that role, and retracts the one it replaces', async () => {
     const { catalystFixture } = await import('./catalysts.test.fixture');
     const { model, id } = catalystFixture();
     const loaded = loadPipeline(id.readingsArrive, model)!;
@@ -396,13 +416,12 @@ describe('savePipeline / loadPipeline — what a boundary node stands for', () =
     expect(vi.mocked(relationshipApi.remove)).toHaveBeenCalledWith(model.standsFor(id.readingsStart)!.relationshipId);
   });
 
-  it('refuses a node standing for something when the model marks no predicate for it', async () => {
+  it('refuses a node standing for something when the model binds no predicate to that role', async () => {
     const { catalystFixture } = await import('./catalysts.test.fixture');
-    const { model, id, things, relationships } = catalystFixture();
-    const unmarked = things.map((thing) => (thing.Id === id.standsFor ? { ...thing, Properties: {} } : thing));
-    const { PipelineModel } = await import('./model');
+    const { model, things, relationships, id } = catalystFixture();
+    const unbound = relationships.filter((relationship) => relationship.SubjectId !== ROLE.StandsFor);
     const loaded = loadPipeline(id.readingsArrive, model)!;
-    await expect(savePipeline(loaded.name, loaded.nodes, loaded.edges, new PipelineModel(unmarked, relationships), id.readingsArrive))
+    await expect(savePipeline(loaded.name, loaded.nodes, loaded.edges, new PipelineModel(things, unbound), id.readingsArrive))
       .rejects.toThrow(/stands for/);
   });
 });
@@ -423,7 +442,7 @@ describe('loadPipeline — a saved pipeline whose ports are stated in the overri
     T('W', 'subject to payload', { fromPort: 'subject', toPort: 'payload', fromPath: '', toPath: '', transform: '' });
     R('W', 'is', 'arch-wire'); R('IN', 'has', 'W'); R('W', 'carries', 'OUT');
 
-    const loaded = loadPipeline('BP', new PipelineModel(things, relationships))!;
+    const loaded = loadPipeline('BP', new PipelineModel(...withRoles(things, relationships)))!;
 
     const start = loaded.nodes.find((node) => node.id === 'IN')!;
     expect(start.ports).toEqual([{ portName: 'subject', direction: 'out', type: 'any', required: false }]);
@@ -432,13 +451,13 @@ describe('loadPipeline — a saved pipeline whose ports are stated in the overri
 });
 
 // A model built from templates declares the wire predicate and draws nothing. The first pipeline drawn on
-// it was refused as marking no archetype, although it marks every one.
+// it was refused as declaring no archetype, although it declares every one.
 describe('savePipeline — the first pipeline in a model with no wire yet', () => {
   function modelWithNoWire(): PipelineModel {
     const { T, R, things, relationships } = graphWithVocabulary();
     T('svc', 'svc'); R('svc', 'is', 'arch-service');
     T('conn', 'conn', { Subdomain: 'echo' }); R('conn', 'is', 'arch-connection'); R('conn', 'has', 'svc');
-    return new PipelineModel(things, relationships);
+    return new PipelineModel(...withRoles(things, relationships));
   }
 
   it('writes the pipeline and its wire through the predicate the model declares', async () => {
@@ -452,12 +471,12 @@ describe('savePipeline — the first pipeline in a model with no wire yet', () =
     expect(relationshipCreate).toHaveBeenCalledWith('W-new', 'carries', expect.any(String));
   });
 
-  it('names what it did not find when the model marks no wire archetype', async () => {
+  it('names what it did not find when the model binds no wire archetype', async () => {
     const { T, R, things, relationships } = graphWithVocabulary();
     things.splice(things.findIndex((t) => t.Id === 'arch-wire'), 1);
     T('conn', 'conn', { Subdomain: 'echo' }); R('conn', 'is', 'arch-connection');
 
-    await expect(savePipeline('First', [node('N1', 'A')], [], new PipelineModel(things, relationships)))
+    await expect(savePipeline('First', [node('N1', 'A')], [], new PipelineModel(...withRoles(things, relationships))))
       .rejects.toThrow(/wire predicate/);
     expect(applyFragment).not.toHaveBeenCalled();
   });

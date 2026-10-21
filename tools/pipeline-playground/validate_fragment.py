@@ -1,34 +1,38 @@
 #!/usr/bin/env python3
 """Reimplements the Trellis PipelineModel + Phloem PipelineDagBuilder traversals and asserts every
-generated pipeline resolves: every role is marked on an archetype, connections appear in the palette, each
+generated pipeline resolves: every role is bound to a Thing, connections appear in the palette, each
 pipeline loads with nodes/edges, every required input is wired or param-bound (Run would be enabled), and
-seeded runs resolve. Every read here goes through the flag an archetype carries, never through its name."""
+seeded runs resolve. Every read here goes through the role Thing that binds a Thing, never through a name."""
 import json
 import sys
 
-# The role flags, spelled out here rather than imported from the generator on purpose: this file is the
-# check that what the generator wrote is what the editor and the orchestrator read, and a flag it shared
-# with the thing it checks would agree with itself however wrong it was.
-PIPELINE = "__IsPipelineArchetype"
-PIPELINE_NODE = "__IsPipelineNodeArchetype"
-PIPELINE_INPUT = "__IsPipelineInputArchetype"
-PIPELINE_OUTPUT = "__IsPipelineOutputArchetype"
-PORT = "__IsPortArchetype"
-SERVICE = "__IsServiceArchetype"
-CONNECTION = "__IsConnectionArchetype"
-PIPELINE_WIRE = "__IsPipelineWireArchetype"
-PIPELINE_RUN = "__IsPipelineRunArchetype"
-EXTERNAL_SYSTEM = "__IsExternalSystemArchetype"
-MESSAGE_KIND = "__IsMessageKindArchetype"
-SENDS = "__IsSendsPredicate"
-TOLD = "__IsToldPredicate"
-TOLD_THROUGH = "__IsToldThroughPredicate"
-ARRIVES_AT = "__IsArrivesAtPredicate"
-STANDS_FOR = "__IsStandsForPredicate"
+# The role identifiers, spelled out here rather than derived or imported from the generator on purpose:
+# this file is the check that what the generator wrote is what the editor and the orchestrator read, and
+# an identifier it shared with the thing it checks would agree with itself however wrong it was.
+PIPELINE = "f8bc9986-6eef-54d9-9940-4aca2497109b"
+PIPELINE_NODE = "f273f058-e3d6-5a20-aa37-34638ce64735"
+PIPELINE_INPUT = "634f9ae3-2cca-5dd9-84aa-fec4dff07a6d"
+PIPELINE_OUTPUT = "880d2158-25a8-5b2b-8b6a-923f21ca153d"
+PORT = "318d6995-e07b-5c83-acb5-86cd935ba4c6"
+SERVICE = "768bb2e8-e738-5345-9126-c23ad1513197"
+CONNECTION = "d5a3c29f-67c1-55a5-b0e4-9241378bd08d"
+PIPELINE_WIRE = "adfe0071-bbaf-5e7f-abc3-255c08d8735a"
+PIPELINE_RUN = "b682b68f-0101-5ab4-a7a9-13c3e43df873"
+EXTERNAL_SYSTEM = "03164f47-30c0-5984-9215-a81317000ec5"
+MESSAGE_KIND = "0b2082d2-eec5-5eec-85dd-66431d776731"
+CADENCE = "f3883eaf-4e52-5c0c-887b-1bc696578812"
+SENDS = "ab3334f4-cb8e-5513-94b4-43debdb73acd"
+TOLD = "08104fb0-e74f-511a-9598-62c20da9083c"
+TOLD_THROUGH = "d94c1844-76e6-56fa-ae38-d10405d52826"
+ARRIVES_AT = "79f0afcb-8c66-53dd-8081-43af167fc07a"
+STANDS_FOR = "4277647a-93f8-5860-8717-da2a12673dbf"
+CHOICE = "043b23a9-d2e8-5a8a-b81c-1a56bf0f525a"
 
-# The roles a DAG is resolved from. Marked on no archetype, every question below answers "no" and a model
+# The roles a DAG is resolved from. Bound to nothing, every question below answers "no" and a model
 # full of pipelines reads as empty — which is why Phloem refuses such a model outright.
-DAG_ROLES = [PIPELINE, PIPELINE_NODE, PIPELINE_INPUT, PIPELINE_OUTPUT, PORT, SERVICE, CONNECTION, PIPELINE_WIRE]
+DAG_ROLES = {PIPELINE: "pipeline", PIPELINE_NODE: "pipelineNode", PIPELINE_INPUT: "pipelineInput",
+             PIPELINE_OUTPUT: "pipelineOutput", PORT: "port", SERVICE: "service", CONNECTION: "connection",
+             PIPELINE_WIRE: "pipelineWire"}
 
 
 def unwrap(props):
@@ -43,8 +47,11 @@ class Model:
         self.things = {t["Id"]: {"Id": t["Id"], "Name": t["Name"], "P": unwrap(t.get("Properties"))}
                        for t in seed["Things"]}
         self.bysubj = {}
+        self.bound = {}
         for r in seed["Relationships"]:
             self.bysubj.setdefault(r["Subject"], []).append(r)
+            if self.name(r["Predicate"]).lower() == "binds" and r["Target"] in self.things:
+                self.bound.setdefault(r["Subject"], []).append(r["Target"])
 
     def name(self, i):
         return self.things.get(i, {}).get("Name", "?")
@@ -57,27 +64,29 @@ class Model:
                 res.append(self.things[r["Target"]])
         return res
 
-    def carries(self, tid, flag):
-        return self.things.get(tid, {}).get("P", {}).get(flag) is True
+    def bound_to(self, role):
+        """The one Thing this model binds to a role, or None when it binds none or two."""
+        played = self.bound.get(role, [])
+        return played[0] if len(played) == 1 else None
 
-    def carrier_of(self, flag):
-        """The archetype this model marks with a role, or None when it marks none."""
-        return next((tid for tid in self.things if self.carries(tid, flag)), None)
-
-    def is_of(self, tid, flag, seen=None):
-        """Is this Thing — directly or through its `is`-chain — of an archetype carrying the role? The walk
-        starts above the Thing, so an archetype never plays its own role."""
+    def is_of(self, tid, role, seen=None):
+        """Does this Thing `is`, directly or through its `is`-chain, what the role binds? The walk starts
+        above the Thing, so an archetype never plays its own role."""
+        archetype = self.bound_to(role)
+        if archetype is None:
+            return False
         seen = seen if seen is not None else {tid}
         for parent in self.outgoing(tid, "is"):
             if parent["Id"] in seen:
                 continue
             seen.add(parent["Id"])
-            if self.carries(parent["Id"], flag) or self.is_of(parent["Id"], flag, seen):
+            if parent["Id"] == archetype or self.is_of(parent["Id"], role, seen):
                 return True
         return False
 
-    def resolve_ports(self, svc_id):
-        ports, seen, stack = [], set(), [svc_id]
+    def resolve_ports(self, owner_id):
+        """The Port Things an owner `has`, up its `is` chain: a service's, or the ones a node holds itself."""
+        ports, seen, stack = [], set(), [owner_id]
         while stack:
             i = stack.pop()
             if i in seen:
@@ -86,7 +95,8 @@ class Model:
             for t in self.outgoing(i, "has"):
                 if self.is_of(t["Id"], PORT):
                     p = t["P"]
-                    ports.append({"portName": str(p.get("portName", t["Name"])),
+                    ports.append({"id": t["Id"],
+                                  "portName": str(p.get("portName", t["Name"])),
                                   "direction": "out" if str(p.get("direction", "in")).lower() == "out" else "in",
                                   "type": str(p.get("type", "")),
                                   "required": str(p.get("required", "false")).lower() == "true"})
@@ -108,11 +118,12 @@ class Model:
             res.append({"id": t["Id"], "name": t["Name"], "subdomain": sub, "ports": self.resolve_ports(svc["Id"])})
         return res
 
-    def reached_along(self, subj, flag):
-        """Targets reached from a Thing along any predicate carrying the mark — how the console reads what a
+    def reached_along(self, subj, role):
+        """Targets reached from a Thing along the predicate the role binds — how the console reads what a
         system sends, where a kind arrives, and what a boundary node stands for."""
+        predicate = self.bound_to(role)
         return [self.things[r["Target"]] for r in self.bysubj.get(subj, [])
-                if self.carries(r["Predicate"], flag) and r["Target"] in self.things]
+                if r["Predicate"] == predicate and r["Target"] in self.things]
 
     def wires(self, subj):
         out = []
@@ -130,9 +141,9 @@ def main():
     m = Model(seed)
     problems = []
 
-    unmarked = [flag for flag in DAG_ROLES if m.carrier_of(flag) is None]
-    if unmarked:
-        problems.append("no archetype is marked for: " + ", ".join(unmarked))
+    unbound = [word for role, word in DAG_ROLES.items() if m.bound_to(role) is None]
+    if unbound:
+        problems.append("no Thing is bound to the roles: " + ", ".join(unbound))
 
     conns = m.connections()
     conn_by_id = {c["id"]: c for c in conns}
@@ -160,8 +171,14 @@ def main():
                     problems.append(f"[{pipe['Name']}] node '{t['Name']}' binds no connection")
                     ports = []
                 else:
-                    ports = conn_by_id.get(conn["Id"], {}).get("ports", [])
-            pb = t["P"].get("paramBindings")
+                    ports = m.resolve_ports(t["Id"]) + conn_by_id.get(conn["Id"], {}).get("ports", [])
+                # A Thing the node chose must be offered by one of its in ports along the same predicate, or
+                # the orchestrator refuses the run.
+                for chosen in m.reached_along(t["Id"], CHOICE):
+                    if not any(p["direction"] == "in" and any(o["Id"] == chosen["Id"] for o in m.reached_along(p["id"], CHOICE))
+                               for p in ports):
+                        problems.append(f"[{pipe['Name']}] node '{t['Name']}' chose '{chosen['Name']}', which no in port of it offers")
+            pb = t["P"].get("parameterBindings")
             bindings = json.loads(pb) if isinstance(pb, str) and pb else {}
             nodes.append({"id": t["Id"], "name": t["Name"], "kind": kind, "ports": ports, "bindings": bindings})
 
@@ -189,7 +206,7 @@ def main():
                         problems.append(f"[{pipe['Name']}] required input '{p['portName']}' on '{n['name']}' unwired/unbound")
 
         # What each boundary node stands for (model.ts endInformation): a start may stand for a kind some
-        # system sends, a system that sends, a door or a pipeline; an end for a kind some system is told, a
+        # system sends, a system that sends, a door, a cadence or a pipeline; an end for a kind some system is told, a
         # system naming the connection it is told through (Phloem refuses the run otherwise), or a pipeline.
         # Standing for nothing is fine at either end.
         stands = []
@@ -205,7 +222,7 @@ def main():
                         m.is_of(c["Id"], CONNECTION) for c in m.reached_along(sid, TOLD_THROUGH))
                 elif m.is_of(sid, PIPELINE):
                     may = True
-                elif m.is_of(sid, CONNECTION):
+                elif m.is_of(sid, CONNECTION) or m.is_of(sid, CADENCE):
                     may = is_start
                 else:
                     may = False

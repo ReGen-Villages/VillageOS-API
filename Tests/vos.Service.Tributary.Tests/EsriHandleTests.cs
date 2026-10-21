@@ -328,4 +328,48 @@ public class EsriHandleTests
         ingested.Should().Be(0, "the pages that did arrive are not a complete answer to reshape");
     }
 
+    [Fact]
+    public async Task Handle_OffsetPaging_PageRefusedWithAWait_PassesTheWaitBack()
+    {
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":        {"Value":"https://features.test/query"},
+          "Endpoint.httpMethod": {"Value":"GET"},
+          "Esri.pagingKind":     {"Value":"offset"},
+          "Esri.offsetParam":    {"Value":"resultOffset"},
+          "Esri.pageSizeParam":  {"Value":"resultRecordCount"},
+          "Esri.pageSize":       {"Value":"2"},
+          "Esri.hasMorePath":    {"Value":"exceededTransferLimit"},
+          "Esri.itemsPath":      {"Value":"features"}
+        }
+        """;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "features.test")
+            {
+                if (!req.RequestUri.Query.Contains("resultOffset=2"))
+                    return Json("{\"features\":[{\"attributes\":{\"OBJECTID\":1}},{\"attributes\":{\"OBJECTID\":2}}],\"exceededTransferLimit\":true}");
+                var refused = new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+                {
+                    Content = new StringContent("too many pages", Encoding.UTF8, "text/plain")
+                };
+                refused.Headers.RetryAfter = new(TimeSpan.FromSeconds(30));
+                return refused;
+            }
+            return RouteFindThing(req, thingId, "EP")
+                ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        response.Headers.RetryAfter!.Delta.Should().Be(TimeSpan.FromSeconds(30));
+    }
+
 }

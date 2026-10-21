@@ -1,4 +1,4 @@
-import { ARCHETYPE_FLAG, type PipelineModel, type PipelineNamed, type CatalystConnection } from './model';
+import { ROLE, type PipelineModel, type PipelineNamed, type CatalystConnection } from './model';
 
 // The two rails beside the canvas, read off the model's own wiring and never written from memory: what
 // sets a run off, and what a run may leave behind. A site that adds a system, a state or a connection
@@ -129,7 +129,7 @@ export interface OutputRow {
 /** What a run may leave behind: the answer to whatever started it, another pipeline, and the external
  *  systems that may be told. The open pipeline is not offered to itself. */
 export function outputRail(model: PipelineModel, openedPipelineId: string | null): OutputRow[] {
-  const pipelines = model.thingsOfArchetypeCarrying(ARCHETYPE_FLAG.Pipeline)
+  const pipelines = model.thingsOf(ROLE.Pipeline)
     .filter((pipeline) => pipeline.Id !== openedPipelineId)
     .map((pipeline) => ({ id: pipeline.Id, kind: 'pipeline' as const, name: pipeline.Name }))
     .sort((a, b) => a.name.localeCompare(b.name));

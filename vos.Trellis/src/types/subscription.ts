@@ -28,6 +28,8 @@ export interface SubscriptionSelector {
   names?: string[];
   /** Things that `is` one of these, followed through the whole chain. */
   types?: string[];
+  /** Each archetype carrying one of these marks as its own property, and the Things that `is` it. */
+  markedTypes?: string[];
   /** Applied in order, each over everything selected before it. */
   traverse?: TraverseRule[];
   /** Include what each selected Thing `is`, so the values it inherits resolve. Default true. */

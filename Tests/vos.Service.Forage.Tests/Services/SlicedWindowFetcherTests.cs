@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Forage.Helpers;
 using vos.Service.Forage.Services;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Forage.Tests.Services;
@@ -37,8 +38,11 @@ public class SlicedWindowFetcherTests
         ["latitude"] = "52.52",
     };
 
-    private static SlicedWindowFetcher Slicing(ISourceFetcher inner, int daysPerSlice = 365) =>
-        new(inner, daysPerSlice, NullLogger<SlicedWindowFetcher>.Instance);
+    private static SlicedWindowFetcher Slicing(ISourceFetcher inner, int daysPerSlice = 365, TimeProvider? clock = null) =>
+        new(inner, daysPerSlice, clock ?? new ClockThatWaitsNoTime(), NullLogger<SlicedWindowFetcher>.Instance);
+
+    private static SourceOutcome TooManyRequests(TimeSpan wait) =>
+        new(Source, false, "429: Minutely API request limit exceeded.", RetryAfter: wait);
 
     private static (DateOnly Start, DateOnly End) WindowOf(IReadOnlyDictionary<string, string> call) =>
         (DateOnly.Parse(call[CoveringSourceResolver.WindowStartPlaceholder]),
@@ -108,6 +112,103 @@ public class SlicedWindowFetcherTests
         outcome.Resolved.Should().BeFalse();
         outcome.Reason.Should().Contain("503 from the provider").And.Contain("2018-09-23");
         inner.Calls.Should().HaveCount(3, "the slices after the one that failed are not asked for");
+    }
+
+    [Fact]
+    public async Task A_slice_refused_for_too_many_requests_is_asked_for_again_after_the_wait_and_every_slice_is_written()
+    {
+        var clock = new ClockThatWaitsNoTime();
+        var inner = new RecordingFetcher(call => call == 11
+            ? TooManyRequests(TimeSpan.FromSeconds(40))
+            : new SourceOutcome(Source, true, null,
+                Written: new Dictionary<string, string> { [$"call{call}"] = "written" }));
+
+        var outcome = await Slicing(inner, clock: clock).FetchAsync(
+            Site, Source, Endpoint, Window("2016-09-23", "2026-09-22"), default);
+
+        outcome.Resolved.Should().BeTrue();
+        inner.Calls.Should().HaveCount(12, "the eleventh slice is asked for twice");
+        WindowOf(inner.Calls[11]).Should().Be(WindowOf(inner.Calls[10]), "the refused slice is the one asked for again");
+        outcome.Written.Should().HaveCount(11, "every slice that answered is reported");
+        clock.Waits.Should().Equal([TimeSpan.FromSeconds(40)], "the wait is the one the refusal asked for");
+    }
+
+    [Fact]
+    public async Task A_slice_refused_for_too_many_requests_every_time_leaves_the_source_unresolved_with_the_providers_reason()
+    {
+        var clock = new ClockThatWaitsNoTime();
+        var inner = new RecordingFetcher(_ => TooManyRequests(TimeSpan.FromMinutes(1)));
+
+        var outcome = await Slicing(inner, clock: clock).FetchAsync(
+            Site, Source, Endpoint, Window("2016-09-23", "2026-09-22"), default);
+
+        outcome.Resolved.Should().BeFalse();
+        outcome.Reason.Should().Contain("Minutely API request limit exceeded.").And.Contain("2016-09-23");
+        inner.Calls.Should().HaveCount(SlicedWindowFetcher.MostAttemptsAtOneSlice);
+        clock.Waits.Should().HaveCount(SlicedWindowFetcher.MostAttemptsAtOneSlice - 1, "nothing is waited for after the last attempt");
+    }
+
+    [Fact]
+    public async Task A_refusal_asking_for_a_longer_wait_than_a_run_holds_a_slice_ends_the_fetch_at_once()
+    {
+        var clock = new ClockThatWaitsNoTime();
+        var inner = new RecordingFetcher(
+            _ => TooManyRequests(SlicedWindowFetcher.LongestWaitForARefusedSlice + TimeSpan.FromSeconds(1)));
+
+        var outcome = await Slicing(inner, clock: clock).FetchAsync(
+            Site, Source, Endpoint, Window("2016-09-23", "2026-09-22"), default);
+
+        outcome.Resolved.Should().BeFalse();
+        inner.Calls.Should().ContainSingle();
+        clock.Waits.Should().BeEmpty();
+    }
+
+    private sealed class ClockThatNeverFires : TimeProvider
+    {
+        public TaskCompletionSource Waiting { get; } = new();
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            Waiting.TrySetResult();
+            return new NeverFires();
+        }
+
+        private sealed class NeverFires : ITimer
+        {
+            public bool Change(TimeSpan dueTime, TimeSpan period) => true;
+            public void Dispose() { }
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        }
+    }
+
+    [Fact]
+    public async Task A_run_cancelled_while_a_slice_waits_stops_waiting_and_asks_nothing_more()
+    {
+        var clock = new ClockThatNeverFires();
+        var inner = new RecordingFetcher(_ => TooManyRequests(TimeSpan.FromMinutes(1)));
+        using var run = new CancellationTokenSource();
+
+        var fetching = Slicing(inner, clock: clock).FetchAsync(
+            Site, Source, Endpoint, Window("2016-09-23", "2026-09-22"), run.Token);
+        await clock.Waiting.Task;
+        await run.CancelAsync();
+
+        await FluentActions.Awaiting(() => fetching.WaitAsync(Settle.Ceiling))
+            .Should().ThrowAsync<OperationCanceledException>();
+        inner.Calls.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task A_failure_that_names_no_wait_is_not_asked_for_again()
+    {
+        var clock = new ClockThatWaitsNoTime();
+        var inner = new RecordingFetcher(_ => new SourceOutcome(Source, false, "503 from the provider"));
+
+        await Slicing(inner, clock: clock).FetchAsync(
+            Site, Source, Endpoint, Window("2016-09-23", "2026-09-22"), default);
+
+        inner.Calls.Should().ContainSingle();
+        clock.Waits.Should().BeEmpty();
     }
 
     [Fact]

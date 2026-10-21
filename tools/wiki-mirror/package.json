@@ -2,7 +2,7 @@
   "name": "wiki-mirror",
   "version": "1.0.0",
   "private": true,
-  "description": "Convert the Azure DevOps project wiki into GitHub wiki content for the CI mirror.",
+  "description": "Convert the generated wiki pages into GitHub wiki content for the build to publish.",
   "license": "AGPL-3.0",
   "scripts": {
     "test": "node --test"

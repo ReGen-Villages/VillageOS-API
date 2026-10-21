@@ -14,16 +14,17 @@ public record Coverage(
     CoverageVocabulary? Vocabulary);
 
 // A site's: the sources covering it, the analysis to start once the run has fetched, and what the run
-// needs to work out a division the model supplies none of — the two lookups to call, and the address a
+// needs to work out a division the model supplies none of — the two lookups to call, the address a
 // call about the site itself is made with, which says both where the site is and whether anything already
-// supplies a division code.
+// supplies a division code, and every Place stating a code the site may turn out to stand in.
 public sealed record SiteCoverage(
     IReadOnlyList<CoveringSource> Covering,
     SiteAnalysis? Analysis,
     IReadOnlyList<RecordedCoverage> Recorded,
     CoverageVocabulary? Vocabulary,
     DivisionLookup? Lookup,
-    IReadOnlyDictionary<string, string> Address) : Coverage(Covering, Recorded, Vocabulary);
+    IReadOnlyDictionary<string, string> Address,
+    CodedPlaces? CodedPlaces = null) : Coverage(Covering, Recorded, Vocabulary);
 
 // Reads the model in one scoped snapshot per question: what a dispatch named, a site's coverage, or the
 // sites a source reaches.
@@ -52,13 +53,18 @@ public sealed class CoveringSourceService
     public Task<SiteCoverage?> ForSiteAsync(Guid siteId, CancellationToken cancellationToken) =>
         ReadAsync(
             CoveringSourceResolver.SelectorFor(siteId),
-            snapshot => new SiteCoverage(
-                CoveringSourceResolver.Resolve(snapshot, siteId),
-                CoveringSourceResolver.AnalysisOf(snapshot, siteId),
-                CoveringSourceResolver.RecordedCoverageIn(snapshot),
-                CoveringSourceResolver.CoverageVocabularyIn(snapshot),
-                CoveringSourceResolver.DivisionLookupIn(snapshot),
-                CoveringSourceResolver.AddressOf(snapshot, siteId)),
+            snapshot =>
+            {
+                var lookup = CoveringSourceResolver.DivisionLookupIn(snapshot);
+                return new SiteCoverage(
+                    CoveringSourceResolver.Resolve(snapshot, siteId),
+                    CoveringSourceResolver.AnalysisOf(snapshot, siteId),
+                    CoveringSourceResolver.RecordedCoverageIn(snapshot),
+                    CoveringSourceResolver.CoverageVocabularyIn(snapshot),
+                    lookup,
+                    CoveringSourceResolver.AddressOf(snapshot, siteId),
+                    CoveringSourceResolver.CodedPlacesIn(snapshot, siteId, lookup));
+            },
             $"which sources cover site {siteId}",
             cancellationToken);
 

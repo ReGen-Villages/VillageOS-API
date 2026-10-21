@@ -3,7 +3,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { RequestLogEntry, RequestLookup } from '../api/requestLogApi';
 import { useModelStore } from '../stores/modelStore';
-import { ARCHETYPE_FLAG } from '../pipeline/model';
+import { ROLE } from '../pipeline/model';
+import { playing, withRoles } from '../pipeline/roles.test.fixture';
 import type { ConnectionState } from '../types/connection';
 
 vi.mock('../hooks/useSse', () => ({ useSubscription: () => {} }));
@@ -43,20 +44,19 @@ function entry(id: string, overrides: Partial<RequestLogEntry> = {}): RequestLog
 }
 
 function holdConnections() {
-  const marked = { [ARCHETYPE_FLAG.Connection]: true };
-  useModelStore.setState({
-    things: [
+  const [things, relationships] = withRoles(
+    [
       { Id: 'is', Name: 'is', Properties: {} },
-      { Id: 'connection-kind', Name: 'Connection', IsArchetype: true, Properties: marked },
+      { Id: 'connection-kind', Name: 'Connection', IsArchetype: true, Properties: playing(ROLE.Connection) },
       { Id: 'c-gauges', Name: 'reads the gauges', Properties: {} },
       { Id: 'c-reservoir', Name: 'fills the reservoir', Properties: {} },
     ],
-    relationships: [
+    [
       { Id: 'r1', Name: '', SubjectId: 'c-gauges', PredicateId: 'is', TargetId: 'connection-kind', Properties: {} },
       { Id: 'r2', Name: '', SubjectId: 'c-reservoir', PredicateId: 'is', TargetId: 'connection-kind', Properties: {} },
     ],
-    loaded: true,
-  } as never);
+  );
+  useModelStore.setState({ things, relationships, loaded: true } as never);
 }
 
 function Address() {

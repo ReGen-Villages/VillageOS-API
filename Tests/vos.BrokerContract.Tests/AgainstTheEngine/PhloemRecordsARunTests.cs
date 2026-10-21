@@ -22,28 +22,49 @@ public class PhloemRecordsARunTests : IClassFixture<TheEngine>
         _engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, _engine.AdminToken);
 
     // What the gateway needs to find before it can write: the built-in predicates by name,
-    // and an archetype for each run role found by the flag it carries.
+    // and an archetype for each run role, found through the role Thing that binds it.
     //
     // Every case arranges this and the host is shared by the class, so it has to be write-once. A
     // second Thing of the same name makes the name ambiguous, and the gateway resolves its predicates
     // by name — so the arrangement would break the thing it exists to set up.
-    private async Task<Guid> AModelThatMarksItsRunArchetypesAsync()
+    private async Task<Guid> AModelThatBindsItsRunRolesAsync()
     {
-        foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of })
+        foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
             await _engine.DeclareOnceAsync(predicate);
 
-        await _engine.DeclareOnceAsync("PipelineRun", isArchetype: true,
-            properties: new Dictionary<string, object?> { [PipelineArchetypes.PipelineRunFlag] = true });
-        await _engine.DeclareOnceAsync("NodeRun", isArchetype: true,
-            properties: new Dictionary<string, object?> { [PipelineArchetypes.NodeRunFlag] = true });
+        await BindOnceAsync(PipelineRoles.PipelineRun, "PipelineRun");
+        await BindOnceAsync(PipelineRoles.NodeRun, "NodeRun");
 
         return await _engine.DeclareAsync($"Pipeline {Guid.NewGuid():N}");
     }
 
-    [Fact]
+    private async Task BindOnceAsync(Role role, string archetypeName)
+    {
+        var archetype = await _engine.DeclareOnceAsync(archetypeName, isArchetype: true);
+        var roleName = $"{role.Word} role";
+        if (await _engine.FindAsync(roleName) is not null) return;
+        await _engine.DeclareAsync(roleName, identifier: role.Id);
+        await _engine.RelateAsync(role.Id, await _engine.TheOnlyThingNamedAsync(ModelNames.Binds), archetype);
+    }
+
+    [FactAgainstTheEngine]
+    public async Task A_rehearsal_is_read_back_as_one_and_a_run_for_real_is_not()
+    {
+        var pipelineId = await AModelThatBindsItsRunRolesAsync();
+        var rehearsal = Guid.NewGuid();
+        var forReal = Guid.NewGuid();
+
+        await Gateway().CreateRunAsync(rehearsal, pipelineId, CancellationToken.None, rehearsal: true);
+        await Gateway().CreateRunAsync(forReal, pipelineId, CancellationToken.None);
+
+        (await Gateway().ReadRunRecordAsync(rehearsal, CancellationToken.None))!.Rehearsal.Should().BeTrue();
+        (await Gateway().ReadRunRecordAsync(forReal, CancellationToken.None))!.Rehearsal.Should().BeFalse();
+    }
+
+    [FactAgainstTheEngine]
     public async Task A_run_is_recorded_with_what_it_started_as()
     {
-        var pipelineId = await AModelThatMarksItsRunArchetypesAsync();
+        var pipelineId = await AModelThatBindsItsRunRolesAsync();
         var runId = Guid.NewGuid();
 
         await Gateway().CreateRunAsync(runId, pipelineId, CancellationToken.None);
@@ -54,10 +75,10 @@ public class PhloemRecordsARunTests : IClassFixture<TheEngine>
 
     // The result is known only when the run ends, and the engine sets only a property the
     // Thing already carries — so publishing it proves the run was created carrying it.
-    [Fact]
+    [FactAgainstTheEngine]
     public async Task A_run_publishes_the_result_it_ends_with()
     {
-        var pipelineId = await AModelThatMarksItsRunArchetypesAsync();
+        var pipelineId = await AModelThatBindsItsRunRolesAsync();
         var runId = Guid.NewGuid();
         var gateway = Gateway();
         await gateway.CreateRunAsync(runId, pipelineId, CancellationToken.None);
@@ -70,10 +91,10 @@ public class PhloemRecordsARunTests : IClassFixture<TheEngine>
         (await _engine.ValueOfAsync(runId, ModelNames.Result)).Should().Contain("\"total\":3");
     }
 
-    [Fact]
+    [FactAgainstTheEngine]
     public async Task A_node_run_is_recorded_and_moves_from_running_to_its_outcome()
     {
-        var pipelineId = await AModelThatMarksItsRunArchetypesAsync();
+        var pipelineId = await AModelThatBindsItsRunRolesAsync();
         var runId = Guid.NewGuid();
         var nodeId = Guid.NewGuid();
         var gateway = Gateway();

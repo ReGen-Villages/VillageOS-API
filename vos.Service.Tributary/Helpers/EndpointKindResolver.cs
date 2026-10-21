@@ -15,7 +15,7 @@ public sealed record ResolvedKind(string Name, IReadOnlyList<string> Requires);
 public static class EndpointKindResolver
 {
     // An endpoint catalogue is a shallow hierarchy — a root, a source type, and a registration is the
-    // shape Delta provisions. This is far deeper than any real chain and costs one set expansion per
+    // shape a seed declares. This is far deeper than any real chain and costs one set expansion per
     // unused level, which is cheaper than a second round trip to discover the chain's true length.
     private const int TemplateChainDepth = 16;
 

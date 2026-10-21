@@ -5,6 +5,14 @@ from check_build_file import problems
 
 REPOSITORY_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+PULL_REQUEST_TRIGGER = """\
+pr:
+  branches:
+    include:
+      - develop
+      - main
+"""
+
 PREAMBLE = """\
 trigger:
   branches:
@@ -12,54 +20,54 @@ trigger:
       - develop
       - main
 
+""" + PULL_REQUEST_TRIGGER + """
 variables:
   - name: buildConfiguration
     value: $[ replace(replace(or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), \
-eq(variables['System.PullRequest.TargetBranch'], 'refs/heads/main')), 'True', 'Release'), \
+eq(variables['System.PullRequest.TargetBranch'], 'main')), 'True', 'Release'), \
 'False', 'Debug') ]
 
 """
 
 TIMEOUT = "  timeoutInMinutes: 15\n"
 
-COMPLIANT = PREAMBLE + """\
+JOB = """\
 jobs:
 - job: build
   displayName: 'Build'
 """ + TIMEOUT + """\
   steps:
-  - bash: echo publish
-    displayName: 'Publish Docs to Wiki'
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+"""
 
-  - bash: echo mirror
-    displayName: 'Mirror to GitHub'
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+PUBLISH_STEP = "  - bash: echo publish\n    displayName: 'Publish the wiki to GitHub'\n"
 
+ON_DEVELOP_ONLY = "    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))\n"
+
+# A step after the publishing one that carries a condition of its own, so a reader that ran past the
+# end of the publishing step would pick up a condition and pass.
+SUMMARY_STEP = """\
   - task: SomeTask@1
-    displayName: 'Mirror Wiki to GitHub'
+    displayName: 'Build Summary'
     inputs:
       script: echo wiki
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+    condition: always()
 """
+
+COMPLIANT = PREAMBLE + JOB + PUBLISH_STEP + ON_DEVELOP_ONLY + "\n" + SUMMARY_STEP
 
 # Steps at column zero and no job: what the guard must report, and a shape its step reader must still
 # read correctly to report only that.
 STEPS_IN_NO_JOB = PREAMBLE + """\
 steps:
 - bash: echo publish
-  displayName: 'Publish Docs to Wiki'
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
-
-- bash: echo mirror
-  displayName: 'Mirror to GitHub'
+  displayName: 'Publish the wiki to GitHub'
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
 
 - task: SomeTask@1
-  displayName: 'Mirror Wiki to GitHub'
+  displayName: 'Build Summary'
   inputs:
     script: echo wiki
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+  condition: always()
 """
 
 
@@ -89,27 +97,51 @@ class CheckBuildFileTests(unittest.TestCase):
 
     def test_a_configuration_blind_to_pull_requests_is_reported(self):
         branch_only = COMPLIANT.replace(
-            "eq(variables['System.PullRequest.TargetBranch'], 'refs/heads/main')), ", '), ')
+            "eq(variables['System.PullRequest.TargetBranch'], 'main')), ", '), ')
 
         self.assertIn('System.PullRequest.TargetBranch', problems(branch_only)[0])
 
-    def test_a_publishing_step_moved_to_main_is_reported(self):
-        on_main = COMPLIANT.replace(
-            "    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))\n\n"
-            "  - bash: echo mirror",
-            "    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))"
-            "\n\n  - bash: echo mirror")
+    def test_a_pull_request_target_compared_in_the_azure_repos_form_is_reported(self):
+        azure_repos_form = COMPLIANT.replace(
+            "eq(variables['System.PullRequest.TargetBranch'], 'main')",
+            "eq(variables['System.PullRequest.TargetBranch'], 'refs/heads/main')")
 
-        self.assertIn('"Publish Docs to Wiki" must run on develop only', problems(on_main)[0])
+        self.assertIn("names a pull request's target as main", problems(azure_repos_form)[0])
+
+    def test_a_build_file_that_builds_no_pull_request_is_reported(self):
+        unbuilt = COMPLIANT.replace(PULL_REQUEST_TRIGGER, 'pr: none\n')
+
+        self.assertIn('the pr block names []', problems(unbuilt)[0])
+
+    def test_a_pull_request_trigger_that_leaves_out_main_is_reported(self):
+        develop_only = COMPLIANT.replace(
+            PULL_REQUEST_TRIGGER, PULL_REQUEST_TRIGGER.replace('      - main\n', ''))
+
+        self.assertIn("the pr block names ['develop']", problems(develop_only)[0])
+
+    def test_a_step_that_pushes_to_the_repository_it_builds_is_reported(self):
+        mirroring = COMPLIANT + (
+            "\n  - bash: git push https://github.com/ReGen-Villages/VillageOS-API.git HEAD:refs/heads/develop\n"
+            "    displayName: 'Mirror to GitHub'\n")
+
+        self.assertIn('pushes to the repository it builds', problems(mirroring)[0])
+
+    def test_pushing_the_wiki_is_not_pushing_the_repository(self):
+        self.assertEqual([], problems(COMPLIANT.replace(
+            'script: echo wiki', 'script: git push https://github.com/ReGen-Villages/VillageOS-API.wiki.git')))
+
+    def test_a_publishing_step_moved_to_main_is_reported(self):
+        on_main = COMPLIANT.replace(ON_DEVELOP_ONLY, ON_DEVELOP_ONLY.replace('refs/heads/develop', 'refs/heads/main'))
+
+        self.assertIn('"Publish the wiki to GitHub" must run on develop only', problems(on_main)[0])
 
     def test_a_publishing_step_widened_to_both_branches_is_reported(self):
         on_both = COMPLIANT.replace(
-            "    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))\n\n"
-            "  - bash: echo mirror",
+            ON_DEVELOP_ONLY,
             "    condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/develop'), "
-            "eq(variables['Build.SourceBranch'], 'refs/heads/main')))\n\n  - bash: echo mirror")
+            "eq(variables['Build.SourceBranch'], 'refs/heads/main')))\n")
 
-        self.assertIn('"Publish Docs to Wiki" must run on develop only', problems(on_both)[0])
+        self.assertIn('"Publish the wiki to GitHub" must run on develop only', problems(on_both)[0])
 
     def test_a_second_push_trigger_is_reported(self):
         twice = COMPLIANT + '\ntrigger:\n  branches:\n    include:\n      - main\n'
@@ -132,12 +164,9 @@ class CheckBuildFileTests(unittest.TestCase):
         self.assertIn('gives buildConfiguration a value', problems(nothing_declared)[0])
 
     def test_a_publishing_step_with_no_condition_at_all_is_reported(self):
-        unconditional = COMPLIANT.replace(
-            "  - bash: echo publish\n    displayName: 'Publish Docs to Wiki'\n"
-            "    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))\n",
-            "  - bash: echo publish\n    displayName: 'Publish Docs to Wiki'\n")
+        unconditional = PREAMBLE + JOB + PUBLISH_STEP + "\n" + SUMMARY_STEP
 
-        self.assertIn('"Publish Docs to Wiki" has no condition', problems(unconditional)[0])
+        self.assertIn('"Publish the wiki to GitHub" has no condition', problems(unconditional)[0])
 
     def test_a_comment_between_the_name_and_its_value_is_read_through(self):
         commented = COMPLIANT.replace(
@@ -146,11 +175,9 @@ class CheckBuildFileTests(unittest.TestCase):
         self.assertEqual([], problems(commented))
 
     def test_the_last_step_in_the_file_having_no_condition_is_reported(self):
-        unconditional = COMPLIANT[:COMPLIANT.index(
-            "    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))\n"
-            "\n  - task: SomeTask@1")] + "\n  - task: SomeTask@1\n    displayName: 'Mirror Wiki to GitHub'\n"
+        unconditional = PREAMBLE + JOB + SUMMARY_STEP + "\n" + PUBLISH_STEP
 
-        self.assertIn('"Mirror Wiki to GitHub" has no condition', problems(unconditional)[-1])
+        self.assertIn('"Publish the wiki to GitHub" has no condition', problems(unconditional)[-1])
 
     def test_a_build_file_whose_steps_sit_in_no_job_is_reported(self):
         reported = problems(STEPS_IN_NO_JOB)
@@ -176,14 +203,14 @@ class CheckBuildFileTests(unittest.TestCase):
 
     def test_a_blank_line_after_a_steps_name_is_read_through(self):
         spaced = COMPLIANT.replace(
-            "    displayName: 'Publish Docs to Wiki'\n", "    displayName: 'Publish Docs to Wiki'\n\n")
+            "    displayName: 'Publish the wiki to GitHub'\n", "    displayName: 'Publish the wiki to GitHub'\n\n")
 
         self.assertEqual([], problems(spaced))
 
     def test_a_publishing_step_that_disappeared_is_reported(self):
-        renamed = COMPLIANT.replace("displayName: 'Mirror Wiki to GitHub'", "displayName: 'Sync wiki'")
+        renamed = COMPLIANT.replace("displayName: 'Publish the wiki to GitHub'", "displayName: 'Sync wiki'")
 
-        self.assertIn('no step named "Mirror Wiki to GitHub"', problems(renamed)[0])
+        self.assertIn('no step named "Publish the wiki to GitHub"', problems(renamed)[0])
 
     def test_a_step_that_packs_a_library_is_reported(self):
         packing = COMPLIANT + (

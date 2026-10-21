@@ -11,7 +11,7 @@ namespace vos.Service.Tributary.Tests;
 //   Empty-string url in the effective properties returns 400 with the documented "non-empty strings" message.
 //   Effective properties exposing url/httpMethod as raw keys (no Endpoint. prefix) route through EffectivePropertyResolver's exact-match branch and complete the happy path.
 // EffectivePropertyResolver itself is unit-tested in
-// Helpers/EffectivePropertyResolverTests.cs; these tests pin the end-to-end
+// vos.Service.Shared.Tests/EffectivePropertyResolverTests.cs; these tests pin the end-to-end
 // integration through Program.cs.
 public class HandleValidationTests
 {

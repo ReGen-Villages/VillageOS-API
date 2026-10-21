@@ -37,7 +37,7 @@ public class PipelineStartTests
     {
         var fixture = TestGraphs.StatePipeline();
         var fx = fixture.Fixture;
-        var watches = fx.Thing("watches", (PipelinePredicates.StateWatchFlag, true));
+        var watches = fx.Playing("watches", PipelineRoles.StateWatch);
         var state = fx.Thing("SubmissionHandled");
         fx.Rel(fx.Get("looseConn"), watches, state);
         var start = fx.Thing("Decided");
@@ -45,11 +45,45 @@ public class PipelineStartTests
         fx.Rel(start, fx.Get("standsFor"), state);
         var drawnFromTheState = fx.Thing("Tell the submitter");
         fx.Rel(drawnFromTheState, fx.Get("is"), fx.Get("Pipeline"));
+        fx.Publish(drawnFromTheState);
         fx.Rel(drawnFromTheState, fx.Get("has"), start);
 
         var resolution = PipelineStart.Resolve(fx.Build(), fixture.LooseConnectionId);
 
         resolution.PipelineId.Should().Be(drawnFromTheState.Id);
+    }
+
+    [Fact]
+    public void A_draft_drawn_from_the_same_connection_is_never_the_one_started()
+    {
+        var fixture = TestGraphs.StatePipeline();
+        var fx = fixture.Fixture;
+        var draftStart = fx.Thing("Arrival, redrawn");
+        fx.Rel(draftStart, fx.Get("is"), fx.Get("PipelineInput"));
+        fx.Rel(draftStart, fx.Get("standsFor"), fx.Get("watchingConn"));
+        var draft = fx.Thing("Drawn from the state, draft");
+        fx.Rel(draft, fx.Get("is"), fx.Get("Pipeline"));
+        fx.Rel(draft, fx.Get("has"), draftStart);
+
+        var withBoth = PipelineStart.Resolve(fx.Build(), fixture.WatchingConnectionId);
+        fx.State(fx.Get("Drawn from the state"), ModelNames.Published, false);
+        var withTheDraftAlone = PipelineStart.Resolve(fx.Build(), fixture.WatchingConnectionId);
+
+        withBoth.PipelineId.Should().Be(fixture.DrawnPipelineId);
+        withTheDraftAlone.Started.Should().BeFalse();
+        withTheDraftAlone.Refusal.Should().Contain("No published pipeline is drawn from 'watchingConn'");
+    }
+
+    [Fact]
+    public void A_target_that_is_a_draft_is_refused_saying_so()
+    {
+        var fixture = TestGraphs.StatePipeline();
+        fixture.Fixture.State(fixture.Fixture.Get("Drawn from the state"), ModelNames.Published, false);
+
+        var resolution = PipelineStart.Resolve(fixture.Fixture.Build(), fixture.DrawnPipelineId);
+
+        resolution.Started.Should().BeFalse();
+        resolution.Refusal.Should().Contain("'Drawn from the state' is a draft");
     }
 
     [Fact]
@@ -61,6 +95,15 @@ public class PipelineStartTests
 
         resolution.Started.Should().BeTrue();
         resolution.PipelineId.Should().Be(fixture.ReachedPipelineId);
+    }
+
+    [Fact]
+    public void A_connection_reaching_only_a_draft_along_the_start_mark_starts_nothing()
+    {
+        var fixture = TestGraphs.StatePipeline();
+        fixture.Fixture.State(fixture.Fixture.Get("Reached along the start mark"), ModelNames.Published, false);
+
+        PipelineStart.Resolve(fixture.Fixture.Build(), fixture.ReachingConnectionId).Started.Should().BeFalse();
     }
 
     // The drawing is the binding the page writes; the start mark is a model's own direct binding. Where a
@@ -86,7 +129,7 @@ public class PipelineStartTests
 
         resolution.Started.Should().BeFalse();
         resolution.PipelineId.Should().BeNull();
-        resolution.Refusal.Should().Contain("looseConn").And.Contain("No pipeline is drawn from");
+        resolution.Refusal.Should().Contain("looseConn").And.Contain("No published pipeline is drawn from");
     }
 
     [Fact]

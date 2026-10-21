@@ -44,6 +44,6 @@ Reference material for engineers building or hosting services. Denser by design.
 | [../deploy/TUNNEL.md](../deploy/TUNNEL.md) | Reaching a deployment on a machine with no public address: what the Cloudflare account holder sets up, written for someone with no prior Cloudflare knowledge. |
 
 > These files are also published to the
-> [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki), which is
+> [VillageOS API Wiki](https://github.com/ReGen-Villages/VillageOS-API/wiki), which is
 > generated from them on every build of `develop`. Edit the file here; a page edited in the wiki
 > browser is overwritten by the next build. See [tools/docs-to-wiki](../tools/docs-to-wiki/).

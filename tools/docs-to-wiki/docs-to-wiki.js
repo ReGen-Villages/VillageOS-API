@@ -121,7 +121,7 @@ function pageFileName(pagePath) {
 }
 
 function repoFileUrl(wiki, repoRelativePath) {
-  return `${wiki.organisation}/${wiki.project}/_git/${wiki.repository}?path=/${repoRelativePath}`;
+  return `${wiki.repositoryFileAddress}${repoRelativePath}`;
 }
 
 /** A document nobody decided about is how a wiki starts falling behind, so the generator refuses to
@@ -196,7 +196,7 @@ function generate(repoRoot, manifestPath, outputDirectory) {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   // Without this the run succeeds and publishes pages whose banner names the "undefined"
   // repository, which is harder to recognise than a manifest that would not load.
-  for (const field of ['organisation', 'project', 'repository', 'name']) {
+  for (const field of ['organisation', 'project', 'repository', 'repositoryFileAddress', 'name']) {
     if (!manifest.wiki?.[field]) throw new Error(`${manifestPath} has no wiki.${field}`);
   }
 

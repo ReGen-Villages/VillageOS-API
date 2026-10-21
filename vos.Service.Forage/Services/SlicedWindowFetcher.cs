@@ -18,17 +18,24 @@ public sealed class SlicedWindowFetcher : ISourceFetcher
 {
     private const string DateFormat = "yyyy-MM-dd";
 
+    public const int MostAttemptsAtOneSlice = 3;
+    // A waiting slice holds one of the few sources a run fetches at once, so a longer wait is left to the next pass.
+    public static readonly TimeSpan LongestWaitForARefusedSlice = TimeSpan.FromMinutes(5);
+
     private readonly ISourceFetcher _inner;
     private readonly int _daysPerSlice;
+    private readonly TimeProvider _clock;
     private readonly ILogger<SlicedWindowFetcher> _logger;
 
-    public SlicedWindowFetcher(ISourceFetcher inner, int daysPerSlice, ILogger<SlicedWindowFetcher> logger)
+    public SlicedWindowFetcher(
+        ISourceFetcher inner, int daysPerSlice, TimeProvider clock, ILogger<SlicedWindowFetcher> logger)
     {
         if (daysPerSlice <= 0)
             throw new ArgumentOutOfRangeException(nameof(daysPerSlice), "A slice covers at least one day");
 
         _inner = inner;
         _daysPerSlice = daysPerSlice;
+        _clock = clock;
         _logger = logger;
     }
 
@@ -49,11 +56,11 @@ public sealed class SlicedWindowFetcher : ISourceFetcher
         var written = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var (start, end) in slices)
         {
-            var outcome = await _inner.FetchAsync(
+            var outcome = await FetchSliceAsync(
                 subjectId, sourceName, endpointName, With(addressParameters, start, end), cancellationToken);
 
-            // The first slice that fails ends the fetch: the rest would ask the same provider for the
-            // same reason to refuse, and a source half written is reported unresolved either way.
+            // The first slice that still fails ends the fetch: the rest would ask the same provider for
+            // the same reason to refuse, and a source half written is reported unresolved either way.
             if (!outcome.Resolved)
                 return outcome with
                 {
@@ -67,6 +74,29 @@ public sealed class SlicedWindowFetcher : ISourceFetcher
         }
 
         return new SourceOutcome(sourceName, true, null, SubjectId: subjectId, Written: written);
+    }
+
+    // A provider limiting requests per minute refuses a long reach near its end, and the next pass would ask for the whole reach again and be refused at the same slice.
+    private async Task<SourceOutcome> FetchSliceAsync(
+        Guid subjectId,
+        string sourceName,
+        string endpointName,
+        IReadOnlyDictionary<string, string> sliceParameters,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            var outcome = await _inner.FetchAsync(subjectId, sourceName, endpointName, sliceParameters, cancellationToken);
+            if (outcome.RetryAfter is not { } wait
+                || wait > LongestWaitForARefusedSlice
+                || attempt == MostAttemptsAtOneSlice)
+                return outcome;
+
+            _logger.LogInformation(
+                "Source {Source} refused a slice for {Subject} for too many requests; asking again in {Seconds} seconds",
+                sourceName, subjectId, wait.TotalSeconds);
+            await Task.Delay(wait, _clock, cancellationToken);
+        }
     }
 
     // Null where the call carries no window, or one this deployment can take in a single pass.

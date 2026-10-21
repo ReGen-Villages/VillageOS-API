@@ -1,18 +1,19 @@
 import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { modelApi } from '../api/modelApi';
-import { PipelineModel, ARCHETYPE_FLAG, PREDICATE_FLAG, type PortInformation } from './model';
+import { PipelineModel, ROLE, type PortInformation } from './model';
 import type { VosTypeName } from '../utils/constants';
 import i18n from '../i18n';
 
 // Persist / read a pipeline as Things + relationships: the editor only creates, reads, updates and
 // deletes through thingApi / relationshipApi. Save shape mirrors the seed — node -has-> connection, and a
-// wire is a relationship through the predicate the model marks as holding wires, carrying fromPort/toPort.
-// Every archetype an `is` relationship is written to is the one the model marks with that role, never one
-// this file names. Node canvas position round-trips as x/y properties on the node Thing.
+// wire is a relationship through the predicate of the archetype the model binds to the wire role, carrying
+// fromPort/toPort. Every archetype an `is` relationship is written to is the one the model binds to that role,
+// never one this file names. Node canvas position round-trips as x/y properties on the node Thing.
 
 const DOUBLE: VosTypeName = 'vos.Double';
 const STRING: VosTypeName = 'vos.String';
+const BOOLEAN: VosTypeName = 'vos.Boolean';
 const env = (typeInfo: VosTypeName, value: unknown) => ({ typeInfo, value });
 
 export interface EditorNode {
@@ -22,13 +23,13 @@ export interface EditorNode {
   x: number;
   y: number;
   ports: PortInformation[];
-  /** Input-port name → run-param key. Persisted as a JSON `paramBindings` property on the node. */
-  paramBindings?: Record<string, string>;
+  /** Input-port name → run-parameter key. Persisted as a JSON `parameterBindings` property on the node. */
+  parameterBindings?: Record<string, string>;
   /** Boundary node: 'input' (a param source) or 'output' (the run's result sink). A boundary node
    * binds no connection — its `ports` are user-declared and persisted as its own port child-Things. */
   kind?: 'input' | 'output';
   /** The Thing a boundary node stands for — its catalyst at the start, its outcome at the end — written
-   * as a relationship through the predicate the model marks for it. */
+   * as a relationship through the predicate the model binds to that role. */
   standsForId?: string;
 }
 
@@ -80,12 +81,12 @@ export async function savePipeline(
   const isId = model.predicateIdByName('is');
   const hasId = model.predicateIdByName('has');
   const wireId = model.wirePredicateId();
-  const pipelineArchetype = model.archetypeCarrying(ARCHETYPE_FLAG.Pipeline);
-  const nodeArchetype = model.archetypeCarrying(ARCHETYPE_FLAG.PipelineNode);
+  const pipelineArchetype = model.boundTo(ROLE.Pipeline);
+  const nodeArchetype = model.boundTo(ROLE.PipelineNode);
   // A wire is written as a Thing of the wire archetype, pointing at its target through the wire predicate,
   // so a save needs both — the archetype to say what the Thing is, the predicate to say where it goes.
-  const wireArchetype = model.archetypeCarrying(ARCHETYPE_FLAG.PipelineWire);
-  // The refusal names what is missing rather than every mark at once, which sent the reader after five
+  const wireArchetype = model.boundTo(ROLE.PipelineWire);
+  // The refusal names what is missing rather than every declaration at once, which sent the reader after five
   // things when one was absent. The six checks are what narrow each to a string below.
   if (!isId || !hasId || !wireId || !wireArchetype || !pipelineArchetype || !nodeArchetype) {
     const found: Record<PipelineDeclaration, string | undefined> = {
@@ -93,17 +94,17 @@ export async function savePipeline(
     };
     const missing = PIPELINE_DECLARATIONS.filter((declaration) => !found[declaration])
       .map((declaration) => i18n.t(`pipeline.declarations.${declaration}`));
-    throw new Error(i18n.t('pipeline.noPipelineMarks', { missing: missing.join(', ') }));
+    throw new Error(i18n.t('pipeline.noPipelineDeclarations', { missing: missing.join(', ') }));
   }
 
-  const portArchetype = model.archetypeCarrying(ARCHETYPE_FLAG.Port);
+  const portArchetype = model.boundTo(ROLE.Port);
   const boundaryArchetype = (kind: 'input' | 'output') =>
-    model.archetypeCarrying(kind === 'input' ? ARCHETYPE_FLAG.PipelineInput : ARCHETYPE_FLAG.PipelineOutput);
+    model.boundTo(kind === 'input' ? ROLE.PipelineInput : ROLE.PipelineOutput);
   if (nodes.some((n) => n.kind) && (!portArchetype || !boundaryArchetype('input') || !boundaryArchetype('output')))
-    throw new Error(i18n.t('pipeline.noPortMarks'));
-  const standsForId = model.predicateCarrying(PREDICATE_FLAG.StandsFor);
+    throw new Error(i18n.t('pipeline.noPortRoles'));
+  const standsForId = model.boundTo(ROLE.StandsFor);
   if (nodes.some((n) => n.standsForId) && !standsForId)
-    throw new Error(i18n.t('pipeline.noStandsForMark'));
+    throw new Error(i18n.t('pipeline.noStandsForRole'));
 
   const pipelineId = existingPipelineId ?? crypto.randomUUID();
 
@@ -111,10 +112,11 @@ export async function savePipeline(
   // the whole Thing graph can ride one id-keyed fragment upsert (create + update in place, no dupes).
   const nodeThingId = new Map<string, string>();
   for (const n of nodes)
-    nodeThingId.set(n.id, model.isOfArchetypeCarrying(n.id, ARCHETYPE_FLAG.PipelineNode) ? n.id : crypto.randomUUID());
+    nodeThingId.set(n.id, model.isOf(n.id, ROLE.PipelineNode) ? n.id : crypto.randomUUID());
 
   const things: Array<{ Id: string; Name: string; Properties: Record<string, unknown> }> = [
-    { Id: pipelineId, Name: name, Properties: {} },
+    // Every pipeline the page saves is live until drafts and Publish reach the page.
+    { Id: pipelineId, Name: name, Properties: { published: env(BOOLEAN, true) } },
   ];
   const relationships: Array<{ Name: string; Subject: string; Predicate: string; Target: string }> = [
     { Name: 'is', Subject: pipelineId, Predicate: isId, Target: pipelineArchetype },
@@ -126,17 +128,17 @@ export async function savePipeline(
   for (const n of nodes) {
     const thingId = nodeThingId.get(n.id)!;
     const props: Record<string, unknown> = { x: env(DOUBLE, n.x), y: env(DOUBLE, n.y) };
-    if (n.paramBindings && Object.keys(n.paramBindings).length > 0)
-      props.paramBindings = env(STRING, JSON.stringify(n.paramBindings));
+    if (n.parameterBindings && Object.keys(n.parameterBindings).length > 0)
+      props.parameterBindings = env(STRING, JSON.stringify(n.parameterBindings));
     things.push({ Id: thingId, Name: n.label, Properties: props });
-    // Boundary nodes are pipeline nodes too (so the run + editor pick them up), plus the archetype marked
+    // Boundary nodes are pipeline nodes too (so the run + editor pick them up), plus the archetype bound
     // as the pipeline's input or its output, which is what makes one a param source or a result sink.
     relationships.push({ Name: 'is', Subject: thingId, Predicate: isId, Target: nodeArchetype });
     relationships.push({ Name: 'has', Subject: pipelineId, Predicate: hasId, Target: thingId });
 
     if (n.kind) {
       relationships.push({ Name: 'is', Subject: thingId, Predicate: isId, Target: boundaryArchetype(n.kind)! });
-      // Declared ports become child-Things under the archetype marked as holding ports. Reuse a persisted
+      // Declared ports become child-Things under the archetype bound as holding ports. Reuse a persisted
       // port's id when the name matches (idempotent update); a port no longer declared is retracted.
       const persisted = new Map(model.boundaryPortRelationships(n.id).map((r) => [r.port.portName, r.portId]));
       for (const p of n.ports) {
@@ -176,7 +178,7 @@ export async function savePipeline(
   const desiredKeys = new Set(desired.map((w) => wireKey(w.from, w.fp, w.to, w.tp)));
 
   const persistedNodeIds = existingPipelineId
-    ? model.outgoing(existingPipelineId, 'has').filter((t) => model.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.PipelineNode)).map((t) => t.Id)
+    ? model.outgoing(existingPipelineId, 'has').filter((t) => model.isOf(t.Id, ROLE.PipelineNode)).map((t) => t.Id)
     : [];
   const persistedWires = persistedNodeIds.flatMap((nid) =>
     model.outgoingWires(nid).map((w) => ({ ...w, key: wireKey(nid, w.fromPort, w.targetId, w.toPort) })));
@@ -230,7 +232,7 @@ export async function savePipeline(
   return { pipelineId, nodeIdMap: Object.fromEntries(nodeThingId) };
 }
 
-/** Parse a node's persisted `paramBindings` JSON property (input-port → run-param key); tolerant of junk. */
+/** Parse a node's persisted `parameterBindings` JSON property (input-port → run-parameter key); tolerant of junk. */
 function parseParameterBindings(raw: unknown): Record<string, string> | undefined {
   if (typeof raw !== 'string' || raw.trim() === '') return undefined;
   try {
@@ -246,10 +248,10 @@ function parseParameterBindings(raw: unknown): Record<string, string> | undefine
 
 export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPipeline | null {
   const pipe = model.thing(pipelineId);
-  if (!pipe || !model.isOfArchetypeCarrying(pipelineId, ARCHETYPE_FLAG.Pipeline)) return null;
+  if (!pipe || !model.isOf(pipelineId, ROLE.Pipeline)) return null;
 
   const connectionsById = new Map(model.connections().map((c) => [c.connectionId, c]));
-  const nodeThings = model.outgoing(pipelineId, 'has').filter((t) => model.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.PipelineNode));
+  const nodeThings = model.outgoing(pipelineId, 'has').filter((t) => model.isOf(t.Id, ROLE.PipelineNode));
   const nodeIds = new Set(nodeThings.map((t) => t.Id));
 
   const nodes: EditorNode[] = nodeThings.map((t, i) => {
@@ -259,7 +261,7 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
       label: t.Name,
       x: Number(stated.x ?? i * 280),
       y: Number(stated.y ?? 80),
-      paramBindings: parseParameterBindings(stated.paramBindings),
+      parameterBindings: parseParameterBindings(stated.parameterBindings),
     };
     // Boundary node: its ports are declared on the node itself, and it binds no connection.
     const kind = model.boundaryKind(t.Id);
@@ -268,7 +270,7 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
       return { ...base, kind, connectionId: '', ports: model.boundaryPortRelationships(t.Id).map((r) => r.port), ...(stood ? { standsForId: stood.thingId } : {}) };
     }
 
-    const conn = model.outgoing(t.Id, 'has').find((c) => model.isOfArchetypeCarrying(c.Id, ARCHETYPE_FLAG.Connection));
+    const conn = model.outgoing(t.Id, 'has').find((c) => model.isOf(c.Id, ROLE.Connection));
     return { ...base, connectionId: conn?.Id ?? '', ports: conn ? connectionsById.get(conn.Id)?.ports ?? [] : [] };
   });
 

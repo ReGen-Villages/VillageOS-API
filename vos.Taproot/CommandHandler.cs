@@ -117,8 +117,8 @@ namespace vos.Taproot
             _writer.WriteLine();
             _writer.WriteLine("Pipelines:");
             _writer.WriteLine("  pipeline list                               - Every pipeline the model holds");
-            _writer.WriteLine("  pipeline run <pipeline> [json params] [--wait] - Start a run; --wait prints the per-node result");
-            _writer.WriteLine("  pipeline cancel <run-id>                    - Ask a running pipeline to stop");
+            _writer.WriteLine("  pipeline run <pipeline> [json parameters] [--wait] - Start a run; --wait prints the per-node result");
+            _writer.WriteLine("  pipeline cancel <run-id> [reason]           - Ask a running, waiting or trying pipeline to stop");
             _writer.WriteLine("  pipeline history <pipeline>                 - The runs of a pipeline, newest first");
             _writer.WriteLine();
             _writer.WriteLine("Mycelium:");

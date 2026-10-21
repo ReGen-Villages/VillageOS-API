@@ -268,7 +268,7 @@ before the questions.
 - **The report is a grid of tiles.** Each section of the submission dashboard that names a theme the
   model declares is a tile faced in the theme's colour and icon; its figures show on hover or focus,
   a click opens its charts as a gallery, and a card opens full width. A section naming no theme
-  draws as a list, so the same spec serves the findings page. See
+  draws as a list, so the same specification serves the findings page. See
   [the Field Guide](FIELD_GUIDE.md#94-tiles-and-what-a-page-is-sent).
 - **The only questions are a name for the land, the person's name, and the mailbox** — the same
   verification exchange as the wizard, and nothing else. The programme starts from the default share
@@ -342,8 +342,8 @@ the work.
     ]
   },
   "allocations": [                            // shares are taken as given and normalised later
-    { "category": "residential", "sharePct": 22 },
-    { "category": "food-and-agriculture", "sharePct": 34 }
+    { "category": "residential", "sharePercent": 22 },
+    { "category": "food-and-agriculture", "sharePercent": 34 }
     // …one entry per category, each naming a category only once
   ],
   "hazards": [                                // no level here: that is read from the source
@@ -361,7 +361,7 @@ the work.
 ```
 
 **An allocation carries a share and nothing else.** The shared analysis declares
-`allocatedAreaHectares` and `normalisedSharePct` as formulas on the allocation itself, computed from its
+`allocatedAreaHectares` and `normalisedSharePercent` as formulas on the allocation itself, computed from its
 own share and the parcel its site holds, so a submitted area is a second answer to a question the model
 already answers — and writing one would fail the whole fragment, since a derived property refuses every
 value write. The wire therefore does not take one, and a caller that sends it is told which field by
@@ -686,7 +686,7 @@ A dispatched relationship names the study; the service answers with what it comp
   "subjectId": "…",   // the study             "outputs": {
   "targetId":  "…",                              "solarGenerationMwhPerYear": 1180.4,
   "properties": { }                              "totalGenerationMwhPerYear": 1380.4,
-}                                                "pctOfConsumption": 104.2,
+}                                                "percentOfConsumption": 104.2,
                                                  "netPositive": true
                                                }
                                              }
@@ -838,7 +838,7 @@ Using a synthetic example throughout — **Willow Bend**, a fictional 24-hectare
 | | `householdSize` | 2.4 | Fact |
 | | `solarResourceKwhPerM2PerYear` | 1750 | **Observation** — discovered |
 | | `rainfallMillimetresPerYear` | 700 | **Observation** — discovered |
-| Willow Bend Site Study *(SiteStudy)* | `pctOfConsumption` | 90.7 | Derived — the model computes it, and `EnergyShortOfTarget` judges it |
+| Willow Bend Site Study *(SiteStudy)* | `percentOfConsumption` | 90.7 | Derived — the model computes it, and `EnergyShortOfTarget` judges it |
 | Parcel-01 *(Parcel)* | `boundary` | GeoJSON polygon | Fact |
 | | `measuredAreaHectares` | 23.4 | Fact |
 | | `obtainedBy` → `drawn-by-hand` | a relationship to the Thing | Relationship — the only place it is recorded |
@@ -857,7 +857,7 @@ Each computed output is **declared on the study with its type and no value** unt
 A seeded zero cannot be told from a real result, and a range reading it would report a verdict
 about an analysis that never ran.
 
-**`pctOfConsumption` is answered in one place.** The shared `SiteStudy` archetype declares the formula
+**`percentOfConsumption` is answered in one place.** The shared `SiteStudy` archetype declares the formula
 for it, the model computes it, and that archetype's `EnergyNetPositive` range reads it. A submission's
 study declares no computed output of its own — it `is` the archetype and inherits every one, so there is
 one place the name is answered rather than two that can disagree.
@@ -887,7 +887,8 @@ Two footprints are reduced from those shares, because several figures need them 
 defined in exactly one place:
 
 - **Built footprint** = residential + commercial + mobility = **8.88 ha** — the hard surface that
-  sheds rainwater.
+  sheds rainwater. Once the building model holds roofs, the built footprint is their area instead, and
+  the land set aside for building is reported against it as `builtFootprintDivergencePercent`.
 - **Productive footprint** = food and agriculture = **8.16 ha** — the land that grows food.
 
 Which categories roll into which footprint is **a flag each category carries in the model**, not a list
@@ -920,7 +921,7 @@ times energy per person until somebody states a figure or the model holds occupi
 of energy ranges judges the balance throughout. The estimate stays on the study as
 `estimatedArrayAreaM2`, sized on the categories marked `__IsArrayHostCategory` (residential, in the
 shipped programme) at the `arrayCoverageFraction` the shared study declares, and is reported against
-the measured area as `arrayAreaDivergencePct`.
+the measured area as `arrayAreaDivergencePercent`.
 
 ### What the land could support
 
@@ -929,23 +930,25 @@ carrying only a boundary get a first answer: **people fed** (the growing land ti
 **people watered** (the harvest divided by what one person drinks in a year), and **people powered**
 (the generation the balance reads — the estimate until a building model arrives — divided by what one
 person consumes). For Willow Bend they come to about
-20, 900 and 290 people — the growing land is the binding constraint, which is itself the finding.
+21, 900 and 290 people — the growing land is the binding constraint, which is itself the finding.
 The submitter dashboard leads with them, and a population dialled in afterwards is what turns the
 percentages and the demand coverages from *not assessed* into verdicts.
 
 ### Food
 
 ```text
-  People fed       = 8.16 ha × 2.5 people/ha/yr                   = 20.4 people
-  Population fed   = 20.4 ÷ 320                                   = 6.4%
+  People fed       = 8.16 ha × 2.5 people/ha/yr × 1.04            = 21.2 people
+  Population fed   = 21.2 ÷ 320                                   = 6.6%
 ```
 
 The yield is a baseline times a factor for the climate. `peopleFedPerHectareBaseline` on the shared
 study archetype is 2.5: regenerative mixed farming producing a full diet supports roughly two to three
 people per hectare. Each climate zone Thing carries a `peopleFedMultiplier`, and the study multiplies
 the baseline by the multiplier of the zone its site is classified as. Willow Bend is `Csa`, whose
-multiplier is 1.0. Correcting the baseline moves the answer for every study; a site whose zone carries
-no multiplier, or which has no zone yet, reads as not assessed.
+multiplier is 1.04. Every class the shared template declares carries one; the Field Guide's
+[Appendix D](FIELD_GUIDE.md#appendix-d--how-every-site-figure-is-worked-out) gives each class's factor
+and where it comes from. Correcting the baseline moves the answer for every study; a site with no zone
+yet, or in a zone a project adds without a multiplier, reads as not assessed.
 
 Two lines of arithmetic, and both are declared on the study rather than run by a service. The result
 still carries which yield assumption produced it and which parcel area it read, and still moves on its
@@ -953,7 +956,7 @@ own when either changes — that is what a declared formula gives, without an ex
 number worked out in a page carries neither.
 
 Neither figure is rounded where it is computed. People fed is conceptually a whole number, but rounding
-20.4 to 20 leaves it disagreeing with the 6.4% worked out from it, so the rounding belongs where the two
+21.2 to 21 leaves it disagreeing with the 6.6% worked out from it, so the rounding belongs where the two
 are displayed together.
 
 > Yield-per-hectare is a coarse abstraction that hides crop mix, climate and diet. That is fine for
@@ -1055,7 +1058,9 @@ platform model carries; a word the vocabulary does not hold writes no
 relationship and is reported, and either way the word stays on the series as the record of what the portal
 answered. A division the
 portal holds no data about for a hazard is answered 404, so nothing is written and that hazard stays
-honestly unassessed. A site that carries no division code and whose position resolved to none has every
+honestly unassessed. The proxy in front of the portal answers 404 too while the portal restarts; that
+one is refused rather than taken as an answer, and the grading is asked again on the next run. A site
+that carries no division code and whose position resolved to none has every
 hazard call refused before the provider is contacted and reported with the unfilled placeholder named —
 the model gap said out loud, not an outage invented for the portal.
 
@@ -1280,7 +1285,7 @@ sequenceDiagram
   LI-->>S: a ticket, signed against that address
   S->>LI: POST /submissions/findings { submissionId, emailAddress }<br/>X-Submission-Ticket: …
   LI->>M: the address this reference names
-  LI->>M: the site this reference names, and what the page's own spec walks
+  LI->>M: the site this reference names, and what the page's own specification walks
   LI-->>S: the page to draw, and the reading to draw it from
 ```
 
@@ -1291,14 +1296,14 @@ to whoever tried one.
 **Three things decide what may travel, and all three are the model's.** Which page a submitter may read
 is the Thing marked `__IsSubmitterFindingsDashboard`; what never leaves the model is whatever `is` the
 archetype marked `__IsPersonalDetailArchetype`, dropped whatever walk reached it rather than by trusting
-that no walk does; and the relationships the reading follows are the ones that page's own spec walks. A model
+that no walk does; and the relationships the reading follows are the ones that page's own specification walks. A model
 missing either mark is a deployment that was never seeded for this, answered `503` as an unseeded model
 is — not `200` with a page drawn from a reading nothing was filtered out of.
 
 **The walk is rooted at one site.** A selector naming the archetypes instead would answer with every
 Thing of that kind, which in a staging model is every other submitter's land.
 
-**The page is the model's own dashboard, not a second telling of it.** It renders the same spec, through
+**The page is the model's own dashboard, not a second telling of it.** It renders the same specification, through
 the same resolver and the same widgets the signed-in page uses, so a figure added to that dashboard
 appears for the submitter with no code change, and a balance nobody assessed reads as *not assessed* in
 the same words on both. That works because the resolver opens no connection of its own: see
@@ -1390,7 +1395,7 @@ Most of land intake is the platform's general machinery, pointed at land by data
 | Fetching outside data as configuration, reshaping it, ingesting onto a Thing | Tributary |
 | Validating and registering data sources | Delta |
 | Working out which sources cover a site, calling each, and starting the analysis from what resolved | Forage |
-| Rendering a report from a spec stored in the model | The dashboard pages |
+| Rendering a report from a specification stored in the model | The dashboard pages |
 | Posting a whole submission in one idempotent call | Fragments |
 | Authentication, model isolation, service supervision | Mycelium |
 | Composing a submission into the model's own shape | `vos.Service.Intake` |
@@ -1398,7 +1403,7 @@ Most of land intake is the platform's general machinery, pointed at land by data
 | Anonymous submission: rate limits, size caps, field bounds, a verified address | `vos.Service.Intake`, guarded as [§9](#what-guards-the-route) describes |
 | The public form, the findings page and the plot-first page | A build of their own from `vos.Trellis`, drawn from the intake service because they hold no credential to read the model with — see [§9](#where-the-form-lives) |
 | The parcel boundary at a clicked position, and a place search, answered to a page with no credential | `POST /submissions/parcel-at-position` and `POST /submissions/place-search`, from the registrations marked in the model |
-| Land-intake archetypes, registrations, compute connections, dashboard spec | Data in the platform's templates, not code |
+| Land-intake archetypes, registrations, compute connections, dashboard specification | Data in the platform's templates, not code |
 
 The one message the intake service sends is the verification code. A reviewer's decision is recorded
 in the model and is not mailed to the submitter. A submitter reads their findings with the mailbox

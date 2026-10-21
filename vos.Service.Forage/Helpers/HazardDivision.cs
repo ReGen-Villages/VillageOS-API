@@ -1,10 +1,13 @@
+using System.Globalization;
+using System.Text;
 using System.Text.Json;
 
 namespace vos.Service.Forage.Helpers;
 
-// What a reverse geocoder answered about a position: the country the land is in, and the names it gave
-// for the area around it, finest first.
-public sealed record GeocodedPosition(string Country, IReadOnlyList<string> AreaNames);
+// What a reverse geocoder answered about a position: the country the land is in, the names it gave for
+// the area around it, finest first, and the standard's codes for the region and the country, finest first.
+public sealed record GeocodedPosition(
+    string Country, IReadOnlyList<string> AreaNames, IReadOnlyList<string> StandardCodes);
 
 // One division the hazard portal holds, as its search answers it: the code every route it serves is
 // addressed with, and the levels the division sits under from the country down.
@@ -33,6 +36,11 @@ public static class HazardDivision
     // state it also gave is a division the portal does hold.
     private static readonly string[] GeocodedAreaFields = ["county", "state"];
 
+    // A region's code is answered under the standard's level number, `ISO3166-2-lvl4` for a Polish
+    // voivodeship, and a finer region under a higher one. The country's two letters arrive in lower case.
+    private const string GeocodedRegionCodeFieldPrefix = "ISO3166-2-lvl";
+    private const string GeocodedCountryCodeField = "country_code";
+
     private const string SearchResultsField = "data";
     private const string SearchCodeField = "code";
 
@@ -56,7 +64,23 @@ public static class HazardDivision
             .OfType<string>()
             .ToList();
 
-        return areaNames.Count == 0 ? null : new GeocodedPosition(country, areaNames);
+        return areaNames.Count == 0 ? null : new GeocodedPosition(country, areaNames, StandardCodesIn(address));
+    }
+
+    private static List<string> StandardCodesIn(JsonElement address)
+    {
+        var codes = address.EnumerateObject()
+            .Where(field => field.Name.StartsWith(GeocodedRegionCodeFieldPrefix, StringComparison.Ordinal))
+            .Select(field => (
+                Level: int.TryParse(field.Name[GeocodedRegionCodeFieldPrefix.Length..], out var level) ? level : -1,
+                Code: TextIn(address, field.Name)))
+            .Where(region => region.Level >= 0 && region.Code is not null)
+            .OrderByDescending(region => region.Level)
+            .Select(region => region.Code!)
+            .ToList();
+
+        if (TextIn(address, GeocodedCountryCodeField) is { } country) codes.Add(country.ToUpperInvariant());
+        return codes;
     }
 
     // Every division the search answered, in the order it gave them. An entry naming no code or no
@@ -90,19 +114,72 @@ public static class HazardDivision
         return divisions;
     }
 
+    // A word shorter than this is an article or a preposition more often than a name, and the portal
+    // answers every division whose name contains the text searched.
+    private const int ShortestWordSearched = 4;
+
+    // Everything the portal is searched by, in order: for each level, finest first, the English name, the
+    // local name, then each word of either. Whole names first because a word finds more; the local name's
+    // words before the English name's because the portal holds a division under its own name.
+    public static IReadOnlyList<string> SearchTermsFor(
+        IReadOnlyList<string> englishNames, IReadOnlyList<string> localNames)
+    {
+        var terms = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void Add(string term)
+        {
+            if (seen.Add(WithoutDiacritics(term))) terms.Add(term);
+        }
+
+        for (var level = 0; level < Math.Max(englishNames.Count, localNames.Count); level++)
+        {
+            var english = level < englishNames.Count ? englishNames[level] : null;
+            var local = level < localNames.Count ? localNames[level] : null;
+            if (english is not null) Add(english);
+            if (local is not null) Add(local);
+
+            foreach (var name in new[] { local, english })
+                foreach (var word in (name ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                    if (word.Length >= ShortestWordSearched) Add(word);
+        }
+
+        return terms;
+    }
+
     // A search for one name answers every division of that name in every country — `Santarem` answers one
     // in Portugal and two in Brazil — so the country is what tells the site's land from somewhere else's.
-    // Two divisions standing equally deep are a tie nothing here can settle, and a guessed division reads
-    // exactly like a resolved one, so neither is taken.
-    public static PortalDivision? FinestIn(IReadOnlyList<PortalDivision> divisions, string country)
+    // And it answers every division whose name contains the text: `mazowieckie` answers Mazowieckie and
+    // the district Wysokie Mazowieckie in another voivodeship, so only a division named exactly what was
+    // searched is a candidate. Two standing equally deep are a tie nothing here can settle, and a guessed
+    // division reads exactly like a resolved one, so neither is taken.
+    public static PortalDivision? FinestIn(IReadOnlyList<PortalDivision> divisions, string country, string searched)
     {
-        var inCountry = divisions.Where(division => NamesTheSameCountry(division.Country, country)).ToList();
-        if (inCountry.Count == 0) return null;
+        var named = divisions
+            .Where(division => NamesTheSameCountry(division.Country, country))
+            .Where(division => NamesTheSame(division.Levels[^1], searched))
+            .ToList();
+        if (named.Count == 0) return null;
 
-        var deepest = inCountry.Max(division => division.Levels.Count);
-        var finest = inCountry.Where(division => division.Levels.Count == deepest).ToList();
+        var deepest = named.Max(division => division.Levels.Count);
+        var finest = named.Where(division => division.Levels.Count == deepest).ToList();
 
         return finest.Count == 1 ? finest[0] : null;
+    }
+
+    // The portal writes every name without its accents and the geocoder keeps them even in English:
+    // `Santarém` against `Santarem`. The portal's own search already matches the two.
+    private static bool NamesTheSame(string held, string searched) =>
+        string.Equals(WithoutDiacritics(held), WithoutDiacritics(searched), StringComparison.OrdinalIgnoreCase);
+
+    private static string WithoutDiacritics(string name)
+    {
+        var decomposed = name.Normalize(NormalizationForm.FormD);
+        var letters = new StringBuilder(decomposed.Length);
+        foreach (var character in decomposed)
+            if (CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
+                letters.Append(character);
+        return letters.ToString();
     }
 
     // One name starting with the other, because the two providers do not agree on a country's full name:
