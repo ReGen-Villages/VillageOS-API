@@ -85,6 +85,8 @@ PREDICATE_ROLE = {
     "about": "runSubject",
     "offers": "choice",
     "produced": "producedThing",
+    "inputConnector": "inputConnector",
+    "outputConnector": "outputConnector",
 }
 
 # The three roots every archetype sits under: what a model sets up, what then happens there, and what a
@@ -141,8 +143,7 @@ class Kit:
         return tid
 
     def rel(self, subject, predicate, target, properties=None):
-        key = (subject, predicate, target,
-               _prop(properties, "fromPort"), _prop(properties, "toPort"), _prop(properties, "toPath"))
+        key = (subject, predicate, target)
         if key not in self.rels:
             name = f"{self._name.get(subject, '?')} {self._name.get(predicate, '?')} {self._name.get(target, '?')}"
             self.rels[key] = {
@@ -178,10 +179,9 @@ class Kit:
         return self.bind(ARCHETYPE_ROLE[role], tid)
 
 
-def _prop(properties, name):
-    """A property's raw value out of the typed envelope (for building a dedup key); '' when absent."""
-    entry = (properties or {}).get(name)
-    return entry["value"] if isinstance(entry, dict) else ""
+def port_of(port_ids, node_id, service_id, name, direction):
+    """A port the node holds itself wins over its service's, as the orchestrator lists a node's own ports first."""
+    return port_ids.get((node_id, name, direction)) or port_ids[(service_id, name, direction)]
 
 
 def build():
@@ -198,6 +198,8 @@ def build():
     arrives_at = k.predicate("arrivesAt")
     stands_for = k.predicate("standsFor")
     offers = k.predicate("offers")
+    input_connector = k.predicate("inputConnector")
+    output_connector = k.predicate("outputConnector")
     # Declared for the orchestrator, which relates a run to its subject and a node run to each Thing the node
     # produced.
     k.predicate("about")
@@ -218,7 +220,7 @@ def build():
     SentMessage = k.archetype("SentMessage")
     Cadence = k.archetype("Cadence")
 
-    k.rel(carries, is_, PipelineWire)          # wires are the `carries` predicate, identified by this archetype
+    k.rel(carries, is_, PipelineWire)          # a wire Thing reaches the node it feeds along `carries`
     # Every service's connection is a door reached over HTTP at its subdomain, which is what makes it a catalyst
     # the Pipelines page lists; a system's told-through connection is written along instead. The trigger is a
     # Thing the connection relates to, as the platform reads it.
@@ -227,8 +229,11 @@ def build():
     k.rel(PipelineInput, is_, PipelineNode)  # boundary nodes are pipeline nodes too
     k.rel(PipelineOutput, is_, PipelineNode)
 
+    port_ids = {}
+
     def make_port(owner_id, owner_key, name, direction, type, required, collection):
         pid = stable_id(_TAG, "port", owner_key, name, direction)
+        port_ids[(owner_id, name, direction)] = pid
         props = {
             "portName": typed(name, "vos.String"),
             "direction": typed(direction, "vos.String"),
@@ -253,16 +258,15 @@ def build():
                          {"rehearses": typed(svc.get("rehearses", True), "vos.Boolean")})
         service_by_key[svc["key"]] = svc_id
         k.rel(svc_id, is_, Service)
-        port_by_name = {}
         for (name, direction, type, required, collection) in svc["ports"]:
-            port_by_name[name] = make_port(svc_id, svc["key"], name, direction, type, required, collection)
+            make_port(svc_id, svc["key"], name, direction, type, required, collection)
         # What an in port offers is related to the port itself, so every node bound to the service may choose
         # among the same Things.
         for port_name, names in svc.get("offers", {}).items():
             for name in names:
                 offered_id = k.thing(stable_id(_TAG, "offered", svc["key"], port_name, name), name)
                 k.rel(offered_id, is_, strategy_kind)
-                k.rel(port_by_name[port_name], offers, offered_id)
+                k.rel(port_ids[(svc_id, port_name, "in")], offers, offered_id)
                 offered_by_key[(svc["key"], port_name, name)] = offered_id
 
         conn_id = k.thing(stable_id(_TAG, "connection", svc["key"]), svc["label"],
@@ -317,9 +321,12 @@ def build():
         k.rel(pipe_id, is_, Pipeline)
 
         node_id = {}
+        service_of = {}
         for node in pipe["nodes"]:
             nid = stable_id(_TAG, "node", pipe["name"], node["key"])
             node_id[node["key"]] = nid
+            if "service" in node:
+                service_of[node["key"]] = service_by_key[node["service"]]
             x = _ORIGIN + node["at"]["col"] * _COL_WIDTH
             y = _ORIGIN + node["at"]["row"] * _ROW_HEIGHT
             props = {"x": typed(float(x), "vos.Double"), "y": typed(float(y), "vos.Double")}
@@ -355,15 +362,18 @@ def build():
 
             k.rel(pipe_id, has, nid)
 
+        # Every value is declared, empty where unset, because a property write on a Thing updates and does not
+        # create, so the page could never set one left out.
         for wire in pipe["wires"]:
-            props = {
-                "fromPort": typed(wire["fromPort"], "vos.String"),
-                "toPort": typed(wire["toPort"], "vos.String"),
-            }
-            for optional in ("fromPath", "toPath", "transform"):
-                if wire.get(optional):
-                    props[optional] = typed(wire[optional], "vos.String")
-            k.rel(node_id[wire["from"]], carries, node_id[wire["to"]], props)
+            source, target = node_id[wire["from"]], node_id[wire["to"]]
+            wid = stable_id(_TAG, "wire", pipe["name"], wire["from"], wire["fromPort"], wire["to"], wire["toPort"], wire.get("toPath", ""))
+            k.thing(wid, f"{k.things[source]['Name']}.{wire['fromPort']} to {k.things[target]['Name']}.{wire['toPort']}",
+                    {name: typed(wire.get(name, ""), "vos.String") for name in ("fromPath", "toPath", "transform")})
+            k.rel(wid, is_, PipelineWire)
+            k.rel(source, has, wid)
+            k.rel(wid, carries, target)
+            k.rel(wid, input_connector, port_of(port_ids, source, service_of.get(wire["from"]), wire["fromPort"], "out"))
+            k.rel(wid, output_connector, port_of(port_ids, target, service_of.get(wire["to"]), wire["toPort"], "in"))
 
         # Seeded run history: a PipelineRun -of-> pipeline, each carrying NodeRuns so the History
         # panel and node status rings show data with no live Phloem. A fan-out node also gets per-item NodeRuns
@@ -482,9 +492,7 @@ def merge_into(kit, seed):
         if r.get("Predicate") in binds_ids:
             bound_by_role.setdefault(r.get("Subject"), r.get("Target"))
     thing_ids = {t["Id"] for t in seed["Things"]}
-    rel_keys = {(r.get("Subject"), r.get("Predicate"), r.get("Target"),
-                 _rel_prop(r, "fromPort"), _rel_prop(r, "toPort"), _rel_prop(r, "toPath"))
-                for r in seed["Relationships"]}
+    rel_keys = {(r.get("Subject"), r.get("Predicate"), r.get("Target")) for r in seed["Relationships"]}
 
     remap = {}
     for sid in kit.shared:
@@ -514,7 +522,7 @@ def merge_into(kit, seed):
 
     for r in kit.rels.values():
         s, p, t = m(r["Subject"]), m(r["Predicate"]), m(r["Target"])
-        key = (s, p, t, _rel_prop(r, "fromPort"), _rel_prop(r, "toPort"), _rel_prop(r, "toPath"))
+        key = (s, p, t)
         if key in rel_keys:
             continue
         seed["Relationships"].append({**r, "Subject": s, "Predicate": p, "Target": t})
@@ -534,11 +542,6 @@ def remove_from(kit, seed):
     seed["Things"] = [t for t in seed.get("Things", []) if t["Id"] not in drop_things]
     seed["Relationships"] = [r for r in seed.get("Relationships", []) if r.get("Id") not in drop_rels]
     return before_t - len(seed["Things"]), before_r - len(seed["Relationships"])
-
-
-def _rel_prop(rel, name):
-    entry = rel.get("Properties", {}).get(name)
-    return entry["value"] if isinstance(entry, dict) else ""
 
 
 def main():

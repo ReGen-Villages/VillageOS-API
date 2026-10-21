@@ -4,7 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { basename, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { VosThing, VosRelationship } from '../types/vos';
-import { PipelineModel, ROLE, typesCompatible } from './model';
+import { PipelineModel, ROLE, judgeConnection, portOf, typesCompatible, wireEnds } from './model';
 import { loadPipeline } from './serialize';
 import { playing, withRoles } from './roles.test.fixture';
 
@@ -29,7 +29,9 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
     connA = T('Endpoint', playing(ROLE.Connection)),
     serviceA = T('Capability', playing(ROLE.Service)),
     portA = T('Socket', playing(ROLE.Port)),
-    wireA = T('Link', playing(ROLE.PipelineWire));
+    wireA = T('Link', playing(ROLE.PipelineWire)),
+    takesFrom = T('takesFrom', playing(ROLE.InputConnector)),
+    deliversTo = T('deliversTo', playing(ROLE.OutputConnector));
   R(carries.Id, is.Id, wireA.Id);
 
   const proto = T('EchoProto');
@@ -60,7 +62,12 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
   R(pipe.Id, is.Id, pipelineA.Id);
   R(pipe.Id, has.Id, gen.Id);
   R(pipe.Id, has.Id, ech.Id);
-  R(gen.Id, carries.Id, ech.Id, { fromPort: 'echo', toPort: 'message' });
+  const wire = T('echo to message', { fromPath: '', toPath: '', transform: '' });
+  R(wire.Id, is.Id, wireA.Id);
+  R(gen.Id, has.Id, wire.Id);
+  R(wire.Id, carries.Id, ech.Id);
+  R(wire.Id, takesFrom.Id, pOut.Id);
+  R(wire.Id, deliversTo.Id, pIn.Id);
 
   return { model: new PipelineModel(...withRoles(things, relationships)), pipelineId: pipe.Id, pipelineArchetypeId: pipelineA.Id };
 }
@@ -85,11 +92,10 @@ function heldWireModel(): { model: PipelineModel; carriesId: string } {
   const nodeA = T('Step', playing(ROLE.PipelineNode));
   const wireA = T('Link', playing(ROLE.PipelineWire));
 
-  const wireOne = T('w.echo', { fromPort: 'echo', toPort: 'message' });
-  const wireTwo = T('w.trace', { fromPort: 'trace', toPort: 'context' });
+  const wireOne = T('w.echo');
+  const wireTwo = T('w.trace');
   const carries = T('carries');
-  // Both shapes are read while one replaces the other: this model holds three Things of the wire archetype
-  // and only one of them is the predicate.
+  // Three Things of the wire archetype, and only one of them is the predicate.
   R(carries.Id, is.Id, wireA.Id);
 
   const gen = T('Generate'), ech = T('Echo');
@@ -222,6 +228,51 @@ describe('the vocabulary the editor holds', () => {
   });
 });
 
+describe('judgeConnection', () => {
+  const upper = { id: 'upper', ports: [
+    { portId: 'upper.in.text', portName: 'text', direction: 'in' as const, type: 'number', required: true },
+    { portId: 'upper.out.text', portName: 'text', direction: 'out' as const, type: 'string', required: false },
+  ] };
+  const reverse = { id: 'reverse', ports: [
+    { portId: 'reverse.in.text', portName: 'text', direction: 'in' as const, type: 'string', required: true },
+    { portId: 'reverse.in.count', portName: 'count', direction: 'in' as const, type: 'number', required: false },
+  ] };
+  const connection = (sourceHandle: string, targetHandle: string) =>
+    ({ source: 'upper', sourceHandle, target: 'reverse', targetHandle });
+
+  it('accepts a wire from an out port of the node it leaves to an in port of the node it reaches', () => {
+    expect(judgeConnection([upper, reverse], connection('upper.out.text', 'reverse.in.text'))).toEqual({ kind: 'accept' });
+  });
+
+  it('names the two types when the ends do not match, read from the source then the target', () => {
+    expect(judgeConnection([upper, reverse], connection('upper.out.text', 'reverse.in.count')))
+      .toEqual({ kind: 'incompatible', from: 'string', to: 'number' });
+  });
+
+  it('ignores a connection whose source end is not an out port, or whose node is gone', () => {
+    expect(judgeConnection([upper, reverse], connection('upper.in.text', 'reverse.in.text'))).toEqual({ kind: 'ignore' });
+    expect(judgeConnection([reverse], connection('upper.out.text', 'reverse.in.text'))).toEqual({ kind: 'ignore' });
+  });
+});
+
+describe('portOf', () => {
+  const textIn = { portId: 'upper.in.text', portName: 'text', direction: 'in' as const, type: 'string', required: true };
+  const textOut = { portId: 'upper.out.text', portName: 'text', direction: 'out' as const, type: 'string', required: false };
+
+  it('finds a wire end by the port identifier in the direction asked, never by name', () => {
+    expect(portOf([textIn, textOut], 'upper.out.text', 'out')).toBe(textOut);
+    expect(portOf([textIn, textOut], 'upper.out.text', 'in')).toBeUndefined();
+    expect(portOf([textIn, textOut], 'text', 'out')).toBeUndefined();
+    expect(portOf(undefined, 'upper.out.text', 'out')).toBeUndefined();
+  });
+
+  it('takes a wire from an out port of the node it leaves to an in port of the node it reaches', () => {
+    const reverseIn = { ...textIn, portId: 'reverse.in.text' };
+    expect(wireEnds([textIn, textOut], 'upper.out.text', [reverseIn], 'reverse.in.text')).toEqual({ outPort: textOut, inPort: reverseIn });
+    expect(wireEnds([textIn, textOut], 'upper.in.text', [reverseIn], 'reverse.in.text')).toEqual({ outPort: undefined, inPort: reverseIn });
+  });
+});
+
 describe('typesCompatible', () => {
   it('equal types and wildcards match; different concrete types do not', () => {
     expect(typesCompatible('string', 'string')).toBe(true);
@@ -318,7 +369,10 @@ describe('loadPipeline', () => {
     expect(loaded.name).toBe('Demo');
     expect(loaded.nodes.map((n) => n.label).sort()).toEqual(['Echo', 'Generate']);
     expect(loaded.edges).toHaveLength(1);
-    expect(loaded.edges[0]).toMatchObject({ sourceHandle: 'echo', targetHandle: 'message' });
+    const portNamed = (label: string, portId: string) =>
+      loaded.nodes.find((n) => n.label === label)!.ports.find((p) => p.portId === portId)?.portName;
+    expect(portNamed('Generate', loaded.edges[0].sourceHandle)).toBe('echo');
+    expect(portNamed('Echo', loaded.edges[0].targetHandle)).toBe('message');
   });
 
   it('returns null for a non-pipeline thing', () => {
@@ -422,7 +476,7 @@ describe('the wire predicate before any wire is drawn', () => {
     const { things, relationships, T, R } = vocabularyAndNoWire();
     T('N1', 'Node1'); R('N1', 'is', 'arch-node');
     T('N2', 'Node2'); R('N2', 'is', 'arch-node');
-    T('W', 'w', { fromPort: 'out', toPort: 'in' }); R('W', 'is', 'arch-wire'); R('N1', 'has', 'W');
+    T('W', 'w'); R('W', 'is', 'arch-wire'); R('N1', 'has', 'W');
     things.reverse();
     expect(new PipelineModel(...withRoles(things, relationships)).wirePredicateId()).toBe('carries');
   });

@@ -22,6 +22,9 @@ export const ROLE = {
   Service: '768bb2e8-e738-5345-9126-c23ad1513197',
   Port: '318d6995-e07b-5c83-acb5-86cd935ba4c6',
   PipelineWire: 'adfe0071-bbaf-5e7f-abc3-255c08d8735a',
+  // Named from the wire's side: its input connector reaches an out port, its output connector an in port.
+  InputConnector: '1f13d260-b2cc-5757-a475-7eb9b7d2323f',
+  OutputConnector: '7788a338-5eb6-5733-a208-0cf90b4269dd',
   PipelineRun: 'b682b68f-0101-5ab4-a7a9-13c3e43df873',
   Range: 'c081de17-c325-55b7-99ca-16fb835ae545',
   // A system outside the platform that sends it messages or is sent them, and a kind of message crossing
@@ -108,33 +111,22 @@ export interface RunInformation {
 }
 
 export interface PortInformation {
+  /** The port Thing's identifier; a wire relates to it, so renaming the port keeps the wire. */
+  portId: string;
   portName: string;
   direction: 'in' | 'out';
   type: string;
   required: boolean;
 }
 
-/** A wire as the editor reads it, whichever shape the model holds it in. */
 export interface WireRead {
   wireId: string;
-  shape: 'edge' | 'held';
   targetId: string;
-  fromPort: string;
-  toPort: string;
+  outPortId: string;
+  inPortId: string;
   fromPath: string;
   toPath: string;
   transform: string;
-}
-
-/** The five values a wire carries, read the same off a relationship and off a wire Thing. */
-function wireMapping(properties: Record<string, unknown>) {
-  return {
-    fromPort: String(properties.fromPort ?? ''),
-    toPort: String(properties.toPort ?? ''),
-    fromPath: String(properties.fromPath ?? ''),
-    toPath: String(properties.toPath ?? ''),
-    transform: String(properties.transform ?? ''),
-  };
 }
 
 export interface ConnectionInformation {
@@ -434,6 +426,7 @@ export class PipelineModel {
   private toPort(t: VosThing): PortInformation {
     const p = this.stated(t.Id);
     return {
+      portId: t.Id,
       portName: String(p.portName ?? t.Name),
       direction: String(p.direction ?? 'in').toLowerCase() === 'out' ? 'out' : 'in',
       type: String(p.type ?? ''),
@@ -476,28 +469,23 @@ export class PipelineModel {
     return result;
   }
 
-  /** Outgoing wires from a node, in either shape the model may hold them in, with their port mapping and
-   * the optional field-paths. `wireId` is what the save edits and removes the wire through, and
-   * `shape` says which call that is: a relationship for a wire drawn as a relationship, a Thing for one held. */
+  /** A wire missing its target node or either port is skipped: the save writes a wire a piece at a time. */
   outgoingWires(subjectId: string): WireRead[] {
-    const relationships = this.bySubject.get(subjectId);
-    if (!relationships) return [];
     const out: WireRead[] = [];
-    for (const relationship of relationships) {
-      // Drawn as a relationship: the predicate is of the wire archetype and the relationship carries the mapping.
-      if (this.isOf(relationship.PredicateId, ROLE.PipelineWire)) {
-        out.push({ wireId: relationship.Id, shape: 'edge', targetId: relationship.TargetId, ...wireMapping(relationship.Properties) });
-        continue;
-      }
-      // Held as a Thing: the node `has` a Thing of the wire archetype, and that Thing points at the node
-      // the wire carries into. A wire pointing at nothing that is a node is half-drawn and is skipped.
+    for (const relationship of this.bySubject.get(subjectId) ?? []) {
       const held = this.byId.get(relationship.TargetId);
       if (!held || !this.isOf(held.Id, ROLE.PipelineWire)) continue;
       const target = (this.bySubject.get(held.Id) ?? [])
         .map((r) => r.TargetId)
         .find((id) => this.isOf(id, ROLE.PipelineNode));
-      if (!target) continue;
-      out.push({ wireId: held.Id, shape: 'held', targetId: target, ...wireMapping(this.stated(held.Id)) });
+      const [outPort] = this.reachedAlong(held.Id, ROLE.InputConnector);
+      const [inPort] = this.reachedAlong(held.Id, ROLE.OutputConnector);
+      if (!target || !outPort || !inPort) continue;
+      const stated = this.stated(held.Id);
+      out.push({
+        wireId: held.Id, targetId: target, outPortId: outPort.Id, inPortId: inPort.Id,
+        fromPath: String(stated.fromPath ?? ''), toPath: String(stated.toPath ?? ''), transform: String(stated.transform ?? ''),
+      });
     }
     return out;
   }
@@ -571,6 +559,35 @@ export class PipelineModel {
     }
     return runs.sort((a, b) => b.startedUtc.localeCompare(a.startedUtc));
   }
+}
+
+/** The port a wire end reaches: the one with this identifier in this direction, so an in port and an out port of one
+ *  name are never taken for each other. */
+export function portOf(ports: PortInformation[] | undefined, portId: string | null | undefined, direction: 'in' | 'out'): PortInformation | undefined {
+  return ports?.find((port) => port.portId === portId && port.direction === direction);
+}
+
+export function wireEnds(
+  sourcePorts: PortInformation[] | undefined, sourceHandle: string | null | undefined,
+  targetPorts: PortInformation[] | undefined, targetHandle: string | null | undefined,
+): { outPort?: PortInformation; inPort?: PortInformation } {
+  return { outPort: portOf(sourcePorts, sourceHandle, 'out'), inPort: portOf(targetPorts, targetHandle, 'in') };
+}
+
+export type ConnectionVerdict =
+  | { kind: 'accept' }
+  | { kind: 'ignore' }
+  | { kind: 'incompatible'; from: string; to: string };
+
+export function judgeConnection(
+  nodes: { id: string; ports: PortInformation[] }[],
+  connection: { source: string; sourceHandle?: string | null; target: string; targetHandle?: string | null },
+): ConnectionVerdict {
+  const portsOf = (nodeId: string) => nodes.find((node) => node.id === nodeId)?.ports;
+  const { outPort, inPort } = wireEnds(portsOf(connection.source), connection.sourceHandle, portsOf(connection.target), connection.targetHandle);
+  if (!outPort || !inPort) return { kind: 'ignore' };
+  if (!typesCompatible(outPort.type, inPort.type)) return { kind: 'incompatible', from: outPort.type || 'any', to: inPort.type || 'any' };
+  return { kind: 'accept' };
 }
 
 /** Are two ports type-compatible? Empty/"any" on either side is a wildcard (mirrors DagValidator). */

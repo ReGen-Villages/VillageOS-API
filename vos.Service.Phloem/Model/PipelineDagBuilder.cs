@@ -12,7 +12,7 @@ public sealed class PipelineModelException : Exception
 
 // Resolves a loaded PipelineGraph + pipelineId into a PipelineDag:
 // nodes, their dispatch subdomain (node has Connection, Subdomain property), ports (walk the
-// bound service's is-chain), and wires (the predicate is of the wire archetype, carrying fromPort/toPort).
+// bound service's is-chain), and wires (Things the node has, related to the two ports they connect).
 // Every role is read from the role Thing that binds it, never from a name.
 public static class PipelineDagBuilder
 {
@@ -38,10 +38,8 @@ public static class PipelineDagBuilder
                 nodes.Add(built);
         var nodesById = nodes.ToDictionary(node => node.NodeId);
 
-        // A wire reaches the builder in either of two shapes, and the second is replacing the first: drawn as
-        // a relationship, which caps a node pair at one because the model refuses a second relationship on one triple, or
-        // held as a Thing, which does not. Both carry the same port mapping and yield the same DagWire. A wire leaving the
-        // pipeline, or touching a node that could not be read, is left out; the node's problem is already listed.
+        // A wire leaving the pipeline, or touching a node that could not be read, is left out; the node's problem is
+        // already listed.
         var wires = new List<DagWire>();
         foreach (var nodeThing in nodeThings)
         {
@@ -49,11 +47,12 @@ public static class PipelineDagBuilder
 
             foreach (var rel in graph.OutgoingByPredicateOf(nodeThing, PipelineRoles.PipelineWire))
                 if (nodesById.TryGetValue(rel.TargetId, out var to))
-                    wires.Add(WireFrom(from, to, rel.PropertyString));
+                    problems.Add($"The wire from '{from.Name}' to '{to.Name}' is drawn as a relationship between the two nodes; "
+                        + "a wire is a Thing the node it leaves has, related to the two ports it connects.");
 
             foreach (var (wire, target) in graph.HeldThingsOf(nodeThing, PipelineRoles.PipelineWire, PipelineRoles.PipelineNode))
-                if (nodesById.TryGetValue(target.Id, out var to))
-                    wires.Add(WireFrom(from, to, wire.PropertyString));
+                if (nodesById.TryGetValue(target.Id, out var to) && WireFrom(graph, wire, from, to, problems) is { } built)
+                    wires.Add(built);
         }
 
         return new PipelineDag
@@ -81,18 +80,32 @@ public static class PipelineDagBuilder
         }
     }
 
-    // A relationship and a wire Thing are different types carrying the same five properties, so each hands over its
-    // own reader rather than the mapping being written out twice. Each end's port is found here, once, in the end's
-    // direction, so a service whose in port and out port share a name never has one read for the other.
-    private static DagWire WireFrom(DagNode from, DagNode to, Func<string, string?> property)
+    // Both ends are judged before either refuses, so a wire wrong at both ends is listed with both reasons.
+    private static DagWire? WireFrom(PipelineGraph graph, GraphThing wire, DagNode from, DagNode to, List<string> problems)
     {
-        var fromPort = property(ModelNames.FromPort) ?? string.Empty;
-        var toPort = property(ModelNames.ToPort) ?? string.Empty;
-        return new(new WireEnd(from, fromPort, from.OutputPort(fromPort)),
-            new WireEnd(to, toPort, to.InputPort(toPort)),
-            property(ModelNames.FromPath) ?? string.Empty,
-            property(ModelNames.ToPath) ?? string.Empty,
-            property(ModelNames.Transform) ?? string.Empty);
+        var named = $"The wire from '{from.Name}' to '{to.Name}'";
+        var outPort = Judged(problems, () => ConnectedPort(graph, wire, PipelineRoles.InputConnector, from, output: true, named), null);
+        var inPort = Judged(problems, () => ConnectedPort(graph, wire, PipelineRoles.OutputConnector, to, output: false, named), null);
+        if (outPort is null || inPort is null) return null;
+
+        return new DagWire(new WireEnd(from, outPort), new WireEnd(to, inPort),
+            wire.PropertyString(ModelNames.FromPath) ?? string.Empty,
+            wire.PropertyString(ModelNames.ToPath) ?? string.Empty,
+            wire.PropertyString(ModelNames.Transform) ?? string.Empty);
+    }
+
+    private static DagPort ConnectedPort(PipelineGraph graph, GraphThing wire, Role connector, DagNode node, bool output, string named)
+    {
+        var reaching = output ? "takes its value from" : "delivers its value to";
+        var connected = graph.OutgoingAlong(wire, connector).ToList();
+        if (connected.Count == 0)
+            throw new PipelineModelException($"{named} {reaching} no port: it relates to none along {connector.Word}.");
+        if (connected.Count > 1)
+            throw new PipelineModelException($"{named} relates to {connected.Count} ports along {connector.Word}; a wire {reaching} one.");
+
+        return node.Ports.FirstOrDefault(port => port.Id == connected[0].Id && (output ? port.IsOutput : port.IsInput))
+            ?? throw new PipelineModelException(
+                $"{named} {reaching} '{connected[0].Name}', which is not {(output ? "an out" : "an in")} port of '{node.Name}'.");
     }
 
     private static DagNode BuildNode(PipelineGraph graph, GraphThing nodeThing, List<string> problems)
@@ -298,7 +311,8 @@ public static class PipelineDagBuilder
     }
 
     private static DagPort ToPort(GraphThing portThing) =>
-        new(portThing.PropertyString(ModelNames.PortName) ?? portThing.Name,
+        new(portThing.Id,
+            portThing.PropertyString(ModelNames.PortName) ?? portThing.Name,
             portThing.PropertyString(ModelNames.Direction) ?? ModelNames.DirectionIn,
             portThing.PropertyString(ModelNames.PortType) ?? string.Empty,
             portThing.CarriesFlag(ModelNames.Required),

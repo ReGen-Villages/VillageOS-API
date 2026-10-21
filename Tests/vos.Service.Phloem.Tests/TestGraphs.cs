@@ -17,7 +17,9 @@ public sealed record PipelineVocabulary(
     GraphThing Port,
     GraphThing PipelineWire,
     GraphThing PipelineInput,
-    GraphThing PipelineOutput);
+    GraphThing PipelineOutput,
+    GraphThing InputConnector,
+    GraphThing OutputConnector);
 
 // Builds a PipelineGraph programmatically for tests — Things + Relationships with
 // the same shapes Phloem reads from a Mycelium snapshot.
@@ -65,7 +67,7 @@ public sealed class GraphFixture
         Rel(input, isPredicate, node);  // boundary archetypes ARE pipeline nodes (multiple inheritance)
         Rel(output, isPredicate, node);
 
-        return new PipelineVocabulary(
+        _vocabulary = new PipelineVocabulary(
             isPredicate,
             has,
             Playing(namePrefix + "Pipeline", PipelineRoles.Pipeline),
@@ -75,8 +77,63 @@ public sealed class GraphFixture
             Playing(namePrefix + "Port", PipelineRoles.Port),
             Playing(namePrefix + "PipelineWire", PipelineRoles.PipelineWire),
             input,
-            output);
+            output,
+            Playing(namePrefix + "inputConnector", PipelineRoles.InputConnector),
+            Playing(namePrefix + "outputConnector", PipelineRoles.OutputConnector));
+        return _vocabulary;
     }
+
+    private PipelineVocabulary? _vocabulary;
+
+    // Tests name a wire's ports, as the playground catalog does; what is written relates the wire to the port Things.
+    public GraphThing Wire(GraphThing from, string fromPort, GraphThing to, string toPort, params (string Name, object Value)[] mapping) =>
+        WireBetween(from, PortOf(from, fromPort, "out"), to, PortOf(to, toPort, "in"), mapping);
+
+    public GraphThing WireBetween(GraphThing from, GraphThing? outPort, GraphThing to, GraphThing? inPort, params (string Name, object Value)[] mapping)
+    {
+        var vocabulary = _vocabulary ?? throw new InvalidOperationException("Declare the vocabulary before drawing a wire.");
+        var wire = Thing($"{from.Name}.{outPort?.Name} to {to.Name}.{inPort?.Name}", mapping);
+        Rel(wire, vocabulary.Is, vocabulary.PipelineWire);
+        Rel(from, vocabulary.Has, wire);
+        Rel(wire, _byName.GetValueOrDefault("carries") ?? Thing("carries"), to);
+        if (outPort is not null) Rel(wire, vocabulary.InputConnector, outPort);
+        if (inPort is not null) Rel(wire, vocabulary.OutputConnector, inPort);
+        return wire;
+    }
+
+    public GraphThing WireInto(GraphThing node)
+    {
+        var vocabulary = _vocabulary ?? throw new InvalidOperationException("Declare the vocabulary before looking a wire up.");
+        var wires = _rels.Where(rel => rel.TargetId == node.Id).Select(rel => _things[rel.SubjectId])
+            .Where(subject => _rels.Any(isWire => isWire.SubjectId == subject.Id && isWire.PredicateId == vocabulary.Is.Id && isWire.TargetId == vocabulary.PipelineWire.Id))
+            .ToList();
+        return wires.Count == 1 ? wires[0] : throw new InvalidOperationException($"{wires.Count} wires carry into '{node.Name}'.");
+    }
+
+    // The node's own ports are searched first, so one of them wins over its service's port of the same name.
+    public GraphThing PortOf(GraphThing node, string portName, string direction)
+    {
+        var vocabulary = _vocabulary ?? throw new InvalidOperationException("Declare the vocabulary before looking a port up.");
+        var seen = new HashSet<Guid>();
+        var queue = new Queue<Guid>([node.Id]);
+        while (queue.Count > 0)
+        {
+            var id = queue.Dequeue();
+            if (!seen.Add(id)) continue;
+            foreach (var rel in _rels.Where(rel => rel.SubjectId == id && (rel.PredicateId == vocabulary.Has.Id || rel.PredicateId == vocabulary.Is.Id)))
+            {
+                var target = _things[rel.TargetId];
+                if (_rels.Any(isPort => isPort.SubjectId == target.Id && isPort.PredicateId == vocabulary.Is.Id && isPort.TargetId == vocabulary.Port.Id)
+                    && Text(target, ModelNames.PortName, target.Name) == portName && Text(target, ModelNames.Direction, "in") == direction)
+                    return target;
+                queue.Enqueue(target.Id);
+            }
+        }
+        throw new InvalidOperationException($"'{node.Name}' has no {direction} port '{portName}'.");
+    }
+
+    private static string Text(GraphThing thing, string property, string fallback) =>
+        thing.Properties.TryGetValue(property, out var value) ? value.ToString() : fallback;
 
     public GraphThing Get(string name) => _byName[name];
 
@@ -162,9 +219,20 @@ public static class TestGraphs
         fx.Rel(pipe, vocabulary.Has, gen);
         fx.Rel(pipe, vocabulary.Has, ech);
 
-        fx.Rel(gen, carries, ech, ("fromPort", "echo"), ("toPort", "message"));
+        fx.Wire(gen, "echo", ech, "message");
 
         return (fx, pipe.Id);
+    }
+
+    // DemoPipeline with Generate also taking a `message`, wired back from Echo so the two nodes wait on each other.
+    public static (GraphFixture Fixture, Guid PipelineId) DemoPipelineInACycle()
+    {
+        var (fx, pipelineId) = DemoPipeline();
+        var messageIn = fx.Thing("s.in", ("direction", "in"), ("type", "string"), ("portName", "message"));
+        fx.Rel(messageIn, fx.Get("is"), fx.Get("Port"));
+        fx.Rel(fx.Get("SourceProto"), fx.Get("has"), messageIn);
+        fx.Wire(fx.Get("Echo"), "echo", fx.Get("Generate"), "message");
+        return (fx, pipelineId);
     }
 
     // Boundary I/O demo: In (PipelineInput, out port `seed`) → Echo (message→echo) → Out
@@ -213,8 +281,8 @@ public static class TestGraphs
         fx.Rel(pipe, vocabulary.Has, ech);
         fx.Rel(pipe, vocabulary.Has, output);
 
-        fx.Rel(input, carries, ech, ("fromPort", "seed"), ("toPort", "message"));
-        fx.Rel(ech, carries, output, ("fromPort", "echo"), ("toPort", "result"));
+        fx.Wire(input, "seed", ech, "message");
+        fx.Wire(ech, "echo", output, "result");
 
         return (fx, pipe.Id);
     }
@@ -252,8 +320,7 @@ public static class TestGraphs
         fx.Rel(fx.Get("Out"), standsFor, itself ? fx.Get("BoundaryDemo") : next);
         if (transformIntoTheEnd is not null)
         {
-            fx.Unrelate(fx.Get("Echo"), fx.Get("carries"), fx.Get("Out"));
-            fx.Rel(fx.Get("Echo"), fx.Get("carries"), fx.Get("Out"), ("fromPort", "echo"), ("toPort", "result"), ("transform", transformIntoTheEnd));
+            fx.State(fx.WireInto(fx.Get("Out")), ModelNames.Transform, transformIntoTheEnd);
         }
         return new StartingFixture(fx, pipelineId, next.Id);
     }
@@ -291,13 +358,13 @@ public static class TestGraphs
         fx.Rel(pipe, vocabulary.Has, input);
         fx.Rel(pipe, vocabulary.Has, echo);
         fx.Rel(pipe, vocabulary.Has, output);
-        fx.Rel(input, carries, echo, ("fromPort", "seed"), ("toPort", "in"));
-        fx.Rel(echo, carries, output, ("fromPort", "out"), ("toPort", "result"));
+        fx.Wire(input, "seed", echo, "in");
+        fx.Wire(echo, "out", output, "result");
         if (besideAFailingNode)
         {
             var broken = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "BrokenProto"), "Broken", "broken");
             fx.Rel(pipe, vocabulary.Has, broken);
-            fx.Rel(input, carries, broken, ("fromPort", "seed"), ("toPort", "in"));
+            fx.Wire(input, "seed", broken, "in");
         }
 
         var next = fx.Thing("What follows");
@@ -368,8 +435,8 @@ public static class TestGraphs
         fx.Rel(drawn, vocabulary.Has, arrival);
         fx.Rel(drawn, vocabulary.Has, ech);
         fx.Rel(drawn, vocabulary.Has, output);
-        fx.Rel(arrival, carries, ech, ("fromPort", PipelineExecutor.SubjectParam), ("toPort", "message"), ("fromPath", "id"));
-        fx.Rel(ech, carries, output, ("fromPort", "echo"), ("toPort", "result"));
+        fx.Wire(arrival, PipelineExecutor.SubjectParam, ech, "message", ("fromPath", "id"));
+        fx.Wire(ech, "echo", output, "result");
 
         var reached = fx.Thing("Reached along the start mark");
         fx.Rel(reached, vocabulary.Is, vocabulary.Pipeline);
@@ -420,8 +487,8 @@ public static class TestGraphs
         fx.Rel(pipe, vocabulary.Has, c);
 
         // Both wires target C.in, but land at different to-paths so they deep-merge instead of overwriting.
-        fx.Rel(a, carries, c, ("fromPort", "out"), ("toPort", "in"), ("toPath", "a"));
-        fx.Rel(b, carries, c, ("fromPort", "out"), ("toPort", "in"), ("toPath", "b"));
+        fx.Wire(a, "out", c, "in", ("toPath", "a"));
+        fx.Wire(b, "out", c, "in", ("toPath", "b"));
 
         return (fx, pipe.Id);
     }
@@ -444,7 +511,7 @@ public static class TestGraphs
         fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, a);
         fx.Rel(pipe, vocabulary.Has, c);
-        fx.Rel(a, carries, c, ("fromPort", "out"), ("toPort", "in"), ("transform", transform));
+        fx.Wire(a, "out", c, "in", ("transform", transform));
 
         return (fx, pipe.Id);
     }
@@ -640,11 +707,11 @@ public static class TestGraphs
         fx.Publish(pipe);
         foreach (var node in new[] { start, decide, notify, giveBack, end }) fx.Rel(pipe, vocabulary.Has, node);
 
-        fx.Rel(start, carries, decide, ("fromPort", "subject"), ("toPort", "in"));
-        fx.Rel(decide, carries, notify, ("fromPort", "accept"), ("toPort", "in"));
-        fx.Rel(decide, carries, giveBack, ("fromPort", "refuse"), ("toPort", "in"));
-        fx.Rel(notify, carries, end, ("fromPort", "out"), ("toPort", "result"));
-        fx.Rel(giveBack, carries, end, ("fromPort", "out"), ("toPort", "result"));
+        fx.Wire(start, "subject", decide, "in");
+        fx.Wire(decide, "accept", notify, "in");
+        fx.Wire(decide, "refuse", giveBack, "in");
+        fx.Wire(notify, "out", end, "result");
+        fx.Wire(giveBack, "out", end, "result");
 
         return (fx, pipe.Id);
     }
@@ -715,7 +782,7 @@ public static class TestGraphs
             fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
             var source = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "SourceProto"), "Source", "source");
             fx.Rel(pipe, vocabulary.Has, source);
-            fx.Rel(source, carries, node, ("fromPort", "out"), ("toPort", "strategy"));
+            fx.Wire(source, "out", node, "strategy");
         }
 
         return new ChoiceFixture(fx, pipe.Id, offers, node, offered);
@@ -750,8 +817,8 @@ public static class TestGraphs
         fx.Publish(pipe);
         foreach (var node in new[] { a, b, gather }) fx.Rel(pipe, vocabulary.Has, node);
 
-        fx.Rel(a, carries, gather, ("fromPort", "out"), ("toPort", "items"));
-        fx.Rel(b, carries, gather, ("fromPort", "out"), ("toPort", "items"));
+        fx.Wire(a, "out", gather, "items");
+        fx.Wire(b, "out", gather, "items");
 
         return (fx, pipe.Id);
     }
@@ -800,8 +867,8 @@ public static class TestGraphs
         fx.Rel(pipe, vocabulary.Has, start);
         fx.Rel(pipe, vocabulary.Has, review);
         fx.Rel(pipe, vocabulary.Has, publish);
-        if (wired) fx.Rel(start, carries, review, ("fromPort", "subject"), ("toPort", "submission"));
-        fx.Rel(review, carries, publish, ("fromPort", "notice"), ("toPort", "in"));
+        if (wired) fx.Wire(start, "subject", review, "submission");
+        fx.Wire(review, "notice", publish, "in");
 
         // A second branch waiting on the same Thing for another state, with nothing after it.
         if (approvedBeside)
@@ -810,7 +877,7 @@ public static class TestGraphs
             fx.Rel(approve, provenBy, fx.Thing("approved"));
             fx.Rel(approve, awaitsThrough, submission);
             fx.Rel(pipe, vocabulary.Has, approve);
-            fx.Rel(start, carries, approve, ("fromPort", "subject"), ("toPort", "submission"));
+            fx.Wire(start, "subject", approve, "submission");
         }
 
         return new WaitingFixture(fx, vocabulary, pipe.Id, review, publish, decided, submission, provenBy, awaitsThrough);
@@ -856,7 +923,6 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var carries = fx.Thing("carries");
 
         var proto = fx.Thing("RelayProto");
         fx.Rel(proto, vocabulary.Is, vocabulary.Service);
@@ -895,8 +961,8 @@ public static class TestGraphs
         fx.Rel(pipe, vocabulary.Has, gen);
         fx.Rel(pipe, vocabulary.Has, ech);
 
-        WireThing(fx, vocabulary, carries, gen, ech, "echo", "message");
-        WireThing(fx, vocabulary, carries, gen, ech, "trace", "context");
+        fx.Wire(gen, "echo", ech, "message");
+        fx.Wire(gen, "trace", ech, "context");
 
         return (fx, pipe.Id);
     }
@@ -934,8 +1000,8 @@ public static class TestGraphs
         fx.Rel(pipe, vocabulary.Has, uppercase);
         fx.Rel(pipe, vocabulary.Has, reverse);
 
-        fx.Rel(generate, carries, uppercase, ("fromPort", "text"), ("toPort", "text"));
-        fx.Rel(uppercase, carries, reverse, ("fromPort", "text"), ("toPort", "text"));
+        fx.Wire(generate, "text", uppercase, "text");
+        fx.Wire(uppercase, "text", reverse, "text");
 
         return (fx, pipe.Id);
     }
@@ -953,16 +1019,6 @@ public static class TestGraphs
             fx.Rel(fx.Get("ScoreProto"), fx.Get("has"), port);
         }
         return (fx, pipelineId);
-    }
-
-    private static void WireThing(
-        GraphFixture fx, PipelineVocabulary vocabulary, GraphThing carries,
-        GraphThing from, GraphThing to, string fromPort, string toPort)
-    {
-        var wire = fx.Thing($"w.{fromPort}.{toPort}", ("fromPort", fromPort), ("toPort", toPort));
-        fx.Rel(wire, vocabulary.Is, vocabulary.PipelineWire);
-        fx.Rel(from, vocabulary.Has, wire);
-        fx.Rel(wire, carries, to);
     }
 
     private static void NumberPort(

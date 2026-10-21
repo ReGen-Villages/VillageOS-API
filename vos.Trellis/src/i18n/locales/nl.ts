@@ -1181,6 +1181,8 @@ export const nl: PartialResources = {
       nodeArchetype: "archetype gekoppeld aan de rol pipelineknooppunt",
       wireArchetype: "archetype gekoppeld aan de rol verbinding",
       wirePredicate: "verbindingspredicaat (een predicaat van het verbindingsarchetype dat geen knooppunt vasthoudt)",
+      inputConnector: "predicaat gekoppeld aan de rol invoerconnector (van een verbinding naar de uitgang waaruit zij haar waarde neemt)",
+      outputConnector: "predicaat gekoppeld aan de rol uitvoerconnector (van een verbinding naar de ingang waaraan zij haar waarde levert)",
     },
     noPortRoles: "Dit model koppelt geen archetype aan de rol poort, pipeline-invoer of pipeline-uitvoer — laad een seed die ze koppelt.",
     noStandsForRole: "Dit model koppelt geen predicaat aan de rol die zegt waar een grensknooppunt voor staat — laad een seed die er een koppelt.",

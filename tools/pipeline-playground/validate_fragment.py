@@ -27,12 +27,14 @@ TOLD_THROUGH = "d94c1844-76e6-56fa-ae38-d10405d52826"
 ARRIVES_AT = "79f0afcb-8c66-53dd-8081-43af167fc07a"
 STANDS_FOR = "4277647a-93f8-5860-8717-da2a12673dbf"
 CHOICE = "043b23a9-d2e8-5a8a-b81c-1a56bf0f525a"
+INPUT_CONNECTOR = "1f13d260-b2cc-5757-a475-7eb9b7d2323f"
+OUTPUT_CONNECTOR = "7788a338-5eb6-5733-a208-0cf90b4269dd"
 
 # The roles a DAG is resolved from. Bound to nothing, every question below answers "no" and a model
 # full of pipelines reads as empty — which is why Phloem refuses such a model outright.
 DAG_ROLES = {PIPELINE: "pipeline", PIPELINE_NODE: "pipelineNode", PIPELINE_INPUT: "pipelineInput",
              PIPELINE_OUTPUT: "pipelineOutput", PORT: "port", SERVICE: "service", CONNECTION: "connection",
-             PIPELINE_WIRE: "pipelineWire"}
+             PIPELINE_WIRE: "pipelineWire", INPUT_CONNECTOR: "inputConnector", OUTPUT_CONNECTOR: "outputConnector"}
 
 
 def unwrap(props):
@@ -127,13 +129,18 @@ class Model:
 
     def wires(self, subj):
         out = []
-        for r in self.bysubj.get(subj, []):
-            if self.is_of(r["Predicate"], PIPELINE_WIRE):
-                p = unwrap(r.get("Properties"))
-                out.append({"target": r["Target"], "fromPort": str(p.get("fromPort", "")),
-                            "toPort": str(p.get("toPort", "")), "toPath": str(p.get("toPath", "")),
-                            "transform": str(p.get("transform", ""))})
+        for held in self.outgoing(subj, "has"):
+            if not self.is_of(held["Id"], PIPELINE_WIRE):
+                continue
+            target = next((r["Target"] for r in self.bysubj.get(held["Id"], []) if self.is_of(r["Target"], PIPELINE_NODE)), None)
+            if target:
+                out.append({"name": held["Name"], "target": target,
+                            "out": [p["Id"] for p in self.reached_along(held["Id"], INPUT_CONNECTOR)],
+                            "in": [p["Id"] for p in self.reached_along(held["Id"], OUTPUT_CONNECTOR)]})
         return out
+
+    def relationship_wires(self, subj):
+        return [r["Target"] for r in self.bysubj.get(subj, []) if self.is_of(r["Predicate"], PIPELINE_WIRE)]
 
 
 def main():
@@ -182,23 +189,34 @@ def main():
             bindings = json.loads(pb) if isinstance(pb, str) and pb else {}
             nodes.append({"id": t["Id"], "name": t["Name"], "kind": kind, "ports": ports, "bindings": bindings})
 
-        edges = []
-        for t in node_things:
-            for w in m.wires(t["Id"]):
-                if w["target"] in node_ids:
-                    edges.append((t["Id"], w["fromPort"], w["target"], w["toPort"]))
-
-        # Pre-run validation (validate.ts): required inputs must be wired or param-bound; no dangling wires.
+        # Pre-run validation (PipelineDagBuilder and validate.ts): each wire relates to one out port of its node and
+        # one in port of its target; required inputs must be wired or param-bound.
         by_id = {n["id"]: n for n in nodes}
         wired = set()
-        for (s, sh, tg, th) in edges:
-            src, dst = by_id.get(s), by_id.get(tg)
-            ok = src and dst and any(p["portName"] == sh and p["direction"] == "out" for p in src["ports"]) \
-                and any(p["portName"] == th and p["direction"] == "in" for p in dst["ports"])
-            if not ok:
-                problems.append(f"[{pipe['Name']}] dangling wire {m.name(s)}.{sh} -> {m.name(tg)}.{th}")
-            else:
-                wired.add((tg, th))
+        edges = 0
+        for t in node_things:
+            for target in m.relationship_wires(t["Id"]):
+                if target in node_ids:
+                    problems.append(f"[{pipe['Name']}] the wire from '{t['Name']}' to '{m.name(target)}' is drawn as a relationship between the two nodes")
+            for w in m.wires(t["Id"]):
+                if w["target"] not in node_ids:
+                    continue
+                edges += 1
+                named = f"[{pipe['Name']}] the wire from '{t['Name']}' to '{m.name(w['target'])}'"
+                ends = [(w["out"], by_id[t["Id"]], "out", "takes its value from", "inputConnector"),
+                        (w["in"], by_id[w["target"]], "in", "delivers its value to", "outputConnector")]
+                resolved = []
+                for connected, node, direction, reaching, word in ends:
+                    if len(connected) != 1:
+                        problems.append(f"{named} relates to {len(connected)} ports along {word}")
+                        continue
+                    port = next((p for p in node["ports"] if p["id"] == connected[0] and p["direction"] == direction), None)
+                    if port is None:
+                        problems.append(f"{named} {reaching} '{m.name(connected[0])}', which is not an {direction} port of '{node['name']}'")
+                        continue
+                    resolved.append(port)
+                if len(resolved) == 2:
+                    wired.add((w["target"], resolved[1]["portName"]))
         for n in nodes:
             for p in n["ports"]:
                 if p["direction"] == "in" and p["required"]:
@@ -233,7 +251,7 @@ def main():
 
         runs = [t for t in m.things.values() if m.is_of(t["Id"], PIPELINE_RUN)
                 and any(x["Id"] == pipe["Id"] for x in m.outgoing(t["Id"], "of"))]
-        print(f"  - {pipe['Name']:26} nodes={len(nodes):2} edges={len(edges):2} runs={len(runs)}"
+        print(f"  - {pipe['Name']:26} nodes={len(nodes):2} edges={edges:2} runs={len(runs)}"
               + (f"  stands for: {'; '.join(stands)}" if stands else ""))
 
     systems = [t for t in m.things.values() if m.is_of(t["Id"], EXTERNAL_SYSTEM)]

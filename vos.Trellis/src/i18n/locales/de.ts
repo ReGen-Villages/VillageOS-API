@@ -1181,6 +1181,8 @@ export const de: PartialResources = {
       nodeArchetype: "an die Rolle Pipeline-Knoten gebundener Archetyp",
       wireArchetype: "an die Rolle Verbindung gebundener Archetyp",
       wirePredicate: "Verbindungsprädikat (ein Prädikat des Verbindungs-Archetyps, das kein Knoten hält)",
+      inputConnector: "an die Rolle Eingangsanschluss gebundenes Prädikat (von einer Verbindung zu dem Ausgang, aus dem sie ihren Wert nimmt)",
+      outputConnector: "an die Rolle Ausgangsanschluss gebundenes Prädikat (von einer Verbindung zu dem Eingang, an den sie ihren Wert liefert)",
     },
     noPortRoles: "Dieses Modell bindet keinen Archetyp an die Rolle Port, Pipeline-Eingang oder Pipeline-Ausgang — laden Sie einen Seed, der sie bindet.",
     noStandsForRole: "Dieses Modell bindet kein Prädikat an die Rolle, die angibt, wofür ein Randknoten steht — laden Sie einen Seed, der eines bindet.",
