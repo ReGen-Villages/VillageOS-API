@@ -106,7 +106,7 @@ internal static class MyceliumStub
     [
         ("responseKind", "binary", EndpointKindRoles.ResponseBody, "BinaryResponse"),
         ("responseKind", "json", EndpointKindRoles.ResponseBody, "JsonResponse"),
-        ("authKind", "tokenexchange", EndpointKindRoles.Authentication, "TokenExchangeAuth"),
+        ("authKind", "tokenexchange", EndpointKindRoles.Authentication, "TokenExchangeAuthentication"),
         ("pagingKind", "offset", EndpointKindRoles.Paging, "OffsetPaging"),
     ];
 

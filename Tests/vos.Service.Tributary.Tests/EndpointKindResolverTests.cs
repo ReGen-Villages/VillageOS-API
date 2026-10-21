@@ -35,7 +35,7 @@ public class EndpointKindResolverTests
             Thing(RootTemplate, "Endpoint"),
             Thing(IsPredicate, "is"),
             Thing(AuthRole, "authenticatesBy"),
-            Thing(TokenExchange, "TokenExchangeAuth", "tokenUrl", "tokenPath"),
+            Thing(TokenExchange, "TokenExchangeAuthentication", "tokenUrl", "tokenPath"),
         ],
         [
             Edge(Registration, IsPredicate, Template),
@@ -82,7 +82,7 @@ public class EndpointKindResolverTests
     {
         var resolved = EndpointKindResolver.Resolve(Snapshot(), Registration);
 
-        resolved[EndpointKindRoles.Authentication].Name.Should().Be("TokenExchangeAuth");
+        resolved[EndpointKindRoles.Authentication].Name.Should().Be("TokenExchangeAuthentication");
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public class EndpointKindResolverTests
     [Fact]
     public void MissingRequirements_EndpointSupplyingEverything_NamesNothing()
     {
-        var kind = new ResolvedKind("TokenExchangeAuth", ["tokenUrl", "tokenPath"]);
+        var kind = new ResolvedKind("TokenExchangeAuthentication", ["tokenUrl", "tokenPath"]);
 
         EndpointKindResolver.MissingRequirements(kind, Effective(
             ("tokenUrl", "https://example.test/token"), ("tokenPath", "access_token")))
@@ -126,7 +126,7 @@ public class EndpointKindResolverTests
     [Fact]
     public void MissingRequirements_KeyDeclaredButLeftBlank_CountsAsNotSupplied()
     {
-        var kind = new ResolvedKind("TokenExchangeAuth", ["tokenUrl", "tokenPath"]);
+        var kind = new ResolvedKind("TokenExchangeAuthentication", ["tokenUrl", "tokenPath"]);
 
         EndpointKindResolver.MissingRequirements(kind, Effective(
             ("tokenUrl", "  "), ("tokenPath", "access_token")))
