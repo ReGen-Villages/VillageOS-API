@@ -84,6 +84,7 @@ describe('findGuiSettingsProperties', () => {
 
   it('merges only an instance that `is` the settings Thing, not the role that binds it', () => {
     const { things, relationships } = bound(makeThing('GUI_Settings', { FlashEdgeSize: 1.5 }));
+    things[1].Properties = { FlashEdgeSize: 99 };
     expect(findGuiSettingsProperties(things, relationships)).toEqual({ FlashEdgeSize: 1.5 });
   });
 

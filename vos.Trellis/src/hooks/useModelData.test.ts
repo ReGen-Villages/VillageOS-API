@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
+import { DISPLAY_SETTINGS_ROLE_ID } from '../api/platformRoles';
 
 const mockGetAllThings = vi.fn();
 const mockGetAllRelationships = vi.fn();
@@ -101,6 +102,7 @@ describe('useModelData', () => {
     await mountLoaded();
 
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
+    expect(mockGetThingBoundBy).toHaveBeenCalledWith(DISPLAY_SETTINGS_ROLE_ID);
     expect(mockGetAllThings).toHaveBeenCalledWith(['ifcClass', 'ifcGlobalId', 'specification']);
   });
 
