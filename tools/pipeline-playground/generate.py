@@ -171,6 +171,11 @@ class Kit:
         return self.bind(ARCHETYPE_ROLE[role], tid)
 
 
+def port_of(port_ids, node_id, service_id, name, direction):
+    """A port the node holds itself wins over its service's, as the orchestrator lists a node's own ports first."""
+    return port_ids.get((node_id, name, direction)) or port_ids[(service_id, name, direction)]
+
+
 def build():
     k = Kit()
 
@@ -349,10 +354,6 @@ def build():
 
             k.rel(pipe_id, has, nid)
 
-        def port_of(node_key, name, direction):
-            held = port_ids.get((node_id[node_key], name, direction))
-            return held or port_ids[(service_of.get(node_key), name, direction)]
-
         # Every value is declared, empty where unset, because a property write on a Thing updates and does not
         # create, so the page could never set one left out.
         for wire in pipe["wires"]:
@@ -363,8 +364,8 @@ def build():
             k.rel(wid, is_, PipelineWire)
             k.rel(source, has, wid)
             k.rel(wid, carries, target)
-            k.rel(wid, input_connector, port_of(wire["from"], wire["fromPort"], "out"))
-            k.rel(wid, output_connector, port_of(wire["to"], wire["toPort"], "in"))
+            k.rel(wid, input_connector, port_of(port_ids, source, service_of.get(wire["from"]), wire["fromPort"], "out"))
+            k.rel(wid, output_connector, port_of(port_ids, target, service_of.get(wire["to"]), wire["toPort"], "in"))
 
         # Seeded run history: a PipelineRun -of-> pipeline, each carrying NodeRuns so the History
         # panel and node status rings show data with no live Phloem. A fan-out node also gets per-item NodeRuns

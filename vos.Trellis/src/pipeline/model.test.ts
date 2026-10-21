@@ -4,7 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { basename, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { VosThing, VosRelationship } from '../types/vos';
-import { PipelineModel, ROLE, portOf, typesCompatible, wireEnds } from './model';
+import { PipelineModel, ROLE, judgeConnection, portOf, typesCompatible, wireEnds } from './model';
 import { loadPipeline } from './serialize';
 import { playing, withRoles } from './roles.test.fixture';
 
@@ -225,6 +225,33 @@ describe('the vocabulary the editor holds', () => {
     );
     for (const roleId of Object.values(ROLE))
       if (!READ_BY_THE_PAGE_ALONE.has(roleId)) expect(phloem).toContain(`"${roleId}"`);
+  });
+});
+
+describe('judgeConnection', () => {
+  const upper = { id: 'upper', ports: [
+    { portId: 'upper.in.text', portName: 'text', direction: 'in' as const, type: 'number', required: true },
+    { portId: 'upper.out.text', portName: 'text', direction: 'out' as const, type: 'string', required: false },
+  ] };
+  const reverse = { id: 'reverse', ports: [
+    { portId: 'reverse.in.text', portName: 'text', direction: 'in' as const, type: 'string', required: true },
+    { portId: 'reverse.in.count', portName: 'count', direction: 'in' as const, type: 'number', required: false },
+  ] };
+  const connection = (sourceHandle: string, targetHandle: string) =>
+    ({ source: 'upper', sourceHandle, target: 'reverse', targetHandle });
+
+  it('accepts a wire from an out port of the node it leaves to an in port of the node it reaches', () => {
+    expect(judgeConnection([upper, reverse], connection('upper.out.text', 'reverse.in.text'))).toEqual({ kind: 'accept' });
+  });
+
+  it('names the two types when the ends do not match, read from the source then the target', () => {
+    expect(judgeConnection([upper, reverse], connection('upper.out.text', 'reverse.in.count')))
+      .toEqual({ kind: 'incompatible', from: 'string', to: 'number' });
+  });
+
+  it('ignores a connection whose source end is not an out port, or whose node is gone', () => {
+    expect(judgeConnection([upper, reverse], connection('upper.in.text', 'reverse.in.text'))).toEqual({ kind: 'ignore' });
+    expect(judgeConnection([reverse], connection('upper.out.text', 'reverse.in.text'))).toEqual({ kind: 'ignore' });
   });
 });
 

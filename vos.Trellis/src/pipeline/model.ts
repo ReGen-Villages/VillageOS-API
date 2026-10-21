@@ -574,6 +574,22 @@ export function wireEnds(
   return { outPort: portOf(sourcePorts, sourceHandle, 'out'), inPort: portOf(targetPorts, targetHandle, 'in') };
 }
 
+export type ConnectionVerdict =
+  | { kind: 'accept' }
+  | { kind: 'ignore' }
+  | { kind: 'incompatible'; from: string; to: string };
+
+export function judgeConnection(
+  nodes: { id: string; ports: PortInformation[] }[],
+  connection: { source: string; sourceHandle?: string | null; target: string; targetHandle?: string | null },
+): ConnectionVerdict {
+  const portsOf = (nodeId: string) => nodes.find((node) => node.id === nodeId)?.ports;
+  const { outPort, inPort } = wireEnds(portsOf(connection.source), connection.sourceHandle, portsOf(connection.target), connection.targetHandle);
+  if (!outPort || !inPort) return { kind: 'ignore' };
+  if (!typesCompatible(outPort.type, inPort.type)) return { kind: 'incompatible', from: outPort.type || 'any', to: inPort.type || 'any' };
+  return { kind: 'accept' };
+}
+
 /** Are two ports type-compatible? Empty/"any" on either side is a wildcard (mirrors DagValidator). */
 export function typesCompatible(outType: string, inType: string): boolean {
   const a = outType.trim().toLowerCase();

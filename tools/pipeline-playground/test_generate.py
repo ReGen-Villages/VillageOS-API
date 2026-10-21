@@ -136,6 +136,15 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class PortLookupTests(unittest.TestCase):
+    def test_a_node_s_own_port_wins_over_its_service_s_port_of_the_same_name_and_direction(self):
+        port_ids = {("node", "accept", "out"): "node.out.accept", ("service", "accept", "out"): "service.out.accept",
+                    ("service", "in", "in"): "service.in.in"}
+
+        self.assertEqual(G.port_of(port_ids, "node", "service", "accept", "out"), "node.out.accept")
+        self.assertEqual(G.port_of(port_ids, "node", "service", "in", "in"), "service.in.in")
+
+
 class CatalystVocabularyTests(unittest.TestCase):
     """The rails of the Pipeline page read external systems, kinds of message and what a boundary node
     stands for through the roles that bind them, so the kit declares each once and relates through the
