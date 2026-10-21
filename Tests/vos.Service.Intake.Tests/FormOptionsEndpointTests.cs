@@ -97,9 +97,9 @@ public class FormOptionsEndpointTests
 
         answered.GetProperty("defaultProgramme").EnumerateArray()
             .Select(share => (share.GetProperty("category").GetString(),
-                share.GetProperty("sharePct").GetDouble()))
+                share.GetProperty("sharePercent").GetDouble()))
             .Should().BeEquivalentTo(
-                WillowBend.DefaultProgramme.Select(share => (share.Category, share.SharePct)));
+                WillowBend.DefaultProgramme.Select(share => (share.Category, share.SharePercent)));
         answered.GetProperty("parcelLookup").GetBoolean().Should().BeTrue();
         answered.GetProperty("placeSearch").GetBoolean().Should().BeTrue();
     }

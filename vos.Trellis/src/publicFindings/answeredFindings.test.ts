@@ -31,7 +31,7 @@ function edge(SubjectId: string, PredicateId: string, TargetId: string): VosRela
 
 function answered(over: Partial<FindingsAnswer> = {}): FindingsAnswer {
   return {
-    spec: '{}',
+    specification: '{}',
     scopeId: SITE,
     things: [
       thing(IS, 'is'),
@@ -40,7 +40,7 @@ function answered(over: Partial<FindingsAnswer> = {}): FindingsAnswer {
       thing(SITE, 'Willow Bend', {
         statedAreaHectares: { typeInfo: 'vos.Double', value: 24, writeKind: 'FactOnly' },
       }),
-      thing(STUDY, 'Willow Bend Site Study', { pctOfConsumption: { typeInfo: 'vos.Double', value: 118 } }, [
+      thing(STUDY, 'Willow Bend Site Study', { percentOfConsumption: { typeInfo: 'vos.Double', value: 118 } }, [
         'EnergyNetPositive',
       ]),
     ],
@@ -52,8 +52,8 @@ function answered(over: Partial<FindingsAnswer> = {}): FindingsAnswer {
         OwnRanges: [
           {
             Name: 'EnergyNetPositive',
-            Criteria: 'pctOfConsumption >= 100',
-            Comparisons: [{ PropertyName: 'pctOfConsumption', Operator: '>=', Value: 100 }],
+            Criteria: 'percentOfConsumption >= 100',
+            Comparisons: [{ PropertyName: 'percentOfConsumption', Operator: '>=', Value: 100 }],
           },
         ],
         InheritedRanges: [],
@@ -94,7 +94,7 @@ describe('the findings a submitter is answered with', () => {
     expect(rows[0]).toMatchObject({
       state: 'EnergyNetPositive',
       reads: 'the site makes what it uses',
-      property: 'pctOfConsumption',
+      property: 'percentOfConsumption',
       target: 100,
       value: 118,
     });

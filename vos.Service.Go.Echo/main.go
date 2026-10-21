@@ -9,7 +9,8 @@
 // Lifecycle:
 //  1. Mycelium launches:  ./app --port=5101 --myceliumUrl=https://localhost:7243 \
 //     --issuer=VillageOS --audience=<this service's own name>
-//     with Token and VerificationKey set on the daemon's environment.
+//     with Token and VerificationKey set on the daemon's environment. A service
+//     started by hand is given ApiKey there instead.
 //  2. On startup the service registers (POST /api/mycelium/register).
 //  3. Mycelium calls POST /handle for each matching relationship (JWT-authed).
 //  4. On shutdown (SIGINT/SIGTERM or POST /shutdown) it stops answering; the
@@ -35,6 +36,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -45,7 +47,8 @@ const serviceName = "Go"
 type config struct {
 	Port            int
 	MyceliumURL     string
-	Token           string // pre-minted service JWT; else fetched from Mycelium
+	APIKey          string // exchanged with Mycelium for a short-lived JWT, and exchanged again before that runs out
+	Token           string // pre-minted service JWT, used when no key is given
 	VerificationKey string // base64 of Mycelium's public signing key, for checking inbound JWTs
 	Issuer          string
 	Audience        string // this service's own name; a token addressed elsewhere is refused
@@ -55,6 +58,7 @@ type config struct {
 // the host and is recorded by anything that logs the line a service was started with.
 func parseArgs(args []string, environment func(string) string) (config, error) {
 	c := config{
+		APIKey:          environment("ApiKey"),
 		Token:           environment("Token"),
 		VerificationKey: environment("VerificationKey"),
 	}
@@ -101,27 +105,64 @@ const usage = `Usage: app --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--
   --audience    This service's own name, which an inbound token must carry; required with a VerificationKey
 
 Credentials come from the environment, never the command line:
-  Token            Service JWT for authenticating to Mycelium (optional; else fetched)
-  VerificationKey  Base64 of Mycelium's public signing key, for checking inbound /handle requests (optional)`
+  ApiKey           API key, exchanged with Mycelium for a short-lived JWT and exchanged again before that runs out
+  Token            Service JWT for authenticating to Mycelium, used when no ApiKey is set
+  VerificationKey  Base64 of Mycelium's public signing key, for checking inbound /handle requests (optional)
+
+With neither ApiKey nor Token the service answers its own routes and makes no call to Mycelium.`
+
+// How long before a held token runs out it is replaced, so a call in flight never carries one that
+// expires on the way.
+const replacementLead = 30 * time.Second
+
+var errNoCredential = errors.New("neither ApiKey nor Token is set")
 
 type service struct {
 	cfg       config
 	handlerID string
 	requests  atomic.Int64
 	client    *http.Client
+	now       func() time.Time
+
+	holding         sync.Mutex
+	heldToken       string
+	heldTokenExpiry time.Time
 }
 
+func (s *service) clock() time.Time {
+	if s.now == nil {
+		return time.Now()
+	}
+	return s.now()
+}
+
+// A key is presented before a token given beside it: a token runs out and the key can replace it.
 func (s *service) token() (string, error) {
+	if s.cfg.APIKey != "" {
+		return s.tokenFromTheKey()
+	}
 	if s.cfg.Token != "" {
 		return s.cfg.Token, nil
 	}
-	resp, err := s.client.Post(s.cfg.MyceliumURL+"/api/auth/token", "application/json", nil)
+	return "", errNoCredential
+}
+
+func (s *service) tokenFromTheKey() (string, error) {
+	s.holding.Lock()
+	defer s.holding.Unlock()
+	if s.heldToken != "" && s.clock().Before(s.heldTokenExpiry.Add(-replacementLead)) {
+		return s.heldToken, nil
+	}
+
+	req, _ := http.NewRequest(http.MethodPost, s.cfg.MyceliumURL+"/api/auth/token", nil)
+	req.Header.Set("X-API-Key", s.cfg.APIKey)
+	resp, err := s.client.Do(req)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("token endpoint returned %d", resp.StatusCode)
+		return "", fmt.Errorf("mycelium refused to exchange the API key (%d)", resp.StatusCode)
 	}
 	var body struct {
 		Token string `json:"token"`
@@ -129,7 +170,46 @@ func (s *service) token() (string, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		return "", err
 	}
+	expiry, err := expiryOf(body.Token)
+	if err != nil {
+		return "", err
+	}
+	s.heldToken, s.heldTokenExpiry = body.Token, expiry
 	return body.Token, nil
+}
+
+// The token is Mycelium's own answer over the connection the key was sent on, so its expiry is read
+// without checking the signature.
+func expiryOf(token string) (time.Time, error) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return time.Time{}, errors.New("mycelium answered the API key with something that is not a token")
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return time.Time{}, errors.New("mycelium answered the API key with something that is not a token")
+	}
+	var claims struct {
+		Exp int64 `json:"exp"`
+	}
+	if json.Unmarshal(payload, &claims) != nil || claims.Exp == 0 {
+		return time.Time{}, errors.New("the token mycelium exchanged the API key for states no expiry, so it cannot be held")
+	}
+	return time.Unix(claims.Exp, 0), nil
+}
+
+// registration registers with Mycelium and says what happened. A call carrying no credential is
+// always refused, so with none the service makes no call.
+func (s *service) registration() string {
+	err := s.register()
+	switch {
+	case errors.Is(err, errNoCredential):
+		return "neither ApiKey nor Token is set, so this service has not registered with mycelium"
+	case err != nil:
+		return fmt.Sprintf("registration failed: %v", err)
+	default:
+		return "registered with mycelium as " + s.handlerID
+	}
 }
 
 func (s *service) register() error {
@@ -169,7 +249,7 @@ type observationSample struct {
 }
 
 type sedimentReading struct {
-	ThingID    string `json:"thingId"`
+	ObjectID   string `json:"objectId"`
 	Property   string `json:"property"`
 	Value      any    `json:"value"`
 	ObservedAt string `json:"observedAt"` // required — sediment is historical
@@ -304,8 +384,8 @@ func (s *service) demoWriteKinds(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	deposit, err := s.depositSediment([]sedimentReading{
-		{ThingID: req.ThingID, Property: "temperature", Value: 19.8, ObservedAt: now.AddDate(0, 0, -1).Format(time.RFC3339)},
-		{ThingID: req.ThingID, Property: "temperature", Value: 20.4, ObservedAt: now.AddDate(0, 0, -1).Add(time.Hour).Format(time.RFC3339)},
+		{ObjectID: req.ThingID, Property: "temperature", Value: 19.8, ObservedAt: now.AddDate(0, 0, -1).Format(time.RFC3339)},
+		{ObjectID: req.ThingID, Property: "temperature", Value: 20.4, ObservedAt: now.AddDate(0, 0, -1).Add(time.Hour).Format(time.RFC3339)},
 	})
 	if err != nil {
 		fail("sediment", err)
@@ -647,11 +727,7 @@ func main() {
 
 	go func() {
 		time.Sleep(200 * time.Millisecond)
-		if err := s.register(); err != nil {
-			log.Printf("registration failed: %v", err)
-		} else {
-			log.Printf("registered with mycelium as %s", s.handlerID)
-		}
+		log.Print(s.registration())
 	}()
 
 	stop := make(chan os.Signal, 1)

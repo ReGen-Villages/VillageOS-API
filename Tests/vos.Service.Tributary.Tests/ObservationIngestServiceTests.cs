@@ -245,7 +245,7 @@ public class ObservationIngestServiceTests
         client.FindThingByNameAsync("observed").Returns(new MyceliumClient.MyceliumThing(observedId, "observed"));
         client.CreateThingAsync("Sensor-1", Arg.Any<Dictionary<string, object?>>())
             .Returns(new MyceliumClient.MyceliumThing(entityId, "Sensor-1"));
-        client.SetPropertyModeAsync(entityId, Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        client.SetPropertyModeAsync(entityId, Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int?>()).Returns(true);
         client.CreateRelationshipAsync(endpointThingId, observedId, entityId).Returns(true);
         client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
@@ -259,7 +259,7 @@ public class ObservationIngestServiceTests
         result.EntitiesTouched.Should().Be(1);
         result.ObservationsSubmitted.Should().Be(1);
         await client.Received(1).CreateThingAsync("Sensor-1", Arg.Any<Dictionary<string, object?>>());
-        await client.Received(1).SetPropertyModeAsync(entityId, "temp", ObservationIngestService.DefaultObservationMode);
+        await client.Received(1).SetPropertyModeAsync(entityId, "temp", "SampledByTime", 60);
         await client.Received(1).CreateRelationshipAsync(endpointThingId, observedId, entityId);
         await client.Received(1).SubmitObservationsAsync(entityId,
             Arg.Is<IReadOnlyList<ObservationSample>>(s => s.Count == 1));
@@ -275,7 +275,7 @@ public class ObservationIngestServiceTests
         client.FindThingByNameAsync(Arg.Is<string>(s => s != "observed")).Returns((MyceliumClient.MyceliumThing?)null);
         client.CreateThingAsync(Arg.Is<string>(s => s != "observed"), Arg.Any<Dictionary<string, object?>>())
             .Returns(_ => new MyceliumClient.MyceliumThing(Guid.NewGuid(), "e"));
-        client.SetPropertyModeAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        client.SetPropertyModeAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int?>()).Returns(true);
         client.CreateRelationshipAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Guid>()).Returns(true);
         client.SubmitObservationsAsync(Arg.Any<Guid>(), Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
@@ -418,7 +418,7 @@ public class ObservationIngestServiceTests
         client.FindThingByNameAsync("E").Returns((MyceliumClient.MyceliumThing?)null);
         client.CreateThingAsync("E", Arg.Any<Dictionary<string, object?>>())
             .Returns(new MyceliumClient.MyceliumThing(entityId, "E"));
-        client.SetPropertyModeAsync(entityId, Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        client.SetPropertyModeAsync(entityId, Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int?>()).Returns(true);
         client.FindThingByNameAsync("observed").Returns((MyceliumClient.MyceliumThing?)null);
         client.CreateThingAsync("observed", Arg.Any<Dictionary<string, object?>>()).Returns((MyceliumClient.MyceliumThing?)null);
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
@@ -440,7 +440,7 @@ public class ObservationIngestServiceTests
         client.FindThingByNameAsync("observed").Returns(new MyceliumClient.MyceliumThing(observedId, "observed"));
         client.CreateThingAsync("E", Arg.Any<Dictionary<string, object?>>())
             .Returns(new MyceliumClient.MyceliumThing(entityId, "E"));
-        client.SetPropertyModeAsync(entityId, Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        client.SetPropertyModeAsync(entityId, Arg.Any<string>(), Arg.Any<string>(), Arg.Any<int?>()).Returns(true);
         client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, entityId).Returns(false);
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
 

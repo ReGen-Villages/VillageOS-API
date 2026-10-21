@@ -80,7 +80,7 @@ public static class SubmissionLimits
         foreach (var allocation in submission.Allocations ?? [])
         {
             Text(allocation.Category, "allocation.category");
-            Between(allocation.SharePct, 0, 100, "allocation.sharePct", "per cent");
+            Between(allocation.SharePercent, 0, 100, "allocation.sharePercent", "per cent");
         }
 
         AtMost(submission.Hazards?.Count, MostHazards, "hazards", "assessments");

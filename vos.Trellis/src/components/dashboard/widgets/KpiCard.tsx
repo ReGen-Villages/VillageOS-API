@@ -130,7 +130,7 @@ export function KpiCard({
  * several says it of each.
  *
  * Every word is the model's. A row carrying no origin — which is what a slot bound to something
- * other than an `origin` binding resolves to — and an origin the spec left unworded are both left
+ * other than an `origin` binding resolves to — and an origin the specification left unworded are both left
  * unsaid rather than drawn as a blank line: Trellis has no wording of its own to put there, and a
  * placeholder would read as an answer.
  */

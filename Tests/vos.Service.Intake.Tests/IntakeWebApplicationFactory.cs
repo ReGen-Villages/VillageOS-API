@@ -84,8 +84,7 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         builder.UseEnvironment(EnvironmentName);
         builder.UseSetting("Port", "5000");
         builder.UseSetting("MyceliumUrl", "http://localhost");
-        // A non-empty token short-circuits the /api/auth/token round trip in MyceliumClientBase, which is
-        // why a test about the key sets Token to null.
+        // A test about the key sets Token to null, so the key is the only credential the service holds.
         if (Token != null)
             builder.UseSetting("Token", Token);
         if (ApiKey != null)

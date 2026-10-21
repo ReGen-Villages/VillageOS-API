@@ -424,6 +424,8 @@ export interface PropertyModeConfiguration {
   Mode: string;
   RingBufferSize?: number;
   SampleRate?: number;
+  SampleSeconds?: number;
+  AvailableModes?: string[];
 }
 
 /** The values an object held at an instant for names one of its sources declares, nested as the

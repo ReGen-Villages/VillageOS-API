@@ -56,12 +56,12 @@ describe('FieldControl', () => {
   });
 
   it('adds an item to a list, edits its fields, and takes the list away with its last item', () => {
-    const { written, redraw } = open({ key: 'buckets', kind: 'list', of: [{ key: 'label', kind: 'text' }, { key: 'severity', kind: 'choice', options: ['good', 'warn'] }] }, undefined);
+    const { written, redraw } = open({ key: 'buckets', kind: 'list', of: [{ key: 'label', kind: 'text' }, { key: 'severity', kind: 'choice', options: ['good', 'warning'] }] }, undefined);
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
     expect(written()).toEqual([{}]);
     redraw();
-    fireEvent.change(screen.getByLabelText('Severity'), { target: { value: 'warn' } });
-    expect(written()).toEqual([{ severity: 'warn' }]);
+    fireEvent.change(screen.getByLabelText('Severity'), { target: { value: 'warning' } });
+    expect(written()).toEqual([{ severity: 'warning' }]);
     redraw();
     fireEvent.click(screen.getByRole('button', { name: 'Remove item 1' }));
     expect(written()).toBeUndefined();

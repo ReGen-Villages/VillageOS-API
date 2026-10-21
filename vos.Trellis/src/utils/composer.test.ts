@@ -13,9 +13,9 @@ const SPRINGS: Composition = {
     { source: 'state', states: ['dry'] },
   ],
   inState: 'flowing',
-  where: [{ property: 'flow', op: '>', value: 5 }],
+  where: [{ property: 'flow', operator: '>', value: 5 }],
   sortKey: 'flow',
-  sortDir: 'desc',
+  sortDirection: 'descending',
 };
 
 describe('the table a composition becomes', () => {
@@ -24,7 +24,7 @@ describe('the table a composition becomes', () => {
     expect(table.rows).toMatchObject({ kind: 'thingList', archetype: 'Spring', inState: 'flowing', where: SPRINGS.where });
     expect(table.columns.map((c) => c.key)).toEqual(['name', 'flow', 'path:feeds>Reservoir', 'path:feeds>Reservoir.capacity', 'state']);
     expect(table.sortKey).toBe('flow');
-    expect(table.sortDir).toBe('desc');
+    expect(table.sortDirection).toBe('descending');
     expect(table.rowDetail).toBe(true);
   });
 

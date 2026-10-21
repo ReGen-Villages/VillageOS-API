@@ -136,7 +136,7 @@ describe('DesignPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add a Figure' }));
     fireEvent.click(screen.getByRole('button', { name: 'Keep' }));
     await waitFor(() => expect(thingApi.setProperty).toHaveBeenCalled());
-    expect(vi.mocked(thingApi.setProperty).mock.calls[0].slice(0, 3)).toEqual(['page-reservoirs', 'spec', 'vos.String']);
+    expect(vi.mocked(thingApi.setProperty).mock.calls[0].slice(0, 3)).toEqual(['page-reservoirs', 'specification', 'vos.String']);
     const kept = written();
     expect(kept.designed).toBe(true);
     expect(kept.sections[0].layout).toBe('grid');

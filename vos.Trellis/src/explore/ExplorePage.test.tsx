@@ -77,8 +77,8 @@ beforeEach(() => {
     hazardTypes: ['river-flood'],
     hazardLevels: ['high', 'low'],
     defaultProgramme: [
-      { category: 'residential', sharePct: 40 },
-      { category: 'food-and-agriculture', sharePct: 60 },
+      { category: 'residential', sharePercent: 40 },
+      { category: 'food-and-agriculture', sharePercent: 60 },
     ],
     parcelLookup: true,
     placeSearch: true,
@@ -94,7 +94,7 @@ beforeEach(() => {
     ticket: 'ticket-2',
   });
   vi.mocked(findingsApi.readWithTicket).mockResolvedValue({
-    findings: { spec: '{}', scopeId: 'site-1', things: [], relationships: [], ranges: {} },
+    findings: { specification: '{}', scopeId: 'site-1', things: [], relationships: [], ranges: {} },
     ticket: 'ticket-3',
   });
   vi.mocked(findingsApi.listDocumentsWithTicket).mockResolvedValue({ documents: [], ticket: 'ticket-3' });
@@ -144,8 +144,8 @@ describe('the plot-first page', () => {
     expect(ticket).toBe('ticket-1');
     expect(document.parcel?.boundarySource).toBe('fetched-from-register');
     expect(document.allocations).toEqual([
-      { category: 'residential', sharePct: 40 },
-      { category: 'food-and-agriculture', sharePct: 60 },
+      { category: 'residential', sharePercent: 40 },
+      { category: 'food-and-agriculture', sharePercent: 60 },
     ]);
     expect(document.site.population).toBeUndefined();
 
@@ -244,7 +244,7 @@ describe('the report as tiles', () => {
     expect(handed.map((section) => section.title)).toEqual(['Balances']);
   });
 
-  it('renders a spec naming no theme exactly as before', async () => {
+  it('renders a specification naming no theme exactly as before', async () => {
     vi.mocked(localizeSpecification).mockReturnValue({
       title: 'Site submission',
       sections: [{ title: 'Balances', widgets: [] }],

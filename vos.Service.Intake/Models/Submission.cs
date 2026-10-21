@@ -51,7 +51,7 @@ public sealed record SubmittedAllocation
     // project with its own programme vocabulary must not need a change here.
     public string? Category { get; init; }
 
-    public double? SharePct { get; init; }
+    public double? SharePercent { get; init; }
 }
 
 // What the submission is for. Its properties are the planner's own account of the undertaking,

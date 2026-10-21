@@ -36,7 +36,7 @@ const MINIMUM_TRACE_WIDTH = 320;
  *  own. */
 const REDUCTION_WORDS = {
   sum: 'breakdown.reduction.sum',
-  avg: 'breakdown.reduction.avg',
+  average: 'breakdown.reduction.average',
   min: 'breakdown.reduction.min',
   max: 'breakdown.reduction.max',
 } as const;
@@ -245,7 +245,7 @@ function ThingsBehind({
         query={query}
         visibleRows={visibleRows}
         sortKey={measure ?? 'name'}
-        sortDir={measure ? 'desc' : 'asc'}
+        sortDirection={measure ? 'descending' : 'ascending'}
         emptyLabel={t('breakdown.empty')}
         onRowClick={openDetail ? (row) => openDetail(String(row.id)) : undefined}
         footnote={omitted.length ? t('breakdown.alsoHeld', { properties: omitted.join(', ') }) : undefined}
@@ -306,7 +306,7 @@ function TermList({ terms }: { terms: FigureTerms }) {
   if (terms.happenedAt) stated.push([t('breakdown.terms.happenedAt'), terms.happenedAt]);
   if (terms.within) stated.push([t('breakdown.terms.within'), terms.within]);
   for (const filter of terms.where ?? []) {
-    stated.push([t('breakdown.terms.where'), `${filter.property} ${filter.op} ${String(filter.value)}`]);
+    stated.push([t('breakdown.terms.where'), `${filter.property} ${filter.operator} ${String(filter.value)}`]);
   }
   if (!stated.length) return null;
 

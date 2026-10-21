@@ -16,7 +16,7 @@ export function formatNumber(value: number | null | undefined, fmt?: NumberForma
       return numberIn(value, { style: 'percent', maximumFractionDigits: 0 });
     case 'percent1':
       return numberIn(value, { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 });
-    case 'pct100':
+    case 'percentOutOf100':
       return numberIn(value / 100, { style: 'percent', maximumFractionDigits: 0 });
     case 'hours':
       return `${numberIn(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h`;
@@ -24,9 +24,28 @@ export function formatNumber(value: number | null | undefined, fmt?: NumberForma
       return numberIn(value, { style: 'currency', currency: 'USD' });
     case 'compact':
       return numberIn(value, { notation: 'compact', maximumFractionDigits: 1 });
+    case 'bytes':
+      return formatBytes(value);
     default:
       return numberIn(value);
   }
+}
+
+const BYTE_UNITS = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'];
+const BYTE_FRACTION_DIGITS = 1;
+
+function roundedAsShown(figure: number): number {
+  return Math.round(figure * 10 ** BYTE_FRACTION_DIGITS) / 10 ** BYTE_FRACTION_DIGITS;
+}
+
+function formatBytes(value: number): string {
+  const size = Math.abs(value);
+  let unitIndex = 0;
+  while (unitIndex < BYTE_UNITS.length - 1 && roundedAsShown(size / 1024 ** unitIndex) >= 1024) {
+    unitIndex++;
+  }
+  const figure = numberIn(value / 1024 ** unitIndex, { maximumFractionDigits: BYTE_FRACTION_DIGITS });
+  return `${figure} ${BYTE_UNITS[unitIndex]}`;
 }
 
 /** Tailwind classes colouring a status/state pill by its wording. Shared by the table

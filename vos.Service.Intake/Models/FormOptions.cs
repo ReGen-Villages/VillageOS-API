@@ -20,7 +20,7 @@ public sealed record DeclaredTheme(string Name, string? Colour, string? Icon, lo
 
 // One category's share of the starting programme, as the category Thing itself states it. A
 // category stating none is offered unchosen, exactly as it is today.
-public sealed record DeclaredShare(string Category, double SharePct);
+public sealed record DeclaredShare(string Category, double SharePercent);
 
 // A basemap source as the model states it. Which of the two addresses is filled in is what
 // decides how a map loads it, and the credit is what its licence obliges the page to display — all three

@@ -33,6 +33,35 @@ public class PipelineModelTests
         dag.Wires.Should().HaveCount(2);
     }
 
+    [Fact]
+    public void Build_AnEndStandingForAnExternalSystem_TellsItThroughTheConnectionItNames()
+    {
+        var telling = TestGraphs.TellingPipeline();
+
+        var dag = PipelineDagBuilder.Build(telling.Fixture.Build(), telling.PipelineId);
+
+        dag.Node(telling.Fixture.Get("Out").Id)!.Tells
+            .Should().Be(new Telling(telling.SystemId, "Reporting office", telling.ConnectionId));
+    }
+
+    [Fact]
+    public void Build_AnEndStandingForNothing_TellsNobody()
+    {
+        var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
+
+        PipelineDagBuilder.Build(fx.Build(), pipelineId).Node(fx.Get("Out").Id)!.Tells.Should().BeNull();
+    }
+
+    [Fact]
+    public void Build_AnEndStandingForASystemThatNamesNoConnection_IsRefusedNamingTheSystem()
+    {
+        var telling = TestGraphs.TellingPipeline(namesItsConnection: false);
+
+        var act = () => PipelineDagBuilder.Build(telling.Fixture.Build(), telling.PipelineId);
+
+        act.Should().Throw<PipelineModelException>().WithMessage("*'Reporting office'*names no connection it is told through*");
+    }
+
     [Fact] // A boundary pipeline validates: every wire connects real ports and the graph is acyclic.
     public void Validate_BoundaryPipeline_IsValid()
     {

@@ -95,7 +95,7 @@ public class TributaryKeepsAnAssetTests : IClassFixture<TheEngine>
         found!.Value.Id.Should().Be(declared);
     }
 
-    // The worked shape of the feature: a blank Sampled string property, and a ticket landing on it
+    // The worked shape of the feature: a blank string property sampled by time, and a ticket landing on it
     // as an ordinary observation with no time of its own, left for the model clock.
     [Fact]
     public async Task A_ticket_rides_the_observation_route_the_keep_lane_writes_through()
@@ -103,7 +103,7 @@ public class TributaryKeepsAnAssetTests : IClassFixture<TheEngine>
         var client = Tributary();
         var subject = await _engine.DeclareAsync($"KeepSubject_{Guid.NewGuid():N}",
             properties: new Dictionary<string, object?> { ["surfaceMap"] = "" });
-        (await client.SetPropertyModeAsync(subject, "surfaceMap", "Sampled")).Should().BeTrue();
+        (await client.SetPropertyModeAsync(subject, "surfaceMap", "SampledByTime", sampleSeconds: 60)).Should().BeTrue();
 
         var ticket = await client.DepositAssetAsync(OwnBytes(), "image/png");
         var landed = await client.SubmitObservationsAsync(

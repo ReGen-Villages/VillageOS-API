@@ -22,7 +22,8 @@ public enum SpawnKind
 // the background (the editor animates over SSE) instead of blocking for the result. A relationship never
 // blocks for the result.
 public sealed record SpawnTrigger(
-    SpawnKind Kind, Guid PipelineId, Guid TargetId, RunSubject? Subject, JsonElement Params, bool Async, string? Error)
+    SpawnKind Kind, Guid PipelineId, Guid TargetId, RunSubject? Subject, JsonElement Params, bool Async, string? Error,
+    Guid? RelationshipId = null)
 {
     public static SpawnTrigger Resolve(JsonElement root)
     {
@@ -36,16 +37,22 @@ public sealed record SpawnTrigger(
 
         if (root.TryGetProperty("targetId", out var tid))
             return tid.ValueKind == JsonValueKind.String && Guid.TryParse(tid.GetString(), out var targetId)
-                ? new SpawnTrigger(SpawnKind.Relationship, Guid.Empty, targetId, SubjectOf(root), CloneProp(root, "properties"), true, null)
+                ? new SpawnTrigger(SpawnKind.Relationship, Guid.Empty, targetId, SubjectOf(root), CloneProp(root, "properties"), true, null,
+                    GuidOf(root, "relationshipId"))
                 : Invalid("'targetId' must be a guid.");
 
         return Invalid("Request must include 'pipelineId' (http spawn) or 'targetId' (a dispatched relationship).");
     }
 
+    private static Guid? GuidOf(JsonElement root, string name) =>
+        root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+        && Guid.TryParse(value.GetString(), out var parsed)
+            ? parsed
+            : null;
+
     private static RunSubject? SubjectOf(JsonElement root)
     {
-        if (!root.TryGetProperty("subjectId", out var sid) || sid.ValueKind != JsonValueKind.String
-            || !Guid.TryParse(sid.GetString(), out var subjectId))
+        if (GuidOf(root, "subjectId") is not { } subjectId)
             return null;
         var name = root.TryGetProperty("subjectName", out var sn) && sn.ValueKind == JsonValueKind.String
             ? sn.GetString() ?? string.Empty

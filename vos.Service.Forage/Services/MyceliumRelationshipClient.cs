@@ -77,7 +77,12 @@ public sealed class MyceliumRelationshipClient : MyceliumClientBase, ICoverageWr
                 $"{MyceliumUrl}/api/relationships",
                 new { subjectId, predicateId, targetId },
                 cancellationToken);
-            return response.IsSuccessStatusCode;
+            if (response.IsSuccessStatusCode)
+                return true;
+
+            Logger.LogWarning("Refused relating {Subject} to {Target}: {Status} {Reason}", subjectId, targetId,
+                response.StatusCode, await response.Content.ReadAsStringAsync(cancellationToken));
+            return false;
         }
         catch (Exception exception)
         {

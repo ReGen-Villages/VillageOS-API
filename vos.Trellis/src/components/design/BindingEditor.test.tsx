@@ -75,7 +75,7 @@ describe('BindingEditor', () => {
     commit('Property', 'flow');
     redraw();
     commit('Value', '5');
-    expect(bound()).toMatchObject({ where: [{ property: 'flow', op: '=', value: 5 }] });
+    expect(bound()).toMatchObject({ where: [{ property: 'flow', operator: '=', value: 5 }] });
   });
 
   it('adds a column worked out per row with the row as its scope', () => {

@@ -22,6 +22,7 @@ EXTERNAL_SYSTEM = "__IsExternalSystemArchetype"
 MESSAGE_KIND = "__IsMessageKindArchetype"
 SENDS = "__IsSendsPredicate"
 TOLD = "__IsToldPredicate"
+TOLD_THROUGH = "__IsToldThroughPredicate"
 ARRIVES_AT = "__IsArrivesAtPredicate"
 STANDS_FOR = "__IsStandsForPredicate"
 
@@ -189,7 +190,8 @@ def main():
 
         # What each boundary node stands for (model.ts endInformation): a start may stand for a kind some
         # system sends, a system that sends, a door or a pipeline; an end for a kind some system is told, a
-        # system, or a pipeline. Standing for nothing is fine at either end.
+        # system naming the connection it is told through (Phloem refuses the run otherwise), or a pipeline.
+        # Standing for nothing is fine at either end.
         stands = []
         for t in node_things:
             for stood in m.reached_along(t["Id"], STANDS_FOR):
@@ -199,7 +201,8 @@ def main():
                     may = any(sid in [k["Id"] for k in m.reached_along(s["Id"], SENDS if is_start else TOLD)]
                               for s in m.things.values() if m.is_of(s["Id"], EXTERNAL_SYSTEM))
                 elif m.is_of(sid, EXTERNAL_SYSTEM):
-                    may = bool(m.reached_along(sid, SENDS)) if is_start else True
+                    may = bool(m.reached_along(sid, SENDS)) if is_start else any(
+                        m.is_of(c["Id"], CONNECTION) for c in m.reached_along(sid, TOLD_THROUGH))
                 elif m.is_of(sid, PIPELINE):
                     may = True
                 elif m.is_of(sid, CONNECTION):

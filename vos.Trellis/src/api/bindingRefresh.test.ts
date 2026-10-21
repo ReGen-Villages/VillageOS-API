@@ -7,7 +7,7 @@ import type { Binding } from '../types/dashboard';
 const ONE_OF_EACH: Record<Binding['kind'], Binding> = {
   const: { kind: 'const', value: 1 },
   property: { kind: 'property', thing: '$scope', property: 'area' },
-  aggregate: { kind: 'aggregate', archetype: 'Building', op: 'count' },
+  aggregate: { kind: 'aggregate', archetype: 'Building', reduction: 'count' },
   compareEntities: { kind: 'compareEntities', properties: ['area'] },
   thingList: { kind: 'thingList', archetype: 'Building' },
   related: { kind: 'related', via: [{ predicate: 'contains', inState: 'flagged' }] },
@@ -17,9 +17,9 @@ const ONE_OF_EACH: Record<Binding['kind'], Binding> = {
   stateList: { kind: 'stateList', state: 'flagged', excludeState: 'cleared' },
   stateOf: { kind: 'stateOf', states: ['flagged', 'cleared'] },
   verdict: { kind: 'verdict', states: [{ state: 'flagged', reads: 'flagged' }], via: [{ predicate: 'feeds', inState: 'wet' }] },
-  ratio: { kind: 'ratio', numerator: { kind: 'stateCount', state: 'flagged' }, denominator: { kind: 'aggregate', archetype: 'Building', op: 'count' } },
-  timeseries: { kind: 'timeseries', archetype: 'Reading', happenedAt: 'at', property: 'volume', op: 'avg', bucketSeconds: 60, buckets: 10 },
-  latest: { kind: 'latest', series: { kind: 'timeseries', archetype: 'Reading', happenedAt: 'at', property: 'volume', op: 'avg', bucketSeconds: 60, buckets: 10 } },
+  ratio: { kind: 'ratio', numerator: { kind: 'stateCount', state: 'flagged' }, denominator: { kind: 'aggregate', archetype: 'Building', reduction: 'count' } },
+  timeseries: { kind: 'timeseries', archetype: 'Reading', happenedAt: 'at', property: 'volume', reduction: 'average', bucketSeconds: 60, buckets: 10 },
+  latest: { kind: 'latest', series: { kind: 'timeseries', archetype: 'Reading', happenedAt: 'at', property: 'volume', reduction: 'average', bucketSeconds: 60, buckets: 10 } },
   service: { kind: 'service', endpoint: '/api/endpoints/reservoirs' },
   history: { kind: 'history', property: 'temperatureCelsius', windowSeconds: 31536000, steps: [{ fold: 'monthOfYear', function: 'Max' }] },
 };

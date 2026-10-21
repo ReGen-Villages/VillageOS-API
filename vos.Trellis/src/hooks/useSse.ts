@@ -20,8 +20,9 @@ const KNOWN_EVENTS = [
   'PropertyChanged', 'PropertyDeleted', 'RelationshipPropertyChanged', 'RelationshipPropertyDeleted',
   'PropertyObserved',
   'ServiceHealthChanged', 'DaemonStatusChanged', 'EndpointServiceRequestCompleted', 'ServiceRequestCompleted',
+  'EngineConfigurationChanged',
   'StatesChanged', 'RelationshipStatesChanged', 'ActivityEvent',
-];
+] as const;
 
 /** A subscription has opened, with the objects it covers as they stood at that moment. Dispatched
  *  to the same handlers the server's own events reach, rather than through a channel of its own: a
@@ -36,8 +37,15 @@ export const SUBSCRIPTION_OPENED = 'SubscriptionOpened';
  *  what it covered before and raises nothing. */
 export const SUBSCRIPTION_CHANGING = 'SubscriptionChanging';
 
+/** The kinds a handler can be registered for. A browser hands a page only the kinds it has attached
+ *  a listener for, so registering for any other kind would never be called and nothing would say so. */
+export type StreamEventKind =
+  | typeof KNOWN_EVENTS[number]
+  | typeof SUBSCRIPTION_OPENED
+  | typeof SUBSCRIPTION_CHANGING;
+
 type Handler = (...eventArguments: unknown[]) => void;
-type Entry = { event: string; handler: Handler };
+type Entry = { event: StreamEventKind; handler: Handler };
 
 // Connection-independent handler registry, re-attached across reconnects.
 const handlers = new Set<Entry>();
@@ -394,7 +402,7 @@ export function useSse() {
     () => connectionState,
   );
 
-  const on = useCallback((event: string, handler: Handler) => {
+  const on = useCallback((event: StreamEventKind, handler: Handler) => {
     const entry: Entry = { event, handler };
     handlers.add(entry);
     return () => { handlers.delete(entry); };

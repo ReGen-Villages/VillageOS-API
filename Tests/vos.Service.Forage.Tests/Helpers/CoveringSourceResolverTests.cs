@@ -575,7 +575,53 @@ public class CoveringSourceResolverTests
         analysis!.StudyId.Should().Be(model.Id("WillowBendStudy"));
         analysis.Triggers.Should().ContainSingle()
             .Which.Should().Be(new AnalysisTrigger(
-                "balancesEnergy", model.Id("balancesEnergy"), model.Id("EnergyBalance prototype")));
+                "balancesEnergy", model.Id("balancesEnergy"), model.Id("EnergyBalance prototype"),
+                AlreadyRelated: false));
+    }
+
+    [Fact]
+    public void AnalysisOf_StudyAlreadyRelatedThroughTheConnection_IsAlreadyRelated()
+    {
+        var model = StudyOf("WillowBend");
+        MarkedConnection(model, "balancesEnergy", "EnergyBalance prototype")
+            .Relate("WillowBendStudy", "balancesEnergy", "EnergyBalance prototype");
+
+        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
+            .Triggers.Should().ContainSingle().Which.AlreadyRelated.Should().BeTrue();
+    }
+
+    [Fact]
+    public void AnalysisOf_StudyRelatedThroughTheConnectionToAnotherPrototype_IsNotAlreadyRelated()
+    {
+        // Only the relationship to the service's own prototype dispatches that service.
+        var model = StudyOf("WillowBend");
+        MarkedConnection(model, "balancesEnergy", "EnergyBalance prototype")
+            .Relate("WillowBendStudy", "balancesEnergy", "SecondBalance prototype");
+
+        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
+            .Triggers.Should().ContainSingle().Which.AlreadyRelated.Should().BeFalse();
+    }
+
+    [Fact]
+    public void AnalysisOf_AnotherStudyRelatedThroughTheConnection_IsNotAlreadyRelated()
+    {
+        var model = StudyOf("WillowBend");
+        MarkedConnection(model, "balancesEnergy", "EnergyBalance prototype")
+            .Relate("ElsewhereStudy", "balancesEnergy", "EnergyBalance prototype");
+
+        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
+            .Triggers.Should().ContainSingle().Which.AlreadyRelated.Should().BeFalse();
+    }
+
+    [Fact]
+    public void AnalysisOf_StudyRelatedToThePrototypeThroughAnotherPredicate_IsNotAlreadyRelated()
+    {
+        var model = StudyOf("WillowBend");
+        MarkedConnection(model, "balancesEnergy", "EnergyBalance prototype")
+            .Relate("WillowBendStudy", "mentions", "EnergyBalance prototype");
+
+        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
+            .Triggers.Should().ContainSingle().Which.AlreadyRelated.Should().BeFalse();
     }
 
     [Fact]

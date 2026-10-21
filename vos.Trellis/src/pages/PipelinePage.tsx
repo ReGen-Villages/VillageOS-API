@@ -15,7 +15,8 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import clsx from 'clsx';
-import { Play, Save, FilePlus, MousePointerClick, Ban, History, SlidersHorizontal, AlertTriangle, Undo2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Play, Save, FilePlus, MousePointerClick, Ban, History, SlidersHorizontal, AlertTriangle, Undo2, ArrowLeftRight } from 'lucide-react';
 import { useModelStore } from '../stores/modelStore';
 import { useThemeStore } from '../stores/themeStore';
 import { useSubscription } from '../hooks/useSse';
@@ -25,7 +26,10 @@ import { savePipeline, loadPipeline, type EditorNode, type EditorEdge } from '..
 import { validatePipeline, validateEnds } from '../pipeline/validate';
 import { catalystRail, outputRail, type CatalystRow, type OutputRow } from '../pipeline/catalysts';
 import { EditorHistory } from '../pipeline/history';
+import { handStateToOrchestrator } from '../pipeline/handOver';
 import { pipelineApi } from '../api/pipelineApi';
+import { relationshipApi } from '../api/relationshipApi';
+import { reloadModelData } from '../hooks/useModelData';
 import { PipelineNodeView, type PipelineNodeData } from '../components/pipeline/PipelineNodeView';
 import { CatalystRail } from '../components/pipeline/CatalystRail';
 import { OutputRail } from '../components/pipeline/OutputRail';
@@ -204,6 +208,7 @@ export function PipelinePage() {
   const liveRunStatus = runId ? model.runStatus(runId) : undefined;
   const runActive = !!runId && (liveRunStatus === undefined || liveRunStatus === 'running');
   const runs = useMemo(() => (savedId ? model.runsOf(savedId) : []), [savedId, model]);
+  const chosenRunRequest = runs.find((r) => r.runId === runId)?.requestId;
 
   const clearStatuses = useCallback(() => {
     setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined, progress: undefined } })));
@@ -244,6 +249,20 @@ export function PipelinePage() {
       ...(row ? { standsForId: row.standsForId } : {}),
     });
   }, [place, t]);
+
+  // The rail's words after a hand-over come from the model read back, not from the press.
+  const handOver = useCallback(async (row: CatalystRow) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await handStateToOrchestrator(model, row, relationshipApi);
+      await reloadModelData({ silent: true });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('pipeline.catalysts.handOverFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }, [model, t]);
 
   // What the run leaves behind: the answer to whoever started it, another pipeline, or a system told.
   const placeOutput = useCallback((row: OutputRow) => {
@@ -455,7 +474,7 @@ export function PipelinePage() {
 
   return (
     <div className="flex h-full flex-col md:flex-row">
-      <CatalystRail groups={catalysts} onPlace={placeStart} onOpenPipeline={onLoad} />
+      <CatalystRail groups={catalysts} onPlace={placeStart} onOpenPipeline={onLoad} onHandOver={handOver} />
       <PipelineRoster pipelines={pipelines} openedPipelineId={editingPipelineId} onOpen={onLoad} onCreate={onNew} />
       <div className="flex-1 min-w-0 min-h-0 flex flex-col">
         <div className="flex flex-wrap items-center gap-2 p-2 border-b border-zinc-200 dark:border-zinc-700">
@@ -510,6 +529,15 @@ export function PipelinePage() {
                   </option>
                 ))}
               </select>
+              {chosenRunRequest && (
+                <Link
+                  to={`/requests?entry=${encodeURIComponent(chosenRunRequest)}`}
+                  title={t('pipeline.openRequestTitle')}
+                  className="flex items-center gap-1 px-2 py-1 text-sm rounded text-blue-600 hover:underline"
+                >
+                  <ArrowLeftRight size={14} /> {t('pipeline.openRequest')}
+                </Link>
+              )}
             </div>
           )}
           {dirty ? (

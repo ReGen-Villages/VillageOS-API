@@ -31,9 +31,10 @@ public record ObservationIngestResult(
 // later value with no source at all.
 public class ObservationIngestService
 {
-    // Retention applied to newly-declared observed properties. Sampled bounds storage
-    // growth at the source — the right default for high-volume sediment series.
-    public const string DefaultObservationMode = "Sampled";
+    // Retention applied to newly-declared observed properties: the newest reading in each minute.
+    // Sampling bounds storage growth at the source — the right default for high-volume sediment series.
+    public const string DefaultObservationMode = "SampledByTime";
+    public const int DefaultObservationSampleSeconds = 60;
 
     private readonly IEndpointMyceliumClient _myceliumClient;
     private readonly ILogger<ObservationIngestService> _logger;
@@ -130,7 +131,8 @@ public class ObservationIngestService
                 created = true;
 
                 foreach (var prop in entityReadings[0].Properties.Keys)
-                    await _myceliumClient.SetPropertyModeAsync(entity.Value.Id, prop, DefaultObservationMode);
+                    await _myceliumClient.SetPropertyModeAsync(
+                        entity.Value.Id, prop, DefaultObservationMode, DefaultObservationSampleSeconds);
             }
 
             entitiesTouched++;

@@ -97,7 +97,7 @@ public static class WillowBend
 
     // The starting split each category Thing states for itself, as the shipped analysis
     // template states it: the worked example's programme, describing the whole parcel between them.
-    public static readonly (string Category, double SharePct)[] DefaultProgramme =
+    public static readonly (string Category, double SharePercent)[] DefaultProgramme =
     [
         ("residential", 22), ("food-and-agriculture", 34), ("green-water-and-restoration", 20),
         ("commercial-and-retail", 8), ("community-education-and-health", 9),
@@ -169,12 +169,12 @@ public static class WillowBend
         // categories further down the analysis.
         Allocations =
         [
-            new SubmittedAllocation { Category = "residential", SharePct = 22 },
-            new SubmittedAllocation { Category = "food-and-agriculture", SharePct = 34 },
-            new SubmittedAllocation { Category = "green-water-and-restoration", SharePct = 20 },
-            new SubmittedAllocation { Category = "commercial-and-retail", SharePct = 8 },
-            new SubmittedAllocation { Category = "community-education-and-health", SharePct = 9 },
-            new SubmittedAllocation { Category = "mobility-and-infrastructure", SharePct = 7 },
+            new SubmittedAllocation { Category = "residential", SharePercent = 22 },
+            new SubmittedAllocation { Category = "food-and-agriculture", SharePercent = 34 },
+            new SubmittedAllocation { Category = "green-water-and-restoration", SharePercent = 20 },
+            new SubmittedAllocation { Category = "commercial-and-retail", SharePercent = 8 },
+            new SubmittedAllocation { Category = "community-education-and-health", SharePercent = 9 },
+            new SubmittedAllocation { Category = "mobility-and-infrastructure", SharePercent = 7 },
         ],
         // Two hazards read off one portal, so the source is one Thing both hang off. LAND_INTAKE.md §8
         // calls a level without a source a recollection rather than an assessment, so neither is here.

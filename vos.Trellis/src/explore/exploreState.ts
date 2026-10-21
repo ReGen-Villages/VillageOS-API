@@ -70,7 +70,7 @@ export function emptyExplore(submissionId: string): ExploreState {
  *  keeps the share it had — posting all of them is what makes a slider at zero mean zero. */
 export function seededShares(options: FormOptions): ProgrammeShares {
   return Object.fromEntries(
-    options.defaultProgramme.map((share) => [share.category, share.sharePct]),
+    options.defaultProgramme.map((share) => [share.category, share.sharePercent]),
   );
 }
 
@@ -141,9 +141,9 @@ export function readyToSubmit(state: ExploreState): boolean {
  * who goes on with it renames the project where projects are worked on.
  */
 export function documentFrom(state: ExploreState): SubmissionDocument {
-  const allocations = Object.entries(state.shares).map(([category, sharePct]) => ({
+  const allocations = Object.entries(state.shares).map(([category, sharePercent]) => ({
     category,
-    sharePct,
+    sharePercent,
   }));
   const hazards = Object.entries(state.reportedHazards).map(([hazardType, reportedLevel]) => ({
     hazardType,

@@ -38,11 +38,12 @@ public sealed class PipelineExecutor
     // reaches the pipeline as the run param `subject` — the name the page gives a start node's port — as
     // one value carrying the Thing's id and name, so a wire narrows it to either by its from-path.
     public async Task<PipelineRunResult> RunAsync(
-        Guid pipelineId, JsonElement runParams, CancellationToken cancellationToken, Guid? runId = null, RunSubject? subject = null)
+        Guid pipelineId, JsonElement runParams, CancellationToken cancellationToken, Guid? runId = null, RunSubject? subject = null,
+        Guid? requestId = null)
     {
         var rid = runId ?? Guid.NewGuid();
         if (subject is not null) runParams = WithSubject(runParams, subject);
-        await BestEffort(() => _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject), "create run");
+        await BestEffort(() => _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject, requestId), "create run");
 
         PipelineDag dag;
         try
@@ -164,6 +165,25 @@ public sealed class PipelineExecutor
         }
     }
 
+    // Sending is writing: the broker delivers the message once from the model, so a failure here is a write the
+    // broker refused, never a message half sent.
+    private async Task<NodeRunResult> TellAsync(
+        PipelineDag dag, DagNode node, Telling telling, Guid runId,
+        IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, JsonElement runParams, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var payload = JsonSerializer.SerializeToElement(AssembleInputs(dag, node, outputs, runParams));
+            await _gateway.SendMessageAsync(runId, telling, payload, cancellationToken);
+            return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, NoOutputs, null);
+        }
+        catch (Exception ex)
+        {
+            return new NodeRunResult(node.NodeId, node.Name, RunStatus.Failed, NoOutputs,
+                $"The message to '{telling.SystemName}' could not be written: {ex.Message}");
+        }
+    }
+
     private async Task<NodeRunResult> RunNodeAsync(
         PipelineDag dag, DagNode node, Guid runId,
         IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, JsonElement runParams, CancellationToken cancellationToken)
@@ -178,7 +198,9 @@ public sealed class PipelineExecutor
         if (node.Kind == DagNodeKind.Input)
             return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, ProjectParamsOntoOutputs(node, runParams), null);
         if (node.Kind == DagNodeKind.Output)
-            return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, NoOutputs, null);
+            return node.Tells is null
+                ? new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, NoOutputs, null)
+                : await TellAsync(dag, node, node.Tells, runId, outputs, runParams, cancellationToken);
 
         Dictionary<string, JsonElement> inputs;
         try

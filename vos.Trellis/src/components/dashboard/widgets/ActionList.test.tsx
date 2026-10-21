@@ -110,14 +110,14 @@ describe('ActionList', () => {
     expect(screen.queryByText('ada may now enter Site A')).toBeNull();
   });
 
-  it('offers every choice the spec names, beside what the row shows', () => {
+  it('offers every choice the specification names, beside what the row shows', () => {
     render(<ActionList widget={JUDGE} context={context} />);
     expect(screen.getByRole('button', { name: 'Potable' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Unfit' })).toBeInTheDocument();
     expect(screen.getByText('12')).toBeInTheDocument();
   });
 
-  it('posts the row and the choice to the endpoint the spec names, and nothing naming who asked', async () => {
+  it('posts the row and the choice to the endpoint the specification names, and nothing naming who asked', async () => {
     render(<ActionList widget={JUDGE} context={context} />);
     fireEvent.click(screen.getByRole('button', { name: 'Potable' }));
 
@@ -144,7 +144,7 @@ describe('ActionList', () => {
     expect(screen.queryByRole('button', { name: 'Potable' })).toBeNull();
   });
 
-  it('offers what a row is asked for from the roster the spec names, and waits for it before a press', async () => {
+  it('offers what a row is asked for from the roster the specification names, and waits for it before a press', async () => {
     render(<ActionList widget={ASSIGN} context={context} />);
     const reader = screen.getByLabelText('Reader');
     expect(screen.getByRole('option', { name: 'Grace' })).toBeInTheDocument();

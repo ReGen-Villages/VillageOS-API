@@ -35,12 +35,12 @@ describe('BulletChart up-good self-sufficiency rows', () => {
       rows: [
         {
           label: 'Energy — net positive',
-          value: bind('pctOfConsumption', 112),
+          value: bind('percentOfConsumption', 112),
           max: 200,
           target: 100,
           band: [100, 200],
           direction: 'up-good',
-          format: 'pct100',
+          format: 'percentOutOf100',
         },
       ],
     };

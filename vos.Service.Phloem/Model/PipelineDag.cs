@@ -16,6 +16,9 @@ public sealed record DagPort(string PortName, string Direction, string Type, boo
 // dispatch.
 public enum DagNodeKind { Service, Input, Output }
 
+// The external system an end node stands for, and the connection that system is told through.
+public sealed record Telling(Guid SystemId, string SystemName, Guid ConnectionId);
+
 public sealed class DagNode
 {
     public Guid NodeId { get; init; }
@@ -34,6 +37,9 @@ public sealed class DagNode
     // Per-item failure policy when fanning out: fail (fail-fast, default) or
     // continue (collect-partial — failed items become null holes, node is partial).
     public string OnItemError { get; init; } = ModelNames.OnItemErrorFail;
+
+    // For an end node standing for an external system: who is sent what reaches it, and through what.
+    public Telling? Tells { get; init; }
 
     public IEnumerable<DagPort> OutputPorts => Ports.Where(p => p.IsOutput);
 

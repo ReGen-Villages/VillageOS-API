@@ -182,6 +182,26 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
+    public sealed record TellingFixture(GraphFixture Fixture, Guid PipelineId, Guid SystemId, Guid ConnectionId);
+
+    // BoundaryPipeline whose end node stands for an external system. Unless told otherwise the system names
+    // the connection it is told through, along a predicate carrying that mark itself.
+    public static TellingFixture TellingPipeline(bool namesItsConnection = true)
+    {
+        var (fx, pipelineId) = BoundaryPipeline();
+        var isPredicate = fx.Get("is");
+        var standsFor = fx.Thing("standsFor", (PipelinePredicates.StandsForFlag, true));
+        var toldThrough = fx.Thing("toldThrough", (PipelinePredicates.ToldThroughFlag, true));
+        var systemKind = fx.Archetype("Neighbour", PipelineArchetypes.ExternalSystemFlag);
+        var system = fx.Thing("Reporting office");
+        fx.Rel(system, isPredicate, systemKind);
+        fx.Rel(fx.Get("Out"), standsFor, system);
+        var tells = fx.Thing("tellsReportingOffice");
+        fx.Rel(tells, isPredicate, fx.Get("PlatformServiceConnection"));
+        if (namesItsConnection) fx.Rel(system, toldThrough, tells);
+        return new TellingFixture(fx, pipelineId, system.Id, tells.Id);
+    }
+
     // The three ways a dispatched relationship's target can start a pipeline, and one way it cannot.
     public sealed record StartFixture(
         GraphFixture Fixture,
@@ -389,7 +409,7 @@ public static class TestGraphs
         NumberPort(fx, vocabulary, proto, "performanceRatio", "in", required: true);
         NumberPort(fx, vocabulary, proto, "otherGenerationMwhPerYear", "in", required: true);
         NumberPort(fx, vocabulary, proto, "annualConsumptionMwhPerYear", "in", required: true);
-        NumberPort(fx, vocabulary, proto, "pctOfConsumption", "out");
+        NumberPort(fx, vocabulary, proto, "percentOfConsumption", "out");
 
         var svc = fx.Thing("energySvc");
         fx.Rel(svc, vocabulary.Is, proto);

@@ -32,6 +32,8 @@ const FEED_COLLAPSED_KEY = 'vos-activity-feed-collapsed';
 // events; the poll stays as a fallback for a dropped stream.
 const ENGINE_METRICS_POLL_MILLISECONDS = 15000;
 
+const ENGINE_REFRESH_WINDOW_MILLISECONDS = 2000;
+
 const REGISTRY_REFRESH_WINDOW_MILLISECONDS = 2000;
 
 // With the platform gone no event arrives to prompt a registry read, so only a read on a timer
@@ -121,6 +123,20 @@ export function DashboardPage() {
         void loadMyceliumData();
       }, REGISTRY_REFRESH_WINDOW_MILLISECONDS);
     };
+    // The engine read walks every range and definition, so one read for each registration would cost
+    // a bulk registration the square of its size. The first registration is read at once, and any
+    // that arrive within the window are read together when it closes.
+    let engineRefresh: ReturnType<typeof setTimeout> | null = null;
+    let registeredDuringWindow = false;
+    const engineConfigurationMoved = () => {
+      if (engineRefresh) { registeredDuringWindow = true; return; }
+      registeredDuringWindow = false;
+      void loadEngineMetrics();
+      engineRefresh = setTimeout(() => {
+        engineRefresh = null;
+        if (registeredDuringWindow) engineConfigurationMoved();
+      }, ENGINE_REFRESH_WINDOW_MILLISECONDS);
+    };
     const unsubs = [
       on('ServiceHealthChanged', registryMoved),
       on('DaemonStatusChanged', registryMoved),
@@ -128,10 +144,11 @@ export function DashboardPage() {
       on('EndpointServiceRequestCompleted', registryMoved),
       on('ModelChanged', () => loadMyceliumData()),
       on('ModelChanged', () => loadEngineMetrics()),
-      on('EngineConfigurationChanged', () => loadEngineMetrics()),
+      on('EngineConfigurationChanged', engineConfigurationMoved),
     ];
     return () => {
       if (registryRefresh) clearTimeout(registryRefresh);
+      if (engineRefresh) clearTimeout(engineRefresh);
       unsubs.forEach((u) => u());
     };
   }, [on, loadMyceliumData, loadEngineMetrics]);

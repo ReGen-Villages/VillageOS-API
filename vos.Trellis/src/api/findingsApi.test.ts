@@ -7,7 +7,7 @@ const fetchMock = vi.fn();
 const REFERENCE = '9f1c74d6-0b8e-4a52-bd31-6c7e5a92f048';
 const ADDRESS = 'ana.ferreira@example.pt';
 
-const ANSWER = { spec: '{}', scopeId: 'site-1', things: [], relationships: [], ranges: {} };
+const ANSWER = { specification: '{}', scopeId: 'site-1', things: [], relationships: [], ranges: {} };
 
 /** The ticket exchange first, then whatever the test says the findings request is answered with. Every
  *  faked answer carries a header map because every real one does — an accepted read hands the renewed

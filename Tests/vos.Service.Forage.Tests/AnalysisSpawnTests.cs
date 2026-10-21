@@ -140,6 +140,46 @@ public class AnalysisSpawnTests
     }
 
     [Fact]
+    public async Task Handle_StudyAlreadyRelatedToTheService_WritesNothing()
+    {
+        // A seed can carry the relationship, and every run after the first finds the one it wrote. The
+        // model refuses a second copy, so writing it again would report a running analysis as not started.
+        var ids = SiteWithOneSource();
+        var spawns = new SpawnRecorder();
+        Edge[] edges =
+        [
+            .. OneSourceAndOneBalance(),
+            new Edge("WillowBendStudy", "balancesEnergy", "EnergyBalance prototype"),
+        ];
+
+        await RunDiscovery(ids, edges, spawns);
+
+        spawns.Written.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_StudyAlreadyRelatedToOneOfTwoServices_StartsOnlyTheOther()
+    {
+        var ids = SiteWithOneSource();
+        foreach (var name in new[] { "secondBalance", "secondBalance service", "SecondBalance prototype" })
+            ids[name] = Guid.NewGuid();
+        var spawns = new SpawnRecorder();
+        Edge[] edges =
+        [
+            .. OneSourceAndOneBalance(),
+            new Edge("WillowBendStudy", "balancesEnergy", "EnergyBalance prototype"),
+            new Edge("secondBalance", "is", "SiteAnalysisConnection"),
+            new Edge("secondBalance", "has", "secondBalance service"),
+            new Edge("secondBalance service", "is", "SecondBalance prototype"),
+        ];
+
+        await RunDiscovery(ids, edges, spawns);
+
+        spawns.Written.Should().ContainSingle()
+            .Which.Should().Be((ids["WillowBendStudy"], ids["secondBalance"], ids["SecondBalance prototype"]));
+    }
+
+    [Fact]
     public async Task Handle_ConnectionIsNotMarked_IsNotStarted()
     {
         // An unmarked connection is an ordinary one — a service bound for some other purpose — and

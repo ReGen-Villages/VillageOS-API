@@ -27,14 +27,14 @@ function renderTable({
   visibleRows,
   rowCount = 8,
   sortKey,
-  sortDir,
+  sortDirection,
   query,
   title,
 }: {
   visibleRows?: number;
   rowCount?: number;
   sortKey?: string;
-  sortDir?: 'asc' | 'desc';
+  sortDirection?: 'ascending' | 'descending';
   query?: string;
   title?: string;
 }) {
@@ -50,7 +50,7 @@ function renderTable({
       context={{} as ResolveContext}
       visibleRows={visibleRows}
       sortKey={sortKey}
-      sortDir={sortDir}
+      sortDirection={sortDirection}
       query={query}
       title={title}
       searchKeys={query === undefined ? undefined : ['name']}
@@ -62,7 +62,7 @@ function renderTable({
 /** A long list in its natural order: sorting by the numeric column ascending makes the row at
  *  index N `Location N`, which is what the window assertions read. */
 function renderLongTable(extra: { query?: string } = {}) {
-  return renderTable({ visibleRows: 10, rowCount: 500, sortKey: 'units', sortDir: 'asc', ...extra });
+  return renderTable({ visibleRows: 10, rowCount: 500, sortKey: 'units', sortDirection: 'ascending', ...extra });
 }
 
 function dataRows(scroller: HTMLElement): HTMLElement[] {
@@ -208,7 +208,7 @@ describe('DataTable row window', () => {
   it('follows the container back to the top when a search narrows the list inside the cap', () => {
     const rows: Row[] = Array.from({ length: 500 }, (_, i) => ({ id: `location-${i}`, name: `Location ${i}`, units: i }));
     const table = (query?: string) => (
-      <DataTable columns={columns} rows={rows} context={{} as ResolveContext} visibleRows={10} sortKey="units" sortDir="asc" query={query} />
+      <DataTable columns={columns} rows={rows} context={{} as ResolveContext} visibleRows={10} sortKey="units" sortDirection="ascending" query={query} />
     );
     const { container, rerender } = render(table());
     const scroller = container.querySelector('.overflow-x-auto') as HTMLElement;
@@ -235,7 +235,7 @@ describe('DataTable row window', () => {
   });
 
   it('renders every row when the list fits inside the cap', () => {
-    const scroller = renderTable({ visibleRows: 10, rowCount: 12, sortKey: 'units', sortDir: 'asc' });
+    const scroller = renderTable({ visibleRows: 10, rowCount: 12, sortKey: 'units', sortDirection: 'ascending' });
 
     expect(rowNames(scroller)).toHaveLength(12);
     expect(spacerHeights(scroller)).toEqual([]);
@@ -244,7 +244,7 @@ describe('DataTable row window', () => {
 
 describe('DataTable download', () => {
   it('offers the rows as the table shows them: sorted and under the search, named after the table', async () => {
-    const scroller = renderTable({ rowCount: 12, sortKey: 'units', sortDir: 'desc', query: 'Location 1', title: 'Water stored' });
+    const scroller = renderTable({ rowCount: 12, sortKey: 'units', sortDirection: 'descending', query: 'Location 1', title: 'Water stored' });
 
     fireEvent.click(scroller.parentElement!.querySelector('button[data-download]')!);
 

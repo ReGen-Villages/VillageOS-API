@@ -30,6 +30,12 @@ vi.mock('../api/client', () => ({
   },
 }));
 
+// Every kind the platform publishes on its system events stream.
+const SYSTEM_STREAM_KINDS = [
+  'ActivityEvent', 'DaemonStatusChanged', 'EndpointServiceRequestCompleted',
+  'EngineConfigurationChanged', 'ServiceHealthChanged',
+] as const;
+
 describe('useSse', () => {
   beforeEach(() => {
     FakeEventSource.instances = [];
@@ -42,7 +48,7 @@ describe('useSse', () => {
 
   afterEach(() => vi.restoreAllMocks());
 
-  it.each(['PropertyChanged', 'PropertyObserved'])('maps a %s event to positional args', async (kind) => {
+  it.each(['PropertyChanged', 'PropertyObserved'] as const)('maps a %s event to positional args', async (kind) => {
     const { result, unmount } = renderHook(() => useSse());
     const handler = vi.fn();
     let off: () => void = () => {};
@@ -65,16 +71,16 @@ describe('useSse', () => {
     ['PropertyDeleted', { EntityId: 't1', PropertyName: 'temp' }, ['t1', 'temp', undefined]],
     ['RelationshipPropertyChanged', { EntityId: 'r1', PropertyName: 'total', Value: 9 }, ['r1', 'total', 9]],
     ['RelationshipPropertyDeleted', { EntityId: 'r1', PropertyName: 'total' }, ['r1', 'total', undefined]],
-  ])('maps %s to positional args', async (event, payload, expected) => {
+  ] as const)('maps %s to positional args', async (event, payload, expected) => {
     const { result, unmount } = renderHook(() => useSse());
     const handler = vi.fn();
     let off: () => void = () => {};
-    act(() => { off = result.current.on(event as string, handler); });
+    act(() => { off = result.current.on(event, handler); });
 
     await waitFor(() => expect(FakeEventSource.instances.length).toBeGreaterThan(0));
-    act(() => FakeEventSource.instances[0].emit(event as string, payload));
+    act(() => FakeEventSource.instances[0].emit(event, payload));
 
-    expect(handler).toHaveBeenCalledWith(...(expected as unknown[]));
+    expect(handler).toHaveBeenCalledWith(...expected);
     act(() => off());
     unmount();
   });
@@ -93,7 +99,24 @@ describe('useSse', () => {
     unmount();
   });
 
-  it.each(['ThingEntered', 'ThingLeft', 'RelationshipEntered', 'RelationshipLeft'])(
+  // A browser hands a page only the kinds it has attached a listener for, so a kind the hook leaves
+  // out never reaches the handler a page registered for it, and nothing reports that.
+  it.each(SYSTEM_STREAM_KINDS)('hands a %s event from the system stream to its handler', async (kind) => {
+    const { result, unmount } = renderHook(() => useSse());
+    const handler = vi.fn();
+    let off: () => void = () => {};
+    act(() => { off = result.current.on(kind, handler); });
+
+    await waitFor(() => expect(FakeEventSource.instances.length).toBe(2));
+    const systemStream = FakeEventSource.instances.find((source) => source.url.includes('/api/events/stream'))!;
+    act(() => systemStream.emit(kind, { Engine: 'ranges' }));
+
+    expect(handler).toHaveBeenCalledWith({ Engine: 'ranges' });
+    act(() => off());
+    unmount();
+  });
+
+  it.each(['ThingEntered', 'ThingLeft', 'RelationshipEntered', 'RelationshipLeft'] as const)(
     'hands a %s event through as the object the platform sent', async (kind) => {
       const { result, unmount } = renderHook(() => useSse());
       const handler = vi.fn();

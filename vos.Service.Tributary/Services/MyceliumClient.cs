@@ -164,14 +164,16 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
     }
 
-    public async Task<bool> SetPropertyModeAsync(Guid thingId, string property, string mode)
+    public async Task<bool> SetPropertyModeAsync(Guid thingId, string property, string mode, int? sampleSeconds = null)
     {
         try
         {
             var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
             var encoded = Uri.EscapeDataString(property);
+            var request = new Dictionary<string, object> { ["Mode"] = mode };
+            if (sampleSeconds is { } seconds) request["SampleSeconds"] = seconds;
             var response = await client.PutAsJsonAsync(
-                $"{MyceliumUrl}/api/things/{thingId}/properties/{encoded}/mode", new { Mode = mode });
+                $"{MyceliumUrl}/api/things/{thingId}/properties/{encoded}/mode", request);
             if (response.IsSuccessStatusCode)
                 return true;
 

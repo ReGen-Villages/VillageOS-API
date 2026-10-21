@@ -24,7 +24,7 @@ public sealed class ServiceCredential
     }
 
     // Whether the service has anything of its own to present. False only when it holds no
-    // credential and no work is in hand, which is when a caller has to obtain one some other way.
+    // credential and no work is in hand, which is when a call to Mycelium cannot be made at all.
     public bool Holds =>
         !string.IsNullOrEmpty(MyceliumModelToken.Current)
         || _apiKeyTokens != null

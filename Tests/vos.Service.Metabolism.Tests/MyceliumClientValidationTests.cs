@@ -102,19 +102,9 @@ public class MyceliumClientValidationTests
         Func<object>? incrementPayloadOverride = null,
         ILogger<MyceliumClient>? logger = null)
     {
-        var mock = new MockHttpMessageHandler(req =>
+        var mock = new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
-            if (req.RequestUri!.AbsolutePath == "/api/auth/token")
-            {
-                return new HttpResponseMessage(HttpStatusCode.OK)
-                {
-                    Content = new StringContent("{\"token\":\"fake-jwt\"}", System.Text.Encoding.UTF8, "application/json")
-                };
-            }
-            return new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent("{\"ok\":true}", System.Text.Encoding.UTF8, "application/json")
-            };
+            Content = new StringContent("{\"ok\":true}", System.Text.Encoding.UTF8, "application/json")
         });
 
         var httpFactory = new Mock<IHttpClientFactory>();
@@ -139,7 +129,7 @@ public class MyceliumClientValidationTests
     private sealed class TestableMetabolismMyceliumClient : MyceliumClient
     {
         public TestableMetabolismMyceliumClient(IHttpClientFactory http, ILogger<MyceliumClient> log, string myceliumUrl, ResourceDirection direction)
-            : base(http, log, myceliumUrl, direction) { }
+            : base(http, log, myceliumUrl, direction, serviceToken: "fake-jwt") { }
 
         public SchemaViolationMode? ViolationModeForTests { get; set; }
         public Func<object>? ApplyPayloadOverride { get; set; }

@@ -14,7 +14,7 @@ public class WaterReserveCalculatorTests
 
         r.DomesticConsumptionM3PerYear.Should().Be(50_000);
         r.EmergencyReserveM3.Should().Be(100_000);
-        r.PctAnnualConsumption.Should().BeApproximately(200.0, 1e-9);   // reserve is 2x annual use
+        r.PercentOfAnnualConsumption.Should().BeApproximately(200.0, 1e-9);   // reserve is 2x annual use
         r.DaysOfSupply.Should().BeApproximately(730.0, 1e-6);           // 100000 / (50000/365)
     }
 
@@ -36,7 +36,7 @@ public class WaterReserveCalculatorTests
         var r = WaterReserveCalculator.Compute(new WaterReserveInputs(0, 50, 100_000));
 
         r.DomesticConsumptionM3PerYear.Should().Be(0);
-        r.PctAnnualConsumption.Should().Be(0);
+        r.PercentOfAnnualConsumption.Should().Be(0);
         r.DaysOfSupply.Should().Be(0);
     }
 }

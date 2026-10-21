@@ -10,5 +10,5 @@ public interface IEndpointMyceliumClient
 
     Task<bool> SubmitObservationsAsync(Guid thingId, IReadOnlyList<ObservationSample> samples);
 
-    Task<bool> SetPropertyModeAsync(Guid thingId, string property, string mode);
+    Task<bool> SetPropertyModeAsync(Guid thingId, string property, string mode, int? sampleSeconds = null);
 }

@@ -42,7 +42,7 @@ export interface FormOptions {
   hazardLevels: string[];
   /** The split a page offers before anybody has stated a programme, as each category Thing states it.
    *  Empty where the model states no defaults, which starts a page with nothing chosen. */
-  defaultProgramme: { category: string; sharePct: number }[];
+  defaultProgramme: { category: string; sharePercent: number }[];
   /** Whether the model registers each position lookup, so a page draws only what the service can
    *  honour: no search box over a model with no gazetteer, no fetch attempt against no register. */
   parcelLookup: boolean;
@@ -82,7 +82,7 @@ export const intakeApi = {
       basemapSources?: DeclaredBasemapSource[];
       hazardTypes?: string[];
       hazardLevels?: string[];
-      defaultProgramme?: { category: string; sharePct: number }[];
+      defaultProgramme?: { category: string; sharePercent: number }[];
       parcelLookup?: boolean;
       placeSearch?: boolean;
       themes?: Partial<DeclaredTheme>[];

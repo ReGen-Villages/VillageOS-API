@@ -93,8 +93,8 @@ public class ConfigCommandHandlerTests
     public async Task Mode_WithNoArgs_ShowsCurrentConfigAndTheModesThePlatformReports()
     {
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
-            @"{""Mode"":""RingBuffer"",""RingBufferSize"":200,""SampleRate"":50,
-               ""AvailableModes"":[""CurrentOnly"",""RingBuffer"",""Sampled"",""FullHistory""]}");
+            @"{""Mode"":""RingBuffer"",""RingBufferSize"":200,""SampleRate"":50,""SampleSeconds"":30,
+               ""AvailableModes"":[""FullHistory"",""RingBuffer"",""SampledByObservations"",""SampledByTime"",""CurrentOnly""]}");
         _myceliumMock.Setup(b => b.GetDefaultPropertyModeAsync()).ReturnsAsync(modeConfig);
 
         await ExecuteHandler("mode");
@@ -103,7 +103,8 @@ public class ConfigCommandHandlerTests
         Assert.Contains("Default Mode:     RingBuffer", output);
         Assert.Contains("Ring Buffer Size: 200", output);
         Assert.Contains("Sample Rate:      50", output);
-        Assert.Contains("Available modes: CurrentOnly, RingBuffer, Sampled, FullHistory", output);
+        Assert.Contains("Sample Seconds:   30", output);
+        Assert.Contains("Available modes: FullHistory, RingBuffer, SampledByObservations, SampledByTime, CurrentOnly", output);
     }
 
     // The client used to print a list of modes it was built with, which could
@@ -164,6 +165,24 @@ public class ConfigCommandHandlerTests
         Assert.Contains("Ring Buffer Count: 5", output);
     }
 
+    [Theory]
+    [InlineData(@"{""Mode"":""SampledByTime"",""SampleRate"":100,""SampleSeconds"":30}", "Sample Seconds: 30", "Sample Rate")]
+    [InlineData(@"{""Mode"":""SampledByObservations"",""SampleRate"":10,""SampleSeconds"":60}", "Sample Rate: 1 in 10", "Sample Seconds")]
+    public async Task Mode_GetWithThingAndProperty_ShowsTheSamplingItsModeUses(string reply, string shown, string notShown)
+    {
+        var thingId = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(
+            $@"[{{""Id"":""{thingId}"",""Name"":""MyThing"",""Properties"":{{}}}}]"));
+        _myceliumMock.Setup(b => b.GetPropertyModeAsync(thingId, "level"))
+            .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(reply));
+
+        await ExecuteHandler("mode get MyThing level");
+
+        var output = _writer.ToString();
+        Assert.Contains(shown, output);
+        Assert.DoesNotContain(notShown, output);
+    }
+
     [Fact]
     public async Task Mode_GetWithInvalidThing_ShowsError()
     {
@@ -190,13 +209,14 @@ public class ConfigCommandHandlerTests
     public async Task Mode_SetWithModeName_SetsDefaultMode()
     {
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
-            @"{""Mode"":""Sampled"",""RingBufferSize"":100,""SampleRate"":50}");
-        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("Sampled", null, null)).ReturnsAsync(modeConfig);
+            @"{""Mode"":""SampledByTime"",""RingBufferSize"":100,""SampleRate"":50,""SampleSeconds"":60}");
+        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("SampledByTime", null, null, null)).ReturnsAsync(modeConfig);
 
-        await ExecuteHandler("mode set Sampled");
+        await ExecuteHandler("mode set SampledByTime");
 
         var output = _writer.ToString();
-        Assert.Contains("Default property mode set to: Sampled", output);
+        Assert.Contains("Default property mode set to: SampledByTime", output);
+        Assert.Contains("Sample Seconds: 60", output);
     }
 
     [Fact]
@@ -205,7 +225,7 @@ public class ConfigCommandHandlerTests
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
             @"{""Mode"":""CurrentOnly"",""RingBufferSize"":100,""SampleRate"":100}");
         // The mode name gets lowercased in HandlePropertyModeAsync before being passed to SetDefaultModeAsync
-        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("currentonly", null, null)).ReturnsAsync(modeConfig);
+        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("currentonly", null, null, null)).ReturnsAsync(modeConfig);
 
         await ExecuteHandler("mode CurrentOnly");
 
@@ -219,7 +239,7 @@ public class ConfigCommandHandlerTests
     public async Task Mode_SetForOneProperty_PrintsTheModeThePlatformReports()
     {
         var thingId = Guid.NewGuid();
-        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId, "flowRate", "FullHistory", null, null))
+        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId, "flowRate", "FullHistory", null, null, null))
             .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(
                 @"{""Mode"":""FullHistory"",""RingBufferCapacity"":100,""RingBufferCount"":0}"));
 
@@ -233,7 +253,7 @@ public class ConfigCommandHandlerTests
     [Fact]
     public async Task Mode_WithAWordThatIsNotASubcommand_SendsItAsAModeAndShowsThePlatformsRefusal()
     {
-        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("everyotherchange", null, null))
+        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("everyotherchange", null, null, null))
             .ThrowsAsync(new HttpRequestException(
                 """400 Bad Request: {"error":"Invalid mode: everyotherchange","availableModes":["CurrentOnly","RingBuffer","Sampled","FullHistory"]}"""));
 
@@ -260,22 +280,47 @@ public class ConfigCommandHandlerTests
     [Fact]
     public async Task Execute_DefaultModeRingBufferWithSize_ParsesNamedArg()
     {
-        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("ringbuffer", 50, null))
+        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("ringbuffer", 50, null, null))
             .ReturnsAsync(JsonDocument.Parse("{}").RootElement);
 
         await ExecuteHandler("mode ringbuffer --ringbuffer=50");
 
-        _myceliumMock.Verify(b => b.SetDefaultPropertyModeAsync("ringbuffer", 50, null), Times.Once);
+        _myceliumMock.Verify(b => b.SetDefaultPropertyModeAsync("ringbuffer", 50, null, null), Times.Once);
     }
 
     [Fact]
     public async Task Execute_DefaultModeSampledWithRate_ParsesNamedArg()
     {
-        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("sampled", null, 100))
+        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("sampledbyobservations", null, 100, null))
             .ReturnsAsync(JsonDocument.Parse("{}").RootElement);
 
-        await ExecuteHandler("mode sampled --samplerate=100");
+        await ExecuteHandler("mode sampledbyobservations --samplerate=100");
 
-        _myceliumMock.Verify(b => b.SetDefaultPropertyModeAsync("sampled", null, 100), Times.Once);
+        _myceliumMock.Verify(b => b.SetDefaultPropertyModeAsync("sampledbyobservations", null, 100, null), Times.Once);
+    }
+
+    [Fact]
+    public async Task Execute_DefaultModeSampledByTimeWithSeconds_ParsesNamedArg()
+    {
+        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("sampledbytime", null, null, 15))
+            .ReturnsAsync(JsonDocument.Parse("{}").RootElement);
+
+        await ExecuteHandler("mode sampledbytime --sampleseconds=15");
+
+        _myceliumMock.Verify(b => b.SetDefaultPropertyModeAsync("sampledbytime", null, null, 15), Times.Once);
+    }
+
+    [Fact]
+    public async Task Execute_SetSpecificPropertyModeWithSeconds_PassesTheSlot()
+    {
+        var thingId = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(
+            $@"[{{""Id"":""{thingId}"",""Name"":""Gauge"",""Properties"":{{}}}}]"));
+        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId, "level", "SampledByTime", null, null, 30))
+            .ReturnsAsync(JsonDocument.Parse(@"{""Mode"":""SampledByTime""}").RootElement);
+
+        await ExecuteHandler("mode set Gauge level SampledByTime --sampleseconds=30");
+
+        _myceliumMock.Verify(b => b.SetPropertyModeAsync(thingId, "level", "SampledByTime", null, null, 30), Times.Once);
     }
 }

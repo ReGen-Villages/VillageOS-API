@@ -15,6 +15,7 @@ public class PipelineCommandHandlerTests
     private static readonly Guid EarlyRunId = Guid.Parse("cccccccc-0000-0000-0000-000000000001");
     private static readonly Guid LateRunId = Guid.Parse("cccccccc-0000-0000-0000-000000000002");
     private static readonly Guid OtherRunId = Guid.Parse("cccccccc-0000-0000-0000-000000000003");
+    private static readonly Guid LateRunRequestId = Guid.Parse("01999a2b-0000-7000-8000-000000000001");
 
     private readonly Mock<MyceliumClient> _myceliumMock = new("https://localhost:7243") { CallBase = false };
     private readonly StringWriter _writer = new();
@@ -58,7 +59,7 @@ public class PipelineCommandHandlerTests
             + $"\"{RunArchetypeId}\":{{{Mark(PipelineCommandHandler.PipelineRunFlag, false)}}},"
             + $"\"{NightlyId}\":{{{Mark(PipelineCommandHandler.PipelineFlag, true)}}},"
             + $"\"{EarlyRunId}\":{{{Mark(PipelineCommandHandler.PipelineRunFlag, true)},{Held("startedUtc", "2026-09-20T08:00:00Z")},{Held("status", "succeeded")}}},"
-            + $"\"{LateRunId}\":{{{Mark(PipelineCommandHandler.PipelineRunFlag, true)},{Held("startedUtc", "2026-09-20T11:00:00Z")},{Held("status", "running")}}},"
+            + $"\"{LateRunId}\":{{{Mark(PipelineCommandHandler.PipelineRunFlag, true)},{Held("startedUtc", "2026-09-20T11:00:00Z")},{Held("status", "running")},{Held("requestId", LateRunRequestId.ToString())}}},"
             + $"\"{OtherRunId}\":{{{Mark(PipelineCommandHandler.PipelineRunFlag, true)},{Held("startedUtc", "2026-09-20T12:00:00Z")},{Held("status", "failed")}}}"
             + "}"));
         _myceliumMock.Setup(c => c.GetThingsAsync(It.Is<ThingListNarrowing>(n => n.Type == "Pipeline")))
@@ -170,6 +171,18 @@ public class PipelineCommandHandlerTests
             .Should().BeLessThan(output.IndexOf(EarlyRunId.ToString(), StringComparison.Ordinal));
         output.Should().Contain("2026-09-20T11:00:00Z").And.Contain("running").And.Contain("succeeded");
         output.Should().NotContain(OtherRunId.ToString());
+    }
+
+    [Fact]
+    public async Task History_NamesTheRequestARunStartedFromAndNothingForARunStartedWithoutOne()
+    {
+        SetupMarkedModel();
+
+        await Execute("history Nightly");
+
+        var lines = _writer.ToString().Split('\n');
+        lines.Single(line => line.Contains(LateRunId.ToString())).Should().EndWith($"request {LateRunRequestId}");
+        lines.Single(line => line.Contains(EarlyRunId.ToString())).Should().NotContain("request");
     }
 
     [Fact]

@@ -115,7 +115,8 @@ class CatalystVocabularyTests(unittest.TestCase):
 
     def test_each_new_role_is_marked_on_one_thing(self):
         for flag in ("__IsExternalSystemArchetype", "__IsMessageKindArchetype", "__IsTriggerPredicate", "__IsSendsPredicate",
-                     "__IsToldPredicate", "__IsArrivesAtPredicate", "__IsStandsForPredicate", "__IsRunSubjectPredicate"):
+                     "__IsToldPredicate", "__IsArrivesAtPredicate", "__IsStandsForPredicate", "__IsRunSubjectPredicate",
+                     "__IsToldThroughPredicate", "__IsSentMessageArchetype"):
             self.assertEqual(len(self.carriers(flag)), 1, flag)
 
     def test_a_marked_predicate_reconciles_onto_a_target_that_holds_it_by_name(self):
@@ -145,15 +146,32 @@ class CatalystVocabularyTests(unittest.TestCase):
             self.assertEqual(len(doors), 1, self.kit.things[kind]["Name"])
             self.assertIn("Subdomain", self.kit.things[doors[0]]["Properties"])
 
-    def test_every_connection_is_reached_over_http(self):
+    def triggers_of(self, connection):
         [triggered_by] = self.carriers("__IsTriggerPredicate")
+        return [self.kit.things[r["Target"]]["Name"] for r in self.kit.rels.values()
+                if r["Subject"] == connection and r["Predicate"] == triggered_by]
+
+    def told_through(self):
+        [told_through] = self.carriers("__IsToldThroughPredicate")
+        return {r["Subject"]: r["Target"] for r in self.kit.rels.values() if r["Predicate"] == told_through}
+
+    def test_every_service_connection_is_reached_over_http(self):
         [connection_archetype] = self.carriers("__IsConnectionArchetype")
         [is_] = [tid for tid, t in self.kit.things.items() if t["Name"] == "is"]
-        rels = list(self.kit.rels.values())
-        connections = {r["Subject"] for r in rels if r["Predicate"] == is_ and r["Target"] == connection_archetype}
-        for connection in connections:
-            triggers = [self.kit.things[r["Target"]]["Name"] for r in rels if r["Subject"] == connection and r["Predicate"] == triggered_by]
-            self.assertEqual(triggers, ["http"], self.kit.things[connection]["Name"])
+        connections = {r["Subject"] for r in self.kit.rels.values() if r["Predicate"] == is_ and r["Target"] == connection_archetype}
+        for connection in connections - set(self.told_through().values()):
+            self.assertEqual(self.triggers_of(connection), ["http"], self.kit.things[connection]["Name"])
+
+    def test_a_system_that_is_told_names_a_connection_written_along_and_bound_to_a_service(self):
+        [told] = self.carriers("__IsToldPredicate")
+        [has] = [tid for tid, t in self.kit.things.items() if t["Name"] == "has"]
+        told_systems = {r["Subject"] for r in self.kit.rels.values() if r["Predicate"] == told}
+        through = self.told_through()
+        self.assertEqual(set(through), told_systems)
+        for system, connection in through.items():
+            self.assertEqual(self.triggers_of(connection), ["graph"], self.kit.things[system]["Name"])
+            bound = [r for r in self.kit.rels.values() if r["Subject"] == connection and r["Predicate"] == has]
+            self.assertEqual(len(bound), 1, self.kit.things[system]["Name"])
 
     def test_the_two_pipelines_drawn_from_outside_stand_for_their_ends(self):
         [stands_for] = self.carriers("__IsStandsForPredicate")

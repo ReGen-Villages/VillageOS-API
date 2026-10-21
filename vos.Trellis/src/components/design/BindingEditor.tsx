@@ -260,12 +260,12 @@ function FiltersEditor({
             return (
               <Removable key={index} name={filter.property || t('design.list.item', { position: index + 1 })} onRemove={() => write(value.filter((_, at) => at !== index))}>
                 <OfferedField label={t('design.filters.property')} value={filter.property} mono offered={offeredFor('property', context, kind, t)} onCommit={(property) => set({ property })} />
-                <ChoiceField label={t('design.filters.operator')} value={filter.op} options={FILTER_OPERATORS} emptyLabel="=" onCommit={(op) => set({ op: (op || '=') as PropertyFilter['op'] })} />
+                <ChoiceField label={t('design.filters.operator')} value={filter.operator} options={FILTER_OPERATORS} emptyLabel="=" onCommit={(operator) => set({ operator: (operator || '=') as PropertyFilter['operator'] })} />
                 <TextField label={t('design.filters.value')} value={Array.isArray(filter.value) ? filter.value.join(',') : String(filter.value ?? '')} mono onCommit={(text) => set({ value: typed(filter.property, text) })} />
               </Removable>
             );
           })}
-          <button type="button" onClick={() => write([...value, { property: '', op: '=', value: '' }])} className={smallButtonClass}>
+          <button type="button" onClick={() => write([...value, { property: '', operator: '=', value: '' }])} className={smallButtonClass}>
             <Plus size={11} />
             {t('design.filters.add')}
           </button>

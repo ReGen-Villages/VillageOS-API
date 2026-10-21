@@ -23,9 +23,9 @@ function widgetShowing(label: string): WorkingWidget {
     type: 'working',
     rows: [{
       label,
-      value: { kind: 'property', thing: '$scope', property: 'pctOfConsumption' },
-      working: { kind: 'working', property: 'pctOfConsumption' },
-      format: 'pct100',
+      value: { kind: 'property', thing: '$scope', property: 'percentOfConsumption' },
+      working: { kind: 'working', property: 'percentOfConsumption' },
+      format: 'percentOutOf100',
     }],
   };
 }

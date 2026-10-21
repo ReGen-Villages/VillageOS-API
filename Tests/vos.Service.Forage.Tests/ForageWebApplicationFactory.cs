@@ -25,13 +25,25 @@ public class ForageWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
 
     public Task CompleteStartedRuns() => _runs.RunAll();
 
+    public IReadOnlyList<Guid> StartedSubjects => _runs.Subjects;
+
     private sealed class HeldRuns : IDiscoveryRunStarter
     {
         private readonly List<Func<CancellationToken, Task>> _held = new();
+        private readonly List<Guid> _subjects = new();
 
-        public void Start(Func<CancellationToken, Task> run)
+        public IReadOnlyList<Guid> Subjects
         {
-            lock (_held) _held.Add(run);
+            get { lock (_held) return [.. _subjects]; }
+        }
+
+        public void Start(Guid subjectId, Func<CancellationToken, Task> run)
+        {
+            lock (_held)
+            {
+                _held.Add(run);
+                _subjects.Add(subjectId);
+            }
         }
 
         public Task RunAll()

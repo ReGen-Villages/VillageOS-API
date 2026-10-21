@@ -384,11 +384,28 @@ public class MyceliumClientTests
         });
         var sut = CreateClient(handler);
 
-        var ok = await sut.SetPropertyModeAsync(thingId, "temp", "Sampled");
+        var ok = await sut.SetPropertyModeAsync(thingId, "temp", "SampledByTime", sampleSeconds: 60);
 
         ok.Should().BeTrue();
         path.Should().Be($"/api/things/{thingId}/properties/temp/mode");
-        body.Should().Contain("Sampled");
+        var sent = JsonDocument.Parse(body).RootElement;
+        sent.GetProperty("Mode").GetString().Should().Be("SampledByTime");
+        sent.GetProperty("SampleSeconds").GetInt32().Should().Be(60);
+    }
+
+    [Fact]
+    public async Task SetPropertyModeAsync_SendsNoSlotWhenNoneIsGiven()
+    {
+        var body = string.Empty;
+        var handler = new MockHttpMessageHandler(req =>
+        {
+            body = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult() ?? string.Empty;
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+
+        await CreateClient(handler).SetPropertyModeAsync(Guid.NewGuid(), "temp", "FullHistory");
+
+        JsonDocument.Parse(body).RootElement.TryGetProperty("SampleSeconds", out _).Should().BeFalse();
     }
 
     [Fact]
@@ -397,7 +414,7 @@ public class MyceliumClientTests
         var handler = new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.BadRequest));
         var sut = CreateClient(handler);
 
-        var ok = await sut.SetPropertyModeAsync(Guid.NewGuid(), "temp", "Sampled");
+        var ok = await sut.SetPropertyModeAsync(Guid.NewGuid(), "temp", "SampledByTime");
 
         ok.Should().BeFalse();
     }

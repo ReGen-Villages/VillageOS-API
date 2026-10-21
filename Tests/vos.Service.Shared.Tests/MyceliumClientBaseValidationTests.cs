@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -9,7 +8,7 @@ using Xunit;
 
 namespace vos.Service.Shared.Tests;
 
-// Outbound + response validation in MyceliumClientBase.
+// Outbound validation in MyceliumClientBase.
 // Both Throw and Log policies tested regardless of build config -- the MyceliumClient's
 // OutboundViolationMode is a virtual property the test subclass overrides, so
 // CI (Release) can exercise both paths without re-running tests in two configurations.
@@ -17,7 +16,6 @@ public class MyceliumClientBaseValidationTests
 {
     private const string MyceliumUrl = "http://localhost:7243";
     private const string TestToken = "service-token-abc";
-    private const string TokenResponseSchemaId = "https://villageos/contracts/token-response.schema.json";
     private const string MyceliumRegisterRequestSchemaId = "https://villageos/contracts/mycelium-register-request.schema.json";
 
     [Fact]
@@ -68,43 +66,6 @@ public class MyceliumClientBaseValidationTests
             .Which.Should().Contain(MyceliumRegisterRequestSchemaId);
     }
 
-    [Fact]
-    public async Task GetTokenAsync_MyceliumReturnsValidShape_ThrowMode_ReturnsToken()
-    {
-        var (client, _) = BuildClient(_ => JsonResponse("""{"token":"from-mycelium"}"""),
-            serviceToken: null, mode: SchemaViolationMode.Throw);
-
-        var token = await client.GetTokenAsync();
-
-        token.Should().Be("from-mycelium");
-    }
-
-    [Fact]
-    public async Task GetTokenAsync_MyceliumReturnsInvalidShape_ThrowMode_ThrowsContractValidationException()
-    {
-        var (client, _) = BuildClient(_ => JsonResponse("""{"wrong":"shape"}"""),
-            serviceToken: null, mode: SchemaViolationMode.Throw);
-
-        var act = async () => await client.GetTokenAsync();
-
-        var ex = (await act.Should().ThrowAsync<ContractValidationException>()).Which;
-        ex.Message.Should().Contain(TokenResponseSchemaId);
-    }
-
-    [Fact]
-    public async Task GetTokenAsync_MyceliumReturnsInvalidShape_LogMode_LogsAndReturnsNull()
-    {
-        var logger = new RecordingLogger();
-        var (client, _) = BuildClient(_ => JsonResponse("""{"wrong":"shape"}"""),
-            serviceToken: null, mode: SchemaViolationMode.Log, logger: logger);
-
-        var token = await client.GetTokenAsync();
-
-        token.Should().BeNull("token field missing -- existing catch returns null after log");
-        logger.Warnings.Should().ContainSingle()
-            .Which.Should().Contain(TokenResponseSchemaId);
-    }
-
     private static (TestableMyceliumClient client, MockHttpMessageHandler handler) BuildClient(
         Func<HttpRequestMessage, HttpResponseMessage> respond,
         string? serviceToken,
@@ -120,11 +81,6 @@ public class MyceliumClientBaseValidationTests
         };
         return (client, handler);
     }
-
-    private static HttpResponseMessage JsonResponse(string body) => new(HttpStatusCode.OK)
-    {
-        Content = new StringContent(body, Encoding.UTF8, "application/json")
-    };
 
     private sealed class RecordingLogger : ILogger
     {

@@ -26,8 +26,8 @@ const options: FormOptions = {
   hazardTypes: [],
   hazardLevels: [],
   defaultProgramme: [
-    { category: 'residential', sharePct: 22 },
-    { category: 'food-and-agriculture', sharePct: 34 },
+    { category: 'residential', sharePercent: 22 },
+    { category: 'food-and-agriculture', sharePercent: 34 },
   ],
   parcelLookup: true,
   placeSearch: true,
@@ -105,8 +105,8 @@ describe('the document an exploration posts', () => {
     expect(document.parcel?.boundarySource).toBe(BOUNDARY_FETCHED_FROM_REGISTER);
     expect(document.parcel?.boundary).toHaveLength(3);
     expect(document.allocations).toEqual([
-      { category: 'residential', sharePct: 22 },
-      { category: 'food-and-agriculture', sharePct: 34 },
+      { category: 'residential', sharePercent: 22 },
+      { category: 'food-and-agriculture', sharePercent: 34 },
     ]);
     expect(document.project.name).toContain(described.siteName);
   });

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Network, LayoutDashboard, Gauge, Clock, Search, Boxes, Box, ClipboardList, Inbox, Workflow, Terminal, Table2, LayoutTemplate, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Network, LayoutDashboard, Gauge, Clock, Search, Boxes, Box, ClipboardList, Inbox, Workflow, Terminal, ArrowLeftRight, Table2, LayoutTemplate, ChevronLeft, ChevronRight } from 'lucide-react';
 import { DynamicIcon, iconNames, type IconName } from 'lucide-react/dynamic';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
@@ -29,6 +29,7 @@ const links = [
   { to: '/things', icon: Boxes, labelKey: 'navigation.things' },
   { to: '/properties', icon: Search, labelKey: 'navigation.properties' },
   { to: '/logs', icon: Terminal, labelKey: 'navigation.logs' },
+  { to: '/requests', icon: ArrowLeftRight, labelKey: 'navigation.requests' },
 ] as const;
 
 export function Sidebar() {
@@ -162,7 +163,7 @@ function GenericIcon() {
   return <Gauge size={18} />;
 }
 
-/** The icon a spec asks for, loaded on demand so a model can name any icon in the set without
+/** The icon a specification asks for, loaded on demand so a model can name any icon in the set without
  *  Trellis holding a list of the ones it will accept. A name the set does not have — or none at
  *  all — draws the generic dashboard icon, so the entry is never missing. */
 function SpecificationIcon({ name }: { name?: string }) {

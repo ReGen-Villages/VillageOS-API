@@ -57,6 +57,7 @@ ROLE_FLAG = {
     "NodeRun": "__IsNodeRunArchetype",
     "ExternalSystem": "__IsExternalSystemArchetype",
     "MessageKind": "__IsMessageKindArchetype",
+    "SentMessage": "__IsSentMessageArchetype",
 }
 
 # The role each predicate plays, as the flag it carries: how a connection is reached, what an external
@@ -66,6 +67,7 @@ PREDICATE_FLAG = {
     "triggeredBy": "__IsTriggerPredicate",
     "sends": "__IsSendsPredicate",
     "told": "__IsToldPredicate",
+    "toldThrough": "__IsToldThroughPredicate",
     "arrivesAt": "__IsArrivesAtPredicate",
     "standsFor": "__IsStandsForPredicate",
     "about": "__IsRunSubjectPredicate",
@@ -163,6 +165,7 @@ def build():
     triggered_by = k.predicate("triggeredBy")
     sends = k.predicate("sends")
     told = k.predicate("told")
+    told_through = k.predicate("toldThrough")
     arrives_at = k.predicate("arrivesAt")
     stands_for = k.predicate("standsFor")
     # Declared for the orchestrator, which relates a run to the Thing whose state entry started it.
@@ -180,11 +183,14 @@ def build():
     NodeRun = k.archetype("NodeRun")
     ExternalSystem = k.archetype("ExternalSystem")
     MessageKind = k.archetype("MessageKind")
+    k.archetype("SentMessage")
 
     k.rel(carries, is_, PipelineWire)          # wires are the `carries` predicate, identified by this archetype
-    # Every connection here is a door reached over HTTP at its subdomain, which is what makes it a catalyst
-    # the Pipelines page lists. The trigger is a Thing the connection relates to, as the platform reads it.
+    # Every service's connection is a door reached over HTTP at its subdomain, which is what makes it a catalyst
+    # the Pipelines page lists; a system's told-through connection is written along instead. The trigger is a
+    # Thing the connection relates to, as the platform reads it.
     http = k.thing(stable_id(_TAG, "trigger", "http"), "http", shared=True)
+    graph = k.thing(stable_id(_TAG, "trigger", "graph"), "graph", shared=True)
     k.rel(PipelineInput, is_, PipelineNode)  # boundary nodes are pipeline nodes too
     k.rel(PipelineOutput, is_, PipelineNode)
 
@@ -206,8 +212,10 @@ def build():
     # Each service → a Service (declaring its ports) wrapped in a PlatformServiceConnection (the palette
     # entry, carrying the dispatch Subdomain).
     connection_by_key = {}
+    service_by_key = {}
     for svc in SERVICES:
         svc_id = k.thing(stable_id(_TAG, "service", svc["key"]), f"{svc['label']} service")
+        service_by_key[svc["key"]] = svc_id
         k.rel(svc_id, is_, Service)
         for (name, direction, type, required, collection) in svc["ports"]:
             make_port(svc_id, svc["key"], name, direction, type, required, collection)
@@ -236,6 +244,14 @@ def build():
             k.rel(system_id, sends, kind_by_key[key])
         for key in system["told"]:
             k.rel(system_id, told, kind_by_key[key])
+        # A system that is told something names the connection its messages go out through: a predicate the
+        # orchestrator writes a sent message along, bound to the service that sends it.
+        if system.get("toldThrough"):
+            through_id = k.thing(stable_id(_TAG, "told-through", system["key"]), f"tells {system['label']}")
+            k.rel(through_id, is_, Connection)
+            k.rel(through_id, triggered_by, graph)
+            k.rel(through_id, has, service_by_key[system["toldThrough"]])
+            k.rel(system_id, told_through, through_id)
         system_by_key[system["key"]] = system_id
 
     stood_for = {"messageKind": kind_by_key, "externalSystem": system_by_key,

@@ -8,7 +8,7 @@ public sealed record WaterReserveInputs(
 public sealed record WaterReserveOutputs(
     double EmergencyReserveM3,
     double DomesticConsumptionM3PerYear,
-    double PctAnnualConsumption,
+    double PercentOfAnnualConsumption,
     double DaysOfSupply);
 
 // Emergency water reserve under district failure: stored water measured against what the residents

@@ -65,7 +65,7 @@ beforeEach(() => {
 describe('which figures open at all', () => {
   it.each([
     ['stateCount', { kind: 'stateCount', state: 'flooded' }],
-    ['aggregate', { kind: 'aggregate', archetype: 'Catchment', op: 'count' }],
+    ['aggregate', { kind: 'aggregate', archetype: 'Catchment', reduction: 'count' }],
     ['property', { kind: 'property', thing: '$scope', property: 'self_sufficiency_rate' }],
   ])('a %s figure names the Things behind it', (_kind, binding) => {
     expect(hasBreakdown(binding as Binding)).toBe(true);
@@ -82,7 +82,7 @@ describe('which figures open at all', () => {
   it('a ratio opens when either side does', () => {
     expect(hasBreakdown({
       kind: 'ratio',
-      numerator: { kind: 'aggregate', archetype: 'Catchment', op: 'sum', property: 'stored' },
+      numerator: { kind: 'aggregate', archetype: 'Catchment', reduction: 'sum', property: 'stored' },
       denominator: { kind: 'const', value: 1000 },
     })).toBe(true);
     expect(hasBreakdown({
@@ -95,14 +95,14 @@ describe('which figures open at all', () => {
   it('a point opens on the buckets it was added from, and not when it is one bucket', () => {
     const point = (bucketsPerPoint: number): Binding => ({
       kind: 'latest',
-      series: { kind: 'timeseries', archetype: 'Reading', happenedAt: 'taken_at', op: 'count', bucketSeconds: 900, buckets: 8, bucketsPerPoint },
+      series: { kind: 'timeseries', archetype: 'Reading', happenedAt: 'taken_at', reduction: 'count', bucketSeconds: 900, buckets: 8, bucketsPerPoint },
     });
     expect(hasBreakdown(point(4))).toBe(true);
     expect(hasBreakdown(point(1))).toBe(false);
   });
 
   it('a trace is already its own detail and does not open', () => {
-    expect(hasBreakdown({ kind: 'timeseries', archetype: 'Reading', happenedAt: 'taken_at', op: 'count', bucketSeconds: 3600, buckets: 8 })).toBe(false);
+    expect(hasBreakdown({ kind: 'timeseries', archetype: 'Reading', happenedAt: 'taken_at', reduction: 'count', bucketSeconds: 3600, buckets: 8 })).toBe(false);
   });
 
   it('nothing to bind opens nothing', () => {
@@ -148,7 +148,7 @@ describe('a state count opens to the Things it counted', () => {
 
 describe('a reduction opens to the members it reduced', () => {
   it('names the measure each member contributed', async () => {
-    const breakdown = await breakdownOf({ kind: 'aggregate', archetype: 'Catchment', op: 'sum', property: 'stored' }, context());
+    const breakdown = await breakdownOf({ kind: 'aggregate', archetype: 'Catchment', reduction: 'sum', property: 'stored' }, context());
 
     expect(breakdown?.value).toBe(240);
     expect(breakdown?.behind).toMatchObject({ kind: 'things', reduction: 'sum', measure: 'stored' });
@@ -156,8 +156,8 @@ describe('a reduction opens to the members it reduced', () => {
   });
 
   it('lists only the members the filters kept, and says which filters they were', async () => {
-    const where = [{ property: 'spring_fed', op: '=' as const, value: true }];
-    const breakdown = await breakdownOf({ kind: 'aggregate', archetype: 'Catchment', op: 'sum', property: 'area', where }, context());
+    const where = [{ property: 'spring_fed', operator: '=' as const, value: true }];
+    const breakdown = await breakdownOf({ kind: 'aggregate', archetype: 'Catchment', reduction: 'sum', property: 'area', where }, context());
 
     expect(breakdown?.value).toBe(100);
     expect(names((breakdown?.behind as { rows: Row[] }).rows)).toEqual(['CATCH-1']);
@@ -165,7 +165,7 @@ describe('a reduction opens to the members it reduced', () => {
   });
 
   it('a count has no measure column to draw', async () => {
-    const breakdown = await breakdownOf({ kind: 'aggregate', archetype: 'Catchment', op: 'count' }, context());
+    const breakdown = await breakdownOf({ kind: 'aggregate', archetype: 'Catchment', reduction: 'count' }, context());
 
     expect(breakdown?.value).toBe(2);
     expect(breakdown?.behind).toMatchObject({ reduction: 'count', measure: null });
@@ -185,7 +185,7 @@ describe('a property figure opens to the Thing that carries it', () => {
     const breakdown = await breakdownOf({ kind: 'property', thing: '$scope', property: 'self_sufficiency_rate' }, context(null));
 
     expect(breakdown?.value).toBeCloseTo(97);
-    expect(breakdown?.behind).toMatchObject({ reduction: 'avg' });
+    expect(breakdown?.behind).toMatchObject({ reduction: 'average' });
     expect(names((breakdown?.behind as { rows: Row[] }).rows)).toEqual(['North ridge', 'South valley']);
   });
 
@@ -197,8 +197,8 @@ describe('a property figure opens to the Thing that carries it', () => {
 describe('a ratio opens to both of its sides', () => {
   const RATIO: Binding = {
     kind: 'ratio',
-    numerator: { kind: 'aggregate', archetype: 'Catchment', op: 'sum', property: 'stored' },
-    denominator: { kind: 'aggregate', archetype: 'Catchment', op: 'sum', property: 'area' },
+    numerator: { kind: 'aggregate', archetype: 'Catchment', reduction: 'sum', property: 'stored' },
+    denominator: { kind: 'aggregate', archetype: 'Catchment', reduction: 'sum', property: 'area' },
   };
 
   it('divides one side by the other and keeps each side’s own rows', async () => {
@@ -224,7 +224,7 @@ describe('a ratio opens to both of its sides', () => {
 describe('a trailing-window figure opens to the buckets it was added from', () => {
   const TILE: Binding = {
     kind: 'latest',
-    series: { kind: 'timeseries', archetype: 'Reading', happenedAt: 'taken_at', property: 'litres', op: 'sum', bucketSeconds: 900, buckets: 4, bucketsPerPoint: 4 },
+    series: { kind: 'timeseries', archetype: 'Reading', happenedAt: 'taken_at', property: 'litres', reduction: 'sum', bucketSeconds: 900, buckets: 4, bucketsPerPoint: 4 },
   };
 
   it('asks for the buckets of the window its number covers', async () => {

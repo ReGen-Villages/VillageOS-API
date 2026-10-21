@@ -1,10 +1,10 @@
 /**
  * The subscription a dashboard opens: the Things its widgets read, and nothing else.
  *
- * A spec already says what the page is about — the entity it compares, the types its lists draw, the
+ * A specification already says what the page is about — the entity it compares, the types its lists draw, the
  * relationships its bindings walk. This turns that statement into the one the platform reads, so the page is
  * sent what it draws instead of the whole model. Nothing here names a domain: every type, predicate
- * and Thing name comes out of the spec.
+ * and Thing name comes out of the specification.
  */
 import {
   DASHBOARD_ARCHETYPE,
@@ -45,7 +45,7 @@ export const NAVIGATION_AND_SETTINGS: SubscriptionSelector = {
  *  largest depth it accepts is therefore how a caller says "follow this relationship as far as it goes". */
 const UNBOUNDED_DEPTH = 2147483647;
 
-/** The shape the platform's `ids` field reads. A spec's Thing reference may be either an id or a
+/** The shape the platform's `ids` field reads. A specification's Thing reference may be either an id or a
  *  name, and a name sent as an id is refused rather than looked up, so the two are told apart here.
  *  Shape only, whichever way an id was minted: the platform decides that, not this. */
 const IDENTIFIER = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -100,7 +100,7 @@ function withNested(binding: Binding): Binding[] {
   if ('computed' in binding) {
     for (const column of (binding.computed ?? []) as ComputedColumn[]) inner.push(column?.value);
   }
-  // A spec can name a nested binding and then not write it. Reading what a widget asks for happens
+  // A specification can name a nested binding and then not write it. Reading what a widget asks for happens
   // on the way to drawing it, so a slot left empty here would take the whole view down rather than
   // the one widget that is wrong.
   return [binding, ...inner.filter((nested): nested is Binding => !!nested).flatMap(withNested)];
@@ -149,7 +149,7 @@ function specificationWalks(specification: DashboardSpecification): RelationStep
   return [...fromBindings, ...detailWalks(specification.detail?.relations)];
 }
 
-/** The scope predicates the spec narrows by, each followed as far as it reaches. */
+/** The scope predicates the specification narrows by, each followed as far as it reaches. */
 function scopeRules(specification: DashboardSpecification): TraverseRule[] {
   const seen = new Set<string>();
   const rules: TraverseRule[] = [];
@@ -169,7 +169,7 @@ function scopeRules(specification: DashboardSpecification): TraverseRule[] {
  *
  * The platform applies each rule to everything selected before it and applies it once, so a walk of
  * two steps is reproduced by asking for its first step's relationship before its second's — not by asking
- * for both relationships in whatever order the spec happened to mention them.
+ * for both relationships in whatever order the specification happened to mention them.
  */
 function walkRules(walks: RelationStep[][]): TraverseRule[] {
   const deepest = walks.reduce((longest, walk) => Math.max(longest, walk.length), 0);
@@ -222,7 +222,7 @@ function drawnTypes(specification: DashboardSpecification, scopeId: string | nul
   return [...types];
 }
 
-/** The Things the spec names outright, split into the identifiers and the names the platform reads
+/** The Things the specification names outright, split into the identifiers and the names the platform reads
  *  as two different questions. */
 function namedThings(specification: DashboardSpecification): { ids: string[]; names: string[] } {
   const referenced = new Set<string>();

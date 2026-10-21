@@ -116,7 +116,7 @@ public static class FormOptionsReader
     // The starting split, from the share each category Thing states for itself. Only the
     // categories stating one are in it, so a model declaring no defaults offers a page that starts
     // where the wizard starts — with nothing chosen.
-    public const string DefaultShareProperty = "defaultSharePct";
+    public const string DefaultShareProperty = "defaultSharePercent";
 
     private static List<DeclaredShare> DefaultProgramme(SnapshotDocument snapshot)
     {

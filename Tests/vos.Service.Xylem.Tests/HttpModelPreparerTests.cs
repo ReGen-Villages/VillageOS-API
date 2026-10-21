@@ -39,6 +39,12 @@ public class HttpModelPreparerTests
         }
     }
 
+    private sealed class ThrowingHandler(Exception thrown) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken ct) =>
+            Task.FromException<HttpResponseMessage>(thrown);
+    }
+
     private sealed class StubFactory : IHttpClientFactory
     {
         private readonly HttpMessageHandler _handler;
@@ -93,5 +99,43 @@ public class HttpModelPreparerTests
 
         error.Should().NotBeNull();
         error.Should().Contain("500");
+    }
+
+    [Fact]
+    public async Task Clear_returns_an_error_naming_the_broker_when_it_cannot_be_reached()
+    {
+        var factory = new StubFactory(new ThrowingHandler(new HttpRequestException("Connection refused (localhost:5000)")));
+        var preparer = new HttpModelPreparer(factory, MyceliumUrl, Credential(factory));
+
+        var error = await preparer.ClearModelAsync(default);
+
+        error.Should().Be(
+            "Failed to clear the model for a new-model ingest: the broker at http://localhost:5000 could not be "
+            + "reached (Connection refused (localhost:5000)).");
+    }
+
+    [Fact]
+    public async Task Clear_returns_an_error_when_the_broker_does_not_answer_in_time()
+    {
+        var factory = new StubFactory(new ThrowingHandler(new TaskCanceledException("timed out", new TimeoutException())));
+        var preparer = new HttpModelPreparer(factory, MyceliumUrl, Credential(factory));
+
+        var error = await preparer.ClearModelAsync(default);
+
+        error.Should().Be(
+            "Failed to clear the model for a new-model ingest: the broker at http://localhost:5000 did not answer in time.");
+    }
+
+    [Fact]
+    public async Task Clear_stopped_by_its_caller_is_still_a_cancellation()
+    {
+        using var stopped = new CancellationTokenSource();
+        await stopped.CancelAsync();
+        var factory = new StubFactory(new ThrowingHandler(new TaskCanceledException("cancelled", null, stopped.Token)));
+        var preparer = new HttpModelPreparer(factory, MyceliumUrl, Credential(factory));
+
+        var clearing = () => preparer.ClearModelAsync(stopped.Token);
+
+        await clearing.Should().ThrowAsync<OperationCanceledException>();
     }
 }

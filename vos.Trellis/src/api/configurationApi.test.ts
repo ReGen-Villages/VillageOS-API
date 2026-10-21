@@ -41,9 +41,15 @@ describe('configurationApi.setDefaultPropertyMode', () => {
   });
 
   it('includes optional SampleRate', async () => {
-    mockPut.mockResolvedValue({ Mode: 'Sampled', SampleRate: 10 });
-    await configurationApi.setDefaultPropertyMode('Sampled', undefined, 10);
-    expect(mockPut).toHaveBeenCalledWith('/api/config/property-mode', { Mode: 'Sampled', SampleRate: 10 });
+    mockPut.mockResolvedValue({ Mode: 'SampledByObservations', SampleRate: 10 });
+    await configurationApi.setDefaultPropertyMode('SampledByObservations', undefined, 10);
+    expect(mockPut).toHaveBeenCalledWith('/api/config/property-mode', { Mode: 'SampledByObservations', SampleRate: 10 });
+  });
+
+  it('includes optional SampleSeconds', async () => {
+    mockPut.mockResolvedValue({ Mode: 'SampledByTime', SampleSeconds: 60 });
+    await configurationApi.setDefaultPropertyMode('SampledByTime', undefined, undefined, 60);
+    expect(mockPut).toHaveBeenCalledWith('/api/config/property-mode', { Mode: 'SampledByTime', SampleSeconds: 60 });
   });
 });
 

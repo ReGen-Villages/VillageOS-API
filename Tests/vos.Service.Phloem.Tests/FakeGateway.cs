@@ -17,7 +17,7 @@ internal sealed class FakeGateway : IMyceliumGateway
     public List<(string Subdomain, JsonElement Envelope)> Envelopes { get; } = new();
     public List<string> StatusUpdates { get; } = new();
     public List<(string Name, string Status)> NodeStatuses { get; } = new();
-    public List<(Guid RunId, Guid PipelineId, RunSubject? Subject)> RunsCreated { get; } = new();
+    public List<(Guid RunId, Guid PipelineId, RunSubject? Subject, Guid? RequestId)> RunsCreated { get; } = new();
     public List<Guid> StartTargetsAsked { get; } = new();
     public JsonElement? RunResult { get; private set; }
 
@@ -29,9 +29,29 @@ internal sealed class FakeGateway : IMyceliumGateway
         return Task.FromResult(_graph);
     }
 
-    public Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct, RunSubject? subject = null)
+    // The relationships the model holds, by id, answered with their predicate; any other id is one it does not hold.
+    public Dictionary<Guid, Guid> PredicatesByRelationship { get; } = new();
+    public List<Guid> RelationshipsRead { get; } = new();
+
+    public Task<Guid?> PredicateOfAsync(Guid relationshipId, CancellationToken ct)
     {
-        RunsCreated.Add((runId, pipelineId, subject));
+        RelationshipsRead.Add(relationshipId);
+        return Task.FromResult(PredicatesByRelationship.TryGetValue(relationshipId, out var predicate) ? predicate : (Guid?)null);
+    }
+
+    public Action OnSend { get; set; } = () => { };
+    public List<(Guid RunId, Telling Telling, JsonElement Payload)> MessagesSent { get; } = new();
+
+    public Task SendMessageAsync(Guid runId, Telling telling, JsonElement payload, CancellationToken ct)
+    {
+        OnSend();
+        MessagesSent.Add((runId, telling, payload.Clone()));
+        return Task.CompletedTask;
+    }
+
+    public Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct, RunSubject? subject = null, Guid? requestId = null)
+    {
+        RunsCreated.Add((runId, pipelineId, subject, requestId));
         return Task.CompletedTask;
     }
 

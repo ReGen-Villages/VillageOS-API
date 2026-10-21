@@ -28,8 +28,8 @@ import { unwrapRelationship, unwrapThing } from '../utils/propertyMapper';
 type AnsweredThing = VosThing & { States?: string[] };
 
 export interface FindingsAnswer {
-  /** The wire's own name for the page, as the service serialises it. */
-  spec: string;
+  /** The page, as the service serialises it. */
+  specification: string;
   scopeId: string;
   things: AnsweredThing[];
   relationships: VosRelationship[];
@@ -45,7 +45,7 @@ export interface Findings {
   reads: ModelReads;
 }
 
-/** Throws where the service answered a spec that is not one. Read here rather than while rendering, so
+/** Throws where the service answered a specification that is not one. Read here rather than while rendering, so
  *  a page that cannot be drawn says so where every other refusal is said, instead of drawing nothing —
  *  which is how a figure the analysis has not computed reads. */
 export function findingsFrom(
@@ -53,7 +53,7 @@ export function findingsFrom(
   reduce: (query: TemporalReduceQuery) => Promise<TemporalReduceResponse> = () =>
     Promise.reject(new Error('This page was handed no way to reduce a property series.')),
 ): Findings {
-  const specification = JSON.parse(answer.spec) as DashboardSpecification;
+  const specification = JSON.parse(answer.specification) as DashboardSpecification;
   const relationships = answer.relationships.map(unwrapRelationship);
   const holders = statesByThing(answer.things);
 

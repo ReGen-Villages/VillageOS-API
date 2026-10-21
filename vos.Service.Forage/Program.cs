@@ -108,7 +108,7 @@ try
         // Named here so the run captures the subject alone; capturing the request would hold the parsed
         // body for as long as the run takes.
         var subjectId = request.SubjectId;
-        starter.Start(token =>
+        starter.Start(subjectId, token =>
             Discover(subjectId, coveringSources, runner, ledger, divisions, analysis, vocabularyEdges, token));
 
         // Accepted, not done — see IDiscoveryRunStarter for what closes it. `success` is the broker's

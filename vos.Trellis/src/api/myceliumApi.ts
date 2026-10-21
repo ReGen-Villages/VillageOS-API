@@ -14,7 +14,7 @@ export interface StartupProgress {
  *  platform itself rather than about a model, drawn exactly as a model's own `Dashboard` Thing. */
 export interface DeclaredPage {
   name: string;
-  spec: unknown;
+  specification: unknown;
 }
 
 export const myceliumApi = {

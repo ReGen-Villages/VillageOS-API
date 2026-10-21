@@ -21,6 +21,9 @@ public static class PipelineArchetypes
     public const string PipelineWireFlag = "__IsPipelineWireArchetype";
     public const string PipelineRunFlag = "__IsPipelineRunArchetype";
     public const string NodeRunFlag = "__IsNodeRunArchetype";
+    // An end node standing for an external system sends that system what reached it, as a sent message.
+    public const string ExternalSystemFlag = "__IsExternalSystemArchetype";
+    public const string SentMessageFlag = "__IsSentMessageArchetype";
 
     // The roles a DAG is resolved from, which a pipeline snapshot is asked to carry so that an
     // archetype missing from it means the model marks none rather than that this pipeline uses none.

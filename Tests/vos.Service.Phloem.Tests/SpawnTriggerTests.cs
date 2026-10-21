@@ -56,6 +56,8 @@ public class SpawnTriggerTests
 
         t.Kind.Should().Be(SpawnKind.Relationship);
         t.TargetId.Should().Be(Pipe);
+        t.RelationshipId.Should().Be(Guid.Parse("a0000000-0000-0000-0000-000000000001"),
+            "a write along a predicate is resolved through the relationship, which names the connection");
         t.Subject.Should().Be(new RunSubject(Subject, "Submission 42"));
         t.Params.GetProperty("scenario").GetString().Should().Be("base");
         t.Async.Should().BeTrue("a dispatched relationship is always answered before the run finishes");
@@ -72,6 +74,7 @@ public class SpawnTriggerTests
 
         t.Kind.Should().Be(SpawnKind.Relationship);
         t.Subject.Should().BeNull();
+        t.RelationshipId.Should().BeNull();
     }
 
     [Theory]

@@ -193,9 +193,10 @@ describe('the vocabulary the editor holds', () => {
       expect(held).toEqual([]);
     });
 
-  /** The marks the page reads that the orchestrator does not: the range mark is the platform's own,
-   *  and the orchestrator does not yet act on an external system or a kind of message. */
-  const READ_BY_THE_PAGE_ALONE = new Set<string>([ARCHETYPE_FLAG.Range, ARCHETYPE_FLAG.ExternalSystem, ARCHETYPE_FLAG.MessageKind]);
+  /** The marks the page reads that the orchestrator does not: the range mark is the platform's own, the
+   *  orchestrator does not yet act on a kind of message, and its own prototype's mark is how the page finds
+   *  the service to bind a state to. */
+  const READ_BY_THE_PAGE_ALONE = new Set<string>([ARCHETYPE_FLAG.Range, ARCHETYPE_FLAG.MessageKind, ARCHETYPE_FLAG.Orchestrator]);
 
   it('reads the same marks the orchestrator does', () => {
     const phloem = readFileSync(
@@ -297,7 +298,7 @@ describe('run animation source', () => {
 
     // Two runs of A (different times) + one run of B — B must not leak into A's history.
     const a1 = T('PipelineRun a1', { status: 'succeeded', startedUtc: '2026-06-23T10:00:00Z' });
-    const a2 = T('PipelineRun a2', { status: 'failed', startedUtc: '2026-06-23T12:00:00Z' });
+    const a2 = T('PipelineRun a2', { status: 'failed', startedUtc: '2026-06-23T12:00:00Z', requestId: '01999a2b-0000-7000-8000-000000000001' });
     const b1 = T('PipelineRun b1', { status: 'succeeded', startedUtc: '2026-06-23T11:00:00Z' });
     for (const r of [a1, a2, b1]) relationship(r.Id, is.Id, runArchetype.Id);
     relationship(a1.Id, of.Id, pipeA.Id);
@@ -308,6 +309,8 @@ describe('run animation source', () => {
     const runs = model.runsOf(pipeA.Id);
     expect(runs.map((r) => r.runId)).toEqual([a2.Id, a1.Id]); // newest first, B excluded
     expect(runs[0]).toMatchObject({ status: 'failed', startedUtc: '2026-06-23T12:00:00Z' });
+    expect(runs[0].requestId).toBe('01999a2b-0000-7000-8000-000000000001');
+    expect(runs[1].requestId).toBeUndefined();
     expect(model.runsOf('missing')).toEqual([]);
   });
 });

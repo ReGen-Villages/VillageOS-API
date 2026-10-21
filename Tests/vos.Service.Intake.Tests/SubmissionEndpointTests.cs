@@ -146,7 +146,7 @@ public class SubmissionEndpointTests
     [Theory]
     [InlineData("'budgetEuros':250000")]
     [InlineData("'site':{'name':'Willow Bend','latitude':91.0}")]
-    [InlineData("'allocations':[{'category':'residential','sharePct':900}]")]
+    [InlineData("'allocations':[{'category':'residential','sharePercent':900}]")]
     public async Task A_refused_submission_writes_nothing(string shape)
     {
         var written = false;

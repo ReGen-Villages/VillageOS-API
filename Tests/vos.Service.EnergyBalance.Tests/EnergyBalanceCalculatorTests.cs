@@ -61,7 +61,7 @@ public class EnergyBalanceCalculatorTests
 
         r.SolarGenerationMwhPerYear.Should().BeApproximately(20_000, 1e-6);
         r.TotalGenerationMwhPerYear.Should().BeApproximately(20_900, 1e-6);
-        r.PctOfConsumption.Should().BeApproximately(20_900.0 / 18_743.0 * 100.0, 1e-6);     // ~111.5%
+        r.PercentOfConsumption.Should().BeApproximately(20_900.0 / 18_743.0 * 100.0, 1e-6);     // ~111.5%
         r.NetPositive.Should().BeTrue();
     }
 
@@ -73,7 +73,7 @@ public class EnergyBalanceCalculatorTests
             ModuleEfficiency: 0.20, PerformanceRatio: 1.0,   // 2,000 MWh
             OtherGenerationMwhPerYear: 0, AnnualConsumptionMwhPerYear: 5_000));
 
-        r.PctOfConsumption.Should().BeApproximately(40.0, 1e-6);
+        r.PercentOfConsumption.Should().BeApproximately(40.0, 1e-6);
         r.NetPositive.Should().BeFalse();
     }
 
@@ -82,7 +82,7 @@ public class EnergyBalanceCalculatorTests
     {
         var r = EnergyBalanceCalculator.Compute(new EnergyBalanceInputs(1000, 1000, 0.2, 1.0, 0, 0));
 
-        r.PctOfConsumption.Should().Be(0);
+        r.PercentOfConsumption.Should().Be(0);
         r.NetPositive.Should().BeFalse();
     }
 }

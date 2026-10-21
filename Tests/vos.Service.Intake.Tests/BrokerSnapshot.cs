@@ -179,10 +179,10 @@ public sealed class BrokerSnapshot
     public static string AddressOn(string siteName) =>
         $"{siteName.Replace(" ", string.Empty).ToLowerInvariant()}@example.test";
 
-    // The spec the page carries: one figure read off the site, one read through the parcel, one
+    // The specification the page carries: one figure read off the site, one read through the parcel, one
     // verdict reached by walking `studies` backwards, and a provenance line walking the parcel's
     // `obtainedBy`. Between them they exercise every shape a walk is written in.
-    public const string PageSpec = """
+    public const string PageSpecification = """
         {"title": "Site submission",
          "compare": {"label": "site", "archetype": "Site"},
          "sections": [
@@ -217,7 +217,7 @@ public sealed class BrokerSnapshot
             .Thing(Page, "Site Submission Dashboard", properties: new Dictionary<string, object>
             {
                 [FindingsReader.FindingsDashboardFlag] = new { typeInfo = "vos.Boolean", value = true },
-                [FindingsReader.SpecProperty] = new { typeInfo = "vos.String", value = PageSpec },
+                [FindingsReader.SpecificationProperty] = new { typeInfo = "vos.String", value = PageSpecification },
             })
             .Relate(Page, IsPredicate, DashboardArchetype);
 

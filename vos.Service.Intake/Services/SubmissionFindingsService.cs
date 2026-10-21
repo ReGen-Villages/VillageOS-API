@@ -35,7 +35,7 @@ public sealed class SubmissionFindingsService(
 
         var siteId = StableIdentity.Derive(submissionId, SiteRole);
         using var reading = await mycelium.ReadAsync(
-            FindingsReader.FindingsSelector(siteId, declarations.Spec), cancellation);
+            FindingsReader.FindingsSelector(siteId, declarations.Specification), cancellation);
 
         var things = FindingsReader.ThingsToAnswerWith(
             reading.RootElement, declarations.PersonalDetailArchetype);
@@ -48,7 +48,7 @@ public sealed class SubmissionFindingsService(
         logger.LogInformation("Findings for submission {Reference} were read", submissionId);
 
         return new Findings(
-            declarations.Spec,
+            declarations.Specification,
             siteId,
             [.. things.Select(thing => thing.Clone())],
             [.. relationships.Select(edge => edge.Clone())],
