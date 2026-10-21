@@ -10,6 +10,7 @@ class Config:
     port: int = 0
     mycelium_url: str = ""
     token: str | None = None
+    api_key: str | None = None
     verification_key: str | None = None
     issuer: str = ""
     #: This service's own name. A token addressed to anything else is refused.
@@ -23,7 +24,8 @@ def parse_args(argv: list[str], environment: Mapping[str, str] = os.environ) -> 
     on the host and is recorded by anything that logs the line a service was started with.
     """
     cfg = Config(
-        token=environment.get("Token"), verification_key=environment.get("VerificationKey"))
+        token=environment.get("Token"), api_key=environment.get("ApiKey"),
+        verification_key=environment.get("VerificationKey"))
     seen_port = seen_url = False
     for arg in argv:
         if "=" not in arg:
@@ -54,5 +56,5 @@ def usage(program: str) -> str:
         "[--issuer=<iss>] [--audience=<aud>]\n"
         "--issuer and --audience are required whenever a VerificationKey is set; --audience is this "
         "service's own name.\n"
-        "Credentials come from the environment, never the command line: Token, VerificationKey"
+        "Credentials come from the environment, never the command line: ApiKey, Token, VerificationKey"
     )

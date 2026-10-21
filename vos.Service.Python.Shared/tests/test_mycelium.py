@@ -1,10 +1,12 @@
 import asyncio
 import json
+from datetime import datetime, timedelta, timezone
 
 import httpx
+import jwt
 import pytest
 
-from vos_service import Config, MyceliumClient
+from vos_service import Config, MyceliumClient, sediment_reading
 
 
 @pytest.fixture
@@ -67,17 +69,109 @@ def test_token_is_the_one_supplied_in_the_environment(mycelium):
     assert asyncio.run(mycelium.token()) == "tok"
 
 
-def test_token_is_asked_of_mycelium_when_none_was_supplied(config, mycelium):
-    config.token = None
+A_MOMENT = datetime(2026, 10, 2, 12, 0, tzinfo=timezone.utc)
+NOT_A_SIGNING_KEY = "k" * 32
+
+
+def token_expiring(at: datetime | None) -> str:
+    claims = {"sub": "a-service"} if at is None else {"sub": "a-service", "exp": int(at.timestamp())}
+    return jwt.encode(claims, NOT_A_SIGNING_KEY, algorithm="HS256")
+
+
+@pytest.fixture
+def holding_a_key():
+    """A service holding an API key and no token, with a clock the test moves."""
+    config = Config(port=5103, mycelium_url="http://mycelium.test", api_key="vos_ak_example")
+    clock = {"now": A_MOMENT}
+    return config, MyceliumClient(config, now=lambda: clock["now"]), clock
+
+
+def exchanges_answering(captured, minted):
+    def handle(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(200, json={"token": minted()})
+
+    return handle
+
+
+def tokens_asked_for(mycelium, handler, times, clock=None, between=timedelta(0)):
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+            answered = []
+            for _ in range(times):
+                answered.append(await mycelium.token(client=c))
+                if clock is not None:
+                    clock["now"] += between
+            return answered
+
+    return asyncio.run(run())
+
+
+def test_a_key_is_exchanged_in_the_key_header_and_the_token_is_held(holding_a_key):
+    _, mycelium, _ = holding_a_key
     captured = []
+    minted = token_expiring(A_MOMENT + timedelta(minutes=5))
+
+    answered = tokens_asked_for(mycelium, exchanges_answering(captured, lambda: minted), times=3)
+
+    assert answered == [minted] * 3
+    assert len(captured) == 1, "the token is held, so the key is exchanged once and not on every call"
+    assert captured[0].url.path == "/api/auth/token"
+    assert captured[0].headers["X-API-Key"] == "vos_ak_example"
+
+
+def test_a_held_token_is_exchanged_again_shortly_before_it_runs_out(holding_a_key):
+    _, mycelium, clock = holding_a_key
+    captured = []
+    lifetime = timedelta(minutes=5)
+
+    tokens_asked_for(
+        mycelium, exchanges_answering(captured, lambda: token_expiring(clock["now"] + lifetime)),
+        times=3, clock=clock, between=lifetime - timedelta(seconds=20))
+
+    assert len(captured) == 3, "twenty seconds from running out is inside the half minute a token is replaced in"
+
+
+def test_a_token_that_states_no_expiry_is_not_held(holding_a_key):
+    _, mycelium, _ = holding_a_key
+    with pytest.raises(RuntimeError, match="no expiry"):
+        tokens_asked_for(mycelium, exchanges_answering([], lambda: token_expiring(None)), times=1)
+
+
+def test_a_refused_key_says_what_the_platform_answered(holding_a_key):
+    _, mycelium, _ = holding_a_key
+    with pytest.raises(RuntimeError, match="401"):
+        tokens_asked_for(mycelium, lambda request: httpx.Response(401), times=1)
+
+
+def test_with_neither_a_key_nor_a_token_there_is_nothing_to_present(holding_a_key):
+    config, mycelium, _ = holding_a_key
+    config.api_key = None
+    with pytest.raises(RuntimeError, match="neither ApiKey nor Token is set"):
+        tokens_asked_for(mycelium, lambda request: httpx.Response(500), times=1)
+
+
+def test_a_key_is_presented_before_a_token_given_beside_it(holding_a_key):
+    config, mycelium, _ = holding_a_key
+    config.token = "a-launch-token"
+    minted = token_expiring(A_MOMENT + timedelta(minutes=5))
+
+    assert tokens_asked_for(mycelium, exchanges_answering([], lambda: minted), times=1) == [minted]
+
+
+def test_a_write_carries_the_token_the_key_was_exchanged_for(holding_a_key):
+    _, mycelium, _ = holding_a_key
+    minted = token_expiring(A_MOMENT + timedelta(minutes=5))
+    seen = []
 
     def handle(request):
-        captured.append(request)
-        return httpx.Response(200, json={"token": "issued"})
+        seen.append(request)
+        if request.url.path == "/api/auth/token":
+            return httpx.Response(200, json={"token": minted})
+        return httpx.Response(201, json={"sequenceNumber": 1})
 
-    assert run_against(handle, lambda c: mycelium.token(client=c)) == "issued"
-    assert captured[0].method == "POST"
-    assert captured[0].url.path == "/api/auth/token"
+    run_against(handle, lambda c: mycelium.set_fact("t1", "status", "active", client=c))
+    assert seen[-1].headers["Authorization"] == f"Bearer {minted}"
 
 
 def test_register_posts_the_envelope_with_the_bearer_token(mycelium):
@@ -166,12 +260,17 @@ def test_record_observations_empty_makes_no_call(mycelium):
 
 def test_deposit_sediment_posts_readings_and_returns_summary(mycelium):
     captured = []
-    readings = [{"thingId": "t1", "property": "flow", "value": 1.0, "observedAt": "2026-06-19T00:00:00Z"}]
+    readings = [sediment_reading("t1", "flow", 1.0, "2026-06-19T00:00:00Z")]
     result = run_against(write_handler(captured), lambda c: mycelium.deposit_sediment(readings, client=c))
     assert result["batchId"] == "b-1"
     assert result["samples"] == 10
     assert captured[0].url.path == "/api/sediment"
-    assert "observedAt" in json.loads(captured[0].content)[0]
+    assert json.loads(captured[0].content)[0] == readings[0]
+
+
+def test_a_sediment_reading_names_its_thing_the_way_the_sediment_route_reads_it():
+    assert sediment_reading("t1", "flow", 1.0, "2026-06-19T00:00:00Z") == {
+        "objectId": "t1", "property": "flow", "value": 1.0, "observedAt": "2026-06-19T00:00:00Z"}
 
 
 def test_deposit_sediment_empty_raises(mycelium):

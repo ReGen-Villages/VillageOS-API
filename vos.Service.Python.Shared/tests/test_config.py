@@ -58,3 +58,13 @@ def test_usage_tells_the_reader_to_launch_through_the_virtual_environment():
 
 def test_usage_names_the_program_it_was_asked_about():
     assert ".venv/bin/python service.py" in usage("service.py")
+
+
+def test_parse_args_reads_an_api_key_from_the_environment_and_never_from_a_flag():
+    arguments = ["--port=5103", "--myceliumUrl=https://localhost:7243", "--apiKey=flag-key"]
+    assert parse_args(arguments, {"ApiKey": "environment-key"}).api_key == "environment-key"
+    assert parse_args(arguments, {}).api_key is None
+
+
+def test_usage_names_the_key_among_the_credentials():
+    assert "ApiKey" in usage("app.py")

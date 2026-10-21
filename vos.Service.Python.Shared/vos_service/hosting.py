@@ -33,16 +33,21 @@ class ServiceHost:
         self.mycelium = MyceliumClient(config)
         self.verify_request = verifier(config)
         self._handle = handle
+        #: The uvicorn server, once `run` has started it; `/shutdown` asks it to stop.
+        self.server = None
         self.app = FastAPI(title=title or f"VillageOS {service_name} Microservice", lifespan=self._lifespan)
         self._add_routes()
 
     @asynccontextmanager
     async def _lifespan(self, _: FastAPI):
-        try:
-            registered = await self.mycelium.register(self.service_name, self.handler_id)
-            print(f"{'registered' if registered else 'failed to register'} with mycelium as {self.handler_id}")
-        except Exception as exc:
-            print(f"registration failed: {exc}", file=sys.stderr)
+        if not (self.config.api_key or self.config.token):
+            print("neither ApiKey nor Token is set, so this service has not registered with mycelium")
+        else:
+            try:
+                registered = await self.mycelium.register(self.service_name, self.handler_id)
+                print(f"{'registered' if registered else 'failed to register'} with mycelium as {self.handler_id}")
+            except Exception as exc:
+                print(f"registration failed: {exc}", file=sys.stderr)
         yield
 
     def _add_routes(self) -> None:
@@ -72,7 +77,10 @@ class ServiceHost:
 
         @self.app.post("/shutdown")
         def shutdown(_: None = Depends(self.verify_request)) -> dict:
-            # Mycelium kills the daemon in production; this only acknowledges the request.
+            # Mycelium kills a daemon it started itself. One started any other way is stopped through this
+            # route alone, and Mycelium then checks that it no longer answers.
+            if self.server is not None:
+                self.server.should_exit = True
             return {"message": f"Shutting down {self.service_name} microservice"}
 
     def run(self, program: str) -> None:
@@ -86,4 +94,5 @@ class ServiceHost:
             f"VillageOS {self.service_name} microservice — port {self.config.port}, "
             f"mycelium {self.config.mycelium_url}, auth={bool(self.config.verification_key)}"
         )
-        uvicorn.run(self.app, host="localhost", port=self.config.port, log_level="info")
+        self.server = uvicorn.Server(uvicorn.Config(self.app, host="localhost", port=self.config.port, log_level="info"))
+        self.server.run()

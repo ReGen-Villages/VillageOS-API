@@ -6,4 +6,4 @@ A service imports this and writes only its handler. The contract itself is in do
 from .auth import verifier
 from .config import Config, parse_args, usage
 from .hosting import ServiceHost
-from .mycelium import MyceliumClient
+from .mycelium import MyceliumClient, sediment_reading

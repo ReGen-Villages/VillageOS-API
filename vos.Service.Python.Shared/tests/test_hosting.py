@@ -131,3 +131,26 @@ def test_run_without_a_port_prints_the_usage_and_exits(capsys):
         host.run("service.py")
     assert exited.value.code == 1
     assert ".venv/bin/python service.py" in capsys.readouterr().err
+
+
+def test_with_neither_a_key_nor_a_token_no_call_is_made_and_the_service_says_so(host, config, capsys):
+    config.token = None
+    config.api_key = None
+    with patch("httpx.AsyncClient.request", new=AsyncMock()) as request:
+        with TestClient(host.app):
+            pass
+
+    assert request.await_count == 0, "a call carrying no credential is always refused"
+    said = capsys.readouterr().out
+    assert said.count("\n") == 1 and "ApiKey" in said and "Token" in said
+
+
+# A service the platform did not start is stopped through this route alone.
+def test_shutdown_stops_the_server_once_it_has_answered(client, host):
+    class Serving:
+        should_exit = False
+
+    host.server = Serving()
+
+    assert client.post("/shutdown").status_code == 200
+    assert host.server.should_exit is True
