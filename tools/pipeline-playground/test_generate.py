@@ -29,6 +29,7 @@ def bound_in_seed(seed, word):
 
 
 EVERY_ROLE = set(G.ARCHETYPE_ROLE.values()) | set(G.PREDICATE_ROLE.values()) | set(G.ROOT_ROLE.values())
+SHARED_BY_EVERY_MODEL = {G.role_id(word) for word in EVERY_ROLE | {"role"}}
 
 
 class NamespaceTests(unittest.TestCase):
@@ -36,8 +37,8 @@ class NamespaceTests(unittest.TestCase):
         alpha = build_with_namespace("Alpha")
         beta = build_with_namespace("Beta")
         self.assertTrue(alpha.things and beta.things)
-        self.assertEqual(set(alpha.things) & set(beta.things), {G.role_id(word) for word in EVERY_ROLE},
-                         "namespaced builds share only the role Things, which every model declares alike")
+        self.assertEqual(set(alpha.things) & set(beta.things), SHARED_BY_EVERY_MODEL,
+                         "namespaced builds share only the role Things and Role, which every model declares alike")
 
     def test_same_namespace_is_stable(self):
         first = build_with_namespace("Alpha")
@@ -49,7 +50,7 @@ class NamespaceTests(unittest.TestCase):
         G.set_namespace(None)
         default = G.build()
         namespaced = build_with_namespace("Alpha")
-        self.assertEqual(set(default.things) & set(namespaced.things), {G.role_id(word) for word in EVERY_ROLE})
+        self.assertEqual(set(default.things) & set(namespaced.things), SHARED_BY_EVERY_MODEL)
 
     def test_merge_reconciles_shared_vocabulary_by_name_regardless_of_namespace(self):
         # A target that already has `is` keeps its own id; the namespaced kit's `is` reconciles onto it
@@ -77,8 +78,40 @@ class RoleBindingTests(unittest.TestCase):
         things, rels = list(kit.things.values()), list(kit.rels.values())
         for word in EVERY_ROLE:
             self.assertEqual(len(bound_by(things, rels, word)), 1, word)
-            self.assertEqual(kit.things[G.role_id(word)]["Name"], f"{word} role")
+            self.assertEqual(kit.things[G.role_id(word)]["Name"], word[0].upper() + word[1:])
         self.assertEqual([(t["Name"], name) for t in things for name in t["Properties"] if name.startswith("__Is")], [])
+
+    def test_every_role_thing_is_role_and_role_is_configuration(self):
+        kit = G.build()
+        things, rels = list(kit.things.values()), list(kit.rels.values())
+        is_ids = {t["Id"] for t in things if t["Name"] == "is"}
+        role = kit.things[G.role_id("role")]
+        self.assertEqual((role["Name"], role.get("IsArchetype")), ("Role", True))
+        for word in EVERY_ROLE:
+            self.assertTrue(any(r["Subject"] == G.role_id(word) and r["Predicate"] in is_ids and r["Target"] == role["Id"]
+                                for r in rels), word)
+        [configuration] = bound_by(things, rels, "configuration")
+        self.assertTrue(any(r["Subject"] == role["Id"] and r["Predicate"] in is_ids and r["Target"] == configuration
+                            for r in rels))
+
+    def test_merge_keeps_the_targets_own_role_archetype(self):
+        target_role = {"Id": G.role_id("role"), "Name": "the target's Role", "IsArchetype": True, "Properties": {}}
+        seed = {"Name": "Target", "Things": [dict(target_role)], "Relationships": []}
+        G.merge_into(G.build(), seed)
+
+        self.assertEqual([t for t in seed["Things"] if t["Id"] == G.role_id("role")], [target_role])
+
+    def test_merge_never_takes_a_role_for_a_thing_that_shares_its_name(self):
+        seed = {"Name": "Target",
+                "Things": [{"Id": "target-is", "Name": "is", "Properties": {}},
+                           {"Id": G.role_id("role"), "Name": "Role", "IsArchetype": True, "Properties": {}},
+                           {"Id": G.role_id("cadence"), "Name": "Cadence", "Properties": {}}],
+                "Relationships": [{"Id": "cadence-is-role", "Name": "", "Subject": G.role_id("cadence"),
+                                   "Predicate": "target-is", "Target": G.role_id("role"), "Properties": {}}]}
+        G.merge_into(G.build(), seed)
+
+        [cadence] = bound_in_seed(seed, "cadence")
+        self.assertNotEqual(cadence, G.role_id("cadence"))
 
     def test_a_role_thing_has_the_standard_identifier_of_its_word(self):
         self.assertEqual(G.role_id("pipeline"), "f8bc9986-6eef-54d9-9940-4aca2497109b")
@@ -338,14 +371,12 @@ class ModelRootsTests(unittest.TestCase):
         self.assertIn(self.predicate, is_ancestors(self.things, self.rels, about))
 
     def test_no_predicate_is_placed_directly_under_configuration(self):
-        placed = {r["Subject"] for r in self.rels if r["Predicate"] == self.kit_is() and r["Target"] == self.configuration}
+        is_ = next(t["Id"] for t in self.things if t["Name"] == "is")
+        placed = {r["Subject"] for r in self.rels if r["Predicate"] == is_ and r["Target"] == self.configuration}
         self.assertEqual(sorted(self.kit.things[tid]["Name"] for tid in placed & self.kit.predicates), [])
 
-    def kit_is(self):
-        return next(t["Id"] for t in self.things if t["Name"] == "is")
-
     def test_runs_are_operation_and_the_rest_is_configuration(self):
-        by_name = {t["Name"]: t["Id"] for t in self.things}
+        by_name = {t["Name"]: t["Id"] for t in self.things if t["Id"] not in self.kit.role_things}
         for operational in ("PipelineRun", "NodeRun", "SentMessage"):
             self.assertIn(self.operation, is_ancestors(self.things, self.rels, by_name[operational]), operational)
         for configured in ("Pipeline", "Service", "PlatformServiceConnection", "Strategy"):
