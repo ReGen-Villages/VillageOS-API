@@ -32,6 +32,7 @@ import { temporalApi } from './temporalApi';
 // stub port here would prove nothing about what the running application asks the broker — and the
 // sharing a refresh generation does now belongs to this object rather than to the context.
 import { brokerModelReads } from './brokerModelReads';
+import { PAGE_ROLE_ID } from './platformRoles';
 import {
   discoverDashboards,
   scopeEntities,
@@ -70,6 +71,8 @@ function model(): { things: VosThing[]; relationships: VosRelationship[] } {
   });
   const things: VosThing[] = [
     t('is', 'is'),
+    t('binds', 'binds'),
+    t(PAGE_ROLE_ID, 'Page'),
     t('arch-dash', 'Dashboard'),
     t('arch-vil', 'Village'),
     t('dash1', 'Operations Dashboard', { specification: JSON.stringify(SPECIFICATION) }),
@@ -84,8 +87,14 @@ function model(): { things: VosThing[]; relationships: VosRelationship[] } {
     TargetId,
     Properties: {},
   });
-  const relationships: VosRelationship[] = [r('dash1', 'arch-dash'), r('vil1', 'arch-vil'), r('vil2', 'arch-vil')];
+  const relationships: VosRelationship[] = [
+    pageRoleBinds('arch-dash'), r('dash1', 'arch-dash'), r('vil1', 'arch-vil'), r('vil2', 'arch-vil'),
+  ];
   return { things, relationships };
+}
+
+function pageRoleBinds(archetypeId: string): VosRelationship {
+  return { Id: `page-binds-${archetypeId}`, Name: '', SubjectId: PAGE_ROLE_ID, PredicateId: 'binds', TargetId: archetypeId, Properties: {} };
 }
 
 function contextFor(scopeId: string | null): ResolveContext {
@@ -143,17 +152,22 @@ function dashboardModel(names: string[]): { things: VosThing[]; relationships: V
   const specification = JSON.stringify({ title: 'T', sections: [] });
   const things: VosThing[] = [
     { Id: 'is', Name: 'is', Properties: {} },
+    { Id: 'binds', Name: 'binds', Properties: {} },
+    { Id: PAGE_ROLE_ID, Name: 'Page', Properties: {} },
     { Id: 'arch-dash', Name: 'Dashboard', Properties: {} },
     ...names.map((Name, i) => ({ Id: `dash-${i}`, Name, Properties: { specification } })),
   ];
-  const relationships: VosRelationship[] = names.map((_, i) => ({
-    Id: `dash-${i}-is`,
-    Name: `dash-${i} is Dashboard`,
-    SubjectId: `dash-${i}`,
-    PredicateId: 'is',
-    TargetId: 'arch-dash',
-    Properties: {},
-  }));
+  const relationships: VosRelationship[] = [
+    pageRoleBinds('arch-dash'),
+    ...names.map((_, i) => ({
+      Id: `dash-${i}-is`,
+      Name: `dash-${i} is Dashboard`,
+      SubjectId: `dash-${i}`,
+      PredicateId: 'is',
+      TargetId: 'arch-dash',
+      Properties: {},
+    })),
+  ];
   return { things: declared(things, relationships), relationships };
 }
 
@@ -192,9 +206,9 @@ describe('dashboard order and addresses', () => {
   it.each([
     ['in the order the model lists them', (things: VosThing[]) => things],
     ['in the opposite order', (things: VosThing[]) => [...things].reverse()],
-  ])('lists the pages under each of two types named Dashboard, %s', (_, ordered) => {
+  ])('lists only the pages under the kind the page role binds, not under a namesake, %s', (_, ordered) => {
     const { things, relationships } = dashboardModel(['Site submission']);
-    const fromAnotherTemplate: VosThing[] = [
+    const namesake: VosThing[] = [
       { Id: 'arch-dash-site', Name: 'Dashboard', IsArchetype: true, Properties: {} },
       { Id: 'dash-site', Name: 'Site operations', Properties: { specification: JSON.stringify({ title: 'T', sections: [] }) } },
     ];
@@ -203,12 +217,16 @@ describe('dashboard order and addresses', () => {
       SubjectId: 'dash-site', PredicateId: 'is', TargetId: 'arch-dash-site', Properties: {},
     });
 
-    const found = discoverDashboards(ordered([...things, ...fromAnotherTemplate]), relationships);
+    const found = discoverDashboards(ordered([...things, ...namesake]), relationships);
 
-    expect(found.map((d) => [d.name, d.routeKey])).toEqual([
-      ['Site operations', 'site-operations'],
-      ['Site submission', 'site-submission'],
-    ]);
+    expect(found.map((d) => [d.name, d.routeKey])).toEqual([['Site submission', 'site-submission']]);
+  });
+
+  it('lists no page where no role binds a page kind, whatever an archetype is called', () => {
+    const { things, relationships } = dashboardModel(['Site submission']);
+    const unbound = relationships.filter((r) => r.PredicateId !== 'binds');
+
+    expect(discoverDashboards(things, unbound)).toEqual([]);
   });
 });
 

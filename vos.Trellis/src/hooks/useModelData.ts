@@ -12,7 +12,8 @@ import { toast } from '../components/common/toastStore';
 import { isVisibleRelationship } from '../utils/propertyUpdates';
 import i18n from '../i18n';
 import { unwrapRelationship, unwrapThing } from '../utils/propertyMapper';
-import { GUI_SETTINGS_TYPE_NAME, readModelLoadProperties } from '../utils/guiSettings';
+import { readModelLoadProperties } from '../utils/guiSettings';
+import { DISPLAY_SETTINGS_ROLE_ID } from '../api/platformRoles';
 import type { VosRelationship, VosThing } from '../types/vos';
 
 /** Coalesce a burst of SSE structural events into one store write. A high-throughput
@@ -36,7 +37,7 @@ type PropertyChange = { deleted: false; value: unknown } | { deleted: true };
  */
 async function declaredModelLoadProperties(): Promise<string[]> {
   try {
-    const settings = await thingApi.getByName(GUI_SETTINGS_TYPE_NAME);
+    const settings = await thingApi.getBoundBy(DISPLAY_SETTINGS_ROLE_ID);
     const declared = readModelLoadProperties(settings?.Properties ?? null);
     // The navigation lists a model's dashboards on every page, and it reads each one out of this
     // property. A model that narrows its load without naming it is not asking for fewer dashboards

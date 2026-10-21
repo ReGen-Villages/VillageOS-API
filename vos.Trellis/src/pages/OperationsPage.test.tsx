@@ -32,6 +32,9 @@ import { usePlatformPagesStore } from '../stores/platformPagesStore';
 import { subscriptionForSpecification } from '../api/dashboardSubscription';
 import type { DashboardSpecification } from '../types/dashboard';
 import { useModelStore } from '../stores/modelStore';
+import { PAGE_ROLE_ID } from '../api/platformRoles';
+
+const PAGE_ROLE_BINDS: VosRelationship = { Id: 'page-binds', Name: '', SubjectId: PAGE_ROLE_ID, PredicateId: 'binds', TargetId: 'arch-dash', Properties: {} };
 import { useUiStore } from '../stores/uiStore';
 import { OperationsPage } from './OperationsPage';
 import { act } from '@testing-library/react';
@@ -93,6 +96,8 @@ function seedStore() {
   const t = (Id: string, Name: string, Properties: Record<string, unknown> = {}): VosThing => ({ Id, Name, Properties });
   const things: VosThing[] = [
     t('is', 'is'),
+    t('binds', 'binds'),
+    t(PAGE_ROLE_ID, 'Page'),
     t('arch-dash', 'Dashboard'),
     t('arch-vil', 'Village'),
     t('dash1', 'Operations Dashboard', { specification: JSON.stringify(SPECIFICATION) }),
@@ -109,7 +114,7 @@ function seedStore() {
   });
   useModelStore.setState({
     things,
-    relationships: [r('dash1', 'arch-dash'), r('vil1', 'arch-vil'), r('vil2', 'arch-vil')],
+    relationships: [PAGE_ROLE_BINDS, r('dash1', 'arch-dash'), r('vil1', 'arch-vil'), r('vil2', 'arch-vil')],
     loaded: true,
   });
 }
@@ -323,10 +328,13 @@ describe('OperationsPage section widths', () => {
     useModelStore.setState({
       things: [
         { Id: 'is', Name: 'is', Properties: {} },
+        { Id: 'binds', Name: 'binds', Properties: {} },
+        { Id: PAGE_ROLE_ID, Name: 'Page', Properties: {} },
         { Id: 'arch-dash', Name: 'Dashboard', Properties: {} },
         { Id: 'dash1', Name: 'Widths', Properties: { specification: JSON.stringify(WIDTH_SPECIFICATION) } },
       ],
       relationships: [
+        PAGE_ROLE_BINDS,
         { Id: 'dash1-is', Name: 'dash1 is arch-dash', SubjectId: 'dash1', PredicateId: 'is', TargetId: 'arch-dash', Properties: {} },
       ],
       loaded: true,

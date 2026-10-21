@@ -30,6 +30,10 @@ export interface SubscriptionSelector {
   types?: string[];
   /** Each archetype carrying one of these marks as its own property, and the Things that `is` it. */
   markedTypes?: string[];
+  /** The Thing each of these roles binds, and the Things that `is` it, followed through the whole chain. */
+  boundTypes?: string[];
+  /** The Thing each of these roles binds, alone. */
+  boundArchetypes?: string[];
   /** Applied in order, each over everything selected before it. */
   traverse?: TraverseRule[];
   /** Include what each selected Thing `is`, so the values it inherits resolve. Default true. */

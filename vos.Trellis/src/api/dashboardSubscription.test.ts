@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { NAVIGATION_AND_SETTINGS, subscriptionForSpecification } from './dashboardSubscription';
 import type { DashboardSpecification } from '../types/dashboard';
 import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ARCHETYPE_MARK } from './propertyNames';
+import { DISPLAY_SETTINGS_ROLE_ID, PAGE_ROLE_ID } from './platformRoles';
 
 const SCOPE_ID = '11111111-2222-3333-4444-555555555555';
 
@@ -18,8 +19,23 @@ describe('subscriptionForSpec', () => {
   it('keeps asking for what the navigation and the display settings are read from', () => {
     const selector = subscriptionForSpecification(specificationWith({}), null);
 
-    expect(selector.types).toEqual(expect.arrayContaining(NAVIGATION_AND_SETTINGS.types!));
+    expect(selector.boundTypes).toEqual(NAVIGATION_AND_SETTINGS.boundTypes);
+    expect(selector.boundArchetypes).toEqual(NAVIGATION_AND_SETTINGS.boundArchetypes);
+    expect(selector.ids).toEqual(expect.arrayContaining(NAVIGATION_AND_SETTINGS.ids!));
     expect(selector.names).toEqual(expect.arrayContaining(NAVIGATION_AND_SETTINGS.names!));
+  });
+
+  // The role Things travel with what they bind, so a reader can tell the settings Thing from the rest.
+  it('asks for the page kind and the settings through their roles and never by a type name', () => {
+    expect(NAVIGATION_AND_SETTINGS.boundTypes).toEqual([PAGE_ROLE_ID]);
+    expect(NAVIGATION_AND_SETTINGS.boundArchetypes).toEqual([DISPLAY_SETTINGS_ROLE_ID]);
+    expect(NAVIGATION_AND_SETTINGS.ids).toEqual([PAGE_ROLE_ID, DISPLAY_SETTINGS_ROLE_ID]);
+    expect(NAVIGATION_AND_SETTINGS.names).toEqual(['is', 'binds']);
+    expect(NAVIGATION_AND_SETTINGS.types).toBeUndefined();
+
+    const selector = subscriptionForSpecification(specificationWith({}), null);
+    expect(selector.types).not.toEqual(expect.arrayContaining(['Dashboard']));
+    expect(selector.types).not.toEqual(expect.arrayContaining(['GUI_Settings']));
   });
 
   it('asks to keep following the types it names, as the navigation does', () => {
@@ -43,7 +59,7 @@ describe('subscriptionForSpec', () => {
   it('names the selected entity as an identifier', () => {
     const selector = subscriptionForSpecification(specificationWith({ compare: { label: 'site', archetype: 'Site' } }), SCOPE_ID);
 
-    expect(selector.ids).toEqual([SCOPE_ID]);
+    expect(selector.ids).toEqual([...NAVIGATION_AND_SETTINGS.ids!, SCOPE_ID]);
   });
 
   // The platform answers a count from the state endpoint and a series from its reduction, so their
@@ -330,7 +346,7 @@ describe('subscriptionForSpec', () => {
     );
 
     expect(selector.names).toContain('Reservoir');
-    expect(selector.ids).toEqual([SCOPE_ID]);
+    expect(selector.ids).toEqual([...NAVIGATION_AND_SETTINGS.ids!, SCOPE_ID]);
     expect(selector.names).not.toContain('$scope');
   });
 });
