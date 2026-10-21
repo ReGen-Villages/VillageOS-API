@@ -28,9 +28,9 @@ type PropertyChange = { deleted: false; value: unknown } | { deleted: true };
 /**
  * The properties this model says its pages are drawn with, or none when it says nothing.
  *
- * Read before the model itself because it decides what to ask for. It costs one small request against
- * a route that already existed, next to a load that is megabytes — and the platform never narrows the
- * settings Thing, so this could not have ridden in the load it configures.
+ * Read before the model itself because it decides what to ask for. It costs one small request, next to a
+ * load that is megabytes — and the platform never narrows the settings Thing, so this could not have
+ * ridden in the load it configures.
  *
  * A model that says nothing, or a read that fails, loads everything. Narrowing on a guess would strip
  * properties a page needs; loading everything is only slower.
