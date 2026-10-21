@@ -5,6 +5,7 @@ using FluentAssertions;
 using vos.Service.Intake;
 using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
+using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 using Xunit;
 
@@ -54,8 +55,8 @@ public class FormOptionsEndpointTests
     public async Task It_answers_each_terms_wording_under_the_name_as_the_model_spells_it()
     {
         var model = new DeclaredModel()
-            .WithArchetype("LandUse", DeclaredVocabularyReader.AllocationCategoryArchetypeFlag)
-            .With("putTo", DeclaredVocabularyReader.AllocationCategoryPredicateFlag)
+            .WithArchetype("LandUse").Bound(LandIntakeRoles.AllocationCategory, "LandUse")
+            .With("putTo").Bound(LandIntakeRoles.CategorizedAs, "putTo")
             .Relate("Orchard", "is", "LandUse")
             .Stating("Orchard", (FormOptionsReader.WordingProperty, """{"en": "Orchard", "fr": "Verger"}"""));
         await using var factory = AnsweringWith(model.Build());
@@ -70,7 +71,7 @@ public class FormOptionsEndpointTests
     public async Task It_answers_the_themes_a_report_may_name()
     {
         var model = DeclaredModel.Seeded()
-            .WithArchetype("Theme", FormOptionsReader.ThemeArchetypeFlag)
+            .WithArchetype("Theme").Bound(FormOptionsReader.ThemeRole, "Theme")
             .Stating("Water", ("colour", "#3B7DE0"), ("icon", "droplet"), ("order", 2))
             .Relate("Water", "is", "Theme");
         await using var factory = AnsweringWith(model.Build());
@@ -187,9 +188,9 @@ public class FormOptionsEndpointTests
 
         response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
         (await response.Content.ReadAsStringAsync()).Should()
-            .NotContain(DeclaredVocabularyReader.AllocationCategoryArchetypeFlag);
+            .NotContain(LandIntakeRoles.AllocationCategory.Word);
         (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.ServiceUnavailable);
         factory.Log.Lines.Should().Contain(line =>
-            line.Contains(DeclaredVocabularyReader.AllocationCategoryArchetypeFlag));
+            line.Contains(LandIntakeRoles.AllocationCategory.Word));
     }
 }

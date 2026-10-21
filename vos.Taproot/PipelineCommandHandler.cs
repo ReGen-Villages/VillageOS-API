@@ -23,7 +23,6 @@ public class PipelineCommandHandler : CommandHandlerWithOutputOptions
     // through the role Things binding them, whose identifiers are the standard version 5 identifiers of their words.
     public static readonly Guid StopRequestRoleId = new("159ef90f-8089-5055-b5a9-8839d5e28e7a");
     public static readonly Guid RunStoppingRoleId = new("7acbab6c-58f3-5145-a9c0-18a907197131");
-    private const string BindsPredicateName = "binds";
 
     public PipelineCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions? options = null)
         : base(arg, writer, mycelium, options)
@@ -129,17 +128,6 @@ public class PipelineCommandHandler : CommandHandlerWithOutputOptions
         await _mycelium.CreateRelationshipAsync(request, stops.Value, runId);
         _writer.WriteLine($"Stop requested for run {runId}.");
     }
-
-    private static Guid? OneNamed(ModelSnapshot model, string name)
-    {
-        var named = model.ThingsById.Keys.Where(id => NameOf(model, id) == name).ToList();
-        return named.Count == 1 ? named[0] : null;
-    }
-
-    private static Guid? BoundBy(ModelSnapshot model, Guid roleId) =>
-        OneNamed(model, BindsPredicateName) is { } binds
-            ? EdgesThrough(model, binds).Where(edge => Subject(edge) == roleId).Select(edge => (Guid?)Target(edge)).FirstOrDefault()
-            : null;
 
     private async Task HistoryAsync(string[] args)
     {

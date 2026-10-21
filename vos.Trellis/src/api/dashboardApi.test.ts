@@ -32,6 +32,7 @@ import { temporalApi } from './temporalApi';
 // stub port here would prove nothing about what the running application asks the broker — and the
 // sharing a refresh generation does now belongs to this object rather than to the context.
 import { brokerModelReads } from './brokerModelReads';
+import { PROPERTY_NAME_ROLE } from './propertyNames';
 import {
   discoverDashboards,
   scopeEntities,
@@ -1984,14 +1985,17 @@ describe('levers under a shortfall', () => {
     return { Id, Name: Id, SubjectId, PredicateId, TargetId, Properties: {} };
   }
 
-  /** The archetypes the levers name, and one property name per [property, words, archetype id]. */
+  /** The archetypes the levers name, and one property name per [property, words, archetype id]. The
+   *  property-name archetype is the one the role binds, under a name no template uses. */
   function namedInputs(...names: [string, Record<string, string>, string][]) {
     return {
       things: [
         { Id: 'arch-generator', Name: 'Generator', Properties: {}, IsArchetype: true },
         { Id: 'arch-solar', Name: 'SolarArray', Properties: {}, IsArchetype: true },
         { Id: 'arch-tank', Name: 'Tank', Properties: {}, IsArchetype: true },
-        { Id: 'arch-name', Name: 'PropertyName', Properties: { __IsPropertyNameArchetype: true }, IsArchetype: true },
+        { Id: 'arch-name', Name: 'Label', Properties: {}, IsArchetype: true },
+        { Id: PROPERTY_NAME_ROLE, Name: 'propertyName', Properties: {} },
+        { Id: 'binds', Name: 'binds', Properties: {} },
         { Id: 'names-property-of', Name: 'namesPropertyOf', Properties: {} },
         ...names.map(([property, words], i) => ({
           Id: `name-${i}`,
@@ -2000,6 +2004,7 @@ describe('levers under a shortfall', () => {
         })),
       ],
       relationships: [
+        edge('name-role-binds', PROPERTY_NAME_ROLE, 'binds', 'arch-name'),
         edge('solar-is-generator', 'arch-solar', 'is', 'arch-generator'),
         ...names.flatMap(([, , archetype], i) => [
           edge(`name-${i}-is`, `name-${i}`, 'is', 'arch-name'),

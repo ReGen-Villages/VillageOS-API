@@ -8,14 +8,18 @@ namespace vos.Taproot;
 // into a project model of its own, or clear the rejections whose period has run.
 //
 // Nothing here names an archetype or a predicate. A submission is whatever asserts a relationship through the
-// predicate the model marks as reaching a proposed site, and the dispositions are the Things under the
-// archetype the model marks as holding them. A model that spells either differently keeps answering,
-// which is the whole reason both are Things.
+// predicate the model binds to the proposed-site role, and the dispositions are the Things under the archetype
+// the model binds to the disposition role. A model that spells either differently keeps answering, which is
+// the whole reason both are Things. Each role's identifier is the standard version 5 identifier of its word.
 public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumClient? client = null)
 {
-    public const string ProposedSitePredicateFlag = "__IsProposedSitePredicate";
-    public const string DispositionArchetypeFlag = "__IsSubmissionDispositionArchetype";
-    public const string DispositionPredicateFlag = "__IsSubmissionDispositionPredicate";
+    public static readonly Guid ProposedSiteRoleId = new("ac8f6596-7dd4-53bb-bcc9-01d3f7b78b5b");
+    public static readonly Guid DispositionArchetypeRoleId = new("f4c54fc1-2c17-54bc-b8e8-c467e8fa321a");
+    public static readonly Guid DispositionPredicateRoleId = new("92e4581a-4936-58b1-a783-36a051aa0a43");
+
+    private const string ProposedSiteRoleWord = "proposedSite";
+    private const string DispositionArchetypeRoleWord = "submissionDisposition";
+    private const string DispositionPredicateRoleWord = "resolvedAs";
 
     // The period after which a submission resolved to this disposition goes. Which disposition is
     // disposable is read off the model as the one naming it, so a model spelling `rejected` differently
@@ -158,16 +162,16 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         }
 
         var model = await ModelSnapshot.ReadAsync(client!);
-        if (OneOwning(model, ProposedSitePredicateFlag) is not { } proposes)
+        if (BoundBy(model, ProposedSiteRoleId) is not { } proposes)
         {
-            writer.WriteLine($"This model marks no predicate with '{ProposedSitePredicateFlag}'.");
+            writer.WriteLine($"This model binds no predicate to the role {ProposedSiteRoleWord}.");
             return;
         }
 
         string[] followed =
         [
             .. args[0].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
-            proposes.Name,
+            NameOf(model, proposes) ?? "",
         ];
 
         var now = DateTime.UtcNow;
@@ -233,13 +237,13 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
     // the write itself lays down, which is the record that cannot be typed in.
     private async Task ResolveAsync(ModelSnapshot model, Submission submission, (Guid Id, string Name) disposition)
     {
-        if (OneOwning(model, DispositionPredicateFlag) is not { } predicate)
+        if (BoundBy(model, DispositionPredicateRoleId) is not { } predicate)
         {
-            writer.WriteLine($"This model marks no predicate with '{DispositionPredicateFlag}'.");
+            writer.WriteLine($"This model binds no predicate to the role {DispositionPredicateRoleWord}.");
             return;
         }
 
-        await client!.CreateRelationshipAsync(submission.Id, predicate.Id, disposition.Id);
+        await client!.CreateRelationshipAsync(submission.Id, predicate, disposition.Id);
         await client.SetPropertyAsync(
             submission.Id, ResolvedAtProperty, "vos.DateTime", DateTime.UtcNow.ToString("O"));
     }
@@ -267,14 +271,14 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
 
     private static IEnumerable<Submission> SubmissionsIn(ModelSnapshot model)
     {
-        if (OneOwning(model, ProposedSitePredicateFlag) is not { } proposes)
+        if (BoundBy(model, ProposedSiteRoleId) is not { } proposes)
             yield break;
 
         // One submission per relationship: a submission is only a submission because it proposes a site, so the
         // walk that finds it is also the walk that says which site travels when it is promoted. A model
         // declares that predicate by relating its own archetypes, and that relationship is asserted through the
         // same predicate — listed, it offers a reviewer a decision over the declaration itself.
-        foreach (var edge in EdgesThrough(model, proposes.Id))
+        foreach (var edge in EdgesThrough(model, proposes))
         {
             var id = Subject(edge);
             if (IsArchetype(model, id)) continue;
@@ -290,21 +294,21 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
     }
 
     private static Guid? DispositionOf(ModelSnapshot model, Guid submission) =>
-        OneOwning(model, DispositionPredicateFlag) is { } resolvedAs
-            ? EdgesThrough(model, resolvedAs.Id).Where(edge => Subject(edge) == submission)
+        BoundBy(model, DispositionPredicateRoleId) is { } resolvedAs
+            ? EdgesThrough(model, resolvedAs).Where(edge => Subject(edge) == submission)
                 .Select(edge => (Guid?)Target(edge)).FirstOrDefault()
             : null;
 
-    // The Things under the archetype the model marks as holding what a submission can be resolved
-    // to. Found by the mark, never by the archetype's name.
+    // The Things under the archetype the model binds to the disposition role, which holds what a submission
+    // can be resolved to. Found through the role, never by the archetype's name.
     private static IEnumerable<(Guid Id, string Name)> DispositionsIn(ModelSnapshot model)
     {
-        if (OneOwning(model, DispositionArchetypeFlag) is not { } archetype)
+        if (BoundBy(model, DispositionArchetypeRoleId) is not { } archetype)
             yield break;
 
         foreach (var edge in model.Relationships.EnumerateArray())
         {
-            if (Target(edge) != archetype.Id) continue;
+            if (Target(edge) != archetype) continue;
             if (NameOf(model, Predicate(edge)) != IsPredicateName) continue;
             var id = Subject(edge);
             yield return (id, NameOf(model, id) ?? id.ToString());

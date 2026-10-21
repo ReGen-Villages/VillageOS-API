@@ -43,7 +43,7 @@ public static class WillowBend
     public static readonly Guid SubmissionArchetypeId = new("ffffffff-ffff-ffff-ffff-ffffffffffff");
 
     public static ResolvedArchetypes KnownArchetypes =>
-        new(SiteArchetypeId, SiteStudyArchetypeId, ParcelArchetypeId, ProjectArchetypeId, ContactArchetypeId,
+        new(SiteArchetypeId, ParcelArchetypeId, ProjectArchetypeId, ContactArchetypeId,
             ProgrammeAllocationArchetypeId, HazardAssessmentArchetypeId, SubmittedSourceArchetypeId,
             SubmissionArchetypeId);
 
@@ -130,7 +130,8 @@ public static class WillowBend
         Declared(ReportedAsPredicateId, "reportedAs", HazardLevelNames),
         new DeclaredPlace(new DeclaredTerm("isIn", IsInPredicateId), new DeclaredTerm("Earth", RootPlaceId)),
         [.. WaterDemandNames.Select(demand =>
-            new DeclaredDemand(demand.Name, TermId(demand.Name), demand.ServingOrder))]);
+            new DeclaredDemand(demand.Name, TermId(demand.Name), demand.ServingOrder))],
+        new DeclaredTerm("SiteStudy", SiteStudyArchetypeId));
 
     public static Guid TermId(string name) => StableIdentity.Derive(name, "term");
 

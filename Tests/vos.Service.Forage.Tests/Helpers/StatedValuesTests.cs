@@ -140,7 +140,7 @@ public class StatedValuesTests
         var thingId = Guid.NewGuid();
         var snapshot = Snapshot(Site(thingId, new Dictionary<string, SnapshotProperty>
         {
-            ["__IsRootPlace"] = Property("true"),
+            ["__IsPlaceArchetype"] = Property("true"),
             ["hazardPortalDivision"] = Property("\"2062\""),
         }));
 

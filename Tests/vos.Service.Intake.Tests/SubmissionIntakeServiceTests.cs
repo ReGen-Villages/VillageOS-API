@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
+using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 using vos.Tests.Shared;
 using Xunit;
@@ -53,7 +54,10 @@ public class SubmissionIntakeServiceTests
         Func<HttpRequestMessage, Task<HttpResponseMessage>> respond) =>
         ServiceAnswering(MockHttpMessageHandler.AnsweringAsynchronously(respond), ReadingASeededModel());
 
-    private static StubSubscriptions ReadingASeededModel() => new(DeclaredModel.Seeded().Build());
+    // Built once, so a test can ask the model which Thing a role binds and compare it with what was written.
+    private static readonly DeclaredModel SeededModel = DeclaredModel.Seeded();
+
+    private static StubSubscriptions ReadingASeededModel() => new(SeededModel.Build());
 
     private static SubmissionIntakeService ServiceAnswering(
         HttpMessageHandler answers, ISubscriptionClient read) =>
@@ -116,7 +120,7 @@ public class SubmissionIntakeServiceTests
         var refusal = await Assert.ThrowsAsync<ModelNotSeededError>(
             () => service.SubmitAsync(Document, CancellationToken.None));
 
-        refusal.Message.Should().Contain(DeclaredVocabularyReader.AllocationCategoryArchetypeFlag);
+        refusal.Message.Should().Contain(LandIntakeRoles.AllocationCategory.Word);
     }
 
     // The name is the contract with the platform's land-intake template, which declares `SubmittedSource`
@@ -148,7 +152,7 @@ public class SubmissionIntakeServiceTests
             () => service.SubmitAsync(Document, CancellationToken.None));
 
         refusal.Message.Should().Contain(SubmissionFragmentComposer.SiteArchetypeName)
-            .And.NotContain(DeclaredVocabularyReader.AllocationCategoryArchetypeFlag);
+            .And.NotContain(LandIntakeRoles.AllocationCategory.Word);
         read.AskedFor.Should().BeNull("the archetype gate refuses before anything is read");
     }
 
@@ -324,24 +328,24 @@ public class SubmissionIntakeServiceTests
             stamped.GetProperty("value").GetDateTime().Should().Be(WillowBend.ArrivedAt);
     }
 
+    // The study's archetype is the one the model binds to the siteStudy role, read with the vocabularies
+    // rather than looked up by a name, so a model calling it anything still has its studies typed.
     [Fact]
-    public async Task The_posted_study_is_the_archetype_that_declares_what_the_analysis_writes()
+    public async Task The_posted_study_is_the_archetype_the_site_study_role_binds()
     {
         var (service, fragment) = ServiceCapturingFragment();
 
         await service.SubmitAsync(Document, CancellationToken.None);
 
         var posted = JsonDocument.Parse(fragment()!).RootElement;
-        var study = posted.GetProperty("Things").EnumerateArray().Single(thing =>
-            thing.GetProperty("Properties").TryGetProperty(SubmissionFragmentComposer.SiteStudyFlag, out _));
-        study.GetProperty("Properties").EnumerateObject().Select(property => property.Name)
-            .Should().Equal([SubmissionFragmentComposer.SiteStudyFlag],
-                "everything the analysis writes is declared on the archetype the study is");
+        var studyId = StableIdentity.Derive(WillowBend.SubmissionId, "study");
+        var study = posted.GetProperty("Things").EnumerateArray().Single(thing => thing.GetProperty("Id").GetGuid() == studyId);
+        study.GetProperty("Properties").EnumerateObject().Should().BeEmpty(
+            "everything the analysis writes is declared on the archetype the study is");
 
-        var archetype = StableArchetypeId(SubmissionFragmentComposer.SiteStudyArchetypeName);
         posted.GetProperty("Relationships").EnumerateArray().Should().Contain(edge =>
-            edge.GetProperty("Subject").GetGuid() == study.GetProperty("Id").GetGuid()
-            && edge.GetProperty("Target").GetGuid() == archetype);
+            edge.GetProperty("Subject").GetGuid() == studyId
+            && edge.GetProperty("Target").GetGuid() == SeededModel.Id("SiteStudy"));
     }
 
     // The archetypes are the model's, not this service's: it relates Things to them and never mints one,
@@ -361,7 +365,6 @@ public class SubmissionIntakeServiceTests
         // name a different one from run to run, and an unseeded model is missing all of them anyway.
         refusal.Message.Should().ContainAll(
             SubmissionFragmentComposer.SiteArchetypeName,
-            SubmissionFragmentComposer.SiteStudyArchetypeName,
             SubmissionFragmentComposer.ParcelArchetypeName,
             SubmissionFragmentComposer.ProjectArchetypeName,
             SubmissionFragmentComposer.ContactArchetypeName,

@@ -19,7 +19,8 @@ import {
   type Widget,
 } from '../types/dashboard';
 import { GUI_SETTINGS_TYPE_NAME } from '../utils/guiSettings';
-import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ARCHETYPE_MARK } from './propertyNames';
+import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ROLE } from './propertyNames';
+import { BINDS_PREDICATE_NAME } from './landIntakeRoles';
 import type { SubscriptionSelector, TraverseDirection, TraverseRule } from '../types/subscription';
 
 /**
@@ -248,11 +249,12 @@ function namedThings(specification: DashboardSpecification): { ids: string[]; na
 export function subscriptionForSpecification(specification: DashboardSpecification, scopeId: string | null): SubscriptionSelector {
   const named = namedThings(specification);
   const levers = offersLevers(specification);
-  // Followed last, so no walk the specification takes is applied to the archetypes it reaches.
+  // Followed last, and the property-name role to the archetype it binds after that, so no walk the
+  // specification takes is applied to the archetypes it reaches.
   const traverse = [
     ...scopeRules(specification),
     ...walkRules(specificationWalks(specification)),
-    ...(levers ? [ruleFor(NAMES_PROPERTY_OF_PREDICATE, 'out', 1)] : []),
+    ...(levers ? [ruleFor(NAMES_PROPERTY_OF_PREDICATE, 'out', 1), ruleFor(BINDS_PREDICATE_NAME, 'out', 1)] : []),
   ];
   // A Thing is created before it is typed, so only a subscription that keeps following its types is
   // sent the Thing when its `is` relationship admits it — which is what lets a roster grow on a page left open.
@@ -266,10 +268,10 @@ export function subscriptionForSpecification(specification: DashboardSpecificati
     includeLaterMatches: true,
     includeObservations: true,
   };
-  const ids = scopeId ? [...new Set([scopeId, ...named.ids])] : named.ids;
+  const ids = [...new Set([...(scopeId ? [scopeId] : []), ...named.ids, ...(levers ? [PROPERTY_NAME_ROLE] : [])])];
   if (ids.length) selector.ids = ids;
   if (traverse.length) selector.traverse = traverse;
-  if (levers) selector.markedTypes = [PROPERTY_NAME_ARCHETYPE_MARK];
+  if (levers) selector.boundTypes = [PROPERTY_NAME_ROLE];
   return selector;
 }
 

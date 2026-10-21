@@ -126,11 +126,40 @@ public class SubscriptionClientTests
 
         await client.SubscribeAsync(new SubscriptionSelector
         {
-            Traverse = [new TraverseRule { PredicateFlag = "__IsBoundarySourcePredicate" }],
+            Traverse = [new TraverseRule { PredicateFlag = "__IsProvidedVariablePredicate" }],
         });
 
         (await captured!.Content!.ReadAsStringAsync())
-            .Should().Contain("\"predicateFlag\":\"__IsBoundarySourcePredicate\"");
+            .Should().Contain("\"predicateFlag\":\"__IsProvidedVariablePredicate\"");
+    }
+
+    // A field the broker does not bind is dropped silently, so a reader asking by role would read the whole
+    // model minus the Things it asked for, with nothing to say so.
+    [Fact]
+    public async Task SubscribeAsync_sends_the_role_terms_under_the_names_the_broker_binds()
+    {
+        HttpRequestMessage? captured = null;
+        var body = $$"""
+        { "subscriptionId": "{{Guid.NewGuid()}}", "watermark": 1,
+          "snapshot": { "watermark": 1, "things": [], "relationships": [] } }
+        """;
+        var (client, _) = Build(req => { captured = req; return Json(body); });
+        var members = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var alone = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var predicate = Guid.Parse("33333333-3333-3333-3333-333333333333");
+
+        await client.SubscribeAsync(new SubscriptionSelector
+        {
+            BoundTypes = [members],
+            BoundArchetypes = [alone],
+            Traverse = [new TraverseRule { PredicateRole = predicate }],
+            Relationships = [new RelationshipRule { PredicateRole = predicate }],
+        });
+
+        var sent = await captured!.Content!.ReadAsStringAsync();
+        sent.Should().Contain($"\"boundTypes\":[\"{members}\"]");
+        sent.Should().Contain($"\"boundArchetypes\":[\"{alone}\"]");
+        sent.Should().Contain($"\"predicateRole\":\"{predicate}\"");
     }
 
     [Fact]

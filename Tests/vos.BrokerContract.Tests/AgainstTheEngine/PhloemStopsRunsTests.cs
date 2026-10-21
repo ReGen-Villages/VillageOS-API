@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
 using vos.Service.Phloem.Services;
+using vos.Service.Shared.Roles;
 using Xunit;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;

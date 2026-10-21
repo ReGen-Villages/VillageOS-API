@@ -44,7 +44,6 @@ public static class ModelStub
     private static readonly string[] ArchetypeNames =
     [
         SubmissionFragmentComposer.SiteArchetypeName,
-        SubmissionFragmentComposer.SiteStudyArchetypeName,
         SubmissionFragmentComposer.ParcelArchetypeName,
         SubmissionFragmentComposer.ProjectArchetypeName,
         SubmissionFragmentComposer.ContactArchetypeName,

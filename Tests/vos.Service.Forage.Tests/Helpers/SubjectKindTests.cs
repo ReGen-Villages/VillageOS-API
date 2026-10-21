@@ -1,34 +1,35 @@
 using FluentAssertions;
 using vos.Service.Forage.Helpers;
+using vos.Service.Shared.Subscriptions;
 using Xunit;
 
 namespace vos.Service.Forage.Tests.Helpers;
 
 // What a dispatch names: a site, or a source added to the catalogue, and the two runs are opposites: one fetches and records, the
-// other mints and fetches nothing. The model says which the subject is, by the mark the platform puts on
-// the archetype every site `is` — never by the name of the connection that
+// other mints and fetches nothing. The model says which the subject is, through the role the platform binds
+// to the archetype every site `is` — never by the name of the connection that
 // dispatched it, which the two repositories would then agree about only by spelling.
 //
 // Getting this wrong is quiet in both directions. A site taken for a source is never fetched and is
 // stamped as worked out; a source taken for a site is fetched about nothing and stamped the same way.
 public class SubjectKindTests
 {
-    private static ModelBuilder MarkedSiteArchetype(ModelBuilder model) =>
-        model.Archetype("Site", CoveringSourceResolver.SiteArchetypeFlag);
+    private static ModelBuilder BoundSiteArchetype(ModelBuilder model) =>
+        model.Archetype("Site").Bound(CoveringSourceResolver.SiteRole, "Site");
 
     [Fact]
-    public void AThingThatIsTheMarkedArchetype_IsASite()
+    public void AThingThatIsTheBoundArchetype_IsASite()
     {
-        var model = MarkedSiteArchetype(
+        var model = BoundSiteArchetype(
             new ModelBuilder().Relate("WillowBend", CoveringSourceResolver.IsPredicateName, "Site"));
 
         CoveringSourceResolver.KindOf(model.Build(), model.Id("WillowBend")).Should().Be(SubjectKind.Site);
     }
 
     [Fact]
-    public void AThingReachingTheMarkThroughAnIntermediateType_IsASite()
+    public void AThingReachingTheBoundArchetypeThroughAnIntermediateType_IsASite()
     {
-        var model = MarkedSiteArchetype(new ModelBuilder()
+        var model = BoundSiteArchetype(new ModelBuilder()
             .Relate("WillowBend", CoveringSourceResolver.IsPredicateName, "CoastalSite")
             .Relate("CoastalSite", CoveringSourceResolver.IsPredicateName, "Site")
             .Archetype("CoastalSite"));
@@ -39,7 +40,7 @@ public class SubjectKindTests
     [Fact]
     public void AThingThatCoversAPlace_IsASource()
     {
-        var model = MarkedSiteArchetype(new ModelBuilder()
+        var model = BoundSiteArchetype(new ModelBuilder()
             .Relate("NationalFloodPortal", CoveringSourceResolver.CoversPredicate, "Portugal"));
 
         CoveringSourceResolver.KindOf(model.Build(), model.Id("NationalFloodPortal"))
@@ -51,7 +52,7 @@ public class SubjectKindTests
     [Fact]
     public void AThingResolvedByARegistration_IsASource()
     {
-        var model = MarkedSiteArchetype(new ModelBuilder()
+        var model = BoundSiteArchetype(new ModelBuilder()
             .Relate("OpenMeteo", CoveringSourceResolver.ResolvedByPredicate, "OpenMeteoEndpoint"));
 
         CoveringSourceResolver.KindOf(model.Build(), model.Id("OpenMeteo")).Should().Be(SubjectKind.Source);
@@ -62,7 +63,7 @@ public class SubjectKindTests
     [Fact]
     public void AThingThatNeitherIsASiteNorCoversAnything_IsNeither()
     {
-        var model = MarkedSiteArchetype(new ModelBuilder()
+        var model = BoundSiteArchetype(new ModelBuilder()
             .Relate("WillowBend", CoveringSourceResolver.IsPredicateName, "Site")
             .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal"));
 
@@ -74,20 +75,20 @@ public class SubjectKindTests
     // and a value on the archetype is inherited by every site, which would take all of them out of the
     // state a run is dispatched by.
     [Fact]
-    public void TheMarkedArchetypeItself_IsNotASite()
+    public void TheBoundArchetypeItself_IsNotASite()
     {
-        var model = MarkedSiteArchetype(
+        var model = BoundSiteArchetype(
             new ModelBuilder().Relate("WillowBend", CoveringSourceResolver.IsPredicateName, "Site"));
 
         CoveringSourceResolver.KindOf(model.Build(), model.Id("Site"))
             .Should().Be(SubjectKind.NeitherSiteNorSource);
     }
 
-    // A model that never read the template carrying the mark cannot tell the two apart, and it also
+    // A model that never read the template declaring the role cannot tell the two apart, and it also
     // cannot have declared the connection that dispatches a source — so the honest answer is the one
-    // every dispatch got before there were two kinds.
+    // every dispatch got before there were two kinds. An archetype named Site binds nothing on its own.
     [Fact]
-    public void AModelMarkingNoSiteArchetype_CannotTell()
+    public void AModelBindingNoSiteArchetype_CannotTell()
     {
         var model = new ModelBuilder()
             .Relate("WillowBend", CoveringSourceResolver.IsPredicateName, "Site")
@@ -95,22 +96,37 @@ public class SubjectKindTests
             .Archetype("Site");
 
         CoveringSourceResolver.KindOf(model.Build(), model.Id("NationalFloodPortal"))
-            .Should().Be(SubjectKind.ModelMarksNoSite);
+            .Should().Be(SubjectKind.ModelBindsNoSite);
+    }
+
+    // The site role is the whole of how a site is told from a Place, so a model calling the archetype
+    // something else keeps answering.
+    [Fact]
+    public void AnArchetypeOfAnotherNameTheRoleBinds_MakesItsMembersSites()
+    {
+        var model = new ModelBuilder()
+            .Archetype("Holding").Bound(CoveringSourceResolver.SiteRole, "Holding")
+            .Relate("WillowBend", CoveringSourceResolver.IsPredicateName, "Holding");
+
+        CoveringSourceResolver.KindOf(model.Build(), model.Id("WillowBend")).Should().Be(SubjectKind.Site);
     }
 
     [Fact]
-    public void KindSelectorFor_AsksForTheSubjectTheSiteArchetypeAloneAndThePredicatesItCompares()
+    public void KindSelectorFor_AsksForTheSubjectTheSiteRoleWithItsBindingAndThePredicatesItCompares()
     {
-        // The archetype alone: asked for with its members, every site in the model would arrive to
-        // answer a question about one Thing. The subject's own `is` chain comes with the ancestors the
-        // broker closes over, so the archetype is asked for only so that a model without the mark reads
-        // as one rather than as a subject that is not a site.
+        // The role Thing and what it binds, never the archetype's members: asked for with them, every site
+        // in the model would arrive to answer a question about one Thing. The subject's own `is` chain comes
+        // with the ancestors the broker closes over, so the binding is asked for only so that a model binding
+        // no site reads as one rather than as a subject that is not a site.
         var subject = Guid.NewGuid();
 
         var selector = CoveringSourceResolver.KindSelectorFor(subject);
 
-        selector.Ids.Should().Equal(subject);
-        selector.MarkedArchetypes.Should().Equal(CoveringSourceResolver.SiteArchetypeFlag);
+        selector.Ids.Should().Equal(subject, CoveringSourceResolver.SiteRole.Id);
+        selector.Traverse.Should().Equal(RoleBindings.FollowBindings);
+        selector.Names.Should().Contain(RoleBindings.BindsPredicateName);
+        selector.MarkedArchetypes.Should().BeNullOrEmpty();
+        selector.BoundTypes.Should().BeNullOrEmpty();
         selector.MarkedTypes.Should().BeNullOrEmpty();
         selector.Names.Should().Contain(new[]
         {

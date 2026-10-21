@@ -1,19 +1,20 @@
 using System.Text.Json;
 using vos.Service.Intake.Models;
+using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Services;
 
 // What a public form needs to draw itself, read out of the model the page cannot read for itself.
 //
-// The categories are found by the mark their archetype carries, as every vocabulary this service reads
-// is. The predicate they are asserted through is required even though a form never writes a relationship: a
+// The categories are found through the role that binds their archetype, as every vocabulary this service
+// reads is. The predicate they are asserted through is required even though a form never writes a relationship: a
 // model missing it refuses every submission naming a category, and a form offering choices its own
 // service would then refuse is worse than no form.
 public static class FormOptionsReader
 {
     // The archetype a basemap source is declared under. A name where the rest of this service
-    // reads a mark, because the name is the contract the map chapter of docs/FIELD_GUIDE.md already states for every
+    // reads a role, because the name is the contract the map chapter of docs/FIELD_GUIDE.md already states for every
     // client that draws a map — a second way of finding the same Things would be one more thing a model's
     // author has to know.
     public const string BasemapSourceArchetypeName = "BasemapSource";
@@ -27,32 +28,31 @@ public static class FormOptionsReader
     public const string TerrainExaggerationProperty = "terrainExaggeration";
     public const string BuildingSourceLayerProperty = "buildingSourceLayer";
 
-    // The mark on the archetype whose members a report's sections name as their theme. Declared
-    // in the platform repository's land-intake.template.json; the two agree by this literal.
-    public const string ThemeArchetypeFlag = "__IsThemeArchetype";
+    // The archetype whose members a report's sections name as their theme, through the role the land-intake
+    // template binds it with.
+    public static readonly Role ThemeRole = LandIntakeRoles.Theme;
 
     public const string ColourProperty = "colour";
     public const string IconProperty = "icon";
     public const string OrderProperty = "order";
 
+    private static readonly Role[] TermArchetypeRoles =
+    [
+        LandIntakeRoles.AllocationCategory, LandIntakeRoles.HazardType, LandIntakeRoles.HazardLevel, ThemeRole,
+    ];
+
+    private static readonly Role[] PredicateRoles =
+    [
+        LandIntakeRoles.CategorizedAs, LandIntakeRoles.Assesses, LandIntakeRoles.ReportedLevel,
+    ];
+
     public static SubscriptionSelector Selector() => new()
     {
-        Names = [SubmissionFragmentComposer.IsPredicateName],
-        MarkedTypes =
-        [
-            DeclaredVocabularyReader.AllocationCategoryArchetypeFlag,
-            DeclaredVocabularyReader.HazardTypeArchetypeFlag,
-            DeclaredVocabularyReader.HazardLevelArchetypeFlag,
-            ThemeArchetypeFlag,
-        ],
-        MarkedArchetypes =
-        [
-            DeclaredVocabularyReader.AllocationCategoryPredicateFlag,
-            DeclaredVocabularyReader.HazardTypePredicateFlag,
-            DeclaredVocabularyReader.ReportedLevelPredicateFlag,
-            PositionLookupReader.ParcelLookupFlag,
-            PositionLookupReader.PlaceSearchFlag,
-        ],
+        Ids = RoleBindings.Identifiers([.. TermArchetypeRoles, .. PredicateRoles]),
+        Names = [SubmissionFragmentComposer.IsPredicateName, RoleBindings.BindsPredicateName],
+        BoundTypes = RoleBindings.Identifiers(TermArchetypeRoles),
+        MarkedArchetypes = [PositionLookupReader.ParcelLookupFlag, PositionLookupReader.PlaceSearchFlag],
+        Traverse = [RoleBindings.FollowBindings],
         Types = [BasemapSourceArchetypeName],
         IncludeRelationships = true,
     };
@@ -150,23 +150,23 @@ public static class FormOptionsReader
         ];
     }
 
-    // A model seeded before the report had tiles declares no theme archetype, and its report draws as a
-    // list. Two Things carrying the mark would leave nothing able to say which vocabulary a section's
+    // A model seeded before the report had tiles binds no theme archetype, and its report draws as a
+    // list. A role bound to two Things would leave nothing able to say which vocabulary a section's
     // theme belongs to, so that model is refused as the categories' would be.
     private static List<DeclaredTheme> Themes(SnapshotDocument snapshot)
     {
-        var carrying = snapshot.Things.Where(thing => thing.CarriesFlag(ThemeArchetypeFlag)).ToList();
-        if (carrying.Count == 0) return [];
-        if (carrying.Count > 1)
+        var bound = snapshot.Bound(ThemeRole);
+        if (bound.Count == 0) return [];
+        if (bound.Count > 1)
             throw new ModelNotSeededError(
-                $"this model carries '{ThemeArchetypeFlag}' on more than one Thing — "
-                + string.Join(", ", carrying.Select(thing => $"'{thing.Name}'"))
+                $"this model binds the role {ThemeRole.Word} to more than one Thing — "
+                + string.Join(", ", bound.Select(thing => $"'{thing.Name}'"))
                 + " — so nothing can say which of them a section's theme is declared under.");
 
         var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
         return
         [
-            .. DeclaredVocabularyReader.TermsUnder(snapshot, carrying[0].Id)
+            .. DeclaredVocabularyReader.TermsUnder(snapshot, bound[0].Id)
                 .Where(declared => thingsById.ContainsKey(declared.Id))
                 .Select(declared => Theme(thingsById[declared.Id]))
                 // Ordered tiles first, as the model orders them; the rest keep the name order the terms
