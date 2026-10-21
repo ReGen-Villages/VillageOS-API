@@ -40,7 +40,8 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
         var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/subscriptions", selector, Json, ct);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+            throw new SubscriptionRefusedException(response.StatusCode, await response.Content.ReadAsStringAsync(ct));
         return await response.Content.ReadFromJsonAsync<SubscribeResult>(Json, ct)
             ?? throw new InvalidOperationException("Mycelium returned an empty subscription response");
     }
