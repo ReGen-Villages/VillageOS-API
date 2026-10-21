@@ -154,8 +154,20 @@ jobs:
     workingDirectory: vos.Service.Node.Echo
     condition: always()
 
+  # The contract plumbing every Python service imports. The echo service installs it from beside
+  # itself, so its tests exercise this code; this step is the one that tests it directly.
+  - script: |
+      set -euo pipefail
+      python3 -m venv .venv
+      .venv/bin/python -m pip install --upgrade pip
+      .venv/bin/python -m pip install -r requirements.txt
+      .venv/bin/python -m pytest
+    displayName: 'Test Python shared library'
+    workingDirectory: vos.Service.Python.Shared
+    condition: always()
+
   # macOS ships no `python`, and its `python3` is externally managed, so pip refuses to install into
-  # it — this is the one step here with dependencies to install, hence the virtual environment.
+  # it — these two steps are the ones here with dependencies to install, hence the virtual environment.
   - script: |
       set -euo pipefail
       python3 -m venv .venv
