@@ -24,7 +24,7 @@ import httpx
 from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from vos_service import Config, ServiceHost, parse_args
+from vos_service import Config, ServiceHost, parse_args, sediment_reading
 
 SERVICE_NAME = "Python"
 
@@ -54,7 +54,7 @@ async def demo_subscribe(type_: str = "Battery", predicate: str = "powers", *, c
     sub = await mycelium.subscribe(mycelium.slice_by_type_and_traverse(type_, predicate), client=client)
     snap = sub.get("snapshot", {})
     things = snap.get("things", [])
-    names = [t.get("name") or t.get("id") for t in things]
+    names = [t.get("Name") or t.get("Id") for t in things]
     await mycelium.unsubscribe(sub["subscriptionId"], client=client)
     return {
         "subscriptionId": sub["subscriptionId"],
@@ -75,17 +75,20 @@ async def demo_write_kinds(request: Request, _: None = Depends(host.verify_reque
 
     now = datetime.now(timezone.utc)
     day_ago = now - timedelta(days=1)
-    seq = await mycelium.set_fact(thing_id, "status", "active")
-    await mycelium.record_observation(thing_id, "temperature", 21.5, now.isoformat())
-    accepted = await mycelium.record_observations(
-        thing_id, [{"property": "temperature", "value": 21.7}, {"property": "flow", "value": 3.1}]
-    )
-    deposit = await mycelium.deposit_sediment(
-        [
-            {"thingId": thing_id, "property": "temperature", "value": 19.8, "observedAt": day_ago.isoformat()},
-            {"thingId": thing_id, "property": "temperature", "value": 20.4, "observedAt": (day_ago + timedelta(hours=1)).isoformat()},
-        ]
-    )
+    try:
+        seq = await mycelium.set_fact(thing_id, "status", "active")
+        await mycelium.record_observation(thing_id, "temperature", 21.5, now.isoformat())
+        accepted = await mycelium.record_observations(
+            thing_id, [{"property": "temperature", "value": 21.7}, {"property": "flow", "value": 3.1}]
+        )
+        deposit = await mycelium.deposit_sediment(
+            [
+                sediment_reading(thing_id, "temperature", 19.8, day_ago.isoformat()),
+                sediment_reading(thing_id, "temperature", 20.4, (day_ago + timedelta(hours=1)).isoformat()),
+            ]
+        )
+    except (RuntimeError, httpx.HTTPError) as refused:
+        return JSONResponse({"error": str(refused)}, status_code=500)
     return JSONResponse(
         {
             "factSequence": seq,
@@ -103,7 +106,10 @@ async def demo_subscribe_endpoint(request: Request, _: None = Depends(host.verif
         payload = await request.json()
     except Exception:
         payload = {}
-    result = await demo_subscribe(payload.get("type", "Battery"), payload.get("predicate", "powers"))
+    try:
+        result = await demo_subscribe(payload.get("type", "Battery"), payload.get("predicate", "powers"))
+    except (RuntimeError, httpx.HTTPError) as refused:
+        return JSONResponse({"error": str(refused)}, status_code=500)
     return JSONResponse(result)
 
 

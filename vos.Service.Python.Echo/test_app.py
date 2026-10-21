@@ -118,6 +118,42 @@ def test_write_kinds_demo_aggregates(client):
     assert body["sedimentSamples"] == 5
 
 
+def test_write_kinds_demo_deposits_readings_that_name_their_thing_as_the_sediment_route_reads_it(client):
+    deposit = AsyncMock(return_value={"batchId": "b-9", "samples": 2})
+    with patch.object(host.mycelium, "set_fact", new=AsyncMock(return_value=7)),          patch.object(host.mycelium, "record_observation", new=AsyncMock()),          patch.object(host.mycelium, "record_observations", new=AsyncMock(return_value=2)),          patch.object(host.mycelium, "deposit_sediment", new=deposit):
+        client.post("/demo/write-kinds", json={"thingId": "t1"})
+    readings = deposit.await_args.args[0]
+    assert [reading["objectId"] for reading in readings] == ["t1", "t1"]
+    assert all("thingId" not in reading for reading in readings)
+
+
+def test_the_write_demo_answers_a_refused_write_with_what_was_refused(client):
+    with patch.object(host.mycelium, "set_fact", new=AsyncMock(side_effect=RuntimeError("fact write returned 405"))):
+        res = client.post("/demo/write-kinds", json={"thingId": "t1"})
+
+    assert res.status_code == 500
+    assert res.json() == {"error": "fact write returned 405"}
+
+
+def test_the_subscribe_demo_answers_a_refused_subscription_with_what_was_refused(client):
+    with patch.object(host.mycelium, "subscribe", new=AsyncMock(side_effect=RuntimeError("subscribe returned 403"))):
+        res = client.post("/demo/subscribe", json={})
+
+    assert res.status_code == 500
+    assert res.json() == {"error": "subscribe returned 403"}
+
+
+def test_the_demo_routes_answer_a_refused_connection_with_why(client):
+    refused = httpx.ConnectError("certificate verify failed: self-signed certificate")
+    with patch.object(host.mycelium, "set_fact", new=AsyncMock(side_effect=refused)),          patch.object(host.mycelium, "subscribe", new=AsyncMock(side_effect=refused)):
+        writes = client.post("/demo/write-kinds", json={"thingId": "t1"})
+        subscription = client.post("/demo/subscribe", json={})
+
+    for answer in (writes, subscription):
+        assert answer.status_code == 500
+        assert "certificate" in answer.json()["error"].lower()
+
+
 def test_write_kinds_demo_requires_thing_id(client):
     res = client.post("/demo/write-kinds", json={})
     assert res.status_code == 400
@@ -145,9 +181,10 @@ def subscription_handler(captured):
                 json={
                     "subscriptionId": "s-1",
                     "watermark": 42,
+                    # Things and relationships as the model routes write them, capitals included.
                     "snapshot": {
-                        "things": [{"id": "t1", "name": "Battery-1"}, {"id": "t2", "name": "Inverter-7"}],
-                        "relationships": [{"id": "r1"}],
+                        "things": [{"Id": "t1", "Name": "Battery-1"}, {"Id": "t2", "Name": "Inverter-7"}],
+                        "relationships": [{"Id": "r1"}],
                     },
                 },
             )
