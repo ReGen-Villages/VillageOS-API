@@ -256,10 +256,10 @@ public sealed class EndpointCallService
                     {
                         var pageParams = new Dictionary<string, string>(effectiveQueryParams, StringComparer.OrdinalIgnoreCase)
                         {
-                            [paging.OffsetParam] = offset.ToString(CultureInfo.InvariantCulture)
+                            [paging.OffsetParameter] = offset.ToString(CultureInfo.InvariantCulture)
                         };
-                        if (paging.PageSizeParam != null && paging.PageSize is > 0)
-                            pageParams[paging.PageSizeParam] = paging.PageSize.Value.ToString(CultureInfo.InvariantCulture);
+                        if (paging.PageSizeParameter != null && paging.PageSize is > 0)
+                            pageParams[paging.PageSizeParameter] = paging.PageSize.Value.ToString(CultureInfo.InvariantCulture);
 
                         var (pageStatus, pageBody, pageContentType, pageRetryAfter) = await CallEndpointAsync(
                             _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, pageParams, requestContentType, acceptHeader, timeout, ct);

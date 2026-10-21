@@ -302,7 +302,7 @@ public class ModelAssetHandleTests : IDisposable
           "Endpoint.httpMethod":    {"Value":"GET"},
           "Endpoint.assetProperty": {"Value":"sourceDocument"},
           "Endpoint.assetSubject":  {"Value":"SiteAlpha"},
-          "Endpoint.offsetParam":   {"Value":"offset"},
+          "Endpoint.offsetParameter": {"Value":"offset"},
           "Endpoint.hasMorePath":   {"Value":"more"},
           "Endpoint.itemsPath":     {"Value":"items"}
         }
@@ -312,7 +312,7 @@ public class ModelAssetHandleTests : IDisposable
         factory.HandlerCallback = req =>
             RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
                 ?? RouteKinds(req, thingId, ModelAsset(),
-                    new Kind(EndpointKindRoles.Paging, "OffsetPaging", "offsetParam", "hasMorePath", "itemsPath"))
+                    new Kind(EndpointKindRoles.Paging, "OffsetPaging", "offsetParameter", "hasMorePath", "itemsPath"))
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
