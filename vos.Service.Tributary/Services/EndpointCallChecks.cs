@@ -45,7 +45,7 @@ public sealed record KeepPlan(string AssetProperty, string AssetSubject, DateTim
 // the model names and nothing here implements is refused saying both halves.
 public static class EndpointCallChecks
 {
-    public const string TokenExchangeMechanism = "TokenExchangeAuth";
+    public const string TokenExchangeMechanism = "TokenExchangeAuthentication";
     public const string OffsetPagingMechanism = "OffsetPaging";
     public const string BinaryBodyMechanism = "BinaryResponse";
     public const string JsonBodyMechanism = "JsonResponse";
@@ -285,7 +285,7 @@ public static class EndpointCallChecks
         return true;
     }
 
-    // Reaching no kind is a plain call. TokenExchangeAuth uses a pre-minted token, or one minted from
+    // Reaching no kind is a plain call. TokenExchangeAuthentication uses a pre-minted token, or one minted from
     // a configured credential exchange — token endpoint, form fields, and response token/expiry paths
     // all come from the template, so nothing here is source-specific. The mint itself is a network
     // call and is not made here: it is deferred to the call, so its failures become 502 rather than 400.
@@ -308,11 +308,11 @@ public static class EndpointCallChecks
                 return false;
         }
 
-        var param = "token";
-        if (!TryOptionalText(effective, "tokenParam", out var declaredParam, out refusal))
+        var parameter = "token";
+        if (!TryOptionalText(effective, "tokenParameter", out var declaredParameter, out refusal))
             return false;
-        if (!string.IsNullOrWhiteSpace(declaredParam))
-            param = declaredParam!.Trim();
+        if (!string.IsNullOrWhiteSpace(declaredParameter))
+            parameter = declaredParameter!.Trim();
         if (!TryOptionalText(effective, "tokenHeader", out var header, out refusal))
             return false;
         if (!TryOptionalText(effective, "tokenScheme", out var scheme, out refusal))
@@ -322,7 +322,7 @@ public static class EndpointCallChecks
             return false;
         if (!string.IsNullOrWhiteSpace(preMinted))
         {
-            credential = new Credential(preMinted, null, param, header, scheme);
+            credential = new Credential(preMinted, null, parameter, header, scheme);
             return true;
         }
 
@@ -347,7 +347,7 @@ public static class EndpointCallChecks
 
         credential = new Credential(null,
             new TokenExchangeRequest(tokenUrl!, tokenRequest, tokenPath!, expiryPath, expiryUnit),
-            param, header, scheme);
+            parameter, header, scheme);
         return true;
     }
 
@@ -370,17 +370,17 @@ public static class EndpointCallChecks
                 return false;
         }
 
-        if (!TryOptionalText(effective, "offsetParam", out var offsetParam, out refusal))
+        if (!TryOptionalText(effective, "offsetParameter", out var offsetParameter, out refusal))
             return false;
-        if (!TryOptionalText(effective, "pageSizeParam", out var pageSizeParam, out refusal))
+        if (!TryOptionalText(effective, "pageSizeParameter", out var pageSizeParameter, out refusal))
             return false;
         if (!TryOptionalText(effective, "hasMorePath", out var hasMorePath, out refusal))
             return false;
         if (!TryOptionalText(effective, "itemsPath", out var itemsPath, out refusal))
             return false;
-        if (string.IsNullOrWhiteSpace(offsetParam) || string.IsNullOrWhiteSpace(hasMorePath) || string.IsNullOrWhiteSpace(itemsPath))
+        if (string.IsNullOrWhiteSpace(offsetParameter) || string.IsNullOrWhiteSpace(hasMorePath) || string.IsNullOrWhiteSpace(itemsPath))
         {
-            refusal = Refusal.BadRequest("Offset paging needs offsetParam, hasMorePath and itemsPath.");
+            refusal = Refusal.BadRequest("Offset paging needs offsetParameter, hasMorePath and itemsPath.");
             return false;
         }
 
@@ -399,8 +399,8 @@ public static class EndpointCallChecks
         }
 
         paging = new OffsetPaginationConfig(
-            offsetParam!,
-            string.IsNullOrWhiteSpace(pageSizeParam) ? null : pageSizeParam!.Trim(),
+            offsetParameter!,
+            string.IsNullOrWhiteSpace(pageSizeParameter) ? null : pageSizeParameter!.Trim(),
             pageSize,
             hasMorePath!,
             itemsPath!);
