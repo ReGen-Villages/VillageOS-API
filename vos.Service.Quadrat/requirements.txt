@@ -1,0 +1,7 @@
+# Runtime
+rasterio>=1.4
+numpy>=2.0
+pyproj>=3.6
+shapely>=2.0
+# Tests
+pytest>=8.0
