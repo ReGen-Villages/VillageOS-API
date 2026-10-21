@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using vos.Service.Delta.Models;
 using vos.Service.Delta.Services;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -248,16 +249,16 @@ public class MyceliumClientTests
         (await CreateClient(handler).SetThingPropertyAsync(Guid.NewGuid(), "p", "v")).Should().BeFalse();
     }
 
-    // ResolveMyceliumValue arms via SetThingPropertyAsync body capture (camelCase per PutAsJsonAsync's Web policy).
+    // Bodies are captured camelCase, per PutAsJsonAsync's Web policy.
 
     [Theory]
-    [InlineData("a string value", "System.String", "\"a string value\"")]
-    [InlineData(true, "System.Boolean", "true")]
-    [InlineData(false, "System.Boolean", "false")]
-    [InlineData(42, "System.Int32", "42")]
-    [InlineData(42L, "System.Int64", "42")]
-    [InlineData(3.5, "System.Double", "3.5")]
-    public async Task SetThingPropertyAsync_PlainPrimitive_SerializesExpectedTypeAndValue(
+    [InlineData("a string value", "vos.String", "\"a string value\"")]
+    [InlineData(true, "vos.Boolean", "true")]
+    [InlineData(false, "vos.Boolean", "false")]
+    [InlineData(42, "vos.Double", "42")]
+    [InlineData(42L, "vos.Double", "42")]
+    [InlineData(3.5, "vos.Double", "3.5")]
+    public async Task SetThingPropertyAsync_PlainPrimitive_SendsThePlatformsTypeName(
         object value, string expectedType, string expectedValueJson)
     {
         var body = await CaptureSetPropertyBody(value);
@@ -266,40 +267,48 @@ public class MyceliumClientTests
     }
 
     [Fact]
-    public async Task SetThingPropertyAsync_DecimalValue_SerializesAsDecimal()
-    {
-        var body = await CaptureSetPropertyBody(1.5m);
-        body.Should().Contain("\"type\":\"System.Decimal\"");
-    }
-
-    [Fact]
-    public async Task SetThingPropertyAsync_NullValue_SerializesAsString()
+    public async Task SetThingPropertyAsync_NullValue_SendsAString()
     {
         var body = await CaptureSetPropertyBody(null);
-        body.Should().Contain("\"type\":\"System.String\"");
+        body.Should().Contain("\"type\":\"vos.String\"");
         body.Should().Contain("\"value\":null");
     }
 
-    [Fact]
-    public async Task SetThingPropertyAsync_UnknownObjectType_FallsBackToString()
-    {
-        var body = await CaptureSetPropertyBody(new { x = 1 });
-        body.Should().Contain("\"type\":\"System.String\"");
-    }
-
     [Theory]
-    [InlineData("\"hello\"", "System.String")]
-    [InlineData("42", "System.Int64")]
-    [InlineData("3.5", "System.Double")]
-    [InlineData("true", "System.Boolean")]
-    [InlineData("false", "System.Boolean")]
-    [InlineData("null", "System.String")]
-    [InlineData("[1,2,3]", "System.String")]
-    public async Task SetThingPropertyAsync_JsonElementValue_RoutesByValueKind(string elementJson, string expectedType)
+    [InlineData("\"hello\"", "vos.String", "\"hello\"")]
+    [InlineData("42", "vos.Double", "42")]
+    [InlineData("3.5", "vos.Double", "3.5")]
+    [InlineData("true", "vos.Boolean", "true")]
+    [InlineData("false", "vos.Boolean", "false")]
+    [InlineData("null", "vos.String", "null")]
+    [InlineData("[1,2,3]", "vos.String", "\"[1,2,3]\"")]
+    public async Task SetThingPropertyAsync_JsonElementValue_SendsThePlatformsTypeName(
+        string elementJson, string expectedType, string expectedValueJson)
     {
         var element = JsonDocument.Parse(elementJson).RootElement;
         var body = await CaptureSetPropertyBody(element);
         body.Should().Contain($"\"type\":\"{expectedType}\"");
+        body.Should().Contain($"\"value\":{expectedValueJson}");
+    }
+
+    [Fact]
+    public async Task SetThingPropertyAsync_AWholeNumberTooLargeForADouble_IsSentExactly()
+    {
+        var body = await CaptureSetPropertyBody(JsonDocument.Parse("9007199254740993").RootElement);
+
+        body.Should().Contain("\"value\":9007199254740993");
+    }
+
+    [Theory]
+    [InlineData("\"hello\"")]
+    [InlineData("42")]
+    [InlineData("true")]
+    [InlineData("{\"x\":1}")]
+    public async Task SetThingPropertyAsync_SendsOnlyTypeNamesTheSharedListHolds(string elementJson)
+    {
+        var body = JsonDocument.Parse(await CaptureSetPropertyBody(JsonDocument.Parse(elementJson).RootElement)).RootElement;
+
+        TypedProperties.TypeNames.Should().Contain(body.GetProperty("type").GetString());
     }
 
     [Fact]
