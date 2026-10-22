@@ -446,10 +446,27 @@ func (s *service) subscribe(sel selector) (subscribeResult, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return res, fmt.Errorf("subscribe returned %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return res, &refusal{Status: resp.StatusCode, Body: body}
 	}
 	return res, json.NewDecoder(resp.Body).Decode(&res)
 }
+
+// refusal carries the platform's own status and words, so a demo can pass a refused slice on as given.
+type refusal struct {
+	Status int
+	Body   []byte
+}
+
+func (r *refusal) Error() string {
+	return fmt.Sprintf("the platform refused the subscription with %d: %s", r.Status, r.Body)
+}
+
+// Declared by the shared site templates, so the demo slices on any seeded model.
+const (
+	defaultSliceType      = "OpenDataSource"
+	defaultSlicePredicate = "provides"
+)
 
 // unsubscribe releases a subscription (best-effort).
 func (s *service) unsubscribe(id string) {
@@ -473,12 +490,19 @@ func (s *service) demoSubscribe(w http.ResponseWriter, r *http.Request) {
 	raw, _ := io.ReadAll(r.Body)
 	_ = json.Unmarshal(raw, &req)
 	if req.Type == "" {
-		req.Type = "Battery"
+		req.Type = defaultSliceType
 	}
 	if req.Predicate == "" {
-		req.Predicate = "powers"
+		req.Predicate = defaultSlicePredicate
 	}
 	sub, err := s.subscribe(sliceByTypeAndTraverse(req.Type, req.Predicate))
+	var refused *refusal
+	if errors.As(err, &refused) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(refused.Status)
+		_, _ = w.Write(refused.Body)
+		return
+	}
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 		return

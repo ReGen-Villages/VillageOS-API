@@ -19,6 +19,7 @@ import { stateApi } from '../api/stateApi';
 import { rangeApi } from '../api/rangeApi';
 import { modelApi } from '../api/modelApi';
 import { useModelStore } from '../stores/modelStore';
+import { PAGE_ROLE_ID } from '../api/platformRoles';
 import { ComposerPage } from './ComposerPage';
 
 function t(Id: string, Name: string, Properties: Record<string, unknown> = {}, IsArchetype = false): VosThing {
@@ -33,6 +34,8 @@ function seedStore() {
   useModelStore.setState({
     things: [
       t('is', 'is'),
+      t('binds', 'binds'),
+      t(PAGE_ROLE_ID, 'Page'),
       t('feeds', 'feeds'),
       t('dashboard', 'Dashboard', {}, true),
       t('seeded', 'Water overview', { specification: JSON.stringify({ title: 'Water overview', sections: [{ widgets: [] }] }) }),
@@ -43,6 +46,7 @@ function seedStore() {
       t('r1', 'RESERVOIR-1', { capacity: 900 }),
     ],
     relationships: [
+      r('b0', PAGE_ROLE_ID, 'binds', 'dashboard'),
       r('i0', 'seeded', 'is', 'dashboard'),
       r('i1', 's1', 'is', 'spring'),
       r('i2', 's2', 'is', 'spring'),

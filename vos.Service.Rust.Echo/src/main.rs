@@ -539,16 +539,36 @@ fn slice_by_type_and_traverse(type_: &str, predicate: &str) -> Selector {
     }
 }
 
+/// Why a subscription did not open: the platform refused it, with its own status and words so a demo can pass
+/// the refusal on as given, or the call failed for a reason of this service's own.
+#[derive(Debug)]
+enum SubscribeFailure {
+    Refused { status: StatusCode, body: String },
+    Failed(String),
+}
+
+impl From<String> for SubscribeFailure {
+    fn from(reason: String) -> Self {
+        SubscribeFailure::Failed(reason)
+    }
+}
+
 /// POST the selector to /api/subscriptions; return the resolved snapshot closure.
-async fn subscribe(cfg: &Config, http: &reqwest::Client, selector: &Selector) -> Result<SubscribeResult, String> {
+async fn subscribe(cfg: &Config, http: &reqwest::Client, selector: &Selector) -> Result<SubscribeResult, SubscribeFailure> {
     let token = get_token(cfg, http).await?;
     let url = format!("{}/api/subscriptions", cfg.mycelium_url);
     let resp = http.post(url).bearer_auth(token).json(selector).send().await.map_err(reason_of)?;
     if !resp.status().is_success() {
-        return Err(format!("subscribe returned {}", resp.status()));
+        let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+        let body = resp.text().await.unwrap_or_default();
+        return Err(SubscribeFailure::Refused { status, body });
     }
-    resp.json::<SubscribeResult>().await.map_err(|e| e.to_string())
+    resp.json::<SubscribeResult>().await.map_err(|e| SubscribeFailure::Failed(e.to_string()))
 }
+
+// Declared by the shared site templates, so the demo slices on any seeded model.
+const DEFAULT_SLICE_TYPE: &str = "OpenDataSource";
+const DEFAULT_SLICE_PREDICATE: &str = "provides";
 
 /// Release a subscription (best-effort).
 async fn unsubscribe(cfg: &Config, http: &reqwest::Client, id: &str) {
@@ -571,8 +591,8 @@ struct SubDemoReq {
 /// Subscribe for a slice and report its closure. POST optional {"type":"...","predicate":"..."}.
 async fn demo_subscribe(State(state): State<Arc<AppState>>, body: Option<Json<SubDemoReq>>) -> Response {
     let (type_, predicate) = body.map(|Json(b)| (b.type_, b.predicate)).unwrap_or((None, None));
-    let type_ = type_.unwrap_or_else(|| "Battery".into());
-    let predicate = predicate.unwrap_or_else(|| "powers".into());
+    let type_ = type_.unwrap_or_else(|| DEFAULT_SLICE_TYPE.into());
+    let predicate = predicate.unwrap_or_else(|| DEFAULT_SLICE_PREDICATE.into());
     let http = &state.platform;
     let cfg = &state.config;
     match subscribe(cfg, http, &slice_by_type_and_traverse(&type_, &predicate)).await {
@@ -588,7 +608,12 @@ async fn demo_subscribe(State(state): State<Arc<AppState>>, body: Option<Json<Su
             }))
             .into_response()
         }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e }))).into_response(),
+        Err(SubscribeFailure::Refused { status, body }) => {
+            (status, [(axum::http::header::CONTENT_TYPE, "application/json")], body).into_response()
+        }
+        Err(SubscribeFailure::Failed(reason)) => {
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": reason }))).into_response()
+        }
     }
 }
 
@@ -1056,6 +1081,44 @@ mod tests {
         assert_eq!(said["thingNames"], json!(["Battery-1", "t2"]));
         let calls = cap.lock().unwrap();
         assert_eq!(calls.last().unwrap().0, "/api/subscriptions/s-1", "the subscription was left open");
+    }
+
+    // Declared by the shared site templates, so the demo slices on any seeded model.
+    #[tokio::test]
+    async fn the_subscribe_route_defaults_to_what_every_seeded_model_declares() {
+        let cap: Cap = Arc::new(Mutex::new(Vec::new()));
+        let app = Router::new().fallback(sub_mock).with_state(cap.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let state = Arc::new(AppState::serving(test_cfg(format!("http://{addr}"))));
+
+        let (status, said) = answered(demo_subscribe(State(state), None).await).await;
+
+        assert_eq!(status, StatusCode::OK, "{said}");
+        let calls = cap.lock().unwrap();
+        let asked = &calls.iter().find(|(path, _, _)| path == "/api/subscriptions").unwrap().2;
+        assert!(asked.contains("\"OpenDataSource\"") && asked.contains("\"provides\""), "the demo asked for something else: {asked}");
+    }
+
+    async fn refusing_mock() -> Response {
+        (StatusCode::BAD_REQUEST, Json(json!({ "error": "no Thing is named Battery" }))).into_response()
+    }
+
+    // A refused slice is answered as the platform gave it, so the person trying the example reads the platform's words.
+    #[tokio::test]
+    async fn the_subscribe_route_passes_a_refusal_through_as_given() {
+        let app = Router::new().fallback(refusing_mock);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let state = Arc::new(AppState::serving(test_cfg(format!("http://{addr}"))));
+        let asked = SubDemoReq { type_: Some("Battery".into()), predicate: None };
+
+        let (status, said) = answered(demo_subscribe(State(state), Some(Json(asked))).await).await;
+
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{said}");
+        assert_eq!(said, json!({ "error": "no Thing is named Battery" }));
     }
 
     // ---- Presenting a key ----

@@ -28,7 +28,7 @@ import httpx
 import jwt
 import truststore
 from cryptography.hazmat.primitives.serialization import load_der_public_key
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
 SERVICE_NAME = "Python"
@@ -236,12 +236,26 @@ def slice_by_type_and_traverse(type_: str, predicate: str) -> dict:
     return {"types": [type_], "traverse": [{"predicate": predicate, "direction": "outgoing", "depth": 1}]}
 
 
+class PlatformRefusal(RuntimeError):
+    """The platform's own status and words for a slice it refused, so a demo can pass the refusal on as given."""
+
+    def __init__(self, status: int, body: str) -> None:
+        super().__init__(f"the platform refused the subscription with {status}: {body}")
+        self.status = status
+        self.body = body
+
+
 async def subscribe(selector: dict, *, client: httpx.AsyncClient | None = None) -> dict:
     """POST the selector to /api/subscriptions; return the resolved snapshot closure."""
     res = await _authed_post("/api/subscriptions", selector, client=client)
     if not res.is_success:
-        raise RuntimeError(f"subscribe returned {res.status_code}")
+        raise PlatformRefusal(res.status_code, res.text)
     return res.json()
+
+
+# Declared by the shared site templates, so the demo slices on any seeded model.
+DEFAULT_SLICE_TYPE = "OpenDataSource"
+DEFAULT_SLICE_PREDICATE = "provides"
 
 
 async def unsubscribe(subscription_id: str, *, client: httpx.AsyncClient | None = None) -> None:
@@ -256,7 +270,7 @@ async def unsubscribe(subscription_id: str, *, client: httpx.AsyncClient | None 
             await c.delete(url, headers=headers)
 
 
-async def demo_subscribe(type_: str = "Battery", predicate: str = "powers", *, client: httpx.AsyncClient | None = None) -> dict:
+async def demo_subscribe(type_: str = DEFAULT_SLICE_TYPE, predicate: str = DEFAULT_SLICE_PREDICATE, *, client: httpx.AsyncClient | None = None) -> dict:
     """Subscribe for a by-type+traverse slice, report the closure, unsubscribe."""
     sub = await subscribe(slice_by_type_and_traverse(type_, predicate), client=client)
     snap = sub.get("snapshot", {})
@@ -395,9 +409,11 @@ async def demo_subscribe_endpoint(request: Request, _: None = Depends(verify_req
     except Exception:
         payload = {}
     try:
-        result = await demo_subscribe(payload.get("type", "Battery"), payload.get("predicate", "powers"))
-    except (RuntimeError, httpx.HTTPError) as refused:
-        return JSONResponse({"error": str(refused)}, status_code=500)
+        result = await demo_subscribe(payload.get("type", DEFAULT_SLICE_TYPE), payload.get("predicate", DEFAULT_SLICE_PREDICATE))
+    except PlatformRefusal as refused:
+        return Response(content=refused.body, status_code=refused.status, media_type="application/json")
+    except (RuntimeError, httpx.HTTPError) as failed:
+        return JSONResponse({"error": str(failed)}, status_code=500)
     return JSONResponse(result)
 
 

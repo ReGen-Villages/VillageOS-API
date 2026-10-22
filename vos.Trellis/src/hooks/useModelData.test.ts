@@ -1,16 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
+import { DISPLAY_SETTINGS_ROLE_ID } from '../api/platformRoles';
 
 const mockGetAllThings = vi.fn();
 const mockGetAllRelationships = vi.fn();
 const mockGetThing = vi.fn();
 const mockGetRelationship = vi.fn();
-const mockGetThingByName = vi.fn();
+const mockGetThingBoundBy = vi.fn();
 vi.mock('../api/thingApi', () => ({
   thingApi: {
     getAll: (properties?: readonly string[]) => mockGetAllThings(properties),
     get: (id: string) => mockGetThing(id),
-    getByName: (name: string) => mockGetThingByName(name),
+    getBoundBy: (roleId: string) => mockGetThingBoundBy(roleId),
   },
 }));
 vi.mock('../api/relationshipApi', () => ({
@@ -80,10 +81,10 @@ describe('useModelData', () => {
     mockGetAllRelationships.mockReset();
     mockGetThing.mockReset();
     mockGetRelationship.mockReset();
-    mockGetThingByName.mockReset();
+    mockGetThingBoundBy.mockReset();
     mockGetAllThings.mockResolvedValue([]);
     mockGetAllRelationships.mockResolvedValue([]);
-    mockGetThingByName.mockResolvedValue(null);
+    mockGetThingBoundBy.mockResolvedValue(null);
     mockResubscribe.mockClear();
     vi.mocked(toast.error).mockClear();
     useModelStore.setState({ things: [], relationships: [], loaded: false, holdsWholeModel: false });
@@ -92,7 +93,7 @@ describe('useModelData', () => {
 
   // The model says which properties travel with its load, and the load has to ask for them.
   it('loads only the properties the model declares', async () => {
-    mockGetThingByName.mockResolvedValue({
+    mockGetThingBoundBy.mockResolvedValue({
       Id: 'settings-1',
       Name: 'GUI_Settings',
       Properties: { ModelLoadProperties: 'ifcClass,ifcGlobalId' },
@@ -101,6 +102,7 @@ describe('useModelData', () => {
     await mountLoaded();
 
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
+    expect(mockGetThingBoundBy).toHaveBeenCalledWith(DISPLAY_SETTINGS_ROLE_ID);
     expect(mockGetAllThings).toHaveBeenCalledWith(['ifcClass', 'ifcGlobalId', 'specification']);
   });
 
@@ -108,7 +110,7 @@ describe('useModelData', () => {
   // model narrowing its load without naming it is describing what its pages draw, not asking for a
   // navigation with nothing in it.
   it('loads the property a dashboard is written in even when the model does not name it', async () => {
-    mockGetThingByName.mockResolvedValue({
+    mockGetThingBoundBy.mockResolvedValue({
       Id: 'settings-1',
       Name: 'GUI_Settings',
       Properties: { ModelLoadProperties: 'ifcClass' },
@@ -120,7 +122,7 @@ describe('useModelData', () => {
   });
 
   it('loads every property when the model declares none', async () => {
-    mockGetThingByName.mockResolvedValue(null);
+    mockGetThingBoundBy.mockResolvedValue(null);
 
     await mountLoaded();
 
@@ -130,7 +132,7 @@ describe('useModelData', () => {
 
   // Narrowing on a guess would strip properties a page needs; loading everything is only slower.
   it('loads every property when the settings cannot be read', async () => {
-    mockGetThingByName.mockRejectedValue(new Error('unreachable'));
+    mockGetThingBoundBy.mockRejectedValue(new Error('unreachable'));
 
     await mountLoaded();
 
