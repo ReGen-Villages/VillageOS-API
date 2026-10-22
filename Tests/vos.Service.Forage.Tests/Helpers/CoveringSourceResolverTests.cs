@@ -346,6 +346,19 @@ public class CoveringSourceResolverTests
     }
 
     [Fact]
+    public void Resolve_AThingReachedThroughAnotherPredicate_IsNotAmongTheVariables()
+    {
+        var model = ClimateHistory(new ModelBuilder()
+            .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal"))
+            .Relate("ClimateHistory", "documents", "humidityPercent")
+            .WithValue("humidityPercent", CoveringSourceResolver.ProviderNameProperty, "\"relative_humidity_2m\"");
+
+        var values = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"), Today)[0].Calls[0].Values;
+
+        values[CoveringSourceResolver.VariablesPlaceholder].Should().Be("rain,temperature_2m");
+    }
+
+    [Fact]
     public void Resolve_ASourceDeclaringItsReachAndProvidingVariables_IsCalledWithTheWindowTheGranularityAndTheNamesJoined()
     {
         var model = ClimateHistory(new ModelBuilder()
@@ -870,6 +883,25 @@ public class CoveringSourceResolverTests
 
         selector.BoundArchetypes.Should().Contain(CoveringSourceResolver.SourceCoverageRole.Id);
         selector.BoundTypes.Should().NotContain(CoveringSourceResolver.SourceCoverageRole.Id);
+    }
+
+    // A bound Thing arrives without the role Thing that binds it, so the read asks for every role by identifier
+    // and follows the bindings, or it could not say which bound Thing plays which part.
+    [Fact]
+    public void SelectorFor_AsksForEveryRoleItReadsThrough()
+    {
+        var selector = CoveringSourceResolver.SelectorFor(Guid.NewGuid());
+
+        selector.Ids.Should().Contain(
+        [
+            CoveringSourceResolver.SiteRole.Id, CoveringSourceResolver.PlaceNestingRole.Id,
+            CoveringSourceResolver.SiteAnalysisConnectionRole.Id, CoveringSourceResolver.PlaceArchetypeRole.Id,
+            CoveringSourceResolver.SourceCoverageRole.Id, CoveringSourceResolver.AreaNameLookupRole.Id,
+            CoveringSourceResolver.LocalAreaNameLookupRole.Id, CoveringSourceResolver.HazardDivisionLookupRole.Id,
+            CoveringSourceResolver.ProvidedVariableRole.Id,
+        ]);
+        selector.Names.Should().Contain(RoleBindings.BindsPredicateName);
+        selector.Traverse.Should().Contain(RoleBindings.FollowBindings);
     }
 
     [Fact]
