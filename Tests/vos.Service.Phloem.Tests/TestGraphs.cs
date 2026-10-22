@@ -1,6 +1,7 @@
 using System.Text.Json;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
+using vos.Service.Shared.Roles;
 
 namespace vos.Service.Phloem.Tests;
 

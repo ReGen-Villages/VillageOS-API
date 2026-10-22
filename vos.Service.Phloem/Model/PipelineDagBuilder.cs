@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using vos.Service.Shared.Roles;
 
 namespace vos.Service.Phloem.Model;
 

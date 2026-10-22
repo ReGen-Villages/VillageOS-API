@@ -30,9 +30,13 @@ export interface SubscriptionSelector {
   types?: string[];
   /** Each archetype carrying one of these marks as its own property, and the Things that `is` it. */
   markedTypes?: string[];
-  /** The Thing each of these roles binds, and the Things that `is` it, followed through the whole chain. */
+  /** Each archetype carrying one of these marks, alone, without the Things that `is` it. */
+  markedArchetypes?: string[];
+  /** Role Thing ids: the archetype each role binds, and the Things that `is` it. */
   boundTypes?: string[];
-  /** The Thing each of these roles binds, alone. */
+  /** Role Thing ids: the one Thing each role binds, alone. Neither form carries the role Thing or its
+   *  `binds` relationship; a page that has to tell which bound Thing plays which role asks for the role
+   *  Things by id and follows `binds`. */
   boundArchetypes?: string[];
   /** Applied in order, each over everything selected before it. */
   traverse?: TraverseRule[];

@@ -43,13 +43,14 @@ import { valueOrigin } from '../utils/propertyOrigin';
 import { findRange } from '../utils/rangeHelpers';
 import i18n from '../i18n';
 import { wordingIn } from '../i18n/termWording';
-import { BINDS_PREDICATE, PAGE_ROLE_ID } from './platformRoles';
+import { PAGE_ROLE_ID } from './platformRoles';
 import {
   NAMED_PROPERTY,
   NAMES_PROPERTY_OF_PREDICATE,
-  PROPERTY_NAME_ARCHETYPE_MARK,
+  PROPERTY_NAME_ROLE,
   PROPERTY_NAME_WORDING,
 } from './propertyNames';
+import { BINDS_PREDICATE_NAME } from './landIntakeRoles';
 
 export type Row = Record<string, unknown>;
 export type BindingResult = number | string | Row[] | number[] | null;
@@ -210,6 +211,13 @@ function typeIdsNamed(name: string, index: ModelIndex): string[] {
   return first ? [first.Id, ...(index.otherTypesByName.get(name) ?? [])] : [];
 }
 
+/** The Things a role binds, read from the role Thing's own `binds` relationships and never from a name. */
+function boundBy(roleId: string, index: ModelIndex): string[] {
+  const bindsId = index.predicateNameToId.get(BINDS_PREDICATE_NAME);
+  if (!bindsId) return [];
+  return adjacency(bindsId, false, index).get(roleId) ?? [];
+}
+
 function instancesBelow(typeIds: string[], index: ModelIndex): Set<string> {
   const out = new Set<string>();
   const seen = new Set<string>();          // archetype nodes already descended (cycle guard)
@@ -232,9 +240,7 @@ export function thingsOfArchetype(archetype: string, index: ModelIndex): VosThin
 
 /** The Thing a role binds, or undefined where the model binds nothing under it. */
 export function thingIdBoundBy(roleId: string, index: ModelIndex): string | undefined {
-  const bindsId = index.predicateNameToId.get(BINDS_PREDICATE);
-  if (!bindsId) return undefined;
-  return index.relationshipsByPredicate.get(bindsId)?.find((r) => r.SubjectId === roleId)?.TargetId;
+  return boundBy(roleId, index)[0];
 }
 
 /** The instances beneath the archetype a role binds, transitively, as `thingsOfArchetype` answers for a name. */
@@ -494,9 +500,7 @@ function propertyNamesByArchetype(index: ModelIndex): Map<string, Map<string, Re
   const predicateId = index.predicateNameToId.get(NAMES_PROPERTY_OF_PREDICATE);
   if (!predicateId) return names;
   const namedArchetypes = adjacency(predicateId, false, index);
-  const markedTypeIds = [...index.archetypeIds]
-    .filter((id) => index.byId.get(id)?.Properties[PROPERTY_NAME_ARCHETYPE_MARK] === true);
-  for (const nameId of instancesBelow(markedTypeIds, index)) {
+  for (const nameId of instancesBelow(boundBy(PROPERTY_NAME_ROLE, index), index)) {
     const name = index.byId.get(nameId);
     if (!name) continue;
     const properties = effectiveProperties(name, index);

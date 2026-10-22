@@ -2,8 +2,8 @@
  * What has arrived in this model, and what a reviewer decides about it: list the submissions, reject
  * the junk, promote the rest into a project model of its own.
  *
- * The page holds no archetype and no predicate name. Everything it reads it finds by the marks the
- * model puts on its own vocabulary (see `submissionReview.ts`), and what travels with a promoted
+ * The page holds no archetype and no predicate name. Everything it reads it finds through the roles the
+ * model binds its own vocabulary to (see `submissionReview.ts`), and what travels with a promoted
  * site is chosen from the predicates the model actually asserts through.
  */
 import { useEffect, useMemo, useState } from 'react';
@@ -47,8 +47,8 @@ export function SubmissionReviewPage() {
   const [promotions, setPromotions] = useState<Record<string, PromotionResult>>({});
 
   // The page reads the model itself rather than through the app shell's load, which a model may
-  // narrow to the properties it declares its pages are drawn with — and the marks this page reads
-  // are nobody's idea of a page property. Reading again after a decision is also what makes the
+  // narrow to the Things it declares its pages are drawn with — and the role Things this page reads
+  // are on nobody's page. Reading again after a decision is also what makes the
   // decision show: the list is what the model says, not what this page remembers doing.
   useEffect(() => {
     let abandoned = false;
@@ -75,9 +75,9 @@ export function SubmissionReviewPage() {
   const model = reading ?? NOTHING_READ;
   const submissions = useMemo(() => byArrival(submissionsIn(model)), [model]);
   const predicateNames = useMemo(() => predicateNamesIn(model), [model]);
-  const { marksProposedSite, resolvedAs, disposable, kept } = useMemo(
+  const { bindsProposedSite, resolvedAs, disposable, kept } = useMemo(
     () => ({
-      marksProposedSite: proposedSitePredicate(model) !== null,
+      bindsProposedSite: proposedSitePredicate(model) !== null,
       resolvedAs: dispositionPredicate(model),
       disposable: disposableDisposition(model),
       kept: keptDisposition(model),
@@ -203,8 +203,8 @@ export function SubmissionReviewPage() {
 
       <div className="flex-1 overflow-auto px-6 pb-10">
         {unreadable && <Notice>{t('submissionReview.unreadable')}</Notice>}
-        {!unreadable && !marksProposedSite && <Notice>{t('submissionReview.noProposedSitePredicate')}</Notice>}
-        {!unreadable && marksProposedSite && listed.length === 0 && (
+        {!unreadable && !bindsProposedSite && <Notice>{t('submissionReview.noProposedSitePredicate')}</Notice>}
+        {!unreadable && bindsProposedSite && listed.length === 0 && (
           <Notice>{showDecided ? t('submissionReview.noneAtAll') : t('submissionReview.noneWaiting')}</Notice>
         )}
         {listed.length > 0 && (

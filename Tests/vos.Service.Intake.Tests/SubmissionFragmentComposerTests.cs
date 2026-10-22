@@ -645,13 +645,15 @@ public class SubmissionFragmentComposerTests
             && edge.Target == composed.SiteId);
     }
 
+    // Readers find a study through the role binding its archetype, so the study `is` whatever the model bound
+    // and carries no mark of its own.
     [Fact]
-    public void The_study_carries_the_flag_every_reader_finds_it_by()
+    public void The_study_is_the_archetype_the_site_study_role_binds()
     {
         var composed = Compose(WillowBend.Submission());
 
-        Thing(composed, composed.StudyId).Properties[SubmissionFragmentComposer.SiteStudyFlag]
-            .Value.Should().Be(true);
+        Relates(composed, composed.StudyId, WillowBend.IsPredicateId, WillowBend.KnownVocabulary.SiteStudy.Id)
+            .Should().BeTrue();
     }
 
     // A coverage and a shortfall are properties of one study's demand, so the study holds a demand of its
@@ -732,12 +734,11 @@ public class SubmissionFragmentComposerTests
     // declares every one of them, so a study that is the archetype resolves them through inheritance and
     // a declaration here could only disagree with it.
     [Fact]
-    public void The_study_declares_no_computed_output_of_its_own()
+    public void The_study_declares_no_property_of_its_own()
     {
         var composed = Compose(WillowBend.Submission());
 
-        Thing(composed, composed.StudyId).Properties.Keys
-            .Should().Equal(SubmissionFragmentComposer.SiteStudyFlag);
+        Thing(composed, composed.StudyId).Properties.Should().BeEmpty();
     }
 
     [Fact]

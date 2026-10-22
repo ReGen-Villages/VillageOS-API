@@ -1,9 +1,10 @@
 using System.Text.Json;
+using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Services;
 
-// What the model declares a shared file as, found by the marks rather than by name: the
+// What the model declares a shared file as, found through the roles rather than by name: the
 // archetype a document `is`, the predicate a project shares it through, and `is` itself.
 public sealed record SharedDocumentDeclarations(Guid Archetype, string ArchetypeName, Guid Predicate, string PredicateName, Guid Is);
 
@@ -12,8 +13,8 @@ public sealed record SharedDocumentListing(
 
 public static class SharedDocumentReader
 {
-    public const string ArchetypeFlag = "__IsSharedDocumentArchetype";
-    public const string PredicateFlag = "__IsSharedDocumentPredicate";
+    public static readonly Role ArchetypeRole = LandIntakeRoles.SharedDocument;
+    public static readonly Role PredicateRole = LandIntakeRoles.Shares;
     public const string FileNameProperty = "fileName";
     public const string DescriptionProperty = "description";
     public const string ContentTypeProperty = "contentType";
@@ -23,16 +24,18 @@ public static class SharedDocumentReader
 
     public static SubscriptionSelector DeclarationSelector() => new()
     {
-        Names = [SubmissionFragmentComposer.IsPredicateName],
-        MarkedArchetypes = [ArchetypeFlag, PredicateFlag],
+        Ids = RoleBindings.Identifiers(ArchetypeRole, PredicateRole),
+        Names = [SubmissionFragmentComposer.IsPredicateName, RoleBindings.BindsPredicateName],
+        Traverse = [RoleBindings.FollowBindings],
+        IncludeRelationships = true,
     };
 
     // Null where the model declares no shared file: a submitter is then told files are not
     // taken here, rather than a file being kept that nothing can list.
     public static SharedDocumentDeclarations? ReadDeclarations(SnapshotDocument snapshot)
     {
-        var archetype = snapshot.Things.FirstOrDefault(thing => thing.CarriesFlag(ArchetypeFlag));
-        var predicate = snapshot.Things.FirstOrDefault(thing => thing.CarriesFlag(PredicateFlag));
+        var archetype = snapshot.Bound(ArchetypeRole).FirstOrDefault();
+        var predicate = snapshot.Bound(PredicateRole).FirstOrDefault();
         var isPredicate = snapshot.Things.FirstOrDefault(thing =>
             string.Equals(thing.Name, SubmissionFragmentComposer.IsPredicateName, StringComparison.Ordinal));
         if (archetype is null || predicate is null || isPredicate is null) return null;
@@ -41,7 +44,7 @@ public static class SharedDocumentReader
     }
 
     // The documents a project shares, read off the walk from it: the Things at the far end of
-    // the marked predicate, with what each states.
+    // the shares predicate, with what each states.
     public static SubscriptionSelector ListingSelector(Guid projectId, string predicateName) => new()
     {
         Ids = [projectId],

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { BINDS_PREDICATE, DISPLAY_SETTINGS_ROLE_ID, PAGE_ROLE_ID, thingBoundBy } from './platformRoles';
+import { DISPLAY_SETTINGS_ROLE_ID, PAGE_ROLE_ID, thingBoundBy } from './platformRoles';
+import { BINDS_PREDICATE_NAME } from './landIntakeRoles';
 import type { VosRelationship, VosThing } from '../types/vos';
 
 function thing(Id: string, Name: string): VosThing {
@@ -9,7 +10,7 @@ function relationship(Id: string, SubjectId: string, PredicateId: string, Target
   return { Id, SubjectId, PredicateId, TargetId, Properties: {} };
 }
 
-const binds = thing('binds', BINDS_PREDICATE);
+const binds = thing('binds', BINDS_PREDICATE_NAME);
 const role = thing(DISPLAY_SETTINGS_ROLE_ID, 'DisplaySettings');
 const settings = thing('settings', 'how this model is drawn');
 

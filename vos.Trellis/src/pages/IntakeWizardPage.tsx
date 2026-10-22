@@ -4,8 +4,8 @@
  * fills it in.
  *
  * The vocabulary and the imagery are read from the model itself rather than through the app shell's load,
- * which a model may narrow to the properties its pages are drawn with — and a mark is nobody's idea of a
- * page property. A model that declares no categories leaves the step saying so rather than empty.
+ * which a model may narrow to the Things its pages are drawn with — and a role Thing is on nobody's page.
+ * A model that declares no categories leaves the step saying so rather than empty.
  */
 import { useEffect, useState } from 'react';
 import { ClipboardList } from 'lucide-react';
@@ -18,11 +18,11 @@ import { useAuthentication } from '../hooks/useAuthentication';
 import { IntakeWizard } from '../intake/IntakeWizard';
 import type { BasemapSource } from '../types/basemap';
 import {
-  ALLOCATION_CATEGORY_ARCHETYPE_FLAG,
-  HAZARD_LEVEL_ARCHETYPE_FLAG,
-  HAZARD_TYPE_ARCHETYPE_FLAG,
-  termsMarked,
-  termWordingMarked,
+  ALLOCATION_CATEGORY_ROLE,
+  HAZARD_LEVEL_ROLE,
+  HAZARD_TYPE_ROLE,
+  termsBound,
+  termWordingBound,
 } from './modelVocabulary';
 import type { TermWording } from '../i18n/termWording';
 
@@ -40,14 +40,12 @@ export function IntakeWizardPage() {
     Promise.all([thingApi.getAll(), relationshipApi.getAll(), thingApi.getAllProperties('effective')])
       .then(([things, relationships, properties]) => {
         if (abandoned) return;
-        setCategories(termsMarked({ things, relationships, properties }, ALLOCATION_CATEGORY_ARCHETYPE_FLAG));
+        setCategories(termsBound({ things, relationships, properties }, ALLOCATION_CATEGORY_ROLE));
         setBasemapSources(discoverBasemapSources(modelIndexFor(things, relationships)));
         const read = { things, relationships, properties };
-        setHazardTypes(termsMarked(read, HAZARD_TYPE_ARCHETYPE_FLAG));
-        setHazardLevels(termsMarked(read, HAZARD_LEVEL_ARCHETYPE_FLAG));
-        setWording(termWordingMarked(read, [
-          ALLOCATION_CATEGORY_ARCHETYPE_FLAG, HAZARD_TYPE_ARCHETYPE_FLAG, HAZARD_LEVEL_ARCHETYPE_FLAG,
-        ]));
+        setHazardTypes(termsBound(read, HAZARD_TYPE_ROLE));
+        setHazardLevels(termsBound(read, HAZARD_LEVEL_ROLE));
+        setWording(termWordingBound(read, [ALLOCATION_CATEGORY_ROLE, HAZARD_TYPE_ROLE, HAZARD_LEVEL_ROLE]));
       })
       .catch(() => {
         if (abandoned) return;

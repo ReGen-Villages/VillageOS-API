@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Forage.Helpers;
@@ -91,10 +92,10 @@ public static class CoveringSourceResolver
     // repositories would agree about the analysis only by spelling.
     public const string SiteAnalysisConnectionFlag = "__IsSiteAnalysisConnectionArchetype";
 
-    // The archetype every site `is`, marked by the platform so that a walk reaching Places
+    // The archetype every site `is`, bound by the platform's site role so that a walk reaching Places
     // and sites alike can tell the two apart — and so that a dispatch naming a source is told from one
     // naming a site by the model, never by the name of the connection that dispatched it.
-    public const string SiteArchetypeFlag = "__IsSiteArchetype";
+    public static readonly Role SiteRole = LandIntakeRoles.Site;
 
     // Nothing offered to a site is fetched here, so the calls a source reaches carry no address; the run
     // that fetches is the site's own, which addresses each call from the site outward.
@@ -149,10 +150,10 @@ public static class CoveringSourceResolver
 
     // What the area-name lookup names as the property a Place states its own code in. The Place archetype
     // carries a mark because a run asks for every Place: the one a site is about to be related to is one
-    // no walk from the site reaches. The nesting predicate's mark is the one the submission producer
-    // writes the site's first Place through.
+    // no walk from the site reaches. The nesting predicate is the one the submission producer writes the
+    // site's first Place through, found through the role the land-intake template binds it with.
     public const string PlaceArchetypeFlag = "__IsPlaceArchetype";
-    public const string PlaceNestingPredicateFlag = "__IsPlaceNestingPredicate";
+    public static readonly Role PlaceNestingRole = LandIntakeRoles.PlaceNesting;
     private const string PlaceCodePropertyName = "placeCodeProperty";
 
     // The address the search is called at. Its one placeholder is the area name a run fills, read from the
@@ -173,8 +174,10 @@ public static class CoveringSourceResolver
     // trap the endpoint kinds hit, where rules applied before the set is closed find nothing.
     public static SubscriptionSelector SelectorFor(Guid siteId) => new()
     {
-        Ids = [siteId],
-        Names = [.. PredicatesRead],
+        // The two role Things come with what each binds, so the read can tell a site from a Place and find the
+        // nesting predicate whatever the model calls either.
+        Ids = [siteId, SiteRole.Id, PlaceNestingRole.Id],
+        Names = [.. PredicatesRead, RoleBindings.BindsPredicateName],
         // Model-wide rather than reached from the site: a study is related through a connection only once
         // its analysis has started there, and finding the connections it has not started is what this read is for.
         MarkedTypes = [SiteAnalysisConnectionFlag, PlaceArchetypeFlag],
@@ -193,6 +196,7 @@ public static class CoveringSourceResolver
         ],
         Traverse =
         [
+            RoleBindings.FollowBindings,
             new TraverseRule { Predicate = IsInPredicate, Depth = PlaceNestingDepth },
             // Incoming: the relationship runs source -> place, and the set so far holds the places.
             new TraverseRule { Predicate = CoversPredicate, Direction = "incoming" },
@@ -220,28 +224,28 @@ public static class CoveringSourceResolver
     };
 
     // What a dispatch named. The subject's own `is` chain arrives with the ancestors the broker closes
-    // over; the site archetype is asked for on its own so that a model without the mark reads as one,
-    // rather than as a subject that is not a site — and alone, because with its members every site in
-    // the model would arrive to answer a question about one Thing.
+    // over; the site role is asked for with what it binds so that a model binding no site reads as one,
+    // rather than as a subject that is not a site — and the archetype alone, because with its members every
+    // site in the model would arrive to answer a question about one Thing.
     public static SubscriptionSelector KindSelectorFor(Guid subjectId) => new()
     {
-        Ids = [subjectId],
-        Names = [IsPredicateName, CoversPredicate, ResolvedByPredicate],
-        MarkedArchetypes = [SiteArchetypeFlag],
+        Ids = [subjectId, SiteRole.Id],
+        Names = [IsPredicateName, CoversPredicate, ResolvedByPredicate, RoleBindings.BindsPredicateName],
+        Traverse = [RoleBindings.FollowBindings],
         IncludeRelationships = true,
     };
 
-    // A site is whatever `is` the marked archetype, directly or through intermediate types. A source is
-    // whatever else covers a Place or is resolved by a registration — the two relationships that make it one —
-    // rather than anything that is not a site, because anything else taken for a source would be stamped
-    // as worked out, and a stamp on the archetype itself is inherited by every site.
+    // A site is whatever `is` the archetype the site role binds, directly or through intermediate types. A
+    // source is whatever else covers a Place or is resolved by a registration — the two relationships that make
+    // it one — rather than anything that is not a site, because anything else taken for a source would be
+    // stamped as worked out, and a stamp on the archetype itself is inherited by every site.
     public static SubjectKind KindOf(SnapshotDocument snapshot, Guid subjectId)
     {
         var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
         var namesById = thingsById.ToDictionary(entry => entry.Key, entry => entry.Value.Name ?? string.Empty);
 
-        var siteArchetypes = ArchetypesCarrying(snapshot, SiteArchetypeFlag);
-        if (siteArchetypes.Count == 0) return SubjectKind.ModelMarksNoSite;
+        var siteArchetypes = SiteArchetypes(snapshot);
+        if (siteArchetypes.Count == 0) return SubjectKind.ModelBindsNoSite;
 
         if (MembersReachedFrom(snapshot, thingsById, namesById, siteArchetypes).Contains(subjectId))
             return SubjectKind.Site;
@@ -261,11 +265,12 @@ public static class CoveringSourceResolver
     // chain with the ancestors the broker closes over.
     public static SubscriptionSelector SelectorForSource(Guid sourceId) => new()
     {
-        Ids = [sourceId],
-        Names = [.. PredicatesRead],
+        Ids = [sourceId, SiteRole.Id],
+        Names = [.. PredicatesRead, RoleBindings.BindsPredicateName],
         MarkedArchetypes = [SourceCoverageArchetypeFlag],
         Traverse =
         [
+            RoleBindings.FollowBindings,
             new TraverseRule { Predicate = CoversPredicate },
             new TraverseRule { Predicate = ResolvedByPredicate },
             new TraverseRule { Predicate = ResolvesOntoPredicate },
@@ -298,7 +303,7 @@ public static class CoveringSourceResolver
 
         // Ordered by name so two runs offer a source the same way twice, which is what makes their logs
         // comparable.
-        var sites = MembersOfArchetypesCarrying(snapshot, thingsById, namesById, SiteArchetypeFlag)
+        var sites = MembersReachedFrom(snapshot, thingsById, namesById, SiteArchetypes(snapshot))
             .Where(within.Contains)
             .OrderBy(siteId => namesById.GetValueOrDefault(siteId, string.Empty), StringComparer.Ordinal)
             .ThenBy(siteId => siteId);
@@ -336,6 +341,9 @@ public static class CoveringSourceResolver
 
     private static List<Guid> ArchetypesCarrying(SnapshotDocument snapshot, string flag) =>
         snapshot.Things.Where(thing => thing.CarriesFlag(flag)).Select(thing => thing.Id).ToList();
+
+    private static List<Guid> SiteArchetypes(SnapshotDocument snapshot) =>
+        [.. snapshot.Bound(SiteRole).Select(archetype => archetype.Id)];
 
     // Every coverage the snapshot holds. Not filtered by site: the read is already scoped to one site's
     // reachable set, and a coverage hangs off whichever Thing its call was about — the site itself, or
@@ -415,12 +423,12 @@ public static class CoveringSourceResolver
             localAreaName?.Name is { Length: > 0 } localEndpoint ? localEndpoint : null);
     }
 
-    // Every Place stating a code, or null where the model declares no code property or no marked nesting
-    // predicate: a site related through an unmarked predicate would stand in a Place no coverage walk follows.
+    // Every Place stating a code, or null where the model declares no code property or binds no nesting
+    // predicate: a site related through any other predicate would stand in a Place no coverage walk follows.
     public static CodedPlaces? CodedPlacesIn(SnapshotDocument snapshot, Guid siteId, DivisionLookup? lookup)
     {
         if (lookup?.PlaceCodeProperty is not { } codeProperty) return null;
-        if (snapshot.Things.FirstOrDefault(thing => thing.CarriesFlag(PlaceNestingPredicateFlag)) is not { } nesting)
+        if (snapshot.Bound(PlaceNestingRole).FirstOrDefault() is not { } nesting)
             return null;
         if (snapshot.Things.FirstOrDefault(thing => thing.CarriesFlag(PlaceArchetypeFlag)) is not { } archetype)
             return null;

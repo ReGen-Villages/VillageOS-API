@@ -3,11 +3,7 @@ import { render, screen, fireEvent, waitFor, within, act } from '@testing-librar
 import i18n from '../i18n';
 import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos';
 import type { BasemapSource } from '../types/basemap';
-import {
-  ALLOCATION_CATEGORY_ARCHETYPE_FLAG,
-  HAZARD_LEVEL_ARCHETYPE_FLAG,
-  HAZARD_TYPE_ARCHETYPE_FLAG,
-} from './modelVocabulary';
+import { ALLOCATION_CATEGORY_ROLE, HAZARD_LEVEL_ROLE, HAZARD_TYPE_ROLE } from './modelVocabulary';
 
 vi.mock('../api/thingApi', () => ({
   thingApi: { getAll: vi.fn(), getAllProperties: vi.fn() },
@@ -88,10 +84,12 @@ const edge = (Id: string, SubjectId: string, PredicateId: string, TargetId: stri
   Properties: {},
 });
 
-const owned = (Value: unknown): EffectiveProperty => ({ Value, Type: 'vos.Boolean', IsInherited: false });
-
 const THINGS: VosThing[] = [
   thing('is', 'is'),
+  thing('binds', 'binds'),
+  thing(ALLOCATION_CATEGORY_ROLE, 'allocationCategory'),
+  thing(HAZARD_TYPE_ROLE, 'hazardType'),
+  thing(HAZARD_LEVEL_ROLE, 'hazardLevel'),
   thing('land-use', 'LandUse', true),
   thing('housing', 'housing'),
   thing('growing', 'growing'),
@@ -111,6 +109,9 @@ const THINGS: VosThing[] = [
 ];
 
 const EDGES: VosRelationship[] = [
+  edge('b1', ALLOCATION_CATEGORY_ROLE, 'binds', 'land-use'),
+  edge('b2', HAZARD_TYPE_ROLE, 'binds', 'peril'),
+  edge('b3', HAZARD_LEVEL_ROLE, 'binds', 'severity'),
   edge('e1', 'housing', 'is', 'land-use'),
   edge('e2', 'growing', 'is', 'land-use'),
   edge('e3', 'roads', 'is', 'land-use'),
@@ -121,11 +122,7 @@ const EDGES: VosRelationship[] = [
   edge('e8', 'mild', 'is', 'severity'),
 ];
 
-const PROPERTIES = {
-  'land-use': { [ALLOCATION_CATEGORY_ARCHETYPE_FLAG]: owned(true) },
-  peril: { [HAZARD_TYPE_ARCHETYPE_FLAG]: owned(true) },
-  severity: { [HAZARD_LEVEL_ARCHETYPE_FLAG]: owned(true) },
-};
+const PROPERTIES: Record<string, Record<string, EffectiveProperty>> = {};
 
 /** Long enough that whatever the answer feeds is on screen before it arrives, which is the order a
  *  loaded build agent produces. A mock answering at once puts the two in the same instant, so a test

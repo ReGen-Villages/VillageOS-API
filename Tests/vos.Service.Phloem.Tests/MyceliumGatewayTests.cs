@@ -7,6 +7,7 @@ using vos.Service.Phloem.Model;
 using vos.Service.Phloem.Services;
 using vos.Tests.Shared;
 using Xunit;
+using vos.Service.Shared.Roles;
 
 namespace vos.Service.Phloem.Tests;
 

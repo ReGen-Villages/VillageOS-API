@@ -17,8 +17,9 @@ import {
   type ScopeReference,
   type Widget,
 } from '../types/dashboard';
-import { BINDS_PREDICATE, DISPLAY_SETTINGS_ROLE_ID, PAGE_ROLE_ID } from './platformRoles';
-import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ARCHETYPE_MARK } from './propertyNames';
+import { DISPLAY_SETTINGS_ROLE_ID, PAGE_ROLE_ID } from './platformRoles';
+import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ROLE } from './propertyNames';
+import { BINDS_PREDICATE_NAME } from './landIntakeRoles';
 import type { SubscriptionSelector, TraverseDirection, TraverseRule } from '../types/subscription';
 
 /**
@@ -40,7 +41,7 @@ export const NAVIGATION_AND_SETTINGS: SubscriptionSelector = {
   ids: [PAGE_ROLE_ID, DISPLAY_SETTINGS_ROLE_ID],
   boundTypes: [PAGE_ROLE_ID],
   boundArchetypes: [DISPLAY_SETTINGS_ROLE_ID],
-  names: [IS_PREDICATE, BINDS_PREDICATE],
+  names: [IS_PREDICATE, BINDS_PREDICATE_NAME],
   includeLaterMatches: true,
 };
 
@@ -251,17 +252,23 @@ function namedThings(specification: DashboardSpecification): { ids: string[]; na
 export function subscriptionForSpecification(specification: DashboardSpecification, scopeId: string | null): SubscriptionSelector {
   const named = namedThings(specification);
   const levers = offersLevers(specification);
-  // Followed last, so no walk the specification takes is applied to the archetypes it reaches.
+  // Followed last, and the property-name role to the archetype it binds after that, so no walk the
+  // specification takes is applied to the archetypes it reaches.
   const traverse = [
     ...scopeRules(specification),
     ...walkRules(specificationWalks(specification)),
-    ...(levers ? [ruleFor(NAMES_PROPERTY_OF_PREDICATE, 'out', 1)] : []),
+    ...(levers ? [ruleFor(NAMES_PROPERTY_OF_PREDICATE, 'out', 1), ruleFor(BINDS_PREDICATE_NAME, 'out', 1)] : []),
   ];
   // A Thing is created before it is typed, so only a subscription that keeps following its types is
   // sent the Thing when its `is` relationship admits it — which is what lets a roster grow on a page left open.
   const selector: SubscriptionSelector = {
-    ids: [...new Set([...NAVIGATION_AND_SETTINGS.ids!, ...(scopeId ? [scopeId] : []), ...named.ids])],
-    boundTypes: NAVIGATION_AND_SETTINGS.boundTypes,
+    ids: [...new Set([
+      ...NAVIGATION_AND_SETTINGS.ids!,
+      ...(scopeId ? [scopeId] : []),
+      ...named.ids,
+      ...(levers ? [PROPERTY_NAME_ROLE] : []),
+    ])],
+    boundTypes: [...NAVIGATION_AND_SETTINGS.boundTypes!, ...(levers ? [PROPERTY_NAME_ROLE] : [])],
     boundArchetypes: NAVIGATION_AND_SETTINGS.boundArchetypes,
     types: drawnTypes(specification, scopeId),
     names: [...new Set([
@@ -273,7 +280,6 @@ export function subscriptionForSpecification(specification: DashboardSpecificati
     includeObservations: true,
   };
   if (traverse.length) selector.traverse = traverse;
-  if (levers) selector.markedTypes = [PROPERTY_NAME_ARCHETYPE_MARK];
   return selector;
 }
 
