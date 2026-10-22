@@ -126,11 +126,11 @@ public class SubscriptionClientTests
 
         await client.SubscribeAsync(new SubscriptionSelector
         {
-            Traverse = [new TraverseRule { PredicateFlag = "__IsProvidedVariablePredicate" }],
+            Traverse = [new TraverseRule { PredicateFlag = "__IsExamplePredicate" }],
         });
 
         (await captured!.Content!.ReadAsStringAsync())
-            .Should().Contain("\"predicateFlag\":\"__IsProvidedVariablePredicate\"");
+            .Should().Contain("\"predicateFlag\":\"__IsExamplePredicate\"");
     }
 
     // A field the broker does not bind is dropped silently, so a reader asking by role would read the whole

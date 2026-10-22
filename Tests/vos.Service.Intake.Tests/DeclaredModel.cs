@@ -45,11 +45,12 @@ public sealed class DeclaredModel
             model.ArchetypeStating(demand, (DeclaredVocabularyReader.ServingOrderProperty, servingOrder))
                 .Relate(demand, "is", "WaterDemandComponent");
 
-        // The two position lookups the open-data catalogue registers: standalone marked Things, the way
-        // the catalogue declares them, with a reshape of their own for the caller to apply.
+        // The two position lookups the open-data catalogue registers: standalone Things each bound by its role,
+        // the way the catalogue declares them, with a reshape of their own for the caller to apply.
         model
+            .Bound(PositionLookupReader.ParcelLookupRole, WillowBend.ParcelRegisterName)
+            .Bound(PositionLookupReader.PlaceSearchRole, WillowBend.PlaceSearchName)
             .Stating(WillowBend.ParcelRegisterName,
-                (PositionLookupReader.ParcelLookupFlag, true),
                 (PositionLookupReader.TransformProperty, WillowBend.ParcelRegisterTransform),
                 (PositionLookupReader.AttributionProperty, WillowBend.ParcelRegisterAttribution),
                 (PositionLookupReader.SouthLatitudeProperty, 41.0),
@@ -57,7 +58,6 @@ public sealed class DeclaredModel
                 (PositionLookupReader.WestLongitudeProperty, -5.5),
                 (PositionLookupReader.EastLongitudeProperty, 10.0))
             .Stating(WillowBend.PlaceSearchName,
-                (PositionLookupReader.PlaceSearchFlag, true),
                 (PositionLookupReader.TransformProperty, WillowBend.PlaceSearchTransform),
                 (PositionLookupReader.AttributionProperty, WillowBend.PlaceSearchAttribution));
 

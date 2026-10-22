@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Forage.Helpers;
+using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 using Xunit;
 
@@ -50,16 +51,18 @@ public class CoveringSourceResolverTests
             return this;
         }
 
-        // Re-declares a Thing as a type, carrying the flag when it is one a reader finds by mark.
-        public ModelBuilder Archetype(string name, string? flag = null)
+        // The role Thing, under the identifier every model declares it by, binding the named Thing along `binds`.
+        public ModelBuilder Bound(Role role, string name)
+        {
+            if (_things.All(thing => thing.Id != role.Id)) _things.Add(Thing(role.Id, role.Word));
+            _edges.Add(Edge(role.Id, Id(RoleBindings.BindsPredicateName), Id(name)));
+            return this;
+        }
+
+        public ModelBuilder Archetype(string name)
         {
             var id = Id(name);
-            var properties = flag == null
-                ? new Dictionary<string, SnapshotProperty>()
-                : new Dictionary<string, SnapshotProperty>
-                {
-                    [flag] = new(JsonDocument.Parse("true").RootElement, null, null),
-                };
+            var properties = new Dictionary<string, SnapshotProperty>();
 
             _things.RemoveAll(thing => thing.Id == id);
             _things.Add(new SnapshotThing(
@@ -92,13 +95,13 @@ public class CoveringSourceResolverTests
     private static ModelBuilder StudyOf(string site) =>
         new ModelBuilder().Relate(site + "Study", CoveringSourceResolver.StudiesPredicate, site);
 
-    // A connection the model marks as one a site analysis starts, bound to the service it dispatches.
+    // A connection that `is` the archetype the site-analysis role binds, bound to the service it dispatches.
     private static ModelBuilder MarkedConnection(ModelBuilder model, string connection, string prototype)
     {
         model.Relate(connection, CoveringSourceResolver.IsPredicateName, "SiteAnalysisConnection")
              .Relate(connection, CoveringSourceResolver.HasPredicate, connection + " service")
              .Relate(connection + " service", CoveringSourceResolver.IsPredicateName, prototype);
-        model.Archetype("SiteAnalysisConnection", CoveringSourceResolver.SiteAnalysisConnectionFlag);
+        model.Archetype("SiteAnalysisConnection").Bound(CoveringSourceResolver.SiteAnalysisConnectionRole, "SiteAnalysisConnection");
         return model.Archetype(prototype);
     }
 
@@ -334,12 +337,25 @@ public class CoveringSourceResolverTests
         SourceCovering(model, "ClimateHistory", "Portugal");
         model.WithValue("ClimateHistory", "historyYears", "10")
              .WithValue("ClimateHistory", "granularity", "\"hourly\"")
-             .WithValue("provides", CoveringSourceResolver.ProvidedVariablePredicateFlag, "true")
+             .Bound(CoveringSourceResolver.ProvidedVariableRole, "provides")
              .Relate("ClimateHistory", "provides", "temperatureCelsius")
              .Relate("ClimateHistory", "provides", "rainMillimetres")
              .WithValue("temperatureCelsius", CoveringSourceResolver.ProviderNameProperty, "\"temperature_2m\"")
              .WithValue("rainMillimetres", CoveringSourceResolver.ProviderNameProperty, "\"rain\"");
         return model;
+    }
+
+    [Fact]
+    public void Resolve_AThingReachedThroughAnotherPredicate_IsNotAmongTheVariables()
+    {
+        var model = ClimateHistory(new ModelBuilder()
+            .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal"))
+            .Relate("ClimateHistory", "documents", "humidityPercent")
+            .WithValue("humidityPercent", CoveringSourceResolver.ProviderNameProperty, "\"relative_humidity_2m\"");
+
+        var values = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"), Today)[0].Calls[0].Values;
+
+        values[CoveringSourceResolver.VariablesPlaceholder].Should().Be("rain,temperature_2m");
     }
 
     [Fact]
@@ -646,10 +662,10 @@ public class CoveringSourceResolverTests
     }
 
     [Fact]
-    public void AnalysisOf_ConnectionWithoutTheMark_IsNotATrigger()
+    public void AnalysisOf_ConnectionNotBeneathTheBoundArchetype_IsNotATrigger()
     {
-        // An unmarked connection is one bound for some other purpose. Starting it would dispatch a
-        // service against a study it knows nothing about.
+        // A connection that is not beneath the bound archetype is one bound for some other purpose. Starting it
+        // would dispatch a service against a study it knows nothing about.
         var model = StudyOf("WillowBend")
             .Relate("ordinary", CoveringSourceResolver.HasPredicate, "ordinary service")
             .Relate("ordinary service", CoveringSourceResolver.IsPredicateName, "EnergyBalance prototype");
@@ -666,7 +682,7 @@ public class CoveringSourceResolverTests
         // afterwards as an analysis that started and produced nothing.
         var model = StudyOf("WillowBend")
             .Relate("balancesEnergy", CoveringSourceResolver.IsPredicateName, "SiteAnalysisConnection");
-        model.Archetype("SiteAnalysisConnection", CoveringSourceResolver.SiteAnalysisConnectionFlag);
+        model.Archetype("SiteAnalysisConnection").Bound(CoveringSourceResolver.SiteAnalysisConnectionRole, "SiteAnalysisConnection");
 
         CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
             .Triggers.Should().BeEmpty();
@@ -681,7 +697,7 @@ public class CoveringSourceResolverTests
             .Relate("balancesEnergy", CoveringSourceResolver.IsPredicateName, "SiteAnalysisConnection")
             .Relate("balancesEnergy", CoveringSourceResolver.HasPredicate, "balancesEnergy service")
             .Relate("balancesEnergy service", CoveringSourceResolver.IsPredicateName, "not a type");
-        model.Archetype("SiteAnalysisConnection", CoveringSourceResolver.SiteAnalysisConnectionFlag);
+        model.Archetype("SiteAnalysisConnection").Bound(CoveringSourceResolver.SiteAnalysisConnectionRole, "SiteAnalysisConnection");
 
         CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
             .Triggers.Should().BeEmpty();
@@ -701,17 +717,17 @@ public class CoveringSourceResolverTests
     }
 
     [Fact]
-    public void AnalysisOf_MarkThroughAnIntermediateArchetype_IsStillFound()
+    public void AnalysisOf_BoundArchetypeThroughAnIntermediateArchetype_IsStillFound()
     {
-        // A model may put its own archetype between a connection and the marked one. The mark is
-        // inherited through the is chain, so the walk climbs rather than reading one step.
+        // A model may put its own archetype between a connection and the bound one, so the walk climbs the
+        // is chain rather than reading one step.
         var model = StudyOf("WillowBend")
             .Relate("balancesEnergy", CoveringSourceResolver.IsPredicateName, "PlatformAnalysisConnection")
             .Relate("PlatformAnalysisConnection", CoveringSourceResolver.IsPredicateName, "SiteAnalysisConnection")
             .Relate("balancesEnergy", CoveringSourceResolver.HasPredicate, "balancesEnergy service")
             .Relate("balancesEnergy service", CoveringSourceResolver.IsPredicateName, "EnergyBalance prototype");
         model.Archetype("PlatformAnalysisConnection");
-        model.Archetype("SiteAnalysisConnection", CoveringSourceResolver.SiteAnalysisConnectionFlag);
+        model.Archetype("SiteAnalysisConnection").Bound(CoveringSourceResolver.SiteAnalysisConnectionRole, "SiteAnalysisConnection");
         model.Archetype("EnergyBalance prototype");
 
         CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
@@ -758,7 +774,7 @@ public class CoveringSourceResolverTests
     [Fact]
     public void AnalysisOf_IntermediateArchetypeBindingItsOwnService_IsNotATrigger()
     {
-        // A type between a connection and the mark may bind a service of its own as a template. It is
+        // A type between a connection and the bound archetype may bind a service of its own as a template. It is
         // still a type, and dispatching it would make the relationship's predicate an archetype rather than a
         // connection — so only the member below it is a trigger.
         var model = StudyOf("WillowBend")
@@ -769,7 +785,7 @@ public class CoveringSourceResolverTests
             .Relate("balancesEnergy", CoveringSourceResolver.HasPredicate, "balancesEnergy service")
             .Relate("balancesEnergy service", CoveringSourceResolver.IsPredicateName, "EnergyBalance prototype");
         model.Archetype("PlatformAnalysisConnection");
-        model.Archetype("SiteAnalysisConnection", CoveringSourceResolver.SiteAnalysisConnectionFlag);
+        model.Archetype("SiteAnalysisConnection").Bound(CoveringSourceResolver.SiteAnalysisConnectionRole, "SiteAnalysisConnection");
         model.Archetype("EnergyBalance prototype");
 
         CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
@@ -786,7 +802,9 @@ public class CoveringSourceResolverTests
         var study = Guid.NewGuid();
         var studies = Guid.NewGuid();
         var isEdge = Guid.NewGuid();
-        var marked = Guid.NewGuid();
+        var binds = Guid.NewGuid();
+        var connectionArchetype = Guid.NewGuid();
+        var role = CoveringSourceResolver.SiteAnalysisConnectionRole;
         var snapshot = new SnapshotDocument(
             0,
             new List<SnapshotThing>
@@ -795,19 +813,18 @@ public class CoveringSourceResolverTests
                 Thing(study, "WillowBendStudy"),
                 Thing(studies, CoveringSourceResolver.StudiesPredicate),
                 Thing(isEdge, CoveringSourceResolver.IsPredicateName),
-                new(marked, "SiteAnalysisConnection", true,
-                    new Dictionary<string, SnapshotProperty>
-                    {
-                        [CoveringSourceResolver.SiteAnalysisConnectionFlag] =
-                            new(JsonDocument.Parse("true").RootElement, null, null),
-                    },
+                Thing(binds, RoleBindings.BindsPredicateName),
+                Thing(role.Id, role.Word),
+                new(connectionArchetype, "SiteAnalysisConnection", true,
+                    new Dictionary<string, SnapshotProperty>(),
                     new Dictionary<string, InheritedPropertySet>(),
                     Array.Empty<string>(), Array.Empty<Guid>()),
             },
             new List<SnapshotRelationship>
             {
                 Edge(study, studies, site),
-                Edge(Guid.NewGuid(), isEdge, marked),
+                Edge(role.Id, binds, connectionArchetype),
+                Edge(Guid.NewGuid(), isEdge, connectionArchetype),
             });
 
         CoveringSourceResolver.AnalysisOf(snapshot, site)!.Triggers.Should().BeEmpty();
@@ -851,7 +868,8 @@ public class CoveringSourceResolverTests
         // traversal from the site reaches none of them.
         var selector = CoveringSourceResolver.SelectorFor(Guid.NewGuid());
 
-        selector.MarkedTypes.Should().Contain(CoveringSourceResolver.SiteAnalysisConnectionFlag);
+        selector.BoundTypes.Should().Contain(CoveringSourceResolver.SiteAnalysisConnectionRole.Id);
+        selector.Ids.Should().Contain(CoveringSourceResolver.SiteAnalysisConnectionRole.Id);
     }
 
     // A run mints against the coverage archetype, so it has to arrive before any coverage exists to
@@ -863,8 +881,27 @@ public class CoveringSourceResolverTests
     {
         var selector = CoveringSourceResolver.SelectorFor(Guid.NewGuid());
 
-        selector.MarkedArchetypes.Should().Contain(CoveringSourceResolver.SourceCoverageArchetypeFlag);
-        selector.MarkedTypes.Should().NotContain(CoveringSourceResolver.SourceCoverageArchetypeFlag);
+        selector.BoundArchetypes.Should().Contain(CoveringSourceResolver.SourceCoverageRole.Id);
+        selector.BoundTypes.Should().NotContain(CoveringSourceResolver.SourceCoverageRole.Id);
+    }
+
+    // A bound Thing arrives without the role Thing that binds it, so the read asks for every role by identifier
+    // and follows the bindings, or it could not say which bound Thing plays which part.
+    [Fact]
+    public void SelectorFor_AsksForEveryRoleItReadsThrough()
+    {
+        var selector = CoveringSourceResolver.SelectorFor(Guid.NewGuid());
+
+        selector.Ids.Should().Contain(
+        [
+            CoveringSourceResolver.SiteRole.Id, CoveringSourceResolver.PlaceNestingRole.Id,
+            CoveringSourceResolver.SiteAnalysisConnectionRole.Id, CoveringSourceResolver.PlaceArchetypeRole.Id,
+            CoveringSourceResolver.SourceCoverageRole.Id, CoveringSourceResolver.AreaNameLookupRole.Id,
+            CoveringSourceResolver.LocalAreaNameLookupRole.Id, CoveringSourceResolver.HazardDivisionLookupRole.Id,
+            CoveringSourceResolver.ProvidedVariableRole.Id,
+        ]);
+        selector.Names.Should().Contain(RoleBindings.BindsPredicateName);
+        selector.Traverse.Should().Contain(RoleBindings.FollowBindings);
     }
 
     [Fact]
@@ -906,23 +943,25 @@ public class CoveringSourceResolverTests
     }
 
     [Fact]
-    public void SelectorFor_ReachesTheVariablesASourceProvidesThroughTheMarkedPredicateAndAsksForThePredicateAlone()
+    public void SelectorFor_ReachesTheVariablesASourceProvidesThroughTheBoundPredicateAndAsksForThePredicateAlone()
     {
-        // The variables are composed from the relationships a source holds through the marked predicate, read out
-        // of the snapshot, so both have to arrive: the variables by a traversal over the flag rather than
-        // a name the model chose, and the predicate by its mark, since a traversal never brings the Thing
+        // The variables are composed from the relationships a source holds through the bound predicate, read out
+        // of the snapshot, so both have to arrive: the variables by a traversal over the role rather than
+        // a name the model chose, and the predicate through its role, since a traversal never brings the Thing
         // it was followed through. Without either every live read left the placeholder unfilled.
+        var role = CoveringSourceResolver.ProvidedVariableRole;
         var selector = CoveringSourceResolver.SelectorFor(Guid.NewGuid());
-        var flags = selector.Traverse!.Select(rule => rule.PredicateFlag).ToList();
+        var roles = selector.Traverse!.Select(rule => rule.PredicateRole).ToList();
         var predicates = selector.Traverse!.Select(rule => rule.Predicate).ToList();
 
-        flags.IndexOf(CoveringSourceResolver.ProvidedVariablePredicateFlag)
+        roles.IndexOf(role.Id)
             .Should().BeGreaterThan(predicates.IndexOf(CoveringSourceResolver.CoversPredicate),
                 "the sources join the set through covers, and a rule applied before its starting points exist finds nothing");
-        selector.Traverse!.Single(rule => rule.PredicateFlag == CoveringSourceResolver.ProvidedVariablePredicateFlag)
+        selector.Traverse!.Single(rule => rule.PredicateRole == role.Id)
             .Predicate.Should().BeEmpty("the broker refuses a rule naming a predicate both ways");
-        selector.MarkedArchetypes.Should().Contain(CoveringSourceResolver.ProvidedVariablePredicateFlag);
-        selector.MarkedTypes.Should().NotContain(CoveringSourceResolver.ProvidedVariablePredicateFlag);
+        selector.BoundArchetypes.Should().Contain(role.Id);
+        selector.BoundTypes.Should().NotContain(role.Id);
+        selector.Ids.Should().Contain(role.Id, "the role Thing and its binding are what say which predicate it is");
     }
 
     [Fact]

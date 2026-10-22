@@ -202,7 +202,7 @@ public class HandleEndpointTests
             if (request.Method == HttpMethod.Post
                 && request.RequestUri!.AbsolutePath == "/api/subscriptions"
                 && request.Content!.ReadAsStringAsync().GetAwaiter().GetResult()
-                    .Contains(CoveringSourceResolver.SiteAnalysisConnectionFlag, StringComparison.Ordinal))
+                    .Contains(CoveringSourceResolver.SiteAnalysisConnectionRole.Id.ToString(), StringComparison.Ordinal))
             {
                 coverageReads++;
                 return new HttpResponseMessage(HttpStatusCode.InternalServerError);
