@@ -25,10 +25,10 @@ public static class RoleBindings
             .ToHashSet();
         if (binds.Count == 0) return [];
 
-        var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
-        return [.. snapshot.Relationships
+        var bound = snapshot.Relationships
             .Where(edge => edge.SubjectId == role.Id && binds.Contains(edge.PredicateId))
-            .Select(edge => thingsById.GetValueOrDefault(edge.TargetId))
-            .OfType<SnapshotThing>()];
+            .Select(edge => edge.TargetId)
+            .ToHashSet();
+        return bound.Count == 0 ? [] : [.. snapshot.Things.Where(thing => bound.Contains(thing.Id))];
     }
 }

@@ -274,6 +274,10 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         if (BoundBy(model, ProposedSiteRoleId) is not { } proposes)
             yield break;
 
+        // Resolved once for the listing: a binding read scans the model, and read per submission it would cost
+        // a queue of hundreds half a second in a model of tens of thousands of Things.
+        var resolvedAs = BoundBy(model, DispositionPredicateRoleId);
+
         // One submission per relationship: a submission is only a submission because it proposes a site, so the
         // walk that finds it is also the walk that says which site travels when it is promoted. A model
         // declares that predicate by relating its own archetypes, and that relationship is asserted through the
@@ -289,13 +293,13 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
                 Value(model, id, "submittedAt"),
                 Target(edge),
                 NameOf(model, Target(edge)),
-                DispositionOf(model, id));
+                DispositionOf(model, resolvedAs, id));
         }
     }
 
-    private static Guid? DispositionOf(ModelSnapshot model, Guid submission) =>
-        BoundBy(model, DispositionPredicateRoleId) is { } resolvedAs
-            ? EdgesThrough(model, resolvedAs).Where(edge => Subject(edge) == submission)
+    private static Guid? DispositionOf(ModelSnapshot model, Guid? resolvedAs, Guid submission) =>
+        resolvedAs is { } predicate
+            ? EdgesThrough(model, predicate).Where(edge => Subject(edge) == submission)
                 .Select(edge => (Guid?)Target(edge)).FirstOrDefault()
             : null;
 
