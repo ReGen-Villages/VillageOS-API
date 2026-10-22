@@ -10,6 +10,8 @@ vi.mock('../../../api/thingApi', () => ({
 }));
 
 import { buildModelIndex } from '../../../api/dashboardApi';
+import { LAND_INTAKE_ROLE } from '../../../api/landIntakeRoles';
+import { playing, withRoles } from '../../../pipeline/roles.test.fixture';
 import type { VosRelationship, VosThing } from '../../../types/vos';
 import { useDecisionExplanations } from './useDecisionExplanations';
 import { decisionsOn, instantReadKey } from './decisionExplanation';
@@ -27,14 +29,14 @@ const EARLIER = '2026-09-21T09:14:03Z';
 /** A reservoir decided about once, or twice where an earlier decision is asked for. Each decision
  *  reads a property off the subject and one off what it chose. */
 function decisions(andAnEarlierOne = false) {
-  const index = buildModelIndex(
+  const index = buildModelIndex(...withRoles(
     [
       thing('is', 'is'),
-      thing('constraintArchetype', 'Constraint', { __IsConstraintArchetype: true }, true),
-      thing('about', 'about', { __IsDecisionSubjectPredicate: true }),
-      thing('chose', 'chose', { __IsChosenPredicate: true }),
-      thing('support', 'support', { __IsSupportPredicate: true }),
-      thing('because', 'because', { __IsConsiderationCausePredicate: true }),
+      thing('constraintArchetype', 'Constraint', playing(LAND_INTAKE_ROLE.Constraint), true),
+      thing('about', 'about', playing(LAND_INTAKE_ROLE.DecisionSubject)),
+      thing('chose', 'chose', playing(LAND_INTAKE_ROLE.Chosen)),
+      thing('support', 'support', playing(LAND_INTAKE_ROLE.Support)),
+      thing('because', 'because', playing(LAND_INTAKE_ROLE.ConsiderationCause)),
       thing('decision', 'sourcing-1', { decidedAt: INSTANT }),
       thing('reservoir', 'RESERVOIR-1'),
       thing('catchment', 'CATCHMENT-7'),
@@ -67,7 +69,7 @@ function decisions(andAnEarlierOne = false) {
           ]
         : []),
     ],
-  );
+  ));
   return decisionsOn('reservoir', index);
 }
 

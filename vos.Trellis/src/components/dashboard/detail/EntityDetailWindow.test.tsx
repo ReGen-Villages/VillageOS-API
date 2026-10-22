@@ -29,7 +29,9 @@ vi.mock('../../../api/thingApi', () => ({
 }));
 
 import { buildModelIndex } from '../../../api/dashboardApi';
+import { LAND_INTAKE_ROLE } from '../../../api/landIntakeRoles';
 import { ROLE } from '../../../pipeline/model';
+import { playing, withRoles } from '../../../pipeline/roles.test.fixture';
 import type { VosThing, VosRelationship } from '../../../types/vos';
 import type { DetailSpecification } from '../../../types/dashboard';
 import { formatTimestamp } from '../../../utils/formatters';
@@ -90,19 +92,19 @@ const DECIDED_AT = '2026-09-22T09:14:03Z';
  * value the model holds now is 999, so a number read at the instant cannot be mistaken for a live one.
  */
 function indexWithADecision(andAnEarlierOne = false) {
-  return buildModelIndex(
+  return buildModelIndex(...withRoles(
     [
       ...(andAnEarlierOne ? [thing('earlier', 'sourcing-0', { decidedAt: '2026-09-21T09:14:03Z' })] : []),
       thing('is', 'is'),
-      thing('decisionArchetype', 'Decision', { __IsDecisionArchetype: true }, true),
-      thing('constraintArchetype', 'Constraint', { __IsConstraintArchetype: true }, true),
-      thing('about', 'about', { __IsDecisionSubjectPredicate: true }),
-      thing('chose', 'chose', { __IsChosenPredicate: true }),
-      thing('under', 'under', { __IsDecidedUnderPredicate: true }),
-      thing('support', 'support', { __IsSupportPredicate: true }),
-      thing('refusal', 'refusal', { __IsRefusalPredicate: true }),
-      thing('because', 'because', { __IsConsiderationCausePredicate: true }),
-      thing('refused', 'refused', { __IsRefusedCandidatePredicate: true }),
+      thing('decisionArchetype', 'Decision', playing(LAND_INTAKE_ROLE.Decision), true),
+      thing('constraintArchetype', 'Constraint', playing(LAND_INTAKE_ROLE.Constraint), true),
+      thing('about', 'about', playing(LAND_INTAKE_ROLE.DecisionSubject)),
+      thing('chose', 'chose', playing(LAND_INTAKE_ROLE.Chosen)),
+      thing('under', 'under', playing(LAND_INTAKE_ROLE.DecidedUnder)),
+      thing('support', 'support', playing(LAND_INTAKE_ROLE.Support)),
+      thing('refusal', 'refusal', playing(LAND_INTAKE_ROLE.Refusal)),
+      thing('because', 'because', playing(LAND_INTAKE_ROLE.ConsiderationCause)),
+      thing('refused', 'refused', playing(LAND_INTAKE_ROLE.RefusedCandidate)),
       thing('sourcingKind', 'Sourcing'),
       thing('decision', 'sourcing-1', { decidedAt: DECIDED_AT, score: 0.31, candidatesConsidered: 4 }),
       thing('reservoir', 'RESERVOIR-1', { requestedCubicMetres: 999, capacityCubicMetres: 999 }),
@@ -132,7 +134,7 @@ function indexWithADecision(andAnEarlierOne = false) {
       relationship('d8', 'refusalOne', 'refused', 'catchment9'),
       ...(andAnEarlierOne ? [relationship('d9', 'earlier', 'about', 'reservoir')] : []),
     ],
-  );
+  ));
 }
 
 const SPECIFICATION: DetailSpecification = { relations: [{ predicate: 'feeds', direction: 'out' }] };
@@ -262,14 +264,14 @@ describe('EntityDetailWindow', () => {
   });
 
   it('says a decision chose nothing, which is itself a decision worth keeping', async () => {
-    const model = buildModelIndex(
+    const model = buildModelIndex(...withRoles(
       [
-        thing('about', 'about', { __IsDecisionSubjectPredicate: true }),
+        thing('about', 'about', playing(LAND_INTAKE_ROLE.DecisionSubject)),
         thing('decision', 'sourcing-1', { decidedAt: DECIDED_AT }),
         thing('reservoir', 'RESERVOIR-1'),
       ],
       [relationship('d1', 'decision', 'about', 'reservoir')],
-    );
+    ));
     open({ modelIndex: model, thingId: 'reservoir' });
 
     expect(await screen.findByText('chose nothing')).toBeInTheDocument();
