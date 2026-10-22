@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildModelIndex } from '../../../api/dashboardApi';
+import { LAND_INTAKE_ROLE } from '../../../api/landIntakeRoles';
+import { playing, withRoles } from '../../../pipeline/roles.test.fixture';
 import type { VosRelationship, VosThing } from '../../../types/vos';
 import {
   comparisonsOf,
@@ -19,21 +21,21 @@ function relationship(Id: string, SubjectId: string, PredicateId: string, Target
 const INSTANT = '2026-09-22T09:14:03Z';
 const EARLIER = '2026-09-21T09:14:03Z';
 
-/** The vocabulary a shipped template declares, under names of this model's own choosing. Built per
- *  call, because a test that takes a mark away would otherwise take it away from every test after it. */
+/** The vocabulary a shipped template declares, under names of this model's own choosing, each Thing
+ *  bound by its role once `withRoles` has turned the fixture into what a model holds. */
 const vocabulary = (): VosThing[] => [
   thing('is', 'is'),
-  thing('decisionArchetype', 'Decision', { __IsDecisionArchetype: true }, true),
-  thing('considerationArchetype', 'Consideration', { __IsConsiderationArchetype: true }, true),
-  thing('constraintArchetype', 'Constraint', { __IsConstraintArchetype: true }, true),
-  thing('about', 'about', { __IsDecisionSubjectPredicate: true }),
-  thing('chose', 'chose', { __IsChosenPredicate: true }),
-  thing('under', 'under', { __IsDecidedUnderPredicate: true }),
-  thing('refusal', 'refusal', { __IsRefusalPredicate: true }),
-  thing('support', 'support', { __IsSupportPredicate: true }),
-  thing('because', 'because', { __IsConsiderationCausePredicate: true }),
-  thing('cites', 'cites', { __IsConsiderationEvidencePredicate: true }),
-  thing('refused', 'refused', { __IsRefusedCandidatePredicate: true }),
+  thing('decisionArchetype', 'Decision', playing(LAND_INTAKE_ROLE.Decision), true),
+  thing('considerationArchetype', 'Consideration', playing(LAND_INTAKE_ROLE.Consideration), true),
+  thing('constraintArchetype', 'Constraint', playing(LAND_INTAKE_ROLE.Constraint), true),
+  thing('about', 'about', playing(LAND_INTAKE_ROLE.DecisionSubject)),
+  thing('chose', 'chose', playing(LAND_INTAKE_ROLE.Chosen)),
+  thing('under', 'under', playing(LAND_INTAKE_ROLE.DecidedUnder)),
+  thing('refusal', 'refusal', playing(LAND_INTAKE_ROLE.Refusal)),
+  thing('support', 'support', playing(LAND_INTAKE_ROLE.Support)),
+  thing('because', 'because', playing(LAND_INTAKE_ROLE.ConsiderationCause)),
+  thing('cites', 'cites', playing(LAND_INTAKE_ROLE.ConsiderationEvidence)),
+  thing('refused', 'refused', playing(LAND_INTAKE_ROLE.RefusedCandidate)),
 ];
 
 /**
@@ -80,7 +82,7 @@ function sourcing(overrides: { constraint?: Record<string, unknown>; cites?: str
 
   if (overrides.cites) relationships.push(relationship('e9', 'supportOne', 'cites', overrides.cites));
 
-  return buildModelIndex(things, relationships);
+  return buildModelIndex(...withRoles(things, relationships));
 }
 
 function readings(entries: [string, VosThing | null][]): InstantReadings {
@@ -125,21 +127,59 @@ describe('the decisions on a Thing', () => {
 
   it('puts the latest first and settles a tie on the instant by the identifier, as the retirement does', () => {
     const index = buildModelIndex(
-      [
-        ...vocabulary(),
-        thing('subject', 'RESERVOIR-1'),
-        thing('a', 'a', { decidedAt: INSTANT }),
-        thing('b', 'b', { decidedAt: INSTANT }),
-        thing('c', 'c', { decidedAt: EARLIER }),
-      ],
-      [
-        relationship('e1', 'a', 'about', 'subject'),
-        relationship('e2', 'b', 'about', 'subject'),
-        relationship('e3', 'c', 'about', 'subject'),
-      ],
+      ...withRoles(
+        [
+          ...vocabulary(),
+          thing('subject', 'RESERVOIR-1'),
+          thing('a', 'a', { decidedAt: INSTANT }),
+          thing('b', 'b', { decidedAt: INSTANT }),
+          thing('c', 'c', { decidedAt: EARLIER }),
+        ],
+        [
+          relationship('e1', 'a', 'about', 'subject'),
+          relationship('e2', 'b', 'about', 'subject'),
+          relationship('e3', 'c', 'about', 'subject'),
+        ],
+      ),
     );
 
     expect(decisionsOn('subject', index).map((decision) => decision.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('follows a predicate refined from the bound one, as the platform does', () => {
+    const index = buildModelIndex(
+      ...withRoles(
+        [
+          ...vocabulary(),
+          thing('refusalOnCost', 'refusal on cost'),
+          thing('subject', 'RESERVOIR-1'),
+          thing('decision', 'sourcing-1', { decidedAt: INSTANT }),
+          thing('refusalOne', 'refusal-1'),
+          thing('ruleA', 'too dear'),
+        ],
+        [
+          relationship('k1', 'refusalOnCost', 'is', 'refusal'),
+          relationship('e1', 'decision', 'about', 'subject'),
+          relationship('e2', 'decision', 'refusalOnCost', 'refusalOne'),
+          relationship('e3', 'refusalOne', 'because', 'ruleA'),
+        ],
+      ),
+    );
+
+    expect(decisionsOn('subject', index)[0].refusals.map((refusal) => refusal.cause?.name)).toEqual(['too dear']);
+  });
+
+  it('reads nothing from a model that binds no role, whatever marks its Things carry', () => {
+    const index = buildModelIndex(
+      [
+        thing('about', 'about', { __IsDecisionSubjectPredicate: true }),
+        thing('subject', 'RESERVOIR-1'),
+        thing('decision', 'sourcing-1', { decidedAt: INSTANT }),
+      ],
+      [relationship('e1', 'decision', 'about', 'subject')],
+    );
+
+    expect(decisionsOn('subject', index)).toEqual([]);
   });
 });
 
@@ -153,18 +193,20 @@ describe('what a decision asks to be read at its instant', () => {
 
   it('asks for nothing where no cause is a constraint', () => {
     const index = buildModelIndex(
-      [
-        ...vocabulary(),
-        thing('subject', 'RESERVOIR-1'),
-        thing('decision', 'sourcing-1', { decidedAt: INSTANT }),
-        thing('consideration', 'support-1'),
-        thing('reason', 'the warden asked for it'),
-      ],
-      [
-        relationship('e1', 'decision', 'about', 'subject'),
-        relationship('e2', 'decision', 'support', 'consideration'),
-        relationship('e3', 'consideration', 'because', 'reason'),
-      ],
+      ...withRoles(
+        [
+          ...vocabulary(),
+          thing('subject', 'RESERVOIR-1'),
+          thing('decision', 'sourcing-1', { decidedAt: INSTANT }),
+          thing('consideration', 'support-1'),
+          thing('reason', 'the warden asked for it'),
+        ],
+        [
+          relationship('e1', 'decision', 'about', 'subject'),
+          relationship('e2', 'decision', 'support', 'consideration'),
+          relationship('e3', 'consideration', 'because', 'reason'),
+        ],
+      ),
     );
 
     expect(instantReadsFor(decisionsOn('subject', index))).toEqual([]);
@@ -336,7 +378,7 @@ describe('what a decision leaves unanswered', () => {
     ]);
   });
 
-  it('reads a cause of a kind declared below the marked archetype as the constraint it is', () => {
+  it('reads a cause of a kind declared below the bound archetype as the constraint it is', () => {
     const index = sourcing();
     index.isParents.set('capacity', ['volumeConstraintKind']);
     index.isParents.set('volumeConstraintKind', ['constraintArchetype']);
@@ -352,17 +394,18 @@ describe('what a decision leaves unanswered', () => {
   });
 });
 
-describe('how the marks are read', () => {
-  it('remembers the wiring against the index rather than reading the marks once per card', () => {
+describe('how the roles are read', () => {
+  it('remembers the wiring against the index rather than following the bindings once per card', () => {
     const index = sourcing();
     expect(decisionsOn('reservoir', index)).toHaveLength(1);
 
-    index.byId.get('about')!.Properties = {};
+    index.relationshipsByPredicate.set('binds', []);
+    index.adjacencyByPredicate.clear();
 
     expect(decisionsOn('reservoir', index)).toHaveLength(1);
   });
 
-  it('passes over a predicate the read did not carry, rather than reading a mark off nothing', () => {
+  it('passes over a predicate the read did not carry, though the binding names it', () => {
     const index = sourcing();
     index.byId.delete('chose');
 

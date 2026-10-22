@@ -19,8 +19,22 @@ import {
 } from '../types/dashboard';
 import { DISPLAY_SETTINGS_ROLE_ID, PAGE_ROLE_ID } from './platformRoles';
 import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ROLE } from './propertyNames';
-import { BINDS_PREDICATE_NAME } from './landIntakeRoles';
+import { BINDS_PREDICATE_NAME, LAND_INTAKE_ROLE } from './landIntakeRoles';
 import type { SubscriptionSelector, TraverseDirection, TraverseRule } from '../types/subscription';
+
+/** A detail card explains the decisions about the Thing it opens on, so every dashboard is sent the roles
+ *  binding the decision predicates and the constraint archetype; the predicates themselves arrive along `binds`. */
+const DECISION_ROLES_A_DETAIL_CARD_READS = [
+  LAND_INTAKE_ROLE.Constraint,
+  LAND_INTAKE_ROLE.DecisionSubject,
+  LAND_INTAKE_ROLE.Chosen,
+  LAND_INTAKE_ROLE.DecidedUnder,
+  LAND_INTAKE_ROLE.Refusal,
+  LAND_INTAKE_ROLE.Support,
+  LAND_INTAKE_ROLE.ConsiderationCause,
+  LAND_INTAKE_ROLE.ConsiderationEvidence,
+  LAND_INTAKE_ROLE.RefusedCandidate,
+];
 
 /**
  * What every page reads whatever it shows: the page kind and the pages the navigation lists, the Thing the
@@ -252,12 +266,13 @@ function namedThings(specification: DashboardSpecification): { ids: string[]; na
 export function subscriptionForSpecification(specification: DashboardSpecification, scopeId: string | null): SubscriptionSelector {
   const named = namedThings(specification);
   const levers = offersLevers(specification);
-  // Followed last, and the property-name role to the archetype it binds after that, so no walk the
-  // specification takes is applied to the archetypes it reaches.
+  // Followed last, and the roles to the Things they bind after that, so no walk the specification takes
+  // is applied to what the roles reach.
   const traverse = [
     ...scopeRules(specification),
     ...walkRules(specificationWalks(specification)),
-    ...(levers ? [ruleFor(NAMES_PROPERTY_OF_PREDICATE, 'out', 1), ruleFor(BINDS_PREDICATE_NAME, 'out', 1)] : []),
+    ...(levers ? [ruleFor(NAMES_PROPERTY_OF_PREDICATE, 'out', 1)] : []),
+    ruleFor(BINDS_PREDICATE_NAME, 'out', 1),
   ];
   // A Thing is created before it is typed, so only a subscription that keeps following its types is
   // sent the Thing when its `is` relationship admits it — which is what lets a roster grow on a page left open.
@@ -267,6 +282,7 @@ export function subscriptionForSpecification(specification: DashboardSpecificati
       ...(scopeId ? [scopeId] : []),
       ...named.ids,
       ...(levers ? [PROPERTY_NAME_ROLE] : []),
+      ...DECISION_ROLES_A_DETAIL_CARD_READS,
     ])],
     boundTypes: [...NAVIGATION_AND_SETTINGS.boundTypes!, ...(levers ? [PROPERTY_NAME_ROLE] : [])],
     boundArchetypes: NAVIGATION_AND_SETTINGS.boundArchetypes,

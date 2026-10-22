@@ -29,6 +29,18 @@ export const LAND_INTAKE_ROLE = {
   SubmitterFindingsDashboard: '3a2e1317-ea1d-5f38-be9d-6c2faf0a30a7',
   RootPlace: '18d228a8-2bed-5b05-8026-2526cf939dfd',
   PlaceNesting: 'c3c9edde-b271-5a52-8f23-cc6bae9ea1d1',
+  Decision: 'b29b4a43-211b-5d07-9ca1-761675bafc6b',
+  Consideration: '9727515b-7d2d-5654-993a-0a672ca55626',
+  Constraint: '389ba00e-3e4e-5559-8f9c-de9da5d4356d',
+  DecisionSubject: 'aee6f88a-f53c-5ddf-a469-95d62544a857',
+  Chosen: '969edafa-9d2b-56d7-b017-49ae65ce141b',
+  DecidedUnder: '505d8032-d3b7-5c9b-8cfb-a8bdda126624',
+  Decider: '83ee7bd0-bc28-5888-bce3-636a4bd27fea',
+  Refusal: '530a0d7f-5cac-5bb9-8ca7-c2d6fb63b50b',
+  Support: '9b0bc62e-90fa-5c77-9238-4b20b606053b',
+  ConsiderationCause: 'a6a352aa-731f-5a89-a04c-48eef142d4fd',
+  ConsiderationEvidence: 'fe9f09f2-1d77-5867-adcc-4db302552ae5',
+  RefusedCandidate: '3634a526-0bab-5e7b-ae8f-6d822ce7c1b1',
 } as const;
 
 /** The platform's own predicate a role Thing reaches the Thing playing it along, and so found by name. */

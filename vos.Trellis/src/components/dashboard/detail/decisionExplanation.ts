@@ -1,5 +1,5 @@
 /**
- * Why a service decided about one Thing, read from the marks the platform declares.
+ * Why a service decided about one Thing, read through the roles the platform's site template binds.
  *
  * A decision is a Thing. It reaches the subject it is about, what it chose, the rule it was decided
  * under, and the considerations that spoke for the choice or turned candidates away. A consideration
@@ -8,28 +8,27 @@
  * decision carries.
  *
  * Nothing here names a predicate, an archetype or a kind. What a model calls them is its own; what is
- * fixed is the flag each one carries.
+ * fixed is the role each one is bound by.
  */
-import type { ModelIndex } from '../../../api/dashboardApi';
+import { thingIdBoundBy, type ModelIndex } from '../../../api/dashboardApi';
+import { LAND_INTAKE_ROLE } from '../../../api/landIntakeRoles';
 import type { VosThing } from '../../../types/vos';
 
-const IS_CONSTRAINT_ARCHETYPE = '__IsConstraintArchetype';
-
-/** How the platform marks each predicate of the vocabulary, whatever this model calls them. */
-const DECISION_FLAGS = {
-  subject: '__IsDecisionSubjectPredicate',
-  chosen: '__IsChosenPredicate',
-  decidedUnder: '__IsDecidedUnderPredicate',
-  refusal: '__IsRefusalPredicate',
-  support: '__IsSupportPredicate',
-  cause: '__IsConsiderationCausePredicate',
-  cited: '__IsConsiderationEvidencePredicate',
-  refusedCandidate: '__IsRefusedCandidatePredicate',
+/** The role binding each predicate of the vocabulary, whatever this model calls them. */
+const PREDICATE_ROLES = {
+  subject: LAND_INTAKE_ROLE.DecisionSubject,
+  chosen: LAND_INTAKE_ROLE.Chosen,
+  decidedUnder: LAND_INTAKE_ROLE.DecidedUnder,
+  refusal: LAND_INTAKE_ROLE.Refusal,
+  support: LAND_INTAKE_ROLE.Support,
+  cause: LAND_INTAKE_ROLE.ConsiderationCause,
+  cited: LAND_INTAKE_ROLE.ConsiderationEvidence,
+  refusedCandidate: LAND_INTAKE_ROLE.RefusedCandidate,
 } as const;
 
-type DecisionRole = keyof typeof DECISION_FLAGS;
+type DecisionRole = keyof typeof PREDICATE_ROLES;
 
-const ROLE_FLAGS = Object.entries(DECISION_FLAGS) as [DecisionRole, string][];
+const PREDICATE_ROLE_IDS = Object.entries(PREDICATE_ROLES) as [DecisionRole, string][];
 
 const DECIDED_AT = 'decidedAt';
 const SCORE = 'score';
@@ -79,7 +78,7 @@ export interface Consideration {
 export interface DecisionExplanation {
   id: string;
   name: string;
-  /** The kind the product declared below the marked archetype. */
+  /** The kind the product declared below the archetype the decision role binds. */
   kindName?: string;
   decidedAt?: string;
   subject?: NamedThing;
@@ -98,34 +97,38 @@ type DecisionWiring = Record<DecisionRole, Set<string>>;
 const wiringByIndex = new WeakMap<ModelIndex, DecisionWiring>();
 
 /**
- * The predicates owning each flag.
- *
- * Only the predicates that assert something are looked at, rather than every Thing in the model: one
- * asserting nothing reaches nothing, and a card open while a model runs would otherwise pay a walk
- * over the whole model on every flush.
- *
- * Read from what a predicate owns, never from what it inherited: a role flag is handed down to every
- * instance, which would make every decision look like a predicate. Several may own one flag — a model
- * is free to declare two words for turning a candidate away — and all of them count, because the
- * platform reads the mark rather than the word.
+ * The predicates playing each role: the one the role binds and every predicate refined from it through
+ * `is`, as the platform reads a bound predicate. A model is free to declare two words for turning a
+ * candidate away by refining the bound one, and both count.
  */
 function decisionWiring(modelIndex: ModelIndex): DecisionWiring {
   const remembered = wiringByIndex.get(modelIndex);
   if (remembered) return remembered;
 
-  const wiring = Object.fromEntries(ROLE_FLAGS.map(([role]) => [role, new Set<string>()])) as DecisionWiring;
-  for (const predicateId of modelIndex.relationshipsByPredicate.keys()) {
-    // A relationship can name a predicate the read did not carry, because what a caller may read is
-    // narrowed by the grants it holds while the relationships naming it are not.
-    const predicate = modelIndex.byId.get(predicateId);
-    if (!predicate) continue;
-    for (const [role, flag] of ROLE_FLAGS) {
-      if (predicate.Properties[flag] === true) wiring[role].add(predicateId);
+  const wiring = Object.fromEntries(PREDICATE_ROLE_IDS.map(([role]) => [role, new Set<string>()])) as DecisionWiring;
+  for (const [role, roleId] of PREDICATE_ROLE_IDS) {
+    for (const predicateId of boundAndBeneath(roleId, modelIndex)) {
+      // A relationship can name a predicate the read did not carry, because what a caller may read is
+      // narrowed by the grants it holds while the relationships naming it are not.
+      if (modelIndex.byId.has(predicateId)) wiring[role].add(predicateId);
     }
   }
 
   wiringByIndex.set(modelIndex, wiring);
   return wiring;
+}
+
+function boundAndBeneath(roleId: string, modelIndex: ModelIndex): Set<string> {
+  const beneath = new Set<string>();
+  const bound = thingIdBoundBy(roleId, modelIndex);
+  const frontier = bound ? [bound] : [];
+  while (frontier.length) {
+    const current = frontier.pop()!;
+    if (beneath.has(current)) continue;
+    beneath.add(current);
+    frontier.push(...(modelIndex.isChildren.get(current) ?? []));
+  }
+  return beneath;
 }
 
 function named(id: string, modelIndex: ModelIndex): NamedThing {
@@ -152,17 +155,18 @@ function subjectsOf(targetId: string, predicateIds: Set<string>, modelIndex: Mod
   return subjects;
 }
 
-/** Whether the Thing is of an archetype owning the flag, walking the `is`-chain upward. The walk
- *  starts above the Thing, because an archetype is not one of its own members: a Thing owning the
- *  flag is the declaration rather than something declared by it. */
-function isOfArchetypeCarrying(thingId: string, flag: string, modelIndex: ModelIndex): boolean {
+/** Whether the Thing is of the archetype a role binds, walking the `is`-chain upward. The walk starts
+ *  above the Thing, because an archetype is not one of its own members. */
+function isOfArchetypeBoundBy(thingId: string, roleId: string, modelIndex: ModelIndex): boolean {
+  const archetypeId = thingIdBoundBy(roleId, modelIndex);
+  if (!archetypeId) return false;
   const seen = new Set<string>([thingId]);
   const frontier = [...(modelIndex.isParents.get(thingId) ?? [])];
   while (frontier.length) {
     const current = frontier.pop()!;
     if (seen.has(current)) continue;
     seen.add(current);
-    if (modelIndex.byId.get(current)?.Properties[flag] === true) return true;
+    if (current === archetypeId) return true;
     frontier.push(...(modelIndex.isParents.get(current) ?? []));
   }
   return false;
@@ -211,7 +215,7 @@ function considerationOf(
     measured: numberOf(properties, MEASURED),
     limit: numberOf(properties, LIMIT),
     constraint:
-      cause && isOfArchetypeCarrying(cause.Id, IS_CONSTRAINT_ARCHETYPE, modelIndex)
+      cause && isOfArchetypeBoundBy(cause.Id, LAND_INTAKE_ROLE.Constraint, modelIndex)
         ? constraintOf(cause)
         : undefined,
   };
