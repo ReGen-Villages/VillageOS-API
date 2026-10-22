@@ -3,6 +3,7 @@ using FluentAssertions;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
 using Xunit;
+using vos.Service.Shared.Roles;
 
 namespace vos.Service.Phloem.Tests;
 
@@ -243,7 +244,7 @@ public class PipelineModelTests
 
         roles.Should().NotBeEmpty();
         foreach (var role in roles)
-            role.Id.Should().Be(StandardVersion5(PipelineRoles.RoleNamespace, role.Word), $"the role {role.Word}");
+            role.Id.Should().Be(StandardVersion5(RoleIdentity.Namespace, role.Word), $"the role {role.Word}");
     }
 
     private static Guid StandardVersion5(Guid @namespace, string name)

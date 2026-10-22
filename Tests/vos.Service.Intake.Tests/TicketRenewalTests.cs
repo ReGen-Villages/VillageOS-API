@@ -147,12 +147,6 @@ public class TicketRenewalTests
     {
         var asked = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
         using var selector = JsonDocument.Parse(asked);
-        var rootedAt = selector.RootElement.TryGetProperty("traverse", out var traverse)
-                       && traverse.ValueKind == JsonValueKind.Array
-                       && traverse.GetArrayLength() > 0
-            ? Guid.Parse(selector.RootElement.GetProperty("ids")[0].GetString()!)
-            : (Guid?)null;
-
-        return rootedAt is { } site ? model.OpenedReaching(site) : model.Opened();
+        return BrokerSnapshot.RootedAt(selector.RootElement) is { } site ? model.OpenedReaching(site) : model.Opened();
     }
 }

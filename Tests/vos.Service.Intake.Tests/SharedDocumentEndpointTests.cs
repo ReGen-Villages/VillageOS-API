@@ -14,8 +14,8 @@ namespace vos.Service.Intake.Tests;
 
 // A file a submitter shares about their land. The bytes are kept under a folder beside
 // this service, keyed by submission; the model gets the Thing it declares for a shared file, related
-// to the submission's project through the predicate the model marks; and the files of a submission
-// the model no longer holds are taken out with it.
+// to the submission's project through the predicate the model binds to the shares role; and the files of
+// a submission the model no longer holds are taken out with it.
 public sealed class SharedDocumentEndpointTests : IDisposable
 {
     private const string TicketHeader = "X-Submission-Ticket";
@@ -37,10 +37,10 @@ public sealed class SharedDocumentEndpointTests : IDisposable
     // one file the project already shares.
     private static BrokerSnapshot ModelWithDocuments() =>
         BrokerSnapshot.WithTwoSubmissions()
-            .Thing(DocumentArchetype, "SharedDocument", isArchetype: true,
-                properties: new Dictionary<string, object> { [SharedDocumentReader.ArchetypeFlag] = new { typeInfo = "vos.Boolean", value = true } })
-            .Thing(SharesPredicate, "shares",
-                properties: new Dictionary<string, object> { [SharedDocumentReader.PredicateFlag] = new { typeInfo = "vos.Boolean", value = true } })
+            .Thing(DocumentArchetype, "SharedDocument", isArchetype: true)
+            .Thing(SharesPredicate, "shares")
+            .Bound(SharedDocumentReader.ArchetypeRole, DocumentArchetype)
+            .Bound(SharedDocumentReader.PredicateRole, SharesPredicate)
             .Thing(ThisProject, "Willow Bend project")
             .Thing(StableIdentity.Derive(WillowBend.SubmissionId, SubmissionFragmentComposer.SubmissionRole), "Willow Bend Submission")
             .Thing(AnEarlierDocument, "survey.pdf", properties: new Dictionary<string, object>
@@ -77,12 +77,12 @@ public sealed class SharedDocumentEndpointTests : IDisposable
         {
             var asked = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
             using var selector = JsonDocument.Parse(asked);
-            var walks = selector.RootElement.TryGetProperty("traverse", out var traverse)
-                        && traverse.ValueKind == JsonValueKind.Array && traverse.GetArrayLength() > 0;
             // The fixture's rooted walk follows the page's own predicates; the listing walks `shares`, which
             // the whole model answers as well as a rooted one would.
-            var listing = walks && traverse[0].GetProperty("predicate").GetString() == "shares";
-            return walks && !listing ? model.OpenedReaching(Guid.Parse(selector.RootElement.GetProperty("ids")[0].GetString()!)) : model.Opened();
+            var listing = selector.RootElement.TryGetProperty("traverse", out var traverse)
+                          && traverse.ValueKind == JsonValueKind.Array && traverse.GetArrayLength() > 0
+                          && traverse[0].GetProperty("predicate").GetString() == "shares";
+            return !listing && BrokerSnapshot.RootedAt(selector.RootElement) is { } site ? model.OpenedReaching(site) : model.Opened();
         }
     }
 

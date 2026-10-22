@@ -14,7 +14,6 @@ public sealed class SubmissionIntakeService(
     private static readonly string[] ArchetypeNames =
     [
         SubmissionFragmentComposer.SiteArchetypeName,
-        SubmissionFragmentComposer.SiteStudyArchetypeName,
         SubmissionFragmentComposer.ParcelArchetypeName,
         SubmissionFragmentComposer.ProjectArchetypeName,
         SubmissionFragmentComposer.ContactArchetypeName,
@@ -54,7 +53,6 @@ public sealed class SubmissionIntakeService(
             await studies, await has, await isEdge, await proposes, await servedAfter);
         var archetypes = new ResolvedArchetypes(
             found[SubmissionFragmentComposer.SiteArchetypeName]!.Value,
-            found[SubmissionFragmentComposer.SiteStudyArchetypeName]!.Value,
             found[SubmissionFragmentComposer.ParcelArchetypeName]!.Value,
             found[SubmissionFragmentComposer.ProjectArchetypeName]!.Value,
             found[SubmissionFragmentComposer.ContactArchetypeName]!.Value,
@@ -65,6 +63,7 @@ public sealed class SubmissionIntakeService(
 
         // After the archetype gate rather than beside the lookups above. Both refuse an unseeded model, and
         // run together the one that answered first would decide which of the two refusals the planner saw.
+        // The study's archetype comes with it, found through its role rather than by a name.
         var vocabulary = await ReadDeclaredVocabularyAsync(cancellation);
 
         var composed = SubmissionFragmentComposer.Compose(

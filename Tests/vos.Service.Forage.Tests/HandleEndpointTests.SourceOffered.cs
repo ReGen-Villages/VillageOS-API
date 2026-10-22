@@ -66,7 +66,7 @@ public class HandleEndpointSourceOfferedTests
 
     private static Archetype[] Archetypes() =>
     [
-        new Archetype("Site", CoveringSourceResolver.SiteArchetypeFlag),
+        new Archetype("Site", BoundBy: CoveringSourceResolver.SiteRole),
         new Archetype("SourceCoverage", CoveringSourceResolver.SourceCoverageArchetypeFlag),
         new Archetype("DataSource"),
     ];
@@ -223,7 +223,7 @@ public class HandleEndpointSourceOfferedTests
         var ids = Ids();
 
         var writes = await Dispatch(ids, "NationalFloodPortal", Edges(), archetypes:
-            [new Archetype("Site", CoveringSourceResolver.SiteArchetypeFlag), new Archetype("DataSource")]);
+            [new Archetype("Site", BoundBy: CoveringSourceResolver.SiteRole), new Archetype("DataSource")]);
 
         writes.Minted.Should().BeEmpty();
         writes.Facts.Should().BeEmpty();

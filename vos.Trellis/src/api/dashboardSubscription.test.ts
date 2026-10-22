@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { NAVIGATION_AND_SETTINGS, subscriptionForSpecification } from './dashboardSubscription';
 import type { DashboardSpecification } from '../types/dashboard';
-import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ARCHETYPE_MARK } from './propertyNames';
+import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ROLE } from './propertyNames';
+import { BINDS_PREDICATE_NAME } from './landIntakeRoles';
 
 const SCOPE_ID = '11111111-2222-3333-4444-555555555555';
 
@@ -533,18 +534,25 @@ describe('a verdict that offers levers', () => {
     });
   }
 
+  // The names come through the role that binds their archetype, with the role Thing and its binding so the
+  // page can tell that archetype from the others it loaded, and the binding followed last of all.
   it('asks for the names a model declares for its inputs, and the archetypes they name', () => {
     const selector = subscriptionForSpecification(verdictWidget(true), null);
 
-    expect(selector.markedTypes).toEqual([PROPERTY_NAME_ARCHETYPE_MARK]);
-    expect(selector.traverse?.at(-1)).toEqual({ predicate: NAMES_PROPERTY_OF_PREDICATE, direction: 'outgoing', depth: 1 });
+    expect(selector.boundTypes).toEqual([PROPERTY_NAME_ROLE]);
+    expect(selector.ids).toContain(PROPERTY_NAME_ROLE);
+    expect(selector.traverse?.at(-2)).toEqual({ predicate: NAMES_PROPERTY_OF_PREDICATE, direction: 'outgoing', depth: 1 });
+    expect(selector.traverse?.at(-1)).toEqual({ predicate: BINDS_PREDICATE_NAME, direction: 'outgoing', depth: 1 });
     expect(selector.names).toContain(NAMES_PROPERTY_OF_PREDICATE);
+    expect(selector.names).toContain(BINDS_PREDICATE_NAME);
   });
 
   it('asks for no names when no verdict offers a lever', () => {
     const selector = subscriptionForSpecification(verdictWidget(false), null);
 
-    expect(selector.markedTypes).toBeUndefined();
+    expect(selector.boundTypes).toBeUndefined();
+    expect(selector.ids ?? []).not.toContain(PROPERTY_NAME_ROLE);
     expect(selector.names).not.toContain(NAMES_PROPERTY_OF_PREDICATE);
+    expect(selector.names).not.toContain(BINDS_PREDICATE_NAME);
   });
 });

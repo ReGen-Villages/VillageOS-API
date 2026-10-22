@@ -1,15 +1,12 @@
+using vos.Service.Shared.Roles;
+
 namespace vos.Service.Phloem.Model;
 
-// A role the orchestrator reads. The word appears only in what a refusal says; the model is read by the identifier.
-public sealed record Role(string Word, Guid Id);
-
 // Each role is a Thing the model declares, and it binds the one Thing playing it along `binds`. A role's identifier
-// is the standard version 5 identifier of its word under RoleNamespace, so every seed declares the same role and a
-// model may call the Thing playing it whatever suits it.
+// is the standard version 5 identifier of its word under RoleIdentity.Namespace, so every seed declares the same role
+// and a model may call the Thing playing it whatever suits it.
 public static class PipelineRoles
 {
-    public static readonly Guid RoleNamespace = new("c33fcf16-6706-4f93-bfa5-8997bfaaf4bd");
-
     public static readonly Role Pipeline = new("pipeline", new("f8bc9986-6eef-54d9-9940-4aca2497109b"));
     public static readonly Role PipelineNode = new("pipelineNode", new("f273f058-e3d6-5a20-aa37-34638ce64735"));
     public static readonly Role PipelineInput = new("pipelineInput", new("634f9ae3-2cca-5dd9-84aa-fec4dff07a6d"));

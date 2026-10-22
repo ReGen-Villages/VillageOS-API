@@ -18,13 +18,30 @@ public sealed record ModelSnapshot(
         await client.GetAllPropertiesAsync("effective"));
 }
 
-// Reading Things, relationships and marks off a ModelSnapshot. Nothing here names an
-// archetype or a predicate: a role is found by the mark the model puts on its own vocabulary.
+// Reading Things, relationships and role bindings off a ModelSnapshot. Nothing here names an
+// archetype or a predicate: a role is found through the role Thing that binds it.
 public static class ModelReading
 {
-    // The platform's one canonical predicate, and the only predicate name a reader may hold: it
-    // is the platform's own vocabulary rather than any model's, and nothing marks it.
+    // The platform's own predicates, and the only predicate names a reader may hold: they are the
+    // platform's vocabulary rather than any model's, and nothing marks or binds them.
     public const string IsPredicateName = "is";
+    public const string BindsPredicateName = "binds";
+
+    // The Thing a role binds, read from the role Thing's own `binds` relationship, never from a name. A role
+    // the model binds to nothing, or that it binds twice, answers with none.
+    public static Guid? BoundBy(ModelSnapshot model, Guid roleId)
+    {
+        if (OneNamed(model, BindsPredicateName) is not { } binds) return null;
+        var bound = EdgesThrough(model, binds).Where(edge => Subject(edge) == roleId).Select(Target).ToList();
+        return bound.Count == 1 ? bound[0] : null;
+    }
+
+    // The one Thing under a name, which is what the platform's own predicates are found by.
+    public static Guid? OneNamed(ModelSnapshot model, string name)
+    {
+        var named = model.ThingsById.Keys.Where(id => NameOf(model, id) == name).ToList();
+        return named.Count == 1 ? named[0] : null;
+    }
 
     // The first Thing under each identifier, which is what searching the list found before.
     public static IReadOnlyDictionary<Guid, JsonElement> ByIdentifier(JsonElement things)
@@ -35,28 +52,6 @@ public static class ModelReading
 
         return byIdentifier;
     }
-
-    // The one Thing that owns a mark. More than one leaves a reader with two answers and no way
-    // to choose, so it answers with none rather than picking.
-    public static (Guid Id, string Name)? OneOwning(ModelSnapshot model, string flag)
-    {
-        var owning = model.Properties.EnumerateObject()
-            .Where(entry => Owns(entry.Value, flag))
-            .Select(entry => Guid.TryParse(entry.Name, out var id) ? id : Guid.Empty)
-            .Where(id => id != Guid.Empty)
-            .ToList();
-
-        return owning.Count == 1 ? (owning[0], NameOf(model, owning[0]) ?? "") : null;
-    }
-
-    // Owned, not merely present. Properties are read effective, and a mark is an ordinary
-    // property on the archetype, so every term that `is` it reads the mark too. Counting every carrier
-    // finds the archetype and all of its terms, and a vocabulary then reads as ambiguous the moment it
-    // has any terms at all — which is every seeded model.
-    public static bool Owns(JsonElement properties, string flag) =>
-        properties.TryGetProperty(flag, out var mark)
-        && mark.TryGetProperty("IsInherited", out var inherited)
-        && inherited.ValueKind == JsonValueKind.False;
 
     public static IEnumerable<JsonElement> EdgesThrough(ModelSnapshot model, Guid predicate) =>
         model.Relationships.EnumerateArray().Where(edge => Predicate(edge) == predicate);

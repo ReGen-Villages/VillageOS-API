@@ -144,7 +144,7 @@ public class DivisionLookupTests
     private static ModelBuilder WithCodedPlaces() => WithBothLookups()
         .Stating("area-name-at-position", "placeCodeProperty", "iso3166Code")
         .Archetype("Place", CoveringSourceResolver.PlaceArchetypeFlag)
-        .Stating("isIn", CoveringSourceResolver.PlaceNestingPredicateFlag, true)
+        .Bound(CoveringSourceResolver.PlaceNestingRole, "isIn")
         .Relate("Poland", "is", "Place")
         .Relate("Mazowieckie", "is", "Place")
         .Relate("Earth", "is", "Place")
@@ -180,15 +180,26 @@ public class DivisionLookupTests
         coded.Places.Single(place => place.Name == "Mazowieckie").SiteIsIn.Should().BeFalse();
     }
 
-    // A site related through an unmarked predicate would stand in a Place no coverage walk follows, and
-    // without the archetype's mark nothing says which Things are Places.
+    // Without the archetype's mark nothing says which Things are Places, and without the code property
+    // nothing says what to compare.
     [Theory]
-    [InlineData("isIn", CoveringSourceResolver.PlaceNestingPredicateFlag)]
     [InlineData("Place", CoveringSourceResolver.PlaceArchetypeFlag)]
     [InlineData("area-name-at-position", "placeCodeProperty")]
     public void AModelMissingAMarkOrTheCodePropertyOffersNoPlaces(string thing, string property)
     {
         var model = WithCodedPlaces().Without(thing, property);
+
+        CoveringSourceResolver.CodedPlacesIn(
+                model.Build(), model.Id("WillowBend"), CoveringSourceResolver.DivisionLookupIn(model.Build()))
+            .Should().BeNull();
+    }
+
+    // A site related through any other predicate would stand in a Place no coverage walk follows, so a model
+    // binding no nesting predicate offers no Places to relate it to.
+    [Fact]
+    public void AModelBindingNoNestingPredicateOffersNoPlaces()
+    {
+        var model = WithCodedPlaces().Unbound(CoveringSourceResolver.PlaceNestingRole);
 
         CoveringSourceResolver.CodedPlacesIn(
                 model.Build(), model.Id("WillowBend"), CoveringSourceResolver.DivisionLookupIn(model.Build()))

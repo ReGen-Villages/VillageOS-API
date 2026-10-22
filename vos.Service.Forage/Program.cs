@@ -162,8 +162,8 @@ static async Task Discover(
         case SubjectKind.Site:
             await DiscoverSite(subjectId, coveringSources, runner, ledger, divisions, analysis, vocabularyEdges, cancellationToken);
             return;
-        case SubjectKind.ModelMarksNoSite:
-            Log.Warning("The model marks no site archetype, so {SubjectId} is taken for a site; such a model " +
+        case SubjectKind.ModelBindsNoSite:
+            Log.Warning("The model binds no site archetype, so {SubjectId} is taken for a site; such a model " +
                         "cannot dispatch a source", subjectId);
             await DiscoverSite(subjectId, coveringSources, runner, ledger, divisions, analysis, vocabularyEdges, cancellationToken);
             return;

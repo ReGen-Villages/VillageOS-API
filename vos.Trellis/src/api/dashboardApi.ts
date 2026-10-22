@@ -47,9 +47,10 @@ import { wordingIn } from '../i18n/termWording';
 import {
   NAMED_PROPERTY,
   NAMES_PROPERTY_OF_PREDICATE,
-  PROPERTY_NAME_ARCHETYPE_MARK,
+  PROPERTY_NAME_ROLE,
   PROPERTY_NAME_WORDING,
 } from './propertyNames';
+import { BINDS_PREDICATE_NAME } from './landIntakeRoles';
 
 export type Row = Record<string, unknown>;
 export type BindingResult = number | string | Row[] | number[] | null;
@@ -208,6 +209,13 @@ export function thingIdsOfArchetype(archetype: string, index: ModelIndex): Set<s
 function typeIdsNamed(name: string, index: ModelIndex): string[] {
   const first = index.byName.get(name);
   return first ? [first.Id, ...(index.otherTypesByName.get(name) ?? [])] : [];
+}
+
+/** The Things a role binds, read from the role Thing's own `binds` relationships and never from a name. */
+function boundBy(roleId: string, index: ModelIndex): string[] {
+  const bindsId = index.predicateNameToId.get(BINDS_PREDICATE_NAME);
+  if (!bindsId) return [];
+  return adjacency(bindsId, false, index).get(roleId) ?? [];
 }
 
 function instancesBelow(typeIds: string[], index: ModelIndex): Set<string> {
@@ -478,9 +486,7 @@ function propertyNamesByArchetype(index: ModelIndex): Map<string, Map<string, Re
   const predicateId = index.predicateNameToId.get(NAMES_PROPERTY_OF_PREDICATE);
   if (!predicateId) return names;
   const namedArchetypes = adjacency(predicateId, false, index);
-  const markedTypeIds = [...index.archetypeIds]
-    .filter((id) => index.byId.get(id)?.Properties[PROPERTY_NAME_ARCHETYPE_MARK] === true);
-  for (const nameId of instancesBelow(markedTypeIds, index)) {
+  for (const nameId of instancesBelow(boundBy(PROPERTY_NAME_ROLE, index), index)) {
     const name = index.byId.get(nameId);
     if (!name) continue;
     const properties = effectiveProperties(name, index);
