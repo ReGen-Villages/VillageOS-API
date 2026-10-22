@@ -95,6 +95,12 @@ ROOT_ROLE = {
     "Predicate": "predicate",
 }
 
+# The platform recognises a trigger as the Thing the role for that word binds, never by the trigger's name.
+TRIGGER_ROLE = {
+    "http": "httpTrigger",
+    "graph": "graphTrigger",
+}
+
 
 def set_namespace(name):
     """Rebind the id namespace to a per-model root so merged DAG ids are distinct per seed. An empty or
@@ -224,6 +230,8 @@ def build():
     # Thing the connection relates to, as the platform reads it.
     http = k.thing(stable_id(_TAG, "trigger", "http"), "http", shared=True)
     graph = k.thing(stable_id(_TAG, "trigger", "graph"), "graph", shared=True)
+    k.bind(TRIGGER_ROLE["http"], http)
+    k.bind(TRIGGER_ROLE["graph"], graph)
     k.rel(PipelineInput, is_, PipelineNode)  # boundary nodes are pipeline nodes too
     k.rel(PipelineOutput, is_, PipelineNode)
 
