@@ -48,10 +48,10 @@ public static class FormOptionsReader
 
     public static SubscriptionSelector Selector() => new()
     {
-        Ids = RoleBindings.Identifiers([.. TermArchetypeRoles, .. PredicateRoles]),
+        Ids = RoleBindings.Identifiers([.. TermArchetypeRoles, .. PredicateRoles, .. PositionLookupReader.Roles]),
         Names = [SubmissionFragmentComposer.IsPredicateName, RoleBindings.BindsPredicateName],
         BoundTypes = RoleBindings.Identifiers(TermArchetypeRoles),
-        MarkedArchetypes = [PositionLookupReader.ParcelLookupFlag, PositionLookupReader.PlaceSearchFlag],
+        BoundArchetypes = RoleBindings.Identifiers(PositionLookupReader.Roles),
         Traverse = [RoleBindings.FollowBindings],
         Types = [BasemapSourceArchetypeName],
         IncludeRelationships = true,

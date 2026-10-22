@@ -127,10 +127,10 @@ public class RecordedCoverageTests
         model.Id(CoveringSourceResolver.IsPredicateName);
         model.Id(CoveringSourceResolver.AppliesToPredicate);
         model.Id(CoveringSourceResolver.SourcedFromPredicate);
-        return model.Archetype("SourceCoverage", CoveringSourceResolver.SourceCoverageArchetypeFlag);
+        return model.Archetype("SourceCoverage").Bound(CoveringSourceResolver.SourceCoverageRole, "SourceCoverage");
     }
 
-    // The archetype a run mints against is found by the mark the platform declares it with, never by its
+    // The archetype a run mints against is found through the role the platform binds it with, never by its
     // name: a name would be renamed there and mint Things related to nothing here, and the only sign of
     // it would be every subject's coverage reading as empty.
     [Fact]
@@ -178,7 +178,7 @@ public class RecordedCoverageTests
                      CoveringSourceResolver.SourcedFromPredicate,
                  })
             if (predicate != missing) model.Id(predicate);
-        model.Archetype("SourceCoverage", CoveringSourceResolver.SourceCoverageArchetypeFlag);
+        model.Archetype("SourceCoverage").Bound(CoveringSourceResolver.SourceCoverageRole, "SourceCoverage");
 
         CoveringSourceResolver.CoverageVocabularyIn(model.Build()).Should().BeNull();
     }

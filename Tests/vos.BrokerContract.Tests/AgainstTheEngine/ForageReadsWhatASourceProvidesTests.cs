@@ -9,8 +9,8 @@ namespace vos.BrokerContract.Tests.AgainstTheEngine;
 // Forage's read of a site, resolved by the real engine from the selector the service sends, rather
 // than a snapshot a test built holding every Thing.
 //
-// The resolver composes a source's variables from the Things it reaches through the predicate
-// marked as providing them, reading the predicate and the variables out of the snapshot it was handed.
+// The resolver composes a source's variables from the Things it reaches through the predicate the
+// provided-variable role binds, reading the predicate and the variables out of the snapshot it was handed.
 // Its unit tests hand it one holding all of them, so a selector that asked for none passed every case
 // while every live discovery run called the climate history with the placeholder unfilled and was
 // answered 400. This is the case that could not have.
@@ -29,8 +29,8 @@ public class ForageReadsWhatASourceProvidesTests : IClassFixture<TheEngine>
         var isIn = await _engine.DeclareOnceAsync(CoveringSourceResolver.IsInPredicate);
         var covers = await _engine.DeclareOnceAsync(CoveringSourceResolver.CoversPredicate);
         var resolvedBy = await _engine.DeclareOnceAsync(CoveringSourceResolver.ResolvedByPredicate);
-        var provides = await _engine.DeclareOnceAsync("provides",
-            properties: new Dictionary<string, object?> { [CoveringSourceResolver.ProvidedVariablePredicateFlag] = true });
+        var provides = await _engine.DeclareOnceAsync("provides");
+        await _engine.BindAsync(CoveringSourceResolver.ProvidedVariableRole, provides);
 
         var place = await _engine.DeclareAsync("Portugal");
         var site = await _engine.DeclareAsync("Willow Bend");

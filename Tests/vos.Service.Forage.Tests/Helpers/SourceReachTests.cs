@@ -209,9 +209,9 @@ public class SourceReachTests
 
         var selector = CoveringSourceResolver.SelectorForSource(source);
 
-        selector.MarkedArchetypes.Should().Equal(CoveringSourceResolver.SourceCoverageArchetypeFlag);
-        selector.MarkedTypes.Should().BeNullOrEmpty();
-        selector.Ids.Should().Equal(source, CoveringSourceResolver.SiteRole.Id);
+        selector.BoundArchetypes.Should().Equal(CoveringSourceResolver.SourceCoverageRole.Id);
+        selector.BoundTypes.Should().BeNullOrEmpty();
+        selector.Ids.Should().Equal(source, CoveringSourceResolver.SiteRole.Id, CoveringSourceResolver.SourceCoverageRole.Id);
         selector.Traverse.Should().Contain(RoleBindings.FollowBindings);
         selector.Names.Should().Contain(RoleBindings.BindsPredicateName);
         selector.Names.Should().Contain(new[]

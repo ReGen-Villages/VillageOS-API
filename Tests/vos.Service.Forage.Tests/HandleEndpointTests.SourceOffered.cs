@@ -67,7 +67,7 @@ public class HandleEndpointSourceOfferedTests
     private static Archetype[] Archetypes() =>
     [
         new Archetype("Site", BoundBy: CoveringSourceResolver.SiteRole),
-        new Archetype("SourceCoverage", CoveringSourceResolver.SourceCoverageArchetypeFlag),
+        new Archetype("SourceCoverage", BoundBy: CoveringSourceResolver.SourceCoverageRole),
         new Archetype("DataSource"),
     ];
 

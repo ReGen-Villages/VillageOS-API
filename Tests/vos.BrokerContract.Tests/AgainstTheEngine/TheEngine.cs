@@ -5,6 +5,8 @@ using System.Text.Json;
 using vos.Mycelium.Testing;
 #endif
 using vos.Service.Shared;
+using vos.Service.Shared.Roles;
+using vos.Service.Shared.Subscriptions;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -93,6 +95,15 @@ public sealed class TheEngine : IAsyncLifetime
     public async Task<Guid> DeclareOnceAsync(
         string name, bool isArchetype = false, IReadOnlyDictionary<string, object?>? properties = null) =>
         await FindAsync(name) ?? await DeclareAsync(name, isArchetype, properties);
+
+    // The role Thing under the identifier every model declares it by, binding the Thing along `binds`, as a
+    // template declares a role.
+    public async Task BindAsync(Role role, Guid boundId)
+    {
+        var roleId = await FindAsync(role.Word) ?? await DeclareAsync(role.Word, identifier: role.Id);
+        var binds = await DeclareOnceAsync(RoleBindings.BindsPredicateName);
+        await RelateAsync(roleId, binds, boundId);
+    }
 
     // The Thing of that name, or null. Names are not unique in a model, and the route
     // refuses an ambiguous one rather than picking — which is a failure worth surfacing here too,

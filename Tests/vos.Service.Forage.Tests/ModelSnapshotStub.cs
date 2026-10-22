@@ -20,6 +20,9 @@ internal static class ModelSnapshotStub
     internal sealed record Archetype(
         string Name, string? Flag = null, IReadOnlyDictionary<string, string>? Values = null, Role? BoundBy = null);
 
+    // A role binding a Thing that is not an archetype, such as a registration a reader finds through its role.
+    internal sealed record Binding(Role Role, string Thing);
+
     // The `binds` predicate Thing a role reaches its archetype along, under one identifier for every scenario.
     internal static readonly Guid BindsPredicate = new("b1bd5000-0000-5000-8000-000000000001");
 
@@ -55,7 +58,8 @@ internal static class ModelSnapshotStub
         Edge[] edges,
         IReadOnlyDictionary<string, string>? siteValues,
         IReadOnlyCollection<Archetype>? archetypes,
-        IReadOnlyCollection<Carrying>? carrying)
+        IReadOnlyCollection<Carrying>? carrying,
+        IReadOnlyCollection<Binding>? bindings = null)
     {
         var path = request.RequestUri!.AbsolutePath;
         if (request.Method == HttpMethod.Delete && path.StartsWith("/api/subscriptions/", StringComparison.Ordinal))
@@ -75,14 +79,18 @@ internal static class ModelSnapshotStub
         var relationships = edges.Select(edge =>
             Relationship(edge.Id ?? Guid.NewGuid(), ids[edge.Subject], ids[edge.Predicate], ids[edge.Target]));
 
-        var bound = (archetypes ?? []).Where(archetype => archetype.BoundBy is not null).ToList();
+        var bound = (archetypes ?? [])
+            .Where(archetype => archetype.BoundBy is not null)
+            .Select(archetype => new Binding(archetype.BoundBy!, archetype.Name))
+            .Concat(bindings ?? [])
+            .ToList();
         if (bound.Count > 0)
         {
             things = things
                 .Append(Thing(BindsPredicate, RoleBindings.BindsPredicateName, null, null))
-                .Concat(bound.Select(archetype => Thing(archetype.BoundBy!.Id, archetype.BoundBy.Word, null, null)));
-            relationships = relationships.Concat(bound.Select(archetype =>
-                Relationship(Guid.NewGuid(), archetype.BoundBy!.Id, BindsPredicate, ids[archetype.Name])));
+                .Concat(bound.Select(binding => Thing(binding.Role.Id, binding.Role.Word, null, null)));
+            relationships = relationships.Concat(bound.Select(binding =>
+                Relationship(Guid.NewGuid(), binding.Role.Id, BindsPredicate, ids[binding.Thing])));
         }
 
         var body = "{\"subscriptionId\":\"" + Guid.NewGuid() + "\",\"watermark\":0,\"snapshot\":{"
