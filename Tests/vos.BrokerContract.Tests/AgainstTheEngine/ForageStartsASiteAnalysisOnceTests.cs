@@ -23,8 +23,8 @@ public class ForageStartsASiteAnalysisOnceTests : IClassFixture<TheEngine>
         var studies = await _engine.DeclareOnceAsync(CoveringSourceResolver.StudiesPredicate);
         var has = await _engine.DeclareOnceAsync(CoveringSourceResolver.HasPredicate);
         var isPredicate = await _engine.DeclareOnceAsync(CoveringSourceResolver.IsPredicateName);
-        var connectionArchetype = await _engine.DeclareAsync("SiteAnalysisConnection", isArchetype: true,
-            properties: new Dictionary<string, object?> { [CoveringSourceResolver.SiteAnalysisConnectionFlag] = true });
+        var connectionArchetype = await _engine.DeclareAsync("SiteAnalysisConnection", isArchetype: true);
+        await _engine.BindAsync(CoveringSourceResolver.SiteAnalysisConnectionRole, connectionArchetype);
         var prototype = await _engine.DeclareAsync("EnergyBalance prototype", isArchetype: true);
 
         var connection = await _engine.DeclareAsync("balancesEnergy");

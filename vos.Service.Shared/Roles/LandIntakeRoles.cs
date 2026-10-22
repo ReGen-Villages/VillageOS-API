@@ -28,11 +28,22 @@ public static class LandIntakeRoles
     public static readonly Role SubmitterFindingsDashboard = new("submitterFindingsDashboard", new("3a2e1317-ea1d-5f38-be9d-6c2faf0a30a7"));
     public static readonly Role RootPlace = new("rootPlace", new("18d228a8-2bed-5b05-8026-2526cf939dfd"));
     public static readonly Role PlaceNesting = new("placeNesting", new("c3c9edde-b271-5a52-8f23-cc6bae9ea1d1"));
+    public static readonly Role PlaceArchetype = new("placeArchetype", new("8360ea47-ae00-5727-bc79-27a518276327"));
+    public static readonly Role ProvidedVariable = new("providedVariable", new("711cabb4-98b0-51ec-8448-5da579a7712d"));
+    public static readonly Role AreaNameLookup = new("areaNameLookup", new("24d985a8-0f60-5645-88eb-ad622746b204"));
+    public static readonly Role LocalAreaNameLookup = new("localAreaNameLookup", new("82ada0ec-1af6-57d6-b023-fc276162b432"));
+    public static readonly Role HazardDivisionLookup = new("hazardDivisionLookup", new("9a6f7cd7-921a-5f83-9e41-3c5e9f11b4f1"));
+    public static readonly Role ParcelLookup = new("parcelLookup", new("b4094d7a-944f-52ca-8ec5-856526b76195"));
+    public static readonly Role PlaceSearch = new("placeSearch", new("cdb5e35c-ba1d-5e9f-be4e-330b3b234223"));
+    public static readonly Role SourceCoverage = new("sourceCoverage", new("2b8de5b8-d8ff-503d-86d8-38b53c00d438"));
+    public static readonly Role SiteAnalysisConnection = new("siteAnalysisConnection", new("b79434df-2c42-58a2-bdaa-db241a458804"));
 
     public static readonly IReadOnlyList<Role> All =
     [
         SiteStudy, Site, AllocationCategory, CategorizedAs, WaterDemandComponent, PropertyName, ProposedSite,
         PersonalDetail, SharedDocument, Shares, BoundarySource, ObtainedBy, HazardType, Assesses, HazardLevel,
         ReportedLevel, SubmissionDisposition, ResolvedAs, Theme, SubmitterFindingsDashboard, RootPlace, PlaceNesting,
+        PlaceArchetype, ProvidedVariable, AreaNameLookup, LocalAreaNameLookup, HazardDivisionLookup, ParcelLookup,
+        PlaceSearch, SourceCoverage, SiteAnalysisConnection,
     ];
 }

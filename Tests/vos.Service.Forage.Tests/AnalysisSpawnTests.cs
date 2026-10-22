@@ -33,7 +33,7 @@ public class AnalysisSpawnTests
     // The archetype the connections are found by, and the prototypes the analysis relationships point at.
     private static Archetype[] AnalysisArchetypes() =>
     [
-        new("SiteAnalysisConnection", CoveringSourceResolver.SiteAnalysisConnectionFlag),
+        new("SiteAnalysisConnection", BoundBy: CoveringSourceResolver.SiteAnalysisConnectionRole),
         new("EnergyBalance prototype"),
         new("SecondBalance prototype"),
     ];
@@ -43,7 +43,7 @@ public class AnalysisSpawnTests
         "OpenMeteo", "OpenMeteoEndpoint", "WillowBendStudy",
         "SiteAnalysisConnection", "balancesEnergy", "balancesEnergy service", "EnergyBalance prototype");
 
-    // One source, a study, and one connection the model marks as one a site analysis starts.
+    // One source, a study, and one connection beneath the archetype the site-analysis role binds.
     private static Edge[] OneSourceAndOneBalance() =>
     [
         new Edge("WillowBend", "isIn", "Portugal"),
@@ -115,9 +115,9 @@ public class AnalysisSpawnTests
     }
 
     [Fact]
-    public async Task Handle_ModelMarksASecondConnection_StartsBothWithoutNamingEither()
+    public async Task Handle_ModelHoldsASecondConnectionBeneathTheBoundArchetype_StartsBothWithoutNamingEither()
     {
-        // The point of finding connections by mark: a balance is added to the model, not to this code.
+        // The point of finding connections through the role: a balance is added to the model, not to this code.
         var ids = SiteWithOneSource();
         foreach (var name in new[] { "secondBalance", "secondBalance service", "SecondBalance prototype" })
             ids[name] = Guid.NewGuid();
@@ -180,9 +180,9 @@ public class AnalysisSpawnTests
     }
 
     [Fact]
-    public async Task Handle_ConnectionIsNotMarked_IsNotStarted()
+    public async Task Handle_ConnectionNotBeneathTheBoundArchetype_IsNotStarted()
     {
-        // An unmarked connection is an ordinary one — a service bound for some other purpose — and
+        // A connection outside the bound archetype is an ordinary one — a service bound for some other purpose — and
         // starting it would dispatch a service against a study it knows nothing about.
         var ids = SiteWithOneSource();
         ids["ordinary"] = Guid.NewGuid();
