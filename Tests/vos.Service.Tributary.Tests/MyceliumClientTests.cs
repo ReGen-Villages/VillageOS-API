@@ -604,6 +604,42 @@ public class MyceliumClientTests
         (await sut.DepositAssetAsync(new byte[] { 1 }, "image/png")).Should().BeNull();
     }
 
+    // Bug 7873: on a loaded build agent the broker answered a relationship write in up to fifteen seconds,
+    // and a client that gave it ten reported the source as failed while the write went on to land.
+    [Theory]
+    [InlineData("FindThingByNameAsync")]
+    [InlineData("CreateThingAsync")]
+    [InlineData("CreateRelationshipAsync")]
+    [InlineData("SetPropertyModeAsync")]
+    [InlineData("GetEffectivePropertiesAsync")]
+    public async Task Bug7873_every_broker_call_waits_the_thirty_seconds_the_forwarder_gives_the_call_around_it(string call)
+    {
+        var factory = new RecordingFactory(new MockHttpMessageHandler(_ => JsonResponse("{}")));
+        var sut = new MyceliumClient(
+            factory, Substitute.For<ILogger<MyceliumClient>>(), "http://localhost", new ClockThatWaitsNoTime(), "test-token");
+
+        Task made = call switch
+        {
+            "FindThingByNameAsync" => sut.FindThingByNameAsync("a-thing"),
+            "CreateThingAsync" => sut.CreateThingAsync("a-thing"),
+            "CreateRelationshipAsync" => sut.CreateRelationshipAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()),
+            "SetPropertyModeAsync" => sut.SetPropertyModeAsync(Guid.NewGuid(), "level", "Live"),
+            "GetEffectivePropertiesAsync" => sut.GetEffectivePropertiesAsync(Guid.NewGuid()),
+            _ => throw new ArgumentOutOfRangeException(nameof(call)),
+        };
+        await made;
+
+        factory.LastClient!.Timeout.Should().Be(TimeSpan.FromSeconds(30),
+            "the broker on a loaded agent answers in up to fifteen seconds, and the forwarder waits thirty for the call");
+    }
+
+    private sealed class RecordingFactory(HttpMessageHandler handler) : IHttpClientFactory
+    {
+        public HttpClient? LastClient { get; private set; }
+
+        public HttpClient CreateClient(string name) => LastClient = new HttpClient(handler, disposeHandler: false);
+    }
+
     private static MyceliumClient CreateClient(
         HttpMessageHandler handler, ClockThatWaitsNoTime? clock = null, ILogger<MyceliumClient>? logger = null)
     {
