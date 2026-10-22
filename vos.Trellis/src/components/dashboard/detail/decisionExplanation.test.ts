@@ -386,6 +386,35 @@ describe('what a decision leaves unanswered', () => {
     expect(decisionsOn('reservoir', index)[0].supports[0].constraint?.unit).toBe('m3');
   });
 
+  it('reads the bound constraint archetype itself as a cause and not as a constraint, because an archetype is not its own member', () => {
+    const index = sourcing();
+    index.relationshipsByPredicate.get('because')!.find((edge) => edge.SubjectId === 'supportOne')!.TargetId = 'constraintArchetype';
+    index.byId.get('constraintArchetype')!.Properties = { limitSubjectProperty: 'capacityCubicMetres' };
+
+    expect(decisionsOn('reservoir', index)[0].supports[0].constraint).toBeUndefined();
+  });
+
+  it('reads no constraint where the model binds no constraint role, whatever properties a cause carries', () => {
+    const index = buildModelIndex(
+      ...withRoles(
+        [
+          ...vocabulary().filter((word) => word.Id !== 'constraintArchetype'),
+          thing('subject', 'RESERVOIR-1'),
+          thing('decision', 'sourcing-1', { decidedAt: INSTANT }),
+          thing('consideration', 'support-1'),
+          thing('capacity', 'capacity', { limitSubjectProperty: 'capacityCubicMetres', unit: 'm3' }),
+        ],
+        [
+          relationship('e1', 'decision', 'about', 'subject'),
+          relationship('e2', 'decision', 'support', 'consideration'),
+          relationship('e3', 'consideration', 'because', 'capacity'),
+        ],
+      ),
+    );
+
+    expect(decisionsOn('subject', index)[0].supports[0].constraint).toBeUndefined();
+  });
+
   it('answers an `is`-chain that loops back on itself rather than walking it forever', () => {
     const index = sourcing();
     index.isParents.set('ruleA', ['ruleA']);
