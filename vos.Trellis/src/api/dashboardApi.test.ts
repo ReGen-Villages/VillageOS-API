@@ -348,7 +348,6 @@ describe('resolveBinding', () => {
         Village: {
           SourceId: 'arch-vil',
           SourceName: 'Village',
-          InheritedAt: '2024-01-01',
           Properties: { self_sufficiency_rate: 88.5 },
         },
       },
@@ -1159,7 +1158,7 @@ describe('verdict binding', () => {
       ThingId: 'study1',
       ThingName: 'Site Study',
       OwnRanges: [],
-      InheritedRanges: [{ SourceId: 'arch-study', SourceName: 'SiteStudy', InheritedAt: '', Ranges: ranges, Inherited: [] }],
+      InheritedRanges: [{ SourceId: 'arch-study', SourceName: 'SiteStudy', Ranges: ranges, Inherited: [] }],
     };
   }
 
@@ -1955,7 +1954,7 @@ describe('levers under a shortfall', () => {
       ThingId: 'study1',
       ThingName: 'Site Study',
       OwnRanges: [],
-      InheritedRanges: [{ SourceId: 'arch-study', SourceName: 'SiteStudy', InheritedAt: '', Ranges: ranges, Inherited: [] }],
+      InheritedRanges: [{ SourceId: 'arch-study', SourceName: 'SiteStudy', Ranges: ranges, Inherited: [] }],
     };
   }
 
@@ -2144,7 +2143,7 @@ describe('levers under a shortfall', () => {
     const named = namedInputs(['consumed', CONSUMPTION_WORDS, 'arch-study']);
     const name = named.things.at(-1) as { Properties: Record<string, unknown>; InheritedOverrides?: unknown };
     name.InheritedOverrides = {
-      'arch-name': { SourceId: 'arch-name', SourceName: 'PropertyName', InheritedAt: '', Properties: name.Properties },
+      'arch-name': { SourceId: 'arch-name', SourceName: 'PropertyName', Properties: name.Properties },
     };
     name.Properties = {};
 
@@ -2363,7 +2362,7 @@ describe('origin binding', () => {
         Id: 'site1', Name: 'Willow Bend', Properties: { untracked: 5 },
         InheritedOverrides: {
           Site: {
-            SourceId: 'arch-site', SourceName: 'Site', InheritedAt: '',
+            SourceId: 'arch-site', SourceName: 'Site',
             Properties: { latitude: 39.5, rainfallMillimetresPerYear: 700 },
             PropertyWriteKinds: { latitude: 'FactOnly', rainfallMillimetresPerYear: 'ObservationOnly' },
           },

@@ -97,8 +97,8 @@ describe('the states a kind derives', () => {
     const states = statesOf({
       OwnRanges: [{ Name: 'dry' }, { Name: 'flowing' }] as never,
       InheritedRanges: [
-        { SourceId: 'source', SourceName: 'Source', InheritedAt: '', Ranges: [{ Name: 'flowing' }] as never, Inherited: [
-          { SourceId: 'feature', SourceName: 'Feature', InheritedAt: '', Ranges: [{ Name: 'abandoned' }] as never, Inherited: [] },
+        { SourceId: 'source', SourceName: 'Source', Ranges: [{ Name: 'flowing' }] as never, Inherited: [
+          { SourceId: 'feature', SourceName: 'Feature', Ranges: [{ Name: 'abandoned' }] as never, Inherited: [] },
         ] },
       ],
     });
