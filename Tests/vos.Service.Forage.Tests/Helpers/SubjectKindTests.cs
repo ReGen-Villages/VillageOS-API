@@ -125,7 +125,6 @@ public class SubjectKindTests
         selector.Ids.Should().Equal(subject, CoveringSourceResolver.SiteRole.Id);
         selector.Traverse.Should().Equal(RoleBindings.FollowBindings);
         selector.Names.Should().Contain(RoleBindings.BindsPredicateName);
-        selector.MarkedArchetypes.Should().BeNullOrEmpty();
         selector.BoundTypes.Should().BeNullOrEmpty();
         selector.MarkedTypes.Should().BeNullOrEmpty();
         selector.Names.Should().Contain(new[]

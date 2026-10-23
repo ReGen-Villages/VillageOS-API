@@ -187,7 +187,6 @@ public class DeclaredVocabularyReaderTests
         selector.Names.Should().BeEquivalentTo(
             SubmissionFragmentComposer.IsPredicateName, RoleBindings.BindsPredicateName);
         selector.MarkedTypes.Should().BeNull();
-        selector.MarkedArchetypes.Should().BeNull();
         selector.IncludeRelationships.Should().BeTrue();
     }
 
