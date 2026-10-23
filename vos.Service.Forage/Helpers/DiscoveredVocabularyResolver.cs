@@ -133,7 +133,7 @@ public static class DiscoveredVocabularyResolver
 
         foreach (var vocabulary in snapshot.Things)
         {
-            if (!vocabulary.IsArchetype || !vocabularyIds.Contains(vocabulary.Id)) continue;
+            if (!vocabularyIds.Contains(vocabulary.Id)) continue;
             if (OwnString(vocabulary, ResolvedFromProperty) is not { } word) continue;
 
             var members = new Dictionary<string, Guid>(StringComparer.Ordinal);
