@@ -52,7 +52,6 @@ public sealed class BrokerSnapshot
                 {
                     SourceId = ContactArchetype,
                     SourceName = "Contact",
-                    InheritedAt = DateTime.UtcNow,
                     Properties = overriding,
                 },
             };

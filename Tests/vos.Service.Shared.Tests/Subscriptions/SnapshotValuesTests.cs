@@ -34,7 +34,6 @@ public class SnapshotValuesTests
               "6513d4d5-c6d1-47c9-babd-3256848f79d9": {
                 "SourceId": "6513d4d5-c6d1-47c9-babd-3256848f79d9",
                 "SourceName": "Parcel",
-                "InheritedAt": "2026-08-28T17:41:22.289038Z",
                 "Properties": {
                   "measuredAreaHectares": { "typeInfo": "vos.Double", "value": 28.39 }
                 },

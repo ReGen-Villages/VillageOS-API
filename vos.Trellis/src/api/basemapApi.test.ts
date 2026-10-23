@@ -159,7 +159,6 @@ describe('discoverBasemapSources', () => {
           'arch-basemap': {
             SourceId: 'arch-basemap',
             SourceName: 'BasemapSource',
-            InheritedAt: '2026-07-05T00:00:00+00:00',
             Properties: {
               styleUrl: 'https://tiles.example.org/styles/plain',
               attribution: 'Example data contributors',

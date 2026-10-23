@@ -72,7 +72,6 @@ export interface DerivedDefinition {
 export interface InheritedPropertySet {
   SourceId: string;
   SourceName: string;
-  InheritedAt: string;
   Properties: Record<string, unknown>;
   /** As on {@link VosThing} — a value stored under an inherited name keeps the write kind the
    *  declaration gave it. */
@@ -259,7 +258,6 @@ export interface RangeDto {
 export interface InheritedRangeSetDto {
   SourceId: string;
   SourceName: string;
-  InheritedAt: string;
   Ranges: RangeDto[];
   Inherited: InheritedRangeSetDto[];
 }

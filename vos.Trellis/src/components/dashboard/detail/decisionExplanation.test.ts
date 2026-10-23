@@ -250,7 +250,6 @@ describe('what a consideration compares', () => {
             catchmentArchetype: {
               SourceId: 'catchmentArchetype',
               SourceName: 'Catchment',
-              InheritedAt: INSTANT,
               Properties: { storedCubicMetres: 212 },
             },
           },

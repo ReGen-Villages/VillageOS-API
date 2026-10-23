@@ -20,7 +20,6 @@ describe('ifcGlobalIdOf', () => {
         'type-id': {
           SourceId: 'type-id',
           SourceName: 'Solar_Panel-Tesla:Solar Panel',
-          InheritedAt: '2026-07-05T00:00:00+00:00',
           Properties: { ifcGlobalId: '03j6lIiubFo9saFbb3qAEn', ifcClass: 'IfcBuildingElementProxy' },
         },
       },
@@ -33,7 +32,7 @@ describe('ifcGlobalIdOf', () => {
     const both = thing({
       Properties: { ifcGlobalId: 'own-guid' },
       InheritedOverrides: {
-        'type-id': { SourceId: 'type-id', SourceName: 't', InheritedAt: '', Properties: { ifcGlobalId: 'override-guid' } },
+        'type-id': { SourceId: 'type-id', SourceName: 't', Properties: { ifcGlobalId: 'override-guid' } },
       },
     });
 
@@ -43,8 +42,8 @@ describe('ifcGlobalIdOf', () => {
   it('finds the identifier whichever source holds it', () => {
     const many = thing({
       InheritedOverrides: {
-        a: { SourceId: 'a', SourceName: 'a', InheritedAt: '', Properties: { Identity_Data_Workset: 'SOLAR' } },
-        b: { SourceId: 'b', SourceName: 'b', InheritedAt: '', Properties: { ifcGlobalId: 'from-b' } },
+        a: { SourceId: 'a', SourceName: 'a', Properties: { Identity_Data_Workset: 'SOLAR' } },
+        b: { SourceId: 'b', SourceName: 'b', Properties: { ifcGlobalId: 'from-b' } },
       },
     });
 
@@ -62,7 +61,7 @@ describe('ifcGlobalIdOf', () => {
     expect(ifcGlobalIdOf(thing({ Properties: { ifcGlobalId: '' } }))).toBeNull();
     expect(ifcGlobalIdOf(thing({ Properties: { ifcGlobalId: 42 } }))).toBeNull();
     expect(ifcGlobalIdOf(thing({
-      InheritedOverrides: { a: { SourceId: 'a', SourceName: 'a', InheritedAt: '', Properties: { ifcGlobalId: '' } } },
+      InheritedOverrides: { a: { SourceId: 'a', SourceName: 'a', Properties: { ifcGlobalId: '' } } },
     }))).toBeNull();
   });
 });
@@ -76,7 +75,6 @@ describe('storedPropertyOf', () => {
         'type-id': {
           SourceId: 'type-id',
           SourceName: 'Solar_Panel-Tesla:Solar Panel',
-          InheritedAt: '',
           Properties: { ifcClass: 'IfcBuildingElementProxy' },
         },
       },
