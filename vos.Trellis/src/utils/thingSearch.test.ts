@@ -325,8 +325,8 @@ describe('THING_SEARCH_SKIP_KEYS', () => {
     expect(THING_SEARCH_SKIP_KEYS.has('__geometry_envelope')).toBe(true);
   });
 
-  it('does not contain the retired __IsSurface key', () => {
-    expect(THING_SEARCH_SKIP_KEYS.has('__IsSurface')).toBe(false);
+  it('skips no property whose name starts with __Is', () => {
+    expect([...THING_SEARCH_SKIP_KEYS].filter((key) => key.startsWith('__Is'))).toEqual([]);
   });
 });
 
