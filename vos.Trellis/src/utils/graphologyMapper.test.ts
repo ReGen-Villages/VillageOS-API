@@ -449,7 +449,7 @@ describe('colouring by the classifying property', () => {
     Name: 'Wall-overrides-its-class',
     Properties: {},
     InheritedOverrides: {
-      't-wall': { SourceId: 't-wall', SourceName: 'Basic Wall', InheritedAt: '', Properties: { ifcClass: 'IfcWall' } },
+      't-wall': { SourceId: 't-wall', SourceName: 'Basic Wall', Properties: { ifcClass: 'IfcWall' } },
     },
   };
   const things = [isPredicate, wallType, owned, overridden];

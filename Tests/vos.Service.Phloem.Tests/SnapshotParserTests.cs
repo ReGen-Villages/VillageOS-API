@@ -145,7 +145,7 @@ public class SnapshotParserTests
               { "Id": "{{port}}", "Name": "subject", "IsArchetype": false, "Properties": {},
                 "InheritedOverrides": {
                   "{{portArchetype}}": {
-                    "SourceId": "{{portArchetype}}", "SourceName": "Port", "InheritedAt": "2026-09-26T13:17:43Z",
+                    "SourceId": "{{portArchetype}}", "SourceName": "Port",
                     "Properties": {
                       "portName": { "typeInfo": "vos.String", "value": "subject" },
                       "direction": { "typeInfo": "vos.String", "value": "out" } } } },

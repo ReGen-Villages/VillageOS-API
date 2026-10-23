@@ -142,7 +142,7 @@ describe('thingApi.getAtInstant', () => {
       Name: 'One',
       Properties: {},
       InheritedOverrides: {
-        archetype: { SourceId: 'archetype', SourceName: 'Catchment', InheritedAt: '2026-09-22T09:14:03Z', Properties: { storedCubicMetres: 306 } },
+        archetype: { SourceId: 'archetype', SourceName: 'Catchment', Properties: { storedCubicMetres: 306 } },
       },
     });
 

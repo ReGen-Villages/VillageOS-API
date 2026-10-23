@@ -359,7 +359,7 @@ describe('loadPipeline', () => {
 // Thing's name and to direction `in`, and the wire drawn from it matched nothing.
 describe('a saved port is read from what it states', () => {
   const overridden = (values: Record<string, unknown>): VosThing['InheritedOverrides'] => ({
-    'arch-port': { SourceId: 'arch-port', SourceName: 'Socket', InheritedAt: '', Properties: values },
+    'arch-port': { SourceId: 'arch-port', SourceName: 'Socket', Properties: values },
   });
 
   function modelWithASavedPort() {
