@@ -224,6 +224,19 @@ public class PublicPageProxyEndpointTests
     // Only the registration the role binds is served this way: the route names a registration, and naming
     // any other would make this service a public proxy for every provider the catalogue registers.
     [Fact]
+    public async Task A_route_naming_a_registration_other_than_the_bound_one_is_not_served()
+    {
+        var (factory, broker) = Holding();
+        await using var _ = factory;
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/basemaps/elevation/3/4/5");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        broker.EndpointCalls.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task A_registration_the_role_does_not_bind_is_not_served()
     {
         var (factory, broker) = Holding(ModelWithTiles().Unbound(BasemapTileReader.RegistrationRole));
