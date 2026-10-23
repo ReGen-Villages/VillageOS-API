@@ -7,7 +7,7 @@ namespace vos.Service.Shared;
 // service doing the reading so every refusal and every wait can name itself and the input.
 //
 // A handler reads several inputs, and the platform can now answer a property with no value at all — a
-// roll-up whose member type resolves to nothing withholds its number rather than reporting zero. A refusal
+// derived property whose member type resolves to nothing withholds its number rather than reporting zero. A refusal
 // that says only "not numeric" leaves an operator to guess which of them it meant.
 //
 // Shared rather than copied into each handler: this pair sat in two services, identical but for the
@@ -25,7 +25,7 @@ public readonly struct StudyInputs(JsonElement properties, string serviceName)
     {
         null => throw new KeyNotFoundException($"{serviceName} input '{name}' is not on the study."),
         { } value when Withheld(value) => throw new InvalidOperationException(
-            $"{serviceName} input '{name}' is on the study with no value. A roll-up withholds its number "
+            $"{serviceName} input '{name}' is on the study with no value. A derived property withholds its number "
             + "when the type it reduces over names no Thing the model holds."),
         { } value => AsNumber(value, name),
     };

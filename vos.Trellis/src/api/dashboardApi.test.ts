@@ -1854,7 +1854,7 @@ describe('the working behind a figure', () => {
     const things = [
       { Id: 'is', Name: 'is', Properties: {} },
       { Id: 'studies', Name: 'studies', Properties: {} },
-      { Id: 'arch-study', Name: 'SiteStudy', IsArchetype: true, Properties: {}, RollupProperties: definitions },
+      { Id: 'arch-study', Name: 'SiteStudy', IsArchetype: true, Properties: {}, DerivedProperties: definitions },
       { Id: 'study1', Name: 'A study', Properties: own },
       { Id: 'site1', Name: 'A site', Properties: {} },
     ] as unknown as VosThing[];
@@ -1984,7 +1984,7 @@ describe('levers under a shortfall', () => {
   ): ResolveContext {
     const things = [
       { Id: 'is', Name: 'is', Properties: {} },
-      { Id: 'arch-study', Name: 'SiteStudy', Properties: {}, IsArchetype: true, RollupProperties: definitions },
+      { Id: 'arch-study', Name: 'SiteStudy', Properties: {}, IsArchetype: true, DerivedProperties: definitions },
       { Id: 'study1', Name: 'Site Study', Properties: {} },
       ...named.things,
     ] as unknown as VosThing[];
