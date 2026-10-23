@@ -97,7 +97,6 @@ public class FindingsReaderTests
         selector.Relationships.Should().ContainSingle()
             .Which.Should().BeEquivalentTo(new { Predicate = RoleBindings.BindsPredicateName, Direction = "outgoing" });
         selector.IncludeIsAncestors.Should().BeFalse();
-        selector.MarkedArchetypes.Should().BeNull();
         selector.Types.Should().BeNull();
         selector.All.Should().BeFalse();
     }

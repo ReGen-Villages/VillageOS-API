@@ -19,7 +19,6 @@ public class PositionLookupReaderTests
         selector.BoundTypes.Should().BeNull();
         selector.Names.Should().Equal(RoleBindings.BindsPredicateName);
         selector.Traverse.Should().Equal(RoleBindings.FollowBindings);
-        selector.MarkedArchetypes.Should().BeNull();
     }
 
     [Fact]

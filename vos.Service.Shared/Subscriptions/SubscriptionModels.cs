@@ -15,12 +15,7 @@ public sealed class SubscriptionSelector
     // which is what a reader needs when it is about to create the relationship the traversal would have followed.
     public List<string>? MarkedTypes { get; set; }
 
-    // The Things carrying one of these flags and none of their members. What a caller wants when it needs
-    // an id to write a relationship with — a predicate, or an archetype to point `is` at — and would otherwise
-    // have to take the whole membership to reach it.
-    public List<string>? MarkedArchetypes { get; set; }
-
-    // The role counterparts of the two mark forms, each a list of role Thing identifiers. BoundTypes selects the
+    // Each a list of role Thing identifiers. BoundTypes selects the
     // archetype a role binds and every Thing that `is` it; BoundArchetypes selects the bound Thing alone, which may be
     // a predicate or a single Thing as well as an archetype. Neither carries the role Thing or its `binds`
     // relationship: a reader that has to tell which bound Thing plays which role asks for the role Things by id and
