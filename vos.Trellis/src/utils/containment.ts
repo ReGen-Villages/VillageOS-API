@@ -1,23 +1,12 @@
 import type { VosRelationship, VosThing } from '../types/vos';
-import { CONTAINMENT_ROLE_ID } from '../api/platformRoles';
-import { BINDS_PREDICATE_NAME } from '../api/landIntakeRoles';
+import { CONTAINMENT_ROLE_ID, thingBoundBy } from '../api/platformRoles';
 import { IS_PREDICATE } from '../types/dashboard';
 
-function idsNamed(name: string, things: ReadonlyMap<string, VosThing>): Set<string> {
-  const ids = new Set<string>();
-  for (const [id, thing] of things) if (thing.Name === name) ids.add(id);
-  return ids;
-}
+function containmentPredicateIds(things: readonly VosThing[], relationships: readonly VosRelationship[]): Set<string> {
+  const kind = thingBoundBy(CONTAINMENT_ROLE_ID, things, relationships);
+  if (!kind) return new Set();
 
-function containmentPredicateIds(
-  things: ReadonlyMap<string, VosThing>,
-  relationships: readonly VosRelationship[],
-): Set<string> {
-  const bindsIds = idsNamed(BINDS_PREDICATE_NAME, things);
-  const bound = relationships.find((r) => r.SubjectId === CONTAINMENT_ROLE_ID && bindsIds.has(r.PredicateId));
-  if (!bound) return new Set();
-
-  const isIds = idsNamed(IS_PREDICATE, things);
+  const isIds = new Set(things.filter((thing) => thing.Name === IS_PREDICATE).map((thing) => thing.Id));
   const isChildren = new Map<string, string[]>();
   for (const r of relationships) {
     if (!isIds.has(r.PredicateId)) continue;
@@ -26,8 +15,8 @@ function containmentPredicateIds(
     else isChildren.set(r.TargetId, [r.SubjectId]);
   }
 
-  const found = new Set<string>([bound.TargetId]);
-  const frontier = [bound.TargetId];
+  const found = new Set<string>([kind.Id]);
+  const frontier = [kind.Id];
   while (frontier.length) {
     for (const child of isChildren.get(frontier.pop()!) ?? []) {
       if (found.has(child)) continue;
@@ -43,7 +32,7 @@ export function thingsContainedBy(
   things: ReadonlyMap<string, VosThing>,
   relationships: readonly VosRelationship[],
 ): VosThing[] {
-  const predicates = containmentPredicateIds(things, relationships);
+  const predicates = containmentPredicateIds([...things.values()], relationships);
   if (predicates.size === 0) return [];
 
   const contained: VosThing[] = [];
