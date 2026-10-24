@@ -6,6 +6,7 @@ import { BINDS_PREDICATE_NAME } from './landIntakeRoles';
  *  Thing it binds may be called anything. */
 export const PAGE_ROLE_ID = 'a18768bc-b4e7-513c-864f-842d674c1858';
 export const DISPLAY_SETTINGS_ROLE_ID = '1cb6206a-2726-5008-8188-698b299f5665';
+export const CONTAINMENT_ROLE_ID = 'd89c4c7d-c865-5db7-8c55-80df8cb254ec';
 
 /** The Thing a role binds in a loaded set, or undefined where the set holds no binding for it. A role binds
  *  one Thing (the platform refuses a second), so the first binding found is the binding. */
