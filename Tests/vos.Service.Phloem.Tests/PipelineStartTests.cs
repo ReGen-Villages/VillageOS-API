@@ -4,7 +4,7 @@ using Xunit;
 
 namespace vos.Service.Phloem.Tests;
 
-// Which pipeline a dispatched relationship's target starts. The broker posts one body for a `runs`
+// Which pipeline the target of a relationship the broker sends starts. The broker posts one body for a `runs`
 // write and for a state entry; only what the target is tells them apart, and that is read from the model.
 public class PipelineStartTests
 {
@@ -31,7 +31,7 @@ public class PipelineStartTests
     }
 
     // The page draws a state row standing for the state, not for any one connection watching it, because
-    // several may. The broker dispatches the connection, so the orchestrator walks to the state it watches.
+    // several may. The broker calls the connection, so the orchestrator walks to the state it watches.
     [Fact]
     public void A_connection_starts_the_pipeline_whose_start_node_stands_for_the_state_it_watches()
     {
@@ -174,7 +174,7 @@ public class PipelineStartTests
     }
 
     // The mark is on the predicate itself. A predicate that merely `is` a marked one does not play the role,
-    // which is how the platform reads the predicates it dispatches on.
+    // which is how the platform reads the predicates it calls services on.
     [Fact]
     public void A_predicate_carrying_no_mark_of_its_own_does_not_stand_for_anything()
     {

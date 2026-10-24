@@ -31,7 +31,7 @@ public static class HandleRequestRouter
 
     // Never raises. An empty body, and text that is not JSON at all, are Unrecognised — the same
     // answer as JSON naming no subject, so every unusable body is refused in the shared words
-    // instead of failing the request and being re-driven by the reconciler.
+    // instead of failing the request and being called again by the reconciler.
     public static HandleRequest Classify(string? body)
     {
         if (string.IsNullOrWhiteSpace(body))

@@ -1036,7 +1036,7 @@ export const nl: PartialResources = {
     stateHistoryUnavailable: "Statusgeschiedenis niet beschikbaar — geen actieve reactieve engine voor dit model.",
     noStateChanges: "Geen statuswijzigingen vastgelegd.",
     handledBy: "Verwerkt door",
-    dispatchesSinceModelLoad: "Vastgelegd sinds het platform dit model laadde — een eerdere uitvoering toont geen tijd.",
+    serviceCallsSinceModelLoad: "Vastgelegd sinds het platform dit model laadde — een eerdere uitvoering toont geen tijd.",
     decisions: "Waarom dit besloten is",
     decisionChose: "koos",
     decisionChoseNothing: "koos niets",
@@ -1311,7 +1311,7 @@ export const nl: PartialResources = {
       other: "",
     },
     note: {
-      startNotDispatched: "Tekenen waar een run vandaan komt is niet wat hem start: deze pijplijn draait wanneer op Uitvoeren wordt gedrukt of de orkestrator een verzoek krijgt.",
+      startNotCalled: "Tekenen waar een run vandaan komt is niet wat hem start: deze pijplijn draait wanneer op Uitvoeren wordt gedrukt of de orkestrator een verzoek krijgt.",
       endNotSent: "Nog niets stuurt naar {{name}}; wat deze knoop bereikt, blijft in het verslag van de run.",
       endNotStarted: "Nog niets start {{name}} vanuit deze run.",
     },

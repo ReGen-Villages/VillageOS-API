@@ -29,7 +29,7 @@ public static class PipelineRoles
     public static readonly Role PipelineStart = new("pipelineStart", new("871174ab-c8e4-5712-81e1-b95accaea5ce"));
     public static readonly Role RunSubject = new("runSubject", new("b0ca501e-b643-5197-aa2f-ea26b02ebce4"));
     // A state connection reaches the range it watches: a state row on the page stands for the range, since several
-    // connections may watch one state, and the broker dispatches the connection, so the two meet through this edge.
+    // connections may watch one state, and the broker calls the connection, so the two meet through this edge.
     public static readonly Role StateWatch = new("stateWatch", new("03590900-eb28-55bf-9731-e9a0c03dce82"));
     // An external system reaches the connection it is told through.
     public static readonly Role ToldThrough = new("toldThrough", new("d94c1844-76e6-56fa-ae38-d10405d52826"));

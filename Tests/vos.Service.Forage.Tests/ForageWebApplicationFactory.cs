@@ -19,7 +19,7 @@ public class ForageWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
         = _ => new HttpResponseMessage(HttpStatusCode.NotFound);
 
     // The production starter hands a run to the thread pool, so the run may finish before or after the
-    // dispatch is answered. Here no run begins until the test completes it, so a test that reads what a
+    // service call is answered. Here no run begins until the test completes it, so a test that reads what a
     // run did without completing it fails every time instead of only on a busy machine.
     private readonly HeldRuns _runs = new();
 

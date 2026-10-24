@@ -61,7 +61,7 @@ function index() {
   );
 }
 
-/** The same catchment, on a relationship the platform dispatches the metering service through. */
+/** The same catchment, on a relationship the platform calls the metering service through. */
 function indexWithAService() {
   return buildModelIndex(
     [
@@ -183,9 +183,9 @@ describe('EntityDetailWindow', () => {
       PredicateId: 'measures',
       TargetId: 'reservoir',
       Properties: {
-        __DispatchState: 'Failed',
-        __DispatchLastAttemptAt: '2026-07-17T09:41:07Z',
-        __DispatchLastError: 'the meter answered nothing',
+        __CallState: 'Failed',
+        __CallLastAttemptAt: '2026-07-17T09:41:07Z',
+        __CallLastError: 'the meter answered nothing',
       },
     });
   });
@@ -208,7 +208,7 @@ describe('EntityDetailWindow', () => {
     expect(openDetail).toHaveBeenCalledWith('meteringService');
   });
 
-  it('says where the record starts when a dispatch carries no time, rather than showing a blank', async () => {
+  it('says where the record starts when a service call carries no time, rather than showing a blank', async () => {
     mockGetRelationship.mockResolvedValue({
       Id: 'e1', SubjectId: 'catchment', PredicateId: 'measures', TargetId: 'reservoir', Properties: {},
     });
@@ -218,7 +218,7 @@ describe('EntityDetailWindow', () => {
     expect(screen.getByText(/recorded since the platform loaded this model/i)).toBeInTheDocument();
   });
 
-  it('leaves the section out where no service was dispatched, rather than drawing an empty one', async () => {
+  it('leaves the section out where no service was called, rather than drawing an empty one', async () => {
     open();
     await screen.findAllByText('CATCHMENT-7');
     expect(screen.queryByText(/handled by/i)).not.toBeInTheDocument();

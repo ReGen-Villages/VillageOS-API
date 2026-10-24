@@ -14,7 +14,7 @@ public class StoppingRunsTests
     private static readonly RunSubject Plot = new(Guid.NewGuid(), "Plot 7");
     private static readonly RunSubject OtherPlot = new(Guid.NewGuid(), "Plot 8");
 
-    private static NodeDispatchResult Answer(string port, string value) =>
+    private static NodeCallResult Answer(string port, string value) =>
         new(200, JsonSerializer.Serialize(new { success = true, outputs = new Dictionary<string, string> { [port] = value } }));
 
     private static (TestGraphs.WaitingFixture Waiting, FakeGateway Gateway, PipelineExecutor Executor) ArrangeWaiting()
@@ -22,7 +22,7 @@ public class StoppingRunsTests
         var waiting = TestGraphs.WaitingPipeline();
         var gateway = new FakeGateway(waiting.Fixture.Build())
         {
-            OnDispatch = (subdomain, _) => subdomain == "review" ? Answer("notice", "sent for review") : Answer("out", "published"),
+            OnCall = (subdomain, _) => subdomain == "review" ? Answer("notice", "sent for review") : Answer("out", "published"),
         };
         return (waiting, gateway, new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()));
     }
@@ -54,7 +54,7 @@ public class StoppingRunsTests
     {
         var (waiting, gateway, executor) = ArrangeWaiting();
         Task? stopping = null;
-        gateway.OnDispatch = (_, envelope) =>
+        gateway.OnCall = (_, envelope) =>
         {
             stopping ??= executor.StopAsync(Guid.NewGuid(), envelope.GetProperty("runId").GetGuid(), CancellationToken.None);
             return Answer("notice", "sent for review");
@@ -74,7 +74,7 @@ public class StoppingRunsTests
         PipelineExecutor executor = null!;
         Task? stopping = null;
         var gateway = new FakeGateway(fx.Build());
-        gateway.OnDispatch = (subdomain, envelope) =>
+        gateway.OnCall = (subdomain, envelope) =>
         {
             if (subdomain == "ech") stopping ??= executor.StopAsync(Guid.NewGuid(), envelope.GetProperty("runId").GetGuid(), CancellationToken.None);
             return Answer("echo", "x");
@@ -98,7 +98,7 @@ public class StoppingRunsTests
 
         await executor.ResumeAsync(vigil, CancellationToken.None);
 
-        gateway.Dispatched.Should().Equal("review");
+        gateway.Called.Should().Equal("review");
         gateway.RunStatuses[run.RunId].Should().Be(RunStatus.Cancelled);
     }
 
@@ -126,7 +126,7 @@ public class StoppingRunsTests
         await executor.StopAsync(Guid.NewGuid(), run.RunId, CancellationToken.None);
         var (fx, pipelineId) = TestGraphs.DemoPipeline();
         gateway.Graph = fx.Build();
-        gateway.OnDispatch = (_, _) => Answer("echo", "x");
+        gateway.OnCall = (_, _) => Answer("echo", "x");
 
         var again = await executor.RunAsync(pipelineId, default, CancellationToken.None, runId: run.RunId);
 
@@ -139,13 +139,13 @@ public class StoppingRunsTests
         var (waiting, gateway, executor) = ArrangeWaiting();
         var callAnswered = new ManualResetEventSlim();
         var calls = 0;
-        gateway.OnDispatch = (_, _) =>
+        gateway.OnCall = (_, _) =>
         {
             if (Interlocked.Increment(ref calls) == 1) callAnswered.Wait();
             return Answer("notice", "sent for review");
         };
         var calling = Task.Run(() => executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot));
-        await Settle.UntilAsync(() => gateway.RunsCreated.Count == 1 && gateway.Dispatched.Count == 1, "the first run is in the middle of its call");
+        await Settle.UntilAsync(() => gateway.RunsCreated.Count == 1 && gateway.Called.Count == 1, "the first run is in the middle of its call");
         var waitingRun = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
 
         var stopping = executor.StopAsync(Guid.NewGuid(), Plot.Id, CancellationToken.None);
@@ -167,7 +167,7 @@ public class StoppingRunsTests
     public async Task A_run_pausing_between_attempts_stops_at_once_without_another_attempt()
     {
         var retry = TestGraphs.RetryPipeline(policy: [("attempts", 5), ("pauseMinutes", 600)]);
-        var gateway = new FakeGateway(retry.Fixture.Build()) { OnDispatch = (_, _) => throw new HttpRequestException("the service is away") };
+        var gateway = new FakeGateway(retry.Fixture.Build()) { OnCall = (_, _) => throw new HttpRequestException("the service is away") };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
         var running = executor.RunAsync(retry.PipelineId, JsonSerializer.SerializeToElement(new { seed = "world" }), CancellationToken.None);
@@ -180,7 +180,7 @@ public class StoppingRunsTests
         await stopping;
 
         result.Nodes.Single(node => node.NodeId == retry.Echo.Id).Status.Should().Be(RunStatus.Cancelled);
-        gateway.Dispatched.Should().ContainSingle();
+        gateway.Called.Should().ContainSingle();
         gateway.RunStatuses[runId].Should().Be(RunStatus.Cancelled);
     }
 
@@ -188,7 +188,7 @@ public class StoppingRunsTests
     public async Task A_run_already_finished_is_left_as_it_ended()
     {
         var (fx, pipelineId) = TestGraphs.DemoPipeline();
-        var gateway = new FakeGateway(fx.Build()) { OnDispatch = (_, _) => Answer("echo", "x") };
+        var gateway = new FakeGateway(fx.Build()) { OnCall = (_, _) => Answer("echo", "x") };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
         var run = await executor.RunAsync(pipelineId, default, CancellationToken.None);
 

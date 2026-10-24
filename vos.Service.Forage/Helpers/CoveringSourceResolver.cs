@@ -56,7 +56,7 @@ public sealed record CodedPlace(
 public sealed record CodedPlaces(Guid NestingPredicateId, IReadOnlyList<CodedPlace> Places);
 
 // One compute service to start on the site's study: the connection to relate through, and the service
-// prototype the relationship points at. The connection is the predicate, which is what makes the relationship dispatch.
+// prototype the relationship points at. The connection is the predicate, which is what makes the relationship call its service.
 // A study already holding the relationship has its analysis running, and the model refuses a second copy.
 public sealed record AnalysisTrigger(
     string ConnectionName, Guid ConnectionId, Guid ServicePrototypeId, bool AlreadyRelated);
@@ -87,14 +87,14 @@ public static class CoveringSourceResolver
     public const string HasPredicate = "has";
     public const string IsPredicateName = "is";
 
-    // The archetype every connection a site analysis dispatches `is`, found through the role that binds it
+    // The archetype every connection a site analysis calls `is`, found through the role that binds it
     // rather than by name, so adding a balance is an edit to the model: name them here and the two
     // repositories would agree about the analysis only by spelling.
     public static readonly Role SiteAnalysisConnectionRole = LandIntakeRoles.SiteAnalysisConnection;
 
     // The archetype every site `is`, bound by the platform's site role so that a walk reaching Places
-    // and sites alike can tell the two apart — and so that a dispatch naming a source is told from one
-    // naming a site by the model, never by the name of the connection that dispatched it.
+    // and sites alike can tell the two apart — and so that a service call naming a source is told from one
+    // naming a site by the model, never by the name of the connection that called it.
     public static readonly Role SiteRole = LandIntakeRoles.Site;
 
     // Nothing offered to a site is fetched here, so the calls a source reaches carry no address; the run
@@ -177,7 +177,7 @@ public static class CoveringSourceResolver
     private const string AttemptsProperty = "attempts";
 
     // Everything in one read: the site's Places, every source whose coverage reaches one of them, the
-    // study of the site, and every connection a site analysis dispatches with the service each one binds.
+    // study of the site, and every connection a site analysis calls with the service each one binds.
     // Traverse rules compose over the set built so far, so `isIn` must come first — the same ordering
     // trap the endpoint kinds hit, where rules applied before the set is closed find nothing.
     public static SubscriptionSelector SelectorFor(Guid siteId) => new()
@@ -227,7 +227,7 @@ public static class CoveringSourceResolver
         IncludeRelationships = true,
     };
 
-    // What a dispatch named. The subject's own `is` chain arrives with the ancestors the broker closes
+    // What a service call named. The subject's own `is` chain arrives with the ancestors the broker closes
     // over; the site role is asked for with what it binds so that a model binding no site reads as one,
     // rather than as a subject that is not a site — and the archetype alone, because with its members every
     // site in the model would arrive to answer a question about one Thing.
@@ -703,7 +703,7 @@ public static class CoveringSourceResolver
     // left out under.
     //
     // The study is the subject of every relationship written, never the site: a compute service reads its inputs
-    // off the study, so a relationship naming the site would dispatch the service against a Thing holding none
+    // off the study, so a relationship naming the site would call the service for a Thing holding none
     // of them.
     public static SiteAnalysis? AnalysisOf(SnapshotDocument snapshot, Guid siteId)
     {

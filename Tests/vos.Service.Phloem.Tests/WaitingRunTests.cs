@@ -21,7 +21,7 @@ public class WaitingRunTests
         var waiting = fixture ?? TestGraphs.WaitingPipeline();
         var gateway = new FakeGateway(waiting.Fixture.Build())
         {
-            OnDispatch = (subdomain, envelope) => subdomain switch
+            OnCall = (subdomain, envelope) => subdomain switch
             {
                 "review" => NodeOk(("notice", "sent for review")),
                 "publish" => NodeOk(("out", envelope.GetProperty("inputs").GetProperty("in").GetString()!)),
@@ -38,7 +38,7 @@ public class WaitingRunTests
     }
 
     [Fact]
-    public async Task A_run_dispatches_the_waiting_node_then_waits_for_its_Thing_to_enter_the_state_and_dispatches_nothing_after_it()
+    public async Task A_run_calls_the_waiting_node_then_waits_for_its_Thing_to_enter_the_state_and_calls_nothing_after_it()
     {
         var (waiting, gateway, executor) = Arrange();
 
@@ -46,7 +46,7 @@ public class WaitingRunTests
 
         result.Success.Should().BeFalse();
         result.Error.Should().Be("The run waits for 'Plot 7' to enter 'decided' at 'Review'.");
-        gateway.Dispatched.Should().Equal("review");
+        gateway.Called.Should().Equal("review");
         gateway.Records[(result.RunId, waiting.Review.Id)].Status.Should().Be(RunStatus.Waiting);
         gateway.Records[(result.RunId, waiting.Review.Id)].Outputs["notice"].GetString().Should().Be("sent for review");
         gateway.Awaited[(result.RunId, waiting.Review.Id)].Should().Be(Plot.Id);
@@ -58,7 +58,7 @@ public class WaitingRunTests
     }
 
     [Fact]
-    public async Task The_vigils_answer_resumes_the_run_from_its_record_without_dispatching_the_waiting_node_again()
+    public async Task The_vigils_answer_resumes_the_run_from_its_record_without_calling_the_waiting_node_again()
     {
         var (waiting, gateway, executor) = Arrange();
         var (runId, vigilId) = await WaitAsync(waiting, gateway, executor);
@@ -66,7 +66,7 @@ public class WaitingRunTests
         var outcome = await executor.ResumeAsync(vigilId, CancellationToken.None);
 
         outcome.Should().Be(ResumeOutcome.Resumed);
-        gateway.Dispatched.Should().Equal("review", "publish");
+        gateway.Called.Should().Equal("review", "publish");
         gateway.Envelopes.Last().Envelope.GetProperty("inputs").GetProperty("in").GetString().Should().Be("sent for review");
         gateway.Records[(runId, waiting.Review.Id)].Status.Should().Be(RunStatus.Succeeded);
         gateway.Records[(runId, waiting.Publish.Id)].Status.Should().Be(RunStatus.Succeeded);
@@ -91,7 +91,7 @@ public class WaitingRunTests
     public async Task Waits_in_parallel_branches_each_hold_a_vigil_and_the_run_ends_only_when_both_are_answered()
     {
         var (waiting, gateway, executor) = Arrange(TestGraphs.WaitingPipeline(approvedBeside: true));
-        gateway.OnDispatch = (subdomain, envelope) => subdomain switch
+        gateway.OnCall = (subdomain, envelope) => subdomain switch
         {
             "review" or "approve" => NodeOk(("notice", $"sent to {subdomain}")),
             "publish" => NodeOk(("out", envelope.GetProperty("inputs").GetProperty("in").GetString()!)),
@@ -103,7 +103,7 @@ public class WaitingRunTests
         gateway.VigilsPlaced.Select(vigil => vigil.RangeId).Should().BeEquivalentTo([waiting.Decided.Id, waiting.Fixture.Get("approved").Id]);
 
         await executor.ResumeAsync(gateway.HeldVigils[(result.RunId, waiting.Review.Id)], CancellationToken.None);
-        gateway.Dispatched.Should().Contain("publish");
+        gateway.Called.Should().Contain("publish");
         gateway.StatusUpdates.Last().Should().Be(RunStatus.Waiting);
 
         await executor.ResumeAsync(gateway.HeldVigils[(result.RunId, approve.Id)], CancellationToken.None);
@@ -122,7 +122,7 @@ public class WaitingRunTests
         var again = await executor.ResumeAsync(vigilId, CancellationToken.None);
 
         again.Should().Be(ResumeOutcome.AlreadyResumed);
-        gateway.Dispatched.Should().Equal("review", "publish");
+        gateway.Called.Should().Equal("review", "publish");
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public class WaitingRunTests
         var outcomes = await Task.WhenAll(executor.ResumeAsync(vigilId, CancellationToken.None), executor.ResumeAsync(vigilId, CancellationToken.None));
 
         outcomes.Should().BeEquivalentTo([ResumeOutcome.Resumed, ResumeOutcome.AlreadyResumed]);
-        gateway.Dispatched.Should().Equal("review", "publish");
+        gateway.Called.Should().Equal("review", "publish");
     }
 
     // The platform answers at once for a Thing already in the state, which can be before the node run is related
@@ -151,7 +151,7 @@ public class WaitingRunTests
         paused.Error.Should().Be("The run waits for 'Plot 7' to enter 'decided' at 'Review'.");
         await Settle.ForAsync(answer!, "the answer that arrived during placement resumes the run");
         (await answer!).Should().Be(ResumeOutcome.Resumed);
-        gateway.Dispatched.Should().Equal("review", "publish");
+        gateway.Called.Should().Equal("review", "publish");
         gateway.StatusUpdates.Last().Should().Be(RunStatus.Succeeded);
     }
 
@@ -163,11 +163,11 @@ public class WaitingRunTests
         var outcome = await executor.ResumeAsync(Guid.NewGuid(), CancellationToken.None);
 
         outcome.Should().Be(ResumeOutcome.NotHeld);
-        gateway.Dispatched.Should().BeEmpty();
+        gateway.Called.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task A_record_missing_on_resume_fails_the_run_naming_the_node_and_dispatches_nothing_again()
+    public async Task A_record_missing_on_resume_fails_the_run_naming_the_node_and_calls_nothing_again()
     {
         var (waiting, gateway, executor) = Arrange();
         var (runId, vigilId) = await WaitAsync(waiting, gateway, executor);
@@ -177,7 +177,7 @@ public class WaitingRunTests
         var outcome = await executor.ResumeAsync(vigilId, CancellationToken.None);
 
         outcome.Should().Be(ResumeOutcome.Resumed);
-        gateway.Dispatched.Should().Equal("review");
+        gateway.Called.Should().Equal("review");
         gateway.StatusUpdates.Last().Should().Be(RunStatus.Failed);
         gateway.RunError.Should().Be("The record of 'A submission arrives' is missing, so the run cannot resume without running it again.");
     }
@@ -215,13 +215,13 @@ public class WaitingRunTests
     }
 
     [Fact]
-    public async Task A_waiting_node_whose_port_holds_no_Thing_fails_without_being_dispatched()
+    public async Task A_waiting_node_whose_port_holds_no_Thing_fails_without_being_called()
     {
         var (waiting, gateway, executor) = Arrange();
 
         var result = await executor.RunAsync(waiting.PipelineId, JsonSerializer.SerializeToElement(new { subject = "not a Thing" }), CancellationToken.None);
 
-        gateway.Dispatched.Should().BeEmpty();
+        gateway.Called.Should().BeEmpty();
         result.Nodes.Single(node => node.Name == "Review").Error
             .Should().Be("'Review' waits for the Thing reaching its port 'submission', but what reached it names no Thing.");
         gateway.VigilsPlaced.Should().BeEmpty();
@@ -284,7 +284,7 @@ public class WaitingRunTests
         var outcome = await executor.ResumeAsync(vigilId, CancellationToken.None);
 
         outcome.Should().Be(ResumeOutcome.Resumed);
-        gateway.Dispatched.Should().Equal("review");
+        gateway.Called.Should().Equal("review");
         gateway.StatusUpdates.Last().Should().Be(RunStatus.Failed);
         gateway.RunError.Should().Be("Node 'Review' waits for two states, so no one answer could resume it.");
     }
@@ -363,9 +363,9 @@ public class WaitingRunTests
         gateway.StatusUpdates.Last().Should().Be(RunStatus.Failed);
     }
 
-    private static NodeDispatchResult NodeOk(params (string Port, string Value)[] outputs) =>
+    private static NodeCallResult NodeOk(params (string Port, string Value)[] outputs) =>
         new(200, JsonSerializer.Serialize(new { success = true, outputs = outputs.ToDictionary(o => o.Port, o => o.Value) }));
 
-    private static NodeDispatchResult NodeFail(string error) =>
+    private static NodeCallResult NodeFail(string error) =>
         new(200, JsonSerializer.Serialize(new { success = false, error }));
 }

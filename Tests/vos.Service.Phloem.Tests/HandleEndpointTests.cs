@@ -14,7 +14,7 @@ using Xunit;
 
 namespace vos.Service.Phloem.Tests;
 
-// The /handle surface in vos.Service.Phloem/Program.cs driven end to end for a dispatched relationship:
+// The /handle surface in vos.Service.Phloem/Program.cs driven end to end for a relationship the broker sends:
 // the broker posts one body for a `runs` write and for a state entry, and what the target starts is read
 // from the model. The resolution rule is pinned in PipelineStartTests; these cover what the route does
 // with the answer.
@@ -142,7 +142,7 @@ public class HandleEndpointTests
     private static readonly Guid WrittenAlongStops = Guid.Parse("a0000000-0000-0000-0000-000000000008");
     private static readonly Guid StopsConnection = Guid.Parse("c0000000-0000-0000-0000-000000000009");
 
-    public enum Start { ByHandAnsweredAtOnce, ByHandAwaited, ByADispatch }
+    public enum Start { ByHandAnsweredAtOnce, ByHandAwaited, ByAServiceCall }
 
     [Theory]
     [InlineData(true)]
@@ -164,7 +164,7 @@ public class HandleEndpointTests
     [Theory]
     [InlineData(Start.ByHandAnsweredAtOnce)]
     [InlineData(Start.ByHandAwaited)]
-    [InlineData(Start.ByADispatch)]
+    [InlineData(Start.ByAServiceCall)]
     public async Task Handle_RecordsTheBrokersRequestIdentifierOnTheRun_HoweverTheRunIsStarted(Start start)
     {
         await using var factory = new PhloemWebApplicationFactory();
@@ -172,7 +172,7 @@ public class HandleEndpointTests
         var requestId = Guid.NewGuid();
         using var request = new HttpRequestMessage(HttpMethod.Post, "/handle")
         {
-            Content = start == Start.ByADispatch
+            Content = start == Start.ByAServiceCall
                 ? StateEntry(target: Watching)
                 : new StringContent(
                     JsonSerializer.Serialize(new { pipelineId = Drawn, async = start == Start.ByHandAnsweredAtOnce }),

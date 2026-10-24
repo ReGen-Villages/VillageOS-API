@@ -12,13 +12,13 @@ using static vos.Service.Forage.Tests.ModelSnapshotStub;
 
 namespace vos.Service.Forage.Tests;
 
-// Driven end to end: a dispatch naming a source offers it to every site under the Places it
+// Driven end to end: a service call naming a source offers it to every site under the Places it
 // covers — a coverage minted per call those sites would make, nothing fetched, and the source stamped as
 // worked out. The walk itself is pinned in Helpers/SourceReachTests and the choice of run in
 // Helpers/SubjectKindTests; this covers what the endpoint composes from them.
 //
 // What it buys: a source added to the catalogue after a site was discovered reaches that site. One
-// outstanding coverage puts the site back in the state a run is dispatched by, and that run asks only
+// outstanding coverage puts the site back in the state that starts a run, and that run asks only
 // this source.
 public class HandleEndpointSourceOfferedTests
 {
@@ -112,7 +112,7 @@ public class HandleEndpointSourceOfferedTests
     private static string StampOn(IReadOnlyDictionary<string, Guid> ids, string thing) =>
         MyceliumRoutes.ThingPropertyFacts(ids[thing], CoverageLedger.CoverageMatchedAtProperty);
 
-    private static async Task<Writes> Dispatch(
+    private static async Task<Writes> ServiceCall(
         IReadOnlyDictionary<string, Guid> ids, string subject, Edge[] edges,
         Func<HttpRequestMessage, HttpResponseMessage?>? before = null,
         Archetype[]? archetypes = null)
@@ -135,11 +135,11 @@ public class HandleEndpointSourceOfferedTests
     }
 
     [Fact]
-    public async Task Handle_ADispatchNamingASource_MintsACoverageForEverySiteUnderItsPlaces()
+    public async Task Handle_AServiceCallNamingASource_MintsACoverageForEverySiteUnderItsPlaces()
     {
         var ids = Ids();
 
-        var writes = await Dispatch(ids, "NationalFloodPortal", Edges());
+        var writes = await ServiceCall(ids, "NationalFloodPortal", Edges());
 
         writes.Minted.Should().ContainSingle().Which.Should().Be("WillowBend × NationalFloodPortal",
             "Oakhollow is in Spain, which this source does not cover, however many others do");
@@ -150,14 +150,14 @@ public class HandleEndpointSourceOfferedTests
     }
 
     // Nothing is fetched here. A minted coverage is outstanding, and that is what puts the site back in
-    // the state a run is dispatched by — the run that fetches is the site's own, and it asks only this
+    // the state that starts a run — the run that fetches is the site's own, and it asks only this
     // source.
     [Fact]
-    public async Task Handle_ADispatchNamingASource_FetchesNothingAndStampsTheSource()
+    public async Task Handle_AServiceCallNamingASource_FetchesNothingAndStampsTheSource()
     {
         var ids = Ids();
 
-        var writes = await Dispatch(ids, "NationalFloodPortal", Edges());
+        var writes = await ServiceCall(ids, "NationalFloodPortal", Edges());
 
         writes.Fetched.Should().BeEmpty();
         writes.Facts.Should().ContainSingle().Which.Should().Be(StampOn(ids, "NationalFloodPortal"));
@@ -170,7 +170,7 @@ public class HandleEndpointSourceOfferedTests
     {
         var ids = Ids();
 
-        var writes = await Dispatch(ids, "NationalFloodPortal", AlreadyOffered());
+        var writes = await ServiceCall(ids, "NationalFloodPortal", AlreadyOffered());
 
         writes.Minted.Should().BeEmpty();
         writes.Related.Should().BeEmpty();
@@ -179,14 +179,14 @@ public class HandleEndpointSourceOfferedTests
 
     // A source stamped after a read that failed would be recorded as offered to every site it covers
     // while having reached none, and nothing would ever offer it again. Written nothing, it stays in the
-    // state that dispatched it and is driven again.
+    // state that started it and is driven again.
     [Fact]
     public async Task Handle_ASourceReadThatFails_WritesNothingAndStampsNothing()
     {
         var ids = Ids();
         var reads = 0;
 
-        var writes = await Dispatch(ids, "NationalFloodPortal", Edges(), request =>
+        var writes = await ServiceCall(ids, "NationalFloodPortal", Edges(), request =>
             request.Method == HttpMethod.Post
             && request.RequestUri!.AbsolutePath == SubscribeRoute
             && Interlocked.Increment(ref reads) == 2
@@ -199,7 +199,7 @@ public class HandleEndpointSourceOfferedTests
     }
 
     // A source nothing can call is offered to no site, for the reason the site's run leaves it out — but
-    // it was looked at, and stamping it is what keeps it from being dispatched again on every load.
+    // it was looked at, and stamping it is what keeps it from being called again on every load.
     [Fact]
     public async Task Handle_ASourceWithNoRegistration_MintsNothingAndIsStillStamped()
     {
@@ -208,7 +208,7 @@ public class HandleEndpointSourceOfferedTests
             .Where(edge => !(edge.Subject == "NationalFloodPortal" && edge.Predicate == "resolvedBy"))
             .ToArray();
 
-        var writes = await Dispatch(ids, "NationalFloodPortal", uncallable);
+        var writes = await ServiceCall(ids, "NationalFloodPortal", uncallable);
 
         writes.Minted.Should().BeEmpty();
         writes.Facts.Should().ContainSingle().Which.Should().Be(StampOn(ids, "NationalFloodPortal"));
@@ -222,7 +222,7 @@ public class HandleEndpointSourceOfferedTests
     {
         var ids = Ids();
 
-        var writes = await Dispatch(ids, "NationalFloodPortal", Edges(), archetypes:
+        var writes = await ServiceCall(ids, "NationalFloodPortal", Edges(), archetypes:
             [new Archetype("Site", BoundBy: CoveringSourceResolver.SiteRole), new Archetype("DataSource")]);
 
         writes.Minted.Should().BeEmpty();
@@ -230,14 +230,14 @@ public class HandleEndpointSourceOfferedTests
     }
 
     // The site's run would stamp a Place as worked out and a source's run would offer it to nothing and
-    // do the same. A subject that is neither is a dispatch the model got wrong, and the run says so by
+    // do the same. A subject that is neither is a service call the model got wrong, and the run says so by
     // writing nothing.
     [Fact]
     public async Task Handle_ASubjectThatIsNeitherSiteNorSource_WritesNothing()
     {
         var ids = Ids();
 
-        var writes = await Dispatch(ids, "Portugal", Edges());
+        var writes = await ServiceCall(ids, "Portugal", Edges());
 
         writes.Fetched.Should().BeEmpty();
         writes.Minted.Should().BeEmpty();
@@ -247,11 +247,11 @@ public class HandleEndpointSourceOfferedTests
     // With two kinds of subject in the model, a site is still fetched: the mark decides, and this is
     // the branch every existing site run now goes down.
     [Fact]
-    public async Task Handle_ADispatchNamingASite_StillFetchesEverySourceCoveringIt()
+    public async Task Handle_AServiceCallNamingASite_StillFetchesEverySourceCoveringIt()
     {
         var ids = Ids();
 
-        var writes = await Dispatch(ids, "WillowBend", Edges());
+        var writes = await ServiceCall(ids, "WillowBend", Edges());
 
         writes.Fetched.Should().HaveCount(2);
         writes.Facts.Should().Contain(StampOn(ids, "WillowBend"));

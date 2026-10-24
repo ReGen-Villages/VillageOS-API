@@ -1,7 +1,7 @@
 import type { VosThing, VosRelationship } from '../types/vos';
 import { statedProperties } from '../utils/propertyMapper';
 
-// Client-side mirror of Phloem's graph reads (vos.Service.Phloem): resolve a node's dispatch connection, its
+// Client-side mirror of Phloem's graph reads (vos.Service.Phloem): resolve the connection a node calls, its
 // ports (via the bound service's is-chain), and identify wires by the archetype their predicate is of.
 // `is`, `has`, `of` and `binds` are the platform's own built-in predicates and are matched by name. Which Thing
 // plays which role is not a name at all: each role is a Thing the model declares under a fixed identifier, and
@@ -9,7 +9,7 @@ import { statedProperties } from '../utils/propertyMapper';
 // archetype and predicate below whatever suits it.
 
 /** Each role's identifier is the standard version 5 identifier of the role's word, so every model declares the
- *  same role Thing. Archetypes first; then the predicates the platform dispatches on, what an external system
+ *  same role Thing. Archetypes first; then the predicates the platform calls services on, what an external system
  *  sends and is told, where a kind of message arrives, what a boundary node stands for, and which pipeline a
  *  connection's trigger starts. */
 export const ROLE = {
@@ -83,7 +83,7 @@ export interface ExternalSystemInformation {
   told: MessageKindInformation[];
 }
 
-/** A connection as a catalyst: how it is reached, what it dispatches, and what it starts. */
+/** A connection as a catalyst: how it is reached, what it calls, and what it starts. */
 export interface CatalystConnection {
   connectionId: string;
   name: string;
@@ -252,7 +252,7 @@ export class PipelineModel {
   }
 
   /** Every connection the model holds, as the catalyst its trigger makes it, whether or not a pipeline
-   *  can dispatch it: a door reached over HTTP, a predicate written along, a state watched. */
+   *  can call it: a door reached over HTTP, a predicate written along, a state watched. */
   catalystConnections(): CatalystConnection[] {
     const resumption = this.boundTo(ROLE.RunResumption);
     return this.thingsOf(ROLE.Connection).filter((connection) => connection.Id !== resumption).map((connection) => {
@@ -456,7 +456,7 @@ export class PipelineModel {
       .map((t) => ({ portId: t.Id, port: this.toPort(t) }));
   }
 
-  /** Every dispatchable connection (carries a Subdomain and binds a service) — the editor palette. */
+  /** Every callable connection (carries a Subdomain and binds a service) — the editor palette. */
   connections(): ConnectionInformation[] {
     const result: ConnectionInformation[] = [];
     for (const t of this.things) {

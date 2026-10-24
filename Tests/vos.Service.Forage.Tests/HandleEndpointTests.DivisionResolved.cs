@@ -117,7 +117,7 @@ public class HandleEndpointDivisionTests
         graded.Should().ContainSingle().Which.Should().Contain("24889");
     }
 
-    // A run that made both lookups on every dispatch would call two providers for a site that needs
+    // A run that made both lookups on every service call would call two providers for a site that needs
     // neither, and would resolve over a division a project put on its own Place.
     [Fact]
     public async Task Handle_ASiteWhosePlaceCarriesADivision_LooksNothingUp()

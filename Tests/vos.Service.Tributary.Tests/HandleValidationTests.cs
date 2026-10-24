@@ -119,7 +119,7 @@ public class HandleValidationTests
     }
 
     [Fact]
-    public async Task Handle_RawUrlAndMethodKeys_HappyPath_DispatchesEndpoint()
+    public async Task Handle_RawUrlAndMethodKeys_HappyPath_CallsTheEndpoint()
     {
         var thingId = Guid.NewGuid();
         var props = """
