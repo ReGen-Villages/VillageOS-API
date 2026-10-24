@@ -39,7 +39,7 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
         await BindOnceAsync(VigilRole, await _engine.DeclareOnceAsync("Vigil", isArchetype: true, Marked("__IsVigilArchetype")));
         await BindOnceAsync(VigilSubjectRole, await _engine.DeclareOnceAsync("keptOver", properties: Marked("__IsVigilSubjectPredicate")));
         await BindOnceAsync(NotifiedConnectionRole, await _engine.DeclareOnceAsync("notifies", properties: Marked("__IsNotifiedConnectionPredicate")));
-        await BindOnceAsync(DispatchRecordRole, await _engine.DeclareOnceAsync("handledBy"));
+        await BindOnceAsync(CallRecordRole, await _engine.DeclareOnceAsync("handledBy"));
         await BindOnceAsync(PipelineRoles.StateWatch, await _engine.DeclareOnceAsync("watches", properties: Marked("__IsStateWatchPredicate")));
         var judges = await _engine.DeclareOnceAsync("judges", properties: Marked("__IsJudgedThingPredicate"));
         await BindOnceAsync(JudgedThingRole, judges);
@@ -78,7 +78,7 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
     private static readonly Role VigilRole = new("vigil", new("b1cea8ff-7b7e-584d-9f8e-1e7813f52c7e"));
     private static readonly Role VigilSubjectRole = new("vigilSubject", new("30628a44-97c0-55ff-85ba-5d3c7b07380a"));
     private static readonly Role NotifiedConnectionRole = new("notifiedConnection", new("8ac302e3-3de9-51db-8960-65f33396838e"));
-    private static readonly Role DispatchRecordRole = new("dispatchRecord", new("3ad504ef-8737-508a-98da-bd05296961a6"));
+    private static readonly Role CallRecordRole = new("callRecord", new("dfe02bba-b36e-56ca-9dc3-58ca35c71940"));
 
     private async Task BindOnceAsync(Role role, Guid played)
     {

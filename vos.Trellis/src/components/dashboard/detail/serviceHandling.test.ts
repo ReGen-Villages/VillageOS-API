@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildModelIndex } from '../../../api/dashboardApi';
-import { DISPATCH_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID, VIGIL_ROLE_ID } from '../../../api/platformRoles';
+import { CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID, VIGIL_ROLE_ID } from '../../../api/platformRoles';
 import { ROLE } from '../../../pipeline/model';
 import type { VosThing, VosRelationship } from '../../../types/vos';
 import { serviceEdgesOn, dispatchesFrom } from './serviceHandling';
@@ -37,7 +37,7 @@ function site() {
       thing('runs', 'runs'),
       thing(VIGIL_ROLE_ID, 'vigil role'),
       thing(NOTIFIED_CONNECTION_ROLE_ID, 'notified connection role'),
-      thing(DISPATCH_RECORD_ROLE_ID, 'dispatch record role'),
+      thing(CALL_RECORD_ROLE_ID, 'call record role'),
       thing('tells', 'tells'),
       thing('wiring', 'Wiring', {}, true),
       thing('daemon', 'Daemon', {}, true),
@@ -61,7 +61,7 @@ function site() {
       relationship('b2', ROLE.Service, 'binds', 'daemon'),
       relationship('b3', VIGIL_ROLE_ID, 'binds', 'lookout'),
       relationship('b4', NOTIFIED_CONNECTION_ROLE_ID, 'binds', 'tells'),
-      relationship('b5', DISPATCH_RECORD_ROLE_ID, 'binds', 'record'),
+      relationship('b5', CALL_RECORD_ROLE_ID, 'binds', 'record'),
       relationship('w1', 'measures', 'is', 'wiring'),
       relationship('w2', 'measures', 'runs', 'meteringService'),
       relationship('w3', 'meteringService', 'is', 'daemon'),
@@ -160,7 +160,7 @@ describe('serviceEdgesOn', () => {
       tells: { __IsNotifiedConnectionPredicate: true },
       record: { __IsDispatchRecordPredicate: true },
     };
-    const unbound = new Set([VIGIL_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID, DISPATCH_RECORD_ROLE_ID]);
+    const unbound = new Set([VIGIL_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID, CALL_RECORD_ROLE_ID]);
     const index = buildModelIndex(
       [...base.byId.values()].map((each) => (marked[each.Id] ? { ...each, Properties: marked[each.Id] } : each)),
       base.relationships.filter((edge) => !unbound.has(edge.SubjectId)),
