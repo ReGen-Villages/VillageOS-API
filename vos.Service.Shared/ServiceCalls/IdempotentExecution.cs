@@ -10,7 +10,7 @@ namespace vos.Service.Shared.ServiceCalls;
 // delivery says whether it is the first.
 //
 // A claim is the note kept here against a relationshipId work has started for. A failing effect
-// gives its claim back: keeping it would lose the work, because the re-drive would find it taken.
+// gives its claim back: keeping it would lose the work, because the repeat call would find it taken.
 //
 // None of this is a durable record of what completed. That belongs on the relation, which outlives
 // any one process; these claims guard against a burst of repeats and nothing more.

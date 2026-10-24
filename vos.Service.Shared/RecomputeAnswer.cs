@@ -5,8 +5,8 @@ namespace vos.Service.Shared;
 //
 // A service call that finds an input missing has not failed. A study a submission built carries land, a
 // boundary and programme shares, so a reservoir capacity or a panel area is absent until a building model
-// exists — and a handler that threw on one had the broker record __CallState=Failed and re-drive
-// it on every reconciliation for the life of the model, which reads in the log exactly like a service that
+// exists — and a handler that threw on one had the broker record __CallState=Failed and call
+// it again on every reconciliation for the life of the model, which reads in the log exactly like a service that
 // is broken. The service answers what it is waiting for instead, writes nothing, and computes when the
 // input lands and the watch on the study wakes it.
 public readonly record struct RecomputeAnswer<TOutputs>(TOutputs? Outputs, IReadOnlyList<string> WaitingFor)

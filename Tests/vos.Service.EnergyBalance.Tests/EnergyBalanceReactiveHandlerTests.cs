@@ -120,7 +120,7 @@ public class EnergyBalanceReactiveHandlerTests
 
     // A study a submission built describes land and a programme and carries no panels, so the
     // area is absent until a building model exists. Throwing on it had the broker record the service call
-    // failed and re-drive it on every reconciliation for as long as the model lived.
+    // failed and call it again on every reconciliation for as long as the model lived.
     [Fact]
     public async Task An_input_the_study_does_not_carry_is_waited_for_and_no_verdict_is_written()
     {

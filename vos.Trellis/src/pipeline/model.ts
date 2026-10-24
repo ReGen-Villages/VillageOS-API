@@ -1,7 +1,7 @@
 import type { VosThing, VosRelationship } from '../types/vos';
 import { statedProperties } from '../utils/propertyMapper';
 
-// Client-side mirror of Phloem's graph reads (vos.Service.Phloem): resolve a node's service call connection, its
+// Client-side mirror of Phloem's graph reads (vos.Service.Phloem): resolve the connection a node calls, its
 // ports (via the bound service's is-chain), and identify wires by the archetype their predicate is of.
 // `is`, `has`, `of` and `binds` are the platform's own built-in predicates and are matched by name. Which Thing
 // plays which role is not a name at all: each role is a Thing the model declares under a fixed identifier, and

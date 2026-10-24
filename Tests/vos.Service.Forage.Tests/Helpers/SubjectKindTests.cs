@@ -85,7 +85,7 @@ public class SubjectKindTests
     }
 
     // A model that never read the template declaring the role cannot tell the two apart, and it also
-    // cannot have declared the connection that service calls a source — so the honest answer is the one
+    // cannot have declared the connection that calls a source — so the honest answer is the one
     // every service call got before there were two kinds. An archetype named Site binds nothing on its own.
     [Fact]
     public void AModelBindingNoSiteArchetype_CannotTell()

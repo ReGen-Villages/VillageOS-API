@@ -7,7 +7,7 @@ using Xunit;
 namespace vos.ContinuousIntegration.Tests;
 
 // A service that parses its own /handle body raises on text that is not JSON, and the caller gets a
-// failed request where it should have had a refusal. Worse, a failed service call is re-driven: a body
+// failed request where it should have had a refusal. Worse, a failed service call is called again: a body
 // that can never parse is retried rather than refused once. The shared classifier answers
 // Unrecognised for such text, so a service hands it the body and never parses one itself.
 public class ServicesDoNotParseHandleBodiesTests

@@ -11,7 +11,7 @@ namespace vos.Service.Phloem.Tests;
 // validate it acyclic with type-compatible wires.
 public class PipelineModelTests
 {
-    [Fact] // Boundary nodes resolve with a kind + their own declared ports, and no service call subdomain.
+    [Fact] // Boundary nodes resolve with a kind + their own declared ports, and no subdomain to call.
     public void Build_BoundaryNodes_ResolveKindAndDeclaredPorts()
     {
         var (fx, pipelineId) = TestGraphs.BoundaryPipeline();

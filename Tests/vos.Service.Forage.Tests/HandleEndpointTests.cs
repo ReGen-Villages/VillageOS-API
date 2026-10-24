@@ -290,7 +290,7 @@ public class HandleEndpointTests
     }
 
     // A body the service cannot read at all is still a body it can refuse. Raising instead leaves the
-    // caller with a failed request, and a failed service call is re-driven — so text that can never parse
+    // caller with a failed request, and a failed service call is called again — so text that can never parse
     // would be retried on a loop rather than turned down once.
     [Theory]
     [InlineData("")]

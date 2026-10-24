@@ -51,7 +51,7 @@ public sealed class DagNode
         new Dictionary<string, JsonElement>(StringComparer.Ordinal);
     public IReadOnlyList<DagPort> Ports { get; init; } = Array.Empty<DagPort>();
 
-    // Input-port → run-parameter-key bindings: at service call each bound input is filled from the
+    // Input-port → run-parameter-key bindings: when the node is called, each bound input is filled from the
     // run's parameters (an explicit wire into the same port takes precedence).
     public IReadOnlyDictionary<string, string> ParameterBindings { get; init; } =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

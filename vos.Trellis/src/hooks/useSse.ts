@@ -8,7 +8,7 @@ import { HEARTBEAT_AS_EVENT, watchForSilence, type SilenceWatch } from './stream
 
 // Live model + operational updates over Server-Sent Events.
 // Two streams — the object subscription the page declared and the system/operational events —
-// feed one service call surface. Same { connection, on } API the consumers use.
+// feed one delivery point. Same { connection, on } API the consumers use.
 
 const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
 

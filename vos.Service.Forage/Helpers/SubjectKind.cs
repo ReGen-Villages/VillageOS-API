@@ -15,7 +15,7 @@ public enum SubjectKind
     NeitherSiteNorSource,
 
     // The model binds no site archetype, so the two cannot be told apart. Such a model cannot have
-    // declared the connection that service calls a source either, so every subject is taken as a site — the
+    // declared the connection that calls a source either, so every subject is taken as a site — the
     // answer every service call got before there were two kinds.
     ModelBindsNoSite,
 }

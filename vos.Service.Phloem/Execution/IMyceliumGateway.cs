@@ -31,7 +31,7 @@ public interface IMyceliumGateway
     Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null, Guid? requestId = null,
         JsonElement? parameters = null, Guid? startedBy = null, string? refusal = null, bool rehearsal = false);
 
-    // Upsert a NodeRun Thing and set its status — running before service call, then the terminal
+    // Upsert a NodeRun Thing and set its status — running before its service is called, then the terminal
     // status — on one Thing per key (deterministic id) so the SSE view sees a property change, not duplicate
     // Things. With index null this is the node's aggregate NodeRun (drives the
     // ring); with an index it's a per-item NodeRun of a fan-out, carrying index/total. A terminal status

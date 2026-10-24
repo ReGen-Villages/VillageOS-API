@@ -671,7 +671,7 @@ public sealed class PipelineExecutor
         IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, JsonElement runParams,
         IReadOnlyList<AttemptRecord> attemptsMade, bool rehearsal, CancellationToken cancellationToken)
     {
-        // Mark the node (aggregate) running before service call so the editor animates it live; the terminal status
+        // Mark the node (aggregate) running before its service is called so the editor animates it live; the terminal status
         // is written by RunAsync from the value returned here.
         await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, RunStatus.Running, null, cancellationToken), "persist node running");
 
