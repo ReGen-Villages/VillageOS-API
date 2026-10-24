@@ -5,31 +5,18 @@
  * record relationship the platform writes when a Thing enters a watched state. Either way the platform
  * stamps that relationship with the state of the dispatch and the instant of its last attempt, and the
  * connection reaches the service bound to it. So the model itself says who ran and when — nothing
- * here names a service, a predicate or an archetype, only the roles and flags the platform finds its
- * own wiring by.
+ * here names a service, a predicate or an archetype, only the roles the platform finds its own wiring by.
  *
  * The stamps live in the running platform's memory and are not written down, so a dispatch from
  * before this model was loaded leaves the relationship with no time on it. That is why {@link ServiceDispatch}
  * carries `at` as absent rather than guessing one.
  */
 import { type ModelIndex, thingIdsOfArchetype } from '../../../api/dashboardApi';
+import { CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID, VIGIL_ROLE_ID } from '../../../api/platformRoles';
 import { ROLE } from '../../../pipeline/model';
 import type { VosRelationship, VosThing } from '../../../types/vos';
 
 const BINDS_PREDICATE = 'binds';
-
-/** How the platform marks the wiring it does not yet find through a role, whatever this model calls the
- *  Things carrying it. A vigil is a service's request to be told once when one Thing enters one state; its
- *  record relationship targets the vigil, which names the connection to dispatch through. */
-const WIRING_FLAGS = {
-  recordPredicate: '__IsDispatchRecordPredicate',
-  vigil: '__IsVigilArchetype',
-  notifiedConnectionPredicate: '__IsNotifiedConnectionPredicate',
-} as const;
-
-type WiringRole = keyof typeof WIRING_FLAGS;
-
-const ROLE_FLAGS = Object.entries(WIRING_FLAGS) as [WiringRole, string][];
 
 /** What the platform stamps onto a relationship it dispatched a service through. */
 const DISPATCHED_AT = '__DispatchLastAttemptAt';
@@ -68,30 +55,6 @@ interface ServiceWiring {
  *  model cannot change without a new index, and several open cards ask the same question. */
 const wiringByIndex = new WeakMap<ModelIndex, ServiceWiring>();
 
-/**
- * The one Thing owning each flag, and nothing for a flag two Things claim.
- *
- * Read from what a Thing owns, never from what it inherited: marking an archetype hands the mark
- * down to every instance, which would make every connection look like the archetype naming them.
- * Two claimants answer the same as none — taking the first would have this card read a different
- * model than a reader that took the last.
- */
-function soleClaimants(modelIndex: ModelIndex): Partial<Record<WiringRole, VosThing>> {
-  const found: Partial<Record<WiringRole, VosThing>> = {};
-  const contested = new Set<WiringRole>();
-
-  for (const thing of modelIndex.byId.values()) {
-    for (const [role, flag] of ROLE_FLAGS) {
-      if (thing.Properties[flag] !== true) continue;
-      if (found[role]) contested.add(role);
-      else found[role] = thing;
-    }
-  }
-  for (const role of contested) delete found[role];
-
-  return found;
-}
-
 /** The Thing a role binds, read from the role Thing's own `binds` relationship, never from a name. A role bound
  *  twice answers nothing, as the pipeline editor reads it, because seed validation refuses that model. */
 function boundBy(modelIndex: ModelIndex, roleId: string): VosThing | undefined {
@@ -108,12 +71,12 @@ function serviceWiring(modelIndex: ModelIndex): ServiceWiring {
   const remembered = wiringByIndex.get(modelIndex);
   if (remembered) return remembered;
 
-  const roles = soleClaimants(modelIndex);
   const membersOf = (archetype: VosThing | undefined) =>
     archetype ? thingIdsOfArchetype(archetype.Name, modelIndex) : new Set<string>();
   const connectionIds = membersOf(boundBy(modelIndex, ROLE.Connection));
   const serviceIds = membersOf(boundBy(modelIndex, ROLE.Service));
-  const vigilIds = membersOf(roles.vigil);
+  const vigilIds = membersOf(boundBy(modelIndex, VIGIL_ROLE_ID));
+  const notifiedConnectionPredicateId = boundBy(modelIndex, NOTIFIED_CONNECTION_ROLE_ID)?.Id;
 
   // A connection binds its service through a relation of the model's own choosing, so the service
   // is found by what the edge reaches — never by what the predicate is called.
@@ -124,7 +87,7 @@ function serviceWiring(modelIndex: ModelIndex): ServiceWiring {
       const service = modelIndex.byId.get(edge.TargetId);
       if (service) serviceByConnection.set(edge.SubjectId, service);
     }
-    if (vigilIds.has(edge.SubjectId) && edge.PredicateId === roles.notifiedConnectionPredicate?.Id && !connectionByVigil.has(edge.SubjectId)) {
+    if (vigilIds.has(edge.SubjectId) && edge.PredicateId === notifiedConnectionPredicateId && !connectionByVigil.has(edge.SubjectId)) {
       connectionByVigil.set(edge.SubjectId, edge.TargetId);
     }
   }
@@ -133,7 +96,7 @@ function serviceWiring(modelIndex: ModelIndex): ServiceWiring {
     connectionIds,
     serviceByConnection,
     connectionByVigil,
-    recordPredicateId: roles.recordPredicate?.Id,
+    recordPredicateId: boundBy(modelIndex, CALL_RECORD_ROLE_ID)?.Id,
   };
   wiringByIndex.set(modelIndex, wiring);
   return wiring;
@@ -147,9 +110,12 @@ function serviceWiring(modelIndex: ModelIndex): ServiceWiring {
  * claim the whole run: a reservoir at the target end of every reading dispatched from a hundred
  * catchments would list a hundred rows naming one service, while nothing was ever run on it.
  * Work done on a related Thing is reached by opening that Thing's own card.
+ *
+ * The relationships are read from `modelIndex` and the connections, services and vigils from `wiringIndex`,
+ * because a dashboard's index holds the Thing's relationships but none of the wiring.
  */
-export function serviceEdgesOn(thingId: string, modelIndex: ModelIndex): ServiceEdge[] {
-  const wiring = serviceWiring(modelIndex);
+export function serviceEdgesOn(thingId: string, modelIndex: ModelIndex, wiringIndex: ModelIndex = modelIndex): ServiceEdge[] {
+  const wiring = serviceWiring(wiringIndex);
   const edges: ServiceEdge[] = [];
 
   for (const edge of modelIndex.relationships) {
@@ -164,7 +130,7 @@ export function serviceEdgesOn(thingId: string, modelIndex: ModelIndex): Service
         : edge.PredicateId;
     if (!wiring.connectionIds.has(connectionId)) continue;
 
-    const connectionName = modelIndex.byId.get(connectionId)?.Name ?? connectionId;
+    const connectionName = wiringIndex.byId.get(connectionId)?.Name ?? connectionId;
     const service = wiring.serviceByConnection.get(connectionId);
     edges.push({
       relationshipId: edge.Id,
