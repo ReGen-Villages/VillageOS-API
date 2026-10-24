@@ -6,7 +6,7 @@ vi.mock('./client', async (importOriginal) => ({
 }));
 
 import { fetchServiceWiring, SERVICE_WIRING } from './serviceWiringApi';
-import { DISPATCH_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID, VIGIL_ROLE_ID } from './platformRoles';
+import { CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID, VIGIL_ROLE_ID } from './platformRoles';
 import { ROLE } from '../pipeline/model';
 
 const calls: { url: string; request: RequestInit }[] = [];
@@ -24,7 +24,7 @@ describe('fetchServiceWiring', () => {
 
   it('asks for every role the service section reads, with the members of each archetype it binds', () => {
     expect(SERVICE_WIRING.ids).toEqual(expect.arrayContaining([
-      ROLE.Connection, ROLE.Service, VIGIL_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID, DISPATCH_RECORD_ROLE_ID,
+      ROLE.Connection, ROLE.Service, VIGIL_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID, CALL_RECORD_ROLE_ID,
     ]));
     expect(SERVICE_WIRING.boundTypes).toEqual([ROLE.Connection, ROLE.Service, VIGIL_ROLE_ID]);
   });

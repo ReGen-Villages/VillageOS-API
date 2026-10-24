@@ -7,7 +7,7 @@
  *
  * The states are read from the model store rather than fetched: seeded from the subscription
  * snapshot and followed live, so a card shows a state the moment it moves rather than at the end
- * of the next refresh window. The history, the service wiring and the dispatch stamps are not in a
+ * of the next refresh window. The history, the service wiring and the call stamps are not in a
  * dashboard's snapshot and are read.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -69,7 +69,7 @@ function useThrottled(value: number, milliseconds: number): number {
 
 /** The connections, services and vigils the platform holds, read once when a card opens on a Thing: a dashboard's
  *  index holds the Thing's relationships but none of the wiring. Undefined while the read is out, and null when it
- *  failed, so a card that cannot read it lists no dispatch rather than failing. */
+ *  failed, so a card that cannot read it lists no service call rather than failing. */
 function useServiceWiring(thingId: string): ModelIndex | null | undefined {
   const [read, setRead] = useState<{ thingId: string; wiring: ModelIndex | null }>();
 
