@@ -22,7 +22,7 @@ vi.mock('../api/relationshipApi', () => ({
 const wireThing = (Id: string, Name: string, properties: Record<string, unknown> = {}) => ({
   Id, Name, IsArchetype: false,
   Properties: Object.fromEntries(Object.entries(properties).map(([name, value]) => [name, { typeInfo: 'vos.Double', value }])),
-  RollupProperties: null, InheritedOverrides: null, States: [],
+  DerivedProperties: null, InheritedOverrides: null, States: [],
 });
 const wireEdge = (Id: string, SubjectId: string, PredicateId: string, TargetId: string) => ({
   Id, Name: null, SubjectId, PredicateId, TargetId, Properties: {}, InheritedOverrides: null, States: [],
