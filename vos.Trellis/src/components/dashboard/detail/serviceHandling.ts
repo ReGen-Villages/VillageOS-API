@@ -12,7 +12,7 @@
  * carries `at` as absent rather than guessing one.
  */
 import { type ModelIndex, thingIdsOfArchetype } from '../../../api/dashboardApi';
-import { DISPATCH_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID, VIGIL_ROLE_ID } from '../../../api/platformRoles';
+import { CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID, VIGIL_ROLE_ID } from '../../../api/platformRoles';
 import { ROLE } from '../../../pipeline/model';
 import type { VosRelationship, VosThing } from '../../../types/vos';
 
@@ -96,7 +96,7 @@ function serviceWiring(modelIndex: ModelIndex): ServiceWiring {
     connectionIds,
     serviceByConnection,
     connectionByVigil,
-    recordPredicateId: boundBy(modelIndex, DISPATCH_RECORD_ROLE_ID)?.Id,
+    recordPredicateId: boundBy(modelIndex, CALL_RECORD_ROLE_ID)?.Id,
   };
   wiringByIndex.set(modelIndex, wiring);
   return wiring;
