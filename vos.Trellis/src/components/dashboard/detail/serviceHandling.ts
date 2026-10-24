@@ -110,9 +110,12 @@ function serviceWiring(modelIndex: ModelIndex): ServiceWiring {
  * claim the whole run: a reservoir at the target end of every reading dispatched from a hundred
  * catchments would list a hundred rows naming one service, while nothing was ever run on it.
  * Work done on a related Thing is reached by opening that Thing's own card.
+ *
+ * The relationships are read from `modelIndex` and the connections, services and vigils from `wiringIndex`,
+ * because a dashboard's index holds the Thing's relationships but none of the wiring.
  */
-export function serviceEdgesOn(thingId: string, modelIndex: ModelIndex): ServiceEdge[] {
-  const wiring = serviceWiring(modelIndex);
+export function serviceEdgesOn(thingId: string, modelIndex: ModelIndex, wiringIndex: ModelIndex = modelIndex): ServiceEdge[] {
+  const wiring = serviceWiring(wiringIndex);
   const edges: ServiceEdge[] = [];
 
   for (const edge of modelIndex.relationships) {
@@ -127,7 +130,7 @@ export function serviceEdgesOn(thingId: string, modelIndex: ModelIndex): Service
         : edge.PredicateId;
     if (!wiring.connectionIds.has(connectionId)) continue;
 
-    const connectionName = modelIndex.byId.get(connectionId)?.Name ?? connectionId;
+    const connectionName = wiringIndex.byId.get(connectionId)?.Name ?? connectionId;
     const service = wiring.serviceByConnection.get(connectionId);
     edges.push({
       relationshipId: edge.Id,
