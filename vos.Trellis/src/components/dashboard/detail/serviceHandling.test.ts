@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildModelIndex } from '../../../api/dashboardApi';
+import { CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID, VIGIL_ROLE_ID } from '../../../api/platformRoles';
 import { ROLE } from '../../../pipeline/model';
 import type { VosThing, VosRelationship } from '../../../types/vos';
 import { serviceEdgesOn, dispatchesFrom } from './serviceHandling';
@@ -23,7 +24,7 @@ function relationship(
  * `runs`. Only the roles say which is which, which is the whole point of reading them.
  *
  * `measures` is a handled predicate — a relationship on it dispatches the metering daemon. `spring when
- * dry` is a state connection, reached by the record relationship the platform writes under `handled-by`.
+ * dry` is a state connection, reached by the record relationship the platform writes along `answered by`.
  * `watch` is a vigil naming that same connection through `tells`.
  */
 function site() {
@@ -34,11 +35,14 @@ function site() {
       thing(ROLE.Connection, 'connection role'),
       thing(ROLE.Service, 'service role'),
       thing('runs', 'runs'),
-      thing('tells', 'tells', { __IsNotifiedConnectionPredicate: true }),
+      thing(VIGIL_ROLE_ID, 'vigil role'),
+      thing(NOTIFIED_CONNECTION_ROLE_ID, 'notified connection role'),
+      thing(CALL_RECORD_ROLE_ID, 'call record role'),
+      thing('tells', 'tells'),
       thing('wiring', 'Wiring', {}, true),
       thing('daemon', 'Daemon', {}, true),
-      thing('lookout', 'Lookout', { __IsVigilArchetype: true }, true),
-      thing('record', 'handled-by', { __IsDispatchRecordPredicate: true }),
+      thing('lookout', 'Lookout', {}, true),
+      thing('record', 'answered by'),
 
       thing('measures', 'measures'),
       thing('meteringService', 'metering service'),
@@ -55,6 +59,9 @@ function site() {
     [
       relationship('b1', ROLE.Connection, 'binds', 'wiring'),
       relationship('b2', ROLE.Service, 'binds', 'daemon'),
+      relationship('b3', VIGIL_ROLE_ID, 'binds', 'lookout'),
+      relationship('b4', NOTIFIED_CONNECTION_ROLE_ID, 'binds', 'tells'),
+      relationship('b5', CALL_RECORD_ROLE_ID, 'binds', 'record'),
       relationship('w1', 'measures', 'is', 'wiring'),
       relationship('w2', 'measures', 'runs', 'meteringService'),
       relationship('w3', 'meteringService', 'is', 'daemon'),
@@ -136,14 +143,31 @@ describe('serviceEdgesOn', () => {
     expect(serviceEdgesOn('catchment', index)).toEqual([]);
   });
 
-  it('follows no vigil where two archetypes both claim the vigil mark, as neither can be the one', () => {
+  it('follows no vigil where the vigil role binds two archetypes, as neither can be the one', () => {
     const base = site();
     const index = buildModelIndex(
-      [...base.byId.values(), thing('rivalLookout', 'Rival lookout', { __IsVigilArchetype: true }, true)],
-      base.relationships,
+      [...base.byId.values(), thing('rivalLookout', 'Rival lookout', {}, true)],
+      [...base.relationships, relationship('b6', VIGIL_ROLE_ID, 'binds', 'rivalLookout')],
     );
 
     expect(serviceEdgesOn('well', index)).toEqual([]);
+  });
+
+  it('reads nothing from the marks the platform once found its dispatch wiring by', () => {
+    const base = site();
+    const marked: Record<string, Record<string, unknown>> = {
+      lookout: { __IsVigilArchetype: true },
+      tells: { __IsNotifiedConnectionPredicate: true },
+      record: { __IsDispatchRecordPredicate: true },
+    };
+    const unbound = new Set([VIGIL_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID, CALL_RECORD_ROLE_ID]);
+    const index = buildModelIndex(
+      [...base.byId.values()].map((each) => (marked[each.Id] ? { ...each, Properties: marked[each.Id] } : each)),
+      base.relationships.filter((edge) => !unbound.has(edge.SubjectId)),
+    );
+
+    expect(serviceEdgesOn('well', index)).toEqual([]);
+    expect(serviceEdgesOn('spring', index)).toEqual([]);
   });
 
   it('reads the connection role from its binding, not from another relationship the role Thing holds', () => {
