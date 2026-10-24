@@ -1036,7 +1036,7 @@ export const it: PartialResources = {
     stateHistoryUnavailable: "Cronologia degli stati non disponibile — nessun motore reattivo attivo per questo modello.",
     noStateChanges: "Nessun cambiamento di stato registrato.",
     handledBy: "Gestito da",
-    dispatchesSinceModelLoad: "Registrato da quando la piattaforma ha caricato questo modello — un'esecuzione precedente non mostra alcun orario.",
+    serviceCallsSinceModelLoad: "Registrato da quando la piattaforma ha caricato questo modello — un'esecuzione precedente non mostra alcun orario.",
     decisions: "Perché è stato deciso così",
     decisionChose: "ha scelto",
     decisionChoseNothing: "non ha scelto nulla",
@@ -1311,7 +1311,7 @@ export const it: PartialResources = {
       other: "",
     },
     note: {
-      startNotDispatched: "Disegnare da dove arriva un'esecuzione non è ciò che la avvia: questa pipeline si esegue quando si preme Esegui o quando l'orchestratore riceve una richiesta.",
+      startNotCalled: "Disegnare da dove arriva un'esecuzione non è ciò che la avvia: questa pipeline si esegue quando si preme Esegui o quando l'orchestratore riceve una richiesta.",
       endNotSent: "Nulla invia ancora a {{name}}; ciò che raggiunge questo nodo resta nel registro dell'esecuzione.",
       endNotStarted: "Nulla avvia ancora {{name}} da questa esecuzione.",
     },

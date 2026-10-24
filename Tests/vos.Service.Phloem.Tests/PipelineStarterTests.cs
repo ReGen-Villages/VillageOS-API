@@ -19,7 +19,7 @@ public class PipelineStarterTests
 
         resolution.PipelineId.Should().Be(fixture.DrawnPipelineId);
         gateway.StartTargetsAsked.Should().Equal(fixture.WatchingConnectionId);
-        gateway.RelationshipsRead.Should().BeEmpty("a state's dispatch record names its connection as the target");
+        gateway.RelationshipsRead.Should().BeEmpty("a state's call record names its connection as the target");
     }
 
     [Fact]

@@ -7,7 +7,7 @@ namespace vos.Service.Forage.Tests.Helpers;
 
 // The walk in the other direction: from a source, through the Places it covers and down
 // their nesting, to every site in them. A source added to the catalogue reached no existing site while
-// the only walk ran from a site outward, and a site already discovered was never dispatched again.
+// the only walk ran from a site outward, and a site already discovered was never called again.
 //
 // The sites are told from the Places around them through the role the platform binds to the archetype
 // every site `is`. Nothing here names an archetype: named, a model calling its sites

@@ -6,7 +6,7 @@ is created. The whole contract is HTTP + a single JWT signed on the P-256 ellipt
 curve (ES256). The key a handler holds checks a signature and cannot produce one.
 
 `is` is NOT an external predicate — Mycelium handles `is` inheritance in-process
-and never dispatches it to a handler. Register for a custom predicate instead.
+and never calls it to a handler. Register for a custom predicate instead.
 
 Run:  python app.py --port=5103 --myceliumUrl=https://localhost:7243
 """

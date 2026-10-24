@@ -5,7 +5,7 @@ using Xunit;
 
 namespace vos.Service.Shared.Contracts.Tests;
 
-// Pins the SchemaValidator.NormalizeCode dispatch table. The public surface
+// Pins the SchemaValidator.NormalizeCode service call table. The public surface
 // (ContractValidationError.Code) is part of the contract these tests defend.
 public class NormalizeCodeTests
 {

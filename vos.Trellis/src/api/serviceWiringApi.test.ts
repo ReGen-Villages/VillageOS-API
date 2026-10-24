@@ -42,7 +42,7 @@ describe('fetchServiceWiring', () => {
     expect(calls[1]).toMatchObject({ url: '/api/subscriptions/held-1', request: { method: 'DELETE' } });
   });
 
-  it('throws on a refusal, so the card lists no dispatch rather than a wrong one', async () => {
+  it('throws on a refusal, so the card lists no service call rather than a wrong one', async () => {
     answering(403, { error: 'no' });
 
     await expect(fetchServiceWiring()).rejects.toThrow();

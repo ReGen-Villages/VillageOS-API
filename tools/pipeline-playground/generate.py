@@ -251,7 +251,7 @@ def build():
         return pid
 
     # Each service → a Service (declaring its ports) wrapped in a PlatformServiceConnection (the palette
-    # entry, carrying the dispatch Subdomain).
+    # entry, carrying the service call Subdomain).
     connection_by_key = {}
     service_by_key = {}
     offered_by_key = {}

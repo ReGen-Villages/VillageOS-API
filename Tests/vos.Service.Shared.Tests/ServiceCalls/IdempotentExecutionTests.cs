@@ -1,8 +1,8 @@
 using FluentAssertions;
-using vos.Service.Shared.Dispatch;
+using vos.Service.Shared.ServiceCalls;
 using Xunit;
 
-namespace vos.Service.Shared.Tests.Dispatch;
+namespace vos.Service.Shared.Tests.ServiceCall;
 
 public class IdempotentExecutionTests
 {

@@ -12,12 +12,12 @@ public class DraftsAndRehearsalsTests
 {
     private static readonly JsonElement Seed = JsonSerializer.SerializeToElement(new { seed = "world" });
 
-    private static NodeDispatchResult Answer(string port, string value) =>
+    private static NodeCallResult Answer(string port, string value) =>
         new(200, JsonSerializer.Serialize(new { success = true, outputs = new Dictionary<string, string> { [port] = value } }));
 
-    private static (FakeGateway Gateway, PipelineExecutor Executor) Arrange(GraphFixture fixture, Func<string, JsonElement, NodeDispatchResult>? answer = null)
+    private static (FakeGateway Gateway, PipelineExecutor Executor) Arrange(GraphFixture fixture, Func<string, JsonElement, NodeCallResult>? answer = null)
     {
-        var gateway = new FakeGateway(fixture.Build()) { OnDispatch = answer ?? ((_, _) => Answer("echo", "heard")) };
+        var gateway = new FakeGateway(fixture.Build()) { OnCall = answer ?? ((_, _) => Answer("echo", "heard")) };
         return (gateway, new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()));
     }
 
@@ -35,7 +35,7 @@ public class DraftsAndRehearsalsTests
         var result = await executor.RunAsync(pipelineId, Seed, CancellationToken.None);
 
         result.Success.Should().BeFalse();
-        gateway.Dispatched.Should().BeEmpty();
+        gateway.Called.Should().BeEmpty();
         gateway.StatusUpdates.Should().Equal(RunStatus.Refused);
         gateway.RunError.Should().Contain("'BoundaryDemo' is a draft");
     }
@@ -78,7 +78,7 @@ public class DraftsAndRehearsalsTests
         var result = await executor.RunAsync(pipelineId, Seed, CancellationToken.None, rehearsal: true);
 
         result.Success.Should().BeFalse();
-        gateway.Dispatched.Should().BeEmpty();
+        gateway.Called.Should().BeEmpty();
         result.Nodes.Single(node => node.Name == "Echo").Status.Should().Be(RunStatus.CannotRehearse);
         result.Nodes.Single(node => node.Name == "Echo").Error.Should().Contain("does not rehearse");
         result.Nodes.Single(node => node.Name == "Out").Status.Should().Be(RunStatus.Skipped);
@@ -143,7 +143,7 @@ public class DraftsAndRehearsalsTests
         review.Status.Should().Be(RunStatus.CannotRehearse);
         review.Error.Should().Contain("'decided'");
         gateway.VigilsPlaced.Should().BeEmpty();
-        gateway.Dispatched.Should().NotContain("review");
+        gateway.Called.Should().NotContain("review");
     }
 
     [Theory]
@@ -154,13 +154,13 @@ public class DraftsAndRehearsalsTests
         var (fx, pipelineId) = TestGraphs.ProducingPipeline(perItem);
         EveryServiceRehearses(fx);
         var made = Guid.NewGuid();
-        var (gateway, executor) = Arrange(fx, (_, _) => new NodeDispatchResult(200,
+        var (gateway, executor) = Arrange(fx, (_, _) => new NodeCallResult(200,
             JsonSerializer.Serialize(new { success = true, outputs = new { made = new { id = made, name = "a Thing" } } })));
 
         await executor.RunAsync(pipelineId, perItem ? JsonSerializer.SerializeToElement(new { items = new[] { "x", "y" } }) : default,
             CancellationToken.None, rehearsal: true);
 
-        gateway.Dispatched.Should().NotBeEmpty();
+        gateway.Called.Should().NotBeEmpty();
         gateway.Produced.Should().BeEmpty();
     }
 

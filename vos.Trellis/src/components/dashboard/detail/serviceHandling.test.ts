@@ -3,7 +3,7 @@ import { buildModelIndex } from '../../../api/dashboardApi';
 import { CALL_RECORD_ROLE_ID, NOTIFIED_CONNECTION_ROLE_ID, VIGIL_ROLE_ID } from '../../../api/platformRoles';
 import { ROLE } from '../../../pipeline/model';
 import type { VosThing, VosRelationship } from '../../../types/vos';
-import { serviceEdgesOn, dispatchesFrom } from './serviceHandling';
+import { serviceEdgesOn, serviceCallsFrom } from './serviceHandling';
 
 function thing(Id: string, Name: string, Properties: Record<string, unknown> = {}, IsArchetype = false): VosThing {
   return { Id, Name, Properties, IsArchetype };
@@ -23,7 +23,7 @@ function relationship(
  * is `Wiring`, the service archetype is `Daemon`, and the predicate binding one to the other is
  * `runs`. Only the roles say which is which, which is the whole point of reading them.
  *
- * `measures` is a handled predicate — a relationship on it dispatches the metering daemon. `spring when
+ * `measures` is a handled predicate — a relationship on it calls the metering daemon. `spring when
  * dry` is a state connection, reached by the record relationship the platform writes along `answered by`.
  * `watch` is a vigil naming that same connection through `tells`.
  */
@@ -73,18 +73,18 @@ function site() {
       relationship('w9', 'watch', 'tells', 'springWhenDry'),
 
       relationship('e1', 'catchment', 'measures', 'reservoir', {
-        __DispatchState: 'Done',
-        __DispatchLastAttemptAt: '2026-08-27T08:09:32Z',
+        __CallState: 'Done',
+        __CallLastAttemptAt: '2026-08-27T08:09:32Z',
       }),
       relationship('e2', 'spring', 'record', 'springWhenDry', {
-        __DispatchState: 'Failed',
-        __DispatchLastAttemptAt: '2026-08-27T08:10:00Z',
-        __DispatchLastError: 'no reading came back',
+        __CallState: 'Failed',
+        __CallLastAttemptAt: '2026-08-27T08:10:00Z',
+        __CallLastError: 'no reading came back',
       }),
       relationship('e3', 'spring', 'record', 'unbound'),
       relationship('e4', 'well', 'record', 'watch', {
-        __DispatchState: 'Done',
-        __DispatchLastAttemptAt: '2026-08-27T08:11:00Z',
+        __CallState: 'Done',
+        __CallLastAttemptAt: '2026-08-27T08:11:00Z',
       }),
     ],
   );
@@ -96,7 +96,7 @@ function stampsFrom(index: ReturnType<typeof site>): Map<string, VosRelationship
 }
 
 describe('serviceEdgesOn', () => {
-  it('names the service a handled edge reaches, from the subject the platform dispatched on', () => {
+  it('names the service a handled edge reaches, from the subject the platform called it for', () => {
     const [edge] = serviceEdgesOn('catchment', site());
 
     expect(edge.serviceName).toBe('metering service');
@@ -109,7 +109,7 @@ describe('serviceEdgesOn', () => {
     expect(serviceEdgesOn('reservoir', site())).toEqual([]);
   });
 
-  it('reads a state dispatch through the connection the record edge points at', () => {
+  it('reads a state service call through the connection the record edge points at', () => {
     const found = serviceEdgesOn('spring', site());
 
     expect(found.map((edge) => edge.serviceName)).toEqual(['spring service', 'nothing is bound here']);
@@ -138,7 +138,7 @@ describe('serviceEdgesOn', () => {
   it('finds nothing where the model binds no connection archetype, rather than guessing at one', () => {
     const index = buildModelIndex(
       [thing('is', 'is'), thing('measures', 'measures'), thing('catchment', 'CATCHMENT-1'), thing('reservoir', 'RESERVOIR-1')],
-      [relationship('e1', 'catchment', 'measures', 'reservoir', { __DispatchState: 'Done' })],
+      [relationship('e1', 'catchment', 'measures', 'reservoir', { __CallState: 'Done' })],
     );
     expect(serviceEdgesOn('catchment', index)).toEqual([]);
   });
@@ -153,7 +153,7 @@ describe('serviceEdgesOn', () => {
     expect(serviceEdgesOn('well', index)).toEqual([]);
   });
 
-  it('reads nothing from the marks the platform once found its dispatch wiring by', () => {
+  it('reads nothing from the marks the platform once found its service call wiring by', () => {
     const base = site();
     const marked: Record<string, Record<string, unknown>> = {
       lookout: { __IsVigilArchetype: true },
@@ -196,39 +196,39 @@ describe('serviceEdgesOn', () => {
         relationship('b1', ROLE.Connection, 'binds', 'wiring'),
         relationship('b2', ROLE.Connection, 'binds', 'rival'),
         relationship('w1', 'measures', 'is', 'wiring'),
-        relationship('e1', 'catchment', 'measures', 'reservoir', { __DispatchState: 'Done' }),
+        relationship('e1', 'catchment', 'measures', 'reservoir', { __CallState: 'Done' }),
       ],
     );
     expect(serviceEdgesOn('catchment', index)).toEqual([]);
   });
 });
 
-describe('dispatchesFrom', () => {
+describe('serviceCallsFrom', () => {
   it('carries the instant, the state and the words a service refused with', () => {
     const index = site();
-    const [dispatch] = dispatchesFrom(serviceEdgesOn('spring', index).slice(0, 1), stampsFrom(index));
+    const [call] = serviceCallsFrom(serviceEdgesOn('spring', index).slice(0, 1), stampsFrom(index));
 
-    expect(dispatch.at).toBe('2026-08-27T08:10:00Z');
-    expect(dispatch.state).toBe('Failed');
-    expect(dispatch.error).toBe('no reading came back');
+    expect(call.at).toBe('2026-08-27T08:10:00Z');
+    expect(call.state).toBe('Failed');
+    expect(call.error).toBe('no reading came back');
   });
 
   it('orders by when the platform last ran each, oldest first', () => {
     const index = site();
     const edges = [...serviceEdgesOn('spring', index), ...serviceEdgesOn('catchment', index)];
 
-    expect(dispatchesFrom(edges, stampsFrom(index)).map((d) => d.at)).toEqual([
+    expect(serviceCallsFrom(edges, stampsFrom(index)).map((d) => d.at)).toEqual([
       '2026-08-27T08:09:32Z',
       '2026-08-27T08:10:00Z',
       undefined,
     ]);
   });
 
-  it('leaves a dispatch the platform holds no stamp for undated rather than inventing a time', () => {
-    const [dispatch] = dispatchesFrom(serviceEdgesOn('catchment', site()), new Map());
+  it('leaves a service call the platform holds no stamp for undated rather than inventing a time', () => {
+    const [call] = serviceCallsFrom(serviceEdgesOn('catchment', site()), new Map());
 
-    expect(dispatch.at).toBeUndefined();
-    expect(dispatch.state).toBeUndefined();
-    expect(dispatch.serviceName).toBe('metering service');
+    expect(call.at).toBeUndefined();
+    expect(call.state).toBeUndefined();
+    expect(call.serviceName).toBe('metering service');
   });
 });

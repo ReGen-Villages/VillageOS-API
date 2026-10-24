@@ -3,9 +3,9 @@ using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("vos.Service.Shared.Tests")]
 
-namespace vos.Service.Shared.Dispatch;
+namespace vos.Service.Shared.ServiceCalls;
 
-// Handled-predicate dispatch is at-least-once: the broker sends a relation again when it cannot
+// Handled-predicate service call is at-least-once: the broker sends a relation again when it cannot
 // confirm the handler finished, and a handler that reconnects is sent what it missed. Nothing in a
 // delivery says whether it is the first.
 //

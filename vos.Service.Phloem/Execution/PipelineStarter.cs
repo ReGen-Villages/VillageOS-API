@@ -2,8 +2,8 @@ using vos.Service.Phloem.Model;
 
 namespace vos.Service.Phloem.Execution;
 
-// Answers which pipeline a dispatched relationship starts, by reading from the model which connection it came
-// through. A `runs` write names its pipeline as the target, and a state's dispatch record names its connection
+// Answers which pipeline a relationship the broker sends starts, by reading from the model which connection it came
+// through. A `runs` write names its pipeline as the target, and a state's call record names its connection
 // as the target. Any other target is only what a write along a predicate joined its subject to, and there the
 // connection is the predicate, read off the relationship itself.
 public sealed class PipelineStarter

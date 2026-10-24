@@ -106,7 +106,7 @@ function heldWireModel(): { model: PipelineModel; carriesId: string } {
 }
 
 describe('PipelineModel', () => {
-  it('lists dispatchable connections with subdomain and resolved ports', () => {
+  it('lists callable connections with subdomain and resolved ports', () => {
     const { model } = demoModel();
     const conns = model.connections();
     expect(conns.map((c) => c.subdomain).sort()).toEqual(['echo', 'generate']);

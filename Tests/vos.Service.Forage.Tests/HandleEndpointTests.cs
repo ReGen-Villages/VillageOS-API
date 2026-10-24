@@ -165,7 +165,7 @@ public class HandleEndpointTests
         // The distinction the whole path exists for: an unreachable gateway must not read as "no source
         // covers this site", which is the silently-short list that hides real sources. The run can no
         // longer say so in its answer — it has already given one — so it says it by writing nothing. The
-        // site stays in the state that dispatched it, and the run is driven again.
+        // site stays in the state that started it, and the run is driven again.
         var fetches = 0;
         var writes = 0;
         await using var factory = new ForageWebApplicationFactory();
@@ -223,10 +223,10 @@ public class HandleEndpointTests
     }
 
     // The body Mycelium posts when a site enters the state the discovery connection watches. Every field
-    // beside the subject belongs to the record-relationship the dispatch wrote, and a run reads none of them — but
-    // a service that refused the whole body over them is a service nothing in the platform can dispatch.
+    // beside the subject belongs to the record-relationship the service call wrote, and a run reads none of them — but
+    // a service that refused the whole body over them is a service nothing in the platform can call.
     [Fact]
-    public async Task Handle_TheBodyADispatchPosts_RunsTheSiteItNames()
+    public async Task Handle_TheBodyAServiceCallPosts_RunsTheSiteItNames()
     {
         var ids = TwoSourceNames();
         var fetched = new ConcurrentBag<string>();
@@ -251,7 +251,7 @@ public class HandleEndpointTests
             targetId = Guid.NewGuid().ToString(),
             subjectName = "WillowBend",
             targetName = "discoversSite",
-            properties = new Dictionary<string, object?> { ["__DispatchState"] = "Pending" },
+            properties = new Dictionary<string, object?> { ["__CallState"] = "Pending" },
         });
         await factory.CompleteStartedRuns();
 
@@ -261,7 +261,7 @@ public class HandleEndpointTests
     }
 
     [Fact]
-    public async Task Handle_StartsTheRunUnderTheSubjectTheDispatchNamed()
+    public async Task Handle_StartsTheRunUnderTheSubjectTheServiceCallNamed()
     {
         // The starter holds a run back while another for the same subject is in flight, so the
         // subject it is told is what keeps one site's runs apart and lets separate sites run together.
@@ -290,7 +290,7 @@ public class HandleEndpointTests
     }
 
     // A body the service cannot read at all is still a body it can refuse. Raising instead leaves the
-    // caller with a failed request, and a failed dispatch is re-driven — so text that can never parse
+    // caller with a failed request, and a failed service call is re-driven — so text that can never parse
     // would be retried on a loop rather than turned down once.
     [Theory]
     [InlineData("")]

@@ -40,7 +40,7 @@ public sealed class VocabularyEdgeWriter
 
         if (await ReadDeclarationsAsync(fetched, cancellationToken) is not { } snapshot)
         {
-            // The observations are already written and the site has left the state that dispatches a
+            // The observations are already written and the site has left the state that service calls a
             // run, so nothing retries this by itself — said out loud rather than left as words that
             // quietly never became relationships.
             _logger.LogError(

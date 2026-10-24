@@ -1121,7 +1121,7 @@ export const ar: WithArabicPluralForms<Resources> = {
     stateHistoryUnavailable: "سجل الحالات غير متاح — لا يوجد محرك تفاعلي نشط لهذا النموذج.",
     noStateChanges: "لم يُسجَّل أي تغيير في الحالة.",
     handledBy: "عالجته",
-    dispatchesSinceModelLoad: "مسجَّل منذ أن حمّلت المنصة هذا النموذج — التشغيل الأسبق لا يظهر له وقت.",
+    serviceCallsSinceModelLoad: "مسجَّل منذ أن حمّلت المنصة هذا النموذج — التشغيل الأسبق لا يظهر له وقت.",
     decisions: "لماذا اتُّخذ هذا القرار",
     decisionChose: "اختار",
     decisionChoseNothing: "لم يختر شيئًا",
@@ -1412,7 +1412,7 @@ export const ar: WithArabicPluralForms<Resources> = {
       other: "",
     },
     note: {
-      startNotDispatched: "رسم مصدر التشغيل ليس ما يبدؤه: يعمل خط الأنابيب هذا عند الضغط على «تشغيل» أو عند إرسال طلب إلى المنسّق.",
+      startNotCalled: "رسم مصدر التشغيل ليس ما يبدؤه: يعمل خط الأنابيب هذا عند الضغط على «تشغيل» أو عند إرسال طلب إلى المنسّق.",
       endNotSent: "لا شيء يرسل إلى {{name}} بعد؛ ما يصل إلى هذه العقدة يبقى في سجل التشغيل.",
       endNotStarted: "لا شيء يبدأ {{name}} من هذا التشغيل بعد.",
     },

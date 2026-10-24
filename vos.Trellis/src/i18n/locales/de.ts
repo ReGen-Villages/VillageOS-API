@@ -1036,7 +1036,7 @@ export const de: PartialResources = {
     stateHistoryUnavailable: "Zustandsverlauf nicht verfügbar — keine aktive reaktive Engine für dieses Modell.",
     noStateChanges: "Keine Zustandsänderungen aufgezeichnet.",
     handledBy: "Verarbeitet von",
-    dispatchesSinceModelLoad: "Aufgezeichnet, seit die Plattform dieses Modell geladen hat — ein früherer Lauf zeigt keine Zeit.",
+    serviceCallsSinceModelLoad: "Aufgezeichnet, seit die Plattform dieses Modell geladen hat — ein früherer Lauf zeigt keine Zeit.",
     decisions: "Warum so entschieden wurde",
     decisionChose: "wählte",
     decisionChoseNothing: "wählte nichts",
@@ -1311,7 +1311,7 @@ export const de: PartialResources = {
       other: "",
     },
     note: {
-      startNotDispatched: "Zu zeichnen, woher ein Lauf kommt, startet ihn nicht: Diese Pipeline läuft, wenn „Ausführen“ gedrückt oder der Orchestrator angesprochen wird.",
+      startNotCalled: "Zu zeichnen, woher ein Lauf kommt, startet ihn nicht: Diese Pipeline läuft, wenn „Ausführen“ gedrückt oder der Orchestrator angesprochen wird.",
       endNotSent: "Noch nichts sendet an {{name}}; was diesen Knoten erreicht, bleibt im Protokoll des Laufs.",
       endNotStarted: "Noch nichts startet {{name}} aus diesem Lauf.",
     },

@@ -13,8 +13,8 @@ internal sealed class FakeGateway : IMyceliumGateway
     public PipelineGraph Graph { get; set; }
     public Exception? LoadFailure { get; set; }
 
-    public Func<string, JsonElement, NodeDispatchResult> OnDispatch { get; set; } = (_, _) => new NodeDispatchResult(200, "{\"success\":true,\"outputs\":{}}");
-    public List<string> Dispatched { get; } = new();
+    public Func<string, JsonElement, NodeCallResult> OnCall { get; set; } = (_, _) => new NodeCallResult(200, "{\"success\":true,\"outputs\":{}}");
+    public List<string> Called { get; } = new();
     public List<(string Subdomain, JsonElement Envelope)> Envelopes { get; } = new();
     public List<string> StatusUpdates { get; } = new();
     public List<(string Name, string Status)> NodeStatuses { get; } = new();
@@ -257,7 +257,7 @@ internal sealed class FakeGateway : IMyceliumGateway
         lock (_model) return RunStatuses.GetValueOrDefault(runId);
     }
 
-    // The predicate the model binds to runStopping; a dispatched relationship written along it is a stop.
+    // The predicate the model binds to runStopping; a relationship the broker sends along it is a stop.
     public Guid StopsConnection { get; } = Guid.NewGuid();
     public string StopReason { get; set; } = "withdrawn by its owner";
     public List<(Guid RunId, Guid StopRequestId)> StoppedBy { get; } = new();
@@ -295,9 +295,9 @@ internal sealed class FakeGateway : IMyceliumGateway
     }
     public Task SetRunResultAsync(Guid runId, JsonElement result, CancellationToken ct) { RunResult = result.Clone(); return Task.CompletedTask; }
 
-    public Task<NodeDispatchResult> DispatchAsync(string subdomain, JsonElement envelope, CancellationToken ct)
+    public Task<NodeCallResult> CallAsync(string subdomain, JsonElement envelope, CancellationToken ct)
     {
-        lock (Dispatched) { Dispatched.Add(subdomain); Envelopes.Add((subdomain, envelope.Clone())); }
-        return Task.FromResult(OnDispatch(subdomain, envelope));
+        lock (Called) { Called.Add(subdomain); Envelopes.Add((subdomain, envelope.Clone())); }
+        return Task.FromResult(OnCall(subdomain, envelope));
     }
 }

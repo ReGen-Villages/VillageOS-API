@@ -95,7 +95,7 @@ public class CoveringSourceResolverTests
     private static ModelBuilder StudyOf(string site) =>
         new ModelBuilder().Relate(site + "Study", CoveringSourceResolver.StudiesPredicate, site);
 
-    // A connection that `is` the archetype the site-analysis role binds, bound to the service it dispatches.
+    // A connection that `is` the archetype the site-analysis role binds, bound to the service it calls.
     private static ModelBuilder MarkedConnection(ModelBuilder model, string connection, string prototype)
     {
         model.Relate(connection, CoveringSourceResolver.IsPredicateName, "SiteAnalysisConnection")
@@ -528,7 +528,7 @@ public class CoveringSourceResolverTests
     public void Resolve_AThingOfTheArchetypeTheSiteDoesNotHave_IsNotCalledAbout()
     {
         // Another site's assessment is of the same archetype. Calling about it would write a reading
-        // onto a Thing this run was never dispatched for.
+        // onto a Thing this run was never called for.
         var model = ResolvingOnto("HazardPortal", "HazardAssessment", "flood assessment");
         model.Relate("elsewhere assessment", CoveringSourceResolver.IsPredicateName, "HazardAssessment");
 
@@ -609,7 +609,7 @@ public class CoveringSourceResolverTests
     [Fact]
     public void AnalysisOf_StudyRelatedThroughTheConnectionToAnotherPrototype_IsNotAlreadyRelated()
     {
-        // Only the relationship to the service's own prototype dispatches that service.
+        // Only the relationship to the service's own prototype calls that service.
         var model = StudyOf("WillowBend");
         MarkedConnection(model, "balancesEnergy", "EnergyBalance prototype")
             .Relate("WillowBendStudy", "balancesEnergy", "SecondBalance prototype");
@@ -665,7 +665,7 @@ public class CoveringSourceResolverTests
     public void AnalysisOf_ConnectionNotBeneathTheBoundArchetype_IsNotATrigger()
     {
         // A connection that is not beneath the bound archetype is one bound for some other purpose. Starting it
-        // would dispatch a service against a study it knows nothing about.
+        // would call a service for a study it knows nothing about.
         var model = StudyOf("WillowBend")
             .Relate("ordinary", CoveringSourceResolver.HasPredicate, "ordinary service")
             .Relate("ordinary service", CoveringSourceResolver.IsPredicateName, "EnergyBalance prototype");
@@ -678,7 +678,7 @@ public class CoveringSourceResolverTests
     [Fact]
     public void AnalysisOf_MarkedConnectionBindingNoService_IsNotATrigger()
     {
-        // A relationship pointing at nothing to dispatch would be written and never answered, which reads
+        // A relationship pointing at no service would be written and never answered, which reads
         // afterwards as an analysis that started and produced nothing.
         var model = StudyOf("WillowBend")
             .Relate("balancesEnergy", CoveringSourceResolver.IsPredicateName, "SiteAnalysisConnection");
@@ -692,7 +692,7 @@ public class CoveringSourceResolverTests
     public void AnalysisOf_ServiceTypedByAThingThatIsNotAnArchetype_IsNotATrigger()
     {
         // A service `is` its prototype, and a prototype is a type. Pointing the analysis relationship at an
-        // ordinary Thing that happens to sit on an `is` relationship would dispatch against a member.
+        // ordinary Thing that happens to sit on an `is` relationship would call a service for a member.
         var model = StudyOf("WillowBend")
             .Relate("balancesEnergy", CoveringSourceResolver.IsPredicateName, "SiteAnalysisConnection")
             .Relate("balancesEnergy", CoveringSourceResolver.HasPredicate, "balancesEnergy service")
@@ -775,7 +775,7 @@ public class CoveringSourceResolverTests
     public void AnalysisOf_IntermediateArchetypeBindingItsOwnService_IsNotATrigger()
     {
         // A type between a connection and the bound archetype may bind a service of its own as a template. It is
-        // still a type, and dispatching it would make the relationship's predicate an archetype rather than a
+        // still a type, and calling it would make the relationship's predicate an archetype rather than a
         // connection — so only the member below it is a trigger.
         var model = StudyOf("WillowBend")
             .Relate("PlatformAnalysisConnection", CoveringSourceResolver.IsPredicateName, "SiteAnalysisConnection")
@@ -796,7 +796,7 @@ public class CoveringSourceResolverTests
     public void AnalysisOf_IsEdgeFromAThingOutsideTheSnapshot_IsSkipped()
     {
         // Incident relationships arrive for every Thing in the set, including ones whose other end was not
-        // selected. Reading a connection that is not there would dispatch against a Thing this run
+        // selected. Reading a connection that is not there would call a service for a Thing this run
         // knows nothing about.
         var site = Guid.NewGuid();
         var study = Guid.NewGuid();

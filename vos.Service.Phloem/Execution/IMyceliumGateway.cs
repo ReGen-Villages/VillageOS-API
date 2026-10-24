@@ -3,7 +3,7 @@ using vos.Service.Phloem.Model;
 
 namespace vos.Service.Phloem.Execution;
 
-public sealed record NodeDispatchResult(int StatusCode, string Body);
+public sealed record NodeCallResult(int StatusCode, string Body);
 
 // Everything the executor needs from Mycelium, behind a seam so the orchestration logic is
 // unit-testable without HTTP. The HTTP implementation is MyceliumGateway; run-persistence calls are
@@ -12,7 +12,7 @@ public interface IMyceliumGateway
 {
     Task<PipelineGraph> LoadPipelineSubgraphAsync(Guid pipelineId, CancellationToken cancellationToken);
 
-    // What a dispatched relationship's target is, with the start nodes standing for it and the pipelines
+    // What the target of a relationship the broker sends is, with the start nodes standing for it and the pipelines
     // they belong to or it reaches — enough for PipelineStart to say which pipeline it starts.
     Task<PipelineGraph> LoadStartSubgraphAsync(Guid targetId, CancellationToken cancellationToken);
 
@@ -31,7 +31,7 @@ public interface IMyceliumGateway
     Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null, Guid? requestId = null,
         JsonElement? parameters = null, Guid? startedBy = null, string? refusal = null, bool rehearsal = false);
 
-    // Upsert a NodeRun Thing and set its status — running before dispatch, then the terminal
+    // Upsert a NodeRun Thing and set its status — running before service call, then the terminal
     // status — on one Thing per key (deterministic id) so the SSE view sees a property change, not duplicate
     // Things. With index null this is the node's aggregate NodeRun (drives the
     // ring); with an index it's a per-item NodeRun of a fan-out, carrying index/total. A terminal status
@@ -51,7 +51,7 @@ public interface IMyceliumGateway
     // PipelineRun Thing, so it persists in the model and streams over SSE like any other property.
     Task SetRunResultAsync(Guid runId, JsonElement result, CancellationToken cancellationToken);
 
-    // Whether a dispatched relationship was written along the connection the runStopping role binds.
+    // Whether a relationship the broker sends was written along the connection the runStopping role binds.
     Task<bool> IsStopAsync(Guid relationshipId, CancellationToken cancellationToken);
 
     // The reason a stop request carries, and the runs it stops: the target itself when it is a run, otherwise the
@@ -64,7 +64,7 @@ public interface IMyceliumGateway
     // The platform answers a vigil already gone as not found, which is the outcome asked for.
     Task RetireVigilAsync(Guid vigilId, CancellationToken cancellationToken);
 
-    Task<NodeDispatchResult> DispatchAsync(string subdomain, JsonElement envelope, CancellationToken cancellationToken);
+    Task<NodeCallResult> CallAsync(string subdomain, JsonElement envelope, CancellationToken cancellationToken);
 
     // Null when the model holds no such run. Reading a run's node runs back also tells the gateway they exist,
     // so a later status is written to the same Thing after a restart.
