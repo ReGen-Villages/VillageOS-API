@@ -11,7 +11,7 @@ namespace vos.Service.Phloem.Tests;
 // validate it acyclic with type-compatible wires.
 public class PipelineModelTests
 {
-    [Fact] // Boundary nodes resolve with a kind + their own declared ports, and no dispatch subdomain.
+    [Fact] // Boundary nodes resolve with a kind + their own declared ports, and no subdomain to call.
     public void Build_BoundaryNodes_ResolveKindAndDeclaredPorts()
     {
         var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
@@ -283,7 +283,7 @@ public class PipelineModelTests
         act.Should().Throw<PipelineModelException>().WithMessage("*'Empty' has no nodes*");
     }
 
-    // Without a subdomain there is no address to dispatch the node to, and a run would fail one node at a
+    // Without a subdomain there is no address to call the node at, and a run would fail one node at a
     // time instead of refusing the pipeline.
     [Fact]
     public void Build_WhenTheConnectionCarriesNoSubdomain_Refuses()

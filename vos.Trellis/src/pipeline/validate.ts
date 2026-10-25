@@ -2,7 +2,7 @@ import type { PortInformation } from './model';
 import i18n from '../i18n';
 
 // Pure pre-run validation for the pipeline editor: explains why a DAG will not run before the
-// user hits Run, instead of a silent dispatch failure. Kept pure so it is trivially unit-tested and can
+// user hits Run, instead of a silent service-call failure. Kept pure so it is trivially unit-tested and can
 // drive both a canvas marker and the Run button's enabled state.
 
 export interface ValidationNode {

@@ -11,10 +11,10 @@ public sealed record DagPort(string PortName, string Direction, string Type, boo
     public bool IsNamed(string portName) => string.Equals(PortName, portName, StringComparison.OrdinalIgnoreCase);
 }
 
-// What a node does at execution: a dispatchable Service node (the default), or a
+// What a node does at execution: a callable Service node (the default), or a
 // boundary node — an Input source (projects run params onto its output ports) or an
 // Output sink (its collected inputs are the run's published result). Boundary nodes never
-// dispatch.
+// call a service.
 public enum DagNodeKind { Service, Input, Output }
 
 // The external system an end node stands for, and the connection that system is told through.
@@ -51,7 +51,7 @@ public sealed class DagNode
         new Dictionary<string, JsonElement>(StringComparer.Ordinal);
     public IReadOnlyList<DagPort> Ports { get; init; } = Array.Empty<DagPort>();
 
-    // Input-port → run-parameter-key bindings: at dispatch each bound input is filled from the
+    // Input-port → run-parameter-key bindings: when the node is called, each bound input is filled from the
     // run's parameters (an explicit wire into the same port takes precedence).
     public IReadOnlyDictionary<string, string> ParameterBindings { get; init; } =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

@@ -1036,7 +1036,7 @@ export const es: PartialResources = {
     stateHistoryUnavailable: "Historial de estados no disponible — no hay un motor reactivo activo para este modelo.",
     noStateChanges: "No se registraron cambios de estado.",
     handledBy: "Procesado por",
-    dispatchesSinceModelLoad: "Registrado desde que la plataforma cargó este modelo — una ejecución anterior no muestra hora.",
+    serviceCallsSinceModelLoad: "Registrado desde que la plataforma cargó este modelo — una ejecución anterior no muestra hora.",
     decisions: "Por qué se decidió así",
     decisionChose: "eligió",
     decisionChoseNothing: "no eligió nada",
@@ -1311,7 +1311,7 @@ export const es: PartialResources = {
       other: "",
     },
     note: {
-      startNotDispatched: "Dibujar de dónde viene una ejecución no es lo que la inicia: esta canalización se ejecuta al pulsar Ejecutar o al enviar una petición al orquestador.",
+      startNotCalled: "Dibujar de dónde viene una ejecución no es lo que la inicia: esta canalización se ejecuta al pulsar Ejecutar o al enviar una petición al orquestador.",
       endNotSent: "Nada envía todavía a {{name}}; lo que llega a este nodo queda en el registro de la ejecución.",
       endNotStarted: "Nada inicia todavía {{name}} desde esta ejecución.",
     },

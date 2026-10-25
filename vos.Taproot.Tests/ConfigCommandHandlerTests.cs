@@ -49,7 +49,7 @@ public class ConfigCommandHandlerTests
     }
 
     [Fact]
-    public async Task Execute_ModeCommand_DispatchesToPropertyModeHandler()
+    public async Task Execute_ModeCommand_RoutesToPropertyModeHandler()
     {
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
             @"{""Mode"":""CurrentOnly"",""RingBufferSize"":100,""SampleRate"":100}");
@@ -62,7 +62,7 @@ public class ConfigCommandHandlerTests
     }
 
     [Fact]
-    public async Task Execute_PropertyModeCommand_DispatchesToPropertyModeHandler()
+    public async Task Execute_PropertyModeCommand_RoutesToPropertyModeHandler()
     {
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
             @"{""Mode"":""CurrentOnly"",""RingBufferSize"":100,""SampleRate"":100}");

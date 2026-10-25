@@ -30,7 +30,7 @@ describe('OutputRail', () => {
     expect(onPlaceOutput).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'answer' }));
   });
 
-  it('lists every service a node may dispatch under the outputs', () => {
+  it('lists every service a node may call under the outputs', () => {
     const { id, onAddService } = rail();
     const services = screen.getByRole('list', { name: 'Services' });
     fireEvent.click(within(services).getByRole('button', { name: /intake/ }));

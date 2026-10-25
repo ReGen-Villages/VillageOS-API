@@ -7,7 +7,7 @@
 // cannot produce one.
 //
 // `is` is NOT an external predicate — Mycelium handles `is` inheritance
-// in-process and never dispatches it. Register for a custom predicate instead.
+// in-process and never calls it. Register for a custom predicate instead.
 
 import { createServer, IncomingMessage, Server, ServerResponse } from "node:http";
 import { createPublicKey, randomUUID, verify, type KeyObject } from "node:crypto";

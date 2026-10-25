@@ -8,10 +8,10 @@ Port `type` is a wire-compatibility tag: an empty type or "any" is a wildcard, s
 anything. A port with `collection` true drives fan-out on the Pipeline page (one run item per element).
 """
 
-# Each service becomes a palette entry: a PlatformServiceConnection (carrying the Subdomain a run dispatches
+# Each service becomes a palette entry: a PlatformServiceConnection (carrying the Subdomain a run calls
 # to) bound to a Service that declares the ports. `subdomain` values match real Managed Microservices where
 # one exists (echo, water-reserve, energy-balance, metabolism, model-bridge), so a saved pipeline can also be
-# Run against a live platform; the rest are dispatch-only stand-ins that still exercise the editor end to end.
+# Run against a live platform; the rest are call-only stand-ins that still exercise the editor end to end.
 # Every service rehearses except the real ones nobody has yet checked to write nothing, marked "rehearses": False.
 #
 # port tuple = (portName, direction, type, required, collection)

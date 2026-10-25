@@ -12,7 +12,7 @@ public sealed class PipelineModelException : Exception
 }
 
 // Resolves a loaded PipelineGraph + pipelineId into a PipelineDag:
-// nodes, their dispatch subdomain (node has Connection, Subdomain property), ports (walk the
+// nodes, the subdomain they are called at (node has Connection, Subdomain property), ports (walk the
 // bound service's is-chain), and wires (the predicate is of the wire archetype, carrying fromPort/toPort).
 // Every role is read from the role Thing that binds it, never from a name.
 public static class PipelineDagBuilder
@@ -183,7 +183,7 @@ public static class PipelineDagBuilder
     }
 
     // A boundary node: ports are declared on the node itself (its own has → Port chain),
-    // there is no dispatch subdomain, and its DagNodeKind tells the executor to seed from params
+    // there is no subdomain to call, and its DagNodeKind tells the executor to seed from params
     // (Input) or collect into the run result (Output).
     private static DagNode BuildBoundaryNode(PipelineGraph graph, GraphThing nodeThing, DagNodeKind kind, List<string> problems)
     {

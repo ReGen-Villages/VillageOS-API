@@ -261,7 +261,7 @@ public class VocabularyEdgeTests
     }
 
     // The words came from the fetches, but the declaration read can still fail — and the site has
-    // already left the state that dispatches runs, so nothing retries by itself. The run must not
+    // already left the state that starts runs, so nothing retries by itself. The run must not
     // guess: no relationship is written, and the failure is the run's to report.
     [Fact]
     public async Task A_failed_declaration_read_writes_no_edge()

@@ -1036,7 +1036,7 @@ export const fr: PartialResources = {
     stateHistoryUnavailable: "Historique des états indisponible — aucun moteur réactif actif pour ce modèle.",
     noStateChanges: "Aucun changement d'état enregistré.",
     handledBy: "Traité par",
-    dispatchesSinceModelLoad: "Enregistré depuis le chargement de ce modèle par la plateforme — une exécution antérieure n'affiche aucune heure.",
+    serviceCallsSinceModelLoad: "Enregistré depuis le chargement de ce modèle par la plateforme — une exécution antérieure n'affiche aucune heure.",
     decisions: "Pourquoi cette décision",
     decisionChose: "a choisi",
     decisionChoseNothing: "n'a rien choisi",
@@ -1311,7 +1311,7 @@ export const fr: PartialResources = {
       other: "",
     },
     note: {
-      startNotDispatched: "Dessiner d'où vient une exécution ne la lance pas : ce pipeline s'exécute quand on appuie sur Exécuter ou quand l'orchestrateur reçoit une requête.",
+      startNotCalled: "Dessiner d'où vient une exécution ne la lance pas : ce pipeline s'exécute quand on appuie sur Exécuter ou quand l'orchestrateur reçoit une requête.",
       endNotSent: "Rien n'envoie encore à {{name}} ; ce qui atteint ce nœud reste dans le journal de l'exécution.",
       endNotStarted: "Rien ne lance encore {{name}} depuis cette exécution.",
     },

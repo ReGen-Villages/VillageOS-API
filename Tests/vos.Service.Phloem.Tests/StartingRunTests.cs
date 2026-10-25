@@ -20,7 +20,7 @@ public class StartingRunTests
         var starting = TestGraphs.StartingPipeline(transformIntoTheEnd: transformIntoTheEnd);
         var gateway = new FakeGateway(starting.Fixture.Build())
         {
-            OnDispatch = (subdomain, envelope) => subdomain == "ech"
+            OnCall = (subdomain, envelope) => subdomain == "ech"
                 ? NodeOk(("echo", envelope.GetProperty("inputs").GetProperty("message").GetString()!))
                 : NodeFail($"unexpected {subdomain}"),
         };
@@ -68,9 +68,9 @@ public class StartingRunTests
         gateway.RunsCreated.First().StartedBy.Should().BeNull();
     }
 
-    private static NodeDispatchResult NodeOk(params (string Port, string Value)[] outputs) =>
+    private static NodeCallResult NodeOk(params (string Port, string Value)[] outputs) =>
         new(200, JsonSerializer.Serialize(new { success = true, outputs = outputs.ToDictionary(o => o.Port, o => o.Value) }));
 
-    private static NodeDispatchResult NodeFail(string error) =>
+    private static NodeCallResult NodeFail(string error) =>
         new(200, JsonSerializer.Serialize(new { success = false, error }));
 }

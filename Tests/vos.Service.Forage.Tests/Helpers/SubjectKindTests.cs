@@ -5,10 +5,10 @@ using Xunit;
 
 namespace vos.Service.Forage.Tests.Helpers;
 
-// What a dispatch names: a site, or a source added to the catalogue, and the two runs are opposites: one fetches and records, the
+// What a service call names: a site, or a source added to the catalogue, and the two runs are opposites: one fetches and records, the
 // other mints and fetches nothing. The model says which the subject is, through the role the platform binds
 // to the archetype every site `is` — never by the name of the connection that
-// dispatched it, which the two repositories would then agree about only by spelling.
+// started it, which the two repositories would then agree about only by spelling.
 //
 // Getting this wrong is quiet in both directions. A site taken for a source is never fetched and is
 // stamped as worked out; a source taken for a site is fetched about nothing and stamped the same way.
@@ -48,7 +48,7 @@ public class SubjectKindTests
     }
 
     // A registration is what makes a source callable, so one that covers nothing yet is still a source
-    // — offered to no site, and stamped as such rather than dispatched again on every load.
+    // — offered to no site, and stamped as such rather than called again on every load.
     [Fact]
     public void AThingResolvedByARegistration_IsASource()
     {
@@ -59,7 +59,7 @@ public class SubjectKindTests
     }
 
     // Anything not a site would otherwise be offered to the sites it covers — none — and stamped as
-    // worked out. A Place, a study, a connection: stamped, and nothing would say the dispatch was wrong.
+    // worked out. A Place, a study, a connection: stamped, and nothing would say the service call was wrong.
     [Fact]
     public void AThingThatNeitherIsASiteNorCoversAnything_IsNeither()
     {
@@ -73,7 +73,7 @@ public class SubjectKindTests
 
     // An archetype does not play its own role. Taken for a source, it would be stamped as worked out —
     // and a value on the archetype is inherited by every site, which would take all of them out of the
-    // state a run is dispatched by.
+    // state that starts a run.
     [Fact]
     public void TheBoundArchetypeItself_IsNotASite()
     {
@@ -85,8 +85,8 @@ public class SubjectKindTests
     }
 
     // A model that never read the template declaring the role cannot tell the two apart, and it also
-    // cannot have declared the connection that dispatches a source — so the honest answer is the one
-    // every dispatch got before there were two kinds. An archetype named Site binds nothing on its own.
+    // cannot have declared the connection that calls a source — so the honest answer is the one
+    // every service call got before there were two kinds. An archetype named Site binds nothing on its own.
     [Fact]
     public void AModelBindingNoSiteArchetype_CannotTell()
     {

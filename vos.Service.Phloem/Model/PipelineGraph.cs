@@ -158,7 +158,7 @@ public sealed class PipelineGraph
         }
     }
 
-    // Targets reached from the subject along the predicate a role binds — the predicates the platform dispatches
+    // Targets reached from the subject along the predicate a role binds — the predicates the platform calls services
     // and records along, as against a wire's predicate, which `is` the wire archetype.
     public IEnumerable<GraphThing> OutgoingAlong(GraphThing subject, Role role)
     {

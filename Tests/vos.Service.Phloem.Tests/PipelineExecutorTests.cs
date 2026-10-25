@@ -18,7 +18,7 @@ public class PipelineExecutorTests
         var (fx, pipelineId) = TestGraphs.DemoPipeline();
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (subdomain, envelope) => subdomain switch
+            OnCall = (subdomain, envelope) => subdomain switch
             {
                 "gen" => NodeOk(("echo", "hi")),
                 "ech" => NodeOk(("echo", InputValue(envelope, "message"))),
@@ -33,7 +33,7 @@ public class PipelineExecutorTests
         result.Nodes.Should().OnlyContain(n => n.Status == RunStatus.Succeeded);
         var echo = result.Nodes.Single(n => n.Name == "Echo");
         echo.Outputs["echo"].GetString().Should().Be("hi");
-        gateway.Dispatched.Should().Equal("gen", "ech");
+        gateway.Called.Should().Equal("gen", "ech");
         gateway.StatusUpdates.Should().Contain(RunStatus.Succeeded);
     }
 
@@ -43,7 +43,7 @@ public class PipelineExecutorTests
         var (fx, pipelineId) = TestGraphs.DemoPipeline();
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (subdomain, _) => subdomain == "gen" ? NodeFail("generate boom") : NodeOk(("echo", "x")),
+            OnCall = (subdomain, _) => subdomain == "gen" ? NodeFail("generate boom") : NodeOk(("echo", "x")),
         };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
@@ -52,7 +52,7 @@ public class PipelineExecutorTests
         result.Success.Should().BeFalse();
         result.Nodes.Single(n => n.Name == "Generate").Status.Should().Be(RunStatus.Failed);
         result.Nodes.Single(n => n.Name == "Echo").Status.Should().Be(RunStatus.Skipped);
-        gateway.Dispatched.Should().Equal("gen"); // Echo never dispatched
+        gateway.Called.Should().Equal("gen"); // Echo never called
         gateway.StatusUpdates.Should().Contain(RunStatus.Failed);
     }
 
@@ -67,7 +67,7 @@ public class PipelineExecutorTests
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("not found");
-        gateway.Dispatched.Should().BeEmpty();
+        gateway.Called.Should().BeEmpty();
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public class PipelineExecutorTests
         PipelineExecutor executor = null!;
         Task? stopping = null;
         var gateway = new FakeGateway(fx.Build());
-        gateway.OnDispatch = (_, envelope) =>
+        gateway.OnCall = (_, envelope) =>
         {
             stopping ??= executor.StopAsync(request, envelope.GetProperty("runId").GetGuid(), CancellationToken.None);
             return NodeOk(("echo", "x"));
@@ -94,7 +94,7 @@ public class PipelineExecutorTests
         var echo = result.Nodes.Single(n => n.Name == "Echo");
         echo.Status.Should().Be(RunStatus.Cancelled);
         echo.Error.Should().Be("withdrawn by its owner");
-        gateway.Dispatched.Should().Equal("gen");
+        gateway.Called.Should().Equal("gen");
         gateway.RunStatuses[result.RunId].Should().Be(RunStatus.Cancelled);
         gateway.RunError.Should().Be("withdrawn by its owner");
         gateway.StoppedBy.Should().Equal((result.RunId, request));
@@ -106,7 +106,7 @@ public class PipelineExecutorTests
         var (fx, pipelineId) = TestGraphs.DemoPipeline();
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (subdomain, envelope) => subdomain switch
+            OnCall = (subdomain, envelope) => subdomain switch
             {
                 "gen" => NodeOk(("echo", "hi")),
                 "ech" => NodeOk(("echo", InputValue(envelope, "message"))),
@@ -131,7 +131,7 @@ public class PipelineExecutorTests
         string? seenMessage = null;
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (_, envelope) =>
+            OnCall = (_, envelope) =>
             {
                 seenMessage = envelope.GetProperty("inputs").TryGetProperty("message", out var m) ? m.GetString() : null;
                 return NodeOk(("echo", seenMessage ?? ""));
@@ -153,7 +153,7 @@ public class PipelineExecutorTests
         JsonElement seenInputs = default;
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (subdomain, envelope) =>
+            OnCall = (subdomain, envelope) =>
             {
                 subdomain.Should().Be("water-reserve");
                 seenInputs = envelope.GetProperty("inputs").Clone();
@@ -168,7 +168,7 @@ public class PipelineExecutorTests
         var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
 
         result.Success.Should().BeTrue();
-        gateway.Dispatched.Should().Equal("water-reserve");
+        gateway.Called.Should().Equal("water-reserve");
         seenInputs.GetProperty("population").GetDouble().Should().Be(730.0);
         seenInputs.GetProperty("storageCapacityM3").GetDouble().Should().Be(1400.0);
         result.Nodes.Single(n => n.Name == "WaterReserve").Outputs["daysOfSupply"].GetString().Should().Be("14");
@@ -181,7 +181,7 @@ public class PipelineExecutorTests
         JsonElement seenInputs = default;
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (subdomain, envelope) =>
+            OnCall = (subdomain, envelope) =>
             {
                 subdomain.Should().Be("energy-balance");
                 seenInputs = envelope.GetProperty("inputs").Clone();
@@ -203,7 +203,7 @@ public class PipelineExecutorTests
         var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
 
         result.Success.Should().BeTrue();
-        gateway.Dispatched.Should().Equal("energy-balance");
+        gateway.Called.Should().Equal("energy-balance");
         seenInputs.GetProperty("solarPvAreaM2").GetDouble().Should().Be(29611.0);
         seenInputs.GetProperty("annualConsumptionMwhPerYear").GetDouble().Should().Be(18743.0);
         result.Nodes.Single(n => n.Name == "EnergyBalance").Outputs["netPositive"].GetString().Should().Be("true");
@@ -217,7 +217,7 @@ public class PipelineExecutorTests
         var weights = new List<int>();
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (_, envelope) =>
+            OnCall = (_, envelope) =>
             {
                 var inputs = envelope.GetProperty("inputs");
                 var item = inputs.GetProperty("item").GetString()!;
@@ -244,7 +244,7 @@ public class PipelineExecutorTests
         var (fx, pipelineId) = TestGraphs.FanOutPipeline("fail");
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (_, envelope) =>
+            OnCall = (_, envelope) =>
                 envelope.GetProperty("inputs").GetProperty("item").GetString() == "b" ? NodeFail("boom") : NodeOk(("score", "ok")),
         };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
@@ -262,7 +262,7 @@ public class PipelineExecutorTests
         var (fx, pipelineId) = TestGraphs.FanOutPipeline("continue");
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (_, envelope) =>
+            OnCall = (_, envelope) =>
             {
                 var item = envelope.GetProperty("inputs").GetProperty("item").GetString()!;
                 return item == "b" ? NodeFail("boom") : NodeOk(("score", item.ToUpperInvariant()));
@@ -287,7 +287,7 @@ public class PipelineExecutorTests
         var (fx, pipelineId) = TestGraphs.FieldMergePipeline();
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (subdomain, _) => subdomain switch
+            OnCall = (subdomain, _) => subdomain switch
             {
                 "a" => NodeOk(("out", "AA")),
                 "b" => NodeOk(("out", "BB")),
@@ -313,9 +313,9 @@ public class PipelineExecutorTests
         var (fx, pipelineId) = TestGraphs.WireTransformPipeline("{\"name\": firstName & \" \" & lastName}");
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (subdomain, _) => subdomain switch
+            OnCall = (subdomain, _) => subdomain switch
             {
-                "a" => new NodeDispatchResult(200, JsonSerializer.Serialize(new
+                "a" => new NodeCallResult(200, JsonSerializer.Serialize(new
                 {
                     success = true,
                     outputs = new Dictionary<string, object> { ["out"] = new { firstName = "Ada", lastName = "Lovelace" } },
@@ -334,18 +334,18 @@ public class PipelineExecutorTests
         envelope.GetProperty("inputs").GetProperty("in").GetProperty("name").GetString().Should().Be("Ada Lovelace");
     }
 
-    [Fact] // An invalid transform is caught at pre-run validation — the run fails without dispatching
-    public async Task RunAsync_InvalidWireTransform_FailsValidationBeforeDispatch()
+    [Fact] // An invalid transform is caught at pre-run validation — the run fails without calling anything
+    public async Task RunAsync_InvalidWireTransform_FailsValidationBeforeAnyCall()
     {
         var (fx, pipelineId) = TestGraphs.WireTransformPipeline("this is ( not valid jsonata");
-        var gateway = new FakeGateway(fx.Build()) { OnDispatch = (_, _) => NodeOk(("out", "x")) };
+        var gateway = new FakeGateway(fx.Build()) { OnCall = (_, _) => NodeOk(("out", "x")) };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
         var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("invalid").And.Contain("transform");
-        gateway.Dispatched.Should().BeEmpty("a pipeline that fails validation never dispatches a node");
+        gateway.Called.Should().BeEmpty("a pipeline that fails validation never calls a node");
     }
 
     [Fact] // Input node output ports are filled from run params
@@ -354,7 +354,7 @@ public class PipelineExecutorTests
         var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
+            OnCall = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
         };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
@@ -363,7 +363,7 @@ public class PipelineExecutorTests
 
         result.Success.Should().BeTrue();
         result.Nodes.Single(n => n.Name == "Echo").Outputs["echo"].GetString().Should().Be("hi");
-        gateway.Dispatched.Should().Equal("ech");
+        gateway.Called.Should().Equal("ech");
     }
 
     [Fact] // A value wired into the Output node becomes the run result
@@ -372,7 +372,7 @@ public class PipelineExecutorTests
         var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
+            OnCall = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
         };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
@@ -392,7 +392,7 @@ public class PipelineExecutorTests
         var telling = TestGraphs.TellingPipeline();
         var gateway = new FakeGateway(telling.Fixture.Build())
         {
-            OnDispatch = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
+            OnCall = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
         };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
@@ -412,7 +412,7 @@ public class PipelineExecutorTests
         var telling = TestGraphs.TellingPipeline();
         var gateway = new FakeGateway(telling.Fixture.Build())
         {
-            OnDispatch = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
+            OnCall = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
             OnSend = () => throw new HttpRequestException("the broker refused the write"),
         };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
@@ -435,7 +435,7 @@ public class PipelineExecutorTests
         var result = await executor.RunAsync(telling.PipelineId, JsonSerializer.SerializeToElement(new { seed = "world" }), CancellationToken.None);
 
         result.Success.Should().BeFalse();
-        gateway.Dispatched.Should().BeEmpty();
+        gateway.Called.Should().BeEmpty();
         gateway.MessagesSent.Should().BeEmpty();
         gateway.RunError.Should().Contain("Reporting office");
     }
@@ -449,7 +449,7 @@ public class PipelineExecutorTests
         var fixture = TestGraphs.StatePipeline();
         var gateway = new FakeGateway(fixture.Fixture.Build())
         {
-            OnDispatch = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
+            OnCall = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
         };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
         var subject = new RunSubject(Guid.NewGuid(), "Submission 42");
@@ -469,7 +469,7 @@ public class PipelineExecutorTests
         var fixture = TestGraphs.StatePipeline();
         var gateway = new FakeGateway(fixture.Fixture.Build())
         {
-            OnDispatch = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
+            OnCall = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
         };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
         var subject = new RunSubject(Guid.NewGuid(), "Submission 42");
@@ -480,7 +480,7 @@ public class PipelineExecutorTests
         result.Result!.Value.GetProperty("result").GetString().Should().Be(subject.Id.ToString());
     }
 
-    // A run refused before any node dispatches has no node run to carry a reason, and nobody awaits a
+    // A run refused before any node is called has no node run to carry a reason, and nobody awaits a
     // run a state entry started; the reason lives on the run.
     [Fact]
     public async Task RunAsync_ARunRefusedBeforeAnyNode_LeavesItsReasonOnTheRun()
@@ -499,7 +499,7 @@ public class PipelineExecutorTests
     }
 
     [Fact]
-    public async Task RunAsync_TwoRequiredInputsNothingFillsOnDifferentNodes_IsRefusedNamingBothAndDispatchesNothing()
+    public async Task RunAsync_TwoRequiredInputsNothingFillsOnDifferentNodes_IsRefusedNamingBothAndCallsNothing()
     {
         var (fx, pipelineId) = TestGraphs.DemoPipeline();
         foreach (var prototype in new[] { "SourceProto", "EchoProto" })
@@ -514,7 +514,7 @@ public class PipelineExecutorTests
         var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
 
         result.Success.Should().BeFalse();
-        gateway.Dispatched.Should().BeEmpty();
+        gateway.Called.Should().BeEmpty();
         gateway.StatusUpdates.Should().Equal(RunStatus.Refused);
         gateway.RunError.Should().Contain("'Generate' needs its port 'context'").And.Contain("'Echo' needs its port 'context'");
     }
@@ -529,7 +529,7 @@ public class PipelineExecutorTests
         var result = await executor.RunAsync(pipelineId, default, CancellationToken.None, subject: new RunSubject(Guid.NewGuid(), "Site 3"));
 
         result.Success.Should().BeFalse();
-        gateway.Dispatched.Should().BeEmpty();
+        gateway.Called.Should().BeEmpty();
         gateway.RunError.Should().Contain("run parameter 'greeting'");
     }
 
@@ -565,7 +565,7 @@ public class PipelineExecutorTests
         var (fx, pipelineId) = TestGraphs.DecisionPipeline();
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (subdomain, envelope) => subdomain switch
+            OnCall = (subdomain, envelope) => subdomain switch
             {
                 "decide" => NodeOk(("accept", "yes: " + InputValue(envelope, "in"))),
                 "notify" => NodeOk(("out", "told " + InputValue(envelope, "in"))),
@@ -578,7 +578,7 @@ public class PipelineExecutorTests
         var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "order 7" }), CancellationToken.None);
 
         result.Success.Should().BeTrue();
-        gateway.Dispatched.Should().Equal("decide", "notify");
+        gateway.Called.Should().Equal("decide", "notify");
         result.Nodes.Single(n => n.Name == "Return").Status.Should().Be(RunStatus.NotTaken);
         gateway.NodeStatuses.Where(s => s.Name == "Return").Select(s => s.Status).Should().Equal(RunStatus.NotTaken);
         result.Nodes.Single(n => n.Name == "End").Status.Should().Be(RunStatus.Succeeded);
@@ -589,13 +589,13 @@ public class PipelineExecutorTests
     public async Task RunAsync_Decision_AnsweringUnderNoOutcome_LeavesEveryBranchAndTheEndNotTaken()
     {
         var (fx, pipelineId) = TestGraphs.DecisionPipeline();
-        var gateway = new FakeGateway(fx.Build()) { OnDispatch = (_, _) => NodeOk() };
+        var gateway = new FakeGateway(fx.Build()) { OnCall = (_, _) => NodeOk() };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
         var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "order 7" }), CancellationToken.None);
 
         result.Success.Should().BeTrue();
-        gateway.Dispatched.Should().Equal("decide");
+        gateway.Called.Should().Equal("decide");
         result.Nodes.Where(n => n.Name is "Notify" or "Return" or "End").Should().OnlyContain(n => n.Status == RunStatus.NotTaken);
         result.Result.Should().BeNull();
         gateway.RunResult.Should().BeNull();
@@ -606,7 +606,7 @@ public class PipelineExecutorTests
     {
         var choice = TestGraphs.ChoicePipeline();
         choice.Fixture.Rel(choice.Node, choice.Offers, choice.Offered[1]);
-        var gateway = new FakeGateway(choice.Fixture.Build()) { OnDispatch = (_, _) => NodeOk(("out", "chosen")) };
+        var gateway = new FakeGateway(choice.Fixture.Build()) { OnCall = (_, _) => NodeOk(("out", "chosen")) };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
         var result = await executor.RunAsync(choice.PipelineId, default, CancellationToken.None);
@@ -622,7 +622,7 @@ public class PipelineExecutorTests
     {
         var choice = TestGraphs.ChoicePipeline(nodeProperties: ("parameterBindings", "{\"strategy\":\"strategy\"}"));
         choice.Fixture.Rel(choice.Node, choice.Offers, choice.Offered[1]);
-        var gateway = new FakeGateway(choice.Fixture.Build()) { OnDispatch = (_, _) => NodeOk(("out", "chosen")) };
+        var gateway = new FakeGateway(choice.Fixture.Build()) { OnCall = (_, _) => NodeOk(("out", "chosen")) };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
         var result = await executor.RunAsync(choice.PipelineId, JsonSerializer.SerializeToElement(new { strategy = "by hand" }), CancellationToken.None);
@@ -638,7 +638,7 @@ public class PipelineExecutorTests
         choice.Fixture.Rel(choice.Node, choice.Offers, choice.Offered[1]);
         var gateway = new FakeGateway(choice.Fixture.Build())
         {
-            OnDispatch = (subdomain, _) => subdomain == "source" ? NodeOk(("out", "from the wire")) : NodeOk(("out", "chosen")),
+            OnCall = (subdomain, _) => subdomain == "source" ? NodeOk(("out", "from the wire")) : NodeOk(("out", "chosen")),
         };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
@@ -661,7 +661,7 @@ public class PipelineExecutorTests
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("Choose").And.Contain("At random").And.Contain("no in port of it offers");
-        gateway.Dispatched.Should().BeEmpty();
+        gateway.Called.Should().BeEmpty();
         gateway.RunError.Should().Be(result.Error);
     }
 
@@ -671,7 +671,7 @@ public class PipelineExecutorTests
         var (fx, pipelineId) = TestGraphs.GatheredCollectionPipeline();
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (subdomain, _) => subdomain switch
+            OnCall = (subdomain, _) => subdomain switch
             {
                 "a" => NodeAnswering("""{"out":["a1","a2"]}"""),
                 "b" => NodeAnswering("""{"out":["b1"]}"""),
@@ -684,7 +684,7 @@ public class PipelineExecutorTests
         var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
 
         result.Success.Should().BeTrue();
-        ItemsDispatchedTo(gateway, "gather").Should().Equal("a1", "a2", "b1");
+        ItemsSentTo(gateway, "gather").Should().Equal("a1", "a2", "b1");
     }
 
     [Fact]
@@ -693,7 +693,7 @@ public class PipelineExecutorTests
         var (fx, pipelineId) = TestGraphs.GatheredCollectionPipeline();
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (subdomain, _) => subdomain switch
+            OnCall = (subdomain, _) => subdomain switch
             {
                 "a" => NodeOk(),
                 "b" => NodeAnswering("""{"out":["b1"]}"""),
@@ -705,10 +705,10 @@ public class PipelineExecutorTests
         var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
 
         result.Success.Should().BeTrue();
-        ItemsDispatchedTo(gateway, "gather").Should().Equal("b1");
+        ItemsSentTo(gateway, "gather").Should().Equal("b1");
     }
 
-    private static IEnumerable<string?> ItemsDispatchedTo(FakeGateway gateway, string subdomain) =>
+    private static IEnumerable<string?> ItemsSentTo(FakeGateway gateway, string subdomain) =>
         gateway.Envelopes.Where(e => e.Subdomain == subdomain)
             .OrderBy(e => e.Envelope.GetProperty("index").GetInt32())
             .Select(e => e.Envelope.GetProperty("inputs").GetProperty("items").GetString());
@@ -719,7 +719,7 @@ public class PipelineExecutorTests
         var (fx, pipelineId) = TestGraphs.GatheredCollectionPipeline(boundTo: "first");
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (subdomain, _) => subdomain switch
+            OnCall = (subdomain, _) => subdomain switch
             {
                 "a" => NodeOk(("out", "a1")),
                 "b" => NodeAnswering("""{"out":["b1","b2"]}"""),
@@ -731,7 +731,7 @@ public class PipelineExecutorTests
         var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { first = "f0" }), CancellationToken.None);
 
         result.Success.Should().BeTrue();
-        ItemsDispatchedTo(gateway, "gather").Should().Equal("f0", "a1", "b1", "b2");
+        ItemsSentTo(gateway, "gather").Should().Equal("f0", "a1", "b1", "b2");
     }
 
     [Fact]
@@ -740,7 +740,7 @@ public class PipelineExecutorTests
         var (fx, pipelineId) = TestGraphs.FanOutWithCollectionOutPipeline("continue");
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (_, envelope) =>
+            OnCall = (_, envelope) =>
             {
                 var item = envelope.GetProperty("inputs").GetProperty("item").GetString()!;
                 return item switch
@@ -770,7 +770,7 @@ public class PipelineExecutorTests
         var (fx, pipelineId) = TestGraphs.FanOutWithAnInPortNamedLikeItsCollectionOut();
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (_, envelope) => envelope.GetProperty("inputs").GetProperty("item").GetString() == "a"
+            OnCall = (_, envelope) => envelope.GetProperty("inputs").GetProperty("item").GetString() == "a"
                 ? NodeAnswering("""{"score":"A","parts":["a1","a2"]}""")
                 : NodeAnswering("""{"score":"C","parts":"c1"}"""),
         };
@@ -788,7 +788,7 @@ public class PipelineExecutorTests
         var (fx, pipelineId) = TestGraphs.DemoPipeline();
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (subdomain, _) => subdomain == "gen" ? NodeOk(("echo", "hi")) : NodeOk(("echo", "hi again")),
+            OnCall = (subdomain, _) => subdomain == "gen" ? NodeOk(("echo", "hi")) : NodeOk(("echo", "hi again")),
         };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
@@ -810,7 +810,7 @@ public class PipelineExecutorTests
         var one = Guid.NewGuid(); var two = Guid.NewGuid(); var three = Guid.NewGuid();
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (_, _) => NodeAnswering($$"""{"made":[{"id":"{{one}}","name":"first"},"{{two}}",{"id":"{{three}}"},"not an identifier",{"name":"no id"}],"note":"{{Guid.NewGuid()}}"}"""),
+            OnCall = (_, _) => NodeAnswering($$"""{"made":[{"id":"{{one}}","name":"first"},"{{two}}",{"id":"{{three}}"},"not an identifier",{"name":"no id"}],"note":"{{Guid.NewGuid()}}"}"""),
         };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
@@ -827,7 +827,7 @@ public class PipelineExecutorTests
     public async Task RunAsync_ANodeAnsweringNoThingUnderItsProducingPort_RelatesNothing()
     {
         var (fx, pipelineId) = TestGraphs.ProducingPipeline();
-        var gateway = new FakeGateway(fx.Build()) { OnDispatch = (_, _) => NodeAnswering("""{"made":"a plain word","note":"x"}""") };
+        var gateway = new FakeGateway(fx.Build()) { OnCall = (_, _) => NodeAnswering("""{"made":"a plain word","note":"x"}""") };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
         await executor.RunAsync(pipelineId, default, CancellationToken.None);
@@ -842,7 +842,7 @@ public class PipelineExecutorTests
         var a = Guid.NewGuid(); var b = Guid.NewGuid();
         var gateway = new FakeGateway(fx.Build())
         {
-            OnDispatch = (_, envelope) => envelope.GetProperty("inputs").GetProperty("in").GetString() == "x"
+            OnCall = (_, envelope) => envelope.GetProperty("inputs").GetProperty("in").GetString() == "x"
                 ? NodeAnswering("{\"made\":{\"id\":\"" + a + "\"}}")
                 : NodeAnswering("{\"made\":{\"id\":\"" + b + "\"}}"),
         };
@@ -855,16 +855,16 @@ public class PipelineExecutorTests
         gateway.NodeRunsPersisted.Where(n => n.Index == 1 && n.Status == RunStatus.Succeeded).Single().Outputs!["made"].GetProperty("id").GetString().Should().Be(b.ToString());
     }
 
-    private static NodeDispatchResult NodeAnswering(string outputsJson) =>
+    private static NodeCallResult NodeAnswering(string outputsJson) =>
         new(200, $$"""{"success":true,"outputs":{{outputsJson}},"error":null}""");
 
-    private static NodeDispatchResult NodeOk(params (string Port, string Value)[] outputs)
+    private static NodeCallResult NodeOk(params (string Port, string Value)[] outputs)
     {
         var outs = outputs.ToDictionary(o => o.Port, o => o.Value);
-        return new NodeDispatchResult(200, JsonSerializer.Serialize(new { success = true, outputs = outs, error = (string?)null }));
+        return new NodeCallResult(200, JsonSerializer.Serialize(new { success = true, outputs = outs, error = (string?)null }));
     }
 
-    private static NodeDispatchResult NodeFail(string error) =>
+    private static NodeCallResult NodeFail(string error) =>
         new(200, JsonSerializer.Serialize(new { success = false, outputs = new Dictionary<string, string>(), error }));
 
     private static string InputValue(JsonElement envelope, string port) =>

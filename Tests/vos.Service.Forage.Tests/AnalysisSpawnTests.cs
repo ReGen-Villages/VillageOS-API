@@ -19,7 +19,7 @@ namespace vos.Service.Forage.Tests;
 // to start an analysis is what these are meant to keep from appearing.
 //
 // The subject is the study rather than the site because a compute service reads its inputs off the
-// study. A relationship naming the site would dispatch against a Thing carrying none of them.
+// study. A relationship naming the site would call a service for a Thing carrying none of them.
 public class AnalysisSpawnTests
 {
     private const string FetchRoute = "/api/endpoints/tributary";
@@ -95,7 +95,7 @@ public class AnalysisSpawnTests
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        // The run leaves the request that dispatched it, so what it wrote is only there once it ends.
+        // The run leaves the request that started it, so what it wrote is only there once it ends.
         await factory.CompleteStartedRuns();
         return response;
     }
@@ -183,7 +183,7 @@ public class AnalysisSpawnTests
     public async Task Handle_ConnectionNotBeneathTheBoundArchetype_IsNotStarted()
     {
         // A connection outside the bound archetype is an ordinary one — a service bound for some other purpose — and
-        // starting it would dispatch a service against a study it knows nothing about.
+        // starting it would call a service for a study it knows nothing about.
         var ids = SiteWithOneSource();
         ids["ordinary"] = Guid.NewGuid();
         ids["ordinary service"] = Guid.NewGuid();
