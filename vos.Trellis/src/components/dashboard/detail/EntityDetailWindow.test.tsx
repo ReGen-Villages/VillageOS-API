@@ -20,6 +20,10 @@ vi.mock('../../../api/relationshipApi', () => ({
   },
 }));
 
+vi.mock('../../../api/serviceWiringApi', () => ({
+  fetchServiceWiring: () => Promise.resolve(indexWithAService()),
+}));
+
 const mockGetAtInstant = vi.fn();
 
 vi.mock('../../../api/thingApi', () => ({
