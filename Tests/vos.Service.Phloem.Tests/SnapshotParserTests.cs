@@ -26,14 +26,14 @@ public class SnapshotParserTests
             "things": [
               { "Id": "{{pipeline}}", "Name": "Demo", "IsArchetype": false,
                 "Properties": { "Subdomain": { "typeInfo": "vos.String", "value": "gen" } },
-                "RollupProperties": {}, "InheritedOverrides": {}, "States": [],
+                "DerivedProperties": {}, "InheritedOverrides": {}, "States": [],
                 "Relationships": [ "{{relationship}}" ] },
               { "Id": "{{archetype}}", "Name": "Pipeline", "IsArchetype": true,
                 "Properties": { "collection": { "typeInfo": "vos.Boolean", "value": true } },
-                "RollupProperties": {}, "InheritedOverrides": {}, "States": [],
+                "DerivedProperties": {}, "InheritedOverrides": {}, "States": [],
                 "Relationships": [ "{{relationship}}" ] },
               { "Id": "{{isPredicate}}", "Name": "is", "IsArchetype": false,
-                "Properties": {}, "RollupProperties": {}, "InheritedOverrides": {}, "States": [],
+                "Properties": {}, "DerivedProperties": {}, "InheritedOverrides": {}, "States": [],
                 "Relationships": [] }
             ],
             "relationships": [

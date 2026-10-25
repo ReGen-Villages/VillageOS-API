@@ -47,7 +47,7 @@ export interface VosThing {
    *  what says from what. Own definitions only — a member computing its own value carries the value and
    *  not the formula, so read the formula off the archetype by walking `is`, the way an inherited value
    *  is read. */
-  RollupProperties?: Record<string, DerivedDefinition>;
+  DerivedProperties?: Record<string, DerivedDefinition>;
 }
 
 /** How one computed value is worked out. One form is described and never both: `Expression` for a

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Forage.Helpers;
@@ -27,16 +28,16 @@ public sealed record UnresolvedWord(
 public sealed record VocabularyResolution(
     IReadOnlyList<PlannedVocabularyEdge> Edges, IReadOnlyList<UnresolvedWord> Unresolved);
 
-// Resolves the words a run's fetches wrote into the relationships the model declares. Everything is read from the declaration: the vocabulary archetype
-// carries the generic mark and names the property its word arrives under, and an archetype-level relationship
-// names the Thing the word is written onto and the predicate the resolved relationship is written through.
-// Nothing here names a vocabulary, an archetype, a predicate or a property of any model — a project
-// adding a vocabulary edits its model and deploys nothing.
+// Resolves the words a run's fetches wrote into the relationships the model declares. Everything is read from the declaration: each vocabulary archetype
+// `is` the kind the discoveredVocabulary role binds and names the property its word arrives under, and an
+// archetype-level relationship names the Thing the word is written onto and the predicate the resolved
+// relationship is written through. Nothing here names a vocabulary, an archetype, a predicate or a property of
+// any model — a project adding a vocabulary edits its model and deploys nothing.
 public static class DiscoveredVocabularyResolver
 {
-    // The strings the platform's intake template writes and its seed validation holds declarations to.
-    // The two repositories agree by these literals and by nothing else.
-    public const string ArchetypeFlag = "__IsDiscoveredVocabularyArchetype";
+    public static readonly Role DiscoveredVocabularyRole = LandIntakeRoles.DiscoveredVocabulary;
+
+    // The property name the platform's templates write and its seed validation holds declarations to.
     public const string ResolvedFromProperty = "resolvedFromProperty";
 
     private const string IsPredicateName = "is";
@@ -46,14 +47,14 @@ public static class DiscoveredVocabularyResolver
     // unused level costs one set expansion.
     private const int TypeChainDepth = 8;
 
-    // The subjects' type chains, every marked vocabulary with its members, and the relationships
-    // incident to all of them — which is what carries the shape relationships, the members' `is` relationships, and
-    // the vocabulary relationships the subjects already hold.
+    // The subjects' type chains, the role with its binding, the kind it binds with every vocabulary and member
+    // beneath it, and the relationships incident to all of them — which is what carries the shape relationships,
+    // the members' `is` relationships, and the vocabulary relationships the subjects already hold.
     public static SubscriptionSelector SelectorFor(IReadOnlyCollection<Guid> subjectIds) => new()
     {
-        Ids = [.. subjectIds],
-        Names = [IsPredicateName],
-        MarkedTypes = [ArchetypeFlag],
+        Ids = [.. subjectIds, DiscoveredVocabularyRole.Id],
+        Names = [IsPredicateName, RoleBindings.BindsPredicateName],
+        BoundTypes = [DiscoveredVocabularyRole.Id],
         Traverse = [new TraverseRule { Predicate = IsPredicateName, Depth = TypeChainDepth }],
         IncludeRelationships = true,
     };
@@ -113,7 +114,7 @@ public static class DiscoveredVocabularyResolver
         IReadOnlyDictionary<string, Guid> MembersByName,
         IReadOnlyList<Shape> Shapes);
 
-    // Every archetype carrying the mark as its own property, with the property its word arrives under,
+    // Every archetype directly of the kind the role binds, with the property its word arrives under,
     // its members by name, and the shape relationships reaching it. A member name two Things carry resolves
     // nothing — relationship order is not defined, and picking either would resolve one word two ways
     // on two runs — so the word is left to be reported as unresolved.
@@ -123,9 +124,16 @@ public static class DiscoveredVocabularyResolver
         IReadOnlyDictionary<Guid, string> namesById)
     {
         var declarations = new List<Declaration>();
+        if (snapshot.Bound(DiscoveredVocabularyRole) is not [var kind]) return declarations;
+
+        var vocabularyIds = snapshot.Relationships
+            .Where(edge => edge.TargetId == kind.Id && IsPredicate(namesById, edge.PredicateId, IsPredicateName))
+            .Select(edge => edge.SubjectId)
+            .ToHashSet();
+
         foreach (var vocabulary in snapshot.Things)
         {
-            if (!vocabulary.CarriesFlag(ArchetypeFlag)) continue;
+            if (!vocabularyIds.Contains(vocabulary.Id)) continue;
             if (OwnString(vocabulary, ResolvedFromProperty) is not { } word) continue;
 
             var members = new Dictionary<string, Guid>(StringComparer.Ordinal);

@@ -20,7 +20,7 @@ function timeParameters(start?: string, end?: string): string {
 }
 
 export const temporalApi = {
-  /** Reduce a type's instances into time buckets across the trailing window — the shape roll-ups
+  /** Reduce a type's instances into time buckets across the trailing window — the shape derived properties
    *  (which reduce over membership) and property history (which returns one property's past values)
    *  cannot express between them. A question the platform cannot answer is refused, so a caller
    *  hears about it rather than drawing an empty series. */

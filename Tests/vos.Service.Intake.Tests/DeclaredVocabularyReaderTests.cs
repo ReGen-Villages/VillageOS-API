@@ -198,7 +198,6 @@ public class DeclaredVocabularyReaderTests
         selector.Traverse.Should().Equal(RoleBindings.FollowBindings);
         selector.Names.Should().BeEquivalentTo(
             SubmissionFragmentComposer.IsPredicateName, RoleBindings.BindsPredicateName);
-        selector.MarkedTypes.Should().BeNull();
         selector.IncludeRelationships.Should().BeTrue();
     }
 
