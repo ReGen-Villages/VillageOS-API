@@ -6,6 +6,7 @@ import { BINDS_PREDICATE_NAME } from './landIntakeRoles';
  *  Thing it binds may be called anything. */
 export const PAGE_ROLE_ID = 'a18768bc-b4e7-513c-864f-842d674c1858';
 export const DISPLAY_SETTINGS_ROLE_ID = '1cb6206a-2726-5008-8188-698b299f5665';
+export const CONTAINMENT_ROLE_ID = 'd89c4c7d-c865-5db7-8c55-80df8cb254ec';
 
 /** What a detail card reads a state entry's service call through: the archetype of a service's request to be told
  *  once when one Thing enters one state, the predicate naming the connection such a request is answered through, and
