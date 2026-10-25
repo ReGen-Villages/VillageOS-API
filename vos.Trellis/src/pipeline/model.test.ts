@@ -152,6 +152,23 @@ describe('PipelineModel', () => {
       [{ Id: 'pipeline Has node', Name: '', SubjectId: pipeline.Id, PredicateId: recased.Id, TargetId: node.Id, Properties: {} }]));
 
     expect(model.outgoing(pipeline.Id, 'has')).toEqual([]);
+    expect(model.predicateIdByName('has')).toBeUndefined();
+  });
+
+  it('counts a wire Thing as held only along a predicate named exactly "has"', () => {
+    const is: VosThing = { Id: 'is', Name: 'is', Properties: {} };
+    const recased: VosThing = { Id: 'Has', Name: 'Has', Properties: {} };
+    const wireArchetype: VosThing = { Id: 'wire', Name: 'Channel', Properties: playing(ROLE.PipelineWire) };
+    const first: VosThing = { Id: 'first', Name: 'First channel', Properties: {} };
+    const second: VosThing = { Id: 'second', Name: 'Second channel', Properties: {} };
+    const node: VosThing = { Id: 'node', Name: 'Rain gauge', Properties: {} };
+    const model = new PipelineModel(...withRoles([is, recased, wireArchetype, first, second, node], [
+      { Id: 'first is', Name: '', SubjectId: first.Id, PredicateId: is.Id, TargetId: wireArchetype.Id, Properties: {} },
+      { Id: 'second is', Name: '', SubjectId: second.Id, PredicateId: is.Id, TargetId: wireArchetype.Id, Properties: {} },
+      { Id: 'node Has first', Name: '', SubjectId: node.Id, PredicateId: recased.Id, TargetId: first.Id, Properties: {} },
+    ]));
+
+    expect(model.wirePredicateId()).toBe(first.Id);
   });
 
   it('does not count an archetype as playing its own role, so the picker lists pipelines and not the archetype', () => {

@@ -48,7 +48,7 @@ export function buildThingSearchIndex(
     relationshipCountByThing.set(r.TargetId, (relationshipCountByThing.get(r.TargetId) ?? 0) + 1);
 
     const predicate = thingMap.get(r.PredicateId);
-    if (predicate && predicate.Name.toLowerCase() === 'is') {
+    if (predicate && predicate.Name === 'is') {
       if (!isSubjectToTypeName.has(r.SubjectId)) {
         const targetName = thingMap.get(r.TargetId)?.Name;
         if (targetName) isSubjectToTypeName.set(r.SubjectId, targetName);

@@ -503,7 +503,7 @@ export class PipelineModel {
 
   /** Id of a predicate Thing matched by name (only ever the built-in is/has on the write path). */
   predicateIdByName(name: string): string | undefined {
-    return this.things.find((t) => t.Name.toLowerCase() === name.toLowerCase())?.Id;
+    return this.things.find((t) => t.Name === name)?.Id;
   }
 
   /** Id of the wire predicate — the predicate Thing of the archetype the model binds as holding wires.
@@ -517,7 +517,7 @@ export class PipelineModel {
   }
 
   private isHeld(thingId: string): boolean {
-    return (this.byTarget.get(thingId) ?? []).some((r) => this.byId.get(r.PredicateId)?.Name.toLowerCase() === 'has');
+    return (this.byTarget.get(thingId) ?? []).some((r) => this.byId.get(r.PredicateId)?.Name === 'has');
   }
 
   /** Live per-node status for a run, keyed by the node Thing id — the SSE animation source.
