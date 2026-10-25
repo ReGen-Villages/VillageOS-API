@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DISPLAY_SETTINGS_ROLE_ID, PAGE_ROLE_ID, thingBoundBy } from './platformRoles';
+import { CONTAINMENT_ROLE_ID, DISPLAY_SETTINGS_ROLE_ID, PAGE_ROLE_ID, thingBoundBy } from './platformRoles';
 import { BINDS_PREDICATE_NAME } from './landIntakeRoles';
 import type { VosRelationship, VosThing } from '../types/vos';
 
@@ -49,5 +49,11 @@ describe('thingBoundBy', () => {
   it('holds the identifiers every model declares the two roles under', () => {
     expect(PAGE_ROLE_ID).toBe('a18768bc-b4e7-513c-864f-842d674c1858');
     expect(DISPLAY_SETTINGS_ROLE_ID).toBe('1cb6206a-2726-5008-8188-698b299f5665');
+  });
+});
+
+describe('the containment role', () => {
+  it('is declared under the identifier every model uses', () => {
+    expect(CONTAINMENT_ROLE_ID).toBe('d89c4c7d-c865-5db7-8c55-80df8cb254ec');
   });
 });
