@@ -385,7 +385,7 @@ public static class CoveringSourceResolver
         if (archetype == null) return null;
 
         Guid? Predicate(string name) => snapshot.Things
-            .FirstOrDefault(thing => string.Equals(thing.Name, name, StringComparison.OrdinalIgnoreCase))?.Id;
+            .FirstOrDefault(thing => string.Equals(thing.Name, name, StringComparison.Ordinal))?.Id;
 
         if (Predicate(IsPredicateName) is not { } isPredicate) return null;
         if (Predicate(AppliesToPredicate) is not { } appliesTo) return null;
@@ -855,5 +855,5 @@ public static class CoveringSourceResolver
     private static bool IsPredicate(
         IReadOnlyDictionary<Guid, string> namesById, Guid predicateId, string name) =>
         namesById.TryGetValue(predicateId, out var predicate)
-        && string.Equals(predicate, name, StringComparison.OrdinalIgnoreCase);
+        && string.Equals(predicate, name, StringComparison.Ordinal);
 }

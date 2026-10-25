@@ -103,6 +103,20 @@ public class DiscoveredVocabularyResolverTests
     }
 
     [Fact]
+    public void A_predicate_named_Is_is_not_the_is_predicate_so_it_places_no_member()
+    {
+        var declared = Declared();
+        var recased = declared with
+        {
+            Things = [.. declared.Things.Select(thing => thing.Id == _is ? thing with { Name = "Is" } : thing)],
+        };
+
+        var resolution = DiscoveredVocabularyResolver.Resolve(recased, [Fetched(_willowBend, "steady")]);
+
+        resolution.Edges.Should().BeEmpty("Thing names are matched exactly, case included");
+    }
+
+    [Fact]
     public void An_edge_already_pointing_at_the_named_member_plans_nothing()
     {
         var resolution = DiscoveredVocabularyResolver.Resolve(

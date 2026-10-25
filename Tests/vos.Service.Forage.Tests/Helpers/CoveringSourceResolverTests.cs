@@ -111,6 +111,17 @@ public class CoveringSourceResolverTests
              .Relate(source, CoveringSourceResolver.ResolvedByPredicate, source + "Endpoint");
 
     [Fact]
+    public void Resolve_ASourceCoveringAlongAPredicateNamedInAnotherCase_IsNotSelected()
+    {
+        var model = new ModelBuilder().Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal");
+        model.Relate("NationalFloodPortal", CoveringSourceResolver.CoversPredicate.ToUpperInvariant(), "Portugal")
+             .Relate("NationalFloodPortal", CoveringSourceResolver.ResolvedByPredicate, "NationalFloodPortalEndpoint");
+
+        CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"))
+            .Should().BeEmpty("Thing names are matched exactly, case included");
+    }
+
+    [Fact]
     public void Resolve_SourceCoveringTheSitesOwnPlace_IsSelected()
     {
         var model = new ModelBuilder().Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal");
@@ -853,12 +864,12 @@ public class CoveringSourceResolverTests
     }
 
     [Fact]
-    public void AnalysisOf_PredicateNameMatchIsCaseInsensitive()
+    public void AnalysisOf_AStudyAlongAPredicateNamedInAnotherCase_IsNotTheSitesStudy()
     {
         var model = new ModelBuilder().Relate("WillowBendStudy", "Studies", "WillowBend");
 
-        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
-            .StudyId.Should().Be(model.Id("WillowBendStudy"));
+        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))?.StudyId
+            .Should().NotBe(model.Id("WillowBendStudy"), "Thing names are matched exactly, case included");
     }
 
     [Fact]
@@ -1032,18 +1043,5 @@ public class CoveringSourceResolverTests
         covering.Should().ContainSingle();
         covering[0].Name.Should().BeEmpty();
         covering[0].EndpointName.Should().BeEmpty();
-    }
-
-    [Fact]
-    public void Resolve_PredicateNameMatchIsCaseInsensitive()
-    {
-        var model = new ModelBuilder()
-            .Relate("WillowBend", "IsIn", "Portugal")
-            .Relate("OpenMeteo", "Covers", "Portugal")
-            .Relate("OpenMeteo", "ResolvedBy", "OpenMeteoEndpoint");
-
-        var covering = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"));
-
-        covering.Select(source => source.Name).Should().Equal("OpenMeteo");
     }
 }

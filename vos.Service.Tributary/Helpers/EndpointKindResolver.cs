@@ -45,7 +45,7 @@ public static class EndpointKindResolver
     // kind that requires nothing are different, and only the second is a decision the model made.
     public static IReadOnlyDictionary<string, ResolvedKind> Resolve(SnapshotDocument snapshot, Guid endpointId)
     {
-        var resolved = new Dictionary<string, ResolvedKind>(StringComparer.OrdinalIgnoreCase);
+        var resolved = new Dictionary<string, ResolvedKind>(StringComparer.Ordinal);
         var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
         var namesById = thingsById.ToDictionary(entry => entry.Key, entry => entry.Value.Name ?? string.Empty);
 
@@ -84,7 +84,7 @@ public static class EndpointKindResolver
             foreach (var edge in snapshot.Relationships)
                 if (edge.SubjectId == current
                     && thingsById.TryGetValue(edge.PredicateId, out var predicate)
-                    && string.Equals(predicate.Name, "is", StringComparison.OrdinalIgnoreCase))
+                    && string.Equals(predicate.Name, "is", StringComparison.Ordinal))
                     frontier.Enqueue(edge.TargetId);
         }
     }

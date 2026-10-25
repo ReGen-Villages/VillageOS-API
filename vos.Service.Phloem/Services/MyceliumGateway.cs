@@ -21,7 +21,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     // Everything this gateway records about a run is text, so one type name serves every property it writes.
     private const string PropertyType = "vos.String";
 
-    private readonly ConcurrentDictionary<string, Guid> _thingIdByName = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, Guid> _thingIdByName = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<Guid, Guid> _boundByRole = new();
     private readonly ConcurrentDictionary<Guid, byte> _createdNodeRuns = new();
 

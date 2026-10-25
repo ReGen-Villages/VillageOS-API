@@ -20,7 +20,7 @@ public sealed record ObservedEdges(Guid? PredicateId, IReadOnlySet<Guid> Observe
     public static ObservedEdges Resolve(SnapshotDocument snapshot, Guid endpointId)
     {
         var named = snapshot.Things
-            .Where(thing => string.Equals(thing.Name, PredicateName, StringComparison.OrdinalIgnoreCase))
+            .Where(thing => string.Equals(thing.Name, PredicateName, StringComparison.Ordinal))
             .Select(thing => thing.Id)
             .ToHashSet();
         if (named.Count == 0) return None;

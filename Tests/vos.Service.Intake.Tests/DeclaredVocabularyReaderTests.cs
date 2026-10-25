@@ -121,6 +121,18 @@ public class DeclaredVocabularyReaderTests
             .And.NotContain("PerennialCategory");
     }
 
+    [Fact]
+    public void A_term_related_along_a_predicate_named_Is_is_not_a_term()
+    {
+        var model = DeclaredModel.Seeded()
+            .Relate("silvopasture", "Is", "AllocationCategory");
+
+        var vocabulary = DeclaredVocabularyReader.Read(model.Build());
+
+        vocabulary.AllocationCategories.Terms.Select(term => term.Name).Should()
+            .NotContain("silvopasture", "Thing names are matched exactly, case included");
+    }
+
     // The two halves fail differently and both have to be named. A model binding no archetype declares
     // no vocabulary at all; one binding no predicate declares the terms and nothing to reach them with.
     [Theory]
@@ -201,6 +213,17 @@ public class DeclaredVocabularyReaderTests
 
         demands.Select(demand => demand.Name).Should().Equal("domestic-demand", "irrigation-demand");
         demands.Select(demand => demand.ServingOrder).Should().Equal(1, 2);
+    }
+
+    [Fact]
+    public void A_demand_related_along_a_predicate_named_Is_is_not_a_demand()
+    {
+        var model = DeclaredModel.Seeded()
+            .WithArchetype("garden-demand")
+            .Relate("garden-demand", "Is", "WaterDemandComponent");
+
+        DeclaredVocabularyReader.Read(model.Build()).WaterDemands.Select(demand => demand.Name).Should()
+            .NotContain("garden-demand", "Thing names are matched exactly, case included");
     }
 
     // A model doing no water analysis declares no demand vocabulary, and a study then holds no demand and
