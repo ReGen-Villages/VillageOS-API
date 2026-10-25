@@ -40,7 +40,7 @@ public sealed class WaterReserveNode : DagNodeService
             ("daysOfSupply", result.DaysOfSupply)));
     }
 
-    // Matched on the value kind rather than read straight through: a port wired to a withheld roll-up
+    // Matched on the value kind rather than read straight through: a port wired to a withheld derived property
     // arrives present-but-null, and GetDouble() answers that with .NET's own message, which names no port.
     private static double Number(NodeContext context, string port) =>
         context.Input(port) is { ValueKind: JsonValueKind.Number } value

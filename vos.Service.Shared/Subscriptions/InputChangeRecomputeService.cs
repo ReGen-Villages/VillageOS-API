@@ -67,7 +67,7 @@ public sealed record RecomputeInputs(
 //
 // Watching the subject alone covers both ways an input moves, because Mycelium publishes a derived value
 // on the Thing that owns it: a param someone edited arrives as a property change on the subject, and a
-// roll-up whose members changed arrives as a property change on the subject too.
+// derived property whose members changed arrives as a property change on the subject too.
 //
 // A derived value is published live-only and never enters the journal, so a resumed stream does not
 // replay one. After a reconnect every watched subject is recomputed rather than trusted.

@@ -1,7 +1,7 @@
 namespace vos.Service.Xylem.Services;
 
 // Runs the IFC ingest for one uploaded file and reports the counts. The production
-// implementation invokes the vos.Tools.ModelIngest tool (Xbim parse + classification + roll-ups) and
+// implementation invokes the vos.Tools.ModelIngest tool (Xbim parse + classification + derived properties) and
 // applies the graph to Mycelium; tests substitute a fake so the orchestration is exercised without a
 // subprocess or a live broker.
 public interface IModelIngestRunner
