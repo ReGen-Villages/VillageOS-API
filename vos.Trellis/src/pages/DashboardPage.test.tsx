@@ -263,7 +263,7 @@ describe('DashboardPage while the model loads and the connection opens', () => {
       RegisteredRanges: 12, RangesWithBindings: 3, PropertyDependencyEdges: 20, StateDependencyEdges: 4,
       BindingDependencyEdges: 6, DependencyEdges: 30, EstimatedBytes: 17088,
     },
-    Rollups: { ThingsOwningRollups: 2, RollupProperties: 5, MemberEdges: 40, EstimatedBytes: 5120 },
+    DerivedProperties: { ThingsOwningDerivedProperties: 2, Definitions: 5, MemberEdges: 40, EstimatedBytes: 5120 },
     EstimatedBytesTotal: 22208,
   };
   const thing = (Id: string) => ({ Id, Name: Id, Properties: {} }) as unknown as VosThing;

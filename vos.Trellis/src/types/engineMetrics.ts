@@ -12,9 +12,9 @@ export interface RangeEngineMetrics {
   EstimatedBytes: number;
 }
 
-export interface RollupEngineMetrics {
-  ThingsOwningRollups: number;
-  RollupProperties: number;
+export interface DerivedPropertyEngineMetrics {
+  ThingsOwningDerivedProperties: number;
+  Definitions: number;
   MemberEdges: number;
   EstimatedBytes: number;
 }
@@ -23,6 +23,6 @@ export interface EngineMetricsSummary {
   ModelId: string;
   ModelName: string;
   Ranges: RangeEngineMetrics;
-  Rollups: RollupEngineMetrics;
+  DerivedProperties: DerivedPropertyEngineMetrics;
   EstimatedBytesTotal: number;
 }
