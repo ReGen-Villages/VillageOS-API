@@ -143,6 +143,17 @@ describe('PipelineModel', () => {
     expect(model.isOf(digest.Id, ROLE.Pipeline)).toBe(false);
   });
 
+  it('follows only a predicate named exactly as asked, case included', () => {
+    const is: VosThing = { Id: 'is', Name: 'is', Properties: {} };
+    const recased: VosThing = { Id: 'Has', Name: 'Has', Properties: {} };
+    const pipeline: VosThing = { Id: 'pipeline', Name: 'Harvest', Properties: {} };
+    const node: VosThing = { Id: 'node', Name: 'Rain gauge', Properties: {} };
+    const model = new PipelineModel(...withRoles([is, recased, pipeline, node],
+      [{ Id: 'pipeline Has node', Name: '', SubjectId: pipeline.Id, PredicateId: recased.Id, TargetId: node.Id, Properties: {} }]));
+
+    expect(model.outgoing(pipeline.Id, 'has')).toEqual([]);
+  });
+
   it('does not count an archetype as playing its own role, so the picker lists pipelines and not the archetype', () => {
     const { model, pipelineId, pipelineArchetypeId } = demoModel();
     expect(model.isOf(pipelineId, ROLE.Pipeline)).toBe(true);

@@ -112,7 +112,7 @@ public class NameResolver
         {
             var thingName = GetProperty(thing, "Name") ?? GetProperty(thing, "name") ?? "";
 
-            if (thingName.Equals(name, StringComparison.OrdinalIgnoreCase))
+            if (thingName.Equals(name, StringComparison.Ordinal))
             {
                 var idStr = GetProperty(thing, "Id") ?? GetProperty(thing, "id");
                 if (idStr != null && Guid.TryParse(idStr, out var thingId))

@@ -236,7 +236,7 @@ export class PipelineModel {
 
   private bindingOf(connectionId: string): { relationshipId: string; service: VosThing } | undefined {
     for (const relationship of this.bySubject.get(connectionId) ?? []) {
-      if (this.byId.get(relationship.PredicateId)?.Name.toLowerCase() !== 'has') continue;
+      if (this.byId.get(relationship.PredicateId)?.Name !== 'has') continue;
       const service = this.byId.get(relationship.TargetId);
       if (service && this.isOf(service.Id, ROLE.Service))
         return { relationshipId: relationship.Id, service };
@@ -368,10 +368,9 @@ export class PipelineModel {
   outgoing(subjectId: string, predicateName: string): VosThing[] {
     const relationships = this.bySubject.get(subjectId);
     if (!relationships) return [];
-    const pn = predicateName.toLowerCase();
     const out: VosThing[] = [];
     for (const relationship of relationships) {
-      if (this.byId.get(relationship.PredicateId)?.Name.toLowerCase() === pn) {
+      if (this.byId.get(relationship.PredicateId)?.Name === predicateName) {
         const t = this.byId.get(relationship.TargetId);
         if (t) out.push(t);
       }
