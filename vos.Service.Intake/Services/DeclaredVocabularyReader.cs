@@ -74,7 +74,7 @@ public static class DeclaredVocabularyReader
 
         var isEdge = snapshot.Things
             .Where(thing => string.Equals(
-                thing.Name, SubmissionFragmentComposer.IsPredicateName, StringComparison.OrdinalIgnoreCase))
+                thing.Name, SubmissionFragmentComposer.IsPredicateName, StringComparison.Ordinal))
             .Select(thing => thing.Id)
             .ToHashSet();
         var under = snapshot.Relationships
@@ -184,7 +184,7 @@ public static class DeclaredVocabularyReader
         var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
         var isEdge = snapshot.Things
             .Where(thing => string.Equals(
-                thing.Name, SubmissionFragmentComposer.IsPredicateName, StringComparison.OrdinalIgnoreCase))
+                thing.Name, SubmissionFragmentComposer.IsPredicateName, StringComparison.Ordinal))
             .Select(thing => thing.Id)
             .ToHashSet();
 

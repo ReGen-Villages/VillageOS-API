@@ -51,6 +51,18 @@ public class ObservedEdgesTests
     }
 
     [Fact]
+    public void Resolve_EdgeAlongAPredicateNamedInAnotherCase_IsNotProvenance()
+    {
+        var snapshot = Snapshot(
+            [Thing(Endpoint, "EP"), Thing(Observed, "Observed"), Thing(Site, "WillowBend")],
+            [Edge(Endpoint, Observed, Site)]);
+
+        var edges = ObservedEdges.Resolve(snapshot, Endpoint);
+
+        edges.ObservedThingIds.Should().BeEmpty("Thing names are matched exactly, case included");
+    }
+
+    [Fact]
     public void Resolve_EdgeUnderAnotherPredicate_IsNotProvenance()
     {
         var snapshot = Snapshot(

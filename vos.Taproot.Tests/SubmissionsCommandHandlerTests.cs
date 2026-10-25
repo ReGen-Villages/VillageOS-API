@@ -254,6 +254,18 @@ public class SubmissionsCommandHandlerTests
     }
 
     [Fact]
+    public async Task A_submission_named_in_another_case_is_not_the_one_named()
+    {
+        AModelWithOneSubmission();
+
+        await Run("reject willow bend submission");
+
+        Assert.Contains("No submission here answers to", _writer.ToString());
+        _mycelium.Verify(client => client.CreateRelationshipAsync(
+            It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Fact]
     public async Task A_name_no_submission_answers_to_is_refused_without_writing()
     {
         AModelWithOneSubmission();

@@ -240,5 +240,5 @@ public static class DiscoveredVocabularyResolver
     private static bool IsPredicate(
         IReadOnlyDictionary<Guid, string> namesById, Guid predicateId, string name) =>
         namesById.TryGetValue(predicateId, out var predicate)
-        && string.Equals(predicate, name, StringComparison.OrdinalIgnoreCase);
+        && string.Equals(predicate, name, StringComparison.Ordinal);
 }

@@ -126,8 +126,8 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
         // Template selection is an `is` relationship, not a scalar field. No `is` row means the root.
         var isRelationships = (request.Relationships ?? new List<RequestedRelationship>())
             .Where(r => r != null
-                && string.Equals(r.Predicate, "is", StringComparison.OrdinalIgnoreCase)
-                && string.Equals(r.Subject, request.Name, StringComparison.OrdinalIgnoreCase))
+                && string.Equals(r.Predicate, "is", StringComparison.Ordinal)
+                && string.Equals(r.Subject, request.Name, StringComparison.Ordinal))
             .ToList();
         if (isRelationships.Count > 1)
             return Results.BadRequest(new { error = "Registration declares more than one 'is' relationship." });

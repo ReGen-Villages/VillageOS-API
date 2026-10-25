@@ -14,5 +14,5 @@ public static class EndpointKindRoles
     public static readonly IReadOnlyList<string> All = [Authentication, Paging, ResponseBody, Caching, Keeping];
 
     public static bool IsRole(string predicateName) =>
-        All.Contains(predicateName, StringComparer.OrdinalIgnoreCase);
+        All.Contains(predicateName, StringComparer.Ordinal);
 }

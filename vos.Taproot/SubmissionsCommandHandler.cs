@@ -254,7 +254,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         var found = Guid.TryParse(named, out var id)
             ? submissions.Where(one => one.Id == id).ToList()
             : submissions.Where(one =>
-                string.Equals(one.Name, named, StringComparison.OrdinalIgnoreCase)
+                string.Equals(one.Name, named, StringComparison.Ordinal)
                 || string.Equals(one.SubmissionId, named, StringComparison.OrdinalIgnoreCase)).ToList();
 
         switch (found.Count)

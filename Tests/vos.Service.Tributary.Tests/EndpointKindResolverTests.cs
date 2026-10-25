@@ -86,6 +86,32 @@ public class EndpointKindResolverTests
     }
 
     [Fact]
+    public void Resolve_ATemplateReachedAlongAPredicateNamedIs_IsNotWalked()
+    {
+        var snapshot = Snapshot();
+        var recased = snapshot with
+        {
+            Things = [.. snapshot.Things.Select(thing => thing.Id == IsPredicate ? thing with { Name = "Is" } : thing)],
+        };
+
+        EndpointKindResolver.Resolve(recased, Registration).Should()
+            .NotContainKey(EndpointKindRoles.Authentication, "Thing names are matched exactly, case included");
+    }
+
+    [Fact]
+    public void Resolve_AKindAlongARoleNamedInAnotherCase_IsNotAKind()
+    {
+        var snapshot = Snapshot();
+        var recased = snapshot with
+        {
+            Things = [.. snapshot.Things.Select(thing => thing.Id == AuthRole ? thing with { Name = "AuthenticatesBy" } : thing)],
+        };
+
+        EndpointKindResolver.Resolve(recased, Registration).Should().NotContainKey(EndpointKindRoles.Authentication);
+        EndpointKindRoles.IsRole("AuthenticatesBy").Should().BeFalse();
+    }
+
+    [Fact]
     public void Resolve_TheKindsRequirements_ComeFromThePropertiesItDeclares()
     {
         EndpointKindResolver.Resolve(Snapshot(), Registration)[EndpointKindRoles.Authentication]
