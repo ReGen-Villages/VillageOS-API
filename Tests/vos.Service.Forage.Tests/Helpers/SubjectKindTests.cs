@@ -126,7 +126,6 @@ public class SubjectKindTests
         selector.Traverse.Should().Equal(RoleBindings.FollowBindings);
         selector.Names.Should().Contain(RoleBindings.BindsPredicateName);
         selector.BoundTypes.Should().BeNullOrEmpty();
-        selector.MarkedTypes.Should().BeNullOrEmpty();
         selector.Names.Should().Contain(new[]
         {
             CoveringSourceResolver.IsPredicateName,

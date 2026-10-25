@@ -11,10 +11,6 @@ public sealed class SubscriptionSelector
     public List<string>? Names { get; set; }
     public List<string>? Types { get; set; }
 
-    // Every Thing that `is` an archetype carrying one of these flags. Reaches Things the traversal cannot,
-    // which is what a reader needs when it is about to create the relationship the traversal would have followed.
-    public List<string>? MarkedTypes { get; set; }
-
     // Each a list of role Thing identifiers. BoundTypes selects the
     // archetype a role binds and every Thing that `is` it; BoundArchetypes selects the bound Thing alone, which may be
     // a predicate or a single Thing as well as an archetype. Neither carries the role Thing or its `binds`

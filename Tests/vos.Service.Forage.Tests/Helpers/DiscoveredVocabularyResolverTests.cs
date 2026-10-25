@@ -238,6 +238,5 @@ public class DiscoveredVocabularyResolverTests
         selector.Ids.Should().Contain(DiscoveredVocabularyResolver.DiscoveredVocabularyRole.Id);
         selector.Names.Should().Contain(RoleBindings.BindsPredicateName);
         selector.BoundTypes.Should().Equal(DiscoveredVocabularyResolver.DiscoveredVocabularyRole.Id);
-        selector.MarkedTypes.Should().BeNullOrEmpty();
     }
 }
