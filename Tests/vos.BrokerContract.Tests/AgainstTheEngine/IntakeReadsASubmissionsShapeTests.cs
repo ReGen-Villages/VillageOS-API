@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
@@ -45,7 +46,7 @@ public class IntakeReadsASubmissionsShapeTests : IClassFixture<TheEngine>
 
         var shape = SubmissionShapeReader.Read(subscribed.Snapshot);
 
-        shape.Archetypes.Site.Should().Be(bound[LandIntakeRoles.Site]);
+        shape.Archetypes.Site.Should().Be(new DeclaredTerm("siteKind", bound[LandIntakeRoles.Site]));
         shape.Studies.Id.Should().Be(bound[LandIntakeRoles.StudiedSite]);
         subscribed.Snapshot.Relationships.Should().NotContain(edge => edge.PredicateId == isPredicate,
             "a Thing built on an archetype is not part of what the archetype is");

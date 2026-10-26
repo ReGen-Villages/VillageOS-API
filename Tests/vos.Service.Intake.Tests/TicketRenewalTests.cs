@@ -52,7 +52,7 @@ public class TicketRenewalTests
     {
         await using var factory = new IntakeWebApplicationFactory
         {
-            HandlerCallback = ModelStub.Seeded(ModelStub.Holds),
+            HandlerCallback = ModelStub.Holds,
         };
         using var client = factory.CreateClient();
         var first = await TicketFor(factory, client, AnasAddress);
@@ -81,7 +81,7 @@ public class TicketRenewalTests
     {
         await using var factory = new IntakeWebApplicationFactory
         {
-            HandlerCallback = ModelStub.Seeded(ModelStub.Holds),
+            HandlerCallback = ModelStub.Holds,
         };
         using var client = factory.CreateClient();
         var ticket = await TicketFor(factory, client, AnasAddress);

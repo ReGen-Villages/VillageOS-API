@@ -12,24 +12,15 @@ namespace vos.Service.Intake.Services;
 // archetypes that declare those properties, and this file is the only place it can learn that. What it takes
 // from the shape below: the property maps, by the names SiteProperties, StudyProperties,
 // ParcelProperties, ProjectProperties, ContactProperties, AllocationProperties,
-// HazardProperties, DataSourceProperties and SubmissionProperties, one per Thing;
-// each property, from a
+// HazardProperties, DataSourceProperties and SubmissionProperties, one per Thing, each of which that tool
+// pairs with the role binding the archetype of the Thing it fills; each property, from a
 // Write(properties, …) call or a
-// ["name"] = TypedValue.… entry; the archetypes a submission is composed against, from the
-// …ArchetypeName constants; and the predicates it may use, from the …PredicateName constants,
+// ["name"] = TypedValue.… entry; and the predicates it may use, from the …PredicateName constants,
 // matched by name to the fields of vos.Service.Intake.Models.ResolvedPredicates.
 //
 // Renaming any of them compiles and passes every test here, and the failures are not alike. A renamed
-// property map stops the model reference building. A renamed …ArchetypeName is quieter: that list is
-// the gate deciding whether a model is one this producer targets at all, so a shorter list weakens the gate
-// rather than tripping it, and the reference builds full of findings about a model the producer was never
-// pointed at. A map added here and not there is quieter still — it builds, it passes, and what that Thing
-// carries is never checked against the archetype declaring it.
-//
-// Adding an …ArchetypeName tightens the gate rather than weakening it: the producer section reports
-// only on a model holding every archetype named here, so a model carrying some of them and not the rest
-// goes silent. That is the intended reading — a submission is composed against the whole set — but it means
-// a name added here narrows which models the reference says anything about.
+// property map stops the model reference building. A map added here and not there is quieter: it builds, it
+// passes, and what that Thing carries is never checked against the archetype declaring it.
 //
 // The vocabularies a submission uses — what an allocation is for, how a boundary was obtained, and what
 // an assessment is about — are neither named nor listed here, and none is written as a property. A
@@ -48,23 +39,6 @@ public static class SubmissionFragmentComposer
     // What the submission record's identifier is derived under. Public because the service derives
     // the same identifier to ask whether the record is already there.
     public const string SubmissionRole = "submission";
-
-    public const string SiteArchetypeName = "Site";
-    // The study's archetype is found through the siteStudy role, never by this name. The name stays for the
-    // model reference tool in the platform repository, which pairs it with StudyProperties when it checks what
-    // a study writes against what its archetype declares.
-    public const string SiteStudyArchetypeName = "SiteStudy";
-    public const string ParcelArchetypeName = "Parcel";
-    public const string ProjectArchetypeName = "Project";
-    public const string ContactArchetypeName = "Contact";
-    public const string ProgrammeAllocationArchetypeName = "ProgrammeAllocation";
-    public const string HazardAssessmentArchetypeName = "HazardAssessment";
-    // A source a submitter named is that submission's own, minted under an identifier derived
-    // from it, so it belongs to the group and goes when the submission is cleared. The catalogue's
-    // archetype is the one that carries the mark ending a prune's walk, and it is not this one — held in
-    // common they could not be told apart, and a submitter's source outlived the submission that named it.
-    public const string SubmittedSourceArchetypeName = "SubmittedSource";
-    public const string SubmissionArchetypeName = "Submission";
 
     // arrivedAt: When this submission reached the service, or null when the model already
     // holds its record and its arrival is already recorded.
@@ -100,12 +74,12 @@ public static class SubmissionFragmentComposer
 
         // Everything an archetype declares is inherited through this relationship, so a correction is an edit to
         // the model rather than a redeployment of this service.
-        void BeArchetype(NamedThing thing, Guid archetype, string archetypeName) =>
-            Relate(thing, predicates.Is, new NamedThing(archetype, archetypeName));
+        void BeArchetype(NamedThing thing, DeclaredTerm archetype) =>
+            Relate(thing, predicates.Is, new NamedThing(archetype.Id, archetype.Name));
 
         Relate(studyThing, predicates.Studies, siteThing);
-        BeArchetype(siteThing, archetypes.Site, SiteArchetypeName);
-        BeArchetype(studyThing, vocabulary.SiteStudy.Id, vocabulary.SiteStudy.Name);
+        BeArchetype(siteThing, archetypes.Site);
+        BeArchetype(studyThing, vocabulary.SiteStudy);
 
         // One demand of the study's own per demand the analysis declares. A coverage and a shortfall are
         // properties of one study's demand, so a study sharing the analysis's demands would have nowhere to
@@ -125,7 +99,7 @@ public static class SubmissionFragmentComposer
             things.Add(new FragmentThing(
                 demandThing.Id, demandThing.Name, new Dictionary<string, TypedValue>()));
             Relate(studyThing, predicates.Has, demandThing);
-            BeArchetype(demandThing, demand.Id, demand.Name);
+            BeArchetype(demandThing, new DeclaredTerm(demand.Name, demand.Id));
             foreach (var earlier in servedBefore)
                 Relate(demandThing, predicates.ServedAfter, earlier);
             servedBefore.Add(demandThing);
@@ -152,7 +126,7 @@ public static class SubmissionFragmentComposer
         things.Add(new FragmentThing(
             submissionThing.Id, submissionThing.Name, SubmissionProperties(submissionId, arrivedAt)));
         Relate(submissionThing, predicates.Proposes, siteThing);
-        BeArchetype(submissionThing, archetypes.Submission, SubmissionArchetypeName);
+        BeArchetype(submissionThing, archetypes.Submission);
 
         // The project holds the site rather than the other way round: a submission is one planner's
         // undertaking, and the site is what it is about. A contact is required because a submission is
@@ -170,7 +144,7 @@ public static class SubmissionFragmentComposer
             Required(project.Name, "project.name", "a Thing is created under a name"));
         things.Add(new FragmentThing(projectThing.Id, projectThing.Name, ProjectProperties(project)));
         Relate(projectThing, predicates.Has, siteThing);
-        BeArchetype(projectThing, archetypes.Project, ProjectArchetypeName);
+        BeArchetype(projectThing, archetypes.Project);
 
         var contactThing = new NamedThing(
             StableIdentity.Derive(submissionId, "contact"),
@@ -180,7 +154,7 @@ public static class SubmissionFragmentComposer
         things.Add(new FragmentThing(
             contactThing.Id, contactThing.Name, ContactProperties(contact, emailAddress)));
         Relate(projectThing, predicates.Has, contactThing);
-        BeArchetype(contactThing, archetypes.Contact, ContactArchetypeName);
+        BeArchetype(contactThing, archetypes.Contact);
 
         // A relationship to a term the model declares, through the predicate the model marks for that vocabulary.
         // Never minted: the term and the predicate both come from the model, and a predicate invented here
@@ -206,7 +180,7 @@ public static class SubmissionFragmentComposer
         var parcelId = parcelThing.Id;
         things.Add(new FragmentThing(parcelThing.Id, parcelThing.Name, ParcelProperties(parcel)));
         Relate(siteThing, predicates.Has, parcelThing);
-        BeArchetype(parcelThing, archetypes.Parcel, ParcelArchetypeName);
+        BeArchetype(parcelThing, archetypes.Parcel);
         RelateToTerm(parcelThing, vocabulary.BoundarySources, obtainedBy);
 
         var categoriesAlreadyGiven = new Dictionary<Guid, string>();
@@ -232,7 +206,7 @@ public static class SubmissionFragmentComposer
             things.Add(new FragmentThing(allocationThing.Id, allocationThing.Name,
                 AllocationProperties(allocation)));
             Relate(siteThing, predicates.Has, allocationThing);
-            BeArchetype(allocationThing, archetypes.ProgrammeAllocation, ProgrammeAllocationArchetypeName);
+            BeArchetype(allocationThing, archetypes.ProgrammeAllocation);
             RelateToTerm(allocationThing, vocabulary.AllocationCategories, category);
         }
 
@@ -259,7 +233,7 @@ public static class SubmissionFragmentComposer
             assessedProperties[made.Id] = HazardProperties();
             things.Add(new FragmentThing(made.Id, made.Name, assessedProperties[made.Id]));
             Relate(siteThing, predicates.Has, made);
-            BeArchetype(made, archetypes.HazardAssessment, HazardAssessmentArchetypeName);
+            BeArchetype(made, archetypes.HazardAssessment);
             RelateToTerm(made, vocabulary.HazardTypes, hazardType);
             return made;
         }
@@ -305,7 +279,7 @@ public static class SubmissionFragmentComposer
                 coverageAlreadyGiven[sourceKey] = source.CoverageDescription;
                 things.Add(new FragmentThing(sourceThing.Id, sourceThing.Name, DataSourceProperties(source)));
                 Relate(siteThing, predicates.Has, sourceThing);
-                BeArchetype(sourceThing, archetypes.SubmittedSource, SubmittedSourceArchetypeName);
+                BeArchetype(sourceThing, archetypes.SubmittedSource);
             }
             else if (source.CoverageDescription is { } coverage
                      && coverageAlreadyGiven[sourceKey] is { } first && coverage != first)

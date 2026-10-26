@@ -23,8 +23,8 @@ public sealed record ResolvedPredicates(
 // relates its Things and inherits the rest. The study's archetype is found through its role and travels
 // with the declared vocabulary instead.
 public sealed record ResolvedArchetypes(
-    Guid Site, Guid Parcel, Guid Project, Guid Contact, Guid ProgrammeAllocation,
-    Guid HazardAssessment, Guid SubmittedSource, Guid Submission);
+    DeclaredTerm Site, DeclaredTerm Parcel, DeclaredTerm Project, DeclaredTerm Contact, DeclaredTerm ProgrammeAllocation,
+    DeclaredTerm HazardAssessment, DeclaredTerm SubmittedSource, DeclaredTerm Submission);
 
 public sealed record DeclaredTerm(string Name, Guid Id);
 
