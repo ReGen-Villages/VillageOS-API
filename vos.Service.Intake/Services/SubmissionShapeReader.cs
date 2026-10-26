@@ -25,6 +25,8 @@ public static class SubmissionShapeReader
         Names = [RoleBindings.BindsPredicateName],
         Traverse = [RoleBindings.FollowBindings],
         IncludeRelationships = true,
+        Relationships = [new RelationshipRule { Predicate = RoleBindings.BindsPredicateName, Direction = "outgoing" }],
+        IncludeIsAncestors = false,
     };
 
     public static SubmissionShape Read(SnapshotDocument snapshot)
@@ -54,8 +56,8 @@ public static class SubmissionShapeReader
     }
 
     // Nothing is created for a role the model leaves unbound: a model missing one was not seeded from the analysis
-    // templates, and a submission that quietly built untyped Things in it could not tell a parcel from a hazard.
-    // Every unbound role is named at once, because an unseeded model is missing all of them.
+    // templates, and Things a submission built there with no archetype could not be told apart, a parcel from a
+    // hazard. Every unbound role is named at once, because an unseeded model is missing all of them.
     private static void RefuseAModelBindingNothingToAnyRole(SnapshotDocument snapshot)
     {
         var unbound = ArchetypeRoles.Concat(PredicateRoles)

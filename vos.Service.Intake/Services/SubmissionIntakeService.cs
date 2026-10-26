@@ -11,9 +11,8 @@ public sealed class SubmissionIntakeService(
 {
     public async Task<ComposedSubmission> SubmitAsync(Submission submission, CancellationToken cancellation)
     {
-        // None of these lookups reads another's answer, and a fragment upserts so a wizard posts the whole
-        // submission again on every save. Awaited one after another they would spend a round trip each on
-        // every keystroke's worth of progress.
+        // None of these reads uses another's answer, and a wizard posts the whole submission again on every save,
+        // so awaiting them one after another would make every save wait for each in turn.
         var shape = subscriptions.ReadAsync(
             SubmissionShapeReader.Selector(), SubmissionShapeReader.Read, logger, cancellation);
         var has = ResolvePredicateAsync(SubmissionFragmentComposer.HasPredicateName, cancellation);
