@@ -80,6 +80,17 @@ public class ObservedEdgesTests
     }
 
     [Fact]
+    public void Resolve_APredicateRoleBindingTwoRoots_NamesNeither()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var snapshot = WithPredicateRoot(WithPredicateRoot(
+            Snapshot([Thing(Endpoint, "EP"), Thing(first, "Predicate"), Thing(second, "Predicate")], []), first), second);
+
+        ObservedEdges.Resolve(snapshot, Endpoint).PredicateRootId.Should().BeNull();
+    }
+
+    [Fact]
     public void Resolve_AModelWhosePredicateRoleBindsNothing_NamesNoRoot()
     {
         var snapshot = Snapshot([Thing(Endpoint, "EP"), Thing(Observed, ObservedEdges.PredicateName)], [], Observed);

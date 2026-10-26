@@ -55,6 +55,9 @@ public class TributaryRecordsWhichRegistrationObservedTests : IClassFixture<TheE
         var beforeAnyIngest = await ReadAsync(endpoint);
         beforeAnyIngest.Edges.PredicateId.Should().BeNull("the model binds no observed predicate yet");
         (await ObserveAsync(endpoint, site, beforeAnyIngest.Edges)).Should().BeNull();
+        (await ReadAsync(endpoint)).Snapshot.Relationships.Should().Contain(edge =>
+            edge.SubjectId == ObservedEdges.MintedPredicateId && edge.PredicateId == isPredicate && edge.TargetId == predicateRoot,
+            "Tributary puts the predicate it created under the root the predicate role binds");
 
         var templateDeclaration = await _engine.Admin.PostAsJsonAsync("/api/model/fragment", new
         {
