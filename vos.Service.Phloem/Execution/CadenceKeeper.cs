@@ -95,7 +95,7 @@ public sealed class CadenceKeeper : BackgroundService
                 continue;
             }
 
-            var start = await _starter.ResolveAsync(cadence.Id, null, cancellationToken);
+            var start = await _starter.ResolveAsync(cadence.Id, null, null, cancellationToken);
             if (!start.Started)
             {
                 ReportUnlessAlreadySaid(cadence, null,"Cadence '{Cadence}' starts nothing: " + start.Refusal);

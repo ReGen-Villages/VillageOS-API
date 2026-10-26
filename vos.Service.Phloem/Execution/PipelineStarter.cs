@@ -12,21 +12,22 @@ public sealed class PipelineStarter
 
     public PipelineStarter(IMyceliumGateway gateway) => _gateway = gateway;
 
-    public async Task<StartResolution> ResolveAsync(Guid targetId, Guid? relationshipId, CancellationToken cancellationToken)
+    public async Task<StartResolution> ResolveAsync(Guid targetId, Guid? relationshipId, Guid? subjectId, CancellationToken cancellationToken)
     {
-        var graph = await _gateway.LoadStartSubgraphAsync(targetId, cancellationToken);
+        IReadOnlyCollection<Guid> arrivingRelatesTo = subjectId is { } subject ? await _gateway.RelatedFromAsync(subject, cancellationToken) : [];
+        var graph = await _gateway.LoadStartSubgraphAsync(targetId, arrivingRelatesTo, cancellationToken);
         if (relationshipId is null || NamesWhatStarts(graph, targetId))
-            return PipelineStart.Resolve(graph, targetId);
+            return PipelineStart.Resolve(graph, targetId, arrivingRelatesTo);
 
         if (await _gateway.PredicateOfAsync(relationshipId.Value, cancellationToken) is { } predicateId)
         {
-            var predicateGraph = await _gateway.LoadStartSubgraphAsync(predicateId, cancellationToken);
+            var predicateGraph = await _gateway.LoadStartSubgraphAsync(predicateId, arrivingRelatesTo, cancellationToken);
             if (predicateGraph.Thing(predicateId) is { } predicate
                 && predicateGraph.IsOf(predicate, PipelineRoles.Connection))
-                return PipelineStart.Resolve(predicateGraph, predicateId);
+                return PipelineStart.Resolve(predicateGraph, predicateId, arrivingRelatesTo);
         }
 
-        return PipelineStart.Resolve(graph, targetId);
+        return PipelineStart.Resolve(graph, targetId, arrivingRelatesTo);
     }
 
     private static bool NamesWhatStarts(PipelineGraph graph, Guid targetId) =>

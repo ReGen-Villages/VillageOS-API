@@ -20,6 +20,8 @@ internal sealed class FakeGateway : IMyceliumGateway
     public List<(string Name, string Status)> NodeStatuses { get; } = new();
     public List<(Guid RunId, Guid PipelineId, RunSubject? Subject, Guid? RequestId, Guid? StartedBy)> RunsCreated { get; } = new();
     public List<Guid> StartTargetsAsked { get; } = new();
+    public List<Guid> RelatedFromAsked { get; } = new();
+    public List<IReadOnlyCollection<Guid>> StartReadsWidenedBy { get; } = new();
     public JsonElement? RunResult { get; private set; }
 
     // A graph caches what it has resolved, as each snapshot the broker answers does, so runs read at once each need
@@ -29,10 +31,18 @@ internal sealed class FakeGateway : IMyceliumGateway
     public Task<PipelineGraph> LoadPipelineSubgraphAsync(Guid pipelineId, CancellationToken ct) =>
         LoadFailure is { } failure ? Task.FromException<PipelineGraph>(failure) : Task.FromResult(FreshGraph?.Invoke() ?? Graph);
 
-    public Task<PipelineGraph> LoadStartSubgraphAsync(Guid targetId, CancellationToken ct)
+    public Task<PipelineGraph> LoadStartSubgraphAsync(Guid targetId, IReadOnlyCollection<Guid> arrivingRelatesTo, CancellationToken ct)
     {
         lock (StartTargetsAsked) StartTargetsAsked.Add(targetId);
+        lock (StartReadsWidenedBy) StartReadsWidenedBy.Add(arrivingRelatesTo);
         return Task.FromResult(FreshGraph?.Invoke() ?? Graph);
+    }
+
+    public Task<IReadOnlyList<Guid>> RelatedFromAsync(Guid thingId, CancellationToken ct)
+    {
+        lock (RelatedFromAsked) RelatedFromAsked.Add(thingId);
+        IReadOnlyList<Guid> related = Graph.Thing(thingId) is { } thing ? Graph.TargetIdsFrom(thing).ToList() : [];
+        return Task.FromResult(related);
     }
 
     // The relationships the model holds, by id, answered with their predicate; any other id is one it does not hold.

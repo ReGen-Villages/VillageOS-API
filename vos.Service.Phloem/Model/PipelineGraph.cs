@@ -146,6 +146,9 @@ public sealed class PipelineGraph
         }
     }
 
+    // Every Thing the subject relates to, whatever the predicate, including one the snapshot does not hold.
+    public IEnumerable<Guid> TargetIdsFrom(GraphThing subject) => From(subject).Select(rel => rel.TargetId);
+
     // Subjects reaching the target via a predicate matched by name (use for the built-in is/has).
     public IEnumerable<GraphThing> IncomingSubjects(GraphThing target, string predicateName)
     {

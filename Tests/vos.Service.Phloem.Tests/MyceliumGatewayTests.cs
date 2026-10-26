@@ -504,7 +504,7 @@ public class MyceliumGatewayTests
                 ? Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""")
                 : new HttpResponseMessage(HttpStatusCode.OK));
 
-        await gateway.LoadStartSubgraphAsync(targetId, CancellationToken.None);
+        await gateway.LoadStartSubgraphAsync(targetId, [], CancellationToken.None);
 
         var selector = await ReadJson(RequestsTo(handler, "/api/subscriptions", HttpMethod.Post).Single());
         selector.GetProperty("ids")[0].GetString().Should().Be(targetId.ToString());
@@ -534,6 +534,76 @@ public class MyceliumGatewayTests
         // record per entry, and the wider reading would carry every one on every start.
         selector.GetProperty("includeRelationships").GetBoolean().Should().BeTrue();
         selector.GetProperty("relationships").EnumerateArray().Should().HaveCountGreaterThan(0);
+        Rules(selector).Should().Contain((PipelineRoles.StandsFor.Id.ToString(), "outgoing"))
+            .And.NotContain((null, "outgoing"), "every relationship out of a Thing in the read would carry each one it ever gained");
+    }
+
+    private static List<(string? Role, string Direction)> Rules(JsonElement selector) =>
+        selector.GetProperty("relationships").EnumerateArray()
+            .Where(rule => !rule.TryGetProperty("predicate", out _))
+            .Select(rule => (rule.TryGetProperty("predicateRole", out var role) ? role.GetString() : null, rule.GetProperty("direction").GetString()!))
+            .ToList();
+
+    [Fact]
+    public async Task LoadStartSubgraphAsync_AsksForEachThingTheArrivingThingRelatesToAndTheRolesThatSayWhatItIs()
+    {
+        var targetId = Guid.NewGuid();
+        var kindId = Guid.NewGuid();
+        var systemId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/subscriptions"
+                ? Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""")
+                : new HttpResponseMessage(HttpStatusCode.OK));
+
+        await gateway.LoadStartSubgraphAsync(targetId, [kindId, systemId], CancellationToken.None);
+
+        var selector = await ReadJson(RequestsTo(handler, "/api/subscriptions", HttpMethod.Post).Single());
+        selector.GetProperty("ids").EnumerateArray().Select(id => id.GetGuid())
+            .Should().Contain([targetId, kindId, systemId, PipelineRoles.MessageKind.Id, PipelineRoles.ExternalSystem.Id]);
+        selector.TryGetProperty("boundTypes", out _).Should().BeFalse("every message kind and system in the model is not what this start offered");
+    }
+
+    [Fact]
+    public async Task RelatedFromAsync_ReadsOnlyTheRelationshipsOutOfTheThing_AndAnswersWhereEachGoes()
+    {
+        var arrivingId = Guid.NewGuid();
+        var kindId = Guid.NewGuid();
+        var systemId = Guid.NewGuid();
+        var snapshot = $$"""
+        {
+          "snapshot": {
+            "things": [ { "id": "{{arrivingId}}", "name": "an arriving document", "properties": {} } ],
+            "relationships": [
+              { "id": "{{Guid.NewGuid()}}", "subjectId": "{{arrivingId}}", "predicateId": "{{Guid.NewGuid()}}", "targetId": "{{kindId}}", "properties": {} },
+              { "id": "{{Guid.NewGuid()}}", "subjectId": "{{arrivingId}}", "predicateId": "{{Guid.NewGuid()}}", "targetId": "{{systemId}}", "properties": {} }
+            ]
+          }
+        }
+        """;
+        var (gateway, handler) = NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/subscriptions"
+                ? Json(HttpStatusCode.OK, snapshot)
+                : new HttpResponseMessage(HttpStatusCode.OK));
+
+        var related = await gateway.RelatedFromAsync(arrivingId, CancellationToken.None);
+
+        related.Should().BeEquivalentTo([kindId, systemId]);
+        var selector = await ReadJson(RequestsTo(handler, "/api/subscriptions", HttpMethod.Post).Single());
+        selector.GetProperty("ids").EnumerateArray().Select(id => id.GetGuid()).Should().Equal(arrivingId);
+        selector.GetProperty("includeIsAncestors").GetBoolean().Should().BeFalse();
+        selector.GetProperty("includeRelationships").GetBoolean().Should().BeTrue();
+        Rules(selector).Should().Equal([(null, "outgoing")], "relationships into the Thing are what piles up on it after it arrives");
+    }
+
+    [Fact]
+    public async Task RelatedFromAsync_AThingTheModelDoesNotHold_RelatesToNothing()
+    {
+        var (gateway, _) = NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/subscriptions"
+                ? Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""")
+                : new HttpResponseMessage(HttpStatusCode.OK));
+
+        (await gateway.RelatedFromAsync(Guid.NewGuid(), CancellationToken.None)).Should().BeEmpty();
     }
 
     // The name route answers one Thing, so an answer that is not one is an answer the gateway cannot use.
