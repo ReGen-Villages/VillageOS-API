@@ -137,14 +137,13 @@ public sealed class GraphFixture
 
     public GraphThing Get(string name) => _byName[name];
 
-    public void Rel(GraphThing subject, GraphThing predicate, GraphThing target, params (string Name, object Value)[] props)
+    public void Rel(GraphThing subject, GraphThing predicate, GraphThing target)
         => _rels.Add(new GraphRelationship
         {
             Id = Guid.NewGuid(),
             SubjectId = subject.Id,
             PredicateId = predicate.Id,
             TargetId = target.Id,
-            Properties = props.ToDictionary(p => p.Name, p => JsonSerializer.SerializeToElement(p.Value), StringComparer.OrdinalIgnoreCase),
         });
 
     // A pipeline the model may start; one left unpublished is a draft.

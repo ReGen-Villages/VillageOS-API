@@ -48,7 +48,6 @@ public static class SnapshotParser
                 SubjectId = relationship.SubjectId,
                 PredicateId = relationship.PredicateId,
                 TargetId = relationship.TargetId,
-                Properties = Stated(relationship.ValuesStated()),
             });
         }
 
