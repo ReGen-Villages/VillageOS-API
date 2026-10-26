@@ -439,6 +439,17 @@ describe('a wire held as a Thing', () => {
 
     expect(thingSetProperty.mock.calls).toEqual([['W1', 'fromPath', 'vos.String', 'body.id']]);
   });
+
+  it('re-writes a changed to-path and transform on the wire Thing', async () => {
+    await savePipeline('P', [node('N1', 'Node1'), node('N2', 'Node2')],
+      [wire('svc.out', 'svc.in'), { ...wire('svc.trace', 'svc.context'), toPath: 'trace', transform: '$uppercase($)' }],
+      buildModelWithHeldWires(), 'P');
+
+    expect(thingSetProperty.mock.calls).toEqual([
+      ['W2', 'toPath', 'vos.String', 'trace'],
+      ['W2', 'transform', 'vos.String', '$uppercase($)'],
+    ]);
+  });
 });
 
 describe('savePipeline / loadPipeline — what a boundary node stands for', () => {
