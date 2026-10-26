@@ -28,7 +28,18 @@ public sealed class DeclaredModel
             .With("reportedAs").Bound(LandIntakeRoles.ReportedLevel, "reportedAs")
             .With("Earth").Bound(LandIntakeRoles.RootPlace, "Earth")
             .With("isIn").Bound(LandIntakeRoles.PlaceNesting, "isIn")
-            .WithArchetype("SiteStudy").Bound(LandIntakeRoles.SiteStudy, "SiteStudy");
+            .WithArchetype("SiteStudy").Bound(LandIntakeRoles.SiteStudy, "SiteStudy")
+            .WithArchetype("Site").Bound(LandIntakeRoles.Site, "Site")
+            .WithArchetype("Parcel").Bound(LandIntakeRoles.Parcel, "Parcel")
+            .WithArchetype("Project").Bound(LandIntakeRoles.Project, "Project")
+            .WithArchetype("Contact").Bound(LandIntakeRoles.PersonalDetail, "Contact")
+            .WithArchetype("ProgrammeAllocation").Bound(LandIntakeRoles.ProgrammeAllocation, "ProgrammeAllocation")
+            .WithArchetype("HazardAssessment").Bound(LandIntakeRoles.HazardAssessment, "HazardAssessment")
+            .WithArchetype("SubmittedSource").Bound(LandIntakeRoles.SubmittedSource, "SubmittedSource")
+            .WithArchetype("Submission").Bound(LandIntakeRoles.Submission, "Submission")
+            .With("studies").Bound(LandIntakeRoles.StudiedSite, "studies")
+            .With("proposes").Bound(LandIntakeRoles.ProposedSite, "proposes")
+            .With("servedAfter").Bound(LandIntakeRoles.ServiceOrder, "servedAfter");
 
         foreach (var (category, share) in WillowBend.DefaultProgramme)
             model.Stating(category, (FormOptionsReader.DefaultShareProperty, share))
