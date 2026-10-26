@@ -4,8 +4,6 @@ using Xunit;
 
 namespace vos.Service.Phloem.Tests;
 
-// Several published pipelines may claim one start. The one whose start node stands for the most of what the start
-// offers is the one started, whatever order the pipelines are read in.
 public class MostSpecificStartTests
 {
     private readonly GraphFixture _fixture = new();
@@ -239,6 +237,6 @@ public class MostSpecificStartTests
         Published("this connection, any state", _arrives);
         var throughThisConnection = Published("dry, through this connection", dry, _arrives);
 
-        PipelineStart.Resolve(_fixture.Build(), _arrives.Id).PipelineId.Should().Be(throughThisConnection.Id);
+        PipelineStart.Resolve(_fixture.Build(), _arrives.Id, []).PipelineId.Should().Be(throughThisConnection.Id);
     }
 }

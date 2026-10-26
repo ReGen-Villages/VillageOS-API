@@ -17,7 +17,7 @@ public static class PipelineStart
 {
     private sealed record Claim(GraphThing Pipeline, IReadOnlySet<Guid> StandsFor);
 
-    public static StartResolution Resolve(PipelineGraph graph, Guid targetId, IReadOnlyCollection<Guid>? arrivingRelatesTo = null)
+    public static StartResolution Resolve(PipelineGraph graph, Guid targetId, IReadOnlyCollection<Guid> arrivingRelatesTo)
     {
         var target = graph.Thing(targetId);
         if (target is null)
@@ -28,7 +28,7 @@ public static class PipelineStart
                 ? new StartResolution(target.Id, null)
                 : new StartResolution(null, $"'{target.Name}' is a draft, and the model starts only a published pipeline.");
 
-        var offered = Offered(graph, target, arrivingRelatesTo ?? []);
+        var offered = Offered(graph, target, arrivingRelatesTo);
         var fitting = Fitting(graph, offered);
         if (fitting.Count > 0)
             return MostSpecific(graph, fitting);

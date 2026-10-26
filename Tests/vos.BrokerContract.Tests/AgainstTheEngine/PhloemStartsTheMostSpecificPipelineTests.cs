@@ -8,7 +8,7 @@ using Xunit;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
-// The read a start makes is answered by the engine itself, so the arriving Thing's kind and system, and every Thing a
+// The reads a start makes are answered by the engine itself, so the arriving Thing's kind and system, and every Thing a
 // start node stands for, come back as the engine selects them.
 public class PhloemStartsTheMostSpecificPipelineTests : IClassFixture<TheEngine>
 {

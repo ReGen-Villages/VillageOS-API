@@ -13,8 +13,8 @@ public interface IMyceliumGateway
     Task<PipelineGraph> LoadPipelineSubgraphAsync(Guid pipelineId, CancellationToken cancellationToken);
 
     // What the target of a relationship the broker sends is, with the start nodes standing for it and the pipelines
-    // they belong to or it reaches, and the same for each Thing the arriving Thing relates to — enough for
-    // PipelineStart to say which pipeline it starts.
+    // they belong to or it reaches, and each Thing the arriving Thing relates to with the start nodes standing for it —
+    // enough for PipelineStart to say which pipeline it starts.
     Task<PipelineGraph> LoadStartSubgraphAsync(Guid targetId, IReadOnlyCollection<Guid> arrivingRelatesTo, CancellationToken cancellationToken);
 
     // Every Thing a Thing relates to, whatever the predicate.
