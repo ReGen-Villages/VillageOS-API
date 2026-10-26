@@ -179,8 +179,7 @@ public class ObservedEdgesTests
     [Fact]
     public void Resolve_NoEdgeYet_StillNamesThePredicateTheModelHolds()
     {
-        // Saves the ingest a write on the first observation, which is every write onto a site a source has
-        // not been asked about before.
+        // Without it, the first observation onto every new site would apply the creation fragment again.
         var snapshot = Snapshot([Thing(Endpoint, "EP"), Thing(Observed, ObservedEdges.PredicateName)], [], Observed);
 
         var edges = ObservedEdges.Resolve(snapshot, Endpoint);

@@ -22,6 +22,18 @@ public class SubmissionShapeReaderTests
         selector.Traverse.Should().ContainEquivalentOf(RoleBindings.FollowBindings);
     }
 
+    // Every Thing a submission builds `is` one of these archetypes, so a read carrying every relationship touching
+    // them would grow with each submission the model holds, on every save.
+    [Fact]
+    public void The_read_carries_only_the_bindings_and_no_ancestors()
+    {
+        var selector = SubmissionShapeReader.Selector();
+
+        selector.Relationships.Should().ContainSingle()
+            .Which.Should().BeEquivalentTo(new { Predicate = RoleBindings.BindsPredicateName, Direction = "outgoing" });
+        selector.IncludeIsAncestors.Should().BeFalse();
+    }
+
     [Fact]
     public void Each_archetype_and_predicate_is_the_Thing_its_role_binds()
     {
