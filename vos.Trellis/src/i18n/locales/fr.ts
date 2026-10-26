@@ -1181,6 +1181,8 @@ export const fr: PartialResources = {
       nodeArchetype: "archétype lié au rôle de nœud de pipeline",
       wireArchetype: "archétype lié au rôle de liaison",
       wirePredicate: "prédicat de liaison (un prédicat de l'archétype de liaison qu'aucun nœud ne détient)",
+      inputConnector: "prédicat lié au rôle de connecteur d'entrée (d'une liaison au port de sortie dont elle prend sa valeur)",
+      outputConnector: "prédicat lié au rôle de connecteur de sortie (d'une liaison au port d'entrée auquel elle remet sa valeur)",
     },
     noPortRoles: "Ce modèle ne lie aucun archétype au rôle de port, d'entrée de pipeline ou de sortie de pipeline — chargez un seed qui les lie.",
     noStandsForRole: "Ce modèle ne lie aucun prédicat au rôle qui indique ce que représente un nœud de bord — chargez un seed qui en lie un.",

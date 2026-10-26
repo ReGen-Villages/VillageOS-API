@@ -33,13 +33,6 @@ public sealed class GraphRelationship
     public Guid SubjectId { get; init; }
     public Guid PredicateId { get; init; }
     public Guid TargetId { get; init; }
-    public IReadOnlyDictionary<string, JsonElement> Properties { get; init; } =
-        new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
-
-    public string? PropertyString(string name) =>
-        Properties.TryGetValue(name, out var v)
-            ? v.ValueKind == JsonValueKind.String ? v.GetString() : v.ToString()
-            : null;
 }
 
 // The pipeline subgraph loaded from a Mycelium subscription snapshot: Things + Relationships, with the

@@ -21,7 +21,7 @@ import { useModelStore } from '../stores/modelStore';
 import { useThemeStore } from '../stores/themeStore';
 import { useSubscription } from '../hooks/useSse';
 import { WHOLE_MODEL } from '../types/subscription';
-import { PipelineModel, ROLE, typesCompatible, type ConnectionInformation, type PortInformation } from '../pipeline/model';
+import { PipelineModel, ROLE, judgeConnection, type ConnectionInformation, type PortInformation } from '../pipeline/model';
 import { savePipeline, loadPipeline, type EditorNode, type EditorEdge } from '../pipeline/serialize';
 import { stopRun } from '../pipeline/stop';
 import { validatePipeline, validateEnds } from '../pipeline/validate';
@@ -248,7 +248,7 @@ export function PipelinePage() {
     place({
       label: row ? (row.who ? `${row.who} · ${row.what}` : row.what) : t('pipeline.boundaryInput'),
       kind: 'input',
-      ports: [{ portName, direction: 'out', type: 'any', required: false }],
+      ports: [{ portId: crypto.randomUUID(), portName, direction: 'out', type: 'any', required: false }],
       ...(row ? { standsForId: row.standsForId } : {}),
     });
   }, [place, t]);
@@ -273,7 +273,7 @@ export function PipelinePage() {
     place({
       label: row.kind === 'answer' ? t('pipeline.boundaryOutput') : row.name,
       kind: 'output',
-      ports: [{ portName, direction: 'in', type: 'any', required: true }],
+      ports: [{ portId: crypto.randomUUID(), portName, direction: 'in', type: 'any', required: true }],
       ...(row.kind === 'answer' ? {} : { standsForId: row.id }),
     });
   }, [place, t]);
@@ -287,13 +287,10 @@ export function PipelinePage() {
   }, [setNodes, recordSnapshot]);
 
   const onConnect = useCallback((c: Connection) => {
-    const source = nodes.find((n) => n.id === c.source)?.data as PipelineNodeData | undefined;
-    const tgt = nodes.find((n) => n.id === c.target)?.data as PipelineNodeData | undefined;
-    const outPort = source?.ports.find((p) => p.portName === c.sourceHandle && p.direction === 'out');
-    const inPort = tgt?.ports.find((p) => p.portName === c.targetHandle && p.direction === 'in');
-    if (!outPort || !inPort) return;
-    if (!typesCompatible(outPort.type, inPort.type)) {
-      setError(t('pipeline.incompatibleWire', { from: outPort.type || 'any', to: inPort.type || 'any' }));
+    const verdict = judgeConnection(nodes.map((n) => ({ id: n.id, ports: (n.data as PipelineNodeData).ports })), c);
+    if (verdict.kind === 'ignore') return;
+    if (verdict.kind === 'incompatible') {
+      setError(t('pipeline.incompatibleWire', { from: verdict.from, to: verdict.to }));
       return;
     }
     setError(null);
@@ -475,6 +472,9 @@ export function PipelinePage() {
     [selectedNode, edges],
   );
 
+  const portNameOf = (nodeId: string, portId: string | null | undefined) =>
+    (nodes.find((n) => n.id === nodeId)?.data as PipelineNodeData | undefined)?.ports.find((p) => p.portId === portId)?.portName ?? '';
+
   return (
     <div className="flex h-full flex-col md:flex-row">
       <CatalystRail groups={catalysts} onPlace={placeStart} onOpenPipeline={onLoad} onHandOver={handOver} />
@@ -598,8 +598,8 @@ export function PipelinePage() {
           {selectedEdge && (
             <WireInspector
               wireId={selectedEdge.id}
-              fromPort={selectedEdge.sourceHandle ?? ''}
-              toPort={selectedEdge.targetHandle ?? ''}
+              fromPortName={portNameOf(selectedEdge.source, selectedEdge.sourceHandle)}
+              toPortName={portNameOf(selectedEdge.target, selectedEdge.targetHandle)}
               paths={(selectedEdge.data as WirePaths | undefined) ?? {}}
               onSetPath={setEdgePath}
               onClose={() => setSelectedEdgeId(null)}

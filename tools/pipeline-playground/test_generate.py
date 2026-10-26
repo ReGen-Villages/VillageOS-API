@@ -5,6 +5,7 @@ name and a Thing playing a role by what the target's role Thing binds, so a targ
 own.
 """
 import unittest
+from unittest import mock
 
 import generate as G
 
@@ -26,6 +27,11 @@ def bound_by(things, relationships, word):
 
 def bound_in_seed(seed, word):
     return bound_by(seed["Things"], seed["Relationships"], word)
+
+
+def value(properties, name):
+    entry = (properties or {}).get(name)
+    return entry["value"] if isinstance(entry, dict) else ""
 
 
 EVERY_ROLE = (set(G.ARCHETYPE_ROLE.values()) | set(G.PREDICATE_ROLE.values()) | set(G.ROOT_ROLE.values())
@@ -172,6 +178,15 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class PortLookupTests(unittest.TestCase):
+    def test_a_node_s_own_port_wins_over_its_service_s_port_of_the_same_name_and_direction(self):
+        port_ids = {("node", "accept", "out"): "node.out.accept", ("service", "accept", "out"): "service.out.accept",
+                    ("service", "in", "in"): "service.in.in"}
+
+        self.assertEqual(G.port_of(port_ids, "node", "service", "accept", "out"), "node.out.accept")
+        self.assertEqual(G.port_of(port_ids, "node", "service", "in", "in"), "service.in.in")
+
+
 class CatalystVocabularyTests(unittest.TestCase):
     """The rails of the Pipeline page read external systems, kinds of message and what a boundary node
     stands for through the roles that bind them, so the kit declares each once and relates through the
@@ -238,9 +253,9 @@ class CatalystVocabularyTests(unittest.TestCase):
             self.assertEqual(len(bound), 1, self.kit.things[system]["Name"])
 
     def test_a_node_binding_inputs_to_run_parameters_spells_the_property_in_full(self):
-        bound = [t for t in self.kit.things.values() if G._prop(t.get("Properties"), "parameterBindings")]
+        bound = [t for t in self.kit.things.values() if value(t.get("Properties"), "parameterBindings")]
         self.assertGreater(len(bound), 0)
-        self.assertEqual([t for t in self.kit.things.values() if G._prop(t.get("Properties"), "paramBindings")], [])
+        self.assertEqual([t for t in self.kit.things.values() if value(t.get("Properties"), "paramBindings")], [])
 
     def test_the_decision_node_holds_its_own_out_ports(self):
         decide = G.stable_id(G._TAG, "node", "Branching Decision", "decide")
@@ -250,7 +265,7 @@ class CatalystVocabularyTests(unittest.TestCase):
         held = [r["Target"] for r in self.kit.rels.values() if r["Subject"] == decide and r["Predicate"] == has
                 and any(p["Subject"] == r["Target"] and p["Predicate"] == is_ and p["Target"] == port_archetype
                         for p in self.kit.rels.values())]
-        ports = {(G._prop(self.kit.things[p]["Properties"], "portName"), G._prop(self.kit.things[p]["Properties"], "direction"))
+        ports = {(value(self.kit.things[p]["Properties"], "portName"), value(self.kit.things[p]["Properties"], "direction"))
                  for p in held}
         self.assertEqual(ports, {("accept", "out"), ("refuse", "out")})
 
@@ -263,6 +278,101 @@ class CatalystVocabularyTests(unittest.TestCase):
         self.assertEqual({self.kit.things[t]["Name"] for t in offered}, {"Nearest first", "Cheapest first", "Soonest first"})
         self.assertEqual({self.kit.things[t]["Name"] for t in chosen}, {"Cheapest first"})
         self.assertTrue(chosen <= offered)
+
+    def wires(self):
+        [wire_archetype] = self.bound("pipelineWire")
+        is_ = next(tid for tid, t in self.kit.things.items() if t["Name"] == "is")
+        has = next(tid for tid, t in self.kit.things.items() if t["Name"] == "has")
+        held = {r["Target"] for r in self.kit.rels.values() if r["Predicate"] == has}
+        return [r["Subject"] for r in self.kit.rels.values()
+                if r["Predicate"] == is_ and r["Target"] == wire_archetype and r["Subject"] in held]
+
+    def connected(self, wire, word):
+        [connector] = self.bound(word)
+        return [r["Target"] for r in self.kit.rels.values() if r["Subject"] == wire and r["Predicate"] == connector]
+
+    def test_every_wire_relates_to_one_out_port_and_one_in_port_and_names_neither(self):
+        wires = self.wires()
+        self.assertGreater(len(wires), 0)
+        for wire in wires:
+            [out_port] = self.connected(wire, "inputConnector")
+            [in_port] = self.connected(wire, "outputConnector")
+            self.assertEqual(value(self.kit.things[out_port]["Properties"], "direction"), "out")
+            self.assertEqual(value(self.kit.things[in_port]["Properties"], "direction"), "in")
+            properties = self.kit.things[wire]["Properties"]
+            self.assertNotIn("fromPort", properties)
+            self.assertNotIn("toPort", properties)
+            self.assertEqual(set(properties), {"fromPath", "toPath", "transform"})
+
+    def test_two_wires_between_the_same_two_ports_placing_at_different_paths_are_two_wire_things(self):
+        extra = {"from": "a", "fromPort": "echo", "to": "merge", "toPort": "in", "toPath": "copy"}
+        pipelines = [{**pipe, "wires": pipe["wires"] + [extra]} if pipe["name"] == "Field Merge" else pipe
+                     for pipe in G.PIPELINES]
+        with mock.patch.object(G, "PIPELINES", pipelines):
+            kit = G.build()
+
+        source = G.stable_id(G._TAG, "node", "Field Merge", "a")
+        named = f"{kit.things[source]['Name']}.echo to {kit.things[G.stable_id(G._TAG, 'node', 'Field Merge', 'merge')]['Name']}.in"
+        placed = sorted(value(t["Properties"], "toPath") for t in kit.things.values() if t["Name"] == named)
+        self.assertEqual(placed, ["copy", "greeting"])
+
+    def test_no_wire_is_drawn_as_a_relationship_between_two_nodes(self):
+        [wire_archetype] = self.bound("pipelineWire")
+        is_ = next(tid for tid, t in self.kit.things.items() if t["Name"] == "is")
+        carrying = {r["Subject"] for r in self.kit.rels.values() if r["Predicate"] == is_ and r["Target"] == wire_archetype}
+        nodes = {G.stable_id(G._TAG, "node", pipe["name"], node["key"]) for pipe in G.PIPELINES for node in pipe["nodes"]}
+        self.assertEqual([r["Name"] for r in self.kit.rels.values() if r["Predicate"] in carrying and r["Subject"] in nodes], [])
+
+    def test_the_text_studio_wire_from_uppercase_takes_its_value_from_the_out_port_named_like_its_in_port(self):
+        upper = G.stable_id(G._TAG, "node", "Text Studio", "upper")
+        has = next(tid for tid, t in self.kit.things.items() if t["Name"] == "has")
+        [wire] = [r["Target"] for r in self.kit.rels.values() if r["Subject"] == upper and r["Predicate"] == has
+                  and r["Target"] in self.wires()]
+        self.assertEqual(self.connected(wire, "inputConnector"), [G.stable_id(G._TAG, "port", "uppercase", "text", "out")])
+        self.assertEqual(self.connected(wire, "outputConnector"), [G.stable_id(G._TAG, "port", "reverse", "text", "in")])
+
+    def test_the_fragment_validator_refuses_a_wire_taking_its_value_from_an_in_port(self):
+        [connector] = self.bound("inputConnector")
+        fragment = G.as_fragment(self.kit)
+        upper_out = G.stable_id(G._TAG, "port", "uppercase", "text", "out")
+        upper_in = G.stable_id(G._TAG, "port", "uppercase", "text", "in")
+        for r in fragment["Relationships"]:
+            if r["Predicate"] == connector and r["Target"] == upper_out:
+                r["Target"] = upper_in
+
+        run = self.validate(fragment)
+
+        self.assertEqual(run.returncode, 1, run.stdout + run.stderr)
+        self.assertIn("[Text Studio] the wire from 'Uppercase' to 'Reverse' takes its value from 'uppercase.in.text', "
+                      "which is not an out port of 'Uppercase'", run.stdout)
+
+    def test_the_fragment_validator_refuses_a_wire_with_two_input_connectors(self):
+        [connector] = self.bound("inputConnector")
+        fragment = G.as_fragment(self.kit)
+        upper = G.stable_id(G._TAG, "node", "Text Studio", "upper")
+        has = next(tid for tid, t in self.kit.things.items() if t["Name"] == "has")
+        [wire] = [r["Target"] for r in self.kit.rels.values() if r["Subject"] == upper and r["Predicate"] == has
+                  and r["Target"] in self.wires()]
+        fragment["Relationships"].append({"Id": "second-input-connector", "Name": "", "Subject": wire, "Predicate": connector,
+                                          "Target": G.stable_id(G._TAG, "port", "uppercase", "text", "in"), "Properties": {}})
+
+        run = self.validate(fragment)
+
+        self.assertEqual(run.returncode, 1, run.stdout + run.stderr)
+        self.assertIn("[Text Studio] the wire from 'Uppercase' to 'Reverse' relates to 2 ports along inputConnector", run.stdout)
+
+    def test_the_fragment_validator_refuses_a_wire_drawn_as_a_relationship_between_two_nodes(self):
+        carries = next(tid for tid, t in self.kit.things.items() if t["Name"] == "carries")
+        fragment = G.as_fragment(self.kit)
+        upper = G.stable_id(G._TAG, "node", "Text Studio", "upper")
+        reverse = G.stable_id(G._TAG, "node", "Text Studio", "rev")
+        fragment["Relationships"].append({"Id": "node-to-node-wire", "Name": "", "Subject": upper, "Predicate": carries,
+                                          "Target": reverse, "Properties": {}})
+
+        run = self.validate(fragment)
+
+        self.assertEqual(run.returncode, 1, run.stdout + run.stderr)
+        self.assertIn("[Text Studio] the wire from 'Uppercase' to 'Reverse' is drawn as a relationship between the two nodes", run.stdout)
 
     def test_the_fragment_validator_accepts_every_drawing(self):
         run = self.validate(G.as_fragment(self.kit))

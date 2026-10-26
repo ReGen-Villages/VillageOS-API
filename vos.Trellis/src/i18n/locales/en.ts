@@ -1179,6 +1179,8 @@ export const en = {
       nodeArchetype: "archetype bound to the pipeline node role",
       wireArchetype: "archetype bound to the wire role",
       wirePredicate: "wire predicate (a predicate of the wire archetype that no node holds)",
+      inputConnector: "predicate bound to the input connector role (from a wire to the out port it takes from)",
+      outputConnector: "predicate bound to the output connector role (from a wire to the in port it delivers to)",
     },
     noPortRoles: "This model binds no archetype to the port, pipeline input or pipeline output role — load a seed that binds them.",
     noStandsForRole: "This model binds no predicate to the role saying what a boundary node stands for — load a seed that binds one.",

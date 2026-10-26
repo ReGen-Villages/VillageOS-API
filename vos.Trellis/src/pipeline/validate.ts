@@ -1,4 +1,4 @@
-import type { PortInformation } from './model';
+import { wireEnds, type PortInformation } from './model';
 import i18n from '../i18n';
 
 // Pure pre-run validation for the pipeline editor: explains why a DAG will not run before the
@@ -65,32 +65,28 @@ export function validateEnds(nodes: ValidationNode[], _edges: ValidationEdge[]):
 export function validatePipeline(nodes: ValidationNode[], edges: ValidationEdge[]): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const byId = new Map(nodes.map((n) => [n.id, n]));
-  const hasPort = (n: ValidationNode, name: string, direction: 'in' | 'out') =>
-    n.ports.some((p) => p.portName === name && p.direction === direction);
-
-  // A wire is dangling if either endpoint node, or the named port on it, no longer exists. Only
+  // A wire is dangling if either endpoint node, or the port on it, no longer exists. Only
   // well-formed wires count toward satisfying a required input.
   const wiredInputs = new Set<string>();
   for (const e of edges) {
     const source = byId.get(e.source);
     const dst = byId.get(e.target);
-    const wellFormed =
-      source !== undefined &&
-      dst !== undefined &&
-      hasPort(source, e.sourceHandle, 'out') &&
-      hasPort(dst, e.targetHandle, 'in');
-    if (!wellFormed) {
+    const { outPort, inPort } = wireEnds(source?.ports, e.sourceHandle, dst?.ports, e.targetHandle);
+    if (!outPort || !inPort) {
       issues.push({
         kind: 'dangling-wire',
         source: e.source,
         sourceHandle: e.sourceHandle,
         target: e.target,
         targetHandle: e.targetHandle,
-        message: i18n.t('pipeline.danglingWire', { from: `${e.source}.${e.sourceHandle}`, to: `${e.target}.${e.targetHandle}` }),
+        message: i18n.t('pipeline.danglingWire', {
+          from: `${source?.label ?? e.source}.${outPort?.portName ?? e.sourceHandle}`,
+          to: `${dst?.label ?? e.target}.${inPort?.portName ?? e.targetHandle}`,
+        }),
       });
       continue;
     }
-    wiredInputs.add(key(e.target, e.targetHandle));
+    wiredInputs.add(key(e.target, inPort.portName));
   }
 
   // Every required input port must be satisfied by a wire or a run-param binding.

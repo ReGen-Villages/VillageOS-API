@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { validatePipeline, validateEnds, type ValidationNode, type ValidationEdge } from './validate';
 
-const port = (portName: string, direction: 'in' | 'out', required = false): ValidationNode['ports'][number] => ({
+const port = (portName: string, direction: 'in' | 'out', required = false, portId = portName): ValidationNode['ports'][number] => ({
+  portId,
   portName,
   direction,
   type: '',
@@ -27,6 +28,25 @@ describe('validatePipeline', () => {
     const nodes = [node('src', [port('out1', 'out')]), node('dst', [port('in1', 'in', true)])];
     const edges: ValidationEdge[] = [{ source: 'src', sourceHandle: 'out1', target: 'dst', targetHandle: 'in1' }];
     expect(validatePipeline(nodes, edges)).toEqual([]);
+  });
+
+  it('accepts a wire from an out port whose node also has an in port of that name, telling the two apart by identifier', () => {
+    const nodes = [
+      node('upper', [port('text', 'in', true, 'upper.in.text'), port('text', 'out', false, 'upper.out.text')]),
+      node('rev', [port('text', 'in', true, 'rev.in.text')]),
+    ];
+    const edges: ValidationEdge[] = [{ source: 'upper', sourceHandle: 'upper.out.text', target: 'rev', targetHandle: 'rev.in.text' }];
+    expect(validatePipeline(nodes, edges)).toEqual([
+      expect.objectContaining({ kind: 'unbound-required-input', nodeId: 'upper', port: 'text' }),
+    ]);
+  });
+
+  it('reports a wire whose port is gone by the node and the port name it still finds', () => {
+    const nodes = [node('src', [port('out1', 'out', false, 'port-7')]), node('dst', [port('in1', 'in', false, 'port-8')])];
+    const edges: ValidationEdge[] = [{ source: 'src', sourceHandle: 'port-7', target: 'dst', targetHandle: 'removed-port' }];
+    expect(validatePipeline(nodes, edges)).toEqual([
+      expect.objectContaining({ kind: 'dangling-wire', message: expect.stringContaining('src.out1') }),
+    ]);
   });
 
   it('accepts a required input satisfied by a param binding', () => {

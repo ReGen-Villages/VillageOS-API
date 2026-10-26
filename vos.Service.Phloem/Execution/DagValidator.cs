@@ -42,18 +42,8 @@ public static class DagValidator
     private static void ValidateWire(DagWire wire, List<string> errors)
     {
         var (from, to) = (wire.From, wire.To);
-        var named = $"Wire {from.Node.Name}.{from.PortName} → {to.Node.Name}.{to.PortName}";
+        var named = $"Wire {from.Node.Name}.{from.Port.PortName} → {to.Node.Name}.{to.Port.PortName}";
 
-        if (from.Port is null)
-        {
-            errors.Add($"{named}: '{from.PortName}' is not an output port on '{from.Node.Name}'.");
-            return;
-        }
-        if (to.Port is null)
-        {
-            errors.Add($"{named}: '{to.PortName}' is not an input port on '{to.Node.Name}'.");
-            return;
-        }
         if (!TypesCompatible(from.Port.Type, to.Port.Type))
             errors.Add($"{named}: type '{from.Port.Type}' is not compatible with '{to.Port.Type}'.");
 
@@ -99,7 +89,7 @@ public static class DagValidator
         WiredInto(dag, node, portName) || node.ParameterBindings.ContainsKey(portName) || node.Choices.ContainsKey(portName);
 
     private static bool WiredInto(PipelineDag dag, DagNode node, string portName) =>
-        dag.WiresInto(node.NodeId).Any(wire => string.Equals(wire.To.PortName, portName, StringComparison.OrdinalIgnoreCase));
+        dag.WiresInto(node.NodeId).Any(wire => wire.To.Port.IsNamed(portName));
 
     // Equal types are compatible; an empty/"any" type on either side is a wildcard.
     private static bool TypesCompatible(string outType, string inType) =>

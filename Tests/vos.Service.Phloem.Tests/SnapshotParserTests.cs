@@ -54,7 +54,7 @@ public class SnapshotParserTests
     }
 
     [Fact]
-    public void Parse_UnwrapsThingAndRelationshipPropertyValues()
+    public void Parse_UnwrapsThingPropertyValues()
     {
         var pipe = Guid.NewGuid();
         var arch = Guid.NewGuid();
@@ -70,8 +70,7 @@ public class SnapshotParserTests
               { "id": "{{isPred}}", "name": "is", "properties": {} }
             ],
             "relationships": [
-              { "id": "{{rel}}", "subjectId": "{{pipe}}", "predicateId": "{{isPred}}", "targetId": "{{arch}}",
-                "properties": { "fromPort": { "value": "echo", "type": "vos.String" } } }
+              { "id": "{{rel}}", "subjectId": "{{pipe}}", "predicateId": "{{isPred}}", "targetId": "{{arch}}" }
             ]
           }
         }
@@ -83,51 +82,6 @@ public class SnapshotParserTests
         graph.Thing(pipe)!.PropertyString("Subdomain").Should().Be("gen");
         graph.Thing(arch)!.CarriesFlag("collection").Should().BeTrue();
         graph.OutgoingTargets(graph.Thing(pipe)!, "is").Single().PropertyString("collection").Should().NotBeNull();
-    }
-
-    // A wire's ports live on the relationship, so a relationship read wrongly leaves the DAG builder two nodes with
-    // nothing between them.
-    [Fact]
-    public void Parse_ReadsEdgePropertiesFromABrokerWrittenRelationship()
-    {
-        var from = Guid.NewGuid();
-        var to = Guid.NewGuid();
-        var carries = Guid.NewGuid();
-        var wireArchetype = Guid.NewGuid();
-        var isPredicate = Guid.NewGuid();
-        var binds = Guid.NewGuid();
-        var json = $$"""
-        {
-          "snapshot": {
-            "things": [
-              { "Id": "{{from}}", "Name": "Generate", "Properties": {} },
-              { "Id": "{{to}}", "Name": "Echo", "Properties": {} },
-              { "Id": "{{isPredicate}}", "Name": "is", "Properties": {} },
-              { "Id": "{{wireArchetype}}", "Name": "PipelineWire", "IsArchetype": true, "Properties": {} },
-              { "Id": "{{PipelineRoles.PipelineWire.Id}}", "Name": "pipelineWire role", "Properties": {} },
-              { "Id": "{{binds}}", "Name": "binds", "Properties": {} },
-              { "Id": "{{carries}}", "Name": "carries", "Properties": {} }
-            ],
-            "relationships": [
-              { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{PipelineRoles.PipelineWire.Id}}", "PredicateId": "{{binds}}",
-                "TargetId": "{{wireArchetype}}", "Properties": {} },
-              { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{carries}}", "PredicateId": "{{isPredicate}}",
-                "TargetId": "{{wireArchetype}}", "Properties": {} },
-              { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{from}}", "PredicateId": "{{carries}}", "TargetId": "{{to}}",
-                "Properties": {
-                  "fromPort": { "typeInfo": "vos.String", "value": "echo" },
-                  "toPort": { "typeInfo": "vos.String", "value": "message" } } }
-            ]
-          }
-        }
-        """;
-
-        var graph = SnapshotParser.Parse(JsonDocument.Parse(json).RootElement);
-
-        var wire = graph.OutgoingByPredicateOf(graph.Thing(from)!, PipelineRoles.PipelineWire).Single();
-        wire.TargetId.Should().Be(to);
-        wire.PropertyString("fromPort").Should().Be("echo");
-        wire.PropertyString("toPort").Should().Be("message");
     }
 
     // A value written for a name the Thing's archetype declares is kept in the Thing's override store, not
@@ -184,10 +138,8 @@ public class SnapshotParserTests
         graph.Thing(thing)!.PropertyString("portName").Should().Be("own");
     }
 
-    // A wire drawn as a relationship carries its ports on the relationship, which has an override store
-    // of its own.
     [Fact]
-    public void Parse_ReadsWhatARelationshipStatesInItsOverrideStore()
+    public void Parse_ReadsAWrapperUnderACapitalisedKey()
     {
         var from = Guid.NewGuid();
         var to = Guid.NewGuid();
@@ -210,21 +162,15 @@ public class SnapshotParserTests
             "relationships": [
               { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{PipelineRoles.PipelineWire.Id}}", "PredicateId": "{{binds}}", "TargetId": "{{wireArchetype}}" },
               { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{carries}}", "PredicateId": "{{isPredicate}}", "TargetId": "{{wireArchetype}}" },
-              { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{from}}", "PredicateId": "{{carries}}", "TargetId": "{{to}}",
-                "Properties": {},
-                "InheritedOverrides": { "{{Guid.NewGuid()}}": { "SourceName": "PipelineWire",
-                  "Properties": { "fromPort": { "typeInfo": "vos.String", "value": "echo" } } } } }
+              { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{from}}", "PredicateId": "{{carries}}", "TargetId": "{{to}}" }
             ]
           }
         }
         """;
 
-        // Wrapped under a capitalised key on purpose: the wrapper is read as the records are, without regard to case.
         var graph = SnapshotParser.Parse(JsonDocument.Parse(json).RootElement);
 
-        var wire = graph.OutgoingByPredicateOf(graph.Thing(from)!, PipelineRoles.PipelineWire).Single();
-        wire.TargetId.Should().Be(to);
-        wire.PropertyString("fromPort").Should().Be("echo");
+        graph.OutgoingByPredicateOf(graph.Thing(from)!, PipelineRoles.PipelineWire).Single().TargetId.Should().Be(to);
     }
 
     // A relationship short of one of its four identifiers is dropped rather than failing the load, and the Things

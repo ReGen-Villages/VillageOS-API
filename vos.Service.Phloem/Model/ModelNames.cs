@@ -17,8 +17,6 @@ public static class ModelNames
     public const string PortType = "type";
     public const string PortName = "portName";
     public const string Required = "required";
-    public const string FromPort = "fromPort";
-    public const string ToPort = "toPort";
     // Field-level mapping on a wire: extract from-path of the upstream output, place at to-path of the
     // downstream input; empty = the whole payload. Several wires into one input deep-merge by their to-paths.
     public const string FromPath = "fromPath";

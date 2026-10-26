@@ -485,8 +485,7 @@ public class PipelineExecutorTests
     [Fact]
     public async Task RunAsync_ARunRefusedBeforeAnyNode_LeavesItsReasonOnTheRun()
     {
-        var (fx, pipelineId) = TestGraphs.DemoPipeline();
-        fx.Rel(fx.Get("Echo"), fx.Get("carries"), fx.Get("Generate"), ("fromPort", "echo"), ("toPort", "message"));
+        var (fx, pipelineId) = TestGraphs.DemoPipelineInACycle();
         var gateway = new FakeGateway(fx.Build());
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 

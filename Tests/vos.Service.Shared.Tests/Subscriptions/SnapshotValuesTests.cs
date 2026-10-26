@@ -107,9 +107,9 @@ public class SnapshotValuesTests
           "SubjectId": "fefab87a-4830-480a-93b1-623ba440de6c",
           "PredicateId": "c7e8ab11-6374-4856-89b2-d516d96224a4",
           "TargetId": "6513d4d5-c6d1-47c9-babd-3256848f79d9",
-          "Properties": { "toPort": { "typeInfo": "vos.String", "value": "message" } },
+          "Properties": { "toPath": { "typeInfo": "vos.String", "value": "message" } },
           "InheritedOverrides": { "d2f3a0f5-8b1c-4e6b-9f6a-1c2d3e4f5a6b": { "SourceName": "PipelineWire",
-            "Properties": { "fromPort": { "typeInfo": "vos.String", "value": "echo" } } } },
+            "Properties": { "fromPath": { "typeInfo": "vos.String", "value": "echo" } } } },
           "States": []
         }
         """;
@@ -117,7 +117,7 @@ public class SnapshotValuesTests
 
         var stated = relationship.ValuesStated().ToDictionary(entry => entry.Key, entry => entry.Value.Value.GetString());
 
-        stated.Should().Equal(new Dictionary<string, string?> { ["toPort"] = "message", ["fromPort"] = "echo" });
+        stated.Should().Equal(new Dictionary<string, string?> { ["toPath"] = "message", ["fromPath"] = "echo" });
     }
 
     // A payload that leaves a member out binds null to it, and a reader that faults on that is worse
