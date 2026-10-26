@@ -250,6 +250,20 @@ describe('savePipeline — boundary nodes', () => {
     expect(thingRemove).not.toHaveBeenCalled();
     expect(thingCreate).not.toHaveBeenCalled();
   });
+
+  it('retracts a port removed from a boundary node and keeps the one still declared', async () => {
+    const { T, R, port, things, relationships } = graphWithVocabulary();
+    T('BP', 'Boundary'); R('BP', 'is', 'arch-pipeline');
+    T('IN', 'Start'); R('IN', 'is', 'arch-input'); R('BP', 'has', 'IN');
+    port('IN.subject', 'subject', 'out', 'IN'); port('IN.topic', 'topic', 'out', 'IN');
+    const model = new PipelineModel(...withRoles(things, relationships));
+    const loaded = loadPipeline('BP', model)!;
+    const trimmed = loaded.nodes.map((n) => ({ ...n, ports: n.ports.filter((p) => p.portId !== 'IN.topic') }));
+
+    await savePipeline(loaded.name, trimmed, [], model, 'BP');
+
+    expect(thingRemove.mock.calls.map((call) => call[0])).toEqual(['IN.topic']);
+  });
 });
 
 describe('loadPipeline — boundary nodes', () => {
