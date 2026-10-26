@@ -28,16 +28,16 @@ public class PublicPageProxyEndpointTests
     private static readonly byte[] SomeTileBytes = Encoding.ASCII.GetBytes("not really a jpeg");
 
     // The submissions model with the satellite tile registration the catalogue declares beside
-    // it: a standalone Thing carrying the mark, its cache life, and the tile address.
+    // it: a standalone Thing the role binds, its cache life, and the tile address.
     private static BrokerSnapshot ModelWithTiles() =>
         BrokerSnapshot.WithTwoSubmissions().Thing(
             TileRegistration, "satellite-tiles",
             properties: new Dictionary<string, object>
             {
-                [BasemapTileReader.RegistrationFlag] = new { typeInfo = "vos.Boolean", value = true },
                 [BasemapTileReader.CacheLifeProperty] = new { typeInfo = "vos.LongInteger", value = 86400 },
                 ["url"] = new { typeInfo = "vos.String", value = "https://tiles.example.test/{z}/{y}/{x}" },
-            });
+            })
+            .Bound(BasemapTileReader.RegistrationRole, TileRegistration);
 
     private sealed class Broker
     {
@@ -80,11 +80,7 @@ public class PublicPageProxyEndpointTests
         {
             var asked = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
             using var selector = JsonDocument.Parse(asked);
-            var rootedAt = selector.RootElement.TryGetProperty("traverse", out var traverse)
-                           && traverse.ValueKind == JsonValueKind.Array && traverse.GetArrayLength() > 0
-                ? Guid.Parse(selector.RootElement.GetProperty("ids")[0].GetString()!)
-                : (Guid?)null;
-            return rootedAt is { } site ? model.OpenedReaching(site) : model.Opened();
+            return BrokerSnapshot.RootedAt(selector.RootElement) is { } site ? model.OpenedReaching(site) : model.Opened();
         }
     }
 
@@ -225,17 +221,29 @@ public class PublicPageProxyEndpointTests
             .Should().Be(("3", "4", "5"));
     }
 
-    // Only a registration the model marks as a basemap's tiles is served this way: the route names a
-    // registration, and naming any other would make this service a public proxy for every provider the
-    // catalogue registers.
+    // Only the registration the role binds is served this way: the route names a registration, and naming
+    // any other would make this service a public proxy for every provider the catalogue registers.
     [Fact]
-    public async Task A_registration_not_marked_as_a_basemaps_tiles_is_not_served()
+    public async Task A_route_naming_a_registration_other_than_the_bound_one_is_not_served()
     {
         var (factory, broker) = Holding();
         await using var _ = factory;
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/basemaps/elevation/3/4/5");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        broker.EndpointCalls.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_registration_the_role_does_not_bind_is_not_served()
+    {
+        var (factory, broker) = Holding(ModelWithTiles().Unbound(BasemapTileReader.RegistrationRole));
+        await using var _ = factory;
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/basemaps/satellite-tiles/3/4/5");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
         broker.EndpointCalls.Should().BeEmpty();

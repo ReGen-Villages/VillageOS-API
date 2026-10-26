@@ -3,6 +3,7 @@ using FluentAssertions;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
 using Xunit;
+using vos.Service.Shared.Roles;
 
 namespace vos.Service.Phloem.Tests;
 
@@ -10,7 +11,7 @@ namespace vos.Service.Phloem.Tests;
 // validate it acyclic with type-compatible wires.
 public class PipelineModelTests
 {
-    [Fact] // Boundary nodes resolve with a kind + their own declared ports, and no dispatch subdomain.
+    [Fact] // Boundary nodes resolve with a kind + their own declared ports, and no subdomain to call.
     public void Build_BoundaryNodes_ResolveKindAndDeclaredPorts()
     {
         var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
@@ -243,7 +244,7 @@ public class PipelineModelTests
 
         roles.Should().NotBeEmpty();
         foreach (var role in roles)
-            role.Id.Should().Be(StandardVersion5(PipelineRoles.RoleNamespace, role.Word), $"the role {role.Word}");
+            role.Id.Should().Be(StandardVersion5(RoleIdentity.Namespace, role.Word), $"the role {role.Word}");
     }
 
     private static Guid StandardVersion5(Guid @namespace, string name)
@@ -282,7 +283,7 @@ public class PipelineModelTests
         act.Should().Throw<PipelineModelException>().WithMessage("*'Empty' has no nodes*");
     }
 
-    // Without a subdomain there is no address to dispatch the node to, and a run would fail one node at a
+    // Without a subdomain there is no address to call the node at, and a run would fail one node at a
     // time instead of refusing the pipeline.
     [Fact]
     public void Build_WhenTheConnectionCarriesNoSubdomain_Refuses()

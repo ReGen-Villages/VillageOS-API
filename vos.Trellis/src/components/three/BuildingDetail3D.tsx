@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { parseSolidMesh, type SolidMeshData } from '../../utils/geometryDispatcher';
+import { parseSolidMesh, type SolidMeshData } from '../../utils/geometryRouter';
 import { hashStringToIndex, ELEMENT_COLORS } from '../../utils/colors';
 
 export interface ChildElement {

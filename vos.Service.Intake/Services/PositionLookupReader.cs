@@ -1,5 +1,6 @@
 using System.Text.Json;
 using vos.Service.Intake.Models;
+using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Services;
@@ -7,7 +8,7 @@ namespace vos.Service.Intake.Services;
 // The lookups a page makes before any site exists — the legal parcel at a clicked position, and place
 // names for what somebody typed — read from the model that registers them.
 //
-// Each registration is found by the mark it carries, as every vocabulary this service reads is. What is
+// Each registration is found through the role that binds it, as every vocabulary this service reads is. What is
 // read off it is what this service needs and nothing Tributary already resolves for itself: the name a
 // call is forwarded under, the reshape this service applies to the raw body — under a property of its
 // own, because Tributary ingests a responseTransform and a position that is not yet a site has
@@ -16,8 +17,9 @@ namespace vos.Service.Intake.Services;
 // so the coverage walk that selects discovery sources has nowhere to start.
 public static class PositionLookupReader
 {
-    public const string ParcelLookupFlag = "__IsParcelLookup";
-    public const string PlaceSearchFlag = "__IsPlaceSearch";
+    public static readonly Role ParcelLookupRole = LandIntakeRoles.ParcelLookup;
+    public static readonly Role PlaceSearchRole = LandIntakeRoles.PlaceSearch;
+    public static readonly Role[] Roles = [ParcelLookupRole, PlaceSearchRole];
 
     public const string TransformProperty = "lookupTransform";
     public const string AttributionProperty = "attribution";
@@ -28,25 +30,26 @@ public static class PositionLookupReader
 
     public static SubscriptionSelector Selector() => new()
     {
-        MarkedArchetypes = [ParcelLookupFlag, PlaceSearchFlag],
+        Ids = RoleBindings.Identifiers(Roles),
+        Names = [RoleBindings.BindsPredicateName],
+        BoundArchetypes = RoleBindings.Identifiers(Roles),
+        Traverse = [RoleBindings.FollowBindings],
     };
 
     // The parcel registers the model declares, in name order so two reads try them the same
     // way. One with no usable declaration — no name, no reshape, or a span whose ends cross — covers
     // nowhere rather than failing every lookup beside it.
     public static IReadOnlyList<DeclaredLookup> ParcelLookups(SnapshotDocument snapshot) =>
-        [.. snapshot.Things
-            .Where(thing => thing.CarriesFlag(ParcelLookupFlag))
+        [.. snapshot.Bound(ParcelLookupRole)
             .Select(Lookup)
             .OfType<DeclaredLookup>()
             .OrderBy(lookup => lookup.Name, StringComparer.Ordinal)];
 
     // The one place search the model declares, or null where it declares none. Two would leave
     // nothing able to say which a query goes to, so the first by name answers and the rest are dead
-    // declarations a deployment should notice — the same shape as a vocabulary carried twice.
+    // declarations a deployment should notice — the same shape as a vocabulary bound twice.
     public static DeclaredLookup? PlaceSearch(SnapshotDocument snapshot) =>
-        snapshot.Things
-            .Where(thing => thing.CarriesFlag(PlaceSearchFlag))
+        snapshot.Bound(PlaceSearchRole)
             .Select(Lookup)
             .OfType<DeclaredLookup>()
             .OrderBy(lookup => lookup.Name, StringComparer.Ordinal)

@@ -5,6 +5,7 @@ using JsonataTransform = vos.Service.Shared.JsonataTransform;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using vos.Service.Shared;
+using vos.Service.Tributary.Helpers;
 using vos.Service.Tributary.Services;
 using Xunit;
 using static vos.Service.Tributary.Tests.MyceliumStub;
@@ -27,8 +28,8 @@ public class WrittenValuesTests
 
     private static void SubjectPathAnswers(IEndpointMyceliumClient client, Guid subjectId)
     {
-        var observedId = Guid.NewGuid();
-        client.FindThingByNameAsync("observed").Returns(new MyceliumClient.MyceliumThing(observedId, "observed"));
+        var observedId = ObservedEdges.CreatedPredicateId;
+        client.ApplyFragmentAsync(Arg.Any<object>()).Returns(true);
         client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, subjectId).Returns(true);
         client.SubmitObservationsAsync(subjectId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
     }
@@ -77,8 +78,8 @@ public class WrittenValuesTests
         var sut = Ingest(out var client);
         client.FindThingByNameAsync("Willow Bend spring")
             .Returns(new MyceliumClient.MyceliumThing(entityId, "Willow Bend spring"));
-        var observedId = Guid.NewGuid();
-        client.FindThingByNameAsync("observed").Returns(new MyceliumClient.MyceliumThing(observedId, "observed"));
+        var observedId = ObservedEdges.CreatedPredicateId;
+        client.ApplyFragmentAsync(Arg.Any<object>()).Returns(true);
         client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, entityId).Returns(true);
         client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
 
@@ -96,7 +97,6 @@ public class WrittenValuesTests
     {
         var thingId = Guid.NewGuid();
         var subjectId = Guid.NewGuid();
-        var observedId = Guid.NewGuid();
         var props = """
         {
           "Endpoint.url":               {"Value":"https://api.test/point"},
@@ -114,7 +114,6 @@ public class WrittenValuesTests
             if (req.RequestUri!.Host == "api.test")
                 return Json("""{"regime":"steady"}""");
             return RouteFindThing(req, thingId, "EP")
-                ?? RouteFindThing(req, observedId, "observed")
                 ?? RouteEffectiveProperties(req, thingId, props)
                 ?? RouteKindsFromProperties(req, thingId, props)
                 ?? RouteRelationshipWrite(req)

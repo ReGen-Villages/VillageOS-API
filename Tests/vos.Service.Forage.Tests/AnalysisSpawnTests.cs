@@ -19,7 +19,7 @@ namespace vos.Service.Forage.Tests;
 // to start an analysis is what these are meant to keep from appearing.
 //
 // The subject is the study rather than the site because a compute service reads its inputs off the
-// study. A relationship naming the site would dispatch against a Thing carrying none of them.
+// study. A relationship naming the site would call a service for a Thing carrying none of them.
 public class AnalysisSpawnTests
 {
     private const string FetchRoute = "/api/endpoints/tributary";
@@ -33,7 +33,7 @@ public class AnalysisSpawnTests
     // The archetype the connections are found by, and the prototypes the analysis relationships point at.
     private static Archetype[] AnalysisArchetypes() =>
     [
-        new("SiteAnalysisConnection", CoveringSourceResolver.SiteAnalysisConnectionFlag),
+        new("SiteAnalysisConnection", BoundBy: CoveringSourceResolver.SiteAnalysisConnectionRole),
         new("EnergyBalance prototype"),
         new("SecondBalance prototype"),
     ];
@@ -43,7 +43,7 @@ public class AnalysisSpawnTests
         "OpenMeteo", "OpenMeteoEndpoint", "WillowBendStudy",
         "SiteAnalysisConnection", "balancesEnergy", "balancesEnergy service", "EnergyBalance prototype");
 
-    // One source, a study, and one connection the model marks as one a site analysis starts.
+    // One source, a study, and one connection beneath the archetype the site-analysis role binds.
     private static Edge[] OneSourceAndOneBalance() =>
     [
         new Edge("WillowBend", "isIn", "Portugal"),
@@ -95,7 +95,7 @@ public class AnalysisSpawnTests
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
-        // The run leaves the request that dispatched it, so what it wrote is only there once it ends.
+        // The run leaves the request that started it, so what it wrote is only there once it ends.
         await factory.CompleteStartedRuns();
         return response;
     }
@@ -115,9 +115,9 @@ public class AnalysisSpawnTests
     }
 
     [Fact]
-    public async Task Handle_ModelMarksASecondConnection_StartsBothWithoutNamingEither()
+    public async Task Handle_ModelHoldsASecondConnectionBeneathTheBoundArchetype_StartsBothWithoutNamingEither()
     {
-        // The point of finding connections by mark: a balance is added to the model, not to this code.
+        // The point of finding connections through the role: a balance is added to the model, not to this code.
         var ids = SiteWithOneSource();
         foreach (var name in new[] { "secondBalance", "secondBalance service", "SecondBalance prototype" })
             ids[name] = Guid.NewGuid();
@@ -180,10 +180,10 @@ public class AnalysisSpawnTests
     }
 
     [Fact]
-    public async Task Handle_ConnectionIsNotMarked_IsNotStarted()
+    public async Task Handle_ConnectionNotBeneathTheBoundArchetype_IsNotStarted()
     {
-        // An unmarked connection is an ordinary one — a service bound for some other purpose — and
-        // starting it would dispatch a service against a study it knows nothing about.
+        // A connection outside the bound archetype is an ordinary one — a service bound for some other purpose — and
+        // starting it would call a service for a study it knows nothing about.
         var ids = SiteWithOneSource();
         ids["ordinary"] = Guid.NewGuid();
         ids["ordinary service"] = Guid.NewGuid();

@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace vos.Service.Shared;
 
-// The two calls a compute service makes against Mycelium: read the study it was dispatched
+// The two calls a compute service makes against Mycelium: read the study it was called
 // against, and write a computed value back as a Fact — onto that study, or onto a Thing beside it whose
 // own result it is. Bound to the service making them, so every refusal names itself.
 //

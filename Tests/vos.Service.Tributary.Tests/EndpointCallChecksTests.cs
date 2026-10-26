@@ -13,7 +13,7 @@ public class EndpointCallChecksTests
 {
     private static readonly ResolvedKind Json = new("JsonResponse", []);
     private static readonly ResolvedKind Binary = new("BinaryResponse", []);
-    private static readonly ResolvedKind TokenExchange = new("TokenExchangeAuth", ["tokenUrl", "tokenPath"]);
+    private static readonly ResolvedKind TokenExchange = new("TokenExchangeAuthentication", ["tokenUrl", "tokenPath"]);
     private static readonly ResolvedKind OffsetPaging = new("OffsetPaging", []);
     private static readonly ResolvedKind DiskCache = new("DiskCache", ["cacheTtl"]);
     private static readonly ResolvedKind ModelAsset = new("ModelAsset", ["assetProperty", "assetSubject"]);
@@ -35,7 +35,7 @@ public class EndpointCallChecksTests
         var refusal = EndpointCallChecks.UnmetRequirement(kinds, Effective(("tokenUrl", ""), ("tokenPath", "token")));
 
         refusal!.StatusCode.Should().Be(400);
-        refusal.Error.Should().Contain("TokenExchangeAuth").And.Contain("tokenUrl");
+        refusal.Error.Should().Contain("TokenExchangeAuthentication").And.Contain("tokenUrl");
     }
 
     [Fact]
@@ -340,7 +340,7 @@ public class EndpointCallChecksTests
     [Fact]
     public void TryCredential_PreMintedToken_NeedsNoExchange()
     {
-        var effective = Effective(("token", "PRE"), ("tokenParam", " key "), ("tokenHeader", "X-Auth"), ("tokenScheme", "Bearer"));
+        var effective = Effective(("token", "PRE"), ("tokenParameter", " key "), ("tokenHeader", "X-Auth"), ("tokenScheme", "Bearer"));
 
         EndpointCallChecks.TryCredential(TokenExchange, effective, out var credential, out _).Should().BeTrue();
 
@@ -376,7 +376,7 @@ public class EndpointCallChecksTests
     [Fact]
     public void TryCredential_KindThatUnderDeclares_RefusesSayingWhatTheMechanismNeeds()
     {
-        var underDeclared = new ResolvedKind("TokenExchangeAuth", []);
+        var underDeclared = new ResolvedKind("TokenExchangeAuthentication", []);
 
         EndpointCallChecks.TryCredential(underDeclared, Effective(("tokenUrl", "https://t")), out _, out var refusal)
             .Should().BeFalse();
@@ -390,7 +390,7 @@ public class EndpointCallChecksTests
         EndpointCallChecks.TryCredential(new ResolvedKind("BasicAuth", []), Effective(), out _, out var refusal)
             .Should().BeFalse();
 
-        refusal!.Error.Should().Contain("BasicAuth").And.Contain("TokenExchangeAuth");
+        refusal!.Error.Should().Contain("BasicAuth").And.Contain("TokenExchangeAuthentication");
     }
 
     [Fact]
@@ -406,7 +406,7 @@ public class EndpointCallChecksTests
     public void TryPaging_OffsetSettings_DescribeTheWalk()
     {
         var effective = Effective(
-            ("offsetParam", "offset"), ("pageSizeParam", " limit "), ("pageSize", "50"),
+            ("offsetParameter","offset"), ("pageSizeParameter", " limit "), ("pageSize", "50"),
             ("hasMorePath", "$.more"), ("itemsPath", "$.items"));
 
         EndpointCallChecks.TryPaging(OffsetPaging, effective, out var paging, out _).Should().BeTrue();
@@ -417,7 +417,7 @@ public class EndpointCallChecksTests
     [Fact]
     public void TryPaging_PageSizeThatIsNotAPositiveNumber_IsLeftToTheProvider()
     {
-        var effective = Effective(("offsetParam", "o"), ("pageSize", "lots"), ("hasMorePath", "m"), ("itemsPath", "i"));
+        var effective = Effective(("offsetParameter","o"), ("pageSize", "lots"), ("hasMorePath", "m"), ("itemsPath", "i"));
 
         EndpointCallChecks.TryPaging(OffsetPaging, effective, out var paging, out _).Should().BeTrue();
 
@@ -427,7 +427,7 @@ public class EndpointCallChecksTests
     [Fact]
     public void TryPaging_KindThatUnderDeclares_Refuses()
     {
-        EndpointCallChecks.TryPaging(OffsetPaging, Effective(("offsetParam", "o")), out _, out var refusal).Should().BeFalse();
+        EndpointCallChecks.TryPaging(OffsetPaging, Effective(("offsetParameter","o")), out _, out var refusal).Should().BeFalse();
 
         refusal!.Error.Should().Contain("hasMorePath").And.Contain("itemsPath");
     }
@@ -581,7 +581,7 @@ public class EndpointCallChecksTests
         var kinds = new EndpointKinds(null, TokenExchange, null, DiskCache, null);
 
         EndpointCallChecks.CachingClash(kinds, TimeSpan.FromSeconds(1), null, "GET", default)!
-            .Error.Should().Contain("DiskCache").And.Contain("TokenExchangeAuth");
+            .Error.Should().Contain("DiskCache").And.Contain("TokenExchangeAuthentication");
     }
 
     // The body is not part of the cache key, so two calls differing only in body would share an answer.

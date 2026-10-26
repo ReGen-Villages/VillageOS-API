@@ -87,7 +87,7 @@ public static class EndpointTemplateTree
     }
 
     private static IEnumerable<SnapshotThing> Named(SnapshotDocument snapshot, string name) =>
-        snapshot.Things.Where(thing => string.Equals(thing.Name, name, StringComparison.OrdinalIgnoreCase));
+        snapshot.Things.Where(thing => string.Equals(thing.Name, name, StringComparison.Ordinal));
 
     private static string Listed(IEnumerable<SnapshotThing> things) =>
         string.Join(", ", things.Select(thing => $"'{thing.Name}' ({thing.Id})"));

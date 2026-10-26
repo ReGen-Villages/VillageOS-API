@@ -47,7 +47,7 @@ export interface VosThing {
    *  what says from what. Own definitions only — a member computing its own value carries the value and
    *  not the formula, so read the formula off the archetype by walking `is`, the way an inherited value
    *  is read. */
-  RollupProperties?: Record<string, DerivedDefinition>;
+  DerivedProperties?: Record<string, DerivedDefinition>;
 }
 
 /** How one computed value is worked out. One form is described and never both: `Expression` for a
@@ -72,7 +72,6 @@ export interface DerivedDefinition {
 export interface InheritedPropertySet {
   SourceId: string;
   SourceName: string;
-  InheritedAt: string;
   Properties: Record<string, unknown>;
   /** As on {@link VosThing} — a value stored under an inherited name keeps the write kind the
    *  declaration gave it. */
@@ -259,7 +258,6 @@ export interface RangeDto {
 export interface InheritedRangeSetDto {
   SourceId: string;
   SourceName: string;
-  InheritedAt: string;
   Ranges: RangeDto[];
   Inherited: InheritedRangeSetDto[];
 }

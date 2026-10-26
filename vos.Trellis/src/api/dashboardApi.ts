@@ -1,9 +1,9 @@
 /**
  * Dashboard discovery + generic binding resolver.
  *
- * Discovery: a model declares Things of archetype `Dashboard` (see
- * DASHBOARD_ARCHETYPE) each with a `specification` JSON property. We find them in the
- * already-loaded model store and parse their specifications.
+ * Discovery: a model's pages are the Things beneath the archetype the page role binds, each with a
+ * `specification` JSON property. We find them in the already-loaded model store and parse their
+ * specifications.
  *
  * Resolution: every widget slot is a {@link Binding}. `resolveBinding` maps the
  * generic binding *kind* to a concrete data source — the loaded model for most of
@@ -21,7 +21,6 @@ import type {
   HistoryStep,
 } from '../types/vos';
 import {
-  DASHBOARD_ARCHETYPE,
   DASHBOARD_SPECIFICATION_PROPERTY,
   IS_PREDICATE,
   SCOPE_REFERENCE,
@@ -44,12 +43,14 @@ import { valueOrigin } from '../utils/propertyOrigin';
 import { findRange } from '../utils/rangeHelpers';
 import i18n from '../i18n';
 import { wordingIn } from '../i18n/termWording';
+import { PAGE_ROLE_ID } from './platformRoles';
 import {
   NAMED_PROPERTY,
   NAMES_PROPERTY_OF_PREDICATE,
-  PROPERTY_NAME_ARCHETYPE_MARK,
+  PROPERTY_NAME_ROLE,
   PROPERTY_NAME_WORDING,
 } from './propertyNames';
+import { BINDS_PREDICATE_NAME } from './landIntakeRoles';
 
 export type Row = Record<string, unknown>;
 export type BindingResult = number | string | Row[] | number[] | null;
@@ -210,6 +211,13 @@ function typeIdsNamed(name: string, index: ModelIndex): string[] {
   return first ? [first.Id, ...(index.otherTypesByName.get(name) ?? [])] : [];
 }
 
+/** The Things a role binds, read from the role Thing's own `binds` relationships and never from a name. */
+function boundBy(roleId: string, index: ModelIndex): string[] {
+  const bindsId = index.predicateNameToId.get(BINDS_PREDICATE_NAME);
+  if (!bindsId) return [];
+  return adjacency(bindsId, false, index).get(roleId) ?? [];
+}
+
 function instancesBelow(typeIds: string[], index: ModelIndex): Set<string> {
   const out = new Set<string>();
   const seen = new Set<string>();          // archetype nodes already descended (cycle guard)
@@ -227,7 +235,26 @@ function instancesBelow(typeIds: string[], index: ModelIndex): Set<string> {
 }
 
 export function thingsOfArchetype(archetype: string, index: ModelIndex): VosThing[] {
-  const ids = thingIdsOfArchetype(archetype, index);
+  return thingsWithIds(thingIdsOfArchetype(archetype, index), index);
+}
+
+export function thingsOfArchetypeBoundBy(roleId: string, index: ModelIndex): VosThing[] {
+  const archetype = thingIdBoundBy(roleId, index);
+  return archetype ? thingsWithIds(instancesBelow([archetype], index), index) : [];
+}
+
+/** The Thing a role binds, or undefined where the model binds nothing under it. */
+export function thingIdBoundBy(roleId: string, index: ModelIndex): string | undefined {
+  return boundBy(roleId, index)[0];
+}
+
+/** The instances beneath the archetype a role binds, transitively, as `thingsOfArchetype` answers for a name. */
+function thingsBoundAndBeneath(roleId: string, index: ModelIndex): VosThing[] {
+  const archetypeId = thingIdBoundBy(roleId, index);
+  return archetypeId ? thingsWithIds(instancesBelow([archetypeId], index), index) : [];
+}
+
+function thingsWithIds(ids: Iterable<string>, index: ModelIndex): VosThing[] {
   const out: VosThing[] = [];
   for (const id of ids) {
     const t = index.byId.get(id);
@@ -244,10 +271,10 @@ export function thingsOfArchetype(archetype: string, index: ModelIndex): VosThin
  *  dashboard's position in the navigation would move whenever the model changed. */
 export function discoverDashboardsFromIndex(index: ModelIndex): DashboardDescriptor[] {
   if (index.dashboards) return index.dashboards;
-  // Every Dashboard Thing is listed, including one whose specification did not read. A specification is model data
+  // Every page Thing is listed, including one whose specification did not read. A specification is model data
   // and can be authored wrong; dropping such a Thing here leaves its author a page that never
   // appears and nothing anywhere saying why.
-  const found = thingsOfArchetype(DASHBOARD_ARCHETYPE, index).map((thing) => ({
+  const found = thingsBoundAndBeneath(PAGE_ROLE_ID, index).map((thing) => ({
     thing,
     specification: parseSpecification(effectiveProperties(thing, index)[DASHBOARD_SPECIFICATION_PROPERTY]),
   }));
@@ -478,9 +505,7 @@ function propertyNamesByArchetype(index: ModelIndex): Map<string, Map<string, Re
   const predicateId = index.predicateNameToId.get(NAMES_PROPERTY_OF_PREDICATE);
   if (!predicateId) return names;
   const namedArchetypes = adjacency(predicateId, false, index);
-  const markedTypeIds = [...index.archetypeIds]
-    .filter((id) => index.byId.get(id)?.Properties[PROPERTY_NAME_ARCHETYPE_MARK] === true);
-  for (const nameId of instancesBelow(markedTypeIds, index)) {
+  for (const nameId of instancesBelow(boundBy(PROPERTY_NAME_ROLE, index), index)) {
     const name = index.byId.get(nameId);
     if (!name) continue;
     const properties = effectiveProperties(name, index);

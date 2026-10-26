@@ -13,6 +13,11 @@ vi.mock('../../../api/stateApi', () => ({
 }));
 
 const mockGetRelationship = vi.fn();
+const mockFetchServiceWiring = vi.fn();
+
+vi.mock('../../../api/serviceWiringApi', () => ({
+  fetchServiceWiring: (signal?: AbortSignal) => mockFetchServiceWiring(signal),
+}));
 
 vi.mock('../../../api/relationshipApi', () => ({
   relationshipApi: {
@@ -41,7 +46,7 @@ function index() {
   );
 }
 
-/** The same root, with its relationship dispatched through a connection the platform flagged. */
+/** The same root, with its relationship called through a connection the platform flagged. */
 function indexWithAService() {
   return buildModelIndex(
     [
@@ -54,7 +59,7 @@ function indexWithAService() {
       thing(ROLE.Service, 'service role'),
       { Id: 'connectionArchetype', Name: 'Connection', Properties: {}, IsArchetype: true },
       { Id: 'serviceArchetype', Name: 'Service', Properties: {}, IsArchetype: true },
-      thing('has', 'has'),
+      thing('has', 'tends'),
       thing('keeper', 'keeper service'),
     ],
     [
@@ -72,6 +77,7 @@ describe('useEntityDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useModelStore.getState().clear();
+    mockFetchServiceWiring.mockResolvedValue(index());
     mockGetRelationship.mockResolvedValue({ Id: 'r1', SubjectId: 'root', PredicateId: 'has', TargetId: 'child', Properties: {} });
     mockGetStateTransitions.mockResolvedValue({
       ThingId: 'root',
@@ -239,10 +245,11 @@ describe('useEntityDetail', () => {
   });
 });
 
-describe('useEntityDetail dispatches', () => {
+describe('useEntityDetail service calls', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useModelStore.getState().clear();
+    mockFetchServiceWiring.mockResolvedValue(indexWithAService());
     mockGetStateTransitions.mockRejectedValue(new Error('503'));
     vi.useFakeTimers();
   });
@@ -256,10 +263,10 @@ describe('useEntityDetail dispatches', () => {
     });
   }
 
-  it('reads each dispatched edge back from the platform in the same round as the history', async () => {
+  it('reads each service-call edge back from the platform in the same round as the history', async () => {
     mockGetRelationship.mockResolvedValue({
       Id: 'r1', SubjectId: 'root', PredicateId: 'has', TargetId: 'child',
-      Properties: { __DispatchState: 'Done', __DispatchLastAttemptAt: '2026-07-17T00:30:00Z' },
+      Properties: { __CallState: 'Done', __CallLastAttemptAt: '2026-07-17T00:30:00Z' },
     });
     const modelIndex = indexWithAService();
     const { result } = renderHook(() => useEntityDetail(modelIndex, 'root', { relations: [] }, 0));
@@ -267,12 +274,13 @@ describe('useEntityDetail dispatches', () => {
 
     expect(mockGetRelationship.mock.calls.map((c) => c[0])).toEqual(['r1']);
     expect(mockGetRelationship.mock.calls[0][1]).toBe(mockGetStateTransitions.mock.calls[0][1]);
-    expect(result.current.dispatches).toEqual([
+    expect(result.current.calls).toEqual([
       expect.objectContaining({ relationshipId: 'r1', serviceName: 'keeper service', state: 'Done', at: '2026-07-17T00:30:00Z' }),
     ]);
   });
 
-  it('reads nothing back where no edge on the Thing is a dispatch', async () => {
+  it('reads nothing back where no edge on the Thing is a service call', async () => {
+    mockFetchServiceWiring.mockResolvedValue(index());
     const modelIndex = index();
     renderHook(() => useEntityDetail(modelIndex, 'root', { relations: [] }, 0));
     await settle();
@@ -280,13 +288,102 @@ describe('useEntityDetail dispatches', () => {
     expect(mockGetRelationship).not.toHaveBeenCalled();
   });
 
-  it('still lists the dispatch, undated, when the platform refuses the edge read', async () => {
+  // What a dashboard's narrowed subscription holds of the Thing: its own relationship, and none of the wiring.
+  function narrowedPage() {
+    return buildModelIndex(
+      [thing('root', 'ROOT-1'), thing('child', 'CHILD-1')],
+      [relationship('r1', 'root', 'has', 'child')],
+    );
+  }
+
+  it('lists the service call on a dashboard, whose page holds the relationship and none of the wiring, from the wiring it fetches', async () => {
+    mockGetRelationship.mockResolvedValue({
+      Id: 'r1', SubjectId: 'root', PredicateId: 'has', TargetId: 'child',
+      Properties: { __CallState: 'Done', __CallLastAttemptAt: '2026-07-17T00:30:00Z' },
+    });
+    mockFetchServiceWiring.mockResolvedValue(indexWithAService());
+    const page = narrowedPage();
+    const { result } = renderHook(() => useEntityDetail(page, 'root', { relations: [] }, 0));
+    await settle();
+
+    expect(result.current.calls).toEqual([
+      expect.objectContaining({ relationshipId: 'r1', serviceName: 'keeper service', connectionName: 'tends', state: 'Done' }),
+    ]);
+  });
+
+  it('reads the wiring once when the card opens on a Thing, not on every refresh', async () => {
+    const page = narrowedPage();
+    const { rerender } = renderHook(({ nonce, thingId }) => useEntityDetail(page, thingId, { relations: [] }, nonce), {
+      initialProps: { nonce: 0, thingId: 'root' },
+    });
+    await settle();
+    for (let nonce = 1; nonce <= 3; nonce++) {
+      rerender({ nonce, thingId: 'root' });
+      await act(async () => { await vi.advanceTimersByTimeAsync(6000); });
+    }
+    expect(mockFetchServiceWiring).toHaveBeenCalledTimes(1);
+
+    rerender({ nonce: 3, thingId: 'child' });
+    await settle();
+    expect(mockFetchServiceWiring).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows nothing of the last Thing while the wiring for the next one is still being read', async () => {
+    mockGetRelationship.mockResolvedValue({ Id: 'r1', SubjectId: 'root', PredicateId: 'has', TargetId: 'child', Properties: {} });
+    const page = buildModelIndex(
+      [thing('root', 'ROOT-1'), thing('child', 'CHILD-1')],
+      [relationship('r1', 'root', 'has', 'child'), relationship('r9', 'child', 'has', 'root')],
+    );
+    const { result, rerender } = renderHook(({ thingId }) => useEntityDetail(page, thingId, { relations: [] }, 0), {
+      initialProps: { thingId: 'root' },
+    });
+    await settle();
+    expect(result.current.calls).toHaveLength(1);
+
+    mockFetchServiceWiring.mockReturnValue(new Promise(() => {}));
+    rerender({ thingId: 'child' });
+    await settle();
+
+    expect(result.current.loading).toBe(true);
+    expect(mockGetRelationship).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads again when the page gains a relationship on the Thing, without waiting for the refresh', async () => {
+    mockGetRelationship.mockImplementation((id: string) =>
+      Promise.resolve({ Id: id, SubjectId: 'root', PredicateId: 'has', TargetId: 'child', Properties: {} }));
+    const before = narrowedPage();
+    const after = buildModelIndex(
+      [thing('root', 'ROOT-1'), thing('child', 'CHILD-1'), thing('child2', 'CHILD-2')],
+      [relationship('r1', 'root', 'has', 'child'), relationship('r2', 'root', 'has', 'child2')],
+    );
+    const { result, rerender } = renderHook(({ page }) => useEntityDetail(page, 'root', { relations: [] }, 0), {
+      initialProps: { page: before },
+    });
+    await settle();
+    rerender({ page: after });
+    await settle();
+
+    expect(result.current.calls.map((call) => call.relationshipId).sort()).toEqual(['r1', 'r2']);
+  });
+
+  it('lists no service call, and still finishes, when the wiring cannot be fetched', async () => {
+    mockFetchServiceWiring.mockRejectedValue(new Error('503'));
+    const page = narrowedPage();
+    const { result } = renderHook(() => useEntityDetail(page, 'root', { relations: [] }, 0));
+    await settle();
+
+    expect(result.current.loading).toBe(false);
+    expect(result.current.calls).toEqual([]);
+    expect(mockGetRelationship).not.toHaveBeenCalled();
+  });
+
+  it('still lists the service call, undated, when the platform refuses the edge read', async () => {
     mockGetRelationship.mockRejectedValue(new Error('404'));
     const modelIndex = indexWithAService();
     const { result } = renderHook(() => useEntityDetail(modelIndex, 'root', { relations: [] }, 0));
     await settle();
 
     expect(result.current.loading).toBe(false);
-    expect(result.current.dispatches).toEqual([expect.objectContaining({ serviceName: 'keeper service', at: undefined })]);
+    expect(result.current.calls).toEqual([expect.objectContaining({ serviceName: 'keeper service', at: undefined })]);
   });
 });

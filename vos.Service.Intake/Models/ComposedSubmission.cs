@@ -20,10 +20,11 @@ public sealed record ResolvedPredicates(
 
 // The archetypes a submission's Things point at, as the model that will hold them names them. A
 // submission carries no property declarations of its own for anything an archetype already declares: it
-// relates its Things and inherits the rest.
+// relates its Things and inherits the rest. The study's archetype is found through its role and travels
+// with the declared vocabulary instead.
 public sealed record ResolvedArchetypes(
-    Guid Site, Guid SiteStudy, Guid Parcel, Guid Project, Guid Contact, Guid ProgrammeAllocation,
-    Guid HazardAssessment, Guid SubmittedSource, Guid Submission);
+    DeclaredTerm Site, DeclaredTerm Parcel, DeclaredTerm Project, DeclaredTerm Contact, DeclaredTerm ProgrammeAllocation,
+    DeclaredTerm HazardAssessment, DeclaredTerm SubmittedSource, DeclaredTerm Submission);
 
 public sealed record DeclaredTerm(string Name, Guid Id);
 
@@ -43,8 +44,9 @@ public sealed record DeclaredTerms(DeclaredTerm Predicate, IReadOnlyList<Declare
 // selected at all.
 public sealed record DeclaredPlace(DeclaredTerm Predicate, DeclaredTerm Root);
 
-// The vocabularies a submission's words are resolved against before it becomes a fragment, and
-// the Place its site is related to.
+// The vocabularies a submission's words are resolved against before it becomes a fragment, the Place its
+// site is related to, and the archetype its study `is` — every Thing the model declares through a role.
 public sealed record DeclaredVocabulary(
     DeclaredTerms AllocationCategories, DeclaredTerms BoundarySources, DeclaredTerms HazardTypes,
-    DeclaredTerms HazardLevels, DeclaredPlace PlaceNesting, IReadOnlyList<DeclaredDemand> WaterDemands);
+    DeclaredTerms HazardLevels, DeclaredPlace PlaceNesting, IReadOnlyList<DeclaredDemand> WaterDemands,
+    DeclaredTerm SiteStudy);

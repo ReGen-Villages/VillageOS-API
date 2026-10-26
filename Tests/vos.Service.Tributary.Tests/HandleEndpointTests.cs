@@ -373,7 +373,6 @@ public class HandleEndpointTests
     public async Task Handle_OverrideTransform_IngestsAndLeavesTheRegistrationUnchanged()
     {
         var thingId = Guid.NewGuid();
-        var observedId = Guid.NewGuid();
         var createdId = Guid.NewGuid();
         var props = """
         {
@@ -391,10 +390,7 @@ public class HandleEndpointTests
                 registrationWrites++;
                 return new HttpResponseMessage(HttpStatusCode.OK);
             }
-            if (req.RequestUri!.AbsolutePath == "/api/things" && req.Method == HttpMethod.Get
-                && req.RequestUri.Query.Contains("name=observed"))
-                return Json($$"""{"Id":"{{observedId}}","Name":"observed"}""");
-            if (req.RequestUri.AbsolutePath == "/api/things" && req.Method == HttpMethod.Post)
+            if (req.RequestUri!.AbsolutePath == "/api/things" && req.Method == HttpMethod.Post)
                 return Json($$"""{"Id":"{{createdId}}","Name":"Obs"}""");
             if (req.RequestUri.AbsolutePath.Contains("/mode") && req.Method == HttpMethod.Put)
                 return new HttpResponseMessage(HttpStatusCode.OK);

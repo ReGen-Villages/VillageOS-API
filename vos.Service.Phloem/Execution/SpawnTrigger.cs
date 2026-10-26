@@ -6,7 +6,7 @@ public enum SpawnKind
 {
     // http endpoint-forward: { pipelineId, parameters } — synchronous spawn-and-wait.
     Http,
-    // A relationship the broker dispatched: a `X runs Pipeline` write, or a Thing entering a watched state.
+    // A relationship the broker sent: a `X runs Pipeline` write, or a Thing entering a watched state.
     // Which pipeline it starts is read from the model, not from the body, and nothing waits on the run.
     Relationship,
     Invalid,
@@ -14,7 +14,7 @@ public enum SpawnKind
 
 // Classifies a /handle body into a spawn. Phloem is reachable two ways through Mycelium, both via the
 // same /handle: an http endpoint-forward carrying {pipelineId, parameters} (Trellis Run, or any caller), or a
-// relationship the broker dispatches as {relationshipId, subjectId, targetId, subjectName, targetName,
+// relationship the broker sends as {relationshipId, subjectId, targetId, subjectName, targetName,
 // properties}, whose properties are the run's parameters. The body alone cannot say what the target starts —
 // PipelineStart reads that from the model — so it travels as it came, with the subject.
 // Detected by shape — pipelineId ⇒ http, else targetId ⇒ relationship.
@@ -42,7 +42,7 @@ public sealed record SpawnTrigger(
                     GuidOf(root, "relationshipId"))
                 : Invalid("'targetId' must be a guid.");
 
-        return Invalid("Request must include 'pipelineId' (http spawn) or 'targetId' (a dispatched relationship).");
+        return Invalid("Request must include 'pipelineId' (http spawn) or 'targetId' (a relationship the broker sends).");
     }
 
     private static Guid? GuidOf(JsonElement root, string name) =>

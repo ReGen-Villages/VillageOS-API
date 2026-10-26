@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace vos.Taproot;
 
 // The reactive engines' capacity, from the CLI: `engines` prints both engines' totals for the
-// current model, `engines ranges` / `engines rollups` drill in to every reactor with its owner,
+// current model, `engines ranges` / `engines derived` drill in to every reactor with its owner,
 // what it watches or declares, and its footprint.
 public class EnginesCommandHandler
 {
@@ -35,8 +35,8 @@ public class EnginesCommandHandler
                 case "ranges":
                     await ListRangeReactorsAsync();
                     break;
-                case "rollups":
-                    await ListRollupReactorsAsync();
+                case "derived":
+                    await ListDerivedPropertyReactorsAsync();
                     break;
                 default:
                     ShowUsage();
@@ -53,7 +53,7 @@ public class EnginesCommandHandler
     {
         var summary = await _mycelium.GetEngineMetricsAsync();
         var ranges = summary.GetProperty("Ranges");
-        var rollups = summary.GetProperty("Rollups");
+        var derivedProperties = summary.GetProperty("DerivedProperties");
 
         _writer.WriteLine($"Reactive engines — {summary.GetProperty("ModelName").GetString()}");
         _writer.WriteLine(
@@ -61,13 +61,13 @@ public class EnginesCommandHandler
             $"{ranges.GetProperty("DependencyEdges").GetInt32(),6} edges      " +
             FormatBytes(ranges.GetProperty("EstimatedBytes").GetInt64()));
         _writer.WriteLine(
-            $"  Reactive computation  {rollups.GetProperty("RollupProperties").GetInt32(),6} roll-ups  " +
-            $"{rollups.GetProperty("MemberEdges").GetInt32(),6} members    " +
-            FormatBytes(rollups.GetProperty("EstimatedBytes").GetInt64()));
+            $"  Reactive computation  {derivedProperties.GetProperty("Definitions").GetInt32(),6} derived properties" +
+            $"{derivedProperties.GetProperty("MemberEdges").GetInt32(),6} members    " +
+            FormatBytes(derivedProperties.GetProperty("EstimatedBytes").GetInt64()));
         _writer.WriteLine(
             $"  Total est. memory     {FormatBytes(summary.GetProperty("EstimatedBytesTotal").GetInt64())}");
         _writer.WriteLine();
-        _writer.WriteLine("Drill in: engines ranges | engines rollups");
+        _writer.WriteLine("Drill in: engines ranges | engines derived");
     }
 
     private async Task ListRangeReactorsAsync()
@@ -92,16 +92,16 @@ public class EnginesCommandHandler
         }
     }
 
-    private async Task ListRollupReactorsAsync()
+    private async Task ListDerivedPropertyReactorsAsync()
     {
-        var reactors = (await _mycelium.GetEngineReactorsAsync()).GetProperty("Rollups");
+        var reactors = (await _mycelium.GetEngineReactorsAsync()).GetProperty("DerivedProperties");
         if (reactors.GetArrayLength() == 0)
         {
-            _writer.WriteLine("No roll-up reactors in the current model.");
+            _writer.WriteLine("No derived-property reactors in the current model.");
             return;
         }
 
-        _writer.WriteLine($"Roll-up reactors ({reactors.GetArrayLength()})");
+        _writer.WriteLine($"Derived-property reactors ({reactors.GetArrayLength()})");
         foreach (var reactor in reactors.EnumerateArray())
         {
             _writer.WriteLine(
@@ -162,6 +162,6 @@ public class EnginesCommandHandler
         _writer.WriteLine("Usage:");
         _writer.WriteLine("  engines            - Both engines' totals for the current model");
         _writer.WriteLine("  engines ranges     - Every range reactor: owner, watches, edges, footprint");
-        _writer.WriteLine("  engines rollups    - Every roll-up reactor: owner, declaration, watches, members, footprint");
+        _writer.WriteLine("  engines derived    - Every derived-property reactor: owner, declaration, watches, members, footprint");
     }
 }

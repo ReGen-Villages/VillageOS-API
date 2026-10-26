@@ -258,7 +258,7 @@ public class AddressParameterHandleTests
           "Endpoint.url":        {"Value":"https://features.test/{layer}/query"},
           "Endpoint.httpMethod": {"Value":"GET"},
           "Esri.pagingKind":     {"Value":"offset"},
-          "Esri.offsetParam":    {"Value":"resultOffset"},
+          "Esri.offsetParameter": {"Value":"resultOffset"},
           "Esri.hasMorePath":    {"Value":"exceededTransferLimit"},
           "Esri.itemsPath":      {"Value":"features"}
         }

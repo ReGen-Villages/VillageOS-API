@@ -8,7 +8,7 @@ import { HEARTBEAT_AS_EVENT, watchForSilence, type SilenceWatch } from './stream
 
 // Live model + operational updates over Server-Sent Events.
 // Two streams — the object subscription the page declared and the system/operational events —
-// feed one dispatch surface. Same { connection, on } API the consumers use.
+// feed one delivery point. Same { connection, on } API the consumers use.
 
 const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
 
@@ -24,7 +24,7 @@ const KNOWN_EVENTS = [
   'StatesChanged', 'RelationshipStatesChanged', 'ActivityEvent',
 ] as const;
 
-/** A subscription has opened, with the objects it covers as they stood at that moment. Dispatched
+/** A subscription has opened, with the objects it covers as they stood at that moment. Delivered
  *  to the same handlers the server's own events reach, rather than through a channel of its own: a
  *  subscription answers with a snapshot and then streams the changes to it, and both halves say
  *  what the page holds. Never sent by the server — this client raises it on itself. */
@@ -115,7 +115,7 @@ function toArguments(kind: string, data: { EntityId?: string; PropertyName?: str
   return [data];
 }
 
-function dispatch(kind: string, data: unknown) {
+function deliverToListeners(kind: string, data: unknown) {
   const eventArguments = toArguments(kind, data);
   handlers.forEach((h) => {
     if (h.event !== kind) return;
@@ -141,7 +141,7 @@ function attachListeners(source: EventSource, trackWatermark = false) {
       }
       let data: unknown;
       try { data = e.data ? JSON.parse(e.data) : undefined; } catch { data = e.data; }
-      dispatch(kind, data);
+      deliverToListeners(kind, data);
     });
   }
 }
@@ -275,7 +275,7 @@ function announceOpened(
       thingStates: new Map(things.map((thing) => [thing.Id, thing.States])),
     },
   };
-  dispatch(SUBSCRIPTION_OPENED, opened);
+  deliverToListeners(SUBSCRIPTION_OPENED, opened);
 }
 
 /** How long an arriving page is given to make its declaration. Long enough for its code to be
@@ -296,7 +296,7 @@ function follow() {
   const selector = effectiveSelector();
   if (JSON.stringify(selector) === openedFor) return;
   consumedWatermark = null;
-  dispatch(SUBSCRIPTION_CHANGING, selector);
+  deliverToListeners(SUBSCRIPTION_CHANGING, selector);
   void openStreams();
 }
 

@@ -9,6 +9,7 @@ vi.mock('../../hooks/useAuthentication', () => ({
 
 import i18n from '../../i18n';
 import { useModelStore } from '../../stores/modelStore';
+import { PAGE_ROLE_ID } from '../../api/platformRoles';
 import { usePlatformPagesStore } from '../../stores/platformPagesStore';
 import { Sidebar } from './Sidebar';
 import { stubScreenWidth } from '../../testScreenWidth';
@@ -21,17 +22,22 @@ interface PublishedDashboard {
 function publish(dashboards: PublishedDashboard[]) {
   const things: VosThing[] = [
     { Id: 'is', Name: 'is', Properties: {} },
+    { Id: 'binds', Name: 'binds', Properties: {} },
+    { Id: PAGE_ROLE_ID, Name: 'Page', Properties: {} },
     { Id: 'arch-dash', Name: 'Dashboard', Properties: {}, IsArchetype: true },
     ...dashboards.map((d, i) => ({ Id: `dash-${i}`, Name: d.name, Properties: { specification: JSON.stringify(d.specification) } })),
   ];
-  const relationships: VosRelationship[] = dashboards.map((_, i) => ({
-    Id: `dash-${i}-is`,
-    Name: `dash-${i} is Dashboard`,
-    SubjectId: `dash-${i}`,
-    PredicateId: 'is',
-    TargetId: 'arch-dash',
-    Properties: {},
-  }));
+  const relationships: VosRelationship[] = [
+    { Id: 'page-binds', Name: '', SubjectId: PAGE_ROLE_ID, PredicateId: 'binds', TargetId: 'arch-dash', Properties: {} },
+    ...dashboards.map((_, i) => ({
+      Id: `dash-${i}-is`,
+      Name: `dash-${i} is Dashboard`,
+      SubjectId: `dash-${i}`,
+      PredicateId: 'is',
+      TargetId: 'arch-dash',
+      Properties: {},
+    })),
+  ];
   useModelStore.setState({ things, relationships, loaded: true });
 }
 

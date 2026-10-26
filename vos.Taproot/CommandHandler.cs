@@ -74,7 +74,7 @@ namespace vos.Taproot
             _writer.WriteLine("  state relationship <id>                     - Get current states for a relationship");
             _writer.WriteLine("  state history <thing> [start] [end]         - Each change of state held in memory, and what caused it");
             _writer.WriteLine("  state occurrences <thing> <state> [start] [end] - Each spell spent in a state");
-            _writer.WriteLine("  engines [ranges|rollups]                    - Reactive-engine totals; drill in to per-reactor detail");
+            _writer.WriteLine("  engines [ranges|derived]                    -Reactive-engine totals; drill in to per-reactor detail");
             _writer.WriteLine("  snapshots                                   - What snapshot reads cost against the writers");
             _writer.WriteLine("  state query <state-name> [options]          - Find things in a state; narrows like list things, plus");
             _writer.WriteLine("                                                --also-in=a,b --not-in=c --include-archetypes --count");

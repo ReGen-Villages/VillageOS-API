@@ -25,7 +25,7 @@ public static class StatedValues
 
         foreach (var (name, property) in thing.ValuesStated())
         {
-            // A double-underscored name is a mark a reader finds the Thing by, not a value about it.
+            // A double-underscored name is the platform's own property, not a value about the Thing.
             if (name.StartsWith("__", StringComparison.Ordinal)) continue;
             if (AsText(property.Value) is { } text && !string.IsNullOrWhiteSpace(text))
                 values[name] = text;

@@ -93,6 +93,7 @@ import { thingApi } from '../api/thingApi';
 import { useUiStore } from '../stores/uiStore';
 import { useModelStore } from '../stores/modelStore';
 import type { VosThing } from '../types/vos';
+import { LAND_INTAKE_ROLE } from '../api/landIntakeRoles';
 import type { SceneVisibility } from '../components/model/sceneVisibility';
 const mockGetBytes = vi.mocked(apiClient.getBytes);
 const mockGet = vi.mocked(thingApi.get);
@@ -344,6 +345,8 @@ describe('ModelPage', () => {
     seedModel(
       [
         { Id: 'is', Name: 'is', Properties: {} },
+        { Id: 'binds', Name: 'binds', Properties: {} },
+        { Id: LAND_INTAKE_ROLE.BasemapSource, Name: 'basemapSource', Properties: {} },
         { Id: 'arch-basemap', Name: 'BasemapSource', Properties: {}, IsArchetype: true },
         {
           Id: 'src-1',
@@ -358,6 +361,14 @@ describe('ModelPage', () => {
           Name: 'src-1 is BasemapSource',
           SubjectId: 'src-1',
           PredicateId: 'is',
+          TargetId: 'arch-basemap',
+          Properties: {},
+        },
+        {
+          Id: 'r-role',
+          Name: '',
+          SubjectId: LAND_INTAKE_ROLE.BasemapSource,
+          PredicateId: 'binds',
           TargetId: 'arch-basemap',
           Properties: {},
         },

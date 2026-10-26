@@ -1,6 +1,7 @@
 using System.Text.Json;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
+using vos.Service.Shared.Roles;
 
 namespace vos.Service.Phloem.Tests;
 
@@ -307,7 +308,7 @@ public static class TestGraphs
         return new RetryFixture(fx, pipe.Id, next.Id, input, echo);
     }
 
-    // The three ways a dispatched relationship's target can start a pipeline, and one way it cannot.
+    // The three ways the target of a relationship the broker sends can start a pipeline, and one way it cannot.
     public sealed record StartFixture(
         GraphFixture Fixture,
         Guid DrawnPipelineId,

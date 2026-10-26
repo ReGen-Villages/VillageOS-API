@@ -83,7 +83,7 @@ public class DiscoveryRunStarterTests
         (await second.Task).Should().BeTrue("one run failing does not stop the starter");
         await Settle.UntilAsync(() => { lock (logger.Errors) return logger.Errors.Count > 0; },
             "the run that threw is reported");
-        logger.Errors.Should().ContainSingle().Which.Should().Contain("after its dispatch had been accepted");
+        logger.Errors.Should().ContainSingle().Which.Should().Contain("after its service call had been accepted");
     }
 
     // Time for a held run to start, if the hold let it, before a test asserts that it did not.
@@ -125,7 +125,7 @@ public class DiscoveryRunStarterTests
     }
 
     [Fact]
-    public async Task ADispatchWhileOneRunIsInFlightAndAnotherWaits_IsDroppedAndSaysSo()
+    public async Task AServiceCallWhileOneRunIsInFlightAndAnotherWaits_IsDroppedAndSaysSo()
     {
         var logger = new CapturingLogger();
         var starter = new DiscoveryRunStarter(new FakeLifetime(), logger);
@@ -167,7 +167,7 @@ public class DiscoveryRunStarterTests
             "the first run ending must not forget the second, which is still in flight");
         releaseSecond.SetResult();
         await Settle.ForAsync(thirdStarted.Task,
-            "once the waiting run has started, the next dispatch waits for it rather than being dropped");
+            "once the waiting run has started, the next service call waits for it rather than being dropped");
     }
 
     [Fact]

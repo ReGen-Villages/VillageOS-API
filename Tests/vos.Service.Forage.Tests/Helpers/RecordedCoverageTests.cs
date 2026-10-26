@@ -127,10 +127,10 @@ public class RecordedCoverageTests
         model.Id(CoveringSourceResolver.IsPredicateName);
         model.Id(CoveringSourceResolver.AppliesToPredicate);
         model.Id(CoveringSourceResolver.SourcedFromPredicate);
-        return model.Archetype("SourceCoverage", CoveringSourceResolver.SourceCoverageArchetypeFlag);
+        return model.Archetype("SourceCoverage").Bound(CoveringSourceResolver.SourceCoverageRole, "SourceCoverage");
     }
 
-    // The archetype a run mints against is found by the mark the platform declares it with, never by its
+    // The archetype a run mints against is found through the role the platform binds it with, never by its
     // name: a name would be renamed there and mint Things related to nothing here, and the only sign of
     // it would be every subject's coverage reading as empty.
     [Fact]
@@ -178,9 +178,28 @@ public class RecordedCoverageTests
                      CoveringSourceResolver.SourcedFromPredicate,
                  })
             if (predicate != missing) model.Id(predicate);
-        model.Archetype("SourceCoverage", CoveringSourceResolver.SourceCoverageArchetypeFlag);
+        model.Archetype("SourceCoverage").Bound(CoveringSourceResolver.SourceCoverageRole, "SourceCoverage");
 
         CoveringSourceResolver.CoverageVocabularyIn(model.Build()).Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(CoveringSourceResolver.IsPredicateName)]
+    [InlineData(CoveringSourceResolver.AppliesToPredicate)]
+    [InlineData(CoveringSourceResolver.SourcedFromPredicate)]
+    public void AnEdgeNamedInAnotherCaseIsNotTheEdgeAMintWrites(string recased)
+    {
+        var model = new ModelBuilder();
+        foreach (var predicate in new[]
+                 {
+                     CoveringSourceResolver.IsPredicateName,
+                     CoveringSourceResolver.AppliesToPredicate,
+                     CoveringSourceResolver.SourcedFromPredicate,
+                 })
+            model.Id(predicate == recased ? predicate.ToUpperInvariant() : predicate);
+        model.Archetype("SourceCoverage").Bound(CoveringSourceResolver.SourceCoverageRole, "SourceCoverage");
+
+        CoveringSourceResolver.CoverageVocabularyIn(model.Build()).Should().BeNull("Thing names are matched exactly, case included");
     }
 
     // The coverages hanging off an assessment are the ones a run would otherwise never see, so the rule

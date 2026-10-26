@@ -30,7 +30,7 @@ public sealed class DivisionResolver
     // The coverage it was given, with the division layered into every call's address where one was worked
     // out. Unchanged where there was nothing to work out, or nothing came of it: the gradings are then
     // refused for the unfilled placeholder, their coverages stay outstanding, and the site stays in the
-    // state that dispatches the run — so the next run tries again.
+    // state that starts the run — so the next run tries again.
     public async Task<SiteCoverage> AddressAsync(
         Guid siteId, SiteCoverage coverage, CancellationToken cancellationToken)
     {

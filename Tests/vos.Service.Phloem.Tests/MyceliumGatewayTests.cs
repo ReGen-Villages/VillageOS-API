@@ -7,6 +7,7 @@ using vos.Service.Phloem.Model;
 using vos.Service.Phloem.Services;
 using vos.Tests.Shared;
 using Xunit;
+using vos.Service.Shared.Roles;
 
 namespace vos.Service.Phloem.Tests;
 
@@ -385,7 +386,7 @@ public class MyceliumGatewayTests
     }
 
     // The message is whole before it is related to the system: that last write is the one the broker
-    // dispatches to the sender, which reads the message it is sent.
+    // sends to the sender, which reads the message it is sent.
     [Fact]
     public async Task SendMessageAsync_WritesTheMessageHoldsItOnTheRunAndRelatesItToTheSystemAlongItsConnectionLast()
     {
@@ -529,7 +530,7 @@ public class MyceliumGatewayTests
             (null, ModelNames.Has, "incoming"));
         traversals.Should().Contain((PipelineRoles.PipelineStart.Id.ToString(), null, "outgoing"));
 
-        // Relationship rules keep the read to those edges: a state connection accumulates one dispatch
+        // Relationship rules keep the read to those edges: a state connection accumulates one service call
         // record per entry, and the wider reading would carry every one on every start.
         selector.GetProperty("includeRelationships").GetBoolean().Should().BeTrue();
         selector.GetProperty("relationships").EnumerateArray().Should().HaveCountGreaterThan(0);
@@ -721,7 +722,7 @@ public class MyceliumGatewayTests
         var rangeId = Guid.NewGuid();
         var vigilId = Guid.NewGuid();
         var (gateway, handler) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/vigils"
-            ? Json(HttpStatusCode.Created, $$"""{"Id":"{{vigilId}}","Name":"Plot 7 enters decided","DispatchState":null}""")
+            ? Json(HttpStatusCode.Created, $$"""{"Id":"{{vigilId}}","Name":"Plot 7 enters decided","CallState":null}""")
             : RespondLikeAModelThatBindsItsRoles(request));
 
         var placement = await gateway.PlaceVigilAsync(subjectId, rangeId, CancellationToken.None);
@@ -1121,12 +1122,12 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
-    public async Task DispatchAsync_SendsTheEnvelopeToTheNamedEndpointAndReturnsWhatItSaid()
+    public async Task ServiceCallAsync_SendsTheEnvelopeToTheNamedEndpointAndReturnsWhatItSaid()
     {
         var (gateway, handler) = NewGateway(_ => Json(HttpStatusCode.Accepted, """{"outputs":{"sum":3}}"""));
         var envelope = JsonDocument.Parse("""{"runId":"r","nodeId":"n"}""").RootElement;
 
-        var result = await gateway.DispatchAsync("energy balance", envelope, CancellationToken.None);
+        var result = await gateway.CallAsync("energy balance", envelope, CancellationToken.None);
 
         result.StatusCode.Should().Be((int)HttpStatusCode.Accepted);
         result.Body.Should().Contain("\"sum\":3");
@@ -1134,12 +1135,12 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
-    public async Task DispatchAsync_WhenTheEndpointFails_ReportsTheStatusRatherThanThrowing()
+    public async Task ServiceCallAsync_WhenTheEndpointFails_ReportsTheStatusRatherThanThrowing()
     {
         var (gateway, _) = NewGateway(_ => Json(HttpStatusCode.BadGateway, "upstream is down"));
         var envelope = JsonDocument.Parse("{}").RootElement;
 
-        var result = await gateway.DispatchAsync("echo", envelope, CancellationToken.None);
+        var result = await gateway.CallAsync("echo", envelope, CancellationToken.None);
 
         result.StatusCode.Should().Be((int)HttpStatusCode.BadGateway);
         result.Body.Should().Be("upstream is down");

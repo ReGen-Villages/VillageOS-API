@@ -1,15 +1,16 @@
 import { thingApi } from './thingApi';
 import { relationshipApi } from './relationshipApi';
 import { modelApi } from './modelApi';
-import { parseSpecification, type ModelIndex } from './dashboardApi';
+import { parseSpecification, thingIdBoundBy, type ModelIndex } from './dashboardApi';
+import { PAGE_ROLE_ID } from './platformRoles';
 import type { VosRelationship } from '../types/vos';
-import { DASHBOARD_ARCHETYPE, DASHBOARD_SPECIFICATION_PROPERTY, IS_PREDICATE, type DashboardSpecification } from '../types/dashboard';
+import { DASHBOARD_SPECIFICATION_PROPERTY, IS_PREDICATE, type DashboardSpecification } from '../types/dashboard';
 import i18n from '../i18n';
 
 /**
  * Writing a page back to the model.
  *
- * A page the console keeps is one more `Dashboard` Thing beside the seeded ones, and is found by
+ * A page the console keeps is one more Thing of the page kind beside the seeded ones, and is found by
  * the same discovery. Nothing checks a specification written in a browser the way the seed's checks read a
  * seeded one, so a specification the discovery could not list is refused here before anything is written.
  */
@@ -23,13 +24,13 @@ export interface DashboardWriteContext {
   relationships: VosRelationship[];
 }
 
-/** What the writes need from the model, or null where it names no `Dashboard` kind or no `is`:
+/** What the writes need from the model, or null where no role binds a page kind or it names no `is`:
  *  there would be nothing to make the new Thing one of, and the discovery would list nothing. */
 export function dashboardWriteContext(modelIndex: ModelIndex): DashboardWriteContext | null {
-  const kind = modelIndex.byName.get(DASHBOARD_ARCHETYPE);
+  const dashboardArchetypeId = thingIdBoundBy(PAGE_ROLE_ID, modelIndex);
   const isPredicateId = modelIndex.predicateNameToId.get(IS_PREDICATE);
-  if (!kind || !isPredicateId) return null;
-  return { dashboardArchetypeId: kind.Id, isPredicateId, relationships: modelIndex.relationships };
+  if (!dashboardArchetypeId || !isPredicateId) return null;
+  return { dashboardArchetypeId, isPredicateId, relationships: modelIndex.relationships };
 }
 
 function asTheDiscoveryReadsIt(specification: DashboardSpecification): string {

@@ -17,7 +17,7 @@ const HEADING = 'px-3 py-2 text-xs font-semibold uppercase tracking-wide text-zi
 const ROW = 'w-full text-left rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-2.5 py-1.5 transition-colors';
 
 /** What a run may leave behind — the answer, another pipeline, an external system told — and under it
- *  every service a node may dispatch, read from the connections and ports the model declares. */
+ *  every service a node may call, read from the connections and ports the model declares. */
 export function OutputRail({ outputs, connections, onPlaceOutput, onAddService }: Props) {
   const { t } = useTranslation();
   const answer = outputs.find((row) => row.kind === 'answer');

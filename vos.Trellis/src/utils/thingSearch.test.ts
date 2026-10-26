@@ -124,6 +124,15 @@ describe('buildThingSearchIndex', () => {
       expect(index.isSubjectToTypeName.get('z1')).toBeUndefined();
     });
 
+    it('does not take a predicate named "Is" for "is"', () => {
+      const recased = makeThing('p-Is', 'Is');
+      const index = buildThingSearchIndex(
+        [recased, building, buildingType],
+        [makeRelationship('r-Is', 'b1', 'p-Is', 'bt1')],
+      );
+      expect(index.isSubjectToTypeName.get('b1')).toBeUndefined();
+    });
+
     it('ignores non-"is" predicates', () => {
       const index = buildThingSearchIndex(allThings, allRelationships);
       expect(index.isSubjectToTypeName.get('z1')).toBeUndefined();
@@ -142,14 +151,6 @@ describe('buildThingSearchIndex', () => {
       expect(index.isSubjectToTypeName.get('inst')).toBe('TypeA');
     });
 
-    it('is case-insensitive when looking up "is" predicate', () => {
-      const IS = makeThing('p-IS', 'IS');
-      const inst = makeThing('i1', 'Instance');
-      const type = makeThing('t1', 'TheType');
-      const relationship = makeRelationship('rx', 'i1', 'p-IS', 't1');
-      const index = buildThingSearchIndex([IS, inst, type], [relationship]);
-      expect(index.isSubjectToTypeName.get('i1')).toBe('TheType');
-    });
   });
 
   describe('relCountByThing', () => {
@@ -325,8 +326,8 @@ describe('THING_SEARCH_SKIP_KEYS', () => {
     expect(THING_SEARCH_SKIP_KEYS.has('__geometry_envelope')).toBe(true);
   });
 
-  it('does not contain the retired __IsSurface key', () => {
-    expect(THING_SEARCH_SKIP_KEYS.has('__IsSurface')).toBe(false);
+  it('skips no property whose name starts with __Is', () => {
+    expect([...THING_SEARCH_SKIP_KEYS].filter((key) => key.startsWith('__Is'))).toEqual([]);
   });
 });
 

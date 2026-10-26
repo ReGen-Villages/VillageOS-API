@@ -1,17 +1,18 @@
 using System.Text.Json;
 using vos.Service.Intake.Models;
 using vos.Service.Shared;
+using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Services;
 
 // What the page a submitter opens is drawn from, read out of the model that page cannot read for itself.
 //
-// Nothing here names a dashboard, an archetype or a predicate. The page is whichever Thing the model
-// marks as the one a submitter may read; the Things that never travel are whichever archetype it marks
-// as carrying personal details; and the relationships the reading follows are the ones that page's own
-// specification walks. So a project may re-author the page, and what a submitter is sent follows it without a change
-// here.
+// Nothing here names a dashboard, an archetype or a predicate. The page is whichever Thing the model binds
+// to the role of the one a submitter may read; the Things that never travel are whichever archetype it binds
+// to the role of carrying personal details; and the relationships the reading follows are the ones that
+// page's own specification walks. So a project may re-author the page, and what a submitter is sent follows
+// it without a change here.
 //
 // The walk is rooted at one site and follows each relationship the way the specification follows it. A selector naming
 // the archetypes instead would answer with every Thing of that kind in the model — which in a staging
@@ -23,43 +24,44 @@ namespace vos.Service.Intake.Services;
 // serialized off a Thing keeps the capital it was declared with.
 public static class FindingsReader
 {
-    // The mark on the page a submitter may read. Declared in the platform repository's
-    // land-intake.template.json; the two agree by this literal and by nothing else.
-    public const string FindingsDashboardFlag = "__IsSubmitterFindingsDashboard";
-
-    // The mark on the archetype whose members never leave the model.
-    public const string PersonalDetailFlag = "__IsPersonalDetailArchetype";
+    // The page a submitter may read, and the archetype whose members never leave the model, each through the
+    // role the platform's land-intake template binds it with.
+    public static readonly Role PageRole = LandIntakeRoles.SubmitterFindingsDashboard;
+    public static readonly Role PersonalDetailRole = LandIntakeRoles.PersonalDetail;
 
     public const string SpecificationProperty = "specification";
     public const string EmailAddressProperty = "emailAddress";
 
-    // How a lever names its input in words a reader knows. Declared in the platform repository's
-    // site-analysis.template.json; the two agree by these strings and nothing else.
-    public const string PropertyNameArchetypeFlag = "__IsPropertyNameArchetype";
+    // How a lever names its input in words a reader knows: the archetype through its role, and the predicate
+    // by the name the platform's site-analysis template declares; the two agree by that string and nothing else.
+    public static readonly Role PropertyNameRole = LandIntakeRoles.PropertyName;
     public const string NamesPropertyOfPredicate = "namesPropertyOf";
 
     // What the model declares, plus the contact of the one submission being asked about. Read
     // together because none of it is answered to anybody: the address is compared against the ticket and
-    // dropped, and the marks decide what the second read may carry.
+    // dropped, and the bindings decide what the second read may carry. Only the `binds` relationships
+    // travel, so the contact's own relationships stay out of a read that answers nothing to anybody.
     public static SubscriptionSelector DeclarationSelector(Guid contactId) => new()
     {
-        Ids = [contactId],
-        MarkedArchetypes = [FindingsDashboardFlag, PersonalDetailFlag],
+        Ids = [contactId, PageRole.Id, PersonalDetailRole.Id],
+        Names = [RoleBindings.BindsPredicateName],
+        Traverse = [RoleBindings.FollowBindings],
         IncludeIsAncestors = false,
-        IncludeRelationships = false,
+        IncludeRelationships = true,
+        Relationships = [new RelationshipRule { Predicate = RoleBindings.BindsPredicateName, Direction = "outgoing" }],
     };
 
     public static SubmitterDeclarations ReadDeclarations(JsonElement snapshot, Guid contactId)
     {
         var things = Things(snapshot).ToList();
 
-        var page = things.Where(thing => Marked(thing, FindingsDashboardFlag)).ToArray();
-        var personal = things.Where(thing => Marked(thing, PersonalDetailFlag)).ToArray();
+        var page = Bound(snapshot, things, PageRole);
+        var personal = Bound(snapshot, things, PersonalDetailRole);
         RefuseAModelThatCannotAnswerSafely(page, personal);
 
         var specification = PropertyText(page[0], SpecificationProperty)
             ?? throw new ModelNotSeededError(
-                $"the page marked '{FindingsDashboardFlag}' carries no '{SpecificationProperty}', so there is "
+                $"the page the role {PageRole.Word} binds carries no '{SpecificationProperty}', so there is "
                 + "nothing to draw. Seed the model from the analysis templates.");
 
         var contact = things.FirstOrDefault(thing => Identifier(thing) == contactId);
@@ -79,7 +81,7 @@ public static class FindingsReader
         var offersLevers = OffersLevers(parsed.RootElement);
         return new SubscriptionSelector
         {
-            Ids = [siteId],
+            Ids = offersLevers ? [siteId, PropertyNameRole.Id] : [siteId],
             // A predicate is a Thing, and what draws the reading reads a relationship's predicate by looking that
             // Thing up. Asked for alongside the relationships they join, or an `is` relationship is one nothing can read
             // and no Thing can be told what it is.
@@ -87,10 +89,11 @@ public static class FindingsReader
             [
                 .. walked.Select(walk => walk.Predicate)
                     .Append(SubmissionFragmentComposer.IsPredicateName)
-                    .Concat(offersLevers ? [NamesPropertyOfPredicate] : [])
+                    .Concat(offersLevers ? [NamesPropertyOfPredicate, RoleBindings.BindsPredicateName] : [])
                     .Distinct(),
             ],
-            // The names are followed to their archetypes last, so none of the page's walks is applied to those archetypes.
+            // The names are followed to their archetypes last, and the role to the archetype it binds after
+            // that, so none of the page's walks is applied to those archetypes.
             Traverse =
             [
                 .. walked.Select(walk => new TraverseRule
@@ -99,9 +102,11 @@ public static class FindingsReader
                     Direction = walk.Inbound ? "incoming" : "outgoing",
                     Depth = int.MaxValue,
                 }),
-                .. offersLevers ? [new TraverseRule { Predicate = NamesPropertyOfPredicate, Direction = "outgoing", Depth = 1 }] : Array.Empty<TraverseRule>(),
+                .. offersLevers
+                    ? [new TraverseRule { Predicate = NamesPropertyOfPredicate, Direction = "outgoing", Depth = 1 }, RoleBindings.FollowBindings]
+                    : Array.Empty<TraverseRule>(),
             ],
-            MarkedTypes = offersLevers ? [PropertyNameArchetypeFlag] : null,
+            BoundTypes = offersLevers ? [PropertyNameRole.Id] : null,
         };
     }
 
@@ -146,16 +151,16 @@ public static class FindingsReader
             .Select(Identifier),
     ];
 
-    // Both marks or neither. A model holding the page but not the mark on what carries personal details
+    // Both bindings or neither. A model binding the page but not the archetype carrying personal details
     // would answer a submitter with a reading nothing was filtered out of, and that filter is the only
-    // thing standing between a walk and a landowner's address. Two Things carrying one mark is the same
+    // thing standing between a walk and a landowner's address. A role bound to two Things is the same
     // refusal: which of them was meant is not this service's to guess.
     private static void RefuseAModelThatCannotAnswerSafely(JsonElement[] page, JsonElement[] personal)
     {
         var wrong = new[]
         {
-            page.Length == 1 ? null : $"{page.Length} Things marked '{FindingsDashboardFlag}'",
-            personal.Length == 1 ? null : $"{personal.Length} Things marked '{PersonalDetailFlag}'",
+            page.Length == 1 ? null : $"{page.Length} Things bound to the role {PageRole.Word}",
+            personal.Length == 1 ? null : $"{personal.Length} Things bound to the role {PersonalDetailRole.Word}",
         }.OfType<string>().ToArray();
 
         if (wrong.Length > 0)
@@ -219,10 +224,19 @@ public static class FindingsReader
         return withheld;
     }
 
-    private static bool Marked(JsonElement thing, string flag) =>
-        Property(thing, flag) is { } carried
-        && MyceliumClientBase.TryGetPropertyCaseInsensitive(carried, "value", out var value)
-        && value.ValueKind == JsonValueKind.True;
+    // The Things the role binds, read off the role Thing's own `binds` relationships in the broker's envelope.
+    private static JsonElement[] Bound(JsonElement snapshot, List<JsonElement> things, Role role)
+    {
+        var binds = things
+            .Where(thing => FieldText(thing, "Name") == RoleBindings.BindsPredicateName)
+            .Select(Identifier)
+            .ToHashSet();
+        var boundIds = Relationships(snapshot)
+            .Where(edge => Field(edge, "SubjectId") == role.Id && binds.Contains(Field(edge, "PredicateId")))
+            .Select(edge => Field(edge, "TargetId"))
+            .ToHashSet();
+        return [.. things.Where(thing => boundIds.Contains(Identifier(thing)))];
+    }
 
     private static IEnumerable<JsonElement> Things(JsonElement snapshot) => Section(snapshot, "things");
 

@@ -17,8 +17,8 @@ const REPOSITORY = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..
 
 function subcommandsTheHandlerAnswers(): string[] {
   const handler = readFileSync(join(REPOSITORY, 'vos.Taproot', 'SubmissionsCommandHandler.cs'), 'utf-8');
-  const dispatch = handler.slice(handler.indexOf('switch (subcommand'));
-  return [...dispatch.matchAll(/case "([a-z]+)":/g)].map((match) => match[1]);
+  const subcommands = handler.slice(handler.indexOf('switch (subcommand'));
+  return [...subcommands.matchAll(/case "([a-z]+)":/g)].map((match) => match[1]);
 }
 
 describe('the parity table lists every submissions command', () => {

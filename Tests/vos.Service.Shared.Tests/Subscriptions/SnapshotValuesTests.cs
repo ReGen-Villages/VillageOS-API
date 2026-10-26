@@ -29,12 +29,11 @@ public class SnapshotValuesTests
             "Name": "Willow Bend Parcel-01",
             "IsArchetype": false,
             "Properties": {},
-            "RollupProperties": null,
+            "DerivedProperties": null,
             "InheritedOverrides": {
               "6513d4d5-c6d1-47c9-babd-3256848f79d9": {
                 "SourceId": "6513d4d5-c6d1-47c9-babd-3256848f79d9",
                 "SourceName": "Parcel",
-                "InheritedAt": "2026-08-28T17:41:22.289038Z",
                 "Properties": {
                   "measuredAreaHectares": { "typeInfo": "vos.Double", "value": 28.39 }
                 },
@@ -51,7 +50,7 @@ public class SnapshotValuesTests
             "Properties": {
               "measuredAreaHectares": { "typeInfo": "vos.Double", "value": null }
             },
-            "RollupProperties": null,
+            "DerivedProperties": null,
             "InheritedOverrides": null,
             "States": [],
             "Relationships": ["36fa3bce-77b1-4a64-a76e-61a3c5c4b613"]

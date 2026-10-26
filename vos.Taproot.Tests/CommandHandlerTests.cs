@@ -56,7 +56,7 @@ public class CommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleCommandAsync_Events_IsDispatchedToTheEventsHandler()
+    public async Task HandleCommandAsync_Events_IsRoutedToTheEventsHandler()
     {
         var writer = new StringWriter();
         var handler = CreateHandler(new StringReader(""), writer);
@@ -75,7 +75,7 @@ public class CommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleCommandAsync_Call_IsDispatchedToTheCallHandler()
+    public async Task HandleCommandAsync_Call_IsRoutedToTheCallHandler()
     {
         var writer = new StringWriter();
         var handler = CreateHandler(new StringReader(""), writer);
@@ -107,7 +107,7 @@ public class CommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleCommandAsync_Pipeline_IsDispatchedToThePipelineHandler()
+    public async Task HandleCommandAsync_Pipeline_IsRoutedToThePipelineHandler()
     {
         var writer = new StringWriter();
         var handler = CreateHandler(new StringReader(""), writer);
@@ -129,7 +129,7 @@ public class CommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleCommandAsync_Logs_IsDispatchedToTheLogsHandler()
+    public async Task HandleCommandAsync_Logs_IsRoutedToTheLogsHandler()
     {
         var writer = new StringWriter();
         var handler = CreateHandler(new StringReader(""), writer);
@@ -143,7 +143,7 @@ public class CommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleCommandAsync_Requests_IsDispatchedToTheRequestsHandler()
+    public async Task HandleCommandAsync_Requests_IsRoutedToTheRequestsHandler()
     {
         var writer = new StringWriter();
         var handler = CreateHandler(new StringReader(""), writer);

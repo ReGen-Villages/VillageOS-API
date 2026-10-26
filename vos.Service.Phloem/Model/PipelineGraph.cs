@@ -1,4 +1,5 @@
 using System.Text.Json;
+using vos.Service.Shared.Roles;
 
 namespace vos.Service.Phloem.Model;
 
@@ -91,7 +92,7 @@ public sealed class PipelineGraph
 
     public IEnumerable<GraphRelationship> RelationshipsInto(GraphThing target, string predicateName) =>
         Into(target).Where(rel => Thing(rel.PredicateId) is { } predicate
-            && string.Equals(predicate.Name, predicateName, StringComparison.OrdinalIgnoreCase));
+            && string.Equals(predicate.Name, predicateName, StringComparison.Ordinal));
 
     public IReadOnlyCollection<GraphThing> Things => _things.Values;
 
@@ -139,7 +140,7 @@ public sealed class PipelineGraph
         foreach (var rel in From(subject))
         {
             var predicate = Thing(rel.PredicateId);
-            if (predicate != null && string.Equals(predicate.Name, predicateName, StringComparison.OrdinalIgnoreCase)
+            if (predicate != null && string.Equals(predicate.Name, predicateName, StringComparison.Ordinal)
                 && Thing(rel.TargetId) is { } target)
                 yield return target;
         }
@@ -151,13 +152,13 @@ public sealed class PipelineGraph
         foreach (var rel in Into(target))
         {
             var predicate = Thing(rel.PredicateId);
-            if (predicate != null && string.Equals(predicate.Name, predicateName, StringComparison.OrdinalIgnoreCase)
+            if (predicate != null && string.Equals(predicate.Name, predicateName, StringComparison.Ordinal)
                 && Thing(rel.SubjectId) is { } subject)
                 yield return subject;
         }
     }
 
-    // Targets reached from the subject along the predicate a role binds — the predicates the platform dispatches
+    // Targets reached from the subject along the predicate a role binds — the predicates the platform calls services
     // and records along, as against a wire's predicate, which `is` the wire archetype.
     public IEnumerable<GraphThing> OutgoingAlong(GraphThing subject, Role role)
     {

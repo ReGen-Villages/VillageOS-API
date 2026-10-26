@@ -218,7 +218,7 @@ public class DivisionResolverTests
         writer.Facts.Should().Contain((SiteId, CodeProperty, "24889"));
     }
 
-    // On this run, not the next: a site graded only after a whole dispatch had been waited out would sit
+    // On this run, not the next: a site graded only after a whole service call had been waited out would sit
     // ungraded for as long as the platform allows a run to take.
     [Fact]
     public async Task TheResolvedDivisionAddressesThisRunsOwnCalls()

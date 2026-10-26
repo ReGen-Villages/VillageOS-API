@@ -19,7 +19,7 @@ namespace vos.Service.Tributary.Tests;
 // Audience on the factory instance before creating a client.
 // IHttpClientFactory is replaced with one that wraps a per-test
 // MockHttpMessageHandler. The handler routes BOTH mycelium calls AND the outbound
-// endpoint call dispatched by CallEndpointAsync via the same factory; tests set
+// endpoint call made by CallEndpointAsync via the same factory; tests set
 // HandlerCallback to control responses for their scenario.
 public class TributaryWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {

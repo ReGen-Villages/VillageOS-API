@@ -60,6 +60,17 @@ describe('getThingType', () => {
     expect(getThingType(sensor, index)).toBe('type');
   });
 
+  it('does not take a predicate named "Is" for "is"', () => {
+    const recased = makeThing('p-Is', 'Is');
+    const pond = makeThing('t-pond', 'Pond');
+    const millPond = makeThing('i-millpond', 'MillPond');
+    const recasedIndex = buildRelationshipIndex(
+      [makeRelationship('r-mill', 'i-millpond', 'p-Is', 't-pond')],
+      new Map([recased, pond, millPond].map((t) => [t.Id, t])),
+    );
+    expect(getThingType(pond, recasedIndex)).not.toBe('type');
+  });
+
   it('classifies regular instances as default', () => {
     expect(getThingType(orchardZone, index)).toBe('default');
     expect(getThingType(tempSensor, index)).toBe('default');
@@ -449,7 +460,7 @@ describe('colouring by the classifying property', () => {
     Name: 'Wall-overrides-its-class',
     Properties: {},
     InheritedOverrides: {
-      't-wall': { SourceId: 't-wall', SourceName: 'Basic Wall', InheritedAt: '', Properties: { ifcClass: 'IfcWall' } },
+      't-wall': { SourceId: 't-wall', SourceName: 'Basic Wall', Properties: { ifcClass: 'IfcWall' } },
     },
   };
   const things = [isPredicate, wallType, owned, overridden];

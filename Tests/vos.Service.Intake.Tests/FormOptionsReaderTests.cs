@@ -3,6 +3,7 @@ using FluentAssertions;
 using vos.Service.Intake;
 using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
+using vos.Service.Shared.Roles;
 using Xunit;
 
 namespace vos.Service.Intake.Tests;
@@ -24,8 +25,8 @@ public class FormOptionsReaderTests
     public void A_model_that_calls_the_archetype_something_else_still_answers()
     {
         var model = new DeclaredModel()
-            .WithArchetype("LandUse", DeclaredVocabularyReader.AllocationCategoryArchetypeFlag)
-            .With("putTo", DeclaredVocabularyReader.AllocationCategoryPredicateFlag)
+            .WithArchetype("LandUse").Bound(LandIntakeRoles.AllocationCategory, "LandUse")
+            .With("putTo").Bound(LandIntakeRoles.CategorizedAs, "putTo")
             .Relate("Orchard", "is", "LandUse");
 
         var options = FormOptionsReader.Read(model.Build());
@@ -39,13 +40,13 @@ public class FormOptionsReaderTests
     public void A_model_declaring_the_categories_but_not_the_predicate_is_refused_as_unseeded()
     {
         var model = new DeclaredModel()
-            .WithArchetype("AllocationCategory", DeclaredVocabularyReader.AllocationCategoryArchetypeFlag)
+            .WithArchetype("AllocationCategory").Bound(LandIntakeRoles.AllocationCategory, "AllocationCategory")
             .Relate("Orchard", "is", "AllocationCategory");
 
         var reading = () => FormOptionsReader.Read(model.Build());
 
         reading.Should().Throw<ModelNotSeededError>()
-            .WithMessage("*" + DeclaredVocabularyReader.AllocationCategoryPredicateFlag + "*");
+            .WithMessage("*" + LandIntakeRoles.CategorizedAs.Word + "*");
     }
 
     [Fact]
@@ -59,6 +60,21 @@ public class FormOptionsReaderTests
         streets.TileUrl.Should().BeNull();
     }
 
+    [Fact]
+    public void The_sources_are_read_under_the_archetype_the_basemapSource_role_binds_whatever_it_is_called()
+    {
+        var model = DeclaredModel.Seeded()
+            .WithArchetype("Imagery").Bound(LandIntakeRoles.BasemapSource, "Imagery")
+            .Without(DeclaredModel.BasemapSourceArchetype)
+            .Stating("Aerial", ("attribution", "Orthophoto"), ("tileUrl", "https://tiles.example.test/{z}/{x}/{y}.png"))
+            .Relate("Aerial", "is", "Imagery");
+
+        FormOptionsReader.Read(model.Build()).BasemapSources.Select(source => source.Name).Should().Equal("Aerial");
+        FormOptionsReader.Selector().Ids.Should().Contain(LandIntakeRoles.BasemapSource.Id);
+        FormOptionsReader.Selector().BoundTypes.Should().Contain(LandIntakeRoles.BasemapSource.Id,
+            "the sources are the members of the bound archetype, and the broker sends only what the selector asks for");
+    }
+
     // The deepest zoom a raster pyramid has tiles for is the model's to state and the map's to fall back
     // on. Answering a figure of this service's own would be a second place the fallback lived.
     [Fact]
@@ -66,7 +82,7 @@ public class FormOptionsReaderTests
     {
         var model = DeclaredModel.Seeded()
             .Stating("Aerial", ("attribution", "Orthophoto"), ("tileUrl", "https://tiles.example.test/{z}/{x}/{y}.png"))
-            .Relate("Aerial", "is", FormOptionsReader.BasemapSourceArchetypeName);
+            .Relate("Aerial", "is", DeclaredModel.BasemapSourceArchetype);
 
         var options = FormOptionsReader.Read(model.Build());
 
@@ -81,8 +97,8 @@ public class FormOptionsReaderTests
     public void A_model_declaring_no_basemap_answers_with_none_rather_than_refusing()
     {
         var model = new DeclaredModel()
-            .WithArchetype("AllocationCategory", DeclaredVocabularyReader.AllocationCategoryArchetypeFlag)
-            .With("categorizedAs", DeclaredVocabularyReader.AllocationCategoryPredicateFlag)
+            .WithArchetype("AllocationCategory").Bound(LandIntakeRoles.AllocationCategory, "AllocationCategory")
+            .With("categorizedAs").Bound(LandIntakeRoles.CategorizedAs, "categorizedAs")
             .Relate("Orchard", "is", "AllocationCategory");
 
         var options = FormOptionsReader.Read(model.Build());
@@ -119,8 +135,8 @@ public class FormOptionsReaderTests
     public void A_model_declaring_no_hazards_answers_with_none_rather_than_refusing()
     {
         var model = new DeclaredModel()
-            .WithArchetype("AllocationCategory", DeclaredVocabularyReader.AllocationCategoryArchetypeFlag)
-            .With("categorizedAs", DeclaredVocabularyReader.AllocationCategoryPredicateFlag)
+            .WithArchetype("AllocationCategory").Bound(LandIntakeRoles.AllocationCategory, "AllocationCategory")
+            .With("categorizedAs").Bound(LandIntakeRoles.CategorizedAs, "categorizedAs")
             .Relate("Orchard", "is", "AllocationCategory");
 
         var options = FormOptionsReader.Read(model.Build());
@@ -129,13 +145,13 @@ public class FormOptionsReaderTests
         options.HazardLevels.Should().BeEmpty();
     }
 
-    // The themes a section of the report may name: found by the mark their archetype carries, each with
+    // The themes a section of the report may name: found through the role binding their archetype, each with
     // what faces its tile, in the order the model gives them.
     [Fact]
     public void The_themes_travel_as_the_model_declares_them_in_the_order_it_gives_them()
     {
         var model = DeclaredModel.Seeded()
-            .WithArchetype("Theme", FormOptionsReader.ThemeArchetypeFlag)
+            .WithArchetype("Theme").Bound(FormOptionsReader.ThemeRole, "Theme")
             .Stating("Water", ("colour", "#3B7DE0"), ("icon", "droplet"), ("order", 2))
             .Stating("Temperature", ("colour", "#F0A840"), ("icon", "thermometer"), ("order", 1))
             .Stating("Terrain")
@@ -156,7 +172,7 @@ public class FormOptionsReaderTests
     public void A_theme_whose_order_is_not_a_number_is_answered_without_one()
     {
         var model = DeclaredModel.Seeded()
-            .WithArchetype("Theme", FormOptionsReader.ThemeArchetypeFlag)
+            .WithArchetype("Theme").Bound(FormOptionsReader.ThemeRole, "Theme")
             .Stating("Water", ("colour", "#3B7DE0"), ("order", "second"))
             .Relate("Water", "is", "Theme");
 
@@ -176,11 +192,11 @@ public class FormOptionsReaderTests
     }
 
     [Fact]
-    public void A_model_marking_two_theme_archetypes_is_refused_as_unseeded()
+    public void A_model_binding_two_theme_archetypes_is_refused_as_unseeded()
     {
         var model = DeclaredModel.Seeded()
-            .WithArchetype("Theme", FormOptionsReader.ThemeArchetypeFlag)
-            .WithArchetype("Motif", FormOptionsReader.ThemeArchetypeFlag);
+            .WithArchetype("Theme").Bound(FormOptionsReader.ThemeRole, "Theme")
+            .WithArchetype("Motif").Bound(FormOptionsReader.ThemeRole, "Motif");
 
         var reading = () => FormOptionsReader.Read(model.Build());
 

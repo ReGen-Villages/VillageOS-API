@@ -430,7 +430,7 @@ describe('loadPipeline — a saved pipeline whose ports are stated in the overri
   it('returns the wire attached at both ends', () => {
     const { T, R, things, relationships } = graphWithVocabulary();
     const stated = (values: Record<string, unknown>) => ({
-      'arch-port': { SourceId: 'arch-port', SourceName: 'Socket', InheritedAt: '', Properties: values },
+      'arch-port': { SourceId: 'arch-port', SourceName: 'Socket', Properties: values },
     });
     T('BP', 'Decided'); R('BP', 'is', 'arch-pipeline');
     T('IN', 'Start'); R('IN', 'is', 'arch-input'); R('BP', 'has', 'IN');

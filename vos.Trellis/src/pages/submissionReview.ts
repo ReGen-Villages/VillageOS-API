@@ -3,19 +3,20 @@
  * submission review page.
  *
  * Nothing here names an archetype or a predicate. A submission is whatever asserts a relationship through
- * the predicate the model marks as reaching a proposed site, and the dispositions are the Things
- * under the archetype the model marks as holding them. These are the same marks the `submissions`
- * commands read, and a test in this folder reads that handler's source so the page and the command
- * line cannot come to answer the same model differently.
+ * the predicate the model binds to the proposed-site role, and the dispositions are the Things under the
+ * archetype the model binds to the disposition role. These are the same roles the `submissions` commands
+ * read, and a test in this folder reads that handler's source so the page and the command line cannot
+ * come to answer the same model differently.
  */
 
 import type { VosThing } from '../types/vos';
 import i18n from '../i18n';
-import { IS_PREDICATE_NAME, ownCarrierOf, type ModelReading } from './modelVocabulary';
+import { LAND_INTAKE_ROLE } from '../api/landIntakeRoles';
+import { IS_PREDICATE_NAME, boundBy, type ModelReading } from './modelVocabulary';
 
-export const PROPOSED_SITE_PREDICATE_FLAG = '__IsProposedSitePredicate';
-export const DISPOSITION_ARCHETYPE_FLAG = '__IsSubmissionDispositionArchetype';
-export const DISPOSITION_PREDICATE_FLAG = '__IsSubmissionDispositionPredicate';
+export const PROPOSED_SITE_ROLE = LAND_INTAKE_ROLE.ProposedSite;
+export const DISPOSITION_ARCHETYPE_ROLE = LAND_INTAKE_ROLE.SubmissionDisposition;
+export const DISPOSITION_PREDICATE_ROLE = LAND_INTAKE_ROLE.ResolvedAs;
 
 /** A disposition says what follows from the decision, and the period after which a submission goes
  *  is what makes one disposable. Rejecting relates a submission to whichever names a period, so a
@@ -40,14 +41,14 @@ export interface Disposition {
   disposable: boolean;
 }
 
-/** The predicate this model marks as reaching a proposed site. Nothing here is a submission without
- *  it, which is a different answer from a model that simply holds none. */
+/** The predicate this model binds to the role of reaching a proposed site. Nothing here is a submission
+ *  without it, which is a different answer from a model that simply holds none. */
 export function proposedSitePredicate(reading: ModelReading): string | null {
-  return ownCarrierOf(reading, PROPOSED_SITE_PREDICATE_FLAG);
+  return boundBy(reading, PROPOSED_SITE_ROLE);
 }
 
 export function dispositionPredicate(reading: ModelReading): string | null {
-  return ownCarrierOf(reading, DISPOSITION_PREDICATE_FLAG);
+  return boundBy(reading, DISPOSITION_PREDICATE_ROLE);
 }
 
 export function submissionsIn(reading: ModelReading): Submission[] {
@@ -107,10 +108,10 @@ export function byArrival(submissions: readonly Submission[]): Submission[] {
   return [...submissions].sort((left, right) => (left.submittedAt ?? '').localeCompare(right.submittedAt ?? ''));
 }
 
-/** The Things under the archetype the model marks as holding what a submission can be resolved to.
- *  Found by the mark, never by the archetype's name. */
+/** The Things under the archetype the model binds to the disposition role, which holds what a submission
+ *  can be resolved to. Found through the role, never by the archetype's name. */
 function dispositionsIn(reading: ModelReading): Disposition[] {
-  const archetype = ownCarrierOf(reading, DISPOSITION_ARCHETYPE_FLAG);
+  const archetype = boundBy(reading, DISPOSITION_ARCHETYPE_ROLE);
   if (!archetype) return [];
 
   const names = nameIndex(reading.things);

@@ -47,6 +47,10 @@ variables:
   # looked at, so there is nothing for them to remember.
   - name: MSBUILDDISABLENODEREUSE
     value: '1'
+  # One exact release, in a folder of its own, because a floating version unpacked each new release
+  # over the dotnet an agent was running, and macOS then killed it on every start.
+  - name: dotnetSdkVersion
+    value: '10.0.403'
 
 # Every job says how long it may run. Left to the pool's default, a step that stops making progress
 # holds an agent for an hour, and a pull request in either repository waits behind it. The limit
@@ -84,7 +88,8 @@ jobs:
     displayName: 'Install .NET SDK'
     inputs:
       packageType: 'sdk'
-      version: '10.x'
+      version: '$(dotnetSdkVersion)'
+      installationPath: '$(Agent.ToolsDirectory)/dotnet-$(dotnetSdkVersion)'
 
   # Serves the wiki converters and the Trellis checks below. 22 rather than 20 because Vite asks for
   # ^20.19 || >=22.12 — a 20.x line that resolved below 20.19 would fail the GUI build, and 22 is the

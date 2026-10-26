@@ -63,6 +63,23 @@ public class DemoAnswerTests
         answer.Should().BeOfType<Ok<int>>().Which.Value.Should().Be(42);
     }
 
+    // A refused slice is answered as the platform gave it, so the person trying the example reads the platform's words.
+    [Fact]
+    public async Task A_slice_the_platform_refuses_answers_with_the_refusal_as_given()
+    {
+        var handler = new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+        {
+            Content = new StringContent("""{"error":"no Thing is named Battery"}""", System.Text.Encoding.UTF8, "application/json"),
+        });
+        var subscriptions = new vos.Service.Shared.Subscriptions.SubscriptionClient(
+            new PerCallHttpClientFactory(handler), NullLogger.Instance, MyceliumUrl, serviceToken: "svc-jwt-abc");
+
+        var answer = await DemoAnswer.OfAsync(() => new SelectorDemo(subscriptions).RunAsync(SelectorDemo.SelectorFor(null)));
+
+        ((IStatusCodeHttpResult)answer).StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+        ((ContentHttpResult)answer).ResponseContent.Should().Be("""{"error":"no Thing is named Battery"}""");
+    }
+
     private static string ReasonIn(IResult answer) =>
         ((IValueHttpResult)answer).Value!.GetType().GetProperty("error")!.GetValue(((IValueHttpResult)answer).Value)!.ToString()!;
 }

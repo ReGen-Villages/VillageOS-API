@@ -183,35 +183,22 @@ public class MyceliumClient : MyceliumClientBase
         return true;
     }
 
-    // Unwraps a potential JsonElement (produced by System.Text.Json when deserializing
-    // Dictionary<string, object>) into a CLR value and infers Mycelium type string.
+    // A request's values arrive as JsonElement; one with structure is written as its JSON text.
     private static (object? Value, string Type) ResolveMyceliumValue(object? value)
     {
-        if (value is JsonElement je)
-        {
-            return je.ValueKind switch
+        var unwrapped = value is JsonElement element
+            ? element.ValueKind switch
             {
-                JsonValueKind.String => (je.GetString(), "System.String"),
-                JsonValueKind.Number when je.TryGetInt64(out var l) => (l, "System.Int64"),
-                JsonValueKind.Number => (je.GetDouble(), "System.Double"),
-                JsonValueKind.True => (true, "System.Boolean"),
-                JsonValueKind.False => (false, "System.Boolean"),
-                JsonValueKind.Null => (null, "System.String"),
-                _ => (je.GetRawText(), "System.String")
-            };
-        }
+                JsonValueKind.String => element.GetString(),
+                JsonValueKind.Number when element.TryGetInt64(out var whole) => whole,
+                JsonValueKind.Number => element.GetDouble(),
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                JsonValueKind.Null => null,
+                _ => element.GetRawText(),
+            }
+            : value;
 
-        var type = value switch
-        {
-            string => "System.String",
-            int => "System.Int32",
-            long => "System.Int64",
-            double => "System.Double",
-            decimal => "System.Decimal",
-            bool => "System.Boolean",
-            _ => "System.String"
-        };
-
-        return (value, type);
+        return (unwrapped, TypedProperties.TypeNameFor(unwrapped));
     }
 }

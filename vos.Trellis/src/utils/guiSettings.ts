@@ -1,4 +1,6 @@
 import type { VosThing, VosRelationship } from '../types/vos';
+import { DISPLAY_SETTINGS_ROLE_ID, thingBoundBy } from '../api/platformRoles';
+import { IS_PREDICATE } from '../types/dashboard';
 
 /** Flash-effect settings extracted from the GUI_Settings type Thing. */
 export interface FlashSettings {
@@ -97,8 +99,6 @@ export const FLASH_DEFAULTS: FlashSettings = {
   flashNodeBrighten: 0.5,
 };
 
-export const GUI_SETTINGS_TYPE_NAME = 'GUI_Settings';
-
 /**
  * The properties a model says should travel with its model load, read from the settings Thing.
  *
@@ -117,24 +117,24 @@ export function readModelLoadProperties(properties: Record<string, unknown> | nu
 }
 
 /**
- * Find the GUI settings properties by locating the GUI_Settings type Thing
- * and any instance linked to it via an "is" relationship.
- * Instance own properties override type defaults.
+ * The display settings: the properties of the Thing the display settings role binds, under those of any
+ * instance that `is` it. Null where the set holds no such binding.
  */
 export function findGuiSettingsProperties(
   things: VosThing[],
   relationships: VosRelationship[],
 ): Record<string, unknown> | null {
-  const typeThing = things.find((t) => t.Name === GUI_SETTINGS_TYPE_NAME);
-  if (!typeThing) return null;
+  const settings = thingBoundBy(DISPLAY_SETTINGS_ROLE_ID, things, relationships);
+  if (!settings) return null;
 
-  const isRelationship = relationships.find((r) => r.TargetId === typeThing.Id);
+  const isPredicateId = things.find((t) => t.Name === IS_PREDICATE)?.Id;
+  const isRelationship = relationships.find((r) => r.TargetId === settings.Id && r.PredicateId === isPredicateId);
   const instance = isRelationship
     ? things.find((t) => t.Id === isRelationship.SubjectId)
     : undefined;
 
   return {
-    ...(typeThing.Properties || {}),
+    ...(settings.Properties || {}),
     ...((instance?.Properties) || {}),
   };
 }
