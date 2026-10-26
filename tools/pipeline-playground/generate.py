@@ -148,7 +148,7 @@ class Kit:
                 self.shared.add(tid)
         return tid
 
-    def rel(self, subject, predicate, target, properties=None):
+    def rel(self, subject, predicate, target):
         key = (subject, predicate, target)
         if key not in self.rels:
             name = f"{self._name.get(subject, '?')} {self._name.get(predicate, '?')} {self._name.get(target, '?')}"
@@ -156,7 +156,7 @@ class Kit:
                 "Id": stable_id(_TAG, "rel", *(str(k) for k in key)),
                 "Name": name,
                 "Subject": subject, "Predicate": predicate, "Target": target,
-                "Properties": properties or {},
+                "Properties": {},
             }
         return self.rels[key]
 
@@ -226,7 +226,7 @@ def build():
     SentMessage = k.archetype("SentMessage")
     Cadence = k.archetype("Cadence")
 
-    k.rel(carries, is_, PipelineWire)          # a wire Thing reaches the node it feeds along `carries`
+    k.rel(carries, is_, PipelineWire)
     # Every service's connection is a door reached over HTTP at its subdomain, which is what makes it a catalyst
     # the Pipelines page lists; a system's told-through connection is written along instead. The trigger is a
     # Thing the connection relates to, as the platform reads it.
