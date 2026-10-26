@@ -5,6 +5,7 @@ name and a Thing playing a role by what the target's role Thing binds, so a targ
 own.
 """
 import unittest
+from unittest import mock
 
 import generate as G
 
@@ -302,6 +303,18 @@ class CatalystVocabularyTests(unittest.TestCase):
             self.assertNotIn("fromPort", properties)
             self.assertNotIn("toPort", properties)
             self.assertEqual(set(properties), {"fromPath", "toPath", "transform"})
+
+    def test_two_wires_between_the_same_two_ports_placing_at_different_paths_are_two_wire_things(self):
+        extra = {"from": "a", "fromPort": "echo", "to": "merge", "toPort": "in", "toPath": "copy"}
+        pipelines = [{**pipe, "wires": pipe["wires"] + [extra]} if pipe["name"] == "Field Merge" else pipe
+                     for pipe in G.PIPELINES]
+        with mock.patch.object(G, "PIPELINES", pipelines):
+            kit = G.build()
+
+        source = G.stable_id(G._TAG, "node", "Field Merge", "a")
+        named = f"{kit.things[source]['Name']}.echo to {kit.things[G.stable_id(G._TAG, 'node', 'Field Merge', 'merge')]['Name']}.in"
+        placed = sorted(value(t["Properties"], "toPath") for t in kit.things.values() if t["Name"] == named)
+        self.assertEqual(placed, ["copy", "greeting"])
 
     def test_no_wire_is_drawn_as_a_relationship_between_two_nodes(self):
         [wire_archetype] = self.bound("pipelineWire")
