@@ -71,6 +71,8 @@ public class FormOptionsReaderTests
 
         FormOptionsReader.Read(model.Build()).BasemapSources.Select(source => source.Name).Should().Equal("Aerial");
         FormOptionsReader.Selector().Ids.Should().Contain(LandIntakeRoles.BasemapSource.Id);
+        FormOptionsReader.Selector().BoundTypes.Should().Contain(LandIntakeRoles.BasemapSource.Id,
+            "the sources are the members of the bound archetype, and the broker sends only what the selector asks for");
     }
 
     // The deepest zoom a raster pyramid has tiles for is the model's to state and the map's to fall back
