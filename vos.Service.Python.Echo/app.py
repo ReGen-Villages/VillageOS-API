@@ -10,7 +10,7 @@ endpoints — is implemented once in vos.Service.Python.Shared. This file is wha
 service adds to it: a handler, and any routes of its own.
 
 `is` is NOT an external predicate — Mycelium handles `is` inheritance in-process
-and never dispatches it to a handler. Register for a custom predicate instead.
+and never calls it to a handler. Register for a custom predicate instead.
 
 Run:  .venv/bin/python app.py --port=5103 --myceliumUrl=https://localhost:7243
 """
@@ -21,10 +21,10 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 import httpx
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
-from vos_service import Config, ServiceHost, parse_args, sediment_reading
+from vos_service import Config, PlatformRefusal, ServiceHost, parse_args, sediment_reading
 
 SERVICE_NAME = "Python"
 
@@ -49,7 +49,12 @@ app = host.app
 mycelium = host.mycelium
 
 
-async def demo_subscribe(type_: str = "Battery", predicate: str = "powers", *, client: httpx.AsyncClient | None = None) -> dict:
+# Declared by the shared site templates, so the demo slices on any seeded model.
+DEFAULT_SLICE_TYPE = "OpenDataSource"
+DEFAULT_SLICE_PREDICATE = "provides"
+
+
+async def demo_subscribe(type_: str = DEFAULT_SLICE_TYPE, predicate: str = DEFAULT_SLICE_PREDICATE, *, client: httpx.AsyncClient | None = None) -> dict:
     """Subscribe for a by-type+traverse slice, report the closure, unsubscribe."""
     sub = await mycelium.subscribe(mycelium.slice_by_type_and_traverse(type_, predicate), client=client)
     snap = sub.get("snapshot", {})
@@ -107,9 +112,11 @@ async def demo_subscribe_endpoint(request: Request, _: None = Depends(host.verif
     except Exception:
         payload = {}
     try:
-        result = await demo_subscribe(payload.get("type", "Battery"), payload.get("predicate", "powers"))
-    except (RuntimeError, httpx.HTTPError) as refused:
-        return JSONResponse({"error": str(refused)}, status_code=500)
+        result = await demo_subscribe(payload.get("type", DEFAULT_SLICE_TYPE), payload.get("predicate", DEFAULT_SLICE_PREDICATE))
+    except PlatformRefusal as refused:
+        return Response(content=refused.body, status_code=refused.status, media_type="application/json")
+    except (RuntimeError, httpx.HTTPError) as failed:
+        return JSONResponse({"error": str(failed)}, status_code=500)
     return JSONResponse(result)
 
 

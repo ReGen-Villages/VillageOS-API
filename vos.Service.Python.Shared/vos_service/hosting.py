@@ -19,7 +19,7 @@ Handler = Callable[[dict, int], Awaitable[dict]]
 class ServiceHost:
     """A managed microservice: the four contract endpoints around a handler the service supplies.
 
-    `handle(payload, request_number)` answers a relationship Mycelium dispatches and returns the
+    `handle(payload, request_number)` answers a relationship Mycelium calls it for and returns the
     JSON body to send back. A service adds its own routes to `app`, protecting them with
     `verify_request`.
     """

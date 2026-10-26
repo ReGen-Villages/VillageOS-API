@@ -22,6 +22,7 @@ from fastapi.testclient import TestClient
 
 import app as appmod
 from app import app, demo_subscribe, host
+from vos_service import PlatformRefusal
 
 THIS_HANDLER = "python-echo-handler"
 
@@ -166,10 +167,20 @@ def test_subscribe_demo_passes_the_requested_slice_on(client):
     demo.assert_awaited_once_with("Pump", "feeds")
 
 
-def test_subscribe_demo_defaults_to_batteries_that_power(client):
+# Declared by the shared site templates, so the demo slices on any seeded model.
+def test_subscribe_demo_defaults_to_what_every_seeded_model_declares(client):
     with patch("app.demo_subscribe", new=AsyncMock(return_value={})) as demo:
         client.post("/demo/subscribe")
-    demo.assert_awaited_once_with("Battery", "powers")
+    demo.assert_awaited_once_with("OpenDataSource", "provides")
+
+
+def test_the_subscribe_demo_answers_a_refused_slice_as_the_platform_gave_it(client):
+    refusal = PlatformRefusal(400, '{"error": "no Thing is named Battery"}')
+    with patch.object(host.mycelium, "subscribe", new=AsyncMock(side_effect=refusal)):
+        res = client.post("/demo/subscribe", json={"type": "Battery"})
+
+    assert res.status_code == 400
+    assert res.json() == {"error": "no Thing is named Battery"}
 
 
 def subscription_handler(captured):
@@ -191,6 +202,21 @@ def subscription_handler(captured):
         return httpx.Response(200)  # DELETE unsubscribe
 
     return handle
+
+
+def test_demo_subscribe_defaults_to_what_every_seeded_model_declares(monkeypatch):
+    monkeypatch.setattr(appmod.config, "mycelium_url", "http://mycelium.test")
+    monkeypatch.setattr(appmod.config, "token", "tok")
+    captured = []
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(subscription_handler(captured))) as c:
+            return await demo_subscribe(client=c)
+
+    asyncio.run(run())
+    body = json.loads(captured[0].content)
+    assert body["types"] == ["OpenDataSource"]
+    assert body["traverse"][0]["predicate"] == "provides"
 
 
 def test_demo_subscribe_summarises_and_unsubscribes(monkeypatch):

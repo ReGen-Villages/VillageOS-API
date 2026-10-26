@@ -6,7 +6,7 @@ import httpx
 import jwt
 import pytest
 
-from vos_service import Config, MyceliumClient, sediment_reading
+from vos_service import Config, MyceliumClient, PlatformRefusal, sediment_reading
 
 
 @pytest.fixture
@@ -295,6 +295,20 @@ def test_subscribe_posts_selector_and_returns_closure(mycelium):
     assert request.url.path == "/api/subscriptions"
     assert request.headers["Authorization"] == "Bearer tok"
     assert json.loads(request.content)["types"] == ["Battery"]
+
+
+def test_a_refused_slice_is_raised_with_the_platforms_status_and_words(mycelium):
+    selector = MyceliumClient.slice_by_type_and_traverse("Battery", "powers")
+
+    with pytest.raises(PlatformRefusal) as refused:
+        run_against(
+            lambda request: httpx.Response(400, json={"error": "no Thing is named Battery"}),
+            lambda c: mycelium.subscribe(selector, client=c))
+
+    assert refused.value.status == 400
+    assert "Battery" in refused.value.body
+    assert "400" in str(refused.value)
+    assert isinstance(refused.value, RuntimeError), "a caller that catches RuntimeError still catches a refusal"
 
 
 def test_unsubscribe_releases_the_subscription(mycelium):

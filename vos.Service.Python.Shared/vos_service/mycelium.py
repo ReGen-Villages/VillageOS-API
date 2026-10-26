@@ -34,6 +34,15 @@ def sediment_reading(thing_id: str, prop: str, value, observed_at: str) -> dict:
     return {"objectId": thing_id, "property": prop, "value": value, "observedAt": observed_at}
 
 
+class PlatformRefusal(RuntimeError):
+    """The platform's own status and words for a slice it refused, so a demo can pass the refusal on as given."""
+
+    def __init__(self, status: int, body: str) -> None:
+        super().__init__(f"the platform refused the subscription with {status}: {body}")
+        self.status = status
+        self.body = body
+
+
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -140,7 +149,7 @@ class MyceliumClient:
         """POST the selector to /api/subscriptions; return the resolved snapshot closure."""
         res = await self._post("/api/subscriptions", selector, client=client)
         if not res.is_success:
-            raise RuntimeError(f"subscribe returned {res.status_code}")
+            raise PlatformRefusal(res.status_code, res.text)
         return res.json()
 
     async def unsubscribe(self, subscription_id: str, *, client: httpx.AsyncClient | None = None) -> None:
