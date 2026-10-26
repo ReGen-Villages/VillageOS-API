@@ -229,10 +229,10 @@ public sealed class BrokerSnapshot
             .Thing(HasPredicate, SubmissionFragmentComposer.HasPredicateName)
             .Thing(StudiesPredicate, SubmissionFragmentComposer.StudiesPredicateName)
             .Thing(ObtainedByPredicate, "obtainedBy")
-            .Thing(SiteArchetype, SubmissionFragmentComposer.SiteArchetypeName, isArchetype: true)
-            .Thing(StudyArchetype, SubmissionFragmentComposer.SiteStudyArchetypeName, isArchetype: true)
-            .Thing(ParcelArchetype, SubmissionFragmentComposer.ParcelArchetypeName, isArchetype: true)
-            .Thing(ContactArchetype, SubmissionFragmentComposer.ContactArchetypeName, isArchetype: true)
+            .Thing(SiteArchetype, "Site", isArchetype: true)
+            .Thing(StudyArchetype, "SiteStudy", isArchetype: true)
+            .Thing(ParcelArchetype, "Parcel", isArchetype: true)
+            .Thing(ContactArchetype, "Contact", isArchetype: true)
             .Thing(DashboardArchetype, "Dashboard", isArchetype: true)
             .Thing(Page, "Site Submission Dashboard", properties: new Dictionary<string, object>
             {

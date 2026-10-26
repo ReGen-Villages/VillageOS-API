@@ -43,9 +43,10 @@ public static class WillowBend
     public static readonly Guid SubmissionArchetypeId = new("ffffffff-ffff-ffff-ffff-ffffffffffff");
 
     public static ResolvedArchetypes KnownArchetypes =>
-        new(SiteArchetypeId, ParcelArchetypeId, ProjectArchetypeId, ContactArchetypeId,
-            ProgrammeAllocationArchetypeId, HazardAssessmentArchetypeId, SubmittedSourceArchetypeId,
-            SubmissionArchetypeId);
+        new(new("Site", SiteArchetypeId), new("Parcel", ParcelArchetypeId), new("Project", ProjectArchetypeId),
+            new("Contact", ContactArchetypeId), new("ProgrammeAllocation", ProgrammeAllocationArchetypeId),
+            new("HazardAssessment", HazardAssessmentArchetypeId), new("SubmittedSource", SubmittedSourceArchetypeId),
+            new("Submission", SubmissionArchetypeId));
 
     public static readonly Guid CategorizedAsPredicateId = new("cccccccc-cccc-cccc-cccc-cccccccccccc");
     public static readonly Guid ObtainedByPredicateId = new("dddddddd-dddd-dddd-dddd-dddddddddddd");

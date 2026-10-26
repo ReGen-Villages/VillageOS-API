@@ -31,8 +31,11 @@ public static class SubmissionShapeReader
     {
         RefuseAModelBindingNothingToAnyRole(snapshot);
 
-        Guid Archetype(Role role) =>
-            DeclaredVocabularyReader.OneBound(snapshot, role, $"what a submission's {role.Word} is").Id;
+        DeclaredTerm Archetype(Role role)
+        {
+            var bound = DeclaredVocabularyReader.OneBound(snapshot, role, $"what a submission's {role.Word} is");
+            return new DeclaredTerm(bound.Name ?? "", bound.Id);
+        }
 
         PredicateIdentity Predicate(Role role)
         {
