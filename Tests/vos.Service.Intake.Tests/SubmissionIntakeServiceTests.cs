@@ -38,19 +38,13 @@ public class SubmissionIntakeServiceTests
     // ticket is checked against the address in it before anything is written.
     private static Submission Document => SubmissionReader.Read(DocumentText);
 
-    // A service talking to a model seeded from the analysis templates: the archetypes answer, and
-    // the test says what happens to everything else. ServiceOfAnUnseededModel is the one
-    // that does not.
-    private static SubmissionIntakeService Service(Func<HttpRequestMessage, HttpResponseMessage> respond) =>
-        ServiceOfAnUnseededModel(Seeded(respond));
-
-    private static SubmissionIntakeService ServiceOfAnUnseededModel(
+    private static SubmissionIntakeService Service(
         Func<HttpRequestMessage, HttpResponseMessage> respond) =>
         ServiceAnswering(new MockHttpMessageHandler(respond), ReadingASeededModel());
 
     // For a test whose answers must be able to overlap; a handler answering synchronously runs
     // each call to completion before the next starts, whatever the caller did.
-    private static SubmissionIntakeService ServiceOfAnUnseededModel(
+    private static SubmissionIntakeService Service(
         Func<HttpRequestMessage, Task<HttpResponseMessage>> respond) =>
         ServiceAnswering(MockHttpMessageHandler.AnsweringAsynchronously(respond), ReadingASeededModel());
 
@@ -81,7 +75,7 @@ public class SubmissionIntakeServiceTests
     private static (SubmissionIntakeService Service, StubSubscriptions Read) ServiceReading(DeclaredModel model)
     {
         var read = new StubSubscriptions(model.Build());
-        return (ServiceAnswering(new MockHttpMessageHandler(Seeded(Holds)), read), read);
+        return (ServiceAnswering(new MockHttpMessageHandler(Holds), read), read);
     }
 
     // A subscription left open per submission is a subscription per wizard save, and a wizard saves as the
@@ -121,17 +115,6 @@ public class SubmissionIntakeServiceTests
             () => service.SubmitAsync(Document, CancellationToken.None));
 
         refusal.Message.Should().Contain(LandIntakeRoles.AllocationCategory.Word);
-    }
-
-    // The name is the contract with the platform's land-intake template, which declares `SubmittedSource`
-    // beside the catalogue's `OpenDataSource` so a prune can tell them apart. Asking
-    // for a name the template does not declare refuses every submission, and nothing here would say why —
-    // so the string is pinned rather than left to be read off a rename someone did in the other
-    // repository.
-    [Fact]
-    public void The_archetype_a_submitted_source_hangs_off_is_the_one_the_template_declares()
-    {
-        SubmissionFragmentComposer.SubmittedSourceArchetypeName.Should().Be("SubmittedSource");
     }
 
     // Both gates refuse an unseeded model. Read after the archetypes rather than beside them, so which
@@ -187,7 +170,7 @@ public class SubmissionIntakeServiceTests
         // after one ceiling rather than one each.
         var noSecondCame = new Lazy<Task>(() => Task.Delay(Settle.Ceiling));
 
-        var service = ServiceOfAnUnseededModel(async request =>
+        var service = Service(async request =>
         {
             if (IsFragment(request)) return Json("{}");
 
@@ -200,7 +183,7 @@ public class SubmissionIntakeServiceTests
             await Task.WhenAny(aSecondArrived.Task, noSecondCame.Value);
             lock (counting) inFlight--;
 
-            return SeededAnswer(request);
+            return Holds(request);
         });
 
         await service.SubmitAsync(Document, CancellationToken.None);
@@ -357,12 +340,12 @@ public class SubmissionIntakeServiceTests
             .Without("studies").With("examines").Bound(LandIntakeRoles.StudiedSite, "examines");
         string? captured = null;
         var service = ServiceAnswering(
-            new MockHttpMessageHandler(Seeded(request =>
+            new MockHttpMessageHandler(request =>
             {
                 if (IsFragment(request))
                     captured = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
                 return Holds(request);
-            })),
+            }),
             new StubSubscriptions(model.Build()));
 
         await service.SubmitAsync(Document, CancellationToken.None);

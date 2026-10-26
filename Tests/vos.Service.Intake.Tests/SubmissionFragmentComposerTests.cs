@@ -864,6 +864,20 @@ public class SubmissionFragmentComposerTests
     }
 
     [Fact]
+    public void An_is_relationship_is_named_after_the_archetype_as_the_model_names_it()
+    {
+        var composed = SubmissionFragmentComposer.Compose(
+            WillowBend.Submission(),
+            WillowBend.KnownPredicates,
+            WillowBend.KnownArchetypes with { Site = new DeclaredTerm("Locus", WillowBend.SiteArchetypeId) },
+            WillowBend.KnownVocabulary,
+            WillowBend.ArrivedAt);
+
+        composed.Fragment.Relationships.Single(edge => edge.Target == WillowBend.SiteArchetypeId)
+            .Name.Should().EndWith(" is Locus");
+    }
+
+    [Fact]
     public void A_predicate_the_model_holds_is_used_as_it_stands()
     {
         var composed = Compose(WillowBend.Submission());

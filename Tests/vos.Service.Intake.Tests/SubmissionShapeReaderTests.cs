@@ -1,4 +1,5 @@
 using FluentAssertions;
+using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
@@ -41,14 +42,14 @@ public class SubmissionShapeReaderTests
 
         var shape = SubmissionShapeReader.Read(model.Build());
 
-        shape.Archetypes.Site.Should().Be(model.Id("Site"));
-        shape.Archetypes.Parcel.Should().Be(model.Id("Parcel"));
-        shape.Archetypes.Project.Should().Be(model.Id("Project"));
-        shape.Archetypes.Contact.Should().Be(model.Id("Contact"));
-        shape.Archetypes.ProgrammeAllocation.Should().Be(model.Id("ProgrammeAllocation"));
-        shape.Archetypes.HazardAssessment.Should().Be(model.Id("HazardAssessment"));
-        shape.Archetypes.SubmittedSource.Should().Be(model.Id("SubmittedSource"));
-        shape.Archetypes.Submission.Should().Be(model.Id("Submission"));
+        shape.Archetypes.Site.Should().Be(new DeclaredTerm("Site", model.Id("Site")));
+        shape.Archetypes.Parcel.Should().Be(new DeclaredTerm("Parcel", model.Id("Parcel")));
+        shape.Archetypes.Project.Should().Be(new DeclaredTerm("Project", model.Id("Project")));
+        shape.Archetypes.Contact.Should().Be(new DeclaredTerm("Contact", model.Id("Contact")));
+        shape.Archetypes.ProgrammeAllocation.Should().Be(new DeclaredTerm("ProgrammeAllocation", model.Id("ProgrammeAllocation")));
+        shape.Archetypes.HazardAssessment.Should().Be(new DeclaredTerm("HazardAssessment", model.Id("HazardAssessment")));
+        shape.Archetypes.SubmittedSource.Should().Be(new DeclaredTerm("SubmittedSource", model.Id("SubmittedSource")));
+        shape.Archetypes.Submission.Should().Be(new DeclaredTerm("Submission", model.Id("Submission")));
         shape.Studies.Id.Should().Be(model.Id("studies"));
         shape.Proposes.Id.Should().Be(model.Id("proposes"));
         shape.ServedAfter.Id.Should().Be(model.Id("servedAfter"));
