@@ -49,7 +49,7 @@ public class EndpointKindResolverTests
     {
         var selector = EndpointKindResolver.SelectorFor(Registration);
 
-        selector.Ids.Should().Equal(Registration, LandIntakeRoles.Observed.Id);
+        selector.Ids.Should().Equal(Registration, LandIntakeRoles.Observed.Id, LandIntakeRoles.Predicate.Id);
         selector.IncludeRelationships.Should().BeTrue();
         selector.Traverse![0].Predicate.Should().Be("is");
         selector.Traverse.Select(rule => rule.Predicate).Should().Contain(EndpointKindRoles.All);

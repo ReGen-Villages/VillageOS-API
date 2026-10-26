@@ -48,6 +48,7 @@ public static class LandIntakeRoles
     public static readonly Role Submission = new("submission", new("4eba92e8-7fb9-5137-b6dd-7de3c0248a09"));
     public static readonly Role Observed = new("observed", new("a44eff0a-1230-5b5f-93e6-a7cc0443b58b"));
     public static readonly Role BasemapSource = new("basemapSource", new("61066752-41d5-5bea-a1cd-5450e6603486"));
+    public static readonly Role Predicate = new("predicate", new("86743302-6588-5a93-b6a5-0dde78b092c1"));
 
     public static readonly IReadOnlyList<Role> All =
     [
@@ -57,5 +58,6 @@ public static class LandIntakeRoles
         PlaceArchetype, ProvidedVariable, AreaNameLookup, LocalAreaNameLookup, HazardDivisionLookup, ParcelLookup,
         PlaceSearch, SourceCoverage, SiteAnalysisConnection, DiscoveredVocabulary, StudiedSite, ServiceOrder, Parcel,
         Project, ProgrammeAllocation, HazardAssessment, SubmittedSource, Submission, Observed, BasemapSource,
+        Predicate,
     ];
 }

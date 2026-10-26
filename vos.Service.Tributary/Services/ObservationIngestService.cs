@@ -230,6 +230,7 @@ public class ObservationIngestService
         private readonly IEndpointMyceliumClient _myceliumClient;
         private readonly Guid _endpointThingId;
         private readonly IReadOnlySet<Guid> _alreadyObserved;
+        private readonly Guid? _predicateRootId;
 
         // Created on the first Thing that needs it and kept for the rest of the call, so a fetch
         // declaring several new entities creates the predicate once.
@@ -242,6 +243,7 @@ public class ObservationIngestService
             _endpointThingId = endpointThingId;
             _alreadyObserved = alreadyObserved.ObservedThingIds;
             _predicateId = alreadyObserved.PredicateId;
+            _predicateRootId = alreadyObserved.PredicateRootId;
         }
 
         // Null when the relationship is in place. The two failures are named apart because one is a model that
@@ -254,7 +256,7 @@ public class ObservationIngestService
             {
                 var isPredicate = await _myceliumClient.FindThingByNameAsync("is");
                 var binds = await _myceliumClient.FindThingByNameAsync(RoleBindings.BindsPredicateName);
-                if (!await _myceliumClient.ApplyFragmentAsync(ObservedEdges.MintingFragment(isPredicate?.Id, binds?.Id)))
+                if (!await _myceliumClient.ApplyFragmentAsync(ObservedEdges.MintingFragment(isPredicate?.Id, binds?.Id, _predicateRootId)))
                     return $"Failed to create the '{ObservedEdges.PredicateName}' predicate and bind its role.";
                 _predicateId = ObservedEdges.MintedPredicateId;
             }

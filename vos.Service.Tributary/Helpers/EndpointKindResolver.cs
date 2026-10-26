@@ -28,10 +28,10 @@ public static class EndpointKindResolver
 
     public static SubscriptionSelector SelectorFor(Guid endpointId) => new()
     {
-        // The `observed` role and its binding are asked for the provenance read rather than for any kind. The
-        // endpoint's own relationships are in this snapshot already, and without the predicate the role binds every
-        // one of them reads as some other predicate — so one read answers both questions.
-        Ids = [endpointId, LandIntakeRoles.Observed.Id],
+        // The `observed` and `predicate` roles and their bindings are asked for the provenance read rather than for
+        // any kind. The endpoint's own relationships are in this snapshot already, and without the predicate the role
+        // binds every one of them reads as some other predicate — so one read answers both questions.
+        Ids = [endpointId, LandIntakeRoles.Observed.Id, LandIntakeRoles.Predicate.Id],
         Names = [.. PredicatesRead, RoleBindings.BindsPredicateName],
         Traverse =
         [

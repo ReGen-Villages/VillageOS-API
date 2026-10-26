@@ -7,31 +7,40 @@ namespace vos.Service.Tributary.Helpers;
 // from. The ingest relates the endpoint to every Thing it writes onto, so a later run over the same
 // Thing has to know the relationship is already there. Reading it here costs no call of its own: every relationship
 // incident to the endpoint is in that snapshot whether or not anything looks at it.
-public sealed record ObservedEdges(Guid? PredicateId, IReadOnlySet<Guid> ObservedThingIds)
+public sealed record ObservedEdges(Guid? PredicateId, IReadOnlySet<Guid> ObservedThingIds, Guid? PredicateRootId)
 {
     public const string PredicateName = "observed";
 
-    public static readonly ObservedEdges None = new(null, new HashSet<Guid>());
+    public static readonly ObservedEdges None = new(null, new HashSet<Guid>(), null);
+
+    // The platform's open-data-sources template declares `observed` under this identifier, so a model that imports
+    // the template after Tributary created the predicate still holds one.
+    private static readonly Guid UrlNamespace = new("6ba7b811-9dad-11d1-80b4-00c04fd430c8");
+    private const string OpenDataSourcesTemplatePrefix = "villageos:open-data-sources:";
 
     public static ObservedEdges Resolve(SnapshotDocument snapshot, Guid endpointId)
     {
+        var roots = snapshot.Bound(LandIntakeRoles.Predicate);
+        Guid? predicateRootId = roots.Count == 1 ? roots[0].Id : null;
+
         var bound = snapshot.Bound(LandIntakeRoles.Observed);
-        if (bound.Count != 1) return None;
+        if (bound.Count != 1) return None with { PredicateRootId = predicateRootId };
 
         var predicateId = bound[0].Id;
         var observed = snapshot.Relationships
             .Where(edge => edge.SubjectId == endpointId && edge.PredicateId == predicateId)
             .Select(edge => edge.TargetId)
             .ToHashSet();
-        return new ObservedEdges(predicateId, observed);
+        return new ObservedEdges(predicateId, observed, predicateRootId);
     }
 
-    public static Guid MintedPredicateId => Derived(PredicateName);
+    public static Guid MintedPredicateId { get; } =
+        StableIdentifier.DeriveVersion5(UrlNamespace, OpenDataSourcesTemplatePrefix + PredicateName);
 
     public static Guid Derived(string predicateName) =>
         StableIdentifier.DeriveVersion5(RoleIdentity.Namespace, "predicate:" + predicateName);
 
-    public static object MintingFragment(Guid? heldIsPredicate, Guid? heldBindsPredicate)
+    public static object MintingFragment(Guid? heldIsPredicate, Guid? heldBindsPredicate, Guid? predicateRoot)
     {
         var isPredicate = heldIsPredicate ?? Derived("is");
         var bindsPredicate = heldBindsPredicate ?? Derived(RoleBindings.BindsPredicateName);
@@ -44,15 +53,14 @@ public sealed record ObservedEdges(Guid? PredicateId, IReadOnlySet<Guid> Observe
         if (heldIsPredicate is null) things.Add(new { Id = isPredicate, Name = "is" });
         if (heldBindsPredicate is null) things.Add(new { Id = bindsPredicate, Name = RoleBindings.BindsPredicateName });
 
-        return new
+        var relationships = new List<object>
         {
-            Name = PredicateName,
-            Things = things,
-            Relationships = new object[]
-            {
-                new { Subject = LandIntakeRoles.Observed.Id, Predicate = bindsPredicate, Target = MintedPredicateId },
-                new { Subject = LandIntakeRoles.Observed.Id, Predicate = isPredicate, Target = RoleIdentity.Of("role") },
-            },
+            new { Subject = LandIntakeRoles.Observed.Id, Predicate = bindsPredicate, Target = MintedPredicateId },
+            new { Subject = LandIntakeRoles.Observed.Id, Predicate = isPredicate, Target = RoleIdentity.Of("role") },
         };
+        if (predicateRoot is { } root)
+            relationships.Add(new { Subject = MintedPredicateId, Predicate = isPredicate, Target = root });
+
+        return new { Name = PredicateName, Things = things, Relationships = relationships };
     }
 }
