@@ -108,6 +108,9 @@ public sealed class GraphFixture
     public void Unrelate(GraphThing subject, GraphThing predicate, GraphThing target)
         => _rels.RemoveAll(rel => rel.SubjectId == subject.Id && rel.PredicateId == predicate.Id && rel.TargetId == target.Id);
 
+    // As a snapshot that left the Thing out while keeping the relationships that reach it.
+    public void Forget(GraphThing thing) => _things.Remove(thing.Id);
+
     public PipelineGraph Build() => new(_things, _rels);
 }
 

@@ -13,7 +13,7 @@ public class PipelineStartTests
     {
         var fixture = TestGraphs.StatePipeline();
 
-        var resolution = PipelineStart.Resolve(fixture.Fixture.Build(), fixture.DrawnPipelineId);
+        var resolution = PipelineStart.Resolve(fixture.Fixture.Build(), fixture.DrawnPipelineId, []);
 
         resolution.Started.Should().BeTrue();
         resolution.PipelineId.Should().Be(fixture.DrawnPipelineId);
@@ -24,7 +24,7 @@ public class PipelineStartTests
     {
         var fixture = TestGraphs.StatePipeline();
 
-        var resolution = PipelineStart.Resolve(fixture.Fixture.Build(), fixture.WatchingConnectionId);
+        var resolution = PipelineStart.Resolve(fixture.Fixture.Build(), fixture.WatchingConnectionId, []);
 
         resolution.Started.Should().BeTrue();
         resolution.PipelineId.Should().Be(fixture.DrawnPipelineId);
@@ -48,7 +48,7 @@ public class PipelineStartTests
         fx.Publish(drawnFromTheState);
         fx.Rel(drawnFromTheState, fx.Get("has"), start);
 
-        var resolution = PipelineStart.Resolve(fx.Build(), fixture.LooseConnectionId);
+        var resolution = PipelineStart.Resolve(fx.Build(), fixture.LooseConnectionId, []);
 
         resolution.PipelineId.Should().Be(drawnFromTheState.Id);
     }
@@ -65,9 +65,9 @@ public class PipelineStartTests
         fx.Rel(draft, fx.Get("is"), fx.Get("Pipeline"));
         fx.Rel(draft, fx.Get("has"), draftStart);
 
-        var withBoth = PipelineStart.Resolve(fx.Build(), fixture.WatchingConnectionId);
+        var withBoth = PipelineStart.Resolve(fx.Build(), fixture.WatchingConnectionId, []);
         fx.State(fx.Get("Drawn from the state"), ModelNames.Published, false);
-        var withTheDraftAlone = PipelineStart.Resolve(fx.Build(), fixture.WatchingConnectionId);
+        var withTheDraftAlone = PipelineStart.Resolve(fx.Build(), fixture.WatchingConnectionId, []);
 
         withBoth.PipelineId.Should().Be(fixture.DrawnPipelineId);
         withTheDraftAlone.Started.Should().BeFalse();
@@ -80,7 +80,7 @@ public class PipelineStartTests
         var fixture = TestGraphs.StatePipeline();
         fixture.Fixture.State(fixture.Fixture.Get("Drawn from the state"), ModelNames.Published, false);
 
-        var resolution = PipelineStart.Resolve(fixture.Fixture.Build(), fixture.DrawnPipelineId);
+        var resolution = PipelineStart.Resolve(fixture.Fixture.Build(), fixture.DrawnPipelineId, []);
 
         resolution.Started.Should().BeFalse();
         resolution.Refusal.Should().Contain("'Drawn from the state' is a draft");
@@ -91,7 +91,7 @@ public class PipelineStartTests
     {
         var fixture = TestGraphs.StatePipeline();
 
-        var resolution = PipelineStart.Resolve(fixture.Fixture.Build(), fixture.ReachingConnectionId);
+        var resolution = PipelineStart.Resolve(fixture.Fixture.Build(), fixture.ReachingConnectionId, []);
 
         resolution.Started.Should().BeTrue();
         resolution.PipelineId.Should().Be(fixture.ReachedPipelineId);
@@ -103,7 +103,7 @@ public class PipelineStartTests
         var fixture = TestGraphs.StatePipeline();
         fixture.Fixture.State(fixture.Fixture.Get("Reached along the start mark"), ModelNames.Published, false);
 
-        PipelineStart.Resolve(fixture.Fixture.Build(), fixture.ReachingConnectionId).Started.Should().BeFalse();
+        PipelineStart.Resolve(fixture.Fixture.Build(), fixture.ReachingConnectionId, []).Started.Should().BeFalse();
     }
 
     // The drawing is the binding the page writes; the start mark is a model's own direct binding. Where a
@@ -115,7 +115,7 @@ public class PipelineStartTests
         var fx = fixture.Fixture;
         fx.Rel(fx.Get("watchingConn"), fx.Get("starts"), fx.Get("Reached along the start mark"));
 
-        var resolution = PipelineStart.Resolve(fx.Build(), fixture.WatchingConnectionId);
+        var resolution = PipelineStart.Resolve(fx.Build(), fixture.WatchingConnectionId, []);
 
         resolution.PipelineId.Should().Be(fixture.DrawnPipelineId);
     }
@@ -125,7 +125,7 @@ public class PipelineStartTests
     {
         var fixture = TestGraphs.StatePipeline();
 
-        var resolution = PipelineStart.Resolve(fixture.Fixture.Build(), fixture.LooseConnectionId);
+        var resolution = PipelineStart.Resolve(fixture.Fixture.Build(), fixture.LooseConnectionId, []);
 
         resolution.Started.Should().BeFalse();
         resolution.PipelineId.Should().BeNull();
@@ -138,7 +138,7 @@ public class PipelineStartTests
         var fixture = TestGraphs.StatePipeline();
         var unknown = Guid.NewGuid();
 
-        var resolution = PipelineStart.Resolve(fixture.Fixture.Build(), unknown);
+        var resolution = PipelineStart.Resolve(fixture.Fixture.Build(), unknown, []);
 
         resolution.Started.Should().BeFalse();
         resolution.Refusal.Should().Contain(unknown.ToString());
@@ -153,7 +153,7 @@ public class PipelineStartTests
         var fx = fixture.Fixture;
         fx.Rel(fx.Get("Out"), fx.Get("standsFor"), fx.Get("looseConn"));
 
-        var resolution = PipelineStart.Resolve(fx.Build(), fixture.LooseConnectionId);
+        var resolution = PipelineStart.Resolve(fx.Build(), fixture.LooseConnectionId, []);
 
         resolution.Started.Should().BeFalse();
     }
@@ -168,7 +168,7 @@ public class PipelineStartTests
         fx.Rel(stray, fx.Get("is"), fx.Get("PipelineInput"));
         fx.Rel(stray, fx.Get("standsFor"), fx.Get("looseConn"));
 
-        var resolution = PipelineStart.Resolve(fx.Build(), fixture.LooseConnectionId);
+        var resolution = PipelineStart.Resolve(fx.Build(), fixture.LooseConnectionId, []);
 
         resolution.Started.Should().BeFalse();
     }
@@ -187,7 +187,7 @@ public class PipelineStartTests
         fx.Rel(start, unmarked, fx.Get("looseConn"));
         fx.Rel(fx.Get("Drawn from the state"), fx.Get("has"), start);
 
-        var resolution = PipelineStart.Resolve(fx.Build(), fixture.LooseConnectionId);
+        var resolution = PipelineStart.Resolve(fx.Build(), fixture.LooseConnectionId, []);
 
         resolution.Started.Should().BeFalse();
     }

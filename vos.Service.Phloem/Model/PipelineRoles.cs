@@ -19,6 +19,7 @@ public static class PipelineRoles
     public static readonly Role Service = new("service", new("768bb2e8-e738-5345-9126-c23ad1513197"));
     // An end node standing for an external system sends that system what reached it, as a sent message.
     public static readonly Role ExternalSystem = new("externalSystem", new("03164f47-30c0-5984-9215-a81317000ec5"));
+    public static readonly Role MessageKind = new("messageKind", new("0b2082d2-eec5-5eec-85dd-66431d776731"));
     public static readonly Role SentMessage = new("sentMessage", new("8807f1eb-543b-5098-93ff-9ce70eb85308"));
 
     // A boundary node stands for the Thing a run comes from or is left with: a connection, a state, an external

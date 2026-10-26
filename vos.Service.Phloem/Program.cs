@@ -148,9 +148,9 @@ try
                 // A relationship the broker sends — a `X runs Pipeline` write or a Thing entering a watched state —
                 // fires while Mycelium waits ~15s, so the pipeline is resolved and the run acknowledged before
                 // the DAG runs in the background. The result lands on the PipelineRun (animated over SSE). A
-                // detached token lets it outlive the request. A target no pipeline is drawn from is refused
-                // with 400: the broker records that as refused rather than failed, and nothing retries it.
-                var start = await starter.ResolveAsync(trigger.TargetId, trigger.RelationshipId, httpContext.RequestAborted);
+                // detached token lets it outlive the request. A start that fits no pipeline, or fits two equally,
+                // is refused with 400: the broker records that as refused rather than failed, and nothing retries it.
+                var start = await starter.ResolveAsync(trigger.TargetId, trigger.RelationshipId, trigger.Subject?.Id, httpContext.RequestAborted);
                 if (!start.Started)
                     return Results.BadRequest(new { error = start.Refusal });
 

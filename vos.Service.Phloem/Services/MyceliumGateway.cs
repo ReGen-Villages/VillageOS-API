@@ -39,6 +39,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     [
         PipelineRoles.Pipeline, PipelineRoles.PipelineInput, PipelineRoles.Connection,
         PipelineRoles.StateWatch, PipelineRoles.StandsFor, PipelineRoles.PipelineStart,
+        PipelineRoles.MessageKind, PipelineRoles.ExternalSystem,
     ];
 
     public async Task<PipelineGraph> LoadPipelineSubgraphAsync(Guid pipelineId, CancellationToken cancellationToken)
@@ -75,7 +76,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         return await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(30), cancellationToken);
     }
 
-    public async Task<PipelineGraph> LoadStartSubgraphAsync(Guid targetId, CancellationToken cancellationToken)
+    public async Task<PipelineGraph> LoadStartSubgraphAsync(Guid targetId, IReadOnlyCollection<Guid> arrivingRelatesTo, CancellationToken cancellationToken)
     {
         // The target and what tells it apart: its `is` chain, the state it watches, the start nodes standing
         // for either and the pipelines holding them, and any pipeline it reaches along the start role. The role
@@ -83,9 +84,11 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         // order, so the watched state is reached before the nodes standing for it.
         // Relationship rules keep the read to those edges: a state connection gains one call record per
         // Thing that ever entered its state, and the wider reading would carry every one on every start.
+        // Every stands-for edge out of a start node is read, so a node standing for a Thing the read leaves out
+        // is not taken to fit.
         var selector = new
         {
-            ids = StartRoles.Select(role => role.Id).Prepend(targetId).ToArray(),
+            ids = StartRoles.Select(role => role.Id).Prepend(targetId).Concat(arrivingRelatesTo).ToArray(),
             names = new[] { ModelNames.Is, ModelNames.Has, ModelNames.Binds },
             traverse = new object[]
             {
@@ -103,12 +106,28 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
                 new { predicate = ModelNames.Binds, direction = "outgoing" },
                 new { predicateRole = PipelineRoles.StateWatch.Id, direction = "outgoing" },
                 new { predicateRole = PipelineRoles.StandsFor.Id, direction = "incoming" },
+                new { predicateRole = PipelineRoles.StandsFor.Id, direction = "outgoing" },
                 new { predicate = ModelNames.Has, direction = "incoming" },
                 new { predicateRole = PipelineRoles.PipelineStart.Id, direction = "outgoing" },
             },
         };
 
         return await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
+    }
+
+    // The relationships out of a Thing are what it was written with, so they stay few however much is later related to it.
+    public async Task<IReadOnlyList<Guid>> RelatedFromAsync(Guid thingId, CancellationToken cancellationToken)
+    {
+        var selector = new
+        {
+            ids = new[] { thingId },
+            includeIsAncestors = false,
+            includeRelationships = true,
+            relationships = new object[] { new { direction = "outgoing" } },
+        };
+
+        var graph = await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
+        return graph.Thing(thingId) is { } thing ? graph.TargetIdsFrom(thing).ToList() : [];
     }
 
     public async Task CreateRunAsync(
