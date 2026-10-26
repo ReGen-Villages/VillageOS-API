@@ -376,6 +376,8 @@ describe('a wire held as a Thing', () => {
     T('W-half', 'w.half'); R('W-half', 'is', 'arch-wire'); R('N1', 'has', 'W-half');
     T('W-one-end', 'w.one-end'); R('W-one-end', 'is', 'arch-wire'); R('N1', 'has', 'W-one-end');
     R('W-one-end', 'carries', 'N2'); R('W-one-end', 'input-connector', 'N1.out');
+    T('W-other-end', 'w.other-end'); R('W-other-end', 'is', 'arch-wire'); R('N1', 'has', 'W-other-end');
+    R('W-other-end', 'carries', 'N2'); R('W-other-end', 'output-connector', 'N2.in');
 
     const loaded = loadPipeline('P', new PipelineModel(...withRoles(things, relationships)))!;
 
@@ -513,12 +515,15 @@ describe('savePipeline — the first pipeline in a model with no wire yet', () =
     expect(applyFragment).not.toHaveBeenCalled();
   });
 
-  it('names the connector it did not find when the model binds no predicate to that role', async () => {
+  it.each([
+    ['input-connector', /input connector role/],
+    ['output-connector', /output connector role/],
+  ])('names the connector it did not find when the model binds no predicate to that role (%s)', async (connector, named) => {
     const { things, relationships } = graphWithVocabulary();
-    things.splice(things.findIndex((t) => t.Id === 'output-connector'), 1);
+    things.splice(things.findIndex((t) => t.Id === connector), 1);
 
     await expect(savePipeline('First', [node('N1', 'A')], [], new PipelineModel(...withRoles(things, relationships))))
-      .rejects.toThrow(/output connector role/);
+      .rejects.toThrow(named);
     expect(applyFragment).not.toHaveBeenCalled();
   });
 });
