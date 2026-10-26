@@ -1,3 +1,4 @@
+using System.Reflection;
 using FluentAssertions;
 using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
@@ -875,6 +876,15 @@ public class SubmissionFragmentComposerTests
 
         composed.Fragment.Relationships.Single(edge => edge.Target == WillowBend.SiteArchetypeId)
             .Name.Should().EndWith(" is Locus");
+    }
+
+    [Fact]
+    public void The_composer_names_only_the_predicates_it_finds_by_name()
+    {
+        typeof(SubmissionFragmentComposer).GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(field => field.IsLiteral && field.Name.EndsWith("PredicateName", StringComparison.Ordinal))
+            .Select(field => (string)field.GetRawConstantValue()!)
+            .Should().BeEquivalentTo(["has", "is"], "studies, proposes and servedAfter are found through their roles");
     }
 
     [Fact]

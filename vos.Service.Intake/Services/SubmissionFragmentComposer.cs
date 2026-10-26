@@ -15,8 +15,9 @@ namespace vos.Service.Intake.Services;
 // HazardProperties, DataSourceProperties and SubmissionProperties, one per Thing, each of which that tool
 // pairs with the role binding the archetype of the Thing it fills; each property, from a
 // Write(properties, …) call or a
-// ["name"] = TypedValue.… entry; and the predicates it may use, from the …PredicateName constants,
-// matched by name to the fields of vos.Service.Intake.Models.ResolvedPredicates.
+// ["name"] = TypedValue.… entry; and the predicates it may use: those found by name from the …PredicateName
+// constants, matched to the fields of vos.Service.Intake.Models.ResolvedPredicates, and the rest through the roles
+// that tool pairs those fields with.
 //
 // Renaming any of them compiles and passes every test here, and the failures are not alike. A renamed
 // property map stops the model reference building. A map added here and not there is quieter: it builds, it
@@ -30,11 +31,8 @@ namespace vos.Service.Intake.Services;
 // follows the relationship to a Thing it can ask further questions of.
 public static class SubmissionFragmentComposer
 {
-    public const string StudiesPredicateName = "studies";
     public const string HasPredicateName = "has";
     public const string IsPredicateName = "is";
-    public const string ProposesPredicateName = "proposes";
-    public const string ServedAfterPredicateName = "servedAfter";
 
     // What the submission record's identifier is derived under. Public because the service derives
     // the same identifier to ask whether the record is already there.
