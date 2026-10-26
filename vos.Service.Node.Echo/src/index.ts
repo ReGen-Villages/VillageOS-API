@@ -7,7 +7,7 @@
 // cannot produce one.
 //
 // `is` is NOT an external predicate — Mycelium handles `is` inheritance
-// in-process and never dispatches it. Register for a custom predicate instead.
+// in-process and never calls it. Register for a custom predicate instead.
 
 import { createServer, IncomingMessage, Server, ServerResponse } from "node:http";
 import { createPublicKey, randomUUID, verify, type KeyObject } from "node:crypto";
@@ -289,11 +289,28 @@ export function sliceByTypeAndTraverse(type: string, predicate: string): Selecto
   return { types: [type], traverse: [{ predicate, direction: "outgoing", depth: 1 }] };
 }
 
+/** The platform's own status and words for a slice it refused, so a demo can pass the refusal on as given. */
+export class PlatformRefusal extends Error {
+  constructor(readonly status: number, readonly body: string) {
+    super(`the platform refused the subscription with ${status}: ${body}`);
+  }
+}
+
 /** POST the selector to /api/subscriptions and return the resolved snapshot closure. */
 export async function subscribe(cfg: Config, selector: Selector): Promise<SubscribeResult> {
   const res = await authedPost(cfg, "/api/subscriptions", selector);
-  if (!res.ok) throw new Error(`subscribe returned ${res.status}`);
+  if (!res.ok) throw new PlatformRefusal(res.status, await res.text());
   return (await res.json()) as SubscribeResult;
+}
+
+// Declared by the shared site templates, so the demo slices on any seeded model.
+export const DEFAULT_SLICE_TYPE = "OpenDataSource";
+export const DEFAULT_SLICE_PREDICATE = "provides";
+
+/** What a demo route answers: a refusal as the platform gave it, any other failure as this service's own. */
+export function demoAnswerFor(failure: unknown): { status: number; body: string } {
+  if (failure instanceof PlatformRefusal) return { status: failure.status, body: failure.body };
+  return { status: 500, body: JSON.stringify({ error: reasonACallFailed(failure) }) };
 }
 
 /** Release a subscription (best-effort). */
@@ -314,7 +331,7 @@ export interface SelectorDemoResult {
 }
 
 /** Runnable worked example: subscribe for a by-type+traverse slice, report the closure, unsubscribe. */
-export async function demoSubscribe(cfg: Config, type = "Battery", predicate = "powers"): Promise<SelectorDemoResult> {
+export async function demoSubscribe(cfg: Config, type = DEFAULT_SLICE_TYPE, predicate = DEFAULT_SLICE_PREDICATE): Promise<SelectorDemoResult> {
   const sub = await subscribe(cfg, sliceByTypeAndTraverse(type, predicate));
   const names = sub.snapshot.things.map((t) => t.Name ?? t.Id);
   await unsubscribe(cfg, sub.subscriptionId); // demo: release rather than stream
@@ -471,9 +488,11 @@ function main(): void {
         return sendJson(res, 400, { error: "invalid json" });
       }
       try {
-        return sendJson(res, 200, await demoSubscribe(cfg, body.type ?? "Battery", body.predicate ?? "powers"));
+        return sendJson(res, 200, await demoSubscribe(cfg, body.type ?? DEFAULT_SLICE_TYPE, body.predicate ?? DEFAULT_SLICE_PREDICATE));
       } catch (err) {
-        return sendJson(res, 500, { error: reasonACallFailed(err) });
+        const answer = demoAnswerFor(err);
+        res.writeHead(answer.status, { "Content-Type": "application/json" });
+        return res.end(answer.body);
       }
     }
     if (method === "POST" && url === "/shutdown") {

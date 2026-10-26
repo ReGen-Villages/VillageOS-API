@@ -5,7 +5,7 @@ using Xunit;
 
 namespace vos.Service.Phloem.Tests;
 
-// One /handle, two spawn shapes — http {pipelineId,parameters} (sync) and a dispatched relationship
+// One /handle, two spawn shapes — http {pipelineId,parameters} (sync) and a relationship the broker sends
 // {subjectId, targetId, properties} (answered before the run finishes). SpawnTrigger classifies; which pipeline a
 // relationship's target starts is the model's answer, not the body's.
 public class SpawnTriggerTests
@@ -56,7 +56,7 @@ public class SpawnTriggerTests
     }
 
     [Fact]
-    public void Resolve_DispatchedRelationship_CarriesTargetSubjectAndPropertiesAsParameters()
+    public void Resolve_CalledRelationship_CarriesTargetSubjectAndPropertiesAsParameters()
     {
         // What Mycelium posts for `X runs Pipeline` and for a Thing entering a watched state
         // (VosServiceBroker): the target is the pipeline in the first and the watching connection in the
@@ -78,7 +78,7 @@ public class SpawnTriggerTests
             "a write along a predicate is resolved through the relationship, which names the connection");
         t.Subject.Should().Be(new RunSubject(Subject, "Submission 42"));
         t.Parameters.GetProperty("scenario").GetString().Should().Be("base");
-        t.Async.Should().BeTrue("a dispatched relationship is always answered before the run finishes");
+        t.Async.Should().BeTrue("a relationship the broker sends is always answered before the run finishes");
     }
 
     // A body naming no subject, or one that is not an identifier, is still a relationship to act on: the
@@ -86,7 +86,7 @@ public class SpawnTriggerTests
     [Theory]
     [InlineData("""{"targetId":"5628da90-0000-0000-0000-0000000000c1"}""")]
     [InlineData("""{"targetId":"5628da90-0000-0000-0000-0000000000c1","subjectId":"not-a-guid"}""")]
-    public void Resolve_DispatchedRelationshipWithoutASubject_HasNone(string body)
+    public void Resolve_CalledRelationshipWithoutASubject_HasNone(string body)
     {
         var t = SpawnTrigger.Resolve(Json(body));
 

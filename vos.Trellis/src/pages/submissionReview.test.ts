@@ -6,9 +6,9 @@ import { fileURLToPath } from 'node:url';
 import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos';
 import {
   COLD_STORAGE_PERIOD_PROPERTY,
-  DISPOSITION_ARCHETYPE_FLAG,
-  DISPOSITION_PREDICATE_FLAG,
-  PROPOSED_SITE_PREDICATE_FLAG,
+  DISPOSITION_ARCHETYPE_ROLE,
+  DISPOSITION_PREDICATE_ROLE,
+  PROPOSED_SITE_ROLE,
   byArrival,
   disposableDisposition,
   dispositionPredicate,
@@ -36,12 +36,14 @@ const edge = (Id: string, SubjectId: string, PredicateId: string, TargetId: stri
 
 const held = (Value: unknown): EffectiveProperty => ({ Value, Type: 'vos.String', IsInherited: false });
 
-/** What a Thing gets from the archetype it `is`. A mark is an ordinary property on the archetype, so
- *  every term under it reads the mark too — which is what a real seeded model hands back. */
-const inherited = (Value: unknown): EffectiveProperty => ({ Value, Type: 'vos.String', IsInherited: true });
-
+/** The role Things under the identifiers every model declares them by, and `binds`, which a role reaches
+ *  the Thing playing it along. */
 const THINGS: VosThing[] = [
   thing('is', 'is'),
+  thing('binds', 'binds'),
+  thing(PROPOSED_SITE_ROLE, 'proposedSite'),
+  thing(DISPOSITION_PREDICATE_ROLE, 'resolvedAs'),
+  thing(DISPOSITION_ARCHETYPE_ROLE, 'submissionDisposition'),
   thing('puts-forward', 'puts-forward'),
   thing('decided', 'decided'),
   thing('covers', 'covers'),
@@ -54,7 +56,14 @@ const THINGS: VosThing[] = [
   thing('quarry', 'Old Quarry'),
 ];
 
+const BINDINGS: VosRelationship[] = [
+  edge('b1', PROPOSED_SITE_ROLE, 'binds', 'puts-forward'),
+  edge('b2', DISPOSITION_PREDICATE_ROLE, 'binds', 'decided'),
+  edge('b3', DISPOSITION_ARCHETYPE_ROLE, 'binds', 'verdict'),
+];
+
 const EDGES: VosRelationship[] = [
+  ...BINDINGS,
   edge('e1', 'arrival-1', 'puts-forward', 'meadow'),
   edge('e2', 'arrival-2', 'puts-forward', 'quarry'),
   edge('e3', 'binned', 'is', 'verdict'),
@@ -63,14 +72,12 @@ const EDGES: VosRelationship[] = [
 ];
 
 const PROPERTIES: Record<string, Record<string, EffectiveProperty>> = {
-  'puts-forward': { [PROPOSED_SITE_PREDICATE_FLAG]: held(true) },
-  decided: { [DISPOSITION_PREDICATE_FLAG]: held(true) },
-  verdict: { [DISPOSITION_ARCHETYPE_FLAG]: held(true) },
-  binned: { [DISPOSITION_ARCHETYPE_FLAG]: inherited(true), [COLD_STORAGE_PERIOD_PROPERTY]: held(30) },
-  'taken-on': { [DISPOSITION_ARCHETYPE_FLAG]: inherited(true) },
+  binned: { [COLD_STORAGE_PERIOD_PROPERTY]: held(30) },
   'arrival-1': { submissionId: held('sub-0001'), submittedAt: held('2026-08-20T09:00:00Z') },
   'arrival-2': { submissionId: held('sub-0002'), submittedAt: held('2026-08-21T09:00:00Z') },
 };
+
+const without = (binding: string): VosRelationship[] => EDGES.filter((one) => one.Id !== binding);
 
 function reading(patch: Partial<ModelReading> = {}): ModelReading {
   return { things: THINGS, relationships: EDGES, properties: PROPERTIES, ...patch };
@@ -89,7 +96,7 @@ describe('what has arrived', () => {
     });
   });
 
-  it('reads a decision off the predicate the model marks, not off the edge it looks like', () => {
+  it('reads a decision off the predicate the model binds, not off the edge it looks like', () => {
     const decided = submissionsIn(
       reading({ relationships: [...EDGES, edge('e6', 'arrival-1', 'decided', 'binned')] }),
     );
@@ -98,16 +105,16 @@ describe('what has arrived', () => {
     expect(decided.find((one) => one.id === 'arrival-2')?.disposition).toBeUndefined();
   });
 
-  it('finds nothing where no predicate is marked as reaching a proposed site', () => {
-    const unmarked = reading({ properties: { ...PROPERTIES, 'puts-forward': {} } });
+  it('finds nothing where no predicate is bound to the role of reaching a proposed site', () => {
+    const unbound = reading({ relationships: without('b1') });
 
-    expect(proposedSitePredicate(unmarked)).toBeNull();
-    expect(submissionsIn(unmarked)).toEqual([]);
+    expect(proposedSitePredicate(unbound)).toBeNull();
+    expect(submissionsIn(unbound)).toEqual([]);
   });
 
-  it('refuses to choose when two predicates carry the same mark', () => {
+  it('refuses to choose when the role binds two predicates', () => {
     const ambiguous = reading({
-      properties: { ...PROPERTIES, covers: { [PROPOSED_SITE_PREDICATE_FLAG]: held(true) } },
+      relationships: [...EDGES, edge('b4', PROPOSED_SITE_ROLE, 'binds', 'covers')],
     });
 
     expect(proposedSitePredicate(ambiguous)).toBeNull();
@@ -115,7 +122,7 @@ describe('what has arrived', () => {
   });
 
   it('keeps a submission nothing else can be read about', () => {
-    const unreadable = submissionsIn(reading({ properties: { 'puts-forward': PROPERTIES['puts-forward'] } }));
+    const unreadable = submissionsIn(reading({ properties: {} }));
 
     expect(unreadable).toHaveLength(2);
     expect(unreadable[0]).toMatchObject({ name: 'Meadow Lane arrival', submittedAt: undefined });
@@ -225,7 +232,7 @@ describe('what a decision means here', () => {
     expect(keptDisposition(reading())).toEqual({ id: 'taken-on', name: 'rejected', disposable: false });
   });
 
-  it('reads only the Things declared under the marked archetype', () => {
+  it('reads only the Things declared under the archetype the role binds', () => {
     const strayEdge = reading({ relationships: [...EDGES, edge('e8', 'meadow', 'covers', 'verdict')] });
 
     expect(disposableDisposition(strayEdge)?.id).toBe('binned');
@@ -238,42 +245,38 @@ describe('what a decision means here', () => {
     expect(keptDisposition(unnamed)).toEqual({ id: 'taken-on', name: 'taken-on', disposable: false });
   });
 
-  it('has nothing to offer where no archetype is marked as holding dispositions', () => {
-    const unmarked = reading({ properties: { ...PROPERTIES, verdict: {} } });
+  it('has nothing to offer where no archetype is bound to the role of holding dispositions', () => {
+    const unbound = reading({ relationships: without('b3') });
 
-    expect(disposableDisposition(unmarked)).toBeNull();
-    expect(keptDisposition(unmarked)).toBeNull();
+    expect(disposableDisposition(unbound)).toBeNull();
+    expect(keptDisposition(unbound)).toBeNull();
   });
 });
 
-describe('a mark is owned, never inherited', () => {
-  it('finds the archetype even though every term under it reads the mark too', () => {
-    expect(disposableDisposition(reading())?.id).toBe('binned');
-    expect(keptDisposition(reading())?.id).toBe('taken-on');
+describe('a role binds one Thing', () => {
+  it('finds the archetype whatever its members carry', () => {
+    const carried = { ...PROPERTIES, binned: { ...PROPERTIES.binned, colour: held('grey') }, verdict: { colour: held('grey') } };
+
+    expect(disposableDisposition(reading({ properties: carried }))?.id).toBe('binned');
+    expect(keptDisposition(reading({ properties: carried }))?.id).toBe('taken-on');
   });
 
-  it('answers with none where two Things own the mark, which is genuinely ambiguous', () => {
-    const twoOwners = {
-      ...PROPERTIES,
-      covers: { [DISPOSITION_ARCHETYPE_FLAG]: held(true) },
-    };
+  it('answers with none where the role binds two Things, which is genuinely ambiguous', () => {
+    const twoBindings = [...EDGES, edge('b4', DISPOSITION_ARCHETYPE_ROLE, 'binds', 'covers')];
 
-    expect(disposableDisposition(reading({ properties: twoOwners }))).toBeNull();
+    expect(disposableDisposition(reading({ relationships: twoBindings }))).toBeNull();
   });
 
-  it('answers with none where the only carrier inherited the mark, so nothing declares it', () => {
-    const noOwner = {
-      ...PROPERTIES,
-      verdict: { [DISPOSITION_ARCHETYPE_FLAG]: inherited(true) },
-    };
+  it('answers with none where the model holds no binds predicate to read a binding through', () => {
+    const things = THINGS.filter((one) => one.Id !== 'binds');
 
-    expect(disposableDisposition(reading({ properties: noOwner }))).toBeNull();
+    expect(disposableDisposition(reading({ things }))).toBeNull();
   });
 });
 
 describe('what a reviewer may say travels with a site', () => {
   it('offers every predicate the model asserts through, once each and in order', () => {
-    expect(predicateNamesIn(reading())).toEqual(['covers', 'is', 'puts-forward']);
+    expect(predicateNamesIn(reading())).toEqual(['binds', 'covers', 'is', 'puts-forward']);
   });
 
   it('offers nothing for an edge whose predicate the model no longer holds', () => {
@@ -310,14 +313,13 @@ describe('the vocabulary the command line reads', () => {
     'utf-8',
   );
 
-  for (const name of [
-    PROPOSED_SITE_PREDICATE_FLAG,
-    DISPOSITION_ARCHETYPE_FLAG,
-    DISPOSITION_PREDICATE_FLAG,
-    COLD_STORAGE_PERIOD_PROPERTY,
-  ]) {
-    it(`${name} is the same name the submissions commands read`, () => {
-      expect(handler).toContain(`"${name}"`);
+  for (const identifier of [PROPOSED_SITE_ROLE, DISPOSITION_ARCHETYPE_ROLE, DISPOSITION_PREDICATE_ROLE]) {
+    it(`the role ${identifier} is one the submissions commands read`, () => {
+      expect(handler).toContain(`"${identifier}"`);
     });
   }
+
+  it(`${COLD_STORAGE_PERIOD_PROPERTY} is the same name the submissions commands read`, () => {
+    expect(handler).toContain(`"${COLD_STORAGE_PERIOD_PROPERTY}"`);
+  });
 });

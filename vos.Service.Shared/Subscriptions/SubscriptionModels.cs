@@ -11,14 +11,13 @@ public sealed class SubscriptionSelector
     public List<string>? Names { get; set; }
     public List<string>? Types { get; set; }
 
-    // Every Thing that `is` an archetype carrying one of these flags. Reaches Things the traversal cannot,
-    // which is what a reader needs when it is about to create the relationship the traversal would have followed.
-    public List<string>? MarkedTypes { get; set; }
-
-    // The Things carrying one of these flags and none of their members. What a caller wants when it needs
-    // an id to write a relationship with — a predicate, or an archetype to point `is` at — and would otherwise
-    // have to take the whole membership to reach it.
-    public List<string>? MarkedArchetypes { get; set; }
+    // Each a list of role Thing identifiers. BoundTypes selects the
+    // archetype a role binds and every Thing that `is` it; BoundArchetypes selects the bound Thing alone, which may be
+    // a predicate or a single Thing as well as an archetype. Neither carries the role Thing or its `binds`
+    // relationship: a reader that has to tell which bound Thing plays which role asks for the role Things by id and
+    // follows RoleBindings.FollowBindings.
+    public List<Guid>? BoundTypes { get; set; }
+    public List<Guid>? BoundArchetypes { get; set; }
     public List<TraverseRule>? Traverse { get; set; }
     public bool IncludeIsAncestors { get; set; } = true;
     public bool IncludeRelationships { get; set; } = true;
@@ -35,9 +34,10 @@ public sealed class RelationshipRule
 {
     public string Predicate { get; set; } = "";
 
-    // By a flag the predicate carries rather than by the name a model chose. Set this or Predicate, never
-    // both; the broker refuses a rule that gives both.
+    // By a flag the predicate carries, or by the role Thing that binds it, rather than by the name a model
+    // chose. Set one of the three; the broker refuses a rule that gives more than one.
     public string? PredicateFlag { get; set; }
+    public Guid? PredicateRole { get; set; }
     public string Direction { get; set; } = "outgoing"; // outgoing | incoming | both
 }
 
@@ -45,10 +45,11 @@ public sealed class TraverseRule
 {
     public string Predicate { get; set; } = "";
 
-    // The predicate to follow, by a flag it carries rather than by the name a model chose. Set
-    // this or Predicate, never both: the broker refuses a rule that gives both, because preferring one
-    // silently would make a typo in the other read as an ordinary empty result.
+    // The predicate to follow, by a flag it carries or by the role Thing that binds it, rather than by the
+    // name a model chose. Set one of the three: the broker refuses a rule that gives more than one, because
+    // preferring one silently would make a typo in another read as an ordinary empty result.
     public string? PredicateFlag { get; set; }
+    public Guid? PredicateRole { get; set; }
     public string Direction { get; set; } = "outgoing"; // outgoing | incoming | both
     public int Depth { get; set; } = 1;
 }

@@ -87,7 +87,7 @@ try
     }
 
     // A run is started by the site entering the state the discovery connection watches, so the body is
-    // whatever the broker posts for a dispatch and the subject is read through the shared classifier
+    // whatever the broker posts for a service call and the subject is read through the shared classifier
     // rather than a shape of this service's own.
     var handleEndpoint = app.MapPost("/handle", async (
         CoveringSourceService coveringSources,
@@ -112,7 +112,7 @@ try
             Discover(subjectId, coveringSources, runner, ledger, divisions, analysis, vocabularyEdges, token));
 
         // Accepted, not done — see IDiscoveryRunStarter for what closes it. `success` is the broker's
-        // own contract: a body declaring it false is a failed dispatch whatever the status said.
+        // own contract: a body declaring it false is a failed service call whatever the status said.
         return Results.Accepted(value: new { success = true, subjectId });
     });
     if (authEnabled) handleEndpoint.RequireAuthorization();
@@ -142,7 +142,7 @@ finally
     Log.CloseAndFlush();
 }
 
-// One run. Nothing returns from here, so what it found is reported to the log. What the dispatch named
+// One run. Nothing returns from here, so what it found is reported to the log. What the service call named
 // decides which run it is: a site is fetched and recorded; a source is offered to the sites it covers.
 static async Task Discover(
     Guid subjectId,
@@ -162,16 +162,16 @@ static async Task Discover(
         case SubjectKind.Site:
             await DiscoverSite(subjectId, coveringSources, runner, ledger, divisions, analysis, vocabularyEdges, cancellationToken);
             return;
-        case SubjectKind.ModelMarksNoSite:
-            Log.Warning("The model marks no site archetype, so {SubjectId} is taken for a site; such a model " +
-                        "cannot dispatch a source", subjectId);
+        case SubjectKind.ModelBindsNoSite:
+            Log.Warning("The model binds no site archetype, so {SubjectId} is taken for a site; such a model " +
+                        "cannot call for a source", subjectId);
             await DiscoverSite(subjectId, coveringSources, runner, ledger, divisions, analysis, vocabularyEdges, cancellationToken);
             return;
         case SubjectKind.Source:
             await OfferSource(subjectId, coveringSources, ledger, cancellationToken);
             return;
         default:
-            Log.Error("{SubjectId} is neither a site nor a source, so the dispatch names a Thing this service " +
+            Log.Error("{SubjectId} is neither a site nor a source, so the service call names a Thing this service " +
                       "has no run for; nothing is written", subjectId);
             return;
     }
@@ -179,7 +179,7 @@ static async Task Discover(
 
 // A source offered to every site under the Places it covers: a coverage minted per call those sites
 // would make, and nothing fetched. A minted coverage is outstanding, which is what puts each site back in
-// the state its own run is dispatched by — and that run asks only this source. The stamp is what tells a
+// the state that starts its own run — and that run asks only this source. The stamp is what tells a
 // source offered to every site it covers from one never offered.
 static async Task OfferSource(
     Guid sourceId,
@@ -191,7 +191,7 @@ static async Task OfferSource(
     if (coverage == null)
     {
         // Stamped, the source would read as offered to every site it covers while having reached none,
-        // and nothing would offer it again. Written nothing, it stays in the state that dispatched this.
+        // and nothing would offer it again. Written nothing, it stays in the state that started this.
         Log.Error("Could not read which sites source {SourceId} reaches; leaving the run outstanding rather " +
                   "than recording the source as offered", sourceId);
         return;
@@ -228,7 +228,7 @@ static async Task DiscoverSite(
     if (coverage == null)
     {
         // Nothing is written and the analysis is not started, so the site stays in the state that
-        // dispatched this and the run is driven again. Carrying on would report that no source covers
+        // started this and the run is driven again. Carrying on would report that no source covers
         // the site, which is the answer an unreachable gateway must never be mistaken for.
         Log.Error("Could not read which sources cover site {SiteId}; leaving the run outstanding rather " +
                   "than reporting that none do", siteId);
@@ -237,7 +237,7 @@ static async Task DiscoverSite(
 
     // Before the fetches, because the hazard portal's address is a division code and no route it serves
     // takes coordinates: a site graded on the run after the one that resolved its division would wait out
-    // a whole dispatch first.
+    // a whole service call first.
     coverage = await divisions.AddressAsync(siteId, coverage, cancellationToken);
 
     // Not a failure: the source said what it resolves onto, and this site holds nothing of it.

@@ -45,14 +45,29 @@ public class EndpointTemplateTreeTests
     }
 
     [Fact]
-    public void A_template_name_is_matched_whatever_its_case()
+    public void A_template_name_differing_only_in_case_is_not_found()
     {
         var root = Template("Endpoint");
         var child = Template("EsriEndpoint");
         Relate(child, _is, root);
         Relate(EndpointTemplateTree.EndpointRoleId, _binds, root);
 
-        Locate("esriendpoint").Template!.Id.Should().Be(child);
+        var (template, refusal) = Locate("esriendpoint");
+
+        template.Should().BeNull("Thing names are matched exactly, case included");
+        refusal.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void A_Thing_named_Is_beside_is_is_another_Thing_and_leaves_registering_alone()
+    {
+        var root = Template("Endpoint");
+        var child = Template("EsriEndpoint");
+        Relate(child, _is, root);
+        Relate(EndpointTemplateTree.EndpointRoleId, _binds, root);
+        Thing("Is");
+
+        Locate("EsriEndpoint").Template!.Id.Should().Be(child, "only a Thing named exactly `is` is the is predicate");
     }
 
     [Fact]

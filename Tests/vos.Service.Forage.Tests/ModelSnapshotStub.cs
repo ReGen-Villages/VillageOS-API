@@ -1,5 +1,7 @@
 using System.Net;
 using System.Text;
+using vos.Service.Shared.Roles;
+using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Forage.Tests;
 
@@ -12,10 +14,17 @@ internal static class ModelSnapshotStub
     internal sealed record Edge(string Subject, string Predicate, string Target, Guid? Id = null);
 
     // A Thing the snapshot presents as a type rather than a member of one, and the flag it carries when
-    // it is one a reader finds by mark. Names match the ids dictionary the scenario declares. Values are
-    // raw JSON — a string value arrives quoted — for a declaration the archetype carries beside its flag.
+    // it is one a reader finds by mark, or the role whose Thing binds it when it is one a reader finds
+    // through a role. Names match the ids dictionary the scenario declares. Values are raw JSON — a string
+    // value arrives quoted — for a declaration the archetype carries beside its flag.
     internal sealed record Archetype(
-        string Name, string? Flag = null, IReadOnlyDictionary<string, string>? Values = null);
+        string Name, string? Flag = null, IReadOnlyDictionary<string, string>? Values = null, Role? BoundBy = null);
+
+    // A role binding a Thing that is not an archetype, such as a registration a reader finds through its role.
+    internal sealed record Binding(Role Role, string Thing);
+
+    // The `binds` predicate Thing a role reaches its archetype along, under one identifier for every scenario.
+    internal static readonly Guid BindsPredicate = new("b1bd5000-0000-5000-8000-000000000001");
 
     internal static HttpResponseMessage? RouteSubscription(
         HttpRequestMessage request, IReadOnlyDictionary<string, Guid> ids, params Edge[] edges) =>
@@ -49,7 +58,8 @@ internal static class ModelSnapshotStub
         Edge[] edges,
         IReadOnlyDictionary<string, string>? siteValues,
         IReadOnlyCollection<Archetype>? archetypes,
-        IReadOnlyCollection<Carrying>? carrying)
+        IReadOnlyCollection<Carrying>? carrying,
+        IReadOnlyCollection<Binding>? bindings = null)
     {
         var path = request.RequestUri!.AbsolutePath;
         if (request.Method == HttpMethod.Delete && path.StartsWith("/api/subscriptions/", StringComparison.Ordinal))
@@ -67,9 +77,21 @@ internal static class ModelSnapshotStub
             byName.GetValueOrDefault(entry.Key),
             carried.GetValueOrDefault(entry.Key)));
         var relationships = edges.Select(edge =>
-            "{\"id\":\"" + (edge.Id ?? Guid.NewGuid()) + "\",\"name\":null,\"subjectId\":\"" + ids[edge.Subject]
-            + "\",\"predicateId\":\"" + ids[edge.Predicate] + "\",\"targetId\":\"" + ids[edge.Target]
-            + "\",\"properties\":{},\"inheritedProperties\":{},\"states\":[]}");
+            Relationship(edge.Id ?? Guid.NewGuid(), ids[edge.Subject], ids[edge.Predicate], ids[edge.Target]));
+
+        var bound = (archetypes ?? [])
+            .Where(archetype => archetype.BoundBy is not null)
+            .Select(archetype => new Binding(archetype.BoundBy!, archetype.Name))
+            .Concat(bindings ?? [])
+            .ToList();
+        if (bound.Count > 0)
+        {
+            things = things
+                .Append(Thing(BindsPredicate, RoleBindings.BindsPredicateName, null, null))
+                .Concat(bound.Select(binding => Thing(binding.Role.Id, binding.Role.Word, null, null)));
+            relationships = relationships.Concat(bound.Select(binding =>
+                Relationship(Guid.NewGuid(), binding.Role.Id, BindsPredicate, ids[binding.Thing])));
+        }
 
         var body = "{\"subscriptionId\":\"" + Guid.NewGuid() + "\",\"watermark\":0,\"snapshot\":{"
             + "\"watermark\":0,\"things\":[" + string.Join(",", things) + "],"
@@ -80,6 +102,11 @@ internal static class ModelSnapshotStub
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
     }
+
+    private static string Relationship(Guid id, Guid subject, Guid predicate, Guid target) =>
+        "{\"id\":\"" + id + "\",\"name\":null,\"subjectId\":\"" + subject
+        + "\",\"predicateId\":\"" + predicate + "\",\"targetId\":\"" + target
+        + "\",\"properties\":{},\"inheritedProperties\":{},\"states\":[]}";
 
     private static string Thing(
         Guid id, string name, IReadOnlyDictionary<string, string>? values, Archetype? archetype,

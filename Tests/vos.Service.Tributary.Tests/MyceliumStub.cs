@@ -1,4 +1,6 @@
 using vos.Service.Shared;
+using vos.Service.Shared.Roles;
+using vos.Service.Shared.Subscriptions;
 using vos.Service.Tributary.Helpers;
 using System.Text.RegularExpressions;
 using System.Net;
@@ -106,7 +108,7 @@ internal static class MyceliumStub
     [
         ("responseKind", "binary", EndpointKindRoles.ResponseBody, "BinaryResponse"),
         ("responseKind", "json", EndpointKindRoles.ResponseBody, "JsonResponse"),
-        ("authKind", "tokenexchange", EndpointKindRoles.Authentication, "TokenExchangeAuth"),
+        ("authKind", "tokenexchange", EndpointKindRoles.Authentication, "TokenExchangeAuthentication"),
         ("pagingKind", "offset", EndpointKindRoles.Paging, "OffsetPaging"),
     ];
 
@@ -140,12 +142,15 @@ internal static class MyceliumStub
         if (request.Method != HttpMethod.Post || path != "/api/subscriptions")
             return null;
 
+        var bindsId = Guid.NewGuid();
         var things = new List<string>
         {
             Thing(endpointId, "endpoint"),
             Thing(ObservedPredicateId, ObservedEdges.PredicateName),
+            Thing(LandIntakeRoles.Observed.Id, "Observed"),
+            Thing(bindsId, RoleBindings.BindsPredicateName),
         };
-        var edges = new List<string>();
+        var edges = new List<string> { Edge(LandIntakeRoles.Observed.Id, bindsId, ObservedPredicateId) };
         foreach (var kind in kinds)
         {
             var roleId = Guid.NewGuid();

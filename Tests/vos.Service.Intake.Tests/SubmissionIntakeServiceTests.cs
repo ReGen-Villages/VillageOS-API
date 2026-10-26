@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
+using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 using vos.Tests.Shared;
 using Xunit;
@@ -53,7 +54,10 @@ public class SubmissionIntakeServiceTests
         Func<HttpRequestMessage, Task<HttpResponseMessage>> respond) =>
         ServiceAnswering(MockHttpMessageHandler.AnsweringAsynchronously(respond), ReadingASeededModel());
 
-    private static StubSubscriptions ReadingASeededModel() => new(DeclaredModel.Seeded().Build());
+    // Built once, so a test can ask the model which Thing a role binds and compare it with what was written.
+    private static readonly DeclaredModel SeededModel = DeclaredModel.Seeded();
+
+    private static StubSubscriptions ReadingASeededModel() => new(SeededModel.Build());
 
     private static SubmissionIntakeService ServiceAnswering(
         HttpMessageHandler answers, ISubscriptionClient read) =>
@@ -83,13 +87,13 @@ public class SubmissionIntakeServiceTests
     // A subscription left open per submission is a subscription per wizard save, and a wizard saves as the
     // planner types.
     [Fact]
-    public async Task The_vocabulary_read_releases_its_subscription()
+    public async Task Each_read_releases_its_subscription()
     {
         var (service, read) = ServiceReading(DeclaredModel.Seeded());
 
         await service.SubmitAsync(Document, CancellationToken.None);
 
-        read.Released.Should().Be(1);
+        read.Released.Should().Be(2, "the submission's shape and its vocabularies are each one read");
     }
 
     // The vocabulary was already read by the time the release runs, so a broker that cannot release the
@@ -116,7 +120,7 @@ public class SubmissionIntakeServiceTests
         var refusal = await Assert.ThrowsAsync<ModelNotSeededError>(
             () => service.SubmitAsync(Document, CancellationToken.None));
 
-        refusal.Message.Should().Contain(DeclaredVocabularyReader.AllocationCategoryArchetypeFlag);
+        refusal.Message.Should().Contain(LandIntakeRoles.AllocationCategory.Word);
     }
 
     // The name is the contract with the platform's land-intake template, which declares `SubmittedSource`
@@ -137,7 +141,7 @@ public class SubmissionIntakeServiceTests
     {
         // The vocabulary is missing too, so both gates would refuse. That is what makes the refusal below
         // an ordering test rather than an assertion that only one gate exists.
-        var read = new StubSubscriptions(DeclaredModel.Seeded().Without("AllocationCategory").Build());
+        var read = new StubSubscriptions(DeclaredModel.Seeded().Without("AllocationCategory").Without("Site").Build());
         var service = ServiceAnswering(
             new MockHttpMessageHandler(request => IsFragment(request)
                 ? Json("{}")
@@ -147,9 +151,10 @@ public class SubmissionIntakeServiceTests
         var refusal = await Assert.ThrowsAsync<ModelNotSeededError>(
             () => service.SubmitAsync(Document, CancellationToken.None));
 
-        refusal.Message.Should().Contain(SubmissionFragmentComposer.SiteArchetypeName)
-            .And.NotContain(DeclaredVocabularyReader.AllocationCategoryArchetypeFlag);
-        read.AskedFor.Should().BeNull("the archetype gate refuses before anything is read");
+        refusal.Message.Should().Contain(LandIntakeRoles.Site.Word)
+            .And.NotContain(LandIntakeRoles.AllocationCategory.Word);
+        read.AskedFor!.Ids.Should().NotContain(LandIntakeRoles.AllocationCategory.Id,
+            "the archetype gate refuses before the vocabularies are read");
     }
 
     // The posted document is read inside the responder: the client disposes the request content once the
@@ -244,9 +249,9 @@ public class SubmissionIntakeServiceTests
         var composed = await service.SubmitAsync(Document, CancellationToken.None);
 
         composed.Fragment.Relationships.Should()
-            .Contain(edge => edge.Predicate == StableIdentity.DerivePredicate("studies"),
-                "two submissions into a model that holds no `studies` yet must agree on which Thing it is");
-        composed.Fragment.Things.Should().Contain(thing => thing.Name == "studies");
+            .Contain(edge => edge.Predicate == StableIdentity.DerivePredicate("has"),
+                "two submissions into a model that holds no `has` yet must agree on which Thing it is");
+        composed.Fragment.Things.Should().Contain(thing => thing.Name == "has");
     }
 
     [Fact]
@@ -282,7 +287,7 @@ public class SubmissionIntakeServiceTests
         var composed = await service.SubmitAsync(Document, CancellationToken.None);
 
         composed.Fragment.Relationships.Should()
-            .Contain(edge => edge.Predicate == StableIdentity.DerivePredicate("studies"),
+            .Contain(edge => edge.Predicate == StableIdentity.DerivePredicate("has"),
                 "the model answers a name it does not hold with an empty body as readily as with a 404");
     }
 
@@ -324,24 +329,51 @@ public class SubmissionIntakeServiceTests
             stamped.GetProperty("value").GetDateTime().Should().Be(WillowBend.ArrivedAt);
     }
 
+    // The study's archetype is the one the model binds to the siteStudy role, read with the vocabularies
+    // rather than looked up by a name, so a model calling it anything still has its studies typed.
     [Fact]
-    public async Task The_posted_study_is_the_archetype_that_declares_what_the_analysis_writes()
+    public async Task The_posted_study_is_the_archetype_the_site_study_role_binds()
     {
         var (service, fragment) = ServiceCapturingFragment();
 
         await service.SubmitAsync(Document, CancellationToken.None);
 
         var posted = JsonDocument.Parse(fragment()!).RootElement;
-        var study = posted.GetProperty("Things").EnumerateArray().Single(thing =>
-            thing.GetProperty("Properties").TryGetProperty(SubmissionFragmentComposer.SiteStudyFlag, out _));
-        study.GetProperty("Properties").EnumerateObject().Select(property => property.Name)
-            .Should().Equal([SubmissionFragmentComposer.SiteStudyFlag],
-                "everything the analysis writes is declared on the archetype the study is");
+        var studyId = StableIdentity.Derive(WillowBend.SubmissionId, "study");
+        var study = posted.GetProperty("Things").EnumerateArray().Single(thing => thing.GetProperty("Id").GetGuid() == studyId);
+        study.GetProperty("Properties").EnumerateObject().Should().BeEmpty(
+            "everything the analysis writes is declared on the archetype the study is");
 
-        var archetype = StableArchetypeId(SubmissionFragmentComposer.SiteStudyArchetypeName);
         posted.GetProperty("Relationships").EnumerateArray().Should().Contain(edge =>
-            edge.GetProperty("Subject").GetGuid() == study.GetProperty("Id").GetGuid()
-            && edge.GetProperty("Target").GetGuid() == archetype);
+            edge.GetProperty("Subject").GetGuid() == studyId
+            && edge.GetProperty("Target").GetGuid() == SeededModel.Id("SiteStudy"));
+    }
+
+    [Fact]
+    public async Task A_model_calling_the_parcel_archetype_and_the_studies_predicate_something_else_is_still_composed_against()
+    {
+        var model = DeclaredModel.Seeded()
+            .Without("Parcel").WithArchetype("Plot").Bound(LandIntakeRoles.Parcel, "Plot")
+            .Without("studies").With("examines").Bound(LandIntakeRoles.StudiedSite, "examines");
+        string? captured = null;
+        var service = ServiceAnswering(
+            new MockHttpMessageHandler(Seeded(request =>
+            {
+                if (IsFragment(request))
+                    captured = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                return Holds(request);
+            })),
+            new StubSubscriptions(model.Build()));
+
+        await service.SubmitAsync(Document, CancellationToken.None);
+
+        var relationships = JsonDocument.Parse(captured!).RootElement.GetProperty("Relationships").EnumerateArray().ToList();
+        relationships.Should().Contain(edge =>
+            edge.GetProperty("Subject").GetGuid() == StableIdentity.Derive(WillowBend.SubmissionId, "parcel")
+            && edge.GetProperty("Target").GetGuid() == model.Id("Plot"));
+        relationships.Should().Contain(edge =>
+            edge.GetProperty("Subject").GetGuid() == StableIdentity.Derive(WillowBend.SubmissionId, "study")
+            && edge.GetProperty("Predicate").GetGuid() == model.Id("examines"));
     }
 
     // The archetypes are the model's, not this service's: it relates Things to them and never mints one,
@@ -350,22 +382,19 @@ public class SubmissionIntakeServiceTests
     [Fact]
     public async Task A_model_that_was_never_seeded_is_refused_as_a_fault_of_the_deployment()
     {
-        var service = ServiceOfAnUnseededModel(request => IsFragment(request)
-            ? Json("{}")
-            : new HttpResponseMessage(HttpStatusCode.NotFound));
+        var service = ServiceAnswering(
+            new MockHttpMessageHandler(request => IsFragment(request)
+                ? Json("{}")
+                : new HttpResponseMessage(HttpStatusCode.NotFound)),
+            new StubSubscriptions(new DeclaredModel().Build()));
 
         var refusal = await Assert.ThrowsAsync<ModelNotSeededError>(
             () => service.SubmitAsync(Document, CancellationToken.None));
 
-        // Every missing name, not whichever lookup answered first. They run together, so naming one would
-        // name a different one from run to run, and an unseeded model is missing all of them anyway.
         refusal.Message.Should().ContainAll(
-            SubmissionFragmentComposer.SiteArchetypeName,
-            SubmissionFragmentComposer.SiteStudyArchetypeName,
-            SubmissionFragmentComposer.ParcelArchetypeName,
-            SubmissionFragmentComposer.ProjectArchetypeName,
-            SubmissionFragmentComposer.ContactArchetypeName,
-            SubmissionFragmentComposer.ProgrammeAllocationArchetypeName);
+            LandIntakeRoles.Site.Word, LandIntakeRoles.Parcel.Word, LandIntakeRoles.Project.Word,
+            LandIntakeRoles.PersonalDetail.Word, LandIntakeRoles.ProgrammeAllocation.Word,
+            LandIntakeRoles.StudiedSite.Word, LandIntakeRoles.ServiceOrder.Word);
         refusal.Message.Should().Contain("Seed the model from the analysis templates");
         refusal.Should().NotBeAssignableTo<SubmissionError>(
             "a 400 would tell the submitter to correct something they cannot reach");

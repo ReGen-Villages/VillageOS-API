@@ -47,6 +47,24 @@ public class RegisterEndpointTests
     }
 
     [Fact]
+    public async Task Handle_AnIsRowForANameDifferingOnlyInCase_IsNotASecondTemplateChoice()
+    {
+        var (response, _) = await HandleAsync(new
+        {
+            name = "MyEndpoint",
+            properties = new { url = "https://x.example/" },
+            relationships = new[]
+            {
+                new { subject = "MyEndpoint", predicate = "is", target = "Endpoint" },
+                new { subject = "myendpoint", predicate = "is", target = "Endpoint" },
+                new { subject = "MyEndpoint", predicate = "Is", target = "Endpoint" },
+            },
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task Handle_MissingUrl_Returns400BeforeReadingTheModel()
     {
         var (response, model) = await HandleAsync(new { name = "MyEndpoint", properties = new { httpMethod = "GET" } });

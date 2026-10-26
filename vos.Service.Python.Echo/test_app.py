@@ -326,7 +326,7 @@ def test_demo_endpoint_requires_thing_id(client):
     assert res.status_code == 400
 
 
-from app import subscribe, unsubscribe, slice_by_type_and_traverse, demo_subscribe
+from app import PlatformRefusal, subscribe, unsubscribe, slice_by_type_and_traverse, demo_subscribe
 
 
 def _sel_handler(captured):
@@ -376,6 +376,38 @@ def test_subscribe_posts_selector_and_returns_closure(mycelium):
     body = json.loads(req.content)
     assert body["types"] == ["Battery"]
     assert body["traverse"][0]["predicate"] == "powers"
+
+
+# Declared by the shared site templates, so the demo slices on any seeded model.
+def test_demo_subscribe_defaults_to_what_every_seeded_model_declares(mycelium):
+    captured = []
+    _run_sel(captured, lambda c: demo_subscribe(client=c))
+    body = json.loads(captured[0].content)
+    assert body["types"] == ["OpenDataSource"]
+    assert body["traverse"][0]["predicate"] == "provides"
+
+
+def test_a_refused_slice_is_raised_with_the_platforms_status_and_words(mycelium):
+    def refuse(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, json={"error": "no Thing is named Battery"})
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(refuse)) as c:
+            await subscribe(slice_by_type_and_traverse("Battery", "powers"), client=c)
+
+    with pytest.raises(PlatformRefusal) as refused:
+        asyncio.run(run())
+    assert refused.value.status == 400
+    assert "Battery" in refused.value.body
+
+
+# A refused slice is answered as the platform gave it, so the person trying the example reads the platform's words.
+def test_the_subscribe_demo_answers_a_refused_slice_as_the_platform_gave_it(client):
+    with patch("app.subscribe", new=AsyncMock(side_effect=PlatformRefusal(400, '{"error": "no Thing is named Battery"}'))):
+        res = client.post("/demo/subscribe", json={"type": "Battery"})
+
+    assert res.status_code == 400
+    assert res.json() == {"error": "no Thing is named Battery"}
 
 
 def test_demo_subscribe_summarises_and_unsubscribes(mycelium):

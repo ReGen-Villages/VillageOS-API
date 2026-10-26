@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import Graph from 'graphology';
-import { buildLabelMatcher, decideEdgeDisplay, edgeTouchesNode, isContainmentPredicate } from './nodeVisibility';
+import { buildLabelMatcher, decideEdgeDisplay, edgeTouchesNode } from './nodeVisibility';
 import type { SearchOptions } from './searchFilter';
 
 function makeGraph(): Graph {
@@ -125,19 +125,5 @@ describe('decideEdgeDisplay', () => {
     expect(decideEdgeDisplay({
       ...NEUTRAL, bothEndpointsInSearch: false, predicateInActiveFilter: true,
     })).toBe('hide');
-  });
-});
-
-describe('isContainmentPredicate', () => {
-  it('returns true when __IsMapContainmentPredicate is true', () => {
-    expect(isContainmentPredicate({ __IsMapContainmentPredicate: true })).toBe(true);
-  });
-
-  it('returns false when flag is missing', () => {
-    expect(isContainmentPredicate({})).toBe(false);
-  });
-
-  it('returns false when props is undefined', () => {
-    expect(isContainmentPredicate(undefined)).toBe(false);
   });
 });

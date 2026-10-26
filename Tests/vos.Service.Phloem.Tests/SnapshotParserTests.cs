@@ -26,14 +26,14 @@ public class SnapshotParserTests
             "things": [
               { "Id": "{{pipeline}}", "Name": "Demo", "IsArchetype": false,
                 "Properties": { "Subdomain": { "typeInfo": "vos.String", "value": "gen" } },
-                "RollupProperties": {}, "InheritedOverrides": {}, "States": [],
+                "DerivedProperties": {}, "InheritedOverrides": {}, "States": [],
                 "Relationships": [ "{{relationship}}" ] },
               { "Id": "{{archetype}}", "Name": "Pipeline", "IsArchetype": true,
                 "Properties": { "collection": { "typeInfo": "vos.Boolean", "value": true } },
-                "RollupProperties": {}, "InheritedOverrides": {}, "States": [],
+                "DerivedProperties": {}, "InheritedOverrides": {}, "States": [],
                 "Relationships": [ "{{relationship}}" ] },
               { "Id": "{{isPredicate}}", "Name": "is", "IsArchetype": false,
-                "Properties": {}, "RollupProperties": {}, "InheritedOverrides": {}, "States": [],
+                "Properties": {}, "DerivedProperties": {}, "InheritedOverrides": {}, "States": [],
                 "Relationships": [] }
             ],
             "relationships": [
@@ -145,7 +145,7 @@ public class SnapshotParserTests
               { "Id": "{{port}}", "Name": "subject", "IsArchetype": false, "Properties": {},
                 "InheritedOverrides": {
                   "{{portArchetype}}": {
-                    "SourceId": "{{portArchetype}}", "SourceName": "Port", "InheritedAt": "2026-09-26T13:17:43Z",
+                    "SourceId": "{{portArchetype}}", "SourceName": "Port",
                     "Properties": {
                       "portName": { "typeInfo": "vos.String", "value": "subject" },
                       "direction": { "typeInfo": "vos.String", "value": "out" } } } },

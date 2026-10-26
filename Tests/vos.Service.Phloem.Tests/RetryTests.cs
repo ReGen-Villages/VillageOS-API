@@ -31,21 +31,21 @@ public class RetryTests
     }
 
     private static (TestGraphs.RetryFixture Retry, FakeGateway Gateway, PipelineExecutor Executor) Arrange(
-        Func<int, NodeDispatchResult> answerToCall, bool handsOver = false, double clockRate = 6000, TimeProvider? real = null,
+        Func<int, NodeCallResult> answerToCall, bool handsOver = false, double clockRate = 6000, TimeProvider? real = null,
         params (string Name, object Value)[] policy)
     {
         var retry = TestGraphs.RetryPipeline(handsOver, policy: policy);
         var calls = 0;
         var gateway = new FakeGateway(retry.Fixture.Build())
         {
-            OnDispatch = (_, _) => answerToCall(Interlocked.Increment(ref calls)),
+            OnCall = (_, _) => answerToCall(Interlocked.Increment(ref calls)),
         };
         return (retry, gateway, new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, FastClock(clockRate, real)));
     }
 
-    private static NodeDispatchResult Answer() => new(200, JsonSerializer.Serialize(new { success = true, outputs = new { @out = "echoed" } }));
+    private static NodeCallResult Answer() => new(200, JsonSerializer.Serialize(new { success = true, outputs = new { @out = "echoed" } }));
 
-    private static NodeDispatchResult Unreachable() => throw new HttpRequestException("the service is away");
+    private static NodeCallResult Unreachable() => throw new HttpRequestException("the service is away");
 
     private static JsonElement Seed() => JsonSerializer.SerializeToElement(new { seed = "world" });
 
@@ -57,7 +57,7 @@ public class RetryTests
         var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
 
         result.Success.Should().BeTrue();
-        gateway.Dispatched.Should().HaveCount(3);
+        gateway.Called.Should().HaveCount(3);
         var attempts = gateway.AttemptsRecorded.Select(recorded => recorded.Attempt).ToList();
         attempts.Select(attempt => attempt.Number).Should().Equal(1, 2, 3);
         attempts.Select(attempt => attempt.Status).Should().Equal(RunStatus.Failed, RunStatus.Failed, RunStatus.Succeeded);
@@ -73,7 +73,7 @@ public class RetryTests
         var retry = TestGraphs.RetryPipeline(handsOver: true, besideAFailingNode: true, policy: [("attempts", 1)]);
         var gateway = new FakeGateway(retry.Fixture.Build())
         {
-            OnDispatch = (subdomain, _) => subdomain == "ech" ? Unreachable() : new NodeDispatchResult(200, "{\"success\":false,\"error\":\"broken\"}"),
+            OnCall = (subdomain, _) => subdomain == "ech" ? Unreachable() : new NodeCallResult(200, "{\"success\":false,\"error\":\"broken\"}"),
         };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, FastClock());
 
@@ -135,19 +135,19 @@ public class RetryTests
         var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
 
         result.Success.Should().BeTrue();
-        gateway.Dispatched.Should().HaveCount(2);
+        gateway.Called.Should().HaveCount(2);
         watch.Elapsed.Should().BeGreaterThanOrEqualTo(TimeSpan.FromMilliseconds(60));
     }
 
     [Fact]
     public async Task A_refusal_is_never_retried()
     {
-        var (retry, gateway, executor) = Arrange(_ => new NodeDispatchResult(400, "{\"error\":\"no\"}"), policy: [("attempts", 3), ("pauseMinutes", 0)]);
+        var (retry, gateway, executor) = Arrange(_ => new NodeCallResult(400, "{\"error\":\"no\"}"), policy: [("attempts", 3), ("pauseMinutes", 0)]);
 
         var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
 
         result.Success.Should().BeFalse();
-        gateway.Dispatched.Should().HaveCount(1);
+        gateway.Called.Should().HaveCount(1);
         gateway.AttemptsRecorded.Should().ContainSingle().Which.Attempt.Status.Should().Be(RunStatus.Failed);
         gateway.NodeStatuses.Should().NotContain(("Echo", RunStatus.Trying));
     }
@@ -155,7 +155,7 @@ public class RetryTests
     [Fact]
     public async Task A_refusal_on_the_last_attempt_fails_the_node_and_hands_nothing_over()
     {
-        var (retry, gateway, executor) = Arrange(call => call < 2 ? Unreachable() : new NodeDispatchResult(400, "{\"error\":\"no\"}"),
+        var (retry, gateway, executor) = Arrange(call => call < 2 ? Unreachable() : new NodeCallResult(400, "{\"error\":\"no\"}"),
             handsOver: true, policy: [("attempts", 2), ("pauseMinutes", 0)]);
 
         var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
@@ -168,25 +168,25 @@ public class RetryTests
     [Fact]
     public async Task An_answer_that_says_the_work_failed_is_final()
     {
-        var (retry, gateway, executor) = Arrange(_ => new NodeDispatchResult(200, JsonSerializer.Serialize(new { success = false, error = "could not" })),
+        var (retry, gateway, executor) = Arrange(_ => new NodeCallResult(200, JsonSerializer.Serialize(new { success = false, error = "could not" })),
             policy: [("attempts", 3), ("pauseMinutes", 0)]);
 
         var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
 
         result.Success.Should().BeFalse();
-        gateway.Dispatched.Should().HaveCount(1);
+        gateway.Called.Should().HaveCount(1);
         result.Nodes.Single(node => node.Name == "Echo").Error.Should().Be("could not");
     }
 
     [Fact]
     public async Task A_door_answering_for_a_service_it_cannot_reach_is_retried()
     {
-        var (retry, gateway, executor) = Arrange(call => call < 2 ? new NodeDispatchResult(503, "") : Answer(), policy: [("attempts", 2), ("pauseMinutes", 0)]);
+        var (retry, gateway, executor) = Arrange(call => call < 2 ? new NodeCallResult(503, "") : Answer(), policy: [("attempts", 2), ("pauseMinutes", 0)]);
 
         var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
 
         result.Success.Should().BeTrue();
-        gateway.Dispatched.Should().HaveCount(2);
+        gateway.Called.Should().HaveCount(2);
     }
 
     [Fact]
@@ -222,7 +222,7 @@ public class RetryTests
         var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
 
         result.Nodes.Single(node => node.Name == "Echo").Status.Should().Be(RunStatus.HandedOver);
-        gateway.Dispatched.Should().HaveCount(1);
+        gateway.Called.Should().HaveCount(1);
     }
 
     [Fact]
@@ -235,7 +235,7 @@ public class RetryTests
         result.Success.Should().BeFalse();
         result.Error.Should().Be("One or more nodes failed.");
         result.Nodes.Single(node => node.Name == "Echo").Status.Should().Be(RunStatus.Failed);
-        gateway.Dispatched.Should().HaveCount(2);
+        gateway.Called.Should().HaveCount(2);
         gateway.RunsCreated.Should().ContainSingle();
     }
 
@@ -250,7 +250,7 @@ public class RetryTests
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("'Echo' hands its subject over, but runs once for each item of 'in'; a node that hands over runs once.");
-        gateway.Dispatched.Should().BeEmpty();
+        gateway.Called.Should().BeEmpty();
     }
 
     [Fact]
@@ -261,7 +261,7 @@ public class RetryTests
         var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
 
         result.Success.Should().BeFalse();
-        gateway.Dispatched.Should().HaveCount(1);
+        gateway.Called.Should().HaveCount(1);
         gateway.AttemptsRecorded.Should().BeEmpty();
     }
 
@@ -280,7 +280,7 @@ public class RetryTests
 
         carriedOn.Should().Be(1);
         await Settle.UntilAsync(() => gateway.StatusUpdates.Contains(RunStatus.Succeeded), "the run carries on to its end");
-        gateway.Dispatched.Should().ContainSingle();
+        gateway.Called.Should().ContainSingle();
         gateway.AttemptsRecorded.Should().ContainSingle().Which.Attempt.Number.Should().Be(2);
         gateway.Records[(runId, retry.Echo.Id)].Status.Should().Be(RunStatus.Succeeded);
     }
@@ -329,7 +329,7 @@ public class RetryTests
         var carriedOn = await executor.RecoverTryingAsync(CancellationToken.None);
 
         carriedOn.Should().Be(0);
-        gateway.Dispatched.Should().BeEmpty();
+        gateway.Called.Should().BeEmpty();
         gateway.RunError.Should().Be("'Echo' was trying one of its items when the orchestrator stopped, and a fan-out cannot be carried on from its record.");
     }
 }

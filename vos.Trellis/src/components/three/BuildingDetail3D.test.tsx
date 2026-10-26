@@ -20,7 +20,7 @@ vi.mock('@react-three/drei', () => ({
 
 // A sentinel geometry value that parses; anything else yields no mesh, driving
 // the early return for geometry that cannot be read.
-vi.mock('../../utils/geometryDispatcher', () => ({
+vi.mock('../../utils/geometryRouter', () => ({
   parseSolidMesh: (value: unknown) =>
     value === 'VALID'
       ? {

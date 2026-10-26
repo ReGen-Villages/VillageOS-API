@@ -52,17 +52,16 @@ class Model:
         self.bound = {}
         for r in seed["Relationships"]:
             self.bysubj.setdefault(r["Subject"], []).append(r)
-            if self.name(r["Predicate"]).lower() == "binds" and r["Target"] in self.things:
+            if self.name(r["Predicate"]) == "binds" and r["Target"] in self.things:
                 self.bound.setdefault(r["Subject"], []).append(r["Target"])
 
     def name(self, i):
         return self.things.get(i, {}).get("Name", "?")
 
     def outgoing(self, subj, pred):
-        pred = pred.lower()
         res = []
         for r in self.bysubj.get(subj, []):
-            if self.name(r["Predicate"]).lower() == pred and r["Target"] in self.things:
+            if self.name(r["Predicate"]) == pred and r["Target"] in self.things:
                 res.append(self.things[r["Target"]])
         return res
 

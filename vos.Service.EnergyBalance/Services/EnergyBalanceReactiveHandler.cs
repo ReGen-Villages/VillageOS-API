@@ -22,7 +22,7 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
     }
 
     // Input port names, read off the study by name. solarPvAreaM2 and otherGenerationMwhPerYear are
-    // roll-ups; Mycelium publishes a derived value on the Thing that owns it, so a member change arrives
+    // derived properties; Mycelium publishes a derived value on the Thing that owns it, so a member change arrives
     // as a change on the study like any other.
     private static readonly string[] Inputs =
     {

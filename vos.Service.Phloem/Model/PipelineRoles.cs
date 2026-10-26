@@ -1,15 +1,12 @@
+using vos.Service.Shared.Roles;
+
 namespace vos.Service.Phloem.Model;
 
-// A role the orchestrator reads. The word appears only in what a refusal says; the model is read by the identifier.
-public sealed record Role(string Word, Guid Id);
-
 // Each role is a Thing the model declares, and it binds the one Thing playing it along `binds`. A role's identifier
-// is the standard version 5 identifier of its word under RoleNamespace, so every seed declares the same role and a
-// model may call the Thing playing it whatever suits it.
+// is the standard version 5 identifier of its word under RoleIdentity.Namespace, so every seed declares the same role
+// and a model may call the Thing playing it whatever suits it.
 public static class PipelineRoles
 {
-    public static readonly Guid RoleNamespace = new("c33fcf16-6706-4f93-bfa5-8997bfaaf4bd");
-
     public static readonly Role Pipeline = new("pipeline", new("f8bc9986-6eef-54d9-9940-4aca2497109b"));
     public static readonly Role PipelineNode = new("pipelineNode", new("f273f058-e3d6-5a20-aa37-34638ce64735"));
     public static readonly Role PipelineInput = new("pipelineInput", new("634f9ae3-2cca-5dd9-84aa-fec4dff07a6d"));
@@ -35,7 +32,7 @@ public static class PipelineRoles
     public static readonly Role PipelineStart = new("pipelineStart", new("871174ab-c8e4-5712-81e1-b95accaea5ce"));
     public static readonly Role RunSubject = new("runSubject", new("b0ca501e-b643-5197-aa2f-ea26b02ebce4"));
     // A state connection reaches the range it watches: a state row on the page stands for the range, since several
-    // connections may watch one state, and the broker dispatches the connection, so the two meet through this edge.
+    // connections may watch one state, and the broker calls the connection, so the two meet through this edge.
     public static readonly Role StateWatch = new("stateWatch", new("03590900-eb28-55bf-9731-e9a0c03dce82"));
     // An external system reaches the connection it is told through.
     public static readonly Role ToldThrough = new("toldThrough", new("d94c1844-76e6-56fa-ae38-d10405d52826"));

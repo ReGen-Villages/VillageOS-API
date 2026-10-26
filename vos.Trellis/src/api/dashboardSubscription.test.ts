@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { NAVIGATION_AND_SETTINGS, subscriptionForSpecification } from './dashboardSubscription';
 import type { DashboardSpecification } from '../types/dashboard';
-import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ARCHETYPE_MARK } from './propertyNames';
+import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ROLE } from './propertyNames';
+import { BINDS_PREDICATE_NAME, LAND_INTAKE_ROLE } from './landIntakeRoles';
+import { DISPLAY_SETTINGS_ROLE_ID, PAGE_ROLE_ID } from './platformRoles';
 
 const SCOPE_ID = '11111111-2222-3333-4444-555555555555';
 
@@ -18,8 +20,23 @@ describe('subscriptionForSpec', () => {
   it('keeps asking for what the navigation and the display settings are read from', () => {
     const selector = subscriptionForSpecification(specificationWith({}), null);
 
-    expect(selector.types).toEqual(expect.arrayContaining(NAVIGATION_AND_SETTINGS.types!));
+    expect(selector.boundTypes).toEqual(NAVIGATION_AND_SETTINGS.boundTypes);
+    expect(selector.boundArchetypes).toEqual(NAVIGATION_AND_SETTINGS.boundArchetypes);
+    expect(selector.ids).toEqual(expect.arrayContaining(NAVIGATION_AND_SETTINGS.ids!));
     expect(selector.names).toEqual(expect.arrayContaining(NAVIGATION_AND_SETTINGS.names!));
+  });
+
+  // The role Things travel with what they bind, so a reader can tell the settings Thing from the rest.
+  it('asks for the page kind and the settings through their roles and never by a type name', () => {
+    expect(NAVIGATION_AND_SETTINGS.boundTypes).toEqual([PAGE_ROLE_ID]);
+    expect(NAVIGATION_AND_SETTINGS.boundArchetypes).toEqual([DISPLAY_SETTINGS_ROLE_ID]);
+    expect(NAVIGATION_AND_SETTINGS.ids).toEqual([PAGE_ROLE_ID, DISPLAY_SETTINGS_ROLE_ID]);
+    expect(NAVIGATION_AND_SETTINGS.names).toEqual(['is', 'binds']);
+    expect(NAVIGATION_AND_SETTINGS.types).toBeUndefined();
+
+    const selector = subscriptionForSpecification(specificationWith({}), null);
+    expect(selector.types).not.toEqual(expect.arrayContaining(['Dashboard']));
+    expect(selector.types).not.toEqual(expect.arrayContaining(['GUI_Settings']));
   });
 
   it('asks to keep following the types it names, as the navigation does', () => {
@@ -43,7 +60,7 @@ describe('subscriptionForSpec', () => {
   it('names the selected entity as an identifier', () => {
     const selector = subscriptionForSpecification(specificationWith({ compare: { label: 'site', archetype: 'Site' } }), SCOPE_ID);
 
-    expect(selector.ids).toEqual([SCOPE_ID]);
+    expect(selector.ids!.slice(0, 3)).toEqual([...NAVIGATION_AND_SETTINGS.ids!, SCOPE_ID]);
   });
 
   // The platform answers a count from the state endpoint and a series from its reduction, so their
@@ -277,7 +294,7 @@ describe('subscriptionForSpec', () => {
     );
 
     const followed = selector.traverse!.map((rule) => rule.predicate);
-    expect(followed).toEqual(['has', 'categorizedAs']);
+    expect(followed).toEqual(['has', 'categorizedAs', BINDS_PREDICATE_NAME]);
   });
 
   it('finds the bindings nested inside a ratio and a computed column', () => {
@@ -330,7 +347,7 @@ describe('subscriptionForSpec', () => {
     );
 
     expect(selector.names).toContain('Reservoir');
-    expect(selector.ids).toEqual([SCOPE_ID]);
+    expect(selector.ids!.slice(0, 3)).toEqual([...NAVIGATION_AND_SETTINGS.ids!, SCOPE_ID]);
     expect(selector.names).not.toContain('$scope');
   });
 });
@@ -533,18 +550,46 @@ describe('a verdict that offers levers', () => {
     });
   }
 
+  // The names come through the role that binds their archetype, with the role Thing and its binding so the
+  // page can tell that archetype from the others it loaded, and the binding followed last of all.
   it('asks for the names a model declares for its inputs, and the archetypes they name', () => {
     const selector = subscriptionForSpecification(verdictWidget(true), null);
 
-    expect(selector.markedTypes).toEqual([PROPERTY_NAME_ARCHETYPE_MARK]);
-    expect(selector.traverse?.at(-1)).toEqual({ predicate: NAMES_PROPERTY_OF_PREDICATE, direction: 'outgoing', depth: 1 });
+    expect(selector.boundTypes).toEqual([PAGE_ROLE_ID, PROPERTY_NAME_ROLE]);
+    expect(selector.ids).toContain(PROPERTY_NAME_ROLE);
+    expect(selector.traverse?.at(-2)).toEqual({ predicate: NAMES_PROPERTY_OF_PREDICATE, direction: 'outgoing', depth: 1 });
+    expect(selector.traverse?.at(-1)).toEqual({ predicate: BINDS_PREDICATE_NAME, direction: 'outgoing', depth: 1 });
     expect(selector.names).toContain(NAMES_PROPERTY_OF_PREDICATE);
+    expect(selector.names).toContain(BINDS_PREDICATE_NAME);
   });
 
   it('asks for no names when no verdict offers a lever', () => {
     const selector = subscriptionForSpecification(verdictWidget(false), null);
 
-    expect(selector.markedTypes).toBeUndefined();
+    expect(selector.boundTypes).toEqual([PAGE_ROLE_ID]);
+    expect(selector.ids ?? []).not.toContain(PROPERTY_NAME_ROLE);
     expect(selector.names).not.toContain(NAMES_PROPERTY_OF_PREDICATE);
+  });
+});
+
+describe('the decisions a detail card explains', () => {
+  // The card finds each predicate through its role, so the role Things come by id and their bindings are
+  // followed last, after every walk the specification takes.
+  it('asks every dashboard for the decision roles and follows their bindings', () => {
+    const selector = subscriptionForSpecification(specificationWith({}), null);
+
+    expect(selector.ids).toEqual(expect.arrayContaining([
+      LAND_INTAKE_ROLE.Constraint,
+      LAND_INTAKE_ROLE.DecisionSubject,
+      LAND_INTAKE_ROLE.Chosen,
+      LAND_INTAKE_ROLE.DecidedUnder,
+      LAND_INTAKE_ROLE.Refusal,
+      LAND_INTAKE_ROLE.Support,
+      LAND_INTAKE_ROLE.ConsiderationCause,
+      LAND_INTAKE_ROLE.ConsiderationEvidence,
+      LAND_INTAKE_ROLE.RefusedCandidate,
+    ]));
+    expect(selector.traverse?.at(-1)).toEqual({ predicate: BINDS_PREDICATE_NAME, direction: 'outgoing', depth: 1 });
+    expect(selector.names).toContain(BINDS_PREDICATE_NAME);
   });
 });

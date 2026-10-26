@@ -9,18 +9,19 @@ using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
 using vos.Service.Shared;
 using vos.Service.Shared.Subscriptions;
+using vos.Service.Shared.Roles;
 
 namespace vos.Service.Phloem.Services;
 
 // The HTTP implementation of IMyceliumGateway over Mycelium's API: loads the pipeline
-// subgraph via a subscription snapshot, persists run state through the thing/relationship API, and dispatches
+// subgraph via a subscription snapshot, persists run state through the thing/relationship API, and calls
 // nodes through the endpoint-forward route. Also registers Phloem as a managed microservice.
 public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 {
     // Everything this gateway records about a run is text, so one type name serves every property it writes.
     private const string PropertyType = "vos.String";
 
-    private readonly ConcurrentDictionary<string, Guid> _thingIdByName = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, Guid> _thingIdByName = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<Guid, Guid> _boundByRole = new();
     private readonly ConcurrentDictionary<Guid, byte> _createdNodeRuns = new();
 
@@ -80,7 +81,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         // for either and the pipelines holding them, and any pipeline it reaches along the start role. The role
         // Things come with what each binds so the graph can tell what plays each role, and the traversals run in
         // order, so the watched state is reached before the nodes standing for it.
-        // Relationship rules keep the read to those edges: a state connection gains one dispatch record per
+        // Relationship rules keep the read to those edges: a state connection gains one call record per
         // Thing that ever entered its state, and the wider reading would carry every one on every start.
         var selector = new
         {
@@ -521,7 +522,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
                 : null;
     }
 
-    // Related to the system last: that write is the one the broker dispatches, and the sender it reaches reads
+    // Related to the system last: that write is the one the broker sends, and the sender it reaches reads
     // a message already whole and already held by its run.
     public async Task SendMessageAsync(Guid runId, Telling telling, JsonElement payload, CancellationToken cancellationToken)
     {
@@ -533,13 +534,13 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         await RelateAsync(messageId, telling.ConnectionId, telling.SystemId, cancellationToken);
     }
 
-    public async Task<NodeDispatchResult> DispatchAsync(string subdomain, JsonElement envelope, CancellationToken cancellationToken)
+    public async Task<NodeCallResult> CallAsync(string subdomain, JsonElement envelope, CancellationToken cancellationToken)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromMinutes(5));
         var response = await client.PostAsync($"{MyceliumUrl}/api/endpoints/{Uri.EscapeDataString(subdomain)}",
             new StringContent(envelope.GetRawText(), Encoding.UTF8, "application/json"), cancellationToken);
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
-        return new NodeDispatchResult((int)response.StatusCode, body);
+        return new NodeCallResult((int)response.StatusCode, body);
     }
 
     private async Task<PipelineGraph> LoadSnapshotAsync(object selector, TimeSpan timeout, CancellationToken cancellationToken) =>

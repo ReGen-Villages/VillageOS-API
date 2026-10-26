@@ -20,7 +20,7 @@ import { useEntityDetail } from './useEntityDetail';
 import { DecisionExplanations } from './DecisionExplanations';
 import { decisionsOn } from './decisionExplanation';
 import type { ResolvedRelation } from './entityDetail';
-import type { ServiceDispatch } from './serviceHandling';
+import type { ServiceCall } from './serviceHandling';
 
 interface Props {
   modelIndex: ModelIndex;
@@ -81,52 +81,52 @@ function CoverageNote({ coverage }: { coverage: StateHistoryCoverage }) {
 }
 
 /** Every service the platform ran on this Thing, oldest first, each with the connection it was
- *  reached through and how that dispatch ended. A service is a Thing, so its name opens its card. */
-function ServiceDispatches({
-  dispatches,
+ *  reached through and how that service call ended. A service is a Thing, so its name opens its card. */
+function ServiceCalls({
+  calls,
   openDetail,
 }: {
-  dispatches: ServiceDispatch[];
+  calls: ServiceCall[];
   openDetail: (thingId: string) => void;
 }) {
   const { t } = useTranslation();
   return (
     <>
       <ol className="mt-1 space-y-1.5">
-        {dispatches.map((dispatch) => (
-          <li key={dispatch.relationshipId} className="flex gap-2 text-[11.5px]">
+        {calls.map((call) => (
+          <li key={call.relationshipId} className="flex gap-2 text-[11.5px]">
             <span className="text-zinc-400 dark:text-zinc-500 font-mono whitespace-nowrap flex-shrink-0 w-[62px]">
-              {dispatch.at ? formatTimestamp(dispatch.at) : '—'}
+              {call.at ? formatTimestamp(call.at) : '—'}
             </span>
             <span className="min-w-0 flex-1">
               <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-                {dispatch.serviceId ? (
+                {call.serviceId ? (
                   <button
-                    onClick={() => openDetail(dispatch.serviceId!)}
+                    onClick={() => openDetail(call.serviceId!)}
                     className="font-semibold text-blue-600 dark:text-blue-400 hover:underline"
                   >
-                    {dispatch.serviceName}
+                    {call.serviceName}
                   </button>
                 ) : (
-                  <span className="font-semibold text-zinc-700 dark:text-zinc-200">{dispatch.serviceName}</span>
+                  <span className="font-semibold text-zinc-700 dark:text-zinc-200">{call.serviceName}</span>
                 )}
-                <span className="text-zinc-400 dark:text-zinc-500 truncate">{dispatch.connectionName}</span>
-                {dispatch.state && (
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${badgeTone(dispatch.state)}`}>
-                    {dispatch.state}
+                <span className="text-zinc-400 dark:text-zinc-500 truncate">{call.connectionName}</span>
+                {call.state && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${badgeTone(call.state)}`}>
+                    {call.state}
                   </span>
                 )}
               </span>
-              {dispatch.error && (
-                <span className="block text-[11px] text-red-600 dark:text-red-400 break-words">{dispatch.error}</span>
+              {call.error && (
+                <span className="block text-[11px] text-red-600 dark:text-red-400 break-words">{call.error}</span>
               )}
             </span>
           </li>
         ))}
       </ol>
-      {dispatches.some((dispatch) => !dispatch.at) && (
+      {calls.some((call) => !call.at) && (
         <div className="mt-1.5 text-[10.5px] text-zinc-400 dark:text-zinc-500">
-          {t('entityDetail.dispatchesSinceModelLoad')}
+          {t('entityDetail.serviceCallsSinceModelLoad')}
         </div>
       )}
     </>
@@ -203,7 +203,7 @@ function RelationGroups({
 
 export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset, index, total, spreadTick, zIndex, onClose, onFocus, onSpread, openDetail, declaredTypes }: Props) {
   const { t } = useTranslation();
-  const { loading, root, relations, statesById, stateChanges, coverage, dispatches } = useEntityDetail(modelIndex, thingId, detail, nonce);
+  const { loading, root, relations, statesById, stateChanges, coverage, calls } = useEntityDetail(modelIndex, thingId, detail, nonce);
   const decisions = useMemo(() => decisionsOn(thingId, modelIndex), [thingId, modelIndex]);
   const numbers = useNumberDisplaySettings();
 
@@ -321,10 +321,10 @@ export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset,
           </section>
         )}
 
-        {dispatches.length > 0 && (
+        {calls.length > 0 && (
           <section>
             <SectionTitle>{t('entityDetail.handledBy')}</SectionTitle>
-            <ServiceDispatches dispatches={dispatches} openDetail={openDetail} />
+            <ServiceCalls calls={calls} openDetail={openDetail} />
           </section>
         )}
 

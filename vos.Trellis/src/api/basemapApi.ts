@@ -1,20 +1,20 @@
 /**
  * Basemap discovery from a model the page already holds.
  *
- * A model declares Things of archetype `BasemapSource` (see BASEMAP_SOURCE_ARCHETYPE). This reads them
+ * A model declares Things of the archetype its basemapSource role binds. This reads them
  * out of the already-loaded model store and hands them to the shared rule that says which can be drawn.
  * Which provider a deployment uses, and what its licence obliges the page to display, are answers the
  * model gives — no address or credit is written here.
  */
 import type { ModelIndex } from './dashboardApi';
-import { thingsOfArchetype } from './dashboardApi';
+import { thingsOfArchetypeBoundBy } from './dashboardApi';
+import { LAND_INTAKE_ROLE } from './landIntakeRoles';
 import { effectiveProperties } from '../utils/propertyMapper';
 import { basemapSourcesFrom, statedText } from '../utils/basemapSources';
 import {
   BASEMAP_ATTRIBUTION_PROPERTY,
   BASEMAP_BUILDING_LAYER_PROPERTY,
   BASEMAP_MAXIMUM_ZOOM_PROPERTY,
-  BASEMAP_SOURCE_ARCHETYPE,
   BASEMAP_STYLE_URL_PROPERTY,
   BASEMAP_TERRAIN_ENCODING_PROPERTY,
   BASEMAP_TERRAIN_EXAGGERATION_PROPERTY,
@@ -25,7 +25,7 @@ import {
 
 export function discoverBasemapSources(index: ModelIndex): BasemapSource[] {
   return basemapSourcesFrom(
-    thingsOfArchetype(BASEMAP_SOURCE_ARCHETYPE, index).map((thing) => {
+    thingsOfArchetypeBoundBy(LAND_INTAKE_ROLE.BasemapSource, index).map((thing) => {
       const properties = effectiveProperties(thing, index);
       return {
         id: thing.Id,

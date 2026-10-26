@@ -26,7 +26,7 @@ public sealed record SiteCoverage(
     IReadOnlyDictionary<string, string> Address,
     CodedPlaces? CodedPlaces = null) : Coverage(Covering, Recorded, Vocabulary);
 
-// Reads the model in one scoped snapshot per question: what a dispatch named, a site's coverage, or the
+// Reads the model in one scoped snapshot per question: what a service call named, a site's coverage, or the
 // sites a source reaches.
 //
 // Null means the read failed, never that the answer is empty. Collapsing the two would report a gateway

@@ -63,10 +63,10 @@ function pathLabel(fromPath?: string, toPath?: string, transform?: string): stri
 /**
  * Drawing the pipelines the orchestrator runs, around what sets each one off and what it leaves behind.
  *
- * A pipeline is model data — nodes, the connections they dispatch, and the wires between their ports — so
+ * A pipeline is model data — nodes, the connections they call, and the wires between their ports — so
  * this page is Thing and relationship work with a canvas over it. The rail on the left lists every
  * catalyst the model holds, the roster every pipeline, and the rail on the right every outcome and every
- * service a node may dispatch. A boundary node stands for the catalyst or the outcome it was placed from.
+ * service a node may call. A boundary node stands for the catalyst or the outcome it was placed from.
  */
 export function PipelinePage() {
   useSubscription(WHOLE_MODEL);
@@ -180,13 +180,13 @@ export function PipelinePage() {
 
   // The drawing as the canvas paints it: a boundary node says what it stands for, read off the model so a
   // rename reaches it, and what really happens at that end today — placing a node where a run comes from
-  // is not what dispatches it, and nothing sends to a system a run ends at yet.
+  // is not what starts it, and nothing sends to a system a run ends at yet.
   const canvasNodes = useMemo(() => nodes.map((n) => {
     const d = n.data as unknown as PipelineNodeData;
     if (!d.kind || !d.standsForId) return n;
     const standsFor = model.endInformation(d.standsForId);
     const note = d.kind === 'input'
-      ? t('pipeline.note.startNotDispatched')
+      ? t('pipeline.note.startNotCalled')
       : standsFor.kind === 'externalSystem'
         ? t('pipeline.note.endNotSent', { name: standsFor.name })
         : standsFor.kind === 'pipeline'

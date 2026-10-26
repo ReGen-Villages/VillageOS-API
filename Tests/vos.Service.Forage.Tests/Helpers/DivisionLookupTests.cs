@@ -1,5 +1,6 @@
 using FluentAssertions;
 using vos.Service.Forage.Helpers;
+using vos.Service.Shared.Roles;
 using Xunit;
 
 namespace vos.Service.Forage.Tests.Helpers;
@@ -18,15 +19,15 @@ public class DivisionLookupTests
     private const string SearchAddress = "https://example.test/administrativedivision?q={areaName}";
 
     private static ModelBuilder WithBothLookups() => new ModelBuilder()
-        .Stating("area-name-at-position", CoveringSourceResolver.AreaNameLookupFlag, true)
+        .Bound(CoveringSourceResolver.AreaNameLookupRole, "area-name-at-position")
         .Stating("area-name-at-position", "url", AreaNameAddress)
-        .Stating("hazard-division-search", CoveringSourceResolver.HazardDivisionLookupFlag, true)
+        .Bound(CoveringSourceResolver.HazardDivisionLookupRole, "hazard-division-search")
         .Stating("hazard-division-search", "url", SearchAddress)
         .Stating("hazard-division-search", "divisionCodeProperty", "hazardPortalDivision")
         .Stating("hazard-division-search", "divisionNameProperty", "hazardPortalDivisionName");
 
     [Fact]
-    public void BothRegistrationsAreFoundByTheMarkTheyCarry()
+    public void BothRegistrationsAreFoundThroughTheRoleThatBindsThem()
     {
         var lookup = CoveringSourceResolver.DivisionLookupIn(WithBothLookups().Build());
 
@@ -53,14 +54,27 @@ public class DivisionLookupTests
     }
 
     [Theory]
-    [InlineData("area-name-at-position", CoveringSourceResolver.AreaNameLookupFlag)]
-    [InlineData("hazard-division-search", CoveringSourceResolver.HazardDivisionLookupFlag)]
     [InlineData("hazard-division-search", "url")]
     [InlineData("hazard-division-search", "divisionCodeProperty")]
     [InlineData("hazard-division-search", "divisionNameProperty")]
     public void AModelMissingAnyHalfOfTheDeclarationOffersNoLookup(string registration, string property)
     {
         var model = WithBothLookups().Without(registration, property).Build();
+
+        CoveringSourceResolver.DivisionLookupIn(model).Should().BeNull();
+    }
+
+    public static IEnumerable<object[]> EitherLookupRole() =>
+    [
+        [CoveringSourceResolver.AreaNameLookupRole],
+        [CoveringSourceResolver.HazardDivisionLookupRole],
+    ];
+
+    [Theory]
+    [MemberData(nameof(EitherLookupRole))]
+    public void AModelBindingEitherLookupRoleToNothingOffersNoLookup(Role role)
+    {
+        var model = WithBothLookups().Unbound(role).Build();
 
         CoveringSourceResolver.DivisionLookupIn(model).Should().BeNull();
     }
@@ -86,20 +100,26 @@ public class DivisionLookupTests
 
     // No relationship reaches any of them: none covers a Place, so a coverage walk finds nothing to traverse to them.
     [Fact]
-    public void TheSitesReadAsksForEveryLookupMarkModelWide()
+    public void TheSitesReadAsksForEveryLookupRoleAndWhatItBindsModelWide()
     {
         var selector = CoveringSourceResolver.SelectorFor(Guid.NewGuid());
 
-        selector.MarkedArchetypes.Should().Contain(CoveringSourceResolver.AreaNameLookupFlag);
-        selector.MarkedArchetypes.Should().Contain(CoveringSourceResolver.LocalAreaNameLookupFlag);
-        selector.MarkedArchetypes.Should().Contain(CoveringSourceResolver.HazardDivisionLookupFlag);
+        foreach (var role in new[]
+                 {
+                     CoveringSourceResolver.AreaNameLookupRole, CoveringSourceResolver.LocalAreaNameLookupRole,
+                     CoveringSourceResolver.HazardDivisionLookupRole,
+                 })
+        {
+            selector.BoundArchetypes.Should().Contain(role.Id, role.Word);
+            selector.Ids.Should().Contain(role.Id, role.Word);
+        }
     }
 
     [Fact]
     public void TheLocalAreaNameLookupIsReadWhereTheModelDeclaresOne()
     {
         var model = WithBothLookups()
-            .Stating("local-area-name-at-position", CoveringSourceResolver.LocalAreaNameLookupFlag, true)
+            .Bound(CoveringSourceResolver.LocalAreaNameLookupRole, "local-area-name-at-position")
             .Build();
 
         CoveringSourceResolver.DivisionLookupIn(model)!.LocalAreaNameEndpoint.Should().Be("local-area-name-at-position");
@@ -119,8 +139,10 @@ public class DivisionLookupTests
     [Fact]
     public void TheSitesReadAsksForEveryPlaceModelWide()
     {
-        CoveringSourceResolver.SelectorFor(Guid.NewGuid()).MarkedTypes
-            .Should().Contain(CoveringSourceResolver.PlaceArchetypeFlag);
+        var selector = CoveringSourceResolver.SelectorFor(Guid.NewGuid());
+
+        selector.BoundTypes.Should().Contain(CoveringSourceResolver.PlaceArchetypeRole.Id);
+        selector.Ids.Should().Contain(CoveringSourceResolver.PlaceArchetypeRole.Id);
     }
 
     [Fact]
@@ -143,8 +165,9 @@ public class DivisionLookupTests
 
     private static ModelBuilder WithCodedPlaces() => WithBothLookups()
         .Stating("area-name-at-position", "placeCodeProperty", "iso3166Code")
-        .Archetype("Place", CoveringSourceResolver.PlaceArchetypeFlag)
-        .Stating("isIn", CoveringSourceResolver.PlaceNestingPredicateFlag, true)
+        .Archetype("Place")
+        .Bound(CoveringSourceResolver.PlaceArchetypeRole, "Place")
+        .Bound(CoveringSourceResolver.PlaceNestingRole, "isIn")
         .Relate("Poland", "is", "Place")
         .Relate("Mazowieckie", "is", "Place")
         .Relate("Earth", "is", "Place")
@@ -180,15 +203,32 @@ public class DivisionLookupTests
         coded.Places.Single(place => place.Name == "Mazowieckie").SiteIsIn.Should().BeFalse();
     }
 
-    // A site related through an unmarked predicate would stand in a Place no coverage walk follows, and
-    // without the archetype's mark nothing says which Things are Places.
-    [Theory]
-    [InlineData("isIn", CoveringSourceResolver.PlaceNestingPredicateFlag)]
-    [InlineData("Place", CoveringSourceResolver.PlaceArchetypeFlag)]
-    [InlineData("area-name-at-position", "placeCodeProperty")]
-    public void AModelMissingAMarkOrTheCodePropertyOffersNoPlaces(string thing, string property)
+    [Fact]
+    public void AModelBindingNoPlaceArchetypeOffersNoPlaces()
     {
-        var model = WithCodedPlaces().Without(thing, property);
+        var model = WithCodedPlaces().Unbound(CoveringSourceResolver.PlaceArchetypeRole);
+
+        CoveringSourceResolver.CodedPlacesIn(
+                model.Build(), model.Id("WillowBend"), CoveringSourceResolver.DivisionLookupIn(model.Build()))
+            .Should().BeNull();
+    }
+
+    [Fact]
+    public void AModelNamingNoCodePropertyOffersNoPlaces()
+    {
+        var model = WithCodedPlaces().Without("area-name-at-position", "placeCodeProperty");
+
+        CoveringSourceResolver.CodedPlacesIn(
+                model.Build(), model.Id("WillowBend"), CoveringSourceResolver.DivisionLookupIn(model.Build()))
+            .Should().BeNull();
+    }
+
+    // A site related through any other predicate would stand in a Place no coverage walk follows, so a model
+    // binding no nesting predicate offers no Places to relate it to.
+    [Fact]
+    public void AModelBindingNoNestingPredicateOffersNoPlaces()
+    {
+        var model = WithCodedPlaces().Unbound(CoveringSourceResolver.PlaceNestingRole);
 
         CoveringSourceResolver.CodedPlacesIn(
                 model.Build(), model.Id("WillowBend"), CoveringSourceResolver.DivisionLookupIn(model.Build()))

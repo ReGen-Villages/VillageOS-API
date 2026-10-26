@@ -145,7 +145,7 @@ try
                 return Results.Ok(new { success = true, accepted = true, resumes = vigilId });
 
             case SpawnKind.Relationship:
-                // A dispatched relationship — a `X runs Pipeline` write or a Thing entering a watched state —
+                // A relationship the broker sends — a `X runs Pipeline` write or a Thing entering a watched state —
                 // fires while Mycelium waits ~15s, so the pipeline is resolved and the run acknowledged before
                 // the DAG runs in the background. The result lands on the PipelineRun (animated over SSE). A
                 // detached token lets it outlive the request. A target no pipeline is drawn from is refused
@@ -160,7 +160,7 @@ try
                 _ = Task.Run(async () =>
                 {
                     try { await executor.RunAsync(pipelineId, runParameters,CancellationToken.None, subject: subject, requestId: requestId); }
-                    catch (Exception ex) { Log.Error(ex, "Dispatched pipeline run {PipelineId} failed", pipelineId); }
+                    catch (Exception ex) { Log.Error(ex, "Pipeline run {PipelineId} started by the broker failed", pipelineId); }
                 });
                 return Results.Ok(new { success = true, accepted = true, pipelineId });
 

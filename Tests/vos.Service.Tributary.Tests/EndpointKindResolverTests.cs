@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Shared;
+using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 using vos.Service.Tributary.Helpers;
 using Xunit;
@@ -35,7 +36,7 @@ public class EndpointKindResolverTests
             Thing(RootTemplate, "Endpoint"),
             Thing(IsPredicate, "is"),
             Thing(AuthRole, "authenticatesBy"),
-            Thing(TokenExchange, "TokenExchangeAuth", "tokenUrl", "tokenPath"),
+            Thing(TokenExchange, "TokenExchangeAuthentication", "tokenUrl", "tokenPath"),
         ],
         [
             Edge(Registration, IsPredicate, Template),
@@ -48,7 +49,7 @@ public class EndpointKindResolverTests
     {
         var selector = EndpointKindResolver.SelectorFor(Registration);
 
-        selector.Ids.Should().Equal(Registration);
+        selector.Ids.Should().Equal(Registration, LandIntakeRoles.Observed.Id, LandIntakeRoles.Predicate.Id);
         selector.IncludeRelationships.Should().BeTrue();
         selector.Traverse![0].Predicate.Should().Be("is");
         selector.Traverse.Select(rule => rule.Predicate).Should().Contain(EndpointKindRoles.All);
@@ -82,7 +83,33 @@ public class EndpointKindResolverTests
     {
         var resolved = EndpointKindResolver.Resolve(Snapshot(), Registration);
 
-        resolved[EndpointKindRoles.Authentication].Name.Should().Be("TokenExchangeAuth");
+        resolved[EndpointKindRoles.Authentication].Name.Should().Be("TokenExchangeAuthentication");
+    }
+
+    [Fact]
+    public void Resolve_ATemplateReachedAlongAPredicateNamedIs_IsNotWalked()
+    {
+        var snapshot = Snapshot();
+        var recased = snapshot with
+        {
+            Things = [.. snapshot.Things.Select(thing => thing.Id == IsPredicate ? thing with { Name = "Is" } : thing)],
+        };
+
+        EndpointKindResolver.Resolve(recased, Registration).Should()
+            .NotContainKey(EndpointKindRoles.Authentication, "Thing names are matched exactly, case included");
+    }
+
+    [Fact]
+    public void Resolve_AKindAlongARoleNamedInAnotherCase_IsNotAKind()
+    {
+        var snapshot = Snapshot();
+        var recased = snapshot with
+        {
+            Things = [.. snapshot.Things.Select(thing => thing.Id == AuthRole ? thing with { Name = "AuthenticatesBy" } : thing)],
+        };
+
+        EndpointKindResolver.Resolve(recased, Registration).Should().NotContainKey(EndpointKindRoles.Authentication);
+        EndpointKindRoles.IsRole("AuthenticatesBy").Should().BeFalse();
     }
 
     [Fact]
@@ -116,7 +143,7 @@ public class EndpointKindResolverTests
     [Fact]
     public void MissingRequirements_EndpointSupplyingEverything_NamesNothing()
     {
-        var kind = new ResolvedKind("TokenExchangeAuth", ["tokenUrl", "tokenPath"]);
+        var kind = new ResolvedKind("TokenExchangeAuthentication", ["tokenUrl", "tokenPath"]);
 
         EndpointKindResolver.MissingRequirements(kind, Effective(
             ("tokenUrl", "https://example.test/token"), ("tokenPath", "access_token")))
@@ -126,7 +153,7 @@ public class EndpointKindResolverTests
     [Fact]
     public void MissingRequirements_KeyDeclaredButLeftBlank_CountsAsNotSupplied()
     {
-        var kind = new ResolvedKind("TokenExchangeAuth", ["tokenUrl", "tokenPath"]);
+        var kind = new ResolvedKind("TokenExchangeAuthentication", ["tokenUrl", "tokenPath"]);
 
         EndpointKindResolver.MissingRequirements(kind, Effective(
             ("tokenUrl", "  "), ("tokenPath", "access_token")))

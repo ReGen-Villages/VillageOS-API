@@ -24,6 +24,13 @@ public sealed class SelectorDemo
         return result;
     }
 
+    // Declared by the shared site templates, so the demo slices on any seeded model.
+    public const string DefaultType = "OpenDataSource";
+    public const string DefaultPredicate = "provides";
+
+    public static SubscriptionSelector SelectorFor(SelectorDemoRequest? request) =>
+        SliceByTypeAndTraverse(request?.Type ?? DefaultType, request?.Predicate ?? DefaultPredicate);
+
     public static SubscriptionSelector SliceByTypeAndTraverse(string type, string predicate) => new()
     {
         Types = new List<string> { type },

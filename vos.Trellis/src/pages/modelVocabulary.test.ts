@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos';
-import { ALLOCATION_CATEGORY_ARCHETYPE_FLAG, termsMarked, type ModelReading } from './modelVocabulary';
+import { ALLOCATION_CATEGORY_ROLE, boundBy, termsBound, type ModelReading } from './modelVocabulary';
 
 // Every name here is spelled differently from the shipped land-intake template, so a reader answering
 // only to that spelling fails rather than passes.
@@ -20,10 +20,13 @@ const edge = (Id: string, SubjectId: string, PredicateId: string, TargetId: stri
 });
 
 const owned = (Value: unknown): EffectiveProperty => ({ Value, Type: 'vos.Boolean', IsInherited: false });
-const inherited = (Value: unknown): EffectiveProperty => ({ Value, Type: 'vos.Boolean', IsInherited: true });
+
+const ROLE = ALLOCATION_CATEGORY_ROLE;
 
 const THINGS: VosThing[] = [
   thing('is', 'is'),
+  thing('binds', 'binds'),
+  thing(ROLE, 'allocationCategory'),
   thing('land-use', 'LandUse', true),
   thing('housing', 'housing'),
   thing('growing', 'growing'),
@@ -32,40 +35,33 @@ const THINGS: VosThing[] = [
 ];
 
 const EDGES: VosRelationship[] = [
+  edge('b1', ROLE, 'binds', 'land-use'),
   edge('e1', 'housing', 'is', 'land-use'),
   edge('e2', 'growing', 'is', 'land-use'),
   edge('e3', 'roads', 'is', 'land-use'),
 ];
 
-const FLAG = ALLOCATION_CATEGORY_ARCHETYPE_FLAG;
-
 function reading(patch: Partial<ModelReading> = {}): ModelReading {
   return {
     things: THINGS,
     relationships: EDGES,
-    properties: { 'land-use': { [FLAG]: owned(true) } },
+    properties: {},
     ...patch,
   };
 }
 
-describe('the terms a model declares under a marked archetype', () => {
-  it('offers every term under the archetype carrying the mark, whatever the archetype is called', () => {
-    expect(termsMarked(reading(), FLAG)).toEqual(['growing', 'housing', 'roads']);
+describe('the terms a model declares under the archetype a role binds', () => {
+  it('offers every term under the archetype the role binds, whatever the archetype is called', () => {
+    expect(termsBound(reading(), ROLE)).toEqual(['growing', 'housing', 'roads']);
   });
 
-  it('reads the terms even though each inherits the mark from the archetype it is a kind of', () => {
-    const inheritedByEveryTerm = {
-      'land-use': { [FLAG]: owned(true) },
-      housing: { [FLAG]: inherited(true) },
-      growing: { [FLAG]: inherited(true) },
-      roads: { [FLAG]: inherited(true) },
+  it('reads the terms whatever properties the archetype and its terms carry', () => {
+    const carried = {
+      'land-use': { stale: owned(true) },
+      housing: { stale: owned(true) },
     };
 
-    expect(termsMarked(reading({ properties: inheritedByEveryTerm }), FLAG)).toEqual([
-      'growing',
-      'housing',
-      'roads',
-    ]);
+    expect(termsBound(reading({ properties: carried }), ROLE)).toEqual(['growing', 'housing', 'roads']);
   });
 
   it('reaches a term grouped under a type of its own beneath the archetype', () => {
@@ -76,7 +72,7 @@ describe('the terms a model declares under a marked archetype', () => {
       edge('e5', 'workshops', 'is', 'built'),
     ];
 
-    expect(termsMarked(reading({ things, relationships }), FLAG)).toEqual([
+    expect(termsBound(reading({ things, relationships }), ROLE)).toEqual([
       'growing',
       'housing',
       'roads',
@@ -84,21 +80,24 @@ describe('the terms a model declares under a marked archetype', () => {
     ]);
   });
 
-  it('offers nothing where the model marks no archetype at all', () => {
-    expect(termsMarked(reading({ properties: {} }), FLAG)).toEqual([]);
+  it('offers nothing where the model binds the role to nothing', () => {
+    expect(termsBound(reading({ relationships: EDGES.filter((one) => one.Id !== 'b1') }), ROLE)).toEqual([]);
   });
 
-  it('offers nothing where two Things own the mark and neither can be said to hold the vocabulary', () => {
-    const twoCarriers = {
-      'land-use': { [FLAG]: owned(true) },
-      unrelated: { [FLAG]: owned(true) },
-    };
+  it('offers nothing where the role binds two Things and neither can be said to hold the vocabulary', () => {
+    const relationships = [...EDGES, edge('b2', ROLE, 'binds', 'unrelated')];
 
-    expect(termsMarked(reading({ properties: twoCarriers }), FLAG)).toEqual([]);
+    expect(termsBound(reading({ relationships }), ROLE)).toEqual([]);
+  });
+
+  it('offers nothing where the model holds no binds predicate to read the binding through', () => {
+    const things = THINGS.filter((one) => one.Id !== 'binds');
+
+    expect(termsBound(reading({ things }), ROLE)).toEqual([]);
   });
 
   it('leaves out the archetype itself, which is not one of its own terms', () => {
-    expect(termsMarked(reading(), FLAG)).not.toContain('LandUse');
+    expect(termsBound(reading(), ROLE)).not.toContain('LandUse');
   });
 
   it('lists a term once where two paths reach it', () => {
@@ -109,7 +108,7 @@ describe('the terms a model declares under a marked archetype', () => {
       edge('e5', 'housing', 'is', 'built'),
     ];
 
-    expect(termsMarked(reading({ things, relationships }), FLAG)).toEqual(['growing', 'housing', 'roads']);
+    expect(termsBound(reading({ things, relationships }), ROLE)).toEqual(['growing', 'housing', 'roads']);
   });
 
   it('answers a model whose types lead back to each other, rather than walking for ever', () => {
@@ -120,18 +119,30 @@ describe('the terms a model declares under a marked archetype', () => {
       edge('e5', 'land-use', 'is', 'built'),
     ];
 
-    expect(termsMarked(reading({ things, relationships }), FLAG)).toEqual(['growing', 'housing', 'roads']);
+    expect(termsBound(reading({ things, relationships }), ROLE)).toEqual(['growing', 'housing', 'roads']);
   });
 
   it('leaves out an edge whose subject the reading holds no Thing for', () => {
     const relationships = [...EDGES, edge('e7', 'gone', 'is', 'land-use')];
 
-    expect(termsMarked(reading({ relationships }), FLAG)).toEqual(['growing', 'housing', 'roads']);
+    expect(termsBound(reading({ relationships }), ROLE)).toEqual(['growing', 'housing', 'roads']);
   });
 
   it('leaves out a Thing reached through some other predicate', () => {
     const relationships = [...EDGES, edge('e6', 'unrelated', 'covers', 'land-use')];
 
-    expect(termsMarked(reading({ relationships }), FLAG)).not.toContain('Willow Bend');
+    expect(termsBound(reading({ relationships }), ROLE)).not.toContain('Willow Bend');
+  });
+});
+
+describe('what a role binds', () => {
+  it('is read off the role Thing\'s own binds relationship', () => {
+    expect(boundBy(reading(), ROLE)).toBe('land-use');
+  });
+
+  it('is nothing where the role reaches a Thing through another predicate', () => {
+    const relationships = [edge('x1', ROLE, 'is', 'land-use')];
+
+    expect(boundBy(reading({ relationships }), ROLE)).toBeNull();
   });
 });

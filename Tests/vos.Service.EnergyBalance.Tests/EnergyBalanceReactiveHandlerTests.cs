@@ -84,7 +84,7 @@ public class EnergyBalanceReactiveHandlerTests
         Assert.Equal(110.5, answer.Outputs!.PercentOfConsumption, 3);
     }
 
-    // The platform withholds a roll-up whose member type resolves to nothing rather than answering
+    // The platform withholds a derived property whose member type resolves to nothing rather than answering
     // zero, so an input can arrive present-but-null. 6826: that says the same thing about a study as an
     // absent one — no Thing to reduce over yet — so it is waited for, and the name still has to reach the
     // log. Six inputs are read here, and "not numeric: Null" names none of them.
@@ -119,8 +119,8 @@ public class EnergyBalanceReactiveHandlerTests
     }
 
     // A study a submission built describes land and a programme and carries no panels, so the
-    // area is absent until a building model exists. Throwing on it had the broker record the dispatch
-    // failed and re-drive it on every reconciliation for as long as the model lived.
+    // area is absent until a building model exists. Throwing on it had the broker record the service call
+    // failed and call it again on every reconciliation for as long as the model lived.
     [Fact]
     public async Task An_input_the_study_does_not_carry_is_waited_for_and_no_verdict_is_written()
     {

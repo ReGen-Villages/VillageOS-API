@@ -4,7 +4,7 @@ import { ROLE, type PipelineModel, type PipelineNamed, type CatalystConnection }
 // sets a run off, and what a run may leave behind. A site that adds a system, a state or a connection
 // adds a row the same way.
 
-/** The kinds of catalyst the platform dispatches on: a message arriving at a door, a Thing entering a
+/** The kinds of catalyst the platform calls services on: a message arriving at a door, a Thing entering a
  *  state, a relationship written along a predicate, and a state the clock re-checks on an interval. */
 export type CatalystKind = 'message' | 'state' | 'relationship' | 'clock';
 
@@ -20,7 +20,7 @@ export interface CatalystRow {
   standsForId: string;
   /** The pipeline drawn for it, where one is. */
   starts?: PipelineNamed;
-  /** What happens to it today: the service the platform dispatches. Empty where the model says nothing. */
+  /** What happens to it today: the service the platform calls. Empty where the model says nothing. */
   today: string;
   /** For a state the clock re-checks: how often. */
   everySeconds?: number;

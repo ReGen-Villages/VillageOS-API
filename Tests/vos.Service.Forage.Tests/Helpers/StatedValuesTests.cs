@@ -132,15 +132,15 @@ public class StatedValuesTests
     }
 
     [Fact]
-    public void Of_MarksAreNotValues()
+    public void Of_DoubleUnderscoredPropertiesAreNotValues()
     {
-        // A double-underscored property is how a reader finds a Thing, not something true of the
-        // place or assessment a call is about — a mark sent as an address value would fill a
-        // placeholder no provider means.
+        // A double-underscored property is the platform's own, not something true of the place or
+        // assessment a call is about — one sent as an address value would fill a placeholder no
+        // provider means.
         var thingId = Guid.NewGuid();
         var snapshot = Snapshot(Site(thingId, new Dictionary<string, SnapshotProperty>
         {
-            ["__IsRootPlace"] = Property("true"),
+            ["__MatchIfcClass"] = Property("\"IfcSite\""),
             ["hazardPortalDivision"] = Property("\"2062\""),
         }));
 

@@ -7,7 +7,6 @@
  * and Thing name comes out of the specification.
  */
 import {
-  DASHBOARD_ARCHETYPE,
   IS_PREDICATE,
   SCOPE_REFERENCE,
   type Binding,
@@ -18,26 +17,45 @@ import {
   type ScopeReference,
   type Widget,
 } from '../types/dashboard';
-import { GUI_SETTINGS_TYPE_NAME } from '../utils/guiSettings';
-import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ARCHETYPE_MARK } from './propertyNames';
+import { DISPLAY_SETTINGS_ROLE_ID, PAGE_ROLE_ID } from './platformRoles';
+import { NAMES_PROPERTY_OF_PREDICATE, PROPERTY_NAME_ROLE } from './propertyNames';
+import { BINDS_PREDICATE_NAME, LAND_INTAKE_ROLE } from './landIntakeRoles';
 import type { SubscriptionSelector, TraverseDirection, TraverseRule } from '../types/subscription';
 
+/** A detail card explains the decisions about the Thing it opens on, so every dashboard is sent the roles
+ *  binding the decision predicates and the constraint archetype; the predicates themselves arrive along `binds`. */
+const DECISION_ROLES_A_DETAIL_CARD_READS = [
+  LAND_INTAKE_ROLE.Constraint,
+  LAND_INTAKE_ROLE.DecisionSubject,
+  LAND_INTAKE_ROLE.Chosen,
+  LAND_INTAKE_ROLE.DecidedUnder,
+  LAND_INTAKE_ROLE.Refusal,
+  LAND_INTAKE_ROLE.Support,
+  LAND_INTAKE_ROLE.ConsiderationCause,
+  LAND_INTAKE_ROLE.ConsiderationEvidence,
+  LAND_INTAKE_ROLE.RefusedCandidate,
+];
+
 /**
- * What every page reads whatever it shows: the dashboards the navigation lists, the Thing the model
- * states its display settings on, and the `is` relationship's predicate. A page that needs no more than
+ * What every page reads whatever it shows: the page kind and the pages the navigation lists, the Thing the
+ * model states its display settings on, and the `is` and `binds` predicates. A page that needs no more than
  * this is the cheapest subscription the app opens, and it is what the shell holds until a page says
  * otherwise.
  *
- * A predicate is a Thing, and the client reads a relationship's predicate by looking that Thing up, so an
+ * The page kind and the settings Thing are each asked for as what a role binds, never by a name, so a model
+ * may call them anything. The two role Things are asked for by identifier as well, because a snapshot carries
+ * the relationships of what it selects: their `binds` relationships travel with them, and that is how a
+ * reader tells the settings Thing from everything else it was sent.
+ *
+ * A predicate is a Thing, and the client reads a relationship's predicate by looking that Thing up, so a
  * relationship whose predicate is missing is one nothing can name — which for `is` means no Thing can be
  * told what it is. Every predicate a page follows is asked for alongside the Things it joins.
- *
- * Each is asked for by name as well as by type, because a type with no members is a Thing nothing
- * `is` and would otherwise be selected by neither.
  */
 export const NAVIGATION_AND_SETTINGS: SubscriptionSelector = {
-  types: [DASHBOARD_ARCHETYPE, GUI_SETTINGS_TYPE_NAME],
-  names: [DASHBOARD_ARCHETYPE, GUI_SETTINGS_TYPE_NAME, IS_PREDICATE],
+  ids: [PAGE_ROLE_ID, DISPLAY_SETTINGS_ROLE_ID],
+  boundTypes: [PAGE_ROLE_ID],
+  boundArchetypes: [DISPLAY_SETTINGS_ROLE_ID],
+  names: [IS_PREDICATE, BINDS_PREDICATE_NAME],
   includeLaterMatches: true,
 };
 
@@ -214,7 +232,7 @@ const READS_ITS_TYPE_LOCALLY = new Set(['thingList', 'aggregate', 'stateList']);
  *  type is asked for only while no entity is selected — when "All" is showing, the binding does run
  *  over every member of the type. */
 function drawnTypes(specification: DashboardSpecification, scopeId: string | null): string[] {
-  const types = new Set<string>(NAVIGATION_AND_SETTINGS.types);
+  const types = new Set<string>();
   if (specification.compare) types.add(specification.compare.archetype);
   for (const binding of specificationBindings(specification)) {
     if (!READS_ITS_TYPE_LOCALLY.has(binding.kind)) continue;
@@ -248,28 +266,36 @@ function namedThings(specification: DashboardSpecification): { ids: string[]; na
 export function subscriptionForSpecification(specification: DashboardSpecification, scopeId: string | null): SubscriptionSelector {
   const named = namedThings(specification);
   const levers = offersLevers(specification);
-  // Followed last, so no walk the specification takes is applied to the archetypes it reaches.
+  // Followed last, and the roles to the Things they bind after that, so no walk the specification takes
+  // is applied to what the roles reach.
   const traverse = [
     ...scopeRules(specification),
     ...walkRules(specificationWalks(specification)),
     ...(levers ? [ruleFor(NAMES_PROPERTY_OF_PREDICATE, 'out', 1)] : []),
+    ruleFor(BINDS_PREDICATE_NAME, 'out', 1),
   ];
   // A Thing is created before it is typed, so only a subscription that keeps following its types is
   // sent the Thing when its `is` relationship admits it — which is what lets a roster grow on a page left open.
   const selector: SubscriptionSelector = {
+    ids: [...new Set([
+      ...NAVIGATION_AND_SETTINGS.ids!,
+      ...(scopeId ? [scopeId] : []),
+      ...named.ids,
+      ...(levers ? [PROPERTY_NAME_ROLE] : []),
+      ...DECISION_ROLES_A_DETAIL_CARD_READS,
+    ])],
+    boundTypes: [...NAVIGATION_AND_SETTINGS.boundTypes!, ...(levers ? [PROPERTY_NAME_ROLE] : [])],
+    boundArchetypes: NAVIGATION_AND_SETTINGS.boundArchetypes,
     types: drawnTypes(specification, scopeId),
     names: [...new Set([
-      ...NAVIGATION_AND_SETTINGS.names ?? [],
+      ...NAVIGATION_AND_SETTINGS.names!,
       ...traverse.map((rule) => rule.predicate),
       ...named.names,
     ])],
     includeLaterMatches: true,
     includeObservations: true,
   };
-  const ids = scopeId ? [...new Set([scopeId, ...named.ids])] : named.ids;
-  if (ids.length) selector.ids = ids;
   if (traverse.length) selector.traverse = traverse;
-  if (levers) selector.markedTypes = [PROPERTY_NAME_ARCHETYPE_MARK];
   return selector;
 }
 

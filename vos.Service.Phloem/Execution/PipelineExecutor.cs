@@ -8,7 +8,7 @@ using vos.Service.Shared;
 namespace vos.Service.Phloem.Execution;
 
 // Runs a pipeline synchronously (spawn-and-wait): load the subgraph → build the DAG → validate (acyclic +
-// port types) → execute nodes in dependency order, dispatching each through Mycelium and routing each
+// port types) → execute nodes in dependency order, calling each through Mycelium and routing each
 // node's outputs to its downstream inputs → return the full result. Independent nodes in a level run
 // concurrently (bounded). Run/NodeRun state is persisted best-effort for the live SSE view.
 public sealed class PipelineExecutor
@@ -41,7 +41,7 @@ public sealed class PipelineExecutor
     }
 
     // runId: Pre-generated run id for an async spawn (the editor already holds it to animate over
-    // SSE); when null a fresh id is minted (synchronous spawn / dispatched relationship).
+    // SSE); when null a fresh id is minted (synchronous spawn / a relationship the broker sends).
     // subject: the Thing whose state entry or relationship started the run. It is recorded on the run and
     // reaches the pipeline as the run param `subject` — the name the page gives a start node's port — as
     // one value carrying the Thing's id and name, so a wire narrows it to either by its from-path.
@@ -121,7 +121,7 @@ public sealed class PipelineExecutor
     private sealed record Start(JsonElement Parameters, bool Rehearsal);
 
     // The vigil's answer: the node run holding it succeeds with the outputs its service answered before the wait,
-    // and the run carries on from its record. Nothing is dispatched a second time.
+    // and the run carries on from its record. Nothing is called a second time.
     public async Task<ResumeOutcome> ResumeAsync(Guid vigilId, CancellationToken cancellationToken)
     {
         if (await HolderOfAsync(vigilId, cancellationToken) is not { } holder) return ResumeOutcome.NotHeld;
@@ -287,7 +287,7 @@ public sealed class PipelineExecutor
     }
 
     // A node with no record is one the run had not reached, which only a node behind a wait can be; any other
-    // missing record means the run would have to dispatch that node again to carry on.
+    // missing record means the run would have to call that node again to carry on.
     private static (Progress Progress, DagNode? Missing) ProgressFrom(PipelineDag dag, RunRecord record)
     {
         var progress = new Progress();
@@ -366,7 +366,7 @@ public sealed class PipelineExecutor
             if (ready.Count == 0) break;
 
             // A node wired only from outcomes that were not answered is the branch not taken: it is recorded
-            // and nothing is dispatched to it, so a node behind the alternatives runs once, from the one that
+            // and nothing is called for it, so a node behind the alternatives runs once, from the one that
             // carried.
             var notTaken = ready.Where(n => dag.WiresInto(n.NodeId).Any() && !dag.WiresInto(n.NodeId).Any(w => Carried(w, outputs))).ToList();
             foreach (var node in notTaken)
@@ -671,11 +671,11 @@ public sealed class PipelineExecutor
         IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, JsonElement runParams,
         IReadOnlyList<AttemptRecord> attemptsMade, bool rehearsal, CancellationToken cancellationToken)
     {
-        // Mark the node (aggregate) running before dispatch so the editor animates it live; the terminal status
+        // Mark the node (aggregate) running before its service is called so the editor animates it live; the terminal status
         // is written by RunAsync from the value returned here.
         await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, RunStatus.Running, null, cancellationToken), "persist node running");
 
-        // Boundary nodes never dispatch: an Input node projects the run's params onto its output ports
+        // Boundary nodes never call a service: an Input node projects the run's params onto its output ports
         // (which then flow downstream via wires); an Output node is a sink — its inputs are collected as the
         // run result after the sweep (see RunAsync), so here it simply succeeds.
         if (node.Kind == DagNodeKind.Input)
@@ -910,7 +910,7 @@ public sealed class PipelineExecutor
         IReadOnlyList<AttemptRecord> attemptsMade, bool rehearsal, CancellationToken cancellationToken)
     {
         if (node.Retries is not { } policy)
-            return ((await DispatchOnceAsync(node, runId, inputs, index, rehearsal, cancellationToken)).Result, false);
+            return ((await CallOnceAsync(node, runId, inputs, index, rehearsal, cancellationToken)).Result, false);
 
         var firstStarted = attemptsMade.Count > 0 ? attemptsMade[0].StartedUtc : _clock.GetUtcNow();
         var number = attemptsMade.Count;
@@ -923,7 +923,7 @@ public sealed class PipelineExecutor
                 return (new NodeRunResult(node.NodeId, node.Name, RunStatus.Cancelled, NoOutputs, stop.Reason), false);
             number++;
             var started = _clock.GetUtcNow();
-            var outcome = await DispatchOnceAsync(node, runId, inputs, index, rehearsal, cancellationToken);
+            var outcome = await CallOnceAsync(node, runId, inputs, index, rehearsal, cancellationToken);
             var attempt = new AttemptRecord(number, started, _clock.GetUtcNow(), outcome.Result.Status, outcome.Result.Error);
             await BestEffort(() => _gateway.RecordAttemptAsync(runId, node.NodeId, index, attempt, cancellationToken), "record attempt");
             if (outcome.ReachedTheService) return (outcome.Result, false);
@@ -949,29 +949,29 @@ public sealed class PipelineExecutor
         }
     }
 
-    private sealed record DispatchOutcome(NodeRunResult Result, bool ReachedTheService);
+    private sealed record CallOutcome(NodeRunResult Result, bool ReachedTheService);
 
     // A call that threw, or that the broker's door answered for a service it could not reach, never reached the
     // service; any other answer came from it.
-    private async Task<DispatchOutcome> DispatchOnceAsync(
+    private async Task<CallOutcome> CallOnceAsync(
         DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> inputs, int? index, bool rehearsal, CancellationToken cancellationToken)
     {
         var envelope = BuildEnvelope(runId, node, inputs, index, rehearsal);
 
-        NodeDispatchResult dispatch;
+        NodeCallResult nodeCall;
         try
         {
-            dispatch = await _gateway.DispatchAsync(node.Subdomain, envelope, cancellationToken);
+            nodeCall = await _gateway.CallAsync(node.Subdomain, envelope, cancellationToken);
         }
         catch (Exception ex)
         {
-            return new DispatchOutcome(Failure(node, $"Dispatch to '{node.Subdomain}' failed: {ex.Message}"), ReachedTheService: false);
+            return new CallOutcome(Failure(node, $"Service call to '{node.Subdomain}' failed: {ex.Message}"), ReachedTheService: false);
         }
 
-        if (dispatch.StatusCode is < 200 or >= 300)
-            return new DispatchOutcome(Failure(node, $"Node '{node.Name}' returned HTTP {dispatch.StatusCode}."), ReachedTheService: dispatch.StatusCode < 500);
+        if (nodeCall.StatusCode is < 200 or >= 300)
+            return new CallOutcome(Failure(node, $"Node '{node.Name}' returned HTTP {nodeCall.StatusCode}."), ReachedTheService: nodeCall.StatusCode < 500);
 
-        return new DispatchOutcome(ParseNodeResponse(node, dispatch.Body), ReachedTheService: true);
+        return new CallOutcome(ParseNodeResponse(node, nodeCall.Body), ReachedTheService: true);
     }
 
     private static readonly JsonElement NullJson = JsonSerializer.SerializeToElement<object?>(null);

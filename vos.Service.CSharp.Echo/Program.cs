@@ -157,14 +157,13 @@ var writeKindsEndpoint = app.MapPost("/demo/write-kinds", (WriteKindsDemoRequest
     DemoAnswer.OfAsync(() => new WriteKindsDemo(myceliumClient).RunAsync(req.ThingId, DateTime.UtcNow)));
 if (authEnabled) writeKindsEndpoint.RequireAuthorization();
 
-// Selector demo — POST optional { "type": "...", "predicate": "..." } (defaults to Battery/powers).
+// Selector demo — POST optional { "type": "...", "predicate": "..." }; a refused slice is answered as the platform gave it.
 var selectorEndpoint = app.MapPost("/demo/subscribe",
     async (SelectorDemoRequest? req, IHttpClientFactory httpFactory, ILoggerFactory loggerFactory) =>
 {
     var subscriptions = new SubscriptionClient(
         httpFactory, loggerFactory.CreateLogger("SelectorDemo"), myceliumUrl, serviceToken, apiKey: apiKey);
-    var selector = SelectorDemo.SliceByTypeAndTraverse(req?.Type ?? "Battery", req?.Predicate ?? "powers");
-    return await DemoAnswer.OfAsync(() => new SelectorDemo(subscriptions).RunAsync(selector));
+    return await DemoAnswer.OfAsync(() => new SelectorDemo(subscriptions).RunAsync(SelectorDemo.SelectorFor(req)));
 });
 if (authEnabled) selectorEndpoint.RequireAuthorization();
 

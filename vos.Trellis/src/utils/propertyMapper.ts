@@ -202,14 +202,14 @@ function foldInAncestors(
  * {@link effectiveProperties} is asked for every binding on every refresh.
  */
 export function effectiveDerivedDefinitions(
-  thing: { Id?: string; RollupProperties?: Record<string, DerivedDefinition> },
+  thing: { Id?: string; DerivedProperties?: Record<string, DerivedDefinition> },
   lookup: IsChainLookup,
 ): Readonly<Record<string, DerivedDefinition>> {
   return resolveDefinitions(thing, lookup, new Set());
 }
 
 function resolveDefinitions(
-  thing: { Id?: string; RollupProperties?: Record<string, DerivedDefinition> },
+  thing: { Id?: string; DerivedProperties?: Record<string, DerivedDefinition> },
   lookup: IsChainLookup,
   visiting: Set<string>,
 ): Readonly<Record<string, DerivedDefinition>> {
@@ -217,7 +217,7 @@ function resolveDefinitions(
   foldInAncestors(thing, lookup, visiting, (parent) =>
     Object.assign(merged, resolveDefinitions(parent, lookup, visiting)),
   );
-  Object.assign(merged, thing.RollupProperties);
+  Object.assign(merged, thing.DerivedProperties);
   return merged;
 }
 

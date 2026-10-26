@@ -1,6 +1,8 @@
 using System.Text.Json;
 using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Services;
+using vos.Service.Shared.Roles;
+using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Tests;
 
@@ -50,7 +52,6 @@ public sealed class BrokerSnapshot
                 {
                     SourceId = ContactArchetype,
                     SourceName = "Contact",
-                    InheritedAt = DateTime.UtcNow,
                     Properties = overriding,
                 },
             };
@@ -61,13 +62,19 @@ public sealed class BrokerSnapshot
         return this;
     }
 
+    // The role Thing, under the identifier every model declares it by, binding a Thing along `binds`.
+    public BrokerSnapshot Bound(Role role, Guid bound)
+    {
+        if (_things.All(thing => thing.Id != BindsPredicate)) Thing(BindsPredicate, RoleBindings.BindsPredicateName);
+        if (_things.All(thing => thing.Id != role.Id)) Thing(role.Id, role.Word);
+        return Relate(role.Id, BindsPredicate, bound);
+    }
+
     // The model as a deployment that was never seeded for this holds it: the page and the
     // archetype are there, and nothing says which is which.
-    public BrokerSnapshot WithoutTheMarks()
+    public BrokerSnapshot Unbound(Role role)
     {
-        foreach (var flag in (string[])[FindingsReader.FindingsDashboardFlag, FindingsReader.PersonalDetailFlag])
-            foreach (var thing in _things)
-                thing.Properties.Remove(flag);
+        _edges.RemoveAll(edge => edge.SubjectId == role.Id);
         return this;
     }
 
@@ -123,6 +130,19 @@ public sealed class BrokerSnapshot
             _edges.Where(edge => reached.Contains(edge.SubjectId) && reached.Contains(edge.TargetId)).ToList());
     }
 
+    // Where the platform would root a walk: the first id, when the selector traverses any predicate of the
+    // page's own. A read that only follows role bindings takes the model whole, as the declaration reads do.
+    public static Guid? RootedAt(JsonElement selector)
+    {
+        if (!selector.TryGetProperty("traverse", out var traverse) || traverse.ValueKind != JsonValueKind.Array)
+            return null;
+        var walks = traverse.EnumerateArray().Any(rule =>
+            rule.TryGetProperty("predicate", out var predicate)
+            && predicate.GetString() is { } name
+            && name != RoleBindings.BindsPredicateName);
+        return walks ? Guid.Parse(selector.GetProperty("ids")[0].GetString()!) : null;
+    }
+
     public JsonDocument Parsed() =>
         JsonDocument.Parse(JsonSerializer.Serialize(Snapshot(_things, _edges), AsTheBrokerWritesIt));
 
@@ -157,6 +177,7 @@ public sealed class BrokerSnapshot
     public const string OtherSubmissionId = "1d2c3b4a-5e6f-4708-9a1b-2c3d4e5f6071";
 
     public static readonly Guid IsPredicate = new("33333333-3333-3333-3333-333333333333");
+    public static readonly Guid BindsPredicate = new("b1bd5000-0000-5000-8000-000000000001");
     public static readonly Guid HasPredicate = new("22222222-2222-2222-2222-222222222222");
     public static readonly Guid StudiesPredicate = new("11111111-1111-1111-1111-111111111111");
     public static readonly Guid ObtainedByPredicate = new("dddddddd-dddd-dddd-dddd-dddddddddddd");
@@ -198,9 +219,9 @@ public sealed class BrokerSnapshot
                         "states": [{"state": "EnergyNetPositive", "reads": "the site makes what it uses"}]}}]}]}
         """;
 
-    // The model a submitter's page is drawn from: the marks, the archetypes, one submitter's
-    // site with its parcel, study and contact — and a second submitter's, which is what a test about who
-    // may read what needs there to be.
+    // The model a submitter's page is drawn from: the roles with what each binds, the archetypes, one
+    // submitter's site with its parcel, study and contact — and a second submitter's, which is what a test
+    // about who may read what needs there to be.
     public static BrokerSnapshot WithTwoSubmissions(string submissionId = WillowBend.SubmissionId)
     {
         var snapshot = new BrokerSnapshot()
@@ -211,21 +232,18 @@ public sealed class BrokerSnapshot
             .Thing(SiteArchetype, SubmissionFragmentComposer.SiteArchetypeName, isArchetype: true)
             .Thing(StudyArchetype, SubmissionFragmentComposer.SiteStudyArchetypeName, isArchetype: true)
             .Thing(ParcelArchetype, SubmissionFragmentComposer.ParcelArchetypeName, isArchetype: true)
-            .Thing(ContactArchetype, SubmissionFragmentComposer.ContactArchetypeName, isArchetype: true,
-                properties: Flag(FindingsReader.PersonalDetailFlag))
+            .Thing(ContactArchetype, SubmissionFragmentComposer.ContactArchetypeName, isArchetype: true)
             .Thing(DashboardArchetype, "Dashboard", isArchetype: true)
             .Thing(Page, "Site Submission Dashboard", properties: new Dictionary<string, object>
             {
-                [FindingsReader.FindingsDashboardFlag] = new { typeInfo = "vos.Boolean", value = true },
                 [FindingsReader.SpecificationProperty] = new { typeInfo = "vos.String", value = PageSpecification },
             })
-            .Relate(Page, IsPredicate, DashboardArchetype);
+            .Relate(Page, IsPredicate, DashboardArchetype)
+            .Bound(FindingsReader.PageRole, Page)
+            .Bound(FindingsReader.PersonalDetailRole, ContactArchetype);
 
         return snapshot.WithSubmission(submissionId, "Willow Bend").WithSubmission(OtherSubmissionId, "Alder Rise");
     }
-
-    private static Dictionary<string, object> Flag(string name) =>
-        new() { [name] = new { typeInfo = "vos.Boolean", value = true } };
 
     private BrokerSnapshot WithSubmission(string submissionId, string siteName)
     {

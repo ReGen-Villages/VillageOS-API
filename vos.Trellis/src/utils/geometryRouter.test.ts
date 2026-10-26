@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSolidMesh } from './geometryDispatcher';
+import { parseSolidMesh } from './geometryRouter';
 
 /** 2×2×3 box centred at (5, 0, -10), height 3m, y-up. */
 function makeBoxMeshData() {

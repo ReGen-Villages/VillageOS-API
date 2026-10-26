@@ -3,14 +3,14 @@ using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("vos.Service.Shared.Tests")]
 
-namespace vos.Service.Shared.Dispatch;
+namespace vos.Service.Shared.ServiceCalls;
 
-// Handled-predicate dispatch is at-least-once: the broker sends a relation again when it cannot
+// Handled-predicate service call is at-least-once: the broker sends a relation again when it cannot
 // confirm the handler finished, and a handler that reconnects is sent what it missed. Nothing in a
 // delivery says whether it is the first.
 //
 // A claim is the note kept here against a relationshipId work has started for. A failing effect
-// gives its claim back: keeping it would lose the work, because the re-drive would find it taken.
+// gives its claim back: keeping it would lose the work, because the repeat call would find it taken.
 //
 // None of this is a durable record of what completed. That belongs on the relation, which outlives
 // any one process; these claims guard against a burst of repeats and nothing more.

@@ -5,8 +5,8 @@ namespace vos.Service.Intake.Services;
 
 // The shape a submission has to land in: SiteStudy -studies-> Site, the site carrying what is true
 // of the land and the study carrying what an analysis makes of it. It is the shape an imported building
-// model already produces, so no reader has to ask where a site's facts came from, and a study is found by
-// its flag rather than by its source.
+// model already produces, so no reader has to ask where a site's facts came from, and a study is found
+// through the role that binds its archetype rather than by its source.
 //
 // A tool in the VillageOS repository reads this file as text. It checks what a submission writes against the
 // archetypes that declare those properties, and this file is the only place it can learn that. What it takes
@@ -39,7 +39,6 @@ namespace vos.Service.Intake.Services;
 // follows the relationship to a Thing it can ask further questions of.
 public static class SubmissionFragmentComposer
 {
-    public const string SiteStudyFlag = "__IsSiteStudy";
     public const string StudiesPredicateName = "studies";
     public const string HasPredicateName = "has";
     public const string IsPredicateName = "is";
@@ -51,6 +50,9 @@ public static class SubmissionFragmentComposer
     public const string SubmissionRole = "submission";
 
     public const string SiteArchetypeName = "Site";
+    // The study's archetype is found through the siteStudy role, never by this name. The name stays for the
+    // model reference tool in the platform repository, which pairs it with StudyProperties when it checks what
+    // a study writes against what its archetype declares.
     public const string SiteStudyArchetypeName = "SiteStudy";
     public const string ParcelArchetypeName = "Parcel";
     public const string ProjectArchetypeName = "Project";
@@ -103,7 +105,7 @@ public static class SubmissionFragmentComposer
 
         Relate(studyThing, predicates.Studies, siteThing);
         BeArchetype(siteThing, archetypes.Site, SiteArchetypeName);
-        BeArchetype(studyThing, archetypes.SiteStudy, SiteStudyArchetypeName);
+        BeArchetype(studyThing, vocabulary.SiteStudy.Id, vocabulary.SiteStudy.Name);
 
         // One demand of the study's own per demand the analysis declares. A coverage and a shortfall are
         // properties of one study's demand, so a study sharing the analysis's demands would have nowhere to
@@ -347,12 +349,9 @@ public static class SubmissionFragmentComposer
         return properties;
     }
 
-    // Only the flag readers locate a study by. Every computed output is declared on the archetype, and a
-    // declaration here could only disagree with it.
-    private static Dictionary<string, TypedValue> StudyProperties() => new()
-    {
-        [SiteStudyFlag] = TypedValue.Written(VosTypeNames.Boolean, true),
-    };
+    // A study states nothing of its own: readers find it through the role binding its archetype, and every
+    // computed output is declared on that archetype, where a declaration here could only disagree with it.
+    private static Dictionary<string, TypedValue> StudyProperties() => new();
 
     private static Dictionary<string, TypedValue> ProjectProperties(SubmittedProject project)
     {
