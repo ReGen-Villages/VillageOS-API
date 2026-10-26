@@ -192,7 +192,7 @@ public class MyceliumClientTests
         });
 
         var sut = CreateClient(handler);
-        var result = await sut.CreateThingAsync("X");
+        var result = await sut.CreateThingAsync("X", null);
 
         result.Should().NotBeNull();
         result!.Value.Id.Should().Be(newId);
@@ -233,7 +233,7 @@ public class MyceliumClientTests
         });
         var sut = CreateClient(handler);
 
-        (await sut.CreateThingAsync("X")).Should().BeNull();
+        (await sut.CreateThingAsync("X", null)).Should().BeNull();
     }
 
     [Fact]
@@ -242,7 +242,7 @@ public class MyceliumClientTests
         var handler = new MockHttpMessageHandler(_ => throw new HttpRequestException("boom"));
         var sut = CreateClient(handler);
 
-        (await sut.CreateThingAsync("X")).Should().BeNull();
+        (await sut.CreateThingAsync("X", null)).Should().BeNull();
     }
 
     [Fact]
@@ -659,7 +659,7 @@ public class MyceliumClientTests
         Task made = call switch
         {
             "FindThingByNameAsync" => sut.FindThingByNameAsync("a-thing"),
-            "CreateThingAsync" => sut.CreateThingAsync("a-thing"),
+            "CreateThingAsync" => sut.CreateThingAsync("a-thing", null),
             "CreateRelationshipAsync" => sut.CreateRelationshipAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()),
             "SetPropertyModeAsync" => sut.SetPropertyModeAsync(Guid.NewGuid(), "level", "Live"),
             "GetEffectivePropertiesAsync" => sut.GetEffectivePropertiesAsync(Guid.NewGuid()),

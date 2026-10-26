@@ -52,7 +52,7 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
     }
 
-    public async Task<MyceliumThing?> CreateThingAsync(string name, Dictionary<string, object?>? properties = null)
+    public async Task<MyceliumThing?> CreateThingAsync(string name, Dictionary<string, object?>? properties)
     {
         try
         {
