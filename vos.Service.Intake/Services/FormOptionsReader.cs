@@ -13,12 +13,6 @@ namespace vos.Service.Intake.Services;
 // service would then refuse is worse than no form.
 public static class FormOptionsReader
 {
-    // The archetype a basemap source is declared under. A name where the rest of this service
-    // reads a role, because the name is the contract the map chapter of docs/FIELD_GUIDE.md already states for every
-    // client that draws a map — a second way of finding the same Things would be one more thing a model's
-    // author has to know.
-    public const string BasemapSourceArchetypeName = "BasemapSource";
-
     public const string AttributionProperty = "attribution";
     public const string StyleUrlProperty = "styleUrl";
     public const string TileUrlProperty = "tileUrl";
@@ -48,12 +42,12 @@ public static class FormOptionsReader
 
     public static SubscriptionSelector Selector() => new()
     {
-        Ids = RoleBindings.Identifiers([.. TermArchetypeRoles, .. PredicateRoles, .. PositionLookupReader.Roles]),
+        Ids = RoleBindings.Identifiers(
+            [.. TermArchetypeRoles, .. PredicateRoles, .. PositionLookupReader.Roles, LandIntakeRoles.BasemapSource]),
         Names = [SubmissionFragmentComposer.IsPredicateName, RoleBindings.BindsPredicateName],
-        BoundTypes = RoleBindings.Identifiers(TermArchetypeRoles),
+        BoundTypes = RoleBindings.Identifiers([.. TermArchetypeRoles, LandIntakeRoles.BasemapSource]),
         BoundArchetypes = RoleBindings.Identifiers(PositionLookupReader.Roles),
         Traverse = [RoleBindings.FollowBindings],
-        Types = [BasemapSourceArchetypeName],
         IncludeRelationships = true,
     };
 
@@ -136,9 +130,7 @@ public static class FormOptionsReader
     // whole one.
     private static List<DeclaredBasemapSource> BasemapSources(SnapshotDocument snapshot)
     {
-        var archetype = snapshot.Things.SingleOrDefault(thing =>
-            thing.IsArchetype
-            && string.Equals(thing.Name, BasemapSourceArchetypeName, StringComparison.Ordinal));
+        var archetype = snapshot.Bound(LandIntakeRoles.BasemapSource).SingleOrDefault();
         if (archetype is null) return [];
 
         var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);

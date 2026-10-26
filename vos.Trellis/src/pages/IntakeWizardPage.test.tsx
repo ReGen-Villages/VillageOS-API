@@ -4,6 +4,7 @@ import i18n from '../i18n';
 import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos';
 import type { BasemapSource } from '../types/basemap';
 import { ALLOCATION_CATEGORY_ROLE, HAZARD_LEVEL_ROLE, HAZARD_TYPE_ROLE } from './modelVocabulary';
+import { LAND_INTAKE_ROLE } from '../api/landIntakeRoles';
 
 vi.mock('../api/thingApi', () => ({
   thingApi: { getAll: vi.fn(), getAllProperties: vi.fn() },
@@ -90,6 +91,7 @@ const THINGS: VosThing[] = [
   thing(ALLOCATION_CATEGORY_ROLE, 'allocationCategory'),
   thing(HAZARD_TYPE_ROLE, 'hazardType'),
   thing(HAZARD_LEVEL_ROLE, 'hazardLevel'),
+  thing(LAND_INTAKE_ROLE.BasemapSource, 'basemapSource'),
   thing('land-use', 'LandUse', true),
   thing('housing', 'housing'),
   thing('growing', 'growing'),
@@ -112,6 +114,7 @@ const EDGES: VosRelationship[] = [
   edge('b1', ALLOCATION_CATEGORY_ROLE, 'binds', 'land-use'),
   edge('b2', HAZARD_TYPE_ROLE, 'binds', 'peril'),
   edge('b3', HAZARD_LEVEL_ROLE, 'binds', 'severity'),
+  edge('b4', LAND_INTAKE_ROLE.BasemapSource, 'binds', 'basemap-source'),
   edge('e1', 'housing', 'is', 'land-use'),
   edge('e2', 'growing', 'is', 'land-use'),
   edge('e3', 'roads', 'is', 'land-use'),

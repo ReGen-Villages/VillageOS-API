@@ -60,6 +60,19 @@ public class FormOptionsReaderTests
         streets.TileUrl.Should().BeNull();
     }
 
+    [Fact]
+    public void The_sources_are_read_under_the_archetype_the_basemapSource_role_binds_whatever_it_is_called()
+    {
+        var model = DeclaredModel.Seeded()
+            .WithArchetype("Imagery").Bound(LandIntakeRoles.BasemapSource, "Imagery")
+            .Without(DeclaredModel.BasemapSourceArchetype)
+            .Stating("Aerial", ("attribution", "Orthophoto"), ("tileUrl", "https://tiles.example.test/{z}/{x}/{y}.png"))
+            .Relate("Aerial", "is", "Imagery");
+
+        FormOptionsReader.Read(model.Build()).BasemapSources.Select(source => source.Name).Should().Equal("Aerial");
+        FormOptionsReader.Selector().Ids.Should().Contain(LandIntakeRoles.BasemapSource.Id);
+    }
+
     // The deepest zoom a raster pyramid has tiles for is the model's to state and the map's to fall back
     // on. Answering a figure of this service's own would be a second place the fallback lived.
     [Fact]
@@ -67,7 +80,7 @@ public class FormOptionsReaderTests
     {
         var model = DeclaredModel.Seeded()
             .Stating("Aerial", ("attribution", "Orthophoto"), ("tileUrl", "https://tiles.example.test/{z}/{x}/{y}.png"))
-            .Relate("Aerial", "is", FormOptionsReader.BasemapSourceArchetypeName);
+            .Relate("Aerial", "is", DeclaredModel.BasemapSourceArchetype);
 
         var options = FormOptionsReader.Read(model.Build());
 

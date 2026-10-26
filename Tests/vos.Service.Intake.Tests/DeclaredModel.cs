@@ -74,7 +74,7 @@ public sealed class DeclaredModel
 
         // A deployment's model also says what a map may draw on, which a form reads beside the categories.
         model
-            .WithArchetype(FormOptionsReader.BasemapSourceArchetypeName)
+            .WithArchetype(BasemapSourceArchetype).Bound(LandIntakeRoles.BasemapSource, BasemapSourceArchetype)
             .Stating(
                 WillowBend.VectorBasemapName,
                 ("attribution", WillowBend.BasemapAttribution),
@@ -83,10 +83,12 @@ public sealed class DeclaredModel
                 (FormOptionsReader.TerrainEncodingProperty, WillowBend.TerrainEncoding),
                 (FormOptionsReader.TerrainExaggerationProperty, WillowBend.TerrainExaggeration),
                 (FormOptionsReader.BuildingSourceLayerProperty, WillowBend.BuildingSourceLayer))
-            .Relate(WillowBend.VectorBasemapName, "is", FormOptionsReader.BasemapSourceArchetypeName);
+            .Relate(WillowBend.VectorBasemapName, "is", BasemapSourceArchetype);
 
         return model;
     }
+
+    public const string BasemapSourceArchetype = "BasemapSource";
 
     public Guid Id(string name)
     {

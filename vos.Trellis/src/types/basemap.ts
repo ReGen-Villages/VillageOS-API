@@ -8,8 +8,6 @@
  * changing which imagery a deployment shows is a change to the model.
  */
 
-/** The archetype a model-resident basemap source Thing must be `is`-linked to. */
-export const BASEMAP_SOURCE_ARCHETYPE = 'BasemapSource';
 /** Address of a vector style document the map loads whole. */
 export const BASEMAP_STYLE_URL_PROPERTY = 'styleUrl';
 /** Address template of a raster tile pyramid, carrying `{z}`, `{x}` and `{y}`. */
