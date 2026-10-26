@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Shared;
+using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 using vos.Service.Tributary.Helpers;
 using Xunit;
@@ -48,7 +49,7 @@ public class EndpointKindResolverTests
     {
         var selector = EndpointKindResolver.SelectorFor(Registration);
 
-        selector.Ids.Should().Equal(Registration);
+        selector.Ids.Should().Equal(Registration, LandIntakeRoles.Observed.Id);
         selector.IncludeRelationships.Should().BeTrue();
         selector.Traverse![0].Predicate.Should().Be("is");
         selector.Traverse.Select(rule => rule.Predicate).Should().Contain(EndpointKindRoles.All);

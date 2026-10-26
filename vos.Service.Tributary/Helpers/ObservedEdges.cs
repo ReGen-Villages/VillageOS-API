@@ -1,3 +1,4 @@
+using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Tributary.Helpers;
@@ -10,37 +11,48 @@ public sealed record ObservedEdges(Guid? PredicateId, IReadOnlySet<Guid> Observe
 {
     public const string PredicateName = "observed";
 
-    // A model holding no `observed` Thing at all: nothing to compare against and no predicate to reuse,
-    // so the ingest resolves or creates one itself.
     public static readonly ObservedEdges None = new(null, new HashSet<Guid>());
 
-    // The predicate is taken from a relationship already in use before it is taken from the Thing named
-    // `observed`, because a name matches more than one Thing and only the one the endpoint already
-    // relates through keeps a second run from writing a parallel relationship beside the first.
     public static ObservedEdges Resolve(SnapshotDocument snapshot, Guid endpointId)
     {
-        var named = snapshot.Things
-            .Where(thing => string.Equals(thing.Name, PredicateName, StringComparison.Ordinal))
-            .Select(thing => thing.Id)
+        var bound = snapshot.Bound(LandIntakeRoles.Observed);
+        if (bound.Count != 1) return None;
+
+        var predicateId = bound[0].Id;
+        var observed = snapshot.Relationships
+            .Where(edge => edge.SubjectId == endpointId && edge.PredicateId == predicateId)
+            .Select(edge => edge.TargetId)
             .ToHashSet();
-        if (named.Count == 0) return None;
-
-        Guid? predicateId = null;
-        var observed = new HashSet<Guid>();
-        foreach (var edge in snapshot.Relationships)
-        {
-            if (edge.SubjectId != endpointId) continue;
-            if (!named.Contains(edge.PredicateId)) continue;
-            predicateId ??= edge.PredicateId;
-            observed.Add(edge.TargetId);
-        }
-
-        // With no relationship to read it off, one Thing of that name is the predicate to write with. Two are
-        // left to the ingest rather than picked between, so nothing relates through whichever Thing the
-        // snapshot happened to list first.
-        if (predicateId is null && named.Count == 1)
-            predicateId = named.First();
-
         return new ObservedEdges(predicateId, observed);
+    }
+
+    public static Guid MintedPredicateId => Derived(PredicateName);
+
+    public static Guid Derived(string predicateName) =>
+        StableIdentifier.DeriveVersion5(RoleIdentity.Namespace, "predicate:" + predicateName);
+
+    public static object MintingFragment(Guid? heldIsPredicate, Guid? heldBindsPredicate)
+    {
+        var isPredicate = heldIsPredicate ?? Derived("is");
+        var bindsPredicate = heldBindsPredicate ?? Derived(RoleBindings.BindsPredicateName);
+        var things = new List<object>
+        {
+            new { Id = MintedPredicateId, Name = PredicateName },
+            new { Id = LandIntakeRoles.Observed.Id, Name = "Observed" },
+            new { Id = RoleIdentity.Of("role"), Name = "Role", IsArchetype = true },
+        };
+        if (heldIsPredicate is null) things.Add(new { Id = isPredicate, Name = "is" });
+        if (heldBindsPredicate is null) things.Add(new { Id = bindsPredicate, Name = RoleBindings.BindsPredicateName });
+
+        return new
+        {
+            Name = PredicateName,
+            Things = things,
+            Relationships = new object[]
+            {
+                new { Subject = LandIntakeRoles.Observed.Id, Predicate = bindsPredicate, Target = MintedPredicateId },
+                new { Subject = LandIntakeRoles.Observed.Id, Predicate = isPredicate, Target = RoleIdentity.Of("role") },
+            },
+        };
     }
 }

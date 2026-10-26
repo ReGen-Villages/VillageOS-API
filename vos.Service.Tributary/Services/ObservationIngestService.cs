@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using vos.Service.Shared;
+using vos.Service.Shared.Subscriptions;
 using vos.Service.Tributary.Helpers;
 
 namespace vos.Service.Tributary.Services;
@@ -230,8 +231,8 @@ public class ObservationIngestService
         private readonly Guid _endpointThingId;
         private readonly IReadOnlySet<Guid> _alreadyObserved;
 
-        // Resolved on the first Thing that needs it and kept for the rest of the call, so a fetch
-        // declaring several new entities looks the predicate up once.
+        // Created on the first Thing that needs it and kept for the rest of the call, so a fetch
+        // declaring several new entities creates the predicate once.
         private Guid? _predicateId;
 
         public ProvenanceWriter(
@@ -243,19 +244,19 @@ public class ObservationIngestService
             _predicateId = alreadyObserved.PredicateId;
         }
 
-        // Null when the relationship is in place. The two failures are named apart because one is a model with
-        // no predicate to relate through and the other is a write the model refused.
+        // Null when the relationship is in place. The two failures are named apart because one is a model that
+        // refused the predicate and its role and the other is a relationship the model refused.
         public async Task<string?> EnsureObservedAsync(Guid thingId)
         {
             if (_alreadyObserved.Contains(thingId)) return null;
 
             if (_predicateId == null)
             {
-                var predicate = await _myceliumClient.FindThingByNameAsync(ObservedEdges.PredicateName)
-                                ?? await _myceliumClient.CreateThingAsync(ObservedEdges.PredicateName);
-                if (predicate == null)
-                    return $"Failed to resolve or create '{ObservedEdges.PredicateName}' predicate.";
-                _predicateId = predicate.Value.Id;
+                var isPredicate = await _myceliumClient.FindThingByNameAsync("is");
+                var binds = await _myceliumClient.FindThingByNameAsync(RoleBindings.BindsPredicateName);
+                if (!await _myceliumClient.ApplyFragmentAsync(ObservedEdges.MintingFragment(isPredicate?.Id, binds?.Id)))
+                    return $"Failed to create the '{ObservedEdges.PredicateName}' predicate and bind its role.";
+                _predicateId = ObservedEdges.MintedPredicateId;
             }
 
             if (!await _myceliumClient.CreateRelationshipAsync(_endpointThingId, _predicateId.Value, thingId))

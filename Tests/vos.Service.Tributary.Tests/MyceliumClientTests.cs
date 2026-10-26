@@ -280,6 +280,44 @@ public class MyceliumClientTests
     }
 
     [Fact]
+    public async Task ApplyFragmentAsync_PostsTheFragmentToTheFragmentRoute()
+    {
+        string? posted = null;
+        var handler = new MockHttpMessageHandler(req =>
+        {
+            if (req.Method != HttpMethod.Post || req.RequestUri!.AbsolutePath != "/api/model/fragment")
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            posted = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+        var sut = CreateClient(handler);
+
+        (await sut.ApplyFragmentAsync(new { Name = "observed", Things = Array.Empty<object>() })).Should().BeTrue();
+        posted.Should().Be("""{"Name":"observed","Things":[]}""");
+    }
+
+    [Fact]
+    public async Task ApplyFragmentAsync_Refused_ReturnsFalse()
+    {
+        var handler = new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+        {
+            Content = new StringContent("unknown key", Encoding.UTF8, "text/plain")
+        });
+        var sut = CreateClient(handler);
+
+        (await sut.ApplyFragmentAsync(new { Name = "observed" })).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ApplyFragmentAsync_TransportThrows_ReturnsFalse()
+    {
+        var handler = new MockHttpMessageHandler(_ => throw new HttpRequestException("boom"));
+        var sut = CreateClient(handler);
+
+        (await sut.ApplyFragmentAsync(new { Name = "observed" })).Should().BeFalse();
+    }
+
+    [Fact]
     public async Task SubmitObservationsAsync_PostsBatchToObservationsRoute()
     {
         var thingId = Guid.NewGuid();

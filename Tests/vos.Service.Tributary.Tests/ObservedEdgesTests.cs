@@ -1,4 +1,6 @@
+using System.Text.Json;
 using FluentAssertions;
+using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 using vos.Service.Tributary.Helpers;
 using Xunit;
@@ -12,6 +14,7 @@ public class ObservedEdgesTests
 {
     private static readonly Guid Endpoint = Guid.NewGuid();
     private static readonly Guid Observed = Guid.NewGuid();
+    private static readonly Guid Binds = Guid.NewGuid();
     private static readonly Guid Covers = Guid.NewGuid();
     private static readonly Guid Site = Guid.NewGuid();
 
@@ -24,17 +27,21 @@ public class ObservedEdgesTests
             new Dictionary<string, SnapshotProperty>(), new Dictionary<string, InheritedPropertySet>(), []);
 
     private static SnapshotDocument Snapshot(
-        IEnumerable<SnapshotThing> things, IEnumerable<SnapshotRelationship> edges) =>
-        new(0, [.. things], [.. edges]);
+        IEnumerable<SnapshotThing> things, IEnumerable<SnapshotRelationship> edges, params Guid[] boundByTheRole) =>
+        new(0,
+            [.. things, Thing(LandIntakeRoles.Observed.Id, "Observed"), Thing(Binds, RoleBindings.BindsPredicateName)],
+            [.. edges, .. boundByTheRole.Select(bound => Edge(LandIntakeRoles.Observed.Id, Binds, bound))]);
 
     [Fact]
-    public void SelectorFor_AsksForTheObservedPredicateByName()
+    public void SelectorFor_AsksForTheObservedRoleAndFollowsItsBinding()
     {
         // Left out, every relationship the endpoint carries reads as some other predicate and a second run
         // writes a parallel relationship. Same trap the kind roles hit, for the same reason.
         var selector = EndpointKindResolver.SelectorFor(Endpoint);
 
-        selector.Names.Should().Contain(ObservedEdges.PredicateName);
+        selector.Ids.Should().Contain(LandIntakeRoles.Observed.Id);
+        selector.Names.Should().Contain(RoleBindings.BindsPredicateName);
+        selector.Traverse.Should().ContainEquivalentOf(RoleBindings.FollowBindings);
     }
 
     [Fact]
@@ -42,7 +49,8 @@ public class ObservedEdgesTests
     {
         var snapshot = Snapshot(
             [Thing(Endpoint, "EP"), Thing(Observed, ObservedEdges.PredicateName), Thing(Site, "WillowBend")],
-            [Edge(Endpoint, Observed, Site)]);
+            [Edge(Endpoint, Observed, Site)],
+            Observed);
 
         var edges = ObservedEdges.Resolve(snapshot, Endpoint);
 
@@ -51,15 +59,31 @@ public class ObservedEdgesTests
     }
 
     [Fact]
-    public void Resolve_EdgeAlongAPredicateNamedInAnotherCase_IsNotProvenance()
+    public void Resolve_ThePredicateTheRoleBindsUnderAnotherName_IsTheOneUsed()
+    {
+        var seenBy = Guid.NewGuid();
+        var snapshot = Snapshot(
+            [Thing(Endpoint, "EP"), Thing(seenBy, "seenBy"), Thing(Site, "WillowBend")],
+            [Edge(Endpoint, seenBy, Site)],
+            seenBy);
+
+        var edges = ObservedEdges.Resolve(snapshot, Endpoint);
+
+        edges.PredicateId.Should().Be(seenBy);
+        edges.ObservedThingIds.Should().Equal(Site);
+    }
+
+    [Fact]
+    public void Resolve_AThingNamedObservedThatNoRoleBinds_IsNotTheProvenancePredicate()
     {
         var snapshot = Snapshot(
-            [Thing(Endpoint, "EP"), Thing(Observed, "Observed"), Thing(Site, "WillowBend")],
+            [Thing(Endpoint, "EP"), Thing(Observed, ObservedEdges.PredicateName), Thing(Site, "WillowBend")],
             [Edge(Endpoint, Observed, Site)]);
 
         var edges = ObservedEdges.Resolve(snapshot, Endpoint);
 
-        edges.ObservedThingIds.Should().BeEmpty("Thing names are matched exactly, case included");
+        edges.PredicateId.Should().BeNull("the predicate is the one the observed role binds, whatever another Thing is called");
+        edges.ObservedThingIds.Should().BeEmpty();
     }
 
     [Fact]
@@ -67,7 +91,8 @@ public class ObservedEdgesTests
     {
         var snapshot = Snapshot(
             [Thing(Endpoint, "EP"), Thing(Observed, ObservedEdges.PredicateName), Thing(Covers, "covers"), Thing(Site, "WillowBend")],
-            [Edge(Endpoint, Covers, Site)]);
+            [Edge(Endpoint, Covers, Site)],
+            Observed);
 
         var edges = ObservedEdges.Resolve(snapshot, Endpoint);
 
@@ -83,7 +108,8 @@ public class ObservedEdgesTests
         var otherEndpoint = Guid.NewGuid();
         var snapshot = Snapshot(
             [Thing(Endpoint, "EP"), Thing(otherEndpoint, "Other"), Thing(Observed, ObservedEdges.PredicateName), Thing(Site, "WillowBend")],
-            [Edge(otherEndpoint, Observed, Site)]);
+            [Edge(otherEndpoint, Observed, Site)],
+            Observed);
 
         var edges = ObservedEdges.Resolve(snapshot, Endpoint);
 
@@ -93,11 +119,9 @@ public class ObservedEdgesTests
     [Fact]
     public void Resolve_NoEdgeYet_StillNamesThePredicateTheModelHolds()
     {
-        // Saves the ingest a lookup on the first write, which is every write onto a site a source has
+        // Saves the ingest a write on the first observation, which is every write onto a site a source has
         // not been asked about before.
-        var snapshot = Snapshot(
-            [Thing(Endpoint, "EP"), Thing(Observed, ObservedEdges.PredicateName)],
-            []);
+        var snapshot = Snapshot([Thing(Endpoint, "EP"), Thing(Observed, ObservedEdges.PredicateName)], [], Observed);
 
         var edges = ObservedEdges.Resolve(snapshot, Endpoint);
 
@@ -106,13 +130,13 @@ public class ObservedEdgesTests
     }
 
     [Fact]
-    public void Resolve_TwoThingsShareThePredicateName_LeavesTheChoiceToTheIngest()
+    public void Resolve_ARoleBindingTwoPredicates_LeavesTheChoiceToTheIngest()
     {
-        // Names are not unique. Picking one here would relate through whichever the snapshot happened
-        // to list first, so a null answer sends the ingest to resolve it the way it always has.
+        var other = Guid.NewGuid();
         var snapshot = Snapshot(
-            [Thing(Endpoint, "EP"), Thing(Observed, ObservedEdges.PredicateName), Thing(Guid.NewGuid(), ObservedEdges.PredicateName)],
-            []);
+            [Thing(Endpoint, "EP"), Thing(Observed, ObservedEdges.PredicateName), Thing(other, ObservedEdges.PredicateName)],
+            [],
+            Observed, other);
 
         var edges = ObservedEdges.Resolve(snapshot, Endpoint);
 
@@ -120,7 +144,7 @@ public class ObservedEdgesTests
     }
 
     [Fact]
-    public void Resolve_ModelHoldsNoObservedThing_AnswersNone()
+    public void Resolve_ModelBindingNoObservedPredicate_AnswersNone()
     {
         var snapshot = Snapshot([Thing(Endpoint, "EP")], []);
 
@@ -128,5 +152,47 @@ public class ObservedEdgesTests
 
         edges.PredicateId.Should().BeNull();
         edges.ObservedThingIds.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void The_minting_fragment_creates_the_predicate_and_its_role_and_reuses_the_models_is_and_binds()
+    {
+        var isPredicate = Guid.NewGuid();
+        var binds = Guid.NewGuid();
+
+        var fragment = JsonSerializer.SerializeToElement(ObservedEdges.MintingFragment(isPredicate, binds));
+
+        var things = fragment.GetProperty("Things").EnumerateArray().ToList();
+        things.Select(thing => thing.GetProperty("Id").GetGuid()).Should().BeEquivalentTo(
+            [ObservedEdges.MintedPredicateId, LandIntakeRoles.Observed.Id, RoleIdentity.Of("role")],
+            "the model's own is and binds are related through, not created again");
+        var relationships = fragment.GetProperty("Relationships").EnumerateArray()
+            .Select(edge => (edge.GetProperty("Subject").GetGuid(), edge.GetProperty("Predicate").GetGuid(), edge.GetProperty("Target").GetGuid()))
+            .ToList();
+        relationships.Should().BeEquivalentTo([
+            (LandIntakeRoles.Observed.Id, binds, ObservedEdges.MintedPredicateId),
+            (LandIntakeRoles.Observed.Id, isPredicate, RoleIdentity.Of("role")),
+        ]);
+    }
+
+    [Fact]
+    public void The_minting_fragment_creates_is_and_binds_where_the_model_holds_neither()
+    {
+        var fragment = JsonSerializer.SerializeToElement(ObservedEdges.MintingFragment(null, null));
+
+        fragment.GetProperty("Things").EnumerateArray().Select(thing => thing.GetProperty("Name").GetString())
+            .Should().Contain(["is", RoleBindings.BindsPredicateName]);
+    }
+
+    [Fact]
+    public void The_minting_fragment_carries_only_the_fields_a_fragment_reads()
+    {
+        var fragment = JsonSerializer.SerializeToElement(ObservedEdges.MintingFragment(null, null));
+
+        fragment.EnumerateObject().Select(key => key.Name).Should().BeEquivalentTo(["Name", "Things", "Relationships"]);
+        fragment.GetProperty("Things").EnumerateArray().SelectMany(thing => thing.EnumerateObject().Select(key => key.Name))
+            .Distinct().Should().BeSubsetOf(["Id", "Name", "IsArchetype"]);
+        fragment.GetProperty("Relationships").EnumerateArray().SelectMany(edge => edge.EnumerateObject().Select(key => key.Name))
+            .Distinct().Should().BeSubsetOf(["Subject", "Predicate", "Target"]);
     }
 }

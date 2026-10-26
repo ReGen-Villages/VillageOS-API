@@ -84,6 +84,27 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
     }
 
+    public async Task<bool> ApplyFragmentAsync(object fragment)
+    {
+        try
+        {
+            var client = await CreateAuthenticatedClientAsync(BrokerPatience);
+            var response = await client.PostAsync($"{MyceliumUrl}/api/model/fragment",
+                new StringContent(JsonSerializer.Serialize(fragment), System.Text.Encoding.UTF8, "application/json"));
+            if (response.IsSuccessStatusCode)
+                return true;
+
+            Logger.LogWarning("The model refused a fragment. Status: {Status}. Error: {Error}",
+                response.StatusCode, await response.Content.ReadAsStringAsync());
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error applying a fragment");
+            return false;
+        }
+    }
+
     public async Task<bool> CreateRelationshipAsync(Guid subjectId, Guid predicateId, Guid targetId)
     {
         try
