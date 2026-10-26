@@ -38,6 +38,17 @@ public static class LandIntakeRoles
     public static readonly Role SourceCoverage = new("sourceCoverage", new("2b8de5b8-d8ff-503d-86d8-38b53c00d438"));
     public static readonly Role SiteAnalysisConnection = new("siteAnalysisConnection", new("b79434df-2c42-58a2-bdaa-db241a458804"));
     public static readonly Role DiscoveredVocabulary = new("discoveredVocabulary", new("7f80ce0e-0cc2-58c4-a1ad-92df27b2cbbd"));
+    public static readonly Role StudiedSite = new("studiedSite", new("84e004bc-835c-5888-81ab-2a8c70c1a086"));
+    public static readonly Role ServiceOrder = new("serviceOrder", new("f5c493f4-5c42-5d83-9948-9850d3e41869"));
+    public static readonly Role Parcel = new("parcel", new("af18300a-eebf-59ea-abab-79de771dc012"));
+    public static readonly Role Project = new("project", new("6c039cfc-182e-5cc1-99b3-8c29fbf95d99"));
+    public static readonly Role ProgrammeAllocation = new("programmeAllocation", new("bdaf6982-e8c4-526d-9b6f-3232ed1e60bc"));
+    public static readonly Role HazardAssessment = new("hazardAssessment", new("7577e1af-e4ce-5f7c-a511-f92ba40a24a7"));
+    public static readonly Role SubmittedSource = new("submittedSource", new("0c7e3a25-92e3-5ec8-b031-53a00a03d43c"));
+    public static readonly Role Submission = new("submission", new("4eba92e8-7fb9-5137-b6dd-7de3c0248a09"));
+    public static readonly Role Observed = new("observed", new("a44eff0a-1230-5b5f-93e6-a7cc0443b58b"));
+    public static readonly Role BasemapSource = new("basemapSource", new("61066752-41d5-5bea-a1cd-5450e6603486"));
+    public static readonly Role Predicate = new("predicate", new("86743302-6588-5a93-b6a5-0dde78b092c1"));
 
     public static readonly IReadOnlyList<Role> All =
     [
@@ -45,6 +56,8 @@ public static class LandIntakeRoles
         PersonalDetail, SharedDocument, Shares, BoundarySource, ObtainedBy, HazardType, Assesses, HazardLevel,
         ReportedLevel, SubmissionDisposition, ResolvedAs, Theme, SubmitterFindingsDashboard, RootPlace, PlaceNesting,
         PlaceArchetype, ProvidedVariable, AreaNameLookup, LocalAreaNameLookup, HazardDivisionLookup, ParcelLookup,
-        PlaceSearch, SourceCoverage, SiteAnalysisConnection, DiscoveredVocabulary,
+        PlaceSearch, SourceCoverage, SiteAnalysisConnection, DiscoveredVocabulary, StudiedSite, ServiceOrder, Parcel,
+        Project, ProgrammeAllocation, HazardAssessment, SubmittedSource, Submission, Observed, BasemapSource,
+        Predicate,
     ];
 }

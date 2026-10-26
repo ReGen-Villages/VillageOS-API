@@ -49,6 +49,7 @@
     <ProjectReference Include="..\..\vos.Service.Delta\vos.Service.Delta.csproj"/>
     <ProjectReference Include="..\..\vos.Service.Feedback\vos.Service.Feedback.csproj"/>
     <ProjectReference Include="..\..\vos.Service.Forage\vos.Service.Forage.csproj"/>
+    <ProjectReference Include="..\..\vos.Service.Intake\vos.Service.Intake.csproj"/>
     <ProjectReference Include="..\..\vos.Service.Phloem\vos.Service.Phloem.csproj"/>
     <ProjectReference Include="..\..\vos.Service.Tributary\vos.Service.Tributary.csproj"/>
     <ProjectReference Include="..\vos.Tests.Shared\vos.Tests.Shared.csproj"/>

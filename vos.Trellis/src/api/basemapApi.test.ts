@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { VosThing, VosRelationship } from '../types/vos';
 import { buildModelIndex } from './dashboardApi';
 import { discoverBasemapSources } from './basemapApi';
+import { LAND_INTAKE_ROLE } from './landIntakeRoles';
 import { DEFAULT_RASTER_MAXIMUM_ZOOM } from '../types/basemap';
 
 function thing(Id: string, Name: string, Properties: Record<string, unknown> = {}): VosThing {
@@ -19,17 +20,39 @@ function isEdge(SubjectId: string, TargetId: string): VosRelationship {
   };
 }
 
-function indexOf(sources: VosThing[], extraEdges: VosRelationship[] = []) {
+const ROLE_THINGS = [thing('binds', 'binds'), thing(LAND_INTAKE_ROLE.BasemapSource, 'BasemapSource')];
+
+const ROLE_BINDING: VosRelationship = {
+  Id: 'role-binds-basemap', Name: '', SubjectId: LAND_INTAKE_ROLE.BasemapSource, PredicateId: 'binds',
+  TargetId: 'arch-basemap', Properties: {},
+};
+
+function indexOf(sources: VosThing[], extraEdges: VosRelationship[] = [], archetypeName = 'BasemapSource', bound = true) {
   const things = [
     thing('is', 'is'),
-    { ...thing('arch-basemap', 'BasemapSource'), IsArchetype: true },
+    ...ROLE_THINGS,
+    { ...thing('arch-basemap', archetypeName), IsArchetype: true },
     ...sources,
   ];
-  const relationships = [...sources.map((s) => isEdge(s.Id, 'arch-basemap')), ...extraEdges];
+  const relationships = [...sources.map((s) => isEdge(s.Id, 'arch-basemap')), ...extraEdges, ...(bound ? [ROLE_BINDING] : [])];
   return buildModelIndex(things, relationships);
 }
 
 describe('discoverBasemapSources', () => {
+  it('reads the sources under the archetype the basemapSource role binds, whatever it is called', () => {
+    const found = discoverBasemapSources(
+      indexOf([thing('src-1', 'Streets', { attribution: 'Example', styleUrl: 'https://tiles.example/style.json' })], [], 'Imagery'),
+    );
+    expect(found.map((source) => source.id)).toEqual(['src-1']);
+  });
+
+  it('reads nothing under an archetype named BasemapSource that no role binds', () => {
+    const found = discoverBasemapSources(
+      indexOf([thing('src-1', 'Streets', { attribution: 'Example', styleUrl: 'https://tiles.example/style.json' })], [], 'BasemapSource', false),
+    );
+    expect(found).toEqual([]);
+  });
+
   it('reads a vector style source', () => {
     const found = discoverBasemapSources(
       indexOf([
@@ -167,8 +190,8 @@ describe('discoverBasemapSources', () => {
         },
       },
     ];
-    const relationships = [isEdge('src-1', 'arch-basemap')];
-    expect(discoverBasemapSources(buildModelIndex(things, relationships))).toEqual([
+    const relationships = [isEdge('src-1', 'arch-basemap'), ROLE_BINDING];
+    expect(discoverBasemapSources(buildModelIndex([...things, ...ROLE_THINGS], relationships))).toEqual([
       {
         id: 'src-1',
         name: 'Streets',
@@ -186,8 +209,8 @@ describe('discoverBasemapSources', () => {
       { ...thing('arch-agency', 'AgencyBasemap', { attribution: 'Example national mapping agency' }), IsArchetype: true },
       thing('src-1', 'Aerial', { tileUrl: 'https://tiles.example.org/{z}/{x}/{y}.png' }),
     ];
-    const relationships = [isEdge('arch-agency', 'arch-basemap'), isEdge('src-1', 'arch-agency')];
-    const [source] = discoverBasemapSources(buildModelIndex(things, relationships));
+    const relationships = [isEdge('arch-agency', 'arch-basemap'), isEdge('src-1', 'arch-agency'), ROLE_BINDING];
+    const [source] = discoverBasemapSources(buildModelIndex([...things, ...ROLE_THINGS], relationships));
     expect(source.attribution).toBe('Example national mapping agency');
   });
 });

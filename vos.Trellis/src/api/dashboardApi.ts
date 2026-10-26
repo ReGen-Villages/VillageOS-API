@@ -238,6 +238,11 @@ export function thingsOfArchetype(archetype: string, index: ModelIndex): VosThin
   return thingsWithIds(thingIdsOfArchetype(archetype, index), index);
 }
 
+export function thingsOfArchetypeBoundBy(roleId: string, index: ModelIndex): VosThing[] {
+  const archetype = thingIdBoundBy(roleId, index);
+  return archetype ? thingsWithIds(instancesBelow([archetype], index), index) : [];
+}
+
 /** The Thing a role binds, or undefined where the model binds nothing under it. */
 export function thingIdBoundBy(roleId: string, index: ModelIndex): string | undefined {
   return boundBy(roleId, index)[0];

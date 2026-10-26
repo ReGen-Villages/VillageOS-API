@@ -41,6 +41,7 @@ export const LAND_INTAKE_ROLE = {
   ConsiderationCause: 'a6a352aa-731f-5a89-a04c-48eef142d4fd',
   ConsiderationEvidence: 'fe9f09f2-1d77-5867-adcc-4db302552ae5',
   RefusedCandidate: '3634a526-0bab-5e7b-ae8f-6d822ce7c1b1',
+  BasemapSource: '61066752-41d5-5bea-a1cd-5450e6603486',
 } as const;
 
 /** The platform's own predicate a role Thing reaches the Thing playing it along, and so found by name. */

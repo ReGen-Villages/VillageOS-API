@@ -28,7 +28,18 @@ public sealed class DeclaredModel
             .With("reportedAs").Bound(LandIntakeRoles.ReportedLevel, "reportedAs")
             .With("Earth").Bound(LandIntakeRoles.RootPlace, "Earth")
             .With("isIn").Bound(LandIntakeRoles.PlaceNesting, "isIn")
-            .WithArchetype("SiteStudy").Bound(LandIntakeRoles.SiteStudy, "SiteStudy");
+            .WithArchetype("SiteStudy").Bound(LandIntakeRoles.SiteStudy, "SiteStudy")
+            .WithArchetype("Site").Bound(LandIntakeRoles.Site, "Site")
+            .WithArchetype("Parcel").Bound(LandIntakeRoles.Parcel, "Parcel")
+            .WithArchetype("Project").Bound(LandIntakeRoles.Project, "Project")
+            .WithArchetype("Contact").Bound(LandIntakeRoles.PersonalDetail, "Contact")
+            .WithArchetype("ProgrammeAllocation").Bound(LandIntakeRoles.ProgrammeAllocation, "ProgrammeAllocation")
+            .WithArchetype("HazardAssessment").Bound(LandIntakeRoles.HazardAssessment, "HazardAssessment")
+            .WithArchetype("SubmittedSource").Bound(LandIntakeRoles.SubmittedSource, "SubmittedSource")
+            .WithArchetype("Submission").Bound(LandIntakeRoles.Submission, "Submission")
+            .With("studies").Bound(LandIntakeRoles.StudiedSite, "studies")
+            .With("proposes").Bound(LandIntakeRoles.ProposedSite, "proposes")
+            .With("servedAfter").Bound(LandIntakeRoles.ServiceOrder, "servedAfter");
 
         foreach (var (category, share) in WillowBend.DefaultProgramme)
             model.Stating(category, (FormOptionsReader.DefaultShareProperty, share))
@@ -63,7 +74,7 @@ public sealed class DeclaredModel
 
         // A deployment's model also says what a map may draw on, which a form reads beside the categories.
         model
-            .WithArchetype(FormOptionsReader.BasemapSourceArchetypeName)
+            .WithArchetype(BasemapSourceArchetype).Bound(LandIntakeRoles.BasemapSource, BasemapSourceArchetype)
             .Stating(
                 WillowBend.VectorBasemapName,
                 ("attribution", WillowBend.BasemapAttribution),
@@ -72,10 +83,12 @@ public sealed class DeclaredModel
                 (FormOptionsReader.TerrainEncodingProperty, WillowBend.TerrainEncoding),
                 (FormOptionsReader.TerrainExaggerationProperty, WillowBend.TerrainExaggeration),
                 (FormOptionsReader.BuildingSourceLayerProperty, WillowBend.BuildingSourceLayer))
-            .Relate(WillowBend.VectorBasemapName, "is", FormOptionsReader.BasemapSourceArchetypeName);
+            .Relate(WillowBend.VectorBasemapName, "is", BasemapSourceArchetype);
 
         return model;
     }
+
+    public const string BasemapSourceArchetype = "BasemapSource";
 
     public Guid Id(string name)
     {

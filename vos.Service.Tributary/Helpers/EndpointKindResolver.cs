@@ -1,4 +1,5 @@
 using vos.Service.Shared;
+using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Tributary.Helpers;
@@ -27,15 +28,16 @@ public static class EndpointKindResolver
 
     public static SubscriptionSelector SelectorFor(Guid endpointId) => new()
     {
-        Ids = [endpointId],
-        // `observed` is named for the provenance read rather than for any kind. The endpoint's own
-        // relationships are in this snapshot already, and without the Thing naming them every one of them
-        // reads as some other predicate — so one read answers both questions.
-        Names = [.. PredicatesRead, ObservedEdges.PredicateName],
+        // The `observed` and `predicate` roles and their bindings are asked for the provenance read, not for any kind.
+        // The endpoint's own relationships are in this snapshot already, but without the predicate the observed role
+        // binds, none of them can be told from any other relationship; asking here lets one read answer both.
+        Ids = [endpointId, LandIntakeRoles.Observed.Id, LandIntakeRoles.Predicate.Id],
+        Names = [.. PredicatesRead, RoleBindings.BindsPredicateName],
         Traverse =
         [
             new TraverseRule { Predicate = "is", Depth = TemplateChainDepth },
             .. EndpointKindRoles.All.Select(role => new TraverseRule { Predicate = role }),
+            RoleBindings.FollowBindings,
         ],
         IncludeRelationships = true,
     };

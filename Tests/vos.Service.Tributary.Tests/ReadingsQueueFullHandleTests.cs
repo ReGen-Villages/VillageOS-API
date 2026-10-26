@@ -22,7 +22,6 @@ public class ReadingsQueueFullHandleTests
     {
         var thingId = Guid.NewGuid();
         var subjectId = Guid.NewGuid();
-        var observedId = Guid.NewGuid();
         var props = """
         {
           "Endpoint.url":               {"Value":"https://api.test/point"},
@@ -44,7 +43,6 @@ public class ReadingsQueueFullHandleTests
             if (req.RequestUri!.Host == "api.test")
                 return Json("""{"regime":"steady"}""");
             return RouteFindThing(req, thingId, "EP")
-                ?? RouteFindThing(req, observedId, "observed")
                 ?? RouteEffectiveProperties(req, thingId, props)
                 ?? RouteKindsFromProperties(req, thingId, props)
                 ?? RouteRelationshipWrite(req)
