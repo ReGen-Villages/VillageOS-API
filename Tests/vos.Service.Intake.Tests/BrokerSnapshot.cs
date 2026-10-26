@@ -227,7 +227,7 @@ public sealed class BrokerSnapshot
         var snapshot = new BrokerSnapshot()
             .Thing(IsPredicate, SubmissionFragmentComposer.IsPredicateName)
             .Thing(HasPredicate, SubmissionFragmentComposer.HasPredicateName)
-            .Thing(StudiesPredicate, SubmissionFragmentComposer.StudiesPredicateName)
+            .Thing(StudiesPredicate, "studies")
             .Thing(ObtainedByPredicate, "obtainedBy")
             .Thing(SiteArchetype, "Site", isArchetype: true)
             .Thing(StudyArchetype, "SiteStudy", isArchetype: true)
