@@ -97,7 +97,7 @@ public class ObservationIngestServiceTests
     {
         var endpointThingId = Guid.NewGuid();
         var entityId = Guid.NewGuid();
-        var observedId = ObservedEdges.MintedPredicateId;
+        var observedId = ObservedEdges.CreatedPredicateId;
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.FindThingByNameAsync("Sensor-1").Returns(new MyceliumClient.MyceliumThing(entityId, "Sensor-1"));
         client.ApplyFragmentAsync(Arg.Any<object>()).Returns(true);
@@ -127,7 +127,7 @@ public class ObservationIngestServiceTests
             .Returns(new MyceliumClient.MyceliumThing(binds, RoleBindings.BindsPredicateName));
         object? applied = null;
         client.ApplyFragmentAsync(Arg.Do<object>(fragment => applied = fragment)).Returns(true);
-        client.CreateRelationshipAsync(endpointThingId, ObservedEdges.MintedPredicateId, entityId).Returns(true);
+        client.CreateRelationshipAsync(endpointThingId, ObservedEdges.CreatedPredicateId, entityId).Returns(true);
         client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());
 
@@ -137,8 +137,8 @@ public class ObservationIngestServiceTests
 
         result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
         JsonSerializer.Serialize(applied).Should().Be(
-            JsonSerializer.Serialize(ObservedEdges.MintingFragment(isPredicate, binds, predicateRoot)));
-        await client.Received(1).CreateRelationshipAsync(endpointThingId, ObservedEdges.MintedPredicateId, entityId);
+            JsonSerializer.Serialize(ObservedEdges.CreationFragment(isPredicate, binds, predicateRoot)));
+        await client.Received(1).CreateRelationshipAsync(endpointThingId, ObservedEdges.CreatedPredicateId, entityId);
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public class ObservationIngestServiceTests
     public async Task NamedEntity_TheCallsCancellationReachesTheWrite()
     {
         var entityId = Guid.NewGuid();
-        var observedId = ObservedEdges.MintedPredicateId;
+        var observedId = ObservedEdges.CreatedPredicateId;
         using var call = new CancellationTokenSource();
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.FindThingByNameAsync("Sensor-1").Returns(new MyceliumClient.MyceliumThing(entityId, "Sensor-1"));
@@ -189,7 +189,7 @@ public class ObservationIngestServiceTests
     {
         var endpointThingId = Guid.NewGuid();
         var subjectId = Guid.NewGuid();
-        var observedId = ObservedEdges.MintedPredicateId;
+        var observedId = ObservedEdges.CreatedPredicateId;
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.ApplyFragmentAsync(Arg.Any<object>()).Returns(true);
         client.CreateRelationshipAsync(endpointThingId, observedId, subjectId).Returns(true);
@@ -210,7 +210,7 @@ public class ObservationIngestServiceTests
         // lookup it saves is not a rare one.
         var endpointThingId = Guid.NewGuid();
         var subjectId = Guid.NewGuid();
-        var observedId = ObservedEdges.MintedPredicateId;
+        var observedId = ObservedEdges.CreatedPredicateId;
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.CreateRelationshipAsync(endpointThingId, observedId, subjectId).Returns(true);
         client.SubmitObservationsAsync(subjectId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
@@ -231,7 +231,7 @@ public class ObservationIngestServiceTests
         // The relationship goes in before the values, so a refused relationship leaves nothing on the site that
         // cannot be walked back to what produced it.
         var subjectId = Guid.NewGuid();
-        var observedId = ObservedEdges.MintedPredicateId;
+        var observedId = ObservedEdges.CreatedPredicateId;
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.ApplyFragmentAsync(Arg.Any<object>()).Returns(true);
         client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, subjectId).Returns(false);
@@ -312,7 +312,7 @@ public class ObservationIngestServiceTests
     {
         var endpointThingId = Guid.NewGuid();
         var entityId = Guid.NewGuid();
-        var observedId = ObservedEdges.MintedPredicateId;
+        var observedId = ObservedEdges.CreatedPredicateId;
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.FindThingByNameAsync("Sensor-1").Returns((MyceliumClient.MyceliumThing?)null);
         client.ApplyFragmentAsync(Arg.Any<object>()).Returns(true);
@@ -342,7 +342,7 @@ public class ObservationIngestServiceTests
     public async Task MultipleEntities_AreGroupedAndTouchedOnce()
     {
         var endpointThingId = Guid.NewGuid();
-        var observedId = ObservedEdges.MintedPredicateId;
+        var observedId = ObservedEdges.CreatedPredicateId;
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.ApplyFragmentAsync(Arg.Any<object>()).Returns(true);
         client.FindThingByNameAsync(Arg.Any<string>()).Returns((MyceliumClient.MyceliumThing?)null);
@@ -506,7 +506,7 @@ public class ObservationIngestServiceTests
     public async Task RelateFails_ReturnsFailure()
     {
         var entityId = Guid.NewGuid();
-        var observedId = ObservedEdges.MintedPredicateId;
+        var observedId = ObservedEdges.CreatedPredicateId;
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.FindThingByNameAsync("E").Returns((MyceliumClient.MyceliumThing?)null);
         client.ApplyFragmentAsync(Arg.Any<object>()).Returns(true);
@@ -568,7 +568,7 @@ public class ObservationIngestServiceTests
     {
         var endpointThingId = Guid.NewGuid();
         var subjectId = Guid.NewGuid();
-        var observedId = ObservedEdges.MintedPredicateId;
+        var observedId = ObservedEdges.CreatedPredicateId;
         var depicted = new DateTime(1998, 6, 15, 0, 0, 0, DateTimeKind.Utc);
         IReadOnlyList<ObservationSample>? written = null;
         var client = Substitute.For<IEndpointMyceliumClient>();
@@ -623,7 +623,7 @@ public class ObservationIngestServiceTests
     public async Task ObserveValueAsync_EdgeRefused_WritesNoValueEither()
     {
         var subjectId = Guid.NewGuid();
-        var observedId = ObservedEdges.MintedPredicateId;
+        var observedId = ObservedEdges.CreatedPredicateId;
         var client = Substitute.For<IEndpointMyceliumClient>();
         client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, subjectId).Returns(false);
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>(), new ModelClock());

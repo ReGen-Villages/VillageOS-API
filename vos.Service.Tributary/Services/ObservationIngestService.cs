@@ -256,9 +256,9 @@ public class ObservationIngestService
             {
                 var isPredicate = await _myceliumClient.FindThingByNameAsync("is");
                 var binds = await _myceliumClient.FindThingByNameAsync(RoleBindings.BindsPredicateName);
-                if (!await _myceliumClient.ApplyFragmentAsync(ObservedEdges.MintingFragment(isPredicate?.Id, binds?.Id, _predicateRootId)))
+                if (!await _myceliumClient.ApplyFragmentAsync(ObservedEdges.CreationFragment(isPredicate?.Id, binds?.Id, _predicateRootId)))
                     return $"Failed to create the '{ObservedEdges.PredicateName}' predicate and bind its role.";
-                _predicateId = ObservedEdges.MintedPredicateId;
+                _predicateId = ObservedEdges.CreatedPredicateId;
             }
 
             if (!await _myceliumClient.CreateRelationshipAsync(_endpointThingId, _predicateId.Value, thingId))

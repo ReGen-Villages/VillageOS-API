@@ -34,19 +34,19 @@ public sealed record ObservedEdges(Guid? PredicateId, IReadOnlySet<Guid> Observe
         return new ObservedEdges(predicateId, observed, predicateRootId);
     }
 
-    public static Guid MintedPredicateId { get; } =
+    public static Guid CreatedPredicateId { get; } =
         StableIdentifier.DeriveVersion5(UrlNamespace, OpenDataSourcesTemplatePrefix + PredicateName);
 
-    public static Guid Derived(string predicateName) =>
+    private static Guid IdentifierOfAPredicateTheModelLacks(string predicateName) =>
         StableIdentifier.DeriveVersion5(RoleIdentity.Namespace, "predicate:" + predicateName);
 
-    public static object MintingFragment(Guid? heldIsPredicate, Guid? heldBindsPredicate, Guid? predicateRoot)
+    public static object CreationFragment(Guid? heldIsPredicate, Guid? heldBindsPredicate, Guid? predicateRoot)
     {
-        var isPredicate = heldIsPredicate ?? Derived("is");
-        var bindsPredicate = heldBindsPredicate ?? Derived(RoleBindings.BindsPredicateName);
+        var isPredicate = heldIsPredicate ?? IdentifierOfAPredicateTheModelLacks("is");
+        var bindsPredicate = heldBindsPredicate ?? IdentifierOfAPredicateTheModelLacks(RoleBindings.BindsPredicateName);
         var things = new List<object>
         {
-            new { Id = MintedPredicateId, Name = PredicateName },
+            new { Id = CreatedPredicateId, Name = PredicateName },
             new { Id = LandIntakeRoles.Observed.Id, Name = "Observed" },
             new { Id = RoleIdentity.Of("role"), Name = "Role", IsArchetype = true },
         };
@@ -55,11 +55,11 @@ public sealed record ObservedEdges(Guid? PredicateId, IReadOnlySet<Guid> Observe
 
         var relationships = new List<object>
         {
-            new { Subject = LandIntakeRoles.Observed.Id, Predicate = bindsPredicate, Target = MintedPredicateId },
+            new { Subject = LandIntakeRoles.Observed.Id, Predicate = bindsPredicate, Target = CreatedPredicateId },
             new { Subject = LandIntakeRoles.Observed.Id, Predicate = isPredicate, Target = RoleIdentity.Of("role") },
         };
         if (predicateRoot is { } root)
-            relationships.Add(new { Subject = MintedPredicateId, Predicate = isPredicate, Target = root });
+            relationships.Add(new { Subject = CreatedPredicateId, Predicate = isPredicate, Target = root });
 
         return new { Name = PredicateName, Things = things, Relationships = relationships };
     }

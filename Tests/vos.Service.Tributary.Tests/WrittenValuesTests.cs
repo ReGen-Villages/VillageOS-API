@@ -28,7 +28,7 @@ public class WrittenValuesTests
 
     private static void SubjectPathAnswers(IEndpointMyceliumClient client, Guid subjectId)
     {
-        var observedId = ObservedEdges.MintedPredicateId;
+        var observedId = ObservedEdges.CreatedPredicateId;
         client.ApplyFragmentAsync(Arg.Any<object>()).Returns(true);
         client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, subjectId).Returns(true);
         client.SubmitObservationsAsync(subjectId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
@@ -78,7 +78,7 @@ public class WrittenValuesTests
         var sut = Ingest(out var client);
         client.FindThingByNameAsync("Willow Bend spring")
             .Returns(new MyceliumClient.MyceliumThing(entityId, "Willow Bend spring"));
-        var observedId = ObservedEdges.MintedPredicateId;
+        var observedId = ObservedEdges.CreatedPredicateId;
         client.ApplyFragmentAsync(Arg.Any<object>()).Returns(true);
         client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, entityId).Returns(true);
         client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);

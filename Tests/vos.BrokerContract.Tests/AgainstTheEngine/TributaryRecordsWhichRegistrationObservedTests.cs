@@ -11,10 +11,9 @@ using TributaryClient = vos.Service.Tributary.Services.MyceliumClient;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
-// Tributary creates `observed` for a model whose role binds nothing, and the platform's open-data-sources template
-// declares the same predicate. A model may get it from either first. Read back through Tributary's own selector,
-// the model must hold one predicate whichever came first, or every later run reads no predicate and writes a
-// second provenance relationship.
+// A model may get `observed` from Tributary or from the platform's open-data-sources template, in either order, and
+// must end up with the role binding one predicate; otherwise every later run reads no predicate and writes a second
+// provenance relationship.
 public class TributaryRecordsWhichRegistrationObservedTests : IClassFixture<TheEngine>
 {
     private readonly TheEngine _engine;
@@ -56,7 +55,7 @@ public class TributaryRecordsWhichRegistrationObservedTests : IClassFixture<TheE
         beforeAnyIngest.Edges.PredicateId.Should().BeNull("the model binds no observed predicate yet");
         (await ObserveAsync(endpoint, site, beforeAnyIngest.Edges)).Should().BeNull();
         (await ReadAsync(endpoint)).Snapshot.Relationships.Should().Contain(edge =>
-            edge.SubjectId == ObservedEdges.MintedPredicateId && edge.PredicateId == isPredicate && edge.TargetId == predicateRoot,
+            edge.SubjectId == ObservedEdges.CreatedPredicateId && edge.PredicateId == isPredicate && edge.TargetId == predicateRoot,
             "Tributary puts the predicate it created under the root the predicate role binds");
 
         var templateDeclaration = await _engine.Admin.PostAsJsonAsync("/api/model/fragment", new
@@ -78,15 +77,15 @@ public class TributaryRecordsWhichRegistrationObservedTests : IClassFixture<TheE
 
         var afterTheTemplate = await ReadAsync(endpoint);
         afterTheTemplate.Snapshot.Bound(LandIntakeRoles.Observed).Select(thing => thing.Id)
-            .Should().Equal(ObservedEdges.MintedPredicateId);
+            .Should().Equal(ObservedEdges.CreatedPredicateId);
         afterTheTemplate.Edges.ObservedThingIds.Should().Equal(site);
         afterTheTemplate.Snapshot.Relationships.Should().ContainSingle(edge =>
-            edge.SubjectId == ObservedEdges.MintedPredicateId && edge.PredicateId == isPredicate && edge.TargetId == predicateRoot,
+            edge.SubjectId == ObservedEdges.CreatedPredicateId && edge.PredicateId == isPredicate && edge.TargetId == predicateRoot,
             "the created predicate is under the root the predicate role binds, once");
 
         (await ObserveAsync(endpoint, site, afterTheTemplate.Edges)).Should().BeNull();
         (await ReadAsync(endpoint)).Snapshot.Relationships
-            .Count(edge => edge.SubjectId == endpoint && edge.PredicateId == ObservedEdges.MintedPredicateId)
+            .Count(edge => edge.SubjectId == endpoint && edge.PredicateId == ObservedEdges.CreatedPredicateId)
             .Should().Be(1, "a second run over the same site adds no provenance relationship");
     }
 }

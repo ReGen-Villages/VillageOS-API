@@ -55,7 +55,7 @@ public class ObservedEdgesTests
     [Fact]
     public void The_created_predicate_takes_the_identifier_the_open_data_sources_template_declares()
     {
-        ObservedEdges.MintedPredicateId.Should().Be(Guid.Parse("98d642a8-4811-574d-afc9-c51fd68469bc"));
+        ObservedEdges.CreatedPredicateId.Should().Be(Guid.Parse("98d642a8-4811-574d-afc9-c51fd68469bc"));
     }
 
     [Fact]
@@ -215,54 +215,54 @@ public class ObservedEdgesTests
     }
 
     [Fact]
-    public void The_minting_fragment_creates_the_predicate_and_its_role_and_reuses_the_models_is_and_binds()
+    public void The_creation_fragment_creates_the_predicate_and_its_role_and_reuses_the_models_is_and_binds()
     {
         var isPredicate = Guid.NewGuid();
         var binds = Guid.NewGuid();
 
-        var fragment = JsonSerializer.SerializeToElement(ObservedEdges.MintingFragment(isPredicate, binds, null));
+        var fragment = JsonSerializer.SerializeToElement(ObservedEdges.CreationFragment(isPredicate, binds, null));
 
         var things = fragment.GetProperty("Things").EnumerateArray().ToList();
         things.Select(thing => thing.GetProperty("Id").GetGuid()).Should().BeEquivalentTo(
-            [ObservedEdges.MintedPredicateId, LandIntakeRoles.Observed.Id, RoleIdentity.Of("role")],
+            [ObservedEdges.CreatedPredicateId, LandIntakeRoles.Observed.Id, RoleIdentity.Of("role")],
             "the model's own is and binds are related through, not created again");
         var relationships = fragment.GetProperty("Relationships").EnumerateArray()
             .Select(edge => (edge.GetProperty("Subject").GetGuid(), edge.GetProperty("Predicate").GetGuid(), edge.GetProperty("Target").GetGuid()))
             .ToList();
         relationships.Should().BeEquivalentTo([
-            (LandIntakeRoles.Observed.Id, binds, ObservedEdges.MintedPredicateId),
+            (LandIntakeRoles.Observed.Id, binds, ObservedEdges.CreatedPredicateId),
             (LandIntakeRoles.Observed.Id, isPredicate, RoleIdentity.Of("role")),
         ]);
     }
 
     [Fact]
-    public void The_minting_fragment_puts_the_predicate_under_the_root_the_model_holds()
+    public void The_creation_fragment_puts_the_predicate_under_the_root_the_model_holds()
     {
         var isPredicate = Guid.NewGuid();
         var root = Guid.NewGuid();
 
-        var fragment = JsonSerializer.SerializeToElement(ObservedEdges.MintingFragment(isPredicate, Guid.NewGuid(), root));
+        var fragment = JsonSerializer.SerializeToElement(ObservedEdges.CreationFragment(isPredicate, Guid.NewGuid(), root));
 
         fragment.GetProperty("Relationships").EnumerateArray()
             .Select(edge => (edge.GetProperty("Subject").GetGuid(), edge.GetProperty("Predicate").GetGuid(), edge.GetProperty("Target").GetGuid()))
-            .Should().Contain((ObservedEdges.MintedPredicateId, isPredicate, root));
+            .Should().Contain((ObservedEdges.CreatedPredicateId, isPredicate, root));
         fragment.GetProperty("Things").EnumerateArray().Select(thing => thing.GetProperty("Id").GetGuid())
             .Should().NotContain(root, "the root is the model's own and is related to, not declared again");
     }
 
     [Fact]
-    public void The_minting_fragment_creates_is_and_binds_where_the_model_holds_neither()
+    public void The_creation_fragment_creates_is_and_binds_where_the_model_holds_neither()
     {
-        var fragment = JsonSerializer.SerializeToElement(ObservedEdges.MintingFragment(null, null, null));
+        var fragment = JsonSerializer.SerializeToElement(ObservedEdges.CreationFragment(null, null, null));
 
         fragment.GetProperty("Things").EnumerateArray().Select(thing => thing.GetProperty("Name").GetString())
             .Should().Contain(["is", RoleBindings.BindsPredicateName]);
     }
 
     [Fact]
-    public void The_minting_fragment_carries_only_the_fields_a_fragment_reads()
+    public void The_creation_fragment_carries_only_the_fields_a_fragment_reads()
     {
-        var fragment = JsonSerializer.SerializeToElement(ObservedEdges.MintingFragment(null, null, Guid.NewGuid()));
+        var fragment = JsonSerializer.SerializeToElement(ObservedEdges.CreationFragment(null, null, Guid.NewGuid()));
 
         fragment.EnumerateObject().Select(key => key.Name).Should().BeEquivalentTo(["Name", "Things", "Relationships"]);
         fragment.GetProperty("Things").EnumerateArray().SelectMany(thing => thing.EnumerateObject().Select(key => key.Name))
