@@ -86,7 +86,6 @@ public sealed class GraphFixture
 
     private PipelineVocabulary? _vocabulary;
 
-    // Tests name a wire's ports, as the playground catalog does; what is written relates the wire to the port Things.
     public GraphThing Wire(GraphThing from, string fromPort, GraphThing to, string toPort, params (string Name, object Value)[] mapping) =>
         WireBetween(from, PortOf(from, fromPort, "out"), to, PortOf(to, toPort, "in"), mapping);
 
@@ -225,7 +224,6 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
-    // DemoPipeline with Generate also taking a `message`, wired back from Echo so the two nodes wait on each other.
     public static (GraphFixture Fixture, Guid PipelineId) DemoPipelineInACycle()
     {
         var (fx, pipelineId) = DemoPipeline();

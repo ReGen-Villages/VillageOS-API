@@ -95,7 +95,6 @@ function heldWireModel(): { model: PipelineModel; carriesId: string } {
   const wireOne = T('w.echo');
   const wireTwo = T('w.trace');
   const carries = T('carries');
-  // Three Things of the wire archetype, and only one of them is the predicate.
   R(carries.Id, is.Id, wireA.Id);
 
   const gen = T('Generate'), ech = T('Echo');

@@ -22,7 +22,6 @@ export const ROLE = {
   Service: '768bb2e8-e738-5345-9126-c23ad1513197',
   Port: '318d6995-e07b-5c83-acb5-86cd935ba4c6',
   PipelineWire: 'adfe0071-bbaf-5e7f-abc3-255c08d8735a',
-  // Named from the wire's side: its input connector reaches an out port, its output connector an in port.
   InputConnector: '1f13d260-b2cc-5757-a475-7eb9b7d2323f',
   OutputConnector: '7788a338-5eb6-5733-a208-0cf90b4269dd',
   PipelineRun: 'b682b68f-0101-5ab4-a7a9-13c3e43df873',
