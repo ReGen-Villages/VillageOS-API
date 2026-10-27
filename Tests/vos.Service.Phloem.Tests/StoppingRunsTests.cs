@@ -15,7 +15,7 @@ public class StoppingRunsTests
     private static readonly RunSubject OtherPlot = new(Guid.NewGuid(), "Plot 8");
 
     private static NodeCallResult Answer(string port, string value) =>
-        new(200, JsonSerializer.Serialize(new { success = true, outputs = new Dictionary<string, string> { [port] = value } }));
+        new(200, JsonSerializer.Serialize(new { result = "success", outputs = new Dictionary<string, string> { [port] = value } }));
 
     private static (TestGraphs.WaitingFixture Waiting, FakeGateway Gateway, PipelineExecutor Executor) ArrangeWaiting()
     {
@@ -45,7 +45,8 @@ public class StoppingRunsTests
         gateway.RunStatuses[run.RunId].Should().Be(RunStatus.Cancelled);
         gateway.RunError.Should().Be("withdrawn by its owner");
         gateway.StoppedBy.Should().Equal((run.RunId, request));
-        gateway.Records.Where(record => record.Key.RunId == run.RunId && record.Key.NodeId != waiting.Review.Id && record.Key.NodeId != waiting.Publish.Id)
+        var notReached = new[] { waiting.Review.Id, waiting.Publish.Id, waiting.Fixture.Get("Review a submission end").Id };
+        gateway.Records.Where(record => record.Key.RunId == run.RunId && !notReached.Contains(record.Key.NodeId))
             .Should().OnlyContain(record => record.Value.Status == RunStatus.Succeeded, "a node that had finished keeps how it ended");
     }
 
@@ -210,6 +211,6 @@ public class StoppingRunsTests
         await executor.StopAsync(Guid.NewGuid(), runId, CancellationToken.None);
 
         gateway.RunStatuses[runId].Should().Be(RunStatus.Cancelled);
-        gateway.NodeErrorsWritten.Select(written => written.Name).Should().BeEquivalentTo("Generate", "Echo");
+        gateway.NodeErrorsWritten.Select(written => written.Name).Should().BeEquivalentTo("Generate", "Echo", "Demo end");
     }
 }

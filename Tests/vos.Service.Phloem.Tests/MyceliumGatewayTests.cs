@@ -654,7 +654,7 @@ public class MyceliumGatewayTests
             .GetProperty("properties").EnumerateObject().ToList();
         written.Select(property => property.Name)
             .Should().BeEquivalentTo(["status", "nodeId", "error", "index", "total",
-                ModelNames.StartedUtc, ModelNames.FinishedUtc, ModelNames.Outputs, ModelNames.Attempts]);
+                ModelNames.StartedUtc, ModelNames.FinishedUtc, ModelNames.Outputs, ModelNames.Attempts, ModelNames.Decision]);
         foreach (var property in written)
             property.Value.GetProperty("typeInfo").GetString().Should().Be("vos.String");
     }
@@ -964,6 +964,52 @@ public class MyceliumGatewayTests
         record.Nodes[nodeId].Status.Should().Be("succeeded");
         record.Nodes[nodeId].Outputs.Should().BeEmpty();
         record.Nodes[nodeId].AttemptsMade.Should().ContainSingle().Which.Number.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task A_run_record_holds_each_nodes_error_and_decision_and_each_items_own_record_by_its_index()
+    {
+        var runId = Guid.NewGuid();
+        var pipelineId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var (aggregate, first, second) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var accept = Guid.NewGuid();
+        var hasId = Guid.NewGuid();
+        var ofId = Guid.NewGuid();
+        static object Text(string value) => new { typeInfo = "vos.String", value };
+        object NodeRun(Guid id, string status, string? index, string? error, string? decision = null)
+        {
+            var properties = new Dictionary<string, object> { ["nodeId"] = Text(nodeId.ToString()), ["status"] = Text(status) };
+            if (index is not null) properties["index"] = Text(index);
+            if (error is not null) properties["error"] = Text(error);
+            if (decision is not null) properties["decision"] = Text(decision);
+            return new { id, name = "NodeRun Check", properties };
+        }
+        object Relates(Guid subject, Guid predicate, Guid target) =>
+            new { id = Guid.NewGuid(), subjectId = subject, predicateId = predicate, targetId = target, properties = new { } };
+        var snapshot = JsonSerializer.Serialize(new
+        {
+            snapshot = new
+            {
+                things = new[]
+                {
+                    new { id = runId, name = "PipelineRun", properties = (object)new { parameters = Text("{}") } },
+                    new { id = pipelineId, name = "Reservoir check", properties = (object)new { } },
+                    new { id = hasId, name = "has", properties = (object)new { } },
+                    new { id = ofId, name = "of", properties = (object)new { } },
+                }.Cast<object>().Concat([NodeRun(aggregate, "partial", null, "1/2 items failed"), NodeRun(second, "failed", "1", "east is dry"), NodeRun(first, "succeeded", "0", null, accept.ToString())]),
+                relationships = new[] { Relates(runId, hasId, aggregate), Relates(runId, hasId, second), Relates(runId, hasId, first), Relates(runId, ofId, pipelineId) },
+            },
+        });
+        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post
+            ? Json(HttpStatusCode.OK, snapshot)
+            : RespondLikeAModelThatBindsItsRoles(request));
+
+        var record = await gateway.ReadRunRecordAsync(runId, CancellationToken.None);
+
+        var check = record!.Nodes.Should().ContainSingle().Which.Value;
+        check.Error.Should().Be("1/2 items failed");
+        check.Items!.Select(item => (item.Status, item.Error, item.Decision)).Should().Equal(("succeeded", null, (Guid?)accept), ("failed", "east is dry", null));
     }
 
     [Theory]

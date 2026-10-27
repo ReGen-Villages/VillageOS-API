@@ -2,6 +2,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.EnergyBalance.Services;
+using vos.Service.Shared.DagNode;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -25,7 +26,7 @@ public class EnergyBalanceNodeTests
 
         var response = await node.HandleNodeAsync(root);
 
-        response.Success.Should().BeTrue();
+        response.Result.Should().Be(NodeResponse.Succeeded);
         ((double)response.Outputs["totalGenerationMwhPerYear"]!).Should().BeApproximately(20900, 1e-6);
         ((bool)response.Outputs["netPositive"]!).Should().BeTrue();
     }
@@ -41,7 +42,7 @@ public class EnergyBalanceNodeTests
 
         var response = await node.HandleNodeAsync(root);
 
-        response.Success.Should().BeFalse();
+        response.Result.Should().Be(NodeResponse.Failed);
         response.Error.Should().Contain("annualConsumptionMwhPerYear");
         response.Outputs.Should().BeEmpty();
     }
@@ -60,7 +61,7 @@ public class EnergyBalanceNodeTests
 
         var response = await node.HandleNodeAsync(root);
 
-        response.Success.Should().BeFalse();
+        response.Result.Should().Be(NodeResponse.Failed);
         response.Error.Should().Contain("otherGenerationMwhPerYear");
     }
 

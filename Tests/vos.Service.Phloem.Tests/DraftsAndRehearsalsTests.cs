@@ -13,7 +13,7 @@ public class DraftsAndRehearsalsTests
     private static readonly JsonElement Seed = JsonSerializer.SerializeToElement(new { seed = "world" });
 
     private static NodeCallResult Answer(string port, string value) =>
-        new(200, JsonSerializer.Serialize(new { success = true, outputs = new Dictionary<string, string> { [port] = value } }));
+        new(200, JsonSerializer.Serialize(new { result = "success", outputs = new Dictionary<string, string> { [port] = value } }));
 
     private static (FakeGateway Gateway, PipelineExecutor Executor) Arrange(GraphFixture fixture, Func<string, JsonElement, NodeCallResult>? answer = null)
     {
@@ -155,7 +155,7 @@ public class DraftsAndRehearsalsTests
         EveryServiceRehearses(fx);
         var made = Guid.NewGuid();
         var (gateway, executor) = Arrange(fx, (_, _) => new NodeCallResult(200,
-            JsonSerializer.Serialize(new { success = true, outputs = new { made = new { id = made, name = "a Thing" } } })));
+            JsonSerializer.Serialize(new { result = "success", outputs = new { made = new { id = made, name = "a Thing" } } })));
 
         await executor.RunAsync(pipelineId, perItem ? JsonSerializer.SerializeToElement(new { items = new[] { "x", "y" } }) : default,
             CancellationToken.None, rehearsal: true);

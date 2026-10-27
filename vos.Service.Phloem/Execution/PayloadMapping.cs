@@ -52,6 +52,7 @@ public static class PayloadMapping
         return incoming?.DeepClone();
     }
 
+    // A JSON null arrives here as no node at all, and must leave as a JSON null, since an empty value cannot be sent.
     public static JsonElement ToElement(JsonNode? node) =>
-        node is null ? default : node.Deserialize<JsonElement>();
+        node is null ? JsonSerializer.SerializeToElement<object?>(null) : node.Deserialize<JsonElement>();
 }

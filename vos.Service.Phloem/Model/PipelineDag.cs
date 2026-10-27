@@ -72,6 +72,9 @@ public sealed class DagNode
     public IReadOnlyDictionary<string, ChosenThing> Choices { get; init; } =
         new Dictionary<string, ChosenThing>(StringComparer.OrdinalIgnoreCase);
 
+    // The decision paths its service declares: an answer names one by its identifier, and the name is for messages.
+    public IReadOnlyDictionary<Guid, string> DecisionPaths { get; init; } = new Dictionary<Guid, string>();
+
     public DagWait? Waits { get; init; }
 
     public bool Rehearses { get; init; }
@@ -89,8 +92,12 @@ public sealed record WireEnd(DagNode Node, DagPort Port);
 // A wire: an output port on one node carries its value to an input port on another. FromPath and
 // ToPath (both optional, empty = the whole payload) select a field of the upstream output
 // and place it at a field of the downstream input, so several wires can compose one input. An optional
-// Transform is a JSONata expression that reshapes the extracted value before placement.
-public sealed record DagWire(WireEnd From, WireEnd To, string FromPath = "", string ToPath = "", string Transform = "");
+// Transform is a JSONata expression that reshapes the extracted value before placement. TakenOn holds the results
+// and decisions whose answer the wire carries.
+public sealed record DagWire(WireEnd From, WireEnd To, string FromPath = "", string ToPath = "", string Transform = "")
+{
+    public IReadOnlySet<Guid> TakenOn { get; init; } = new HashSet<Guid>();
+}
 
 public sealed class PipelineDag
 {
@@ -110,6 +117,9 @@ public sealed class PipelineDag
     public bool Published { get; init; }
     public IReadOnlyList<DagNode> Nodes { get; init; } = Array.Empty<DagNode>();
     public IReadOnlyList<DagWire> Wires { get; init; } = Array.Empty<DagWire>();
+    public Guid Success { get; init; }
+    public Guid Fail { get; init; }
+    public Guid ErrorPort { get; init; }
 
     // What the build could not read, one sentence each; a node it could not read at all is left out of Nodes.
     public IReadOnlyList<string> Problems { get; init; } = Array.Empty<string>();

@@ -69,8 +69,8 @@ public class StartingRunTests
     }
 
     private static NodeCallResult NodeOk(params (string Port, string Value)[] outputs) =>
-        new(200, JsonSerializer.Serialize(new { success = true, outputs = outputs.ToDictionary(o => o.Port, o => o.Value) }));
+        new(200, JsonSerializer.Serialize(new { result = "success", outputs = outputs.ToDictionary(o => o.Port, o => o.Value) }));
 
     private static NodeCallResult NodeFail(string error) =>
-        new(200, JsonSerializer.Serialize(new { success = false, error }));
+        new(200, JsonSerializer.Serialize(new { result = "fail", error }));
 }

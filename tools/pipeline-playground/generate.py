@@ -73,6 +73,7 @@ ARCHETYPE_ROLE = {
     "MessageKind": "messageKind",
     "SentMessage": "sentMessage",
     "Cadence": "cadence",
+    "DecisionPath": "decisionPath",
 }
 
 PREDICATE_ROLE = {
@@ -87,7 +88,12 @@ PREDICATE_ROLE = {
     "produced": "producedThing",
     "inputConnector": "inputConnector",
     "outputConnector": "outputConnector",
+    "takenOn": "takenOn",
 }
+
+# The two results a wire is taken on, and the error port every service node has without declaring it.
+RESULT_ROLE = {"success": "success", "fail": "fail"}
+ERROR_PORT_ROLE = "errorPort"
 
 # The three roots every archetype sits under: what a model sets up, what then happens there, and what a
 # relationship runs along.
@@ -206,6 +212,7 @@ def build():
     offers = k.predicate("offers")
     input_connector = k.predicate("inputConnector")
     output_connector = k.predicate("outputConnector")
+    taken_on = k.predicate("takenOn")
     # Declared for the orchestrator, which relates a run to its subject and a node run to each Thing the node
     # produced.
     k.predicate("about")
@@ -225,6 +232,7 @@ def build():
     MessageKind = k.archetype("MessageKind")
     SentMessage = k.archetype("SentMessage")
     Cadence = k.archetype("Cadence")
+    DecisionPath = k.archetype("DecisionPath")
 
     k.rel(carries, is_, PipelineWire)
     # Every service's connection is a door reached over HTTP at its subdomain, which is what makes it a catalyst
@@ -236,6 +244,15 @@ def build():
     k.bind(TRIGGER_ROLE["graph"], graph)
     k.rel(PipelineInput, is_, PipelineNode)  # boundary nodes are pipeline nodes too
     k.rel(PipelineOutput, is_, PipelineNode)
+
+    results = {word: k.bind(role, k.thing(stable_id(_TAG, "result", word), word, shared=True)) for word, role in RESULT_ROLE.items()}
+    error_port = k.thing(stable_id(_TAG, "port", "error"), "error", {
+        "portName": typed("error", "vos.String"),
+        "direction": typed("out", "vos.String"),
+        "type": typed("string", "vos.String"),
+    }, shared=True)
+    k.rel(error_port, is_, Port)
+    k.bind(ERROR_PORT_ROLE, error_port)
 
     port_ids = {}
 
@@ -260,6 +277,7 @@ def build():
     connection_by_key = {}
     service_by_key = {}
     offered_by_key = {}
+    decision_path_by_key = {}
     strategy_kind = k.thing(stable_id(_TAG, "kind", "Strategy"), "Strategy", archetype=True)
     for svc in SERVICES:
         svc_id = k.thing(stable_id(_TAG, "service", svc["key"]), f"{svc['label']} service",
@@ -276,6 +294,11 @@ def build():
                 k.rel(offered_id, is_, strategy_kind)
                 k.rel(port_ids[(svc_id, port_name, "in")], offers, offered_id)
                 offered_by_key[(svc["key"], port_name, name)] = offered_id
+        for name in svc.get("decisionPaths", []):
+            path_id = k.thing(stable_id(_TAG, "decisionPath", svc["key"], name), name)
+            k.rel(path_id, is_, DecisionPath)
+            k.rel(svc_id, has, path_id)
+            decision_path_by_key[(svc["key"], name)] = path_id
 
         conn_id = k.thing(stable_id(_TAG, "connection", svc["key"]), svc["label"],
                           {"Subdomain": typed(svc["subdomain"], "vos.String")})
@@ -380,8 +403,12 @@ def build():
             k.rel(wid, is_, PipelineWire)
             k.rel(source, has, wid)
             k.rel(wid, carries, target)
-            k.rel(wid, input_connector, port_of(port_ids, source, service_of.get(wire["from"]), wire["fromPort"], "out"))
+            out_port = error_port if wire["fromPort"] == "error" else port_of(port_ids, source, service_of.get(wire["from"]), wire["fromPort"], "out")
+            k.rel(wid, input_connector, out_port)
             k.rel(wid, output_connector, port_of(port_ids, target, service_of.get(wire["to"]), wire["toPort"], "in"))
+            source_service = next(n.get("service") for n in pipe["nodes"] if n["key"] == wire["from"])
+            for taken in wire.get("takenOn", ["success"]):
+                k.rel(wid, taken_on, results.get(taken) or decision_path_by_key[(source_service, taken)])
 
         # Seeded run history: a PipelineRun -of-> pipeline, each carrying NodeRuns so the History
         # panel and node status rings show data with no live Phloem. A fan-out node also gets per-item NodeRuns
@@ -426,7 +453,7 @@ def build():
                        k.thing(stable_id(_TAG, "archetype", "Predicate"), "Predicate", shared=True, archetype=True))
     binds = k.thing(stable_id(_TAG, "predicate", "binds"), "binds", shared=True)
     for configured in (Pipeline, PipelineNode, Port, Service, Connection, PipelineWire, ExternalSystem,
-                       MessageKind, Cadence, strategy_kind):
+                       MessageKind, Cadence, DecisionPath, strategy_kind):
         k.rel(configured, is_, Configuration)
     for operational in (PipelineRun, NodeRun, SentMessage):
         k.rel(operational, is_, Operation)

@@ -35,7 +35,7 @@ def value(properties, name):
 
 
 EVERY_ROLE = (set(G.ARCHETYPE_ROLE.values()) | set(G.PREDICATE_ROLE.values()) | set(G.ROOT_ROLE.values())
-              | set(G.TRIGGER_ROLE.values()))
+              | set(G.TRIGGER_ROLE.values()) | set(G.RESULT_ROLE.values()) | {G.ERROR_PORT_ROLE})
 SHARED_BY_EVERY_MODEL = {G.role_id(word) for word in EVERY_ROLE | {"role"}}
 
 
@@ -257,17 +257,20 @@ class CatalystVocabularyTests(unittest.TestCase):
         self.assertGreater(len(bound), 0)
         self.assertEqual([t for t in self.kit.things.values() if value(t.get("Properties"), "paramBindings")], [])
 
-    def test_the_decision_node_holds_its_own_out_ports(self):
-        decide = G.stable_id(G._TAG, "node", "Branching Decision", "decide")
-        [port_archetype] = self.bound("port")
+    def test_the_decide_service_declares_its_decision_paths_and_each_wire_from_it_is_taken_on_one(self):
+        service = G.stable_id(G._TAG, "service", "decide")
+        [path_archetype] = self.bound("decisionPath")
         has = next(tid for tid, t in self.kit.things.items() if t["Name"] == "has")
         is_ = next(tid for tid, t in self.kit.things.items() if t["Name"] == "is")
-        held = [r["Target"] for r in self.kit.rels.values() if r["Subject"] == decide and r["Predicate"] == has
-                and any(p["Subject"] == r["Target"] and p["Predicate"] == is_ and p["Target"] == port_archetype
-                        for p in self.kit.rels.values())]
-        ports = {(value(self.kit.things[p]["Properties"], "portName"), value(self.kit.things[p]["Properties"], "direction"))
-                 for p in held}
-        self.assertEqual(ports, {("accept", "out"), ("refuse", "out")})
+        paths = {r["Target"] for r in self.kit.rels.values() if r["Subject"] == service and r["Predicate"] == has
+                 and any(p["Subject"] == r["Target"] and p["Predicate"] == is_ and p["Target"] == path_archetype
+                         for p in self.kit.rels.values())}
+        self.assertEqual({self.kit.things[p]["Name"] for p in paths}, {"accept", "refuse"})
+        decide = G.stable_id(G._TAG, "node", "Branching Decision", "decide")
+        from_decide = [r["Target"] for r in self.kit.rels.values() if r["Subject"] == decide and r["Predicate"] == has
+                       and r["Target"] in self.wires()]
+        self.assertEqual(sorted(self.kit.things[taken]["Name"] for wire in from_decide for taken in self.connected_along(wire, "takenOn")),
+                         ["accept", "refuse"])
 
     def test_the_strategy_port_offers_three_things_and_the_node_chose_one_of_them(self):
         [offers] = self.bound("choice")
@@ -303,6 +306,48 @@ class CatalystVocabularyTests(unittest.TestCase):
             self.assertNotIn("fromPort", properties)
             self.assertNotIn("toPort", properties)
             self.assertEqual(set(properties), {"fromPath", "toPath", "transform"})
+
+    def test_every_wire_is_taken_on_a_result_or_a_decision_path(self):
+        [is_] = [t["Id"] for t in self.kit.things.values() if t["Name"] == "is"]
+        [path_archetype] = self.bound("decisionPath")
+        paths = {r["Subject"] for r in self.kit.rels.values() if r["Predicate"] == is_ and r["Target"] == path_archetype}
+        takeable = set(self.bound("success") + self.bound("fail")) | paths
+        for wire in self.wires():
+            taken = self.connected_along(wire, "takenOn")
+            self.assertTrue(taken, f"{self.kit.things[wire]['Name']} is taken on nothing")
+            self.assertLessEqual(set(taken), takeable)
+
+    def test_every_pipeline_ends_at_one_output_node_that_each_of_its_nodes_reaches(self):
+        [has] = [t["Id"] for t in self.kit.things.values() if t["Name"] == "has"]
+        [is_] = [t["Id"] for t in self.kit.things.values() if t["Name"] == "is"]
+        [output_archetype] = self.bound("pipelineOutput")
+        [carries] = [t["Id"] for t in self.kit.things.values() if t["Name"] == "carries"]
+        for pipeline in self.bound_instances("pipeline"):
+            nodes = {r["Target"] for r in self.kit.rels.values() if r["Subject"] == pipeline and r["Predicate"] == has}
+            ends = {n for n in nodes if any(r["Subject"] == n and r["Predicate"] == is_ and r["Target"] == output_archetype for r in self.kit.rels.values())}
+            name = self.kit.things[pipeline]["Name"]
+            self.assertEqual(len(ends), 1, f"{name} has {len(ends)} Output nodes")
+            feeds = {}
+            for wire in self.wires():
+                source = next(r["Subject"] for r in self.kit.rels.values() if r["Target"] == wire and r["Predicate"] == has)
+                target = next(r["Target"] for r in self.kit.rels.values() if r["Subject"] == wire and r["Predicate"] == carries)
+                feeds.setdefault(target, set()).add(source)
+            reaching, frontier = set(ends), list(ends)
+            while frontier:
+                for source in feeds.get(frontier.pop(), ()):
+                    if source not in reaching:
+                        reaching.add(source)
+                        frontier.append(source)
+            self.assertEqual(nodes - reaching, set(), f"in {name} these cannot reach the Output node")
+
+    def connected_along(self, wire, word):
+        [predicate] = self.bound(word)
+        return [r["Target"] for r in self.kit.rels.values() if r["Subject"] == wire and r["Predicate"] == predicate]
+
+    def bound_instances(self, word):
+        [archetype] = self.bound(word)
+        [is_] = [t["Id"] for t in self.kit.things.values() if t["Name"] == "is"]
+        return [r["Subject"] for r in self.kit.rels.values() if r["Predicate"] == is_ and r["Target"] == archetype]
 
     def test_two_wires_between_the_same_two_ports_placing_at_different_paths_are_two_wire_things(self):
         extra = {"from": "a", "fromPort": "echo", "to": "merge", "toPort": "in", "toPath": "copy"}
