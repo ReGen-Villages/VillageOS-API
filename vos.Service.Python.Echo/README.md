@@ -4,7 +4,7 @@ A complete, runnable VillageOS handler written in **Python with FastAPI**. It im
 
 It's the Python analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.Service.CSharp.Echo) — an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Replace `handle_relationship()` in `app.py` with your own logic.
 
-> `is` is **not** an external predicate — Mycelium handles it in-process and never dispatches it. Register your service for a custom predicate (or `consumes`/`produces`). See the authoring doc.
+> `is` is **not** an external predicate — Mycelium handles it in-process and never sends it to a handler. Register your service for a custom predicate (or `consumes`/`produces`). See the authoring doc.
 
 ## Run
 
@@ -99,10 +99,12 @@ Full wire contract (routes, status codes, 405/404 gating): [`docs/SERVICE_CONTRA
 
 A handler is passed no object identifiers at launch: it subscribes with a selector describing the
 slice it needs. This example provides `subscribe` / `unsubscribe` / `slice_by_type_and_traverse` /
-`demo_subscribe` and a runnable demo at `POST /demo/subscribe {"type": "Battery", "predicate": "powers"}`.
+`demo_subscribe` and a runnable demo at `POST /demo/subscribe {"type": "OpenDataSource", "predicate": "provides"}` — the
+defaults, which the platform's shared templates declare, so the demo slices on any seeded model. A slice
+the platform refuses is answered with the platform's own status and words.
 
 ```python
-sub = await subscribe(slice_by_type_and_traverse("Battery", "powers"))
+sub = await subscribe(slice_by_type_and_traverse("OpenDataSource", "provides"))
 # sub["snapshot"]["things"] / ["relationships"] = exactly the requested closure
 ```
 

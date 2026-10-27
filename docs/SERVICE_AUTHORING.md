@@ -16,7 +16,7 @@ Each reference is an **echo handler**: `/handle` acknowledges the relationship a
 
 ## A note on `is`
 
-`is` and `binds` are the two **built-in** predicates. Mycelium applies `is` inheritance in-process, reads `binds` — along which a role Thing reaches the one Thing playing that role — in-process too, and **never dispatches either to an external handler** — only predicates like `consumes`/`produces` are mapped to external services. So you cannot write an external "is handler"; register your service for a custom predicate (or `consumes`/`produces`) instead.
+`is` and `binds` are the two **built-in** predicates. Mycelium applies `is` inheritance in-process, reads `binds` — along which a role Thing reaches the one Thing playing that role — in-process too, and **never sends either to an external handler** — only predicates like `consumes`/`produces` are mapped to external services. So you cannot write an external "is handler"; register your service for a custom predicate (or `consumes`/`produces`) instead.
 
 ## Things and relations, not strings
 
@@ -132,8 +132,9 @@ no log file leaves it out. A 2xx means you're registered.
 
 **Timing guarantee.** When the trigger relationship arrives inside a `POST /api/model/fragment`
 batch, `/handle` is called only after the whole fragment is applied — every Thing, relationship, and
-property value in the batch is readable, and roll-ups are recomputed. A handler never observes a
-half-applied fragment. Multiple handled relationships in one fragment are dispatched in creation order.
+property value in the batch is readable, and derived properties are recomputed. A handler never
+observes a half-applied fragment. The services of several handled relationships in one fragment are
+called in creation order.
 
 **`POST /handle`** receives (camelCase JSON):
 
@@ -155,11 +156,11 @@ Return any 2xx once the work is done. A reasonable body:
 ```
 
 **What your answer costs.** Mycelium judges the handler's outcome, not the transport: a status
-outside 2xx, or a 2xx whose body says `"success": false`, records the dispatch as **failed**, and
+outside 2xx, or a 2xx whose body says `"success": false`, records the call as **failed**, and
 the reconciler sends it again — so answer that way only when a retry could succeed, and keep the
 work behind a claim per `relationshipId` (below) so the retry does not repeat it. A **`400`** is
 different: it says you read the body and turned it down, the same body would earn the same answer,
-so it is recorded as **refused** with your words and is never re-driven. A 2xx with no `success`
+so it is recorded as **refused** with your words and is never sent again. A 2xx with no `success`
 field, or a body that is not JSON, counts as done — unless the connection asks for an
 **acknowledgement** (`completion` of `ack` or `both`): then a 2xx means only accepted, and your
 service calls `POST /api/relationships/{relationshipId}/acknowledgement` once its work has committed.
@@ -168,7 +169,7 @@ service calls `POST /api/relationships/{relationshipId}/acknowledgement` once it
 Every call also carries a `Vos-Request-Id` header naming Mycelium's request-log entry for it, worth
 quoting in your own log. It is new on every delivery.
 
-**The same relationship can be delivered more than once.** Dispatch is at-least-once: when Mycelium
+**The same relationship can be delivered more than once.** Delivery is at-least-once: when Mycelium
 cannot confirm that a handler finished, it sends the relation again, and a handler that reconnects
 after a break is sent what it missed while it was away. Each delivery is a separate call to your
 `/handle`, and nothing in the payload says whether it is the first. `relationshipId` is the same on
@@ -224,7 +225,7 @@ anyone holding the public key can mint a token that such a handler accepts. Seve
 libraries behave this way unless told otherwise. Pin ES256 explicitly; a token claiming any other
 algorithm, `none` included, must be refused.
 
-Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT carrying `iss`/`aud` and the request's `vos:model_id`; the platform validates this same token before dispatch, so your handler should apply the identical checks. Reject with 401 on any failure.
+Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT carrying `iss`/`aud` and the request's `vos:model_id`; the platform validates this same token before the call, so your handler should apply the identical checks. Reject with 401 on any failure.
 
 **Calling back into Mycelium.** If your handler writes back during `/handle` (Facts, Observations, relationships), authenticate those calls with the **inbound** request token, not the startup JWT from `Token` — otherwise a daemon shared by several models writes to whichever model launched it. Handlers built on `MyceliumClientBase` get this for free: add `app.UseMyceliumModelToken()` after `UseAuthorization()`, and `GetTokenAsync()` prefers the bearer of the work in hand.
 
