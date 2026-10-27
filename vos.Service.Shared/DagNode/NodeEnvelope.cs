@@ -69,6 +69,10 @@ public sealed record NodeRequest(
     IReadOnlyDictionary<string, JsonElement> Inputs);
 
 public sealed record NodeResponse(
-    [property: JsonPropertyName("success")] bool Success,
+    [property: JsonPropertyName("result")] string Result,
     [property: JsonPropertyName("outputs")] IReadOnlyDictionary<string, object?> Outputs,
-    [property: JsonPropertyName("error")] string? Error);
+    [property: JsonPropertyName("error")] string? Error)
+{
+    public const string Succeeded = "success";
+    public const string Failed = "fail";
+}

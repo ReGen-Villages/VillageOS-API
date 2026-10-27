@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 namespace vos.Service.Shared.DagNode;
 
 // Base a microservice inherits to act as a node in a pipeline DAG. It maps the uniform
-// orchestrator envelope {runId,nodeId,params,inputs} → {success,outputs,error} onto the
+// orchestrator envelope {runId,nodeId,params,inputs} → {result,outputs,error} onto the
 // subclass's ExecuteNodeAsync, resolving any graph-reference inputs first. The envelope is
 // additive: a service detects a node invocation with IsNodeEnvelope and routes it
 // here, leaving its existing graph/http /handle behaviour untouched. Ports backs the
@@ -20,7 +20,7 @@ public abstract class DagNodeService : MyceliumClientBase
     public abstract IReadOnlyList<PortDescriptor> Ports { get; }
 
     // Map resolved inputs + params to outputs. Throw to fail the node — the failure is reported as
-    // {success:false,error}, never as an unhandled 500.
+    // {result:"fail",error}, never as an unhandled 500.
     protected abstract Task<NodeResult> ExecuteNodeAsync(NodeContext context, CancellationToken cancellationToken);
 
     // True iff root is a DAG-node invocation (carries both runId and
@@ -47,7 +47,7 @@ public abstract class DagNodeService : MyceliumClientBase
             var inputs = await ResolveInputsAsync(request.Inputs, cancellationToken);
             var context = new NodeContext(request.RunId, request.NodeId, request.Params, inputs);
             var result = await ExecuteNodeAsync(context, cancellationToken);
-            return new NodeResponse(true, result.Outputs, null);
+            return new NodeResponse(NodeResponse.Succeeded, result.Outputs, null);
         }
         catch (Exception ex)
         {
@@ -124,5 +124,5 @@ public abstract class DagNodeService : MyceliumClientBase
         return propertyEnvelope.Clone();
     }
 
-    private static NodeResponse Failure(string error) => new(false, NodeResult.Empty.Outputs, error);
+    private static NodeResponse Failure(string error) => new(NodeResponse.Failed, NodeResult.Empty.Outputs, error);
 }

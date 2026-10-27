@@ -81,8 +81,9 @@ public class PipelineModelTests
 
         var generate = dag.Node(fx.Get("Generate").Id)!;
         var echo = dag.Node(fx.Get("Echo").Id)!;
-        dag.Wires.Should().OnlyContain(w => w.From.Node == generate && w.To.Node == echo);
-        dag.Wires.Select(w => (w.From.Port.PortName, w.To.Port.PortName)).Should()
+        var intoEcho = dag.WiresInto(echo.NodeId).ToList();
+        intoEcho.Should().OnlyContain(w => w.From.Node == generate);
+        intoEcho.Select(w => (w.From.Port.PortName, w.To.Port.PortName)).Should()
             .BeEquivalentTo(new[] { ("echo", "message"), ("trace", "context") });
     }
 
@@ -93,7 +94,7 @@ public class PipelineModelTests
 
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
 
-        dag.Wires.Should().HaveCount(2);
+        dag.WiresInto(fx.Get("Echo").Id).Should().HaveCount(2);
     }
 
     [Fact]
@@ -112,7 +113,7 @@ public class PipelineModelTests
 
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
 
-        dag.Nodes.Should().HaveCount(2);
+        dag.Nodes.Select(node => node.Name).Should().BeEquivalentTo("Generate", "Echo", "Demo end");
         var generate = dag.Node(fx.Get("Generate").Id)!;
         var echo = dag.Node(fx.Get("Echo").Id)!;
         generate.Subdomain.Should().Be("gen");
@@ -122,8 +123,7 @@ public class PipelineModelTests
         generate.OutPort("echo").Should().NotBeNull();
         InPortOf(echo, "message").Required.Should().BeTrue();
 
-        dag.Wires.Should().ContainSingle();
-        var wire = dag.Wires[0];
+        var wire = dag.WiresOutOf(generate.NodeId).Single();
         wire.From.Should().Be(new WireEnd(generate, generate.OutPort("echo")!));
         wire.To.Should().Be(new WireEnd(echo, InPortOf(echo, "message")));
     }
@@ -168,12 +168,13 @@ public class PipelineModelTests
         fx.Rel(pipe, vocabulary.Has, first);
         fx.Rel(pipe, vocabulary.Has, second);
         fx.Wire(first, "produced", second, "consumed");
+        fx.EndEveryPath(pipe);
 
         var dag = PipelineDagBuilder.Build(fx.Build(), pipe.Id);
 
-        dag.Nodes.Should().HaveCount(2);
+        dag.Nodes.Should().HaveCount(3);
         dag.Node(first.Id)!.Subdomain.Should().Be("one");
-        dag.Wires.Should().ContainSingle();
+        dag.WiresOutOf(first.Id).Should().ContainSingle();
         DagValidator.Validate(dag).Should().BeEmpty();
     }
 
@@ -372,7 +373,7 @@ public class PipelineModelTests
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
 
         var decide = dag.Node(fx.Get("Decide").Id)!;
-        decide.Ports.Select(p => p.PortName).Should().BeEquivalentTo("accept", "refuse", "in", "out");
+        decide.Ports.Select(p => p.PortName).Should().BeEquivalentTo("accept", "refuse", "in", "out", "error");
         decide.OutPort("accept").Should().NotBeNull();
         DagValidator.Validate(dag).Should().BeEmpty();
     }

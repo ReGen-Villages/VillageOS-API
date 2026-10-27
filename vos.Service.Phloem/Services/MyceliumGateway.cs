@@ -244,13 +244,25 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             return null;
 
         var nodes = new Dictionary<Guid, NodeRecord>();
+        var items = new Dictionary<Guid, SortedList<int, NodeRecord>>();
         foreach (var held in graph.OutgoingTargets(run, ModelNames.Has))
         {
             if (!Guid.TryParse(held.PropertyString(ModelNames.NodeId), out var nodeId)) continue;
             _createdNodeRuns.TryAdd(held.Id, 0);
-            if (!string.IsNullOrEmpty(held.PropertyString(ModelNames.Index))) continue;
-            nodes[nodeId] = new NodeRecord(held.PropertyString(ModelNames.Status) ?? string.Empty, OutputsOf(held), AttemptsOf(graph, held));
+            var record = new NodeRecord(held.PropertyString(ModelNames.Status) ?? string.Empty, OutputsOf(held), AttemptsOf(graph, held),
+                held.PropertyString(ModelNames.Error));
+            if (!int.TryParse(held.PropertyString(ModelNames.Index), out var index))
+            {
+                nodes[nodeId] = record;
+                continue;
+            }
+            if (!items.TryGetValue(nodeId, out var ofNode))
+                items[nodeId] = ofNode = new SortedList<int, NodeRecord>();
+            ofNode[index] = record;
         }
+        foreach (var (nodeId, ofNode) in items)
+            if (nodes.TryGetValue(nodeId, out var aggregate))
+                nodes[nodeId] = aggregate with { Items = ofNode.Values.ToList() };
         return new RunRecord(runId, pipeline.Id, JsonOf(run.PropertyString(ModelNames.Parameters)), nodes, run.CarriesFlag(ModelNames.Rehearsal),
             run.PropertyString(ModelNames.Status) ?? string.Empty);
     }

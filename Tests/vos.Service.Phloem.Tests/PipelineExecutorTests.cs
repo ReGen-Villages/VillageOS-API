@@ -233,7 +233,7 @@ public class PipelineExecutorTests
         result.Success.Should().BeTrue();
         items.Should().BeEquivalentTo("a", "b", "c");      // ran once per item
         weights.Should().AllBeEquivalentTo(10);            // scalar input broadcast to every item
-        var node = result.Nodes.Single();
+        var node = result.Nodes.Single(n => n.Name == "Scorer");
         node.Status.Should().Be(RunStatus.Succeeded);
         node.Outputs["score"].EnumerateArray().Select(e => e.GetString()).Should().Equal("A", "B", "C"); // gathered, in order
     }
@@ -253,7 +253,7 @@ public class PipelineExecutorTests
         var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
 
         result.Success.Should().BeFalse();
-        result.Nodes.Single().Status.Should().Be(RunStatus.Failed);
+        result.Nodes.Single(n => n.Name == "Scorer").Status.Should().Be(RunStatus.Failed);
     }
 
     [Fact]
@@ -274,7 +274,7 @@ public class PipelineExecutorTests
         var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
 
         result.Success.Should().BeTrue(); // a partial fan-out does not fail the run
-        var node = result.Nodes.Single();
+        var node = result.Nodes.Single(n => n.Name == "Scorer");
         node.Status.Should().Be(RunStatus.Partial);
         node.Outputs["score"].EnumerateArray()
             .Select(e => e.ValueKind == JsonValueKind.Null ? null : e.GetString())
@@ -317,7 +317,7 @@ public class PipelineExecutorTests
             {
                 "a" => new NodeCallResult(200, JsonSerializer.Serialize(new
                 {
-                    success = true,
+                    result = "success",
                     outputs = new Dictionary<string, object> { ["out"] = new { firstName = "Ada", lastName = "Lovelace" } },
                     error = (string?)null,
                 })),
@@ -687,7 +687,7 @@ public class PipelineExecutorTests
     }
 
     [Fact]
-    public async Task RunAsync_AWireThatCarriedNothing_AddsNothingToACollectionInput()
+    public async Task RunAsync_AWireFromAPortTheAnswerLeftOut_AddsANullToACollectionInput()
     {
         var (fx, pipelineId) = TestGraphs.GatheredCollectionPipeline();
         var gateway = new FakeGateway(fx.Build())
@@ -704,7 +704,7 @@ public class PipelineExecutorTests
         var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
 
         result.Success.Should().BeTrue();
-        ItemsSentTo(gateway, "gather").Should().Equal("b1");
+        ItemsSentTo(gateway, "gather").Should().Equal(null, "b1");
     }
 
     private static IEnumerable<string?> ItemsSentTo(FakeGateway gateway, string subdomain) =>
@@ -756,7 +756,7 @@ public class PipelineExecutorTests
 
         var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
 
-        var node = result.Nodes.Single();
+        var node = result.Nodes.Single(n => n.Name == "Scorer");
         node.Status.Should().Be(RunStatus.Partial);
         // a's list contributes its items, c's single value is one item, b failed and d answered nothing under the port
         node.Outputs["parts"].EnumerateArray().Select(e => e.GetString()).Should().Equal("a1", "a2", "c1");
@@ -778,7 +778,7 @@ public class PipelineExecutorTests
 
         var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
 
-        result.Nodes.Single().Outputs["parts"].EnumerateArray().Select(e => e.GetString()).Should().Equal("a1", "a2", "c1");
+        result.Nodes.Single(n => n.Name == "Scorer").Outputs["parts"].EnumerateArray().Select(e => e.GetString()).Should().Equal("a1", "a2", "c1");
     }
 
     [Fact]
@@ -855,16 +855,16 @@ public class PipelineExecutorTests
     }
 
     private static NodeCallResult NodeAnswering(string outputsJson) =>
-        new(200, $$"""{"success":true,"outputs":{{outputsJson}},"error":null}""");
+        new(200, $$"""{"result":"success","outputs":{{outputsJson}},"error":null}""");
 
     private static NodeCallResult NodeOk(params (string Port, string Value)[] outputs)
     {
         var outs = outputs.ToDictionary(o => o.Port, o => o.Value);
-        return new NodeCallResult(200, JsonSerializer.Serialize(new { success = true, outputs = outs, error = (string?)null }));
+        return new NodeCallResult(200, JsonSerializer.Serialize(new { result = "success", outputs = outs, error = (string?)null }));
     }
 
     private static NodeCallResult NodeFail(string error) =>
-        new(200, JsonSerializer.Serialize(new { success = false, outputs = new Dictionary<string, string>(), error }));
+        new(200, JsonSerializer.Serialize(new { result = "fail", outputs = new Dictionary<string, string>(), error }));
 
     private static string InputValue(JsonElement envelope, string port) =>
         envelope.GetProperty("inputs").GetProperty(port).GetString()!;

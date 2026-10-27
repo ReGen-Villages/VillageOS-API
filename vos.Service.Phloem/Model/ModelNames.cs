@@ -73,4 +73,7 @@ public static class ModelNames
     // onItemError values: fail-fast (default) vs collect-partial.
     public const string OnItemErrorFail = "fail";
     public const string OnItemErrorContinue = "continue";
+
+    public const string ResultSuccess = "success";
+    public const string ResultFail = "fail";
 }

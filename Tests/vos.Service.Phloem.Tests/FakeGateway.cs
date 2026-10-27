@@ -13,7 +13,7 @@ internal sealed class FakeGateway : IMyceliumGateway
     public PipelineGraph Graph { get; set; }
     public Exception? LoadFailure { get; set; }
 
-    public Func<string, JsonElement, NodeCallResult> OnCall { get; set; } = (_, _) => new NodeCallResult(200, "{\"success\":true,\"outputs\":{}}");
+    public Func<string, JsonElement, NodeCallResult> OnCall { get; set; } = (_, _) => new NodeCallResult(200, "{\"result\":\"success\",\"outputs\":{}}");
     public List<string> Called { get; } = new();
     public List<(string Subdomain, JsonElement Envelope)> Envelopes { get; } = new();
     public List<string> StatusUpdates { get; } = new();

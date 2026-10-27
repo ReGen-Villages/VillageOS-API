@@ -29,6 +29,13 @@ public static class DagValidator
         foreach (var node in dag.Nodes.Where(node => node.HandsOverTo is not null && node.CollectionInput is not null))
             errors.Add($"'{node.Name}' hands its subject over, but runs once for each item of '{node.CollectionInput!.PortName}'; a node that hands over runs once.");
 
+        var outputNodes = dag.Nodes.Where(node => node.Kind == DagNodeKind.Output).ToList();
+        if (outputNodes.Count != 1)
+            errors.Add($"'{dag.Name}' has {outputNodes.Count} Output nodes; every path ends at one, which reports how the run ended.");
+        else
+            foreach (var node in NodesThatCannotReach(dag, outputNodes[0]))
+                errors.Add($"'{node.Name}' cannot reach '{outputNodes[0].Name}', so a run taking its path would end without reporting how.");
+
         var unschedulable = UnschedulableNodes(dag);
         if (unschedulable.Count > 0)
         {
@@ -97,6 +104,17 @@ public static class DagValidator
         || string.Equals(outType, "any", StringComparison.OrdinalIgnoreCase)
         || string.Equals(inType, "any", StringComparison.OrdinalIgnoreCase)
         || string.Equals(outType, inType, StringComparison.OrdinalIgnoreCase);
+
+    private static IEnumerable<DagNode> NodesThatCannotReach(PipelineDag dag, DagNode end)
+    {
+        var reaching = new HashSet<Guid> { end.NodeId };
+        var frontier = new Stack<Guid>([end.NodeId]);
+        while (frontier.Count > 0)
+            foreach (var wire in dag.WiresInto(frontier.Pop()))
+                if (reaching.Add(wire.From.Node.NodeId))
+                    frontier.Push(wire.From.Node.NodeId);
+        return dag.Nodes.Where(node => !reaching.Contains(node.NodeId));
+    }
 
     // A Kahn topological sort, which never reaches a node on a cycle or after one.
     private static IReadOnlyList<Guid> UnschedulableNodes(PipelineDag dag)

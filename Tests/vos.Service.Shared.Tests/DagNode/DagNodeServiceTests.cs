@@ -38,9 +38,21 @@ public class DagNodeServiceTests
 
         var response = await node.HandleNodeAsync(root);
 
-        response.Success.Should().BeTrue();
+        response.Result.Should().Be(NodeResponse.Succeeded);
         response.Error.Should().BeNull();
         response.Outputs["echo"].Should().Be("hello");
+    }
+
+    [Theory]
+    [InlineData(false, """{"result":"success","outputs":{"echo":"hi"},"error":null}""")]
+    [InlineData(true, """{"result":"fail","outputs":{},"error":"boom"}""")]
+    public async Task An_answer_names_its_result_as_the_word_the_orchestrator_reads(bool nodeThrows, string answer)
+    {
+        var (node, _) = BuildNode(_ => throw new InvalidOperationException("no HTTP expected"), alwaysThrow: nodeThrows);
+
+        var response = await node.HandleNodeAsync(Envelope(inputs: """{"message":"hi"}"""));
+
+        JsonSerializer.Serialize(response).Should().Be(answer);
     }
 
     [Fact]
@@ -56,7 +68,7 @@ public class DagNodeServiceTests
 
         var response = await node.HandleNodeAsync(root);
 
-        response.Success.Should().BeTrue();
+        response.Result.Should().Be(NodeResponse.Succeeded);
         response.Outputs["echo"].Should().Be("resolved-from-graph");
         captured!.Method.Should().Be(HttpMethod.Get);
         captured.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/things/{Source}/properties");
@@ -70,7 +82,7 @@ public class DagNodeServiceTests
 
         var response = await node.HandleNodeAsync(root);
 
-        response.Success.Should().BeFalse();
+        response.Result.Should().Be(NodeResponse.Failed);
         response.Error.Should().Contain("text");
         response.Outputs.Should().BeEmpty();
     }
@@ -83,7 +95,7 @@ public class DagNodeServiceTests
 
         var response = await node.HandleNodeAsync(root);
 
-        response.Success.Should().BeFalse();
+        response.Result.Should().Be(NodeResponse.Failed);
         response.Error.Should().Contain("boom");
         response.Outputs.Should().BeEmpty();
     }

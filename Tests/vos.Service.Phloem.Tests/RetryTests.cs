@@ -43,7 +43,7 @@ public class RetryTests
         return (retry, gateway, new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, FastClock(clockRate, real)));
     }
 
-    private static NodeCallResult Answer() => new(200, JsonSerializer.Serialize(new { success = true, outputs = new { @out = "echoed" } }));
+    private static NodeCallResult Answer() => new(200, JsonSerializer.Serialize(new { result = "success", outputs = new { @out = "echoed" } }));
 
     private static NodeCallResult Unreachable() => throw new HttpRequestException("the service is away");
 
@@ -73,14 +73,14 @@ public class RetryTests
         var retry = TestGraphs.RetryPipeline(handsOver: true, besideAFailingNode: true, policy: [("attempts", 1)]);
         var gateway = new FakeGateway(retry.Fixture.Build())
         {
-            OnCall = (subdomain, _) => subdomain == "ech" ? Unreachable() : new NodeCallResult(200, "{\"success\":false,\"error\":\"broken\"}"),
+            OnCall = (subdomain, _) => subdomain == "ech" ? Unreachable() : new NodeCallResult(200, "{\"result\":\"fail\",\"error\":\"broken\"}"),
         };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, FastClock());
 
         var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
 
         result.Nodes.Single(node => node.Name == "Echo").Status.Should().Be(RunStatus.HandedOver);
-        result.Error.Should().Be("One or more nodes failed.");
+        result.Error.Should().Be("A node failed, and no fail wire leaves it.");
         gateway.StatusUpdates.Should().Contain(RunStatus.Failed).And.NotContain(RunStatus.HandedOver);
     }
 
@@ -161,14 +161,14 @@ public class RetryTests
         var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
 
         result.Nodes.Single(node => node.Name == "Echo").Status.Should().Be(RunStatus.Failed);
-        result.Error.Should().Be("One or more nodes failed.");
+        result.Error.Should().Be("A node failed, and no fail wire leaves it.");
         gateway.RunsCreated.Should().ContainSingle();
     }
 
     [Fact]
     public async Task An_answer_that_says_the_work_failed_is_final()
     {
-        var (retry, gateway, executor) = Arrange(_ => new NodeCallResult(200, JsonSerializer.Serialize(new { success = false, error = "could not" })),
+        var (retry, gateway, executor) = Arrange(_ => new NodeCallResult(200, JsonSerializer.Serialize(new { result = "fail", error = "could not" })),
             policy: [("attempts", 3), ("pauseMinutes", 0)]);
 
         var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
@@ -233,7 +233,7 @@ public class RetryTests
         var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
 
         result.Success.Should().BeFalse();
-        result.Error.Should().Be("One or more nodes failed.");
+        result.Error.Should().Be("A node failed, and no fail wire leaves it.");
         result.Nodes.Single(node => node.Name == "Echo").Status.Should().Be(RunStatus.Failed);
         gateway.Called.Should().HaveCount(2);
         gateway.RunsCreated.Should().ContainSingle();

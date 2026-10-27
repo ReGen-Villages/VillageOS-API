@@ -27,7 +27,7 @@ public class EchoNodeTests
 
         var response = await node.HandleNodeAsync(root);
 
-        response.Success.Should().BeTrue();
+        response.Result.Should().Be(NodeResponse.Succeeded);
         response.Outputs["echo"].Should().Be("hello pipeline");
     }
 
@@ -39,7 +39,7 @@ public class EchoNodeTests
 
         var response = await node.HandleNodeAsync(root);
 
-        response.Success.Should().BeFalse();
+        response.Result.Should().Be(NodeResponse.Failed);
         response.Error.Should().Contain("message");
         response.Outputs.Should().BeEmpty();
     }
