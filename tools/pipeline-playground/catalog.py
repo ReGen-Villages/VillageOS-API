@@ -76,7 +76,7 @@ SERVICES = [
      "ports": [_in("record", "any", required=True, collection=True), _out("enriched", "any")]},
 
     {"key": "publish", "label": "Publish", "subdomain": "publish",
-     "ports": [_in("payload", "any", required=True)]},
+     "ports": [_in("payload", "any", required=True), _out("published", "any")]},
 
     # A block that decides: it answers under one of the out ports the node holds, and its `strategy` port
     # offers the Things a node may choose between.
@@ -132,8 +132,12 @@ PIPELINES = [
         "nodes": [
             {"key": "gen", "service": "generate", "at": col(0)},
             {"key": "echo", "service": "echo", "at": col(1)},
+            {"key": "out", "output": [("result", "any")], "at": col(2)},
         ],
-        "wires": [{"from": "gen", "fromPort": "echo", "to": "echo", "toPort": "message"}],
+        "wires": [
+            {"from": "gen", "fromPort": "echo", "to": "echo", "toPort": "message"},
+            {"from": "echo", "fromPort": "echo", "to": "out", "toPort": "result"},
+        ],
         "runs": [
             {"status": "succeeded", "startedUtc": "2026-07-20T09:15:00Z",
              "nodes": [{"node": "gen", "status": "succeeded"}, {"node": "echo", "status": "succeeded"}]},
@@ -195,10 +199,12 @@ PIPELINES = [
         "nodes": [
             {"key": "gen", "service": "generate", "at": col(0)},
             {"key": "echo", "service": "echo", "at": col(1)},
+            {"key": "out", "output": [("result", "any")], "at": col(2)},
         ],
         "wires": [
             {"from": "gen", "fromPort": "echo", "to": "echo", "toPort": "message",
              "transform": '{"message": "shout: " & $}'},
+            {"from": "echo", "fromPort": "echo", "to": "out", "toPort": "result"},
         ],
     },
 
@@ -289,6 +295,7 @@ PIPELINES = [
             {"key": "merge", "service": "merge", "at": col(2, 1)},
             {"key": "report", "service": "format-report", "at": col(3, 1)},
             {"key": "publish", "service": "publish", "at": col(4, 1)},
+            {"key": "out", "output": [("published", "any")], "at": col(5, 1)},
         ],
         "wires": [
             {"from": "site", "fromPort": "population", "to": "water", "toPort": "population"},
@@ -296,6 +303,7 @@ PIPELINES = [
             {"from": "energy", "fromPort": "percentOfConsumption", "to": "merge", "toPort": "in", "toPath": "energy.percentOfConsumption"},
             {"from": "merge", "fromPort": "out", "to": "report", "toPort": "data"},
             {"from": "report", "fromPort": "text", "to": "publish", "toPort": "payload"},
+            {"from": "publish", "fromPort": "published", "to": "out", "toPort": "published"},
         ],
     },
 
@@ -322,10 +330,12 @@ PIPELINES = [
             {"key": "in", "input": [("records", "any")], "at": col(0)},
             {"key": "enrich", "service": "enrich", "at": col(1), "onItemError": "continue"},
             {"key": "publish", "service": "publish", "at": col(2)},
+            {"key": "out", "output": [("published", "any")], "at": col(3)},
         ],
         "wires": [
             {"from": "in", "fromPort": "records", "to": "enrich", "toPort": "record"},
             {"from": "enrich", "fromPort": "enriched", "to": "publish", "toPort": "payload"},
+            {"from": "publish", "fromPort": "published", "to": "out", "toPort": "published"},
         ],
     },
 
