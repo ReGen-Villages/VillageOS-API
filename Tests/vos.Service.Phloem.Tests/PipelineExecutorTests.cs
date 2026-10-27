@@ -566,7 +566,12 @@ public class PipelineExecutorTests
         {
             OnCall = (subdomain, envelope) => subdomain switch
             {
-                "decide" => NodeOk(("accept", "yes: " + InputValue(envelope, "in"))),
+                "decide" => new NodeCallResult(200, JsonSerializer.Serialize(new
+                {
+                    result = "success",
+                    decision = "accept",
+                    outputs = new Dictionary<string, string> { ["out"] = "yes: " + InputValue(envelope, "in") },
+                })),
                 "notify" => NodeOk(("out", "told " + InputValue(envelope, "in"))),
                 "return" => NodeOk(("out", "returned")),
                 _ => NodeFail("unexpected subdomain"),
@@ -585,7 +590,7 @@ public class PipelineExecutorTests
     }
 
     [Fact]
-    public async Task RunAsync_Decision_AnsweringUnderNoOutcome_LeavesEveryBranchAndTheEndNotTaken()
+    public async Task RunAsync_Decision_ASuccessNamingNoDecisionWhereNoSuccessWireLeaves_FailsTheRunNamingTheNode()
     {
         var (fx, pipelineId) = TestGraphs.DecisionPipeline();
         var gateway = new FakeGateway(fx.Build()) { OnCall = (_, _) => NodeOk() };
@@ -593,11 +598,36 @@ public class PipelineExecutorTests
 
         var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "order 7" }), CancellationToken.None);
 
-        result.Success.Should().BeTrue();
+        result.Success.Should().BeFalse();
+        result.Error.Should().Be("'Decide' succeeded, and no success wire leaves it.");
         gateway.Called.Should().Equal("decide");
-        result.Nodes.Where(n => n.Name is "Notify" or "Return" or "End").Should().OnlyContain(n => n.Status == RunStatus.NotTaken);
-        result.Result.Should().BeNull();
         gateway.RunResult.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task RunAsync_Decision_NamingADecisionItsServiceDoesNotDeclare_FailsTheNode()
+    {
+        var (fx, pipelineId) = TestGraphs.DecisionPipeline();
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnCall = (_, _) => new NodeCallResult(200, """{"result":"success","decision":"maybe","outputs":{}}"""),
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "order 7" }), CancellationToken.None);
+
+        result.Nodes.Single(n => n.Name == "Decide").Error.Should().Be("'Decide' answered the decision 'maybe', which its service does not declare.");
+        result.Error.Should().Be("'Decide' failed, and no fail wire leaves it.");
+    }
+
+    [Fact]
+    public void Validate_ADecisionPathNoWireIsTakenOn_IsRefusedByName()
+    {
+        var (fx, pipelineId) = TestGraphs.DecisionPipeline();
+        fx.DecisionPathOf(fx.Get("DecideProto"), "defer");
+
+        DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), pipelineId)).Should().Contain(
+            "'Decide' can decide 'defer', but no wire leaving it is taken on that decision.");
     }
 
     [Fact]

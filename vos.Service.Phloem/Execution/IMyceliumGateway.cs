@@ -41,7 +41,7 @@ public interface IMyceliumGateway
     // ring); with an index it's a per-item NodeRun of a fan-out, carrying index/total. A terminal status
     // carries the outputs, which a resumed run reads back from the model.
     Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken cancellationToken, int? index = null, int total = 0,
-        IReadOnlyDictionary<string, JsonElement>? outputs = null);
+        IReadOnlyDictionary<string, JsonElement>? outputs = null, string? decision = null);
 
     // The node run is related to every Thing the node answered under an out port marked as producing one,
     // along the predicate the model marks for it, so a trace is a read of the Thing's own relationships.

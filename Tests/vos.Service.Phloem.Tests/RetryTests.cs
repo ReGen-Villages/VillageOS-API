@@ -80,7 +80,7 @@ public class RetryTests
         var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
 
         result.Nodes.Single(node => node.Name == "Echo").Status.Should().Be(RunStatus.HandedOver);
-        result.Error.Should().Be("A node failed, and no fail wire leaves it.");
+        result.Error.Should().Be("'Broken' failed, and no fail wire leaves it.");
         gateway.StatusUpdates.Should().Contain(RunStatus.Failed).And.NotContain(RunStatus.HandedOver);
     }
 
@@ -161,7 +161,7 @@ public class RetryTests
         var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
 
         result.Nodes.Single(node => node.Name == "Echo").Status.Should().Be(RunStatus.Failed);
-        result.Error.Should().Be("A node failed, and no fail wire leaves it.");
+        result.Error.Should().Be("'Echo' failed, and no fail wire leaves it.");
         gateway.RunsCreated.Should().ContainSingle();
     }
 
@@ -233,7 +233,7 @@ public class RetryTests
         var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
 
         result.Success.Should().BeFalse();
-        result.Error.Should().Be("A node failed, and no fail wire leaves it.");
+        result.Error.Should().Be("'Echo' failed, and no fail wire leaves it.");
         result.Nodes.Single(node => node.Name == "Echo").Status.Should().Be(RunStatus.Failed);
         gateway.Called.Should().HaveCount(2);
         gateway.RunsCreated.Should().ContainSingle();

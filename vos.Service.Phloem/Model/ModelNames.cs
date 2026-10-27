@@ -66,6 +66,7 @@ public static class ModelNames
     public const string RequestId = "requestId";
     public const string Payload = "payload";
     public const string Error = "error";
+    public const string Decision = "decision";
 
     public const string DirectionIn = "in";
     public const string DirectionOut = "out";

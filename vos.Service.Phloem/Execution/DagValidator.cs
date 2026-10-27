@@ -29,6 +29,11 @@ public static class DagValidator
         foreach (var node in dag.Nodes.Where(node => node.HandsOverTo is not null && node.CollectionInput is not null))
             errors.Add($"'{node.Name}' hands its subject over, but runs once for each item of '{node.CollectionInput!.PortName}'; a node that hands over runs once.");
 
+        foreach (var node in dag.Nodes)
+            foreach (var (name, path) in node.DecisionPaths)
+                if (!dag.WiresOutOf(node.NodeId).Any(wire => wire.TakenOn.Contains(path)))
+                    errors.Add($"'{node.Name}' can decide '{name}', but no wire leaving it is taken on that decision.");
+
         var outputNodes = dag.Nodes.Where(node => node.Kind == DagNodeKind.Output).ToList();
         if (outputNodes.Count != 1)
             errors.Add($"'{dag.Name}' has {outputNodes.Count} Output nodes; every path ends at one, which reports how the run ended.");

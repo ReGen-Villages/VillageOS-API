@@ -308,7 +308,8 @@ public sealed class PipelineExecutor
         {
             if (!record.Nodes.TryGetValue(node.NodeId, out var recorded) || recorded.Status == RunStatus.Running) continue;
             var result = new NodeRunResult(node.NodeId, node.Name, recorded.Status, recorded.Outputs, recorded.Error,
-                Items: recorded.Items?.Select(item => new NodeRunResult(node.NodeId, node.Name, item.Status, item.Outputs, item.Error)).ToList());
+                Items: recorded.Items?.Select(item => new NodeRunResult(node.NodeId, node.Name, item.Status, item.Outputs, item.Error, Decision: item.Decision)).ToList(),
+                Decision: recorded.Decision);
             if (recorded.Status == RunStatus.Waiting)
             {
                 progress.Waiting[node.NodeId] = result;
@@ -363,7 +364,7 @@ public sealed class PipelineExecutor
         var results = progress.Results;
         var deliveries = progress.Deliveries;
         var halted = false;
-        var unhandledFailure = false;
+        string? unhandled = null;
         StopRequested? stopped = null;
 
         bool Unsettled(DagNode node) => !results.ContainsKey(node.NodeId) && !progress.Waiting.ContainsKey(node.NodeId);
@@ -400,8 +401,11 @@ public sealed class PipelineExecutor
             {
                 if (result.Status == RunStatus.Waiting)
                     progress.Waiting[result.NodeId] = result;
-                else if (!progress.Settle(dag, result) && result.Status == RunStatus.Failed)
-                    halted = unhandledFailure = true;
+                else if (!progress.Settle(dag, result) && AnswerReachingNoWire(dag, result) is { } reason)
+                {
+                    halted = true;
+                    unhandled = reason;
+                }
                 if (result.Status is RunStatus.HandedOver or RunStatus.CannotRehearse)
                     halted = true;
                 if (result.Status == RunStatus.Cancelled)
@@ -425,7 +429,8 @@ public sealed class PipelineExecutor
                         .Select(node => results.TryGetValue(node.NodeId, out var settled) ? settled : progress.Waiting[node.NodeId]).ToList(),
                     string.Join(" ", waits));
             }
-            halted = unhandledFailure = true;
+            halted = true;
+            unhandled = failures[0].Error;
         }
 
         // Anything still pending, or waiting, was blocked by an upstream failure, or not reached because the run was stopped.
@@ -439,7 +444,7 @@ public sealed class PipelineExecutor
 
         var outputNode = dag.Nodes.Single(n => n.Kind == DagNodeKind.Output);
         var runStatus = stopped is not null ? RunStatus.Cancelled
-            : unhandledFailure ? RunStatus.Failed
+            : unhandled is not null ? RunStatus.Failed
             : results.Values.Any(r => r.Status == RunStatus.CannotRehearse) ? RunStatus.CannotRehearse
             : results.Values.Any(r => r.Status == RunStatus.HandedOver) ? RunStatus.HandedOver
             : dag.WiresInto(outputNode.NodeId).Any(wire => deliveries.TryGetValue(wire, out var delivery) && delivery.CarriesAFail) ? RunStatus.Failed
@@ -473,9 +478,24 @@ public sealed class PipelineExecutor
                 : stopped is not null ? $"Run stopped: {stopped.Reason}"
                 : runStatus == RunStatus.CannotRehearse ? "The rehearsal stopped at a node it cannot rehearse."
                 : runStatus == RunStatus.HandedOver ? "The run handed its subject to another drawing."
-                : unhandledFailure ? "A node failed, and no fail wire leaves it."
+                : unhandled is not null ? unhandled
                 : $"A fail path reached '{outputNode.Name}'.",
             runResult);
+    }
+
+    // An answer no wire carries on from would end the run short of its Output node, so the run fails and says where.
+    private static string? AnswerReachingNoWire(PipelineDag dag, NodeRunResult result)
+    {
+        if (dag.Node(result.NodeId) is { Kind: DagNodeKind.Output })
+            return result.Status == RunStatus.Failed ? result.Error : null;
+        return result.Status switch
+        {
+            RunStatus.Failed => $"'{result.Name}' failed, and no fail wire leaves it.",
+            RunStatus.Succeeded or RunStatus.Partial when result.Decision is { } decision =>
+                $"'{result.Name}' decided '{decision}', and no wire leaving it is taken on that decision.",
+            RunStatus.Succeeded or RunStatus.Partial => $"'{result.Name}' succeeded, and no success wire leaves it.",
+            _ => null,
+        };
     }
 
     private async Task<PipelineRunResult> FailRunAsync(Guid runId, Guid pipelineId, string error, CancellationToken cancellationToken)
@@ -559,7 +579,8 @@ public sealed class PipelineExecutor
     }
 
     private Task PersistStatusAsync(Guid runId, NodeRunResult result, CancellationToken cancellationToken) =>
-        BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, result.NodeId, result.Name, result.Status, result.Error, cancellationToken, outputs: result.Outputs), "persist node run");
+        BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, result.NodeId, result.Name, result.Status, result.Error, cancellationToken, outputs: result.Outputs,
+            decision: result.Decision), "persist node run");
 
     // Each Thing answered under an out port marked as producing one: a value carrying an `id`, an identifier
     // on its own, or a list of either.
@@ -861,7 +882,8 @@ public sealed class PipelineExecutor
             await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, RunStatus.Running, null, cancellationToken, index, total), "persist item running");
             var inputs = new Dictionary<string, JsonElement>(baseInputs, StringComparer.Ordinal) { [collectionPort] = item };
             var (result, _) = await AttemptAsync(node, runId, inputs, index, total, [], rehearsal, cancellationToken);
-            await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, result.Status, result.Error, cancellationToken, index, total, result.Outputs), "persist item terminal");
+            await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, result.Status, result.Error, cancellationToken, index, total, result.Outputs,
+                result.Decision), "persist item terminal");
             if (!rehearsal) await RecordProducedAsync(runId, node, index, result, cancellationToken);
             return result;
         }
@@ -1007,7 +1029,11 @@ public sealed class PipelineExecutor
                 var error = root.TryGetProperty("error", out var e) && e.ValueKind == JsonValueKind.String ? e.GetString() : null;
                 return new NodeRunResult(node.NodeId, node.Name, RunStatus.Failed, outputs, error ?? $"'{node.Name}' answered fail.");
             }
-            return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, outputs, null);
+
+            var decision = root.TryGetProperty("decision", out var d) && d.ValueKind == JsonValueKind.String ? d.GetString() : null;
+            if (decision is not null && !node.DecisionPaths.ContainsKey(decision))
+                return Failure(node, $"'{node.Name}' answered the decision '{decision}', which its service does not declare.");
+            return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, outputs, null, Decision: decision);
         }
         catch (JsonException)
         {

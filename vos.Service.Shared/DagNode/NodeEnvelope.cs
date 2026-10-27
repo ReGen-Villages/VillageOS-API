@@ -45,12 +45,18 @@ public sealed class NodeContext
 }
 
 // The result a node returns: output-port values, by port name. Values are literals (in-band)
-// or graph references the orchestrator routes downstream.
+// or graph references the orchestrator routes downstream. Decision names one of the decision paths the service
+// declares, when the node decides.
 public sealed class NodeResult
 {
     public IReadOnlyDictionary<string, object?> Outputs { get; }
+    public string? Decision { get; }
 
-    private NodeResult(IReadOnlyDictionary<string, object?> outputs) => Outputs = outputs;
+    private NodeResult(IReadOnlyDictionary<string, object?> outputs, string? decision = null)
+    {
+        Outputs = outputs;
+        Decision = decision;
+    }
 
     public static readonly NodeResult Empty = new(new Dictionary<string, object?>());
 
@@ -58,6 +64,9 @@ public sealed class NodeResult
 
     public static NodeResult Ok(params (string Port, object? Value)[] outputs) =>
         new(outputs.ToDictionary(o => o.Port, o => o.Value, StringComparer.Ordinal));
+
+    public static NodeResult Decided(string decision, params (string Port, object? Value)[] outputs) =>
+        new(outputs.ToDictionary(o => o.Port, o => o.Value, StringComparer.Ordinal), decision);
 }
 
 // The parsed orchestrator envelope before reference inputs are resolved: run/node identity, the
@@ -71,7 +80,8 @@ public sealed record NodeRequest(
 public sealed record NodeResponse(
     [property: JsonPropertyName("result")] string Result,
     [property: JsonPropertyName("outputs")] IReadOnlyDictionary<string, object?> Outputs,
-    [property: JsonPropertyName("error")] string? Error)
+    [property: JsonPropertyName("error")] string? Error,
+    [property: JsonPropertyName("decision"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Decision = null)
 {
     public const string Succeeded = "success";
     public const string Failed = "fail";

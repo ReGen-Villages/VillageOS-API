@@ -108,7 +108,7 @@ internal sealed class FakeGateway : IMyceliumGateway
     public Func<Guid, string, bool> RefuseNodeRunWrite { get; set; } = (_, _) => false;
 
     public Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken ct, int? index = null, int total = 0,
-        IReadOnlyDictionary<string, JsonElement>? outputs = null)
+        IReadOnlyDictionary<string, JsonElement>? outputs = null, string? decision = null)
     {
         lock (NodeStatuses)
         {
@@ -121,7 +121,8 @@ internal sealed class FakeGateway : IMyceliumGateway
             lock (_model)
             {
                 var before = Records.TryGetValue((runId, nodeId), out var kept) ? kept : null;
-                Records[(runId, nodeId)] = new NodeRecord(status, outputs ?? before?.Outputs ?? new Dictionary<string, JsonElement>(), before?.Attempts);
+                Records[(runId, nodeId)] = new NodeRecord(status, outputs ?? before?.Outputs ?? new Dictionary<string, JsonElement>(), before?.Attempts,
+                    error ?? before?.Error, Decision: decision ?? before?.Decision);
             }
         return Task.CompletedTask;
     }

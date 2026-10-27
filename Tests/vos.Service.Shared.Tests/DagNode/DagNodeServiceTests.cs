@@ -44,13 +44,14 @@ public class DagNodeServiceTests
     }
 
     [Theory]
-    [InlineData(false, """{"result":"success","outputs":{"echo":"hi"},"error":null}""")]
-    [InlineData(true, """{"result":"fail","outputs":{},"error":"boom"}""")]
-    public async Task An_answer_names_its_result_as_the_word_the_orchestrator_reads(bool nodeThrows, string answer)
+    [InlineData(false, "hi", """{"result":"success","outputs":{"echo":"hi"},"error":null}""")]
+    [InlineData(false, "accept", """{"result":"success","outputs":{"echo":"accept"},"error":null,"decision":"accept"}""")]
+    [InlineData(true, "hi", """{"result":"fail","outputs":{},"error":"boom"}""")]
+    public async Task An_answer_names_its_result_and_any_decision_as_the_words_the_orchestrator_reads(bool nodeThrows, string message, string answer)
     {
         var (node, _) = BuildNode(_ => throw new InvalidOperationException("no HTTP expected"), alwaysThrow: nodeThrows);
 
-        var response = await node.HandleNodeAsync(Envelope(inputs: """{"message":"hi"}"""));
+        var response = await node.HandleNodeAsync(Envelope(inputs: JsonSerializer.Serialize(new { message })));
 
         JsonSerializer.Serialize(response).Should().Be(answer);
     }
@@ -147,7 +148,7 @@ public class DagNodeServiceTests
             if (_throw) throw new InvalidOperationException("boom");
             var message = context.Input("message")?.GetString()
                 ?? throw new InvalidOperationException("required input 'message' missing");
-            return Task.FromResult(NodeResult.Ok(("echo", message)));
+            return Task.FromResult(message == "accept" ? NodeResult.Decided("accept", ("echo", message)) : NodeResult.Ok(("echo", message)));
         }
     }
 }

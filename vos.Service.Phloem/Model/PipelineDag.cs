@@ -72,6 +72,10 @@ public sealed class DagNode
     public IReadOnlyDictionary<string, ChosenThing> Choices { get; init; } =
         new Dictionary<string, ChosenThing>(StringComparer.OrdinalIgnoreCase);
 
+    // The decision paths its service declares, by the name an answer gives as its decision.
+    public IReadOnlyDictionary<string, Guid> DecisionPaths { get; init; } =
+        new Dictionary<string, Guid>(StringComparer.Ordinal);
+
     public DagWait? Waits { get; init; }
 
     public bool Rehearses { get; init; }

@@ -47,7 +47,7 @@ public abstract class DagNodeService : MyceliumClientBase
             var inputs = await ResolveInputsAsync(request.Inputs, cancellationToken);
             var context = new NodeContext(request.RunId, request.NodeId, request.Params, inputs);
             var result = await ExecuteNodeAsync(context, cancellationToken);
-            return new NodeResponse(NodeResponse.Succeeded, result.Outputs, null);
+            return new NodeResponse(NodeResponse.Succeeded, result.Outputs, null, result.Decision);
         }
         catch (Exception ex)
         {

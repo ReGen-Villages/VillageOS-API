@@ -369,12 +369,16 @@ public class PipelineModelTests
     public void Build_ResolvesTheNodesOwnOutPortsBesideItsServices()
     {
         var (fx, pipelineId) = TestGraphs.DecisionPipeline();
+        var note = fx.Thing("decide.note", ("direction", "out"), ("type", "any"), ("portName", "note"));
+        fx.Rel(note, fx.Get("is"), fx.Get("Port"));
+        fx.Rel(fx.Get("Decide"), fx.Get("has"), note);
 
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
 
         var decide = dag.Node(fx.Get("Decide").Id)!;
-        decide.Ports.Select(p => p.PortName).Should().BeEquivalentTo("accept", "refuse", "in", "out", "error");
-        decide.OutPort("accept").Should().NotBeNull();
+        decide.Ports.Select(p => p.PortName).Should().BeEquivalentTo("note", "in", "out", "error");
+        decide.OutPort("note").Should().NotBeNull();
+        decide.DecisionPaths.Keys.Should().BeEquivalentTo("accept", "refuse");
         DagValidator.Validate(dag).Should().BeEmpty();
     }
 

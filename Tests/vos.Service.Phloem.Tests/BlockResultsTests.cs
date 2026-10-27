@@ -91,7 +91,7 @@ public class BlockResultsTests
         var run = await executor.RunAsync(drawn.PipelineId, Readings("north"), CancellationToken.None);
 
         run.Success.Should().BeFalse();
-        run.Error.Should().Be("A node failed, and no fail wire leaves it.");
+        run.Error.Should().Be("'Record level' failed, and no fail wire leaves it.");
         StatusOf(run, drawn.End).Should().Be(RunStatus.Skipped);
     }
 

@@ -257,17 +257,20 @@ class CatalystVocabularyTests(unittest.TestCase):
         self.assertGreater(len(bound), 0)
         self.assertEqual([t for t in self.kit.things.values() if value(t.get("Properties"), "paramBindings")], [])
 
-    def test_the_decision_node_holds_its_own_out_ports(self):
-        decide = G.stable_id(G._TAG, "node", "Branching Decision", "decide")
-        [port_archetype] = self.bound("port")
+    def test_the_decide_service_declares_its_decision_paths_and_each_wire_from_it_is_taken_on_one(self):
+        service = G.stable_id(G._TAG, "service", "decide")
+        [path_archetype] = self.bound("decisionPath")
         has = next(tid for tid, t in self.kit.things.items() if t["Name"] == "has")
         is_ = next(tid for tid, t in self.kit.things.items() if t["Name"] == "is")
-        held = [r["Target"] for r in self.kit.rels.values() if r["Subject"] == decide and r["Predicate"] == has
-                and any(p["Subject"] == r["Target"] and p["Predicate"] == is_ and p["Target"] == port_archetype
-                        for p in self.kit.rels.values())]
-        ports = {(value(self.kit.things[p]["Properties"], "portName"), value(self.kit.things[p]["Properties"], "direction"))
-                 for p in held}
-        self.assertEqual(ports, {("accept", "out"), ("refuse", "out")})
+        paths = {r["Target"] for r in self.kit.rels.values() if r["Subject"] == service and r["Predicate"] == has
+                 and any(p["Subject"] == r["Target"] and p["Predicate"] == is_ and p["Target"] == path_archetype
+                         for p in self.kit.rels.values())}
+        self.assertEqual({self.kit.things[p]["Name"] for p in paths}, {"accept", "refuse"})
+        decide = G.stable_id(G._TAG, "node", "Branching Decision", "decide")
+        from_decide = [r["Target"] for r in self.kit.rels.values() if r["Subject"] == decide and r["Predicate"] == has
+                       and r["Target"] in self.wires()]
+        self.assertEqual(sorted(self.kit.things[taken]["Name"] for wire in from_decide for taken in self.connected_along(wire, "takenOn")),
+                         ["accept", "refuse"])
 
     def test_the_strategy_port_offers_three_things_and_the_node_chose_one_of_them(self):
         [offers] = self.bound("choice")
@@ -304,12 +307,15 @@ class CatalystVocabularyTests(unittest.TestCase):
             self.assertNotIn("toPort", properties)
             self.assertEqual(set(properties), {"fromPath", "toPath", "transform"})
 
-    def test_every_wire_is_taken_on_the_success_result_or_the_fail_result(self):
-        results = set(self.bound("success") + self.bound("fail"))
+    def test_every_wire_is_taken_on_a_result_or_a_decision_path(self):
+        [is_] = [t["Id"] for t in self.kit.things.values() if t["Name"] == "is"]
+        [path_archetype] = self.bound("decisionPath")
+        paths = {r["Subject"] for r in self.kit.rels.values() if r["Predicate"] == is_ and r["Target"] == path_archetype}
+        takeable = set(self.bound("success") + self.bound("fail")) | paths
         for wire in self.wires():
             taken = self.connected_along(wire, "takenOn")
             self.assertTrue(taken, f"{self.kit.things[wire]['Name']} is taken on nothing")
-            self.assertLessEqual(set(taken), results)
+            self.assertLessEqual(set(taken), takeable)
 
     def test_every_pipeline_ends_at_one_output_node_that_each_of_its_nodes_reaches(self):
         [has] = [t["Id"] for t in self.kit.things.values() if t["Name"] == "has"]

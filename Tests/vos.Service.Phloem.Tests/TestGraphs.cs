@@ -72,6 +72,7 @@ public sealed class GraphFixture
         Rel(output, isPredicate, node);
 
         var port = Playing(namePrefix + "Port", PipelineRoles.Port);
+        _decisionPath = Playing(namePrefix + "DecisionPath", PipelineRoles.DecisionPath);
         var errorPort = Playing(namePrefix + "error", PipelineRoles.ErrorPort,
             (ModelNames.PortName, "error"), (ModelNames.Direction, ModelNames.DirectionOut), (ModelNames.PortType, "string"));
         Rel(errorPort, isPredicate, port);
@@ -95,6 +96,15 @@ public sealed class GraphFixture
     }
 
     private PipelineVocabulary? _vocabulary;
+    private GraphThing? _decisionPath;
+
+    public GraphThing DecisionPathOf(GraphThing service, string name)
+    {
+        var path = Thing(name);
+        Rel(path, _vocabulary!.Is, _decisionPath!);
+        Rel(service, _vocabulary.Has, path);
+        return path;
+    }
 
     public GraphThing Wire(GraphThing from, string fromPort, GraphThing to, string toPort, params (string Name, object Value)[] mapping) =>
         WireBetween(from, PortOf(from, fromPort, "out"), to, PortOf(to, toPort, "in"), mapping);
@@ -771,12 +781,8 @@ public static class TestGraphs
         var echoProto = InputOutputPrototype(fx, vocabulary, "EchoProto");
 
         var decide = ServiceNode(fx, vocabulary, decideProto, "Decide", "decide");
-        var accept = fx.Thing("decide.accept", ("direction", "out"), ("type", "any"), ("portName", "accept"));
-        var refuse = fx.Thing("decide.refuse", ("direction", "out"), ("type", "any"), ("portName", "refuse"));
-        fx.Rel(accept, vocabulary.Is, vocabulary.Port);
-        fx.Rel(refuse, vocabulary.Is, vocabulary.Port);
-        fx.Rel(decide, vocabulary.Has, accept);
-        fx.Rel(decide, vocabulary.Has, refuse);
+        var accept = fx.DecisionPathOf(decideProto, "accept");
+        var refuse = fx.DecisionPathOf(decideProto, "refuse");
         var notify = ServiceNode(fx, vocabulary, echoProto, "Notify", "notify");
         var giveBack = ServiceNode(fx, vocabulary, echoProto, "Return", "return");
 
@@ -797,8 +803,8 @@ public static class TestGraphs
         foreach (var node in new[] { start, decide, notify, giveBack, end }) fx.Rel(pipe, vocabulary.Has, node);
 
         fx.Wire(start, "subject", decide, "in");
-        fx.Wire(decide, "accept", notify, "in");
-        fx.Wire(decide, "refuse", giveBack, "in");
+        fx.TakeOn(fx.Wire(decide, "out", notify, "in"), accept);
+        fx.TakeOn(fx.Wire(decide, "out", giveBack, "in"), refuse);
         fx.Wire(notify, "out", end, "result");
         fx.Wire(giveBack, "out", end, "result");
 
