@@ -76,8 +76,9 @@ that is not a stream. A daemon can set a header, so it never needs one.
 
 **Timing guarantee.** When the trigger relationship arrives inside a `POST /api/model/fragment`
 batch, `/handle` is called only after the whole fragment is applied — every Thing, relationship, and
-property value in the batch is readable, and roll-ups are recomputed. A handler never observes a
-half-applied fragment. Multiple handled relationships in one fragment are dispatched in creation order.
+property value in the batch is readable, and derived properties are recomputed. A handler never
+observes a half-applied fragment. The services of several handled relationships in one fragment are
+called in creation order.
 
 **Delivery is at-least-once.** Mycelium sends a relation again when it cannot confirm the handler
 finished, and a handler that reconnects after a break is sent what it missed. `relationshipId` is the
@@ -85,21 +86,21 @@ same on every delivery of one relation, so a handler in any language recognises 
 does the work once, and answers 2xx to the repeat. C# handlers have a shared helper for this — see
 [Authoring a service](SERVICE_AUTHORING.md).
 
-**A failure answer is a dispatch to be sent again.** Mycelium judges the handler's outcome, not the
-transport: a status outside 2xx, or a 2xx whose body carries `"success": false`, records the
-dispatch as failed and the reconciler re-drives it. A `400` alone is a refusal — the handler read the
+**A failure answer is a service call to be sent again.** Mycelium judges the handler's outcome, not
+the transport: a status outside 2xx, or a 2xx whose body carries `"success": false`, records the
+call as failed and the reconciler calls again. A `400` alone is a refusal — the handler read the
 body and turned it down, and the same body would earn the same answer — recorded once with the
-handler's own words and never re-driven. A 2xx with no `success` field, or with a body that is not
+handler's own words and never sent again. A 2xx with no `success` field, or with a body that is not
 JSON, counts as done.
 
 **An acknowledgement, where the connection asks for one.** A connection whose `completion` is `ack`
 or `both` reads a 2xx from `/handle` as accepted. The service then calls
 `POST /api/relationships/{relationshipId}/acknowledgement` with its own token once its work has
-committed. Under `ack` that completes the dispatch (`200`). Under `both` it is recorded, and the
-dispatch completes when the subject reaches the done state (`202`); if the subject has not reached it
-within the connection's `done_within`, counted from the acknowledgement, the dispatch is marked
-failed and not sent again. An acknowledged dispatch is not sent again. Only the service the dispatch
-was sent to, or an administrator, may call it; anyone else gets `403`. A connection that waits for no
+committed. Under `ack` that completes the call (`200`). Under `both` it is recorded, and the
+call completes when the subject reaches the done state (`202`); if the subject has not reached it
+within the connection's `done_within`, counted from the acknowledgement, the call is marked
+failed and not sent again. An acknowledged call is not sent again. Only the service that was called,
+or an administrator, may call it; anyone else gets `403`. A connection that waits for no
 acknowledgement answers `409`.
 
 **Every call carries `Vos-Request-Id`**, naming the broker's request-log entry for that call, so a
@@ -128,15 +129,14 @@ Body is a selector:
   "ids":   ["<guid>"],                // seed objects
   "names": ["Pump-01"],               // seed by name
   "types": ["Pump"],                  // seed by type (transitive `is`)
-  "markedTypes": ["__IsPortArchetype"],       // same, by the flag the archetype carries
-  "markedArchetypes": ["__IsPortArchetype"],  // the archetype itself, without its members
   "boundTypes": ["<role thing guid>"],        // the archetype a role Thing binds, and every Thing that is it
-  "traverse": [ { "predicate": "produces", "direction": "outgoing", "depth": 1 } ],  // or predicateFlag, or predicateRole
+  "boundArchetypes": ["<role thing guid>"],   // the one Thing a role binds, alone
+  "traverse": [ { "predicate": "produces", "direction": "outgoing", "depth": 1 } ],  // or predicateRole
   "includeIsAncestors": true,         // default true (keeps inherited values correct)
   "includeRelationships": true,
   "relationships": [ { "predicate": "holds", "direction": "outgoing" } ],  // which relationships travel; absent = every incident one
   "includeSnapshot": true,            // false = the watermark alone, no closure sent back
-  "includeLaterMatches": false        // true = types/markedTypes go on matching after this moment
+  "includeLaterMatches": false        // true = the type-shaped parts go on matching after this moment
 }
 ```
 
@@ -152,8 +152,8 @@ so `Last-Event-ID` resume works unchanged.
 
 **`"includeLaterMatches": true` keeps the subscription matching.** Without it a narrowed membership is
 fixed the moment the subscription opens, so the only way to see a Thing made later is `{"all": true}` —
-the whole model, on every connect. With it, a Thing of a type named in `types` or `markedTypes` reaches
-you whenever it appears. Three things to know before you rely on it:
+the whole model, on every connect. With it, a Thing of a type the selector names reaches you whenever
+it appears. Three things to know before you rely on it:
 
 - **Only the type-shaped parts follow.** `ids`, `names` and `traverse` still fix their part of the
   membership when you open. A traversal is a walk of the model, and the match is asked inside every
@@ -168,7 +168,7 @@ you whenever it appears. Three things to know before you rely on it:
   them still enters the Thing. A Thing the rule admitted whose last matching `is` relationship is
   retracted leaves as `ThingLeft`, with the relationships it alone held as `RelationshipLeft`, and
   stops flowing until typed again; a deleted Thing is `ThingDeleted`. The membership you opened with is
-  kept as given. A mark withdrawn from an archetype does not make its members leave.
+  kept as given.
 
 **Read both, and read them through `StatedValue`.** A value written for a property name the Thing's
 archetype declares is not an own property: the platform clones the declaration into an override under
@@ -177,11 +177,11 @@ that archetype's id and writes there, so the instance keeps its own value withou
 sends is of that kind, so a reader of `Properties` alone finds them all absent while the same figures
 read back over the REST routes, which resolve. `SnapshotValues.StatedValue(name)` answers the question
 a service is asking — did this Thing state this — by reading own properties first, then the override
-sets and any nested inside them, and never up the `is` chain, so a member never answers with the mark
-or the default its archetype carries. `ValuesStated()` does the same for a reader taking whatever it
+sets and any nested inside them, and never up the `is` chain, so a member never answers with the
+default its archetype carries. `ValuesStated()` does the same for a reader taking whatever it
 finds.
 
-A Thing also carries `RollupProperties` — **how each computed value it owns is worked out**, keyed
+A Thing also carries `DerivedProperties` — **how each computed value it owns is worked out**, keyed
 the way its properties are, and absent rather than empty when it owns none. A value the platform
 derives reads back as a type alone (`vos.DecimalExpression` for a formula), which says that it was
 computed and not what produced it; this is what a caller reads to show a figure's working. One form
@@ -217,13 +217,12 @@ on a launch command: you ask for the slice **by shape** and get exactly that clo
 | Specific objects by id | `{ "ids": ["<guid>", …] }` |
 | By name | `{ "names": ["Pump-01"] }` |
 | Every Thing of a type (transitive `is`) | `{ "types": ["Pump"] }` |
-| The same, without knowing what the model calls the type | `{ "markedTypes": ["__IsPumpArchetype"] }` |
-| Just the archetype playing a role, to write `X is Y` | `{ "markedArchetypes": ["__IsPumpArchetype"] }` |
-| Every Thing playing a role, through the role Thing that binds the archetype | `{ "boundTypes": ["<role thing guid>"] }` |
-| A type **and** its neighbours along a relationship | `{ "types": ["Battery"], "traverse": [{ "predicate": "powers", "direction": "outgoing", "depth": 1 }] }` |
+| The same, without knowing what the model calls the type | `{ "boundTypes": ["<role thing guid>"] }` |
+| Just the Thing playing a role, to write `X is Y` or a relationship along it | `{ "boundArchetypes": ["<role thing guid>"] }` |
+| A type **and** its neighbours along a relationship | `{ "types": ["OpenDataSource"], "traverse": [{ "predicate": "provides", "direction": "outgoing", "depth": 1 }] }` |
 | Drop inherited type-default values | add `"includeIsAncestors": false` |
 | Things only, no relationships | add `"includeRelationships": false` |
-| A Thing's own outgoing relationships, not the inbound ones made against it | add `"relationships": [{ "direction": "outgoing" }]`, or name the predicates: `[{ "predicate": "holds" }, { "predicateFlag": "__IsAtPredicate", "direction": "incoming" }]` |
+| A Thing's own outgoing relationships, not the inbound ones made against it | add `"relationships": [{ "direction": "outgoing" }]`, or name the predicates: `[{ "predicate": "holds" }, { "predicateRole": "<role thing guid>", "direction": "incoming" }]` |
 | Only the changes — you already read the objects | add `"includeSnapshot": false` |
 | Every Thing of a type, **including ones made later** | add `"includeLaterMatches": true` |
 
@@ -240,28 +239,36 @@ rules, so a later match arrives with the relationships its snapshot would have c
 its predicate more than one way, or rules given beside `"includeRelationships": false`, is refused with
 `400` rather than guessed at.
 
-**Selecting by mark rather than by name.** An archetype's role is a boolean flag it carries, so a handler
-can ask for the role instead of the name the model happens to have given it — and keep working when that
-model renames it. `markedTypes` returns the archetype and every Thing that `is` it; `markedArchetypes`
-returns the archetype alone, which is what a handler needs when it only has to write an `is`
-relationship to it.
-Asking for a role with many members through `markedArchetypes` is the difference between one Thing and
-every instance ever recorded. Both scan the Things once, so they cost more than `types`, which answers
-from the name index.
+**Selecting by role rather than by name.** A role is a Thing with a fixed identifier that `binds` the
+one archetype or predicate playing it, so a handler can ask for the role instead of the name the model
+happens to have given it — and keep working when that model renames it. `boundTypes` is a list of role
+Thing identifiers; each selects the archetype the role binds and every Thing that `is` it, walked from
+the archetype rather than by scanning every Thing. `boundArchetypes` selects the one Thing each role
+binds, alone — an archetype, a predicate or a single Thing — which is what a handler needs when it only
+has to write a relationship to it; asking for a role with many members that way is the difference
+between one Thing and every instance ever recorded. Neither form carries the role Thing or its `binds`
+relationship, so a reader that has to tell which bound Thing plays which role asks for the role Things
+by id and follows `binds`. A traversal or relationship rule names its predicate the same way, as
+`predicateRole` — the role Thing's identifier, following the predicate it binds. This is how the
+pipeline orchestrator and the console ask, and what a service reading role-bound vocabulary should
+use. The broker also answers the older mark forms — `markedTypes`, `markedArchetypes` and a rule's
+`predicateFlag` — for a model that still writes a mark; the shared C# client's selector offers no
+mark form for a type.
 
-**Selecting by role.** A role is a Thing with a fixed identifier that `binds` the one archetype or
-predicate playing it. `boundTypes` is a list of role Thing identifiers; each selects the archetype the
-role binds and every Thing that `is` it, walked from the archetype rather than by scanning every Thing
-for a mark, so it costs less than either mark form. A traversal or relationship rule names its predicate
-the same way, as `predicateRole` — the role Thing's identifier, following the predicate it binds — and a
-rule names its predicate by name, by flag or by role, one way only. Both are how the pipeline
-orchestrator asks, and what a service reading role-bound vocabulary should use.
+**A name is resolved when the subscription opens.** A type name the selector asks for is resolved to
+the one Thing it means: a name matching nothing is refused with `400` naming it, and a name two Things
+carry with `409` naming both. Membership is then by identity, so an archetype renamed under an open
+subscription keeps its subscribers. A traversal or relationship rule naming a predicate no Thing
+carries follows and carries nothing, and one naming a predicate two Things carry is refused like a type
+name.
 
 `traverse.direction` is `outgoing` \| `incoming` \| `both`; `depth` walks N hops. Fields combine —
 the closure is the union of all seeds, then the traversal and `is`-ancestor expansion. Every
-reference handler ships a runnable example at `POST /demo/subscribe { "type": "Battery", "predicate":
-"powers" }` that subscribes for that slice, reports the resolved closure (counts + names), and
-unsubscribes.
+reference handler ships a runnable example at `POST /demo/subscribe { "type": "OpenDataSource",
+"predicate": "provides" }` — the open data sources and what they provide, which the platform's shared
+templates declare, so the example slices on any seeded model — that subscribes for that slice, reports
+the resolved closure (counts + names), and unsubscribes. A slice the platform refuses is answered by
+the demo with the platform's own status and words.
 
 #### What a slice costs
 
@@ -283,7 +290,7 @@ Two consequences are worth designing around:
   keeps growing for as long as the model does. When a handler needs an archetype's *identity* rather
   than its members, ask for it by name with `"includeRelationships": false`.
 - **Read by id wherever the id is known.** A handler that is handed a subject and asks for that
-  subject's *type* pays for every other object of the type, on every dispatch. Ask for the subject.
+  subject's *type* pays for every other object of the type, on every call. Ask for the subject.
 
 Both are easy to write by accident, and neither shows up in a small model: the slice is correct, the
 handler works, and the cost only becomes visible once the model has run for a while.
@@ -292,27 +299,27 @@ handler works, and the cost only becomes visible once the model has run for a wh
 
 ```csharp
 // C# (.NET) — SubscriptionClient
-var sel = new SubscriptionSelector { Types = new() { "Battery" },
-    Traverse = new() { new() { Predicate = "powers", Direction = "outgoing", Depth = 1 } } };
+var sel = new SubscriptionSelector { Types = new() { "OpenDataSource" },
+    Traverse = new() { new() { Predicate = "provides", Direction = "outgoing", Depth = 1 } } };
 SubscribeResult sub = await subscriptions.SubscribeAsync(sel);
 // sub.Snapshot.Things / .Relationships is exactly the requested closure; then follow StreamAsync.
 ```
 
 ```go
-sub, _ := s.subscribe(sliceByTypeAndTraverse("Battery", "powers"))
+sub, _ := s.subscribe(sliceByTypeAndTraverse("OpenDataSource", "provides"))
 // sub.Snapshot.Things / sub.Snapshot.Relationships = the requested closure
 ```
 
 ```ts
-const sub = await subscribe(cfg, sliceByTypeAndTraverse("Battery", "powers"));
+const sub = await subscribe(cfg, sliceByTypeAndTraverse("OpenDataSource", "provides"));
 ```
 
 ```python
-sub = await subscribe(slice_by_type_and_traverse("Battery", "powers"))
+sub = await subscribe(slice_by_type_and_traverse("OpenDataSource", "provides"))
 ```
 
 ```rust
-let sub = subscribe(cfg, &http, &slice_by_type_and_traverse("Battery", "powers")).await?;
+let sub = subscribe(cfg, &http, &slice_by_type_and_traverse("OpenDataSource", "provides")).await?;
 ```
 
 ### `GET /api/subscriptions/{id}/stream` → SSE change stream
@@ -331,7 +338,7 @@ Thing or a relationship you meet for the first time arrives whole and you fetch 
 
 | Kind | `data` beside `Kind` and `EntityId` | When |
 | --- | --- | --- |
-| `ThingCreated` | `Thing`: the Thing in the snapshot's shape (`Id`, `Name`, `IsArchetype`, `Properties`, `RollupProperties`, `InheritedOverrides`, `States`), without the snapshot's `Relationships` list — its relationships arrive as events | a Thing created that the subscription covers at its creation |
+| `ThingCreated` | `Thing`: the Thing in the snapshot's shape (`Id`, `Name`, `IsArchetype`, `Properties`, `DerivedProperties`, `InheritedOverrides`, `States`), without the snapshot's `Relationships` list — its relationships arrive as events | a Thing created that the subscription covers at its creation |
 | `ThingEntered` | `Thing`, as above | a Thing a later fact brought into a following subscription: the `is` relationship that first typed it into a watched type, or a property change on a Thing typed while nothing was watching |
 | `ThingLeft` | — | a Thing the rule admitted whose last matching `is` relationship was retracted while the Thing stays |
 | `ThingDeleted` | — | |
@@ -354,7 +361,7 @@ does this automatically) or `?lastEventId=`; the server replays committed change
 entries and departures each caused, then goes live — gap-free and exactly-once. Initial connect
 resumes from the snapshot `watermark`.
 
-**Derived changes are live-only.** A computed (roll-up) property's change arrives as an ordinary
+**Derived changes are live-only.** A derived property's change arrives as an ordinary
 property-changed event, but no Fact exists for it, so a resume — which replays the journal —
 never re-delivers it. After a reconnect, re-read the current values of the computed properties
 you depend on.
@@ -498,8 +505,8 @@ Bearer-authed POST. Pick by intent:
 | **Sediment** | bulk historical load written straight to sealed Sapwood; entities must already exist; `observedAt` **required** | `POST /api/sediment` | `[{ "objectId", "property", "value", "observedAt" }]` | `202 { batchId, series, buckets, samples }` |
 
 **Computed properties refuse every write kind.** A property whose value the platform computes
-— a roll-up over related Things or a formula, serialized with a `typeInfo` of `vos.DecimalRollup`,
-`vos.IntegerRollup`, `vos.SetRollup` or `vos.DecimalExpression` — answers `400` to
+— a reduction over related Things or a formula, serialized with a `typeInfo` of `vos.DerivedDecimal`,
+`vos.DerivedInteger`, `vos.DerivedSet` or `vos.DecimalExpression` — answers `400` to
 Facts, Observations, and Sediment alike: its value belongs to the platform's computing pass, and
 a stored write would only be overwritten on the next pass.
 
@@ -512,7 +519,7 @@ with **400** on every write kind, naming the property, the Thing, the value and 
 and nothing is written. Widths convert freely (`10` into a `vos.Decimal`, `"3.5"` into a
 `vos.Double`), but a boolean written to a property declared as a number is refused, as is a number
 written to a `vos.Boolean`: .NET converts `true` to 1 and any non-zero number to `true`, so without
-the refusal a quantity nobody measured reaches the model looking like real data and every roll-up
+the refusal a quantity nobody measured reaches the model looking like real data and every reduction
 over that property counts it. Write `1` if that is what you mean.
 
 **Runnable demo.** Every reference handler exposes `POST /demo/write-kinds { "thingId": "<existing>" }`,
@@ -529,7 +536,7 @@ relationships (including the `is` type relationship), and their initial values �
 
 | Route | Body | Success |
 |---|---|---|
-| `POST /api/model/fragment` | `{ "Name", "Things": [ {Id, Name, Properties} ], "Relationships": [ {Name, Subject, Predicate, Target} ] }` | `200 { thingsCreated, thingsUpdated, relationshipsCreated, things, thingsNotRendered, thingsRetired }` |
+| `POST /api/model/fragment` | `{ "Name", "Things": [ {Id, Name, Properties} ], "Relationships": [ {Name, Subject, Predicate, Target} ] }` | `200 { thingsCreated, thingsUpdated, relationshipsCreated, things, thingsNotRendered, thingsRetired }`; `400` naming a key no field reads and where it sits |
 
 The reply counts what the batch changed and lists the Things it leaves the caller holding.
 `thingsNotRendered` names, by id with the reason, any Thing the batch wrote but could not send back.
@@ -543,15 +550,18 @@ never told it created a Thing the model no longer holds live.
   sent for a known `Id` is ignored). Anything in the model but absent from the fragment is left untouched — removing
   structure is a separate, explicit operation.
 - **All of it or none of it.** References, typed envelopes and computed names are validated up front, so
-  those faults fail `400` with **zero** mutation. A failure while the batch is being applied is undone —
-  every Thing, relationship, value and roll-up definition the batch applied is reversed before the
-  `400` — so the
-  model a caller reads afterwards is the one they posted against. Re-posting is idempotent either way,
-  so a corrected retry still heals.
+  those faults fail `400` with **zero** mutation. Every other refusal is found while the batch is
+  written to copies, before the model changes, so a refused fragment leaves the model a caller reads
+  afterwards exactly as they posted against it. The model changes only once the commit log holds every
+  record the fragment writes. Re-posting is idempotent either way, so a corrected retry still heals.
+- **Every key is one the platform reads.** A key no field reads — on the fragment, a Thing, a
+  relationship or an override level — refuses the whole fragment with `400`, naming the key and where
+  it sits; a key beginning with `_` is a note and is accepted. Every client in this repository sends
+  only accepted keys.
 - **An `is` must reach a declared type.** A fragment typing a Thing by one that is not a declared type
   is refused `400` with **zero** mutation. A type the fragment itself creates counts once it carries
   `"IsArchetype": true`; the same rule refuses a single `POST /api/relationships` that would do it.
-- **A computed name cannot be written.** If a roll-up computes a property name for a Thing — through a
+- **A computed name cannot be written.** If a derived property computes a property name for a Thing — through a
   definition it owns, one it inherits from a type it already has, or one a type in the same batch brings —
   writing a value for that name fails `400` with **zero** mutation. Send the members; the value follows.
 - **Server resolves inheritance.** The model refuses an `is` relationship that would make a Thing
@@ -582,7 +592,7 @@ never told it created a Thing the model no longer holds live.
   land on the property the Thing **owns**; for a name it only inherits, the archetype's declaration
   governs.
 - **Batch-scale reactive work.** Each write still re-evaluates its own affected ranges, but the
-  roll-up recompute, whose cost grows with the size of the model, is **deferred and run once** for
+  derived-property recompute, whose cost grows with the size of the model, is **deferred and run once** for
   the whole batch (not per write), so applying a large fragment costs one pass over the model rather
   than one pass per Thing and relationship it carries. Send big graphs as one fragment rather than
   many single writes: a standing-world batch that would otherwise cost the size of the batch times
@@ -651,34 +661,33 @@ let res = deposit_sediment(cfg, &http,
 
 ## Being told once: vigils
 
-A `state` connection is dispatched for every Thing of an archetype entering the range it watches.
+A `state` connection's service is called for every Thing of an archetype entering the range it watches.
 A service whose work is finished later by somebody else — a step that waits on one particular Thing
 reaching one particular state — needs to be told once, about that Thing, without following every
 state change in the model. It places a **vigil**, a Bearer-authed POST:
 
 | Route | Body | Success |
 |---|---|---|
-| `POST /api/vigils` | `{ "SubjectId", "RangeId", "ConnectionId" }` — the Thing, the range Thing whose entry answers the vigil, and the connection to dispatch | `201` with the vigil: `Id`, `Name`, the three Things it names, `State` (the range's name) and `DispatchState` — `null` while it waits, the dispatch record's state once it has been answered |
+| `POST /api/vigils` | `{ "SubjectId", "RangeId", "ConnectionId" }` — the Thing, the range Thing whose entry answers the vigil, and the connection to call | `201` with the vigil: `Id`, `Name`, the three Things it names, `State` (the range's name) and `CallState` — `null` while it waits, the call record's state once it has been answered |
 | `GET /api/vigils` | — | `200` every live vigil the caller may read, in the same shape |
 | `DELETE /api/vigils/{id}` | — | `200`; retires a vigil whose wait is over for the service's own reasons, taking any record on it with it |
 
-When the subject enters the range, the platform dispatches the connection **once**, with the same
-`POST /handle` a `state` connection's dispatch makes: `subjectId` is the Thing, `targetId` is the
-vigil, and `properties.__DispatchRecordState` is the state's name. A subject already standing in the
-range is answered at once — the placement's `DispatchState` is then non-null. The dispatch is a
+When the subject enters the range, the platform calls the connection's service **once**, with the
+same `POST /handle` a `state` connection's call makes: `subjectId` is the Thing, `targetId` is the
+vigil, and `properties.__CallRecordState` is the state's name. A subject already standing in the
+range is answered at once — the placement's `CallState` is then non-null. The call is a
 record the platform owns, driven by the same reconciler and completing under the connection's own
 completion rules, so delivery is at-least-once exactly as for a `state` connection: handle a repeat of
 the same `relationshipId` as done. The vigil survives a restart; it is retired by the platform once its
-dispatch has resolved, or once the Thing it was kept over is deleted, and it is never answered a second
+call has resolved, or once the Thing it was kept over is deleted, and it is never answered a second
 time. Two vigils on one Thing for one state are two answers, even to one connection, so a service
 waiting twice on one Thing places two.
 
 The range is named as a Thing, not as a state's name: a vigil watches a range declared as a Thing of
-its own — one that `is` the archetype carrying `__IsRangeArchetype` and relates to the archetype it
-judges — which is the form a range takes whenever something needs a relationship to it. Refusals name
-what
+its own — one that `is` the archetype the `range` role binds and relates to the archetype it judges —
+which is the form a range takes whenever something needs a relationship to it. Refusals name what
 cannot serve: `400` for a range that is not a Thing of that kind, one that judges no archetype the
 subject `is`, or a connection with no bound service; `404` for a Thing the caller may not read; `400`
-naming the missing mark for a model that declares no vigil vocabulary (the archetype carrying
-`__IsVigilArchetype` and predicates carrying `__IsVigilSubjectPredicate`, `__IsStateWatchPredicate`
-and `__IsNotifiedConnectionPredicate`). The platform's shipped archetype set declares all four.
+naming each missing role for a model that does not bind the vigil vocabulary (an archetype the
+`vigil` role binds, and predicates the `vigilSubject`, `stateWatch` and `notifiedConnection` roles
+bind). The platform's shipped archetype set declares all four.
