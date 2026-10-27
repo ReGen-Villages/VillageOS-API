@@ -579,14 +579,14 @@ public class PipelineExecutorTests
         };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
-        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "order 7" }), CancellationToken.None);
+        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "plot 7" }), CancellationToken.None);
 
         result.Success.Should().BeTrue();
         gateway.Called.Should().Equal("decide", "notify");
         result.Nodes.Single(n => n.Name == "Return").Status.Should().Be(RunStatus.NotTaken);
         gateway.NodeStatuses.Where(s => s.Name == "Return").Select(s => s.Status).Should().Equal(RunStatus.NotTaken);
         result.Nodes.Single(n => n.Name == "End").Status.Should().Be(RunStatus.Succeeded);
-        result.Result!.Value.GetProperty("result").GetString().Should().Be("told yes: order 7");
+        result.Result!.Value.GetProperty("result").GetString().Should().Be("told yes: plot 7");
     }
 
     [Fact]
@@ -596,7 +596,7 @@ public class PipelineExecutorTests
         var gateway = new FakeGateway(fx.Build()) { OnCall = (_, _) => NodeOk() };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
-        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "order 7" }), CancellationToken.None);
+        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "plot 7" }), CancellationToken.None);
 
         result.Success.Should().BeFalse();
         result.Error.Should().Be("'Decide' succeeded, and no success wire leaves it.");
@@ -614,7 +614,7 @@ public class PipelineExecutorTests
         };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
-        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "order 7" }), CancellationToken.None);
+        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "plot 7" }), CancellationToken.None);
 
         result.Nodes.Single(n => n.Name == "Decide").Error.Should().Be("'Decide' answered the decision 'maybe', which its service does not declare.");
         result.Error.Should().Be("'Decide' failed, and no fail wire leaves it.");

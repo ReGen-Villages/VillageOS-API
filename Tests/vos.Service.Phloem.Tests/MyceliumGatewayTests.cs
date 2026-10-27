@@ -967,7 +967,7 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
-    public async Task A_run_record_holds_each_nodes_error_and_decision_and_each_items_own_record_in_item_order()
+    public async Task A_run_record_holds_each_nodes_error_and_decision_and_each_items_own_record_by_its_index()
     {
         var runId = Guid.NewGuid();
         var pipelineId = Guid.NewGuid();
