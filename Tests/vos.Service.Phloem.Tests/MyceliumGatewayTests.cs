@@ -973,6 +973,7 @@ public class MyceliumGatewayTests
         var pipelineId = Guid.NewGuid();
         var nodeId = Guid.NewGuid();
         var (aggregate, first, second) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var accept = Guid.NewGuid();
         var hasId = Guid.NewGuid();
         var ofId = Guid.NewGuid();
         static object Text(string value) => new { typeInfo = "vos.String", value };
@@ -996,7 +997,7 @@ public class MyceliumGatewayTests
                     new { id = pipelineId, name = "Reservoir check", properties = (object)new { } },
                     new { id = hasId, name = "has", properties = (object)new { } },
                     new { id = ofId, name = "of", properties = (object)new { } },
-                }.Cast<object>().Concat([NodeRun(aggregate, "partial", null, "1/2 items failed"), NodeRun(second, "failed", "1", "east is dry"), NodeRun(first, "succeeded", "0", null, "accept")]),
+                }.Cast<object>().Concat([NodeRun(aggregate, "partial", null, "1/2 items failed"), NodeRun(second, "failed", "1", "east is dry"), NodeRun(first, "succeeded", "0", null, accept.ToString())]),
                 relationships = new[] { Relates(runId, hasId, aggregate), Relates(runId, hasId, second), Relates(runId, hasId, first), Relates(runId, ofId, pipelineId) },
             },
         });
@@ -1008,7 +1009,7 @@ public class MyceliumGatewayTests
 
         var check = record!.Nodes.Should().ContainSingle().Which.Value;
         check.Error.Should().Be("1/2 items failed");
-        check.Items!.Select(item => (item.Status, item.Error, item.Decision)).Should().Equal(("succeeded", null, "accept"), ("failed", "east is dry", null));
+        check.Items!.Select(item => (item.Status, item.Error, item.Decision)).Should().Equal(("succeeded", null, (Guid?)accept), ("failed", "east is dry", null));
     }
 
     [Theory]

@@ -30,7 +30,7 @@ public static class DagValidator
             errors.Add($"'{node.Name}' hands its subject over, but runs once for each item of '{node.CollectionInput!.PortName}'; a node that hands over runs once.");
 
         foreach (var node in dag.Nodes)
-            foreach (var (name, path) in node.DecisionPaths)
+            foreach (var (path, name) in node.DecisionPaths)
                 if (!dag.WiresOutOf(node.NodeId).Any(wire => wire.TakenOn.Contains(path)))
                     errors.Add($"'{node.Name}' can decide '{name}', but no wire leaving it is taken on that decision.");
 

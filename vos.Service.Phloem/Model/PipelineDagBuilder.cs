@@ -153,7 +153,7 @@ public static class PipelineDagBuilder
             Ports = [.. ports.Select(p => p.Port), errorPort],
             ParameterBindings = ParseParameterBindings(nodeThing),
             Choices = Judged(problems, () => ChoicesOf(graph, nodeThing, ports), NoChoices),
-            DecisionPaths = Judged(problems, () => DecisionPathsOf(graph, nodeThing, service), NoDecisionPaths),
+            DecisionPaths = DecisionPathsOf(graph, service),
             Waits = Judged(problems, () => WaitOf(graph, nodeThing, ports), null),
             Retries = Judged(problems, () => RetryPolicyOf(nodeThing), null),
             Rehearses = UpTheIsChain(graph, service).Any(kind => kind.CarriesFlag(ModelNames.Rehearses)),
@@ -183,15 +183,11 @@ public static class PipelineDagBuilder
         return choices;
     }
 
-    private static IReadOnlyDictionary<string, Guid> DecisionPathsOf(PipelineGraph graph, GraphThing nodeThing, GraphThing service)
-    {
-        var paths = new Dictionary<string, Guid>(StringComparer.Ordinal);
-        foreach (var path in UpTheIsChain(graph, service).SelectMany(level => graph.OutgoingTargets(level, ModelNames.Has))
-                     .Where(held => graph.IsOf(held, PipelineRoles.DecisionPath)))
-            if (!paths.TryAdd(path.Name, path.Id) && paths[path.Name] != path.Id)
-                throw new PipelineModelException($"The service of '{nodeThing.Name}' declares two decision paths named '{path.Name}', so an answer naming it could mean either.");
-        return paths;
-    }
+    private static IReadOnlyDictionary<Guid, string> DecisionPathsOf(PipelineGraph graph, GraphThing service) =>
+        UpTheIsChain(graph, service).SelectMany(level => graph.OutgoingTargets(level, ModelNames.Has))
+            .Where(held => graph.IsOf(held, PipelineRoles.DecisionPath))
+            .DistinctBy(path => path.Id)
+            .ToDictionary(path => path.Id, path => path.Name);
 
     private static DagWait? WaitOf(
         PipelineGraph graph, GraphThing nodeThing, IReadOnlyList<(GraphThing Thing, DagPort Port)> ports)
@@ -310,10 +306,6 @@ public static class PipelineDagBuilder
 
     private static readonly IReadOnlyDictionary<string, ChosenThing> NoChoices =
         new Dictionary<string, ChosenThing>();
-
-    private static readonly IReadOnlyDictionary<string, Guid> NoDecisionPaths =
-        new Dictionary<string, Guid>();
-
     // Collect Port child-Things by walking the owner's is-chain — relationships do not
     // inherit through is, so ports resolve at read time at each level of the chain.
     private static IEnumerable<GraphThing> ResolvePortThings(PipelineGraph graph, GraphThing owner) =>

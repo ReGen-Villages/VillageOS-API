@@ -1028,9 +1028,11 @@ public sealed class PipelineExecutor
                 return new NodeRunResult(node.NodeId, node.Name, RunStatus.Failed, outputs, error ?? $"'{node.Name}' answered fail.");
             }
 
-            var decision = root.TryGetProperty("decision", out var d) && d.ValueKind == JsonValueKind.String ? d.GetString() : null;
-            if (decision is not null && !node.DecisionPaths.ContainsKey(decision))
-                return Failure(node, $"'{node.Name}' answered the decision '{decision}', which its service does not declare.");
+            if (!root.TryGetProperty("decision", out var answeredDecision) || answeredDecision.ValueKind == JsonValueKind.Null)
+                return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, outputs, null);
+            if (answeredDecision.ValueKind != JsonValueKind.String || !Guid.TryParse(answeredDecision.GetString(), out var decision)
+                || !node.DecisionPaths.ContainsKey(decision))
+                return Failure(node, $"'{node.Name}' answered the decision {answeredDecision.GetRawText()}, which is not the identifier of a decision path its service declares.");
             return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, outputs, null, Decision: decision);
         }
         catch (JsonException)

@@ -569,7 +569,7 @@ public class PipelineExecutorTests
                 "decide" => new NodeCallResult(200, JsonSerializer.Serialize(new
                 {
                     result = "success",
-                    decision = "accept",
+                    decision = fx.Get("accept").Id,
                     outputs = new Dictionary<string, string> { ["out"] = "yes: " + InputValue(envelope, "in") },
                 })),
                 "notify" => NodeOk(("out", "told " + InputValue(envelope, "in"))),
@@ -604,30 +604,24 @@ public class PipelineExecutorTests
         gateway.RunResult.Should().BeNull();
     }
 
-    [Fact]
-    public async Task RunAsync_Decision_NamingADecisionItsServiceDoesNotDeclare_FailsTheNode()
+    [Theory]
+    [InlineData("\"accept\"")]
+    [InlineData("\"8b1f4f0e-27a5-4b52-9c5e-0d3c7a1e6f42\"")]
+    [InlineData("7")]
+    public async Task RunAsync_Decision_AnsweringAnythingButTheIdentifierOfADeclaredDecisionPath_FailsTheNode(string decision)
     {
         var (fx, pipelineId) = TestGraphs.DecisionPipeline();
         var gateway = new FakeGateway(fx.Build())
         {
-            OnCall = (_, _) => new NodeCallResult(200, """{"result":"success","decision":"maybe","outputs":{}}"""),
+            OnCall = (_, _) => new NodeCallResult(200, "{\"result\":\"success\",\"decision\":" + decision + ",\"outputs\":{}}"),
         };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
         var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "plot 7" }), CancellationToken.None);
 
-        result.Nodes.Single(n => n.Name == "Decide").Error.Should().Be("'Decide' answered the decision 'maybe', which its service does not declare.");
+        result.Nodes.Single(n => n.Name == "Decide").Error.Should().Be(
+            $"'Decide' answered the decision {decision}, which is not the identifier of a decision path its service declares.");
         result.Error.Should().Be("'Decide' failed, and no fail wire leaves it.");
-    }
-
-    [Fact]
-    public void Build_TwoDecisionPathsOfOneNameOnAService_IsRefusedByName()
-    {
-        var (fx, pipelineId) = TestGraphs.DecisionPipeline();
-        fx.DecisionPathOf(fx.Get("DecideProto"), "accept");
-
-        PipelineDagBuilder.Build(fx.Build(), pipelineId).Problems.Should().Contain(
-            "The service of 'Decide' declares two decision paths named 'accept', so an answer naming it could mean either.");
     }
 
     [Fact]

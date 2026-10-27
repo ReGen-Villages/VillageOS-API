@@ -35,9 +35,7 @@ public static class WireDeliveries
     private static bool Chooses(PipelineDag dag, DagWire wire, NodeRunResult answer) => answer.Status switch
     {
         RunStatus.Failed => wire.TakenOn.Contains(dag.Fail),
-        RunStatus.Succeeded => answer.Decision is { } decision
-            ? wire.From.Node.DecisionPaths.TryGetValue(decision, out var path) && wire.TakenOn.Contains(path)
-            : wire.TakenOn.Contains(dag.Success),
+        RunStatus.Succeeded => wire.TakenOn.Contains(answer.Decision ?? dag.Success),
         _ => false,
     };
 

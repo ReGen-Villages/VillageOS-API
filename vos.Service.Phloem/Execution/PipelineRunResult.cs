@@ -38,7 +38,7 @@ public sealed record NodeRunResult(
     string? Error,
     AwaitedThing? Awaits = null,
     IReadOnlyList<NodeRunResult>? Items = null,
-    string? Decision = null);
+    Guid? Decision = null);
 
 public sealed record AwaitedThing(Guid Id, string Name);
 

@@ -19,6 +19,7 @@ public class DagNodeServiceTests
     private static readonly Guid Run = Guid.Parse("5628da90-0000-0000-0000-0000000000aa");
     private static readonly Guid Node = Guid.Parse("5628da90-0000-0000-0000-0000000000bb");
     private static readonly Guid Source = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    private static readonly Guid Accept = Guid.Parse("5628da90-0000-0000-0000-0000000000cc");
 
     [Theory]
     [InlineData("""{"runId":"5628da90-0000-0000-0000-0000000000aa","nodeId":"5628da90-0000-0000-0000-0000000000bb"}""", true)]
@@ -45,7 +46,7 @@ public class DagNodeServiceTests
 
     [Theory]
     [InlineData(false, "hi", """{"result":"success","outputs":{"echo":"hi"},"error":null}""")]
-    [InlineData(false, "accept", """{"result":"success","outputs":{"echo":"accept"},"error":null,"decision":"accept"}""")]
+    [InlineData(false, "accept", """{"result":"success","outputs":{"echo":"accept"},"error":null,"decision":"5628da90-0000-0000-0000-0000000000cc"}""")]
     [InlineData(true, "hi", """{"result":"fail","outputs":{},"error":"boom"}""")]
     public async Task An_answer_names_its_result_and_any_decision_as_the_words_the_orchestrator_reads(bool nodeThrows, string message, string answer)
     {
@@ -148,7 +149,7 @@ public class DagNodeServiceTests
             if (_throw) throw new InvalidOperationException("boom");
             var message = context.Input("message")?.GetString()
                 ?? throw new InvalidOperationException("required input 'message' missing");
-            return Task.FromResult(message == "accept" ? NodeResult.Decided("accept", ("echo", message)) : NodeResult.Ok(("echo", message)));
+            return Task.FromResult(message == "accept" ? NodeResult.Decided(Accept, ("echo", message)) : NodeResult.Ok(("echo", message)));
         }
     }
 }

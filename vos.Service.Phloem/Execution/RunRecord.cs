@@ -8,7 +8,7 @@ public sealed record AttemptRecord(int Number, DateTimeOffset StartedUtc, DateTi
 // What the model holds of one node in one run: its node run's status, the outputs it answered, the attempts it made,
 // the error it failed with, the decision it named, and each item's own record when it ran once per item.
 public sealed record NodeRecord(string Status, IReadOnlyDictionary<string, JsonElement> Outputs, IReadOnlyList<AttemptRecord>? Attempts = null,
-    string? Error = null, IReadOnlyList<NodeRecord>? Items = null, string? Decision = null)
+    string? Error = null, IReadOnlyList<NodeRecord>? Items = null, Guid? Decision = null)
 {
     public IReadOnlyList<AttemptRecord> AttemptsMade => Attempts ?? [];
 }

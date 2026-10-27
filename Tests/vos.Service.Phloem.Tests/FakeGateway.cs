@@ -109,7 +109,7 @@ internal sealed class FakeGateway : IMyceliumGateway
     public Func<Guid, string, bool> RefuseNodeRunWrite { get; set; } = (_, _) => false;
 
     public Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken ct, int? index = null, int total = 0,
-        IReadOnlyDictionary<string, JsonElement>? outputs = null, string? decision = null)
+        IReadOnlyDictionary<string, JsonElement>? outputs = null, Guid? decision = null)
     {
         lock (NodeStatuses)
         {

@@ -71,7 +71,7 @@ public class WaitingRunTests
                 "sort" => new NodeCallResult(200, JsonSerializer.Serialize(new
                 {
                     result = "success",
-                    decision = "keep",
+                    decision = waiting.Fixture.Get("keep").Id,
                     outputs = new { @out = "kept " + envelope.GetProperty("inputs").GetProperty("in").GetString() },
                 })),
                 "publish" => new NodeCallResult(200, JsonSerializer.Serialize(new { result = "success", outputs = new { @out = envelope.GetProperty("inputs").GetProperty("in") } })),

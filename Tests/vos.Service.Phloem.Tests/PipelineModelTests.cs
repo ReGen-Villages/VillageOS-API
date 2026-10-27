@@ -378,7 +378,7 @@ public class PipelineModelTests
         var decide = dag.Node(fx.Get("Decide").Id)!;
         decide.Ports.Select(p => p.PortName).Should().BeEquivalentTo("note", "in", "out", "error");
         decide.OutPort("note").Should().NotBeNull();
-        decide.DecisionPaths.Keys.Should().BeEquivalentTo("accept", "refuse");
+        decide.DecisionPaths.Should().BeEquivalentTo(new Dictionary<Guid, string> { [fx.Get("accept").Id] = "accept", [fx.Get("refuse").Id] = "refuse" });
         DagValidator.Validate(dag).Should().BeEmpty();
     }
 
