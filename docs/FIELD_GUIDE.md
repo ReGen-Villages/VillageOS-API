@@ -692,7 +692,7 @@ motor runs fast, 60–100 while it runs slow. A **deviation** reports the bounds
 how far off it is and how severe that is, once the state has settled.
 
 ### 28. When a state starts work
-![A Thing entering a state starts a service, and leaving the completion state proves the work done](assets/field-guide-state-dispatch.svg)
+![A Thing entering a state starts a service, and leaving the completion state proves the work done](assets/field-guide-state-call.svg)
 
 A **state connection** is a connection whose trigger is a state: it watches a range, and for every
 Thing entering that range the connection's service is called. Bound to the pipeline orchestrator,
