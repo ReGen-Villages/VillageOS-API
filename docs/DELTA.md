@@ -35,8 +35,9 @@ flowchart TB
 **A kind is a Thing an endpoint reaches, never a word it carries.** It declares the
 keys it requires, so an endpoint that cannot satisfy its kind is refused before
 anything is called rather than failing partway through the outbound request. The
-predicates are `authenticatesBy`, `pagesBy` and `readsBodyAs`; one reaching no kind
-means the plain behaviour, and the nearest declaration up the `is` chain wins.
+predicates are `authenticatesBy`, `pagesBy`, `readsBodyAs`, `cachesBy` and `keepsBy`
+(see [`TRIBUTARY.md`](TRIBUTARY.md) for the last two); one reaching no kind means the
+plain behaviour, and the nearest declaration up the `is` chain wins.
 
 The templates and the kinds ship in the platform's seed templates: the shared site template declares
 `Endpoint` and `EsriEndpoint` with its kinds, the open-data template adds `PositionLookupEndpoint` and
