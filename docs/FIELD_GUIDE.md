@@ -161,7 +161,7 @@ better than a technical label would.
 | **Hyphae** | The reactive engine inside the server, which carries a change through every range that depends on it | The threads along which signals travel through a mycelium |
 | **Rings** | The store of every value over time, in three layers: the last minutes in memory, recent months on disk, and the long past in a cold archive | Growth rings: one layer per period, the oldest at the centre |
 | **Metabolism** | The service that simulates consumption and production | What a living thing does with what it takes in |
-| **Delta** and **Tributary** | The catalogue of outside data sources, and the fetcher that calls one | Channels that bring water in without changing it |
+| **Delta** and **Tributary** | The service that registers outside data sources, and the fetcher that calls one | Channels that bring water in without changing it |
 | **Forage** | The service that looks a site up in every source that covers it | Going out to find what the surroundings hold |
 | **Phloem** | The orchestrator that runs a pipeline of services drawn on a canvas | The tissue that routes a plant's products from source to sink |
 | **Xylem** | The service that takes a building model file and raises it into the model | The tissue that carries water up from the roots |
@@ -262,12 +262,12 @@ consultant configuring a project edits the model and deploys nothing.
 | The kinds of Thing the project has, and what each kind knows | Kind Things, with their properties and defaults | Add or edit a Thing in the seed, or in a running model |
 | The physical assumptions the analysis rests on | Properties on shared kinds | Edit one value; every study that inherits it recomputes |
 | The goals, and what counts as good | Ranges, each a named condition in a small language | Write a criterion such as `daysOfSupply IS KNOWN AND daysOfSupply >= 14` |
-| Figures worked out from other figures | Totals and formulas declared on a Thing | Declare a sum over related Things, or a formula over the Thing's own values |
+| Figures worked out from other figures | Derived properties declared on a Thing | Declare a reduction over related Things, or a formula over the Thing's own values |
 | Which outside sources the project reads | Data-source Things, related to the places they cover | Add a source Thing and relate it to the places it covers |
-| The vocabulary a form offers | Things under a marked kind: programme categories, hazard types, climate zones | Add a term as a Thing; the form and the services find it by its mark |
-| The pages people see | Dashboard Things carrying a page description | Author the page as data; the console draws whatever the model publishes |
+| The vocabulary a form offers | Things under a kind a role binds: programme categories, hazard types, climate zones | Add a term as a Thing; the form and the services find it through the role |
+| The pages people see | Page Things carrying a page description | Author the page as data; the console draws whatever the model publishes |
 | Which services run, and what starts them | Connection and Service Things | Declare the service and the relationship that starts it |
-| Who may read what | Protected categories marked in the model, and roles on accounts | Mark the category; grant it to the accounts that need it |
+| Who may read what | Kinds that are a protected category, and roles on accounts | Make the category a protected category; grant it to the accounts that need it |
 
 The rule behind the table: **Things and relationships, not words.** A value that names a kind is a
 Thing, so something can be said about it. A value that names another Thing is a relationship, so it
@@ -280,7 +280,7 @@ ever ask a question of, such as a phone number.
 - **Roles add up.** A viewer reads. An editor also writes values, structure and ranges. An
   administrator also manages accounts, keys and the server. A service writes like an editor within
   the one model its pass names.
-- **Some Things are protected.** A model marks the categories only certain accounts may read, such
+- **Some Things are protected.** A model declares the categories only certain accounts may read, such
   as the people who submitted land. A caller without the grant does not see those Things, nor any
   relationship reaching them, and cannot write onto them.
 - **Everything is audited.** Every change is a durable, sequenced record carrying who made it.
@@ -369,8 +369,9 @@ service (Part V). This is the platform's extension point: a new
 capability ships as a service bound to a predicate, and the server does not change.
 
 A model says which of its predicates mean *containment* — one Thing physically inside another — by
-marking them. Every read that narrows to "what is within this building" follows those marks, so a
-model with its own nesting vocabulary works without telling anyone its predicate names.
+binding them to the `containment` role. Every read that narrows to "what is within this building"
+follows the predicates that role binds, so a model with its own nesting vocabulary works without
+telling anyone its predicate names.
 
 ### 17. Properties: type, write kind and retention
 Every property has a **type** — text, a whole number, a number with a fraction, a yes-or-no, an
@@ -393,16 +394,19 @@ them.
 Property names are letters, digits and underscores, because the criteria language reads anything
 else as structure.
 
-### 18. Marks: how the platform finds roles without names
-A property whose name begins with two underscores is a **mark**. A model marks the kind every
-service `is`, the kind every connection `is`, the predicate a state connection watches through,
-the kind that holds programme categories, the kind whose members are protected, and so on. The
-platform, the console and the services all find a Thing by its mark and never by its name — so a
-model may call its Things whatever suits it, and a project adds a term of its own by adding a Thing
-under the marked kind and deploying nothing.
+### 18. Roles: how the platform finds what it needs without names
+A **role Thing** stands for something a reader asks for — the kind every service `is`, the kind every
+connection `is`, the predicate a state connection watches through, the kind that holds programme
+categories, the page kind, and so on — and reaches the one Thing playing it along `binds`. Its
+identifier is derived from its word, so every model declares the same role. The platform, the
+console and the services all find a Thing through the role that binds it and never by its name — so
+a model may call its Things whatever suits it, and a project adds a term of its own by adding a Thing
+under the bound kind and deploying nothing.
 
-A mark is read as **owned**: the Thing that carries it is the one playing the role, and its members
-inherit the mark without becoming roles themselves.
+A role binds one Thing. A lookup by name never answers a role, so a role named like the Thing it
+binds leaves that name answering the Thing. Properties whose names begin with two underscores belong
+to the platform; the marks the platform once found Things by are retired, and a seed still carrying
+one is refused, naming the role that replaced it.
 
 ### 19. Seeds, templates and fragments
 A **seed** is a text file (in the JSON format, a plain-text way of writing structured data)
@@ -433,8 +437,9 @@ one member, and one relationship. The shape of a Thing, with the parts a modelle
 
 Every value is written with its type beside it. A relationship names its three Things by
 identifier. A kind is declared with `"IsArchetype": true`, and its derived values are declared
-under `RollupProperties` (chapter 25 shows one). Every seed carries the `is` predicate and a
-`GUI_Settings` Thing through which the model says how it should be displayed.
+under `DerivedProperties` (chapter 25 shows one). Every seed carries the `is` predicate and binds a
+display settings Thing through which the model says how it should be displayed: the Thing the
+`displaySettings` role binds, whatever it is called. The console finds it through that binding.
 
 A **template** is a seed the server creates new models from — one per project, for instance —
 rather than loading as a model of its own. A **fragment** is a partial model applied to a live one:
@@ -507,7 +512,7 @@ bounds a value should stay inside, with an optional guard saying when the bounds
 never produce them, which is what keeps the two steps from feeding each other.
 
 **Everyone is told.** Every state that changed is recorded in the Thing's state history, published
-on the live stream, and — where a connection watches that state — dispatched to a service (chapter
+on the live stream, and — where a connection watches that state — its service is called (chapter
 28).
 
 ### 23. Ranges: a named condition
@@ -655,7 +660,7 @@ The rules a modeller relies on:
 | **A total over nothing is nought — unless told otherwise** | `Sum` over an empty set is zero and `Count` is none; `Min`, `Max` and `Average` are unknown, because there is no smallest of nothing. A definition may *require members*, in which case an empty set answers unknown rather than zero, for a model where "none" and "nobody has said" differ |
 | **A member that cannot contribute** | A missing value, text where a number belongs, an ambiguous name. The model's policy decides: **withhold** the whole total (the default, because a partial total is a wrong answer presented as a right one), or **skip** the member and total the rest. Withholding one value never stops the pass |
 | **A formula with no answer is unknown, never zero** | A term nothing has written, a division by zero, a path reaching several Things, a name the Thing inherits from two kinds — each leaves the figure unknown, which is the one place a formula behaves differently as a value than as a comparison. `firstKnown` is how a figure falls back to a second source instead. A name inherited from two kinds is also logged, naming both kinds: give the Thing its own value, or rename the property on all but one kind |
-| **A condition narrows the members** | A total may carry a criterion each member must satisfy; one that fails it is not a member. This is how the built footprint sums only the programme categories marked as hard surface |
+| **A condition narrows the members** | A total may carry a criterion each member must satisfy; one that fails it is not a member. This is how the built footprint sums only the programme categories of the built kind: `[categorizedAs] IS BuiltFootprintCategory` |
 | **Who computes** | The declaring Thing computes one value, or every member computes its own (*per instance*). A formula declared on a kind almost always wants per instance, since the terms it reads sit on the members. The exception is a formula reading only totals over the kind's own members: the kind computes that once |
 | **Chains settle in one pass** | A round visits a definition after the ones it reads, so a chain of any depth settles at once. Only a graph that feeds itself repeats, up to a limit the model declares, and reaching the limit is logged naming every definition still moving |
 | **The derived value comes first** | On every change, derived values are recomputed before the ranges that read the raw change are judged (chapter 22) |
@@ -689,38 +694,38 @@ how far off it is and how severe that is, once the state has settled.
 ### 28. When a state starts work
 ![A Thing entering a state starts a service, and leaving the completion state proves the work done](assets/field-guide-state-dispatch.svg)
 
-A **state connection** is a connection whose trigger is a state: it watches a range, and every Thing
-entering that range is dispatched to the connection's service. Bound to the pipeline orchestrator,
+A **state connection** is a connection whose trigger is a state: it watches a range, and for every
+Thing entering that range the connection's service is called. Bound to the pipeline orchestrator,
 the state starts the pipeline drawn from it rather than one service (chapter 42). Nothing calls the
 service by hand; what started a run is a fact in the model afterwards.
 
-- **The dispatch is durable.** Entering the state writes a **dispatch record** — a relationship
+- **The service call is durable.** Entering the state writes a **call record** — a relationship
   from the Thing to the connection — before the service is called. The record carries how the
-  dispatch is going: pending, in flight, done, failed or refused. A record is delivered once while
-  its delivery runs, a failed one is driven again, and a refused one (the service said the request
+  call is going: pending, in flight, done, failed or refused. A record is delivered once while
+  its delivery runs, a failed one is called again, and a refused one (the service said the request
   itself was wrong) is not. A server restart brings every record back as it stood: a finished,
   refused or held one is not sent again, one sent before the restart is given its in-flight window,
-  and one never sent is driven on at once.
+  and one never sent is sent at once.
 - **Done is proved by the model, not by the reply.** A connection may name a **completion range**:
   the state the Thing must enter for the work to count. The service's reply then means only
   *accepted*, and the record is marked done when the Thing reaches that state — which the
   service's own last write usually causes. A connection may instead, or as well, wait for the
-  service to **acknowledge** the dispatch once its work has committed, by a call naming the
-  relationship it was handed; an acknowledged dispatch is not sent again. A connection also says how long an in-flight dispatch
-  may take before it is presumed dead and driven again. Discovery works this way: a site entering
-  *awaiting discovery* starts a run that outlasts any single call, and the site reaching
+  service to **acknowledge** the call once its work has committed, by a call naming the
+  relationship it was handed; an acknowledged call is not sent again. A connection also says how long
+  an in-flight call may take before it is presumed dead and called again. Discovery works this way: a
+  site entering *awaiting discovery* starts a run that outlasts any single call, and the site reaching
   *discovered* is what closes it.
-- **Loops are bounded.** A Thing that is dispatched, written to, re-enters the state and is
-  dispatched again is caught after a ceiling of re-entries in a window: the record is marked failed
+- **Loops are bounded.** A Thing whose service is called, written to, re-enters the state and is
+  called for again is caught after a ceiling of re-entries in a window: the record is marked failed
   with a note, and the loop stops.
-- **Several connections may watch one state**; the first by identifier is dispatched and the rest
+- **Several connections may watch one state**; the first by identifier is called and the rest
   are named on the record, so a service that watched and was not called is visible. A more specific
   kind's connection overrides its parent's.
 
 A service that needs to be told once, about one particular Thing reaching one particular state,
 places a **vigil**: a Thing the platform writes naming the subject, the range and the connection to
-call. When the subject enters the range the connection is dispatched once, the vigil is answered,
-and the platform retires it.
+call. When the subject enters the range the connection's service is called once, the vigil is
+answered, and the platform retires it.
 
 ### 29. The clock
 Everything that judges time reads the **model clock**: `elapsed()` and `Now()` in a criterion, the
@@ -807,10 +812,10 @@ value in the batch is readable and every derived value has been recomputed.
 ### 33. Three ways a service is started
 ![How the model says which program a relationship starts](assets/field-guide-connection.svg)
 
-A **connection** is a Thing that routes to a service. It `is` the kind marked as a connection,
+A **connection** is a Thing that routes to a service. It `is` the kind the `connection` role binds,
 `has` a service Thing, and reaches its **trigger** through a relationship. The service Thing `is` a
-shared **prototype** — one program with its shared settings — which `is` the kind marked as a
-service. Each concrete service overrides only what differs: its port, its arguments, whether it
+shared **prototype** — one program with its shared settings — which `is` the kind the `service` role
+binds. Each concrete service overrides only what differs: its port, its arguments, whether it
 starts automatically.
 
 | Trigger | What starts the service | What it is sent |
@@ -819,7 +824,7 @@ starts automatically.
 | **http** | A request to the server naming the connection's routing label | The request body, forwarded as it is; the reply returned to the caller directly |
 | **state** | A Thing entering the range the connection watches | The Thing as subject (chapter 28) |
 
-A connection marked to **start automatically** is launched when the model loads and dispatched for
+A connection marked to **start automatically** is launched when the model loads and called for
 every relationship already through it, so a simulation resumes on every start. Otherwise a service
 is launched lazily, the first time something needs it.
 
@@ -834,8 +839,10 @@ a service that announced itself from outside is removed after three consecutive 
 ### 34. Reading live data: subscriptions
 A service that needs live model data does not poll. It opens a **subscription** with a
 **selector** saying which slice of the model it wants — everything; particular Things by
-identifier or name; every Thing of a kind, found by name or by mark; the neighbours of those along
-a predicate; and which relationships should travel with them. The answer is a **snapshot** of that
+identifier or name; every Thing of a kind, found by name, by mark or by the role that binds the
+kind; the one Thing a role binds, which is how the console asks for its pages and its display
+settings; the neighbours of those along a predicate; and which relationships should travel with
+them. The answer is a **snapshot** of that
 slice, stamped with the sequence number it was taken at, and from then on a **stream** carries
 every change to those Things and no others: created, deleted, a property changed, a relationship
 added, a Thing entering the slice because it was later typed into a watched kind. A subscriber that
@@ -867,7 +874,7 @@ property; a derived property refuses every write.
 | Service | Started by | What it does |
 | --- | --- | --- |
 | **Metabolism** | graph: `consumes`, `produces` | One program, two modes. For each relationship it runs a loop that takes from, or adds to, a numeric property on the target at the relationship's rate, and reconfigures itself live when the relationship's values change (chapter 37) |
-| **Delta** | http | Provisions the catalogue of data-source templates into a model on its first registration and validates every registration against it (chapter 38) |
+| **Delta** | http | Checks every registration against the catalogue of data-source templates the model holds, and writes it (chapter 38) |
 | **Tributary** | http | Fetches a registered source with its resolved settings, reshapes the reply, and writes the readings as Observations onto the Thing the call was about (chapter 38) |
 | **Forage** | state | Finds every source covering a site, calls Tributary for each, resolves each fetched word to the Thing it names, and starts the analysis (chapter 39) |
 | **EnergyBalance** | graph, and a pipeline node | Reads its inputs off a study, computes the energy verdict a formula cannot express, writes it as a Fact for the judge-ranges, and recomputes whenever an input moves |
@@ -881,7 +888,7 @@ property; a derived property refuses every write.
 
 ### 37. Metabolism: a simulation that runs in the model
 A relationship *Home-4 consumes Energy pool* carries a quantity, a property name on the target, and
-a frequency in seconds. Creating it dispatches Metabolism, which runs a loop: every so many
+a frequency in seconds. Creating it calls Metabolism, which runs a loop: every so many
 seconds it takes that quantity from the pool's property — through the server, as a durable,
 exactly-once change — and adds it to a running total on the relationship itself. `produces` is the
 mirror image. Loops start staggered, so a seed with twenty relationships does not hammer the server
@@ -904,8 +911,8 @@ root template says a plain call, a child template fixes one provider's field nam
 authenticates by exchanging a credential for a token and pages through its results in offsets. How
 an endpoint authenticates, pages and reads its body are **kinds it reaches** by relationship, each
 declaring the settings it requires — so a registration that cannot satisfy its kind is refused
-before anything is called. **Delta** validates every registration against the tree and refuses one
-that does not fit.
+before anything is called. The tree is part of the seed. **Delta** reads it from the model on every
+registration, checks the registration against it, and refuses one that does not fit.
 
 **Tributary** makes the call. Its address may carry placeholders — `{latitude}`, `{longitude}`, a
 map tile's `{z}/{x}/{y}` — filled per call from the values of the Thing the call is about, so one
@@ -934,7 +941,7 @@ elevation, hazard gradings from a public portal, ten years of hourly climate his
 
 ### 39. Discovery: Forage
 Nothing calls Forage. A site whose coordinates are known and whose coverage has not yet been
-worked out enters a state, and a connection watching that state dispatches the service with the
+worked out enters a state, and a connection watching that state calls the service with the
 site as subject (chapter 28). A run:
 
 1. **Reads the site's places, the sources covering them, and their registrations** in one
@@ -951,9 +958,9 @@ site as subject (chapter 28). A run:
    relates the subject to the vocabulary Thing the word names, reading the declaration the model
    carries, so a project adding a vocabulary edits its model and deploys nothing. A word the
    vocabulary does not hold writes no relationship and is reported.
-5. **Starts the analysis** by relating the site's study to each marked compute connection. A
-   connection bound to a service is a handled predicate, so creating that relationship is what
-   dispatches it — one way to start an analysis, and one answerable from the model afterwards. A
+5. **Starts the analysis** by relating the site's study to each compute connection the
+   `siteAnalysisConnection` role binds. A connection bound to a service is a handled predicate, so
+   creating that relationship is what calls its service — one way to start an analysis, and one answerable from the model afterwards. A
    connection the study is already related through, by the seed or an earlier run, is left as it
    is and counts as started.
 
@@ -976,8 +983,8 @@ node.*
 A pipeline is a drawing of services joined by wires: each **node** is a service, each **wire**
 carries a value from one node's output **port** to another node's input port, and the drawing runs
 from its sources to its sinks with no cycles. A pipeline is nothing but Things and relationships in
-the model — the pipeline `has` its nodes, a node `has` the connection it dispatches, a service
-declares its typed ports, a wire names the two ports it joins — so there is no second store, and a
+the model — the pipeline `has` its nodes, a node `has` the connection it calls, a service
+declares its typed ports, a wire is a Thing reaching the two ports it joins — so there is no second store, and a
 pipeline can be read, exported and judged like anything else. Every role is a role Thing that `binds`
 the archetype or predicate playing it, so a model may name its pipeline vocabulary as it likes.
 
@@ -1007,7 +1014,7 @@ The **Pipelines** page in the console is the editor.
   message** holding that value, related to the system along the connection it is told through,
   which the server delivers once; a system naming no such connection refuses the run. The **services** stand under the outputs: clicking
   one drops a node bound to its connection, with the typed ports the service declares.
-- **A boundary node stands for its catalyst or its outcome**, read by marks, never by name. The
+- **A boundary node stands for its catalyst or its outcome**, read through roles, never by name. The
   **findings** under the canvas list what stops a run, including an end standing for the wrong kind of
   Thing. On a screen narrower than a tablet's the rails sit above the canvas rather than beside it.
 - **Wiring** is dragging from an output port to an input port. Wires are type-checked; an
@@ -1028,39 +1035,63 @@ The **Pipelines** page in the console is the editor.
 ![What happens when a pipeline runs](assets/field-guide-pipeline-run.svg)
 
 **Phloem** is the orchestrator, a service like any other. A run reads the pipeline in one
-snapshot, builds the graph — each node's dispatch address, its ports, its wires — and checks it up
-front: the nodes are put in dependency order (a cycle is refused) and every wire's types must
-agree. Then it runs each node once every wire into it has a settled source, independent nodes
-concurrently up to a bound, dispatching each through the server and routing its outputs to the inputs
-downstream. A node that fails halts everything that depends on it. A node may hold out ports of its
-own and answer under one of them, which is how a drawing branches: a node wired only from out ports
-nothing answered under is recorded *not taken* and never dispatched.
+snapshot, builds the graph — each node's address, its ports, its wires — and checks it up front:
+the nodes are put in dependency order (a cycle is refused), every wire's types must agree, every
+required input must be filled by a wire, a choice or a parameter the run was given, and a node fans
+out over one collection input only. A drawing that fails is refused before anything runs: the run is
+recorded *refused* with every reason listed rather than the first. Then it runs each node once every
+wire into it has a settled source, independent nodes concurrently up to a bound, calling each
+through the server and routing its outputs to the inputs downstream. A node that fails halts
+everything that depends on it. A node may hold out ports of its own and answer under one of them,
+which is how a drawing branches: a node wired only from out ports nothing answered under is recorded
+*not taken* and never called.
 
-A run and each node's run are recorded as Things, written *running* before dispatch and their
-final status after, so the console animates a run from the ordinary live stream and history is a
-read of the model. A node may wait for a state: it names the range and the port whose Thing must
-enter it, the run records its answer as *waiting* — shown on the page with a ring and colour of its
-own — and resumes from its record when the vigil the orchestrator placed answers. **Cancel** is
-cooperative: nodes already running finish, pending ones are marked cancelled; the page offers no
-Cancel on a waiting run, because the orchestrator reads the request only between dispatches.
+A node may carry a **retry policy**: while a call never reaches its service — a transport failure, a
+timeout, a server error from the door — it is called again after a pause in model minutes, and any
+answer from the service is final, a refusal among them. Each attempt is recorded as an attempt Thing
+the node run holds, and the node run stands at *trying* between attempts. When trying ends, a node
+related to a pipeline along the hand-over predicate starts a run of it with what reached the node,
+and the node and the run end *handed over*.
+
+A run and each node's run are recorded as Things, written *running* before the node's service is
+called and their final status after, so the console animates a run from the ordinary live stream and
+history is a read of the model. A node may wait for a state: it names the range and the port whose
+Thing must enter it, the run records its answer as *waiting* — shown on the page with a ring and
+colour of its own — and resumes from its record when the vigil the orchestrator placed answers.
+**Cancel** writes a stop request for the run, with an optional reason, and is offered on a run that
+is running, waiting or trying: a run under way stops at its next node, a waiting run stops at once,
+and the reason is recorded on the run and on each node not finished.
+
+**Drafts and rehearsals.** Only a published pipeline is started by the model; a draft runs only as a
+rehearsal, in which only services that declare they write nothing but their answer are called, and
+an end that would send or start something records what it would have done instead.
 
 **Fan-out.** A node whose service declares a **collection** input runs once per item when that
 input receives a list — the other inputs are the same for every item — and each output is gathered
 into a list for downstream, an output marked as a collection into one flat list. The node may
 continue past a failed item, marking the run partial, or fail as a whole.
 
-A pipeline can also be started **from the model**, three ways. A `runs` predicate bound to Phloem makes
+A pipeline can also be started **from the model**. A `runs` predicate bound to Phloem makes
 creating *X runs Pipeline* start it, so any service can start a pipeline by creating one
-relationship. A relationship written along any other predicate bound to Phloem starts the pipeline
-whose start node stands for that predicate; the orchestrator reads the relationship by its
-identifier to find it. And a **state connection** bound to Phloem starts the pipeline drawn from it — the one
-whose start node stands for the connection, or for the state it watches, since several connections
-may watch one state — when a Thing enters the state, with the entering Thing as the run's `subject`:
-the name the Pipelines page gives a start node's port, carrying the Thing's id and name, which a wire
-narrows by its from-path. The run relates to that Thing along the predicate the run-subject role
-binds. What the orchestrator is asked to run is resolved against the model: a pipeline runs itself,
-a connection runs the pipeline drawn from it or the one it reaches along the pipeline-start
-predicate, and anything else is refused.
+relationship. A relationship written along any other predicate bound to Phloem starts a pipeline
+whose start node stands for what the relationship reaches; the orchestrator reads the relationship
+by its identifier to find it. A **state connection** bound to Phloem starts a pipeline drawn from it
+when a Thing enters the state, with the entering Thing as the run's `subject`: the name the
+Pipelines page gives a start node's port, carrying the Thing's id and name, which a wire narrows by
+its from-path. The run relates to that Thing along the predicate the run-subject role binds. A
+**cadence** starts the pipeline drawn from it every so many model minutes. And a run reaching an end
+node that stands for another pipeline starts that pipeline, the new run related to the one that
+started it.
+
+A start offers the Thing the relationship reaches, the states that Thing watches, and the message
+kind and external system the arriving Thing relates to. A published pipeline fits when everything its
+start node stands for is among those, and of the pipelines that fit, the one whose start node stands
+for the most starts, whatever order the pipelines are read in. Two that stand for exactly the same
+Things, or for as many different Things, refuse the start with `400`, naming both. A draft never
+counts; when nothing fits, the start falls back to the pipeline the target reaches along the
+pipeline-start predicate. What the orchestrator is asked to run by name is resolved against the
+model: a pipeline runs itself, a connection runs the pipeline drawn from it or the one it reaches
+along the pipeline-start predicate, and anything else is refused.
 
 ### 43. A service becomes a node
 A node is an ordinary service that recognises one extra shape of handle request — one carrying a
@@ -1410,7 +1441,7 @@ can show. As a reader:
   source on a date, assumed by the platform — read from how the property is declared.
 - A **Thing detail window** opens from any row: the states it holds, a timeline of its state
   changes with the write that caused each, its properties, the Things involved, and every service
-  the platform dispatched on it with how each dispatch ended. The timeline says how far back it
+  the platform called on it with how each call ended. The timeline says how far back it
   reaches; an empty one reads as *not retained*, never as *never happened*.
 
 ![A model's operations dashboard: verdicts, figures, and how each figure was worked out](assets/trellis-operations-dashboard.png)
@@ -1568,8 +1599,8 @@ The same three actions are `submissions list`, `reject` and `promote` in Taproot
 model can be worked from a browser or a terminal. Clearing rejected submissions once their period
 has run is `submissions dispose`, a retention pass with no page.
 
-The page finds all of this by the marks the model puts on its own vocabulary, never by name. A model
-marking none says so in place of the list.
+The page finds all of this through the roles the model binds to its own vocabulary, never by name.
+A model that binds no predicate to the role of reaching a proposed site says so in place of the list.
 
 ### 59. Keyboard and mouse reference
 | Input | Action |
@@ -1630,8 +1661,9 @@ The key is exchanged for a short-lived pass, renewed on its own. Up and Down rec
 reports each session and every command to the server, so a model that names recipients for operator
 alerts hears of them; a password, key or token typed on a line is masked before the line is reported.
 
-**Naming a Thing.** Wherever a Thing is named you may give its identifier or its name,
-case-insensitively. A name shared by two Things is refused with both identifiers listed. Add
+**Naming a Thing.** Wherever a Thing is named you may give its identifier or its name. The name is
+matched exactly, case included, so two Things whose names differ only in case are two different
+names, not an ambiguous one. A name shared by two Things is refused with both identifiers listed. Add
 `--showguids` (or `-g`) anywhere in a command to print identifiers beside names. Timestamps are
 written `2026-01-15T12:30:00Z`, in universal time, or as `now`.
 
@@ -1663,12 +1695,12 @@ written `2026-01-15T12:30:00Z`, in universal time, or as `now`.
 | `state <thing>` | The states a Thing holds and every range's evaluation |
 | `state query <state> [--type=] [--within=] [--limit=] [--properties=] [--name=] [--also-in=a,b] [--not-in=c] [--include-archetypes] [--count]` | Every Thing in a state, narrowed as `list things` is, and further to those also in or not in other states; kinds left out unless asked for; `--count` prints how many alone |
 | `state history <thing> [start] [end]`, `state occurrences <thing> <state> [start] [end]` | Each change of state the platform holds in memory — when, what was entered and left, and the property change that caused it — and each spell spent in one state, an open one named as such; the history reaches back to model load |
-| `engines [ranges \| rollups]` | What the two engines carry, and each reactor in detail |
+| `engines [ranges \| derived]` | What the two engines carry, and each reactor in detail |
 | `snapshots` | What subscription snapshots have cost against the writers |
 | `list handlers`, `list services` (`list agents`) | Every connection bound to a service with what the platform resolves for it; every registered service with its running state, endpoint, health, request statistics (count, average milliseconds, errors, last request) and, while running, its process id, whether it was started outside the Mycelium and its last contact; a failure count when not zero |
 | `start service <service>`, `stop service <service>` | Start a service's process; stop it |
-| `call endpoint <subdomain> <json>`, `call service <handler> <json>` | Post the rest of the line as a JSON body to the endpoint service at that subdomain, or to the handler's daemon (started if needed), and print the answer, formatted when it is JSON; a body that is not JSON is refused before anything is sent |
-| `pipeline list`, `pipeline run <pipeline> [json params] [--wait]`, `pipeline cancel <run-id>`, `pipeline history <pipeline>` | Every pipeline, found by the flag its archetype carries; start a run through the orchestrator (`--wait` prints the per-node result instead of the run id); ask a running pipeline to stop; the runs, newest first, a run started by a request ending with `request <id>`, the request-log entry it started from |
+| `call endpoint <subdomain> <json>`, `call service <handler> <json>` | Post the rest of the line as a JSON body to the endpoint service at that subdomain, or to the handler's daemon (started if needed), and print the answer, formatted when it is JSON; a body that is not JSON is refused before anything is sent, and a service answering with an error status is reported as `Error:` followed by its status and body |
+| `pipeline list`, `pipeline run <pipeline> [json parameters] [--wait]`, `pipeline cancel <run-id> [reason]`, `pipeline history <pipeline>` | Every pipeline, found through the role that binds its archetype; start a run through the orchestrator (`--wait` prints the per-node result instead of the run id); write a stop request for a run that is running, waiting or trying; the runs, newest first, a run started by a request ending with `request <id>`, the request-log entry it started from |
 | `requests latest [--limit=N] [--connection=<connection>]`, `requests follow [--for=SECONDS] [--connection=<connection>]`, `requests download [--hour=yyyyMMddHH] [file]`, `requests show <request-id>` | The request log: the newest requests the server passed to services in the last day; entries as they are recorded for the given seconds (default 30); one hour's file; one entry in full, or that it is no longer kept once past the log's retention period. A connection is named by identifier or by a unique name |
 | `events watch [--for=SECONDS]` | Each model event as it arrives — time, name, payload — for the given number of seconds (default 30), then return; a watch that received nothing says so |
 | `logs tail [--lines=N] [--service=name]`, `logs follow [--for=SECONDS] [--service=name]`, `logs download [--service=name] [file]` | The last lines of the Mycelium log, or of the named service daemon's log; lines as they are appended for the given number of seconds (default 30); the whole current log file saved into the working directory, under the platform's file name unless one is given |
@@ -1856,14 +1888,14 @@ evaluates nothing:
 > engines
 Reactive engines — Regenerative Village — Ecosystem Model
   Range evaluation        2924 ranges      3999 edges      3,5 MB
-  Reactive computation       0 roll-ups       0 members    0 B
+  Reactive computation       0 derived properties     0 members    0 B
   Total est. memory     3,5 MB
 
-Drill in: engines ranges | engines rollups
+Drill in: engines ranges | engines derived
 ```
 
 `engines ranges` lists each range with its owner, what it watches and its footprint; `engines
-rollups` lists each derived value with its owner, what it watches and how it is declared — a total
+derived` lists each derived value with its owner, what it watches and how it is declared — a total
 over a path (`Sum(area) over SolarArray reached by <-is`) or a formula. The memory figures are
 arithmetic over documented per-unit costs: a trend to watch, not a measurement of the process.
 
@@ -1980,7 +2012,7 @@ Deleted bo
 
 ### 69. Measuring the platform itself
 The platform can measure what it costs — processor, memory, request timing, what each engine holds
-— as Observations on Things a model marks measurable, shown on a page any model can install by
+— as Observations on Things a model makes measurable, shown on a page any model can install by
 applying one fragment. Because a reading is an ordinary property value, history, retention,
 thresholds and totals come free. The read and write counts and average times leave out event
 streams, which stay open for as long as their reader is connected. Sampling is off until a
@@ -2329,7 +2361,7 @@ store current. The graph mapper turns the store into the renderer's graph:
   re-indexes the whole graph on every single removal; hiding most of a large model one node at a
   time would lock the page for long enough to look like a crash.
 
-The display settings live on the `GUI_Settings` Thing every seed carries: the layout strengths,
+The display settings live on the Thing the `displaySettings` role binds, which every seed binds: the layout strengths,
 the predicate colours (a map from predicate name to colour), the classifying property, the flash
 effects on a live change, the decimal precisions, and which properties a load sends.
 
@@ -2487,9 +2519,11 @@ A test reads every `submissions` subcommand off the command line's own handler a
 table names it, so a command added on one branch cannot leave the table quietly incomplete.
 
 ### 89. Authoring a page: the description and its navigation
-A page is a `Dashboard` Thing whose `specification` property holds a description in JSON: a title, an
+A page is a Thing of the kind the `page` role binds, which the platform's templates name
+`Dashboard`, whose `specification` property holds a description in JSON: a title, an
 optional subtitle and icon, an optional compare block, sections of widgets, an optional detail
-block, and optional translations. The console discovers every such Thing, parses each once, and
+block, and optional translations. The navigation lists the members of that kind and nothing of a
+namesake. The console discovers every such Thing, parses each once, and
 draws one rail entry per page labelled with its translated title and the icon its description names
 from the icon set the console renders with — any name in that set, with a generic icon for none or
 an unknown one.
@@ -2691,7 +2725,7 @@ from the derived definition, which declares what it rises and falls with. The co
 two and parses nothing. Inputs with definitions of their own are expanded to the leaves a person
 could actually change; an input whose direction the definition does not settle is dropped with its
 subtree, because under a shortfall a wrong direction is worse than none. Each input is named by the
-words the model declares for it — a Thing of the archetype marked `__IsPropertyNameArchetype`, reached
+words the model declares for it — a Thing of the archetype the `propertyName` role binds, reached
 through `namesPropertyOf` from the archetype holding the property — in the reader's language, else
 English, else the property's own name; a declared name is shown without the archetype beside it.
 
@@ -2714,11 +2748,14 @@ rows and the widget says the model was given the figure. Formula and input names
 translated. No request: the definition travels with the Thing.
 
 **Who the platform ran on a Thing.** The detail window's *Handled by* section lists every service
-dispatched on a Thing — the connection, when the platform last tried, how it ended, and what the
-service said — read from the handled relationships and dispatch records the platform leaves in the
-model, found by the marks it puts on its own wiring. Only the subject of a relationship counts as
-handled. The platform announces no change to a dispatch's state on the live stream, so each
-dispatched relationship is read back in the same request round as the states.
+called on a Thing — the connection, when the platform last tried, how it ended, and what the
+service said — read from the handled relationships and call records the platform leaves in the
+model. The connections, services, vigils and the call-record predicate are the Things the
+`connection`, `service`, `vigil`, `notifiedConnection` and `callRecord` roles bind. A page's
+subscription carries none of them, so the window reads them once when it opens on a Thing, in one
+request, and keeps reading the Thing's relationships from the page. Only the subject of a
+relationship counts as handled. The platform announces no change to a call's state on the live
+stream, so each handled relationship is read back in the same request round as the states.
 
 **Why a service decided about a Thing.** For a Thing a service decided about, the card opens a second
 block: the kind of decision, the instant, what was chosen and the rule it was decided under. Both halves
@@ -2730,7 +2767,7 @@ answer for that instant reads as *not recorded*, and a Thing retracted since the
 because that route resolves before the active filter. Where more than one decision was taken about a
 Thing, the latest opens the block and the earlier ones are one click away, each with its own instant; a
 decision's own card opens on the same block. Nothing here names a predicate or an archetype: each is
-found by the mark it carries.
+found through the role that binds it.
 
 **A figure opens to show what it is made of.** A dotted rule under a kpi appears only where the
 binding's shape says the model derived the figure, and opens to the same narrowed question asked for
@@ -2769,7 +2806,7 @@ hazard — states its words in a `wording` property the model carries, read in t
 is still submitted by its name.
 
 ### 94. Tiles, and what a page is sent
-A section may name a **theme** the model declares — a Thing under the archetype marked as a theme,
+A section may name a **theme** the model declares — a Thing under the archetype the `theme` role binds,
 carrying `colour`, `icon` and `order` — and a page that draws themes then draws the section as a
 tile: its kpi widgets as the summary shown while the tile is hovered or focused, every other widget
 as the gallery a click opens, and a muted *not assessed* tile for a section with no widgets. A
@@ -2779,7 +2816,7 @@ its own (the area, the coordinates, the reference), so a facts section carries o
 cannot know for itself. A section carrying `tab` becomes a tab of the closing view over the land,
 in description order. The signed-in pages draw no tiles, so a description naming a theme renders
 there as a list of sections. The themes reach the public pages through the intake service's form
-route, found by the mark.
+route, found through the role.
 
 **What a page is sent.** A page opens the subscription its description implies (chapter
 87), so a binding reaches its subject either by naming it or by walking to it; a
@@ -2791,8 +2828,8 @@ reach nothing.
 The console ships the map; the model supplies what it draws. No provider address, tile-server name
 or attribution text appears in the console, so changing a deployment's imagery is a model edit.
 
-A model declares Things of archetype `BasemapSource`; the archetype name and the property names are
-the whole contract.
+A model declares an archetype that the `basemapSource` role binds, and Things of that archetype; the
+role binding and the property names are the whole contract, and the archetype may carry any name.
 
 | Property | Required | Meaning |
 | --- | --- | --- |
@@ -2845,17 +2882,17 @@ runs it during a play and keeps the file with its readings.
 | Term | Meaning |
 | --- | --- |
 | **Binding** | On a range: a property with bounds and an optional guard, for deviation reporting. On a page: where a widget's value comes from |
+| **Call record** | The durable note of one service call, with its state, that the platform drives to completion |
 | **Checkpoint** | A saved picture of a model's structure that bounds how much of the record a restart replays |
 | **Connection** | A Thing that routes to a service: through a predicate, a request address or a state |
 | **Criterion** | A condition in the small language ranges, guards, conditions and formulas share |
 | **Dashboard** | A page the model publishes as data; the console draws it |
 | **Derived value** | A property computed by a total over related Things or a formula over a Thing's own values |
-| **Dispatch record** | The durable note of one dispatch, with its state, that the platform drives to completion |
 | **Effective properties** | A Thing's own values plus everything it inherits, own values winning |
 | **Fact** | A structural claim that holds until withdrawn; written durably before the writer is answered |
 | **Fragment** | A partial model applied to a live one, creating and updating, whole or not at all |
 | **Kind** (archetype) | A Thing that other Things `is`; declares defaults and ranges its members inherit; never enters a state itself |
-| **Mark** | A property whose name begins with two underscores, by which a reader finds a Thing's role |
+| **Mark** | A property whose name begins with two underscores; the marks readers once found a Thing by are retired, and readers find it through its role instead |
 | **Model** | One whole graph, with its own durable record; a pass names exactly one |
 | **Model clock** | The instant the platform judges by; the wall clock unless anchored |
 | **Mycelium** | The server |
@@ -2868,7 +2905,7 @@ runs it during a play and keeps the file with its readings.
 | **Rings** | The store of every value over time, in three layers |
 | **Role** | A Thing standing for something the platform asks for, with a fixed identifier, that `binds` the one Thing playing it |
 | **Seed** | The file a model is planted from; also the shape of a template and a fragment |
-| **Selector** | What a subscription names: everything, or identifiers, names, kinds, marks and walks, and which relationships travel with them |
+| **Selector** | What a subscription names: everything, or identifiers, names, kinds, marks, roles and walks, and which relationships travel with them |
 | **State** | The set of range names that currently hold for a Thing |
 | **Study** | The Thing that holds a site's analysis inputs, outputs and verdicts |
 | **Template** | A seed a model is created from; also a seed that declares how to recognise the elements of a building model |
@@ -2967,9 +3004,9 @@ on its own study. Where no source for the value is recorded, the table says so.
 | `allocatedAreaHectares` (each allocation) | `normalisedSharePercent ÷ 100 × parcelAreaHectares` | The areas of a site's allocations always add up to its parcel |
 | `statedAreaHectares` (the parcel) | The area stated on the site, read back onto the parcel | So the parcel can compare the two areas itself |
 | `statedAreaDivergencePercent` (the parcel) | `(measuredAreaHectares − statedAreaHectares) ÷ statedAreaHectares × 100` | What a person said the land measures and what the drawn boundary encloses are two different claims. Showing how far apart they are stops a wrong area being carried silently into every figure that grows with it. Unknown when nobody stated an area |
-| `productiveFootprintHectares` | The areas of the allocations whose category is marked as growing land, added up | Which categories count is a mark each category carries, not a list of names in code, so a project whose land divides differently moves a mark and changes no code. At least one allocation must count, so a programme with no growing land reads as not assessed rather than as nought hectares |
-| `allocatedBuiltFootprintHectares` | The areas of the allocations whose category is marked as built land, added up | As above |
-| `arrayHostHectares` | The areas of the allocations whose category is marked as hosting solar arrays, added up | As above |
+| `productiveFootprintHectares` | The areas of the allocations whose category is a `ProductiveFootprintCategory`, added up | Which categories count is a kind each category is, through `is`, not a list of names in code, so a project whose land divides differently changes a category's `is` relationships and changes no code. At least one allocation must count, so a programme with no growing land reads as not assessed rather than as nought hectares |
+| `allocatedBuiltFootprintHectares` | The areas of the allocations whose category is a `BuiltFootprintCategory`, added up | As above |
+| `arrayHostHectares` | The areas of the allocations whose category is an `ArrayHostCategory`, added up | As above |
 | `measuredRoofAreaM2` | The area of every roof in the building model, added up | |
 | `builtFootprintHectares` | first known of `measuredRoofAreaM2 ÷ 10,000`, `allocatedBuiltFootprintHectares` | The order every input follows: the roofs once the building model holds any, the land set aside for building until then. 10,000 square metres make a hectare |
 | `builtFootprintDivergencePercent` | `(measuredRoofAreaM2 ÷ 10,000 − allocatedBuiltFootprintHectares) ÷ allocatedBuiltFootprintHectares × 100` | Shows how far the building model's roofs are from the land the programme set aside for building |
