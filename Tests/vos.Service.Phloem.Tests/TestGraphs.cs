@@ -768,8 +768,8 @@ public static class TestGraphs
         return (fx, pipelineId);
     }
 
-    // A two-way decision: Start (out `subject`) → Decide, a node holding its own out ports `accept` and `refuse`
-    // beside its service's → Notify from `accept`, Return from `refuse` → End (in `result`) wired from both.
+    // A two-way decision: Start (out `subject`) → Decide, whose service declares the decision paths `accept` and
+    // `refuse` → Notify on `accept`, Return on `refuse` → End (in `result`) wired from both.
     public static (GraphFixture Fixture, Guid PipelineId) DecisionPipeline()
     {
         var fx = new GraphFixture();
@@ -928,7 +928,10 @@ public static class TestGraphs
 
     // A start node hands the run's subject to Review, which sends it for review and waits for it to enter `decided`;
     // Publish then runs on what Review answered.
-    public static WaitingFixture WaitingPipeline(bool wired = true, bool collection = false, bool approvedBeside = false)
+    // sortedBeside adds Sort, which decides keep or drop on the run parameter `items` (once per item when sortsPerItem);
+    // what it keeps reaches Publish at `sorted`, beside Review's notice at `notice`.
+    public static WaitingFixture WaitingPipeline(bool wired = true, bool collection = false, bool approvedBeside = false,
+        bool sortedBeside = false, bool sortsPerItem = false)
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
@@ -967,7 +970,23 @@ public static class TestGraphs
         fx.Rel(pipe, vocabulary.Has, review);
         fx.Rel(pipe, vocabulary.Has, publish);
         if (wired) fx.Wire(start, "subject", review, "submission");
-        fx.Wire(review, "notice", publish, "in");
+        if (!sortedBeside)
+            fx.Wire(review, "notice", publish, "in");
+        else
+        {
+            fx.Wire(review, "notice", publish, "in", ("toPath", "notice"));
+            var items = fx.Thing("start.items", ("direction", "out"), ("type", "any"), ("portName", "items"));
+            fx.Rel(items, vocabulary.Is, vocabulary.Port);
+            fx.Rel(start, vocabulary.Has, items);
+            var sortProto = InputOutputPrototype(fx, vocabulary, "SortProto", collectionIn: sortsPerItem);
+            var sort = ServiceNode(fx, vocabulary, sortProto, "Sort", "sort");
+            var discard = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "DiscardProto"), "Discard", "discard");
+            fx.Rel(pipe, vocabulary.Has, sort);
+            fx.Rel(pipe, vocabulary.Has, discard);
+            fx.Wire(start, "items", sort, "in");
+            fx.TakeOn(fx.Wire(sort, "out", publish, "in", ("toPath", "sorted")), fx.DecisionPathOf(sortProto, "keep"));
+            fx.TakeOn(fx.Wire(sort, "out", discard, "in"), fx.DecisionPathOf(sortProto, "drop"));
+        }
 
         // A second branch waiting on the same Thing for another state, with nothing after it.
         if (approvedBeside)

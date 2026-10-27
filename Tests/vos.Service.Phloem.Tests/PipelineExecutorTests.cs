@@ -621,6 +621,16 @@ public class PipelineExecutorTests
     }
 
     [Fact]
+    public void Build_TwoDecisionPathsOfOneNameOnAService_IsRefusedByName()
+    {
+        var (fx, pipelineId) = TestGraphs.DecisionPipeline();
+        fx.DecisionPathOf(fx.Get("DecideProto"), "accept");
+
+        PipelineDagBuilder.Build(fx.Build(), pipelineId).Problems.Should().Contain(
+            "The service of 'Decide' declares two decision paths named 'accept', so an answer naming it could mean either.");
+    }
+
+    [Fact]
     public void Validate_ADecisionPathNoWireIsTakenOn_IsRefusedByName()
     {
         var (fx, pipelineId) = TestGraphs.DecisionPipeline();
@@ -761,6 +771,32 @@ public class PipelineExecutorTests
 
         result.Success.Should().BeTrue();
         ItemsSentTo(gateway, "gather").Should().Equal("f0", "a1", "b1", "b2");
+    }
+
+    [Fact]
+    public async Task RunAsync_FanOut_ACollectionOutPortDeliversOneFlatListAlongItsWire()
+    {
+        var (fx, pipelineId) = TestGraphs.FanOutWithCollectionOutPipeline("continue");
+        var end = fx.Get("FanDemo end");
+        var reached = fx.Thing("end.parts", ("direction", "in"), ("type", "any"), ("portName", "parts"));
+        fx.Rel(reached, fx.Get("is"), fx.Get("Port"));
+        fx.Rel(end, fx.Get("has"), reached);
+        fx.Wire(fx.Get("Scorer"), "parts", end, "parts");
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnCall = (_, envelope) => envelope.GetProperty("inputs").GetProperty("item").GetString() switch
+            {
+                "a" => NodeAnswering("""{"score":"A","parts":["a1","a2"]}"""),
+                "b" => NodeFail("boom"),
+                "c" => NodeAnswering("""{"score":"C","parts":"c1"}"""),
+                _ => NodeAnswering("""{"score":"D"}"""),
+            },
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { items = new[] { "a", "b", "c", "d" }, w = 1 }), CancellationToken.None);
+
+        result.Result!.Value.GetProperty("parts").EnumerateArray().Select(e => e.GetString()).Should().Equal("a1", "a2", "c1");
     }
 
     [Fact]

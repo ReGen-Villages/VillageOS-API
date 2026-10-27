@@ -52,7 +52,7 @@ public static class PayloadMapping
         return incoming?.DeepClone();
     }
 
-    // A JSON null is a node of null, and must become a null value rather than no value, which cannot be sent.
+    // A JSON null arrives here as no node at all, and must leave as a JSON null, since an empty value cannot be sent.
     public static JsonElement ToElement(JsonNode? node) =>
         node is null ? JsonSerializer.SerializeToElement<object?>(null) : node.Deserialize<JsonElement>();
 }

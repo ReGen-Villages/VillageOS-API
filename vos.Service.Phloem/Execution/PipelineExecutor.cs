@@ -285,7 +285,7 @@ public sealed class PipelineExecutor
         // Nodes read back mid-trying, with the attempts their record holds, so the next attempt is numbered after them.
         public Dictionary<Guid, IReadOnlyList<AttemptRecord>> Trying { get; } = new();
 
-        // Answers whether anything carried on from the node, so a failure that reaches no fail wire can end the run.
+        // Answers whether anything carried on from the node, so an answer that reaches no wire can end the run.
         public bool Settle(PipelineDag dag, NodeRunResult result)
         {
             Results[result.NodeId] = result;
@@ -491,8 +491,6 @@ public sealed class PipelineExecutor
         return result.Status switch
         {
             RunStatus.Failed => $"'{result.Name}' failed, and no fail wire leaves it.",
-            RunStatus.Succeeded or RunStatus.Partial when result.Decision is { } decision =>
-                $"'{result.Name}' decided '{decision}', and no wire leaving it is taken on that decision.",
             RunStatus.Succeeded or RunStatus.Partial => $"'{result.Name}' succeeded, and no success wire leaves it.",
             _ => null,
         };

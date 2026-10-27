@@ -57,6 +57,38 @@ public class WaitingRunTests
         gateway.StatusUpdates.Last().Should().Be(RunStatus.Waiting);
     }
 
+    [Theory]
+    [InlineData(false, "\"kept a\"")]
+    [InlineData(true, "[\"kept a\"]")]
+    public async Task A_resumed_run_carries_on_along_the_decision_a_node_made_before_the_wait(bool sortsPerItem, string sorted)
+    {
+        var waiting = TestGraphs.WaitingPipeline(sortedBeside: true, sortsPerItem: sortsPerItem);
+        var gateway = new FakeGateway(waiting.Fixture.Build())
+        {
+            OnCall = (subdomain, envelope) => subdomain switch
+            {
+                "review" => NodeOk(("notice", "sent for review")),
+                "sort" => new NodeCallResult(200, JsonSerializer.Serialize(new
+                {
+                    result = "success",
+                    decision = "keep",
+                    outputs = new { @out = "kept " + envelope.GetProperty("inputs").GetProperty("in").GetString() },
+                })),
+                "publish" => new NodeCallResult(200, JsonSerializer.Serialize(new { result = "success", outputs = new { @out = envelope.GetProperty("inputs").GetProperty("in") } })),
+                _ => NodeFail($"unexpected {subdomain}"),
+            },
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+        var items = sortsPerItem ? JsonSerializer.SerializeToElement(new { items = new[] { "a" } }) : JsonSerializer.SerializeToElement(new { items = "a" });
+        var waited = await executor.RunAsync(waiting.PipelineId, items, CancellationToken.None, subject: Plot);
+
+        await executor.ResumeAsync(gateway.HeldVigils[(waited.RunId, waiting.Review.Id)], CancellationToken.None);
+
+        var published = gateway.Envelopes.Last(sent => sent.Subdomain == "publish").Envelope.GetProperty("inputs").GetProperty("in");
+        published.GetProperty("notice").GetString().Should().Be("sent for review");
+        published.GetProperty("sorted").GetRawText().Should().Be(sorted);
+    }
+
     [Fact]
     public async Task The_vigils_answer_resumes_the_run_from_its_record_without_calling_the_waiting_node_again()
     {

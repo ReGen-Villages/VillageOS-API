@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 namespace vos.Service.Shared.DagNode;
 
 // Base a microservice inherits to act as a node in a pipeline DAG. It maps the uniform
-// orchestrator envelope {runId,nodeId,params,inputs} → {result,outputs,error} onto the
+// orchestrator envelope {runId,nodeId,params,inputs} → {result,outputs,error,decision} onto the
 // subclass's ExecuteNodeAsync, resolving any graph-reference inputs first. The envelope is
 // additive: a service detects a node invocation with IsNodeEnvelope and routes it
 // here, leaving its existing graph/http /handle behaviour untouched. Ports backs the
