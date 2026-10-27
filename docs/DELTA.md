@@ -160,5 +160,5 @@ Delta starts with no file beside it: everything it checks against is in the mode
 - Key lookup shared with Tributary: `EffectivePropertyResolver` in `vos.Service.Shared`.
 - Launch settings: `vos.Service.Shared/Configuration/ServiceLaunchSettings.cs` (shared).
 - Tests: `Tests/vos.Service.Delta.Tests/` (`RegisterEndpointTests`, `RegistrationReadsTheModelTests`,
-  `CompensateAsyncTests`), and `DeltaReadsAnEndpointTemplateTests` against the engine in
+  `EndpointTemplateTreeTests`, `CompensateAsyncTests`), and `DeltaReadsAnEndpointTemplateTests` against the engine in
   `Tests/vos.BrokerContract.Tests/`.
