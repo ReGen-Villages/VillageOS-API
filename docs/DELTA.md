@@ -1,37 +1,32 @@
 # Delta
 
-Delta is VillageOS's **endpoint-registration service**. It owns two jobs around the
-endpoint-template catalog that [Tributary](TRIBUTARY.md) fetches against:
+Delta is VillageOS's **endpoint-registration service**. It has one job: it checks a registration
+against the endpoint-template tree the caller's model holds, and writes it — create the Thing,
+attach it to its template with an `is` relationship, and set its properties. The tree comes from the
+seed the model was loaded from; Delta writes no templates.
 
-1. **Provision** the endpoint-template catalog into a model on that model's first
-   registration — find-or-create every template Thing and wire its `is` inheritance
-   relationships.
-2. **Register** individual endpoints on demand — validate an incoming endpoint against the
-   template graph, create the Thing, attach it to its template with an `is` relationship, and
-   set its properties.
+Delta is the **write/validate** side of the endpoint story; [Tributary](TRIBUTARY.md) is the
+**runtime fetch** side. Delta decides *what a valid endpoint is and writes it*; Tributary later
+*resolves that endpoint's effective properties and calls it*. Neither contains per-source
+(ESRI/OAuth/…) code — a source is expressed entirely as template + registration data. `SERVICES.md`
+§1 lists Delta as one of the .NET services; this page is its canonical reference.
 
-Delta is the **write/validate** side of the endpoint story; Tributary is the **runtime fetch**
-side. Delta decides *what a valid endpoint is and provisions it*; Tributary later *resolves that
-endpoint's effective properties and calls it*. Neither contains per-source (ESRI/OAuth/…) code —
-a source is expressed entirely as template + registration data. `SERVICES.md` §1 lists
-Delta as one of the .NET services; this page is its canonical reference.
+## The endpoint-template tree
 
-## The endpoint-template graph
-
-Endpoints are not free-form. They are governed by a **single-rooted template hierarchy** rooted
-at `Endpoint`, where inheritance is expressed model-natively as `is` relationships
-(`EsriEndpoint is Endpoint`), never a scalar field. A registration nominates a template via its
-own `is` relationship (or defaults to the root); its admissible properties are the **union of
-property keys along that template's chain**, and a property's effective value is
-**closest-ancestor-wins**.
+Endpoints are not free-form. They are governed by a **single-rooted template hierarchy**: the root
+is the Thing the model's `endpoint` role binds (the platform's templates name it `Endpoint`), and
+inheritance is expressed model-natively as `is` relationships (`EsriEndpoint is Endpoint`), never a
+scalar field. A registration nominates a template via its own `is` relationship (or defaults to the
+root); its admissible properties are the **union of property keys along that template's chain**, and
+a property's effective value is **closest-ancestor-wins**.
 
 ```mermaid
 flowchart TB
     Endpoint["<b>Endpoint</b> (root)<br/>reaches no kind"]
     Esri["<b>EsriEndpoint</b> (source type)"]
     Reg["<b>a registration</b><br/>supplies the structural blanks:<br/>url, tokenUrl, tokenRequest"]
-    Auth["<b>TokenExchangeAuth</b> (kind)<br/>requires tokenUrl, tokenRequest, tokenPath"]
-    Page["<b>OffsetPaging</b> (kind)<br/>requires offsetParam, hasMorePath, itemsPath"]
+    Auth["<b>TokenExchangeAuthentication</b> (kind)<br/>requires tokenUrl, tokenRequest, tokenPath"]
+    Page["<b>OffsetPaging</b> (kind)<br/>requires offsetParameter, hasMorePath, itemsPath"]
     Reg -->|is| Esri -->|is| Endpoint
     Esri -->|authenticatesBy| Auth
     Esri -->|pagesBy| Page
@@ -40,86 +35,20 @@ flowchart TB
 **A kind is a Thing an endpoint reaches, never a word it carries.** It declares the
 keys it requires, so an endpoint that cannot satisfy its kind is refused before
 anything is called rather than failing partway through the outbound request. The
-roles are `authenticatesBy`, `pagesBy` and `readsBodyAs`; a role reaching no kind
+predicates are `authenticatesBy`, `pagesBy` and `readsBodyAs`; one reaching no kind
 means the plain behaviour, and the nearest declaration up the `is` chain wins.
 
-A seed that sets `authKind`, `pagingKind` or `responseKind` as a property is
-refused when the graph is built, naming the template and the relationship to write
-instead. A word on a template would leave its endpoints reaching no kind while
-looking configured.
+The templates and the kinds ship in the platform's seed templates: the shared site template declares
+`Endpoint` and `EsriEndpoint` with its kinds, the open-data template adds `PositionLookupEndpoint` and
+`DivisionLookupEndpoint`, and the basemap template adds `EsriTileEndpoint` and `CachedTileEndpoint`.
+The platform's seed validation checks the tree when a model is loaded, and holds every seeded
+registration to the rule Delta applies. See [`TRIBUTARY.md`](TRIBUTARY.md) for the `EsriEndpoint`
+template and the property-field taxonomy.
 
-Delta loads this graph from a `seed.json` document (`EndpointSeedModel` — a `Things[]` +
-`Relationships[]` fragment) and builds an `EndpointSeedGraph`. The graph is the same shape
-Tributary reads; see [`TRIBUTARY.md`](TRIBUTARY.md) for the `EsriEndpoint` template and the
-property-field taxonomy.
-
-### Graph validation — fail fast at boot
-
-`EndpointSeedGraph.Build` validates what Mycelium does **not**, so a misconfigured deployment
-fails at boot rather than corrupting the model or stack-overflowing Mycelium's cycle-unsafe
-effective-property traversal. Construction throws if the seed graph:
-
-- has no things, or a thing with an empty name;
-- has a **duplicate** template name;
-- has a relationship referencing an **unknown** template;
-- has a template that declares **more than one `is` parent**;
-- has **no root** (every template declares `is`) or **more than one root**;
-- contains a **cycle**.
-
-An invalid graph throws inside `LoadGraph()` during `app.Build()` wiring — Delta does not start.
-
-## First contact: provisioning the catalog into a model
-
-**A model is provisioned on its first registration, under the bearer that named it.** One Delta
-process answers every project — a second project's call reaches the daemon already running on the
-port both models declare — so a catalog built once at startup would sit in the single model Delta's
-launch token names, and every other project's registration would be refused for a template that is
-not in its model. `ModelTemplateCatalog` holds what each model has, keyed by the `vos:model_id` claim
-the caller's bearer carries.
-
-`TemplateCatalogProvisioner.ProvisionAsync` reflects the seed graph into that model. It is
-**idempotent**: it finds or creates each template by name, and reads once which relationships the
-catalog already carries.
-
-1. Resolve the `is` predicate Thing (a model primitive — never created; if missing, provisioning
-   logs and aborts).
-2. Read the relationships the templates already carry, in one subscription snapshot. A failed read
-   provisions nothing, because guessing at what is already wired is worse than waiting.
-3. Order templates **root-first** (ascending chain length is a valid topological order, so a
-   parent is always provisioned before its children).
-4. For each template: reuse the Thing with that name, or create it. Where its `is` relationship to
-   its parent is not already there, wire it and then write the keys it narrows. Where the
-   relationship is already there, write nothing.
-5. Mint each kind and each role predicate, find-or-create, and relate every template to the kinds
-   it declares.
-
-**Why a narrowed key is written last.** A template usually restates keys its parent already
-declares, with a tighter value (`EsriEndpoint` narrowing `Endpoint`'s `requestContentType`). The
-order those two writes happen in decides how Mycelium stores the result:
-
-| Order | What Mycelium stores | Result |
-|---|---|---|
-| Property first, `is` after | An **own** property — the name was not yet inherited when it was written | The template owns a name it also inherits. The platform forbids that, and the key surfaces **twice** in every descendant's resolved view |
-| `is` first, property after | An **override** — the name resolves as inherited, so the write materializes a per-instance override | One key in the resolved view, holding the narrowed value |
-
-So the provisioner splits a template's seed properties: keys no ancestor declares are carried on
-the create, and keys some ancestor declares are written after the `is` relationship exists. The root
-template inherits nothing, so all of its properties stay on the create.
-
-**A later run repairs a template an earlier run left half-made.** If a template Thing was created
-on a prior run but its `is` relationship failed, the next run finds the Thing by name, sees from the
-relationships it read that the `is` is missing, wires it, and writes the narrowed keys that hang off
-it. A name lookup alone could not tell the two cases apart, and the half-made template would keep
-resolving to its parent's values while looking correct.
-
-**A model provisions once, and calls that arrive together queue behind it.** Mycelium accepts a
-second Thing carrying a name it already holds, and then answers every lookup for that name with a
-conflict no later run can repair — so two first registrations from one model must not both provision
-it. A failed pass is not remembered: the next registration from that model tries again.
-
-**A held Thing id can go stale.** If the `is`-wire on a registration fails, the model's entry is
-discarded before the compensating delete, so the next registration provisions again rather than
-failing against the same missing template forever.
+**The tree is read from the model on every registration.** In one subscription snapshot, Delta reads
+the Thing the `endpoint` role binds and the named template beneath it, then the template's keys as
+the broker resolves them up the `is` chain. Nothing is cached, so a template added to or changed in a
+live model is what the next registration is checked against.
 
 ## Registration: `POST /handle` and `POST /register`
 
@@ -141,15 +70,16 @@ The handler validates, then commits, in this order:
 **Validate**
 - `name` non-empty and `properties` present (else `400`).
 - At most one `is` relationship for the subject (else `400`).
-- The named template (or the root, if no `is`) must exist in the graph — i.e. descend from the
-  root (else `400`).
-- The `is` predicate Thing must exist in Mycelium (else `500`).
-- Property keys must be a subset of the template chain's **allowed keys** (else `400` listing the
-  unsupported keys).
-- `url` must be a non-empty, **absolute** URI (else `400`).
-- **Effective** `httpMethod` — the request value, else the closest-ancestor seed value — must be
+- `url` must be a non-empty, **absolute** URI (else `400`). This is checked before the model is read.
+- The model must bind exactly one Thing to the `endpoint` role (`409` where it binds none or several).
+- The named template (or the root, if no `is`) must be a type beneath the bound root (else `400`;
+  another registration named as a template is not one), and its name must be one no other template
+  beneath the root carries (else `409`).
+- The model must hold exactly one `is` predicate (else `500`).
+- Property keys must be a subset of the template chain's **allowed keys**, looked up through
+  `EffectivePropertyResolver` as Tributary looks them up (else `400` listing the unsupported keys).
+- **Effective** `httpMethod` — the request value, else the closest-ancestor template value — must be
   present and a supported method (else `400`).
-- The template's Thing must already be provisioned in Mycelium (else `500`).
 
 **Commit (with compensation)**
 - Create the endpoint Thing.
@@ -179,7 +109,7 @@ across. Everything else follows from that:
   scope from the caller's own claims and takes nothing from the request, so holding a token for one
   project buys no reach into another. That refusal is deliberate; a shared catalogue would need a
   cross-model authorization rule built on purpose to undo it.
-- **Credentials decide it on their own.** A registration under `TokenExchangeAuth` carries
+- **Credentials decide it on their own.** A registration under `TokenExchangeAuthentication` carries
   `tokenRequest` — a username and password for the upstream. A catalogue every project reads is a
   catalogue in which every project reads every other project's credentials.
 
@@ -188,15 +118,14 @@ by seeding it. A source every project uses belongs in the seed every project is 
 source one project licenses stays in that project alone, with its credential. The template catalogue
 a registration inherits from belongs to the project's model on the same grounds.
 
-The templates a registration is wired to follow it: they are provisioned into the caller's model on
-its [first registration](#first-contact-provisioning-the-catalog-into-a-model), under the same
-bearer.
+The templates are read from the caller's model on every registration, under the caller's bearer. A
+template added to a live model is used by the next registration.
 
 ## Endpoints
 
 | Route | Purpose |
 |---|---|
-| `POST /handle` | Register an endpoint (relationship-service dispatch entry point). |
+| `POST /handle` | Register an endpoint (the entry point the broker calls). |
 | `POST /register` | Same handler as `/handle` (direct alias). |
 | `GET /health` | `{ "status": "Healthy", "service": "Delta" }`. |
 | `POST /shutdown` | Graceful stop after a short delay. |
@@ -220,23 +149,16 @@ The credentials — `Token`, `ApiKey` and `VerificationKey` — come from config
 ignored on the command line. This is the shared behaviour of every service; see
 `vos.Service.Shared/Configuration/ServiceLaunchSettings.cs`.
 
-## Seed loading
-
-`FileEndpointSeedProvider` (via `EndpointSeedLoader`) loads the first existing `seed.json` among
-its candidate paths — the bin output, the current working directory, and the folder three levels
-above a built binary — and builds the validated `EndpointSeedGraph` from it.
-A parse failure or a graph-validation failure aborts boot.
+Delta starts with no file beside it: everything it checks against is in the model.
 
 ## Source & tests
 
 - Registration handler + lifecycle: `vos.Service.Delta/Program.cs`.
-- Graph model + validation: `vos.Service.Delta/Models/EndpointSeedGraph.cs`.
-- Provisioning one model: `vos.Service.Delta/Services/TemplateCatalogProvisioner.cs`; which models
-  have been provisioned: `Services/ModelTemplateCatalog.cs`.
+- Finding the root and the named template in a snapshot: `vos.Service.Delta/Models/EndpointTemplateTree.cs`.
+- Reading the template and its resolved keys from the model: `vos.Service.Delta/Services/EndpointTemplateReader.cs`.
 - Mycelium client (Thing/relationship CRUD): `vos.Service.Delta/Services/MyceliumClient.cs`.
-- Seed loading: `vos.Service.Delta/Helpers/EndpointSeedLoader.cs`,
-  `Services/FileEndpointSeedProvider.cs`.
+- Key lookup shared with Tributary: `EffectivePropertyResolver` in `vos.Service.Shared`.
 - Launch settings: `vos.Service.Shared/Configuration/ServiceLaunchSettings.cs` (shared).
-- Tests: `Tests/vos.Service.Delta.Tests/` (`RegisterEndpointTests`, `PerModelCatalogTests`,
-  `TemplateCatalogProvisionerTests`, `EndpointSeedGraph*Tests`, `EsriEndpointTemplateTests`,
-  `CompensateAsyncTests`, …).
+- Tests: `Tests/vos.Service.Delta.Tests/` (`RegisterEndpointTests`, `RegistrationReadsTheModelTests`,
+  `CompensateAsyncTests`), and `DeltaReadsAnEndpointTemplateTests` against the engine in
+  `Tests/vos.BrokerContract.Tests/`.
