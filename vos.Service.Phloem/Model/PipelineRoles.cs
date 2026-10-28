@@ -15,6 +15,14 @@ public static class PipelineRoles
     public static readonly Role PipelineWire = new("pipelineWire", new("adfe0071-bbaf-5e7f-abc3-255c08d8735a"));
     public static readonly Role InputConnector = new("inputConnector", new("1f13d260-b2cc-5757-a475-7eb9b7d2323f"));
     public static readonly Role OutputConnector = new("outputConnector", new("7788a338-5eb6-5733-a208-0cf90b4269dd"));
+    // A wire reaches the result or decision its node's answer must name for the wire to carry.
+    public static readonly Role TakenOn = new("takenOn", new("840892f9-2d05-5e98-b573-0699851760c9"));
+    public static readonly Role Success = new("success", new("ffb97ba6-4853-5257-92e4-b71a87b79691"));
+    public static readonly Role Fail = new("fail", new("661cb599-dbca-56ca-a0dc-f9f162e587c3"));
+    // An out port every service node has without declaring it, holding the error a failing node answered.
+    public static readonly Role ErrorPort = new("errorPort", new("9aa04638-d93e-5375-ba25-3f81ae1a25a4"));
+    // A way a service can choose; a block's answer names one as its decision.
+    public static readonly Role DecisionPath = new("decisionPath", new("75c2351b-0e8d-5c97-a20d-18e4d5c46363"));
     public static readonly Role PipelineRun = new("pipelineRun", new("b682b68f-0101-5ab4-a7a9-13c3e43df873"));
     public static readonly Role NodeRun = new("nodeRun", new("ca731d14-5acb-5236-b0da-fe8b0836d0d7"));
     public static readonly Role Connection = new("connection", new("d5a3c29f-67c1-55a5-b0e4-9241378bd08d"));
@@ -65,7 +73,8 @@ public static class PipelineRoles
     // The roles a DAG is resolved from. The run roles are not among them: a run Thing is written before the
     // pipeline is loaded, so its archetype is looked up at the point of writing.
     public static readonly IReadOnlyList<Role> DagRoles =
-        [Connection, Service, Pipeline, PipelineNode, PipelineInput, PipelineOutput, Port, PipelineWire, InputConnector, OutputConnector];
+        [Connection, Service, Pipeline, PipelineNode, PipelineInput, PipelineOutput, Port, PipelineWire, InputConnector, OutputConnector,
+            TakenOn, Success, Fail, ErrorPort, DecisionPath];
 
     // Left unbound, every question this orchestrator asks of the drawing answers "no", and a pipeline fully
     // described in the model would read as one with nothing in it.

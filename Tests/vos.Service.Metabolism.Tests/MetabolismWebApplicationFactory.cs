@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Metabolism.Tests;
@@ -29,6 +31,13 @@ public class MetabolismWebApplicationFactory : WebApplicationFactory<Program>, I
     // services.RemoveAll<Metabolism>() + services.AddSingleton(stub).
     public Action<IServiceCollection>? ConfigureServices { get; set; }
 
+    public string? VerificationKey { get; init; }
+    public string? Issuer { get; init; }
+    public string? Audience { get; init; }
+
+    // Answers every call the service makes to Mycelium in place of the unreachable address.
+    public Func<HttpRequestMessage, HttpResponseMessage>? Mycelium { get; init; }
+
     public Task InitializeAsync() => Task.CompletedTask;
 
     public new Task DisposeAsync() => base.DisposeAsync().AsTask();
@@ -40,8 +49,24 @@ public class MetabolismWebApplicationFactory : WebApplicationFactory<Program>, I
         builder.UseSetting("MyceliumUrl", "http://localhost:1");
         builder.UseSetting("Mode", "consumes");
         // No SigningKey → auth is disabled (authEnabled=false branch of MapMetabolismEndpoints).
+        if (VerificationKey != null) builder.UseSetting("VerificationKey", VerificationKey);
+        if (Issuer != null) builder.UseSetting("Issuer", Issuer);
+        if (Audience != null) builder.UseSetting("Audience", Audience);
+
+        if (Mycelium != null)
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IHttpClientFactory>();
+                services.AddSingleton<IHttpClientFactory>(
+                    new HandlerHttpClientFactory(new MockHttpMessageHandler(request => Mycelium(request))));
+            });
 
         if (ConfigureServices != null)
             builder.ConfigureTestServices(ConfigureServices);
+    }
+
+    private sealed class HandlerHttpClientFactory(HttpMessageHandler handler) : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
     }
 }

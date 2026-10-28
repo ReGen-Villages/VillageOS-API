@@ -173,7 +173,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     }
 
     public async Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken cancellationToken, int? index = null, int total = 0,
-        IReadOnlyDictionary<string, JsonElement>? outputs = null)
+        IReadOnlyDictionary<string, JsonElement>? outputs = null, Guid? decision = null)
     {
         var nodeRunId = index is int i ? DeterministicGuid(runId, nodeId, i) : DeterministicGuid(runId, nodeId);
         var terminal = RunStatus.IsFinished(status);
@@ -191,6 +191,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
                 [ModelNames.FinishedUtc] = terminal ? now : null,
                 [ModelNames.Outputs] = outputs is null ? null : OutputsText(outputs),
                 [ModelNames.Attempts] = null,
+                [ModelNames.Decision] = decision?.ToString(),
             };
             if (index is int idx)
             {
@@ -208,6 +209,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         if (error != null) await SetPropertyAsync(nodeRunId, ModelNames.Error, error, cancellationToken);
         if (terminal) await SetPropertyAsync(nodeRunId, ModelNames.FinishedUtc, now, cancellationToken);
         if (outputs is not null) await SetPropertyAsync(nodeRunId, ModelNames.Outputs, OutputsText(outputs), cancellationToken);
+        if (decision is { } decided) await SetPropertyAsync(nodeRunId, ModelNames.Decision, decided.ToString(), cancellationToken);
     }
 
     private static string OutputsText(IReadOnlyDictionary<string, JsonElement> outputs) =>
@@ -244,13 +246,26 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             return null;
 
         var nodes = new Dictionary<Guid, NodeRecord>();
+        var items = new Dictionary<Guid, SortedList<int, NodeRecord>>();
         foreach (var held in graph.OutgoingTargets(run, ModelNames.Has))
         {
             if (!Guid.TryParse(held.PropertyString(ModelNames.NodeId), out var nodeId)) continue;
             _createdNodeRuns.TryAdd(held.Id, 0);
-            if (!string.IsNullOrEmpty(held.PropertyString(ModelNames.Index))) continue;
-            nodes[nodeId] = new NodeRecord(held.PropertyString(ModelNames.Status) ?? string.Empty, OutputsOf(held), AttemptsOf(graph, held));
+            var record = new NodeRecord(held.PropertyString(ModelNames.Status) ?? string.Empty, OutputsOf(held), AttemptsOf(graph, held),
+                held.PropertyString(ModelNames.Error),
+                Decision: Guid.TryParse(held.PropertyString(ModelNames.Decision), out var decision) ? decision : null);
+            if (!int.TryParse(held.PropertyString(ModelNames.Index), out var index))
+            {
+                nodes[nodeId] = record;
+                continue;
+            }
+            if (!items.TryGetValue(nodeId, out var ofNode))
+                items[nodeId] = ofNode = new SortedList<int, NodeRecord>();
+            ofNode[index] = record;
         }
+        foreach (var (nodeId, ofNode) in items)
+            if (nodes.TryGetValue(nodeId, out var aggregate))
+                nodes[nodeId] = aggregate with { Items = ofNode.Values.ToList() };
         return new RunRecord(runId, pipeline.Id, JsonOf(run.PropertyString(ModelNames.Parameters)), nodes, run.CarriesFlag(ModelNames.Rehearsal),
             run.PropertyString(ModelNames.Status) ?? string.Empty);
     }

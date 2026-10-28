@@ -233,7 +233,7 @@ public class PipelineExecutorTests
         result.Success.Should().BeTrue();
         items.Should().BeEquivalentTo("a", "b", "c");      // ran once per item
         weights.Should().AllBeEquivalentTo(10);            // scalar input broadcast to every item
-        var node = result.Nodes.Single();
+        var node = result.Nodes.Single(n => n.Name == "Scorer");
         node.Status.Should().Be(RunStatus.Succeeded);
         node.Outputs["score"].EnumerateArray().Select(e => e.GetString()).Should().Equal("A", "B", "C"); // gathered, in order
     }
@@ -253,7 +253,7 @@ public class PipelineExecutorTests
         var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
 
         result.Success.Should().BeFalse();
-        result.Nodes.Single().Status.Should().Be(RunStatus.Failed);
+        result.Nodes.Single(n => n.Name == "Scorer").Status.Should().Be(RunStatus.Failed);
     }
 
     [Fact]
@@ -274,7 +274,7 @@ public class PipelineExecutorTests
         var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
 
         result.Success.Should().BeTrue(); // a partial fan-out does not fail the run
-        var node = result.Nodes.Single();
+        var node = result.Nodes.Single(n => n.Name == "Scorer");
         node.Status.Should().Be(RunStatus.Partial);
         node.Outputs["score"].EnumerateArray()
             .Select(e => e.ValueKind == JsonValueKind.Null ? null : e.GetString())
@@ -317,7 +317,7 @@ public class PipelineExecutorTests
             {
                 "a" => new NodeCallResult(200, JsonSerializer.Serialize(new
                 {
-                    success = true,
+                    result = "success",
                     outputs = new Dictionary<string, object> { ["out"] = new { firstName = "Ada", lastName = "Lovelace" } },
                     error = (string?)null,
                 })),
@@ -566,7 +566,12 @@ public class PipelineExecutorTests
         {
             OnCall = (subdomain, envelope) => subdomain switch
             {
-                "decide" => NodeOk(("accept", "yes: " + InputValue(envelope, "in"))),
+                "decide" => new NodeCallResult(200, JsonSerializer.Serialize(new
+                {
+                    result = "success",
+                    decision = fx.Get("accept").Id,
+                    outputs = new Dictionary<string, string> { ["out"] = "yes: " + InputValue(envelope, "in") },
+                })),
                 "notify" => NodeOk(("out", "told " + InputValue(envelope, "in"))),
                 "return" => NodeOk(("out", "returned")),
                 _ => NodeFail("unexpected subdomain"),
@@ -574,30 +579,59 @@ public class PipelineExecutorTests
         };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
-        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "order 7" }), CancellationToken.None);
+        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "plot 7" }), CancellationToken.None);
 
         result.Success.Should().BeTrue();
         gateway.Called.Should().Equal("decide", "notify");
         result.Nodes.Single(n => n.Name == "Return").Status.Should().Be(RunStatus.NotTaken);
         gateway.NodeStatuses.Where(s => s.Name == "Return").Select(s => s.Status).Should().Equal(RunStatus.NotTaken);
         result.Nodes.Single(n => n.Name == "End").Status.Should().Be(RunStatus.Succeeded);
-        result.Result!.Value.GetProperty("result").GetString().Should().Be("told yes: order 7");
+        result.Result!.Value.GetProperty("result").GetString().Should().Be("told yes: plot 7");
     }
 
     [Fact]
-    public async Task RunAsync_Decision_AnsweringUnderNoOutcome_LeavesEveryBranchAndTheEndNotTaken()
+    public async Task RunAsync_Decision_ASuccessNamingNoDecisionWhereNoSuccessWireLeaves_FailsTheRunNamingTheNode()
     {
         var (fx, pipelineId) = TestGraphs.DecisionPipeline();
         var gateway = new FakeGateway(fx.Build()) { OnCall = (_, _) => NodeOk() };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
-        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "order 7" }), CancellationToken.None);
+        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "plot 7" }), CancellationToken.None);
 
-        result.Success.Should().BeTrue();
+        result.Success.Should().BeFalse();
+        result.Error.Should().Be("'Decide' succeeded, and no success wire leaves it.");
         gateway.Called.Should().Equal("decide");
-        result.Nodes.Where(n => n.Name is "Notify" or "Return" or "End").Should().OnlyContain(n => n.Status == RunStatus.NotTaken);
-        result.Result.Should().BeNull();
         gateway.RunResult.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("\"accept\"")]
+    [InlineData("\"8b1f4f0e-27a5-4b52-9c5e-0d3c7a1e6f42\"")]
+    [InlineData("7")]
+    public async Task RunAsync_Decision_AnsweringAnythingButTheIdentifierOfADeclaredDecisionPath_FailsTheNode(string decision)
+    {
+        var (fx, pipelineId) = TestGraphs.DecisionPipeline();
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnCall = (_, _) => new NodeCallResult(200, "{\"result\":\"success\",\"decision\":" + decision + ",\"outputs\":{}}"),
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "plot 7" }), CancellationToken.None);
+
+        result.Nodes.Single(n => n.Name == "Decide").Error.Should().Be(
+            $"'Decide' answered the decision {decision}, which is not the identifier of a decision path its service declares.");
+        result.Error.Should().Be("'Decide' failed, and no fail wire leaves it.");
+    }
+
+    [Fact]
+    public void Validate_ADecisionPathNoWireIsTakenOn_IsRefusedByName()
+    {
+        var (fx, pipelineId) = TestGraphs.DecisionPipeline();
+        fx.DecisionPathOf(fx.Get("DecideProto"), "defer");
+
+        DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), pipelineId)).Should().Contain(
+            "'Decide' can decide 'defer', but no wire leaving it is taken on that decision.");
     }
 
     [Fact]
@@ -687,7 +721,7 @@ public class PipelineExecutorTests
     }
 
     [Fact]
-    public async Task RunAsync_AWireThatCarriedNothing_AddsNothingToACollectionInput()
+    public async Task RunAsync_AWireFromAPortTheAnswerLeftOut_AddsANullToACollectionInput()
     {
         var (fx, pipelineId) = TestGraphs.GatheredCollectionPipeline();
         var gateway = new FakeGateway(fx.Build())
@@ -704,7 +738,7 @@ public class PipelineExecutorTests
         var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
 
         result.Success.Should().BeTrue();
-        ItemsSentTo(gateway, "gather").Should().Equal("b1");
+        ItemsSentTo(gateway, "gather").Should().Equal(null, "b1");
     }
 
     private static IEnumerable<string?> ItemsSentTo(FakeGateway gateway, string subdomain) =>
@@ -734,6 +768,32 @@ public class PipelineExecutorTests
     }
 
     [Fact]
+    public async Task RunAsync_FanOut_ACollectionOutPortDeliversOneFlatListAlongItsWire()
+    {
+        var (fx, pipelineId) = TestGraphs.FanOutWithCollectionOutPipeline("continue");
+        var end = fx.Get("FanDemo end");
+        var reached = fx.Thing("end.parts", ("direction", "in"), ("type", "any"), ("portName", "parts"));
+        fx.Rel(reached, fx.Get("is"), fx.Get("Port"));
+        fx.Rel(end, fx.Get("has"), reached);
+        fx.Wire(fx.Get("Scorer"), "parts", end, "parts");
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnCall = (_, envelope) => envelope.GetProperty("inputs").GetProperty("item").GetString() switch
+            {
+                "a" => NodeAnswering("""{"score":"A","parts":["a1","a2"]}"""),
+                "b" => NodeFail("boom"),
+                "c" => NodeAnswering("""{"score":"C","parts":"c1"}"""),
+                _ => NodeAnswering("""{"score":"D"}"""),
+            },
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { items = new[] { "a", "b", "c", "d" }, w = 1 }), CancellationToken.None);
+
+        result.Result!.Value.GetProperty("parts").EnumerateArray().Select(e => e.GetString()).Should().Equal("a1", "a2", "c1");
+    }
+
+    [Fact]
     public async Task RunAsync_FanOut_ACollectionOutPortGathersFlat_AndAnotherPortPerItem()
     {
         var (fx, pipelineId) = TestGraphs.FanOutWithCollectionOutPipeline("continue");
@@ -756,7 +816,7 @@ public class PipelineExecutorTests
 
         var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
 
-        var node = result.Nodes.Single();
+        var node = result.Nodes.Single(n => n.Name == "Scorer");
         node.Status.Should().Be(RunStatus.Partial);
         // a's list contributes its items, c's single value is one item, b failed and d answered nothing under the port
         node.Outputs["parts"].EnumerateArray().Select(e => e.GetString()).Should().Equal("a1", "a2", "c1");
@@ -778,7 +838,7 @@ public class PipelineExecutorTests
 
         var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
 
-        result.Nodes.Single().Outputs["parts"].EnumerateArray().Select(e => e.GetString()).Should().Equal("a1", "a2", "c1");
+        result.Nodes.Single(n => n.Name == "Scorer").Outputs["parts"].EnumerateArray().Select(e => e.GetString()).Should().Equal("a1", "a2", "c1");
     }
 
     [Fact]
@@ -855,16 +915,16 @@ public class PipelineExecutorTests
     }
 
     private static NodeCallResult NodeAnswering(string outputsJson) =>
-        new(200, $$"""{"success":true,"outputs":{{outputsJson}},"error":null}""");
+        new(200, $$"""{"result":"success","outputs":{{outputsJson}},"error":null}""");
 
     private static NodeCallResult NodeOk(params (string Port, string Value)[] outputs)
     {
         var outs = outputs.ToDictionary(o => o.Port, o => o.Value);
-        return new NodeCallResult(200, JsonSerializer.Serialize(new { success = true, outputs = outs, error = (string?)null }));
+        return new NodeCallResult(200, JsonSerializer.Serialize(new { result = "success", outputs = outs, error = (string?)null }));
     }
 
     private static NodeCallResult NodeFail(string error) =>
-        new(200, JsonSerializer.Serialize(new { success = false, outputs = new Dictionary<string, string>(), error }));
+        new(200, JsonSerializer.Serialize(new { result = "fail", outputs = new Dictionary<string, string>(), error }));
 
     private static string InputValue(JsonElement envelope, string port) =>
         envelope.GetProperty("inputs").GetProperty(port).GetString()!;

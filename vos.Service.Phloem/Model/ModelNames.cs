@@ -66,6 +66,7 @@ public static class ModelNames
     public const string RequestId = "requestId";
     public const string Payload = "payload";
     public const string Error = "error";
+    public const string Decision = "decision";
 
     public const string DirectionIn = "in";
     public const string DirectionOut = "out";
@@ -73,4 +74,7 @@ public static class ModelNames
     // onItemError values: fail-fast (default) vs collect-partial.
     public const string OnItemErrorFail = "fail";
     public const string OnItemErrorContinue = "continue";
+
+    public const string ResultSuccess = "success";
+    public const string ResultFail = "fail";
 }

@@ -20,7 +20,10 @@ public sealed record PipelineVocabulary(
     GraphThing PipelineInput,
     GraphThing PipelineOutput,
     GraphThing InputConnector,
-    GraphThing OutputConnector);
+    GraphThing OutputConnector,
+    GraphThing TakenOn,
+    GraphThing Success,
+    GraphThing Fail);
 
 // Builds a PipelineGraph programmatically for tests — Things + Relationships with
 // the same shapes Phloem reads from a Mycelium snapshot.
@@ -68,6 +71,11 @@ public sealed class GraphFixture
         Rel(input, isPredicate, node);  // boundary archetypes ARE pipeline nodes (multiple inheritance)
         Rel(output, isPredicate, node);
 
+        var port = Playing(namePrefix + "Port", PipelineRoles.Port);
+        _decisionPath = Playing(namePrefix + "DecisionPath", PipelineRoles.DecisionPath);
+        var errorPort = Playing(namePrefix + "error", PipelineRoles.ErrorPort,
+            (ModelNames.PortName, "error"), (ModelNames.Direction, ModelNames.DirectionOut), (ModelNames.PortType, "string"));
+        Rel(errorPort, isPredicate, port);
         _vocabulary = new PipelineVocabulary(
             isPredicate,
             has,
@@ -75,20 +83,33 @@ public sealed class GraphFixture
             node,
             Playing(namePrefix + "PlatformServiceConnection", PipelineRoles.Connection),
             Playing(namePrefix + "Service", PipelineRoles.Service),
-            Playing(namePrefix + "Port", PipelineRoles.Port),
+            port,
             Playing(namePrefix + "PipelineWire", PipelineRoles.PipelineWire),
             input,
             output,
             Playing(namePrefix + "inputConnector", PipelineRoles.InputConnector),
-            Playing(namePrefix + "outputConnector", PipelineRoles.OutputConnector));
+            Playing(namePrefix + "outputConnector", PipelineRoles.OutputConnector),
+            Playing(namePrefix + "takenOn", PipelineRoles.TakenOn),
+            Playing(namePrefix + "success", PipelineRoles.Success),
+            Playing(namePrefix + "fail", PipelineRoles.Fail));
         return _vocabulary;
     }
 
     private PipelineVocabulary? _vocabulary;
+    private GraphThing? _decisionPath;
+
+    public GraphThing DecisionPathOf(GraphThing service, string name)
+    {
+        var path = Thing(name);
+        Rel(path, _vocabulary!.Is, _decisionPath!);
+        Rel(service, _vocabulary.Has, path);
+        return path;
+    }
 
     public GraphThing Wire(GraphThing from, string fromPort, GraphThing to, string toPort, params (string Name, object Value)[] mapping) =>
         WireBetween(from, PortOf(from, fromPort, "out"), to, PortOf(to, toPort, "in"), mapping);
 
+    // A wire drawn without saying what it is taken on is a success wire, as the editor draws one.
     public GraphThing WireBetween(GraphThing from, GraphThing? outPort, GraphThing to, GraphThing? inPort, params (string Name, object Value)[] mapping)
     {
         var vocabulary = _vocabulary ?? throw new InvalidOperationException("Declare the vocabulary before drawing a wire.");
@@ -98,7 +119,70 @@ public sealed class GraphFixture
         Rel(wire, _byName.GetValueOrDefault("carries") ?? Thing("carries"), to);
         if (outPort is not null) Rel(wire, vocabulary.InputConnector, outPort);
         if (inPort is not null) Rel(wire, vocabulary.OutputConnector, inPort);
+        Rel(wire, vocabulary.TakenOn, vocabulary.Success);
         return wire;
+    }
+
+    public void TakeOn(GraphThing wire, params GraphThing[] resultsOrDecisions)
+    {
+        var vocabulary = _vocabulary ?? throw new InvalidOperationException("Declare the vocabulary before marking a wire.");
+        _rels.RemoveAll(rel => rel.SubjectId == wire.Id && rel.PredicateId == vocabulary.TakenOn.Id);
+        foreach (var taken in resultsOrDecisions) Rel(wire, vocabulary.TakenOn, taken);
+    }
+
+    // Every node no wire leaves is wired to one new Output node, from its first out port or, with none, its error port.
+    public GraphThing EndEveryPath(GraphThing pipeline)
+    {
+        var vocabulary = _vocabulary ?? throw new InvalidOperationException("Declare the vocabulary before drawing an end.");
+        var nodes = _rels.Where(rel => rel.SubjectId == pipeline.Id && rel.PredicateId == vocabulary.Has.Id).Select(rel => _things[rel.TargetId]).ToList();
+        if (nodes.FirstOrDefault(node => IsA(node, vocabulary.PipelineOutput)) is { } drawn) return drawn;
+        var leavesAWire = _rels.Where(rel => rel.PredicateId == vocabulary.Has.Id && IsWire(_things[rel.TargetId])).Select(rel => rel.SubjectId).ToHashSet();
+        var ends = nodes.Where(node => !leavesAWire.Contains(node.Id) && !IsA(node, vocabulary.PipelineOutput))
+            .Select(node => (node, FirstOutPortName(node) ?? "error")).ToArray();
+        return EndAt(pipeline, ends);
+    }
+
+    private bool IsWire(GraphThing thing) =>
+        _rels.Any(rel => rel.SubjectId == thing.Id && rel.PredicateId == _vocabulary!.Is.Id && rel.TargetId == _vocabulary.PipelineWire.Id);
+
+    private bool IsA(GraphThing thing, GraphThing archetype) =>
+        _rels.Any(rel => rel.SubjectId == thing.Id && rel.PredicateId == _vocabulary!.Is.Id && rel.TargetId == archetype.Id);
+
+    private string? FirstOutPortName(GraphThing node)
+    {
+        var seen = new HashSet<Guid>();
+        var queue = new Queue<Guid>([node.Id]);
+        while (queue.Count > 0)
+        {
+            var id = queue.Dequeue();
+            if (!seen.Add(id)) continue;
+            foreach (var rel in _rels.Where(rel => rel.SubjectId == id && (rel.PredicateId == _vocabulary!.Has.Id || rel.PredicateId == _vocabulary.Is.Id)))
+            {
+                var target = _things[rel.TargetId];
+                if (IsA(target, _vocabulary!.Port) && Text(target, ModelNames.Direction, "in") == "out")
+                    return Text(target, ModelNames.PortName, target.Name);
+                queue.Enqueue(target.Id);
+            }
+        }
+        return null;
+    }
+
+    // Ends each given node's path at one new Output node, through an in port of the Output node's own per path.
+    public GraphThing EndAt(GraphThing pipeline, params (GraphThing Node, string Port)[] ends)
+    {
+        var vocabulary = _vocabulary ?? throw new InvalidOperationException("Declare the vocabulary before drawing an end.");
+        var output = Thing($"{pipeline.Name} end");
+        Rel(output, vocabulary.Is, vocabulary.PipelineOutput);
+        Rel(pipeline, vocabulary.Has, output);
+        foreach (var (node, port) in ends)
+        {
+            var reached = Thing($"{output.Name}.{node.Name}", (ModelNames.Direction, "in"), (ModelNames.PortType, "any"), (ModelNames.PortName, node.Name));
+            Rel(reached, vocabulary.Is, vocabulary.Port);
+            Rel(output, vocabulary.Has, reached);
+            var outPort = port == "error" ? _things.Values.Single(thing => IsA(thing, vocabulary.Port) && Text(thing, ModelNames.PortName, "") == "error") : PortOf(node, port, "out");
+            WireBetween(node, outPort, output, reached);
+        }
+        return output;
     }
 
     public GraphThing WireInto(GraphThing node)
@@ -109,6 +193,11 @@ public sealed class GraphFixture
             .ToList();
         return wires.Count == 1 ? wires[0] : throw new InvalidOperationException($"{wires.Count} wires carry into '{node.Name}'.");
     }
+
+    public GraphThing WireFrom(GraphThing from, GraphThing to) =>
+        _rels.Where(held => held.SubjectId == from.Id && held.PredicateId == _vocabulary!.Has.Id && IsWire(_things[held.TargetId]))
+            .Select(held => _things[held.TargetId])
+            .Single(wire => _rels.Any(rel => rel.SubjectId == wire.Id && rel.TargetId == to.Id));
 
     // The node's own ports are searched first, so one of them wins over its service's port of the same name.
     public GraphThing PortOf(GraphThing node, string portName, string direction)
@@ -223,6 +312,7 @@ public static class TestGraphs
 
         fx.Wire(gen, "echo", ech, "message");
 
+        fx.EndEveryPath(pipe);
         return (fx, pipe.Id);
     }
 
@@ -285,6 +375,7 @@ public static class TestGraphs
         fx.Wire(input, "seed", ech, "message");
         fx.Wire(ech, "echo", output, "result");
 
+        fx.EndEveryPath(pipe);
         return (fx, pipe.Id);
     }
 
@@ -366,6 +457,7 @@ public static class TestGraphs
             var broken = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "BrokenProto"), "Broken", "broken");
             fx.Rel(pipe, vocabulary.Has, broken);
             fx.Wire(input, "seed", broken, "in");
+            fx.Wire(broken, "out", output, "result");
         }
 
         var next = fx.Thing("What follows");
@@ -491,6 +583,7 @@ public static class TestGraphs
         fx.Wire(a, "out", c, "in", ("toPath", "a"));
         fx.Wire(b, "out", c, "in", ("toPath", "b"));
 
+        fx.EndEveryPath(pipe);
         return (fx, pipe.Id);
     }
 
@@ -514,6 +607,7 @@ public static class TestGraphs
         fx.Rel(pipe, vocabulary.Has, c);
         fx.Wire(a, "out", c, "in", ("transform", transform));
 
+        fx.EndEveryPath(pipe);
         return (fx, pipe.Id);
     }
 
@@ -548,6 +642,7 @@ public static class TestGraphs
         fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, ech);
 
+        fx.EndEveryPath(pipe);
         return (fx, pipe.Id);
     }
 
@@ -581,6 +676,7 @@ public static class TestGraphs
         fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, node);
 
+        fx.EndEveryPath(pipe);
         return (fx, pipe.Id);
     }
 
@@ -618,6 +714,7 @@ public static class TestGraphs
         fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, node);
 
+        fx.EndEveryPath(pipe);
         return (fx, pipe.Id);
     }
 
@@ -656,6 +753,7 @@ public static class TestGraphs
         fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, node);
 
+        fx.EndEveryPath(pipe);
         return (fx, pipe.Id);
     }
 
@@ -670,8 +768,8 @@ public static class TestGraphs
         return (fx, pipelineId);
     }
 
-    // A two-way decision: Start (out `subject`) → Decide, a node holding its own out ports `accept` and `refuse`
-    // beside its service's → Notify from `accept`, Return from `refuse` → End (in `result`) wired from both.
+    // A two-way decision: Start (out `subject`) → Decide, whose service declares the decision paths `accept` and
+    // `refuse` → Notify on `accept`, Return on `refuse` → End (in `result`) wired from both.
     public static (GraphFixture Fixture, Guid PipelineId) DecisionPipeline()
     {
         var fx = new GraphFixture();
@@ -683,12 +781,8 @@ public static class TestGraphs
         var echoProto = InputOutputPrototype(fx, vocabulary, "EchoProto");
 
         var decide = ServiceNode(fx, vocabulary, decideProto, "Decide", "decide");
-        var accept = fx.Thing("decide.accept", ("direction", "out"), ("type", "any"), ("portName", "accept"));
-        var refuse = fx.Thing("decide.refuse", ("direction", "out"), ("type", "any"), ("portName", "refuse"));
-        fx.Rel(accept, vocabulary.Is, vocabulary.Port);
-        fx.Rel(refuse, vocabulary.Is, vocabulary.Port);
-        fx.Rel(decide, vocabulary.Has, accept);
-        fx.Rel(decide, vocabulary.Has, refuse);
+        var accept = fx.DecisionPathOf(decideProto, "accept");
+        var refuse = fx.DecisionPathOf(decideProto, "refuse");
         var notify = ServiceNode(fx, vocabulary, echoProto, "Notify", "notify");
         var giveBack = ServiceNode(fx, vocabulary, echoProto, "Return", "return");
 
@@ -709,11 +803,12 @@ public static class TestGraphs
         foreach (var node in new[] { start, decide, notify, giveBack, end }) fx.Rel(pipe, vocabulary.Has, node);
 
         fx.Wire(start, "subject", decide, "in");
-        fx.Wire(decide, "accept", notify, "in");
-        fx.Wire(decide, "refuse", giveBack, "in");
+        fx.TakeOn(fx.Wire(decide, "out", notify, "in"), accept);
+        fx.TakeOn(fx.Wire(decide, "out", giveBack, "in"), refuse);
         fx.Wire(notify, "out", end, "result");
         fx.Wire(giveBack, "out", end, "result");
 
+        fx.EndEveryPath(pipe);
         return (fx, pipe.Id);
     }
 
@@ -740,6 +835,7 @@ public static class TestGraphs
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
         fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, node);
+        fx.EndEveryPath(pipe);
         return (fx, pipe.Id);
     }
 
@@ -786,6 +882,7 @@ public static class TestGraphs
             fx.Wire(source, "out", node, "strategy");
         }
 
+        fx.EndEveryPath(pipe);
         return new ChoiceFixture(fx, pipe.Id, offers, node, offered);
     }
 
@@ -821,6 +918,7 @@ public static class TestGraphs
         fx.Wire(a, "out", gather, "items");
         fx.Wire(b, "out", gather, "items");
 
+        fx.EndEveryPath(pipe);
         return (fx, pipe.Id);
     }
 
@@ -830,7 +928,10 @@ public static class TestGraphs
 
     // A start node hands the run's subject to Review, which sends it for review and waits for it to enter `decided`;
     // Publish then runs on what Review answered.
-    public static WaitingFixture WaitingPipeline(bool wired = true, bool collection = false, bool approvedBeside = false)
+    // sortedBeside adds Sort, which decides keep or drop on the run parameter `items` (once per item when sortsPerItem);
+    // what it keeps reaches Publish at `sorted`, beside Review's notice at `notice`.
+    public static WaitingFixture WaitingPipeline(bool wired = true, bool collection = false, bool approvedBeside = false,
+        bool sortedBeside = false, bool sortsPerItem = false)
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
@@ -869,7 +970,23 @@ public static class TestGraphs
         fx.Rel(pipe, vocabulary.Has, review);
         fx.Rel(pipe, vocabulary.Has, publish);
         if (wired) fx.Wire(start, "subject", review, "submission");
-        fx.Wire(review, "notice", publish, "in");
+        if (!sortedBeside)
+            fx.Wire(review, "notice", publish, "in");
+        else
+        {
+            fx.Wire(review, "notice", publish, "in", ("toPath", "notice"));
+            var items = fx.Thing("start.items", ("direction", "out"), ("type", "any"), ("portName", "items"));
+            fx.Rel(items, vocabulary.Is, vocabulary.Port);
+            fx.Rel(start, vocabulary.Has, items);
+            var sortProto = InputOutputPrototype(fx, vocabulary, "SortProto", collectionIn: sortsPerItem);
+            var sort = ServiceNode(fx, vocabulary, sortProto, "Sort", "sort");
+            var discard = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "DiscardProto"), "Discard", "discard");
+            fx.Rel(pipe, vocabulary.Has, sort);
+            fx.Rel(pipe, vocabulary.Has, discard);
+            fx.Wire(start, "items", sort, "in");
+            fx.TakeOn(fx.Wire(sort, "out", publish, "in", ("toPath", "sorted")), fx.DecisionPathOf(sortProto, "keep"));
+            fx.TakeOn(fx.Wire(sort, "out", discard, "in"), fx.DecisionPathOf(sortProto, "drop"));
+        }
 
         // A second branch waiting on the same Thing for another state, with nothing after it.
         if (approvedBeside)
@@ -881,7 +998,48 @@ public static class TestGraphs
             fx.Wire(start, "subject", approve, "submission");
         }
 
+        fx.EndEveryPath(pipe);
         return new WaitingFixture(fx, vocabulary, pipe.Id, review, publish, decided, submission, provenBy, awaitsThrough);
+    }
+
+    public sealed record ResultPathsFixture(GraphFixture Fixture, Guid PipelineId, GraphThing Check, GraphThing Record, GraphThing Tell, GraphThing End);
+
+    // In → Check reading, whose success wire runs to Record level and whose fail wire runs from its error port to Tell
+    // operator; both end at one Output node. failAlsoReachesTheEnd wires Check reading's fail straight to the end too.
+    public static ResultPathsFixture ResultPathsPipeline(bool perItem = false, string onItemError = "fail", bool failAlsoReachesTheEnd = false)
+    {
+        var fx = new GraphFixture();
+        var vocabulary = fx.DeclareVocabulary();
+        var check = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "CheckProto", collectionIn: perItem), "Check reading", "check",
+            ("onItemError", onItemError));
+        var record = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "RecordProto"), "Record level", "record");
+        var tell = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "TellProto"), "Tell operator", "tell");
+
+        var input = fx.Thing("In");
+        fx.Rel(input, vocabulary.Is, vocabulary.PipelineInput);
+        var readings = fx.Thing("in.readings", ("direction", "out"), ("type", "any"), ("portName", "readings"));
+        fx.Rel(readings, vocabulary.Is, vocabulary.Port);
+        fx.Rel(input, vocabulary.Has, readings);
+
+        var pipe = fx.Thing("Reservoir check");
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
+        foreach (var node in new[] { input, check, record, tell })
+            fx.Rel(pipe, vocabulary.Has, node);
+
+        fx.Wire(input, "readings", check, "in");
+        fx.Wire(check, "out", record, "in");
+        var errorPort = fx.Get("error");
+        fx.TakeOn(fx.WireBetween(check, errorPort, tell, fx.PortOf(tell, "in", "in")), vocabulary.Fail);
+        var end = fx.EndAt(pipe, (record, "out"), (tell, "out"));
+        if (failAlsoReachesTheEnd)
+        {
+            var failed = fx.Thing("end.failed", ("direction", "in"), ("type", "any"), ("portName", "failed"));
+            fx.Rel(failed, vocabulary.Is, vocabulary.Port);
+            fx.Rel(end, vocabulary.Has, failed);
+            fx.TakeOn(fx.WireBetween(check, errorPort, end, failed), vocabulary.Fail);
+        }
+        return new ResultPathsFixture(fx, pipe.Id, check, record, tell, end);
     }
 
     private static GraphThing CollectionInPrototype(GraphFixture fx, PipelineVocabulary vocabulary, string name) =>
@@ -965,6 +1123,7 @@ public static class TestGraphs
         fx.Wire(gen, "echo", ech, "message");
         fx.Wire(gen, "trace", ech, "context");
 
+        fx.EndEveryPath(pipe);
         return (fx, pipe.Id);
     }
 
@@ -1004,6 +1163,7 @@ public static class TestGraphs
         fx.Wire(generate, "text", uppercase, "text");
         fx.Wire(uppercase, "text", reverse, "text");
 
+        fx.EndEveryPath(pipe);
         return (fx, pipe.Id);
     }
 

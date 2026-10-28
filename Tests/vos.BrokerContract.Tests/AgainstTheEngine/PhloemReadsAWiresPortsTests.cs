@@ -16,9 +16,9 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
 
     public PhloemReadsAWiresPortsTests(TheEngine engine) => _engine = engine;
 
-    private async Task<Guid> PlayingAsync(Role role, string name, bool isArchetype = true)
+    private async Task<Guid> PlayingAsync(Role role, string name, bool isArchetype = true, Dictionary<string, object?>? properties = null)
     {
-        var played = await _engine.DeclareAsync(name, isArchetype);
+        var played = await _engine.DeclareAsync(name, isArchetype, properties: properties);
         await _engine.DeclareAsync($"{role.Word} role", identifier: role.Id);
         await _engine.RelateAsync(role.Id, await _engine.TheOnlyThingNamedAsync(ModelNames.Binds), played);
         return played;
@@ -33,13 +33,17 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
         var pipelineArchetype = await PlayingAsync(PipelineRoles.Pipeline, "Pipeline");
         var nodeArchetype = await PlayingAsync(PipelineRoles.PipelineNode, "PipelineNode");
         await PlayingAsync(PipelineRoles.PipelineInput, "PipelineInput");
-        await PlayingAsync(PipelineRoles.PipelineOutput, "PipelineOutput");
+        var outputArchetype = await PlayingAsync(PipelineRoles.PipelineOutput, "PipelineOutput");
         var connectionArchetype = await PlayingAsync(PipelineRoles.Connection, "PlatformServiceConnection");
         var serviceArchetype = await PlayingAsync(PipelineRoles.Service, "Service");
         var portArchetype = await PlayingAsync(PipelineRoles.Port, "Port");
         var wireArchetype = await PlayingAsync(PipelineRoles.PipelineWire, "PipelineWire");
         var inputConnector = await PlayingAsync(PipelineRoles.InputConnector, "inputConnector", isArchetype: false);
         var outputConnector = await PlayingAsync(PipelineRoles.OutputConnector, "outputConnector", isArchetype: false);
+        var takenOn = await PlayingAsync(PipelineRoles.TakenOn, "takenOn", isArchetype: false);
+        var success = await PlayingAsync(PipelineRoles.Success, "success", isArchetype: false);
+        await PlayingAsync(PipelineRoles.Fail, "fail", isArchetype: false);
+        await PlayingAsync(PipelineRoles.DecisionPath, "DecisionPath");
         var carries = await _engine.DeclareAsync("carries");
         await _engine.RelateAsync(carries, @is, wireArchetype);
 
@@ -55,6 +59,9 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
         }
         var textIn = await PortAsync("in");
         var textOut = await PortAsync("out");
+        var errorPort = await PlayingAsync(PipelineRoles.ErrorPort, "error", isArchetype: false,
+            new Dictionary<string, object?> { ["portName"] = "error", ["direction"] = "out", ["type"] = "string" });
+        await _engine.RelateAsync(errorPort, @is, portArchetype);
 
         async Task<Guid> NodeAsync(string name)
         {
@@ -74,18 +81,33 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
         await _engine.RelateAsync(pipeline, has, uppercase);
         await _engine.RelateAsync(pipeline, has, reverse);
 
-        var wire = await _engine.DeclareAsync("text to text");
-        await _engine.RelateAsync(wire, @is, wireArchetype);
-        await _engine.RelateAsync(uppercase, has, wire);
-        await _engine.RelateAsync(wire, carries, reverse);
-        await _engine.RelateAsync(wire, inputConnector, textOut);
-        await _engine.RelateAsync(wire, outputConnector, textIn);
+        await _engine.RelateAsync(outputArchetype, @is, nodeArchetype);
+        var end = await _engine.DeclareAsync("Text Studio end");
+        await _engine.RelateAsync(end, @is, outputArchetype);
+        var reached = await _engine.DeclareAsync("end.text",
+            properties: new Dictionary<string, object?> { ["portName"] = "text", ["direction"] = "in", ["type"] = "string" });
+        await _engine.RelateAsync(reached, @is, portArchetype);
+        await _engine.RelateAsync(end, has, reached);
+        await _engine.RelateAsync(pipeline, has, end);
+
+        async Task WireAsync(string name, Guid from, Guid outPort, Guid to, Guid inPort)
+        {
+            var drawn = await _engine.DeclareAsync(name);
+            await _engine.RelateAsync(drawn, @is, wireArchetype);
+            await _engine.RelateAsync(from, has, drawn);
+            await _engine.RelateAsync(drawn, carries, to);
+            await _engine.RelateAsync(drawn, inputConnector, outPort);
+            await _engine.RelateAsync(drawn, outputConnector, inPort);
+            await _engine.RelateAsync(drawn, takenOn, success);
+        }
+        await WireAsync("text to text", uppercase, textOut, reverse, textIn);
+        await WireAsync("text to the end", reverse, textOut, end, reached);
 
         var gateway = new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, _engine.AdminToken);
         var dag = PipelineDagBuilder.Build(await gateway.LoadPipelineSubgraphAsync(pipeline, CancellationToken.None), pipeline);
 
         DagValidator.Validate(dag).Should().BeEmpty();
-        var read = dag.Wires.Should().ContainSingle().Subject;
+        var read = dag.WiresOutOf(uppercase).Should().ContainSingle().Subject;
         (read.From.Node.NodeId, read.From.Port.Id, read.To.Node.NodeId, read.To.Port.Id).Should().Be((uppercase, textOut, reverse, textIn));
     }
 }

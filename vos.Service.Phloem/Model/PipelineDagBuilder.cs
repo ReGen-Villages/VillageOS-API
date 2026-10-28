@@ -34,8 +34,9 @@ public static class PipelineDagBuilder
 
         var problems = new List<string>();
         var nodes = new List<DagNode>();
+        var errorPort = ToPort(graph.Bound(PipelineRoles.ErrorPort)!);
         foreach (var nodeThing in nodeThings)
-            if (Judged(problems, () => BuildNode(graph, nodeThing, problems), null) is { } built)
+            if (Judged(problems, () => BuildNode(graph, nodeThing, errorPort, problems), null) is { } built)
                 nodes.Add(built);
         var nodesById = nodes.ToDictionary(node => node.NodeId);
 
@@ -63,6 +64,9 @@ public static class PipelineDagBuilder
             Published = pipeline.CarriesFlag(ModelNames.Published),
             Nodes = nodes,
             Wires = wires,
+            Success = graph.Bound(PipelineRoles.Success)!.Id,
+            Fail = graph.Bound(PipelineRoles.Fail)!.Id,
+            ErrorPort = errorPort.Id,
             Problems = problems,
         };
     }
@@ -87,12 +91,19 @@ public static class PipelineDagBuilder
         var named = $"The wire from '{from.Name}' to '{to.Name}'";
         var outPort = Judged(problems, () => ConnectedPort(graph, wire, PipelineRoles.InputConnector, from, output: true, named), null);
         var inPort = Judged(problems, () => ConnectedPort(graph, wire, PipelineRoles.OutputConnector, to, output: false, named), null);
-        if (outPort is null || inPort is null) return null;
+        var takenOn = graph.OutgoingAlong(wire, PipelineRoles.TakenOn).Select(taken => taken.Id).ToHashSet();
+        if (takenOn.Count == 0)
+            problems.Add($"{named} is taken on nothing: it relates along {PipelineRoles.TakenOn.Word} to no result or decision, "
+                + $"so no answer from '{from.Name}' could carry along it.");
+        if (outPort is null || inPort is null || takenOn.Count == 0) return null;
 
         return new DagWire(new WireEnd(from, outPort), new WireEnd(to, inPort),
             wire.PropertyString(ModelNames.FromPath) ?? string.Empty,
             wire.PropertyString(ModelNames.ToPath) ?? string.Empty,
-            wire.PropertyString(ModelNames.Transform) ?? string.Empty);
+            wire.PropertyString(ModelNames.Transform) ?? string.Empty)
+        {
+            TakenOn = takenOn,
+        };
     }
 
     private static DagPort ConnectedPort(PipelineGraph graph, GraphThing wire, Role connector, DagNode node, bool output, string named)
@@ -109,7 +120,7 @@ public static class PipelineDagBuilder
                 $"{named} {reaching} '{connected[0].Name}', which is not {(output ? "an out" : "an in")} port of '{node.Name}'.");
     }
 
-    private static DagNode BuildNode(PipelineGraph graph, GraphThing nodeThing, List<string> problems)
+    private static DagNode BuildNode(PipelineGraph graph, GraphThing nodeThing, DagPort errorPort, List<string> problems)
     {
         // Boundary nodes bind no Connection/Service: they declare their own ports (has → Port) and
         // are an Input source (params → outputs) or an Output sink (inputs → run result).
@@ -139,9 +150,10 @@ public static class PipelineDagBuilder
             Name = nodeThing.Name,
             Subdomain = subdomain!,
             Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
-            Ports = ports.Select(p => p.Port).ToList(),
+            Ports = [.. ports.Select(p => p.Port), errorPort],
             ParameterBindings = ParseParameterBindings(nodeThing),
             Choices = Judged(problems, () => ChoicesOf(graph, nodeThing, ports), NoChoices),
+            DecisionPaths = DecisionPathsOf(graph, service),
             Waits = Judged(problems, () => WaitOf(graph, nodeThing, ports), null),
             Retries = Judged(problems, () => RetryPolicyOf(nodeThing), null),
             Rehearses = UpTheIsChain(graph, service).Any(kind => kind.CarriesFlag(ModelNames.Rehearses)),
@@ -170,6 +182,12 @@ public static class PipelineDagBuilder
         }
         return choices;
     }
+
+    private static IReadOnlyDictionary<Guid, string> DecisionPathsOf(PipelineGraph graph, GraphThing service) =>
+        UpTheIsChain(graph, service).SelectMany(level => graph.OutgoingTargets(level, ModelNames.Has))
+            .Where(held => graph.IsOf(held, PipelineRoles.DecisionPath))
+            .DistinctBy(path => path.Id)
+            .ToDictionary(path => path.Id, path => path.Name);
 
     private static DagWait? WaitOf(
         PipelineGraph graph, GraphThing nodeThing, IReadOnlyList<(GraphThing Thing, DagPort Port)> ports)
@@ -288,7 +306,6 @@ public static class PipelineDagBuilder
 
     private static readonly IReadOnlyDictionary<string, ChosenThing> NoChoices =
         new Dictionary<string, ChosenThing>();
-
     // Collect Port child-Things by walking the owner's is-chain — relationships do not
     // inherit through is, so ports resolve at read time at each level of the chain.
     private static IEnumerable<GraphThing> ResolvePortThings(PipelineGraph graph, GraphThing owner) =>

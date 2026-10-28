@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.ModelBridge.Services;
+using vos.Service.Shared.DagNode;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -50,7 +51,7 @@ public class ModelBridgeNodeTests
         var handler = new RecordingHandler((_, _) => Json("""{ "total_pv_area": { "Value": 13842.0 } }"""));
         var response = await NewNode(handler).HandleNodeAsync(Envelope("read", "total_pv_area"));
 
-        Assert.True(response.Success);
+        Assert.Equal(NodeResponse.Succeeded, response.Result);
         Assert.Equal(13842.0, Assert.IsType<double>(response.Outputs["value"]));
         Assert.Equal(HttpMethod.Get, handler.LastRequest!.Method);
         Assert.Contains($"/api/things/{ThingId}/properties", handler.LastRequest.RequestUri!.ToString());
@@ -62,7 +63,7 @@ public class ModelBridgeNodeTests
         var handler = new RecordingHandler((_, _) => new HttpResponseMessage(HttpStatusCode.OK));
         var response = await NewNode(handler).HandleNodeAsync(Envelope("write", "percentOfConsumption", inputs: """{ "value": 120 }"""));
 
-        Assert.True(response.Success);
+        Assert.Equal(NodeResponse.Succeeded, response.Result);
         Assert.Equal(HttpMethod.Post, handler.LastRequest!.Method);
         Assert.Contains("/properties/percentOfConsumption/facts", handler.LastRequest.RequestUri!.ToString());
         Assert.Contains("120", handler.LastBody);
@@ -74,7 +75,7 @@ public class ModelBridgeNodeTests
         var response = await NewNode(new RecordingHandler((_, _) => new HttpResponseMessage(HttpStatusCode.OK)))
             .HandleNodeAsync(Envelope("bogus", "x"));
 
-        Assert.False(response.Success);
+        Assert.Equal(NodeResponse.Failed, response.Result);
         Assert.Contains("mode", response.Error);
     }
 
@@ -84,7 +85,7 @@ public class ModelBridgeNodeTests
         var handler = new RecordingHandler((_, _) => Json("""{ "other": { "Value": 1 } }"""));
         var response = await NewNode(handler).HandleNodeAsync(Envelope("read", "total_pv_area"));
 
-        Assert.False(response.Success);
+        Assert.Equal(NodeResponse.Failed, response.Result);
         Assert.Contains("total_pv_area", response.Error);
     }
 }

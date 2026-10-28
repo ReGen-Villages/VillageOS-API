@@ -13,7 +13,7 @@ internal sealed class FakeGateway : IMyceliumGateway
     public PipelineGraph Graph { get; set; }
     public Exception? LoadFailure { get; set; }
 
-    public Func<string, JsonElement, NodeCallResult> OnCall { get; set; } = (_, _) => new NodeCallResult(200, "{\"success\":true,\"outputs\":{}}");
+    public Func<string, JsonElement, NodeCallResult> OnCall { get; set; } = (_, _) => new NodeCallResult(200, "{\"result\":\"success\",\"outputs\":{}}");
     public List<string> Called { get; } = new();
     public List<(string Subdomain, JsonElement Envelope)> Envelopes { get; } = new();
     public List<string> StatusUpdates { get; } = new();
@@ -96,6 +96,7 @@ internal sealed class FakeGateway : IMyceliumGateway
     private readonly object _model = new();
     public Dictionary<Guid, (Guid PipelineId, JsonElement Parameters)> Runs { get; } = new();
     public Dictionary<(Guid RunId, Guid NodeId), NodeRecord> Records { get; } = new();
+    private readonly Dictionary<(Guid RunId, Guid NodeId), SortedList<int, NodeRecord>> _itemRecords = new();
     public Dictionary<(Guid RunId, Guid NodeId), Guid> Awaited { get; } = new();
     public Dictionary<(Guid RunId, Guid NodeId), Guid> HeldVigils { get; } = new();
     public List<(Guid VigilId, Guid SubjectId, Guid RangeId)> VigilsPlaced { get; } = new();
@@ -108,7 +109,7 @@ internal sealed class FakeGateway : IMyceliumGateway
     public Func<Guid, string, bool> RefuseNodeRunWrite { get; set; } = (_, _) => false;
 
     public Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken ct, int? index = null, int total = 0,
-        IReadOnlyDictionary<string, JsonElement>? outputs = null)
+        IReadOnlyDictionary<string, JsonElement>? outputs = null, Guid? decision = null)
     {
         lock (NodeStatuses)
         {
@@ -117,12 +118,21 @@ internal sealed class FakeGateway : IMyceliumGateway
             if (error is not null) NodeErrorsWritten.Add((nodeName, status, error));
         }
         if (RefuseNodeRunWrite(nodeId, status)) throw new HttpRequestException("the model refused the write");
-        if (index is null)
-            lock (_model)
+        lock (_model)
+        {
+            if (index is int item)
+            {
+                if (!_itemRecords.TryGetValue((runId, nodeId), out var items))
+                    _itemRecords[(runId, nodeId)] = items = new SortedList<int, NodeRecord>();
+                items[item] = new NodeRecord(status, outputs ?? new Dictionary<string, JsonElement>(), Error: error, Decision: decision);
+            }
+            else
             {
                 var before = Records.TryGetValue((runId, nodeId), out var kept) ? kept : null;
-                Records[(runId, nodeId)] = new NodeRecord(status, outputs ?? before?.Outputs ?? new Dictionary<string, JsonElement>(), before?.Attempts);
+                Records[(runId, nodeId)] = new NodeRecord(status, outputs ?? before?.Outputs ?? new Dictionary<string, JsonElement>(), before?.Attempts,
+                    error ?? before?.Error, Decision: decision ?? before?.Decision);
             }
+        }
         return Task.CompletedTask;
     }
 
@@ -179,7 +189,8 @@ internal sealed class FakeGateway : IMyceliumGateway
         lock (_model)
         {
             if (!Runs.TryGetValue(runId, out var run)) return Task.FromResult<RunRecord?>(null);
-            var nodes = Records.Where(record => record.Key.RunId == runId).ToDictionary(record => record.Key.NodeId, record => record.Value);
+            var nodes = Records.Where(record => record.Key.RunId == runId).ToDictionary(record => record.Key.NodeId,
+                record => _itemRecords.TryGetValue(record.Key, out var items) ? record.Value with { Items = items.Values.ToList() } : record.Value);
             bool rehearsal;
             lock (Rehearsals) rehearsal = Rehearsals.Contains(runId);
             return Task.FromResult<RunRecord?>(new RunRecord(runId, run.PipelineId, run.Parameters, nodes, rehearsal, RunStatuses.GetValueOrDefault(runId, RunStatus.Running)));

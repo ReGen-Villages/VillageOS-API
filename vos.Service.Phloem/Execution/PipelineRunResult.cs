@@ -28,13 +28,17 @@ public static class RunStatus
     public static bool IsFinished(string status) => status is not (Running or Waiting or Trying);
 }
 
+// Decision is the decision path a successful answer named. Items holds each item's own answer when the node ran
+// once per item.
 public sealed record NodeRunResult(
     Guid NodeId,
     string Name,
     string Status,
     IReadOnlyDictionary<string, JsonElement> Outputs,
     string? Error,
-    AwaitedThing? Awaits = null);
+    AwaitedThing? Awaits = null,
+    IReadOnlyList<NodeRunResult>? Items = null,
+    Guid? Decision = null);
 
 public sealed record AwaitedThing(Guid Id, string Name);
 

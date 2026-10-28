@@ -76,12 +76,13 @@ SERVICES = [
      "ports": [_in("record", "any", required=True, collection=True), _out("enriched", "any")]},
 
     {"key": "publish", "label": "Publish", "subdomain": "publish",
-     "ports": [_in("payload", "any", required=True)]},
+     "ports": [_in("payload", "any", required=True), _out("published", "any")]},
 
-    # A block that decides: it answers under one of the out ports the node holds, and its `strategy` port
-    # offers the Things a node may choose between.
+    # A block that decides: its answer names one of its decision paths, and its `strategy` port offers the Things a
+    # node may choose between.
     {"key": "decide", "label": "Decide", "subdomain": "decide",
-     "ports": [_in("in", "any", required=True), _in("strategy", "any")],
+     "ports": [_in("in", "any", required=True), _in("strategy", "any"), _out("out", "any")],
+     "decisionPaths": ["accept", "refuse"],
      "offers": {"strategy": ["Nearest first", "Cheapest first", "Soonest first"]}},
 ]
 
@@ -116,8 +117,9 @@ CADENCES = [
 # pipeline a run starts or is started by. Node "at" is the canvas grid cell (column, row) — the generator turns it
 # into x/y. "params" binds an input port to a run-parameter key (Params bar on the Pipeline page); "onItemError"
 # = "continue" collects partial fan-out results instead of failing the run. A service node may hold
-# "outPorts" of its own, the outcomes it answers under, and may say what it "chooses": (port, the offered
-# Thing's name) among what its service's port offers.
+# "outPorts" of its own, and may say what it "chooses": (port, the offered Thing's name) among what its service's
+# port offers. A wire is taken on "success" unless its "takenOn" names "fail" or decision paths of its node's
+# service.
 #
 # Boundary port spec = (portName, type[, required]); a node-held out port spec = (portName, type).
 def col(c, r=0):
@@ -132,8 +134,12 @@ PIPELINES = [
         "nodes": [
             {"key": "gen", "service": "generate", "at": col(0)},
             {"key": "echo", "service": "echo", "at": col(1)},
+            {"key": "out", "output": [("result", "any")], "at": col(2)},
         ],
-        "wires": [{"from": "gen", "fromPort": "echo", "to": "echo", "toPort": "message"}],
+        "wires": [
+            {"from": "gen", "fromPort": "echo", "to": "echo", "toPort": "message"},
+            {"from": "echo", "fromPort": "echo", "to": "out", "toPort": "result"},
+        ],
         "runs": [
             {"status": "succeeded", "startedUtc": "2026-07-20T09:15:00Z",
              "nodes": [{"node": "gen", "status": "succeeded"}, {"node": "echo", "status": "succeeded"}]},
@@ -195,10 +201,12 @@ PIPELINES = [
         "nodes": [
             {"key": "gen", "service": "generate", "at": col(0)},
             {"key": "echo", "service": "echo", "at": col(1)},
+            {"key": "out", "output": [("result", "any")], "at": col(2)},
         ],
         "wires": [
             {"from": "gen", "fromPort": "echo", "to": "echo", "toPort": "message",
              "transform": '{"message": "shout: " & $}'},
+            {"from": "echo", "fromPort": "echo", "to": "out", "toPort": "result"},
         ],
     },
 
@@ -289,6 +297,7 @@ PIPELINES = [
             {"key": "merge", "service": "merge", "at": col(2, 1)},
             {"key": "report", "service": "format-report", "at": col(3, 1)},
             {"key": "publish", "service": "publish", "at": col(4, 1)},
+            {"key": "out", "output": [("published", "any")], "at": col(5, 1)},
         ],
         "wires": [
             {"from": "site", "fromPort": "population", "to": "water", "toPort": "population"},
@@ -296,6 +305,7 @@ PIPELINES = [
             {"from": "energy", "fromPort": "percentOfConsumption", "to": "merge", "toPort": "in", "toPath": "energy.percentOfConsumption"},
             {"from": "merge", "fromPort": "out", "to": "report", "toPort": "data"},
             {"from": "report", "fromPort": "text", "to": "publish", "toPort": "payload"},
+            {"from": "publish", "fromPort": "published", "to": "out", "toPort": "published"},
         ],
     },
 
@@ -322,10 +332,12 @@ PIPELINES = [
             {"key": "in", "input": [("records", "any")], "at": col(0)},
             {"key": "enrich", "service": "enrich", "at": col(1), "onItemError": "continue"},
             {"key": "publish", "service": "publish", "at": col(2)},
+            {"key": "out", "output": [("published", "any")], "at": col(3)},
         ],
         "wires": [
             {"from": "in", "fromPort": "records", "to": "enrich", "toPort": "record"},
             {"from": "enrich", "fromPort": "enriched", "to": "publish", "toPort": "payload"},
+            {"from": "publish", "fromPort": "published", "to": "out", "toPort": "published"},
         ],
     },
 
@@ -360,15 +372,14 @@ PIPELINES = [
         ],
     },
 
-    # 15. A drawing that branches: the decision node holds out ports `accept` and `refuse` of its own and
-    #     answers under one, so only that branch runs and the end is reached once; its `strategy` input is
-    #     filled with the Thing chosen on the node unless a wire or a parameter fills it.
+    # 15. A drawing that branches: the decision node's answer names `accept` or `refuse`, so only the wire taken
+    #     on it runs and the end is reached once; its `strategy` input is filled with the Thing chosen on the node
+    #     unless a wire or a parameter fills it.
     {
         "name": "Branching Decision",
         "nodes": [
             {"key": "in", "input": [("subject", "any")], "at": col(0, 1)},
             {"key": "decide", "service": "decide", "at": col(1, 1),
-             "outPorts": [("accept", "any"), ("refuse", "any")],
              "chooses": ("strategy", "Cheapest first")},
             {"key": "accepted", "service": "echo", "label": "Accepted", "at": col(2, 0)},
             {"key": "refused", "service": "echo", "label": "Refused", "at": col(2, 2)},
@@ -376,8 +387,8 @@ PIPELINES = [
         ],
         "wires": [
             {"from": "in", "fromPort": "subject", "to": "decide", "toPort": "in"},
-            {"from": "decide", "fromPort": "accept", "to": "accepted", "toPort": "message"},
-            {"from": "decide", "fromPort": "refuse", "to": "refused", "toPort": "message"},
+            {"from": "decide", "fromPort": "out", "to": "accepted", "toPort": "message", "takenOn": ["accept"]},
+            {"from": "decide", "fromPort": "out", "to": "refused", "toPort": "message", "takenOn": ["refuse"]},
             {"from": "accepted", "fromPort": "echo", "to": "out", "toPort": "result"},
             {"from": "refused", "fromPort": "echo", "to": "out", "toPort": "result"},
         ],

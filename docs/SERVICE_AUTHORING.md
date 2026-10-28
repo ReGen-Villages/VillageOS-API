@@ -9,10 +9,12 @@ This document is the language-agnostic contract. Working reference implementatio
 | C# / .NET | [`vos.Service.CSharp.Echo`](../vos.Service.CSharp.Echo) | ASP.NET minimal API (canonical) | ✓ build + tests |
 | Go | [`vos.Service.Go.Echo`](../vos.Service.Go.Echo) | standard library, zero deps | ✓ build + tests |
 | Node / TypeScript | [`vos.Service.Node.Echo`](../vos.Service.Node.Echo) | built-ins, zero runtime deps | ✓ typecheck + tests |
-| Python | [`vos.Service.Python.Echo`](../vos.Service.Python.Echo) | FastAPI | ✓ pytest |
+| Python | [`vos.Service.Python.Echo`](../vos.Service.Python.Echo) | FastAPI, on [`vos.Service.Python.Shared`](../vos.Service.Python.Shared) | ✓ pytest |
 | Rust | [`vos.Service.Rust.Echo`](../vos.Service.Rust.Echo) | Axum | ✓ build + tests + clippy |
 
 Each reference is an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Swap that for your predicate logic.
+
+A Python service does not reimplement the contract. [`vos.Service.Python.Shared`](../vos.Service.Python.Shared) (the package `vos_service`) carries the arguments, inbound JWT validation, registration, the four standard endpoints and the write and subscribe calls, as the C# services get them from `vos.Auth.Shared` and `vos.Service.Shared`; a Python service installs it by path from its own `requirements.txt` and supplies only its handler and any routes of its own. Start from a copy of the Python echo folder.
 
 ## A note on `is`
 

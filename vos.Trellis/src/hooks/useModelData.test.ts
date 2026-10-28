@@ -427,6 +427,24 @@ describe('useModelData', () => {
     expect(useUiStore.getState().stateVersions).toEqual({ open: 1 });
   });
 
+  it('moves the counter of a state a StatesChanged says was left', async () => {
+    await mountLoaded();
+    await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
+
+    await act(async () => handlers.get('StatesChanged')!({ entityId: 't1', currentStates: [], exitedStates: ['flagged'] }));
+
+    expect(useUiStore.getState().stateVersions).toEqual({ flagged: 1 });
+  });
+
+  it('moves the counter of a state a RelationshipStatesChanged says was left', async () => {
+    await mountLoaded();
+    await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
+
+    await act(async () => handlers.get('RelationshipStatesChanged')!({ entityId: 'r1', currentStates: ['closed'], exitedStates: ['open'] }));
+
+    expect(useUiStore.getState().stateVersions).toEqual({ closed: 1, open: 1 });
+  });
+
   it('moves the running counter alone for a StatesChanged naming no states', async () => {
     await mountLoaded();
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());

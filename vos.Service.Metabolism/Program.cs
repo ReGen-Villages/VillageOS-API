@@ -63,6 +63,7 @@ try
             sp.GetRequiredService<ILogger<Metabolism>>(),
             direction));
     builder.Services.AddSingleton<HandleRequestProcessor>();
+    builder.Services.AddServiceTokenExchange(myceliumUrl);
     builder.Services.AddSingleton<ISubscriptionClient>(sp =>
         new SubscriptionClient(
             sp.GetRequiredService<IHttpClientFactory>(),

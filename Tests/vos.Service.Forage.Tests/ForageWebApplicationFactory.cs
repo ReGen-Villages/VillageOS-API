@@ -18,6 +18,10 @@ public class ForageWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
     public Func<HttpRequestMessage, HttpResponseMessage> HandlerCallback { get; set; }
         = _ => new HttpResponseMessage(HttpStatusCode.NotFound);
 
+    public string? VerificationKey { get; init; }
+    public string? Issuer { get; init; }
+    public string? Audience { get; init; }
+
     // The production starter hands a run to the thread pool, so the run may finish before or after the
     // service call is answered. Here no run begins until the test completes it, so a test that reads what a
     // run did without completing it fails every time instead of only on a busy machine.
@@ -76,6 +80,9 @@ public class ForageWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
         builder.UseSetting("Port", "5000");
         builder.UseSetting("MyceliumUrl", "http://localhost");
         builder.UseSetting("Token", "test-token");
+        if (VerificationKey != null) builder.UseSetting("VerificationKey", VerificationKey);
+        if (Issuer != null) builder.UseSetting("Issuer", Issuer);
+        if (Audience != null) builder.UseSetting("Audience", Audience);
 
         builder.ConfigureTestServices(services =>
         {
