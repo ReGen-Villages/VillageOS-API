@@ -96,6 +96,20 @@ public class BlockResultsTests
     }
 
     [Fact]
+    public async Task A_success_where_only_fail_wires_leave_fails_the_run_naming_the_node()
+    {
+        var drawn = TestGraphs.ResultPathsPipeline();
+        drawn.Fixture.TakeOn(drawn.Fixture.Get("Check reading.p.out to Record level.p.in"), drawn.Fixture.Get("fail"));
+        var (gateway, executor) = Arrange(drawn, (_, _) => Answer("""{"result":"success","outputs":{"out":"done"}}"""));
+
+        var run = await executor.RunAsync(drawn.PipelineId, Readings("north"), CancellationToken.None);
+
+        run.Success.Should().BeFalse();
+        run.Error.Should().Be("'Check reading' succeeded, and no success wire leaves it.");
+        gateway.Called.Should().Equal("check");
+    }
+
+    [Fact]
     public async Task An_answer_with_no_result_fails_the_block()
     {
         var drawn = TestGraphs.ResultPathsPipeline();
