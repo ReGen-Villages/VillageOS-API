@@ -66,10 +66,10 @@ public class SimulationTokenTests
         var response = await client.PostAsJsonAsync("/handle", TickingEverySecond("rel-swapped"));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
-        var presentedOnTheFirstTick = await firstTick.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await Settle.ForAsync(firstTick.Task, "the simulation ticks once its stagger delay ends");
         await client.DeleteAsync("/simulations/rel-swapped");
 
-        presentedOnTheFirstTick.Should().Be(swappedToken);
+        (await firstTick.Task).Should().Be(swappedToken);
     }
 
     [Fact]
