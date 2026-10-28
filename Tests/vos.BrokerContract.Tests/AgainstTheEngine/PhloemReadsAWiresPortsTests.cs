@@ -17,9 +17,11 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
 
     public PhloemReadsAWiresPortsTests(TheEngine engine) => _engine = engine;
 
+    // Both drawings share one engine, so the vocabulary is declared and bound once.
     private async Task<Guid> PlayingAsync(Role role, string name, bool isArchetype = true, Dictionary<string, object?>? properties = null)
     {
-        var played = await _engine.DeclareAsync(name, isArchetype, properties: properties);
+        var played = await _engine.DeclareOnceAsync(name, isArchetype, properties);
+        if (await _engine.FindAsync($"{role.Word} role") is not null) return played;
         await _engine.DeclareAsync($"{role.Word} role", identifier: role.Id);
         await _engine.RelateAsync(role.Id, await _engine.TheOnlyThingNamedAsync(ModelNames.Binds), played);
         return played;
@@ -29,9 +31,10 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
 
     private async Task<TextStudio> DrawTextStudioAsync(bool uppercaseChooses)
     {
-        var @is = await _engine.DeclareAsync(ModelNames.Is);
-        var has = await _engine.DeclareAsync(ModelNames.Has);
-        await _engine.DeclareAsync(ModelNames.Binds);
+        var firstDrawing = await _engine.FindAsync(ModelNames.Is) is null;
+        var @is = await _engine.DeclareOnceAsync(ModelNames.Is);
+        var has = await _engine.DeclareOnceAsync(ModelNames.Has);
+        await _engine.DeclareOnceAsync(ModelNames.Binds);
         var pipelineArchetype = await PlayingAsync(PipelineRoles.Pipeline, "Pipeline");
         var nodeArchetype = await PlayingAsync(PipelineRoles.PipelineNode, "PipelineNode");
         await PlayingAsync(PipelineRoles.PipelineInput, "PipelineInput");
@@ -47,8 +50,8 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
         await PlayingAsync(PipelineRoles.Fail, "fail", isArchetype: false);
         var decisionPath = await PlayingAsync(PipelineRoles.DecisionPath, "DecisionPath");
         var comparesWith = await PlayingAsync(PipelineRoles.ComparesWith, "comparesWith", isArchetype: false);
-        var carries = await _engine.DeclareAsync("carries");
-        await _engine.RelateAsync(carries, @is, wireArchetype);
+        var carries = await _engine.DeclareOnceAsync("carries");
+        if (firstDrawing) await _engine.RelateAsync(carries, @is, wireArchetype);
 
         var transform = await _engine.DeclareAsync("Transform service");
         await _engine.RelateAsync(transform, @is, serviceArchetype);
@@ -64,7 +67,7 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
         var textOut = await PortAsync("out");
         var errorPort = await PlayingAsync(PipelineRoles.ErrorPort, "error", isArchetype: false,
             new Dictionary<string, object?> { ["portName"] = "error", ["direction"] = "out", ["type"] = "string" });
-        await _engine.RelateAsync(errorPort, @is, portArchetype);
+        if (firstDrawing) await _engine.RelateAsync(errorPort, @is, portArchetype);
 
         async Task<Guid> NodeAsync(string name)
         {
@@ -84,7 +87,7 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
         await _engine.RelateAsync(pipeline, has, uppercase);
         await _engine.RelateAsync(pipeline, has, reverse);
 
-        await _engine.RelateAsync(outputArchetype, @is, nodeArchetype);
+        if (firstDrawing) await _engine.RelateAsync(outputArchetype, @is, nodeArchetype);
         var end = await _engine.DeclareAsync("Text Studio end");
         await _engine.RelateAsync(end, @is, outputArchetype);
         var reached = await _engine.DeclareAsync("end.text",
