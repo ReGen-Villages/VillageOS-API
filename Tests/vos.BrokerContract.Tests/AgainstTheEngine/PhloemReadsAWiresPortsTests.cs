@@ -16,9 +16,9 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
 
     public PhloemReadsAWiresPortsTests(TheEngine engine) => _engine = engine;
 
-    private async Task<Guid> PlayingAsync(Role role, string name, bool isArchetype = true)
+    private async Task<Guid> PlayingAsync(Role role, string name, bool isArchetype = true, Dictionary<string, object?>? properties = null)
     {
-        var played = await _engine.DeclareAsync(name, isArchetype);
+        var played = await _engine.DeclareAsync(name, isArchetype, properties: properties);
         await _engine.DeclareAsync($"{role.Word} role", identifier: role.Id);
         await _engine.RelateAsync(role.Id, await _engine.TheOnlyThingNamedAsync(ModelNames.Binds), played);
         return played;
@@ -59,11 +59,9 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
         }
         var textIn = await PortAsync("in");
         var textOut = await PortAsync("out");
-        var errorPort = await _engine.DeclareAsync("error",
-            properties: new Dictionary<string, object?> { ["portName"] = "error", ["direction"] = "out", ["type"] = "string" });
+        var errorPort = await PlayingAsync(PipelineRoles.ErrorPort, "error", isArchetype: false,
+            new Dictionary<string, object?> { ["portName"] = "error", ["direction"] = "out", ["type"] = "string" });
         await _engine.RelateAsync(errorPort, @is, portArchetype);
-        await _engine.DeclareAsync($"{PipelineRoles.ErrorPort.Word} role", identifier: PipelineRoles.ErrorPort.Id);
-        await _engine.RelateAsync(PipelineRoles.ErrorPort.Id, await _engine.TheOnlyThingNamedAsync(ModelNames.Binds), errorPort);
 
         async Task<Guid> NodeAsync(string name)
         {
@@ -92,7 +90,7 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
         await _engine.RelateAsync(end, has, reached);
         await _engine.RelateAsync(pipeline, has, end);
 
-        async Task<Guid> WireAsync(string name, Guid from, Guid outPort, Guid to, Guid inPort)
+        async Task WireAsync(string name, Guid from, Guid outPort, Guid to, Guid inPort)
         {
             var drawn = await _engine.DeclareAsync(name);
             await _engine.RelateAsync(drawn, @is, wireArchetype);
@@ -101,7 +99,6 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
             await _engine.RelateAsync(drawn, inputConnector, outPort);
             await _engine.RelateAsync(drawn, outputConnector, inPort);
             await _engine.RelateAsync(drawn, takenOn, success);
-            return drawn;
         }
         await WireAsync("text to text", uppercase, textOut, reverse, textIn);
         await WireAsync("text to the end", reverse, textOut, end, reached);
