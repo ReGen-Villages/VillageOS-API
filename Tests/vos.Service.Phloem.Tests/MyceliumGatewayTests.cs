@@ -250,13 +250,13 @@ public class MyceliumGatewayTests
                  PipelineRoles.CompletionRange.Id, PipelineRoles.AwaitsThrough.Id, PipelineRoles.HandsOverTo.Id]));
 
         // What each role binds, then the system an end stands for, the connection it is told through, what a port
-        // offers and a node chose, the state a waiting node waits for, and the drawing a node hands over to, are
-        // reached after the nodes.
+        // offers and a node chose, the state a waiting node waits for, the drawing a node hands over to, and the
+        // Things a node's choice compares with, are reached after the nodes.
         selector.GetProperty("traverse").EnumerateArray()
             .Select(rule => rule.TryGetProperty("predicateRole", out var role) ? role.GetString() : rule.GetProperty("predicate").GetString())
             .Should().Equal(ModelNames.Has, ModelNames.Binds, PipelineRoles.StandsFor.Id.ToString(),
                 PipelineRoles.ToldThrough.Id.ToString(), PipelineRoles.Choice.Id.ToString(), PipelineRoles.CompletionRange.Id.ToString(),
-                PipelineRoles.HandsOverTo.Id.ToString());
+                PipelineRoles.HandsOverTo.Id.ToString(), PipelineRoles.ComparesWith.Id.ToString());
     }
 
     [Fact]

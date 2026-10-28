@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using vos.Service.Shared;
 using vos.Service.Shared.Roles;
 
 namespace vos.Service.Phloem.Model;
@@ -153,7 +154,7 @@ public static class PipelineDagBuilder
             Ports = [.. ports.Select(p => p.Port), errorPort],
             ParameterBindings = ParseParameterBindings(nodeThing),
             Choices = Judged(problems, () => ChoicesOf(graph, nodeThing, ports), NoChoices),
-            DecisionPaths = DecisionPathsOf(graph, service),
+            DecisionPaths = Judged(problems, () => DecisionPathsOf(graph, nodeThing), []),
             Waits = Judged(problems, () => WaitOf(graph, nodeThing, ports), null),
             Retries = Judged(problems, () => RetryPolicyOf(nodeThing), null),
             Rehearses = UpTheIsChain(graph, service).Any(kind => kind.CarriesFlag(ModelNames.Rehearses)),
@@ -183,11 +184,22 @@ public static class PipelineDagBuilder
         return choices;
     }
 
-    private static IReadOnlyDictionary<Guid, string> DecisionPathsOf(PipelineGraph graph, GraphThing service) =>
-        UpTheIsChain(graph, service).SelectMany(level => graph.OutgoingTargets(level, ModelNames.Has))
+    private static IReadOnlyList<DagDecisionPath> DecisionPathsOf(PipelineGraph graph, GraphThing nodeThing) =>
+        graph.OutgoingTargets(nodeThing, ModelNames.Has)
             .Where(held => graph.IsOf(held, PipelineRoles.DecisionPath))
             .DistinctBy(path => path.Id)
-            .ToDictionary(path => path.Id, path => path.Name);
+            .Select(path => new DagDecisionPath(path.Id, path.Name, RuleOf(nodeThing, path), JsonSerializer.SerializeToElement(
+                graph.OutgoingAlong(path, PipelineRoles.ComparesWith).Select(compared => new { id = compared.Id, name = compared.Name }))))
+            .ToList();
+
+    private static JsonataTransform? RuleOf(GraphThing nodeThing, GraphThing path)
+    {
+        var when = path.PropertyString(ModelNames.When);
+        if (string.IsNullOrWhiteSpace(when)) return null;
+        if (JsonataTransform.Validate(when) is { } error)
+            throw new PipelineModelException($"'{nodeThing.Name}' has the choice '{path.Name}', whose rule does not compile: {error}");
+        return new JsonataTransform(when);
+    }
 
     private static DagWait? WaitOf(
         PipelineGraph graph, GraphThing nodeThing, IReadOnlyList<(GraphThing Thing, DagPort Port)> ports)

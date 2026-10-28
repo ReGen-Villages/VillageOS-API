@@ -1,4 +1,5 @@
 using System.Text.Json;
+using vos.Service.Shared;
 
 namespace vos.Service.Phloem.Model;
 
@@ -72,8 +73,7 @@ public sealed class DagNode
     public IReadOnlyDictionary<string, ChosenThing> Choices { get; init; } =
         new Dictionary<string, ChosenThing>(StringComparer.OrdinalIgnoreCase);
 
-    // The decision paths its service declares: an answer names one by its identifier, and the name is for messages.
-    public IReadOnlyDictionary<Guid, string> DecisionPaths { get; init; } = new Dictionary<Guid, string>();
+    public IReadOnlyList<DagDecisionPath> DecisionPaths { get; init; } = [];
 
     public DagWait? Waits { get; init; }
 
@@ -86,6 +86,10 @@ public sealed class DagNode
 
     public DagPort? OutPort(string portName) => Ports.FirstOrDefault(p => p.IsOutput && p.IsNamed(portName));
 }
+
+// A choice a node holds of where its run goes next. When is null on the one choice taken when no rule holds;
+// Things is what its rule sees as $things.
+public sealed record DagDecisionPath(Guid Id, string Name, JsonataTransform? When, JsonElement Things);
 
 public sealed record WireEnd(DagNode Node, DagPort Port);
 

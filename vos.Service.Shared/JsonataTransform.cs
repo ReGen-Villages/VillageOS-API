@@ -32,17 +32,20 @@ public sealed class JsonataTransform
 
     // Nothing is answered as no text: the engine writes it as the word "undefined", which is not JSON,
     // and every caller reads an empty answer as nothing.
-    public string Eval(string inputJson, TimeProvider clock)
+    public string Eval(string inputJson, TimeProvider clock, IReadOnlyDictionary<string, JsonElement>? variables = null)
     {
-        var result = _query.Eval(JToken.Parse(inputJson), EnvironmentReadingTheClock(clock));
+        var environment = EnvironmentReadingTheClock(clock);
+        foreach (var (name, value) in variables ?? new Dictionary<string, JsonElement>())
+            environment.BindValue(name, JToken.Parse(value.GetRawText()));
+        var result = _query.Eval(JToken.Parse(inputJson), environment);
         return result.Type == JTokenType.Undefined ? "" : result.ToIndentedString();
     }
 
     // Evaluate against a JSON value, returning the reshaped value. An empty/whitespace result (JSONata
     // "nothing") becomes a JSON null.
-    public JsonElement Eval(JsonElement input, TimeProvider clock)
+    public JsonElement Eval(JsonElement input, TimeProvider clock, IReadOnlyDictionary<string, JsonElement>? variables = null)
     {
-        var result = Eval(input.GetRawText(), clock);
+        var result = Eval(input.GetRawText(), clock, variables);
         if (string.IsNullOrWhiteSpace(result))
             return JsonSerializer.SerializeToElement((object?)null);
         using var document = JsonDocument.Parse(result);

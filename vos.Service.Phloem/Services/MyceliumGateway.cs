@@ -67,6 +67,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
                 new { predicateRole = PipelineRoles.Choice.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.CompletionRange.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.HandsOverTo.Id, direction = "outgoing", depth = 1 },
+                new { predicateRole = PipelineRoles.ComparesWith.Id, direction = "outgoing", depth = 1 },
             },
             includeIsAncestors = true,
             includeRelationships = true,

@@ -30,9 +30,7 @@ public static class DagValidator
             errors.Add($"'{node.Name}' hands its subject over, but runs once for each item of '{node.CollectionInput!.PortName}'; a node that hands over runs once.");
 
         foreach (var node in dag.Nodes)
-            foreach (var (path, name) in node.DecisionPaths)
-                if (!dag.WiresOutOf(node.NodeId).Any(wire => wire.TakenOn.Contains(path)))
-                    errors.Add($"'{node.Name}' can decide '{name}', but no wire leaving it is taken on that decision.");
+            ValidateDecisionPaths(dag, node, errors);
 
         var outputNodes = dag.Nodes.Where(node => node.Kind == DagNodeKind.Output).ToList();
         if (outputNodes.Count != 1)
@@ -49,6 +47,16 @@ public static class DagValidator
         }
 
         return errors;
+    }
+
+    private static void ValidateDecisionPaths(PipelineDag dag, DagNode node, List<string> errors)
+    {
+        foreach (var path in node.DecisionPaths.Where(path => !dag.WiresOutOf(node.NodeId).Any(wire => wire.TakenOn.Contains(path.Id))))
+            errors.Add($"'{node.Name}' has the choice '{path.Name}', but no wire leaving it is taken on that choice.");
+
+        var withoutARule = node.DecisionPaths.Where(path => path.When is null).Select(path => $"'{path.Name}'").ToList();
+        if (withoutARule.Count > 1)
+            errors.Add($"'{node.Name}' has {withoutARule.Count} choices without a rule ({string.Join(", ", withoutARule)}); only one can be taken when no rule holds.");
     }
 
     private static void ValidateWire(DagWire wire, List<string> errors)
