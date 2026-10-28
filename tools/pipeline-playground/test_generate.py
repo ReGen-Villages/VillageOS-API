@@ -257,20 +257,33 @@ class CatalystVocabularyTests(unittest.TestCase):
         self.assertGreater(len(bound), 0)
         self.assertEqual([t for t in self.kit.things.values() if value(t.get("Properties"), "paramBindings")], [])
 
-    def test_the_decide_service_declares_its_decision_paths_and_each_wire_from_it_is_taken_on_one(self):
-        service = G.stable_id(G._TAG, "service", "decide")
+    def choices_held_by(self, holder):
         [path_archetype] = self.bound("decisionPath")
         has = next(tid for tid, t in self.kit.things.items() if t["Name"] == "has")
         is_ = next(tid for tid, t in self.kit.things.items() if t["Name"] == "is")
-        paths = {r["Target"] for r in self.kit.rels.values() if r["Subject"] == service and r["Predicate"] == has
-                 and any(p["Subject"] == r["Target"] and p["Predicate"] == is_ and p["Target"] == path_archetype
-                         for p in self.kit.rels.values())}
-        self.assertEqual({self.kit.things[p]["Name"] for p in paths}, {"accept", "refuse"})
+        return {r["Target"] for r in self.kit.rels.values() if r["Subject"] == holder and r["Predicate"] == has
+                and any(p["Subject"] == r["Target"] and p["Predicate"] == is_ and p["Target"] == path_archetype
+                        for p in self.kit.rels.values())}
+
+    def test_the_decide_node_holds_its_choices_and_each_wire_from_it_is_taken_on_one(self):
         decide = G.stable_id(G._TAG, "node", "Branching Decision", "decide")
+        choices = {self.kit.things[c]["Name"]: c for c in self.choices_held_by(decide)}
+        self.assertEqual(set(choices), {"accept", "refuse"})
+        self.assertEqual(self.choices_held_by(G.stable_id(G._TAG, "service", "decide")), set())
+        has = next(tid for tid, t in self.kit.things.items() if t["Name"] == "has")
         from_decide = [r["Target"] for r in self.kit.rels.values() if r["Subject"] == decide and r["Predicate"] == has
                        and r["Target"] in self.wires()]
         self.assertEqual(sorted(self.kit.things[taken]["Name"] for wire in from_decide for taken in self.connected_along(wire, "takenOn")),
                          ["accept", "refuse"])
+
+    def test_accept_is_taken_by_a_rule_comparing_the_chosen_strategy_with_two_offered_ones_and_refuse_by_none(self):
+        decide = G.stable_id(G._TAG, "node", "Branching Decision", "decide")
+        choices = {self.kit.things[c]["Name"]: c for c in self.choices_held_by(decide)}
+        self.assertEqual(value(self.kit.things[choices["accept"]]["Properties"], "when"), "inputs.strategy.id in $things.id")
+        self.assertEqual(value(self.kit.things[choices["refuse"]]["Properties"], "when"), "")
+        self.assertEqual(sorted(self.kit.things[t]["Name"] for t in self.connected_along(choices["accept"], "comparesWith")),
+                         ["Cheapest first", "Nearest first"])
+        self.assertEqual(self.connected_along(choices["refuse"], "comparesWith"), [])
 
     def test_the_strategy_port_offers_three_things_and_the_node_chose_one_of_them(self):
         [offers] = self.bound("choice")

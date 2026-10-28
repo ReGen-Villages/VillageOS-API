@@ -29,12 +29,20 @@ STANDS_FOR = "4277647a-93f8-5860-8717-da2a12673dbf"
 CHOICE = "043b23a9-d2e8-5a8a-b81c-1a56bf0f525a"
 INPUT_CONNECTOR = "1f13d260-b2cc-5757-a475-7eb9b7d2323f"
 OUTPUT_CONNECTOR = "7788a338-5eb6-5733-a208-0cf90b4269dd"
+TAKEN_ON = "840892f9-2d05-5e98-b573-0699851760c9"
+SUCCESS = "ffb97ba6-4853-5257-92e4-b71a87b79691"
+FAIL = "661cb599-dbca-56ca-a0dc-f9f162e587c3"
+ERROR_PORT = "9aa04638-d93e-5375-ba25-3f81ae1a25a4"
+DECISION_PATH = "75c2351b-0e8d-5c97-a20d-18e4d5c46363"
+COMPARES_WITH = "9bb384be-5a61-5fff-9ed9-c423a2c74c37"
 
 # The roles a DAG is resolved from. Bound to nothing, every question below answers "no" and a model
 # full of pipelines reads as empty — which is why Phloem refuses such a model outright.
 DAG_ROLES = {PIPELINE: "pipeline", PIPELINE_NODE: "pipelineNode", PIPELINE_INPUT: "pipelineInput",
              PIPELINE_OUTPUT: "pipelineOutput", PORT: "port", SERVICE: "service", CONNECTION: "connection",
-             PIPELINE_WIRE: "pipelineWire", INPUT_CONNECTOR: "inputConnector", OUTPUT_CONNECTOR: "outputConnector"}
+             PIPELINE_WIRE: "pipelineWire", INPUT_CONNECTOR: "inputConnector", OUTPUT_CONNECTOR: "outputConnector",
+             TAKEN_ON: "takenOn", SUCCESS: "success", FAIL: "fail", ERROR_PORT: "errorPort",
+             DECISION_PATH: "decisionPath", COMPARES_WITH: "comparesWith"}
 
 
 def unwrap(props):
