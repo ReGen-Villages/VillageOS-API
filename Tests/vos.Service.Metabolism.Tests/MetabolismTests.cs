@@ -2,9 +2,12 @@ using System.Text.Json;
 using vos.Service.Metabolism.Models;
 using vos.Service.Metabolism.Configuration;
 using vos.Service.Metabolism.Services;
+using vos.Service.Shared;
+using vos.Service.Shared.Subscriptions;
 using vos.Tests.Shared;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -47,7 +50,7 @@ public class MetabolismTests : IAsyncLifetime
     [Fact]
     public void UpdateProperty_Quantity_UpdatesConfig()
     {
-        _engine.Register(MakeConfig());
+        _engine.Register(MakeConfig(), HeldModelToken.None);
 
         _engine.UpdateProperty("rel-1", "quantity", 10.0m);
 
@@ -60,7 +63,7 @@ public class MetabolismTests : IAsyncLifetime
     [Fact]
     public void UpdateProperty_StringQuantity_ReadsTheDotAsADecimalPointWhateverTheRegionalFormat()
     {
-        _engine.Register(MakeConfig());
+        _engine.Register(MakeConfig(), HeldModelToken.None);
 
         var quantity = TestCulture.In(TestCulture.CommaDecimal, () =>
         {
@@ -74,7 +77,7 @@ public class MetabolismTests : IAsyncLifetime
     [Fact]
     public void UpdateProperty_FrequencySeconds_UpdatesConfig()
     {
-        _engine.Register(MakeConfig());
+        _engine.Register(MakeConfig(), HeldModelToken.None);
 
         _engine.UpdateProperty("rel-1", "frequencySeconds", 30);
 
@@ -85,7 +88,7 @@ public class MetabolismTests : IAsyncLifetime
     [Fact]
     public void UpdateProperty_Unit_UpdatesConfig()
     {
-        _engine.Register(MakeConfig());
+        _engine.Register(MakeConfig(), HeldModelToken.None);
 
         _engine.UpdateProperty("rel-1", "unit", "litres");
 
@@ -96,7 +99,7 @@ public class MetabolismTests : IAsyncLifetime
     [Fact]
     public void UpdateProperty_PropertyPath_UpdatesConfig()
     {
-        _engine.Register(MakeConfig());
+        _engine.Register(MakeConfig(), HeldModelToken.None);
 
         _engine.UpdateProperty("rel-1", "propertyPath", "daily_water_litres");
 
@@ -107,7 +110,7 @@ public class MetabolismTests : IAsyncLifetime
     [Fact]
     public void UpdateProperty_UnknownProperty_DoesNotRestart()
     {
-        _engine.Register(MakeConfig());
+        _engine.Register(MakeConfig(), HeldModelToken.None);
 
         _engine.UpdateProperty("rel-1", "total_consumed", 999.0m);
 
@@ -118,7 +121,7 @@ public class MetabolismTests : IAsyncLifetime
     [Fact]
     public void UpdateProperty_UnknownRelationship_DoesNothing()
     {
-        _engine.Register(MakeConfig());
+        _engine.Register(MakeConfig(), HeldModelToken.None);
 
         // Should not throw
         _engine.UpdateProperty("nonexistent", "quantity", 10.0m);
@@ -129,7 +132,7 @@ public class MetabolismTests : IAsyncLifetime
     [Fact]
     public void UpdateProperty_JsonElement_Double_UpdatesQuantity()
     {
-        _engine.Register(MakeConfig());
+        _engine.Register(MakeConfig(), HeldModelToken.None);
 
         var json = JsonDocument.Parse("10.5").RootElement;
         _engine.UpdateProperty("rel-1", "quantity", json);
@@ -140,7 +143,7 @@ public class MetabolismTests : IAsyncLifetime
     [Fact]
     public void UpdateProperty_JsonElement_Int_UpdatesFrequency()
     {
-        _engine.Register(MakeConfig());
+        _engine.Register(MakeConfig(), HeldModelToken.None);
 
         var json = JsonDocument.Parse("15").RootElement;
         _engine.UpdateProperty("rel-1", "frequencySeconds", json);
@@ -151,7 +154,7 @@ public class MetabolismTests : IAsyncLifetime
     [Fact]
     public void UpdateProperty_JsonElement_String_UpdatesUnit()
     {
-        _engine.Register(MakeConfig());
+        _engine.Register(MakeConfig(), HeldModelToken.None);
 
         var json = JsonDocument.Parse("\"litres\"").RootElement;
         _engine.UpdateProperty("rel-1", "unit", json);
@@ -162,7 +165,7 @@ public class MetabolismTests : IAsyncLifetime
     [Fact]
     public void UpdateProperty_JsonElement_InvalidType_DoesNotCrash()
     {
-        _engine.Register(MakeConfig());
+        _engine.Register(MakeConfig(), HeldModelToken.None);
 
         var json = JsonDocument.Parse("\"not_a_number\"").RootElement;
         _engine.UpdateProperty("rel-1", "quantity", json);
@@ -174,10 +177,10 @@ public class MetabolismTests : IAsyncLifetime
     [Fact]
     public void Register_SameRelationship_CancelsOldSimulation()
     {
-        var entry1 = _engine.Register(MakeConfig());
+        var entry1 = _engine.Register(MakeConfig(), HeldModelToken.None);
         entry1.Status.Should().Be("waiting"); // future start
 
-        _engine.Register(MakeConfig(quantity: 20.0m));
+        _engine.Register(MakeConfig(quantity: 20.0m), HeldModelToken.None);
 
         _engine.GetAll().Should().HaveCount(1);
         _engine.GetAll().First().Config.Quantity.Should().Be(20.0m);
@@ -187,7 +190,7 @@ public class MetabolismTests : IAsyncLifetime
     [Fact]
     public void UpdateProperty_StartDelaySeconds_UpdatesConfig()
     {
-        _engine.Register(MakeConfig());
+        _engine.Register(MakeConfig(), HeldModelToken.None);
 
         _engine.UpdateProperty("rel-1", "startDelaySeconds", 30.0m);
 
@@ -198,7 +201,7 @@ public class MetabolismTests : IAsyncLifetime
     [Fact]
     public void UpdateProperty_JsonElement_Decimal_UpdatesStartDelaySeconds()
     {
-        _engine.Register(MakeConfig());
+        _engine.Register(MakeConfig(), HeldModelToken.None);
 
         var json = JsonDocument.Parse("10.5").RootElement;
         _engine.UpdateProperty("rel-1", "startDelaySeconds", json);
@@ -209,7 +212,7 @@ public class MetabolismTests : IAsyncLifetime
     [Fact]
     public async Task UpdateProperty_ConcurrentQuantityAndFrequency_BothApplied()
     {
-        _engine.Register(MakeConfig(quantity: 1.0m, freqSeconds: 60));
+        _engine.Register(MakeConfig(quantity: 1.0m, freqSeconds: 60), HeldModelToken.None);
 
         // Simulate two rapid SSE callbacks on thread pool
         var barrier = new Barrier(2);
@@ -298,7 +301,7 @@ public class MetabolismTests : IAsyncLifetime
     public async Task RunSimulationLoop_PastStartTime_ActivatesImmediately()
     {
         var engine = CreateEngineWithMockedMycelium();
-        var entry = engine.Register(MakePastConfig());
+        var entry = engine.Register(MakePastConfig(), HeldModelToken.None);
 
         await Settle.UntilAsync(() => entry.Status == "active",
             "a simulation whose start time has already passed activates once its stagger delay ends");
@@ -324,7 +327,7 @@ public class MetabolismTests : IAsyncLifetime
             },
             ResourceDirection.Parse(launchArgument));
 
-        engine.Register(MakePastConfig(freqSeconds: 1));
+        engine.Register(MakePastConfig(freqSeconds: 1), HeldModelToken.None);
 
         // The running total is written last in a tick, so once it arrives the pool call already has.
         var trackingPath = $"/api/relationships/rel-1/properties/{expectedTrackingProperty}/increments";
@@ -338,10 +341,43 @@ public class MetabolismTests : IAsyncLifetime
     public async Task RunSimulationLoop_ExecutesTick_IncrementsTickCount()
     {
         var engine = CreateEngineWithMockedMycelium();
-        var entry = engine.Register(MakePastConfig(freqSeconds: 1));
+        var entry = engine.Register(MakePastConfig(freqSeconds: 1), HeldModelToken.None);
 
         await Settle.UntilAsync(() => entry.TickCount > 0 && entry.LastTickUtc is not null,
             "the loop runs its first tick and stamps when it ran");
+    }
+
+    // A property change arrives on the change stream, which carries no call's token, and restarts the loop.
+    [Fact]
+    public async Task Bug8006_ASimulationRestartedByAPropertyChange_KeepsTheTokenItWasGiven()
+    {
+        var model = Guid.NewGuid();
+        var swapped = TestTokens.For(model, DateTimeOffset.UtcNow.AddHours(24));
+        var exchange = new Mock<IServiceTokenExchange>();
+        exchange.Setup(e => e.ExchangeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ModelScopedBearer.Read(swapped));
+        HeldModelToken? held = null;
+        await MyceliumModelToken.ActingForAsync(TestTokens.For(model, DateTimeOffset.UtcNow.AddMinutes(5)), async () =>
+            held = await HeldModelToken.SwapFromTheCallAsync(exchange.Object, NullLogger.Instance));
+        var poolWrites = new System.Collections.Concurrent.ConcurrentQueue<(string Body, string? Token)>();
+        var engine = CreateEngineWithMockedMycelium(request =>
+        {
+            if (request.RequestUri!.AbsolutePath.StartsWith("/api/things/"))
+                poolWrites.Enqueue((request.Content!.ReadAsStringAsync().GetAwaiter().GetResult(),
+                    request.Headers.Authorization?.Parameter));
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"newValue\":1}", System.Text.Encoding.UTF8, "application/json")
+            };
+        });
+        engine.Register(MakePastConfig(quantity: 5.0m, freqSeconds: 1), held!);
+
+        engine.UpdateProperty("rel-1", "quantity", 7.0m);
+
+        await Settle.UntilAsync(() => poolWrites.Any(write => write.Body.Contains("\"amount\":7")),
+            "the restarted simulation ticks with its new quantity");
+        poolWrites.Where(write => write.Body.Contains("\"amount\":7")).Should()
+            .OnlyContain(write => write.Token == swapped);
     }
 
     [Fact]
@@ -353,7 +389,7 @@ public class MetabolismTests : IAsyncLifetime
                 Content = new StringContent("Mycelium down", System.Text.Encoding.UTF8, "text/plain")
             });
 
-        var entry = engine.Register(MakePastConfig(freqSeconds: 1));
+        var entry = engine.Register(MakePastConfig(freqSeconds: 1), HeldModelToken.None);
 
         await Settle.UntilAsync(() => !string.IsNullOrEmpty(entry.LastError),
             "a tick whose pool call is refused records why it failed");
@@ -363,7 +399,7 @@ public class MetabolismTests : IAsyncLifetime
     public async Task RunSimulationLoop_Cancel_SetsStatusCancelled()
     {
         var engine = CreateEngineWithMockedMycelium();
-        var entry = engine.Register(MakePastConfig(freqSeconds: 60));
+        var entry = engine.Register(MakePastConfig(freqSeconds: 60), HeldModelToken.None);
         await Settle.UntilAsync(() => entry.Status == "active", "the simulation is running before it is cancelled");
 
         engine.Cancel("rel-1");
@@ -376,7 +412,7 @@ public class MetabolismTests : IAsyncLifetime
     {
         var engine = CreateEngineWithMockedMycelium();
         // An end time close to now, so the loop reaches it after a tick or two rather than in an hour.
-        var entry = engine.Register(MakePastConfig(freqSeconds: 1, endUtc: DateTime.UtcNow.AddSeconds(2)));
+        var entry = engine.Register(MakePastConfig(freqSeconds: 1, endUtc: DateTime.UtcNow.AddSeconds(2)), HeldModelToken.None);
 
         await Settle.UntilAsync(() => entry.Status == "completed", "the loop stops once its end time has passed");
     }
@@ -385,8 +421,8 @@ public class MetabolismTests : IAsyncLifetime
     public async Task StopAllAsync_CancelsAndAwaitsAll()
     {
         var engine = CreateEngineWithMockedMycelium();
-        var entry1 = engine.Register(MakePastConfig(relId: "rel-1", freqSeconds: 60));
-        var entry2 = engine.Register(MakePastConfig(relId: "rel-2", freqSeconds: 60));
+        var entry1 = engine.Register(MakePastConfig(relId: "rel-1", freqSeconds: 60), HeldModelToken.None);
+        var entry2 = engine.Register(MakePastConfig(relId: "rel-2", freqSeconds: 60), HeldModelToken.None);
         await Settle.UntilAsync(() => entry1.Status == "active" && entry2.Status == "active",
             "both simulations are running before they are stopped");
 
@@ -405,7 +441,7 @@ public class MetabolismTests : IAsyncLifetime
         using var hold = new HoldAtTheActiveAnnouncement();
         var engine = CreateEngineWithMockedMycelium(engineLogger: hold);
         var endUtc = endTimeAlreadyPassed ? DateTime.UtcNow.AddSeconds(-1) : DateTime.UtcNow.AddHours(1);
-        var entry = engine.Register(MakePastConfig(endUtc: endUtc));
+        var entry = engine.Register(MakePastConfig(endUtc: endUtc), HeldModelToken.None);
         await Settle.UntilAsync(() => hold.IsHolding, "the simulation announces that it is active");
 
         var stopped = engine.StopAllAsync();
@@ -419,7 +455,7 @@ public class MetabolismTests : IAsyncLifetime
     public async Task RunSimulationLoop_WithStartDelay_SetsDelayedStatusFirst()
     {
         var engine = CreateEngineWithMockedMycelium();
-        var entry = engine.Register(MakePastConfig(freqSeconds: 60, startDelaySeconds: AStartDelayNoTestOutlasts));
+        var entry = engine.Register(MakePastConfig(freqSeconds: 60, startDelaySeconds: AStartDelayNoTestOutlasts), HeldModelToken.None);
 
         await Settle.UntilAsync(() => entry.Status == "delayed",
             "a start delay holds the simulation in the delayed phase instead of activating it");
@@ -429,7 +465,7 @@ public class MetabolismTests : IAsyncLifetime
     public async Task RunSimulationLoop_WithStartDelay_ActivatesAfterDelay()
     {
         var engine = CreateEngineWithMockedMycelium();
-        var entry = engine.Register(MakePastConfig(freqSeconds: 60, startDelaySeconds: 1.0m));
+        var entry = engine.Register(MakePastConfig(freqSeconds: 60, startDelaySeconds: 1.0m), HeldModelToken.None);
 
         await Settle.UntilAsync(() => entry.Status == "active",
             "the simulation activates once its start delay has run out");
@@ -440,7 +476,7 @@ public class MetabolismTests : IAsyncLifetime
     {
         var engine = CreateEngineWithMockedMycelium();
         // A one-second frequency, so a loop that ticked during its delay would be caught.
-        var entry = engine.Register(MakePastConfig(freqSeconds: 1, startDelaySeconds: AStartDelayNoTestOutlasts));
+        var entry = engine.Register(MakePastConfig(freqSeconds: 1, startDelaySeconds: AStartDelayNoTestOutlasts), HeldModelToken.None);
 
         await Settle.UntilAsync(() => entry.Status == "delayed", "the simulation enters its start delay");
 
@@ -451,7 +487,7 @@ public class MetabolismTests : IAsyncLifetime
     public async Task RunSimulationLoop_WithStartDelay_CancelDuringDelay()
     {
         var engine = CreateEngineWithMockedMycelium();
-        var entry = engine.Register(MakePastConfig(freqSeconds: 60, startDelaySeconds: AStartDelayNoTestOutlasts));
+        var entry = engine.Register(MakePastConfig(freqSeconds: 60, startDelaySeconds: AStartDelayNoTestOutlasts), HeldModelToken.None);
         await Settle.UntilAsync(() => entry.Status == "delayed", "the simulation is inside its start delay");
 
         engine.Cancel("rel-1");

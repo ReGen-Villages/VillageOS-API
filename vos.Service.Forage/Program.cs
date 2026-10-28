@@ -76,6 +76,7 @@ try
     builder.Services.AddSingleton<AnalysisSpawner>();
     builder.Services.AddSingleton<VocabularyEdgeWriter>();
     builder.Services.AddSingleton<IDiscoveryRunStarter, DiscoveryRunStarter>();
+    builder.Services.AddServiceTokenExchange(myceliumUrl);
 
     var app = builder.Build();
 
@@ -97,6 +98,8 @@ try
         AnalysisSpawner analysis,
         VocabularyEdgeWriter vocabularyEdges,
         IDiscoveryRunStarter starter,
+        IServiceTokenExchange tokenExchange,
+        ILogger<HeldModelToken> tokenLogger,
         HttpContext httpContext) =>
     {
         using var reader = new StreamReader(httpContext.Request.Body);
@@ -105,11 +108,17 @@ try
         if (request.Kind != HandleRequestKind.RelationshipSubject)
             return Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedShapes("Forage") });
 
+        var heldToken = await HeldModelToken.SwapFromTheCallAsync(tokenExchange, tokenLogger, httpContext.RequestAborted);
+        if (heldToken is null)
+            return Results.Json(
+                new { success = false, error = "Mycelium would not swap this call's token for one that outlasts the run" },
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+
         // Named here so the run captures the subject alone; capturing the request would hold the parsed
         // body for as long as the run takes.
         var subjectId = request.SubjectId;
-        starter.Start(subjectId, token =>
-            Discover(subjectId, coveringSources, runner, ledger, divisions, analysis, vocabularyEdges, token));
+        starter.Start(subjectId, token => heldToken.ActAsync(() =>
+            Discover(subjectId, coveringSources, runner, ledger, divisions, analysis, vocabularyEdges, token), token));
 
         // Accepted, not done — see IDiscoveryRunStarter for what closes it. `success` is the broker's
         // own contract: a body declaring it false is a failed service call whatever the status said.
