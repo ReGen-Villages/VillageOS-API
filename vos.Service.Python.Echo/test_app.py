@@ -2,103 +2,66 @@
 
 Run with:  pytest
 
-Covers the four contract endpoints and the inbound JWT validation.
-Registration is mocked so the tests never touch the network.
+The contract itself (the endpoints, inbound JWT validation, registration, arguments) is tested in
+vos.Service.Python.Shared. This covers what this service adds: its handler, its demo endpoints, and
+that it is wired to the library. Registration is mocked so the tests never touch the network.
 """
 
+import asyncio
 import base64
-import hashlib
-import hmac
 import json
-import os
 import time
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from fastapi.testclient import TestClient
-from jwt.utils import base64url_encode
 
 import app as appmod
-from app import app
-
-
-@pytest.fixture
-def client():
-    with patch("app.register_with_mycelium", new=AsyncMock(return_value=True)):
-        with TestClient(app) as c:
-            yield c
-
+from app import app, demo_subscribe, host
+from vos_service import PlatformRefusal
 
 THIS_HANDLER = "python-echo-handler"
 
 
-def verification_key_of(pair) -> str:
-    """The public half, encoded the way Mycelium hands it to a daemon."""
-    return base64.b64encode(
-        pair.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
-    ).decode()
+@pytest.fixture
+def client():
+    with patch.object(host.mycelium, "register", new=AsyncMock(return_value=True)):
+        with TestClient(app) as c:
+            yield c
 
 
 @pytest.fixture
 def signing(monkeypatch):
     """Enable JWT auth against a stand-in for Mycelium's key pair; yields the private half."""
     pair = ec.generate_private_key(ec.SECP256R1())
-    monkeypatch.setattr(appmod.config, "verification_key", verification_key_of(pair))
+    verification_key = base64.b64encode(
+        pair.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+    ).decode()
+    monkeypatch.setattr(appmod.config, "verification_key", verification_key)
     monkeypatch.setattr(appmod.config, "issuer", "VillageOS")
     monkeypatch.setattr(appmod.config, "audience", THIS_HANDLER)
     return pair
 
 
-def claims_with(**overrides) -> dict:
-    now = int(time.time())
-    claims = {
-        "iss": "VillageOS",
-        "aud": THIS_HANDLER,
-        "sub": "mycelium",
-        "vos:token_type": "mycelium_request",
-        "iat": now,
-        "nbf": now,
-        "exp": now + 60,
-    }
-    claims.update(overrides)
-    return claims
-
-
-def make_token(pair, **overrides) -> str:
+def make_token(pair) -> str:
     """Signs the way Mycelium does."""
-    return jwt.encode(claims_with(**overrides), pair, algorithm="ES256")
+    now = int(time.time())
+    claims = {"iss": "VillageOS", "aud": THIS_HANDLER, "sub": "mycelium", "iat": now, "nbf": now, "exp": now + 60}
+    return jwt.encode(claims, pair, algorithm="ES256")
 
 
-def forged_from_the_verification_key(pair, **overrides) -> str:
-    """What someone who reads the verification key off a daemon can produce.
-
-    Signed by hand: pyjwt refuses to use a public key as an HMAC secret, and a forger is not using pyjwt.
-    """
-    header_and_claims = b".".join(
-        base64url_encode(json.dumps(part).encode())
-        for part in ({"alg": "HS256", "typ": "JWT"}, claims_with(**overrides))
-    )
-    signature = hmac.new(
-        base64.b64decode(verification_key_of(pair)), header_and_claims, hashlib.sha256
-    ).digest()
-    return b".".join((header_and_claims, base64url_encode(signature))).decode()
-
-
-def test_health(client):
+def test_health_names_the_service(client):
     res = client.get("/health")
     assert res.status_code == 200
-    assert res.json()["status"] == "Healthy"
-    assert res.json()["processId"] == os.getpid()
     assert res.json()["service"] == "Python"
 
 
-def test_stats(client):
-    res = client.get("/stats")
-    body = res.json()
-    assert res.status_code == 200
+def test_stats_carries_the_handler_id(client):
+    body = client.get("/stats").json()
     assert body["service"] == "Python"
     assert "handlerId" in body
 
@@ -109,8 +72,17 @@ def test_handle_echoes_payload_when_unauthenticated(client):
     assert res.status_code == 200
     body = res.json()
     assert body["success"] is True
+    assert body["service"] == "Python"
+    assert body["status"] == "handled"
     assert body["relationshipId"] == "r1"
     assert body["echo"] == payload
+    assert "timestamp" in body
+
+
+def test_handle_numbers_each_request(client):
+    first = client.post("/handle", json={"relationshipId": "a"}).json()["requestNumber"]
+    second = client.post("/handle", json={"relationshipId": "b"}).json()["requestNumber"]
+    assert second == first + 1
 
 
 def test_shutdown(client):
@@ -119,199 +91,25 @@ def test_shutdown(client):
     assert "Shutting down" in res.json()["message"]
 
 
-# The deregistration route is admin-only; the broker's liveness monitor removes a registration whose service stops answering.
-def test_shutdown_does_not_ask_the_broker_to_withdraw():
-    with patch("app.register_with_mycelium", new=AsyncMock(return_value=True)), \
-         patch("httpx.AsyncClient.request", new=AsyncMock()) as request:
-        with TestClient(app):
-            pass
-    assert request.await_count == 0, "a service cannot deregister itself, so shutdown must not try"
-
-
-def test_handle_rejects_missing_token_when_auth_enabled(client, signing):
-    res = client.post("/handle", json={"relationshipId": "r2"})
-    assert res.status_code == 401
-
-
-def test_handle_accepts_valid_token(client, signing):
-    token = make_token(signing)
+def test_handle_is_wired_to_the_librarys_token_check(client, signing):
+    assert client.post("/handle", json={"relationshipId": "r2"}).status_code == 401
     res = client.post(
-        "/handle", json={"relationshipId": "r3"}, headers={"Authorization": f"Bearer {token}"}
+        "/handle", json={"relationshipId": "r3"}, headers={"Authorization": f"Bearer {make_token(signing)}"}
     )
     assert res.status_code == 200
     assert res.json()["relationshipId"] == "r3"
 
 
-def test_handle_rejects_tampered_token(client, signing):
-    token = make_token(signing) + "x"
-    res = client.post(
-        "/handle", json={"relationshipId": "r4"}, headers={"Authorization": f"Bearer {token}"}
-    )
-    assert res.status_code == 401
+def test_the_demo_endpoints_are_behind_the_same_token_check(client, signing):
+    assert client.post("/demo/write-kinds", json={"thingId": "t1"}).status_code == 401
+    assert client.post("/demo/subscribe", json={}).status_code == 401
 
 
-def test_handle_rejects_expired_token(client, signing):
-    token = make_token(signing, exp=int(time.time()) - 120)
-    res = client.post(
-        "/handle", json={"relationshipId": "r5"}, headers={"Authorization": f"Bearer {token}"}
-    )
-    assert res.status_code == 401
-
-
-def test_handle_rejects_wrong_issuer(client, signing):
-    token = make_token(signing, iss="Attacker")
-    res = client.post(
-        "/handle", json={"relationshipId": "r6"}, headers={"Authorization": f"Bearer {token}"}
-    )
-    assert res.status_code == 401
-
-
-def test_handle_rejects_a_token_addressed_to_another_service(client, signing):
-    token = make_token(signing, aud="spring-handler")
-    res = client.post(
-        "/handle", json={"relationshipId": "r7"}, headers={"Authorization": f"Bearer {token}"}
-    )
-    assert res.status_code == 401
-
-
-def test_handle_rejects_a_persons_browser_token(client, signing):
-    token = make_token(signing, aud="VosClients")
-    res = client.post(
-        "/handle", json={"relationshipId": "r8"}, headers={"Authorization": f"Bearer {token}"}
-    )
-    assert res.status_code == 401
-
-
-def test_handle_rejects_the_verification_key_used_as_a_shared_secret(client, signing):
-    """Every handler holds this key; accepting it would hand an attacker a signing key."""
-    token = forged_from_the_verification_key(signing)
-    res = client.post(
-        "/handle", json={"relationshipId": "r9"}, headers={"Authorization": f"Bearer {token}"}
-    )
-    assert res.status_code == 401
-
-
-def test_handle_rejects_a_token_carrying_no_signature(client, signing):
-    token = jwt.encode(claims_with(), key=None, algorithm="none")
-    res = client.post(
-        "/handle", json={"relationshipId": "r10"}, headers={"Authorization": f"Bearer {token}"}
-    )
-    assert res.status_code == 401
-
-
-import asyncio
-
-import httpx
-
-from app import set_fact, record_observation, record_observations, deposit_sediment
-
-
-@pytest.fixture
-def mycelium(monkeypatch):
-    """Point the module at a fake Mycelium with a pre-supplied token (no /api/auth/token call)."""
-    monkeypatch.setattr(appmod.config, "mycelium_url", "http://mycelium.test")
-    monkeypatch.setattr(appmod.config, "token", "tok")
-
-
-def _handler(captured):
-    def handle(request: httpx.Request) -> httpx.Response:
-        captured.append(request)
-        path = request.url.path
-        if path.endswith("/facts"):
-            return httpx.Response(201, json={"sequenceNumber": 42, "value": "active"})
-        if "/properties/" in path and path.endswith("/observations"):
-            return httpx.Response(202)
-        if path.endswith("/observations"):
-            return httpx.Response(202, json={"accepted": 2})
-        if path == "/api/sediment":
-            return httpx.Response(202, json={"batchId": "b-1", "series": 1, "buckets": 3, "samples": 10})
-        return httpx.Response(404)
-
-    return handle
-
-
-def _run(captured, coro_factory):
-    async def run():
-        async with httpx.AsyncClient(transport=httpx.MockTransport(_handler(captured))) as c:
-            return await coro_factory(c)
-
-    return asyncio.run(run())
-
-
-def test_set_fact_posts_value_and_returns_sequence(mycelium):
-    captured = []
-    seq = _run(captured, lambda c: set_fact("t1", "status", "active", client=c))
-    assert seq == 42
-    req = captured[0]
-    assert req.url.path == "/api/things/t1/properties/status/facts"
-    assert req.headers["Authorization"] == "Bearer tok"
-    assert json.loads(req.content)["value"] == "active"
-
-
-def test_set_fact_405_raises(mycelium):
-    async def run():
-        async with httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(405))) as c:
-            await set_fact("t1", "temperature", 1, client=c)
-
-    with pytest.raises(RuntimeError, match="405"):
-        asyncio.run(run())
-
-
-def test_record_observation_posts_value_and_observed_at(mycelium):
-    captured = []
-    _run(captured, lambda c: record_observation("t1", "temperature", 21.5, "2026-06-20T14:00:00Z", client=c))
-    req = captured[0]
-    assert req.url.path == "/api/things/t1/properties/temperature/observations"
-    body = json.loads(req.content)
-    assert body["value"] == 21.5
-    assert body["observedAt"] == "2026-06-20T14:00:00Z"
-
-
-def test_record_observation_omits_observed_at(mycelium):
-    captured = []
-    _run(captured, lambda c: record_observation("t1", "temperature", 21.5, client=c))
-    assert "observedAt" not in json.loads(captured[0].content)
-
-
-def test_record_observations_batch_returns_accepted(mycelium):
-    captured = []
-    n = _run(
-        captured,
-        lambda c: record_observations("t1", [{"property": "temperature", "value": 21.7}, {"property": "flow", "value": 3.1}], client=c),
-    )
-    assert n == 2
-    assert captured[0].url.path == "/api/things/t1/observations"
-    assert isinstance(json.loads(captured[0].content), list)
-
-
-def test_record_observations_empty_makes_no_call(mycelium):
-    captured = []
-    n = _run(captured, lambda c: record_observations("t1", [], client=c))
-    assert n == 0
-    assert captured == []
-
-
-def test_deposit_sediment_posts_readings_and_returns_summary(mycelium):
-    captured = []
-    res = _run(captured, lambda c: deposit_sediment(
-        [appmod.sediment_reading("t1", "flow", 1.0, "2026-06-19T00:00:00Z")], client=c))
-    assert res["batchId"] == "b-1"
-    assert res["samples"] == 10
-    assert captured[0].url.path == "/api/sediment"
-    assert json.loads(captured[0].content)[0] == {
-        "objectId": "t1", "property": "flow", "value": 1.0, "observedAt": "2026-06-19T00:00:00Z"}
-
-
-def test_deposit_sediment_empty_raises():
-    with pytest.raises(ValueError, match="at least one reading"):
-        asyncio.run(deposit_sediment([]))
-
-
-def test_demo_endpoint_aggregates(client):
-    with patch("app.set_fact", new=AsyncMock(return_value=7)), \
-         patch("app.record_observation", new=AsyncMock()), \
-         patch("app.record_observations", new=AsyncMock(return_value=2)), \
-         patch("app.deposit_sediment", new=AsyncMock(return_value={"batchId": "b-9", "samples": 5})):
+def test_write_kinds_demo_aggregates(client):
+    with patch.object(host.mycelium, "set_fact", new=AsyncMock(return_value=7)), \
+         patch.object(host.mycelium, "record_observation", new=AsyncMock()), \
+         patch.object(host.mycelium, "record_observations", new=AsyncMock(return_value=2)), \
+         patch.object(host.mycelium, "deposit_sediment", new=AsyncMock(return_value={"batchId": "b-9", "samples": 5})):
         res = client.post("/demo/write-kinds", json={"thingId": "t1"})
     assert res.status_code == 200
     body = res.json()
@@ -321,15 +119,71 @@ def test_demo_endpoint_aggregates(client):
     assert body["sedimentSamples"] == 5
 
 
-def test_demo_endpoint_requires_thing_id(client):
+def test_write_kinds_demo_deposits_readings_that_name_their_thing_as_the_sediment_route_reads_it(client):
+    deposit = AsyncMock(return_value={"batchId": "b-9", "samples": 2})
+    with patch.object(host.mycelium, "set_fact", new=AsyncMock(return_value=7)),          patch.object(host.mycelium, "record_observation", new=AsyncMock()),          patch.object(host.mycelium, "record_observations", new=AsyncMock(return_value=2)),          patch.object(host.mycelium, "deposit_sediment", new=deposit):
+        client.post("/demo/write-kinds", json={"thingId": "t1"})
+    readings = deposit.await_args.args[0]
+    assert [reading["objectId"] for reading in readings] == ["t1", "t1"]
+    assert all("thingId" not in reading for reading in readings)
+
+
+def test_the_write_demo_answers_a_refused_write_with_what_was_refused(client):
+    with patch.object(host.mycelium, "set_fact", new=AsyncMock(side_effect=RuntimeError("fact write returned 405"))):
+        res = client.post("/demo/write-kinds", json={"thingId": "t1"})
+
+    assert res.status_code == 500
+    assert res.json() == {"error": "fact write returned 405"}
+
+
+def test_the_subscribe_demo_answers_a_refused_subscription_with_what_was_refused(client):
+    with patch.object(host.mycelium, "subscribe", new=AsyncMock(side_effect=RuntimeError("subscribe returned 403"))):
+        res = client.post("/demo/subscribe", json={})
+
+    assert res.status_code == 500
+    assert res.json() == {"error": "subscribe returned 403"}
+
+
+def test_the_demo_routes_answer_a_refused_connection_with_why(client):
+    refused = httpx.ConnectError("certificate verify failed: self-signed certificate")
+    with patch.object(host.mycelium, "set_fact", new=AsyncMock(side_effect=refused)),          patch.object(host.mycelium, "subscribe", new=AsyncMock(side_effect=refused)):
+        writes = client.post("/demo/write-kinds", json={"thingId": "t1"})
+        subscription = client.post("/demo/subscribe", json={})
+
+    for answer in (writes, subscription):
+        assert answer.status_code == 500
+        assert "certificate" in answer.json()["error"].lower()
+
+
+def test_write_kinds_demo_requires_thing_id(client):
     res = client.post("/demo/write-kinds", json={})
     assert res.status_code == 400
 
 
-from app import PlatformRefusal, subscribe, unsubscribe, slice_by_type_and_traverse, demo_subscribe
+def test_subscribe_demo_passes_the_requested_slice_on(client):
+    with patch("app.demo_subscribe", new=AsyncMock(return_value={"things": 2})) as demo:
+        res = client.post("/demo/subscribe", json={"type": "Pump", "predicate": "feeds"})
+    assert res.json() == {"things": 2}
+    demo.assert_awaited_once_with("Pump", "feeds")
 
 
-def _sel_handler(captured):
+# Declared by the shared site templates, so the demo slices on any seeded model.
+def test_subscribe_demo_defaults_to_what_every_seeded_model_declares(client):
+    with patch("app.demo_subscribe", new=AsyncMock(return_value={})) as demo:
+        client.post("/demo/subscribe")
+    demo.assert_awaited_once_with("OpenDataSource", "provides")
+
+
+def test_the_subscribe_demo_answers_a_refused_slice_as_the_platform_gave_it(client):
+    refusal = PlatformRefusal(400, '{"error": "no Thing is named Battery"}')
+    with patch.object(host.mycelium, "subscribe", new=AsyncMock(side_effect=refusal)):
+        res = client.post("/demo/subscribe", json={"type": "Battery"})
+
+    assert res.status_code == 400
+    assert res.json() == {"error": "no Thing is named Battery"}
+
+
+def subscription_handler(captured):
     def handle(request: httpx.Request) -> httpx.Response:
         captured.append(request)
         if request.url.path == "/api/subscriptions" and request.method == "POST":
@@ -350,358 +204,35 @@ def _sel_handler(captured):
     return handle
 
 
-def _run_sel(captured, coro_factory):
+def test_demo_subscribe_defaults_to_what_every_seeded_model_declares(monkeypatch):
+    monkeypatch.setattr(appmod.config, "mycelium_url", "http://mycelium.test")
+    monkeypatch.setattr(appmod.config, "token", "tok")
+    captured = []
+
     async def run():
-        async with httpx.AsyncClient(transport=httpx.MockTransport(_sel_handler(captured))) as c:
-            return await coro_factory(c)
+        async with httpx.AsyncClient(transport=httpx.MockTransport(subscription_handler(captured))) as c:
+            return await demo_subscribe(client=c)
 
-    return asyncio.run(run())
-
-
-def test_slice_by_type_and_traverse_builds_selector():
-    sel = slice_by_type_and_traverse("Battery", "powers")
-    assert sel["types"] == ["Battery"]
-    assert sel["traverse"][0]["predicate"] == "powers"
-    assert sel["traverse"][0]["direction"] == "outgoing"
-
-
-def test_subscribe_posts_selector_and_returns_closure(mycelium):
-    captured = []
-    sub = _run_sel(captured, lambda c: subscribe(slice_by_type_and_traverse("Battery", "powers"), client=c))
-    assert sub["subscriptionId"] == "s-1"
-    assert len(sub["snapshot"]["things"]) == 2
-    req = captured[0]
-    assert req.url.path == "/api/subscriptions"
-    assert req.headers["Authorization"] == "Bearer tok"
-    body = json.loads(req.content)
-    assert body["types"] == ["Battery"]
-    assert body["traverse"][0]["predicate"] == "powers"
-
-
-# Declared by the shared site templates, so the demo slices on any seeded model.
-def test_demo_subscribe_defaults_to_what_every_seeded_model_declares(mycelium):
-    captured = []
-    _run_sel(captured, lambda c: demo_subscribe(client=c))
+    asyncio.run(run())
     body = json.loads(captured[0].content)
     assert body["types"] == ["OpenDataSource"]
     assert body["traverse"][0]["predicate"] == "provides"
 
 
-def test_a_refused_slice_is_raised_with_the_platforms_status_and_words(mycelium):
-    def refuse(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(400, json={"error": "no Thing is named Battery"})
+def test_demo_subscribe_summarises_and_unsubscribes(monkeypatch):
+    monkeypatch.setattr(appmod.config, "mycelium_url", "http://mycelium.test")
+    monkeypatch.setattr(appmod.config, "token", "tok")
+    captured = []
 
     async def run():
-        async with httpx.AsyncClient(transport=httpx.MockTransport(refuse)) as c:
-            await subscribe(slice_by_type_and_traverse("Battery", "powers"), client=c)
+        async with httpx.AsyncClient(transport=httpx.MockTransport(subscription_handler(captured))) as c:
+            return await demo_subscribe("Battery", "powers", client=c)
 
-    with pytest.raises(PlatformRefusal) as refused:
-        asyncio.run(run())
-    assert refused.value.status == 400
-    assert "Battery" in refused.value.body
-
-
-# A refused slice is answered as the platform gave it, so the person trying the example reads the platform's words.
-def test_the_subscribe_demo_answers_a_refused_slice_as_the_platform_gave_it(client):
-    with patch("app.subscribe", new=AsyncMock(side_effect=PlatformRefusal(400, '{"error": "no Thing is named Battery"}'))):
-        res = client.post("/demo/subscribe", json={"type": "Battery"})
-
-    assert res.status_code == 400
-    assert res.json() == {"error": "no Thing is named Battery"}
-
-
-def test_demo_subscribe_summarises_and_unsubscribes(mycelium):
-    captured = []
-    result = _run_sel(captured, lambda c: demo_subscribe("Battery", "powers", client=c))
+    result = asyncio.run(run())
     assert result["things"] == 2
     assert result["relationships"] == 1
     assert result["thingNames"] == ["Battery-1", "Inverter-7"]
     assert captured[0].method == "POST"
+    assert json.loads(captured[0].content)["types"] == ["Battery"]
     assert captured[1].method == "DELETE"
     assert captured[1].url.path == "/api/subscriptions/s-1"
-
-
-from app import USAGE, parse_args
-
-
-def test_parse_args_reads_the_standard_flags_and_defaults_nothing():
-    cfg = parse_args(["--port=5103", "--myceliumUrl=https://localhost:7243/"], {})
-    assert cfg.port == 5103
-    assert cfg.mycelium_url == "https://localhost:7243"
-    assert cfg.issuer == ""
-    assert cfg.audience == ""
-
-
-def test_parse_args_refuses_a_verification_key_with_no_recipient_name():
-    """Each handler is addressed by its own name, so no shared default could be right."""
-    environment = {"VerificationKey": "ZW52aXJvbm1lbnQta2V5"}
-    assert parse_args(
-        ["--port=5103", "--myceliumUrl=https://x", "--issuer=VillageOS"], environment) is None
-    assert parse_args(
-        ["--port=5103", "--myceliumUrl=https://x", f"--audience={THIS_HANDLER}"], environment) is None
-
-
-def test_parse_args_takes_credentials_from_the_environment():
-    cfg = parse_args(
-        ["--port=5103", "--myceliumUrl=https://localhost:7243",
-         "--issuer=VillageOS", f"--audience={THIS_HANDLER}"],
-        {"Token": "environment-token", "VerificationKey": "ZW52aXJvbm1lbnQta2V5"},
-    )
-    assert cfg.token == "environment-token"
-    assert cfg.verification_key == "ZW52aXJvbm1lbnQta2V5"
-
-
-def test_parse_args_ignores_credentials_given_as_flags():
-    cfg = parse_args(
-        ["--port=5103", "--myceliumUrl=https://localhost:7243",
-         "--token=flag-token", "--verificationKey=flag-key"],
-        {},
-    )
-    assert cfg.token is None
-    assert cfg.verification_key is None
-
-
-def test_usage_tells_the_reader_to_launch_through_the_virtual_environment():
-    assert ".venv/bin/python app.py" in USAGE
-
-
-from datetime import datetime, timedelta, timezone
-
-A_MOMENT = datetime(2026, 10, 2, 12, 0, tzinfo=timezone.utc)
-NOT_A_SIGNING_KEY = "k" * 32
-
-
-def token_expiring(at: datetime | None) -> str:
-    claims = {"sub": "a-service"} if at is None else {"sub": "a-service", "exp": int(at.timestamp())}
-    return jwt.encode(claims, NOT_A_SIGNING_KEY, algorithm="HS256")
-
-
-@pytest.fixture
-def holding_a_key(monkeypatch):
-    monkeypatch.setattr(appmod.config, "mycelium_url", "http://mycelium.test")
-    monkeypatch.setattr(appmod.config, "api_key", "vos_ak_example")
-    monkeypatch.setattr(appmod.config, "token", None)
-    monkeypatch.setattr(appmod, "_held_token", None)
-    clock = {"now": A_MOMENT}
-    monkeypatch.setattr(appmod, "_now", lambda: clock["now"])
-    return clock
-
-
-def exchanges_answering(captured, minted):
-    def handle(request: httpx.Request) -> httpx.Response:
-        captured.append(request)
-        return httpx.Response(200, json={"token": minted()})
-
-    return handle
-
-
-def tokens_asked_for(handler, times, clock=None, between=timedelta(0)):
-    async def run():
-        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
-            answered = []
-            for _ in range(times):
-                answered.append(await appmod._get_token(client=c))
-                if clock is not None:
-                    clock["now"] += between
-            return answered
-
-    return asyncio.run(run())
-
-
-def test_parse_args_reads_an_api_key_from_the_environment_and_never_from_a_flag():
-    arguments = ["--port=5103", "--myceliumUrl=https://localhost:7243", "--apiKey=flag-key"]
-    assert parse_args(arguments, {"ApiKey": "environment-key"}).api_key == "environment-key"
-    assert parse_args(arguments, {}).api_key is None
-
-
-def test_a_key_is_exchanged_in_the_key_header_and_the_token_is_held(holding_a_key):
-    captured = []
-    minted = token_expiring(A_MOMENT + timedelta(minutes=5))
-
-    answered = tokens_asked_for(exchanges_answering(captured, lambda: minted), times=3)
-
-    assert answered == [minted] * 3
-    assert len(captured) == 1, "the token is held, so the key is exchanged once and not on every call"
-    assert captured[0].url.path == "/api/auth/token"
-    assert captured[0].headers["X-API-Key"] == "vos_ak_example"
-
-
-def test_a_held_token_is_exchanged_again_shortly_before_it_runs_out(holding_a_key):
-    captured = []
-    lifetime = timedelta(minutes=5)
-
-    tokens_asked_for(
-        exchanges_answering(captured, lambda: token_expiring(holding_a_key["now"] + lifetime)),
-        times=3, clock=holding_a_key, between=lifetime - timedelta(seconds=20))
-
-    assert len(captured) == 3, "twenty seconds from running out is inside the half minute a token is replaced in"
-
-
-def test_a_token_that_states_no_expiry_is_not_held(holding_a_key):
-    with pytest.raises(RuntimeError, match="no expiry"):
-        tokens_asked_for(exchanges_answering([], lambda: token_expiring(None)), times=1)
-
-
-def test_a_refused_key_says_what_the_platform_answered(holding_a_key):
-    with pytest.raises(RuntimeError, match="401"):
-        tokens_asked_for(lambda request: httpx.Response(401), times=1)
-
-
-def test_with_neither_a_key_nor_a_token_there_is_nothing_to_present(holding_a_key, monkeypatch):
-    monkeypatch.setattr(appmod.config, "api_key", None)
-
-    with pytest.raises(RuntimeError, match="neither ApiKey nor Token is set"):
-        tokens_asked_for(lambda request: httpx.Response(500), times=1)
-
-
-def test_a_key_is_presented_before_a_token_given_beside_it(holding_a_key, monkeypatch):
-    monkeypatch.setattr(appmod.config, "token", "a-launch-token")
-    minted = token_expiring(A_MOMENT + timedelta(minutes=5))
-
-    assert tokens_asked_for(exchanges_answering([], lambda: minted), times=1) == [minted]
-
-
-def test_with_neither_a_key_nor_a_token_no_call_is_made_and_the_service_says_so(monkeypatch, capsys):
-    monkeypatch.setattr(appmod.config, "api_key", None)
-    monkeypatch.setattr(appmod.config, "token", None)
-    with patch("httpx.AsyncClient.request", new=AsyncMock()) as request:
-        with TestClient(app):
-            pass
-
-    assert request.await_count == 0, "a call carrying no credential is always refused"
-    said = capsys.readouterr().out
-    assert said.count("\n") == 1 and "ApiKey" in said and "Token" in said
-
-
-def test_usage_names_the_key_among_the_credentials():
-    assert "ApiKey" in USAGE
-
-
-def test_the_write_demo_answers_a_refused_write_with_what_was_refused(client):
-    with patch("app.set_fact", new=AsyncMock(side_effect=RuntimeError("fact write returned 405"))):
-        res = client.post("/demo/write-kinds", json={"thingId": "t1"})
-
-    assert res.status_code == 500
-    assert res.json() == {"error": "fact write returned 405"}
-
-
-def test_the_subscribe_demo_answers_a_refused_subscription_with_what_was_refused(client):
-    with patch("app.subscribe", new=AsyncMock(side_effect=RuntimeError("subscribe returned 403"))):
-        res = client.post("/demo/subscribe", json={})
-
-    assert res.status_code == 500
-    assert res.json() == {"error": "subscribe returned 403"}
-
-
-# A service the platform did not start is stopped through this route alone.
-
-def test_shutdown_stops_the_server_once_it_has_answered(client, monkeypatch):
-    class Serving:
-        should_exit = False
-
-    serving = Serving()
-    monkeypatch.setattr(appmod, "_server", serving)
-
-    assert client.post("/shutdown").status_code == 200
-    assert serving.should_exit is True
-
-
-# A platform presenting a certificate this machine does not trust: what answers there may not be the
-# platform, so the key is not sent to it.
-
-import ssl
-import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
-
-from cryptography import x509
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.x509.oid import NameOID
-
-
-@pytest.fixture
-def untrusted_platform(tmp_path, monkeypatch):
-    key = ec.generate_private_key(ec.SECP256R1())
-    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "localhost")])
-    certificate = (
-        x509.CertificateBuilder()
-        .subject_name(name).issuer_name(name).public_key(key.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(datetime.now(timezone.utc) - timedelta(minutes=1))
-        .not_valid_after(datetime.now(timezone.utc) + timedelta(hours=1))
-        .add_extension(x509.SubjectAlternativeName([x509.DNSName("localhost")]), critical=False)
-        .sign(key, hashes.SHA256())
-    )
-    (tmp_path / "certificate.pem").write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
-    (tmp_path / "key.pem").write_bytes(key.private_bytes(
-        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
-
-    received = []
-
-    class Answering(BaseHTTPRequestHandler):
-        def do_POST(self):
-            received.append((self.path, self.headers.get("X-API-Key")))
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b'{"token": "never"}')
-
-        def log_message(self, *_):
-            pass
-
-    server = HTTPServer(("localhost", 0), Answering)
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    context.load_cert_chain(tmp_path / "certificate.pem", tmp_path / "key.pem")
-    server.socket = context.wrap_socket(server.socket, server_side=True)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-
-    monkeypatch.setattr(appmod.config, "mycelium_url", f"https://localhost:{server.server_address[1]}")
-    monkeypatch.setattr(appmod.config, "api_key", "vos_ak_example")
-    monkeypatch.setattr(appmod.config, "token", None)
-    monkeypatch.setattr(appmod, "_held_token", None)
-    yield received
-    server.shutdown()
-    server.server_close()
-
-
-@pytest.mark.parametrize("call", [
-    lambda: appmod.register_with_mycelium(),
-    lambda: appmod.set_fact("t1", "status", "active"),
-    lambda: appmod.unsubscribe("s-1"),
-], ids=["registration", "a write", "an unsubscribe"])
-def test_a_token_is_not_sent_to_a_platform_whose_certificate_the_machine_does_not_trust(untrusted_platform, monkeypatch, call):
-    monkeypatch.setattr(appmod.config, "api_key", None)
-    monkeypatch.setattr(appmod.config, "token", "a-launch-token")
-
-    with pytest.raises(httpx.ConnectError, match="(?i)certificate"):
-        asyncio.run(call())
-
-    assert untrusted_platform == [], "the token reached a server whose certificate nothing vouches for"
-
-
-def test_the_demo_routes_answer_a_refused_connection_with_why(client, untrusted_platform):
-    writes = client.post("/demo/write-kinds", json={"thingId": "t1"})
-    subscription = client.post("/demo/subscribe", json={})
-
-    for answer in (writes, subscription):
-        assert answer.status_code == 500
-        assert "certificate" in answer.json()["error"].lower()
-
-
-def test_a_key_is_not_sent_to_a_platform_whose_certificate_the_machine_does_not_trust(untrusted_platform):
-    with pytest.raises(httpx.ConnectError, match="(?i)certificate"):
-        asyncio.run(appmod._get_token())
-
-    assert untrusted_platform == [], "the key reached a server whose certificate nothing vouches for"
-
-
-# What a machine trusts cannot be changed from a test, so this holds the client to asking the
-# machine: the list httpx ships with does not hold the development certificate a local platform presents.
-def test_calls_to_the_platform_check_its_certificate_against_what_the_machine_trusts(monkeypatch):
-    built_with = {}
-    monkeypatch.setattr(appmod.httpx, "AsyncClient", lambda **settings: built_with.update(settings))
-
-    appmod.platform_client(5.0)
-
-    trust = built_with["verify"]
-    assert isinstance(trust, appmod.truststore.SSLContext)
-    assert trust.verify_mode == ssl.CERT_REQUIRED
-    assert trust.check_hostname
