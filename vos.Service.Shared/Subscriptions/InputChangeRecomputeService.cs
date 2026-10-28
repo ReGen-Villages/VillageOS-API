@@ -18,9 +18,7 @@ public static class InputChangeRecomputeRegistration
         Func<THandler, Guid, CancellationToken, Task> recompute)
         where THandler : notnull
     {
-        services.AddSingleton<IServiceTokenExchange>(provider => new ServiceTokenExchange(
-            provider.GetRequiredService<IHttpClientFactory>(),
-            provider.GetRequiredService<ILogger<ServiceTokenExchange>>(), myceliumUrl));
+        services.AddServiceTokenExchange(myceliumUrl);
 
         services.AddSingleton<SubscriptionClientFactory>(provider => currentToken => new SubscriptionClient(
             provider.GetRequiredService<IHttpClientFactory>(),

@@ -3,6 +3,7 @@ using vos.Service.Metabolism.Configuration;
 using vos.Service.Metabolism.Helpers;
 using vos.Service.Metabolism.Models;
 using System.Globalization;
+using vos.Service.Shared;
 
 namespace vos.Service.Metabolism.Services;
 
@@ -29,16 +30,16 @@ public class Metabolism
     // Raised when a simulation is cancelled — the coordinator drops it from membership.
     public event Action<string>? RelationshipCancelled;
 
-    public SimulationEntry Register(SimulationConfig config)
+    public SimulationEntry Register(SimulationConfig config, HeldModelToken token)
     {
-        var entry = RegisterCore(config);
+        var entry = RegisterCore(config, token);
         RelationshipRegistered?.Invoke(config.RelationshipId);
         return entry;
     }
 
     // Core registration without the membership announcement, so the internal restart from
     // UpdateProperty doesn't re-trigger an AddObjects on every property change.
-    private SimulationEntry RegisterCore(SimulationConfig config)
+    private SimulationEntry RegisterCore(SimulationConfig config, HeldModelToken token)
     {
         if (_simulations.TryRemove(config.RelationshipId, out var existing))
         {
@@ -51,6 +52,7 @@ public class Metabolism
         var entry = new SimulationEntry
         {
             Config = config,
+            Token = token,
             Cts = cts,
             RegisteredAt = DateTime.UtcNow,
             Status = "waiting"
@@ -121,22 +123,7 @@ public class Metabolism
 
             try
             {
-                await _myceliumClient.ApplyQuantityAsync(config.TargetId, config.PropertyPath, config.Quantity, config.SubjectName, config.Unit);
-                entry.TickCount++;
-                entry.LastTickUtc = DateTime.UtcNow;
-                entry.LastError = null;
-
-                // Track per-relationship cumulative total (best-effort — pool operation already succeeded)
-                try
-                {
-                    await _myceliumClient.IncrementRelationshipPropertyAsync(
-                        config.RelationshipId, _direction.TrackingPropertyName, config.Quantity);
-                }
-                catch (Exception relEx)
-                {
-                    _logger.LogWarning("Simulation {RelId}: relationship tracking failed: {Error}",
-                        config.RelationshipId, relEx.Message);
-                }
+                await entry.Token.ActAsync(() => TickAsync(entry), ct);
             }
             catch (Exception ex)
             {
@@ -145,6 +132,27 @@ public class Metabolism
             }
 
             await Task.Delay(config.Interval, ct);
+        }
+    }
+
+    private async Task TickAsync(SimulationEntry entry)
+    {
+        var config = entry.Config;
+        await _myceliumClient.ApplyQuantityAsync(config.TargetId, config.PropertyPath, config.Quantity, config.SubjectName, config.Unit);
+        entry.TickCount++;
+        entry.LastTickUtc = DateTime.UtcNow;
+        entry.LastError = null;
+
+        // Track per-relationship cumulative total (best-effort — pool operation already succeeded)
+        try
+        {
+            await _myceliumClient.IncrementRelationshipPropertyAsync(
+                config.RelationshipId, _direction.TrackingPropertyName, config.Quantity);
+        }
+        catch (Exception relEx)
+        {
+            _logger.LogWarning("Simulation {RelId}: relationship tracking failed: {Error}",
+                config.RelationshipId, relEx.Message);
         }
     }
 
@@ -190,7 +198,7 @@ public class Metabolism
 
             _logger.LogInformation("Simulation {RelId}: property {Prop} changed to {Value} — restarting",
                 relationshipId, propertyName, value);
-            RegisterCore(updated); // restart only; membership already covers this relationship
+            RegisterCore(updated, entry.Token); // restart only; membership already covers this relationship
         }
     }
 
@@ -223,6 +231,7 @@ public class Metabolism
 public class SimulationEntry
 {
     public required SimulationConfig Config { get; init; }
+    public required HeldModelToken Token { get; init; }
     public required CancellationTokenSource Cts { get; init; }
     public Task RunningTask { get; set; } = Task.CompletedTask;
     public DateTime RegisteredAt { get; init; }

@@ -8,6 +8,7 @@ using Moq;
 using vos.Service.Metabolism.Configuration;
 using vos.Service.Metabolism.Models;
 using vos.Service.Metabolism.Services;
+using vos.Service.Shared;
 using Xunit;
 
 namespace vos.Service.Metabolism.Tests;
@@ -96,7 +97,7 @@ public class IntervalTests : IAsyncLifetime
     public void Bug8007_AChangedIntervalKeepsItsFraction()
     {
         var engine = Engine();
-        engine.Register(WaitingConfig(60m));
+        engine.Register(WaitingConfig(60m), HeldModelToken.None);
 
         engine.UpdateProperty("rel-1", "frequencySeconds", JsonDocument.Parse("2.5").RootElement);
 
@@ -110,7 +111,7 @@ public class IntervalTests : IAsyncLifetime
     public void Bug8007_AChangeToAnIntervalUnderOneSecond_IsRefusedAndTheSimulationKeepsItsInterval(string asWritten)
     {
         var engine = Engine();
-        engine.Register(WaitingConfig(60m));
+        engine.Register(WaitingConfig(60m), HeldModelToken.None);
 
         engine.UpdateProperty("rel-1", "frequencySeconds", JsonDocument.Parse(asWritten).RootElement);
 

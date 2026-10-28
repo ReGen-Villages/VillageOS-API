@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using vos.Service.Metabolism.Models;
+using vos.Service.Shared;
 
 namespace vos.Service.Metabolism.Services;
 
@@ -15,7 +16,7 @@ public class HandleRequestProcessor
         _logger = logger;
     }
 
-    public (SimulationEntry? entry, string? error) ProcessHandle(HandleRequest request)
+    public (SimulationEntry? entry, string? error) ProcessHandle(HandleRequest request, HeldModelToken token)
     {
         if (string.IsNullOrEmpty(request.SubjectId) || string.IsNullOrEmpty(request.TargetId))
             return (null, "Missing required fields: subjectId and targetId are required");
@@ -24,7 +25,7 @@ public class HandleRequestProcessor
         if (SimulationConfig.RefusalOfFrequency(config.FrequencySeconds) is { } refusal)
             return (null, refusal);
 
-        var entry = _engine.Register(config);
+        var entry = _engine.Register(config, token);
 
         _logger.LogInformation("Registered simulation for {RelId}: {Quantity} {Unit} every {Freq}s",
             config.RelationshipId, config.Quantity, config.Unit, config.FrequencySeconds);
