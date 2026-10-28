@@ -221,7 +221,7 @@ POST /api/temporal/aggregate
 | `measureProperty` | The property reduced per member. `Count` needs none; every other reduction does |
 | `windowSeconds` | How far back the window reaches from the model clock's now |
 | `bucketSeconds` | How wide each bucket is. The window must be a whole number of them, and at most ten thousand |
-| `within` | Only members this container reaches, at any depth, through the predicates the model marks as containment |
+| `within` | Only members this container reaches, at any depth, through the predicates the model's `containment` role binds, itself or as a kind they `is`. A model that binds none is refused |
 
 The window ends at the **model clock's** now — the same clock as every other temporal read on this
 page — and each bucket is closed at its end, so an event exactly at now falls in the last bucket and
