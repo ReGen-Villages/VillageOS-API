@@ -24,6 +24,7 @@ public class ReadmeListsEveryServiceTests
     {
         ["vos.Service.Shared"] = "the library every service builds on, not a service anyone runs",
         ["vos.Service.Shared.Contracts"] = "the request and response schemas, not a service anyone runs",
+        ["vos.Service.Python.Shared"] = "the library every Python service builds on, not a service anyone runs",
     };
 
     [Fact]
