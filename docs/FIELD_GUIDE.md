@@ -319,7 +319,7 @@ of your own. This guide lives in the public repository.
 | **Fact**, **Observation** | The two kinds of write (chapter 4) |
 | **Range** | A named condition over a Thing's values, written in the criteria language. A Thing's **states** are the ranges that currently hold for it |
 | **Derived value** | A property the platform works out: a total over related Things, or a formula over a Thing's own values |
-| **Mark** | A property whose name begins with two underscores, by which the platform finds a Thing's role without knowing its name |
+| **Role** | A Thing with a fixed identifier standing for something the platform asks for, which reaches the one Thing playing it along `binds`, so the platform finds that Thing without knowing its name (chapter 18) |
 | **Service** | A separate program the server starts and calls, in any programming language, that does the work a relationship, a state or a request asks for |
 | **Connection** | The Thing that binds a predicate, a state or a request address to a service |
 | **Pipeline** | A drawing of services joined by typed wires, run by the orchestrator |
@@ -405,8 +405,10 @@ under the bound kind and deploying nothing.
 
 A role binds one Thing. A lookup by name never answers a role, so a role named like the Thing it
 binds leaves that name answering the Thing. Properties whose names begin with two underscores belong
-to the platform; the marks the platform once found Things by are retired, and a seed still carrying
-one is refused, naming the role that replaced it.
+to the platform; the marks the platform once found Things by are retired. A seed that declares the
+role or kind a mark was replaced by is refused while it still carries that mark, and the refusal says
+what replaced it. The marks that once declared protection are refused in every seed, because a seed
+relying on them would load protecting nothing.
 
 ### 19. Seeds, templates and fragments
 A **seed** is a text file (in the JSON format, a plain-text way of writing structured data)
