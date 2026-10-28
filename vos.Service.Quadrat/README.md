@@ -9,14 +9,14 @@ Coordinates and zones are always WGS84 (lon/lat); Quadrat reprojects to the rast
 ## Run
 
 ```bash
-python -m venv .venv
-.venv/Scripts/python -m pip install -r requirements.txt     # Windows; .venv/bin/python elsewhere
-.venv/Scripts/python -m pytest
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt     # on Windows: .venv/Scripts/python
+.venv/bin/python -m pytest
 
-.venv/Scripts/python -m quadrat metadata samples/tatra-z10-568-350.tif
-.venv/Scripts/python -m quadrat point samples/tatra-z10-568-350.tif --lon 19.9814 --lat 49.2319 --resampling bilinear
-.venv/Scripts/python -m quadrat zonal samples/tatra-z10-568-350.tif --bbox 19.92 49.24 19.95 49.26
-.venv/Scripts/python -m quadrat zonal samples/tatra-z10-568-350.tif --geometry zone.geojson
+.venv/bin/python -m quadrat metadata samples/tatra-z10-568-350.tif
+.venv/bin/python -m quadrat point samples/tatra-z10-568-350.tif --lon 19.9814 --lat 49.2319 --resampling bilinear
+.venv/bin/python -m quadrat zonal samples/tatra-z10-568-350.tif --bbox 19.92 49.24 19.95 49.26
+.venv/bin/python -m quadrat zonal samples/tatra-z10-568-350.tif --geometry zone.geojson
 ```
 
 A request Quadrat will not answer prints `{"refused": "<code>", "reason": "..."}` and exits 2. Codes:

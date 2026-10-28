@@ -1,5 +1,6 @@
 # Runtime
 rasterio>=1.4
+exactextract>=0.3
 numpy>=2.0
 pyproj>=3.6
 shapely>=2.0
