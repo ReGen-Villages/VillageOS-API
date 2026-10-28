@@ -1,10 +1,10 @@
 # VillageOS managed microservice — Python example
 
-A complete, runnable VillageOS handler written in **Python with FastAPI**. It implements the full managed-microservice contract documented in [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md): startup registration, the four required endpoints, inbound JWT validation (PyJWT), and graceful shutdown.
+A complete, runnable VillageOS handler written in **Python with FastAPI**. It implements the full managed-microservice contract documented in [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md): startup registration, the four required endpoints, inbound JWT validation (PyJWT), and graceful shutdown. The contract itself is implemented once, in [`vos.Service.Python.Shared`](../vos.Service.Python.Shared) (the importable package `vos_service`); this service adds a handler and its own routes to it.
 
-It's the Python analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.Service.CSharp.Echo) — an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Replace `handle_relationship()` in `app.py` with your own logic.
+It's the Python analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.Service.CSharp.Echo) — an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Replace `handle_relationship()` in `app.py` with your own logic; a new Python service is a copy of this folder that keeps the `vos_service` import and changes the handler.
 
-> `is` is **not** an external predicate — Mycelium handles it in-process and never dispatches it. Register your service for a custom predicate (or `consumes`/`produces`). See the authoring doc.
+> `is` is **not** an external predicate — Mycelium handles it in-process and never calls it. Register your service for a custom predicate (or `consumes`/`produces`). See the authoring doc.
 
 ## Run
 
@@ -61,9 +61,11 @@ All come from the environment and are never flags. A command line is readable by
 
 ## How it maps to the contract
 
-- **Registration** — `register_with_mycelium()` POSTs the registration envelope to `/api/mycelium/register` with a bearer token; runs from the FastAPI `lifespan` startup hook.
-- **JWT validation** — `verify_request()` (a FastAPI dependency) uses PyJWT with `algorithms=["ES256"]` — naming the one algorithm rather than honouring the token's own — against the public key read from `VerificationKey`, plus issuer, this service's own recipient name, and expiry with 30s leeway (matching `ServiceTokenValidator`).
-- **Shutdown** — `POST /shutdown` stops the service once it has answered. The `lifespan` hook makes no call to the broker on the way out. It does not deregister: `DELETE /api/mycelium/services/{handler_id}` is admin-only, and the broker's liveness monitor removes a registration whose service stops answering.
+The pieces below are in `vos.Service.Python.Shared`, which is tested there.
+
+- **Registration** — `MyceliumClient.register()` POSTs the registration envelope to `/api/mycelium/register` with a bearer token; `ServiceHost` runs it from the FastAPI `lifespan` startup hook.
+- **JWT validation** — `verifier(config)` returns a FastAPI dependency (`host.verify_request`, which `/handle`, `/shutdown` and this service's demo routes use) that uses PyJWT with `algorithms=["ES256"]` — naming the one algorithm rather than honouring the token's own — against the public key read from `VerificationKey`, plus issuer, this service's own recipient name, and expiry with 30s leeway (matching `ServiceTokenValidator`).
+- **Shutdown** — `POST /shutdown` acknowledges and then stops the server, which is how a service Mycelium did not start itself is stopped. The `lifespan` hook makes no call to the broker on the way out. It does not deregister: `DELETE /api/mycelium/services/{handler_id}` is admin-only, and the broker's liveness monitor removes a registration whose service stops answering.
 
 ## Test
 
@@ -73,7 +75,7 @@ python3 -m venv .venv
 .venv/bin/python -m pytest
 ```
 
-Covers every endpoint plus JWT validation (valid / missing / tampered / expired / wrong-issuer).
+Covers this service's handler and demo endpoints, and that they sit behind the library's token check. The contract itself (every standard endpoint, JWT validation in all its failure modes, argument parsing, registration) is tested in [`vos.Service.Python.Shared`](../vos.Service.Python.Shared).
 
 This is the one Python suite in the repository that runs under pytest; the rest are stdlib
 `unittest`. `python3 -m unittest discover` collects nothing here and still reports `OK`, so reach
@@ -81,15 +83,15 @@ for the command above rather than the one the other suites use.
 
 ## Writing data back (Facts / Observations / Sediment)
 
-Besides answering `/handle`, a service can write to the model. This example provides an async helper
-for each write kind (`set_fact`, `record_observation`, `record_observations`, `deposit_sediment`) and
+Besides answering `/handle`, a service can write to the model. The shared library provides an async
+method on `MyceliumClient` for each write kind (`set_fact`, `record_observation`, `record_observations`, `deposit_sediment`) and
 a runnable demo at `POST /demo/write-kinds {"thingId": "<existing>"}` that drives one of each.
 
 ```python
-seq = await set_fact(thing_id, "status", "active")                                  # Fact → 201
-await record_observation(thing_id, "temperature", 21.5, datetime.now(timezone.utc).isoformat())  # 202
-n = await record_observations(thing_id, [{"property": "temperature", "value": 21.7}])
-res = await deposit_sediment([sediment_reading(thing_id, "temperature", 19.8,    # bulk → sealed Sapwood
+seq = await mycelium.set_fact(thing_id, "status", "active")                         # Fact → 201
+await mycelium.record_observation(thing_id, "temperature", 21.5, datetime.now(timezone.utc).isoformat())  # 202
+n = await mycelium.record_observations(thing_id, [{"property": "temperature", "value": 21.7}])
+res = await mycelium.deposit_sediment([sediment_reading(thing_id, "temperature", 19.8,   # bulk → sealed Sapwood
     "2026-06-19T12:00:00Z")])
 ```
 
@@ -98,11 +100,11 @@ Full wire contract (routes, status codes, 405/404 gating): [`docs/SERVICE_CONTRA
 ## Selecting a slice (snapshot selector)
 
 A handler is passed no object identifiers at launch: it subscribes with a selector describing the
-slice it needs. This example provides `subscribe` / `unsubscribe` / `slice_by_type_and_traverse` /
-`demo_subscribe` and a runnable demo at `POST /demo/subscribe {"type": "Battery", "predicate": "powers"}`.
+slice it needs. The shared library provides `MyceliumClient.subscribe` / `unsubscribe` / `slice_by_type_and_traverse`;
+this example adds `demo_subscribe` and a runnable demo at `POST /demo/subscribe {"type": "OpenDataSource", "predicate": "provides"}` (the defaults: a kind and relationship every seeded model declares; a slice the platform refuses is answered with the platform's own status and words).
 
 ```python
-sub = await subscribe(slice_by_type_and_traverse("Battery", "powers"))
+sub = await mycelium.subscribe(mycelium.slice_by_type_and_traverse("OpenDataSource", "provides"))
 # sub["snapshot"]["things"] / ["relationships"] = exactly the requested closure
 ```
 

@@ -5,252 +5,48 @@ launches as a daemon and calls when a relationship with the service's predicate
 is created. The whole contract is HTTP + a single JWT signed on the P-256 elliptic
 curve (ES256). The key a handler holds checks a signature and cannot produce one.
 
+The contract itself — arguments, inbound JWT validation, registration, the four
+endpoints — is implemented once in vos.Service.Python.Shared. This file is what a
+service adds to it: a handler, and any routes of its own.
+
 `is` is NOT an external predicate — Mycelium handles `is` inheritance in-process
 and never calls it to a handler. Register for a custom predicate instead.
 
-Run:  python app.py --port=5103 --myceliumUrl=https://localhost:7243
+Run:  .venv/bin/python app.py --port=5103 --myceliumUrl=https://localhost:7243
 """
 
 from __future__ import annotations
 
-import base64
-import os
-import ssl
 import sys
-import uuid
-from collections.abc import Mapping
-from contextlib import asynccontextmanager
-from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from urllib.parse import quote
 
 import httpx
-import jwt
-import truststore
-from cryptography.hazmat.primitives.serialization import load_der_public_key
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
+
+from vos_service import Config, PlatformRefusal, ServiceHost, parse_args, sediment_reading
 
 SERVICE_NAME = "Python"
 
-
-@dataclass
-class Config:
-    port: int = 0
-    mycelium_url: str = ""
-    token: str | None = None
-    api_key: str | None = None
-    verification_key: str | None = None
-    issuer: str = ""
-    #: This service's own name. A token addressed to anything else is refused.
-    audience: str = ""
-
-
-def parse_args(argv: list[str], environment: Mapping[str, str] = os.environ) -> Config | None:
-    """Parse the standard --key=value flags.
-
-    A credential is read from the environment alone. A command line is visible to every process
-    on the host and is recorded by anything that logs the line a service was started with.
-    """
-    cfg = Config(
-        token=environment.get("Token"), api_key=environment.get("ApiKey"),
-        verification_key=environment.get("VerificationKey"))
-    seen_port = seen_url = False
-    for arg in argv:
-        if "=" not in arg:
-            continue
-        key, value = arg.split("=", 1)
-        if key == "--port":
-            if not value.isdigit() or not (1 <= int(value) <= 65535):
-                return None
-            cfg.port, seen_port = int(value), True
-        elif key == "--myceliumUrl":
-            cfg.mycelium_url, seen_url = value.rstrip("/"), True
-        elif key == "--issuer" and value:
-            cfg.issuer = value
-        elif key == "--audience" and value:
-            cfg.audience = value
-    if not (seen_port and seen_url):
-        return None
-    # No default issuer or recipient name to fall back on. Each handler is addressed by its own
-    # name, so a shared default could not be correct for anyone and would refuse every call.
-    if cfg.verification_key and not (cfg.issuer and cfg.audience):
-        return None
-    return cfg
-
-
-USAGE = (
-    "Usage: .venv/bin/python app.py --port=<port> --myceliumUrl=<url> "
-    "[--issuer=<iss>] [--audience=<aud>]\n"
-    "--issuer and --audience are required whenever a VerificationKey is set; --audience is this "
-    "service's own name.\n"
-    "Credentials come from the environment, never the command line: ApiKey, Token, VerificationKey"
-)
-
 config = parse_args(sys.argv[1:]) or Config()
-handler_id = str(uuid.uuid4())
-mycelium_url_stored = config.mycelium_url
-requests_processed = 0
 
 
-#: A held token is exchanged again this long before it runs out.
-REPLACEMENT_LEAD = timedelta(seconds=30)
-
-
-def platform_client(timeout: float) -> httpx.AsyncClient:
-    """A client for calls to Mycelium, which carry the key or a token.
-
-    It checks the platform's certificate against what this machine trusts, so a Mycelium on the same
-    machine presenting the development certificate is reached once that certificate is trusted, and
-    anything else presenting a certificate nothing vouches for is never sent the credential.
-    """
-    return httpx.AsyncClient(timeout=timeout, verify=truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT))
-
-
-_held_token: tuple[str, datetime] | None = None
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-async def _get_token(*, client: httpx.AsyncClient | None = None) -> str:
-    """The bearer for a call to Mycelium.
-
-    A key does not run out, but the token it is exchanged for lasts minutes. So the token is held
-    and the exchange repeated shortly before it runs out, rather than on every call. A key is
-    presented before a token given beside it, as the C# host does. With neither there is nothing
-    to present: Mycelium refuses a token request that carries no key, so none is made.
-    """
-    global _held_token
-    if config.api_key:
-        if _held_token is None or _held_token[1] - _now() <= REPLACEMENT_LEAD:
-            _held_token = await _exchange_the_key(client)
-        return _held_token[0]
-    if config.token:
-        return config.token
-    raise RuntimeError("neither ApiKey nor Token is set, so there is no credential to present to Mycelium")
-
-
-async def _exchange_the_key(client: httpx.AsyncClient | None) -> tuple[str, datetime]:
-    url = f"{config.mycelium_url}/api/auth/token"
-    headers = {"X-API-Key": config.api_key}
-    if client is not None:
-        res = await client.post(url, headers=headers)
-    else:
-        async with platform_client(timeout=5) as c:
-            res = await c.post(url, headers=headers)
-    if not res.is_success:
-        raise RuntimeError(f"Mycelium refused to exchange the API key ({res.status_code})")
-    token = res.json()["token"]
-    # Read, not checked: only Mycelium can check its own signature, and it does on every call.
-    expires = jwt.decode(token, options={"verify_signature": False}).get("exp")
-    if expires is None:
-        # It would be held forever and fail only once something depended on it.
-        raise RuntimeError("Mycelium exchanged the API key for a token that states no expiry")
-    return token, datetime.fromtimestamp(expires, timezone.utc)
-
-
-async def register_with_mycelium() -> bool:
-    token = await _get_token()
-    base = f"http://localhost:{config.port}"
-    payload = {
-        "handlerId": handler_id,
-        "serviceName": SERVICE_NAME,
-        "endpointUrl": base,
-        "startCommand": "endpoint-service",
-        "stopEndpoint": f"{base}/shutdown",
-        "healthEndpoint": f"{base}/health",
+async def handle_relationship(payload: dict, request_number: int) -> dict:
+    print(f"handle #{request_number}: relationship {payload.get('relationshipId')}")
+    return {
+        "success": True,
+        "service": SERVICE_NAME,
+        "requestNumber": request_number,
+        "relationshipId": payload.get("relationshipId"),
+        "status": "handled",
+        "echo": payload,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-    async with platform_client(timeout=5) as client:
-        res = await client.post(
-            f"{config.mycelium_url}/api/mycelium/register",
-            json=payload,
-            headers={"Authorization": f"Bearer {token}"},
-        )
-        return res.is_success
 
 
-# Write kinds — Facts, Observations, Sediment. docs/SERVICE_CONTRACT.md § "Writing data back".
-# The optional `client` lets tests inject an httpx.AsyncClient with a MockTransport.
-
-
-async def _authed_post(path: str, json_body, *, client: httpx.AsyncClient | None = None) -> httpx.Response:
-    token = await _get_token(client=client)
-    url = f"{config.mycelium_url}{path}"
-    headers = {"Authorization": f"Bearer {token}"}
-    if client is not None:
-        return await client.post(url, json=json_body, headers=headers)
-    async with platform_client(timeout=30) as c:
-        return await c.post(url, json=json_body, headers=headers)
-
-
-async def set_fact(thing_id: str, prop: str, value, *, client: httpx.AsyncClient | None = None) -> int:
-    """Assert a structural Fact; return the commit sequence number (405 if ObservationOnly)."""
-    res = await _authed_post(f"/api/things/{thing_id}/properties/{quote(prop, safe='')}/facts", {"value": value}, client=client)
-    if res.status_code != 201:
-        raise RuntimeError(f"fact write returned {res.status_code}")
-    return res.json().get("sequenceNumber", 0)
-
-
-async def record_observation(thing_id: str, prop: str, value, observed_at: str | None = None, *, client: httpx.AsyncClient | None = None) -> None:
-    """Record one Observation (202); pass observed_at for late samples, omit for now (405 if FactOnly)."""
-    body = {"value": value}
-    if observed_at:
-        body["observedAt"] = observed_at
-    res = await _authed_post(f"/api/things/{thing_id}/properties/{quote(prop, safe='')}/observations", body, client=client)
-    if not res.is_success:
-        raise RuntimeError(f"observation write returned {res.status_code}")
-
-
-async def record_observations(thing_id: str, samples: list[dict], *, client: httpx.AsyncClient | None = None) -> int:
-    """Record many samples (dicts of {property, value, observedAt?}) in one batch (202); return the accepted count."""
-    if not samples:
-        return 0
-    res = await _authed_post(f"/api/things/{thing_id}/observations", samples, client=client)
-    if not res.is_success:
-        raise RuntimeError(f"observation batch returned {res.status_code}")
-    return res.json().get("accepted", len(samples))
-
-
-def sediment_reading(thing_id: str, prop: str, value, observed_at: str) -> dict:
-    """One historical reading, with its Thing under the name the sediment route reads it by."""
-    return {"objectId": thing_id, "property": prop, "value": value, "observedAt": observed_at}
-
-
-async def deposit_sediment(readings: list[dict], *, client: httpx.AsyncClient | None = None) -> dict:
-    """Bulk-load historical readings (each a `sediment_reading`) to sealed Sapwood (202)."""
-    if not readings:
-        raise ValueError("at least one reading is required")
-    res = await _authed_post("/api/sediment", readings, client=client)
-    if not res.is_success:
-        raise RuntimeError(f"sediment deposit returned {res.status_code}")
-    return res.json()
-
-
-# Snapshot selector — subscribe to a slice (replaced launch-time IDs). docs/SERVICE_CONTRACT.md § "Selecting a slice".
-
-
-def slice_by_type_and_traverse(type_: str, predicate: str) -> dict:
-    """A representative slice: every Thing of type_ plus its depth-1 predicate neighbours."""
-    return {"types": [type_], "traverse": [{"predicate": predicate, "direction": "outgoing", "depth": 1}]}
-
-
-class PlatformRefusal(RuntimeError):
-    """The platform's own status and words for a slice it refused, so a demo can pass the refusal on as given."""
-
-    def __init__(self, status: int, body: str) -> None:
-        super().__init__(f"the platform refused the subscription with {status}: {body}")
-        self.status = status
-        self.body = body
-
-
-async def subscribe(selector: dict, *, client: httpx.AsyncClient | None = None) -> dict:
-    """POST the selector to /api/subscriptions; return the resolved snapshot closure."""
-    res = await _authed_post("/api/subscriptions", selector, client=client)
-    if not res.is_success:
-        raise PlatformRefusal(res.status_code, res.text)
-    return res.json()
+host = ServiceHost(SERVICE_NAME, config, handle_relationship, title="VillageOS Python Microservice")
+app = host.app
+mycelium = host.mycelium
 
 
 # Declared by the shared site templates, so the demo slices on any seeded model.
@@ -258,25 +54,13 @@ DEFAULT_SLICE_TYPE = "OpenDataSource"
 DEFAULT_SLICE_PREDICATE = "provides"
 
 
-async def unsubscribe(subscription_id: str, *, client: httpx.AsyncClient | None = None) -> None:
-    """Release a subscription (best-effort)."""
-    token = await _get_token(client=client)
-    headers = {"Authorization": f"Bearer {token}"}
-    url = f"{config.mycelium_url}/api/subscriptions/{subscription_id}"
-    if client is not None:
-        await client.delete(url, headers=headers)
-    else:
-        async with platform_client(timeout=10) as c:
-            await c.delete(url, headers=headers)
-
-
 async def demo_subscribe(type_: str = DEFAULT_SLICE_TYPE, predicate: str = DEFAULT_SLICE_PREDICATE, *, client: httpx.AsyncClient | None = None) -> dict:
     """Subscribe for a by-type+traverse slice, report the closure, unsubscribe."""
-    sub = await subscribe(slice_by_type_and_traverse(type_, predicate), client=client)
+    sub = await mycelium.subscribe(mycelium.slice_by_type_and_traverse(type_, predicate), client=client)
     snap = sub.get("snapshot", {})
     things = snap.get("things", [])
     names = [t.get("Name") or t.get("Id") for t in things]
-    await unsubscribe(sub["subscriptionId"], client=client)
+    await mycelium.unsubscribe(sub["subscriptionId"], client=client)
     return {
         "subscriptionId": sub["subscriptionId"],
         "watermark": sub.get("watermark"),
@@ -286,89 +70,8 @@ async def demo_subscribe(type_: str = DEFAULT_SLICE_TYPE, predicate: str = DEFAU
     }
 
 
-def verify_request(request: Request) -> None:
-    """FastAPI dependency validating a Bearer JWT.
-
-    No-op when no verification key was supplied (matches the .NET handlers).
-    Issuer, recipient name and expiry are validated with 30s clock skew, mirroring
-    ServiceTokenValidator.
-
-    The accepted algorithm is named rather than taken from the token. A checker that honoured the
-    token's own claim would accept a token signed with this public key used as a plain shared
-    secret, which is a value every handler holds.
-    """
-    if not config.verification_key:
-        return
-    auth = request.headers.get("authorization", "")
-    if not auth.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="missing bearer token")
-    try:
-        jwt.decode(
-            auth[len("Bearer "):],
-            key=load_der_public_key(base64.b64decode(config.verification_key)),
-            algorithms=["ES256"],
-            issuer=config.issuer,
-            audience=config.audience,
-            leeway=30,
-        )
-    except jwt.PyJWTError as exc:
-        raise HTTPException(status_code=401, detail=str(exc)) from exc
-
-
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    if not (config.api_key or config.token):
-        print("neither ApiKey nor Token is set, so this service has not registered with mycelium")
-    else:
-        try:
-            registered = await register_with_mycelium()
-            print(f"{'registered' if registered else 'failed to register'} with mycelium as {handler_id}")
-        except Exception as exc:
-            print(f"registration failed: {exc}", file=sys.stderr)
-    yield
-
-
-app = FastAPI(title="VillageOS Python Microservice", lifespan=lifespan)
-
-
-@app.get("/health")
-def health() -> dict:
-    return {"status": "Healthy", "service": SERVICE_NAME, "requestsProcessed": requests_processed,
-            "processId": os.getpid()}
-
-
-@app.get("/stats")
-def stats() -> dict:
-    return {
-        "service": SERVICE_NAME,
-        "version": "1.0.0",
-        "requestsProcessed": requests_processed,
-        "handlerId": handler_id,
-        "myceliumUrl": config.mycelium_url,
-    }
-
-
-@app.post("/handle")
-async def handle_relationship(request: Request, _: None = Depends(verify_request)) -> JSONResponse:
-    global requests_processed
-    requests_processed += 1
-    payload = await request.json()
-    print(f"handle #{requests_processed}: relationship {payload.get('relationshipId')}")
-    return JSONResponse(
-        {
-            "success": True,
-            "service": SERVICE_NAME,
-            "requestNumber": requests_processed,
-            "relationshipId": payload.get("relationshipId"),
-            "status": "handled",
-            "echo": payload,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-    )
-
-
 @app.post("/demo/write-kinds")
-async def demo_write_kinds(request: Request, _: None = Depends(verify_request)) -> JSONResponse:
+async def demo_write_kinds(request: Request, _: None = Depends(host.verify_request)) -> JSONResponse:
     """Drive one of each write kind against an existing Thing. POST {"thingId": "..."}."""
     payload = await request.json()
     thing_id = payload.get("thingId")
@@ -378,12 +81,12 @@ async def demo_write_kinds(request: Request, _: None = Depends(verify_request)) 
     now = datetime.now(timezone.utc)
     day_ago = now - timedelta(days=1)
     try:
-        seq = await set_fact(thing_id, "status", "active")
-        await record_observation(thing_id, "temperature", 21.5, now.isoformat())
-        accepted = await record_observations(
+        seq = await mycelium.set_fact(thing_id, "status", "active")
+        await mycelium.record_observation(thing_id, "temperature", 21.5, now.isoformat())
+        accepted = await mycelium.record_observations(
             thing_id, [{"property": "temperature", "value": 21.7}, {"property": "flow", "value": 3.1}]
         )
-        deposit = await deposit_sediment(
+        deposit = await mycelium.deposit_sediment(
             [
                 sediment_reading(thing_id, "temperature", 19.8, day_ago.isoformat()),
                 sediment_reading(thing_id, "temperature", 20.4, (day_ago + timedelta(hours=1)).isoformat()),
@@ -402,7 +105,7 @@ async def demo_write_kinds(request: Request, _: None = Depends(verify_request)) 
 
 
 @app.post("/demo/subscribe")
-async def demo_subscribe_endpoint(request: Request, _: None = Depends(verify_request)) -> JSONResponse:
+async def demo_subscribe_endpoint(request: Request, _: None = Depends(host.verify_request)) -> JSONResponse:
     """Subscribe for a slice and return its closure. POST optional {"type": "...", "predicate": "..."}."""
     try:
         payload = await request.json()
@@ -417,31 +120,8 @@ async def demo_subscribe_endpoint(request: Request, _: None = Depends(verify_req
     return JSONResponse(result)
 
 
-_server = None
-
-
-@app.post("/shutdown")
-def shutdown(_: None = Depends(verify_request)) -> dict:
-    # Mycelium kills a daemon it started itself. One started any other way is stopped through this
-    # route alone, and Mycelium then checks that it no longer answers.
-    if _server is not None:
-        _server.should_exit = True
-    return {"message": f"Shutting down {SERVICE_NAME} microservice"}
-
-
 def main() -> None:
-    if config.port == 0:
-        print(USAGE, file=sys.stderr)
-        sys.exit(1)
-    import uvicorn
-
-    print(
-        f"VillageOS {SERVICE_NAME} microservice — port {config.port}, "
-        f"mycelium {config.mycelium_url}, auth={bool(config.verification_key)}"
-    )
-    global _server
-    _server = uvicorn.Server(uvicorn.Config(app, host="localhost", port=config.port, log_level="info"))
-    _server.run()
+    host.run("app.py")
 
 
 if __name__ == "__main__":
