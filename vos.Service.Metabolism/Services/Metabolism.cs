@@ -131,7 +131,7 @@ public class Metabolism
                 _logger.LogWarning("Simulation {RelId} tick failed: {Error}", config.RelationshipId, ex.Message);
             }
 
-            await Task.Delay(config.FrequencySeconds * 1000, ct);
+            await Task.Delay(config.Interval, ct);
         }
     }
 
@@ -174,7 +174,7 @@ public class Metabolism
                 updated = propertyName switch
                 {
                     "quantity" => old with { Quantity = Convert.ToDecimal(value, CultureInfo.InvariantCulture) },
-                    "frequencySeconds" => old with { FrequencySeconds = Convert.ToInt32(value, CultureInfo.InvariantCulture) },
+                    "frequencySeconds" => old with { FrequencySeconds = Convert.ToDecimal(value, CultureInfo.InvariantCulture) },
                     "unit" => old with { Unit = value?.ToString() ?? "" },
                     "propertyPath" => old with { PropertyPath = value?.ToString() ?? "quantity" },
                     "startDelaySeconds" => old with { StartDelaySeconds = Convert.ToDecimal(value, CultureInfo.InvariantCulture) },
@@ -188,6 +188,13 @@ public class Metabolism
             }
 
             if (updated == null) return;
+
+            if (SimulationConfig.RefusalOfFrequency(updated.FrequencySeconds) is { } refusal)
+            {
+                _logger.LogWarning("Simulation {RelId}: {Refusal}; it keeps ticking every {Freq}s",
+                    relationshipId, refusal, old.FrequencySeconds);
+                return;
+            }
 
             _logger.LogInformation("Simulation {RelId}: property {Prop} changed to {Value} — restarting",
                 relationshipId, propertyName, value);
