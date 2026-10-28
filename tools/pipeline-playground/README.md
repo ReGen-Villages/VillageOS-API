@@ -40,17 +40,19 @@ python3 validate_fragment.py PipelinePlayground.seed.json
 Every id is a deterministic UUIDv5 of a stable key, so a re-run replaces the same Things instead of forking
 duplicates — merging is idempotent. When merging, the target's own vocabulary is reused rather than doubled:
 the `is` / `has` / `of` predicates are matched **by name**, and each archetype or predicate playing a role is
-matched **through what the target's role Thing binds**, then by name, so a model that calls its pipeline
+matched **through what the target's role Thing binds**, then by name — a match by name passes over role
+Things — so a model that calls its pipeline
 archetype something else keeps its own. One the target holds under the same name but has never bound comes
 to play the role as it reconciles, and the target's own role Things are kept — the binding is what says
 what an archetype is for, and the editor and the orchestrator both read it. Everything else is namespaced
 so it will not collide with a host model's own Things.
 
-The playground also declares the two roots every archetype in a model sits under, `Configuration` and
-`Operation`, bound by the `configuration` and `operation` roles, and places what it mints: the pipeline,
-node, port, wire, service, connection, external-system, message-kind and strategy archetypes and every
-predicate and role Thing under `Configuration`; the run, node-run and sent-message archetypes, which record
-what a run did, under `Operation`. Merged into a model that already binds the roots, the placements land on that model's own
+The playground also declares the three roots every archetype in a model sits under, `Configuration`,
+`Operation` and `Predicate`, bound by the `configuration`, `operation` and `predicate` roles, and places
+what it mints: the pipeline, node, port, wire, service, connection, external-system, message-kind and
+strategy archetypes under `Configuration`; every predicate it declares under `Predicate`; every role
+Thing `is Role`, and `Role` is under `Configuration`; the run, node-run and sent-message archetypes,
+which record what a run did, under `Operation`. Merged into a model that already binds the roots, the placements land on that model's own
 roots, like the rest of the shared vocabulary. Merged into one that does not, the roots arrive with the
 playground, and seed validation then holds the whole model to them.
 
@@ -63,19 +65,22 @@ change, because every model declares them alike. Use the same `--namespace` with
 
 ## What's in the catalog
 
-**Services** (each a palette entry — a `PlatformServiceConnection` carrying a dispatch `Subdomain`, bound to
+**Services** (each a palette entry — a `PlatformServiceConnection` carrying the `Subdomain` it is called at, bound to
 a `Service` that declares typed ports): text and data transforms (Echo, Uppercase, Reverse, JSON Merge,
 Format Report), sources (Generate Text, Timer Tick, Random Number, Site Parameters), arithmetic (Multiply,
 Sum), the site-analysis domains (Water Reserve, Energy Balance, Metabolism, Model Bridge), a fan-out Scorer
 and Batch Enrich, a Decide block whose `strategy` port offers three Things to choose from, and a Publish
 sink. Subdomains match a shipped service where one exists
 (`echo`, `water-reserve`, `energy-balance`, `metabolism`, `model-bridge`), so a saved pipeline can also be
-Run against a live platform; the rest are dispatch-only stand-ins that still drive the editor end to end.
+Run against a live platform; the rest are stand-ins with no service behind them that still drive the editor end to end.
 
 **External systems and message kinds** (`EXTERNAL_SYSTEMS`, `MESSAGE_KINDS`) — what stands outside the
 platform and what crosses its boundary: a `Sensor gateway` that sends a batch of readings, a `Reporting
 office` that is told the daily report. A system `sends` or is `told` kinds of message; a kind `arrivesAt`
-a connection; every connection is `triggeredBy` `http`.
+a connection; every connection is `triggeredBy` `http`. The `http` and `graph` triggers are each bound
+by their role (`httpTrigger`, `graphTrigger`), as the platform recognises a trigger only through its
+role. A **cadence** `is Cadence`, carries `intervalMinutes` and `lastDue` (declared empty), and a start
+node may stand for it: `Every hour` starts the Hourly Tally drawing.
 
 **Pipelines** — each showcases a Pipeline-page feature:
 
@@ -95,6 +100,10 @@ a connection; every connection is `triggeredBy` `http`.
 | Readings Arrive | A start standing for the kind of message the Sensor gateway sends, ending at the answer. |
 | Daily Report | A pipeline ending at the Reporting office, which is told the report. |
 | Branching Decision | A node holding out ports `accept` and `refuse` of its own and answering under one; the other branch is recorded not taken and the end is reached once. |
+| Hourly Tally | A start standing for the cadence `Every hour`, its `due` port wired into Echo, ending at `tally`. |
+
+Every drawing is published. Every service rehearses except Water Reserve, Energy Balance, Metabolism and
+Model Bridge, which nobody has yet checked to write nothing.
 
 ## The graph shape it writes
 
@@ -108,8 +117,10 @@ The contract read by `vos.Trellis/src/pipeline/model.ts` and `vos.Service.Phloem
   as `x` / `y`; a parameter binding rides as a `parameterBindings` JSON property.
 - A **connection** `is PlatformServiceConnection`, carries a `Subdomain`, and `has` a `Service`; the service
   `has` its `Port` children (`portName` / `direction` / `type` / `required` / `collection`).
-- A **wire** is the `carries` predicate (which `is PipelineWire`), carrying `fromPort` / `toPort` and optional
-  `fromPath` / `toPath` / `transform`.
+- A **wire** is a Thing of the wire archetype that its node `has`. It reaches the node it feeds along
+  `carries`, the out port it takes its value from along `inputConnector` and the in port it delivers to
+  along `outputConnector`, each predicate bound by a role of the same word, and carries `fromPath`,
+  `toPath` and `transform` and no port names. A wire drawn as a relationship between two nodes is refused.
 - A seeded **run** `is PipelineRun`, points `of` its pipeline, and `has` `NodeRun` children (a per-item
   `NodeRun` carrying `index` / `total` drives fan-out progress).
 - An **external system** `is ExternalSystem` and `sends` or is `told` message kinds; a **message kind**

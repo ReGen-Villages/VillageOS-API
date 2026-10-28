@@ -219,7 +219,7 @@ Relationships wire them: `consumes is PlatformServiceConnection`, `consumes trig
 `consumes has "consumes service"`, `"consumes service" is "Metabolism prototype"`,
 `"Metabolism prototype" is Service` — and the same for `produces`. The `Service` archetype carries the
 `ExecutablePathTemplate` that turns `ServiceAssembly` into a path, and relates to the `daemon` run
-mode; the trigger and the run mode are Things the seed declares, never words on a connection. The full shape, and the marks the platform finds the two archetypes by, are in
+mode; the trigger and the run mode are Things the seed declares, never words on a connection. The full shape, and the roles the platform finds the two archetypes through, are in
 [`RELATIONSHIP_SERVICES.md`](RELATIONSHIP_SERVICES.md#platformserviceconnection--service-configuration).
 
 `AutoStart: true` is important — it tells Mycelium to re-invoke the handler for all existing relationships when a seed is loaded. Since simulation state is in-memory (not serialized), simulations must be re-started on every load.

@@ -16,8 +16,8 @@ back here.
 
 ## The endpoint-template graph
 
-Endpoints are not free-form. Delta provisions a **single-rooted template hierarchy**
-into a model on its first registration, and validates every registration against it (see
+Endpoints are not free-form. The seed declares a **single-rooted template hierarchy**, bound
+by the `endpoint` role, and Delta checks every registration against it (see
 [`DELTA.md`](DELTA.md) and `SERVICES.md`). A registration `is` a template, which `is` the
 root — admissible properties are the union of keys along that chain, and a value
 resolves to the closest ancestor that declares it:
@@ -28,8 +28,8 @@ flowchart TB
     Esri["<b>EsriEndpoint</b> (source type)<br/>ArcGIS field names fixed as canonical-defaults"]
     Tile["<b>EsriTileEndpoint</b> (source type)"]
     Reg["<b>a registration</b><br/>supplies the required-structural blanks:<br/>url, tokenUrl, tokenRequest"]
-    Auth["<b>TokenExchangeAuth</b> (kind)<br/>requires tokenUrl, tokenRequest, tokenPath"]
-    Page["<b>OffsetPaging</b> (kind)<br/>requires offsetParam, hasMorePath, itemsPath"]
+    Auth["<b>TokenExchangeAuthentication</b> (kind)<br/>requires tokenUrl, tokenRequest, tokenPath"]
+    Page["<b>OffsetPaging</b> (kind)<br/>requires offsetParameter, hasMorePath, itemsPath"]
     Bin["<b>BinaryResponse</b> (kind)<br/>requires nothing"]
     Reg -->|is| Esri -->|is| Endpoint
     Tile -->|is| Endpoint
@@ -45,8 +45,8 @@ The shape:
   (`authenticatesBy`, `pagesBy`, `readsBodyAs`); its own property keys are what an
   endpoint using it must supply, checked before anything is called. A role reaching no
   kind means the plain behaviour; the nearest declaration up the `is` chain wins; and a
-  kind written as a property (`authKind`, `pagingKind`, `responseKind`) is refused when
-  the catalog is read (see [`DELTA.md`](DELTA.md)).
+  kind written as a property (`authKind`, `pagingKind`, `responseKind`) is refused by the
+  platform's seed validation.
 
 - Templates are Things; inheritance is expressed model-natively as `is` relationships
   (`EsriEndpoint is Endpoint`), never a scalar field.
@@ -59,13 +59,14 @@ The shape:
   makes the key admissible without supplying an inherited default.
 - Tributary never walks the template graph itself. It reads the **resolved properties** for
   the endpoint Thing (Mycelium merges the `is`-chain) and resolves each property by
-  suffix-aware name match (`EffectivePropertyResolver`, so a Mycelium key like
+  suffix-aware name match (`EffectivePropertyResolver` in `vos.Service.Shared`, which Delta uses
+  the same way, so a Mycelium key like
   `Esri.itemsPath` matches a lookup for `itemsPath`).
 - Mycelium's resolved view reports a key **once per declaring template**, qualified by the path
   from the endpoint Thing. A key a descendant narrows appears **once**, at the ancestor that
-  declares it, holding the narrowed value — Delta writes a narrowing after the template's `is`
-  relationship exists, so Mycelium stores it as an override rather than an own property (see
-  [`DELTA.md`](DELTA.md)), and the platform refuses a Thing owning a name it also inherits.
+  declares it, holding the narrowed value — the seed stores a narrowing as an override of the
+  ancestor's declaration rather than an own property, and the platform refuses a Thing owning a
+  name it also inherits.
 - A key therefore reaches Tributary once. Two matches mean two genuinely different declarations
   (`http.url` against `resource.url`), and the call fails with a `conflicts` list rather than
   picking one arbitrarily.
@@ -78,16 +79,16 @@ value and whether it is expected to be overridden.
 | Role | Meaning | Examples |
 |------|---------|----------|
 | **required-structural** | A structural key (declared blank on a template) that a registration MUST fill. Admissible via `AllowedKeys`; rejected if missing at use. | `url`; `tokenUrl`, `tokenRequest` (when minting a token); `assetProperty`, `assetSubject` (when keeping retrievals) |
-| **canonical-default** | A value a *child* template fixes to define a source type's identity — not normally overridden per registration. | `tokenPath`, `expiryPath`, `expiryUnit`; `offsetParam`, `pageSizeParam`, `hasMorePath`, `itemsPath` |
-| **sensible-default** | Has a built-in fallback (in code or a generic template default); commonly overridden per endpoint. | `httpMethod` (GET), `requestContentType` (application/json), `timeout` (30s), `tokenParam` (token), `unavailableAnswer` and `unavailableRetryAfter` (the words and the wait a proxy's 404 is read with — see *404 is the exception* below) |
+| **canonical-default** | A value a *child* template fixes to define a source type's identity — not normally overridden per registration. | `tokenPath`, `expiryPath`, `expiryUnit`; `offsetParameter`, `pageSizeParameter`, `hasMorePath`, `itemsPath` |
+| **sensible-default** | Has a built-in fallback (in code or a generic template default); commonly overridden per endpoint. | `httpMethod` (GET), `requestContentType` (application/json), `timeout` (30s), `tokenParameter` (token), `unavailableAnswer` and `unavailableRetryAfter` (the words and the wait a proxy's 404 is read with — see *404 is the exception* below) |
 | **optional** | May be absent entirely; the feature is simply off. | `responseTransform` (absent → the body is returned unchanged, nothing is ingested), `headers`, `queryParams`, `acceptHeader`, `token` (pre-minted), `tokenHeader` / `tokenScheme`, `pageSize`, `observedAtParameter` |
 
 Which *mechanisms* apply is not in the table because it is not a property: an endpoint
-reaches `TokenExchangeAuth`, `OffsetPaging`, or `BinaryResponse` through its template's
+reaches `TokenExchangeAuthentication`, `OffsetPaging`, or `BinaryResponse` through its template's
 role relationships, and the kinds themselves name the required-structural keys above.
 
 The `EsriEndpoint` template is the worked example: it restates only the keys it narrows
-(`httpMethod=POST`, form-encoded `requestContentType`), reaches `TokenExchangeAuth` and
+(`httpMethod=POST`, form-encoded `requestContentType`), reaches `TokenExchangeAuthentication` and
 `OffsetPaging`, and fixes the ArcGIS field names as canonical-defaults
 (`tokenPath=token`, `expiryUnit=epochMillis`, `hasMorePath=exceededTransferLimit`,
 `itemsPath=features`, …). A registration then supplies only the required-structural
@@ -174,6 +175,14 @@ look the same once they are in the model.
 - **An ingest that writes nothing relates nothing.** A source answering for a site it holds no values
   about leaves no relationship claiming otherwise. The relationship is written before the values, so a
   refused relationship leaves nothing behind that cannot be traced back.
+- **The predicate is the one the `observed` role binds**, read from the snapshot the call already
+  takes, so a model may give it another name. A model whose role binds nothing gets the `observed`
+  predicate, the role Thing, its `is Role` relationship and its `binds` relationship in one fragment,
+  the first time an ingest needs them. The predicate takes the identifier the platform's open-data
+  template declares for it, so a model that imports that template afterwards still holds one
+  predicate, and the role still binds one. Where the model's `predicate` role binds a root, the same
+  fragment relates `observed` to it through `is`, so the created predicate is listed with the model's
+  other predicates.
 - **Which registration produced a particular property is a different question.** A Site fed rainfall by
   one source and solar resource by another carries a relationship to each, and nothing says which value
   came from which. A property is not a Thing here, so there is nothing for a per-property relationship
@@ -189,7 +198,7 @@ template* below).
 
 **Authentication.** An endpoint that reaches no kind through `authenticatesBy` makes a
 plain REST call (a *static* key needs no auth kind — configure it directly as a
-`queryParams` entry or header). Reaching **`TokenExchangeAuth`** selects the
+`queryParams` entry or header). Reaching **`TokenExchangeAuthentication`** selects the
 token-exchange mechanism:
 
 - a pre-minted `token` is used directly; otherwise a token is minted
@@ -198,24 +207,24 @@ token-exchange mechanism:
   `epochMillis`/`epochSeconds`/`seconds`). Tokens live in a per-process
   `TokenExchangeCache` keyed by `(tokenUrl, request-fields)`, reused until ~75% of
   lifetime elapses (`TimeProvider`-driven), then refreshed. The credential attaches as a
-  query param (`tokenParam`, default `token`) or, if `tokenHeader` is set, a request
+  query param (`tokenParameter`, default `token`) or, if `tokenHeader` is set, a request
   header (`tokenScheme` + value). Missing mint config is a 400; a token-endpoint failure
   surfaces as a **generic** 502 (the upstream message may name the credential and is not
   echoed to the caller — it is logged).
 
 **Offset paging.** When the endpoint reaches **`OffsetPaging`** through `pagesBy`,
 `OffsetPaginator` loops the query
-advancing `offsetParam` (by `pageSize` via `pageSizeParam`, else by the returned item
+advancing `offsetParameter` (by `pageSize` via `pageSizeParameter`, else by the returned item
 count) while the page's `hasMorePath` boolean is true, and concatenates every page's
 array at `itemsPath` into the first page's body. Aggregation happens **before** the
 JSONata `responseTransform` runs, so the transform sees the complete result, not page
 one. Paths are simple dotted keys (e.g. `data.features`). A page answered outside 2xx ends
 the walk and is what the caller gets, status and body — see below.
 
-**The `EsriEndpoint` template.** Seeds are deployment-supplied runtime data (not
-committed; `seed.json` stores every template as a thing plus the `is` relationships
-between them), so the canonical shape lives here. ESRI is expressed purely as config on
-a child template that extends `Endpoint` and restates only the keys it narrows:
+**The `EsriEndpoint` template.** The canonical template ships in the platform's shared site
+template, with the predicates `authenticatesBy` and `pagesBy` beside it. The kinds are Things whose
+property keys are what a registration must supply. ESRI is expressed purely as config on a child
+template that extends `Endpoint` and restates only the keys it narrows. In outline:
 
 ```json
 {
@@ -228,17 +237,17 @@ a child template that extends `Endpoint` and restates only the keys it narrows:
         "httpMethod": "POST", "requestContentType": "application/x-www-form-urlencoded",
         "token": "", "tokenUrl": "", "tokenRequest": "",
         "tokenPath": "token", "expiryPath": "expires", "expiryUnit": "epochMillis",
-        "offsetParam": "resultOffset",
-        "pageSizeParam": "resultRecordCount", "hasMorePath": "exceededTransferLimit",
+        "offsetParameter": "resultOffset",
+        "pageSizeParameter": "resultRecordCount", "hasMorePath": "exceededTransferLimit",
         "itemsPath": "features", "pageSize": "" } }
   ],
   "kinds": [
-    { "name": "TokenExchangeAuth", "requires": ["tokenUrl", "tokenRequest", "tokenPath"] },
-    { "name": "OffsetPaging", "requires": ["offsetParam", "hasMorePath", "itemsPath"] }
+    { "name": "TokenExchangeAuthentication", "requires": ["tokenUrl", "tokenRequest", "tokenPath"] },
+    { "name": "OffsetPaging", "requires": ["offsetParameter", "hasMorePath", "itemsPath"] }
   ],
   "relationships": [
     { "subject": "EsriEndpoint", "predicate": "is", "target": "Endpoint" },
-    { "subject": "EsriEndpoint", "predicate": "authenticatesBy", "target": "TokenExchangeAuth" },
+    { "subject": "EsriEndpoint", "predicate": "authenticatesBy", "target": "TokenExchangeAuthentication" },
     { "subject": "EsriEndpoint", "predicate": "pagesBy", "target": "OffsetPaging" }
   ]
 }
@@ -249,8 +258,8 @@ A registration under `EsriEndpoint` supplies the blanks (`url`, `tokenUrl`,
 OAuth2 source reuses the same code with `tokenPath=access_token`,
 `expiryPath=expires_in`, `expiryUnit=seconds`, `tokenHeader=Authorization`,
 `tokenScheme=Bearer`. Blank values are structural keys — admissible for a registration
-but supplying no inherited default. Graph composition is pinned by
-`EsriEndpointTemplateTests` (Delta); behavior by `EsriHandleTests`,
+but supplying no inherited default. The template's shape is pinned by the platform's own tests of
+its seed templates; behavior by `EsriHandleTests`,
 `TokenExchangeCacheTests`, and `OffsetPaginatorTests` (Tributary).
 
 ## Non-text payloads and map tiles
@@ -328,7 +337,7 @@ the Accept header, since the same address can answer with different formats. Ent
 to `.bin` plus a `.meta.json` sidecar carrying the exact Content-Type), so a cached tile
 opens in any viewer. Expired entries simply miss and are overwritten by the next fetch —
 no sweeper. Combinations the cache cannot answer honestly are refused up front: offset
-paging, a credentialed (`TokenExchangeAuth`) call, and a request with an outbound body
+paging, a credentialed (`TokenExchangeAuthentication`) call, and a request with an outbound body
 (none of which are part of the key). The cache root is deployment configuration
 (`CacheDirectory`, default `cache/` under the service's working directory), and so is the
 `ProviderUnavailable` section below; the service reads `appsettings.json` beside its executable
@@ -383,8 +392,8 @@ new retrieval happened. `OffsetPaging` is refused: the aggregate is assembled by
 service, so keeping it would deposit bytes the provider never served. Reaching no kind
 through `keepsBy` is the transient default above.
 
-Graph composition is pinned by `EsriTileEndpointTemplateTests` and
-`ModelAssetEndpointSpecTests` (Delta); behavior by `BinaryResponseKindTests`,
+The templates' shape is pinned by the platform's own tests of its seed templates; behavior by
+`BinaryResponseKindTests`,
 `AcceptHeaderTests`, `DiskCacheHandleTests`, and `ModelAssetHandleTests` (Tributary).
 
 ## What the caller gets when the provider does not answer with a reading
@@ -579,8 +588,8 @@ readable rather than being settled by whichever was written last.
 
 - `SERVICES.md` section 14 — how Mycelium hosts Tributary as an endpoint service
   (auto-discovery, daemon lifecycle, pass-through proxying).
-- [`DELTA.md`](DELTA.md) — how the template catalog is provisioned and how
-  registrations are validated against it.
+- [`DELTA.md`](DELTA.md) — how a registration is checked against the template tree the
+  model holds.
 - `METABOLISM.md` — the derived-calculation engine on the other side of the
   fetch-and-shape boundary.
 - [`TEMPORAL_READS.md`](TEMPORAL_READS.md) — the tiered time-series store the ingested

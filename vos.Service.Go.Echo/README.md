@@ -4,7 +4,7 @@ A complete, runnable VillageOS handler written in **Go using only the standard l
 
 This is the Go analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.Service.CSharp.Echo) example — an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Replace the body of `handleRelationship` in `main.go` with your predicate logic.
 
-> Note: `is` is **not** an external predicate — Mycelium handles `is` inheritance in-process and never dispatches it to a handler. Register your service for a custom predicate (or `consumes`/`produces`) instead. See the authoring doc.
+> Note: `is` is **not** an external predicate — Mycelium handles `is` inheritance in-process and never sends it to a handler. Register your service for a custom predicate (or `consumes`/`produces`) instead. See the authoring doc.
 
 ## Run
 
@@ -93,10 +93,12 @@ Full wire contract (routes, status codes, 405/404 gating): [`docs/SERVICE_CONTRA
 
 A handler is passed no object identifiers at launch: it subscribes with a selector describing the
 slice it needs. This example provides `subscribe` / `unsubscribe` / `sliceByTypeAndTraverse` and a runnable
-demo at `POST /demo/subscribe { "type": "Battery", "predicate": "powers" }`.
+demo at `POST /demo/subscribe { "type": "OpenDataSource", "predicate": "provides" }` — the defaults, which
+the platform's shared templates declare, so the demo slices on any seeded model. A slice the platform
+refuses is answered with the platform's own status and words.
 
 ```go
-sub, _ := s.subscribe(sliceByTypeAndTraverse("Battery", "powers"))
+sub, _ := s.subscribe(sliceByTypeAndTraverse("OpenDataSource", "provides"))
 // sub.Snapshot.Things / sub.Snapshot.Relationships = exactly the requested closure
 ```
 

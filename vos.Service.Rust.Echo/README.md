@@ -87,10 +87,12 @@ Full wire contract (routes, status codes, 405/404 gating): [`docs/SERVICE_CONTRA
 
 A handler is passed no object identifiers at launch: it subscribes with a selector describing the
 slice it needs. This example provides `subscribe` / `unsubscribe` / `slice_by_type_and_traverse` and a
-runnable demo at `POST /demo/subscribe { "type": "Battery", "predicate": "powers" }`.
+runnable demo at `POST /demo/subscribe { "type": "OpenDataSource", "predicate": "provides" }` — the
+defaults, which the platform's shared templates declare, so the demo slices on any seeded model. A slice
+the platform refuses is answered with the platform's own status and words.
 
 ```rust
-let sub = subscribe(cfg, &http, &slice_by_type_and_traverse("Battery", "powers")).await?;
+let sub = subscribe(cfg, &http, &slice_by_type_and_traverse("OpenDataSource", "provides")).await?;
 // sub.snapshot.things / sub.snapshot.relationships = exactly the requested closure
 ```
 

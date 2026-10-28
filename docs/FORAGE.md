@@ -43,9 +43,8 @@ alongside the archetype set. A registration lives in the project's own
 model, so a source every project uses belongs in the seed every project is created from — see
 [`DELTA.md`](DELTA.md#which-model-a-registration-lives-in). **A site's own `isIn` relationship is
 written by its producer, not inherited from the archetype.** The submission producer writes one per
-site, to the Place carrying `__IsRootPlace` through the predicate carrying
-`__IsPlaceNestingPredicate` — both found
-by mark, because a producer naming `Earth` would relate nothing, and say nothing, in a model that
+site, to the Place the `rootPlace` role binds through the predicate the `placeNesting` role binds —
+both found through their roles, because a producer naming `Earth` would relate nothing, and say nothing, in a model that
 called its root something else.
 
 **The root is enough for a source that covers everything, and the producer claims no more.** A
@@ -76,41 +75,41 @@ unresolved list either, because nothing knew to look for it.
 
 | Predicate | Reads | Why |
 |---|---|---|
-| `isIn` | `Site isIn Place`, `Place isIn Place` | Where the site is, and what contains that. Walked to any depth, so nesting can be as deep as a model wants — upwards from a site, and downwards from the Places a source covers when the source is what was dispatched. |
+| `isIn` | `Site isIn Place`, `Place isIn Place` | Where the site is, and what contains that. Walked to any depth, so nesting can be as deep as a model wants — upwards from a site, and downwards from the Places a source covers when the source is what the run is about. |
 | `covers` | `OpenDataSource covers Place` | Where a source applies. Several `covers` relationships are fine; the source is still selected once. |
 | `resolvedBy` | `OpenDataSource resolvedBy Endpoint` | Which Tributary registration a call goes through. A relation, not a copied name, so renaming the registration cannot strand the source. |
 | `resolvesOnto` | `OpenDataSource resolvesOnto archetype` | What a source's readings are about, where that is not the site itself. A source naming an archetype is called once per Thing the site `has` of it, with that Thing as the call's subject — the hazard portal grades one assessment per call. |
 | `studies` | `SiteStudy studies Site` | The study the analysis computes. Read incoming, because the relationship runs from the study to the site. |
-| `has`, `is` | `Connection has Service`, `Service is prototype`, `Site has HazardAssessment`, `Site is Site` | Which service a connection dispatches, the prototype an analysis relationship points at, the Things a per-subject source is called about — and whether a Thing is a site, by the `__IsSiteArchetype` mark on what it `is`. |
+| `has`, `is` | `Connection has Service`, `Service is prototype`, `Site has HazardAssessment`, `Site is Site` | Which service a connection calls, the prototype an analysis relationship points at, the Things a per-subject source is called about — and whether a Thing is a site, by whether what it `is` is the archetype the `site` role binds. |
 | `assesses` | `HazardAssessment assesses HazardType` | What an assessment is about. The type Thing carries the portal's code for it, and a per-assessment call is addressed with what its subject reaches — a second per-subject source whose vocabulary hangs off a different predicate adds that predicate here. |
 
-Connections are **not** read by name. Every connection a site analysis starts `is` an archetype
-carrying `__IsSiteAnalysisConnectionArchetype`, and they are asked for by that mark, model-wide —
-the study is not related to them yet, because relating it is what the read is for. Adding a fourth
-balance is a mark in the model, not a change here.
+Connections are **not** read by name. Every connection a site analysis starts `is` the archetype the
+`siteAnalysisConnection` role binds, and they are asked for through that role (`boundTypes`),
+model-wide — the study is not related to them yet, because relating it is what the read is for. Adding
+a fourth balance is a connection of that archetype in the model, not a change here.
 
 An `OpenDataSource` with no `resolvedBy` relationship is **left out** rather than reported as a failure.
 It is not a source that failed — it was never callable, and listing it as unresolved would
-blame a provider for a gap in the model. A `Site` with no study, and a model marking no analysis
+blame a provider for a gap in the model. A `Site` with no study, and a model binding no analysis
 connection, are treated the same way: the run reports it in `analysis.reason` and logs nothing,
 where a service that could not be started logs an error — nothing was ever going to run, so there
 is no outage for an operator to look into.
 
 ## Reading the model
 
-One scoped snapshot answers each question. **What the dispatch named** is read first: the subject with
-its `is` chain, and the site archetype the platform marks with `__IsSiteArchetype` — asked for on
-its own, because with its members every site in the model would arrive to answer a question about
-one Thing. A subject that `is` that archetype, directly or through
+One scoped snapshot answers each question. **What the call named** is read first: the subject with
+its `is` chain, and the `site` role Thing with the archetype it binds — asked for without the
+archetype's members, because with them every site in the model would arrive to answer a question
+about one Thing. A subject that `is` that archetype, directly or through
 intermediate types, is a site; one that is not and `covers` a Place or is `resolvedBy` a registration
-is a source; anything else is neither, and the run writes nothing for it. A model that marks no site
+is a source; anything else is neither, and the run writes nothing for it. A model that binds no site
 archetype cannot tell the two apart, and every subject in it is taken for a site — such a model cannot
-have declared the connection that dispatches a source either.
+have declared the connection that calls this service about a source either.
 
 **A site's read** then answers everything about it: the site's Places, then every source whose coverage
 reaches one of them, then those sources' registrations — and, model-wide, the two division lookups, which
-no relationship reaches because neither covers a Place, and every Place, asked for by the mark
-`__IsPlaceArchetype`, so the run can relate the site to the one carrying the code the geocoder answers.
+no relationship reaches because neither covers a Place, and every Place, asked for through the
+`placeArchetype` role, so the run can relate the site to the one carrying the code the geocoder answers.
 Traverse rules compose over the set built so
 far, so the walk must ask for `isIn` **first** — asking for the incoming `covers` relationships before the
 Places are in the set finds nothing. That is the same ordering trap the Tributary endpoint kinds hit;
@@ -128,21 +127,21 @@ of them.
 **A site entering a state, not a call.** The model declares a range on the `Site` archetype,
 `SiteAwaitingDiscovery` — coordinates known, and either the site's coverage never matched or some
 coverage of it still outstanding — and a connection bound to this service watches it. A site entering
-that state makes the platform write a durable record relationship from the site to the connection and dispatch
-it. Nothing in either repository calls Forage, and nothing has to: **what started a run is a fact in
+that state makes the platform write a durable call record from the site to the connection and call
+the service. Nothing in either repository calls Forage, and nothing has to: **what started a run is a fact in
 the model afterwards**, which a call over HTTP would have left only in a log.
 
 | | How it happens |
 |---|---|
 | A run starts | A site's coordinates are written and its coverage has never been matched |
 | A run does not start again | The run records each source's answer on that source's own coverage and stamps `coverageMatchedAt` on the site; once no coverage is outstanding the site leaves the state on its own |
-| A run in which a source failed | Leaves that source's coverage outstanding, so the site stays in the state; the dispatch record waits out its `done_within`, the run is driven again, and it asks only that source |
-| A run whose model read failed | Writes nothing and stamps nothing, so the site stays in the state and the next load dispatches again — bounded by the platform's oscillation guard |
-| A source added to the catalogue later | Is dispatched itself, from its own state, and offered to every site under the Places it covers: a coverage minted per call those sites would make, nothing fetched. One outstanding coverage puts each site back in the state, and that site's run asks only this source — see [A source added to the catalogue](#a-source-added-to-the-catalogue) |
+| A run in which a source failed | Leaves that source's coverage outstanding, so the site stays in the state; the call record waits out its `done_within`, the run is driven again, and it asks only that source |
+| A run whose model read failed | Writes nothing and stamps nothing, so the site stays in the state and the next load calls the service again — bounded by the platform's oscillation guard |
+| A source added to the catalogue later | Has the service called about it, from its own state, and offered to every site under the Places it covers: a coverage minted per call those sites would make, nothing fetched. One outstanding coverage puts each site back in the state, and that site's run asks only this source — see [A source added to the catalogue](#a-source-added-to-the-catalogue) |
 | A surveyed site | Enters the same state and is discovered the same way; nothing here is particular to a submission |
 
 **A source has a state of its own.** `SourceAwaitingSites` on the `OpenDataSource` archetype — its
-`coverageMatchedAt` unknown — is what dispatches a source, and a source declared in a template is in
+`coverageMatchedAt` unknown — is what has the service called about a source, and a source declared in a template is in
 it the moment the seed loads, so the sites already in the model are offered it without anything calling
 anything. The run stamps the source when it has reached every site, which is what takes it out.
 
@@ -181,15 +180,15 @@ covers has been looked at, and saying so is what tells it apart from one still w
 
 **A model that declares no coverage vocabulary still fetches.** It records nothing and asks again next
 time, because discovering nothing at all would be worse than fetching what was already fetched. The
-archetype is found by the mark the platform declares it with, never by name.
+archetype is found through the `sourceCoverage` role, never by name.
 
 ## A source added to the catalogue
 
-**A source is dispatched too, and its run is the site's run in reverse: it mints and fetches nothing.**
+**A source has a run too, and its run is the site's run in reverse: it mints and fetches nothing.**
 A site's run walks from the site up through its Places to the sources covering them; a
 source's run walks from the source through the Places it `covers` and *down* their nesting to every
-site in them. Places and sites arrive by the same walk, and the mark the platform puts on the site
-archetype (`__IsSiteArchetype`) is what tells them apart — the `proposes` relationship could not,
+site in them. Places and sites arrive by the same walk, and the `site` role's binding is what tells
+them apart — the `proposes` relationship could not,
 because it reaches a submitted site only and a surveyed site has no such relationship.
 
 **One coverage per call those sites would make.** The run works out, for each site it reaches, the
@@ -202,34 +201,34 @@ sources cover that Place.
 
 **Nothing is fetched here.** A minted coverage is outstanding, and that is what puts each site back in
 `SiteAwaitingDiscovery`; the run that fetches is the site's own, and it asks only this source. Running
-the fetches from the source's side would call every site's providers from one dispatch, unbounded by
+the fetches from the source's side would call every site's providers from one service call, unbounded by
 the concurrency a site's run holds to.
 
 **`coverageMatchedAt` is stamped on the source when the run has reached every site**, including a
 source with no registration — offered to nothing, because nothing can call it — so it leaves
-`SourceAwaitingSites` rather than being dispatched again on every load. A run whose read failed stamps
+`SourceAwaitingSites` rather than having the service called again on every load. A run whose read failed stamps
 nothing and mints nothing: stamped, the source would read as offered to every site it covers while
 having reached none, and nothing would offer it again. A model declaring no coverage vocabulary has
 nothing to mint, so the run writes nothing and says so.
 
-**A subject that is neither a site nor a source is a dispatch the model got wrong**, and the run says so
+**A subject that is neither a site nor a source is a call the model got wrong**, and the run says so
 by writing nothing — the site's run would stamp a Place as matched, and a source's run would offer it
 to nothing and do the same. An archetype is never a site: a stamp on the site archetype itself would be
-inherited by every site and take all of them out of the state their runs are dispatched by.
+inherited by every site and take all of them out of the state their runs are started by.
 
 ## The run
 
 `POST /handle { subjectId }` **accepts** a run and answers `202` at once; the fetching happens after.
-The body is whatever the platform posts for a dispatch — the record relationship's own fields — and the
-subject is read from it through the classifier every dispatched service shares, so this service
+The body is whatever the platform posts for a service call — the call record's own fields — and the
+subject is read from it through the classifier every called service shares, so this service
 declares no request shape of its own. The subject is a site or a source, and the model says which (see
 [Reading the model](#reading-the-model)); the rest of this section is a site's run.
 
 **The answer says accepted, not done.** A run fetches every covering source before it could say what
-it found, and the platform gives a dispatch **15 seconds**; with tens of shared sources, fetched
+it found, and the platform gives a service call **15 seconds**; with tens of shared sources, fetched
 `--maxConcurrentSources` at a time and each allowed `--sourceTimeoutSeconds`, a run outlasts that call
 routinely. Judged by the call, finished work would be recorded Failed and driven again. So what closes
-the dispatch is the model: the connection relates to `SiteDiscovered` as what proves a dispatch done,
+the call is the model: the connection relates to `SiteDiscovered` as what proves the call done,
 the record stays in flight until the site's coverage has been matched and no coverage of it is
 outstanding — the run's own last write is what closes it — and `done_within` presumes dead a run
 nobody will finish. Completion is *observed* by choice: the platform does take an acknowledgement
@@ -237,14 +236,14 @@ from a service, but the site reaching the done state is the evidence, and an ack
 add nothing to it.
 
 **One site's runs do not overlap.** A run for a site, or for a source, waits while another run for it
-is in flight; runs for different sites still run together. At most one run waits: a dispatch arriving
+is in flight; runs for different sites still run together. At most one run waits: a call arriving
 while one already waits is dropped, because the waiting run reads the model only after the run in
 flight ends. Two runs for one site would each mint a coverage for the same call, which makes every
 later run for that site fail, and would call the same sources and write the same relationships twice.
 
 **A coverage read that fails writes nothing.** It cannot refuse in the answer, because the answer has
 already been given, so it says so by leaving no trace: no fetch, no analysis started, and the site
-still in the state that dispatched it, which is what drives the run again. An unreachable gateway must
+still in the state that started it, which is what drives the run again. An unreachable gateway must
 never be mistaken for "no source covers this site".
 
 What a run found goes onto the coverages (above) and to the log, per source and with the provider's
@@ -284,8 +283,8 @@ runs.
 placeholders by name, so a registration declaring `granularity` addresses `{granularity}`; a source
 declaring `historyYears` is given `{startDate}` and `{endDate}`, a window of that many years ending
 today — in the wall clock's date, because an archive holds the years that actually happened whatever
-time the model is anchored to; and a source reaching Things through a predicate carrying
-`__IsProvidedVariablePredicate` is given `{variables}`, each Thing's `providerName` joined with commas
+time the model is anchored to; and a source reaching Things along the predicate the
+`providedVariable` role binds is given `{variables}`, each Thing's `providerName` joined with commas
 in the Things' name order, so two runs address one call the same way. A name the subject and the
 source both carry takes the subject's. That is how a climate history source's reach, granularity and
 variables live on the model: a deployment edits the registration or adds a variable Thing, and the
@@ -360,8 +359,8 @@ Five rules, each of which a wrong answer would break:
   neither taken, and a refused relationship leaves the search to grade the site.
 - **English is asked for the country, and the local names beside it.** Left to a geocoder's default a
   Dutch site answers `Nederland`, which the portal matches to nothing, so the address the model holds
-  asks for English. Where the model declares `local-area-name-at-position` (mark
-  `__IsLocalAreaNameLookup`) the same call is made with no language, for the names the portal holds a
+  asks for English. Where the `localAreaNameLookup` role binds a registration the same call is made
+  with no language, for the names the portal holds a
   division under; a refused local call leaves the English names to be searched.
 - **Only the site's own country counts**, and the two providers do not agree on a country's full name —
   the geocoder says `United States` where the portal holds `United States of America` — so they are
@@ -388,15 +387,16 @@ grading nobody chose.
 **What it settled on is written onto the site and addresses this run's own calls.** The code first,
 because that is what addresses a grading; a name written beside a code that would not go would read on
 the page as a division the gradings never came from. Addressing this run rather than the next is what
-grades a site on the run that resolved its division instead of after a whole dispatch has been waited
-out.
+grades a site on the run that resolved its division instead of after a whole service call has been
+waited out.
 
 **Both calls go through the fetching service like any other**, at addresses the model holds — the
-registrations carry a mark each and no reshape expression, so the provider's own body comes back and
+registrations are the ones the `areaNameLookup` and `hazardDivisionLookup` roles bind (with
+`localAreaNameLookup` beside the first), and carry no reshape expression, so the provider's own body comes back and
 nothing is written from it (see [`TRIBUTARY.md`](TRIBUTARY.md#fetch-and-shape-not-derive--the-metabolism-boundary)).
 Neither is an `OpenDataSource`, neither covers a Place, and neither has a coverage: nothing they answer
 is a reading about the site. A run that resolves nothing writes nothing, so the gradings stay
-outstanding, the site stays in the state that dispatched the run, and the next run tries again.
+outstanding, the site stays in the state that started the run, and the next run tries again.
 
 ## Resolving the fetched words
 
@@ -406,7 +406,7 @@ and a fetch writes property values, never relationships. So after the fetches, t
 word against the vocabulary the model declares and relates the subject to the member it names.
 
 **Everything is read from the declaration**: the vocabulary archetype
-carries `__IsDiscoveredVocabularyArchetype` and names, in `resolvedFromProperty`, the property its
+`is` the kind the `discoveredVocabulary` role binds and names, in `resolvedFromProperty`, the property its
 word arrives under; an archetype-level relationship — `Site classifiedAs ClimateZone`,
 `HazardAssessment gradedAs HazardLevel` — names the Thing the word is written onto and the predicate
 the resolved relationship is written through. Nothing here names a vocabulary, an archetype, a predicate or a
@@ -414,9 +414,9 @@ property of any model, so a project adding a vocabulary edits its model and depl
 
 **That relationship has to stay the only one from a subject to its vocabulary.** It is how a run learns which
 predicate its own resolution writes through, so a second would leave it unable to tell which was its —
-and it could write somebody else's. A vocabulary the submission producer resolves is therefore found by
-a mark and declares no relationship, which is why `reportedAs` sits beside `gradedAs` carrying
-`__IsReportedLevelPredicate` and nothing else. What a submitter reports and what a portal grades are two
+and it could write somebody else's. A vocabulary the submission producer resolves is therefore found
+through a role and declares no relationship, which is why `reportedAs` sits beside `gradedAs` as the
+predicate the `reportedLevel` role binds, and carries nothing. What a submitter reports and what a portal grades are two
 predicates to the same Things, and only one of them is a discovery run's.
 
 **The words come from the fetch responses, not from reading the model back.** An observation is
@@ -439,25 +439,24 @@ that matches a member only up to case, and a member name two Things carry, are r
 rather than guessed at.
 
 **A failed declaration read resolves nothing and says so.** The observations are already written and
-the site has left the state that dispatches runs, so nothing retries by itself; the words stay words
+the site has left the state that starts runs, so nothing retries by itself; the words stay words
 until something runs discovery again.
 
 ## Starting the analysis
 
 **When the run finishes, Forage relates the site's study to each compute service** — one
-`SiteStudy -connection-> prototype` relationship per marked connection the study is not already
-related through. A relationship already in the model, from the seed or an earlier run, is left as it
-is and counts as started. A connection bound to a service
-is a handled predicate, so creating that relationship is what dispatches it; no compute service is
-called from
-here. The model carries the trigger, which means there is one way to start an analysis rather than
+`SiteStudy -connection-> prototype` relationship per connection the `siteAnalysisConnection` role
+binds that the study is not already related through. A relationship already in the model, from the
+seed or an earlier run, is left as it is and counts as started. A connection bound to a service
+is a handled predicate, so creating that relationship is what calls its service; no compute service
+is called from here. The model carries the trigger, which means there is one way to start an analysis rather than
 two to keep in step, and what started a given analysis is answerable from the model afterwards rather
 than only from a log.
 
 **The subject is the study, never the site.** A compute service reads its inputs off the study, so a
-relationship naming the site would dispatch the service against a Thing carrying none of them.
+relationship naming the site would call the service about a Thing carrying none of them.
 
-**The relationship is written once.** Dispatch makes the service compute and start watching the study, so
+**The relationship is written once.** The call makes the service compute and start watching the study, so
 every later change to an input recomputes on its own. Discovery does not have to run again for a
 balance to stay current.
 
@@ -472,7 +471,7 @@ public data portal again, because the values are already on the Site. It matters
 would under a graph run once per request, because a reactive chain re-fires on every input change.
 
 **A failure to start does not lose the report.** The observations are written by the time the
-analysis is asked for, so a site with no study, a model marking no analysis connection, or a refused
+analysis is asked for, so a site with no study, a model binding no analysis connection, or a refused
 relationship write are each reported in `analysis.reason` with the discovery report intact beside
 them. A write that fails for one connection names that connection.
 
