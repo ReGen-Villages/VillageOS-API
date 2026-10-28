@@ -1,6 +1,8 @@
 # docs-to-wiki
 
-Generates an **Azure DevOps project wiki** from a repository's own markdown.
+Generates wiki pages, in the Azure DevOps wiki format, from a repository's own markdown. The
+platform repository publishes them to its project wiki with `publish-wiki.js`; this repository's
+build converts them for the GitHub wiki with [`tools/wiki-mirror`](../wiki-mirror/).
 
 The repository is the source of truth. Every wiki page is produced from a file listed in a
 manifest, so a page cannot quietly fall behind the document it is built from.
@@ -89,19 +91,19 @@ for it — removes pages no document produces (deepest first, so a parent never 
 hangs off it). A page whose content already matches is left alone, so a build that changes no
 documentation adds no revisions.
 
-The `Publish Docs to Wiki` step in [`azure-pipelines.yml`](../../azure-pipelines.yml) runs both
-scripts on `develop`, **before** the `Mirror Wiki to GitHub` step, so one build carries a
-documentation change from a merge all the way to the public GitHub wiki. Both run on the same
-branch because the wiki mirror publishes whatever this step left on the project wiki: split across
-two branches, the public wiki would describe one branch beside the other branch's code.
+This repository's build runs the generator and `tools/wiki-mirror` on every build and never
+`publish-wiki.js`: the step *Generate and convert the wiki pages, and prove the publishing token* in
+[`azure-pipelines.yml`](../../azure-pipelines.yml) writes the GitHub pages, and on `develop` the
+step *Publish the wiki to GitHub* pushes them. `publish-wiki.js` is what the platform repository's
+build runs to publish its own project wiki.
 
 ### Why the API and not git
 
 A project wiki *is* a git repository, so pushing to it needs a token with the **Code** scope —
 which on a classic personal access token means write access to every repository in the
 organisation, in order to publish one wiki. The REST API needs only **Wiki: Read & Write**,
-which grants exactly what its name says. `AZURE_DEVOPS_PAT` therefore needs the Wiki scope;
-the mirror step's clone is covered by its existing Code: Read.
+which grants exactly what its name says. The platform build's `AZURE_DEVOPS_PAT` therefore needs
+the Wiki scope; this repository's build carries no Azure DevOps token.
 
 The trade is page ordering: the wiki keeps that in `.order` files that only the git path can
 write, so the wiki orders pages itself and this tool does not generate them. Content, images
@@ -125,4 +127,4 @@ published everything, leaving the wiki frozen while the build stayed green.
 
 ## Related
 
-[`tools/wiki-mirror`](../wiki-mirror/) does the next hop: DevOps wiki → GitHub wiki.
+[`tools/wiki-mirror`](../wiki-mirror/) converts the generated pages for the GitHub wiki.

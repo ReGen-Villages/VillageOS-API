@@ -62,12 +62,12 @@ halts dependents.
 4. Emit it on the `value` **output**.
 
 Because it reads **effective** properties, the value may be an inherited property or a
-**roll-up** — a value computed live from an aggregate over related Things (e.g. total PV area
+**derived property** — a value computed live from a reduction over related Things (e.g. total PV area
 summed across everything that `is SolarArray`). ModelBridge needs no special handling for that;
 it resolves as an ordinary effective property.
 
-A roll-up can resolve to **null**. When a related Thing cannot contribute a number — its property is
-missing, unreadable, or not a number — the model decides whether the roll-up skips that Thing or yields
+A reduction can resolve to **null**. When a related Thing cannot contribute a number — its property is
+missing, unreadable, or not a number — the model decides whether the reduction skips that Thing or yields
 no value at all, and yielding no value is the default. The property is still present, so this emits
 `null` on the `value` output rather than failing.
 
@@ -87,7 +87,7 @@ target property's `AllowedWriteKinds` gating still applies: a property that only
 Observations returns 405, and an unknown thing/property returns 404 — both surface as an
 `HttpRequestException` carrying the status code.
 
-## Worked example — read a roll-up, compute, write back
+## Worked example — read a reduction, compute, write back
 
 Three nodes wired in series. The read and write nodes are both ModelBridge; only their params
 differ.

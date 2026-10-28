@@ -26,16 +26,16 @@ Passive predicates are created as regular predicate things without `ExecutablePa
 
 ### PlatformServiceConnection / Service model
 
-A dispatched predicate is a **PlatformServiceConnection** that **has** a **Service**; the Service carries the launch config. Both are ordinary model Things related by the generic `is`/`has` predicates — Mycelium resolves them by walking the `is`-chain and never hardcodes type names: the connection archetype is whichever Thing carries the mark `__IsConnectionArchetype`, the service archetype whichever carries `__IsServiceArchetype`, so a model may call them what it likes.
+A predicate that calls a service is a **PlatformServiceConnection** that **has** a **Service**; the Service carries the launch config. Both are ordinary model Things related by the generic `is`/`has` predicates — Mycelium resolves them by walking the `is`-chain and never hardcodes type names: the connection archetype is the Thing the `connection` role binds, the service archetype the Thing the `service` role binds, so a model may call them what it likes.
 
 ```text
-PlatformServiceConnection {__IsConnectionArchetype}   ← archetype: a routed connection
+connection role ─binds→ PlatformServiceConnection   ← archetype: a routed connection
   ← is ─ consumes ─has→ consumes service ─is→ Metabolism prototype
   ← is ─ produces ─has→ produces service ─is→ Metabolism prototype
   consumes ─triggeredBy→ graph          ← a ConnectionTrigger Thing: graph, http, or state
   produces ─triggeredBy→ graph
 
-Service {__IsServiceArchetype, ExecutablePathTemplate, ServicePort, ServiceArgs, AutoStart}  ← archetype: the process
+service role ─binds→ Service {ExecutablePathTemplate, ServicePort, ServiceArgs, AutoStart}  ← archetype: the process
   Service ─runsAs→ daemon               ← a ServiceRunMode Thing; daemon is the only mode implemented
   ← is ─ Metabolism prototype {ServiceAssembly, TokenScope}         ← shared definition (one binary)
             ← is ─ consumes service {ServicePort, ServiceArgs, AutoStart}   ← per-instance overrides
@@ -45,14 +45,14 @@ is, binds                                   ← built in; in-process, not Platfo
 has, feeds, powers, ...                     ← passive predicates (not PlatformServiceConnections)
 ```
 
-- **PlatformServiceConnection** (archetype): a Thing that routes to a service. Its **trigger** is a Thing it relates to through the predicate carrying `__IsTriggerPredicate` (`triggeredBy` above), never a word on the connection — a seed carrying a `trigger` property is refused. The trigger is `graph` (a predicate, fired when a relationship is created), `http` (a subdomain, reached via `POST /api/endpoints/{subdomain}`), or `state` (fired when a Thing enters a state: the connection relates to the range Thing it watches through the predicate carrying `__IsStateWatchPredicate`, the range relates to the archetype it judges, and every Thing that `is` that archetype fires it). A connection with no trigger of its own takes the nearest one up its `is` chain. A dispatched predicate like `consumes` `is PlatformServiceConnection`. A service that needs to be told once about one Thing entering one state, rather than about every Thing of an archetype, places a **vigil** instead — see [Being told once: vigils](SERVICE_CONTRACT.md#being-told-once-vigils).
-- **Service** (archetype): the microservice process. Carries `ExecutablePathTemplate` (or a stated `ExecutablePath`), `ServicePort`, `ServiceArgs` and `AutoStart`, and reaches its **run mode** through the predicate carrying `__IsRunModePredicate` (`runsAs` above) — a Thing, not a word, and `daemon` is the only one the platform implements.
+- **PlatformServiceConnection** (archetype): a Thing that routes to a service. Its **trigger** is a Thing it relates to along the predicate the `trigger` role binds (`triggeredBy` above), never a word on the connection — a seed that declares the `trigger` role and still carries a `trigger` property is refused. The trigger is the Thing one of three roles binds, whatever it is named: `graphTrigger` (`graph` above: a predicate, fired when a relationship is created), `httpTrigger` (`http`: a subdomain, reached via `POST /api/endpoints/{subdomain}`), or `stateTrigger` (`state`: fired when a Thing enters a state — the connection relates to the range Thing it watches along the predicate the `stateWatch` role binds, the range relates to the archetype it judges, and every Thing that `is` that archetype fires it). A connection with no trigger of its own takes the nearest one up its `is` chain. A predicate that calls a service, like `consumes`, `is PlatformServiceConnection`. A service that needs to be told once about one Thing entering one state, rather than about every Thing of an archetype, places a **vigil** instead — see [Being told once: vigils](SERVICE_CONTRACT.md#being-told-once-vigils).
+- **Service** (archetype): the microservice process. Carries `ExecutablePathTemplate` (or a stated `ExecutablePath`), `ServicePort`, `ServiceArgs` and `AutoStart`, and reaches its **run mode** along the predicate the `runMode` role binds (`runsAs` above) — a Thing, not a word, and the one the platform implements is the Thing the `daemonRunMode` role binds (`daemon` above).
 - **Shared prototype** (e.g. `Metabolism prototype`): a Service holding one binary's shared values — its `ServiceAssembly`, which the archetype's `ExecutablePathTemplate` composes into a path by replacing `{service}`, and its `TokenScope`; concrete services `is` it and override only per-instance values (`ServicePort`, `ServiceArgs`, `AutoStart`). So `consumes` and `produces` share one binary definition but bind two distinct services.
 - **PlatformServiceConnection `has` Service**: the generic `has` relation; the service is identified as the related Thing that is (transitively) a `Service`, never by predicate name.
 - **Built-in `is` and `binds`**: in-process (Mycelium's `is`-inheritance and the range engine; a role Thing reaching the one Thing playing it along `binds`); neither is a PlatformServiceConnection.
 - **Passive predicates** (`contains`, `aggregates`, `has`, …): not PlatformServiceConnections; no service.
 
-At seed load, Mycelium discovers connections by transitive `is`-membership of the archetype marked `__IsConnectionArchetype` and registers graph connections whose bound Service has `AutoStart: true` for auto-invocation. At runtime, the service broker resolves the bound Service to build the daemon config (including `TokenScope`).
+At seed load, Mycelium discovers connections by transitive `is`-membership of the archetype the `connection` role binds and registers graph connections whose bound Service has `AutoStart: true` for auto-invocation. At runtime, the service broker resolves the bound Service to build the daemon config (including `TokenScope`).
 
 ---
 
@@ -98,7 +98,7 @@ flowchart TB
 
 ### How Relationship Services Work
 
-1. **PlatformServiceConnection + Service definition**: A dispatched predicate `is PlatformServiceConnection`, is `triggeredBy` the `graph` trigger, and `has` a Service Thing carrying the handler configuration properties (typically inherited from a shared prototype):
+1. **PlatformServiceConnection + Service definition**: A predicate that calls a service `is PlatformServiceConnection`, is `triggeredBy` the `graph` trigger, and `has` a Service Thing carrying the handler configuration properties (typically inherited from a shared prototype):
    - `ExecutablePathTemplate` -- on the `Service` archetype, a path with a `{service}` placeholder that each prototype's `ServiceAssembly` fills; a stated `ExecutablePath` wins where both are present. `.dll` files are run via `dotnet`, and `.py` files via `python3`. A relative path resolves from the folder Mycelium runs in, not from the seed file, so a service built in another repository needs a path that climbs out of Mycelium's own; a composed path naming no file refuses the seed at load.
    - `ServicePort` -- port for the daemon to listen on
    - `ServiceArgs` -- extra CLI arguments (e.g., `--mode=consumes`) passed verbatim to the daemon.
@@ -127,7 +127,7 @@ flowchart TB
 
    The `properties` field contains the relationship's `OwnProperties` so the handler does not need to call back to Mycelium during initial processing.
 
-   When the relationship arrives inside a `POST /api/model/fragment` batch, invocation happens only after the whole fragment is applied — every Thing, relationship, and property value in the batch is readable, and roll-ups are recomputed — and multiple handled relationships in one fragment are dispatched in creation order. A handler never observes a half-applied fragment.
+   When the relationship arrives inside a `POST /api/model/fragment` batch, invocation happens only after the whole fragment is applied — every Thing, relationship, and property value in the batch is readable, and derived properties are recomputed — and the services of several handled relationships in one fragment are called in creation order. A handler never observes a half-applied fragment.
 
 4. **Health and registration**: Mycelium knows a handler the model declares from that declaration, launches it, and polls its `/health`. A service started outside Mycelium announces itself with a registration call, and the liveness monitor removes the registration of one that has stopped answering. Both are the same for all microservices and are documented in [`SERVICES.md` §5 and §8](SERVICES.md) and, on the platform side, in the *Services* chapter of the Field Guide — not repeated here.
 
@@ -178,7 +178,7 @@ Do **not** reconstruct the effective view from a thing's raw stored own + overri
 
 A name resolves to one property, so a few rules keep resolution unambiguous. A live API write that would break one is rejected:
 
-- A property name may contain **letters, digits and underscore only**. Every other character is read as structure by the criteria language, so a name containing one would be stored where no criteria, roll-up or reference path could name it. A dot is the sharpest case: it separates the parts of a qualified `Type.property` path, so a dotted name and a dotted path would be indistinguishable. Producers that build a name out of source data (the IFC importer, for one) sanitize it — `Dimensions` + `Area` is stored as `Dimensions_Area`.
+- A property name may contain **letters, digits and underscore only**. Every other character is read as structure by the criteria language, so a name containing one would be stored where no criteria, derived property or reference path could name it. A dot is the sharpest case: it separates the parts of a qualified `Type.property` path, so a dotted name and a dotted path would be indistinguishable. Producers that build a name out of source data (the IFC importer, for one) sanitize it — `Dimensions` + `Area` is stored as `Dimensions_Area`.
 - A thing may not **own** a property whose name it already **inherits** — set a value instead, which creates an override.
 - Establishing `is` may not pull in an inherited property whose name the thing already owns.
 - A property name may not equal the name of a type it inherits from (that would make a qualified `Type.property` path ambiguous).
@@ -239,7 +239,7 @@ Both `consumes` and `produces` are handled by a single `Metabolism` binary, diff
 
 ### PlatformServiceConnection + Service Configuration
 
-Each dispatched predicate is a `PlatformServiceConnection` that is `triggeredBy` the `graph` trigger and
+Each predicate that calls a service is a `PlatformServiceConnection` that is `triggeredBy` the `graph` trigger and
 `has` a `Service`; the Service `is` a shared prototype carrying the binary. The predicate Things hold
 nothing of their own:
 
@@ -250,7 +250,7 @@ nothing of their own:
 ```
 
 with `graph is ConnectionTrigger`, `consumes triggeredBy graph` and `produces triggeredBy graph`, the
-`triggeredBy` predicate carrying `__IsTriggerPredicate`. One shared prototype names the binary and the
+`graphTrigger` role binding `graph` and the `trigger` role binding `triggeredBy`. One shared prototype names the binary and the
 token scope, which describes what this handler is for and does not restrict it (both services `is` it):
 
 ```json
@@ -469,19 +469,19 @@ This prevents circular dependencies: a binding guard can reference a state produ
 
 ## Adding New Relationship Services
 
-Relationship behaviors are a **platform extension point**, not a fixed set. This section explains the platform-side machinery — why it exists and how Mycelium dispatches to a handler. For the handler **authoring contract** (required endpoints, credentials, startup registration), see [`SERVICE_AUTHORING.md`](SERVICE_AUTHORING.md).
+Relationship behaviors are a **platform extension point**, not a fixed set. This section explains the platform-side machinery — why it exists and how Mycelium calls a handler. For the handler **authoring contract** (required endpoints, credentials, startup registration), see [`SERVICE_AUTHORING.md`](SERVICE_AUTHORING.md).
 
 ### Why the handled-predicate machinery exists
 
-`is` and `binds` are the only predicates whose semantics are built into Mycelium in-process — inheritance (see [Built-in `is` inheritance](#built-in-is-inheritance)), and a role Thing reaching the one Thing playing it. Every other behaving predicate is a **plug-in**: its semantics live in an out-of-process microservice that Mycelium discovers and dispatches to. This keeps the platform core minimal — Mycelium owns the graph, the registry, and the dispatch contract, while domain behavior such as resource simulation ships independently as daemons. Adding a behavior is therefore a matter of authoring a handler and declaring a predicate that points at it; no change to Mycelium itself is required.
+`is` and `binds` are the only predicates whose semantics are built into Mycelium in-process — inheritance (see [Built-in `is` inheritance](#built-in-is-inheritance)), and a role Thing reaching the one Thing playing it. Every other behaving predicate is a **plug-in**: its semantics live in an out-of-process microservice that Mycelium discovers and calls. This keeps the platform core minimal — Mycelium owns the graph, the registry, and the service-call contract, while domain behavior such as resource simulation ships independently as daemons. Adding a behavior is therefore a matter of authoring a handler and declaring a predicate that points at it; no change to Mycelium itself is required.
 
-### How the platform dispatches to a handler
+### How the platform calls a handler
 
 The platform side of adding a relationship service is purely declarative — you register the behavior with the graph, and Mycelium does the rest:
 
-1. **Declare the connection + service.** Create a predicate that `is PlatformServiceConnection`, relate it to the `graph` trigger through the predicate carrying `__IsTriggerPredicate`, and give it a Service Thing through `has` carrying the handler configuration (`ServicePort`, optional `ServiceArgs`, `AutoStart`, and through its prototype the `ServiceAssembly` and `TokenScope`) — typically inherited from a shared prototype. See [How Relationship Services Work](#how-relationship-services-work) for each property's meaning. This is the entire contract the platform needs in order to find and launch the handler.
+1. **Declare the connection + service.** Create a predicate that `is PlatformServiceConnection`, relate it to the `graph` trigger along the predicate the `trigger` role binds, and give it a Service Thing through `has` carrying the handler configuration (`ServicePort`, optional `ServiceArgs`, `AutoStart`, and through its prototype the `ServiceAssembly` and `TokenScope`) — typically inherited from a shared prototype. See [How Relationship Services Work](#how-relationship-services-work) for each property's meaning. This is the entire contract the platform needs in order to find and launch the handler.
 2. **Discovery.** At seed load, Mycelium discovers connections by walking the `is`-chain and registers them with the service broker; those whose Service has `AutoStart: true` are invoked for existing relationships immediately.
-3. **Dispatch.** When a relationship using the predicate is created, the service broker delegates to the shared daemon lifecycle manager, which lazily launches the daemon (if needed), waits for health, and POSTs the relationship to the handler's `/handle` endpoint.
+3. **The call.** When a relationship using the predicate is created, the service broker delegates to the shared daemon lifecycle manager, which lazily launches the daemon (if needed), waits for health, and POSTs the relationship to the handler's `/handle` endpoint.
 
 The handler's own obligations — implementing `/handle`, `/health` and `/shutdown` — are the authoring contract in [`SERVICE_AUTHORING.md`](SERVICE_AUTHORING.md). Health polling and registration are in [`SERVICES.md` §5 and §8](SERVICES.md).
 
@@ -509,7 +509,7 @@ A service started by hand with neither an `ApiKey` nor a `Token` has nothing to 
 | `https://localhost:7243/api/things/{id}/properties/{propertyName}/decrements` | POST | Decrement numeric property (used by `consumes`) |
 | `https://localhost:7243/api/things/{id}/properties/by-path/{path}` | GET | Get property by path |
 | `https://localhost:7243/api/relationships/{id}/properties/{propertyName}/increments` | POST | Increment a relationship property |
-| `https://localhost:7243/api/relationships/{id}/acknowledgement` | POST | Acknowledge a dispatch whose connection waits for one (see [`SERVICE_CONTRACT.md`](SERVICE_CONTRACT.md)) |
+| `https://localhost:7243/api/relationships/{id}/acknowledgement` | POST | Acknowledge a service call whose connection waits for one (see [`SERVICE_CONTRACT.md`](SERVICE_CONTRACT.md)) |
 | `https://localhost:7243/api/mycelium/register` | POST | Register handler with Mycelium |
 | `https://localhost:7243/api/mycelium/services/{handlerId}` | DELETE | Remove a handler's registration (admin-only) |
 
@@ -705,7 +705,7 @@ Mycelium tracks daemon state internally via its daemon state tracking. Key field
 ## Performance Considerations
 
 1. **Daemon Mode**: All handlers run as persistent daemons -- no per-request process startup overhead
-2. **A dispatch is waited for**: Creating a relationship through a handled predicate waits for the handler's answer, for up to fifteen seconds. A handler answers quickly and does long work in the background, as Metabolism does by registering the simulation and returning
+2. **A service call is waited for**: Creating a relationship through a handled predicate waits for the handler's answer, for up to fifteen seconds. A handler answers quickly and does long work in the background, as Metabolism does by registering the simulation and returning
 3. **Health probe timeout**: The probe before a launch waits `DaemonLauncher:HealthProbeTimeoutMs` (five seconds by default) for an answer
 4. **Connection Pooling**: Handlers use `IHttpClientFactory` for efficient HTTP connection reuse
 5. **Staggered Simulation Ticks**: Resource handlers offset initial ticks by `(order * 200ms) + jitter` to spread load

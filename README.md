@@ -47,13 +47,13 @@ Everything talks to **Mycelium**, the VillageOS server that stores the graph and
 | vos.Service.Delta | Production | Registers data sources against a single-rooted endpoint-template graph (`is`-inheritance), with schema discovery and saga compensation |
 | vos.Service.Tributary | Production | HTTP endpoint calling with JSONata response transforms; config-driven token-exchange auth + offset pagination (e.g. ESRI/ArcGIS) |
 | vos.Service.Metabolism | Production | Consume/produce simulation — decrements/increments a target property's quantity at a configured rate; backs the `consumes`/`produces` Handled Predicates |
-| vos.Service.Phloem | Production | Pipeline orchestrator — runs a user-authored pipeline of microservice nodes; spawned synchronously through Mycelium, dispatches each node via endpoint-forward (see [SERVICES.md §16](docs/SERVICES.md)) |
+| vos.Service.Phloem | Production | Pipeline orchestrator — runs a user-authored pipeline of microservice nodes; spawned synchronously through Mycelium, calls each node via endpoint-forward (see [SERVICES.md §16](docs/SERVICES.md)) |
 | vos.Service.Xylem | Production | IFC ingestion — accepts an `.ifc` upload (`POST /ingest`, merge or new-model), runs the `vos.Tools.ModelIngest` tool, and applies the graph to Mycelium; frees clients from a local ingest toolchain. Large files: `?async=true` returns a job id (poll `GET /ingest/jobs/{id}`) and the upload is streamed with a configurable cap |
-| vos.Service.Forage | Production | Resolves a site against every data source covering it, calls Tributary for each, and starts the site's analysis by relating its study to each marked compute connection (see [FORAGE.md](docs/FORAGE.md)) |
+| vos.Service.Forage | Production | Resolves a site against every data source covering it, calls Tributary for each, and starts the site's analysis by relating its study to each compute connection the `siteAnalysisConnection` role binds (see [FORAGE.md](docs/FORAGE.md)) |
 | vos.Service.Intake | Production | Takes a land-intake submission and composes the Site, Parcel and study it becomes, applied as one all-or-nothing fragment; registers with nothing and holds its own credential (see [LAND_INTAKE.md](docs/LAND_INTAKE.md)) |
 | vos.Service.Feedback | Production | Takes a bug report or an idea from a signed-in person's report panel and files it as an Azure DevOps work item, with the screenshot attached; asks the platform to accept the caller's token, holds the DevOps access token, and reads each application's project and area from the `Destinations` section of its settings |
 | vos.Service.EnergyBalance | Production | Site energy verdict — reads a study's generation inputs (e.g. solar: PV area × resource × efficiency) and consumption, and writes whether the site is net positive, the one energy figure a formula on the study cannot hold; a Handled-Predicate service in the same family as Metabolism |
-| vos.Service.WaterReserve | Production | Water-reserve simulation — tracks stored water against consumption (e.g. an emergency reserve under a supply failure). A pipeline node only: a site study declares all four of its figures as formulas, so nothing dispatches it against a study |
+| vos.Service.WaterReserve | Production | Water-reserve simulation — tracks stored water against consumption (e.g. an emergency reserve under a supply failure). A pipeline node only: a site study declares all four of its figures as formulas, so nothing calls it about a study |
 | vos.Service.ModelBridge | Production | Generic bridge between a pipeline and the model — reads a property off a Thing or writes a computed result back (see [MODELBRIDGE.md](docs/MODELBRIDGE.md)) |
 | vos.Service.CSharp.Echo | Example (C#) | Minimal managed microservice demonstrating the lifecycle — the canonical reference; also the reference pipeline node |
 | vos.Service.Go.Echo | Example (Go) | The same handler in Go (standard library, zero deps) |
@@ -91,7 +91,7 @@ npm run lint     # Lint
 ```
 
 The build runs `npm run lint`, `npm test` and `npm run build`, so a failure in any of them fails the
-build — and on `develop` stops the wiki publish and the wiki mirror. It runs when `develop` or
+build — and on `develop` stops the wiki publish. It runs when `develop` or
 `main` moves and for every pull request into `develop` or `main` on GitHub; a pull request from
 outside the organisation waits for an owner's comment. Run them before pushing rather than finding
 out from the build.
@@ -99,9 +99,10 @@ out from the build.
 A build **against `main`** compiles Release — a merge to it, and a pull request targeting it, since
 a merge is too late to learn that Release does not compile. Every other build compiles Debug, which
 is what you run locally. The difference is not only optimization here: `MyceliumClientBase` throws
-on an outbound contract violation in Debug and logs it in Release. `develop` is the branch that
-publishes the documentation to the project wiki and copies that wiki to the GitHub wiki. The
-repository itself lives on GitHub; nothing copies it.
+on an outbound contract violation in Debug and logs it in Release. Every build generates and converts
+the documentation's wiki pages and proves the publishing token; `develop` alone publishes them to the
+GitHub wiki. No build step touches an Azure DevOps wiki. The repository itself lives on GitHub;
+nothing copies it.
 
 `npm test` runs offline. `npm run test:integration` covers what only a live
 platform can answer: that the property type names Trellis holds are

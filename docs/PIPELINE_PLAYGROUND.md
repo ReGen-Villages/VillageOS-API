@@ -29,7 +29,7 @@ on arrival. On the right are the **outputs** and, under them, the **services**.
 ## The Pipelines page in 60 seconds
 
 - **Catalysts (left)** — what starts a run, by kind: a state a Thing enters, a kind of message an external
-  system sends, a request. Click one to place a start node standing for it; **By hand** places a start
+  system sends, a cadence, a request. Click one to place a start node standing for it; **By hand** places a start
   filled from the run's parameters. A state row whose entries go to a service other than the
   orchestrator names the drawing and that service, and offers **Handle with the orchestrator**, which
   rebinds the state's connection so entering the state starts the drawing.
@@ -103,6 +103,15 @@ These bind inputs to **run parameters** — the **Params** bar appears above the
 |----------|---------------|
 | **Branching Decision** | A `Decide` node holding out ports `accept` and `refuse` of its own, beside the ports its service declares, with a `strategy` input that offers three Things to choose from. The node answers under one out port, so only that branch runs; the other branch is recorded *not taken*, and the end is reached once. The seed draws the node's own ports and its choice; the inspector does not yet edit them. |
 
+### A drawing the clock starts
+
+| Pipeline | What it shows |
+|----------|---------------|
+| **Hourly Tally** | A start standing for the cadence `Every hour`, its `due` port wired into Echo, ending at `tally`. A cadence is a catalyst of its own: the orchestrator starts the drawing for each hour due, with the instant as `due`. |
+
+Every drawing is published, so the model may start any of them. Every service rehearses except Water
+Reserve, Energy Balance, Metabolism and Model Bridge, which nobody has yet checked to write nothing.
+
 ## Running a pipeline
 
 1. **Open** the pipeline from the roster.
@@ -131,10 +140,10 @@ These bind inputs to **run parameters** — the **Params** bar appears above the
 
 ### What actually runs vs. what's editor-only
 
-A node dispatches to the **Subdomain** on its connection. Where a real Managed Microservice is running at
+A node calls the **Subdomain** on its connection. Where a real Managed Microservice is running at
 that subdomain — **echo**, **water-reserve**, **energy-balance**, **metabolism**, **model-bridge** — the run
 produces real output. The other services (Generate Text, Uppercase, Merge, Scorer, Publish, …) are
-dispatch-only stand-ins: they exercise the whole editor — drop, wire, validate, save, load, inspect — but a
+stand-ins with no service behind them: they exercise the whole editor — drop, wire, validate, save, load, inspect — but a
 live Run needs the service listening at that subdomain.
 
 > **water-reserve has to be started by hand.** The site analysis works every figure that service computes
@@ -149,7 +158,7 @@ run history (Hello Echo, Fan-out Scoring) shows the run/animation UI without one
 > **Boundary `Input` seeding.** An Input node fills its outputs from run parameters matched to its **port
 > names**, but the Params bar only surfaces parameters that *service* nodes bind in their inspector — it does
 > not add a field for an Input node's ports. To feed a boundary Input a value, spawn the run through Phloem
-> with an explicit `params` object (via the API / CLI) rather than the Params bar. In the GUI the boundary
+> with an explicit `parameters` object (via the API / CLI) rather than the Params bar. In the GUI the boundary
 > pipelines are best used to explore the **editor** behaviour.
 
 ## Seeded run history

@@ -23,7 +23,7 @@
 <text x="237.0" y="64.0" font-size="11" fill="#74857a" text-anchor="middle">its coordinates are written</text>
 <path d="M 376.3,170.0 L 722.1,170.0" fill="none" stroke="#46497e" stroke-width="1.7"/>
 <path d="M 0,0 l -7,-4 l 0,8 z" fill="#46497e" transform="translate(722.1,170.0) rotate(0.0)"/>
-<text x="549.2" y="151.0" font-size="11" fill="#46497e" text-anchor="middle">a durable dispatch record is written,</text>
+<text x="549.2" y="151.0" font-size="11" fill="#46497e" text-anchor="middle">a durable call record is written,</text>
 <text x="549.2" y="164.0" font-size="11" fill="#46497e" text-anchor="middle">then the service is called</text>
 <path d="M 722.1,205.0 L 376.3,205.0" fill="none" stroke="#47574d" stroke-width="1.2"/>
 <path d="M 0,0 l -7,-4 l 0,8 z" fill="#47574d" transform="translate(376.3,205.0) rotate(180.0)"/>
