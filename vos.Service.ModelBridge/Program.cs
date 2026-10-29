@@ -13,7 +13,7 @@ if (launchSettings == null)
 {
     Console.WriteLine(ServiceLaunchSettings.UsageMessage);
     Environment.Exit(1);
-    return;
+    return 1;
 }
 
 var servicePort = launchSettings.Port;
@@ -82,11 +82,13 @@ try
 
     app.Run();
 }
-catch (Exception ex)
+catch (Exception error)
 {
-    Log.Fatal(ex, "ModelBridge service terminated unexpectedly");
+    return ServiceHost.FailedToStart("ModelBridge", error);
 }
 finally
 {
     Log.CloseAndFlush();
 }
+
+return 0;

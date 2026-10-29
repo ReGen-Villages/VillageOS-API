@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Shared;
@@ -289,4 +290,33 @@ public class ServiceHostTests
     [InlineData("intake-.log", "intake-")]
     public void LogFilePrefixOf_IsTheFileNameWithoutItsExtension(string logFileName, string prefix) =>
         ServiceHost.LogFilePrefixOf(logFileName).Should().Be(prefix);
+
+    [Fact]
+    public void FailedToStart_ReturnsExitCode1AndWritesTheReasonToStandardError()
+    {
+        var standardError = Console.Error;
+        var written = new StringWriter();
+        Console.SetError(written);
+        try
+        {
+            ServiceHost.FailedToStart(ServiceName, new IOException("address already in use"))
+                .Should().Be(1);
+        }
+        finally
+        {
+            Console.SetError(standardError);
+        }
+
+        written.ToString().Should().Contain($"{ServiceName} could not start: address already in use");
+    }
+
+    [Fact]
+    public void FailedToStart_LetsTheTestHostsStopThrough()
+    {
+        var stop = new HostAbortedException();
+
+        var failedToStart = () => ServiceHost.FailedToStart(ServiceName, stop);
+
+        failedToStart.Should().Throw<HostAbortedException>().Which.Should().BeSameAs(stop);
+    }
 }

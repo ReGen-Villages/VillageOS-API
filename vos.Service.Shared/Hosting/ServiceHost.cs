@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,6 +44,16 @@ public static class ServiceHost
         }
 
         Log.Logger = configuration.CreateLogger();
+    }
+
+    // Whatever started the service reads its exit code and standard error, not its log file. A test host stops a
+    // service by throwing HostAbortedException out of its entry point, which is not a failure.
+    public static int FailedToStart(string serviceName, Exception error)
+    {
+        if (error is HostAbortedException) ExceptionDispatchInfo.Throw(error);
+        Log.Fatal(error, "{Service} terminated unexpectedly", serviceName);
+        Console.Error.WriteLine($"{serviceName} could not start: {error.Message}");
+        return 1;
     }
 
     public static IServiceCollection AddMyceliumRegistration(
