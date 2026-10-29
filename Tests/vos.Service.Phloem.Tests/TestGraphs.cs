@@ -427,6 +427,56 @@ public static class TestGraphs
         return new TellingFixture(fx, pipelineId, system.Id, tells.Id);
     }
 
+    public sealed record StoppingFixture(GraphFixture Fixture, Guid PipelineId, GraphThing Stop, GraphThing Output, GraphThing ThingsWire);
+
+    public const string StopNode = "Stop the runs about them";
+
+    // In → a stop node → Out. In's ports `things` and `reason` are filled from the run's parameters of those names; the
+    // stop node's ports are declared once on its kind, as the shared site template declares them.
+    public static StoppingFixture StoppingPipeline(bool bindsRequestedBy = true)
+    {
+        var fx = new GraphFixture();
+        var vocabulary = fx.DeclareVocabulary();
+        var carries = fx.Thing("carries");
+        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
+        if (bindsRequestedBy) fx.Playing("requestedBy", PipelineRoles.RequestedBy);
+
+        GraphThing Port(GraphThing holder, string name, string direction, string type, bool required = false)
+        {
+            var port = fx.Thing($"{holder.Name}.{direction}.{name}", ("direction", direction), ("type", type), ("portName", name), ("required", required ? "true" : "false"));
+            fx.Rel(port, vocabulary.Is, vocabulary.Port);
+            fx.Rel(holder, vocabulary.Has, port);
+            return port;
+        }
+
+        var stopKind = fx.Playing("PipelineStop", PipelineRoles.PipelineStop);
+        fx.Rel(stopKind, vocabulary.Is, vocabulary.PipelineNode);
+        Port(stopKind, ModelNames.Things, "in", "any", required: true);
+        Port(stopKind, ModelNames.Reason, "in", "string");
+        Port(stopKind, ModelNames.Requested, "out", "number");
+        var stop = fx.Thing(StopNode);
+        fx.Rel(stop, vocabulary.Is, stopKind);
+
+        var input = fx.Thing("In");
+        fx.Rel(input, vocabulary.Is, vocabulary.PipelineInput);
+        Port(input, ModelNames.Things, "out", "any");
+        Port(input, ModelNames.Reason, "out", "string");
+        var output = fx.Thing("Out");
+        fx.Rel(output, vocabulary.Is, vocabulary.PipelineOutput);
+        Port(output, ModelNames.Requested, "in", "number");
+
+        var pipe = fx.Thing("Retire a site");
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
+        fx.Rel(pipe, vocabulary.Has, input);
+        fx.Rel(pipe, vocabulary.Has, stop);
+        fx.Rel(pipe, vocabulary.Has, output);
+        var thingsWire = fx.Wire(input, ModelNames.Things, stop, ModelNames.Things);
+        fx.Wire(input, ModelNames.Reason, stop, ModelNames.Reason);
+        fx.Wire(stop, ModelNames.Requested, output, ModelNames.Requested);
+        return new StoppingFixture(fx, pipe.Id, stop, output, thingsWire);
+    }
+
     public sealed record StartingFixture(GraphFixture Fixture, Guid PipelineId, Guid NextPipelineId);
 
     // In → Echo → a follow-on node standing for another pipeline, or for its own → Out.

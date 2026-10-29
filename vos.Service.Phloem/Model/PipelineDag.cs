@@ -15,9 +15,9 @@ public sealed record DagPort(Guid Id, string PortName, string Direction, string 
 // What a node does at execution: a callable Service node (the default), or a
 // boundary node — an Input source (projects run params onto its output ports) or an
 // Output sink (its collected inputs are the run's published result) — or a node the orchestrator
-// runs itself: Tell sends what reached it to a system, FollowOn starts another pipeline with it.
-// Only a Service node calls a service.
-public enum DagNodeKind { Service, Input, Output, Tell, FollowOn }
+// runs itself: Tell sends what reached it to a system, FollowOn starts another pipeline with it, Stop stops the
+// runs about the Things it is given. Only a Service node calls a service.
+public enum DagNodeKind { Service, Input, Output, Tell, FollowOn, Stop }
 
 // The external system an end node stands for, and the connection that system is told through.
 public sealed record Telling(Guid SystemId, string SystemName, Guid ConnectionId);

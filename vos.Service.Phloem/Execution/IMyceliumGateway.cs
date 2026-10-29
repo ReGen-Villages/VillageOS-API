@@ -61,8 +61,13 @@ public interface IMyceliumGateway
     // Whether a relationship the broker sends was written along the connection the runStopping role binds.
     Task<bool> IsStopAsync(Guid relationshipId, CancellationToken cancellationToken);
 
+    // A stop request a stop node writes, related to the run that wrote it and then to the Thing, which the broker sends
+    // back as a stop.
+    Task WriteStopRequestAsync(Guid runId, Guid thingId, string? reason, CancellationToken cancellationToken);
+
     // The reason a stop request carries, and the runs it stops: the target itself when it is a run, otherwise the
-    // runs about it still running, waiting or trying, read off its run-subject relationships.
+    // runs about it still running, waiting or trying, read off its run-subject relationships. The run a stop node's
+    // request is requestedBy is never among them.
     Task<StopRequested> StopRequestedAsync(Guid stopRequestId, Guid targetId, CancellationToken cancellationToken);
 
     // Along the predicate the stoppedBy role binds; a model binding nothing to it records the reason alone.

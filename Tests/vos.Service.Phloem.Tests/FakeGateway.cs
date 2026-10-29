@@ -300,14 +300,32 @@ internal sealed class FakeGateway : IMyceliumGateway
 
     public Task<StopRequested> StopRequestedAsync(Guid stopRequestId, Guid targetId, CancellationToken ct)
     {
+        Guid? requestedBy;
+        lock (StopRequestsWritten) requestedBy = StopRequestsWritten.FirstOrDefault(written => written.RequestId == stopRequestId)?.RunId;
         lock (_model)
         {
-            if (Runs.ContainsKey(targetId)) return Task.FromResult(new StopRequested(stopRequestId, StopReason, [targetId]));
+            if (Runs.ContainsKey(targetId))
+                return Task.FromResult(new StopRequested(stopRequestId, StopReason, targetId == requestedBy ? [] : [targetId]));
             List<Guid> about;
             lock (RunsCreated) about = RunsCreated.Where(run => run.Subject?.Id == targetId).Select(run => run.RunId).ToList();
-            var going = about.Where(run => RunStatuses.GetValueOrDefault(run) is RunStatus.Running or RunStatus.Waiting or RunStatus.Trying).ToList();
+            var going = about.Where(run => run != requestedBy && RunStatuses.GetValueOrDefault(run) is RunStatus.Running or RunStatus.Waiting or RunStatus.Trying).ToList();
             return Task.FromResult(new StopRequested(stopRequestId, StopReason, going));
         }
+    }
+
+    public sealed record StopRequestWritten(Guid RequestId, Guid RunId, Guid ThingId, string? Reason);
+
+    public List<StopRequestWritten> StopRequestsWritten { get; } = new();
+    public HashSet<Guid> StopRequestWriteFailsFor { get; } = new();
+    public Action<StopRequestWritten> OnStopRequestWritten { get; set; } = _ => { };
+
+    public Task WriteStopRequestAsync(Guid runId, Guid thingId, string? reason, CancellationToken ct)
+    {
+        if (StopRequestWriteFailsFor.Contains(thingId)) throw new HttpRequestException("the broker refused the write");
+        var written = new StopRequestWritten(Guid.NewGuid(), runId, thingId, reason);
+        lock (StopRequestsWritten) StopRequestsWritten.Add(written);
+        OnStopRequestWritten(written);
+        return Task.CompletedTask;
     }
 
     public Task RelateStoppedByAsync(Guid runId, Guid stopRequestId, CancellationToken ct)

@@ -33,7 +33,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     // A role is read off the drawing only when its role Thing is in it.
     private static readonly IReadOnlyList<Role> DrawingRoles =
         [.. PipelineRoles.DagRoles, PipelineRoles.ExternalSystem, PipelineRoles.StandsFor, PipelineRoles.ToldThrough, PipelineRoles.Choice,
-         PipelineRoles.CompletionRange, PipelineRoles.AwaitsThrough, PipelineRoles.PipelineTell, PipelineRoles.PipelineFollowOn];
+         PipelineRoles.CompletionRange, PipelineRoles.AwaitsThrough, PipelineRoles.PipelineTell, PipelineRoles.PipelineFollowOn,
+         PipelineRoles.PipelineStop, PipelineRoles.RequestedBy];
 
     private static readonly IReadOnlyList<Role> StartRoles =
     [
@@ -506,11 +507,24 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         await PredicateOfAsync(relationshipId, cancellationToken) is { } predicateId
         && await TryBoundAsync(PipelineRoles.RunStopping, cancellationToken) == predicateId;
 
+    // Related to the Thing last: that is the write the broker sends back as a stop, and by then the request already
+    // names the run that wrote it, so that run is never stopped by it.
+    public async Task WriteStopRequestAsync(Guid runId, Guid thingId, string? reason, CancellationToken cancellationToken)
+    {
+        var requestId = Guid.NewGuid();
+        await CreateThingWithItsRelationshipsAsync(requestId, $"StopRequest {requestId:N}", new Dictionary<string, string?> { [ModelNames.Reason] = reason },
+        [
+            (requestId, await ResolveByNameAsync(ModelNames.Is, cancellationToken), await BoundAsync(PipelineRoles.StopRequest, cancellationToken)),
+            (requestId, await BoundAsync(PipelineRoles.RequestedBy, cancellationToken), runId),
+        ], cancellationToken);
+        await RelateAsync(requestId, await BoundAsync(PipelineRoles.RunStopping, cancellationToken), thingId, cancellationToken);
+    }
+
     public async Task<StopRequested> StopRequestedAsync(Guid stopRequestId, Guid targetId, CancellationToken cancellationToken)
     {
         var selector = new
         {
-            ids = new[] { stopRequestId, targetId, PipelineRoles.RunSubject.Id, PipelineRoles.PipelineRun.Id },
+            ids = new[] { stopRequestId, targetId, PipelineRoles.RunSubject.Id, PipelineRoles.PipelineRun.Id, PipelineRoles.RequestedBy.Id },
             names = new[] { ModelNames.Binds, ModelNames.Is },
             traverse = new object[]
             {
@@ -524,15 +538,19 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
                 new { predicate = ModelNames.Binds, direction = "outgoing" },
                 new { predicate = ModelNames.Is, direction = "outgoing" },
                 new { predicateRole = PipelineRoles.RunSubject.Id, direction = "incoming" },
+                new { predicateRole = PipelineRoles.RequestedBy.Id, direction = "outgoing" },
             },
         };
         var graph = await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
-        var reason = graph.Thing(stopRequestId)?.PropertyString(ModelNames.Reason) is { Length: > 0 } stated ? stated : "Stopped by request.";
+        var request = graph.Thing(stopRequestId);
+        var reason = request?.PropertyString(ModelNames.Reason) is { Length: > 0 } stated ? stated : "Stopped by request.";
+        var requestedBy = request is null ? [] : graph.RelationshipsAlong(request, PipelineRoles.RequestedBy).Select(along => along.TargetId).ToHashSet();
         if (graph.Thing(targetId) is not { } target) return new StopRequested(stopRequestId, reason, []);
-        if (graph.IsOf(target, PipelineRoles.PipelineRun)) return new StopRequested(stopRequestId, reason, [target.Id]);
+        if (graph.IsOf(target, PipelineRoles.PipelineRun))
+            return new StopRequested(stopRequestId, reason, requestedBy.Contains(target.Id) ? [] : [target.Id]);
 
         var going = graph.IncomingAlong(target, PipelineRoles.RunSubject)
-            .Where(run => run.PropertyString(ModelNames.Status) is RunStatus.Running or RunStatus.Waiting or RunStatus.Trying)
+            .Where(run => !requestedBy.Contains(run.Id) && run.PropertyString(ModelNames.Status) is RunStatus.Running or RunStatus.Waiting or RunStatus.Trying)
             .Select(run => run.Id)
             .ToList();
         return new StopRequested(stopRequestId, reason, going);
