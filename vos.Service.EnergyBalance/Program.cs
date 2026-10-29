@@ -23,7 +23,7 @@ var serviceToken = launchSettings.Token;
 var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
-ServiceHost.ConfigureLogging("EnergyBalance", "energy-balance-.log");
+ServiceHost.ConfigureLogging("EnergyBalance", "energy-balance-.log", launchSettings.LogDirectory);
 
 try
 {

@@ -176,7 +176,7 @@ public class ServiceHostTests
         var registered = new TaskCompletionSource<JsonElement>();
         try
         {
-            ServiceHost.ConfigureLogging("ServiceHostRegistrationTest", $"{prefix}.log");
+            ServiceHost.ConfigureLogging("ServiceHostRegistrationTest", $"{prefix}.log", logDirectory: null);
             await using var app = BuildApp(request =>
             {
                 if (request.RequestUri!.AbsolutePath == "/api/mycelium/register")
@@ -247,7 +247,7 @@ public class ServiceHostTests
         const string prefix = "service-host-no-file-test-";
         var before = LogFilesNamed(prefix).Length;
 
-        ServiceHost.ConfigureLogging("ServiceHostTest", $"{prefix}.log", writeToFile: false);
+        ServiceHost.ConfigureLogging("ServiceHostTest", $"{prefix}.log", logDirectory: null, writeToFile: false);
         Serilog.Log.Information("a message that must not reach a file");
         Serilog.Log.CloseAndFlush();
 
@@ -262,7 +262,7 @@ public class ServiceHostTests
 
         try
         {
-            ServiceHost.ConfigureLogging("ServiceHostFileTest", $"{prefix}.log");
+            ServiceHost.ConfigureLogging("ServiceHostFileTest", $"{prefix}.log", logDirectory: null);
             ServiceHost.LogFilePrefix.Should().Be(prefix, "the broker is told what the file is written under");
             Serilog.Log.Information("a message that must reach the file");
             Serilog.Log.CloseAndFlush();
@@ -280,7 +280,7 @@ public class ServiceHostTests
     [Fact]
     public void ConfigureLogging_WithTheFileSinkOff_LeavesNoLogFilePrefix()
     {
-        ServiceHost.ConfigureLogging("ServiceHostNoFileTest", "no-file-.log", writeToFile: false);
+        ServiceHost.ConfigureLogging("ServiceHostNoFileTest", "no-file-.log", logDirectory: null, writeToFile: false);
 
         ServiceHost.LogFilePrefix.Should().BeNull("there is no file for the broker to find");
     }

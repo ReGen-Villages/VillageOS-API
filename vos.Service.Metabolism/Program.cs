@@ -28,7 +28,7 @@ var apiKey = launchSettings.Service.ApiKey;
 var verificationKey = launchSettings.Service.VerificationKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
-ServiceHost.ConfigureLogging("Metabolism", $"metabolism-{direction.LaunchArgument}-.log", writeToFile: !isTestingEnv);
+ServiceHost.ConfigureLogging("Metabolism", $"metabolism-{direction.LaunchArgument}-.log", launchSettings.Service.LogDirectory, writeToFile: !isTestingEnv);
 
 try
 {

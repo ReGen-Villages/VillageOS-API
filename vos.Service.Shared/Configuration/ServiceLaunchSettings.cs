@@ -11,7 +11,8 @@ public record ServiceLaunchSettings(
     string? VerificationKey = null,
     string? Issuer = null,
     string? Audience = null,
-    string? ApiKey = null)
+    string? ApiKey = null,
+    string? LogDirectory = null)
 {
     public const int LowestPort = 1;
     public const int HighestPort = 65535;
@@ -36,7 +37,8 @@ public record ServiceLaunchSettings(
             reader.ReadCredential("verificationKey"),
             reader.Read("issuer"),
             reader.Read("audience"),
-            reader.ReadCredential("apiKey"));
+            reader.ReadCredential("apiKey"),
+            reader.Read("logDirectory"));
     }
 
     private static bool TryReadPort(LaunchSettingReader reader, out int port)
@@ -49,13 +51,14 @@ public record ServiceLaunchSettings(
     }
 
     private const string CommonFlagSummary =
-        "--port=<port> --myceliumUrl=<url> [--issuer=<issuer>] [--audience=<audience>]";
+        "--port=<port> --myceliumUrl=<url> [--issuer=<issuer>] [--audience=<audience>] [--logDirectory=<folder>]";
 
     private const string CommonFlagDescriptions =
-        "  --port         Port number for the service to listen on\n" +
-        "  --myceliumUrl  URL of the VOS Mycelium\n" +
-        "  --issuer       JWT issuer Mycelium signs with, which must match for /handle authentication\n" +
-        "  --audience     This service's own recipient name, which an inbound token must name";
+        "  --port          Port number for the service to listen on\n" +
+        "  --myceliumUrl   URL of the VOS Mycelium\n" +
+        "  --issuer        JWT issuer Mycelium signs with, which must match for /handle authentication\n" +
+        "  --audience      This service's own recipient name, which an inbound token must name\n" +
+        "  --logDirectory  Folder the service writes its log file to (default: logs, four folders above the build)";
 
     private const string CredentialDescriptions =
         "\n\nSupplied through configuration or the environment, never the command line:\n" +

@@ -21,25 +21,29 @@ public static class ServiceHost
 
     public static string LogFilePrefixOf(string logFileName) => Path.GetFileNameWithoutExtension(logFileName);
 
-    public static void ConfigureLogging(string serviceName, string logFileName, bool writeToFile = true)
+    private const string LogLineTemplate =
+        "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}";
+
+    // Whatever started the service captures its standard output, so every line goes to the console in every environment.
+    public static void ConfigureLogging(string serviceName, string logFileName, string? logDirectory, bool writeToFile = true)
     {
         LogFilePrefix = writeToFile ? LogFilePrefixOf(logFileName) : null;
         var configuration = new LoggerConfiguration()
             .MinimumLevel.Information()
             .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
             .Enrich.FromLogContext()
-            .Enrich.WithProperty("Service", serviceName);
+            .Enrich.WithProperty("Service", serviceName)
+            .WriteTo.Console(outputTemplate: LogLineTemplate);
 
         // Tests leave the file sink off: writing files from shared build agents invites flakiness.
         if (writeToFile)
         {
-            var logPath = Path.Combine(
-                AppContext.BaseDirectory, "..", "..", "..", "..", "logs", logFileName);
+            var folder = logDirectory ?? Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs");
 
             configuration = configuration.WriteTo.File(
-                path: logPath,
+                path: Path.Combine(folder, logFileName),
                 rollingInterval: RollingInterval.Day,
-                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}",
+                outputTemplate: LogLineTemplate,
                 shared: true);
         }
 

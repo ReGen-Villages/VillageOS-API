@@ -22,7 +22,7 @@ var serviceToken = launchSettings.Token;
 var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
-ServiceHost.ConfigureLogging("WaterReserve", "water-reserve-.log");
+ServiceHost.ConfigureLogging("WaterReserve", "water-reserve-.log", launchSettings.LogDirectory);
 
 try
 {

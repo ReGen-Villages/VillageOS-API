@@ -37,6 +37,7 @@ public class ServiceLaunchSettingsTests
         result.ApiKey.Should().BeNull();
         result.Issuer.Should().BeNull();
         result.Audience.Should().BeNull();
+        result.LogDirectory.Should().BeNull();
     }
 
     [Fact]
@@ -44,12 +45,13 @@ public class ServiceLaunchSettingsTests
     {
         var result = ServiceLaunchSettings.Parse([
             "--port=7111", "--myceliumUrl=https://localhost:7243",
-            "--issuer=VillageOS", "--audience=VillageOSClients"
+            "--issuer=VillageOS", "--audience=VillageOSClients", "--logDirectory=/var/log/villageos"
         ]);
 
         result.Should().NotBeNull();
         result!.Issuer.Should().Be("VillageOS");
         result.Audience.Should().Be("VillageOSClients");
+        result.LogDirectory.Should().Be("/var/log/villageos");
     }
 
     [Fact]
