@@ -45,6 +45,14 @@ internal sealed class FakeGateway : IMyceliumGateway
         return Task.FromResult(related);
     }
 
+    public List<Guid> SubjectsRead { get; } = new();
+
+    public Task<RunSubject?> SubjectAsync(Guid thingId, CancellationToken ct)
+    {
+        lock (SubjectsRead) SubjectsRead.Add(thingId);
+        return Task.FromResult(Graph.Thing(thingId) is { } thing ? new RunSubject(thing.Id, thing.Name) : null);
+    }
+
     // The relationships the model holds, by id, answered with their predicate; any other id is one it does not hold.
     public Dictionary<Guid, Guid> PredicatesByRelationship { get; } = new();
     public List<Guid> RelationshipsRead { get; } = new();

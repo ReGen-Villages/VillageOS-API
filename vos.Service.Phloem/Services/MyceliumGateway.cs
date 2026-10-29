@@ -544,6 +544,18 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         if (response.StatusCode != HttpStatusCode.NotFound) response.EnsureSuccessStatusCode();
     }
 
+    public async Task<RunSubject?> SubjectAsync(Guid thingId, CancellationToken cancellationToken)
+    {
+        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+        var response = await client.GetAsync($"{MyceliumUrl}/api/things/{thingId}", cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        response.EnsureSuccessStatusCode();
+
+        var thing = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
+        return new RunSubject(thingId,
+            TryGetPropertyCaseInsensitive(thing, "Name", out var name) && name.ValueKind == JsonValueKind.String ? name.GetString()! : string.Empty);
+    }
+
     public async Task<Guid?> PredicateOfAsync(Guid relationshipId, CancellationToken cancellationToken)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
