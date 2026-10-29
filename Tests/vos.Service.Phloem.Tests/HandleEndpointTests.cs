@@ -290,13 +290,18 @@ public class HandleEndpointTests
         public PhloemWebApplicationFactory() => _broker = new MockHttpMessageHandler(Respond);
 
         public int RunsRecordedFor(Guid pipelineId) => _broker.Requests.Count(request =>
-            request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/api/things"
-            && request.Content!.ReadAsStringAsync().Result.Contains(pipelineId.ToString()));
+            IsACreation(request) && request.Content!.ReadAsStringAsync().Result.Contains(pipelineId.ToString()));
 
         public string RunRecordFor(Guid pipelineId) => _broker.Requests
-            .Where(request => request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/api/things")
+            .Where(IsACreation)
             .Select(request => request.Content!.ReadAsStringAsync().Result)
-            .Single(body => body.Contains(pipelineId.ToString()));
+            .Where(body => body.Contains(pipelineId.ToString()))
+            .Select(body => JsonDocument.Parse(body).RootElement)
+            .Select(body => body.TryGetProperty("things", out var things) ? things[0].GetRawText() : body.GetRawText())
+            .Single();
+
+        private static bool IsACreation(HttpRequestMessage request) =>
+            request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath is "/api/things" or "/api/model/fragment";
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -401,6 +406,8 @@ public class HandleEndpointTests
             var standsFor = Guid.NewGuid();
             var arrival = Guid.NewGuid();
             var binds = Guid.NewGuid();
+            var runArchetype = Guid.NewGuid();
+            var nodeRunArchetype = Guid.NewGuid();
 
             object Thing(Guid id, string name) => new { id, name, properties = new Dictionary<string, object>() };
             object Edge(Guid subject, Guid predicate, Guid target) =>
@@ -426,6 +433,10 @@ public class HandleEndpointTests
                         Thing(Watching, "watchingConnection"),
                         Thing(Loose, "looseConnection"),
                         Thing(arrival, "Arrival"),
+                        Thing(runArchetype, "Run"),
+                        Thing(nodeRunArchetype, "Step run"),
+                        Thing(PipelineRoles.PipelineRun.Id, "pipelineRun role"),
+                        Thing(PipelineRoles.NodeRun.Id, "nodeRun role"),
                         new { id = Drawn, name = "Drawn from the state", properties = new Dictionary<string, object> { [ModelNames.Published] = new { value = true, typeInfo = "vos.Boolean" } } },
                     },
                     relationships = new[]
@@ -434,6 +445,8 @@ public class HandleEndpointTests
                         Edge(PipelineRoles.PipelineInput.Id, binds, startArchetype),
                         Edge(PipelineRoles.Connection.Id, binds, connectionArchetype),
                         Edge(PipelineRoles.StandsFor.Id, binds, standsFor),
+                        Edge(PipelineRoles.PipelineRun.Id, binds, runArchetype),
+                        Edge(PipelineRoles.NodeRun.Id, binds, nodeRunArchetype),
                         Edge(Watching, isPredicate, connectionArchetype),
                         Edge(Loose, isPredicate, connectionArchetype),
                         Edge(arrival, isPredicate, startArchetype),
