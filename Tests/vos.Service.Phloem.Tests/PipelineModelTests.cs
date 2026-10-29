@@ -86,6 +86,17 @@ public class PipelineModelTests
     }
 
     [Fact]
+    public void Build_AnOutputNodeStandingForAKindOfMessage_IsReadWithoutAProblem()
+    {
+        var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
+        var answer = fx.Thing("reading batch answer");
+        fx.Rel(answer, fx.Get("is"), fx.Playing("MessageKind", PipelineRoles.MessageKind));
+        fx.Rel(fx.Get("Out"), fx.Playing("standsFor", PipelineRoles.StandsFor), answer);
+
+        PipelineDagBuilder.Build(fx.Build(), pipelineId).Problems.Should().BeEmpty();
+    }
+
+    [Fact]
     public void Build_ATellNodeStandingForASystemThatNamesNoConnection_IsRefusedNamingTheSystem()
     {
         var telling = TestGraphs.TellingPipeline(namesItsConnection: false);
