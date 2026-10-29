@@ -78,4 +78,31 @@ public class PhloemStopsRunsTests : IClassFixture<TheEngine>
         stop.Runs.Should().Equal(first);
         (await gateway.StopRequestedAsync(request, first, CancellationToken.None)).Runs.Should().Equal(first);
     }
+
+    private sealed record RelationshipRead(Guid SubjectId, Guid PredicateId, Guid TargetId);
+
+    [FactAgainstTheEngine]
+    public async Task A_stop_request_a_stop_node_writes_carries_its_reason_and_never_stops_the_run_that_wrote_it()
+    {
+        await AModelThatStopsRunsAsync();
+        await BindOnceAsync(PipelineRoles.RequestedBy, () => _engine.DeclareAsync($"{PipelineRoles.RequestedBy.Word} bound"));
+        var stops = await BindOnceAsync(PipelineRoles.RunStopping, () => _engine.DeclareAsync($"{PipelineRoles.RunStopping.Word} bound"));
+        var gateway = Gateway();
+        var site = await _engine.DeclareAsync($"Site {Guid.NewGuid():N}");
+        var pipeline = await _engine.DeclareAsync($"Pipeline {Guid.NewGuid():N}");
+        var writer = Guid.NewGuid();
+        var other = Guid.NewGuid();
+        await gateway.CreateRunAsync(writer, pipeline, CancellationToken.None, subject: new RunSubject(site, "the site"));
+        await gateway.CreateRunAsync(other, pipeline, CancellationToken.None, subject: new RunSubject(site, "the site"));
+
+        await gateway.WriteStopRequestAsync(writer, site, "the site is retired", CancellationToken.None);
+
+        var relationships = await _engine.Admin.GetFromJsonAsync<List<RelationshipRead>>("/api/relationships",
+            new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        var request = relationships!.Single(relationship => relationship.PredicateId == stops && relationship.TargetId == site).SubjectId;
+        var stop = await gateway.StopRequestedAsync(request, site, CancellationToken.None);
+        stop.Reason.Should().Be("the site is retired");
+        stop.Runs.Should().Equal(other);
+        (await gateway.StopRequestedAsync(request, writer, CancellationToken.None)).Runs.Should().BeEmpty();
+    }
 }

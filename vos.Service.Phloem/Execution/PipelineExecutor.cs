@@ -651,8 +651,55 @@ public sealed class PipelineExecutor
         }
     }
 
-    // What would have been sent, or would have started the next run, is kept as the node's outputs, so the page can
-    // show it; nothing is written but the record.
+    // Each request is written on its own, so one the broker refuses leaves the others written, and the node names only
+    // the Things it could not write one for.
+    private async Task<NodeRunResult> StopThingsAsync(
+        PipelineDag dag, DagNode node, Guid runId,
+        IReadOnlyDictionary<DagWire, WireDelivery> deliveries, JsonElement runParams, CancellationToken cancellationToken)
+    {
+        Dictionary<string, JsonElement> inputs;
+        try
+        {
+            inputs = AssembleInputs(dag, node, deliveries, runParams);
+        }
+        catch (Exception ex)
+        {
+            return Failure(node, $"What reaches '{node.Name}' could not be put together: {ex.Message}");
+        }
+
+        List<JsonElement> given = !inputs.TryGetValue(ModelNames.Things, out var things) ? []
+            : things.ValueKind == JsonValueKind.Array ? things.EnumerateArray().ToList()
+            : [things];
+        var reason = inputs.TryGetValue(ModelNames.Reason, out var stated) && stated.ValueKind == JsonValueKind.String ? stated.GetString() : null;
+        var written = 0;
+        var unwritten = new List<string>();
+        foreach (var value in given)
+        {
+            if (ThingNamedBy(value) is not { } thing)
+            {
+                unwritten.Add($"{value.GetRawText()}, which names no Thing");
+                continue;
+            }
+            try
+            {
+                await _gateway.WriteStopRequestAsync(runId, thing.Id, reason, cancellationToken);
+                written++;
+            }
+            catch (Exception ex)
+            {
+                unwritten.Add($"'{thing.Name}' ({ex.Message})");
+            }
+        }
+
+        var outputs = new Dictionary<string, JsonElement> { [ModelNames.Requested] = JsonSerializer.SerializeToElement(written) };
+        return unwritten.Count == 0
+            ? new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, outputs, null)
+            : new NodeRunResult(node.NodeId, node.Name, RunStatus.Failed, outputs,
+                $"'{node.Name}' could not write a stop request for {string.Join("; ", unwritten)}.");
+    }
+
+    // What would have been sent, started or stopped is kept as the node's outputs, so the page can show it; nothing is
+    // written but the record.
     private NodeRunResult Rehearse(
         PipelineDag dag, DagNode node, IReadOnlyDictionary<DagWire, WireDelivery> deliveries, JsonElement runParams)
     {
@@ -716,10 +763,11 @@ public sealed class PipelineExecutor
             return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, ProjectParamsOntoOutputs(node, runParams), null);
         if (node.Kind == DagNodeKind.Output)
             return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, NoOutputs, null);
-        if (node.Kind is DagNodeKind.Tell or DagNodeKind.FollowOn)
+        if (node.Kind is DagNodeKind.Tell or DagNodeKind.FollowOn or DagNodeKind.Stop)
             return node switch
             {
                 _ when rehearsal => Rehearse(dag, node, deliveries, runParams),
+                { Kind: DagNodeKind.Stop } => await StopThingsAsync(dag, node, runId, deliveries, runParams, cancellationToken),
                 { Tells: { } telling } => await TellAsync(dag, node, telling, runId, deliveries, runParams, cancellationToken),
                 _ => StartFollowOn(dag, node, node.Starts!, runId, deliveries, runParams),
             };

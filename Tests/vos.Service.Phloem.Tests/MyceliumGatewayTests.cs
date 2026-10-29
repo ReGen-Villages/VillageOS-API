@@ -25,6 +25,9 @@ public class MyceliumGatewayTests
     private static readonly Guid AttemptArchetypeId = Guid.Parse("99999999-9999-9999-9999-999999999999");
     private static readonly Guid ResumptionConnectionId = Guid.Parse("88888888-8888-8888-8888-888888888888");
     private static readonly Guid StoppedByPredicateId = Guid.Parse("12121212-1212-1212-1212-121212121212");
+    private static readonly Guid StopRequestArchetypeId = Guid.Parse("13131313-1313-1313-1313-131313131313");
+    private static readonly Guid RequestedByPredicateId = Guid.Parse("14141414-1414-1414-1414-141414141414");
+    private static readonly Guid RunStoppingPredicateId = Guid.Parse("15151515-1515-1515-1515-151515151515");
 
     private static (MyceliumGateway Gateway, MockHttpMessageHandler Handler) NewGateway(
         Func<HttpRequestMessage, HttpResponseMessage>? respond = null)
@@ -73,7 +76,32 @@ public class MyceliumGatewayTests
         (PipelineRoles.RunResumption, ResumptionConnectionId),
         (PipelineRoles.Attempt, AttemptArchetypeId),
         (PipelineRoles.StoppedBy, StoppedByPredicateId),
+        (PipelineRoles.StopRequest, StopRequestArchetypeId),
+        (PipelineRoles.RequestedBy, RequestedByPredicateId),
+        (PipelineRoles.RunStopping, RunStoppingPredicateId),
     ];
+
+    // The relationship to the Thing is the write the broker sends back as a stop, so it comes after the one naming the run.
+    [Fact]
+    public async Task WriteStopRequestAsync_WritesTheRequestWithItsReason_NamesTheRun_AndRelatesItToTheThingLast()
+    {
+        var run = Guid.NewGuid();
+        var thing = Guid.NewGuid();
+        var (gateway, handler) = NewGateway(RespondLikeAModelThatBindsItsRoles);
+
+        await gateway.WriteStopRequestAsync(run, thing, "the site is retired", CancellationToken.None);
+
+        var created = await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single());
+        var request = created.GetProperty("id").GetGuid();
+        created.GetProperty("properties").GetProperty(ModelNames.Reason).GetProperty("value").GetString().Should().Be("the site is retired");
+        var related = new List<(Guid Subject, Guid Predicate, Guid Target)>();
+        foreach (var written in RequestsTo(handler, "/api/relationships", HttpMethod.Post))
+        {
+            var body = await ReadJson(written);
+            related.Add((body.GetProperty("subjectId").GetGuid(), body.GetProperty("predicateId").GetGuid(), body.GetProperty("targetId").GetGuid()));
+        }
+        related.Should().Equal((request, PredicateId, StopRequestArchetypeId), (request, RequestedByPredicateId, run), (request, RunStoppingPredicateId, thing));
+    }
 
     [Fact]
     public async Task RelateStoppedByAsync_RelatesTheRunToTheRequestAlongThePredicateTheRoleBinds()
@@ -282,7 +310,8 @@ public class MyceliumGatewayTests
         selector.GetProperty("ids").EnumerateArray().Select(id => id.GetGuid())
             .Should().BeEquivalentTo(PipelineRoles.DagRoles.Select(role => role.Id).Append(pipelineId).Concat(
                 [PipelineRoles.ExternalSystem.Id, PipelineRoles.StandsFor.Id, PipelineRoles.ToldThrough.Id, PipelineRoles.Choice.Id,
-                 PipelineRoles.CompletionRange.Id, PipelineRoles.AwaitsThrough.Id, PipelineRoles.PipelineTell.Id, PipelineRoles.PipelineFollowOn.Id]));
+                 PipelineRoles.CompletionRange.Id, PipelineRoles.AwaitsThrough.Id, PipelineRoles.PipelineTell.Id, PipelineRoles.PipelineFollowOn.Id,
+                 PipelineRoles.PipelineStop.Id, PipelineRoles.RequestedBy.Id]));
 
         // What each role binds, then the system or pipeline a node stands for, the connection a system is told
         // through, what a port offers and a node chose, the state a waiting node waits for, and the Things a node's

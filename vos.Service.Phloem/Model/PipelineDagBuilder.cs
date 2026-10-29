@@ -133,6 +133,13 @@ public static class PipelineDagBuilder
             return BuildOrchestratorNode(graph, nodeThing, DagNodeKind.Tell, errorPort, problems);
         if (graph.IsOf(nodeThing, PipelineRoles.PipelineFollowOn))
             return BuildOrchestratorNode(graph, nodeThing, DagNodeKind.FollowOn, errorPort, problems);
+        if (graph.IsOf(nodeThing, PipelineRoles.PipelineStop))
+        {
+            if (graph.Bound(PipelineRoles.RequestedBy) is null)
+                problems.Add($"Node '{nodeThing.Name}' stops runs, but the model binds nothing to the role {PipelineRoles.RequestedBy.Word}, "
+                    + "so its requests could not name the run that wrote them and would stop that run too.");
+            return BuildOrchestratorNode(graph, nodeThing, DagNodeKind.Stop, errorPort, problems);
+        }
 
         var connection = graph.OutgoingTargets(nodeThing, ModelNames.Has)
             .FirstOrDefault(t => graph.IsOf(t, PipelineRoles.Connection))
