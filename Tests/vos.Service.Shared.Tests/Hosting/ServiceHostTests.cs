@@ -278,6 +278,26 @@ public class ServiceHostTests
     }
 
     [Fact]
+    public void ConfigureLogging_WithAFolder_WritesTheFileThere()
+    {
+        var folder = Directory.CreateTempSubdirectory("service-host-folder-test-");
+        try
+        {
+            ServiceHost.ConfigureLogging("ServiceHostFolderTest", "folder-test-.log", folder.FullName);
+            Serilog.Log.Information("a message that must reach the chosen folder");
+            Serilog.Log.CloseAndFlush();
+
+            var written = folder.GetFiles("folder-test-*.log");
+            written.Should().ContainSingle();
+            File.ReadAllText(written[0].FullName).Should().Contain("a message that must reach the chosen folder");
+        }
+        finally
+        {
+            folder.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public void ConfigureLogging_WithTheFileSinkOff_LeavesNoLogFilePrefix()
     {
         ServiceHost.ConfigureLogging("ServiceHostNoFileTest", "no-file-.log", logDirectory: null, writeToFile: false);
