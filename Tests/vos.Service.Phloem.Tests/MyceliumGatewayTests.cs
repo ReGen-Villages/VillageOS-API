@@ -91,16 +91,17 @@ public class MyceliumGatewayTests
 
         await gateway.WriteStopRequestAsync(run, thing, "the site is retired", CancellationToken.None);
 
-        var created = await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single());
+        var fragment = await ReadJson(RequestsTo(handler, "/api/model/fragment", HttpMethod.Post).Single());
+        var created = fragment.GetProperty("things").EnumerateArray().Single();
         var request = created.GetProperty("id").GetGuid();
         created.GetProperty("properties").GetProperty(ModelNames.Reason).GetProperty("value").GetString().Should().Be("the site is retired");
-        var related = new List<(Guid Subject, Guid Predicate, Guid Target)>();
-        foreach (var written in RequestsTo(handler, "/api/relationships", HttpMethod.Post))
-        {
-            var body = await ReadJson(written);
-            related.Add((body.GetProperty("subjectId").GetGuid(), body.GetProperty("predicateId").GetGuid(), body.GetProperty("targetId").GetGuid()));
-        }
-        related.Should().Equal((request, PredicateId, StopRequestArchetypeId), (request, RequestedByPredicateId, run), (request, RunStoppingPredicateId, thing));
+        fragment.GetProperty("relationships").EnumerateArray()
+            .Select(edge => (edge.GetProperty("subject").GetGuid(), edge.GetProperty("predicate").GetGuid(), edge.GetProperty("target").GetGuid()))
+            .Should().Equal((request, PredicateId, StopRequestArchetypeId), (request, RequestedByPredicateId, run));
+        var stops = await ReadJson(RequestsTo(handler, "/api/relationships", HttpMethod.Post).Single());
+        (stops.GetProperty("subjectId").GetGuid(), stops.GetProperty("predicateId").GetGuid(), stops.GetProperty("targetId").GetGuid())
+            .Should().Be((request, RunStoppingPredicateId, thing));
+        handler.Requests.Last().RequestUri!.AbsolutePath.Should().Be("/api/relationships");
     }
 
     [Fact]

@@ -512,9 +512,11 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     public async Task WriteStopRequestAsync(Guid runId, Guid thingId, string? reason, CancellationToken cancellationToken)
     {
         var requestId = Guid.NewGuid();
-        await CreateThingWithIdAsync(requestId, $"StopRequest {requestId:N}", new Dictionary<string, string?> { [ModelNames.Reason] = reason }, cancellationToken);
-        await RelateAsync(requestId, ModelNames.Is, await BoundAsync(PipelineRoles.StopRequest, cancellationToken), cancellationToken);
-        await RelateAsync(requestId, await BoundAsync(PipelineRoles.RequestedBy, cancellationToken), runId, cancellationToken);
+        await CreateThingWithItsRelationshipsAsync(requestId, $"StopRequest {requestId:N}", new Dictionary<string, string?> { [ModelNames.Reason] = reason },
+        [
+            (requestId, await ResolveByNameAsync(ModelNames.Is, cancellationToken), await BoundAsync(PipelineRoles.StopRequest, cancellationToken)),
+            (requestId, await BoundAsync(PipelineRoles.RequestedBy, cancellationToken), runId),
+        ], cancellationToken);
         await RelateAsync(requestId, await BoundAsync(PipelineRoles.RunStopping, cancellationToken), thingId, cancellationToken);
     }
 
