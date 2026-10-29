@@ -36,26 +36,68 @@ public class PipelineModelTests
     }
 
     [Fact]
-    public void Build_AnEndStandingForAnExternalSystem_TellsItThroughTheConnectionItNames()
+    public void Build_ATellNode_TellsTheSystemItStandsForThroughTheConnectionItNames_AndCallsNoService()
     {
         var telling = TestGraphs.TellingPipeline();
 
         var dag = PipelineDagBuilder.Build(telling.Fixture.Build(), telling.PipelineId);
 
-        dag.Node(telling.Fixture.Get("Out").Id)!.Tells
-            .Should().Be(new Telling(telling.SystemId, "Reporting office", telling.ConnectionId));
+        var tell = dag.Node(telling.Fixture.Get(TestGraphs.TellNode).Id)!;
+        tell.Kind.Should().Be(DagNodeKind.Tell);
+        tell.Tells.Should().Be(new Telling(telling.SystemId, "Reporting office", telling.ConnectionId));
+        tell.Subdomain.Should().BeEmpty();
+        dag.Problems.Should().BeEmpty();
     }
 
     [Fact]
-    public void Build_AnEndStandingForNothing_TellsNobody()
+    public void Build_ATellNodeStandingForNoSystem_IsRefusedNamingIt()
+    {
+        var telling = TestGraphs.TellingPipeline();
+        telling.Fixture.Unrelate(telling.Fixture.Get(TestGraphs.TellNode), telling.Fixture.Get("standsFor"), telling.Fixture.Get("Reporting office"));
+
+        PipelineDagBuilder.Build(telling.Fixture.Build(), telling.PipelineId).Problems
+            .Should().ContainMatch($"*'{TestGraphs.TellNode}' is a tell node but stands for no external system*");
+    }
+
+    [Fact]
+    public void Build_AFollowOnNodeStandingForNoPipeline_IsRefusedNamingIt()
+    {
+        var starting = TestGraphs.StartingPipeline();
+        starting.Fixture.Unrelate(starting.Fixture.Get(TestGraphs.FollowOnNode), starting.Fixture.Get("standsFor"), starting.Fixture.Get("What follows"));
+
+        PipelineDagBuilder.Build(starting.Fixture.Build(), starting.PipelineId).Problems
+            .Should().ContainMatch($"*'{TestGraphs.FollowOnNode}' is a follow-on node but stands for no pipeline*");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Build_AnOutputNodeStandingForASystemOrAPipeline_IsRefusedNamingTheNodeThatDoesItNow(bool forASystem)
     {
         var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
+        var standsFor = fx.Playing("standsFor", PipelineRoles.StandsFor);
+        var stoodFor = fx.Thing(forASystem ? "Reporting office" : "What follows");
+        fx.Rel(stoodFor, fx.Get("is"), forASystem ? fx.Playing("Neighbour", PipelineRoles.ExternalSystem) : fx.Get("Pipeline"));
+        fx.Rel(fx.Get("Out"), standsFor, stoodFor);
 
-        PipelineDagBuilder.Build(fx.Build(), pipelineId).Node(fx.Get("Out").Id)!.Tells.Should().BeNull();
+        PipelineDagBuilder.Build(fx.Build(), pipelineId).Problems.Should().ContainMatch(forASystem
+            ? "*'Out' is the Output node and stands for 'Reporting office'; a tell node wired on to it tells a system*"
+            : "*'Out' is the Output node and stands for 'What follows'; a follow-on node wired on to it starts a pipeline*");
     }
 
     [Fact]
-    public void Build_AnEndStandingForASystemThatNamesNoConnection_IsRefusedNamingTheSystem()
+    public void Build_AnOutputNodeStandingForAKindOfMessage_IsReadWithoutAProblem()
+    {
+        var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
+        var answer = fx.Thing("reading batch answer");
+        fx.Rel(answer, fx.Get("is"), fx.Playing("MessageKind", PipelineRoles.MessageKind));
+        fx.Rel(fx.Get("Out"), fx.Playing("standsFor", PipelineRoles.StandsFor), answer);
+
+        PipelineDagBuilder.Build(fx.Build(), pipelineId).Problems.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Build_ATellNodeStandingForASystemThatNamesNoConnection_IsRefusedNamingTheSystem()
     {
         var telling = TestGraphs.TellingPipeline(namesItsConnection: false);
 
@@ -475,23 +517,26 @@ public class PipelineModelTests
     }
 
     [Fact]
-    public void Build_ReadsThePipelineAnEndNodeStandsFor()
+    public void Build_ReadsThePipelineAFollowOnNodeStandsFor()
     {
         var starting = TestGraphs.StartingPipeline();
 
         var dag = PipelineDagBuilder.Build(starting.Fixture.Build(), starting.PipelineId);
 
-        dag.Nodes.Single(node => node.Name == "Out").Starts.Should().Be(new Starting(starting.NextPipelineId, "What follows"));
-        dag.Nodes.Single(node => node.Name == "Out").Tells.Should().BeNull();
+        var followOn = dag.Nodes.Single(node => node.Name == TestGraphs.FollowOnNode);
+        followOn.Kind.Should().Be(DagNodeKind.FollowOn);
+        followOn.Starts.Should().Be(new Starting(starting.NextPipelineId, "What follows"));
+        followOn.Tells.Should().BeNull();
+        dag.Problems.Should().BeEmpty();
     }
 
     [Fact]
-    public void Build_RefusesAnEndNodeStandingForThePipelineItEnds()
+    public void Build_RefusesAFollowOnNodeStandingForThePipelineItIsIn()
     {
         var itself = TestGraphs.StartingPipeline(itself: true);
 
         PipelineDagBuilder.Build(itself.Fixture.Build(), itself.PipelineId).Problems
-            .Should().ContainMatch("*'Out' stands for 'BoundaryDemo', the pipeline it is in, so a run would start another of itself without end*");
+            .Should().ContainMatch($"*'{TestGraphs.FollowOnNode}' stands for 'BoundaryDemo', the pipeline it is in, so a run would start another of itself without end*");
     }
 
     [Fact]
@@ -533,16 +578,16 @@ public class PipelineModelTests
     }
 
     [Fact]
-    public void Build_ReadsTheDrawingANodeHandsItsSubjectTo_AndRefusesItsOwn()
+    public void Build_ANodeAModelStillHandsOverAlong_IsReadWithoutAProblem()
     {
-        var handsOver = TestGraphs.RetryPipeline(handsOver: true, policy: [("attempts", 2)]);
-        var itself = TestGraphs.RetryPipeline(policy: [("attempts", 2)]);
-        itself.Fixture.Rel(itself.Echo, itself.Fixture.Playing("handsOverTo", PipelineRoles.HandsOverTo), itself.Fixture.Get("RetryDemo"));
+        var handsOverToItsOwn = TestGraphs.RetryPipeline(policy: [("attempts", 2)]);
+        handsOverToItsOwn.Fixture.Rel(handsOverToItsOwn.Echo, handsOverToItsOwn.Fixture.Playing("handsOverTo", TestGraphs.RemovedHandOver),
+            handsOverToItsOwn.Fixture.Get("RetryDemo"));
 
-        PipelineDagBuilder.Build(handsOver.Fixture.Build(), handsOver.PipelineId).Node(handsOver.Echo.Id)!.HandsOverTo
-            .Should().Be(new Starting(handsOver.NextPipelineId, "What follows"));
-        PipelineDagBuilder.Build(itself.Fixture.Build(), itself.PipelineId).Problems
-            .Should().ContainMatch("*'Echo' hands its subject to 'RetryDemo', the pipeline it is in, so a run would start another of itself without end*");
+        var dag = PipelineDagBuilder.Build(handsOverToItsOwn.Fixture.Build(), handsOverToItsOwn.PipelineId);
+
+        dag.Problems.Should().BeEmpty();
+        DagValidator.Validate(dag).Should().BeEmpty();
     }
 
     [Fact]
@@ -587,31 +632,27 @@ public class PipelineModelTests
         var fx = retry.Fixture;
         fx.Rel(retry.Echo, fx.Playing("offers", PipelineRoles.Choice), fx.Thing("At random"));
         fx.Rel(retry.Echo, fx.Playing("provenBy", PipelineRoles.CompletionRange), fx.Thing("decided"));
-        fx.Rel(retry.Echo, fx.Playing("handsOverTo", PipelineRoles.HandsOverTo), fx.Get("RetryDemo"));
         RequiredPortNothingFills(fx, "EchoProto");
 
         DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), retry.PipelineId)).Should()
             .ContainMatch("*'Echo' chose 'At random'*")
             .And.ContainMatch("*'Echo' waits for 'decided' but names no in port*")
             .And.ContainMatch("*'Echo' allows 0 attempts*")
-            .And.ContainMatch("*'Echo' hands its subject to 'RetryDemo'*")
             .And.ContainMatch("*'Echo' needs its port 'context' filled*");
     }
 
     [Fact]
-    public void Validate_AnEndStandingForASystemItCannotTellAndForItsOwnPipeline_ListsBothAndStillJudgesItsPorts()
+    public void Validate_ATellNodeStandingForASystemItCannotTell_IsListedAndItsPortsAreStillJudged()
     {
         var telling = TestGraphs.TellingPipeline(namesItsConnection: false);
         var fx = telling.Fixture;
-        fx.Rel(fx.Get("Out"), fx.Get("standsFor"), fx.Get("BoundaryDemo"));
-        var unfilled = fx.Thing("Out.context", ("direction", "in"), ("type", "string"), ("portName", "context"), ("required", "true"));
+        var unfilled = fx.Thing("Tell.context", ("direction", "in"), ("type", "string"), ("portName", "context"), ("required", "true"));
         fx.Rel(unfilled, fx.Get("is"), fx.Get("Port"));
-        fx.Rel(fx.Get("Out"), fx.Get("has"), unfilled);
+        fx.Rel(fx.Get(TestGraphs.TellNode), fx.Get("has"), unfilled);
 
         DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), telling.PipelineId)).Should()
             .ContainMatch("*'Reporting office'*names no connection*")
-            .And.ContainMatch("*'Out' stands for 'BoundaryDemo', the pipeline it is in*")
-            .And.ContainMatch("*'Out' needs its port 'context' filled*");
+            .And.ContainMatch($"*'{TestGraphs.TellNode}' needs its port 'context' filled*");
     }
 
     [Fact]

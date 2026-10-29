@@ -36,6 +36,7 @@ public static class WireDeliveries
     {
         RunStatus.Failed => wire.TakenOn.Contains(dag.Fail),
         RunStatus.Succeeded => wire.TakenOn.Contains(answer.Decision ?? dag.Success),
+        RunStatus.Rehearsed => wire.TakenOn.Contains(dag.Success),
         _ => false,
     };
 

@@ -381,8 +381,8 @@ public sealed class PipelineExecutor
         var pending = dag.Nodes.Where(Unsettled).ToList();
         while (pending.Count > 0 && !halted && stopped is null)
         {
-            // A plain Output node calls nothing, so a run left with only it to reach has finished its work.
-            if (StopOf(rid) is { } stop && pending.Any(node => node is not { Kind: DagNodeKind.Output, Tells: null, Starts: null }))
+            // The Output node calls nothing, so a run left with only it to reach has finished its work.
+            if (StopOf(rid) is { } stop && pending.Any(node => node.Kind != DagNodeKind.Output))
             {
                 stopped = stop;
                 break;
@@ -414,7 +414,7 @@ public sealed class PipelineExecutor
                     halted = true;
                     unhandled = reason;
                 }
-                if (result.Status is RunStatus.HandedOver or RunStatus.CannotRehearse)
+                if (result.Status == RunStatus.CannotRehearse)
                     halted = true;
                 if (result.Status == RunStatus.Cancelled)
                     stopped ??= StopOf(rid);
@@ -454,7 +454,6 @@ public sealed class PipelineExecutor
         var runStatus = stopped is not null ? RunStatus.Cancelled
             : unhandled is not null ? RunStatus.Failed
             : results.Values.Any(r => r.Status == RunStatus.CannotRehearse) ? RunStatus.CannotRehearse
-            : results.Values.Any(r => r.Status == RunStatus.HandedOver) ? RunStatus.HandedOver
             : dag.WiresInto(outputNode.NodeId).Any(wire => deliveries.TryGetValue(wire, out var delivery) && delivery.CarriesAFail) ? RunStatus.Failed
             : rehearsal ? RunStatus.Rehearsed
             : RunStatus.Succeeded;
@@ -485,7 +484,6 @@ public sealed class PipelineExecutor
             success ? null
                 : stopped is not null ? $"Run stopped: {stopped.Reason}"
                 : runStatus == RunStatus.CannotRehearse ? "The rehearsal stopped at a node it cannot rehearse."
-                : runStatus == RunStatus.HandedOver ? "The run handed its subject to another drawing."
                 : unhandled is not null ? unhandled
                 : $"A fail path reached '{outputNode.Name}'.",
             runResult);
@@ -642,9 +640,9 @@ public sealed class PipelineExecutor
     {
         try
         {
-            var payload = JsonSerializer.SerializeToElement(AssembleInputs(dag, node, deliveries, runParams));
-            await _gateway.SendMessageAsync(runId, telling, payload, cancellationToken);
-            return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, NoOutputs, null);
+            var sent = AssembleInputs(dag, node, deliveries, runParams);
+            await _gateway.SendMessageAsync(runId, telling, JsonSerializer.SerializeToElement(sent), cancellationToken);
+            return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, sent, null);
         }
         catch (Exception ex)
         {
@@ -653,9 +651,9 @@ public sealed class PipelineExecutor
         }
     }
 
-    // What would have been sent, or would have started the next run, is kept as the end's outputs, so the page can
+    // What would have been sent, or would have started the next run, is kept as the node's outputs, so the page can
     // show it; nothing is written but the record.
-    private NodeRunResult RehearseEnd(
+    private NodeRunResult Rehearse(
         PipelineDag dag, DagNode node, IReadOnlyDictionary<DagWire, WireDelivery> deliveries, JsonElement runParams)
     {
         try
@@ -668,11 +666,13 @@ public sealed class PipelineExecutor
         }
     }
 
-    private NodeRunResult StartFromEnd(
+    // The next run is recorded and swept on its own, as a run a state entry starts is, so this run carries on without
+    // waiting for it. The subject carries over; what reached the node is the new run's parameters.
+    private NodeRunResult StartFollowOn(
         PipelineDag dag, DagNode node, Starting starting, Guid runId,
         IReadOnlyDictionary<DagWire, WireDelivery> deliveries, JsonElement runParams)
     {
-        IReadOnlyDictionary<string, JsonElement> reached;
+        Dictionary<string, JsonElement> reached;
         try
         {
             reached = AssembleInputs(dag, node, deliveries, runParams);
@@ -681,17 +681,8 @@ public sealed class PipelineExecutor
         {
             return Failure(node, $"'{starting.PipelineName}' could not be started from '{node.Name}': {ex.Message}");
         }
-        return StartNext(node, starting, runId, reached, runParams, RunStatus.Succeeded, null);
-    }
 
-    // The next run is recorded and swept on its own, as a run a state entry starts is, so the run that reached
-    // the end, or gave up at the node, finishes without waiting for the drawing it started. The subject carries
-    // over; what reached the node is the new run's parameters.
-    private NodeRunResult StartNext(
-        DagNode node, Starting starting, Guid runId, IReadOnlyDictionary<string, JsonElement> carried, JsonElement runParams,
-        string status, string? error)
-    {
-        var parameters = JsonSerializer.SerializeToElement(carried);
+        var parameters = JsonSerializer.SerializeToElement(reached);
         var subject = SubjectCarriedBy(runParams);
         var nextRunId = Guid.NewGuid();
         _ = Task.Run(async () =>
@@ -699,8 +690,8 @@ public sealed class PipelineExecutor
             try { await RunAsync(starting.PipelineId, parameters, CancellationToken.None, nextRunId, subject, startedBy: runId); }
             catch (Exception ex) { _logger.LogError(ex, "Run {NextRunId} of '{Pipeline}', started from run {RunId}, failed to run", nextRunId, starting.PipelineName, runId); }
         });
-        return new NodeRunResult(node.NodeId, node.Name, status,
-            new Dictionary<string, JsonElement> { [ModelNames.StartedRun] = JsonSerializer.SerializeToElement(nextRunId.ToString()) }, error);
+        reached[ModelNames.StartedRun] = JsonSerializer.SerializeToElement(nextRunId.ToString());
+        return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, reached, null);
     }
 
     private static RunSubject? SubjectCarriedBy(JsonElement runParams) =>
@@ -724,12 +715,13 @@ public sealed class PipelineExecutor
         if (node.Kind == DagNodeKind.Input)
             return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, ProjectParamsOntoOutputs(node, runParams), null);
         if (node.Kind == DagNodeKind.Output)
+            return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, NoOutputs, null);
+        if (node.Kind is DagNodeKind.Tell or DagNodeKind.FollowOn)
             return node switch
             {
-                { Tells: not null } or { Starts: not null } when rehearsal => RehearseEnd(dag, node, deliveries, runParams),
+                _ when rehearsal => Rehearse(dag, node, deliveries, runParams),
                 { Tells: { } telling } => await TellAsync(dag, node, telling, runId, deliveries, runParams, cancellationToken),
-                { Starts: { } starting } => StartFromEnd(dag, node, starting, runId, deliveries, runParams),
-                _ => new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, NoOutputs, null),
+                _ => StartFollowOn(dag, node, node.Starts!, runId, deliveries, runParams),
             };
 
         Dictionary<string, JsonElement> inputs;
@@ -762,10 +754,7 @@ public sealed class PipelineExecutor
                 return Failure(node, $"'{node.Name}' waits for the Thing reaching its port '{wait.PortName}', but what reached it names no Thing.");
         }
 
-        var (result, gaveUp) = await AttemptAsync(node, runId, inputs, index: null, total: 0, attemptsMade, rehearsal, cancellationToken);
-        if (gaveUp && node.HandsOverTo is { } next && !rehearsal)
-            result = StartNext(node, next, runId, inputs, runParams, RunStatus.HandedOver,
-                $"{result.Error} The subject went to '{next.PipelineName}'.");
+        var (result, _) = await AttemptAsync(node, runId, inputs, index: null, total: 0, attemptsMade, rehearsal, cancellationToken);
         if (!rehearsal) await RecordProducedAsync(runId, node, index: null, result, cancellationToken);
         return awaited is not null && result.Status == RunStatus.Succeeded
             ? result with { Status = RunStatus.Waiting, Awaits = awaited }

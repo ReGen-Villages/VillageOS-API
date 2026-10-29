@@ -332,7 +332,10 @@ public static class TestGraphs
     // Boundary I/O demo: In (PipelineInput, out port `seed`) → Echo (message→echo) → Out
     // (PipelineOutput, in port `result`). The Input node's `seed` output is filled from the run param `seed`;
     // the value wired into the Output node's `result` input becomes the run's published result.
-    public static (GraphFixture Fixture, Guid PipelineId) BoundaryPipeline()
+    public static (GraphFixture Fixture, Guid PipelineId) BoundaryPipeline() => BoundaryPipelineThrough(null);
+
+    // BoundaryPipeline with a node of the kind the role binds between Echo and Out, taking `result` in and passing it on.
+    private static (GraphFixture Fixture, Guid PipelineId) BoundaryPipelineThrough((Role Kind, string Name)? through)
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
@@ -376,26 +379,48 @@ public static class TestGraphs
         fx.Rel(pipe, vocabulary.Has, output);
 
         fx.Wire(input, "seed", ech, "message");
-        fx.Wire(ech, "echo", output, "result");
+        if (through is { } between)
+        {
+            var kind = fx.Playing($"{between.Kind.Word} kind", between.Kind);
+            fx.Rel(kind, vocabulary.Is, vocabulary.PipelineNode);
+            var node = fx.Thing(between.Name);
+            fx.Rel(node, vocabulary.Is, kind);
+            foreach (var direction in new[] { "in", "out" })
+            {
+                var port = fx.Thing($"{between.Name}.{direction}", ("direction", direction), ("type", "string"), ("portName", "result"));
+                fx.Rel(port, vocabulary.Is, vocabulary.Port);
+                fx.Rel(node, vocabulary.Has, port);
+            }
+            fx.Rel(pipe, vocabulary.Has, node);
+            fx.Wire(ech, "echo", node, "result");
+            fx.Wire(node, "result", output, "result");
+        }
+        else
+        {
+            fx.Wire(ech, "echo", output, "result");
+        }
 
         fx.EndEveryPath(pipe);
         return (fx, pipe.Id);
     }
 
+    public const string TellNode = "Tell the office";
+    public const string FollowOnNode = "Follow on";
+
     public sealed record TellingFixture(GraphFixture Fixture, Guid PipelineId, Guid SystemId, Guid ConnectionId);
 
-    // BoundaryPipeline whose end node stands for an external system. Unless told otherwise the system names
-    // the connection it is told through, along the predicate bound to that role.
+    // In → Echo → a tell node standing for an external system → Out. Unless told otherwise the system names the
+    // connection it is told through, along the predicate bound to that role.
     public static TellingFixture TellingPipeline(bool namesItsConnection = true)
     {
-        var (fx, pipelineId) = BoundaryPipeline();
+        var (fx, pipelineId) = BoundaryPipelineThrough((PipelineRoles.PipelineTell, TellNode));
         var isPredicate = fx.Get("is");
         var standsFor = fx.Playing("standsFor", PipelineRoles.StandsFor);
         var toldThrough = fx.Playing("toldThrough", PipelineRoles.ToldThrough);
         var systemKind = fx.Playing("Neighbour", PipelineRoles.ExternalSystem);
         var system = fx.Thing("Reporting office");
         fx.Rel(system, isPredicate, systemKind);
-        fx.Rel(fx.Get("Out"), standsFor, system);
+        fx.Rel(fx.Get(TellNode), standsFor, system);
         var tells = fx.Thing("tellsReportingOffice");
         fx.Rel(tells, isPredicate, fx.Get("PlatformServiceConnection"));
         if (namesItsConnection) fx.Rel(system, toldThrough, tells);
@@ -404,27 +429,29 @@ public static class TestGraphs
 
     public sealed record StartingFixture(GraphFixture Fixture, Guid PipelineId, Guid NextPipelineId);
 
-    // BoundaryPipeline whose end node stands for another pipeline, or for its own.
-    public static StartingFixture StartingPipeline(bool itself = false, string? transformIntoTheEnd = null)
+    // In → Echo → a follow-on node standing for another pipeline, or for its own → Out.
+    public static StartingFixture StartingPipeline(bool itself = false, string? transformIntoTheFollowOn = null)
     {
-        var (fx, pipelineId) = BoundaryPipeline();
+        var (fx, pipelineId) = BoundaryPipelineThrough((PipelineRoles.PipelineFollowOn, FollowOnNode));
         var standsFor = fx.Playing("standsFor", PipelineRoles.StandsFor);
         var next = fx.Thing("What follows");
         fx.Rel(next, fx.Get("is"), fx.Get("Pipeline"));
         fx.Publish(next);
-        fx.Rel(fx.Get("Out"), standsFor, itself ? fx.Get("BoundaryDemo") : next);
-        if (transformIntoTheEnd is not null)
+        fx.Rel(fx.Get(FollowOnNode), standsFor, itself ? fx.Get("BoundaryDemo") : next);
+        if (transformIntoTheFollowOn is not null)
         {
-            fx.State(fx.WireInto(fx.Get("Out")), ModelNames.Transform, transformIntoTheEnd);
+            fx.State(fx.WireInto(fx.Get(FollowOnNode)), ModelNames.Transform, transformIntoTheFollowOn);
         }
         return new StartingFixture(fx, pipelineId, next.Id);
     }
 
+    public static readonly Role RemovedHandOver = new("handsOverTo", new("5ee3e03b-c8a6-5ed2-83c7-77448c913175"));
+
     public sealed record RetryFixture(GraphFixture Fixture, Guid PipelineId, Guid NextPipelineId, GraphThing In, GraphThing Echo);
 
-    // In → Echo → Out, with Echo carrying a retry policy as its properties and, when asked, naming the drawing its
-    // subject goes to when trying ends.
-    public static RetryFixture RetryPipeline(bool handsOver = false, bool besideAFailingNode = false, bool perItem = false,
+    // In → Echo → Out, with Echo carrying a retry policy as its properties and, when asked, related to another
+    // pipeline along the hand-over binding a model drawn before hand-over was removed still holds.
+    public static RetryFixture RetryPipeline(bool bindsHandOver = false, bool besideAFailingNode = false, bool perItem = false,
         params (string Name, object Value)[] policy)
     {
         var fx = new GraphFixture();
@@ -466,7 +493,7 @@ public static class TestGraphs
         var next = fx.Thing("What follows");
         fx.Rel(next, vocabulary.Is, vocabulary.Pipeline);
         fx.Publish(next);
-        if (handsOver) fx.Rel(echo, fx.Playing("handsOverTo", PipelineRoles.HandsOverTo), next);
+        if (bindsHandOver) fx.Rel(echo, fx.Playing("handsOverTo", RemovedHandOver), next);
         return new RetryFixture(fx, pipe.Id, next.Id, input, echo);
     }
 

@@ -111,8 +111,9 @@ CADENCES = [
 # A pipeline node is either a service node ("service": <catalog key>) or a boundary node
 # ("input"/"output": [port specs]). A boundary node may say what it "standsFor": ("messageKind", key) at
 # the start for the kind of message the run comes from, ("cadence", key) at the start for the cadence that
-# starts it, ("externalSystem", key) at the end for the system the run tells, or ("pipeline", name) for a
-# pipeline a run starts or is started by. Node "at" is the canvas grid cell (column, row) — the generator turns it
+# starts it, or ("pipeline", name) for a pipeline a run is started by. A node the orchestrator runs itself has a
+# "kind": "tell" stands for ("externalSystem", key) and sends what reaches it there, "followOn" stands for
+# ("pipeline", name) and starts it; each takes in and passes on the ports in "passesOn". Node "at" is the canvas grid cell (column, row) — the generator turns it
 # into x/y. "params" binds an input port to a run-parameter key (Params bar on the Pipeline page); "onItemError"
 # = "continue" collects partial fan-out results instead of failing the run. A service node may hold
 # "outPorts" of its own, and may say what it "chooses": (port, the offered Thing's name) among what its service's
@@ -356,18 +357,21 @@ PIPELINES = [
         ],
     },
 
-    # 14. A run that ends outside: the end node stands for the system told the report.
+    # 14. A run that tells a system outside: the tell node stands for the system told the report, and passes the
+    #     report on to the Output node.
     {
         "name": "Daily Report",
         "nodes": [
             {"key": "site", "service": "site-params", "at": col(0)},
             {"key": "report", "service": "format-report", "at": col(1)},
-            {"key": "out", "output": [("payload", "any", True)], "at": col(2), "label": "The office is told",
+            {"key": "tell", "kind": "tell", "passesOn": [("payload", "any")], "at": col(2), "label": "The office is told",
              "standsFor": ("externalSystem", "reporting-office")},
+            {"key": "out", "output": [("payload", "any", True)], "at": col(3), "label": "Reported"},
         ],
         "wires": [
             {"from": "site", "fromPort": "population", "to": "report", "toPort": "data"},
-            {"from": "report", "fromPort": "text", "to": "out", "toPort": "payload"},
+            {"from": "report", "fromPort": "text", "to": "tell", "toPort": "payload"},
+            {"from": "tell", "fromPort": "payload", "to": "out", "toPort": "payload"},
         ],
     },
 

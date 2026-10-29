@@ -33,7 +33,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     // A role is read off the drawing only when its role Thing is in it.
     private static readonly IReadOnlyList<Role> DrawingRoles =
         [.. PipelineRoles.DagRoles, PipelineRoles.ExternalSystem, PipelineRoles.StandsFor, PipelineRoles.ToldThrough, PipelineRoles.Choice,
-         PipelineRoles.CompletionRange, PipelineRoles.AwaitsThrough, PipelineRoles.HandsOverTo];
+         PipelineRoles.CompletionRange, PipelineRoles.AwaitsThrough, PipelineRoles.PipelineTell, PipelineRoles.PipelineFollowOn];
 
     private static readonly IReadOnlyList<Role> StartRoles =
     [
@@ -66,7 +66,6 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
                 new { predicateRole = PipelineRoles.ToldThrough.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.Choice.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.CompletionRange.Id, direction = "outgoing", depth = 1 },
-                new { predicateRole = PipelineRoles.HandsOverTo.Id, direction = "outgoing", depth = 1 },
                 new { predicateRole = PipelineRoles.ComparesWith.Id, direction = "outgoing", depth = 1 },
             },
             includeIsAncestors = true,

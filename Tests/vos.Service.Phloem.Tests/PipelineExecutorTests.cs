@@ -404,7 +404,7 @@ public class PipelineExecutorTests
     }
 
     [Fact]
-    public async Task RunAsync_EndingAtAnExternalSystem_SendsWhatReachedTheEndAlongTheSystemsConnection()
+    public async Task RunAsync_ReachingATellNode_SendsWhatReachedItAlongTheSystemsConnection_AndCarriesOnToTheOutputNode()
     {
         var telling = TestGraphs.TellingPipeline();
         var gateway = new FakeGateway(telling.Fixture.Build())
@@ -420,14 +420,22 @@ public class PipelineExecutorTests
         sent.RunId.Should().Be(result.RunId);
         sent.Telling.Should().Be(new Telling(telling.SystemId, "Reporting office", telling.ConnectionId));
         sent.Payload.GetProperty("result").GetString().Should().Be("world");
-        result.Result!.Value.GetProperty("result").GetString().Should().Be("world", "the run still publishes what reached its end");
+        result.Nodes.Single(node => node.Name == TestGraphs.TellNode).Status.Should().Be(RunStatus.Succeeded);
+        gateway.Called.Should().Equal(["ech"], "a tell node calls no service");
+        result.Result!.Value.GetProperty("result").GetString().Should().Be("world", "the tell node passes on what it sent");
     }
 
     [Fact]
-    public async Task RunAsync_WhenTheMessageCannotBeWritten_FailsTheEndNodeNamingTheSystem()
+    public async Task RunAsync_WhenTheMessageCannotBeWritten_FailsTheTellNodeNamingTheSystem_AndItsFailWireCarriesTheError()
     {
         var telling = TestGraphs.TellingPipeline();
-        var gateway = new FakeGateway(telling.Fixture.Build())
+        var fx = telling.Fixture;
+        var heard = fx.Thing("Out.heard", ("direction", "in"), ("type", "string"), ("portName", "heard"));
+        fx.Rel(heard, fx.Get("is"), fx.Get("Port"));
+        fx.Rel(fx.Get("Out"), fx.Get("has"), heard);
+        var failWire = fx.WireBetween(fx.Get(TestGraphs.TellNode), fx.Get("error"), fx.Get("Out"), heard);
+        fx.TakeOn(failWire, fx.Get("fail"));
+        var gateway = new FakeGateway(fx.Build())
         {
             OnCall = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
             OnSend = () => throw new HttpRequestException("the broker refused the write"),
@@ -437,13 +445,15 @@ public class PipelineExecutorTests
         var result = await executor.RunAsync(telling.PipelineId, JsonSerializer.SerializeToElement(new { seed = "world" }), CancellationToken.None);
 
         result.Success.Should().BeFalse();
-        var end = result.Nodes.Single(node => node.Name == "Out");
-        end.Status.Should().Be(RunStatus.Failed);
-        end.Error.Should().Contain("Reporting office").And.Contain("the broker refused the write");
+        var tell = result.Nodes.Single(node => node.Name == TestGraphs.TellNode);
+        tell.Status.Should().Be(RunStatus.Failed);
+        tell.Error.Should().Contain("Reporting office").And.Contain("the broker refused the write");
+        result.Nodes.Single(node => node.Name == "Out").Status.Should().Be(RunStatus.Succeeded);
+        result.Error.Should().Be("A fail path reached 'Out'.");
     }
 
     [Fact]
-    public async Task RunAsync_EndingAtASystemThatNamesNoConnection_FailsBeforeAnyNodeRuns()
+    public async Task RunAsync_ATellNodeStandingForASystemThatNamesNoConnection_FailsBeforeAnyNodeRuns()
     {
         var telling = TestGraphs.TellingPipeline(namesItsConnection: false);
         var gateway = new FakeGateway(telling.Fixture.Build());

@@ -63,6 +63,8 @@ ARCHETYPE_ROLE = {
     "PipelineNode": "pipelineNode",
     "PipelineInput": "pipelineInput",
     "PipelineOutput": "pipelineOutput",
+    "PipelineTell": "pipelineTell",
+    "PipelineFollowOn": "pipelineFollowOn",
     "Port": "port",
     "Service": "service",
     "Connection": "connection",
@@ -224,6 +226,7 @@ def build():
     PipelineNode = k.archetype("PipelineNode")
     PipelineInput = k.archetype("PipelineInput")
     PipelineOutput = k.archetype("PipelineOutput")
+    run_by_the_orchestrator = {"tell": k.archetype("PipelineTell"), "followOn": k.archetype("PipelineFollowOn")}
     Port = k.archetype("Port")
     Service = k.archetype("Service")
     Connection = k.archetype("Connection", "PlatformServiceConnection")
@@ -246,6 +249,8 @@ def build():
     k.bind(TRIGGER_ROLE["graph"], graph)
     k.rel(PipelineInput, is_, PipelineNode)  # boundary nodes are pipeline nodes too
     k.rel(PipelineOutput, is_, PipelineNode)
+    for kind in run_by_the_orchestrator.values():
+        k.rel(kind, is_, PipelineNode)
 
     results = {word: k.bind(role, k.thing(stable_id(_TAG, "result", word), word, shared=True)) for word, role in RESULT_ROLE.items()}
     error_port = k.thing(stable_id(_TAG, "port", "error"), "error", {
@@ -381,6 +386,14 @@ def build():
                     for port_name, name in choice.get("comparesWith", []):
                         k.rel(choice_id, compares_with, offered_by_key[(node["service"], port_name, name)])
                     choice_by_key[(node["key"], choice["name"])] = choice_id
+            elif "kind" in node:
+                k.thing(nid, node["label"], props)
+                k.rel(nid, is_, run_by_the_orchestrator[node["kind"]])
+                for (pname, ptype) in node["passesOn"]:
+                    for direction in ("in", "out"):
+                        make_port(nid, f"{pipe['name']}.{node['key']}", pname, direction, ptype, direction == "in", False)
+                kind, key = node["standsFor"]
+                k.rel(nid, stands_for, stood_for[kind][key])
             else:
                 is_input = "input" in node
                 label = node.get("label", "Input" if is_input else "Output")

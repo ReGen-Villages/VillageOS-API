@@ -31,10 +31,10 @@ public class RetryTests
     }
 
     private static (TestGraphs.RetryFixture Retry, FakeGateway Gateway, PipelineExecutor Executor) Arrange(
-        Func<int, NodeCallResult> answerToCall, bool handsOver = false, double clockRate = 6000, TimeProvider? real = null,
+        Func<int, NodeCallResult> answerToCall, bool bindsHandOver = false, double clockRate = 6000, TimeProvider? real = null,
         params (string Name, object Value)[] policy)
     {
-        var retry = TestGraphs.RetryPipeline(handsOver, policy: policy);
+        var retry = TestGraphs.RetryPipeline(bindsHandOver, policy: policy);
         var calls = 0;
         var gateway = new FakeGateway(retry.Fixture.Build())
         {
@@ -65,23 +65,6 @@ public class RetryTests
         gateway.NodeStatuses.Count(status => status == ("Echo", RunStatus.Trying)).Should().Be(2);
         gateway.Records[(result.RunId, retry.Echo.Id)].AttemptsMade.Should().HaveCount(3);
         gateway.NodeErrorsWritten.Should().NotContain(written => written.Name == "Echo", "each attempt holds its own error, and the node run that answered has none");
-    }
-
-    [Fact]
-    public async Task A_run_where_one_node_failed_and_another_handed_over_ends_failed()
-    {
-        var retry = TestGraphs.RetryPipeline(handsOver: true, besideAFailingNode: true, policy: [("attempts", 1)]);
-        var gateway = new FakeGateway(retry.Fixture.Build())
-        {
-            OnCall = (subdomain, _) => subdomain == "ech" ? Unreachable() : new NodeCallResult(200, "{\"result\":\"fail\",\"error\":\"broken\"}"),
-        };
-        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, FastClock());
-
-        var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
-
-        result.Nodes.Single(node => node.Name == "Echo").Status.Should().Be(RunStatus.HandedOver);
-        result.Error.Should().Be("'Broken' failed, and no fail wire leaves it.");
-        gateway.StatusUpdates.Should().Contain(RunStatus.Failed).And.NotContain(RunStatus.HandedOver);
     }
 
     // A model minute is a tenth of a real second here, well above the scheduling noise of a loaded machine, and only
@@ -153,10 +136,10 @@ public class RetryTests
     }
 
     [Fact]
-    public async Task A_refusal_on_the_last_attempt_fails_the_node_and_hands_nothing_over()
+    public async Task A_refusal_on_the_last_attempt_fails_the_node()
     {
         var (retry, gateway, executor) = Arrange(call => call < 2 ? Unreachable() : new NodeCallResult(400, "{\"error\":\"no\"}"),
-            handsOver: true, policy: [("attempts", 2), ("pauseMinutes", 0)]);
+            policy: [("attempts", 2), ("pauseMinutes", 0)]);
 
         var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
 
@@ -190,38 +173,26 @@ public class RetryTests
     }
 
     [Fact]
-    public async Task A_node_whose_attempts_run_out_hands_its_subject_to_the_drawing_it_names()
+    public async Task A_node_whose_attempts_run_out_fails_and_starts_nothing_where_the_model_still_binds_hand_over()
     {
-        var (retry, gateway, executor) = Arrange(_ => Unreachable(), handsOver: true, policy: [("attempts", 2), ("pauseMinutes", 0)]);
+        var (retry, gateway, executor) = Arrange(_ => Unreachable(), bindsHandOver: true, policy: [("attempts", 2), ("pauseMinutes", 0)]);
 
         var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None, subject: Plot);
 
         result.Success.Should().BeFalse();
-        result.Error.Should().Be("The run handed its subject to another drawing.");
-        var echo = result.Nodes.Single(node => node.Name == "Echo");
-        echo.Status.Should().Be(RunStatus.HandedOver);
-        echo.Error.Should().EndWith("The subject went to 'What follows'.");
-        result.Nodes.Single(node => node.Name == "Out").Status.Should().Be(RunStatus.Skipped);
-        gateway.StatusUpdates.Should().Contain(RunStatus.HandedOver);
-        await Settle.UntilAsync(() => { lock (gateway.RunsCreated) return gateway.RunsCreated.Count == 2; }, "the hand-over run is recorded");
-        var handedTo = gateway.RunsCreated.Last();
-        handedTo.PipelineId.Should().Be(retry.NextPipelineId);
-        handedTo.StartedBy.Should().Be(result.RunId);
-        handedTo.Subject.Should().Be(Plot);
-        var parameters = gateway.Runs[handedTo.RunId].Parameters;
-        parameters.EnumerateObject().Select(parameter => parameter.Name).Should().Equal("subject", "in");
-        parameters.GetProperty("in").GetString().Should().Be("world");
+        result.Error.Should().Be("'Echo' failed, and no fail wire leaves it.");
+        result.Nodes.Single(node => node.Name == "Echo").Status.Should().Be(RunStatus.Failed);
+        gateway.Called.Should().HaveCount(2);
     }
 
     [Fact]
-    public async Task A_node_whose_trying_time_runs_out_hands_over_before_its_attempts_do()
+    public async Task A_node_whose_trying_time_runs_out_fails_before_its_attempts_do()
     {
-        var (retry, gateway, executor) = Arrange(_ => Unreachable(), handsOver: true,
-            policy: [("attempts", 5), ("pauseMinutes", 2), ("tryingMinutes", 1)]);
+        var (retry, gateway, executor) = Arrange(_ => Unreachable(), policy: [("attempts", 5), ("pauseMinutes", 2), ("tryingMinutes", 1)]);
 
         var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None);
 
-        result.Nodes.Single(node => node.Name == "Echo").Status.Should().Be(RunStatus.HandedOver);
+        result.Nodes.Single(node => node.Name == "Echo").Status.Should().Be(RunStatus.Failed);
         gateway.Called.Should().HaveCount(1);
     }
 
@@ -240,17 +211,19 @@ public class RetryTests
     }
 
     [Fact]
-    public async Task A_node_that_runs_once_per_item_and_names_a_drawing_to_hand_over_to_is_refused_before_the_run()
+    public async Task A_node_that_runs_once_per_item_runs_where_the_model_still_binds_hand_over()
     {
-        var retry = TestGraphs.RetryPipeline(handsOver: true, perItem: true, policy: [("attempts", 2)]);
-        var gateway = new FakeGateway(retry.Fixture.Build());
+        var retry = TestGraphs.RetryPipeline(bindsHandOver: true, perItem: true, policy: [("attempts", 2)]);
+        var gateway = new FakeGateway(retry.Fixture.Build())
+        {
+            OnCall = (_, _) => Answer(),
+        };
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, FastClock());
 
         var result = await executor.RunAsync(retry.PipelineId, JsonSerializer.SerializeToElement(new { seed = new[] { "a", "b" } }), CancellationToken.None);
 
-        result.Success.Should().BeFalse();
-        result.Error.Should().Contain("'Echo' hands its subject over, but runs once for each item of 'in'; a node that hands over runs once.");
-        gateway.Called.Should().BeEmpty();
+        result.Success.Should().BeTrue();
+        gateway.Called.Should().HaveCount(2);
     }
 
     [Fact]
@@ -302,19 +275,6 @@ public class RetryTests
 
         await Settle.UntilAsync(() => gateway.StatusUpdates.Contains(RunStatus.Rehearsed), "the rehearsal carries on to its end");
         gateway.Envelopes.Single().Envelope.GetProperty(ModelNames.Rehearsal).GetBoolean().Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task A_rehearsal_whose_trying_ends_hands_nothing_over()
-    {
-        var (retry, gateway, executor) = Arrange(_ => Unreachable(), handsOver: true, policy: [("attempts", 2), ("pauseMinutes", 0)]);
-        retry.Fixture.State(retry.Fixture.Get("Service"), ModelNames.Rehearses, true);
-        gateway.Graph = retry.Fixture.Build();
-
-        var result = await executor.RunAsync(retry.PipelineId, Seed(), CancellationToken.None, rehearsal: true);
-
-        result.Nodes.Single(node => node.NodeId == retry.Echo.Id).Status.Should().Be(RunStatus.Failed);
-        gateway.RunsCreated.Should().ContainSingle("the drawing it would hand over to is not started");
     }
 
     [Fact]

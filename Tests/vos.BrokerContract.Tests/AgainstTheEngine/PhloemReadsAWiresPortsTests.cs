@@ -27,9 +27,10 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
         return played;
     }
 
-    private sealed record TextStudio(Guid Pipeline, Guid Uppercase, Guid Reverse, Guid TextOut, Guid TextIn, Guid? Shout, Guid? Loud);
+    private sealed record TextStudio(Guid Pipeline, Guid Uppercase, Guid Reverse, Guid TextOut, Guid TextIn, Guid? Shout, Guid? Loud,
+        Guid? Tell = null, Guid? Office = null, Guid? TellsTheOffice = null);
 
-    private async Task<TextStudio> DrawTextStudioAsync(bool uppercaseChooses)
+    private async Task<TextStudio> DrawTextStudioAsync(bool uppercaseChooses, bool tellsTheOffice = false)
     {
         var firstDrawing = await _engine.FindAsync(ModelNames.Is) is null;
         var @is = await _engine.DeclareOnceAsync(ModelNames.Is);
@@ -117,9 +118,40 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
             await _engine.RelateAsync(drawn, takenOn, taken);
         }
         await WireAsync("text to text", uppercase, textOut, reverse, textIn, shout ?? success);
-        await WireAsync("text to the end", reverse, textOut, end, reached, success);
+        if (!tellsTheOffice)
+        {
+            await WireAsync("text to the end", reverse, textOut, end, reached, success);
+            return new TextStudio(pipeline, uppercase, reverse, textOut, textIn, shout, loud);
+        }
 
-        return new TextStudio(pipeline, uppercase, reverse, textOut, textIn, shout, loud);
+        var firstTell = await _engine.FindAsync("PipelineTell") is null;
+        var tellArchetype = await PlayingAsync(PipelineRoles.PipelineTell, "PipelineTell");
+        if (firstTell) await _engine.RelateAsync(tellArchetype, @is, nodeArchetype);
+        var standsFor = await PlayingAsync(PipelineRoles.StandsFor, "standsFor", isArchetype: false);
+        var toldThrough = await PlayingAsync(PipelineRoles.ToldThrough, "toldThrough", isArchetype: false);
+        var systemArchetype = await PlayingAsync(PipelineRoles.ExternalSystem, "ExternalSystem");
+        var office = await _engine.DeclareAsync($"Reporting office {Guid.NewGuid():N}");
+        await _engine.RelateAsync(office, @is, systemArchetype);
+        var tellsTheOfficeConnection = await _engine.DeclareAsync($"tells the office {Guid.NewGuid():N}");
+        await _engine.RelateAsync(tellsTheOfficeConnection, @is, connectionArchetype);
+        await _engine.RelateAsync(office, toldThrough, tellsTheOfficeConnection);
+        var tell = await _engine.DeclareAsync("The office is told");
+        await _engine.RelateAsync(tell, @is, tellArchetype);
+        await _engine.RelateAsync(tell, standsFor, office);
+        async Task<Guid> TellPortAsync(string direction)
+        {
+            var port = await _engine.DeclareAsync($"tell.{direction}.text",
+                properties: new Dictionary<string, object?> { ["portName"] = "text", ["direction"] = direction, ["type"] = "string" });
+            await _engine.RelateAsync(port, @is, portArchetype);
+            await _engine.RelateAsync(tell, has, port);
+            return port;
+        }
+        var toldIn = await TellPortAsync("in");
+        var toldOut = await TellPortAsync("out");
+        await _engine.RelateAsync(pipeline, has, tell);
+        await WireAsync("text to the office", reverse, textOut, tell, toldIn, success);
+        await WireAsync("told to the end", tell, toldOut, end, reached, success);
+        return new TextStudio(pipeline, uppercase, reverse, textOut, textIn, shout, loud, tell, office, tellsTheOfficeConnection);
     }
 
     private async Task<PipelineDag> ReadAsync(Guid pipeline)
@@ -152,5 +184,18 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
         var choice = dag.Node(studio.Uppercase)!.DecisionPaths.Should().ContainSingle().Subject;
         (choice.Id, choice.When is not null, choice.Things.GetRawText())
             .Should().Be((studio.Shout!.Value, true, $"[{{\"id\":\"{studio.Loud}\",\"name\":\"loud\"}}]"));
+    }
+
+    [FactAgainstTheEngine]
+    public async Task A_tell_node_is_read_as_one_with_the_system_it_stands_for_and_the_connection_that_system_is_told_through()
+    {
+        var studio = await DrawTextStudioAsync(uppercaseChooses: false, tellsTheOffice: true);
+
+        var dag = await ReadAsync(studio.Pipeline);
+
+        DagValidator.Validate(dag).Should().BeEmpty();
+        var tell = dag.Node(studio.Tell!.Value)!;
+        tell.Kind.Should().Be(DagNodeKind.Tell);
+        (tell.Tells!.SystemId, tell.Tells.ConnectionId).Should().Be((studio.Office!.Value, studio.TellsTheOffice!.Value));
     }
 }

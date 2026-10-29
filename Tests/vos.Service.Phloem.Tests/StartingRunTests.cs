@@ -9,15 +9,15 @@ using Xunit;
 
 namespace vos.Service.Phloem.Tests;
 
-// A drawing ends by starting another: the run that reached the end leaves a second run of the pipeline the end
-// stands for, about the same subject, carrying what reached the end as its parameters.
+// A follow-on node starts a second run of the pipeline it stands for, about the same subject, carrying what reached
+// the node as its parameters, and the first run carries on to its Output node.
 public class StartingRunTests
 {
     private static readonly RunSubject Plot = new(Guid.NewGuid(), "Plot 7");
 
-    private static (TestGraphs.StartingFixture Starting, FakeGateway Gateway, PipelineExecutor Executor) Arrange(string? transformIntoTheEnd = null)
+    private static (TestGraphs.StartingFixture Starting, FakeGateway Gateway, PipelineExecutor Executor) Arrange(string? transformIntoTheFollowOn = null)
     {
-        var starting = TestGraphs.StartingPipeline(transformIntoTheEnd: transformIntoTheEnd);
+        var starting = TestGraphs.StartingPipeline(transformIntoTheFollowOn: transformIntoTheFollowOn);
         var gateway = new FakeGateway(starting.Fixture.Build())
         {
             OnCall = (subdomain, envelope) => subdomain == "ech"
@@ -28,7 +28,7 @@ public class StartingRunTests
     }
 
     [Fact]
-    public async Task A_run_ending_at_a_pipeline_leaves_a_second_run_of_it_about_the_same_subject_carrying_the_ends_inputs_and_naming_the_first()
+    public async Task A_follow_on_node_leaves_a_second_run_about_the_same_subject_carrying_what_reached_it_and_naming_the_first()
     {
         var (starting, gateway, executor) = Arrange();
 
@@ -43,23 +43,27 @@ public class StartingRunTests
         var parameters = gateway.Runs[second.RunId].Parameters;
         parameters.EnumerateObject().Select(parameter => parameter.Name).Should().Equal("subject", "result");
         parameters.GetProperty("result").GetString().Should().Be("world");
-        first.Nodes.Single(node => node.Name == "Out").Outputs[ModelNames.StartedRun].GetString().Should().Be(second.RunId.ToString());
+        var followOn = first.Nodes.Single(node => node.Name == TestGraphs.FollowOnNode);
+        followOn.Status.Should().Be(RunStatus.Succeeded);
+        followOn.Outputs[ModelNames.StartedRun].GetString().Should().Be(second.RunId.ToString());
+        first.Result!.Value.GetProperty("result").GetString().Should().Be("world", "the follow-on node passes on what reached it");
     }
 
     [Fact]
-    public async Task An_end_whose_inputs_cannot_be_assembled_fails_naming_the_pipeline_it_would_have_started_and_starts_nothing()
+    public async Task A_follow_on_node_whose_inputs_cannot_be_assembled_fails_naming_the_pipeline_it_would_have_started_and_starts_nothing()
     {
-        var (starting, gateway, executor) = Arrange(transformIntoTheEnd: "$error(\"the wire refuses\")");
+        var (starting, gateway, executor) = Arrange(transformIntoTheFollowOn: "$error(\"the wire refuses\")");
 
         var result = await executor.RunAsync(starting.PipelineId, JsonSerializer.SerializeToElement(new { seed = "world" }), CancellationToken.None);
 
         result.Success.Should().BeFalse();
-        result.Nodes.Single(node => node.Name == "Out").Error.Should().StartWith("'What follows' could not be started from 'Out':");
+        result.Nodes.Single(node => node.Name == TestGraphs.FollowOnNode).Error
+            .Should().StartWith($"'What follows' could not be started from '{TestGraphs.FollowOnNode}':");
         gateway.RunsCreated.Should().ContainSingle();
     }
 
     [Fact]
-    public async Task A_run_nobody_started_from_an_end_names_no_starting_run()
+    public async Task A_run_no_follow_on_node_started_names_no_starting_run()
     {
         var (starting, gateway, executor) = Arrange();
 
