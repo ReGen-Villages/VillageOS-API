@@ -35,6 +35,9 @@ FAIL = "661cb599-dbca-56ca-a0dc-f9f162e587c3"
 ERROR_PORT = "9aa04638-d93e-5375-ba25-3f81ae1a25a4"
 DECISION_PATH = "75c2351b-0e8d-5c97-a20d-18e4d5c46363"
 COMPARES_WITH = "9bb384be-5a61-5fff-9ed9-c423a2c74c37"
+# Read only when bound: a model that binds neither draws no tell or follow-on node.
+PIPELINE_TELL = "7fed4d74-0cb1-547d-85d8-bbcfc5992667"
+PIPELINE_FOLLOW_ON = "0ed6e1fc-cbac-5d4e-b3f0-ef83f4a09e43"
 
 # The roles a DAG is resolved from. Bound to nothing, every question below answers "no" and a model
 # full of pipelines reads as empty — which is why Phloem refuses such a model outright.
@@ -176,7 +179,8 @@ def main():
         node_ids = {t["Id"] for t in node_things}
         nodes = []
         for t in node_things:
-            kind = "input" if m.is_of(t["Id"], PIPELINE_INPUT) else "output" if m.is_of(t["Id"], PIPELINE_OUTPUT) else None
+            kind = ("input" if m.is_of(t["Id"], PIPELINE_INPUT) else "output" if m.is_of(t["Id"], PIPELINE_OUTPUT)
+                    else "tell" if m.is_of(t["Id"], PIPELINE_TELL) else "followOn" if m.is_of(t["Id"], PIPELINE_FOLLOW_ON) else None)
             if kind:
                 ports = m.resolve_ports(t["Id"])
             else:
@@ -230,15 +234,20 @@ def main():
                     if (n["id"], p["portName"]) not in wired and not n["bindings"].get(p["portName"]):
                         problems.append(f"[{pipe['Name']}] required input '{p['portName']}' on '{n['name']}' unwired/unbound")
 
-        # What each boundary node stands for (model.ts endInformation): a start may stand for a kind some
-        # system sends, a system that sends, a door, a cadence or a pipeline; an end for a kind some system is told, a
-        # system naming the connection it is told through (Phloem refuses the run otherwise), or a pipeline.
-        # Standing for nothing is fine at either end.
+        # What each node stands for (model.ts endInformation): a start may stand for a kind some system sends, a
+        # system that sends, a door, a cadence or a pipeline; a tell node for a system naming the connection it is
+        # told through (Phloem refuses the run otherwise), a follow-on node for a pipeline. The Output node stands
+        # for nothing, as Phloem reads it.
         stands = []
         for t in node_things:
             for stood in m.reached_along(t["Id"], STANDS_FOR):
                 is_start = m.is_of(t["Id"], PIPELINE_INPUT)
                 sid = stood["Id"]
+                if m.is_of(t["Id"], PIPELINE_OUTPUT) and (m.is_of(sid, EXTERNAL_SYSTEM) or m.is_of(sid, PIPELINE)):
+                    does_it_now = "a tell node wired on to it tells a system" if m.is_of(sid, EXTERNAL_SYSTEM) \
+                        else "a follow-on node wired on to it starts a pipeline"
+                    problems.append(f"[{pipe['Name']}] '{t['Name']}' is the Output node and stands for '{stood['Name']}'; {does_it_now}")
+                    continue
                 if m.is_of(sid, MESSAGE_KIND):
                     may = any(sid in [k["Id"] for k in m.reached_along(s["Id"], SENDS if is_start else TOLD)]
                               for s in m.things.values() if m.is_of(s["Id"], EXTERNAL_SYSTEM))

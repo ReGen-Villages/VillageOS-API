@@ -129,6 +129,10 @@ public static class PipelineDagBuilder
             return BuildBoundaryNode(graph, nodeThing, DagNodeKind.Input, problems);
         if (graph.IsOf(nodeThing, PipelineRoles.PipelineOutput))
             return BuildBoundaryNode(graph, nodeThing, DagNodeKind.Output, problems);
+        if (graph.IsOf(nodeThing, PipelineRoles.PipelineTell))
+            return BuildOrchestratorNode(graph, nodeThing, DagNodeKind.Tell, errorPort, problems);
+        if (graph.IsOf(nodeThing, PipelineRoles.PipelineFollowOn))
+            return BuildOrchestratorNode(graph, nodeThing, DagNodeKind.FollowOn, errorPort, problems);
 
         var connection = graph.OutgoingTargets(nodeThing, ModelNames.Has)
             .FirstOrDefault(t => graph.IsOf(t, PipelineRoles.Connection))
@@ -158,7 +162,6 @@ public static class PipelineDagBuilder
             Waits = Judged(problems, () => WaitOf(graph, nodeThing, ports), null),
             Retries = Judged(problems, () => RetryPolicyOf(nodeThing), null),
             Rehearses = UpTheIsChain(graph, service).Any(kind => kind.CarriesFlag(ModelNames.Rehearses)),
-            HandsOverTo = Judged(problems, () => PipelineReachedAlong(graph, nodeThing, PipelineRoles.HandsOverTo, "hands its subject to"), null),
             OnItemError = string.Equals(nodeThing.PropertyString(ModelNames.OnItemError), ModelNames.OnItemErrorContinue, StringComparison.OrdinalIgnoreCase)
                 ? ModelNames.OnItemErrorContinue
                 : ModelNames.OnItemErrorFail,
@@ -230,7 +233,8 @@ public static class PipelineDagBuilder
     // (Input) or collect into the run result (Output).
     private static DagNode BuildBoundaryNode(PipelineGraph graph, GraphThing nodeThing, DagNodeKind kind, List<string> problems)
     {
-        var end = kind == DagNodeKind.Output;
+        if (kind == DagNodeKind.Output)
+            Judged(problems, () => RefuseAnOutputNodeStandingForAnything(graph, nodeThing), unread: false);
         return new DagNode
         {
             NodeId = nodeThing.Id,
@@ -240,10 +244,42 @@ public static class PipelineDagBuilder
             Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
             Ports = ResolvePortThings(graph, nodeThing).Select(ToPort).ToList(),
             ParameterBindings = ParseParameterBindings(nodeThing),
-            Tells = end ? Judged(problems, () => TellingOf(graph, nodeThing), null) : null,
-            Starts = end ? Judged(problems, () => PipelineReachedAlong(graph, nodeThing, PipelineRoles.StandsFor, "stands for"), null) : null,
         };
     }
+
+    private static bool RefuseAnOutputNodeStandingForAnything(PipelineGraph graph, GraphThing output)
+    {
+        foreach (var stoodFor in graph.OutgoingAlong(output, PipelineRoles.StandsFor))
+        {
+            if (graph.IsOf(stoodFor, PipelineRoles.ExternalSystem))
+                throw new PipelineModelException(
+                    $"Node '{output.Name}' is the Output node and stands for '{stoodFor.Name}'; a tell node wired on to it tells a system.");
+            if (graph.IsOf(stoodFor, PipelineRoles.Pipeline))
+                throw new PipelineModelException(
+                    $"Node '{output.Name}' is the Output node and stands for '{stoodFor.Name}'; a follow-on node wired on to it starts a pipeline.");
+        }
+        return true;
+    }
+
+    // Its own ports, as a boundary node declares them, and the error port, so a fail it answers can be carried on.
+    private static DagNode BuildOrchestratorNode(PipelineGraph graph, GraphThing nodeThing, DagNodeKind kind, DagPort errorPort, List<string> problems) => new()
+    {
+        NodeId = nodeThing.Id,
+        Name = nodeThing.Name,
+        Kind = kind,
+        Subdomain = string.Empty,
+        Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
+        Ports = [.. ResolvePortThings(graph, nodeThing).Select(ToPort), errorPort],
+        ParameterBindings = ParseParameterBindings(nodeThing),
+        Tells = kind == DagNodeKind.Tell
+            ? Judged(problems, () => TellingOf(graph, nodeThing)
+                ?? throw new PipelineModelException($"Node '{nodeThing.Name}' is a tell node but stands for no external system."), null)
+            : null,
+        Starts = kind == DagNodeKind.FollowOn
+            ? Judged(problems, () => PipelineReachedAlong(graph, nodeThing, PipelineRoles.StandsFor, "stands for")
+                ?? throw new PipelineModelException($"Node '{nodeThing.Name}' is a follow-on node but stands for no pipeline."), null)
+            : null,
+    };
 
     // A node reaching its own pipeline is refused, since a run would start another of itself without end.
     private static Starting? PipelineReachedAlong(PipelineGraph graph, GraphThing node, Role role, string reaching)
@@ -276,17 +312,17 @@ public static class PipelineDagBuilder
         return policy;
     }
 
-    // Refused at build rather than at the end, so a run that could never send its message does nothing first.
-    private static Telling? TellingOf(PipelineGraph graph, GraphThing endNode)
+    // Refused at build rather than at the tell node, so a run that could never send its message does nothing first.
+    private static Telling? TellingOf(PipelineGraph graph, GraphThing tellNode)
     {
-        var system = graph.OutgoingAlong(endNode, PipelineRoles.StandsFor)
+        var system = graph.OutgoingAlong(tellNode, PipelineRoles.StandsFor)
             .FirstOrDefault(target => graph.IsOf(target, PipelineRoles.ExternalSystem));
         if (system is null) return null;
 
         var connection = graph.OutgoingAlong(system, PipelineRoles.ToldThrough)
             .FirstOrDefault(target => graph.IsOf(target, PipelineRoles.Connection))
             ?? throw new PipelineModelException(
-                $"End node '{endNode.Name}' stands for '{system.Name}', which names no connection it is told through, "
+                $"Node '{tellNode.Name}' stands for '{system.Name}', which names no connection it is told through, "
                 + "so nothing could send it what reaches the node.");
         return new Telling(system.Id, system.Name, connection.Id);
     }

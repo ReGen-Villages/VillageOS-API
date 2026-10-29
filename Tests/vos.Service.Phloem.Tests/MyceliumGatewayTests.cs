@@ -242,21 +242,21 @@ public class MyceliumGatewayTests
             .Should().BeEquivalentTo([PipelineRoles.Port.Id, PipelineRoles.PipelineWire.Id]);
 
         // The pipeline, and the Thing for every role, so one missing from the snapshot means the model binds it
-        // to nothing rather than that this pipeline has no node playing it, beside the roles an end standing for
-        // a system is read through.
+        // to nothing rather than that this pipeline has no node playing it, beside the roles a tell or follow-on
+        // node is read through.
         selector.GetProperty("ids").EnumerateArray().Select(id => id.GetGuid())
             .Should().BeEquivalentTo(PipelineRoles.DagRoles.Select(role => role.Id).Append(pipelineId).Concat(
                 [PipelineRoles.ExternalSystem.Id, PipelineRoles.StandsFor.Id, PipelineRoles.ToldThrough.Id, PipelineRoles.Choice.Id,
-                 PipelineRoles.CompletionRange.Id, PipelineRoles.AwaitsThrough.Id, PipelineRoles.HandsOverTo.Id]));
+                 PipelineRoles.CompletionRange.Id, PipelineRoles.AwaitsThrough.Id, PipelineRoles.PipelineTell.Id, PipelineRoles.PipelineFollowOn.Id]));
 
-        // What each role binds, then the system an end stands for, the connection it is told through, what a port
-        // offers and a node chose, the state a waiting node waits for, the drawing a node hands over to, and the
-        // Things a node's choice compares with, are reached after the nodes.
+        // What each role binds, then the system or pipeline a node stands for, the connection a system is told
+        // through, what a port offers and a node chose, the state a waiting node waits for, and the Things a node's
+        // choice compares with, are reached after the nodes.
         selector.GetProperty("traverse").EnumerateArray()
             .Select(rule => rule.TryGetProperty("predicateRole", out var role) ? role.GetString() : rule.GetProperty("predicate").GetString())
             .Should().Equal(ModelNames.Has, ModelNames.Binds, PipelineRoles.StandsFor.Id.ToString(),
                 PipelineRoles.ToldThrough.Id.ToString(), PipelineRoles.Choice.Id.ToString(), PipelineRoles.CompletionRange.Id.ToString(),
-                PipelineRoles.HandsOverTo.Id.ToString(), PipelineRoles.ComparesWith.Id.ToString());
+                PipelineRoles.ComparesWith.Id.ToString());
     }
 
     [Fact]

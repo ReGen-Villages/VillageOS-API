@@ -16,8 +16,6 @@ public static class RunStatus
     public const string Waiting = "waiting";
     // A call never reached the node's service and the node pauses before the next attempt.
     public const string Trying = "trying";
-    // The node's trying ended without an answer and its subject went to the drawing the node names.
-    public const string HandedOver = "handedOver";
     // The drawing was judged unable to run, so nothing ran.
     public const string Refused = "refused";
     // A rehearsal reached its ends; an end that would have sent or started something did neither.

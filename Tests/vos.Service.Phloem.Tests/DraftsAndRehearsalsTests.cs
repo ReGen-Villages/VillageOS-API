@@ -86,7 +86,7 @@ public class DraftsAndRehearsalsTests
     }
 
     [Fact]
-    public async Task A_rehearsal_reaching_an_end_that_tells_a_system_sends_nothing_and_keeps_what_it_would_have_sent()
+    public async Task A_rehearsal_reaching_a_tell_node_sends_nothing_keeps_what_it_would_have_sent_and_carries_on()
     {
         var telling = TestGraphs.TellingPipeline();
         EveryServiceRehearses(telling.Fixture);
@@ -95,16 +95,16 @@ public class DraftsAndRehearsalsTests
         var result = await executor.RunAsync(telling.PipelineId, Seed, CancellationToken.None, rehearsal: true);
 
         gateway.MessagesSent.Should().BeEmpty();
-        var end = result.Nodes.Single(node => node.Name == "Out");
-        end.Status.Should().Be(RunStatus.Rehearsed);
-        end.Outputs["result"].GetString().Should().Be("heard");
+        var tell = result.Nodes.Single(node => node.Name == TestGraphs.TellNode);
+        tell.Status.Should().Be(RunStatus.Rehearsed);
+        tell.Outputs["result"].GetString().Should().Be("heard");
         result.Success.Should().BeTrue();
-        result.Result!.Value.GetProperty("result").GetString().Should().Be("heard", "the run's result is what reached its end, rehearsed or not");
+        result.Result!.Value.GetProperty("result").GetString().Should().Be("heard", "the run's result is what reached its Output node, rehearsed or not");
         gateway.RunResult!.Value.GetProperty("result").GetString().Should().Be("heard");
     }
 
     [Fact]
-    public async Task A_rehearsal_reaching_an_end_that_starts_a_pipeline_starts_nothing()
+    public async Task A_rehearsal_reaching_a_follow_on_node_starts_nothing_and_carries_on()
     {
         var starting = TestGraphs.StartingPipeline();
         EveryServiceRehearses(starting.Fixture);
@@ -112,22 +112,23 @@ public class DraftsAndRehearsalsTests
 
         var result = await executor.RunAsync(starting.PipelineId, Seed, CancellationToken.None, rehearsal: true);
 
-        result.Nodes.Single(node => node.Name == "Out").Status.Should().Be(RunStatus.Rehearsed);
+        result.Nodes.Single(node => node.Name == TestGraphs.FollowOnNode).Status.Should().Be(RunStatus.Rehearsed);
+        result.Nodes.Single(node => node.Name == "Out").Status.Should().Be(RunStatus.Succeeded);
         gateway.RunsCreated.Should().ContainSingle("only the rehearsal itself is recorded");
     }
 
     [Fact]
-    public async Task A_rehearsed_end_whose_inputs_cannot_be_put_together_fails_saying_so()
+    public async Task A_rehearsed_follow_on_node_whose_inputs_cannot_be_put_together_fails_saying_so()
     {
-        var starting = TestGraphs.StartingPipeline(transformIntoTheEnd: "$error(\"no shape for the end\")");
+        var starting = TestGraphs.StartingPipeline(transformIntoTheFollowOn: "$error(\"no shape for the follow-on\")");
         EveryServiceRehearses(starting.Fixture);
         var (_, executor) = Arrange(starting.Fixture);
 
         var result = await executor.RunAsync(starting.PipelineId, Seed, CancellationToken.None, rehearsal: true);
 
-        var end = result.Nodes.Single(node => node.Name == "Out");
-        end.Status.Should().Be(RunStatus.Failed);
-        end.Error.Should().Contain("could not be put together").And.Contain("no shape for the end");
+        var followOn = result.Nodes.Single(node => node.Name == TestGraphs.FollowOnNode);
+        followOn.Status.Should().Be(RunStatus.Failed);
+        followOn.Error.Should().Contain("could not be put together").And.Contain("no shape for the follow-on");
     }
 
     [Fact]

@@ -63,7 +63,8 @@ public static class PipelineRoles
     // One call of a node's service, held by the node run that made it; and the pipeline a node hands its subject
     // to when its trying ends without an answer.
     public static readonly Role Attempt = new("attempt", new("d3014b77-c8f2-51d8-bb74-098c26296944"));
-    public static readonly Role HandsOverTo = new("handsOverTo", new("5ee3e03b-c8a6-5ed2-83c7-77448c913175"));
+    public static readonly Role PipelineTell = new("pipelineTell", new("7fed4d74-0cb1-547d-85d8-bbcfc5992667"));
+    public static readonly Role PipelineFollowOn = new("pipelineFollowOn", new("0ed6e1fc-cbac-5d4e-b3f0-ef83f4a09e43"));
     public static readonly Role Cadence = new("cadence", new("f3883eaf-4e52-5c0c-887b-1bc696578812"));
     // A stop request reaches a run, or any Thing whose runs it stops, along the orchestrator's own runStopping
     // connection; each run stopped reaches the request along stoppedBy.

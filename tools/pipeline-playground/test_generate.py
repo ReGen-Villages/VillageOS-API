@@ -432,6 +432,19 @@ class CatalystVocabularyTests(unittest.TestCase):
         self.assertEqual(run.returncode, 1, run.stdout + run.stderr)
         self.assertIn("[Text Studio] the wire from 'Uppercase' to 'Reverse' is drawn as a relationship between the two nodes", run.stdout)
 
+    def test_the_fragment_validator_refuses_an_output_node_standing_for_a_system(self):
+        fragment = G.as_fragment(self.kit)
+        [stands_for] = self.bound("standsFor")
+        output = G.stable_id(G._TAG, "node", "Daily Report", "out")
+        office = next(t["Id"] for t in fragment["Things"] if t["Name"] == "Reporting office")
+        fragment["Relationships"].append({"Id": "output-stands-for", "Name": "", "Subject": output, "Predicate": stands_for,
+                                          "Target": office, "Properties": {}})
+
+        run = self.validate(fragment)
+
+        self.assertEqual(run.returncode, 1, run.stdout + run.stderr)
+        self.assertIn("[Daily Report] 'Reported' is the Output node and stands for 'Reporting office'; a tell node wired on to it tells a system", run.stdout)
+
     def test_the_fragment_validator_accepts_every_drawing(self):
         run = self.validate(G.as_fragment(self.kit))
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
@@ -489,6 +502,17 @@ class CatalystVocabularyTests(unittest.TestCase):
                  for r in self.kit.rels.values() if r["Predicate"] == stands_for}
         self.assertEqual(stood, {("A reading batch arrives", "reading batch"), ("The office is told", "Reporting office"),
                                  ("The hour strikes", "Every hour")})
+
+    def test_the_daily_report_tells_the_office_through_a_tell_node_wired_on_to_an_output_node_standing_for_nothing(self):
+        [stands_for] = self.bound("standsFor")
+        [tell] = self.bound_instances("pipelineTell")
+        self.assertEqual(self.kit.things[tell]["Name"], "The office is told")
+        [carries] = [t["Id"] for t in self.kit.things.values() if t["Name"] == "carries"]
+        [has] = [t["Id"] for t in self.kit.things.values() if t["Name"] == "has"]
+        wires_out = [r["Target"] for r in self.kit.rels.values() if r["Subject"] == tell and r["Predicate"] == has and r["Target"] in self.wires()]
+        [reached] = [r["Target"] for r in self.kit.rels.values() if r["Subject"] in wires_out and r["Predicate"] == carries]
+        self.assertIn(reached, self.bound_instances("pipelineOutput"))
+        self.assertFalse([r for r in self.kit.rels.values() if r["Subject"] in self.bound_instances("pipelineOutput") and r["Predicate"] == stands_for])
 
     def test_the_hourly_cadence_is_a_cadence_declaring_its_interval_and_its_last_due_instant(self):
         [cadence_archetype] = self.bound("cadence")
