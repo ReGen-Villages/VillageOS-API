@@ -386,6 +386,19 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
+    public async Task CreateRunAsync_WhenTheBrokerRefusesTheRun_FailsWithTheBrokersReason()
+    {
+        var broker = new BrokerApplyingItsWriteRules();
+        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/model/fragment"
+            ? Json(HttpStatusCode.BadRequest, """{"error":"the run kind is not a type"}""")
+            : broker.Respond(request));
+
+        var creating = () => gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        (await creating.Should().ThrowAsync<InvalidOperationException>()).WithMessage("*the run kind is not a type*");
+    }
+
+    [Fact]
     public async Task CreateRunAsync_RecordsWhetherTheRunIsARehearsal()
     {
         var (gateway, handler) = NewGateway();
