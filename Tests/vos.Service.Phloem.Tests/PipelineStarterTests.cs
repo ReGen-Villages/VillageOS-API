@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
@@ -161,5 +162,84 @@ public class PipelineStarterTests
 
         resolution.Started.Should().BeFalse();
         resolution.Refusal.Should().Contain("the Thing the subject was joined to");
+    }
+
+    [Fact]
+    public async Task ReadSubjectAsync_AnIdentifier_IsReadAsTheThingTheModelHolds()
+    {
+        var fixture = new GraphFixture();
+        var held = fixture.Thing("Reservoir 7");
+        var parameters = JsonSerializer.SerializeToElement(new { subject = held.Id.ToString() });
+
+        var reading = await new PipelineStarter(new FakeGateway(fixture.Build())).ReadSubjectAsync(parameters, CancellationToken.None);
+
+        reading.Subject.Should().Be(new RunSubject(held.Id, "Reservoir 7"));
+        reading.Refusal.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ReadSubjectAsync_AnIdentifierSentWithAName_TakesTheModelsName()
+    {
+        var fixture = new GraphFixture();
+        var held = fixture.Thing("Reservoir 7");
+        var parameters = JsonSerializer.SerializeToElement(new { subject = new { id = held.Id.ToString(), name = "the old name" } });
+
+        var reading = await new PipelineStarter(new FakeGateway(fixture.Build())).ReadSubjectAsync(parameters, CancellationToken.None);
+
+        reading.Subject.Should().Be(new RunSubject(held.Id, "Reservoir 7"));
+    }
+
+    [Theory]
+    [InlineData("""{"subject":"Reservoir 7"}""", "Reservoir 7")]
+    [InlineData("""{"subject":42}""", "42")]
+    [InlineData("""{"subject":{"name":"Reservoir 7"}}""", "Reservoir 7")]
+    [InlineData("""{"subject":{"id":"not an identifier"}}""", "not an identifier")]
+    public async Task ReadSubjectAsync_AValueThatIsNoIdentifier_IsRefusedNamingIt(string body, string named)
+    {
+        var gateway = new FakeGateway(new GraphFixture().Build());
+
+        var reading = await new PipelineStarter(gateway).ReadSubjectAsync(JsonDocument.Parse(body).RootElement, CancellationToken.None);
+
+        reading.Subject.Should().BeNull();
+        reading.Refusal.Should().Contain(named);
+        gateway.SubjectsRead.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReadSubjectAsync_AnIdentifierTheModelDoesNotHold_IsRefusedNamingIt(bool sentWithAName)
+    {
+        var unheld = Guid.NewGuid();
+        var parameters = sentWithAName
+            ? JsonSerializer.SerializeToElement(new { subject = new { id = unheld.ToString(), name = "Reservoir 7" } })
+            : JsonSerializer.SerializeToElement(new { subject = unheld.ToString() });
+
+        var reading = await new PipelineStarter(new FakeGateway(new GraphFixture().Build())).ReadSubjectAsync(parameters, CancellationToken.None);
+
+        reading.Subject.Should().BeNull();
+        reading.Refusal.Should().Contain(unheld.ToString());
+    }
+
+    [Theory]
+    [InlineData("""{"site":"north"}""")]
+    [InlineData("""{"subject":null}""")]
+    [InlineData("null")]
+    public async Task ReadSubjectAsync_AStartWithNoSubject_ReadsNothingAndRefusesNothing(string body)
+    {
+        var gateway = new FakeGateway(new GraphFixture().Build());
+
+        var reading = await new PipelineStarter(gateway).ReadSubjectAsync(JsonDocument.Parse(body).RootElement, CancellationToken.None);
+
+        reading.Should().Be(new SubjectReading(null, null));
+        gateway.SubjectsRead.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ReadSubjectAsync_AStartWithNoParameters_ReadsNothingAndRefusesNothing()
+    {
+        var reading = await new PipelineStarter(new FakeGateway(new GraphFixture().Build())).ReadSubjectAsync(default, CancellationToken.None);
+
+        reading.Should().Be(new SubjectReading(null, null));
     }
 }

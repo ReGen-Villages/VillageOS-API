@@ -214,6 +214,61 @@ public class HandleEndpointTests
         factory.RunRecordFor(Drawn).Should().NotContain("requestId");
     }
 
+    public static TheoryData<bool, object> SubjectsNamingTheSubmission => new()
+    {
+        { true, Submission.ToString() },
+        { false, Submission.ToString() },
+        { true, new { id = Submission.ToString(), name = "a name the model does not hold" } },
+        { false, new { id = Submission.ToString(), name = "a name the model does not hold" } },
+    };
+
+    [Theory]
+    [MemberData(nameof(SubjectsNamingTheSubmission))]
+    public async Task Handle_ARunStartedByHand_CarriesItsSubjectAsTheModelHoldsIt(bool async, object subject)
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/handle", ByHand(async, subject));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        await Settle.UntilAsync(() => factory.RunsRecordedFor(Drawn) == 1, "the run record reaches the broker");
+        var parameters = JsonDocument.Parse(JsonDocument.Parse(factory.RunRecordFor(Drawn)).RootElement
+            .GetProperty("properties").GetProperty(ModelNames.Parameters).GetProperty("value").GetString()!).RootElement;
+        parameters.GetProperty("subject").GetProperty("id").GetGuid().Should().Be(Submission);
+        parameters.GetProperty("subject").GetProperty("name").GetString().Should().Be("Submission 42");
+    }
+
+    public static TheoryData<bool, object, string> SubjectsNamingNoThing => new()
+    {
+        { true, Unheld.ToString(), Unheld.ToString() },
+        { false, Unheld.ToString(), Unheld.ToString() },
+        { true, new { id = Unheld.ToString(), name = "Submission 42" }, Unheld.ToString() },
+        { true, "Submission 42", "Submission 42" },
+        { false, "Submission 42", "Submission 42" },
+    };
+
+    [Theory]
+    [MemberData(nameof(SubjectsNamingNoThing))]
+    public async Task Handle_ARunStartedByHandWhoseSubjectNamesNoThing_IsRefusedNamingIt_AndNoRunIsRecorded(bool async, object subject, string named)
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/handle", ByHand(async, subject));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("error").GetString().Should().Contain(named);
+        body.TryGetProperty("runId", out _).Should().BeFalse();
+        factory.RunsRecordedFor(Drawn).Should().Be(0);
+    }
+
+    private static readonly Guid Unheld = Guid.Parse("50000000-0000-0000-0000-000000000099");
+
+    private static StringContent ByHand(bool async, object subject) => new(
+        JsonSerializer.Serialize(new { pipelineId = Drawn, parameters = new { subject }, async }), Encoding.UTF8, "application/json");
+
     private static StringContent StateEntry(Guid target, Guid? relationship = null) => new(JsonSerializer.Serialize(new
     {
         relationshipId = relationship ?? Guid.NewGuid(),
@@ -268,6 +323,10 @@ public class HandleEndpointTests
             }
             if (uri.AbsolutePath == "/api/things" && uri.Query.Contains("name="))
                 return Json(JsonSerializer.Serialize(new { Id = Guid.NewGuid(), Name = "a predicate", Properties = new { } }));
+            if (uri.AbsolutePath == $"/api/things/{Submission}" && request.Method == HttpMethod.Get)
+                return Json(JsonSerializer.Serialize(new { Id = Submission, Name = "Submission 42", Properties = new { } }));
+            if (uri.AbsolutePath == $"/api/things/{Unheld}" && request.Method == HttpMethod.Get)
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
             if (uri.AbsolutePath.StartsWith("/api/relationships/", StringComparison.Ordinal) && request.Method == HttpMethod.Get)
                 return uri.AbsolutePath.EndsWith(WrittenAlongWatching.ToString(), StringComparison.Ordinal)
                     ? Json(JsonSerializer.Serialize(new { Id = WrittenAlongWatching, SubjectId = Submission, PredicateId = Watching, TargetId = Joined, Properties = new { } }))

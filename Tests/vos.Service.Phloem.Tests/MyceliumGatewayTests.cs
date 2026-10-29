@@ -1238,6 +1238,35 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
+    public async Task SubjectAsync_ReadsTheThingAndAnswersItsIdentifierAndName()
+    {
+        var thingId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway(_ => Json(HttpStatusCode.OK,
+            $$$"""{"Id":"{{{thingId}}}","Name":"Reservoir 7","Properties":{}}"""));
+
+        (await gateway.SubjectAsync(thingId, CancellationToken.None)).Should().Be(new RunSubject(thingId, "Reservoir 7"));
+        handler.Requests.Single().RequestUri!.AbsolutePath.Should().Be($"/api/things/{thingId}");
+    }
+
+    [Fact]
+    public async Task SubjectAsync_WhenTheModelDoesNotHoldTheThing_AnswersNone()
+    {
+        var (gateway, _) = NewGateway(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+
+        (await gateway.SubjectAsync(Guid.NewGuid(), CancellationToken.None)).Should().BeNull();
+    }
+
+    // A broker that cannot answer has not said the Thing is missing, so the start is not refused as naming nothing.
+    [Fact]
+    public async Task SubjectAsync_WhenTheBrokerFails_Throws()
+    {
+        var (gateway, _) = NewGateway(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
+
+        await gateway.Invoking(g => g.SubjectAsync(Guid.NewGuid(), CancellationToken.None))
+            .Should().ThrowAsync<HttpRequestException>();
+    }
+
+    [Fact]
     public async Task ServiceCallAsync_SendsTheEnvelopeToTheNamedEndpointAndReturnsWhatItSaid()
     {
         var (gateway, handler) = NewGateway(_ => Json(HttpStatusCode.Accepted, """{"outputs":{"sum":3}}"""));

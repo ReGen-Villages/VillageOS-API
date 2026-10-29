@@ -99,6 +99,15 @@ try
         // The broker's name for this call in its request log. A call without one, or with one that is not an
         // identifier, still runs; the run simply records no request.
         var requestId = Guid.TryParse(httpContext.Request.Headers[RequestLogHeader].ToString(), out var named) ? named : (Guid?)null;
+        var heldSubject = default(RunSubject);
+        if (trigger.Kind == SpawnKind.Http)
+        {
+            var reading = await starter.ReadSubjectAsync(trigger.Parameters, httpContext.RequestAborted);
+            if (reading.Refusal is not null)
+                return Results.BadRequest(new { error = reading.Refusal });
+            heldSubject = reading.Subject;
+        }
+
         switch (trigger.Kind)
         {
             case SpawnKind.Http when trigger.Async:
@@ -110,14 +119,14 @@ try
                 var asyncRehearsal = trigger.Rehearsal;
                 _ = Task.Run(async () =>
                 {
-                    try { await executor.RunAsync(asyncPipelineId, asyncParameters, CancellationToken.None, asyncRunId, requestId: requestId, rehearsal: asyncRehearsal); }
+                    try { await executor.RunAsync(asyncPipelineId, asyncParameters, CancellationToken.None, asyncRunId, heldSubject, requestId, rehearsal: asyncRehearsal); }
                     catch (Exception ex) { Log.Error(ex, "Async pipeline run {RunId} ({PipelineId}) failed", asyncRunId, asyncPipelineId); }
                 });
                 return Results.Ok(new { success = true, accepted = true, runId = asyncRunId, pipelineId = trigger.PipelineId });
 
             case SpawnKind.Http:
                 // Synchronous spawn-and-wait — the caller (e.g. a programmatic client) blocks for the result.
-                var result = await executor.RunAsync(trigger.PipelineId, trigger.Parameters, httpContext.RequestAborted, requestId: requestId, rehearsal: trigger.Rehearsal);
+                var result = await executor.RunAsync(trigger.PipelineId, trigger.Parameters, httpContext.RequestAborted, subject: heldSubject, requestId: requestId, rehearsal: trigger.Rehearsal);
                 return Results.Ok(result);
 
             case SpawnKind.Relationship when trigger.RelationshipId is { } written && await executor.IsStopAsync(written, httpContext.RequestAborted):
