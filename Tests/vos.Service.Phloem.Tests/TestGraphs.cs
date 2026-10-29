@@ -427,7 +427,7 @@ public static class TestGraphs
         return new TellingFixture(fx, pipelineId, system.Id, tells.Id);
     }
 
-    public sealed record StoppingFixture(GraphFixture Fixture, Guid PipelineId, GraphThing Stop, GraphThing Output);
+    public sealed record StoppingFixture(GraphFixture Fixture, Guid PipelineId, GraphThing Stop, GraphThing Output, GraphThing ThingsWire);
 
     public const string StopNode = "Stop the runs about them";
 
@@ -471,10 +471,10 @@ public static class TestGraphs
         fx.Rel(pipe, vocabulary.Has, input);
         fx.Rel(pipe, vocabulary.Has, stop);
         fx.Rel(pipe, vocabulary.Has, output);
-        fx.Wire(input, ModelNames.Things, stop, ModelNames.Things);
+        var thingsWire = fx.Wire(input, ModelNames.Things, stop, ModelNames.Things);
         fx.Wire(input, ModelNames.Reason, stop, ModelNames.Reason);
         fx.Wire(stop, ModelNames.Requested, output, ModelNames.Requested);
-        return new StoppingFixture(fx, pipe.Id, stop, output);
+        return new StoppingFixture(fx, pipe.Id, stop, output, thingsWire);
     }
 
     public sealed record StartingFixture(GraphFixture Fixture, Guid PipelineId, Guid NextPipelineId);

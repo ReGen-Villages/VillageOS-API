@@ -104,6 +104,21 @@ public class StopNodeTests
     }
 
     [Fact]
+    public async Task A_stop_node_whose_inputs_cannot_be_put_together_fails_saying_so_and_writes_nothing()
+    {
+        var (stopping, gateway, executor) = Arrange();
+        stopping.Fixture.State(stopping.ThingsWire, ModelNames.Transform, "$error(\"no shape for the Things\")");
+        gateway.Graph = stopping.Fixture.Build();
+
+        var result = await executor.RunAsync(stopping.PipelineId, Asked(Named(Reservoir)), CancellationToken.None);
+
+        var stop = result.Nodes.Single(node => node.Name == TestGraphs.StopNode);
+        stop.Status.Should().Be(RunStatus.Failed);
+        stop.Error.Should().Contain("could not be put together").And.Contain("no shape for the Things");
+        gateway.StopRequestsWritten.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task A_rehearsal_writes_no_request_and_carries_on()
     {
         var (stopping, gateway, executor) = Arrange();
