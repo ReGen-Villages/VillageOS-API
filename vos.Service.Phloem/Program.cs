@@ -99,7 +99,7 @@ try
         // The broker's name for this call in its request log. A call without one, or with one that is not an
         // identifier, still runs; the run simply records no request.
         var requestId = Guid.TryParse(httpContext.Request.Headers[RequestLogHeader].ToString(), out var named) ? named : (Guid?)null;
-        var heldSubject = default(RunSubject);
+        RunSubject? heldSubject = null;
         if (trigger.Kind == SpawnKind.Http)
         {
             var reading = await starter.ReadSubjectAsync(trigger.Parameters, httpContext.RequestAborted);
@@ -119,7 +119,7 @@ try
                 var asyncRehearsal = trigger.Rehearsal;
                 _ = Task.Run(async () =>
                 {
-                    try { await executor.RunAsync(asyncPipelineId, asyncParameters, CancellationToken.None, asyncRunId, heldSubject, requestId, rehearsal: asyncRehearsal); }
+                    try { await executor.RunAsync(asyncPipelineId, asyncParameters, CancellationToken.None, asyncRunId, subject: heldSubject, requestId: requestId, rehearsal: asyncRehearsal); }
                     catch (Exception ex) { Log.Error(ex, "Async pipeline run {RunId} ({PipelineId}) failed", asyncRunId, asyncPipelineId); }
                 });
                 return Results.Ok(new { success = true, accepted = true, runId = asyncRunId, pipelineId = trigger.PipelineId });
