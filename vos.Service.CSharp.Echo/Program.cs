@@ -3,6 +3,7 @@ using vos.Service.CSharp.Echo.Services;
 using vos.Service.Shared;
 using vos.Service.Shared.Configuration;
 using vos.Service.Shared.DagNode;
+using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Subscriptions;
 using Serilog;
 
@@ -13,7 +14,7 @@ if (launchSettings == null)
 {
     Console.WriteLine(ServiceLaunchSettings.UsageMessage);
     Environment.Exit(1);
-    return;
+    return 1;
 }
 
 var servicePort = launchSettings.Port;
@@ -182,14 +183,16 @@ if (authEnabled) shutdownEndpoint.RequireAuthorization();
 app.Run();
 
 }
-catch (Exception ex)
+catch (Exception error)
 {
-    Log.Fatal(ex, "Echo endpoint service terminated unexpectedly");
+    return ServiceHost.FailedToStart("Echo", error);
 }
 finally
 {
     Log.CloseAndFlush();
 }
+
+return 0;
 
 // Exposed to WebApplicationFactory<Program> in the test project per docs/SERVICES.md.
 public partial class Program { }

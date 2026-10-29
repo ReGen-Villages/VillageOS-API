@@ -21,14 +21,14 @@ if (launchSettings == null || mailDelivery == null)
 {
     Console.WriteLine(IntakeLaunchSettings.UsageMessage);
     Environment.Exit(1);
-    return;
+    return 1;
 }
 
 if (mailDelivery.WhyRefusedIn(builder.Environment.EnvironmentName) is { } refusal)
 {
     Console.WriteLine(refusal);
     Environment.Exit(1);
-    return;
+    return 1;
 }
 
 var publicFormOrigins = launchSettings.PublicFormOrigins;
@@ -634,14 +634,16 @@ try
 
     app.Run();
 }
-catch (Exception ex)
+catch (Exception error)
 {
-    Log.Fatal(ex, "Intake service terminated unexpectedly");
+    return ServiceHost.FailedToStart("Intake", error);
 }
 finally
 {
     Log.CloseAndFlush();
 }
+
+return 0;
 
 // Not the requester's to correct, so nothing is logged as a refusal: whatever went wrong was logged where
 // it was caught.

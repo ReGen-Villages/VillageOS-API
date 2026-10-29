@@ -2,6 +2,7 @@ using vos.Auth.Shared;
 using vos.Service.Xylem.Configuration;
 using vos.Service.Shared;
 using vos.Service.Shared.Configuration;
+using vos.Service.Shared.Hosting;
 using vos.Service.Xylem.Services;
 using Serilog;
 
@@ -12,7 +13,7 @@ if (launchSettings == null)
 {
     Console.WriteLine(XylemLaunchSettings.UsageMessage);
     Environment.Exit(1);
-    return;
+    return 1;
 }
 
 var logPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs", "xylem-.log");
@@ -143,13 +144,15 @@ try
 
     app.Run();
 }
-catch (Exception ex) when (ex is not HostAbortedException)
+catch (Exception error)
 {
-    Log.Fatal(ex, "Xylem service terminated unexpectedly");
+    return ServiceHost.FailedToStart("Xylem", error);
 }
 finally
 {
     Log.CloseAndFlush();
 }
+
+return 0;
 
 public partial class Program;
