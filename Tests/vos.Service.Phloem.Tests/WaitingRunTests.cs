@@ -68,12 +68,7 @@ public class WaitingRunTests
             OnCall = (subdomain, envelope) => subdomain switch
             {
                 "review" => NodeOk(("notice", "sent for review")),
-                "sort" => new NodeCallResult(200, JsonSerializer.Serialize(new
-                {
-                    result = "success",
-                    decision = waiting.Fixture.Get("keep").Id,
-                    outputs = new { @out = "kept " + envelope.GetProperty("inputs").GetProperty("in").GetString() },
-                })),
+                "sort" => NodeOk(("out", "kept " + envelope.GetProperty("inputs").GetProperty("in").GetString())),
                 "publish" => new NodeCallResult(200, JsonSerializer.Serialize(new { result = "success", outputs = new { @out = envelope.GetProperty("inputs").GetProperty("in") } })),
                 _ => NodeFail($"unexpected {subdomain}"),
             },
@@ -87,6 +82,30 @@ public class WaitingRunTests
         var published = gateway.Envelopes.Last(sent => sent.Subdomain == "publish").Envelope.GetProperty("inputs").GetProperty("in");
         published.GetProperty("notice").GetString().Should().Be("sent for review");
         published.GetProperty("sorted").GetRawText().Should().Be(sorted);
+    }
+
+    [Fact]
+    public async Task A_node_that_runs_once_per_item_judges_each_items_choice_by_that_items_own_inputs()
+    {
+        var waiting = TestGraphs.WaitingPipeline(sortedBeside: true, sortsPerItem: true, keepWhen: "inputs.in = 'a'");
+        var gateway = new FakeGateway(waiting.Fixture.Build())
+        {
+            OnCall = (subdomain, envelope) => subdomain switch
+            {
+                "review" => NodeOk(("notice", "sent for review")),
+                "sort" => NodeOk(("out", "sorted " + envelope.GetProperty("inputs").GetProperty("in").GetString())),
+                "publish" or "discard" => new NodeCallResult(200, JsonSerializer.Serialize(new { result = "success", outputs = new { @out = envelope.GetProperty("inputs").GetProperty("in") } })),
+                _ => NodeFail($"unexpected {subdomain}"),
+            },
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+        var waited = await executor.RunAsync(waiting.PipelineId, JsonSerializer.SerializeToElement(new { items = new[] { "a", "b" } }), CancellationToken.None, subject: Plot);
+
+        await executor.ResumeAsync(gateway.HeldVigils[(waited.RunId, waiting.Review.Id)], CancellationToken.None);
+
+        JsonElement InputTo(string subdomain) => gateway.Envelopes.Last(sent => sent.Subdomain == subdomain).Envelope.GetProperty("inputs").GetProperty("in");
+        InputTo("publish").GetProperty("sorted").GetRawText().Should().Be("[\"sorted a\"]");
+        InputTo("discard").GetRawText().Should().Be("[\"sorted b\"]");
     }
 
     [Fact]

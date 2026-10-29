@@ -9,27 +9,32 @@ using Xunit;
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
 // The orchestrator's unit tests hand it a graph they built, so only the real engine shows that the drawing read
-// brings each wire's two connector relationships and the ports they reach.
+// brings each wire's two connector relationships and the ports they reach, and each node's choices with the Things
+// they compare with.
 public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
 {
     private readonly TheEngine _engine;
 
     public PhloemReadsAWiresPortsTests(TheEngine engine) => _engine = engine;
 
+    // Both drawings share one engine, so the vocabulary is declared and bound once.
     private async Task<Guid> PlayingAsync(Role role, string name, bool isArchetype = true, Dictionary<string, object?>? properties = null)
     {
-        var played = await _engine.DeclareAsync(name, isArchetype, properties: properties);
+        var played = await _engine.DeclareOnceAsync(name, isArchetype, properties);
+        if (await _engine.FindAsync($"{role.Word} role") is not null) return played;
         await _engine.DeclareAsync($"{role.Word} role", identifier: role.Id);
         await _engine.RelateAsync(role.Id, await _engine.TheOnlyThingNamedAsync(ModelNames.Binds), played);
         return played;
     }
 
-    [FactAgainstTheEngine]
-    public async Task A_wire_from_an_out_port_named_like_an_in_port_of_the_same_service_is_read_through_its_connectors()
+    private sealed record TextStudio(Guid Pipeline, Guid Uppercase, Guid Reverse, Guid TextOut, Guid TextIn, Guid? Shout, Guid? Loud);
+
+    private async Task<TextStudio> DrawTextStudioAsync(bool uppercaseChooses)
     {
-        var @is = await _engine.DeclareAsync(ModelNames.Is);
-        var has = await _engine.DeclareAsync(ModelNames.Has);
-        await _engine.DeclareAsync(ModelNames.Binds);
+        var firstDrawing = await _engine.FindAsync(ModelNames.Is) is null;
+        var @is = await _engine.DeclareOnceAsync(ModelNames.Is);
+        var has = await _engine.DeclareOnceAsync(ModelNames.Has);
+        await _engine.DeclareOnceAsync(ModelNames.Binds);
         var pipelineArchetype = await PlayingAsync(PipelineRoles.Pipeline, "Pipeline");
         var nodeArchetype = await PlayingAsync(PipelineRoles.PipelineNode, "PipelineNode");
         await PlayingAsync(PipelineRoles.PipelineInput, "PipelineInput");
@@ -43,9 +48,10 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
         var takenOn = await PlayingAsync(PipelineRoles.TakenOn, "takenOn", isArchetype: false);
         var success = await PlayingAsync(PipelineRoles.Success, "success", isArchetype: false);
         await PlayingAsync(PipelineRoles.Fail, "fail", isArchetype: false);
-        await PlayingAsync(PipelineRoles.DecisionPath, "DecisionPath");
-        var carries = await _engine.DeclareAsync("carries");
-        await _engine.RelateAsync(carries, @is, wireArchetype);
+        var decisionPath = await PlayingAsync(PipelineRoles.DecisionPath, "DecisionPath");
+        var comparesWith = await PlayingAsync(PipelineRoles.ComparesWith, "comparesWith", isArchetype: false);
+        var carries = await _engine.DeclareOnceAsync("carries");
+        if (firstDrawing) await _engine.RelateAsync(carries, @is, wireArchetype);
 
         var transform = await _engine.DeclareAsync("Transform service");
         await _engine.RelateAsync(transform, @is, serviceArchetype);
@@ -61,7 +67,7 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
         var textOut = await PortAsync("out");
         var errorPort = await PlayingAsync(PipelineRoles.ErrorPort, "error", isArchetype: false,
             new Dictionary<string, object?> { ["portName"] = "error", ["direction"] = "out", ["type"] = "string" });
-        await _engine.RelateAsync(errorPort, @is, portArchetype);
+        if (firstDrawing) await _engine.RelateAsync(errorPort, @is, portArchetype);
 
         async Task<Guid> NodeAsync(string name)
         {
@@ -81,7 +87,7 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
         await _engine.RelateAsync(pipeline, has, uppercase);
         await _engine.RelateAsync(pipeline, has, reverse);
 
-        await _engine.RelateAsync(outputArchetype, @is, nodeArchetype);
+        if (firstDrawing) await _engine.RelateAsync(outputArchetype, @is, nodeArchetype);
         var end = await _engine.DeclareAsync("Text Studio end");
         await _engine.RelateAsync(end, @is, outputArchetype);
         var reached = await _engine.DeclareAsync("end.text",
@@ -90,7 +96,17 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
         await _engine.RelateAsync(end, has, reached);
         await _engine.RelateAsync(pipeline, has, end);
 
-        async Task WireAsync(string name, Guid from, Guid outPort, Guid to, Guid inPort)
+        Guid? shout = null, loud = null;
+        if (uppercaseChooses)
+        {
+            loud = await _engine.DeclareAsync("loud");
+            shout = await _engine.DeclareAsync("shout", properties: new Dictionary<string, object?> { [ModelNames.When] = "outputs.volume in $things.id" });
+            await _engine.RelateAsync(shout.Value, @is, decisionPath);
+            await _engine.RelateAsync(uppercase, has, shout.Value);
+            await _engine.RelateAsync(shout.Value, comparesWith, loud.Value);
+        }
+
+        async Task WireAsync(string name, Guid from, Guid outPort, Guid to, Guid inPort, Guid taken)
         {
             var drawn = await _engine.DeclareAsync(name);
             await _engine.RelateAsync(drawn, @is, wireArchetype);
@@ -98,16 +114,43 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
             await _engine.RelateAsync(drawn, carries, to);
             await _engine.RelateAsync(drawn, inputConnector, outPort);
             await _engine.RelateAsync(drawn, outputConnector, inPort);
-            await _engine.RelateAsync(drawn, takenOn, success);
+            await _engine.RelateAsync(drawn, takenOn, taken);
         }
-        await WireAsync("text to text", uppercase, textOut, reverse, textIn);
-        await WireAsync("text to the end", reverse, textOut, end, reached);
+        await WireAsync("text to text", uppercase, textOut, reverse, textIn, shout ?? success);
+        await WireAsync("text to the end", reverse, textOut, end, reached, success);
 
+        return new TextStudio(pipeline, uppercase, reverse, textOut, textIn, shout, loud);
+    }
+
+    private async Task<PipelineDag> ReadAsync(Guid pipeline)
+    {
         var gateway = new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, _engine.AdminToken);
-        var dag = PipelineDagBuilder.Build(await gateway.LoadPipelineSubgraphAsync(pipeline, CancellationToken.None), pipeline);
+        return PipelineDagBuilder.Build(await gateway.LoadPipelineSubgraphAsync(pipeline, CancellationToken.None), pipeline);
+    }
+
+    [FactAgainstTheEngine]
+    public async Task A_wire_from_an_out_port_named_like_an_in_port_of_the_same_service_is_read_through_its_connectors()
+    {
+        var studio = await DrawTextStudioAsync(uppercaseChooses: false);
+
+        var dag = await ReadAsync(studio.Pipeline);
 
         DagValidator.Validate(dag).Should().BeEmpty();
-        var read = dag.WiresOutOf(uppercase).Should().ContainSingle().Subject;
-        (read.From.Node.NodeId, read.From.Port.Id, read.To.Node.NodeId, read.To.Port.Id).Should().Be((uppercase, textOut, reverse, textIn));
+        var read = dag.WiresOutOf(studio.Uppercase).Should().ContainSingle().Subject;
+        (read.From.Node.NodeId, read.From.Port.Id, read.To.Node.NodeId, read.To.Port.Id)
+            .Should().Be((studio.Uppercase, studio.TextOut, studio.Reverse, studio.TextIn));
+    }
+
+    [FactAgainstTheEngine]
+    public async Task A_nodes_choice_is_read_with_its_rule_and_the_Things_it_compares_with()
+    {
+        var studio = await DrawTextStudioAsync(uppercaseChooses: true);
+
+        var dag = await ReadAsync(studio.Pipeline);
+
+        DagValidator.Validate(dag).Should().BeEmpty();
+        var choice = dag.Node(studio.Uppercase)!.DecisionPaths.Should().ContainSingle().Subject;
+        (choice.Id, choice.When is not null, choice.Things.GetRawText())
+            .Should().Be((studio.Shout!.Value, true, $"[{{\"id\":\"{studio.Loud}\",\"name\":\"loud\"}}]"));
     }
 }

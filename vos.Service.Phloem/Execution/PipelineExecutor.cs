@@ -1003,7 +1003,7 @@ public sealed class PipelineExecutor
         if (nodeCall.StatusCode is < 200 or >= 300)
             return new CallOutcome(Failure(node, $"Node '{node.Name}' returned HTTP {nodeCall.StatusCode}."), ReachedTheService: nodeCall.StatusCode < 500);
 
-        return new CallOutcome(ParseNodeResponse(node, nodeCall.Body), ReachedTheService: true);
+        return new CallOutcome(NodeChoices.Choose(node, inputs, ParseNodeResponse(node, nodeCall.Body), _clock), ReachedTheService: true);
     }
 
     private static readonly JsonElement NullJson = JsonSerializer.SerializeToElement<object?>(null);
@@ -1028,12 +1028,7 @@ public sealed class PipelineExecutor
                 return new NodeRunResult(node.NodeId, node.Name, RunStatus.Failed, outputs, error ?? $"'{node.Name}' answered fail.");
             }
 
-            if (!root.TryGetProperty("decision", out var answeredDecision) || answeredDecision.ValueKind == JsonValueKind.Null)
-                return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, outputs, null);
-            if (answeredDecision.ValueKind != JsonValueKind.String || !Guid.TryParse(answeredDecision.GetString(), out var decision)
-                || !node.DecisionPaths.ContainsKey(decision))
-                return Failure(node, $"'{node.Name}' answered the decision {answeredDecision.GetRawText()}, which is not the identifier of a decision path its service declares.");
-            return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, outputs, null, Decision: decision);
+            return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, outputs, null);
         }
         catch (JsonException)
         {

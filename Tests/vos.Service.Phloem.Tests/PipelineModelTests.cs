@@ -378,8 +378,34 @@ public class PipelineModelTests
         var decide = dag.Node(fx.Get("Decide").Id)!;
         decide.Ports.Select(p => p.PortName).Should().BeEquivalentTo("note", "in", "out", "error");
         decide.OutPort("note").Should().NotBeNull();
-        decide.DecisionPaths.Should().BeEquivalentTo(new Dictionary<Guid, string> { [fx.Get("accept").Id] = "accept", [fx.Get("refuse").Id] = "refuse" });
         DagValidator.Validate(dag).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Build_ReadsTheChoicesTheNodeHolds_WithTheThingsEachComparesWith()
+    {
+        var (fx, pipelineId) = TestGraphs.DecisionPipeline();
+
+        var decide = PipelineDagBuilder.Build(fx.Build(), pipelineId).Node(fx.Get("Decide").Id)!;
+
+        decide.DecisionPaths.Select(path => (path.Id, path.Name, Rule: path.When is not null, Things: path.Things.GetRawText())).Should().BeEquivalentTo(
+        [
+            (fx.Get("accept").Id, "accept", true, $"[{{\"id\":\"{fx.Get("approved").Id}\",\"name\":\"approved\"}}]"),
+            (fx.Get("refuse").Id, "refuse", false, "[]"),
+        ]);
+    }
+
+    [Fact]
+    public void Build_ADecisionPathItsServiceHas_IsNoChoiceOfTheNode()
+    {
+        var (fx, pipelineId) = TestGraphs.DecisionPipeline();
+        var held = fx.Thing("defer");
+        fx.Rel(held, fx.Get("is"), fx.Get("DecisionPath"));
+        fx.Rel(fx.Get("DecideProto"), fx.Get("has"), held);
+
+        var decide = PipelineDagBuilder.Build(fx.Build(), pipelineId).Node(fx.Get("Decide").Id)!;
+
+        decide.DecisionPaths.Select(path => path.Name).Should().BeEquivalentTo("accept", "refuse");
     }
 
     [Fact]

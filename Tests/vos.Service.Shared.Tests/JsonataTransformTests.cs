@@ -49,6 +49,14 @@ public class JsonataTransformTests
     }
 
     [Fact]
+    public void A_variable_the_caller_binds_is_read_by_its_name()
+    {
+        var transform = new JsonataTransform("chosen in $things.id");
+        var things = new Dictionary<string, JsonElement> { ["things"] = Json("[{\"id\":\"a\"},{\"id\":\"b\"}]") };
+        transform.Eval(Json("{\"chosen\":\"b\"}"), TimeProvider.System, things).ValueKind.Should().Be(JsonValueKind.True);
+    }
+
+    [Fact]
     public void A_transform_that_matches_nothing_answers_a_json_null()
     {
         var transform = new JsonataTransform("missing.field");

@@ -89,6 +89,7 @@ PREDICATE_ROLE = {
     "inputConnector": "inputConnector",
     "outputConnector": "outputConnector",
     "takenOn": "takenOn",
+    "comparesWith": "comparesWith",
 }
 
 # The two results a wire is taken on, and the error port every service node has without declaring it.
@@ -213,6 +214,7 @@ def build():
     input_connector = k.predicate("inputConnector")
     output_connector = k.predicate("outputConnector")
     taken_on = k.predicate("takenOn")
+    compares_with = k.predicate("comparesWith")
     # Declared for the orchestrator, which relates a run to its subject and a node run to each Thing the node
     # produced.
     k.predicate("about")
@@ -277,7 +279,6 @@ def build():
     connection_by_key = {}
     service_by_key = {}
     offered_by_key = {}
-    decision_path_by_key = {}
     strategy_kind = k.thing(stable_id(_TAG, "kind", "Strategy"), "Strategy", archetype=True)
     for svc in SERVICES:
         svc_id = k.thing(stable_id(_TAG, "service", svc["key"]), f"{svc['label']} service",
@@ -294,11 +295,6 @@ def build():
                 k.rel(offered_id, is_, strategy_kind)
                 k.rel(port_ids[(svc_id, port_name, "in")], offers, offered_id)
                 offered_by_key[(svc["key"], port_name, name)] = offered_id
-        for name in svc.get("decisionPaths", []):
-            path_id = k.thing(stable_id(_TAG, "decisionPath", svc["key"], name), name)
-            k.rel(path_id, is_, DecisionPath)
-            k.rel(svc_id, has, path_id)
-            decision_path_by_key[(svc["key"], name)] = path_id
 
         conn_id = k.thing(stable_id(_TAG, "connection", svc["key"]), svc["label"],
                           {"Subdomain": typed(svc["subdomain"], "vos.String")})
@@ -353,6 +349,7 @@ def build():
 
         node_id = {}
         service_of = {}
+        choice_by_key = {}
         for node in pipe["nodes"]:
             nid = stable_id(_TAG, "node", pipe["name"], node["key"])
             node_id[node["key"]] = nid
@@ -376,6 +373,14 @@ def build():
                 if node.get("chooses"):
                     port_name, name = node["chooses"]
                     k.rel(nid, offers, offered_by_key[(node["service"], port_name, name)])
+                for choice in node.get("choices", []):
+                    choice_id = k.thing(stable_id(_TAG, "decisionPath", pipe["name"], node["key"], choice["name"]), choice["name"],
+                                        {"when": typed(choice.get("when", ""), "vos.String")})
+                    k.rel(choice_id, is_, DecisionPath)
+                    k.rel(nid, has, choice_id)
+                    for port_name, name in choice.get("comparesWith", []):
+                        k.rel(choice_id, compares_with, offered_by_key[(node["service"], port_name, name)])
+                    choice_by_key[(node["key"], choice["name"])] = choice_id
             else:
                 is_input = "input" in node
                 label = node.get("label", "Input" if is_input else "Output")
@@ -406,9 +411,8 @@ def build():
             out_port = error_port if wire["fromPort"] == "error" else port_of(port_ids, source, service_of.get(wire["from"]), wire["fromPort"], "out")
             k.rel(wid, input_connector, out_port)
             k.rel(wid, output_connector, port_of(port_ids, target, service_of.get(wire["to"]), wire["toPort"], "in"))
-            source_service = next(n.get("service") for n in pipe["nodes"] if n["key"] == wire["from"])
             for taken in wire.get("takenOn", ["success"]):
-                k.rel(wid, taken_on, results.get(taken) or decision_path_by_key[(source_service, taken)])
+                k.rel(wid, taken_on, results.get(taken) or choice_by_key[(wire["from"], taken)])
 
         # Seeded run history: a PipelineRun -of-> pipeline, each carrying NodeRuns so the History
         # panel and node status rings show data with no live Phloem. A fan-out node also gets per-item NodeRuns

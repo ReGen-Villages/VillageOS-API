@@ -558,31 +558,37 @@ public class PipelineExecutorTests
         gateway.RunsCreated.Single().RequestId.Should().Be(requestId);
     }
 
+    private static FakeGateway Deciding(GraphFixture fx, object? verdict, string? decision = null) => new(fx.Build())
+    {
+        OnCall = (subdomain, envelope) => subdomain switch
+        {
+            "decide" => new NodeCallResult(200, JsonSerializer.Serialize(new
+            {
+                result = "success",
+                decision,
+                outputs = new Dictionary<string, object?> { ["out"] = "yes: " + InputValue(envelope, "in"), ["verdict"] = verdict },
+            })),
+            "notify" => NodeOk(("out", "told " + InputValue(envelope, "in"))),
+            "return" => NodeOk(("out", "returned")),
+            _ => NodeFail("unexpected subdomain"),
+        },
+    };
+
+    private static Task<PipelineRunResult> DecideAsync(FakeGateway gateway, Guid pipelineId) =>
+        new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock())
+            .RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "plot 7" }), CancellationToken.None);
+
     [Fact]
-    public async Task RunAsync_Decision_RunsTheBranchAnsweredUnder_RecordsTheOtherNotTaken_AndJoinsOnce()
+    public async Task RunAsync_Decision_TheChoiceWhoseRuleHolds_RunsItsBranch_RecordsTheOtherNotTaken_AndJoinsOnce()
     {
         var (fx, pipelineId) = TestGraphs.DecisionPipeline();
-        var gateway = new FakeGateway(fx.Build())
-        {
-            OnCall = (subdomain, envelope) => subdomain switch
-            {
-                "decide" => new NodeCallResult(200, JsonSerializer.Serialize(new
-                {
-                    result = "success",
-                    decision = fx.Get("accept").Id,
-                    outputs = new Dictionary<string, string> { ["out"] = "yes: " + InputValue(envelope, "in") },
-                })),
-                "notify" => NodeOk(("out", "told " + InputValue(envelope, "in"))),
-                "return" => NodeOk(("out", "returned")),
-                _ => NodeFail("unexpected subdomain"),
-            },
-        };
-        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+        var gateway = Deciding(fx, verdict: fx.Get("approved").Id);
 
-        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "plot 7" }), CancellationToken.None);
+        var result = await DecideAsync(gateway, pipelineId);
 
         result.Success.Should().BeTrue();
         gateway.Called.Should().Equal("decide", "notify");
+        result.Nodes.Single(n => n.Name == "Decide").Decision.Should().Be(fx.Get("accept").Id);
         result.Nodes.Single(n => n.Name == "Return").Status.Should().Be(RunStatus.NotTaken);
         gateway.NodeStatuses.Where(s => s.Name == "Return").Select(s => s.Status).Should().Equal(RunStatus.NotTaken);
         result.Nodes.Single(n => n.Name == "End").Status.Should().Be(RunStatus.Succeeded);
@@ -590,48 +596,123 @@ public class PipelineExecutorTests
     }
 
     [Fact]
-    public async Task RunAsync_Decision_ASuccessNamingNoDecisionWhereNoSuccessWireLeaves_FailsTheRunNamingTheNode()
+    public async Task RunAsync_Decision_NoRuleHolds_TakesTheChoiceWithoutARule()
     {
         var (fx, pipelineId) = TestGraphs.DecisionPipeline();
-        var gateway = new FakeGateway(fx.Build()) { OnCall = (_, _) => NodeOk() };
-        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+        var gateway = Deciding(fx, verdict: "unheard of");
 
-        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "plot 7" }), CancellationToken.None);
+        var result = await DecideAsync(gateway, pipelineId);
 
-        result.Success.Should().BeFalse();
-        result.Error.Should().Be("'Decide' succeeded, and no success wire leaves it.");
-        gateway.Called.Should().Equal("decide");
-        gateway.RunResult.Should().BeNull();
+        gateway.Called.Should().Equal("decide", "return");
+        result.Nodes.Single(n => n.Name == "Decide").Decision.Should().Be(fx.Get("refuse").Id);
     }
 
-    [Theory]
-    [InlineData("\"accept\"")]
-    [InlineData("\"8b1f4f0e-27a5-4b52-9c5e-0d3c7a1e6f42\"")]
-    [InlineData("7")]
-    public async Task RunAsync_Decision_AnsweringAnythingButTheIdentifierOfADeclaredDecisionPath_FailsTheNode(string decision)
+    [Fact]
+    public async Task RunAsync_Decision_ARuleReadsTheStepsInputs()
+    {
+        var (fx, pipelineId) = TestGraphs.DecisionPipeline(acceptWhen: "inputs.in = 'plot 7'");
+
+        var gateway = Deciding(fx, verdict: null);
+        await DecideAsync(gateway, pipelineId);
+
+        gateway.Called.Should().Equal("decide", "notify");
+    }
+
+    [Fact]
+    public async Task RunAsync_Decision_ADecisionInTheServicesAnswer_ChoosesNothing()
     {
         var (fx, pipelineId) = TestGraphs.DecisionPipeline();
-        var gateway = new FakeGateway(fx.Build())
-        {
-            OnCall = (_, _) => new NodeCallResult(200, "{\"result\":\"success\",\"decision\":" + decision + ",\"outputs\":{}}"),
-        };
-        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+        var gateway = Deciding(fx, verdict: fx.Get("approved").Id, decision: fx.Get("refuse").Id.ToString());
 
-        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { subject = "plot 7" }), CancellationToken.None);
+        await DecideAsync(gateway, pipelineId);
 
-        result.Nodes.Single(n => n.Name == "Decide").Error.Should().Be(
-            $"'Decide' answered the decision {decision}, which is not the identifier of a decision path its service declares.");
+        gateway.Called.Should().Equal("decide", "notify");
+    }
+
+    [Fact]
+    public async Task RunAsync_Decision_TwoRulesHolding_FailsTheNodeNamingBoth()
+    {
+        var (fx, pipelineId) = TestGraphs.DecisionPipeline(refuseWhen: "true");
+
+        var result = await DecideAsync(Deciding(fx, verdict: fx.Get("approved").Id), pipelineId);
+
+        result.Nodes.Single(n => n.Name == "Decide").Error.Should().Be("'Decide' has more than one choice whose rule holds: 'accept', 'refuse'.");
         result.Error.Should().Be("'Decide' failed, and no fail wire leaves it.");
     }
 
     [Fact]
-    public void Validate_ADecisionPathNoWireIsTakenOn_IsRefusedByName()
+    public async Task RunAsync_Decision_NoRuleHoldingAndNoChoiceWithoutARule_FailsTheNode()
+    {
+        var (fx, pipelineId) = TestGraphs.DecisionPipeline(refuseWhen: "false");
+
+        var gateway = Deciding(fx, verdict: "unheard of");
+        var result = await DecideAsync(gateway, pipelineId);
+
+        result.Nodes.Single(n => n.Name == "Decide").Error.Should().Be(
+            "'Decide' succeeded, but no rule of its choices holds and it has no choice without a rule.");
+        gateway.Called.Should().Equal("decide");
+    }
+
+    [Fact]
+    public async Task RunAsync_Decision_ARuleAnsweringNeitherTrueNorFalse_FailsTheNodeNamingTheChoice()
+    {
+        var (fx, pipelineId) = TestGraphs.DecisionPipeline(acceptWhen: "outputs.out");
+
+        var result = await DecideAsync(Deciding(fx, verdict: null), pipelineId);
+
+        result.Nodes.Single(n => n.Name == "Decide").Error.Should().Be(
+            "'Decide' cannot judge its choice 'accept': its rule answered \"yes: plot 7\", and a rule answers true or false.");
+    }
+
+    [Fact]
+    public async Task RunAsync_Decision_ARuleThatFailsWhileJudging_FailsTheNodeNamingTheChoice()
+    {
+        var (fx, pipelineId) = TestGraphs.DecisionPipeline(acceptWhen: "$error('no verdict to read')");
+
+        var result = await DecideAsync(Deciding(fx, verdict: null), pipelineId);
+
+        result.Nodes.Single(n => n.Name == "Decide").Error.Should()
+            .StartWith("'Decide' cannot judge its choice 'accept': ").And.Contain("no verdict to read");
+    }
+
+    [Fact]
+    public async Task RunAsync_Decision_AFailAnswer_JudgesNoRule()
+    {
+        var (fx, pipelineId) = TestGraphs.DecisionPipeline(acceptWhen: "$error('judged a fail')");
+        var gateway = new FakeGateway(fx.Build()) { OnCall = (_, _) => NodeFail("the plot is dry") };
+
+        var result = await DecideAsync(gateway, pipelineId);
+
+        result.Nodes.Single(n => n.Name == "Decide").Error.Should().Be("the plot is dry");
+    }
+
+    [Fact]
+    public void Validate_AChoiceNoWireIsTakenOn_IsRefusedByName()
     {
         var (fx, pipelineId) = TestGraphs.DecisionPipeline();
-        fx.DecisionPathOf(fx.Get("DecideProto"), "defer");
+        fx.ChoiceOf(fx.Get("Decide"), "defer", "false");
 
         DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), pipelineId)).Should().Contain(
-            "'Decide' can decide 'defer', but no wire leaving it is taken on that decision.");
+            "'Decide' has the choice 'defer', but no wire leaving it is taken on that choice.");
+    }
+
+    [Fact]
+    public void Validate_TwoChoicesWithoutARule_AreRefused()
+    {
+        var (fx, pipelineId) = TestGraphs.DecisionPipeline();
+        fx.TakeOn(fx.Wire(fx.Get("Decide"), "out", fx.Get("Return"), "in"), fx.ChoiceOf(fx.Get("Decide"), "defer"));
+
+        DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), pipelineId)).Should().Equal(
+            "'Decide' has 2 choices without a rule ('refuse', 'defer'); only one can be taken when no rule holds.");
+    }
+
+    [Fact]
+    public void Validate_ARuleThatDoesNotCompile_IsRefusedNamingTheChoice()
+    {
+        var (fx, pipelineId) = TestGraphs.DecisionPipeline(acceptWhen: "outputs.verdict = (");
+
+        DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), pipelineId)).Should().ContainSingle()
+            .Which.Should().StartWith("'Decide' has the choice 'accept', whose rule does not compile: ");
     }
 
     [Fact]

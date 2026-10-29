@@ -73,6 +73,7 @@ public sealed class GraphFixture
 
         var port = Playing(namePrefix + "Port", PipelineRoles.Port);
         _decisionPath = Playing(namePrefix + "DecisionPath", PipelineRoles.DecisionPath);
+        _comparesWith = Playing(namePrefix + "comparesWith", PipelineRoles.ComparesWith);
         var errorPort = Playing(namePrefix + "error", PipelineRoles.ErrorPort,
             (ModelNames.PortName, "error"), (ModelNames.Direction, ModelNames.DirectionOut), (ModelNames.PortType, "string"));
         Rel(errorPort, isPredicate, port);
@@ -97,12 +98,14 @@ public sealed class GraphFixture
 
     private PipelineVocabulary? _vocabulary;
     private GraphThing? _decisionPath;
+    private GraphThing? _comparesWith;
 
-    public GraphThing DecisionPathOf(GraphThing service, string name)
+    public GraphThing ChoiceOf(GraphThing node, string name, string? when = null, params GraphThing[] comparedWith)
     {
-        var path = Thing(name);
+        var path = when is null ? Thing(name) : Thing(name, (ModelNames.When, when));
         Rel(path, _vocabulary!.Is, _decisionPath!);
-        Rel(service, _vocabulary.Has, path);
+        Rel(node, _vocabulary.Has, path);
+        foreach (var compared in comparedWith) Rel(path, _comparesWith!, compared);
         return path;
     }
 
@@ -768,9 +771,9 @@ public static class TestGraphs
         return (fx, pipelineId);
     }
 
-    // A two-way decision: Start (out `subject`) → Decide, whose service declares the decision paths `accept` and
-    // `refuse` → Notify on `accept`, Return on `refuse` → End (in `result`) wired from both.
-    public static (GraphFixture Fixture, Guid PipelineId) DecisionPipeline()
+    // A two-way decision: Start (out `subject`) → Decide → Notify on `accept`, Return on `refuse` → End (in `result`)
+    // wired from both. Decide takes `accept` when its `verdict` is the Thing `approved`, and `refuse` otherwise.
+    public static (GraphFixture Fixture, Guid PipelineId) DecisionPipeline(string acceptWhen = "outputs.verdict in $things.id", string? refuseWhen = null)
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
@@ -781,8 +784,8 @@ public static class TestGraphs
         var echoProto = InputOutputPrototype(fx, vocabulary, "EchoProto");
 
         var decide = ServiceNode(fx, vocabulary, decideProto, "Decide", "decide");
-        var accept = fx.DecisionPathOf(decideProto, "accept");
-        var refuse = fx.DecisionPathOf(decideProto, "refuse");
+        var accept = fx.ChoiceOf(decide, "accept", acceptWhen, fx.Thing("approved"));
+        var refuse = fx.ChoiceOf(decide, "refuse", refuseWhen);
         var notify = ServiceNode(fx, vocabulary, echoProto, "Notify", "notify");
         var giveBack = ServiceNode(fx, vocabulary, echoProto, "Return", "return");
 
@@ -931,7 +934,7 @@ public static class TestGraphs
     // sortedBeside adds Sort, which decides keep or drop on the run parameter `items` (once per item when sortsPerItem);
     // what it keeps reaches Publish at `sorted`, beside Review's notice at `notice`.
     public static WaitingFixture WaitingPipeline(bool wired = true, bool collection = false, bool approvedBeside = false,
-        bool sortedBeside = false, bool sortsPerItem = false)
+        bool sortedBeside = false, bool sortsPerItem = false, string keepWhen = "$contains(outputs.out, 'kept')")
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
@@ -984,8 +987,8 @@ public static class TestGraphs
             fx.Rel(pipe, vocabulary.Has, sort);
             fx.Rel(pipe, vocabulary.Has, discard);
             fx.Wire(start, "items", sort, "in");
-            fx.TakeOn(fx.Wire(sort, "out", publish, "in", ("toPath", "sorted")), fx.DecisionPathOf(sortProto, "keep"));
-            fx.TakeOn(fx.Wire(sort, "out", discard, "in"), fx.DecisionPathOf(sortProto, "drop"));
+            fx.TakeOn(fx.Wire(sort, "out", publish, "in", ("toPath", "sorted")), fx.ChoiceOf(sort, "keep", keepWhen));
+            fx.TakeOn(fx.Wire(sort, "out", discard, "in"), fx.ChoiceOf(sort, "drop"));
         }
 
         // A second branch waiting on the same Thing for another state, with nothing after it.

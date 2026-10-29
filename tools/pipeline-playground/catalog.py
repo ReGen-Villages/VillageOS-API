@@ -78,11 +78,9 @@ SERVICES = [
     {"key": "publish", "label": "Publish", "subdomain": "publish",
      "ports": [_in("payload", "any", required=True), _out("published", "any")]},
 
-    # A block that decides: its answer names one of its decision paths, and its `strategy` port offers the Things a
-    # node may choose between.
+    # Its `strategy` port offers the Things a node may choose between.
     {"key": "decide", "label": "Decide", "subdomain": "decide",
      "ports": [_in("in", "any", required=True), _in("strategy", "any"), _out("out", "any")],
-     "decisionPaths": ["accept", "refuse"],
      "offers": {"strategy": ["Nearest first", "Cheapest first", "Soonest first"]}},
 ]
 
@@ -118,8 +116,9 @@ CADENCES = [
 # into x/y. "params" binds an input port to a run-parameter key (Params bar on the Pipeline page); "onItemError"
 # = "continue" collects partial fan-out results instead of failing the run. A service node may hold
 # "outPorts" of its own, and may say what it "chooses": (port, the offered Thing's name) among what its service's
-# port offers. A wire is taken on "success" unless its "takenOn" names "fail" or decision paths of its node's
-# service.
+# port offers. A service node may hold "choices" of where its run goes next: each a name, an optional JSONata rule
+# in "when", and what the rule "comparesWith" as (port, the offered Thing's name). A wire is taken on "success"
+# unless its "takenOn" names "fail" or choices its node holds.
 #
 # Boundary port spec = (portName, type[, required]); a node-held out port spec = (portName, type).
 def col(c, r=0):
@@ -372,15 +371,20 @@ PIPELINES = [
         ],
     },
 
-    # 15. A drawing that branches: the decision node's answer names `accept` or `refuse`, so only the wire taken
-    #     on it runs and the end is reached once; its `strategy` input is filled with the Thing chosen on the node
-    #     unless a wire or a parameter fills it.
+    # 15. A drawing that branches: the decision node takes `accept` when the strategy it was given is nearest or
+    #     cheapest first, and `refuse` otherwise, so only the wire taken on that choice runs and the end is reached
+    #     once; its `strategy` input is filled with the Thing chosen on the node unless a wire or a parameter fills it.
     {
         "name": "Branching Decision",
         "nodes": [
             {"key": "in", "input": [("subject", "any")], "at": col(0, 1)},
             {"key": "decide", "service": "decide", "at": col(1, 1),
-             "chooses": ("strategy", "Cheapest first")},
+             "chooses": ("strategy", "Cheapest first"),
+             "choices": [
+                 {"name": "accept", "when": "inputs.strategy.id in $things.id",
+                  "comparesWith": [("strategy", "Nearest first"), ("strategy", "Cheapest first")]},
+                 {"name": "refuse"},
+             ]},
             {"key": "accepted", "service": "echo", "label": "Accepted", "at": col(2, 0)},
             {"key": "refused", "service": "echo", "label": "Refused", "at": col(2, 2)},
             {"key": "out", "output": [("result", "any", True)], "at": col(3, 1)},
