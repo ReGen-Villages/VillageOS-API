@@ -14,7 +14,7 @@ if (launchSettings == null)
 {
     Console.WriteLine(ServiceLaunchSettings.UsageMessage);
     Environment.Exit(1);
-    return;
+    return 1;
 }
 
 var servicePort = launchSettings.Port;
@@ -190,14 +190,16 @@ try
 
     app.Run();
 }
-catch (Exception ex)
+catch (Exception error)
 {
-    Log.Fatal(ex, "Phloem orchestrator terminated unexpectedly");
+    return ServiceHost.FailedToStart("Phloem", error);
 }
 finally
 {
     Log.CloseAndFlush();
 }
+
+return 0;
 
 // Exposed to WebApplicationFactory<Program> in the test project.
 public partial class Program

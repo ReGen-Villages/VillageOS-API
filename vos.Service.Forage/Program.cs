@@ -15,7 +15,7 @@ if (launchSettings == null)
 {
     Console.WriteLine(ForageLaunchSettings.UsageMessage);
     Environment.Exit(1);
-    return;
+    return 1;
 }
 
 var servicePort = launchSettings.Service.Port;
@@ -142,14 +142,16 @@ try
 
     app.Run();
 }
-catch (Exception ex)
+catch (Exception error)
 {
-    Log.Fatal(ex, "Forage terminated unexpectedly");
+    return ServiceHost.FailedToStart("Forage", error);
 }
 finally
 {
     Log.CloseAndFlush();
 }
+
+return 0;
 
 // One run. Nothing returns from here, so what it found is reported to the log. What the service call named
 // decides which run it is: a site is fetched and recorded; a source is offered to the sites it covers.

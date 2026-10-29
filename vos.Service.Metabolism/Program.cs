@@ -17,7 +17,7 @@ if (launchSettings == null)
 {
     Console.WriteLine(MetabolismLaunchSettings.UsageMessage);
     Environment.Exit(1);
-    return;
+    return 1;
 }
 
 var servicePort = launchSettings.Service.Port;
@@ -113,14 +113,16 @@ try
 
     app.Run();
 }
-catch (Exception ex)
+catch (Exception error)
 {
-    Log.Fatal(ex, "Metabolism terminated unexpectedly");
+    return ServiceHost.FailedToStart("Metabolism", error);
 }
 finally
 {
     Log.CloseAndFlush();
 }
+
+return 0;
 
 // Elevates the implicit top-level Program class to public so WebApplicationFactory<Program> can name it in tests.
 public partial class Program { }
