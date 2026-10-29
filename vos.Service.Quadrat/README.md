@@ -1,8 +1,8 @@
-# Quadrat — raster reader (local prototype)
+# Quadrat — raster reader
 
-Reads a raster at a point or over a zone and prints JSON. This is the local prototype of the Quadrat service
-(Feature #7603, spike #7610): a plain Python package and command line, with no HTTP, no Mycelium registration
-and no auth. The `quadrat/` package is what the service will wrap.
+Reads a raster at a point or over a zone. It is a Python package (`quadrat/`) with a command line, and a managed
+microservice (`app.py`) that exposes the same operations to a pipeline as a node, built on
+[`vos.Service.Python.Shared`](../vos.Service.Python.Shared/README.md).
 
 Coordinates and zones are always WGS84 (lon/lat); Quadrat reprojects to the raster's own CRS.
 
@@ -22,6 +22,29 @@ python3 -m venv .venv
 A request Quadrat will not answer prints `{"refused": "<code>", "reason": "..."}` and exits 2. Codes:
 `outside_raster`, `unreadable_raster`, `no_crs`, `unknown_resampling`, `unsupported_geometry`, `invalid_geometry`,
 `invalid_bbox`, `rotated_raster`.
+
+## As a service
+
+```bash
+.venv/bin/python app.py --port=5110 --myceliumUrl=https://localhost:7243
+```
+
+The contract (arguments, `ApiKey` or `Token` and `VerificationKey` from the environment, registration, `/health`,
+`/stats`, `/shutdown`) is the shared library's. Quadrat answers pipeline nodes: a `/handle` body carrying `runId` and
+`nodeId` ([docs/SERVICES.md §16.2](../docs/SERVICES.md)). Any other body is refused with `400`. `GET /manifest` lists
+the ports.
+
+| | |
+|---|---|
+| `params.operation` | `metadata`, `point` or `zonal` |
+| `params.resampling` | `point` only: `nearest` (default) or `bilinear` |
+| `inputs.raster` | Path to the raster. Required |
+| `inputs.lon`, `inputs.lat` | `point`: the WGS84 coordinate |
+| `inputs.bbox` or `inputs.geometry` | `zonal`: `[west, south, east, north]` or a GeoJSON Polygon or MultiPolygon, not both |
+| `outputs.result` | What the command line prints |
+
+A request Quadrat will not answer comes back as `{"success": false, "outputs": {}, "error": "<code>: <reason>"}` with
+the codes below, plus `missing_input`, `unknown_operation` and `ambiguous_zone`.
 
 ## Operations
 

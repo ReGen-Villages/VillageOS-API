@@ -1,3 +1,5 @@
+# The contract plumbing (and with it FastAPI, uvicorn, httpx and PyJWT), installed from this repository
+-e ../vos.Service.Python.Shared
 # Runtime
 rasterio>=1.4
 exactextract>=0.3
