@@ -23,18 +23,7 @@ var serviceToken = launchSettings.Token;
 var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
-var logPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs", "echo-.log");
-Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Information()
-    .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
-    .Enrich.FromLogContext()
-    .Enrich.WithProperty("Service", "Echo")
-    .WriteTo.File(
-        path: logPath,
-        rollingInterval: RollingInterval.Day,
-        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}",
-        shared: true)
-    .CreateLogger();
+ServiceHost.ConfigureLogging("Echo", "echo-.log", launchSettings.LogDirectory);
 
 try
 {
