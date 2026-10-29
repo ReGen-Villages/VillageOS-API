@@ -1,0 +1,10 @@
+# The contract plumbing (and with it FastAPI, uvicorn, httpx and PyJWT), installed from this repository
+-e ../vos.Service.Python.Shared
+# Runtime
+rasterio>=1.4
+exactextract>=0.3
+numpy>=2.0
+pyproj>=3.6
+shapely>=2.0
+# Tests
+pytest>=8.0
