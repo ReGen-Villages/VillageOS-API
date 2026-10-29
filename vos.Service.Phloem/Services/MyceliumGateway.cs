@@ -150,10 +150,12 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             [ModelNames.Rehearsal] = rehearsal ? "true" : "false",
         };
         if (requestId is { } request) properties[ModelNames.RequestId] = request.ToString();
-        await CreateThingWithIdAsync(runId, $"PipelineRun {runId:N}", properties, cancellationToken);
-
-        await RelateAsync(runId, ModelNames.Is, await BoundAsync(PipelineRoles.PipelineRun, cancellationToken), cancellationToken);
-        await RelateAsync(runId, ModelNames.Of, pipelineId, cancellationToken);
+        var runKind = await BoundAsync(PipelineRoles.PipelineRun, cancellationToken);
+        await CreateThingWithItsRelationshipsAsync(runId, $"PipelineRun {runId:N}", properties,
+        [
+            (runId, await ResolveByNameAsync(ModelNames.Is, cancellationToken), runKind),
+            (runId, await ResolveByNameAsync(ModelNames.Of, cancellationToken), pipelineId),
+        ], cancellationToken);
 
         if (startedBy is { } starter) await RelateIfBoundAsync(runId, PipelineRoles.StartingRun, starter, cancellationToken);
         if (subject is { } about) await RelateIfBoundAsync(runId, PipelineRoles.RunSubject, about.Id, cancellationToken);
@@ -198,9 +200,12 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
                 properties[ModelNames.Index] = idx.ToString();
                 properties[ModelNames.Total] = total.ToString();
             }
-            await CreateThingWithIdAsync(nodeRunId, index is int x ? $"NodeRun {nodeName} #{x}" : $"NodeRun {nodeName}", properties, cancellationToken);
-            await RelateAsync(nodeRunId, ModelNames.Is, await BoundAsync(PipelineRoles.NodeRun, cancellationToken), cancellationToken);
-            await RelateAsync(runId, ModelNames.Has, nodeRunId, cancellationToken);
+            var nodeRunKind = await BoundAsync(PipelineRoles.NodeRun, cancellationToken);
+            await CreateThingWithItsRelationshipsAsync(nodeRunId, index is int x ? $"NodeRun {nodeName} #{x}" : $"NodeRun {nodeName}", properties,
+            [
+                (nodeRunId, await ResolveByNameAsync(ModelNames.Is, cancellationToken), nodeRunKind),
+                (runId, await ResolveByNameAsync(ModelNames.Has, cancellationToken), nodeRunId),
+            ], cancellationToken);
             return;
         }
 
@@ -677,15 +682,38 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     // no body to say why.
     private async Task CreateThingWithIdAsync(Guid id, string name, IReadOnlyDictionary<string, string?> properties, CancellationToken cancellationToken)
     {
-        var envelopes = properties.ToDictionary(
-            property => property.Key,
-            property => new { typeInfo = PropertyType, value = property.Value });
-
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
         var response = await client.PostAsync($"{MyceliumUrl}/api/things",
-            JsonContent.Create(new { id, name, properties = envelopes }), cancellationToken);
+            JsonContent.Create(new { id, name, properties = Envelopes(properties) }), cancellationToken);
         response.EnsureSuccessStatusCode();
     }
+
+    // Written apart, the `is` of a Thing already holding a value its kind declares is refused; in one fragment the broker stores that value as the kind's override.
+    private async Task CreateThingWithItsRelationshipsAsync(
+        Guid id, string name, IReadOnlyDictionary<string, string?> properties,
+        IReadOnlyList<(Guid Subject, Guid Predicate, Guid Target)> relationships, CancellationToken cancellationToken)
+    {
+        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
+        var response = await client.PostAsync($"{MyceliumUrl}/api/model/fragment", JsonContent.Create(new
+        {
+            name,
+            things = new[] { new { id, name, properties = Envelopes(properties) } },
+            relationships = relationships.Select(edge => new
+            {
+                id = DeterministicGuid(DeterministicGuid(edge.Subject, edge.Predicate), edge.Target),
+                subject = edge.Subject,
+                predicate = edge.Predicate,
+                target = edge.Target,
+            }),
+        }), cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException($"The platform refused '{name}': {await ErrorOfAsync(response, cancellationToken)}");
+    }
+
+    private static Dictionary<string, object> Envelopes(IReadOnlyDictionary<string, string?> properties) =>
+        properties.ToDictionary(
+            property => property.Key,
+            property => (object)new { typeInfo = PropertyType, value = property.Value });
 
     private async Task SetPropertyAsync(Guid thingId, string name, string value, CancellationToken cancellationToken, string type = PropertyType)
     {

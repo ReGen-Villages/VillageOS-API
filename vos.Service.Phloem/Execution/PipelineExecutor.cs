@@ -55,7 +55,15 @@ public sealed class PipelineExecutor
         // Held from before the run exists, so a stop finds either no run or one whose sweep sees the stop.
         using var turn = await _turns.TakeAsync(rid, cancellationToken);
         var (dag, refusal) = await LoadAsync(pipelineId, cancellationToken, new Start(runParams, rehearsal));
-        await BestEffort(() => _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject, requestId, runParams, startedBy, refusal, rehearsal), "create run");
+        try
+        {
+            await _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject, requestId, runParams, startedBy, refusal, rehearsal);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _logger.LogError(error, "Run {RunId} of pipeline {PipelineId} could not be recorded, so it does not start", rid, pipelineId);
+            return PipelineRunResult.Failed(rid, pipelineId, refusal ?? error.Message);
+        }
         if (dag is null) return PipelineRunResult.Failed(rid, pipelineId, refusal!);
 
         return await SweepAsync(rid, dag, runParams, new Progress(), rehearsal, cancellationToken);

@@ -57,6 +57,23 @@ public class PipelineExecutorTests
     }
 
     [Fact]
+    public async Task RunAsync_WhenTheRunCannotBeRecorded_StartsNoNodeAndAnswersTheBrokersReason()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        var gateway = new FakeGateway(fx.Build())
+        {
+            RunCreationFailure = new InvalidOperationException("The platform refused 'PipelineRun 1': the run kind is not a type."),
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.Error.Should().Contain("the run kind is not a type");
+        gateway.Called.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task RunAsync_UnknownPipeline_ReturnsFailureNotThrow()
     {
         var (fx, _) = TestGraphs.DemoPipeline();

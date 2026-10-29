@@ -102,7 +102,7 @@ public class MyceliumGatewayTests
 
         await gateway.RecordAttemptAsync(runId, nodeId, null, new AttemptRecord(2, noon, noon.AddSeconds(1), RunStatus.Failed, "the service was away"), CancellationToken.None);
 
-        var created = (await Task.WhenAll(RequestsTo(handler, "/api/things", HttpMethod.Post).Select(ReadJson))).ToList();
+        var created = await CreatedThings(handler);
         var nodeRunId = created[1].GetProperty("id").GetGuid();
         var attempt = created[2];
         var attemptId = attempt.GetProperty("id").GetGuid();
@@ -112,9 +112,9 @@ public class MyceliumGatewayTests
         properties.GetProperty(ModelNames.FinishedUtc).GetProperty("value").GetString().Should().Be(noon.AddSeconds(1).ToString("o"));
         properties.GetProperty(ModelNames.Status).GetProperty("value").GetString().Should().Be(RunStatus.Failed);
         properties.GetProperty(ModelNames.Error).GetProperty("value").GetString().Should().Be("the service was away");
-        var edges = (await Task.WhenAll(RequestsTo(handler, "/api/relationships", HttpMethod.Post).Select(ReadJson))).ToList();
-        edges.Should().Contain(edge => edge.GetProperty("subjectId").GetGuid() == attemptId && edge.GetProperty("targetId").GetGuid() == AttemptArchetypeId);
-        edges.Should().Contain(edge => edge.GetProperty("subjectId").GetGuid() == nodeRunId && edge.GetProperty("targetId").GetGuid() == attemptId);
+        var edges = await CreatedRelationships(handler);
+        edges.Should().Contain(edge => edge.Subject == attemptId && edge.Target == AttemptArchetypeId);
+        edges.Should().Contain(edge => edge.Subject == nodeRunId && edge.Target == attemptId);
         (await PropertiesWritten(handler, nodeRunId)).Should().Contain((ModelNames.Attempts, "2"));
     }
 
@@ -151,7 +151,12 @@ public class MyceliumGatewayTests
             var path = request.RequestUri!.AbsolutePath;
 
             if (path == "/api/things" && request.Method == HttpMethod.Post)
-                return Create(request);
+                return Create(ReadJson(request).Result);
+
+            if (path == "/api/model/fragment" && request.Method == HttpMethod.Post)
+                return ReadJson(request).Result.GetProperty("things").EnumerateArray()
+                    .Select(Create)
+                    .FirstOrDefault(answer => !answer.IsSuccessStatusCode) ?? new HttpResponseMessage(HttpStatusCode.OK);
 
             if (path.EndsWith("/properties", StringComparison.Ordinal) && request.Method == HttpMethod.Put)
                 return SetProperty(request, path);
@@ -159,9 +164,8 @@ public class MyceliumGatewayTests
             return RespondLikeAModelThatBindsItsRoles(request);
         }
 
-        private HttpResponseMessage Create(HttpRequestMessage request)
+        private HttpResponseMessage Create(JsonElement body)
         {
-            var body = ReadJson(request).Result;
             var carried = new HashSet<string>(StringComparer.Ordinal);
 
             if (body.TryGetProperty("properties", out var properties) && properties.ValueKind == JsonValueKind.Object)
@@ -199,6 +203,37 @@ public class MyceliumGatewayTests
             .Where(request => request.RequestUri!.AbsolutePath == path
                 && (method is null || request.Method == method))
             .ToList();
+
+    // A run and a node run are created in a fragment and other Things on their own, so these read both, in the order written.
+    private static async Task<IReadOnlyList<JsonElement>> CreatedThings(MockHttpMessageHandler handler)
+    {
+        var created = new List<JsonElement>();
+        foreach (var request in handler.Requests.Where(request => request.Method == HttpMethod.Post))
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path == "/api/things") created.Add(await ReadJson(request));
+            if (path == "/api/model/fragment") created.AddRange((await ReadJson(request)).GetProperty("things").EnumerateArray());
+        }
+        return created;
+    }
+
+    private static async Task<IReadOnlyList<(Guid Subject, Guid Predicate, Guid Target)>> CreatedRelationships(MockHttpMessageHandler handler)
+    {
+        var created = new List<(Guid, Guid, Guid)>();
+        foreach (var request in handler.Requests.Where(request => request.Method == HttpMethod.Post))
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path == "/api/relationships")
+            {
+                var edge = await ReadJson(request);
+                created.Add((edge.GetProperty("subjectId").GetGuid(), edge.GetProperty("predicateId").GetGuid(), edge.GetProperty("targetId").GetGuid()));
+            }
+            if (path == "/api/model/fragment")
+                created.AddRange((await ReadJson(request)).GetProperty("relationships").EnumerateArray().Select(edge =>
+                    (edge.GetProperty("subject").GetGuid(), edge.GetProperty("predicate").GetGuid(), edge.GetProperty("target").GetGuid())));
+        }
+        return created;
+    }
 
     [Fact]
     public async Task RegisterAsync_DeclaresPhloemToTheBroker()
@@ -333,14 +368,34 @@ public class MyceliumGatewayTests
 
         await gateway.CreateRunAsync(runId, pipelineId, CancellationToken.None);
 
-        var created = await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single());
+        var created = (await CreatedThings(handler)).Single();
         created.GetProperty("id").GetString().Should().Be(runId.ToString());
         created.GetProperty("properties").GetProperty("status").GetProperty("value").GetString()
             .Should().Be(RunStatus.Running);
         created.GetProperty("properties").GetProperty("pipelineId").GetProperty("value").GetString()
             .Should().Be(pipelineId.ToString());
 
-        RequestsTo(handler, "/api/relationships", HttpMethod.Post).Should().HaveCount(2);
+        RequestsTo(handler, "/api/model/fragment", HttpMethod.Post).Should().ContainSingle("the run and its relationships are taken or refused together");
+        RequestsTo(handler, "/api/things", HttpMethod.Post).Should().BeEmpty();
+        RequestsTo(handler, "/api/relationships", HttpMethod.Post).Should().BeEmpty();
+        (await CreatedRelationships(handler)).Should().BeEquivalentTo(new[]
+        {
+            (runId, PredicateId, PipelineRunArchetypeId),
+            (runId, PredicateId, pipelineId),
+        });
+    }
+
+    [Fact]
+    public async Task CreateRunAsync_WhenTheBrokerRefusesTheRun_FailsWithTheBrokersReason()
+    {
+        var broker = new BrokerApplyingItsWriteRules();
+        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/model/fragment"
+            ? Json(HttpStatusCode.BadRequest, """{"error":"the run kind is not a type"}""")
+            : broker.Respond(request));
+
+        var creating = () => gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        (await creating.Should().ThrowAsync<InvalidOperationException>()).WithMessage("*the run kind is not a type*");
     }
 
     [Fact]
@@ -351,7 +406,7 @@ public class MyceliumGatewayTests
         await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None, rehearsal: true);
         await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
-        var written = (await Task.WhenAll(RequestsTo(handler, "/api/things", HttpMethod.Post).Select(ReadJson)))
+        var written = (await CreatedThings(handler))
             .Select(run => run.GetProperty("properties").GetProperty(ModelNames.Rehearsal).GetProperty("value").GetString());
         written.Should().Equal("true", "false");
     }
@@ -363,7 +418,7 @@ public class MyceliumGatewayTests
 
         await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None, refusal: "Pipeline is invalid: 'Echo' needs its port 'message' filled.");
 
-        var properties = (await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single())).GetProperty("properties");
+        var properties = (await CreatedThings(handler)).Single().GetProperty("properties");
         properties.GetProperty(ModelNames.Status).GetProperty("value").GetString().Should().Be(RunStatus.Refused);
         properties.GetProperty(ModelNames.Error).GetProperty("value").GetString().Should().Contain("'Echo' needs its port 'message'");
         properties.GetProperty(ModelNames.FinishedUtc).GetProperty("value").GetString().Should().NotBeNullOrEmpty();
@@ -378,7 +433,7 @@ public class MyceliumGatewayTests
 
         await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
-        var written = (await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single()))
+        var written = (await CreatedThings(handler)).Single()
             .GetProperty("properties").EnumerateObject().ToList();
         written.Should().NotBeEmpty();
         foreach (var property in written)
@@ -435,9 +490,7 @@ public class MyceliumGatewayTests
 
         await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
-        foreach (var request in RequestsTo(handler, "/api/relationships", HttpMethod.Post))
-            (await ReadJson(request)).GetProperty("predicateId").GetString()
-                .Should().Be(PredicateId.ToString());
+        (await CreatedRelationships(handler)).Should().OnlyContain(edge => edge.Predicate == PredicateId);
     }
 
     // The subject is a Thing the model holds, so the run reaches it by a relationship along the predicate
@@ -451,13 +504,9 @@ public class MyceliumGatewayTests
 
         await gateway.CreateRunAsync(runId, Guid.NewGuid(), CancellationToken.None, subject);
 
-        var edges = new List<JsonElement>();
-        foreach (var request in RequestsTo(handler, "/api/relationships", HttpMethod.Post))
-            edges.Add(await ReadJson(request));
+        var edges = await CreatedRelationships(handler);
         edges.Should().HaveCount(3);
-        var toSubject = edges.Single(edge => edge.GetProperty("predicateId").GetString() == RunSubjectPredicateId.ToString());
-        toSubject.GetProperty("subjectId").GetString().Should().Be(runId.ToString());
-        toSubject.GetProperty("targetId").GetString().Should().Be(subject.Id.ToString());
+        edges.Single(edge => edge.Predicate == RunSubjectPredicateId).Should().Be((runId, RunSubjectPredicateId, subject.Id));
     }
 
     // What the identifier names is outside the model, so the run carries it as a plain property.
@@ -470,9 +519,7 @@ public class MyceliumGatewayTests
         await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None, requestId: requestId);
         await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
-        var created = new List<JsonElement>();
-        foreach (var request in RequestsTo(handler, "/api/things", HttpMethod.Post))
-            created.Add((await ReadJson(request)).GetProperty("properties"));
+        var created = (await CreatedThings(handler)).Select(run => run.GetProperty("properties")).ToList();
         created[0].GetProperty("requestId").GetProperty("value").GetString().Should().Be(requestId.ToString());
         created[1].TryGetProperty("requestId", out _).Should().BeFalse();
     }
@@ -492,7 +539,7 @@ public class MyceliumGatewayTests
             Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None, new RunSubject(Guid.NewGuid(), "orphan"));
 
         await creating.Should().NotThrowAsync();
-        RequestsTo(handler, "/api/relationships", HttpMethod.Post).Should().HaveCount(2);
+        (await CreatedRelationships(handler)).Should().HaveCount(2);
     }
 
     [Fact]
@@ -632,11 +679,12 @@ public class MyceliumGatewayTests
         await gateway.SetNodeRunStatusAsync(
             Guid.NewGuid(), Guid.NewGuid(), "Echo", RunStatus.Running, error: null, CancellationToken.None);
 
-        var created = await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single());
+        var created = (await CreatedThings(handler)).Single();
         created.GetProperty("name").GetString().Should().Be("NodeRun Echo");
         created.GetProperty("properties").GetProperty("status").GetProperty("value").GetString()
             .Should().Be(RunStatus.Running);
-        RequestsTo(handler, "/api/relationships", HttpMethod.Post).Should().HaveCount(2);
+        RequestsTo(handler, "/api/model/fragment", HttpMethod.Post).Should().ContainSingle("the node run and its relationships are taken or refused together");
+        (await CreatedRelationships(handler)).Should().HaveCount(2);
     }
 
     // A NodeRun is created before its first status is known to be its last, and an error arrives only on a
@@ -650,7 +698,7 @@ public class MyceliumGatewayTests
             Guid.NewGuid(), Guid.NewGuid(), "Echo", RunStatus.Running, error: null, CancellationToken.None,
             index: 0, total: 2);
 
-        var written = (await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single()))
+        var written = (await CreatedThings(handler)).Single()
             .GetProperty("properties").EnumerateObject().ToList();
         written.Select(property => property.Name)
             .Should().BeEquivalentTo(["status", "nodeId", "error", "index", "total",
@@ -671,8 +719,7 @@ public class MyceliumGatewayTests
         await gateway.SetNodeRunStatusAsync(runId, nodeId, "Echo", RunStatus.Running, null, CancellationToken.None);
         await gateway.SetNodeRunStatusAsync(runId, nodeId, "Echo", RunStatus.Succeeded, null, CancellationToken.None);
 
-        RequestsTo(handler, "/api/things", HttpMethod.Post).Should().HaveCount(1);
-        var nodeRunId = (await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single())).GetProperty("id").GetGuid();
+        var nodeRunId = (await CreatedThings(handler)).Single().GetProperty("id").GetGuid();
         var propertyWrites = handler.Requests.Where(request =>
             request.Method == HttpMethod.Put && request.RequestUri!.AbsolutePath.EndsWith("/properties")).ToList();
         propertyWrites.Should().OnlyContain(request => request.RequestUri!.AbsolutePath.Contains(nodeRunId.ToString()));
@@ -708,12 +755,8 @@ public class MyceliumGatewayTests
         await gateway.SetNodeRunStatusAsync(runId, nodeId, "Echo", RunStatus.Running, null, CancellationToken.None, index: 0, total: 2);
         await gateway.SetNodeRunStatusAsync(runId, nodeId, "Echo", RunStatus.Running, null, CancellationToken.None, index: 1, total: 2);
 
-        var created = RequestsTo(handler, "/api/things", HttpMethod.Post);
-        created.Should().HaveCount(2);
-        var names = new List<string?>();
-        foreach (var request in created)
-            names.Add((await ReadJson(request)).GetProperty("name").GetString());
-        names.Should().BeEquivalentTo(["NodeRun Echo #0", "NodeRun Echo #1"]);
+        (await CreatedThings(handler)).Select(nodeRun => nodeRun.GetProperty("name").GetString())
+            .Should().BeEquivalentTo(["NodeRun Echo #0", "NodeRun Echo #1"]);
     }
 
     [Fact]
@@ -740,7 +783,7 @@ public class MyceliumGatewayTests
         await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None,
             parameters: JsonSerializer.SerializeToElement(new { greeting = "hello" }));
 
-        var properties = (await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single())).GetProperty("properties");
+        var properties = (await CreatedThings(handler)).Single().GetProperty("properties");
         properties.GetProperty(ModelNames.Parameters).GetProperty("value").GetString().Should().Be("""{"greeting":"hello"}""");
         properties.GetProperty(ModelNames.FinishedUtc).GetProperty("value").ValueKind.Should().Be(JsonValueKind.Null);
         properties.GetProperty(ModelNames.StartedUtc).GetProperty("value").GetString().Should().NotBeNullOrEmpty();
@@ -759,7 +802,7 @@ public class MyceliumGatewayTests
         await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Waiting, null, CancellationToken.None, outputs: outputs);
         await gateway.SetRunStatusAsync(runId, RunStatus.Waiting, CancellationToken.None);
 
-        var nodeRunId = (await Task.WhenAll(RequestsTo(handler, "/api/things", HttpMethod.Post).Select(ReadJson)))
+        var nodeRunId = (await CreatedThings(handler))
             .Select(body => body.GetProperty("id").GetGuid()).Single(id => id != runId);
         var nodeRunWritten = await PropertiesWritten(handler, nodeRunId);
         nodeRunWritten.Should().Contain((ModelNames.Outputs, """{"notice":"sent"}"""));
@@ -778,7 +821,7 @@ public class MyceliumGatewayTests
         await gateway.SetNodeRunStatusAsync(runId, nodeId, "Echo", RunStatus.Running, null, CancellationToken.None);
         await gateway.SetNodeRunStatusAsync(runId, nodeId, "Echo", RunStatus.Trying, "the service was away", CancellationToken.None);
 
-        var nodeRunId = (await Task.WhenAll(RequestsTo(handler, "/api/things", HttpMethod.Post).Select(ReadJson)))
+        var nodeRunId = (await CreatedThings(handler))
             .Select(body => body.GetProperty("id").GetGuid()).Single(id => id != runId);
         var nodeRunWritten = await PropertiesWritten(handler, nodeRunId);
         nodeRunWritten.Should().Contain((ModelNames.Status, RunStatus.Trying));
@@ -1034,8 +1077,7 @@ public class MyceliumGatewayTests
         await gateway.SetNodeRunStatusAsync(runId, nodeId, "Echo", RunStatus.Running, null, CancellationToken.None);
         await gateway.SetNodeRunStatusAsync(runId, nodeId, "Echo", RunStatus.Succeeded, null, CancellationToken.None, outputs: outputs);
 
-        var created = await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single());
-        var nodeRunId = created.GetProperty("id").GetGuid();
+        var nodeRunId = (await CreatedThings(handler)).Single().GetProperty("id").GetGuid();
         var written = await PropertiesWritten(handler, nodeRunId);
         written.Should().Contain(("status", RunStatus.Succeeded));
         written.Should().Contain((ModelNames.Outputs, """{"echo":"hi"}"""));
@@ -1051,7 +1093,7 @@ public class MyceliumGatewayTests
 
         await gateway.SetNodeRunStatusAsync(Guid.NewGuid(), Guid.NewGuid(), "Echo", RunStatus.NotTaken, null, CancellationToken.None, outputs: outputs);
 
-        var properties = (await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single())).GetProperty("properties");
+        var properties = (await CreatedThings(handler)).Single().GetProperty("properties");
         properties.GetProperty(ModelNames.FinishedUtc).GetProperty("value").GetString().Should().NotBeNullOrEmpty();
         properties.GetProperty(ModelNames.Outputs).GetProperty("value").GetString().Should().Be("""{"echo":"hi"}""");
         handler.Requests.Where(request => request.Method == HttpMethod.Put).Should().BeEmpty();
@@ -1066,16 +1108,11 @@ public class MyceliumGatewayTests
         var two = Guid.NewGuid();
         var (gateway, handler) = NewGateway();
         await gateway.SetNodeRunStatusAsync(runId, nodeId, "Maker", RunStatus.Running, null, CancellationToken.None);
-        var nodeRunId = (await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single())).GetProperty("id").GetGuid();
+        var nodeRunId = (await CreatedThings(handler)).Single().GetProperty("id").GetGuid();
 
         await gateway.RelateProducedAsync(runId, nodeId, null, [one, two], CancellationToken.None);
 
-        var related = new List<(Guid Subject, Guid Predicate, Guid Target)>();
-        foreach (var request in RequestsTo(handler, "/api/relationships", HttpMethod.Post))
-        {
-            var body = await ReadJson(request);
-            related.Add((body.GetProperty("subjectId").GetGuid(), body.GetProperty("predicateId").GetGuid(), body.GetProperty("targetId").GetGuid()));
-        }
+        var related = await CreatedRelationships(handler);
         related.Should().Contain((nodeRunId, ProducedPredicateId, one)).And.Contain((nodeRunId, ProducedPredicateId, two));
     }
 
