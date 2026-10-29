@@ -58,6 +58,8 @@ public sealed record SubscribeResult(Guid SubscriptionId, long Watermark, Snapsh
 
 public sealed record AddObjectsResult(long Watermark, SnapshotDocument Snapshot);
 
+public sealed record SnapshotReadResult(long Watermark, SnapshotDocument Snapshot);
+
 public sealed record SnapshotDocument(
     long Watermark,
     List<SnapshotThing> Things,

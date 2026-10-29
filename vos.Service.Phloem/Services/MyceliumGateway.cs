@@ -618,17 +618,10 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     private async Task<JsonElement> SnapshotAsync(object selector, TimeSpan timeout, CancellationToken cancellationToken)
     {
         var client = await CreateAuthenticatedClientAsync(timeout);
-        var response = await client.PostAsync($"{MyceliumUrl}/api/subscriptions",
+        var response = await client.PostAsync($"{MyceliumUrl}/api/snapshots",
             new StringContent(JsonSerializer.Serialize(selector), Encoding.UTF8, "application/json"), cancellationToken);
         response.EnsureSuccessStatusCode();
-
-        var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-
-        // Tidy up the snapshot subscription — Phloem reads once and does not stream here.
-        if (TryGetPropertyCaseInsensitive(root, "subscriptionId", out var subId) && subId.ValueKind == JsonValueKind.String)
-            _ = TryUnsubscribeAsync(subId.GetString()!);
-
-        return root;
+        return await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
     }
 
     // Read on every look, so it asks for the cadences alone; a kind of cadence is not one.
@@ -636,7 +629,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     {
         var selector = new { boundTypes = new[] { PipelineRoles.Cadence.Id }, includeIsAncestors = false, includeRelationships = false };
         var root = await SnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
-        var snapshot = root.Deserialize<SubscribeResult>(SnapshotJson)?.Snapshot ?? root.Deserialize<SnapshotDocument>(SnapshotJson);
+        var snapshot = root.Deserialize<SnapshotReadResult>(SnapshotJson)?.Snapshot ?? root.Deserialize<SnapshotDocument>(SnapshotJson);
 
         var cadences = new List<Cadence>();
         foreach (var thing in snapshot?.Things ?? [])
@@ -788,18 +781,5 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             return id;
         }
         throw new InvalidOperationException($"Could not resolve a Thing named '{name}'.");
-    }
-
-    private async Task TryUnsubscribeAsync(string subscriptionId)
-    {
-        try
-        {
-            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(5));
-            await client.DeleteAsync($"{MyceliumUrl}/api/subscriptions/{subscriptionId}");
-        }
-        catch (Exception ex)
-        {
-            Logger.LogDebug(ex, "Failed to delete snapshot subscription {SubscriptionId}", subscriptionId);
-        }
     }
 }
