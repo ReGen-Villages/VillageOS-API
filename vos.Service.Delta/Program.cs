@@ -28,7 +28,7 @@ var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
-ServiceHost.ConfigureLogging("Delta", "delta-.log", writeToFile: !isTestingEnv);
+ServiceHost.ConfigureLogging("Delta", "delta-.log", launchSettings.LogDirectory, writeToFile: !isTestingEnv);
 
 try
 {

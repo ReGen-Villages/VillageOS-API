@@ -16,18 +16,7 @@ if (launchSettings == null)
     return 1;
 }
 
-var logPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs", "xylem-.log");
-Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Information()
-    .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
-    .Enrich.FromLogContext()
-    .Enrich.WithProperty("Service", "Xylem")
-    .WriteTo.File(
-        path: logPath,
-        rollingInterval: RollingInterval.Day,
-        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}",
-        shared: true)
-    .CreateLogger();
+ServiceHost.ConfigureLogging("Xylem", "xylem-.log", launchSettings.Service.LogDirectory);
 
 try
 {

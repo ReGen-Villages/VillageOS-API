@@ -22,7 +22,7 @@ var serviceToken = launchSettings.Token;
 var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
-ServiceHost.ConfigureLogging("ModelBridge", "model-bridge-.log");
+ServiceHost.ConfigureLogging("ModelBridge", "model-bridge-.log", launchSettings.LogDirectory);
 
 try
 {

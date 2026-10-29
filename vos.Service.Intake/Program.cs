@@ -41,7 +41,7 @@ var serviceToken = launchSettings.Service.Token;
 var apiKey = launchSettings.Service.ApiKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
-ServiceHost.ConfigureLogging("Intake", "intake-.log", writeToFile: !isTestingEnv);
+ServiceHost.ConfigureLogging("Intake", "intake-.log", launchSettings.Service.LogDirectory, writeToFile: !isTestingEnv);
 
 try
 {
