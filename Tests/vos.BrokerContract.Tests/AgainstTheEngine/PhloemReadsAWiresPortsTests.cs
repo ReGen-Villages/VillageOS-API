@@ -32,7 +32,7 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
 
     private async Task<TextStudio> DrawTextStudioAsync(bool uppercaseChooses, bool tellsTheOffice = false)
     {
-        var firstDrawing = await _engine.FindAsync(ModelNames.Is) is null;
+        var firstDrawing = await _engine.FindAsync("carries") is null;
         var @is = await _engine.DeclareOnceAsync(ModelNames.Is);
         var has = await _engine.DeclareOnceAsync(ModelNames.Has);
         await _engine.DeclareOnceAsync(ModelNames.Binds);
