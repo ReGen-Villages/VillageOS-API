@@ -188,12 +188,50 @@ public class ServiceHostTests
 
             await Settle.ForAsync(registered.Task, "startup announces the service to the broker");
             (await registered.Task).GetProperty("logFilePrefix").GetString().Should().Be(prefix);
+            (await registered.Task).TryGetProperty("logDirectory", out _).Should().BeFalse(
+                "a service writing to the default folder leaves the broker to find it beside the executable");
         }
         finally
         {
             Serilog.Log.CloseAndFlush();
             foreach (var file in LogFilesNamed(prefix)) file.Delete();
         }
+    }
+
+    [Fact]
+    public async Task AddMyceliumRegistration_AnnouncesTheFolderTheServiceWasToldToWriteItsLogIn()
+    {
+        var folder = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), $"service-host-log-folder-{Guid.NewGuid():N}"));
+        var registered = new TaskCompletionSource<JsonElement>();
+        try
+        {
+            ServiceHost.ConfigureLogging("ServiceHostLogFolderTest", "service-host-log-folder-.log", Path.Combine(folder.FullName, "nested", ".."));
+            await using var app = BuildApp(request =>
+            {
+                if (request.RequestUri!.AbsolutePath == "/api/mycelium/register")
+                    registered.TrySetResult(JsonDocument.Parse(request.Content!.ReadAsStringAsync().Result).RootElement.Clone());
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            }, withMyceliumRegistration: true);
+
+            await app.StartAsync();
+
+            await Settle.ForAsync(registered.Task, "startup announces the service to the broker");
+            (await registered.Task).GetProperty("logDirectory").GetString().Should().Be(folder.FullName,
+                "the broker compares the folder as a full path");
+        }
+        finally
+        {
+            Serilog.Log.CloseAndFlush();
+            folder.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ConfigureLogging_WithTheFileSinkOff_AnnouncesNoFolder()
+    {
+        ServiceHost.ConfigureLogging("ServiceHostNoFileFolderTest", "no-file-.log", logDirectory: "/var/log/villageos", writeToFile: false);
+
+        ServiceHost.LogDirectory.Should().BeNull("there is no file for the broker to find");
     }
 
     // The deregistration route is admin-only, so a service asking to withdraw itself is refused on

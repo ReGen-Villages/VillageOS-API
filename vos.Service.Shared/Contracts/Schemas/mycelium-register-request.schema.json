@@ -13,6 +13,7 @@
     "startCommand":   { "type": "string", "minLength": 1, "description": "Token Mycelium uses to restart the service." },
     "stopEndpoint":   { "type": "string", "format": "uri",  "description": "Shutdown endpoint URL." },
     "healthEndpoint": { "type": "string", "format": "uri",  "description": "Liveness endpoint polled by LivenessMonitor." },
-    "logFilePrefix":  { "type": "string", "pattern": "^[a-z0-9-]+$", "description": "What the service writes its own log file under, so the broker's log routes can find the newest file; never a path." }
+    "logFilePrefix":  { "type": "string", "pattern": "^[a-z0-9-]+$", "description": "What the service writes its own log file under, so the broker's log routes can find the newest file; never a path." },
+    "logDirectory":   { "type": "string", "minLength": 1, "description": "The full path of the folder the service was told to write its log in; absent when it writes to the default folder beside its executable. The broker refuses a folder outside the parent it allows." }
   }
 }

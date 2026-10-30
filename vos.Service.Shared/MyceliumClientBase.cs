@@ -86,7 +86,7 @@ public abstract class MyceliumClientBase
         return client;
     }
 
-    public async Task<bool> RegisterAsync(int port, string serviceName, string startCommand, string? logFilePrefix = null)
+    public async Task<bool> RegisterAsync(int port, string serviceName, string startCommand, string? logFilePrefix = null, string? logDirectory = null)
     {
         var registration = new Dictionary<string, object>
         {
@@ -98,6 +98,7 @@ public abstract class MyceliumClientBase
             ["healthEndpoint"] = $"http://localhost:{port}/health"
         };
         if (logFilePrefix is not null) registration["logFilePrefix"] = logFilePrefix;
+        if (logDirectory is not null) registration["logDirectory"] = logDirectory;
 
         var json = JsonSerializer.Serialize(registration);
 
