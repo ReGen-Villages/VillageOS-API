@@ -147,6 +147,28 @@ public class MyceliumGatewayTests
         (await PropertiesWrittenSinceCreation(handler, nodeRunId)).Should().Contain((ModelNames.Attempts, "2"));
     }
 
+    [Fact]
+    public async Task RecordAttemptAsync_WritesTheAttemptItsKindAndTheNodeRunHoldingItInOneFragment()
+    {
+        var runId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var noon = new DateTimeOffset(2026, 10, 30, 12, 0, 0, TimeSpan.Zero);
+        var (gateway, handler) = NewGateway();
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, "Echo", RunStatus.Running, null, CancellationToken.None);
+        var writesBefore = handler.Requests.Count;
+
+        await gateway.RecordAttemptAsync(runId, nodeId, null, new AttemptRecord(1, noon, noon.AddSeconds(1), RunStatus.Failed, null), CancellationToken.None);
+
+        var writes = handler.Requests.Skip(writesBefore).Where(request => request.Method != HttpMethod.Get).ToList();
+        writes.Where(request => request.RequestUri!.AbsolutePath is "/api/things" or "/api/relationships").Should().BeEmpty();
+        var fragment = await ReadJson(writes.Single(request => request.RequestUri!.AbsolutePath == "/api/model/fragment"));
+        var attemptId = fragment.GetProperty("things").EnumerateArray().Single().GetProperty("id").GetGuid();
+        var nodeRunId = (await CreatedThings(handler))[0].GetProperty("id").GetGuid();
+        fragment.GetProperty("relationships").EnumerateArray()
+            .Select(edge => (edge.GetProperty("subject").GetGuid(), edge.GetProperty("predicate").GetGuid(), edge.GetProperty("target").GetGuid()))
+            .Should().Equal((attemptId, PredicateId, AttemptArchetypeId), (nodeRunId, PredicateId, attemptId));
+    }
+
     private static readonly Guid BindsPredicateId = Guid.Parse("77777777-7777-7777-7777-777777777777");
 
     private static HttpResponseMessage BoundSnapshot(Role role, Guid boundId) =>
@@ -486,19 +508,20 @@ public class MyceliumGatewayTests
 
         await gateway.SendMessageAsync(runId, telling, JsonDocument.Parse("""{"result":"world"}""").RootElement, CancellationToken.None);
 
-        var message = await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single());
-        var messageId = message.GetProperty("id").GetString();
+        RequestsTo(handler, "/api/things", HttpMethod.Post).Should().BeEmpty();
+        var fragment = await ReadJson(RequestsTo(handler, "/api/model/fragment", HttpMethod.Post).Single());
+        var message = fragment.GetProperty("things").EnumerateArray().Single();
+        var messageId = message.GetProperty("id").GetGuid();
         JsonDocument.Parse(message.GetProperty("properties").GetProperty("payload").GetProperty("value").GetString()!)
             .RootElement.GetProperty("result").GetString().Should().Be("world");
+        fragment.GetProperty("relationships").EnumerateArray()
+            .Select(edge => (edge.GetProperty("subject").GetGuid(), edge.GetProperty("predicate").GetGuid(), edge.GetProperty("target").GetGuid()))
+            .Should().Equal((messageId, PredicateId, SentMessageArchetypeId), (runId, PredicateId, messageId));
 
-        var edges = new List<JsonElement>();
-        foreach (var request in RequestsTo(handler, "/api/relationships", HttpMethod.Post))
-            edges.Add(await ReadJson(request));
-        edges.Select(edge => (edge.GetProperty("subjectId").GetString(), edge.GetProperty("targetId").GetString())).Should().Equal(
-            (messageId, SentMessageArchetypeId.ToString()),
-            (runId.ToString(), messageId),
-            (messageId, telling.SystemId.ToString()));
-        edges[^1].GetProperty("predicateId").GetString().Should().Be(telling.ConnectionId.ToString());
+        var toTheSystem = await ReadJson(RequestsTo(handler, "/api/relationships", HttpMethod.Post).Single());
+        (toTheSystem.GetProperty("subjectId").GetGuid(), toTheSystem.GetProperty("predicateId").GetGuid(), toTheSystem.GetProperty("targetId").GetGuid())
+            .Should().Be((messageId, telling.ConnectionId, telling.SystemId));
+        handler.Requests.Last().RequestUri!.AbsolutePath.Should().Be("/api/relationships");
     }
 
     // The result is known only once the run ends, and the property route sets a property the Thing already

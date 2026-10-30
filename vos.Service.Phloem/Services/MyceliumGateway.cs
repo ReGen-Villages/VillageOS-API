@@ -309,9 +309,12 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             [ModelNames.Status] = attempt.Status,
             [ModelNames.Error] = attempt.Error,
         };
-        await CreateThingWithIdAsync(attemptId, $"Attempt {attempt.Number} {nodeRunId:N}", properties, cancellationToken);
-        await RelateAsync(attemptId, ModelNames.Is, await BoundAsync(PipelineRoles.Attempt, cancellationToken), cancellationToken);
-        await RelateAsync(nodeRunId, ModelNames.Has, attemptId, cancellationToken);
+        var attemptKind = await BoundAsync(PipelineRoles.Attempt, cancellationToken);
+        await WriteThingInOneFragmentAsync(attemptId, $"Attempt {attempt.Number} {nodeRunId:N}", properties,
+        [
+            (attemptId, await ResolveByNameAsync(ModelNames.Is, cancellationToken), attemptKind),
+            (nodeRunId, await ResolveByNameAsync(ModelNames.Has, cancellationToken), attemptId),
+        ], cancellationToken);
         await SetPropertyAsync(nodeRunId, ModelNames.Attempts, attempt.Number.ToString(CultureInfo.InvariantCulture), cancellationToken);
     }
 
@@ -603,10 +606,13 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     public async Task SendMessageAsync(Guid runId, Telling telling, JsonElement payload, CancellationToken cancellationToken)
     {
         var messageId = Guid.NewGuid();
-        await CreateThingWithIdAsync(messageId, $"Message to {telling.SystemName} {runId:N}",
-            new Dictionary<string, string?> { [ModelNames.Payload] = payload.GetRawText() }, cancellationToken);
-        await RelateAsync(messageId, ModelNames.Is, await BoundAsync(PipelineRoles.SentMessage, cancellationToken), cancellationToken);
-        await RelateAsync(runId, ModelNames.Has, messageId, cancellationToken);
+        var messageKind = await BoundAsync(PipelineRoles.SentMessage, cancellationToken);
+        await WriteThingInOneFragmentAsync(messageId, $"Message to {telling.SystemName} {runId:N}",
+            new Dictionary<string, string?> { [ModelNames.Payload] = payload.GetRawText() },
+        [
+            (messageId, await ResolveByNameAsync(ModelNames.Is, cancellationToken), messageKind),
+            (runId, await ResolveByNameAsync(ModelNames.Has, cancellationToken), messageId),
+        ], cancellationToken);
         await RelateAsync(messageId, telling.ConnectionId, telling.SystemId, cancellationToken);
     }
 
@@ -695,17 +701,6 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         return bound.Id;
     }
 
-    // A property reaches the broker as a typed envelope, never as a bare value: the create route reads each
-    // one through the same converter the property routes use, and refuses a bare value with a 400 carrying
-    // no body to say why.
-    private async Task CreateThingWithIdAsync(Guid id, string name, IReadOnlyDictionary<string, string?> properties, CancellationToken cancellationToken)
-    {
-        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
-        var response = await client.PostAsync($"{MyceliumUrl}/api/things",
-            JsonContent.Create(new { id, name, properties = Envelopes(properties) }), cancellationToken);
-        response.EnsureSuccessStatusCode();
-    }
-
     // Written apart, the `is` of a Thing already holding a value its kind declares is refused; in one fragment the broker stores that value as the kind's override.
     // A fragment naming a Thing that already exists changes its values and leaves its name alone.
     private async Task WriteThingInOneFragmentAsync(
@@ -729,6 +724,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             throw new InvalidOperationException($"The platform refused '{name}': {await ErrorOfAsync(response, cancellationToken)}");
     }
 
+    // The broker refuses a property written as a bare value, with a 400 carrying no body to say why.
     private static Dictionary<string, object> Envelopes(IReadOnlyDictionary<string, string?> properties) =>
         properties.ToDictionary(
             property => property.Key,
@@ -761,9 +757,6 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         BitConverter.TryWriteBytes(buffer[32..], index);
         return new Guid(System.Security.Cryptography.MD5.HashData(buffer));
     }
-
-    private async Task RelateAsync(Guid subjectId, string predicateName, Guid targetId, CancellationToken cancellationToken) =>
-        await RelateAsync(subjectId, await ResolveByNameAsync(predicateName, cancellationToken), targetId, cancellationToken);
 
     private async Task RelateAsync(Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken)
     {
