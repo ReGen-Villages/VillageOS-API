@@ -1,3 +1,6 @@
+using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Phloem.Execution;
@@ -108,5 +111,84 @@ public class PhloemRecordsARunTests : IClassFixture<TheEngine>
         (await _engine.ValueOfAsync(nodeRunId, "status")).Should().Be(RunStatus.Failed);
         (await _engine.ValueOfAsync(nodeRunId, "error")).Should().Be("boom");
         (await _engine.ValueOfAsync(nodeRunId, "nodeId")).Should().Be(nodeId.ToString());
+    }
+
+    [FactAgainstTheEngine]
+    public async Task Each_state_change_is_kept_in_the_history_of_every_property_it_changed()
+    {
+        var pipelineId = await AModelThatBindsItsRunRolesAsync();
+        var runId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var nodeName = $"Assess {nodeId:N}";
+        var gateway = Gateway();
+        await gateway.CreateRunAsync(runId, pipelineId, CancellationToken.None);
+
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, nodeName, RunStatus.Running, null, CancellationToken.None);
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, nodeName, RunStatus.Trying, "the service was away", CancellationToken.None);
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, nodeName, RunStatus.Failed, "boom", CancellationToken.None);
+        await gateway.SetRunStatusAsync(runId, RunStatus.Failed, CancellationToken.None, "boom");
+
+        var nodeRunId = await _engine.TheOnlyThingNamedAsync($"NodeRun {nodeName}");
+        (await ValuesAssertedAsync(nodeRunId, ModelNames.Status))
+            .Should().Equal(RunStatus.Running, RunStatus.Trying, RunStatus.Failed);
+        (await ValuesAssertedAsync(nodeRunId, ModelNames.Error)).Should().Equal(null, "the service was away", "boom");
+        (await ValuesAssertedAsync(runId, ModelNames.Status)).Should().Equal(RunStatus.Running, RunStatus.Failed);
+        (await ValuesAssertedAsync(runId, ModelNames.FinishedUtc)).Should().HaveCount(2).And.EndWith(
+            (await _engine.ValueOfAsync(runId, ModelNames.FinishedUtc))!);
+        (await _engine.ReadAsync(nodeRunId)).GetProperty("Name").GetString().Should().Be($"NodeRun {nodeName}");
+    }
+
+    // A browser showing a run watches its node runs through a subscription, and moves a node on the change it is sent.
+    [FactAgainstTheEngine]
+    public async Task A_subscriber_to_a_node_run_is_sent_its_change_of_status()
+    {
+        var pipelineId = await AModelThatBindsItsRunRolesAsync();
+        var runId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var nodeName = $"Assess {nodeId:N}";
+        var gateway = Gateway();
+        await gateway.CreateRunAsync(runId, pipelineId, CancellationToken.None);
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, nodeName, RunStatus.Running, null, CancellationToken.None);
+        var nodeRunId = await _engine.TheOnlyThingNamedAsync($"NodeRun {nodeName}");
+        var subscription = await (await _engine.Admin.PostAsJsonAsync("/api/subscriptions", new { ids = new[] { nodeRunId } }))
+            .Content.ReadFromJsonAsync<JsonElement>();
+
+        await gateway.SetNodeRunStatusAsync(runId, nodeId, nodeName, RunStatus.Succeeded, null, CancellationToken.None);
+
+        var sent = await StreamUntilAsync(
+            $"/api/subscriptions/{subscription.GetProperty("subscriptionId").GetString()}/stream?lastEventId={subscription.GetProperty("watermark").GetInt64()}",
+            RunStatus.Succeeded);
+        sent.Should().Contain("PropertyChanged").And.Contain(nodeRunId.ToString()).And.Contain(RunStatus.Succeeded);
+    }
+
+    private async Task<IReadOnlyList<string?>> ValuesAssertedAsync(Guid thingId, string property)
+    {
+        var facts = await _engine.Admin.GetFromJsonAsync<JsonElement>($"/api/things/{thingId}/properties/{property}/facts");
+        return facts.GetProperty("entries").EnumerateArray()
+            .Where(fact => fact.GetProperty("kind").GetString() == "asserted")
+            .Select(fact => fact.GetProperty("value") is { ValueKind: JsonValueKind.Null } ? null : fact.GetProperty("value").ToString())
+            .ToList();
+    }
+
+    private async Task<string> StreamUntilAsync(string path, string expected)
+    {
+        using var patience = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var answer = await _engine.Admin.SendAsync(
+            new HttpRequestMessage(HttpMethod.Get, path), HttpCompletionOption.ResponseHeadersRead, patience.Token);
+        answer.EnsureSuccessStatusCode();
+        await using var stream = await answer.Content.ReadAsStreamAsync(patience.Token);
+        var buffer = new byte[4096];
+        var sent = new StringBuilder();
+        try
+        {
+            while (!sent.ToString().Contains(expected))
+            {
+                var read = await stream.ReadAsync(buffer, patience.Token);
+                if (read == 0) break;
+                sent.Append(Encoding.UTF8.GetString(buffer, 0, read));
+            }
+        }
+        catch (OperationCanceledException) { }
+        return sent.ToString();
     }
 }
