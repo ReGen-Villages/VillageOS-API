@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
@@ -165,14 +166,21 @@ public sealed class PipelineExecutor
         return ResumeOutcome.Resumed;
     }
 
-    public async Task<bool> HoldsVigilAsync(Guid vigilId, CancellationToken cancellationToken) =>
-        await HolderOfAsync(vigilId, cancellationToken) is not null;
+    public async Task<bool> HoldsVigilAsync(Guid vigilId, AnswerTimings timings, CancellationToken cancellationToken) =>
+        await HolderOfAsync(vigilId, cancellationToken, timings) is not null;
 
-    private async Task<VigilHolder?> HolderOfAsync(Guid vigilId, CancellationToken cancellationToken)
+    private async Task<VigilHolder?> HolderOfAsync(Guid vigilId, CancellationToken cancellationToken, AnswerTimings? timings = null)
     {
+        var waiting = Stopwatch.StartNew();
         await _placing.WaitAsync(cancellationToken);
+        timings?.Record("waiting for the placing lock", waiting.ElapsedMilliseconds);
+        var reading = Stopwatch.StartNew();
         try { return await _gateway.HolderOfVigilAsync(vigilId, cancellationToken); }
-        finally { _placing.Release(); }
+        finally
+        {
+            timings?.Record("reading the vigil's holder", reading.ElapsedMilliseconds);
+            _placing.Release();
+        }
     }
 
     // On start: every waiting node run whose vigil is gone gets one again, since a vigil answered while this
@@ -562,7 +570,10 @@ public sealed class PipelineExecutor
         try
         {
             await _gateway.RelateAwaitedAsync(runId, nodeId, awaitedId, cancellationToken);
+            var waiting = Stopwatch.StartNew();
             await _placing.WaitAsync(cancellationToken);
+            var waited = waiting.ElapsedMilliseconds;
+            var holding = Stopwatch.StartNew();
             try
             {
                 switch (await _gateway.PlaceVigilAsync(awaitedId, wait.RangeId, cancellationToken))
@@ -579,6 +590,8 @@ public sealed class PipelineExecutor
             finally
             {
                 _placing.Release();
+                _logger.LogInformation("Placing a vigil for run {RunId} waited {WaitedMilliseconds} ms for the placing lock and held it {HeldMilliseconds} ms",
+                    runId, waited, holding.ElapsedMilliseconds);
             }
         }
         catch (Exception ex)

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
@@ -16,7 +17,7 @@ public class WaitingRunTests
     private static readonly RunSubject Plot = new(Guid.NewGuid(), "Plot 7");
 
     private static (TestGraphs.WaitingFixture Waiting, FakeGateway Gateway, PipelineExecutor Executor) Arrange(
-        TestGraphs.WaitingFixture? fixture = null)
+        TestGraphs.WaitingFixture? fixture = null, ILogger<PipelineExecutor>? log = null)
     {
         var waiting = fixture ?? TestGraphs.WaitingPipeline();
         var gateway = new FakeGateway(waiting.Fixture.Build())
@@ -28,7 +29,19 @@ public class WaitingRunTests
                 _ => NodeFail($"unexpected {subdomain}"),
             },
         };
-        return (waiting, gateway, new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()));
+        return (waiting, gateway, new PipelineExecutor(gateway, log ?? NullLogger<PipelineExecutor>.Instance, new ModelClock()));
+    }
+
+    [Fact]
+    public async Task Placing_a_vigil_logs_how_long_it_waited_for_the_placing_lock_and_how_long_it_held_it()
+    {
+        var log = new CapturingLogger<PipelineExecutor>();
+        var (waiting, _, executor) = Arrange(log: log);
+
+        var result = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
+
+        log.Lines.Should().ContainSingle(line => line.StartsWith("Placing a vigil", StringComparison.Ordinal))
+            .Which.Should().MatchRegex($@"^Placing a vigil for run {result.RunId} waited \d+ ms for the placing lock and held it \d+ ms$");
     }
 
     private static async Task<(Guid RunId, Guid VigilId)> WaitAsync(TestGraphs.WaitingFixture waiting, FakeGateway gateway, PipelineExecutor executor)
