@@ -451,10 +451,16 @@ public sealed class PipelineExecutor
         }
 
         var outputNode = dag.Nodes.Single(n => n.Kind == DagNodeKind.Output);
+        var failuresReachingTheEnd = dag.WiresInto(outputNode.NodeId)
+            .Where(wire => deliveries.TryGetValue(wire, out var delivery) && delivery.CarriesAFail)
+            .Select(wire => new DeliveredFailure(wire.From.Node.Name, wire.To.Port.PortName, results[wire.From.Node.NodeId].Error))
+            .ToList();
+        var verdict = OutputVerdict.Judge(
+            outputNode, () => AssembleInputs(dag, outputNode, deliveries, runParams), failuresReachingTheEnd, _clock);
         var runStatus = stopped is not null ? RunStatus.Cancelled
             : unhandled is not null ? RunStatus.Failed
             : results.Values.Any(r => r.Status == RunStatus.CannotRehearse) ? RunStatus.CannotRehearse
-            : dag.WiresInto(outputNode.NodeId).Any(wire => deliveries.TryGetValue(wire, out var delivery) && delivery.CarriesAFail) ? RunStatus.Failed
+            : !verdict.Passes ? RunStatus.Failed
             : rehearsal ? RunStatus.Rehearsed
             : RunStatus.Succeeded;
         await BestEffort(() => _gateway.SetRunStatusAsync(rid, runStatus, cancellationToken, stopped?.Reason), "set run status");
@@ -484,8 +490,7 @@ public sealed class PipelineExecutor
             success ? null
                 : stopped is not null ? $"Run stopped: {stopped.Reason}"
                 : runStatus == RunStatus.CannotRehearse ? "The rehearsal stopped at a node it cannot rehearse."
-                : unhandled is not null ? unhandled
-                : $"A fail path reached '{outputNode.Name}'.",
+                : unhandled ?? verdict.Reason,
             runResult);
     }
 

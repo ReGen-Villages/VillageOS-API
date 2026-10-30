@@ -67,6 +67,8 @@ public sealed class DagNode
 
     public Starting? Starts { get; init; }
 
+    public JsonataTransform? PassesWhen { get; init; }
+
     public RetryPolicy? Retries { get; init; }
 
     public IReadOnlyDictionary<string, ChosenThing> Choices { get; init; } =
