@@ -17,7 +17,7 @@ public class WaitingRunTests
     private static readonly RunSubject Plot = new(Guid.NewGuid(), "Plot 7");
 
     private static (TestGraphs.WaitingFixture Waiting, FakeGateway Gateway, PipelineExecutor Executor) Arrange(
-        TestGraphs.WaitingFixture? fixture = null, ILogger<PipelineExecutor>? log = null)
+        TestGraphs.WaitingFixture? fixture = null, ILogger<PipelineExecutor>? log = null, TimeProvider? real = null)
     {
         var waiting = fixture ?? TestGraphs.WaitingPipeline();
         var gateway = new FakeGateway(waiting.Fixture.Build())
@@ -29,11 +29,11 @@ public class WaitingRunTests
                 _ => NodeFail($"unexpected {subdomain}"),
             },
         };
-        return (waiting, gateway, new PipelineExecutor(gateway, log ?? NullLogger<PipelineExecutor>.Instance, new ModelClock()));
+        return (waiting, gateway, new PipelineExecutor(gateway, log ?? NullLogger<PipelineExecutor>.Instance, new ModelClock(), real: real));
     }
 
     [Fact]
-    public async Task Placing_a_vigil_logs_how_long_it_waited_for_the_placing_lock_and_how_long_it_held_it()
+    public async Task Placing_a_vigil_logs_how_long_it_took()
     {
         var log = new CapturingLogger<PipelineExecutor>();
         var (waiting, _, executor) = Arrange(log: log);
@@ -41,19 +41,7 @@ public class WaitingRunTests
         var result = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
 
         log.Lines.Should().ContainSingle(line => line.StartsWith("Placing a vigil", StringComparison.Ordinal))
-            .Which.Should().MatchRegex($@"^Placing a vigil for run {result.RunId} waited \d+ ms for the placing lock and held it \d+ ms$");
-    }
-
-    [Fact]
-    public async Task A_vigil_check_given_up_while_waiting_for_the_placing_lock_still_names_that_wait()
-    {
-        var (_, _, executor) = Arrange();
-        var timings = new AnswerTimings();
-
-        var checking = () => executor.HoldsVigilAsync(Guid.NewGuid(), timings, new CancellationToken(canceled: true));
-
-        await checking.Should().ThrowAsync<OperationCanceledException>();
-        timings.Steps.Should().MatchRegex(@"^waiting for the placing lock \d+ ms$");
+            .Which.Should().MatchRegex($@"^Placing a vigil for run {result.RunId} took \d+ ms$");
     }
 
     private static async Task<(Guid RunId, Guid VigilId)> WaitAsync(TestGraphs.WaitingFixture waiting, FakeGateway gateway, PipelineExecutor executor)
@@ -213,22 +201,91 @@ public class WaitingRunTests
         gateway.Called.Should().Equal("review", "publish");
     }
 
-    // The platform answers at once for a Thing already in the state, which can be before the node run is related
-    // to its vigil.
     [Fact]
-    public async Task An_answer_arriving_while_the_vigil_is_being_placed_finds_the_node_run_once_it_holds_the_vigil()
+    public async Task A_start_is_told_apart_from_a_vigil_answer_while_a_vigil_placement_is_stalled()
     {
         var (waiting, gateway, executor) = Arrange();
-        Task<ResumeOutcome>? answer = null;
-        gateway.OnVigilPlaced = vigilId => answer = executor.ResumeAsync(vigilId, CancellationToken.None);
+        var stalled = new TaskCompletionSource();
+        gateway.PlacementHeldUntil = stalled.Task;
+        var pausing = executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
+        await Settle.UntilAsync(() => gateway.PlacementStarted, "the run starts placing its vigil");
+
+        var checking = executor.TakesAsAVigilAnswerAsync(Guid.NewGuid(), new AnswerTimings(), CancellationToken.None);
+
+        await Settle.ForAsync(checking, "a start is checked without waiting for the stalled placement");
+        (await checking).Should().BeFalse();
+        stalled.SetResult();
+        await pausing;
+    }
+
+    // The broker answers a vigil over a Thing already in its state from inside the placement, before Phloem has the
+    // vigil's identifier, and waits for Phloem's reply.
+    [Fact]
+    public async Task An_answer_sent_from_inside_the_placement_is_replied_to_before_the_placement_returns_and_resumes_the_run()
+    {
+        var (waiting, gateway, executor) = Arrange();
+        var repliedInTime = false;
+        var taken = false;
+        gateway.OnVigilPlaced = vigilId =>
+        {
+            var answering = executor.TakesAsAVigilAnswerAsync(vigilId, new AnswerTimings(), CancellationToken.None);
+            repliedInTime = answering.Wait(Settle.Ceiling);
+            taken = repliedInTime && answering.Result;
+        };
 
         var paused = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
 
         paused.Error.Should().Be("The run waits for 'Plot 7' to enter 'decided' at 'Review'.");
-        await Settle.ForAsync(answer!, "the answer that arrived during placement resumes the run");
-        (await answer!).Should().Be(ResumeOutcome.Resumed);
+        repliedInTime.Should().BeTrue();
+        taken.Should().BeTrue();
+        await Settle.UntilAsync(() => gateway.StatusUpdates.LastOrDefault() == RunStatus.Succeeded, "the placement resumes the run it answered early");
         gateway.Called.Should().Equal("review", "publish");
-        gateway.StatusUpdates.Last().Should().Be(RunStatus.Succeeded);
+    }
+
+    [Fact]
+    public async Task An_answer_whose_node_run_is_related_to_the_vigil_just_after_it_looked_resumes_the_run()
+    {
+        var (waiting, gateway, executor) = Arrange();
+        var (runId, vigilId) = await WaitAsync(waiting, gateway, executor);
+        gateway.HeldVigils.Remove((runId, waiting.Review.Id));
+        gateway.OnVigilLookedUp = _ =>
+        {
+            gateway.OnVigilLookedUp = _ => { };
+            gateway.HeldVigils[(runId, waiting.Review.Id)] = vigilId;
+        };
+
+        var taken = await executor.TakesAsAVigilAnswerAsync(vigilId, new AnswerTimings(), CancellationToken.None);
+
+        taken.Should().BeTrue();
+        await Settle.UntilAsync(() => gateway.StatusUpdates.LastOrDefault() == RunStatus.Succeeded, "the answer resumes the run once it finds it");
+        gateway.Called.Should().Equal("review", "publish");
+    }
+
+    [Fact]
+    public async Task An_answer_no_placement_claims_is_let_go_after_the_broker_would_have_given_up()
+    {
+        var log = new CapturingLogger<PipelineExecutor>();
+        var real = new MovableClock();
+        var (waiting, gateway, executor) = Arrange(log: log, real: real);
+        var (_, vigilId) = await WaitAsync(waiting, gateway, executor);
+        var (_, laterVigilId) = await WaitAsync(waiting, gateway, executor);
+        gateway.HeldVigils.Clear();
+
+        await executor.TakesAsAVigilAnswerAsync(vigilId, new AnswerTimings(), CancellationToken.None);
+        real.Advance(TimeSpan.FromSeconds(16));
+        await executor.TakesAsAVigilAnswerAsync(laterVigilId, new AnswerTimings(), CancellationToken.None);
+
+        log.Lines.Should().ContainSingle(line => line.StartsWith("No placement claimed", StringComparison.Ordinal))
+            .Which.Should().Be($"No placement claimed the answer to vigil {vigilId} within 15 s, so it resumes nothing");
+        gateway.Called.Should().Equal("review", "review");
+    }
+
+    private sealed class MovableClock : TimeProvider
+    {
+        private long _timestamp;
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+        public override long GetTimestamp() => _timestamp;
+        public void Advance(TimeSpan by) => _timestamp += by.Ticks;
     }
 
     [Fact]

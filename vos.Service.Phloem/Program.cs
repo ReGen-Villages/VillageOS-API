@@ -164,16 +164,10 @@ try
                 });
                 return Results.Ok(new { success = true, accepted = true, stops = stopping });
 
-            case SpawnKind.Relationship when await executor.HoldsVigilAsync(trigger.TargetId, timings, httpContext.RequestAborted):
-                // The answer to a vigil a waiting node run holds comes as a state entry whose target is the vigil.
-                // It is acknowledged before the run carries on, which can take longer than the broker waits.
-                var vigilId = trigger.TargetId;
-                _ = Task.Run(async () =>
-                {
-                    try { await executor.ResumeAsync(vigilId, CancellationToken.None); }
-                    catch (Exception ex) { Log.Error(ex, "Resuming the run waiting on vigil {VigilId} failed", vigilId); }
-                });
-                return Results.Ok(new { success = true, accepted = true, resumes = vigilId });
+            case SpawnKind.Relationship when await executor.TakesAsAVigilAnswerAsync(trigger.TargetId, timings, httpContext.RequestAborted):
+                // The answer to a vigil comes as a state entry whose target is the vigil. It is acknowledged before
+                // the run carries on, which can take longer than the broker waits.
+                return Results.Ok(new { success = true, accepted = true, resumes = trigger.TargetId });
 
             case SpawnKind.Relationship:
                 // A relationship the broker sends — a `X runs Pipeline` write or a Thing entering a watched state —

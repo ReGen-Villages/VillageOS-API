@@ -36,7 +36,7 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
         await BindOnceAsync(PipelineRoles.AwaitedThing, await _engine.DeclareOnceAsync("awaits"));
         await BindOnceAsync(PipelineRoles.HeldVigil, await _engine.DeclareOnceAsync("waitsOn"));
 
-        await BindOnceAsync(VigilRole, await _engine.DeclareOnceAsync("Vigil", isArchetype: true, Marked("__IsVigilArchetype")));
+        await BindOnceAsync(PipelineRoles.Vigil, await _engine.DeclareOnceAsync("Vigil", isArchetype: true, Marked("__IsVigilArchetype")));
         await BindOnceAsync(VigilSubjectRole, await _engine.DeclareOnceAsync("keptOver", properties: Marked("__IsVigilSubjectPredicate")));
         await BindOnceAsync(NotifiedConnectionRole, await _engine.DeclareOnceAsync("notifies", properties: Marked("__IsNotifiedConnectionPredicate")));
         await BindOnceAsync(CallRecordRole, await _engine.DeclareOnceAsync("handledBy"));
@@ -75,7 +75,6 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
 
     private static readonly Role RangeRole = new("range", new("c081de17-c325-55b7-99ca-16fb835ae545"));
     private static readonly Role JudgedThingRole = new("judgedThing", new("63d59765-a9b7-53b8-8a2b-0de3899add18"));
-    private static readonly Role VigilRole = new("vigil", new("b1cea8ff-7b7e-584d-9f8e-1e7813f52c7e"));
     private static readonly Role VigilSubjectRole = new("vigilSubject", new("30628a44-97c0-55ff-85ba-5d3c7b07380a"));
     private static readonly Role NotifiedConnectionRole = new("notifiedConnection", new("8ac302e3-3de9-51db-8960-65f33396838e"));
     private static readonly Role CallRecordRole = new("callRecord", new("dfe02bba-b36e-56ca-9dc3-58ca35c71940"));
@@ -144,10 +143,20 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
         var vigilId = placement.Should().BeOfType<VigilPlacement.Placed>().Subject.VigilId;
         await gateway.RelateHeldVigilAsync(runId, nodeId, vigilId, CancellationToken.None);
 
-        (await gateway.HolderOfVigilAsync(vigilId, CancellationToken.None)).Should().Be(new VigilHolder(runId, nodeId));
+        (await gateway.LookUpVigilAsync(vigilId, CancellationToken.None)).Should().Be(new VigilLookup(IsVigil: true, new VigilHolder(runId, nodeId)));
         (await gateway.IsVigilLiveAsync(vigilId, CancellationToken.None)).Should().BeTrue();
         var vigil = await _engine.ReadAsync(vigilId);
         vigil.GetProperty("Name").GetString().Should().Contain("decided");
+    }
+
+    [FactAgainstTheEngine]
+    public async Task The_Thing_a_vigil_is_placed_over_is_not_itself_taken_for_a_vigil()
+    {
+        var village = await AVillageWithAPlotToWaitForAsync();
+
+        var lookup = await Gateway().LookUpVigilAsync(village.Plot, CancellationToken.None);
+
+        lookup.Should().Be(new VigilLookup(IsVigil: false, Holder: null));
     }
 
     [FactAgainstTheEngine]
@@ -188,8 +197,8 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
         await gateway.RelateHeldVigilAsync(runId, nodeId, second, CancellationToken.None);
         await gateway.ForgetAwaitedAsync(runId, nodeId, CancellationToken.None);
 
-        (await gateway.HolderOfVigilAsync(first, CancellationToken.None)).Should().BeNull();
-        (await gateway.HolderOfVigilAsync(second, CancellationToken.None)).Should().Be(new VigilHolder(runId, nodeId));
+        (await gateway.LookUpVigilAsync(first, CancellationToken.None)).Should().Be(new VigilLookup(IsVigil: true, Holder: null));
+        (await gateway.LookUpVigilAsync(second, CancellationToken.None)).Should().Be(new VigilLookup(IsVigil: true, new VigilHolder(runId, nodeId)));
         (await gateway.WaitingNodeRunsAsync(CancellationToken.None)).Single(wait => wait.RunId == runId).AwaitedId.Should().BeNull();
     }
 
