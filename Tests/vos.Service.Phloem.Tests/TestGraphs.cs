@@ -46,6 +46,9 @@ public sealed class GraphFixture
         return t;
     }
 
+    public void Hold(GraphThing thing, string name, object value) =>
+        ((Dictionary<string, JsonElement>)thing.Properties)[name] = JsonSerializer.SerializeToElement(value);
+
     private GraphThing? _binds;
 
     // The role Thing, under the identifier every model gives it, binding the Thing that plays the role. The

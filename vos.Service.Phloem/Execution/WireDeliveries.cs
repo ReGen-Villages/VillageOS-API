@@ -4,7 +4,7 @@ using vos.Service.Phloem.Model;
 
 namespace vos.Service.Phloem.Execution;
 
-// CarriesAFail is true when a fail answer chose the wire, which is what makes the Output node report fail.
+// CarriesAFail is true when a fail answer chose the wire, and the Output node counts it among the run's failures.
 public sealed record WireDelivery(JsonElement Value, bool CarriesAFail);
 
 // Which wires leaving a settled node carry, and what each carries. A wire carries when the answer names what it

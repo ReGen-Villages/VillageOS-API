@@ -251,7 +251,17 @@ public static class PipelineDagBuilder
             Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
             Ports = ResolvePortThings(graph, nodeThing).Select(ToPort).ToList(),
             ParameterBindings = ParseParameterBindings(nodeThing),
+            PassesWhen = kind == DagNodeKind.Output ? Judged(problems, () => OutputRuleOf(nodeThing), null) : null,
         };
+    }
+
+    private static JsonataTransform? OutputRuleOf(GraphThing output)
+    {
+        var when = output.PropertyString(ModelNames.When);
+        if (string.IsNullOrWhiteSpace(when)) return null;
+        if (JsonataTransform.Validate(when) is { } error)
+            throw new PipelineModelException($"'{output.Name}' is the Output node, and its rule does not compile: {error}");
+        return new JsonataTransform(when);
     }
 
     private static bool RefuseAnOutputNodeStandingForAnything(PipelineGraph graph, GraphThing output)
