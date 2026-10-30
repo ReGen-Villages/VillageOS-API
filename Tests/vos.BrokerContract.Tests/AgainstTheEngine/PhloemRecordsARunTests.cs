@@ -7,6 +7,7 @@ using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
 using vos.Service.Phloem.Services;
 using vos.Service.Shared.Roles;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
@@ -172,7 +173,7 @@ public class PhloemRecordsARunTests : IClassFixture<TheEngine>
 
     private async Task<string> StreamUntilAsync(string path, string expected)
     {
-        using var patience = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var patience = new CancellationTokenSource(Settle.Ceiling);
         using var answer = await _engine.Admin.SendAsync(
             new HttpRequestMessage(HttpMethod.Get, path), HttpCompletionOption.ResponseHeadersRead, patience.Token);
         answer.EnsureSuccessStatusCode();
