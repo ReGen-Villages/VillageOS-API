@@ -19,7 +19,6 @@ public class SnapshotParserTests
         var relationship = Guid.NewGuid();
         var json = $$"""
         {
-          "subscriptionId": "{{Guid.NewGuid()}}",
           "watermark": 42,
           "snapshot": {
             "watermark": 42,

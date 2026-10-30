@@ -319,7 +319,7 @@ public class HandleEndpointTests
         private static HttpResponseMessage Respond(HttpRequestMessage request)
         {
             var uri = request.RequestUri!;
-            if (uri.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post)
+            if (uri.AbsolutePath == "/api/snapshots" && request.Method == HttpMethod.Post)
             {
                 var selector = request.Content!.ReadAsStringAsync().Result;
                 return Json(selector.Contains(HeldVigil.ToString()) ? TheNodeRunHoldingTheVigil()

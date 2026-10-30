@@ -54,7 +54,7 @@ public class MyceliumGatewayTests
                 $$$"""{"Id":"{{{PredicateId}}}","Name":"{{{name}}}","IsArchetype":false,"Properties":{}}""");
         }
 
-        if (uri.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post)
+        if (uri.AbsolutePath == "/api/snapshots" && request.Method == HttpMethod.Post)
         {
             var selector = request.Content!.ReadAsStringAsync().Result;
             foreach (var (role, boundId) in BoundByTheModel)
@@ -281,13 +281,13 @@ public class MyceliumGatewayTests
     {
         var pipelineId = Guid.NewGuid();
         var (gateway, handler) = NewGateway(request =>
-            request.RequestUri!.AbsolutePath == "/api/subscriptions"
+            request.RequestUri!.AbsolutePath == "/api/snapshots"
                 ? Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""")
                 : new HttpResponseMessage(HttpStatusCode.OK));
 
         await gateway.LoadPipelineSubgraphAsync(pipelineId, CancellationToken.None);
 
-        var selector = await ReadJson(RequestsTo(handler, "/api/subscriptions", HttpMethod.Post).Single());
+        var selector = await ReadJson(RequestsTo(handler, "/api/snapshots", HttpMethod.Post).Single());
         selector.GetProperty("includeRelationships").GetBoolean().Should().BeTrue();
         selector.GetProperty("includeIsAncestors").GetBoolean().Should().BeTrue();
         var onlyRule = selector.GetProperty("relationships").EnumerateArray().Should().ContainSingle().Which;
@@ -346,7 +346,7 @@ public class MyceliumGatewayTests
         }
         """;
         var (gateway, _) = NewGateway(request =>
-            request.RequestUri!.AbsolutePath == "/api/subscriptions"
+            request.RequestUri!.AbsolutePath == "/api/snapshots"
                 ? Json(HttpStatusCode.OK, snapshot)
                 : new HttpResponseMessage(HttpStatusCode.OK));
 
@@ -356,27 +356,23 @@ public class MyceliumGatewayTests
         graph.Thing(pipelineId)!.Name.Should().Be("Demo");
     }
 
-    // Phloem reads the snapshot once and never streams it, so a subscription left behind is a slice of the
-    // model the broker keeps resolving for a reader that has gone.
+    // Every subscription the broker holds is checked on every write, so a read that opens one costs every writer.
     [Fact]
-    public async Task LoadPipelineSubgraphAsync_ReleasesTheSnapshotSubscription()
+    public async Task LoadPipelineSubgraphAsync_ReadsWithOneCallAndOpensNoSubscription()
     {
-        var subscriptionId = Guid.NewGuid();
         var (gateway, handler) = NewGateway(request =>
-            request.RequestUri!.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post
+            request.RequestUri!.AbsolutePath == "/api/snapshots" && request.Method == HttpMethod.Post
                 ? Json(HttpStatusCode.OK, JsonSerializer.Serialize(new
                 {
-                    subscriptionId,
+                    watermark = 7,
                     snapshot = new { things = Array.Empty<object>(), relationships = Array.Empty<object>() },
                 }))
-                : new HttpResponseMessage(HttpStatusCode.OK));
+                : new HttpResponseMessage(HttpStatusCode.InternalServerError));
 
         await gateway.LoadPipelineSubgraphAsync(Guid.NewGuid(), CancellationToken.None);
 
-        // The release is deliberately not awaited — the caller gets its graph without waiting on cleanup.
-        await Settle.UntilAsync(
-            () => RequestsTo(handler, $"/api/subscriptions/{subscriptionId}", HttpMethod.Delete).Count == 1,
-            "the gateway releases the subscription it opened");
+        handler.Requests.Select(request => $"{request.Method} {request.RequestUri!.AbsolutePath}")
+            .Should().Equal("POST /api/snapshots");
     }
 
     [Fact]
@@ -560,7 +556,7 @@ public class MyceliumGatewayTests
     {
         var broker = new BrokerApplyingItsWriteRules();
         var (gateway, handler) = NewGateway(request =>
-            request.RequestUri!.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post
+            request.RequestUri!.AbsolutePath == "/api/snapshots" && request.Method == HttpMethod.Post
             && request.Content!.ReadAsStringAsync().Result.Contains(PipelineRoles.RunSubject.Id.ToString())
                 ? Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""")
                 : broker.Respond(request));
@@ -577,13 +573,13 @@ public class MyceliumGatewayTests
     {
         var targetId = Guid.NewGuid();
         var (gateway, handler) = NewGateway(request =>
-            request.RequestUri!.AbsolutePath == "/api/subscriptions"
+            request.RequestUri!.AbsolutePath == "/api/snapshots"
                 ? Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""")
                 : new HttpResponseMessage(HttpStatusCode.OK));
 
         await gateway.LoadStartSubgraphAsync(targetId, [], CancellationToken.None);
 
-        var selector = await ReadJson(RequestsTo(handler, "/api/subscriptions", HttpMethod.Post).Single());
+        var selector = await ReadJson(RequestsTo(handler, "/api/snapshots", HttpMethod.Post).Single());
         selector.GetProperty("ids")[0].GetString().Should().Be(targetId.ToString());
         selector.GetProperty("includeIsAncestors").GetBoolean().Should().BeTrue();
         selector.TryGetProperty("types", out _).Should().BeFalse();
@@ -628,13 +624,13 @@ public class MyceliumGatewayTests
         var kindId = Guid.NewGuid();
         var systemId = Guid.NewGuid();
         var (gateway, handler) = NewGateway(request =>
-            request.RequestUri!.AbsolutePath == "/api/subscriptions"
+            request.RequestUri!.AbsolutePath == "/api/snapshots"
                 ? Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""")
                 : new HttpResponseMessage(HttpStatusCode.OK));
 
         await gateway.LoadStartSubgraphAsync(targetId, [kindId, systemId], CancellationToken.None);
 
-        var selector = await ReadJson(RequestsTo(handler, "/api/subscriptions", HttpMethod.Post).Single());
+        var selector = await ReadJson(RequestsTo(handler, "/api/snapshots", HttpMethod.Post).Single());
         selector.GetProperty("ids").EnumerateArray().Select(id => id.GetGuid())
             .Should().Contain([targetId, kindId, systemId, PipelineRoles.MessageKind.Id, PipelineRoles.ExternalSystem.Id]);
         selector.TryGetProperty("boundTypes", out _).Should().BeFalse("every message kind and system in the model is not what this start offered");
@@ -658,14 +654,14 @@ public class MyceliumGatewayTests
         }
         """;
         var (gateway, handler) = NewGateway(request =>
-            request.RequestUri!.AbsolutePath == "/api/subscriptions"
+            request.RequestUri!.AbsolutePath == "/api/snapshots"
                 ? Json(HttpStatusCode.OK, snapshot)
                 : new HttpResponseMessage(HttpStatusCode.OK));
 
         var related = await gateway.RelatedFromAsync(arrivingId, CancellationToken.None);
 
         related.Should().BeEquivalentTo([kindId, systemId]);
-        var selector = await ReadJson(RequestsTo(handler, "/api/subscriptions", HttpMethod.Post).Single());
+        var selector = await ReadJson(RequestsTo(handler, "/api/snapshots", HttpMethod.Post).Single());
         selector.GetProperty("ids").EnumerateArray().Select(id => id.GetGuid()).Should().Equal(arrivingId);
         selector.GetProperty("includeIsAncestors").GetBoolean().Should().BeFalse();
         selector.GetProperty("includeRelationships").GetBoolean().Should().BeTrue();
@@ -676,7 +672,7 @@ public class MyceliumGatewayTests
     public async Task RelatedFromAsync_AThingTheModelDoesNotHold_RelatesToNothing()
     {
         var (gateway, _) = NewGateway(request =>
-            request.RequestUri!.AbsolutePath == "/api/subscriptions"
+            request.RequestUri!.AbsolutePath == "/api/snapshots"
                 ? Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""")
                 : new HttpResponseMessage(HttpStatusCode.OK));
 
@@ -904,7 +900,7 @@ public class MyceliumGatewayTests
                 return Json(HttpStatusCode.OK, $$"""{"Id":"{{alongStops}}","PredicateId":"{{stopsConnection}}"}""");
             if (path.EndsWith(alongAnother.ToString(), StringComparison.Ordinal))
                 return Json(HttpStatusCode.OK, $$"""{"Id":"{{alongAnother}}","PredicateId":"{{Guid.NewGuid()}}"}""");
-            if (path == "/api/subscriptions" && request.Method == HttpMethod.Post)
+            if (path == "/api/snapshots" && request.Method == HttpMethod.Post)
                 return BoundSnapshot(PipelineRoles.RunStopping, stopsConnection);
             return new HttpResponseMessage(HttpStatusCode.NotFound);
         });
@@ -1006,7 +1002,7 @@ public class MyceliumGatewayTests
         var ofId = Guid.NewGuid();
         var attemptId = Guid.NewGuid();
         var notAnAttemptId = Guid.NewGuid();
-        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post
+        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/snapshots" && request.Method == HttpMethod.Post
             ? Json(HttpStatusCode.OK, $$$"""
                 {"snapshot":{"things":[
                   {"id":"{{{runId}}}","name":"PipelineRun","properties":{"parameters":{"typeInfo":"vos.String","value":"{}"} } },
@@ -1074,7 +1070,7 @@ public class MyceliumGatewayTests
                 relationships = new[] { Relates(runId, hasId, aggregate), Relates(runId, hasId, second), Relates(runId, hasId, first), Relates(runId, ofId, pipelineId) },
             },
         });
-        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post
+        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/snapshots" && request.Method == HttpMethod.Post
             ? Json(HttpStatusCode.OK, snapshot)
             : RespondLikeAModelThatBindsItsRoles(request));
 
@@ -1150,7 +1146,7 @@ public class MyceliumGatewayTests
     public async Task RelateProducedAsync_WhenTheModelMarksNoPredicate_WritesNothing()
     {
         var (gateway, handler) = NewGateway(request =>
-            request.RequestUri!.AbsolutePath == "/api/subscriptions"
+            request.RequestUri!.AbsolutePath == "/api/snapshots"
                 ? Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""")
                 : new HttpResponseMessage(HttpStatusCode.OK));
 
@@ -1205,7 +1201,7 @@ public class MyceliumGatewayTests
                 relationships = Array.Empty<object>(),
             },
         });
-        var (gateway, handler) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post
+        var (gateway, handler) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/snapshots" && request.Method == HttpMethod.Post
             ? Json(HttpStatusCode.OK, snapshot)
             : new HttpResponseMessage(HttpStatusCode.OK));
 
@@ -1217,7 +1213,7 @@ public class MyceliumGatewayTests
             new Cadence(daily, "Every day", 1440, null),
             new Cadence(unset, "Not yet set", 0, null),
         });
-        (await ReadJson(RequestsTo(handler, "/api/subscriptions", HttpMethod.Post).Single()))
+        (await ReadJson(RequestsTo(handler, "/api/snapshots", HttpMethod.Post).Single()))
             .GetProperty("boundTypes").EnumerateArray().Single().GetGuid().Should().Be(PipelineRoles.Cadence.Id);
     }
 
@@ -1370,7 +1366,7 @@ public class MyceliumGatewayTests
         await gateway.SetNodeRunStatusAsync(runId, Guid.NewGuid(), "Second", RunStatus.Running, null, CancellationToken.None);
 
         var nodeRunLookups = 0;
-        foreach (var request in RequestsTo(handler, "/api/subscriptions", HttpMethod.Post))
+        foreach (var request in RequestsTo(handler, "/api/snapshots", HttpMethod.Post))
             if ((await request.Content!.ReadAsStringAsync()).Contains(PipelineRoles.NodeRun.Id.ToString()))
                 nodeRunLookups++;
         nodeRunLookups.Should().Be(1);
@@ -1385,7 +1381,7 @@ public class MyceliumGatewayTests
 
         await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
-        var lookup = await ReadJson(RequestsTo(handler, "/api/subscriptions", HttpMethod.Post).Single());
+        var lookup = await ReadJson(RequestsTo(handler, "/api/snapshots", HttpMethod.Post).Single());
         lookup.GetProperty("ids").EnumerateArray().Select(id => id.GetGuid())
             .Should().BeEquivalentTo([PipelineRoles.PipelineRun.Id]);
         lookup.TryGetProperty("boundTypes", out _).Should().BeFalse();
@@ -1398,7 +1394,7 @@ public class MyceliumGatewayTests
     public async Task WhenTheModelBindsNoRunArchetype_TheFailureNamesTheRole()
     {
         var (gateway, _) = NewGateway(request =>
-            request.RequestUri!.AbsolutePath == "/api/subscriptions"
+            request.RequestUri!.AbsolutePath == "/api/snapshots"
                 ? Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""")
                 : new HttpResponseMessage(HttpStatusCode.OK));
 
