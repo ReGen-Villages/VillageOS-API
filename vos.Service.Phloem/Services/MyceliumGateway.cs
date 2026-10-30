@@ -152,7 +152,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         };
         if (requestId is { } request) properties[ModelNames.RequestId] = request.ToString();
         var runKind = await BoundAsync(PipelineRoles.PipelineRun, cancellationToken);
-        await CreateThingWithItsRelationshipsAsync(runId, $"PipelineRun {runId:N}", properties,
+        await WriteThingInOneFragmentAsync(runId, RunName(runId), properties,
         [
             (runId, await ResolveByNameAsync(ModelNames.Is, cancellationToken), runKind),
             (runId, await ResolveByNameAsync(ModelNames.Of, cancellationToken), pipelineId),
@@ -202,7 +202,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
                 properties[ModelNames.Total] = total.ToString();
             }
             var nodeRunKind = await BoundAsync(PipelineRoles.NodeRun, cancellationToken);
-            await CreateThingWithItsRelationshipsAsync(nodeRunId, index is int x ? $"NodeRun {nodeName} #{x}" : $"NodeRun {nodeName}", properties,
+            await WriteThingInOneFragmentAsync(nodeRunId, NodeRunName(nodeName, index), properties,
             [
                 (nodeRunId, await ResolveByNameAsync(ModelNames.Is, cancellationToken), nodeRunKind),
                 (runId, await ResolveByNameAsync(ModelNames.Has, cancellationToken), nodeRunId),
@@ -210,22 +210,29 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             return;
         }
 
-        // Subsequent transition (running -> terminal) on the same Thing — a property change the SSE view sees.
-        await SetPropertyAsync(nodeRunId, ModelNames.Status, status, cancellationToken);
-        if (error != null) await SetPropertyAsync(nodeRunId, ModelNames.Error, error, cancellationToken);
-        if (terminal) await SetPropertyAsync(nodeRunId, ModelNames.FinishedUtc, now, cancellationToken);
-        if (outputs is not null) await SetPropertyAsync(nodeRunId, ModelNames.Outputs, OutputsText(outputs), cancellationToken);
-        if (decision is { } decided) await SetPropertyAsync(nodeRunId, ModelNames.Decision, decided.ToString(), cancellationToken);
+        // Changed on the same Thing, so the view watching it sees each property change rather than a new node.
+        var changed = new Dictionary<string, string?> { [ModelNames.Status] = status };
+        if (error != null) changed[ModelNames.Error] = error;
+        if (terminal) changed[ModelNames.FinishedUtc] = now;
+        if (outputs is not null) changed[ModelNames.Outputs] = OutputsText(outputs);
+        if (decision is { } decided) changed[ModelNames.Decision] = decided.ToString();
+        await WriteThingInOneFragmentAsync(nodeRunId, NodeRunName(nodeName, index), changed, [], cancellationToken);
     }
+
+    private static string NodeRunName(string nodeName, int? index) =>
+        index is int item ? $"NodeRun {nodeName} #{item}" : $"NodeRun {nodeName}";
+
+    private static string RunName(Guid runId) => $"PipelineRun {runId:N}";
 
     private static string OutputsText(IReadOnlyDictionary<string, JsonElement> outputs) =>
         JsonSerializer.Serialize(outputs);
 
     public async Task SetRunStatusAsync(Guid runId, string status, CancellationToken cancellationToken, string? error = null)
     {
-        await SetPropertyAsync(runId, ModelNames.Status, status, cancellationToken);
-        if (error != null) await SetPropertyAsync(runId, ModelNames.Error, error, cancellationToken);
-        if (RunStatus.IsFinished(status)) await SetPropertyAsync(runId, ModelNames.FinishedUtc, DateTime.UtcNow.ToString("o"), cancellationToken);
+        var changed = new Dictionary<string, string?> { [ModelNames.Status] = status };
+        if (error != null) changed[ModelNames.Error] = error;
+        if (RunStatus.IsFinished(status)) changed[ModelNames.FinishedUtc] = DateTime.UtcNow.ToString("o");
+        await WriteThingInOneFragmentAsync(runId, RunName(runId), changed, [], cancellationToken);
     }
 
     public async Task<RunRecord?> ReadRunRecordAsync(Guid runId, CancellationToken cancellationToken)
@@ -512,7 +519,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     public async Task WriteStopRequestAsync(Guid runId, Guid thingId, string? reason, CancellationToken cancellationToken)
     {
         var requestId = Guid.NewGuid();
-        await CreateThingWithItsRelationshipsAsync(requestId, $"StopRequest {requestId:N}", new Dictionary<string, string?> { [ModelNames.Reason] = reason },
+        await WriteThingInOneFragmentAsync(requestId, $"StopRequest {requestId:N}", new Dictionary<string, string?> { [ModelNames.Reason] = reason },
         [
             (requestId, await ResolveByNameAsync(ModelNames.Is, cancellationToken), await BoundAsync(PipelineRoles.StopRequest, cancellationToken)),
             (requestId, await BoundAsync(PipelineRoles.RequestedBy, cancellationToken), runId),
@@ -700,7 +707,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     }
 
     // Written apart, the `is` of a Thing already holding a value its kind declares is refused; in one fragment the broker stores that value as the kind's override.
-    private async Task CreateThingWithItsRelationshipsAsync(
+    // A fragment naming a Thing that already exists changes its values and leaves its name alone.
+    private async Task WriteThingInOneFragmentAsync(
         Guid id, string name, IReadOnlyDictionary<string, string?> properties,
         IReadOnlyList<(Guid Subject, Guid Predicate, Guid Target)> relationships, CancellationToken cancellationToken)
     {
