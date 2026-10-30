@@ -201,9 +201,6 @@ public class MyceliumGatewayTests
         {
             var path = request.RequestUri!.AbsolutePath;
 
-            if (path == "/api/things" && request.Method == HttpMethod.Post)
-                return Create(ReadJson(request).Result);
-
             if (path == "/api/model/fragment" && request.Method == HttpMethod.Post)
                 return ReadJson(request).Result.GetProperty("things").EnumerateArray()
                     .Select(Create)
@@ -257,21 +254,14 @@ public class MyceliumGatewayTests
                 && (method is null || request.Method == method))
             .ToList();
 
-    // A run and a node run are created in a fragment and other Things on their own, so these read both, in the order
-    // written. A later fragment naming the same Thing changes it.
+    // A later fragment naming the same Thing changes it, so only a Thing's first fragment creates it.
     private static async Task<IReadOnlyList<JsonElement>> CreatedThings(MockHttpMessageHandler handler)
     {
         var created = new List<JsonElement>();
         var seen = new HashSet<Guid>();
-        foreach (var request in handler.Requests.Where(request => request.Method == HttpMethod.Post))
+        foreach (var request in RequestsTo(handler, "/api/model/fragment", HttpMethod.Post))
         {
-            var path = request.RequestUri!.AbsolutePath;
-            var named = path switch
-            {
-                "/api/things" => [await ReadJson(request)],
-                "/api/model/fragment" => (await ReadJson(request)).GetProperty("things").EnumerateArray().ToList(),
-                _ => [],
-            };
+            var named = (await ReadJson(request)).GetProperty("things").EnumerateArray();
             created.AddRange(named.Where(thing => seen.Add(thing.GetProperty("id").GetGuid())));
         }
         return created;
@@ -1309,11 +1299,9 @@ public class MyceliumGatewayTests
                 var body = await ReadJson(request);
                 written.Add((body.GetProperty("name").GetString()!, body.GetProperty("value").GetString()));
             }
-            if (request.Method != HttpMethod.Post || path is not ("/api/things" or "/api/model/fragment")) continue;
+            if (request.Method != HttpMethod.Post || path != "/api/model/fragment") continue;
 
-            var things = path == "/api/things"
-                ? [await ReadJson(request)]
-                : (await ReadJson(request)).GetProperty("things").EnumerateArray().ToList();
+            var things = (await ReadJson(request)).GetProperty("things").EnumerateArray();
             foreach (var thing in things.Where(thing => thing.GetProperty("id").GetGuid() == thingId))
             {
                 if (created)
