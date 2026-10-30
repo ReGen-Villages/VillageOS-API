@@ -44,6 +44,18 @@ public class WaitingRunTests
             .Which.Should().MatchRegex($@"^Placing a vigil for run {result.RunId} waited \d+ ms for the placing lock and held it \d+ ms$");
     }
 
+    [Fact]
+    public async Task A_vigil_check_given_up_while_waiting_for_the_placing_lock_still_names_that_wait()
+    {
+        var (_, _, executor) = Arrange();
+        var timings = new AnswerTimings();
+
+        var checking = () => executor.HoldsVigilAsync(Guid.NewGuid(), timings, new CancellationToken(canceled: true));
+
+        await checking.Should().ThrowAsync<OperationCanceledException>();
+        timings.Steps.Should().MatchRegex(@"^waiting for the placing lock \d+ ms$");
+    }
+
     private static async Task<(Guid RunId, Guid VigilId)> WaitAsync(TestGraphs.WaitingFixture waiting, FakeGateway gateway, PipelineExecutor executor)
     {
         var result = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);

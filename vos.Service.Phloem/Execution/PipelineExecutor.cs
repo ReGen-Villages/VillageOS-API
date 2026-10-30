@@ -172,8 +172,8 @@ public sealed class PipelineExecutor
     private async Task<VigilHolder?> HolderOfAsync(Guid vigilId, CancellationToken cancellationToken, AnswerTimings? timings = null)
     {
         var waiting = Stopwatch.StartNew();
-        await _placing.WaitAsync(cancellationToken);
-        timings?.Record("waiting for the placing lock", waiting.ElapsedMilliseconds);
+        try { await _placing.WaitAsync(cancellationToken); }
+        finally { timings?.Record("waiting for the placing lock", waiting.ElapsedMilliseconds); }
         var reading = Stopwatch.StartNew();
         try { return await _gateway.HolderOfVigilAsync(vigilId, cancellationToken); }
         finally
