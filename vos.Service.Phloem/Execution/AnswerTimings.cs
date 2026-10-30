@@ -15,15 +15,10 @@ public sealed class AnswerTimings
         get { lock (_steps) return string.Join(", ", _steps.Select(step => $"{step.Step} {step.Milliseconds} ms")); }
     }
 
-    public void Record(string step, long milliseconds)
-    {
-        lock (_steps) _steps.Add((step, milliseconds));
-    }
-
     public async Task<T> TimeAsync<T>(string step, Func<Task<T>> work)
     {
         var running = Stopwatch.StartNew();
         try { return await work(); }
-        finally { Record(step, running.ElapsedMilliseconds); }
+        finally { lock (_steps) _steps.Add((step, running.ElapsedMilliseconds)); }
     }
 }
