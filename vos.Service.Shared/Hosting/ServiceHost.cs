@@ -19,6 +19,9 @@ public static class ServiceHost
     // Told to the broker at registration, so its log routes can find this service's file.
     public static string? LogFilePrefix { get; private set; }
 
+    // Only a folder the service was given is told, because the broker finds the default one beside the executable its connection declares.
+    public static string? LogDirectory { get; private set; }
+
     public static string LogFilePrefixOf(string logFileName) => Path.GetFileNameWithoutExtension(logFileName);
 
     private const string LogLineTemplate =
@@ -28,6 +31,7 @@ public static class ServiceHost
     public static void ConfigureLogging(string serviceName, string logFileName, string? logDirectory, bool writeToFile = true)
     {
         LogFilePrefix = writeToFile ? LogFilePrefixOf(logFileName) : null;
+        LogDirectory = writeToFile && logDirectory is not null ? Path.GetFullPath(logDirectory) : null;
         var configuration = new LoggerConfiguration()
             .MinimumLevel.Information()
             .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)

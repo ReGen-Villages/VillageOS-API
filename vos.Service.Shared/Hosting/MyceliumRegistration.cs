@@ -27,7 +27,7 @@ internal sealed class MyceliumRegistration : IHostedService
         {
             try
             {
-                var registered = await _client.RegisterAsync(_port, ServiceHost.LogFilePrefix);
+                var registered = await _client.RegisterAsync(_port, ServiceHost.LogFilePrefix, ServiceHost.LogDirectory);
                 Log.Information("{Service} service {Status} with mycelium",
                     _serviceName, registered ? "registered" : "failed to register");
             }

@@ -210,6 +210,22 @@ public class MyceliumClientBaseTests
         body.GetProperty("stopEndpoint").GetString().Should().Be("http://localhost:7100/shutdown");
         body.GetProperty("healthEndpoint").GetString().Should().Be("http://localhost:7100/health");
         body.TryGetProperty("logFilePrefix", out _).Should().BeFalse("a service that writes no file sends no prefix");
+        body.TryGetProperty("logDirectory", out _).Should().BeFalse("a service told no folder sends none");
+    }
+
+    [Fact]
+    public async Task RegisterAsync_WithALogFolder_PostsIt()
+    {
+        JsonElement? capturedBody = null;
+        var (client, _) = BuildClient(req =>
+        {
+            capturedBody = ReadJsonBody(req);
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        }, serviceToken: TestToken);
+
+        await client.RegisterAsync(7100, "Metabolism", "endpoint-service", logFilePrefix: "metabolism-outgoing-", logDirectory: "/var/log/villageos");
+
+        capturedBody!.Value.GetProperty("logDirectory").GetString().Should().Be("/var/log/villageos");
     }
 
     [Fact]
