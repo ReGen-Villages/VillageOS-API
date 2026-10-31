@@ -22,7 +22,8 @@ import { useThemeStore } from '../stores/themeStore';
 import { useSubscription } from '../hooks/useSse';
 import { WHOLE_MODEL } from '../types/subscription';
 import { PipelineModel, ROLE, judgeConnection, type ConnectionInformation, type PortInformation } from '../pipeline/model';
-import { savePipeline, loadPipeline, type EditorNode, type EditorEdge } from '../pipeline/serialize';
+import { savePipeline, loadPipeline, takenOnOf, type EditorNode, type EditorEdge, type EditorChoice } from '../pipeline/serialize';
+import { wireDrawing, withoutChoices, type WireData } from '../pipeline/wireDrawing';
 import { stopRun } from '../pipeline/stop';
 import { validatePipeline, validateEnds } from '../pipeline/validate';
 import { catalystRail, outputRail, type CatalystRow, type OutputRow } from '../pipeline/catalysts';
@@ -54,11 +55,6 @@ let nodeSequence = 0;
 
 /** A short edge label for a mapped wire, e.g. `user.id → a` with a trailing `ƒ` when the wire
  * carries a JSONata transform; undefined when the wire is a plain whole-payload pass-through. */
-function pathLabel(fromPath?: string, toPath?: string, transform?: string): string | undefined {
-  if (!fromPath && !toPath && !transform) return undefined;
-  const paths = fromPath || toPath ? `${fromPath || '·'} → ${toPath || '·'}` : '';
-  return transform ? `${paths} ƒ`.trim() : paths;
-}
 
 /**
  * Drawing the pipelines the orchestrator runs, around what sets each one off and what it leaves behind.
@@ -200,13 +196,36 @@ export function PipelinePage() {
 
   const setEdgePath = useCallback((edgeId: string, which: keyof WirePaths, value: string) => {
     recordSnapshot();
-    setEdges((es) => es.map((e) => {
-      if (e.id !== edgeId) return e;
-      const data = { ...(e.data as WirePaths | undefined), [which]: value || undefined };
-      return { ...e, data, label: pathLabel(data.fromPath, data.toPath, data.transform) };
-    }));
+    setEdges((es) => es.map((e) => (e.id === edgeId ? { ...e, data: { ...e.data, [which]: value || undefined } } : e)));
     setSavedId(null);
   }, [setEdges, recordSnapshot]);
+
+  const setEdgeTakenOn = useCallback((edgeId: string, takenOn: string[]) => {
+    recordSnapshot();
+    setEdges((es) => es.map((e) => (e.id === edgeId ? { ...e, data: { ...e.data, takenOn } } : e)));
+    setSavedId(null);
+  }, [setEdges, recordSnapshot]);
+
+  const resultsOf = useCallback((nodeId: string) => {
+    const success = model.boundTo(ROLE.Success);
+    const fail = model.boundTo(ROLE.Fail);
+    const choices = (nodes.find((n) => n.id === nodeId)?.data as PipelineNodeData | undefined)?.choices ?? [];
+    return [
+      ...(success ? [{ id: success, name: t('pipeline.resultSuccess') }] : []),
+      ...(fail ? [{ id: fail, name: t('pipeline.resultFail') }] : []),
+      ...choices.map((choice) => ({ id: choice.id, name: choice.name })),
+    ];
+  }, [model, nodes, t]);
+
+  const canvasEdges = useMemo(() => {
+    const fail = model.boundTo(ROLE.Fail);
+    const choiceNames = new Map(nodes.flatMap((n) =>
+      ((n.data as unknown as PipelineNodeData).choices ?? []).map((choice) => [choice.id, choice.name] as const)));
+    return edges.map((e) => {
+      const data = (e.data as WireData | undefined) ?? {};
+      return { ...e, ...wireDrawing(data, takenOnOf(data.takenOn, model), fail, choiceNames) };
+    });
+  }, [edges, nodes, model]);
 
   const liveRunStatus = runId ? model.runStatus(runId) : undefined;
   const runActive = !!runId && (liveRunStatus === undefined || ['running', 'waiting', 'trying'].includes(liveRunStatus));
@@ -302,7 +321,7 @@ export function PipelinePage() {
   const toEditorNodes = (): EditorNode[] =>
     nodes.map((n) => {
       const d = n.data as unknown as PipelineNodeData;
-      return { id: n.id, connectionId: d.connectionId ?? '', label: d.label, x: n.position.x, y: n.position.y, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind, standsForId: d.standsForId };
+      return { id: n.id, connectionId: d.connectionId ?? '', label: d.label, x: n.position.x, y: n.position.y, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind, standsForId: d.standsForId, choices: d.choices, rule: d.rule };
     });
 
   const toEditorEdges = (): EditorEdge[] =>
@@ -312,9 +331,10 @@ export function PipelinePage() {
       sourceHandle: e.sourceHandle ?? '',
       target: e.target,
       targetHandle: e.targetHandle ?? '',
-      fromPath: (e.data as WirePaths | undefined)?.fromPath,
-      transform: (e.data as WirePaths | undefined)?.transform,
-      toPath: (e.data as WirePaths | undefined)?.toPath,
+      fromPath: (e.data as WireData | undefined)?.fromPath,
+      transform: (e.data as WireData | undefined)?.transform,
+      toPath: (e.data as WireData | undefined)?.toPath,
+      takenOn: (e.data as WireData | undefined)?.takenOn,
     }));
 
   const onSave = useCallback(async () => {
@@ -361,9 +381,9 @@ export function PipelinePage() {
       id: n.id,
       type: 'pipelineNode',
       position: { x: n.x, y: n.y },
-      data: { label: n.label, kind: n.kind, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, parameterBindings: n.parameterBindings, standsForId: n.standsForId } as unknown as Record<string, unknown>,
+      data: { label: n.label, kind: n.kind, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, parameterBindings: n.parameterBindings, standsForId: n.standsForId, choices: n.choices, rule: n.rule } as unknown as Record<string, unknown>,
     }));
-    const loadedEdges: Edge[] = loadedPipeline.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle, label: pathLabel(e.fromPath, e.toPath, e.transform), data: { fromPath: e.fromPath, toPath: e.toPath, transform: e.transform } }));
+    const loadedEdges: Edge[] = loadedPipeline.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle, data: { fromPath: e.fromPath, toPath: e.toPath, transform: e.transform, takenOn: e.takenOn } }));
     setNodes(loadedNodes);
     setEdges(loadedEdges);
     commitBaseline({ nodes: loadedNodes, edges: loadedEdges }); // a freshly loaded pipeline is the undo/rollback floor
@@ -416,6 +436,22 @@ export function PipelinePage() {
       else delete next[port];
       return { ...n, data: { ...n.data, parameterBindings: next } };
     }));
+    setSavedId(null);
+  }, [setNodes, recordSnapshot]);
+
+  const setChoices = useCallback((nodeId: string, choices: EditorChoice[]) => {
+    recordSnapshot();
+    setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, choices } } : n)));
+    const kept = new Set(choices.map((choice) => choice.id));
+    const removed = new Set(((nodes.find((n) => n.id === nodeId)?.data as PipelineNodeData | undefined)?.choices ?? [])
+      .map((choice) => choice.id).filter((id) => !kept.has(id)));
+    if (removed.size > 0) setEdges((es) => withoutChoices(es, nodeId, removed));
+    setSavedId(null);
+  }, [nodes, setNodes, setEdges, recordSnapshot]);
+
+  const setRule = useCallback((nodeId: string, rule: string | undefined) => {
+    recordSnapshot();
+    setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, rule } } : n)));
     setSavedId(null);
   }, [setNodes, recordSnapshot]);
 
@@ -568,7 +604,7 @@ export function PipelinePage() {
         <div className="flex-1 relative">
           <ReactFlow
             nodes={canvasNodes}
-            edges={edges}
+            edges={canvasEdges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
@@ -592,6 +628,8 @@ export function PipelinePage() {
               wiredInputs={wiredInputs}
               onSetPorts={setBoundaryPorts}
               onSetBinding={setBinding}
+              onSetChoices={setChoices}
+              onSetRule={setRule}
               onClose={() => setSelectedNodeId(null)}
             />
           )}
@@ -600,8 +638,11 @@ export function PipelinePage() {
               wireId={selectedEdge.id}
               fromPortName={portNameOf(selectedEdge.source, selectedEdge.sourceHandle)}
               toPortName={portNameOf(selectedEdge.target, selectedEdge.targetHandle)}
-              paths={(selectedEdge.data as WirePaths | undefined) ?? {}}
+              paths={(selectedEdge.data as WireData | undefined) ?? {}}
               onSetPath={setEdgePath}
+              results={resultsOf(selectedEdge.source)}
+              takenOn={takenOnOf((selectedEdge.data as WireData | undefined)?.takenOn, model)}
+              onSetTakenOn={setEdgeTakenOn}
               onClose={() => setSelectedEdgeId(null)}
             />
           )}

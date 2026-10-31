@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
@@ -21,9 +22,11 @@ public sealed class PipelineExecutor
     private readonly int _maxConcurrency;
     private readonly ModelClock _clock;
     private readonly RunTurns _turns = new();
-    // Held from placing a vigil until the node run is related to it, and by every lookup of a vigil's holder, so
-    // an answer arriving at once for a Thing already in the state finds the node run it was placed for.
-    private readonly SemaphoreSlim _placing = new(1, 1);
+    private readonly TimeProvider _real;
+    // The broker answers a vigil over a Thing already in its state from inside the placement, before the node run
+    // is related to it. Such an answer is kept here until the placement claims it, or the broker would have given up.
+    private readonly ConcurrentDictionary<Guid, long> _earlyAnswers = new();
+    private static readonly TimeSpan EarlyAnswerLifetime = TimeSpan.FromSeconds(15);
     // A stop asked for a run whose sweep is under way here, read between its steps and by a pause between attempts.
     // Held only while the sweep or the stop that set it is working, so nothing outlives a run.
     private readonly ConcurrentDictionary<Guid, TaskCompletionSource<StopRequested>> _stops = new();
@@ -32,12 +35,14 @@ public sealed class PipelineExecutor
         IMyceliumGateway gateway,
         ILogger<PipelineExecutor> logger,
         ModelClock clock,
-        int maxConcurrency = 4)
+        int maxConcurrency = 4,
+        TimeProvider? real = null)
     {
         _gateway = gateway;
         _logger = logger;
         _maxConcurrency = Math.Max(1, maxConcurrency);
         _clock = clock;
+        _real = real ?? TimeProvider.System;
     }
 
     // runId: Pre-generated run id for an async spawn (the editor already holds it to animate over
@@ -132,7 +137,7 @@ public sealed class PipelineExecutor
     // and the run carries on from its record. Nothing is called a second time.
     public async Task<ResumeOutcome> ResumeAsync(Guid vigilId, CancellationToken cancellationToken)
     {
-        if (await HolderOfAsync(vigilId, cancellationToken) is not { } holder) return ResumeOutcome.NotHeld;
+        if ((await _gateway.LookUpVigilAsync(vigilId, cancellationToken)).Holder is not { } holder) return ResumeOutcome.NotHeld;
 
         using var turn = await _turns.TakeAsync(holder.RunId, cancellationToken);
         var record = await _gateway.ReadRunRecordAsync(holder.RunId, cancellationToken);
@@ -165,15 +170,39 @@ public sealed class PipelineExecutor
         return ResumeOutcome.Resumed;
     }
 
-    public async Task<bool> HoldsVigilAsync(Guid vigilId, CancellationToken cancellationToken) =>
-        await HolderOfAsync(vigilId, cancellationToken) is not null;
-
-    private async Task<VigilHolder?> HolderOfAsync(Guid vigilId, CancellationToken cancellationToken)
+    // True when the Thing is a vigil: its run resumes now, or once the placement under way relates it to the vigil.
+    public async Task<bool> TakesAsAVigilAnswerAsync(Guid thingId, AnswerTimings timings, CancellationToken cancellationToken)
     {
-        await _placing.WaitAsync(cancellationToken);
-        try { return await _gateway.HolderOfVigilAsync(vigilId, cancellationToken); }
-        finally { _placing.Release(); }
+        var lookup = await timings.TimeAsync("looking up the vigil", () => _gateway.LookUpVigilAsync(thingId, cancellationToken));
+        if (!lookup.IsVigil) return false;
+        if (lookup.Holder is null)
+        {
+            LetGoOfAnswersNoPlacementClaimed();
+            _earlyAnswers[thingId] = _real.GetTimestamp();
+            // The placement may have related its node run between the first look and the line above, and found
+            // nothing to claim.
+            lookup = await timings.TimeAsync("looking up the vigil again", () => _gateway.LookUpVigilAsync(thingId, cancellationToken));
+            if (lookup.Holder is null || !_earlyAnswers.TryRemove(thingId, out _)) return true;
+        }
+        ResumeInTheBackground(thingId);
+        return true;
     }
+
+    private void LetGoOfAnswersNoPlacementClaimed()
+    {
+        foreach (var (vigilId, arrived) in _earlyAnswers)
+        {
+            if (_real.GetElapsedTime(arrived) < EarlyAnswerLifetime || !_earlyAnswers.TryRemove(vigilId, out _)) continue;
+            _logger.LogWarning("No placement claimed the answer to vigil {VigilId} within {Seconds} s, so it resumes nothing",
+                vigilId, EarlyAnswerLifetime.TotalSeconds);
+        }
+    }
+
+    private void ResumeInTheBackground(Guid vigilId) => _ = Task.Run(async () =>
+    {
+        try { await ResumeAsync(vigilId, CancellationToken.None); }
+        catch (Exception ex) { _logger.LogError(ex, "Resuming the run waiting on vigil {VigilId} failed", vigilId); }
+    });
 
     // On start: every waiting node run whose vigil is gone gets one again, since a vigil answered while this
     // orchestrator was not there to resume the run is retired with nothing resumed. Answers how many were placed.
@@ -562,7 +591,7 @@ public sealed class PipelineExecutor
         try
         {
             await _gateway.RelateAwaitedAsync(runId, nodeId, awaitedId, cancellationToken);
-            await _placing.WaitAsync(cancellationToken);
+            var placing = Stopwatch.StartNew();
             try
             {
                 switch (await _gateway.PlaceVigilAsync(awaitedId, wait.RangeId, cancellationToken))
@@ -571,6 +600,7 @@ public sealed class PipelineExecutor
                         return $"the platform refused its vigil: {refused.Reason}";
                     case VigilPlacement.Placed placed:
                         await _gateway.RelateHeldVigilAsync(runId, nodeId, placed.VigilId, cancellationToken);
+                        if (_earlyAnswers.TryRemove(placed.VigilId, out _)) ResumeInTheBackground(placed.VigilId);
                         return null;
                     default:
                         return "the platform placed no vigil.";
@@ -578,7 +608,7 @@ public sealed class PipelineExecutor
             }
             finally
             {
-                _placing.Release();
+                _logger.LogInformation("Placing a vigil for run {RunId} took {Milliseconds} ms", runId, placing.ElapsedMilliseconds);
             }
         }
         catch (Exception ex)

@@ -82,8 +82,9 @@ try
     }));
 
     // Spawn-and-wait: { pipelineId, params? } -> run the DAG to completion -> return the result.
-    var handleEndpoint = app.MapPost("/handle", async (HttpContext httpContext, PipelineExecutor executor, PipelineStarter starter) =>
+    var handleEndpoint = app.MapPost("/handle", async (HttpContext httpContext, PipelineExecutor executor, PipelineStarter starter, ILogger<Program> log) =>
     {
+        var timings = new AnswerTimings();
         JsonElement root;
         try
         {
@@ -96,13 +97,33 @@ try
         }
 
         var trigger = SpawnTrigger.Resolve(root);
+        var target = trigger.Kind == SpawnKind.Http ? trigger.PipelineId : trigger.TargetId;
+        try
+        {
+            var answer = await AnswerAsync(httpContext, executor, starter, trigger, timings);
+            log.LogInformation("Answered {StatusCode} for {TargetId} in {TotalMilliseconds} ms: {Steps}",
+                (answer as IStatusCodeHttpResult)?.StatusCode, target, timings.TotalMilliseconds, timings.Steps);
+            return answer;
+        }
+        catch (Exception ex)
+        {
+            log.LogWarning("Gave no answer for {TargetId} after {TotalMilliseconds} ms: {Steps}; {Failure}",
+                target, timings.TotalMilliseconds, timings.Steps, ex.Message);
+            throw;
+        }
+    });
+    if (authEnabled) handleEndpoint.RequireAuthorization();
+
+    static async Task<IResult> AnswerAsync(
+        HttpContext httpContext, PipelineExecutor executor, PipelineStarter starter, SpawnTrigger trigger, AnswerTimings timings)
+    {
         // The broker's name for this call in its request log. A call without one, or with one that is not an
         // identifier, still runs; the run simply records no request.
         var requestId = Guid.TryParse(httpContext.Request.Headers[RequestLogHeader].ToString(), out var named) ? named : (Guid?)null;
         RunSubject? heldSubject = null;
         if (trigger.Kind == SpawnKind.Http)
         {
-            var reading = await starter.ReadSubjectAsync(trigger.Parameters, httpContext.RequestAborted);
+            var reading = await timings.TimeAsync("reading the subject", () => starter.ReadSubjectAsync(trigger.Parameters, httpContext.RequestAborted));
             if (reading.Refusal is not null)
                 return Results.BadRequest(new { error = reading.Refusal });
             heldSubject = reading.Subject;
@@ -129,7 +150,8 @@ try
                 var result = await executor.RunAsync(trigger.PipelineId, trigger.Parameters, httpContext.RequestAborted, subject: heldSubject, requestId: requestId, rehearsal: trigger.Rehearsal);
                 return Results.Ok(result);
 
-            case SpawnKind.Relationship when trigger.RelationshipId is { } written && await executor.IsStopAsync(written, httpContext.RequestAborted):
+            case SpawnKind.Relationship when trigger.RelationshipId is { } written
+                && await timings.TimeAsync("checking for a stop", () => executor.IsStopAsync(written, httpContext.RequestAborted)):
                 // A stop request written along the orchestrator's own connection: to a run, or to a Thing whose runs
                 // it stops. Acknowledged first, since a run under way stops only at its next step.
                 if (trigger.Subject is not { } stopRequest)
@@ -142,16 +164,10 @@ try
                 });
                 return Results.Ok(new { success = true, accepted = true, stops = stopping });
 
-            case SpawnKind.Relationship when await executor.HoldsVigilAsync(trigger.TargetId, httpContext.RequestAborted):
-                // The answer to a vigil a waiting node run holds comes as a state entry whose target is the vigil.
-                // It is acknowledged before the run carries on, which can take longer than the broker waits.
-                var vigilId = trigger.TargetId;
-                _ = Task.Run(async () =>
-                {
-                    try { await executor.ResumeAsync(vigilId, CancellationToken.None); }
-                    catch (Exception ex) { Log.Error(ex, "Resuming the run waiting on vigil {VigilId} failed", vigilId); }
-                });
-                return Results.Ok(new { success = true, accepted = true, resumes = vigilId });
+            case SpawnKind.Relationship when await executor.TakesAsAVigilAnswerAsync(trigger.TargetId, timings, httpContext.RequestAborted):
+                // The answer to a vigil comes as a state entry whose target is the vigil. It is acknowledged before
+                // the run carries on, which can take longer than the broker waits.
+                return Results.Ok(new { success = true, accepted = true, resumes = trigger.TargetId });
 
             case SpawnKind.Relationship:
                 // A relationship the broker sends — a `X runs Pipeline` write or a Thing entering a watched state —
@@ -159,7 +175,8 @@ try
                 // the DAG runs in the background. The result lands on the PipelineRun (animated over SSE). A
                 // detached token lets it outlive the request. A start that fits no pipeline, or fits two equally,
                 // is refused with 400: the broker records that as refused rather than failed, and nothing retries it.
-                var start = await starter.ResolveAsync(trigger.TargetId, trigger.RelationshipId, trigger.Subject?.Id, httpContext.RequestAborted);
+                var start = await timings.TimeAsync("finding the pipeline it starts",
+                    () => starter.ResolveAsync(trigger.TargetId, trigger.RelationshipId, trigger.Subject?.Id, httpContext.RequestAborted));
                 if (!start.Started)
                     return Results.BadRequest(new { error = start.Refusal });
 
@@ -176,8 +193,7 @@ try
             default:
                 return Results.BadRequest(new { error = trigger.Error });
         }
-    });
-    if (authEnabled) handleEndpoint.RequireAuthorization();
+    }
 
     app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "Phloem" }));
 
