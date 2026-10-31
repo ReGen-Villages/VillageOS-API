@@ -397,6 +397,55 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
+    public async Task LookUpVigilAsync_AVigilNoNodeRunHoldsYet_IsAVigilWithNoHolder()
+    {
+        var vigilArchetype = Guid.NewGuid();
+        var (gateway, _) = NewGateway(_ => Json(HttpStatusCode.OK, ThingOfType(vigilArchetype, vigilArchetype)));
+
+        var lookup = await gateway.LookUpVigilAsync(Target, CancellationToken.None);
+
+        lookup.Should().Be(new VigilLookup(IsVigil: true, Holder: null));
+    }
+
+    [Fact]
+    public async Task LookUpVigilAsync_AThingOfAnotherType_IsNotAVigil()
+    {
+        var (gateway, _) = NewGateway(_ => Json(HttpStatusCode.OK, ThingOfType(Guid.NewGuid(), Guid.NewGuid())));
+
+        var lookup = await gateway.LookUpVigilAsync(Target, CancellationToken.None);
+
+        lookup.Should().Be(new VigilLookup(IsVigil: false, Holder: null));
+    }
+
+    private static readonly Guid Target = Guid.NewGuid();
+
+    private static string ThingOfType(Guid type, Guid boundByTheVigilRole)
+    {
+        var isPredicate = Guid.NewGuid();
+        var binds = Guid.NewGuid();
+        return JsonSerializer.Serialize(new
+        {
+            snapshot = new
+            {
+                things = new object[]
+                {
+                    new { id = Target, name = "Plot 7 enters decided", properties = new Dictionary<string, object>() },
+                    new { id = type, name = "A type", properties = new Dictionary<string, object>() },
+                    new { id = boundByTheVigilRole, name = "Vigil", properties = new Dictionary<string, object>() },
+                    new { id = PipelineRoles.Vigil.Id, name = "vigil role", properties = new Dictionary<string, object>() },
+                    new { id = isPredicate, name = "is", properties = new Dictionary<string, object>() },
+                    new { id = binds, name = "binds", properties = new Dictionary<string, object>() },
+                },
+                relationships = new[]
+                {
+                    new { id = Guid.NewGuid(), subjectId = PipelineRoles.Vigil.Id, predicateId = binds, targetId = boundByTheVigilRole },
+                    new { id = Guid.NewGuid(), subjectId = Target, predicateId = isPredicate, targetId = type },
+                },
+            },
+        });
+    }
+
+    [Fact]
     public async Task LoadPipelineSubgraphAsync_WhenTheBrokerRefuses_SurfacesTheFailure()
     {
         var (gateway, _) = NewGateway(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError));

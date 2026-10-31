@@ -262,6 +262,21 @@ public class WaitingRunTests
     }
 
     [Fact]
+    public async Task A_resume_that_fails_after_its_answer_was_acknowledged_is_logged()
+    {
+        var log = new CapturingLogger<PipelineExecutor>();
+        var (waiting, gateway, executor) = Arrange(log: log);
+        var (_, vigilId) = await WaitAsync(waiting, gateway, executor);
+        gateway.RecordReadFailure = new HttpRequestException("broker unavailable");
+
+        var taken = await executor.TakesAsAVigilAnswerAsync(vigilId, new AnswerTimings(), CancellationToken.None);
+
+        taken.Should().BeTrue();
+        await Settle.UntilAsync(() => log.Lines.Any(line => line.StartsWith($"Resuming the run waiting on vigil {vigilId} failed", StringComparison.Ordinal)),
+            "the failed resume is logged");
+    }
+
+    [Fact]
     public async Task An_answer_no_placement_claims_is_let_go_after_the_broker_would_have_given_up()
     {
         var log = new CapturingLogger<PipelineExecutor>();
