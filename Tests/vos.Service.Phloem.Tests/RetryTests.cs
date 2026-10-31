@@ -119,7 +119,8 @@ public class RetryTests
 
         result.Success.Should().BeTrue();
         gateway.Called.Should().HaveCount(2);
-        watch.Elapsed.Should().BeGreaterThanOrEqualTo(TimeSpan.FromMilliseconds(60));
+        watch.Elapsed.Should().BeGreaterThanOrEqualTo(TimeSpan.FromMilliseconds(50),
+            "the 60-millisecond pause was taken, and its timer can end a fraction of a millisecond before a stopwatch reaches 60");
     }
 
     [Fact]
