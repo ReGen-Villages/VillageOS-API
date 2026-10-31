@@ -134,7 +134,7 @@ export interface WireRead {
   takenOn: { relationshipId: string; thingId: string }[];
 }
 
-/** A choice a node holds of where its run goes next, with the rule that picks it. */
+/** A choice a node holds of where its run goes next, with the rule that decides it. */
 export interface ChoiceInformation {
   id: string;
   name: string;
