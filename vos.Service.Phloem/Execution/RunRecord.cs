@@ -19,6 +19,8 @@ public sealed record RunRecord(Guid RunId, Guid PipelineId, JsonElement Paramete
 
 public sealed record VigilHolder(Guid RunId, Guid NodeId);
 
+public sealed record VigilLookup(bool IsVigil, VigilHolder? Holder);
+
 public sealed record StopRequested(Guid RequestId, string Reason, IReadOnlyList<Guid> Runs);
 
 // A node run waiting for a Thing, with the vigil it holds; either may be missing from the model.

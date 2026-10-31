@@ -93,7 +93,7 @@ public interface IMyceliumGateway
     // Along the predicate the heldVigil role binds, replacing any vigil the node run held before.
     Task RelateHeldVigilAsync(Guid runId, Guid nodeId, Guid vigilId, CancellationToken cancellationToken);
 
-    Task<VigilHolder?> HolderOfVigilAsync(Guid vigilId, CancellationToken cancellationToken);
+    Task<VigilLookup> LookUpVigilAsync(Guid thingId, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<HeldWait>> WaitingNodeRunsAsync(CancellationToken cancellationToken);
 
