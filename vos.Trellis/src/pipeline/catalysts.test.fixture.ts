@@ -64,6 +64,8 @@ export function catalystFixture({ orchestrators = 1 }: { orchestrators?: number 
   relate(carries, is, wireArchetype);
   const inputConnector = thing('takesFrom', playing(ROLE.InputConnector));
   const outputConnector = thing('deliversTo', playing(ROLE.OutputConnector));
+  thing('firesOn', playing(ROLE.TakenOn));
+  thing('Worked', playing(ROLE.Success));
   const everyHour = thing('every hour');
   relate(everyHour, is, thing('Metronome', playing(ROLE.Cadence), true));
   relate(inputArchetype, is, nodeArchetype);

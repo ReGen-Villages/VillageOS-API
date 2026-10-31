@@ -32,6 +32,15 @@ export interface EditorNode {
   /** The Thing a boundary node stands for — its catalyst at the start, its outcome at the end — written
    * as a relationship through the predicate the model binds to that role. */
   standsForId?: string;
+  choices?: EditorChoice[];
+  /** The Output node's rule over what reached it; none means any fail wire reaching it fails the run. */
+  rule?: string;
+}
+
+export interface EditorChoice {
+  id: string;
+  name: string;
+  when: string;
 }
 
 export interface EditorEdge {
@@ -46,6 +55,14 @@ export interface EditorEdge {
   toPath?: string;
   /** On-wire JSONata transform: reshape the extracted value before it is placed at the to-path. */
   transform?: string;
+  /** The results and choices the wire carries on: success, fail, or a choice of its source node. */
+  takenOn?: string[];
+}
+
+/** A wire nobody has marked carries on success, as a newly drawn wire does. */
+export function takenOnOf(edge: EditorEdge, model: PipelineModel): string[] {
+  const success = model.boundTo(ROLE.Success);
+  return edge.takenOn?.length ? edge.takenOn : success ? [success] : [];
 }
 
 export interface LoadedPipeline {
@@ -57,7 +74,7 @@ export interface LoadedPipeline {
 /** What a save needs the model to declare, in the order a refusal names them. */
 export const PIPELINE_DECLARATIONS = [
   'isPredicate', 'hasPredicate', 'pipelineArchetype', 'nodeArchetype', 'wireArchetype', 'wirePredicate',
-  'inputConnector', 'outputConnector',
+  'inputConnector', 'outputConnector', 'takenOnPredicate', 'successResult',
 ] as const;
 type PipelineDeclaration = (typeof PIPELINE_DECLARATIONS)[number];
 
@@ -89,12 +106,15 @@ export async function savePipeline(
   const wireArchetype = model.boundTo(ROLE.PipelineWire);
   const inputConnector = model.boundTo(ROLE.InputConnector);
   const outputConnector = model.boundTo(ROLE.OutputConnector);
+  const takenOnId = model.boundTo(ROLE.TakenOn);
+  const successId = model.boundTo(ROLE.Success);
   // The refusal names what is missing rather than every declaration at once, which sent the reader after five
   // things when one was absent. These checks are what narrow each to a string below.
-  if (!isId || !hasId || !wireId || !wireArchetype || !pipelineArchetype || !nodeArchetype || !inputConnector || !outputConnector) {
+  if (!isId || !hasId || !wireId || !wireArchetype || !pipelineArchetype || !nodeArchetype || !inputConnector || !outputConnector
+      || !takenOnId || !successId) {
     const found: Record<PipelineDeclaration, string | undefined> = {
       isPredicate: isId, hasPredicate: hasId, pipelineArchetype, nodeArchetype, wireArchetype, wirePredicate: wireId,
-      inputConnector, outputConnector,
+      inputConnector, outputConnector, takenOnPredicate: takenOnId, successResult: successId,
     };
     const missing = PIPELINE_DECLARATIONS.filter((declaration) => !found[declaration])
       .map((declaration) => i18n.t(`pipeline.declarations.${declaration}`));
@@ -109,6 +129,9 @@ export async function savePipeline(
   const standsForId = model.boundTo(ROLE.StandsFor);
   if (nodes.some((n) => n.standsForId) && !standsForId)
     throw new Error(i18n.t('pipeline.noStandsForRole'));
+  const choiceArchetype = model.boundTo(ROLE.DecisionPath);
+  if (nodes.some((n) => n.choices?.length) && !choiceArchetype)
+    throw new Error(i18n.t('pipeline.noChoiceRole'));
 
   const pipelineId = existingPipelineId ?? crypto.randomUUID();
 
@@ -126,6 +149,7 @@ export async function savePipeline(
     { Name: 'is', Subject: pipelineId, Predicate: isId, Target: pipelineArchetype },
   ];
   const portsToRetract: string[] = [];
+  const choicesToRetract: string[] = [];
   // A stands-for relationship the node no longer means: replaced below by the one it does.
   const standsForToRetract: string[] = [];
   for (const n of nodes) {
@@ -133,6 +157,7 @@ export async function savePipeline(
     const props: Record<string, unknown> = { x: env(DOUBLE, n.x), y: env(DOUBLE, n.y) };
     if (n.parameterBindings && Object.keys(n.parameterBindings).length > 0)
       props.parameterBindings = env(STRING, JSON.stringify(n.parameterBindings));
+    if (n.kind === 'output') props.when = env(STRING, n.rule ?? '');
     things.push({ Id: thingId, Name: n.label, Properties: props });
     // Boundary nodes are pipeline nodes too (so the run + editor pick them up), plus the archetype bound
     // as the pipeline's input or its output, which is what makes one a param source or a result sink.
@@ -167,6 +192,14 @@ export async function savePipeline(
         relationships.push({ Name: 'standsFor', Subject: thingId, Predicate: standsForId!, Target: n.standsForId });
     } else {
       relationships.push({ Name: 'has', Subject: thingId, Predicate: hasId, Target: n.connectionId });
+      const held = new Set((n.choices ?? []).map((choice) => choice.id));
+      for (const choice of n.choices ?? []) {
+        things.push({ Id: choice.id, Name: choice.name, Properties: { when: env(STRING, choice.when) } });
+        relationships.push({ Name: 'is', Subject: choice.id, Predicate: isId, Target: choiceArchetype! });
+        relationships.push({ Name: 'has', Subject: thingId, Predicate: hasId, Target: choice.id });
+      }
+      for (const persisted of model.choicesOf(thingId))
+        if (!held.has(persisted.id)) choicesToRetract.push(persisted.id);
     }
   }
   await modelApi.applyFragment(JSON.stringify({ Name: name, Things: things, Relationships: relationships }));
@@ -176,8 +209,8 @@ export async function savePipeline(
   const wireKey = (from: string, outPortId: string, to: string, inPortId: string) => `${from}|${outPortId}|${to}|${inPortId}`;
   const portNames = new Map(nodes.flatMap((n) => n.ports.map((p) => [p.portId, p.portName] as const)));
   const desired = edges
-    .map((e) => ({ from: nodeThingId.get(e.source), outPortId: e.sourceHandle, to: nodeThingId.get(e.target), inPortId: e.targetHandle, fromPath: e.fromPath ?? '', toPath: e.toPath ?? '', transform: e.transform ?? '' }))
-    .filter((w): w is { from: string; outPortId: string; to: string; inPortId: string; fromPath: string; toPath: string; transform: string } => Boolean(w.from && w.to));
+    .map((e) => ({ from: nodeThingId.get(e.source), outPortId: e.sourceHandle, to: nodeThingId.get(e.target), inPortId: e.targetHandle, fromPath: e.fromPath ?? '', toPath: e.toPath ?? '', transform: e.transform ?? '', takenOn: takenOnOf(e, model) }))
+    .filter((w): w is { from: string; outPortId: string; to: string; inPortId: string; fromPath: string; toPath: string; transform: string; takenOn: string[] } => Boolean(w.from && w.to));
   const desiredKeys = new Set(desired.map((w) => wireKey(w.from, w.outPortId, w.to, w.inPortId)));
 
   const persistedNodeIds = existingPipelineId
@@ -193,6 +226,11 @@ export async function savePipeline(
       if (w.fromPath !== existing.fromPath) await thingApi.setProperty(existing.wireId, 'fromPath', STRING, w.fromPath);
       if (w.toPath !== existing.toPath) await thingApi.setProperty(existing.wireId, 'toPath', STRING, w.toPath);
       if (w.transform !== existing.transform) await thingApi.setProperty(existing.wireId, 'transform', STRING, w.transform);
+      const had = new Set(existing.takenOn.map((taken) => taken.thingId));
+      for (const thingId of w.takenOn)
+        if (!had.has(thingId)) await relationshipApi.create(existing.wireId, takenOnId, thingId);
+      for (const taken of existing.takenOn)
+        if (!w.takenOn.includes(taken.thingId)) await relationshipApi.remove(taken.relationshipId);
       continue;
     }
     const wire = await thingApi.create(`${portNames.get(w.outPortId) ?? ''} to ${portNames.get(w.inPortId) ?? ''}`, false);
@@ -206,12 +244,14 @@ export async function savePipeline(
     await relationshipApi.create(wire.Id, wireId, w.to);
     await relationshipApi.create(wire.Id, inputConnector, w.outPortId);
     await relationshipApi.create(wire.Id, outputConnector, w.inPortId);
+    for (const thingId of w.takenOn) await relationshipApi.create(wire.Id, takenOnId, thingId);
   }
   for (const w of persistedWires)
     if (!desiredKeys.has(w.key)) await thingApi.remove(w.wireId);
 
   // Ports removed from a boundary node (still on the canvas) are retracted, as is what it stood for before.
   for (const portId of portsToRetract) await thingApi.remove(portId);
+  for (const choiceId of choicesToRetract) await thingApi.remove(choiceId);
   for (const relationshipId of standsForToRetract) await relationshipApi.remove(relationshipId);
 
   // Deleted nodes: persisted pipeline nodes no longer on the canvas are retracted, along with any port
@@ -261,11 +301,18 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
     const kind = model.boundaryKind(t.Id);
     if (kind) {
       const stood = model.standsFor(t.Id);
-      return { ...base, kind, connectionId: '', ports: model.boundaryPortRelationships(t.Id).map((r) => r.port), ...(stood ? { standsForId: stood.thingId } : {}) };
+      const rule = kind === 'output' && typeof stated.when === 'string' && stated.when.trim() !== '' ? stated.when : undefined;
+      return {
+        ...base, kind, connectionId: '', ports: model.boundaryPortRelationships(t.Id).map((r) => r.port),
+        ...(stood ? { standsForId: stood.thingId } : {}), ...(rule !== undefined ? { rule } : {}),
+      };
     }
 
     const conn = model.outgoing(t.Id, 'has').find((c) => model.isOf(c.Id, ROLE.Connection));
-    return { ...base, connectionId: conn?.Id ?? '', ports: conn ? connectionsById.get(conn.Id)?.ports ?? [] : [] };
+    return {
+      ...base, connectionId: conn?.Id ?? '', ports: conn ? connectionsById.get(conn.Id)?.ports ?? [] : [],
+      choices: model.choicesOf(t.Id).map(({ id, name, when }) => ({ id, name, when })),
+    };
   });
 
   const edges: EditorEdge[] = [];
@@ -281,6 +328,7 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
         fromPath: wire.fromPath || undefined,
         toPath: wire.toPath || undefined,
         transform: wire.transform || undefined,
+        takenOn: wire.takenOn.map((taken) => taken.thingId),
       });
     }
 

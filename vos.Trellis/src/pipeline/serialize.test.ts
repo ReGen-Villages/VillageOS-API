@@ -58,6 +58,10 @@ function graphWithVocabulary() {
   T('arch-input', 'Start', playing(ROLE.PipelineInput)); R('arch-input', 'is', 'arch-node');
   T('arch-output', 'Finish', playing(ROLE.PipelineOutput)); R('arch-output', 'is', 'arch-node');
   R('carries', 'is', 'arch-wire');
+  T('taken-on', 'firesOn', playing(ROLE.TakenOn));
+  T('success', 'Worked', playing(ROLE.Success));
+  T('fail', 'Broke', playing(ROLE.Fail));
+  T('arch-choice', 'Branch', playing(ROLE.DecisionPath));
 
   const port = (id: string, portName: string, direction: 'in' | 'out', owner: string) => {
     T(id, portName, { portName, direction, type: 'any', required: 'false' });
@@ -67,6 +71,7 @@ function graphWithVocabulary() {
     T(id, `${outPort} to ${inPort}`, { fromPath: '', toPath: '', transform: '', ...values });
     R(id, 'is', 'arch-wire'); R(from, 'has', id); R(id, 'carries', to);
     R(id, 'input-connector', outPort); R(id, 'output-connector', inPort);
+    R(id, 'taken-on', 'success');
   };
 
   return { T, R, port, heldWire, things, relationships };
@@ -549,6 +554,133 @@ describe('savePipeline — the first pipeline in a model with no wire yet', () =
 
     await expect(savePipeline('First', [node('N1', 'A')], [], new PipelineModel(...withRoles(things, relationships))))
       .rejects.toThrow(named);
+    expect(applyFragment).not.toHaveBeenCalled();
+  });
+});
+
+describe('savePipeline / loadPipeline — what a wire is taken on', () => {
+  it('saves a new wire taken on success when nothing else was chosen', async () => {
+    const model = buildModel();
+    thingCreate.mockResolvedValueOnce({ Id: 'W-new' } as VosThing);
+
+    await savePipeline('MyPipeline', [node('N1', 'A'), node('N2', 'B')], [wire('svc.out', 'svc.in'), wire('svc.trace', 'svc.in')], model, 'P');
+
+    expect(relationshipCreate).toHaveBeenCalledWith('W-new', 'taken-on', 'success');
+  });
+
+  it('saves a new wire taken on what the person chose', async () => {
+    const model = buildModel();
+    thingCreate.mockResolvedValueOnce({ Id: 'W-new' } as VosThing);
+
+    await savePipeline('MyPipeline', [node('N1', 'A'), node('N2', 'B')],
+      [wire('svc.out', 'svc.in'), { ...wire('svc.trace', 'svc.in'), takenOn: ['fail'] }], model, 'P');
+
+    expect(relationshipCreate).toHaveBeenCalledWith('W-new', 'taken-on', 'fail');
+    expect(relationshipCreate).not.toHaveBeenCalledWith('W-new', 'taken-on', 'success');
+  });
+
+  it('moves an existing wire to the result chosen for it, retracting the one it had', async () => {
+    const model = buildModel();
+    const [held] = model.outgoingWires('N1');
+
+    await savePipeline('MyPipeline', [node('N1', 'A'), node('N2', 'B')], [{ ...wire('svc.out', 'svc.in'), takenOn: ['fail'] }], model, 'P');
+
+    expect(relationshipCreate).toHaveBeenCalledWith('W0', 'taken-on', 'fail');
+    expect(relationshipRemove).toHaveBeenCalledWith(held.takenOn[0].relationshipId);
+  });
+
+  it('leaves an existing wire alone when what it is taken on did not change', async () => {
+    const model = buildModel();
+
+    await savePipeline('MyPipeline', [node('N1', 'A'), node('N2', 'B')], [{ ...wire('svc.out', 'svc.in'), takenOn: ['success'] }], model, 'P');
+
+    expect(relationshipCreate).not.toHaveBeenCalled();
+    expect(relationshipRemove).not.toHaveBeenCalled();
+  });
+
+  it('reads back what each wire is taken on', () => {
+    const loaded = loadPipeline('P', buildModel())!;
+
+    expect(loaded.edges[0].takenOn).toEqual(['success']);
+  });
+
+  it('names what it did not find when the model binds nothing to the taken-on role or to success', async () => {
+    for (const missing of ['taken-on', 'success']) {
+      const { things, relationships } = graphWithVocabulary();
+      things.splice(things.findIndex((t) => t.Id === missing), 1);
+
+      await expect(savePipeline('First', [node('N1', 'A')], [], new PipelineModel(...withRoles(things, relationships))))
+        .rejects.toThrow(missing === 'taken-on' ? /taken-on role/ : /success role/);
+    }
+    expect(applyFragment).not.toHaveBeenCalled();
+  });
+});
+
+describe('savePipeline / loadPipeline — a node\'s choices and the Output node\'s rule', () => {
+  function modelWithAChoice(): PipelineModel {
+    const { T, R, port, heldWire, things, relationships } = graphWithVocabulary();
+    T('svc', 'svc'); R('svc', 'is', 'arch-service');
+    port('svc.out', 'out', 'out', 'svc'); port('svc.in', 'in', 'in', 'svc');
+    T('conn', 'conn', { Subdomain: 'echo' }); R('conn', 'is', 'arch-connection'); R('conn', 'has', 'svc');
+    T('P', 'MyPipeline'); R('P', 'is', 'arch-pipeline');
+    T('N1', 'Node1'); R('N1', 'is', 'arch-node'); R('N1', 'has', 'conn'); R('P', 'has', 'N1');
+    T('N2', 'Node2'); R('N2', 'is', 'arch-node'); R('N2', 'has', 'conn'); R('P', 'has', 'N2');
+    T('C1', 'Large', { when: 'outputs.out > 10' }); R('C1', 'is', 'arch-choice'); R('N1', 'has', 'C1');
+    heldWire('W0', 'N1', 'svc.out', 'N2', 'svc.in');
+    T('END', 'Finish', { when: '$count(failures) = 0' }); R('END', 'is', 'arch-output'); R('P', 'has', 'END');
+    return new PipelineModel(...withRoles(things, relationships));
+  }
+
+  const fragment = () => JSON.parse(applyFragment.mock.calls[0][0]) as {
+    Things: Array<{ Id: string; Name: string; Properties: Record<string, { value: unknown }> }>;
+    Relationships: Array<{ Subject: string; Predicate: string; Target: string }>;
+  };
+
+  it('reads back a node\'s choices and the Output node\'s rule', () => {
+    const loaded = loadPipeline('P', modelWithAChoice())!;
+
+    expect(loaded.nodes.find((n) => n.id === 'N1')!.choices).toEqual([{ id: 'C1', name: 'Large', when: 'outputs.out > 10' }]);
+    expect(loaded.nodes.find((n) => n.id === 'END')!.rule).toBe('$count(failures) = 0');
+    expect(loaded.nodes.find((n) => n.id === 'N2')!.choices).toEqual([]);
+  });
+
+  it('writes each choice as a Thing the node holds, of the archetype bound to the choice role, with its rule', async () => {
+    const model = modelWithAChoice();
+    const nodes = [{ ...node('N1', 'A'), choices: [{ id: 'C1', name: 'Large', when: 'outputs.out > 10' }, { id: 'C2', name: 'Small', when: 'outputs.out <= 10' }] }, node('N2', 'B')];
+
+    await savePipeline('MyPipeline', nodes, [], model, 'P');
+
+    const written = fragment();
+    expect(written.Things.find((t) => t.Id === 'C2')).toMatchObject({ Name: 'Small', Properties: { when: { value: 'outputs.out <= 10' } } });
+    expect(written.Relationships).toContainEqual(expect.objectContaining({ Subject: 'C2', Predicate: 'is', Target: 'arch-choice' }));
+    expect(written.Relationships).toContainEqual(expect.objectContaining({ Subject: 'N1', Predicate: 'has', Target: 'C2' }));
+    expect(thingRemove).not.toHaveBeenCalledWith('C1');
+  });
+
+  it('retracts a choice the node no longer holds', async () => {
+    await savePipeline('MyPipeline', [{ ...node('N1', 'A'), choices: [] }, node('N2', 'B')], [], modelWithAChoice(), 'P');
+
+    expect(thingRemove).toHaveBeenCalledWith('C1');
+  });
+
+  it('writes the Output node\'s rule, and an empty one when the rule is taken away', async () => {
+    const model = modelWithAChoice();
+    const end = (rule?: string): EditorNode => ({ ...node('END', 'Finish', ''), kind: 'output', rule });
+
+    await savePipeline('MyPipeline', [node('N1', 'A'), end('$count(failures) < 2')], [], model, 'P');
+    await savePipeline('MyPipeline', [node('N1', 'A'), end(undefined)], [], model, 'P');
+
+    const [withRule, without] = applyFragment.mock.calls.map((call) => JSON.parse(call[0]).Things.find((t: { Id: string }) => t.Id === 'END'));
+    expect(withRule.Properties.when.value).toBe('$count(failures) < 2');
+    expect(without.Properties.when.value).toBe('');
+  });
+
+  it('names what it did not find when a node holds a choice and the model binds nothing to the choice role', async () => {
+    const { things, relationships } = graphWithVocabulary();
+    things.splice(things.findIndex((t) => t.Id === 'arch-choice'), 1);
+
+    await expect(savePipeline('First', [{ ...node('N1', 'A'), choices: [{ id: 'C9', name: 'Any', when: 'true' }] }], [],
+      new PipelineModel(...withRoles(things, relationships)))).rejects.toThrow(/choice role/);
     expect(applyFragment).not.toHaveBeenCalled();
   });
 });

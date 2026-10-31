@@ -24,6 +24,12 @@ export const ROLE = {
   PipelineWire: 'adfe0071-bbaf-5e7f-abc3-255c08d8735a',
   InputConnector: '1f13d260-b2cc-5757-a475-7eb9b7d2323f',
   OutputConnector: '7788a338-5eb6-5733-a208-0cf90b4269dd',
+  // A wire reaches the result its node must answer, success or fail, or the node's choice it must name, for the wire to carry.
+  TakenOn: '840892f9-2d05-5e98-b573-0699851760c9',
+  Success: 'ffb97ba6-4853-5257-92e4-b71a87b79691',
+  Fail: '661cb599-dbca-56ca-a0dc-f9f162e587c3',
+  DecisionPath: '75c2351b-0e8d-5c97-a20d-18e4d5c46363',
+  ComparesWith: '9bb384be-5a61-5fff-9ed9-c423a2c74c37',
   PipelineRun: 'b682b68f-0101-5ab4-a7a9-13c3e43df873',
   Range: 'c081de17-c325-55b7-99ca-16fb835ae545',
   // A system outside the platform that sends it messages or is sent them, and a kind of message crossing
@@ -126,6 +132,15 @@ export interface WireRead {
   fromPath: string;
   toPath: string;
   transform: string;
+  takenOn: { relationshipId: string; thingId: string }[];
+}
+
+/** A choice a node holds of where its run goes next, with the rule that picks it and the Things the rule compares with. */
+export interface ChoiceInformation {
+  id: string;
+  name: string;
+  when: string;
+  comparesWith: string[];
 }
 
 export interface ConnectionInformation {
@@ -182,14 +197,24 @@ export class PipelineModel {
 
   /** Targets reached from `subjectId` along the predicate the role binds. */
   reachedAlong(subjectId: string, roleId: string): VosThing[] {
+    return this.relationshipsAlong(subjectId, roleId).map((relationship) => this.byId.get(relationship.TargetId)!);
+  }
+
+  private relationshipsAlong(subjectId: string, roleId: string): VosRelationship[] {
     const predicateId = this.boundTo(roleId);
-    const out: VosThing[] = [];
-    for (const relationship of this.bySubject.get(subjectId) ?? []) {
-      if (relationship.PredicateId !== predicateId) continue;
-      const target = this.byId.get(relationship.TargetId);
-      if (target) out.push(target);
-    }
-    return out;
+    return (this.bySubject.get(subjectId) ?? []).filter((relationship) =>
+      relationship.PredicateId === predicateId && this.byId.has(relationship.TargetId));
+  }
+
+  choicesOf(nodeId: string): ChoiceInformation[] {
+    return this.outgoing(nodeId, 'has')
+      .filter((held) => this.isOf(held.Id, ROLE.DecisionPath))
+      .map((choice) => ({
+        id: choice.Id,
+        name: choice.Name,
+        when: String(this.stated(choice.Id).when ?? ''),
+        comparesWith: this.reachedAlong(choice.Id, ROLE.ComparesWith).map((compared) => compared.Name),
+      }));
   }
 
   /** Subjects that reach `targetId` along the predicate the role binds. */
@@ -483,6 +508,8 @@ export class PipelineModel {
       out.push({
         wireId: held.Id, targetId: target, outPortId: outPort.Id, inPortId: inPort.Id,
         fromPath: String(stated.fromPath ?? ''), toPath: String(stated.toPath ?? ''), transform: String(stated.transform ?? ''),
+        takenOn: this.relationshipsAlong(held.Id, ROLE.TakenOn)
+          .map((relationship) => ({ relationshipId: relationship.Id, thingId: relationship.TargetId })),
       });
     }
     return out;
