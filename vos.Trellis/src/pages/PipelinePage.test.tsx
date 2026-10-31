@@ -112,6 +112,33 @@ describe('PipelinePage', () => {
     expect(screen.queryByRole('button', { name: 'Run' })).toBeNull();
   });
 
+  it('saves an Output rule and a choice set in the node inspector, and the wire it already had taken on success', async () => {
+    const { id } = catalystFixture();
+    render(<PipelinePage />);
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Pipeline name' })).toHaveValue('Digest'));
+    fireEvent.click(within(screen.getByRole('complementary', { name: 'Pipelines' })).getByRole('button', { name: /Readings arrive/ }));
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Pipeline name' })).toHaveValue('Readings arrive'));
+
+    const canvasNode = (label: RegExp) =>
+      [...document.querySelectorAll('.react-flow__node')].filter((node) => label.test(node.textContent ?? '')).at(-1)!;
+    fireEvent.click(canvasNode(/The answer/));
+    fireEvent.click(screen.getByText('+ add rule'));
+    fireEvent.click(within(screen.getByRole('list', { name: 'Services' })).getByRole('button', { name: /intake/ }));
+    fireEvent.click(canvasNode(/intake/));
+    fireEvent.click(screen.getByText('+ add choice'));
+    fireEvent.click(screen.getByText('+ add choice'));
+    fireEvent.click(screen.getByLabelText('Remove choice choice1'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    const { relationshipApi } = await import('../api/relationshipApi');
+    const { modelApi } = await import('../api/modelApi');
+    await waitFor(() => expect(vi.mocked(relationshipApi.create)).toHaveBeenCalledWith(id.readingsWire, id.takenOn, id.success));
+    const written = JSON.parse(vi.mocked(modelApi.applyFragment).mock.calls.at(-1)![0]);
+    expect(written.Things.find((thing: { Id: string }) => thing.Id === id.readingsEnd).Properties.when.value).toBe('$count(failures) = 0');
+    expect(written.Things.filter((thing: { Name: string }) => thing.Name.startsWith('choice')).map((thing: { Name: string }) => thing.Name))
+      .toEqual(['choice2']);
+  });
+
   it('names a new pipeline from the roster and leaves the canvas empty for it', async () => {
     render(<PipelinePage />);
     await waitFor(() => expect(screen.getByRole('textbox', { name: 'Pipeline name' })).toHaveValue('Digest'));
