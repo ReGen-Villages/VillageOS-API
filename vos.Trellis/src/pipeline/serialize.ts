@@ -60,9 +60,9 @@ export interface EditorEdge {
 }
 
 /** A wire nobody has marked carries on success, as a newly drawn wire does. */
-export function takenOnOf(edge: EditorEdge, model: PipelineModel): string[] {
+export function takenOnOf(takenOn: string[] | undefined, model: PipelineModel): string[] {
   const success = model.boundTo(ROLE.Success);
-  return edge.takenOn?.length ? edge.takenOn : success ? [success] : [];
+  return takenOn?.length ? takenOn : success ? [success] : [];
 }
 
 export interface LoadedPipeline {
@@ -209,7 +209,7 @@ export async function savePipeline(
   const wireKey = (from: string, outPortId: string, to: string, inPortId: string) => `${from}|${outPortId}|${to}|${inPortId}`;
   const portNames = new Map(nodes.flatMap((n) => n.ports.map((p) => [p.portId, p.portName] as const)));
   const desired = edges
-    .map((e) => ({ from: nodeThingId.get(e.source), outPortId: e.sourceHandle, to: nodeThingId.get(e.target), inPortId: e.targetHandle, fromPath: e.fromPath ?? '', toPath: e.toPath ?? '', transform: e.transform ?? '', takenOn: takenOnOf(e, model) }))
+    .map((e) => ({ from: nodeThingId.get(e.source), outPortId: e.sourceHandle, to: nodeThingId.get(e.target), inPortId: e.targetHandle, fromPath: e.fromPath ?? '', toPath: e.toPath ?? '', transform: e.transform ?? '', takenOn: takenOnOf(e.takenOn, model) }))
     .filter((w): w is { from: string; outPortId: string; to: string; inPortId: string; fromPath: string; toPath: string; transform: string; takenOn: string[] } => Boolean(w.from && w.to));
   const desiredKeys = new Set(desired.map((w) => wireKey(w.from, w.outPortId, w.to, w.inPortId)));
 
