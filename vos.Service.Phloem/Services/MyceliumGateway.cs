@@ -392,12 +392,12 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         await RelateAsync(nodeRunId, await BoundAsync(PipelineRoles.HeldVigil, cancellationToken), vigilId, cancellationToken);
     }
 
-    public async Task<VigilHolder?> HolderOfVigilAsync(Guid vigilId, CancellationToken cancellationToken)
+    public async Task<VigilLookup> LookUpVigilAsync(Guid thingId, CancellationToken cancellationToken)
     {
         var selector = new
         {
-            ids = new[] { vigilId, PipelineRoles.HeldVigil.Id },
-            names = new[] { ModelNames.Binds, ModelNames.Has },
+            ids = new[] { thingId, PipelineRoles.HeldVigil.Id, PipelineRoles.Vigil.Id },
+            names = new[] { ModelNames.Is, ModelNames.Binds, ModelNames.Has },
             traverse = new object[]
             {
                 new { predicate = ModelNames.Binds, direction = "outgoing", depth = 1 },
@@ -408,18 +408,20 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             includeRelationships = true,
             relationships = new object[]
             {
+                new { predicate = ModelNames.Is, direction = "outgoing" },
                 new { predicate = ModelNames.Binds, direction = "outgoing" },
                 new { predicateRole = PipelineRoles.HeldVigil.Id, direction = "incoming" },
                 new { predicate = ModelNames.Has, direction = "incoming" },
             },
         };
         var graph = await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
-        if (graph.Thing(vigilId) is not { } vigil
-            || graph.IncomingAlong(vigil, PipelineRoles.HeldVigil).FirstOrDefault() is not { } nodeRun
+        if (graph.Thing(thingId) is not { } thing || !graph.IsOf(thing, PipelineRoles.Vigil))
+            return new VigilLookup(IsVigil: false, Holder: null);
+        if (graph.IncomingAlong(thing, PipelineRoles.HeldVigil).FirstOrDefault() is not { } nodeRun
             || !Guid.TryParse(nodeRun.PropertyString(ModelNames.NodeId), out var nodeId)
             || graph.RelationshipsInto(nodeRun, ModelNames.Has).FirstOrDefault() is not { } held)
-            return null;
-        return new VigilHolder(held.SubjectId, nodeId);
+            return new VigilLookup(IsVigil: true, Holder: null);
+        return new VigilLookup(IsVigil: true, new VigilHolder(held.SubjectId, nodeId));
     }
 
     public async Task<IReadOnlyList<HeldWait>> WaitingNodeRunsAsync(CancellationToken cancellationToken)

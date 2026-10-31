@@ -57,6 +57,8 @@ public static class PipelineRoles
     // runResumption connection, so its answer resumes the run.
     public static readonly Role AwaitedThing = new("awaitedThing", new("6548fbdd-3474-5043-9864-abb665bb2d4b"));
     public static readonly Role HeldVigil = new("heldVigil", new("6bd74ab0-4d87-5dd8-be69-6f12cceb80ee"));
+    // The broker's own role: a vigil is a Thing of the type it binds.
+    public static readonly Role Vigil = new("vigil", new("b1cea8ff-7b7e-584d-9f8e-1e7813f52c7e"));
     public static readonly Role RunResumption = new("runResumption", new("50c894ed-a33d-56cc-a5a6-92aa82d32f4f"));
     // A run started by another run's end reaches the run that started it.
     public static readonly Role StartingRun = new("startingRun", new("9dd7221e-f438-5ccc-b89d-25c9cd56f45c"));

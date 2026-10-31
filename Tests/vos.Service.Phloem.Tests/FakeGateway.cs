@@ -115,6 +115,8 @@ internal sealed class FakeGateway : IMyceliumGateway
     public string? PlacementRefusal { get; set; }
     public Exception? PlacementFailure { get; set; }
     public Action<Guid> OnVigilPlaced { get; set; } = _ => { };
+    public Task PlacementHeldUntil { get; set; } = Task.CompletedTask;
+    public bool PlacementStarted { get; private set; }
     public Exception? RecordReadFailure { get; set; }
 
     public Func<Guid, string, bool> RefuseNodeRunWrite { get; set; } = (_, _) => false;
@@ -220,10 +222,12 @@ internal sealed class FakeGateway : IMyceliumGateway
         return Task.CompletedTask;
     }
 
-    public Task<VigilPlacement> PlaceVigilAsync(Guid subjectId, Guid rangeId, CancellationToken ct)
+    public async Task<VigilPlacement> PlaceVigilAsync(Guid subjectId, Guid rangeId, CancellationToken ct)
     {
-        if (PlacementFailure is { } failure) return Task.FromException<VigilPlacement>(failure);
-        if (PlacementRefusal is { } reason) return Task.FromResult<VigilPlacement>(new VigilPlacement.Refused(reason));
+        PlacementStarted = true;
+        await PlacementHeldUntil;
+        if (PlacementFailure is { } failure) throw failure;
+        if (PlacementRefusal is { } reason) return new VigilPlacement.Refused(reason);
         var vigilId = Guid.NewGuid();
         lock (_model)
         {
@@ -231,7 +235,7 @@ internal sealed class FakeGateway : IMyceliumGateway
             LiveVigils.Add(vigilId);
         }
         OnVigilPlaced(vigilId);
-        return Task.FromResult<VigilPlacement>(new VigilPlacement.Placed(vigilId));
+        return new VigilPlacement.Placed(vigilId);
     }
 
     public Task RelateHeldVigilAsync(Guid runId, Guid nodeId, Guid vigilId, CancellationToken ct)
@@ -240,13 +244,19 @@ internal sealed class FakeGateway : IMyceliumGateway
         return Task.CompletedTask;
     }
 
-    public Task<VigilHolder?> HolderOfVigilAsync(Guid vigilId, CancellationToken ct)
+    public Action<Guid> OnVigilLookedUp { get; set; } = _ => { };
+
+    public Task<VigilLookup> LookUpVigilAsync(Guid thingId, CancellationToken ct)
     {
+        VigilLookup lookup;
         lock (_model)
         {
-            var held = HeldVigils.Where(entry => entry.Value == vigilId).Select(entry => entry.Key).ToList();
-            return Task.FromResult(held.Count == 0 ? null : new VigilHolder(held[0].RunId, held[0].NodeId));
+            var held = HeldVigils.Where(entry => entry.Value == thingId).Select(entry => entry.Key).ToList();
+            lookup = new VigilLookup(VigilsPlaced.Any(vigil => vigil.VigilId == thingId),
+                held.Count == 0 ? null : new VigilHolder(held[0].RunId, held[0].NodeId));
         }
+        OnVigilLookedUp(thingId);
+        return Task.FromResult(lookup);
     }
 
     public Task<IReadOnlyList<HeldWait>> WaitingNodeRunsAsync(CancellationToken ct)
