@@ -1,7 +1,7 @@
 import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { modelApi } from '../api/modelApi';
-import { PipelineModel, ROLE, type PortInformation } from './model';
+import { PipelineModel, ROLE, type ChoiceInformation, type PortInformation } from './model';
 import type { VosTypeName } from '../utils/constants';
 import i18n from '../i18n';
 
@@ -37,11 +37,7 @@ export interface EditorNode {
   rule?: string;
 }
 
-export interface EditorChoice {
-  id: string;
-  name: string;
-  when: string;
-}
+export type EditorChoice = ChoiceInformation;
 
 export interface EditorEdge {
   id: string;
@@ -311,7 +307,7 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
     const conn = model.outgoing(t.Id, 'has').find((c) => model.isOf(c.Id, ROLE.Connection));
     return {
       ...base, connectionId: conn?.Id ?? '', ports: conn ? connectionsById.get(conn.Id)?.ports ?? [] : [],
-      choices: model.choicesOf(t.Id).map(({ id, name, when }) => ({ id, name, when })),
+      choices: model.choicesOf(t.Id),
     };
   });
 

@@ -29,7 +29,6 @@ export const ROLE = {
   Success: 'ffb97ba6-4853-5257-92e4-b71a87b79691',
   Fail: '661cb599-dbca-56ca-a0dc-f9f162e587c3',
   DecisionPath: '75c2351b-0e8d-5c97-a20d-18e4d5c46363',
-  ComparesWith: '9bb384be-5a61-5fff-9ed9-c423a2c74c37',
   PipelineRun: 'b682b68f-0101-5ab4-a7a9-13c3e43df873',
   Range: 'c081de17-c325-55b7-99ca-16fb835ae545',
   // A system outside the platform that sends it messages or is sent them, and a kind of message crossing
@@ -135,12 +134,11 @@ export interface WireRead {
   takenOn: { relationshipId: string; thingId: string }[];
 }
 
-/** A choice a node holds of where its run goes next, with the rule that picks it and the Things the rule compares with. */
+/** A choice a node holds of where its run goes next, with the rule that picks it. */
 export interface ChoiceInformation {
   id: string;
   name: string;
   when: string;
-  comparesWith: string[];
 }
 
 export interface ConnectionInformation {
@@ -209,12 +207,7 @@ export class PipelineModel {
   choicesOf(nodeId: string): ChoiceInformation[] {
     return this.outgoing(nodeId, 'has')
       .filter((held) => this.isOf(held.Id, ROLE.DecisionPath))
-      .map((choice) => ({
-        id: choice.Id,
-        name: choice.Name,
-        when: String(this.stated(choice.Id).when ?? ''),
-        comparesWith: this.reachedAlong(choice.Id, ROLE.ComparesWith).map((compared) => compared.Name),
-      }));
+      .map((choice) => ({ id: choice.Id, name: choice.Name, when: String(this.stated(choice.Id).when ?? '') }));
   }
 
   /** Subjects that reach `targetId` along the predicate the role binds. */
