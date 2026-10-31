@@ -11,7 +11,6 @@ export function pathLabel(fromPath?: string, toPath?: string, transform?: string
   return transform ? `${paths} ƒ`.trim() : paths;
 }
 
-/** A fail wire is dashed, and a wire taken on choices is labelled with their names ahead of its field mapping. */
 export function wireDrawing(
   data: WireData, takenOn: string[], failId: string | undefined, choiceNames: Map<string, string>,
 ): { label?: string; style?: { strokeDasharray: string } } {
