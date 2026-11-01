@@ -1439,7 +1439,10 @@ a transport failure, a timeout, a server error from the door; any answer from th
 refusal among them. Each attempt is an `Attempt` Thing the node run holds, written with its
 relationship as one fragment, its count on the node run's `attempts`, and the node run stands at
 `trying` between them. The pause is in model minutes, and a restarted orchestrator carries a trying
-node run on. A node that gives up fails like any other.
+node run on, and each item of a once-per-item node from its own record: an item that answered is not
+called again, a paused item's next attempt is numbered after those recorded, and an item with no record
+is called. An item caught in the middle of a call stops the run from being carried on, because its call
+may already have reached the service. A node that gives up fails like any other.
 
 **Rehearsing a draft.** A rehearsal ends `rehearsed`, or `cannotRehearse` at a node whose service does
 not rehearse or that waits; a tell, follow-on or stop node does nothing and is recorded `rehearsed`
