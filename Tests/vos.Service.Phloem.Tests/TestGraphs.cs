@@ -1125,6 +1125,57 @@ public static class TestGraphs
         return new ResultPathsFixture(fx, pipe.Id, check, record, tell, end);
     }
 
+    // Read spring on one path; Read reservoir then Record level on the other. The paths meet at the Output node, or,
+    // when Read spring also feeds Record level, at Record level.
+    public static (GraphFixture Fixture, Guid PipelineId) TwoPathsPipeline(bool springAlsoFeedsRecordLevel = false)
+    {
+        var fx = new GraphFixture();
+        var vocabulary = fx.DeclareVocabulary();
+        var spring = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "SpringProto"), "Read spring", "spring");
+        var reservoir = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "ReservoirProto"), "Read reservoir", "reservoir");
+        var record = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "RecordProto"), "Record level", "record");
+
+        var pipe = fx.Thing("Water readings");
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
+        foreach (var node in new[] { spring, reservoir, record })
+            fx.Rel(pipe, vocabulary.Has, node);
+
+        if (springAlsoFeedsRecordLevel)
+        {
+            fx.Wire(spring, "out", record, "in", (ModelNames.ToPath, "spring"));
+            fx.Wire(reservoir, "out", record, "in", (ModelNames.ToPath, "reservoir"));
+            fx.EndAt(pipe, (record, "out"));
+        }
+        else
+        {
+            fx.Wire(reservoir, "out", record, "in");
+            fx.EndAt(pipe, (spring, "out"), (record, "out"));
+        }
+        return (fx, pipe.Id);
+    }
+
+    // Check reading's success runs straight to the Output node; its fail runs through Tell operator, then Log alarm.
+    public static (GraphFixture Fixture, Guid PipelineId) FailPathOfTwoNodesPipeline()
+    {
+        var fx = new GraphFixture();
+        var vocabulary = fx.DeclareVocabulary();
+        var check = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "CheckProto"), "Check reading", "check");
+        var tell = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "TellProto"), "Tell operator", "tell");
+        var log = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "LogProto"), "Log alarm", "log");
+
+        var pipe = fx.Thing("Reservoir check");
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
+        foreach (var node in new[] { check, tell, log })
+            fx.Rel(pipe, vocabulary.Has, node);
+
+        fx.TakeOn(fx.WireBetween(check, fx.Get("error"), tell, fx.PortOf(tell, "in", "in")), vocabulary.Fail);
+        fx.Wire(tell, "out", log, "in");
+        fx.EndAt(pipe, (check, "out"), (log, "out"));
+        return (fx, pipe.Id);
+    }
+
     private static GraphThing CollectionInPrototype(GraphFixture fx, PipelineVocabulary vocabulary, string name) =>
         InputOutputPrototype(fx, vocabulary, name, collectionIn: true);
 
