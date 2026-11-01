@@ -57,7 +57,7 @@ public class PhloemRecordsAttemptsTests : IClassFixture<TheEngine>
 
         var trying = await gateway.TryingNodeRunsAsync(CancellationToken.None);
 
-        trying.Should().Contain(new TryingNodeRun(runId, nodeId, PerItem: false));
+        trying.Should().Contain(new TryingNodeRun(runId, nodeId));
     }
 
     private async Task BindOnceAsync(Role role, Guid played, Guid binds)
