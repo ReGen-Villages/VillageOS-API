@@ -26,8 +26,8 @@ public sealed record StopRequested(Guid RequestId, string Reason, IReadOnlyList<
 // A node run waiting for a Thing, with the vigil it holds; either may be missing from the model.
 public sealed record HeldWait(Guid RunId, Guid NodeId, Guid? AwaitedId, Guid? VigilId);
 
-// A node run paused between attempts; one of a fan-out's items when PerItem.
-public sealed record TryingNodeRun(Guid RunId, Guid NodeId, bool PerItem);
+// A node run, or one of its items, paused between attempts.
+public sealed record TryingNodeRun(Guid RunId, Guid NodeId);
 
 public abstract record VigilPlacement
 {
