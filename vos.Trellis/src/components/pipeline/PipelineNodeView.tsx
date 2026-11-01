@@ -22,6 +22,7 @@ export interface PipelineNodeData {
   /** What really happens at this end today, where drawing it is not what makes it happen. */
   note?: string;
   choices?: EditorChoice[];
+  chosen?: Record<string, string>;
   rule?: string;
   [key: string]: unknown;
 }

@@ -33,6 +33,8 @@ export interface EditorNode {
    * as a relationship through the predicate the model binds to that role. */
   standsForId?: string;
   choices?: EditorChoice[];
+  /** In-port identifier → the Thing the node chose among those that port offers. */
+  chosen?: Record<string, string>;
   /** The Output node's rule over what reached it; none means any fail wire reaching it fails the run. */
   rule?: string;
 }
@@ -128,6 +130,9 @@ export async function savePipeline(
   const choiceArchetype = model.boundTo(ROLE.DecisionPath);
   if (nodes.some((n) => n.choices?.length) && !choiceArchetype)
     throw new Error(i18n.t('pipeline.noChoiceRole'));
+  const comparesWithId = model.boundTo(ROLE.ComparesWith);
+  if (nodes.some((n) => n.choices?.some((choice) => choice.comparesWith.length)) && !comparesWithId)
+    throw new Error(i18n.t('pipeline.noComparesWithRole'));
 
   const pipelineId = existingPipelineId ?? crypto.randomUUID();
 
@@ -222,11 +227,7 @@ export async function savePipeline(
       if (w.fromPath !== existing.fromPath) await thingApi.setProperty(existing.wireId, 'fromPath', STRING, w.fromPath);
       if (w.toPath !== existing.toPath) await thingApi.setProperty(existing.wireId, 'toPath', STRING, w.toPath);
       if (w.transform !== existing.transform) await thingApi.setProperty(existing.wireId, 'transform', STRING, w.transform);
-      const had = new Set(existing.takenOn.map((taken) => taken.thingId));
-      for (const thingId of w.takenOn)
-        if (!had.has(thingId)) await relationshipApi.create(existing.wireId, takenOnId, thingId);
-      for (const taken of existing.takenOn)
-        if (!w.takenOn.includes(taken.thingId)) await relationshipApi.remove(taken.relationshipId);
+      await relateToExactly(existing.wireId, ROLE.TakenOn, w.takenOn, model);
       continue;
     }
     const wire = await thingApi.create(`${portNames.get(w.outPortId) ?? ''} to ${portNames.get(w.inPortId) ?? ''}`, false);
@@ -245,6 +246,14 @@ export async function savePipeline(
   for (const w of persistedWires)
     if (!desiredKeys.has(w.key)) await thingApi.remove(w.wireId);
 
+  for (const n of nodes) {
+    if (n.kind) continue;
+    const thingId = nodeThingId.get(n.id)!;
+    for (const choice of n.choices ?? [])
+      await relateToExactly(choice.id, ROLE.ComparesWith, choice.comparesWith, model);
+    await relateToExactly(thingId, ROLE.Choice, Object.values(n.chosen ?? {}), model);
+  }
+
   // Ports removed from a boundary node (still on the canvas) are retracted, as is what it stood for before.
   for (const portId of portsToRetract) await thingApi.remove(portId);
   for (const choiceId of choicesToRetract) await thingApi.remove(choiceId);
@@ -260,6 +269,15 @@ export async function savePipeline(
     }
 
   return { pipelineId, nodeIdMap: Object.fromEntries(nodeThingId) };
+}
+
+async function relateToExactly(subjectId: string, roleId: string, wanted: string[], model: PipelineModel): Promise<void> {
+  const held = model.relationshipsAndTargetsAlong(subjectId, roleId);
+  const reached = new Set(held.map((relationship) => relationship.thingId));
+  for (const thingId of wanted)
+    if (!reached.has(thingId)) await relationshipApi.create(subjectId, model.boundTo(roleId)!, thingId);
+  for (const relationship of held)
+    if (!wanted.includes(relationship.thingId)) await relationshipApi.remove(relationship.relationshipId);
 }
 
 /** Parse a node's persisted `parameterBindings` JSON property (input-port → run-parameter key); tolerant of junk. */
@@ -305,9 +323,10 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
     }
 
     const conn = model.outgoing(t.Id, 'has').find((c) => model.isOf(c.Id, ROLE.Connection));
+    const ports = conn ? connectionsById.get(conn.Id)?.ports ?? [] : [];
     return {
-      ...base, connectionId: conn?.Id ?? '', ports: conn ? connectionsById.get(conn.Id)?.ports ?? [] : [],
-      choices: model.choicesOf(t.Id),
+      ...base, connectionId: conn?.Id ?? '', ports,
+      choices: model.choicesOf(t.Id), chosen: model.chosenForEachInPort(t.Id, ports),
     };
   });
 

@@ -321,7 +321,7 @@ export function PipelinePage() {
   const toEditorNodes = (): EditorNode[] =>
     nodes.map((n) => {
       const d = n.data as unknown as PipelineNodeData;
-      return { id: n.id, connectionId: d.connectionId ?? '', label: d.label, x: n.position.x, y: n.position.y, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind, standsForId: d.standsForId, choices: d.choices, rule: d.rule };
+      return { id: n.id, connectionId: d.connectionId ?? '', label: d.label, x: n.position.x, y: n.position.y, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind, standsForId: d.standsForId, choices: d.choices, chosen: d.chosen, rule: d.rule };
     });
 
   const toEditorEdges = (): EditorEdge[] =>
@@ -381,7 +381,7 @@ export function PipelinePage() {
       id: n.id,
       type: 'pipelineNode',
       position: { x: n.x, y: n.y },
-      data: { label: n.label, kind: n.kind, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, parameterBindings: n.parameterBindings, standsForId: n.standsForId, choices: n.choices, rule: n.rule } as unknown as Record<string, unknown>,
+      data: { label: n.label, kind: n.kind, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, parameterBindings: n.parameterBindings, standsForId: n.standsForId, choices: n.choices, chosen: n.chosen, rule: n.rule } as unknown as Record<string, unknown>,
     }));
     const loadedEdges: Edge[] = loadedPipeline.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle, data: { fromPath: e.fromPath, toPath: e.toPath, transform: e.transform, takenOn: e.takenOn } }));
     setNodes(loadedNodes);
@@ -436,6 +436,12 @@ export function PipelinePage() {
       else delete next[port];
       return { ...n, data: { ...n.data, parameterBindings: next } };
     }));
+    setSavedId(null);
+  }, [setNodes, recordSnapshot]);
+
+  const setChosen = useCallback((nodeId: string, chosen: Record<string, string>) => {
+    recordSnapshot();
+    setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, chosen } } : n)));
     setSavedId(null);
   }, [setNodes, recordSnapshot]);
 
@@ -507,6 +513,14 @@ export function PipelinePage() {
     () => new Set(selectedNode ? edges.filter((e) => e.target === selectedNode.id).map((e) => e.targetHandle ?? '') : []),
     [selectedNode, edges],
   );
+
+  const offeredByPort = useMemo(() => Object.fromEntries(
+    ((selectedNode?.data as PipelineNodeData | undefined)?.ports ?? [])
+      .filter((p) => p.direction === 'in')
+      .map((p) => [p.portId, model.reachedAlong(p.portId, ROLE.Choice)] as const)),
+  [selectedNode, model]);
+  const everyThing = useMemo(() => (selectedNodeId ? model.thingsNotUsedAsPredicates() : []), [model, selectedNodeId]);
+  const nameOf = useCallback((thingId: string) => model.thing(thingId)?.Name ?? thingId, [model]);
 
   const portNameOf = (nodeId: string, portId: string | null | undefined) =>
     (nodes.find((n) => n.id === nodeId)?.data as PipelineNodeData | undefined)?.ports.find((p) => p.portId === portId)?.portName ?? '';
@@ -626,8 +640,12 @@ export function PipelinePage() {
               nodeId={selectedNode.id}
               data={selectedNode.data as unknown as PipelineNodeData}
               wiredInputs={wiredInputs}
+              offeredByPort={offeredByPort}
+              everyThing={everyThing}
+              nameOf={nameOf}
               onSetPorts={setBoundaryPorts}
               onSetBinding={setBinding}
+              onSetChosen={setChosen}
               onSetChoices={setChoices}
               onSetRule={setRule}
               onClose={() => setSelectedNodeId(null)}

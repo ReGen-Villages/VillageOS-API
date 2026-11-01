@@ -62,6 +62,8 @@ function graphWithVocabulary() {
   T('success', 'Worked', playing(ROLE.Success));
   T('fail', 'Broke', playing(ROLE.Fail));
   T('arch-choice', 'Branch', playing(ROLE.DecisionPath));
+  T('offers', 'proposes', playing(ROLE.Choice));
+  T('compares-with', 'weighs', playing(ROLE.ComparesWith));
 
   const port = (id: string, portName: string, direction: 'in' | 'out', owner: string) => {
     T(id, portName, { portName, direction, type: 'any', required: 'false' });
@@ -639,14 +641,14 @@ describe('savePipeline / loadPipeline — a node\'s choices and the Output node\
   it('reads back a node\'s choices and the Output node\'s rule', () => {
     const loaded = loadPipeline('P', modelWithAChoice())!;
 
-    expect(loaded.nodes.find((n) => n.id === 'N1')!.choices).toEqual([{ id: 'C1', name: 'Large', when: 'outputs.out > 10' }]);
+    expect(loaded.nodes.find((n) => n.id === 'N1')!.choices).toEqual([{ id: 'C1', name: 'Large', when: 'outputs.out > 10', comparesWith: [] }]);
     expect(loaded.nodes.find((n) => n.id === 'END')!.rule).toBe('$count(failures) = 0');
     expect(loaded.nodes.find((n) => n.id === 'N2')!.choices).toEqual([]);
   });
 
   it('writes each choice as a Thing the node holds, of the archetype bound to the choice role, with its rule', async () => {
     const model = modelWithAChoice();
-    const nodes = [{ ...node('N1', 'A'), choices: [{ id: 'C1', name: 'Large', when: 'outputs.out > 10' }, { id: 'C2', name: 'Small', when: 'outputs.out <= 10' }] }, node('N2', 'B')];
+    const nodes = [{ ...node('N1', 'A'), choices: [{ id: 'C1', name: 'Large', when: 'outputs.out > 10', comparesWith: [] }, { id: 'C2', name: 'Small', when: 'outputs.out <= 10', comparesWith: [] }] }, node('N2', 'B')];
 
     await savePipeline('MyPipeline', nodes, [], model, 'P');
 
@@ -679,8 +681,97 @@ describe('savePipeline / loadPipeline — a node\'s choices and the Output node\
     const { things, relationships } = graphWithVocabulary();
     things.splice(things.findIndex((t) => t.Id === 'arch-choice'), 1);
 
-    await expect(savePipeline('First', [{ ...node('N1', 'A'), choices: [{ id: 'C9', name: 'Any', when: 'true' }] }], [],
+    await expect(savePipeline('First', [{ ...node('N1', 'A'), choices: [{ id: 'C9', name: 'Any', when: 'true', comparesWith: [] }] }], [],
       new PipelineModel(...withRoles(things, relationships)))).rejects.toThrow(/choice role/);
+    expect(applyFragment).not.toHaveBeenCalled();
+  });
+});
+
+describe('savePipeline / loadPipeline — what a choice compares with, and what a node chose', () => {
+  // The service's in port offers three strategies; Node1 chose the second, and its choice compares with the first.
+  function modelWithOffers(): PipelineModel {
+    const { T, R, port, things, relationships } = graphWithVocabulary();
+    T('svc', 'svc'); R('svc', 'is', 'arch-service');
+    port('svc.out', 'out', 'out', 'svc'); port('svc.strategy', 'strategy', 'in', 'svc');
+    T('conn', 'conn', { Subdomain: 'decide' }); R('conn', 'is', 'arch-connection'); R('conn', 'has', 'svc');
+    T('S1', 'Nearest first'); T('S2', 'Cheapest first'); T('S3', 'Soonest first'); T('SITE', 'North field');
+    for (const offered of ['S1', 'S2', 'S3']) R('svc.strategy', 'offers', offered);
+    T('P', 'MyPipeline'); R('P', 'is', 'arch-pipeline');
+    T('N1', 'Node1'); R('N1', 'is', 'arch-node'); R('N1', 'has', 'conn'); R('P', 'has', 'N1');
+    R('N1', 'offers', 'S2');
+    T('C1', 'Accept', { when: 'inputs.strategy.id in $things.id' }); R('C1', 'is', 'arch-choice'); R('N1', 'has', 'C1');
+    R('C1', 'compares-with', 'S1');
+    return new PipelineModel(...withRoles(things, relationships));
+  }
+
+  const accept = (comparesWith: string[]) => ({ id: 'C1', name: 'Accept', when: 'inputs.strategy.id in $things.id', comparesWith });
+  const decide = (changes: Partial<EditorNode>): EditorNode =>
+    ({ ...node('N1', 'Node1'), chosen: { 'svc.strategy': 'S2' }, choices: [accept(['S1'])], ...changes });
+  const linkFrom = (model: PipelineModel, subjectId: string, roleId: string, targetId: string) =>
+    model.relationshipsAndTargetsAlong(subjectId, roleId).find((held) => held.thingId === targetId)!.relationshipId;
+
+  it('reads back what each choice compares with and the Thing the node chose for each in port', () => {
+    const [loaded] = loadPipeline('P', modelWithOffers())!.nodes;
+
+    expect(loaded.choices).toEqual([accept(['S1'])]);
+    expect(loaded.chosen).toEqual({ 'svc.strategy': 'S2' });
+  });
+
+  it('relates a choice to a Thing it now compares with, including one no port offers', async () => {
+    await savePipeline('MyPipeline', [decide({ choices: [accept(['S1', 'SITE'])] })], [], modelWithOffers(), 'P');
+
+    expect(relationshipCreate).toHaveBeenCalledWith('C1', 'compares-with', 'SITE');
+    expect(relationshipCreate).not.toHaveBeenCalledWith('C1', 'compares-with', 'S1');
+  });
+
+  it('retracts the relationship to a Thing a choice no longer compares with', async () => {
+    const model = modelWithOffers();
+
+    await savePipeline('MyPipeline', [decide({ choices: [accept([])] })], [], model, 'P');
+
+    expect(relationshipRemove).toHaveBeenCalledWith(linkFrom(model, 'C1', ROLE.ComparesWith, 'S1'));
+  });
+
+  it('relates a new choice to what it compares with once the choice exists', async () => {
+    await savePipeline('MyPipeline', [decide({ choices: [accept(['S1']), { id: 'C2', name: 'Refuse', when: '', comparesWith: ['S3'] }] })],
+      [], modelWithOffers(), 'P');
+
+    expect(relationshipCreate).toHaveBeenCalledWith('C2', 'compares-with', 'S3');
+    expect(applyFragment.mock.invocationCallOrder[0]).toBeLessThan(relationshipCreate.mock.invocationCallOrder[0]);
+  });
+
+  it('moves a node to the offered Thing chosen for it, retracting the one it chose before', async () => {
+    const model = modelWithOffers();
+
+    await savePipeline('MyPipeline', [decide({ chosen: { 'svc.strategy': 'S3' } })], [], model, 'P');
+
+    expect(relationshipCreate).toHaveBeenCalledWith('N1', 'offers', 'S3');
+    expect(relationshipRemove).toHaveBeenCalledWith(linkFrom(model, 'N1', ROLE.Choice, 'S2'));
+  });
+
+  it('retracts what a node chose when the choice is cleared', async () => {
+    const model = modelWithOffers();
+
+    await savePipeline('MyPipeline', [decide({ chosen: {} })], [], model, 'P');
+
+    expect(relationshipRemove).toHaveBeenCalledWith(linkFrom(model, 'N1', ROLE.Choice, 'S2'));
+    expect(relationshipCreate).not.toHaveBeenCalled();
+  });
+
+  it('writes nothing more when neither what a choice compares with nor what the node chose changed', async () => {
+    await savePipeline('MyPipeline', [decide({})], [], modelWithOffers(), 'P');
+
+    expect(relationshipCreate).not.toHaveBeenCalled();
+    expect(relationshipRemove).not.toHaveBeenCalled();
+  });
+
+  it('names what it did not find when a choice compares with a Thing and the model binds nothing to the compares-with role', async () => {
+    const { T, things, relationships } = graphWithVocabulary();
+    things.splice(things.findIndex((t) => t.Id === 'compares-with'), 1);
+    T('SITE', 'North field');
+
+    await expect(savePipeline('First', [{ ...node('N1', 'A'), choices: [{ id: 'C9', name: 'Any', when: 'true', comparesWith: ['SITE'] }] }], [],
+      new PipelineModel(...withRoles(things, relationships)))).rejects.toThrow(/compares-with role/);
     expect(applyFragment).not.toHaveBeenCalled();
   });
 });

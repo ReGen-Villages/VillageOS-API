@@ -29,9 +29,9 @@ function EntityPicker<T extends PickerItem>({ items, value, onChange, placeholde
 
   const MAX_DISPLAY = 50;
 
-  const { filtered, hasMore } = useMemo(() => {
+  const { filtered, total } = useMemo(() => {
     if (!query) {
-      return { filtered: items.slice(0, MAX_DISPLAY), hasMore: items.length > MAX_DISPLAY };
+      return { filtered: items.slice(0, MAX_DISPLAY), total: items.length };
     }
     const q = query.toLowerCase();
     const matches = items.filter((item) => item.Name.toLowerCase().includes(q));
@@ -46,7 +46,7 @@ function EntityPicker<T extends PickerItem>({ items, value, onChange, placeholde
       if (aStarts !== bStarts) return aStarts ? -1 : 1;
       return an.length - bn.length;
     });
-    return { filtered: matches.slice(0, MAX_DISPLAY), hasMore: matches.length > MAX_DISPLAY };
+    return { filtered: matches.slice(0, MAX_DISPLAY), total: matches.length };
   }, [items, query]);
 
   useEffect(() => {
@@ -88,9 +88,9 @@ function EntityPicker<T extends PickerItem>({ items, value, onChange, placeholde
               <span className="ml-2 text-xs text-zinc-400">{item.Id.substring(0, 8)}</span>
             </button>
           ))}
-          {hasMore && (
-            <div className="px-3 py-1.5 text-xs text-zinc-400 dark:text-zinc-500 text-center border-t border-zinc-200 dark:border-zinc-700">
-              {t('common.typeToSearchMore')}
+          {total > filtered.length && (
+            <div role="status" className="px-3 py-1.5 text-xs font-medium text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/40 text-center border-t border-amber-300 dark:border-amber-700">
+              {t('common.showingOfTotal', { shown: filtered.length, total })}
             </div>
           )}
         </div>

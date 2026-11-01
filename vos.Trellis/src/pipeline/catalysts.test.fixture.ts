@@ -15,7 +15,8 @@ export interface CatalystFixture {
     | 'belowReorder' | 'overdue' | 'reservoir' | 'feeds' | 'readingsArrive' | 'refill' | 'digest'
     | 'readingsStart' | 'readingsEnd' | 'refillStart' | 'digestEnd' | 'standsFor' | 'is' | 'has' | 'binds'
     | 'watcher' | 'watchesReorder' | 'reorderBinding' | 'conductor' | 'surplus' | 'drought' | 'storeSurplus'
-    | 'dry' | 'watchesDry' | 'resumes' | 'everyHour' | 'readingsWire' | 'takenOn' | 'success' | 'fail',
+    | 'dry' | 'watchesDry' | 'resumes' | 'everyHour' | 'readingsWire' | 'takenOn' | 'success' | 'fail'
+    | 'offers' | 'comparesWith' | 'daily',
     string
   >;
 }
@@ -68,6 +69,8 @@ export function catalystFixture({ orchestrators = 1 }: { orchestrators?: number 
   const success = thing('Worked', playing(ROLE.Success));
   const fail = thing('Broke', playing(ROLE.Fail));
   thing('Branch', playing(ROLE.DecisionPath), true);
+  const offers = thing('proposes', playing(ROLE.Choice));
+  const comparesWith = thing('weighs', playing(ROLE.ComparesWith));
   const everyHour = thing('every hour');
   relate(everyHour, is, thing('Metronome', playing(ROLE.Cadence), true));
   relate(inputArchetype, is, nodeArchetype);
@@ -79,6 +82,12 @@ export function catalystFixture({ orchestrators = 1 }: { orchestrators?: number 
     return id;
   };
   const reader = service('Reader'), watcher = service('Watcher'), handler = service('Handler');
+  const cadencePort = thing('Reader.in', { portName: 'cadence', direction: 'in', type: 'any', required: 'false' });
+  relate(cadencePort, is, portArchetype);
+  relate(reader, has, cadencePort);
+  const daily = thing('Daily');
+  relate(cadencePort, offers, thing('Hourly'));
+  relate(cadencePort, offers, daily);
   const orchestratorArchetype = thing('Conductor kind', playing(ROLE.Orchestrator), true);
   relate(orchestratorArchetype, is, serviceArchetype);
   const conductors = Array.from({ length: orchestrators }, (_, index) => {
@@ -192,6 +201,7 @@ export function catalystFixture({ orchestrators = 1 }: { orchestrators?: number 
       readingsStart, readingsEnd, refillStart, digestEnd, standsFor, is, has, binds: BINDS_ID,
       watcher, watchesReorder, reorderBinding: bindings.get(watchesReorder)!, conductor, surplus, drought, storeSurplus,
       dry, watchesDry, resumes, everyHour, readingsWire, takenOn, success, fail,
+      offers, comparesWith, daily,
     },
   };
 }
