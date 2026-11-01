@@ -14,8 +14,4 @@ public static class ItemWires
         && !wire.To.Node.Choices.ContainsKey(input.PortName)
         && !wire.To.Node.ParameterBindings.ContainsKey(input.PortName)
         && dag.WiresInto(wire.To.Node.NodeId).Count(other => other.To.Port.Id == input.Id) == 1;
-
-    public static DagWire? Into(PipelineDag dag, DagNode node) => dag.WiresInto(node.NodeId).FirstOrDefault(wire => Carries(dag, wire));
-
-    public static IEnumerable<DagWire> OutOf(PipelineDag dag, DagNode node) => dag.WiresOutOf(node.NodeId).Where(wire => Carries(dag, wire));
 }

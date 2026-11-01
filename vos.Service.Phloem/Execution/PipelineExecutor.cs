@@ -408,6 +408,9 @@ public sealed class PipelineExecutor
 
         bool Unsettled(DagNode node) => !results.ContainsKey(node.NodeId) && !progress.Waiting.ContainsKey(node.NodeId);
 
+        var itemWires = new HashSet<DagWire>(dag.Wires.Where(wire => ItemWires.Carries(dag, wire)), ReferenceEqualityComparer.Instance);
+        IEnumerable<DagWire> ItemWiresOutOf(DagNode node) => itemWires.Count == 0 ? [] : dag.WiresOutOf(node.NodeId).Where(itemWires.Contains);
+
         var itemsAlong = new Dictionary<DagWire, Channel<NumberedItem>>(ReferenceEqualityComparer.Instance);
         Channel<NumberedItem> ItemsAlong(DagWire wire) =>
             itemsAlong.TryGetValue(wire, out var channel) ? channel : itemsAlong[wire] = Channel.CreateUnbounded<NumberedItem>();
@@ -415,12 +418,12 @@ public sealed class PipelineExecutor
         // A node set to fail as a whole holds its items until every one has answered, so nothing runs for an item of a
         // node that then fails.
         bool SendsEachItemOn(DagNode node) =>
-            string.Equals(node.OnItemError, ModelNames.OnItemErrorContinue, StringComparison.OrdinalIgnoreCase) && ItemWires.OutOf(dag, node).Any();
+            string.Equals(node.OnItemError, ModelNames.OnItemErrorContinue, StringComparison.OrdinalIgnoreCase) && ItemWiresOutOf(node).Any();
 
         Action<NodeRunResult>? SendingEachItemOn(DagNode node)
         {
             if (!SendsEachItemOn(node)) return null;
-            var sending = ItemWires.OutOf(dag, node).Select(wire => (Wire: wire, Writer: ItemsAlong(wire).Writer)).ToList();
+            var sending = ItemWiresOutOf(node).Select(wire => (Wire: wire, Writer: ItemsAlong(wire).Writer)).ToList();
             return item =>
             {
                 foreach (var (wire, writer) in sending)
@@ -431,7 +434,7 @@ public sealed class PipelineExecutor
 
         void ReleaseItems(NodeRunResult result, bool eachItemWentOn)
         {
-            foreach (var wire in ItemWires.OutOf(dag, dag.Node(result.NodeId)!))
+            foreach (var wire in ItemWiresOutOf(dag.Node(result.NodeId)!))
             {
                 var writer = ItemsAlong(wire).Writer;
                 if (!eachItemWentOn)
@@ -486,7 +489,7 @@ public sealed class PipelineExecutor
                 // A node behind a waiting one is not ready until the wait is over.
                 bool Started(Guid nodeId) => calling.Values.Any(node => node.NodeId == nodeId);
                 var ready = pending.Where(n => dag.WiresInto(n.NodeId).All(w =>
-                    results.ContainsKey(w.From.Node.NodeId) || ItemWires.Carries(dag, w) && Started(w.From.Node.NodeId))).ToList();
+                    results.ContainsKey(w.From.Node.NodeId) || itemWires.Contains(w) && Started(w.From.Node.NodeId))).ToList();
                 pending = pending.Except(ready).ToList();
                 var fedWhileSending = ready.Where(n => dag.WiresInto(n.NodeId).Any(w => !results.ContainsKey(w.From.Node.NodeId))).ToList();
 
@@ -505,13 +508,13 @@ public sealed class PipelineExecutor
                 var starting = ready.Except(notTaken).ToList();
                 foreach (var node in starting)
                 {
-                    var itemWire = ItemWires.Into(dag, node);
+                    var itemWire = itemWires.Count == 0 ? null : dag.WiresInto(node.NodeId).FirstOrDefault(itemWires.Contains);
                     var items = itemWire is not null && (fedWhileSending.Contains(node) || deliveries.ContainsKey(itemWire)) ? ItemsAlong(itemWire).Reader : null;
                     calling[RunNodeGuardedAsync(gate, dag, node, rid, DeliveredInto(dag, node, deliveries), runParams,
                         progress.Trying.TryGetValue(node.NodeId, out var made) ? made : [], rehearsal, items, SendingEachItemOn(node), cancellationToken)] = node;
                 }
 
-                if (notTaken.Count > 0 || starting.Any(node => ItemWires.OutOf(dag, node).Any())) continue;
+                if (notTaken.Count > 0 || starting.Any(node => ItemWiresOutOf(node).Any())) continue;
                 if (calling.Count == 0) break;
                 await TakeTheNextAnswerAsync();
             }
