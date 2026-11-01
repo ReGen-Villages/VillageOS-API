@@ -406,50 +406,73 @@ public sealed class PipelineExecutor
 
         bool Unsettled(DagNode node) => !results.ContainsKey(node.NodeId) && !progress.Waiting.ContainsKey(node.NodeId);
 
+        async Task TakeAsync(NodeRunResult result)
+        {
+            if (result.Status == RunStatus.Waiting)
+                progress.Waiting[result.NodeId] = result;
+            else if (!progress.Settle(dag, result) && AnswerReachingNoWire(dag, result) is { } reason)
+            {
+                halted = true;
+                unhandled = reason;
+            }
+            if (result.Status == RunStatus.CannotRehearse)
+                halted = true;
+            if (result.Status == RunStatus.Cancelled)
+                stopped ??= StopOf(rid);
+            await PersistStatusAsync(rid, result, cancellationToken);
+        }
+
         using var gate = new SemaphoreSlim(_maxConcurrency);
         var pending = dag.Nodes.Where(Unsettled).ToList();
-        while (pending.Count > 0 && !halted && stopped is null)
+        var calling = new Dictionary<Task<NodeRunResult>, DagNode>();
+
+        async Task TakeTheNextAnswerAsync()
         {
-            // The Output node calls nothing, so a run left with only it to reach has finished its work.
-            if (StopOf(rid) is { } stop && pending.Any(node => node.Kind != DagNodeKind.Output))
+            var answered = await Task.WhenAny(calling.Keys);
+            calling.Remove(answered);
+            await TakeAsync(await answered);
+        }
+
+        try
+        {
+            while (!halted && stopped is null)
             {
-                stopped = stop;
-                break;
-            }
-
-            // A node behind a waiting one is not ready until the wait is over.
-            var ready = pending.Where(n => dag.WiresInto(n.NodeId).All(w => results.ContainsKey(w.From.Node.NodeId))).ToList();
-            if (ready.Count == 0) break;
-
-            // A node no wire carried into is on a path not taken: it is recorded and nothing is called for it, so a
-            // node where paths meet runs once, from the paths that carried.
-            var notTaken = ready.Where(n => dag.WiresInto(n.NodeId).Any() && !dag.WiresInto(n.NodeId).Any(deliveries.ContainsKey)).ToList();
-            foreach (var node in notTaken)
-            {
-                var result = new NodeRunResult(node.NodeId, node.Name, RunStatus.NotTaken, NoOutputs, null);
-                progress.Settle(dag, result);
-                await PersistStatusAsync(rid, result, cancellationToken);
-            }
-
-            var batch = await Task.WhenAll(ready.Except(notTaken).Select(node => RunNodeGuardedAsync(gate, dag, node, rid, deliveries, runParams,
-                progress.Trying.TryGetValue(node.NodeId, out var made) ? made : [], rehearsal, cancellationToken)));
-
-            foreach (var result in batch)
-            {
-                if (result.Status == RunStatus.Waiting)
-                    progress.Waiting[result.NodeId] = result;
-                else if (!progress.Settle(dag, result) && AnswerReachingNoWire(dag, result) is { } reason)
+                // The Output node calls nothing, so a run left with only it to reach has finished its work.
+                if (StopOf(rid) is { } stop && pending.Any(node => node.Kind != DagNodeKind.Output))
                 {
-                    halted = true;
-                    unhandled = reason;
+                    stopped = stop;
+                    break;
                 }
-                if (result.Status == RunStatus.CannotRehearse)
-                    halted = true;
-                if (result.Status == RunStatus.Cancelled)
-                    stopped ??= StopOf(rid);
-                await PersistStatusAsync(rid, result, cancellationToken);
+
+                // A node behind a waiting one is not ready until the wait is over.
+                var ready = pending.Where(n => dag.WiresInto(n.NodeId).All(w => results.ContainsKey(w.From.Node.NodeId))).ToList();
+                pending = pending.Except(ready).ToList();
+
+                // A node no wire carried into is on a path not taken: it is recorded and nothing is called for it, so a
+                // node where paths meet runs once, from the paths that carried.
+                var notTaken = ready.Where(n => dag.WiresInto(n.NodeId).Any() && !dag.WiresInto(n.NodeId).Any(deliveries.ContainsKey)).ToList();
+                foreach (var node in notTaken)
+                {
+                    var result = new NodeRunResult(node.NodeId, node.Name, RunStatus.NotTaken, NoOutputs, null);
+                    progress.Settle(dag, result);
+                    await PersistStatusAsync(rid, result, cancellationToken);
+                }
+
+                foreach (var node in ready.Except(notTaken))
+                    calling[RunNodeGuardedAsync(gate, dag, node, rid, DeliveredInto(dag, node, deliveries), runParams,
+                        progress.Trying.TryGetValue(node.NodeId, out var made) ? made : [], rehearsal, cancellationToken)] = node;
+
+                if (notTaken.Count > 0) continue;
+                if (calling.Count == 0) break;
+                await TakeTheNextAnswerAsync();
             }
-            pending = pending.Where(Unsettled).ToList();
+            while (calling.Count > 0)
+                await TakeTheNextAnswerAsync();
+        }
+        catch when (calling.Count > 0)
+        {
+            await ((Task)Task.WhenAll(calling.Keys)).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            throw;
         }
         if (!halted && stopped is null && progress.Waiting.Count > 0)
         {
@@ -521,6 +544,15 @@ public sealed class PipelineExecutor
                 : runStatus == RunStatus.CannotRehearse ? "The rehearsal stopped at a node it cannot rehearse."
                 : unhandled ?? verdict.Reason,
             runResult);
+    }
+
+    // A node reads its own copy, because the sweep settles other nodes into the shared one while this node calls.
+    private static Dictionary<DagWire, WireDelivery> DeliveredInto(PipelineDag dag, DagNode node, Dictionary<DagWire, WireDelivery> deliveries)
+    {
+        var copy = new Dictionary<DagWire, WireDelivery>(ReferenceEqualityComparer.Instance);
+        foreach (var wire in dag.WiresInto(node.NodeId).Where(deliveries.ContainsKey))
+            copy[wire] = deliveries[wire];
+        return copy;
     }
 
     // An answer no wire carries on from would end the run short of its Output node, so the run fails and says where.

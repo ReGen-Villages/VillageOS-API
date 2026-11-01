@@ -358,6 +358,14 @@ internal sealed class FakeGateway : IMyceliumGateway
     public Task<NodeCallResult> CallAsync(string subdomain, JsonElement envelope, CancellationToken ct)
     {
         lock (Called) { Called.Add(subdomain); Envelopes.Add((subdomain, envelope.Clone())); }
-        return Task.FromResult(OnCall(subdomain, envelope));
+        return OnCallAsync?.Invoke(subdomain, envelope) ?? Task.FromResult(OnCall(subdomain, envelope));
+    }
+
+    // OnCall answers before the sweep can start anything else; this answers when the test completes the task.
+    public Func<string, JsonElement, Task<NodeCallResult>>? OnCallAsync { get; set; }
+
+    public List<string> CalledSoFar()
+    {
+        lock (Called) return Called.ToList();
     }
 }
