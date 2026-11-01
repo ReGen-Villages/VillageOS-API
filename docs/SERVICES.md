@@ -1231,6 +1231,12 @@ its block writes nothing but its answer; only such a block is called in a rehear
   scalar on the collection port, plus the item `index` in the envelope). The node property `onItemError`
   chooses `fail` (any item fails → the node fails, and its failed items take its fail wires) or
   `continue` (failed items take the fail wires, and are dropped where there are none → node `partial`).
+- **Items that go on by themselves.** From a node set to `continue`, each item goes on to the next node
+  as soon as it answers, rather than waiting to be gathered, along a wire with no transform from a port
+  answering one value per item into a once-per-item input that wire alone fills (no second wire, no
+  parameter, no choice). There `index` is the item's place where the items were first spread out, and the
+  item record's `total` is that first count. A stop starts no more items. Anywhere else the items meet
+  and are gathered into a list as above.
 - **Branching: success, fail and the node's choices.** An answer of `fail` follows the node's fail
   wires; with none, and no rule on the Output node saying otherwise, the run fails. A node holds its
   choices — Things of the kind the `decisionPath` role binds. Each carries a rule in `when`, an

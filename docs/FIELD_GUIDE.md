@@ -1107,7 +1107,10 @@ a tell, follow-on or stop node records what it would have done instead.
 input receives a list — the other inputs are the same for every item — and each output is gathered
 into a list for downstream, an output marked as a collection into one flat list. The node may
 continue past a failed item, marking the node partial, its failed items taking the fail wires and
-dropped where there are none; or it fails as a whole.
+dropped where there are none; or it fails as a whole. From a node set to continue, each item goes on
+to the next once-per-item node as soon as it answers, without waiting for the others, where a plain
+wire with no transform alone fills that node's list input; the item keeps its place and count from
+where the items were first spread out. A stop starts no more items.
 
 A pipeline can also be started **from the model**. A `runs` predicate bound to Phloem makes
 creating *X runs Pipeline* start it, so any service can start a pipeline by creating one
