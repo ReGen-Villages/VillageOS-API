@@ -1155,6 +1155,35 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
+    // In → Check reading, once per reading → Record level, once per reading → Output. Check reading's fail runs from its
+    // error port to Tell operator, also once per reading.
+    public static (GraphFixture Fixture, Guid PipelineId) ItemsGoOnPipeline(string onItemError = "continue", string transform = "")
+    {
+        var fx = new GraphFixture();
+        var vocabulary = fx.DeclareVocabulary();
+        var check = ServiceNode(fx, vocabulary, CollectionInPrototype(fx, vocabulary, "CheckProto"), "Check reading", "check", ("onItemError", onItemError));
+        var record = ServiceNode(fx, vocabulary, CollectionInPrototype(fx, vocabulary, "RecordProto"), "Record level", "record", ("onItemError", "continue"));
+        var tell = ServiceNode(fx, vocabulary, CollectionInPrototype(fx, vocabulary, "TellProto"), "Tell operator", "tell", ("onItemError", "continue"));
+
+        var input = fx.Thing("In");
+        fx.Rel(input, vocabulary.Is, vocabulary.PipelineInput);
+        var readings = fx.Thing("in.readings", ("direction", "out"), ("type", "any"), ("portName", "readings"));
+        fx.Rel(readings, vocabulary.Is, vocabulary.Port);
+        fx.Rel(input, vocabulary.Has, readings);
+
+        var pipe = fx.Thing("Reservoir readings");
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
+        foreach (var node in new[] { input, check, record, tell })
+            fx.Rel(pipe, vocabulary.Has, node);
+
+        fx.Wire(input, "readings", check, "in");
+        fx.Wire(check, "out", record, "in", (ModelNames.Transform, transform));
+        fx.TakeOn(fx.WireBetween(check, fx.Get("error"), tell, fx.PortOf(tell, "in", "in")), vocabulary.Fail);
+        fx.EndAt(pipe, (record, "out"), (tell, "out"));
+        return (fx, pipe.Id);
+    }
+
     // Check reading's success runs straight to the Output node; its fail runs through Tell operator, then Log alarm.
     public static (GraphFixture Fixture, Guid PipelineId) FailPathOfTwoNodesPipeline()
     {

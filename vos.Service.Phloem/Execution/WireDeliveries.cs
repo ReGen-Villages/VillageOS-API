@@ -32,6 +32,29 @@ public static class WireDeliveries
         return new WireDelivery(Gathered(dag, wire.From.Port, chosen), chosen.Any(item => item.Status == RunStatus.Failed));
     }
 
+    // The items a settled node sends along an item wire. A node that ran once sends each element of a list it answered,
+    // or the value itself, numbered afresh.
+    public static IEnumerable<NumberedItem> ItemsAlong(PipelineDag dag, DagWire wire, NodeRunResult result)
+    {
+        if (result.Items is { } items)
+        {
+            var failedAsAWhole = result.Status == RunStatus.Failed;
+            return items.Where(item => !failedAsAWhole || item.Status == RunStatus.Failed)
+                .Select(item => ItemAlong(dag, wire, item))
+                .OfType<NumberedItem>()
+                .ToList();
+        }
+        if (Delivered(dag, wire, result) is not { } delivery || PayloadMapping.Extract(delivery.Value, wire.FromPath) is not { } value)
+            return [];
+        var values = value.ValueKind == JsonValueKind.Array ? value.EnumerateArray().ToList() : [value];
+        return values.Select((element, index) => new NumberedItem(element.Clone(), new ItemNumber(index, values.Count))).ToList();
+    }
+
+    public static NumberedItem? ItemAlong(PipelineDag dag, DagWire wire, NodeRunResult item) =>
+        item.Number is { } number && Chooses(dag, wire, item) && PayloadMapping.Extract(ValueAt(dag, wire.From.Port, item), wire.FromPath) is { } value
+            ? new NumberedItem(value, number)
+            : null;
+
     private static bool Chooses(PipelineDag dag, DagWire wire, NodeRunResult answer) => answer.Status switch
     {
         RunStatus.Failed => wire.TakenOn.Contains(dag.Fail),

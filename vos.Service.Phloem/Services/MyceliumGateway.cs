@@ -274,7 +274,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             }
             if (!items.TryGetValue(nodeId, out var ofNode))
                 items[nodeId] = ofNode = new SortedList<int, NodeRecord>();
-            ofNode[index] = record;
+            ofNode[index] = record with { Number = new ItemNumber(index, int.TryParse(held.PropertyString(ModelNames.Total), out var total) ? total : 0) };
         }
         foreach (var (nodeId, ofNode) in items)
             if (nodes.TryGetValue(nodeId, out var aggregate))
