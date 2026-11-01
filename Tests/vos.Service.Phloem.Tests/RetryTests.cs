@@ -31,10 +31,10 @@ public class RetryTests
     }
 
     private static (TestGraphs.RetryFixture Retry, FakeGateway Gateway, PipelineExecutor Executor) Arrange(
-        Func<int, NodeCallResult> answerToCall, bool bindsHandOver = false, double clockRate = 6000, TimeProvider? real = null,
+        Func<int, NodeCallResult> answerToCall, bool bindsHandOver = false, double clockRate = 6000, TimeProvider? real = null, bool perItem = false,
         params (string Name, object Value)[] policy)
     {
-        var retry = TestGraphs.RetryPipeline(bindsHandOver, policy: policy);
+        var retry = TestGraphs.RetryPipeline(bindsHandOver, perItem: perItem, policy: policy);
         var calls = 0;
         var gateway = new FakeGateway(retry.Fixture.Build())
         {
@@ -278,19 +278,90 @@ public class RetryTests
         gateway.Envelopes.Single().Envelope.GetProperty(ModelNames.Rehearsal).GetBoolean().Should().BeTrue();
     }
 
-    [Fact]
-    public async Task A_restarted_orchestrator_fails_a_run_whose_fan_out_item_was_trying()
+    private static (TestGraphs.RetryFixture Retry, FakeGateway Gateway, PipelineExecutor Executor, Guid RunId) ArrangeARunStoppedPartWayThroughItsItems(
+        string secondItemStatus)
     {
-        var (retry, gateway, executor) = Arrange(_ => Answer(), policy: [("attempts", 3), ("pauseMinutes", 1)]);
+        var (retry, gateway, executor) = Arrange(_ => Answer(), perItem: true, policy: [("attempts", 3), ("pauseMinutes", 1)]);
         var runId = Guid.NewGuid();
-        gateway.Runs[runId] = (retry.PipelineId, Seed());
-        gateway.Records[(runId, retry.In.Id)] = new NodeRecord(RunStatus.Succeeded, new Dictionary<string, JsonElement>());
-        gateway.TryingItems.Add(new TryingNodeRun(runId, retry.Echo.Id, PerItem: true));
+        var readings = JsonSerializer.SerializeToElement(new[] { "North", "South", "East" });
+        var anHourAgo = new DateTimeOffset(2026, 10, 15, 11, 0, 0, TimeSpan.Zero);
+        gateway.Runs[runId] = (retry.PipelineId, JsonSerializer.SerializeToElement(new { seed = readings }));
+        gateway.Records[(runId, retry.In.Id)] = new NodeRecord(RunStatus.Succeeded, new Dictionary<string, JsonElement> { ["seed"] = readings });
+        gateway.Records[(runId, retry.Echo.Id)] = new NodeRecord(RunStatus.Running, new Dictionary<string, JsonElement>());
+        gateway.RecordItem(runId, retry.Echo.Id, new NodeRecord(RunStatus.Succeeded,
+            new Dictionary<string, JsonElement> { ["out"] = JsonSerializer.SerializeToElement("North as answered before") }, Number: new ItemNumber(0, 3)));
+        gateway.RecordItem(runId, retry.Echo.Id, new NodeRecord(secondItemStatus, new Dictionary<string, JsonElement>(),
+            [new AttemptRecord(1, anHourAgo, anHourAgo.AddSeconds(1), RunStatus.Failed, "the service was away")], Number: new ItemNumber(1, 3)));
+        return (retry, gateway, executor, runId);
+    }
+
+    private static List<string> ReadingsCalled(FakeGateway gateway)
+    {
+        lock (gateway.Called)
+            return gateway.Envelopes.Select(call => call.Envelope.GetProperty("inputs").GetProperty("in").GetString()!).ToList();
+    }
+
+    [Fact]
+    public async Task A_restarted_orchestrator_carries_on_a_run_whose_item_was_trying_calling_only_the_items_not_yet_answered()
+    {
+        var (retry, gateway, executor, runId) = ArrangeARunStoppedPartWayThroughItsItems(RunStatus.Trying);
+
+        var carriedOn = await executor.RecoverTryingAsync(CancellationToken.None);
+
+        carriedOn.Should().Be(1);
+        await Settle.UntilAsync(() => gateway.RunStatusOf(runId) is RunStatus.Succeeded or RunStatus.Failed, "the run carries on to its end");
+        (gateway.RunStatusOf(runId), gateway.RunError).Should().Be((RunStatus.Succeeded, (string?)null));
+        ReadingsCalled(gateway).Should().BeEquivalentTo("South", "East");
+        gateway.AttemptsRecorded.Where(made => made.Index == 1).Select(made => made.Attempt.Number).Should().Equal(2);
+        gateway.RunResult!.Value.GetProperty("result").EnumerateArray().Select(answer => answer.GetString())
+            .Should().Equal("North as answered before", "echoed", "echoed");
+    }
+
+    [Fact]
+    public async Task An_item_answered_before_the_restart_still_goes_on_to_the_next_node()
+    {
+        var drawing = TestGraphs.ItemsGoOnPipeline(checkRetries: true);
+        var model = drawing.Fixture.Build();
+        var gateway = new FakeGateway(model)
+        {
+            OnCall = (_, envelope) => new NodeCallResult(200,
+                $"{{\"result\":\"success\",\"outputs\":{{\"out\":{envelope.GetProperty("inputs").GetProperty("in").GetRawText()}}}}}"),
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, FastClock());
+        var (runId, input, check) = (Guid.NewGuid(), model.Things.Single(thing => thing.Name == "In").Id, model.Things.Single(thing => thing.Name == "Check reading").Id);
+        var readings = JsonSerializer.SerializeToElement(new[] { "North", "South", "East" });
+        var anHourAgo = new DateTimeOffset(2026, 10, 15, 11, 0, 0, TimeSpan.Zero);
+        gateway.Runs[runId] = (drawing.PipelineId, JsonSerializer.SerializeToElement(new { readings }));
+        gateway.Records[(runId, input)] = new NodeRecord(RunStatus.Succeeded, new Dictionary<string, JsonElement> { ["readings"] = readings });
+        gateway.Records[(runId, check)] = new NodeRecord(RunStatus.Running, new Dictionary<string, JsonElement>());
+        gateway.RecordItem(runId, check, new NodeRecord(RunStatus.Succeeded,
+            new Dictionary<string, JsonElement> { ["out"] = JsonSerializer.SerializeToElement("North") }, Number: new ItemNumber(0, 3)));
+        gateway.RecordItem(runId, check, new NodeRecord(RunStatus.Trying, new Dictionary<string, JsonElement>(),
+            [new AttemptRecord(1, anHourAgo, anHourAgo.AddSeconds(1), RunStatus.Failed, "the service was away")], Number: new ItemNumber(1, 3)));
+
+        await executor.RecoverTryingAsync(CancellationToken.None);
+
+        await Settle.UntilAsync(() => gateway.RunStatusOf(runId) is RunStatus.Succeeded or RunStatus.Failed, "the run carries on to its end");
+        List<string> Called(string subdomain)
+        {
+            lock (gateway.Called)
+                return gateway.Envelopes.Where(call => call.Subdomain == subdomain).Select(call => call.Envelope.GetProperty("inputs").GetProperty("in").GetString()!).ToList();
+        }
+        Called("check").Should().BeEquivalentTo("South", "East");
+        Called("record").Should().BeEquivalentTo("North", "South", "East");
+    }
+
+    [Fact]
+    public async Task A_restarted_orchestrator_does_not_carry_on_a_run_whose_item_was_in_the_middle_of_a_call()
+    {
+        var (retry, gateway, executor, runId) = ArrangeARunStoppedPartWayThroughItsItems(RunStatus.Running);
+        gateway.RecordItem(runId, retry.Echo.Id, new NodeRecord(RunStatus.Trying, new Dictionary<string, JsonElement>(), Number: new ItemNumber(2, 3)));
 
         var carriedOn = await executor.RecoverTryingAsync(CancellationToken.None);
 
         carriedOn.Should().Be(0);
         gateway.Called.Should().BeEmpty();
-        gateway.RunError.Should().Be("'Echo' was trying one of its items when the orchestrator stopped, and a fan-out cannot be carried on from its record.");
+        gateway.RunError.Should().Be("'Echo' was calling for item 2 of 3 when the orchestrator stopped, and that call may have reached its service, " +
+                                     "so the run cannot be carried on without calling it again.");
     }
 }

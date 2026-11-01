@@ -331,7 +331,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
                 || !Guid.TryParse(nodeRun.PropertyString(ModelNames.NodeId), out var nodeId)
                 || graph.RelationshipsInto(nodeRun, ModelNames.Has).FirstOrDefault() is not { } held)
                 continue;
-            trying.Add(new TryingNodeRun(held.SubjectId, nodeId, !string.IsNullOrEmpty(nodeRun.PropertyString(ModelNames.Index))));
+            trying.Add(new TryingNodeRun(held.SubjectId, nodeId));
         }
         return trying;
     }
