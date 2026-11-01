@@ -28,6 +28,7 @@ public class MyceliumGatewayTests
     private static readonly Guid StopRequestArchetypeId = Guid.Parse("13131313-1313-1313-1313-131313131313");
     private static readonly Guid RequestedByPredicateId = Guid.Parse("14141414-1414-1414-1414-141414141414");
     private static readonly Guid RunStoppingPredicateId = Guid.Parse("15151515-1515-1515-1515-151515151515");
+    private static readonly Guid HeldVigilPredicateId = Guid.Parse("16161616-1616-1616-1616-161616161616");
 
     private static (MyceliumGateway Gateway, MockHttpMessageHandler Handler) NewGateway(
         Func<HttpRequestMessage, HttpResponseMessage>? respond = null)
@@ -79,6 +80,7 @@ public class MyceliumGatewayTests
         (PipelineRoles.StopRequest, StopRequestArchetypeId),
         (PipelineRoles.RequestedBy, RequestedByPredicateId),
         (PipelineRoles.RunStopping, RunStoppingPredicateId),
+        (PipelineRoles.HeldVigil, HeldVigilPredicateId),
     ];
 
     // The relationship to the Thing is the write the broker sends back as a stop, so it comes after the one naming the run.
@@ -102,6 +104,21 @@ public class MyceliumGatewayTests
         (stops.GetProperty("subjectId").GetGuid(), stops.GetProperty("predicateId").GetGuid(), stops.GetProperty("targetId").GetGuid())
             .Should().Be((request, RunStoppingPredicateId, thing));
         handler.Requests.Last().RequestUri!.AbsolutePath.Should().Be("/api/relationships");
+    }
+
+    [Fact]
+    public async Task RelateHeldVigilAsync_WhenTheBrokerCannotFindAnEnd_FailsWithTheBrokersReason()
+    {
+        var vigil = Guid.NewGuid();
+        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/relationships" && request.Method == HttpMethod.Post
+            ? Json(HttpStatusCode.NotFound, $$"""{"error":"Target not found: {{vigil}}"}""")
+            : RespondLikeAModelThatBindsItsRoles(request));
+
+        var relating = () => gateway.RelateHeldVigilAsync(Guid.NewGuid(), Guid.NewGuid(), vigil, CancellationToken.None);
+
+        var refused = await relating.Should().ThrowAsync<HttpRequestException>();
+        refused.WithMessage($"*Target not found: {vigil}*");
+        refused.Which.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]
