@@ -1158,7 +1158,7 @@ public class MyceliumGatewayTests
     }
 
     [Fact]
-    public async Task A_run_record_holds_each_nodes_error_and_decision_and_each_items_own_record_by_its_index()
+    public async Task A_run_record_holds_each_nodes_error_and_decision_and_each_items_own_record_with_its_number_and_the_first_count()
     {
         var runId = Guid.NewGuid();
         var pipelineId = Guid.NewGuid();
@@ -1171,7 +1171,7 @@ public class MyceliumGatewayTests
         object NodeRun(Guid id, string status, string? index, string? error, string? decision = null)
         {
             var properties = new Dictionary<string, object> { ["nodeId"] = Text(nodeId.ToString()), ["status"] = Text(status) };
-            if (index is not null) properties["index"] = Text(index);
+            if (index is not null) (properties["index"], properties["total"]) = (Text(index), Text("3"));
             if (error is not null) properties["error"] = Text(error);
             if (decision is not null) properties["decision"] = Text(decision);
             return new { id, name = "NodeRun Check", properties };
@@ -1188,7 +1188,7 @@ public class MyceliumGatewayTests
                     new { id = pipelineId, name = "Reservoir check", properties = (object)new { } },
                     new { id = hasId, name = "has", properties = (object)new { } },
                     new { id = ofId, name = "of", properties = (object)new { } },
-                }.Cast<object>().Concat([NodeRun(aggregate, "partial", null, "1/2 items failed"), NodeRun(second, "failed", "1", "east is dry"), NodeRun(first, "succeeded", "0", null, accept.ToString())]),
+                }.Cast<object>().Concat([NodeRun(aggregate, "partial", null, "1/2 items failed"), NodeRun(second, "failed", "2", "east is dry"), NodeRun(first, "succeeded", "0", null, accept.ToString())]),
                 relationships = new[] { Relates(runId, hasId, aggregate), Relates(runId, hasId, second), Relates(runId, hasId, first), Relates(runId, ofId, pipelineId) },
             },
         });
@@ -1200,7 +1200,8 @@ public class MyceliumGatewayTests
 
         var check = record!.Nodes.Should().ContainSingle().Which.Value;
         check.Error.Should().Be("1/2 items failed");
-        check.Items!.Select(item => (item.Status, item.Error, item.Decision)).Should().Equal(("succeeded", null, (Guid?)accept), ("failed", "east is dry", null));
+        check.Items!.Select(item => (item.Status, item.Error, item.Decision, item.Number))
+            .Should().Equal(("succeeded", null, (Guid?)accept, new ItemNumber(0, 3)), ("failed", "east is dry", null, new ItemNumber(2, 3)));
     }
 
     [Theory]

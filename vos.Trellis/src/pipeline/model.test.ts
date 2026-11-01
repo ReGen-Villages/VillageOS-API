@@ -353,7 +353,28 @@ describe('run animation source', () => {
 
     const model = new PipelineModel(...withRoles(things, relationships));
     expect(model.nodeRunStatuses(run.Id)).toEqual({ 'node-score': 'running' });        // ring = aggregate only
-    expect(model.nodeRunProgress(run.Id)).toEqual({ 'node-score': { done: 2, total: 3 } }); // 2 of 3 items terminal
+    expect(model.nodeRunProgress(run.Id)).toEqual({ 'node-score': { done: 2, reached: 3, spreadOver: 3 } });
+  });
+
+  it('counts a node\'s progress over the items that reached it, so a node only some items reach can finish', () => {
+    const things: VosThing[] = [];
+    const relationships: VosRelationship[] = [];
+    let n = 0;
+    const T = (name: string, props: Record<string, unknown> = {}): VosThing => {
+      const t = { Id: `t${++n}`, Name: name, Properties: props };
+      things.push(t);
+      return t;
+    };
+    const has = T('has');
+    const run = T('PipelineRun', { status: 'succeeded' });
+    const north = T('NodeRun Record level #0', { nodeId: 'node-record', status: 'succeeded', index: '0', total: '3' });
+    const east = T('NodeRun Record level #2', { nodeId: 'node-record', status: 'succeeded', index: '2', total: '3' });
+    for (const nodeRun of [north, east])
+      relationships.push({ Id: `r${++n}`, Name: '', SubjectId: run.Id, PredicateId: has.Id, TargetId: nodeRun.Id, Properties: {} });
+
+    const model = new PipelineModel(...withRoles(things, relationships));
+
+    expect(model.nodeRunProgress(run.Id)).toEqual({ 'node-record': { done: 2, reached: 2, spreadOver: 3 } });
   });
 
   it('lists a pipeline\'s runs newest-first, scoped to that pipeline', () => {

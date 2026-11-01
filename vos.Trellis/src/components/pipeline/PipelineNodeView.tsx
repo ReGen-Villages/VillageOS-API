@@ -1,7 +1,7 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
-import type { EndInformation, EndKind, PortInformation } from '../../pipeline/model';
+import type { EndInformation, EndKind, NodeRunProgress, PortInformation } from '../../pipeline/model';
 import type { EditorChoice } from '../../pipeline/serialize';
 
 export interface PipelineNodeData {
@@ -14,8 +14,7 @@ export interface PipelineNodeData {
   status?: string;
   /** Input-port name → run-parameter key. */
   parameterBindings?: Record<string, string>;
-  /** Fan-out progress: terminal items / total. */
-  progress?: { done: number; total: number };
+  progress?: NodeRunProgress;
   /** The Thing a boundary node stands for, held by id on the drawing and read off the model for display. */
   standsForId?: string;
   standsFor?: EndInformation;
@@ -66,9 +65,9 @@ export function PipelineNodeView({ data }: NodeProps) {
       <div className="px-3 py-1.5 border-b border-zinc-200 dark:border-zinc-700 text-sm font-semibold text-zinc-900 dark:text-white flex items-center justify-between gap-2">
         <span className="truncate">{d.label}</span>
         <span className="flex items-center gap-1.5">
-          {d.progress && d.progress.total > 1 && (
+          {d.progress && d.progress.spreadOver > 1 && (
             <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 px-1 rounded bg-zinc-100 dark:bg-zinc-700">
-              {d.progress.done}/{d.progress.total}
+              {d.progress.done}/{d.progress.reached}
             </span>
           )}
           <span className="text-[10px] font-mono text-zinc-400">{d.kind ? d.kind : d.subdomain}</span>

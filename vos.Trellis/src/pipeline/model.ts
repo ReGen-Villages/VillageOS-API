@@ -110,6 +110,12 @@ export interface CatalystConnection {
   startsPipeline?: PipelineNamed;
 }
 
+export interface NodeRunProgress {
+  done: number;
+  reached: number;
+  spreadOver: number;
+}
+
 export interface RunInformation {
   runId: string;
   status: string;
@@ -574,16 +580,18 @@ export class PipelineModel {
     return out;
   }
 
-  /** Fan-out progress per node: from the per-item records (those carrying an `index`), how many have
-   * reached a terminal status out of the total. Empty for non-fan-out nodes. */
-  nodeRunProgress(runId: string): Record<string, { done: number; total: number }> {
-    const out: Record<string, { done: number; total: number }> = {};
+  /** Fan-out progress per node, from the per-item records (those carrying an `index`): how many of the items that
+   * reached the node have finished, and how many items there were where they were spread out. Items can go on to
+   * different nodes, so a node's own count is the records it has, not the first count. Empty for non-fan-out nodes. */
+  nodeRunProgress(runId: string): Record<string, NodeRunProgress> {
+    const out: Record<string, NodeRunProgress> = {};
     for (const nodeRun of this.outgoing(runId, 'has')) {
       if (nodeRun.Properties.index === undefined) continue; // aggregate record
       const nodeId = nodeRun.Properties.nodeId;
       if (typeof nodeId !== 'string' || !nodeId) continue;
-      const entry = out[nodeId] ?? { done: 0, total: 0 };
-      entry.total = Math.max(entry.total, Number(nodeRun.Properties.total ?? 0));
+      const entry = out[nodeId] ?? { done: 0, reached: 0, spreadOver: 0 };
+      entry.reached += 1;
+      entry.spreadOver = Math.max(entry.spreadOver, Number(nodeRun.Properties.total ?? 0));
       if (String(nodeRun.Properties.status ?? '') !== 'running') entry.done += 1;
       out[nodeId] = entry;
     }

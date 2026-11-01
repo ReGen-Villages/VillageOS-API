@@ -27,7 +27,7 @@ public static class RunStatus
 }
 
 // Decision is the decision path a successful answer named. Items holds each item's own answer when the node ran
-// once per item.
+// once per item, and Number is an item's place among the items where they were spread out.
 public sealed record NodeRunResult(
     Guid NodeId,
     string Name,
@@ -36,7 +36,12 @@ public sealed record NodeRunResult(
     string? Error,
     AwaitedThing? Awaits = null,
     IReadOnlyList<NodeRunResult>? Items = null,
-    Guid? Decision = null);
+    Guid? Decision = null,
+    ItemNumber? Number = null);
+
+public sealed record ItemNumber(int Index, int Total);
+
+public sealed record NumberedItem(JsonElement Value, ItemNumber Number);
 
 public sealed record AwaitedThing(Guid Id, string Name);
 
