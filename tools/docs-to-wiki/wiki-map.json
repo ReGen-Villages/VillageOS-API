@@ -38,6 +38,7 @@
     { "doc": "vos.Service.Node.Echo/README.md", "why": "How to build and run the TypeScript example beside its source." },
     { "doc": "vos.Service.Python.Echo/README.md", "why": "How to build and run the Python example beside its source." },
     { "doc": "vos.Service.Python.Shared/README.md", "why": "How to install and test the shared Python library beside its source. The contract it implements is published in Services/Authoring." },
+    { "doc": "vos.Service.Quadrat/README.md", "why": "How to install and run the raster reader beside its source, and what a reading means. It becomes a published service page when it is a managed service." },
     { "doc": "vos.Service.Rust.Echo/README.md", "why": "How to build and run the Rust example beside its source." },
     { "doc": "vos.Service.Shared/Contracts/README.md", "why": "Describes the schema files it sits among, and is read with them open." },
     { "doc": "Tests/vos.Tests.Shared/README.md", "why": "Test helpers for people already in the test projects. Nothing outside the repository uses them." }

@@ -55,6 +55,7 @@ Everything talks to **Mycelium**, the VillageOS server that stores the graph and
 | vos.Service.EnergyBalance | Production | Site energy verdict — reads a study's generation inputs (e.g. solar: PV area × resource × efficiency) and consumption, and writes whether the site is net positive, the one energy figure a formula on the study cannot hold; a Handled-Predicate service in the same family as Metabolism |
 | vos.Service.WaterReserve | Production | Water-reserve simulation — tracks stored water against consumption (e.g. an emergency reserve under a supply failure). A pipeline node only: a site study declares all four of its figures as formulas, so nothing calls it about a study |
 | vos.Service.ModelBridge | Production | Generic bridge between a pipeline and the model — reads a property off a Thing or writes a computed result back (see [MODELBRIDGE.md](docs/MODELBRIDGE.md)) |
+| vos.Service.Quadrat | In development (Python) | Raster reader — the value at a point, or statistics over a polygon or box, from a GeoTIFF; a command line today, a managed service next |
 | vos.Service.CSharp.Echo | Example (C#) | Minimal managed microservice demonstrating the lifecycle — the canonical reference; also the reference pipeline node |
 | vos.Service.Go.Echo | Example (Go) | The same handler in Go (standard library, zero deps) |
 | vos.Service.Node.Echo | Example (Node/TS) | The same handler in TypeScript (Node built-ins, zero runtime deps) |

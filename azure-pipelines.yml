@@ -183,6 +183,16 @@ jobs:
     workingDirectory: vos.Service.Python.Echo
     condition: always()
 
+  - script: |
+      set -euo pipefail
+      python3 -m venv .venv
+      .venv/bin/python -m pip install --upgrade pip
+      .venv/bin/python -m pip install -r requirements.txt
+      .venv/bin/python -m pytest
+    displayName: 'Test Quadrat raster reader'
+    workingDirectory: vos.Service.Quadrat
+    condition: always()
+
   # There is no first-party Rust task, so rustup's own installer — skipped when an earlier build on
   # this agent already ran it. prependpath puts cargo on PATH for the steps below; the registry
   # location goes into a variable because the cache task cannot read a shell one.
