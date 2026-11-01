@@ -139,6 +139,49 @@ describe('PipelinePage', () => {
       .toEqual(['choice2']);
   });
 
+  it('saves what a node chose and a Thing its choice compares with, found by searching every Thing', async () => {
+    const { id } = catalystFixture();
+    render(<PipelinePage />);
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Pipeline name' })).toHaveValue('Digest'));
+
+    fireEvent.click(within(screen.getByRole('list', { name: 'Services' })).getByRole('button', { name: /intake/ }));
+    fireEvent.click([...document.querySelectorAll('.react-flow__node')].filter((node) => /intake/.test(node.textContent ?? '')).at(-1)!);
+    fireEvent.change(screen.getByLabelText('Chosen for cadence'), { target: { value: id.daily } });
+    fireEvent.click(screen.getByText('+ add choice'));
+    fireEvent.click(screen.getByLabelText('Search every Thing, not only what the ports offer'));
+    const addCompared = screen.getByPlaceholderText('Add a Thing for choice 1 to compare with');
+    fireEvent.change(addCompared, { target: { value: 'Weather station' } });
+    fireEvent.click(within(addCompared.parentElement!).getByText('Weather station'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    const { relationshipApi } = await import('../api/relationshipApi');
+    await waitFor(() => expect(vi.mocked(relationshipApi.create)).toHaveBeenCalledWith(expect.any(String), id.offers, id.daily));
+    expect(vi.mocked(relationshipApi.create)).toHaveBeenCalledWith(expect.any(String), id.comparesWith, id.weatherStation);
+  });
+
+  it('shows what a saved node chose and keeps it through a save', async () => {
+    const { things, relationships, id } = catalystFixture();
+    const relate = (subject: string, predicate: string, target: string) =>
+      relationships.push({ Id: `${subject}-${predicate}-${target}`, Name: '', SubjectId: subject, PredicateId: predicate, TargetId: target, Properties: {} });
+    things.push({ Id: 'reads-daily', Name: 'Reads daily', Properties: { x: 200, y: 0 } });
+    relate('reads-daily', id.is, things.find((thing) => thing.Name === 'Step')!.Id);
+    relate('reads-daily', id.has, id.intakeDoor);
+    relate(id.digest, id.has, 'reads-daily');
+    relate('reads-daily', id.offers, id.daily);
+    useModelStore.setState({ things, relationships, loaded: true });
+
+    render(<PipelinePage />);
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Pipeline name' })).toHaveValue('Digest'));
+    fireEvent.click([...document.querySelectorAll('.react-flow__node')].find((node) => /Reads daily/.test(node.textContent ?? ''))!);
+    expect(screen.getByLabelText('Chosen for cadence')).toHaveValue(id.daily);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    const { modelApi } = await import('../api/modelApi');
+    const { relationshipApi } = await import('../api/relationshipApi');
+    await waitFor(() => expect(vi.mocked(modelApi.applyFragment)).toHaveBeenCalled());
+    expect(vi.mocked(relationshipApi.remove)).not.toHaveBeenCalledWith(`reads-daily-${id.offers}-${id.daily}`);
+  });
+
   it('names a new pipeline from the roster and leaves the canvas empty for it', async () => {
     render(<PipelinePage />);
     await waitFor(() => expect(screen.getByRole('textbox', { name: 'Pipeline name' })).toHaveValue('Digest'));

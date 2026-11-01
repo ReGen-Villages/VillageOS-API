@@ -2,14 +2,27 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { NodeInspector } from './NodeInspector';
 import type { PipelineNodeData } from './PipelineNodeView';
+import type { VosThing } from '../../types/vos';
 
 const port = (portId: string, portName: string, direction: 'in' | 'out') =>
   ({ portId, portName, direction, type: 'any', required: false });
 
+const thing = (Id: string, Name: string): VosThing => ({ Id, Name, Properties: {} });
+const nearest = thing('s1', 'Nearest first');
+const cheapest = thing('s2', 'Cheapest first');
+const site = thing('site', 'North field');
+const names = new Map([nearest, cheapest, site].map((t) => [t.Id, t.Name]));
+
 function inspect(nodeId: string, data: PipelineNodeData, handlers: Partial<Parameters<typeof NodeInspector>[0]> = {}) {
   render(<NodeInspector nodeId={nodeId} data={data} wiredInputs={new Set()}
-    onSetPorts={vi.fn()} onSetBinding={vi.fn()} onSetChoices={vi.fn()} onSetRule={vi.fn()} onClose={vi.fn()} {...handlers} />);
+    offeredByPort={{}} everyThing={[nearest, cheapest, site]} nameOf={(id) => names.get(id) ?? id}
+    onSetPorts={vi.fn()} onSetBinding={vi.fn()} onSetChosen={vi.fn()} onSetChoices={vi.fn()} onSetRule={vi.fn()} onClose={vi.fn()} {...handlers} />);
 }
+
+const decide = (changes: Partial<PipelineNodeData> = {}): PipelineNodeData =>
+  ({ label: 'Decide', ports: [port('decide.strategy', 'strategy', 'in'), port('decide.limit', 'limit', 'in')], ...changes });
+const offering = { offeredByPort: { 'decide.strategy': [nearest, cheapest], 'decide.limit': [] } };
+const listedNames = () => screen.queryAllByRole('button').map((button) => button.textContent ?? '');
 
 describe('NodeInspector', () => {
   it('shows an input a wire fills as wired, found by the port identifier the wire reaches', () => {
@@ -72,12 +85,12 @@ describe('NodeInspector', () => {
 
     const [nodeId, choices] = onSetChoices.mock.calls[0];
     expect(nodeId).toBe('sort');
-    expect(choices).toEqual([{ id: expect.any(String), name: 'choice1', when: '' }]);
+    expect(choices).toEqual([{ id: expect.any(String), name: 'choice1', when: '', comparesWith: [] }]);
   });
 
   it('renames a choice, edits its rule and removes it', () => {
     const onSetChoices = vi.fn();
-    const large = { id: 'c1', name: 'Large', when: 'outputs.size > 10' };
+    const large = { id: 'c1', name: 'Large', when: 'outputs.size > 10', comparesWith: [] };
 
     inspect('sort', { label: 'Sort', ports: [], choices: [large] }, { onSetChoices });
     fireEvent.change(screen.getByLabelText('Name of choice 1'), { target: { value: 'Big' } });
@@ -89,5 +102,54 @@ describe('NodeInspector', () => {
       [{ ...large, when: 'outputs.size > 20' }],
       [],
     ]);
+  });
+
+  it('shows what the node chose for an in port that offers Things, and changes or clears it', () => {
+    const onSetChosen = vi.fn();
+
+    inspect('decide', decide({ chosen: { 'decide.strategy': 's2' } }), { ...offering, onSetChosen });
+    const strategy = screen.getByLabelText('Chosen for strategy');
+    expect(strategy).toHaveValue('s2');
+    expect(screen.queryByLabelText('Chosen for limit')).not.toBeInTheDocument();
+    fireEvent.change(strategy, { target: { value: 's1' } });
+    fireEvent.change(strategy, { target: { value: '' } });
+
+    expect(onSetChosen.mock.calls).toEqual([['decide', { 'decide.strategy': 's1' }], ['decide', {}]]);
+  });
+
+  it('lists only the offered Things for a choice to compare with until every Thing is searched', () => {
+    inspect('decide', decide({ choices: [{ id: 'c1', name: 'Accept', when: '', comparesWith: [] }] }), offering);
+    fireEvent.focus(screen.getByPlaceholderText('Add a Thing for choice 1 to compare with'));
+    expect(listedNames().some((name) => name.startsWith('North field'))).toBe(false);
+    expect(listedNames().some((name) => name.startsWith('Nearest first'))).toBe(true);
+
+    fireEvent.click(screen.getByLabelText('Search every Thing, not only what the ports offer'));
+    fireEvent.focus(screen.getByPlaceholderText('Add a Thing for choice 1 to compare with'));
+
+    expect(listedNames().some((name) => name.startsWith('North field'))).toBe(true);
+  });
+
+  it('adds a Thing found by searching every Thing, and turns that search off again', () => {
+    const onSetChoices = vi.fn();
+    const accept = { id: 'c1', name: 'Accept', when: '', comparesWith: ['s1'] };
+
+    inspect('decide', decide({ choices: [accept] }), { ...offering, onSetChoices });
+    const search = screen.getByLabelText('Search every Thing, not only what the ports offer');
+    fireEvent.click(search);
+    fireEvent.focus(screen.getByPlaceholderText('Add a Thing for choice 1 to compare with'));
+    fireEvent.click(screen.getByText('North field'));
+
+    expect(onSetChoices).toHaveBeenCalledWith('decide', [{ ...accept, comparesWith: ['s1', 'site'] }]);
+    expect(search).not.toBeChecked();
+  });
+
+  it('shows the Things a choice compares with and stops comparing with one', () => {
+    const onSetChoices = vi.fn();
+    const accept = { id: 'c1', name: 'Accept', when: '', comparesWith: ['s1', 'site'] };
+
+    inspect('decide', decide({ choices: [accept] }), { ...offering, onSetChoices });
+    fireEvent.click(screen.getByLabelText('Stop comparing with North field'));
+
+    expect(onSetChoices).toHaveBeenCalledWith('decide', [{ ...accept, comparesWith: ['s1'] }]);
   });
 });

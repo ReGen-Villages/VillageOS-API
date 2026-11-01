@@ -517,3 +517,32 @@ describe('the wire predicate before any wire is drawn', () => {
     expect(new PipelineModel(...withRoles(things, relationships)).wirePredicateId()).toBeUndefined();
   });
 });
+
+describe('what a node chose, and what a choice may compare with', () => {
+  function offeringModel(): PipelineModel {
+    const things: VosThing[] = [];
+    const relationships: VosRelationship[] = [];
+    let n = 0;
+    const T = (id: string, name: string, props: Record<string, unknown> = {}) => things.push({ Id: id, Name: name, Properties: props });
+    const R = (s: string, p: string, t: string) => relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
+    T('is', 'is'); T('has', 'has');
+    T('offers', 'proposes', playing(ROLE.Choice));
+    T('strategy', 'strategy'); T('limit', 'limit');
+    T('S1', 'Nearest first'); T('S2', 'Cheapest first'); T('LOOSE', 'Never offered');
+    R('strategy', 'offers', 'S1'); R('strategy', 'offers', 'S2');
+    T('N1', 'Decide'); R('N1', 'offers', 'S2'); R('N1', 'offers', 'LOOSE');
+    return new PipelineModel(...withRoles(things, relationships));
+  }
+  const inPort = (portId: string) => ({ portId, portName: portId, direction: 'in' as const, type: 'any', required: false });
+
+  it('keys what the node chose by the in port offering it, and leaves out a Thing no port offers', () => {
+    expect(offeringModel().chosenForEachInPort('N1', [inPort('strategy'), inPort('limit')])).toEqual({ strategy: 'S2' });
+  });
+
+  it('lists every Thing but the predicates as what a choice may compare with', () => {
+    const listed = offeringModel().thingsNotUsedAsPredicates().map((thing) => thing.Id);
+
+    expect(listed).toEqual(expect.arrayContaining(['S1', 'S2', 'LOOSE', 'N1', 'strategy']));
+    expect(listed).not.toContain('offers');
+  });
+});

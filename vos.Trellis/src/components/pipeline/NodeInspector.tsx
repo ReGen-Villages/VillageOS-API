@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PortInformation } from '../../pipeline/model';
 import type { EditorChoice } from '../../pipeline/serialize';
+import type { VosThing } from '../../types/vos';
+import { ThingPicker } from '../common/ThingPicker';
 import type { PipelineNodeData } from './PipelineNodeView';
 
 interface Props {
@@ -8,8 +11,13 @@ interface Props {
   data: PipelineNodeData;
   /** The input ports a wire already fills, which a parameter cannot. */
   wiredInputs: Set<string>;
+  /** In-port identifier → the Things that port offers. */
+  offeredByPort: Record<string, VosThing[]>;
+  everyThing: VosThing[];
+  nameOf: (thingId: string) => string;
   onSetPorts: (nodeId: string, ports: PortInformation[]) => void;
   onSetBinding: (nodeId: string, port: string, parameterKey: string) => void;
+  onSetChosen: (nodeId: string, chosen: Record<string, string>) => void;
   onSetChoices: (nodeId: string, choices: EditorChoice[]) => void;
   onSetRule: (nodeId: string, rule: string | undefined) => void;
   onClose: () => void;
@@ -23,16 +31,27 @@ const NO_FAILURE_REACHED = '$count(failures) = 0';
 
 /** The selected node: a boundary node's declared ports and the Output node's rule, or a service node's inputs bound
  *  to run parameters and the choices it holds. */
-export function NodeInspector({ nodeId, data, wiredInputs, onSetPorts, onSetBinding, onSetChoices, onSetRule, onClose }: Props) {
+export function NodeInspector({
+  nodeId, data, wiredInputs, offeredByPort, everyThing, nameOf, onSetPorts, onSetBinding, onSetChosen, onSetChoices, onSetRule, onClose,
+}: Props) {
   const { t } = useTranslation();
   const inputs = data.ports.filter((p) => p.direction === 'in');
   const bindings = data.parameterBindings ?? {};
+  const chosen = data.chosen ?? {};
+  const offeringInputs = inputs.filter((p) => (offeredByPort[p.portId] ?? []).length > 0);
+  const offered = [...new Map(offeringInputs.flatMap((p) => offeredByPort[p.portId]).map((thing) => [thing.Id, thing])).values()];
+  const choose = (portId: string, thingId: string) => {
+    const next = { ...chosen };
+    if (thingId) next[portId] = thingId;
+    else delete next[portId];
+    onSetChosen(nodeId, next);
+  };
   const choices = data.choices ?? [];
   const setChoice = (index: number, changed: Partial<EditorChoice>) =>
     onSetChoices(nodeId, choices.map((choice, at) => (at === index ? { ...choice, ...changed } : choice)));
 
   return (
-    <div className="absolute top-2 right-2 w-64 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded shadow-lg p-2 text-xs z-10">
+    <div className="absolute top-2 right-2 w-64 max-h-[calc(100%-1rem)] overflow-y-auto bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded shadow-lg p-2 text-xs z-10">
       <div className="font-semibold mb-1.5 flex items-center justify-between gap-2">
         <span className="truncate">{data.label}</span>
         <button onClick={onClose} aria-label={t('pipeline.closeInspector')} className="text-zinc-400 hover:text-zinc-600">×</button>
@@ -110,6 +129,25 @@ export function NodeInspector({ nodeId, data, wiredInputs, onSetPorts, onSetBind
               ))}
             </>
           )}
+          {offeringInputs.length > 0 && (
+            <>
+              <div className="text-zinc-400 mt-2">{t('pipeline.chosenLabel')}</div>
+              {offeringInputs.map((p) => (
+                <label key={p.portId} className="flex items-center gap-1">
+                  <span className="w-16 truncate text-zinc-600 dark:text-zinc-300">{p.portName}</span>
+                  <select
+                    aria-label={t('pipeline.chosenFor', { port: p.portName })}
+                    value={chosen[p.portId] ?? ''}
+                    onChange={(e) => choose(p.portId, e.target.value)}
+                    className={FIELD}
+                  >
+                    <option value="">{t('pipeline.nothingChosen')}</option>
+                    {offeredByPort[p.portId].map((thing) => <option key={thing.Id} value={thing.Id}>{thing.Name}</option>)}
+                  </select>
+                </label>
+              ))}
+            </>
+          )}
           <div className="text-zinc-400 mt-2">{t('pipeline.choicesLabel')}</div>
           {choices.map((choice, index) => (
             <div key={choice.id} className="flex flex-col gap-0.5 border-l-2 border-zinc-200 dark:border-zinc-700 pl-1">
@@ -133,14 +171,72 @@ export function NodeInspector({ nodeId, data, wiredInputs, onSetPorts, onSetBind
                 rows={2}
                 className={RULE}
               />
+              <ComparedThings
+                index={index + 1}
+                comparesWith={choice.comparesWith}
+                offered={offered}
+                everyThing={everyThing}
+                nameOf={nameOf}
+                onChange={(comparesWith) => setChoice(index, { comparesWith })}
+              />
             </div>
           ))}
           <button
-            onClick={() => onSetChoices(nodeId, [...choices, { id: crypto.randomUUID(), name: `choice${choices.length + 1}`, when: '' }])}
+            onClick={() => onSetChoices(nodeId, [...choices, { id: crypto.randomUUID(), name: `choice${choices.length + 1}`, when: '', comparesWith: [] }])}
             className="text-blue-500 hover:text-blue-600 text-left"
           >{t('pipeline.addChoice')}</button>
         </div>
       )}
+    </div>
+  );
+}
+
+interface ComparedThingsProperties {
+  index: number;
+  comparesWith: string[];
+  offered: VosThing[];
+  everyThing: VosThing[];
+  nameOf: (thingId: string) => string;
+  onChange: (comparesWith: string[]) => void;
+}
+
+/** Adding lists only what the node's in ports offer until the person turns on the search of every Thing, which turns off after each addition. */
+function ComparedThings({ index, comparesWith, offered, everyThing, nameOf, onChange }: ComparedThingsProperties) {
+  const { t } = useTranslation();
+  const [searchEveryThing, setSearchEveryThing] = useState(false);
+  const [additions, setAdditions] = useState(0);
+  const offeredIds = new Set(offered.map((thing) => thing.Id));
+  const listed = searchEveryThing ? [...offered, ...everyThing.filter((thing) => !offeredIds.has(thing.Id))] : offered;
+  const addable = listed.filter((thing) => !comparesWith.includes(thing.Id));
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="text-zinc-400">{t('pipeline.comparesWithLabel')}</div>
+      {comparesWith.map((thingId) => (
+        <div key={thingId} className="flex items-center gap-1">
+          <span className="flex-1 truncate">{nameOf(thingId)}</span>
+          <button
+            onClick={() => onChange(comparesWith.filter((compared) => compared !== thingId))}
+            aria-label={t('pipeline.removeCompared', { name: nameOf(thingId) })}
+            className="text-zinc-400 hover:text-red-400 px-1"
+          >×</button>
+        </div>
+      ))}
+      <ThingPicker
+        key={additions}
+        things={addable}
+        value=""
+        placeholder={t('pipeline.addCompared', { index })}
+        onChange={(thingId) => {
+          onChange([...comparesWith, thingId]);
+          setSearchEveryThing(false);
+          setAdditions((count) => count + 1);
+        }}
+      />
+      <label className="flex items-center gap-1 text-zinc-500">
+        <input type="checkbox" checked={searchEveryThing} onChange={(e) => setSearchEveryThing(e.target.checked)} />
+        {t('pipeline.searchEveryThing')}
+      </label>
     </div>
   );
 }
