@@ -1155,6 +1155,27 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
+    // Check reading's success runs straight to the Output node; its fail runs through Tell operator, then Log alarm.
+    public static (GraphFixture Fixture, Guid PipelineId) FailPathOfTwoNodesPipeline()
+    {
+        var fx = new GraphFixture();
+        var vocabulary = fx.DeclareVocabulary();
+        var check = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "CheckProto"), "Check reading", "check");
+        var tell = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "TellProto"), "Tell operator", "tell");
+        var log = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "LogProto"), "Log alarm", "log");
+
+        var pipe = fx.Thing("Reservoir check");
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Publish(pipe);
+        foreach (var node in new[] { check, tell, log })
+            fx.Rel(pipe, vocabulary.Has, node);
+
+        fx.TakeOn(fx.WireBetween(check, fx.Get("error"), tell, fx.PortOf(tell, "in", "in")), vocabulary.Fail);
+        fx.Wire(tell, "out", log, "in");
+        fx.EndAt(pipe, (check, "out"), (log, "out"));
+        return (fx, pipe.Id);
+    }
+
     private static GraphThing CollectionInPrototype(GraphFixture fx, PipelineVocabulary vocabulary, string name) =>
         InputOutputPrototype(fx, vocabulary, name, collectionIn: true);
 

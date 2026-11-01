@@ -88,6 +88,20 @@ public class NodesStartWhenTheirPathsAnswerTests
     }
 
     [Fact]
+    public async Task Every_node_on_a_path_not_taken_is_recorded_not_taken_when_nothing_else_is_calling()
+    {
+        var drawing = TestGraphs.FailPathOfTwoNodesPipeline();
+        var (gateway, executor) = Arrange(drawing, []);
+
+        var result = await executor.RunAsync(drawing.PipelineId, default, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        gateway.CalledSoFar().Should().Equal("check");
+        result.Nodes.Where(node => node.Name is "Tell operator" or "Log alarm").Select(node => (node.Name, node.Status))
+            .Should().BeEquivalentTo([("Tell operator", RunStatus.NotTaken), ("Log alarm", RunStatus.NotTaken)]);
+    }
+
+    [Fact]
     public async Task A_run_cancelled_while_one_path_is_calling_ends_only_once_that_call_has_answered()
     {
         var drawing = TestGraphs.TwoPathsPipeline();
