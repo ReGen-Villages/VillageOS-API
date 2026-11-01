@@ -409,7 +409,7 @@ public sealed class PipelineExecutor
         bool Unsettled(DagNode node) => !results.ContainsKey(node.NodeId) && !progress.Waiting.ContainsKey(node.NodeId);
 
         var itemWires = new HashSet<DagWire>(dag.Wires.Where(wire => ItemWires.Carries(dag, wire)), ReferenceEqualityComparer.Instance);
-        IEnumerable<DagWire> ItemWiresOutOf(DagNode node) => itemWires.Count == 0 ? [] : dag.WiresOutOf(node.NodeId).Where(itemWires.Contains);
+        IEnumerable<DagWire> ItemWiresOutOf(DagNode node) => dag.WiresOutOf(node.NodeId).Where(itemWires.Contains);
 
         var itemsAlong = new Dictionary<DagWire, Channel<NumberedItem>>(ReferenceEqualityComparer.Instance);
         Channel<NumberedItem> ItemsAlong(DagWire wire) =>
@@ -508,7 +508,7 @@ public sealed class PipelineExecutor
                 var starting = ready.Except(notTaken).ToList();
                 foreach (var node in starting)
                 {
-                    var itemWire = itemWires.Count == 0 ? null : dag.WiresInto(node.NodeId).FirstOrDefault(itemWires.Contains);
+                    var itemWire = dag.WiresInto(node.NodeId).FirstOrDefault(itemWires.Contains);
                     var items = itemWire is not null && (fedWhileSending.Contains(node) || deliveries.ContainsKey(itemWire)) ? ItemsAlong(itemWire).Reader : null;
                     calling[RunNodeGuardedAsync(gate, dag, node, rid, DeliveredInto(dag, node, deliveries), runParams,
                         progress.Trying.TryGetValue(node.NodeId, out var made) ? made : [], rehearsal, items, SendingEachItemOn(node), cancellationToken)] = node;
