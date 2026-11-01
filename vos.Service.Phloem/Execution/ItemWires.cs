@@ -2,9 +2,7 @@ using vos.Service.Phloem.Model;
 
 namespace vos.Service.Phloem.Execution;
 
-// A wire items travel along one at a time, each keeping its number: it leaves a node that runs once per item from a port
-// answering one value per item, and it alone fills the next node's once-per-item input. Items meet on a wire with a
-// transform, because a transform there sees the whole list.
+// Items meet on a wire with a transform, because a transform there sees the whole list.
 public static class ItemWires
 {
     public static bool Carries(PipelineDag dag, DagWire wire) =>

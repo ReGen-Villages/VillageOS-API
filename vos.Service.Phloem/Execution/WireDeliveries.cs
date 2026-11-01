@@ -32,8 +32,7 @@ public static class WireDeliveries
         return new WireDelivery(Gathered(dag, wire.From.Port, chosen), chosen.Any(item => item.Status == RunStatus.Failed));
     }
 
-    // The items a settled node sends along an item wire. A node that ran once sends each element of a list it answered,
-    // or the value itself, numbered afresh.
+    // A node that ran once sends each element of a list it answered, or the value itself, numbered afresh.
     public static IEnumerable<NumberedItem> ItemsAlong(PipelineDag dag, DagWire wire, NodeRunResult result)
     {
         if (result.Items is { } items)
