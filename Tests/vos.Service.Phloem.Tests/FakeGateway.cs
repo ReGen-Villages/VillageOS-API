@@ -168,11 +168,21 @@ internal sealed class FakeGateway : IMyceliumGateway
             AttemptsRecorded.Add((runId, nodeId, index, attempt));
             if (index is null && Records.TryGetValue((runId, nodeId), out var record))
                 Records[(runId, nodeId)] = record with { Attempts = [.. record.AttemptsMade, attempt] };
+            if (index is int item && _itemRecords.TryGetValue((runId, nodeId), out var items) && items.TryGetValue(item, out var itemRecord))
+                items[item] = itemRecord with { Attempts = [.. itemRecord.AttemptsMade, attempt] };
         }
         return Task.CompletedTask;
     }
 
-    public List<TryingNodeRun> TryingItems { get; } = new();
+    public void RecordItem(Guid runId, Guid nodeId, NodeRecord item)
+    {
+        lock (_model)
+        {
+            if (!_itemRecords.TryGetValue((runId, nodeId), out var items))
+                _itemRecords[(runId, nodeId)] = items = new SortedList<int, NodeRecord>();
+            items[item.Number!.Index] = item;
+        }
+    }
 
     public List<Cadence> Cadences { get; } = new();
     public List<(Guid CadenceId, DateTimeOffset Due)> LastDueWritten { get; } = new();
@@ -201,9 +211,9 @@ internal sealed class FakeGateway : IMyceliumGateway
     public Task<IReadOnlyList<TryingNodeRun>> TryingNodeRunsAsync(CancellationToken ct)
     {
         lock (_model)
-            return Task.FromResult<IReadOnlyList<TryingNodeRun>>(Records.Where(record => record.Value.Status == RunStatus.Trying)
-                .Select(record => new TryingNodeRun(record.Key.RunId, record.Key.NodeId, PerItem: false))
-                .Concat(TryingItems).ToList());
+            return Task.FromResult<IReadOnlyList<TryingNodeRun>>(Records.Where(record => record.Value.Status == RunStatus.Trying).Select(record => record.Key)
+                .Concat(_itemRecords.Where(items => items.Value.Values.Any(item => item.Status == RunStatus.Trying)).Select(items => items.Key))
+                .Select(key => new TryingNodeRun(key.RunId, key.NodeId)).ToList());
     }
 
     public Task<RunRecord?> ReadRunRecordAsync(Guid runId, CancellationToken ct)

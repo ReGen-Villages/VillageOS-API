@@ -17,6 +17,7 @@ public sealed class PipelineExecutor
 {
     private static readonly IReadOnlyDictionary<string, JsonElement> NoOutputs =
         new Dictionary<string, JsonElement>();
+    private static readonly IReadOnlyDictionary<int, NodeRecord> NoItemsMade = new Dictionary<int, NodeRecord>();
 
     private readonly IMyceliumGateway _gateway;
     private readonly ILogger<PipelineExecutor> _logger;
@@ -152,11 +153,10 @@ public sealed class PipelineExecutor
             return ResumeOutcome.Resumed;
         }
 
-        var (progress, missing) = ProgressFrom(dag, record);
-        if (missing is not null)
+        var (progress, cannotResume) = ProgressFrom(dag, record, "resume");
+        if (cannotResume is not null)
         {
-            await FailRunAsync(record.RunId, record.PipelineId,
-                $"The record of '{missing.Name}' is missing, so the run cannot resume without running it again.", cancellationToken);
+            await FailRunAsync(record.RunId, record.PipelineId, cannotResume, cancellationToken);
             return ResumeOutcome.Resumed;
         }
 
@@ -240,9 +240,8 @@ public sealed class PipelineExecutor
         return placed;
     }
 
-    // On start: a node run left mid-trying carries on from its record, its next attempt numbered after the ones made.
-    // A fan-out's item cannot: the sweep runs the whole node again, so the run fails rather than calling its items twice.
-    // Answers how many runs were carried on.
+    // On start: a node run, or an item, left mid-trying carries on from its record, its next attempt numbered after the
+    // ones made. Answers how many runs were carried on.
     public async Task<int> RecoverTryingAsync(CancellationToken cancellationToken)
     {
         var carriedOn = 0;
@@ -255,12 +254,8 @@ public sealed class PipelineExecutor
             if (record is null) continue;
             var (dag, refusal) = await LoadAsync(record.PipelineId, cancellationToken);
             var name = dag?.Node(trying.NodeId)?.Name ?? trying.NodeId.ToString();
-            var (progress, missing) = dag is null ? (null, null) : ProgressFrom(dag, record);
-
-            var failure = dag is null ? refusal
-                : trying.PerItem ? $"'{name}' was trying one of its items when the orchestrator stopped, and a fan-out cannot be carried on from its record."
-                : missing is not null ? $"The record of '{missing.Name}' is missing, so the run cannot be carried on without running it again."
-                : null;
+            var (progress, cannotGoOn) = dag is null ? (null, refusal) : ProgressFrom(dag, record, "be carried on");
+            var failure = cannotGoOn;
 
             if (failure is not null)
             {
@@ -322,6 +317,8 @@ public sealed class PipelineExecutor
         public HashSet<Guid> Holding { get; } = new();
         // Nodes read back mid-trying, with the attempts their record holds, so the next attempt is numbered after them.
         public Dictionary<Guid, IReadOnlyList<AttemptRecord>> Trying { get; } = new();
+        // Once-per-item nodes read back part way through, with each item's record by its number.
+        public Dictionary<Guid, IReadOnlyDictionary<int, NodeRecord>> ItemsMade { get; } = new();
 
         // Answers whether anything carried on from the node, so an answer that reaches no wire can end the run.
         public bool Settle(PipelineDag dag, NodeRunResult result)
@@ -338,13 +335,23 @@ public sealed class PipelineExecutor
     }
 
     // A node with no record is one the run had not reached, which only a node behind a wait can be; any other
-    // missing record means the run would have to call that node again to carry on.
-    private static (Progress Progress, DagNode? Missing) ProgressFrom(PipelineDag dag, RunRecord record)
+    // missing record means the run would have to call that node again to carry on. An item caught in the middle of a
+    // call may already have reached its service, so the run does not go on without it either.
+    private static (Progress Progress, string? CannotGoOn) ProgressFrom(PipelineDag dag, RunRecord record, string goingOn)
     {
         var progress = new Progress();
         foreach (var node in dag.Nodes)
         {
-            if (!record.Nodes.TryGetValue(node.NodeId, out var recorded) || recorded.Status == RunStatus.Running) continue;
+            if (!record.Nodes.TryGetValue(node.NodeId, out var recorded)) continue;
+            if (recorded is { Status: RunStatus.Running, Items: { Count: > 0 } items })
+            {
+                if (items.FirstOrDefault(item => item.Status == RunStatus.Running)?.Number is { } calling)
+                    return (progress, $"'{node.Name}' was calling for item {calling.Index + 1} of {calling.Total} when the orchestrator stopped, " +
+                                      $"and that call may have reached its service, so the run cannot {goingOn} without calling it again.");
+                progress.ItemsMade[node.NodeId] = items.Where(item => item.Number is not null).ToDictionary(item => item.Number!.Index);
+                continue;
+            }
+            if (recorded.Status == RunStatus.Running) continue;
             var result = new NodeRunResult(node.NodeId, node.Name, recorded.Status, recorded.Outputs, recorded.Error,
                 Items: recorded.Items?.Select(item => new NodeRunResult(node.NodeId, node.Name, item.Status, item.Outputs, item.Error, Decision: item.Decision,
                     Number: item.Number)).ToList(),
@@ -363,10 +370,11 @@ public sealed class PipelineExecutor
             progress.Settle(dag, result);
         }
 
-        var behindAPause = Downstream(dag, progress.Waiting.Keys.Concat(progress.Trying.Keys));
-        var missing = dag.Nodes.FirstOrDefault(node => !progress.Results.ContainsKey(node.NodeId)
-            && !progress.Waiting.ContainsKey(node.NodeId) && !progress.Trying.ContainsKey(node.NodeId) && !behindAPause.Contains(node.NodeId));
-        return (progress, missing);
+        var underWay = progress.Waiting.Keys.Concat(progress.Trying.Keys).Concat(progress.ItemsMade.Keys).ToHashSet();
+        var behindAPause = Downstream(dag, underWay);
+        var missing = dag.Nodes.FirstOrDefault(node => !progress.Results.ContainsKey(node.NodeId) && !underWay.Contains(node.NodeId)
+            && !behindAPause.Contains(node.NodeId));
+        return (progress, missing is null ? null : $"The record of '{missing.Name}' is missing, so the run cannot {goingOn} without running it again.");
     }
 
     private static HashSet<Guid> Downstream(PipelineDag dag, IEnumerable<Guid> from)
@@ -511,7 +519,9 @@ public sealed class PipelineExecutor
                     var itemWire = dag.WiresInto(node.NodeId).FirstOrDefault(itemWires.Contains);
                     var items = itemWire is not null && (fedWhileSending.Contains(node) || deliveries.ContainsKey(itemWire)) ? ItemsAlong(itemWire).Reader : null;
                     calling[RunNodeGuardedAsync(gate, dag, node, rid, DeliveredInto(dag, node, deliveries), runParams,
-                        progress.Trying.TryGetValue(node.NodeId, out var made) ? made : [], rehearsal, items, SendingEachItemOn(node), cancellationToken)] = node;
+                        progress.Trying.TryGetValue(node.NodeId, out var made) ? made : [],
+                        progress.ItemsMade.TryGetValue(node.NodeId, out var itemsMade) ? itemsMade : NoItemsMade,
+                        rehearsal, items, SendingEachItemOn(node), cancellationToken)] = node;
                 }
 
                 if (notTaken.Count > 0 || starting.Any(node => ItemWiresOutOf(node).Any())) continue;
@@ -739,15 +749,15 @@ public sealed class PipelineExecutor
     private async Task<NodeRunResult> RunNodeGuardedAsync(
         SemaphoreSlim gate, PipelineDag dag, DagNode node, Guid runId,
         IReadOnlyDictionary<DagWire, WireDelivery> deliveries, JsonElement runParams,
-        IReadOnlyList<AttemptRecord> attemptsMade, bool rehearsal, ChannelReader<NumberedItem>? items, Action<NodeRunResult>? answered,
-        CancellationToken cancellationToken)
+        IReadOnlyList<AttemptRecord> attemptsMade, IReadOnlyDictionary<int, NodeRecord> itemsMade, bool rehearsal, ChannelReader<NumberedItem>? items,
+        Action<NodeRunResult>? answered, CancellationToken cancellationToken)
     {
         if (items is not null && !await items.WaitToReadAsync(cancellationToken))
             return new NodeRunResult(node.NodeId, node.Name, RunStatus.NotTaken, NoOutputs, null);
         await gate.WaitAsync(cancellationToken);
         try
         {
-            return await RunNodeAsync(dag, node, runId, deliveries, runParams, attemptsMade, rehearsal, items, answered, cancellationToken);
+            return await RunNodeAsync(dag, node, runId, deliveries, runParams, attemptsMade, itemsMade, rehearsal, items, answered, cancellationToken);
         }
         finally
         {
@@ -883,8 +893,8 @@ public sealed class PipelineExecutor
     private async Task<NodeRunResult> RunNodeAsync(
         PipelineDag dag, DagNode node, Guid runId,
         IReadOnlyDictionary<DagWire, WireDelivery> deliveries, JsonElement runParams,
-        IReadOnlyList<AttemptRecord> attemptsMade, bool rehearsal, ChannelReader<NumberedItem>? items, Action<NodeRunResult>? answered,
-        CancellationToken cancellationToken)
+        IReadOnlyList<AttemptRecord> attemptsMade, IReadOnlyDictionary<int, NodeRecord> itemsMade, bool rehearsal, ChannelReader<NumberedItem>? items,
+        Action<NodeRunResult>? answered, CancellationToken cancellationToken)
     {
         // Mark the node (aggregate) running before its service is called so the editor animates it live; the terminal status
         // is written by RunAsync from the value returned here.
@@ -926,9 +936,9 @@ public sealed class PipelineExecutor
         // Fan-out: if the node has a collection input and it carries a list, run the node once per item.
         var collection = node.CollectionInput;
         if (collection != null && items is not null)
-            return await RunFanOutAsync(node, runId, inputs, collection.PortName, items, answered, rehearsal, cancellationToken);
+            return await RunFanOutAsync(node, runId, inputs, collection.PortName, items, itemsMade, answered, rehearsal, cancellationToken);
         if (collection != null && inputs.TryGetValue(collection.PortName, out var collValue) && collValue.ValueKind == JsonValueKind.Array)
-            return await RunFanOutAsync(node, runId, inputs, collection.PortName, NumberedAfresh(collValue), answered, rehearsal, cancellationToken);
+            return await RunFanOutAsync(node, runId, inputs, collection.PortName, NumberedAfresh(collValue), itemsMade, answered, rehearsal, cancellationToken);
 
         AwaitedThing? awaited = null;
         if (node.Waits is { } wait)
@@ -1027,12 +1037,15 @@ public sealed class PipelineExecutor
     // and gather each output port into a list. onItemError chooses fail-fast vs collect-partial.
     private async Task<NodeRunResult> RunFanOutAsync(
         DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> baseInputs, string collectionPort,
-        ChannelReader<NumberedItem> items, Action<NodeRunResult>? answered, bool rehearsal, CancellationToken cancellationToken)
+        ChannelReader<NumberedItem> items, IReadOnlyDictionary<int, NodeRecord> itemsMade, Action<NodeRunResult>? answered, bool rehearsal,
+        CancellationToken cancellationToken)
     {
         using var itemGate = new SemaphoreSlim(_maxConcurrency);
         var running = new List<Task<NodeRunResult>>();
         await foreach (var item in items.ReadAllAsync(cancellationToken))
-            running.Add(RunItemAsync(node, runId, baseInputs, collectionPort, item, itemGate, answered, rehearsal, cancellationToken));
+            running.Add(itemsMade.TryGetValue(item.Number.Index, out var made) && RunStatus.IsFinished(made.Status)
+                ? Task.FromResult(AnsweredBefore(node, item, made, answered))
+                : RunItemAsync(node, runId, baseInputs, collectionPort, item, made?.AttemptsMade ?? [], itemGate, answered, rehearsal, cancellationToken));
         var results = (await Task.WhenAll(running)).OrderBy(result => result.Number!.Index).ToArray();
         if (results.FirstOrDefault(result => result.Status == RunStatus.Cancelled) is { } stopped)
             return new NodeRunResult(node.NodeId, node.Name, RunStatus.Cancelled, NoOutputs, stopped.Error, Items: results);
@@ -1054,9 +1067,16 @@ public sealed class PipelineExecutor
         return new NodeRunResult(node.NodeId, node.Name, status, gathered, failures > 0 ? $"{failures}/{total} items failed" : null, Items: results);
     }
 
+    private static NodeRunResult AnsweredBefore(DagNode node, NumberedItem item, NodeRecord made, Action<NodeRunResult>? answered)
+    {
+        var result = new NodeRunResult(node.NodeId, node.Name, made.Status, made.Outputs, made.Error, Decision: made.Decision, Number: item.Number);
+        answered?.Invoke(result);
+        return result;
+    }
+
     private async Task<NodeRunResult> RunItemAsync(
         DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> baseInputs, string collectionPort, NumberedItem item,
-        SemaphoreSlim itemGate, Action<NodeRunResult>? answered, bool rehearsal, CancellationToken cancellationToken)
+        IReadOnlyList<AttemptRecord> attemptsMade, SemaphoreSlim itemGate, Action<NodeRunResult>? answered, bool rehearsal, CancellationToken cancellationToken)
     {
         await itemGate.WaitAsync(cancellationToken);
         try
@@ -1070,7 +1090,7 @@ public sealed class PipelineExecutor
             }
             await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, RunStatus.Running, null, cancellationToken, index, total), "persist item running");
             var inputs = new Dictionary<string, JsonElement>(baseInputs, StringComparer.Ordinal) { [collectionPort] = item.Value };
-            var (attempted, _) = await AttemptAsync(node, runId, inputs, index, total, [], rehearsal, cancellationToken);
+            var (attempted, _) = await AttemptAsync(node, runId, inputs, index, total, attemptsMade, rehearsal, cancellationToken);
             var result = attempted with { Number = item.Number };
             await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, result.Status, result.Error, cancellationToken, index, total, result.Outputs,
                 result.Decision), "persist item terminal");
