@@ -80,6 +80,58 @@ public class ItemsGoOnByThemselvesTests
     }
 
     [Fact]
+    public async Task Items_meet_on_a_wire_that_carries_a_transform_so_it_sees_the_whole_list()
+    {
+        var drawing = TestGraphs.ItemsGoOnPipeline(transform: "$reverse($)");
+        var north = Held();
+        var (gateway, executor) = Arrange(drawing, (subdomain, envelope) =>
+            subdomain == "check" && ReadingOf(envelope) == "North" ? north.Task : Task.FromResult(Echo(envelope)));
+
+        var running = executor.RunAsync(drawing.PipelineId, Readings, CancellationToken.None);
+        await Settle.UntilAsync(() => Called(gateway, "check").Count == 3, "every reading is being checked");
+        await Settle.BeforeAssertingAbsenceAsync(TimeSpan.FromMilliseconds(200));
+        var recordedWhileNorthIsChecked = Called(gateway, "record");
+        north.TrySetResult(Echo(JsonSerializer.SerializeToElement(new { inputs = new { @in = "North" } })));
+        var result = await running;
+
+        recordedWhileNorthIsChecked.Should().BeEmpty();
+        result.Success.Should().BeTrue();
+        gateway.Envelopes.Where(call => call.Subdomain == "record")
+            .Select(call => (ReadingOf(call.Envelope), call.Envelope.GetProperty("index").GetInt32()))
+            .Should().BeEquivalentTo([("East", 0), ("South", 1), ("North", 2)]);
+    }
+
+    [Fact]
+    public async Task A_node_gathers_what_its_items_answered_in_item_order_whatever_order_they_answered_in()
+    {
+        var drawing = TestGraphs.ItemsGoOnPipeline();
+        var north = Held();
+        var (gateway, executor) = Arrange(drawing, (subdomain, envelope) =>
+            subdomain == "record" && ReadingOf(envelope) == "North" ? north.Task : Task.FromResult(Echo(envelope)));
+
+        var running = executor.RunAsync(drawing.PipelineId, Readings, CancellationToken.None);
+        await Settle.UntilAsync(() => gateway.ItemRecordsOf("Record level").Count == 3, "every reading reaches 'Record level'");
+        north.TrySetResult(Echo(JsonSerializer.SerializeToElement(new { inputs = new { @in = "North" } })));
+        var result = await running;
+
+        result.Nodes.Single(node => node.Name == "Record level").Outputs["out"].EnumerateArray().Select(reading => reading.GetString())
+            .Should().Equal("North", "South", "East");
+    }
+
+    [Fact]
+    public async Task A_node_fed_items_one_at_a_time_that_no_item_reaches_is_recorded_not_taken()
+    {
+        var drawing = TestGraphs.ItemsGoOnPipeline();
+        var (gateway, executor) = Arrange(drawing, (subdomain, envelope) => Task.FromResult(subdomain == "check" ? Refuse() : Echo(envelope)));
+
+        var result = await executor.RunAsync(drawing.PipelineId, Readings, CancellationToken.None);
+
+        result.Nodes.Single(node => node.Name == "Record level").Status.Should().Be(RunStatus.NotTaken);
+        Called(gateway, "record").Should().BeEmpty();
+        gateway.ItemRecordsOf("Tell operator").Should().BeEquivalentTo([(0, 3), (1, 3), (2, 3)]);
+    }
+
+    [Fact]
     public async Task An_item_keeps_its_number_on_every_node_it_reaches()
     {
         var drawing = TestGraphs.ItemsGoOnPipeline();

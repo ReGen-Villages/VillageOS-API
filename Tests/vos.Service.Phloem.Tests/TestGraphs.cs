@@ -1012,9 +1012,10 @@ public static class TestGraphs
     // A start node hands the run's subject to Review, which sends it for review and waits for it to enter `decided`;
     // Publish then runs on what Review answered.
     // sortedBeside adds Sort, which decides keep or drop on the run parameter `items` (once per item when sortsPerItem);
-    // what it keeps reaches Publish at `sorted`, beside Review's notice at `notice`.
+    // what it keeps reaches Publish at `sorted`, beside Review's notice at `notice`. recordedPerItem adds Record, which runs
+    // once for each item Sort keeps and needs Review's notice too, so it runs only once the run resumes.
     public static WaitingFixture WaitingPipeline(bool wired = true, bool collection = false, bool approvedBeside = false,
-        bool sortedBeside = false, bool sortsPerItem = false, string keepWhen = "$contains(outputs.out, 'kept')")
+        bool sortedBeside = false, bool sortsPerItem = false, string keepWhen = "$contains(outputs.out, 'kept')", bool recordedPerItem = false)
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
@@ -1067,8 +1068,20 @@ public static class TestGraphs
             fx.Rel(pipe, vocabulary.Has, sort);
             fx.Rel(pipe, vocabulary.Has, discard);
             fx.Wire(start, "items", sort, "in");
-            fx.TakeOn(fx.Wire(sort, "out", publish, "in", ("toPath", "sorted")), fx.ChoiceOf(sort, "keep", keepWhen));
+            var keep = fx.ChoiceOf(sort, "keep", keepWhen);
+            fx.TakeOn(fx.Wire(sort, "out", publish, "in", ("toPath", "sorted")), keep);
             fx.TakeOn(fx.Wire(sort, "out", discard, "in"), fx.ChoiceOf(sort, "drop"));
+            if (recordedPerItem)
+            {
+                var recordProto = CollectionInPrototype(fx, vocabulary, "RecordProto");
+                var reviewed = fx.Thing("p.notice", ("direction", "in"), ("type", "any"), ("portName", "notice"));
+                fx.Rel(reviewed, vocabulary.Is, vocabulary.Port);
+                fx.Rel(recordProto, vocabulary.Has, reviewed);
+                var record = ServiceNode(fx, vocabulary, recordProto, "Record", "record");
+                fx.Rel(pipe, vocabulary.Has, record);
+                fx.TakeOn(fx.Wire(sort, "out", record, "in"), keep);
+                fx.Wire(review, "notice", record, "notice");
+            }
         }
 
         // A second branch waiting on the same Thing for another state, with nothing after it.

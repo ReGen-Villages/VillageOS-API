@@ -122,6 +122,31 @@ public class WaitingRunTests
     }
 
     [Fact]
+    public async Task Items_read_back_from_the_record_keep_their_numbers_on_a_node_that_runs_once_the_run_resumes()
+    {
+        var waiting = TestGraphs.WaitingPipeline(sortedBeside: true, sortsPerItem: true, keepWhen: "inputs.in = 'b'", recordedPerItem: true);
+        var gateway = new FakeGateway(waiting.Fixture.Build())
+        {
+            OnCall = (subdomain, envelope) => subdomain switch
+            {
+                "review" => NodeOk(("notice", "sent for review")),
+                "sort" => NodeOk(("out", "sorted " + envelope.GetProperty("inputs").GetProperty("in").GetString())),
+                _ => new NodeCallResult(200, JsonSerializer.Serialize(new { result = "success", outputs = new { @out = envelope.GetProperty("inputs").GetProperty("in") } })),
+            },
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+        var waited = await executor.RunAsync(waiting.PipelineId, JsonSerializer.SerializeToElement(new { items = new[] { "a", "b" } }), CancellationToken.None, subject: Plot);
+        var recordedBeforeResuming = gateway.Called.Contains("record");
+
+        await executor.ResumeAsync(gateway.HeldVigils[(waited.RunId, waiting.Review.Id)], CancellationToken.None);
+
+        recordedBeforeResuming.Should().BeFalse();
+        var recorded = gateway.Envelopes.Single(sent => sent.Subdomain == "record").Envelope;
+        (recorded.GetProperty("inputs").GetProperty("in").GetString(), recorded.GetProperty("index").GetInt32()).Should().Be(("sorted b", 1));
+        gateway.ItemRecordsOf("Record").Should().Equal((1, 2));
+    }
+
+    [Fact]
     public async Task The_vigils_answer_resumes_the_run_from_its_record_without_calling_the_waiting_node_again()
     {
         var (waiting, gateway, executor) = Arrange();
