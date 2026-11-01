@@ -735,8 +735,7 @@ public sealed class PipelineExecutor
         }
     }
 
-    // A node fed items one at a time takes its place among the nodes calling only once its first item arrives, so it never
-    // holds a place the node sending it items is waiting for.
+    // A node fed items one at a time takes a calling place only once its first item arrives, so other nodes can run while it waits.
     private async Task<NodeRunResult> RunNodeGuardedAsync(
         SemaphoreSlim gate, PipelineDag dag, DagNode node, Guid runId,
         IReadOnlyDictionary<DagWire, WireDelivery> deliveries, JsonElement runParams,
