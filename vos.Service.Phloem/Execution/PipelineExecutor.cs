@@ -441,12 +441,6 @@ public sealed class PipelineExecutor
             }
         }
 
-        void CloseEveryItemWire()
-        {
-            foreach (var channel in itemsAlong.Values)
-                channel.Writer.TryComplete();
-        }
-
         foreach (var settled in results.Values.ToList())
             ReleaseItems(settled, eachItemWentOn: false);
 
@@ -526,7 +520,6 @@ public sealed class PipelineExecutor
         }
         catch when (calling.Count > 0)
         {
-            CloseEveryItemWire();
             await ((Task)Task.WhenAll(calling.Keys)).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             throw;
         }

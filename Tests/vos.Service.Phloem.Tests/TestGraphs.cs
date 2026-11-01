@@ -1168,14 +1168,21 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
+    public enum AlsoFillingRecordLevel { Nothing, ASecondWire, AParameter, AChoice }
+
     // In → Check reading, once per reading → Record level, once per reading → Output. Check reading's fail runs from its
-    // error port to Tell operator, also once per reading.
-    public static (GraphFixture Fixture, Guid PipelineId) ItemsGoOnPipeline(string onItemError = "continue", string transform = "")
+    // error port to Tell operator, also once per reading. checkAnswersAList marks Check reading's out port as a collection;
+    // springPathBeside adds Read spring → Read level, which shares nothing with the readings.
+    public static (GraphFixture Fixture, Guid PipelineId) ItemsGoOnPipeline(string onItemError = "continue", string transform = "", string fromPath = "",
+        AlsoFillingRecordLevel alsoFilling = AlsoFillingRecordLevel.Nothing, bool checkAnswersAList = false, bool springPathBeside = false,
+        bool readingsReachCheck = true)
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var check = ServiceNode(fx, vocabulary, CollectionInPrototype(fx, vocabulary, "CheckProto"), "Check reading", "check", ("onItemError", onItemError));
-        var record = ServiceNode(fx, vocabulary, CollectionInPrototype(fx, vocabulary, "RecordProto"), "Record level", "record", ("onItemError", "continue"));
+        var checkProto = InputOutputPrototype(fx, vocabulary, "CheckProto", collectionIn: true, collectionOut: checkAnswersAList);
+        var check = ServiceNode(fx, vocabulary, checkProto, "Check reading", "check", ("onItemError", onItemError));
+        var record = ServiceNode(fx, vocabulary, CollectionInPrototype(fx, vocabulary, "RecordProto"), "Record level", "record",
+            alsoFilling == AlsoFillingRecordLevel.AParameter ? [("onItemError", "continue"), ("parameterBindings", "{\"in\":\"spare\"}")] : [("onItemError", "continue")]);
         var tell = ServiceNode(fx, vocabulary, CollectionInPrototype(fx, vocabulary, "TellProto"), "Tell operator", "tell", ("onItemError", "continue"));
 
         var input = fx.Thing("In");
@@ -1187,13 +1194,37 @@ public static class TestGraphs
         var pipe = fx.Thing("Reservoir readings");
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
         fx.Publish(pipe);
-        foreach (var node in new[] { input, check, record, tell })
+        foreach (var node in new[] { check, record, tell })
             fx.Rel(pipe, vocabulary.Has, node);
 
-        fx.Wire(input, "readings", check, "in");
-        fx.Wire(check, "out", record, "in", (ModelNames.Transform, transform));
+        if (readingsReachCheck)
+        {
+            fx.Rel(pipe, vocabulary.Has, input);
+            fx.Wire(input, "readings", check, "in");
+        }
+        fx.Wire(check, "out", record, "in", (ModelNames.Transform, transform), (ModelNames.FromPath, fromPath));
         fx.TakeOn(fx.WireBetween(check, fx.Get("error"), tell, fx.PortOf(tell, "in", "in")), vocabulary.Fail);
-        fx.EndAt(pipe, (record, "out"), (tell, "out"));
+        if (alsoFilling == AlsoFillingRecordLevel.ASecondWire)
+            fx.Wire(input, "readings", record, "in");
+        if (alsoFilling == AlsoFillingRecordLevel.AChoice)
+        {
+            var offers = fx.Playing("offers", PipelineRoles.Choice);
+            var spareGauge = fx.Thing("Spare gauge");
+            fx.Rel(fx.PortOf(record, "in", "in"), offers, spareGauge);
+            fx.Rel(record, offers, spareGauge);
+        }
+
+        var ends = new List<(GraphThing, string)> { (record, "out"), (tell, "out") };
+        if (springPathBeside)
+        {
+            var spring = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "SpringProto"), "Read spring", "spring");
+            var level = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "LevelProto"), "Read level", "level");
+            fx.Rel(pipe, vocabulary.Has, spring);
+            fx.Rel(pipe, vocabulary.Has, level);
+            fx.Wire(spring, "out", level, "in");
+            ends.Add((level, "out"));
+        }
+        fx.EndAt(pipe, ends.ToArray());
         return (fx, pipe.Id);
     }
 
@@ -1221,14 +1252,17 @@ public static class TestGraphs
     private static GraphThing CollectionInPrototype(GraphFixture fx, PipelineVocabulary vocabulary, string name) =>
         InputOutputPrototype(fx, vocabulary, name, collectionIn: true);
 
-    private static GraphThing InputOutputPrototype(GraphFixture fx, PipelineVocabulary vocabulary, string name, bool collectionIn = false)
+    private static GraphThing InputOutputPrototype(GraphFixture fx, PipelineVocabulary vocabulary, string name, bool collectionIn = false,
+        bool collectionOut = false)
     {
         var proto = fx.Thing(name);
         fx.Rel(proto, vocabulary.Is, vocabulary.Service);
         var portIn = collectionIn
             ? fx.Thing("p.in", ("direction", "in"), ("type", "any"), ("portName", "in"), ("collection", "true"))
             : fx.Thing("p.in", ("direction", "in"), ("type", "any"), ("portName", "in"));
-        var portOut = fx.Thing("p.out", ("direction", "out"), ("type", "any"), ("portName", "out"));
+        var portOut = collectionOut
+            ? fx.Thing("p.out", ("direction", "out"), ("type", "any"), ("portName", "out"), ("collection", "true"))
+            : fx.Thing("p.out", ("direction", "out"), ("type", "any"), ("portName", "out"));
         fx.Rel(portIn, vocabulary.Is, vocabulary.Port);
         fx.Rel(portOut, vocabulary.Is, vocabulary.Port);
         fx.Rel(proto, vocabulary.Has, portIn);
