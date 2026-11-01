@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using vos.Service.Phloem.Model;
 using vos.Service.Shared;
@@ -345,7 +346,8 @@ public sealed class PipelineExecutor
         {
             if (!record.Nodes.TryGetValue(node.NodeId, out var recorded) || recorded.Status == RunStatus.Running) continue;
             var result = new NodeRunResult(node.NodeId, node.Name, recorded.Status, recorded.Outputs, recorded.Error,
-                Items: recorded.Items?.Select(item => new NodeRunResult(node.NodeId, node.Name, item.Status, item.Outputs, item.Error, Decision: item.Decision)).ToList(),
+                Items: recorded.Items?.Select(item => new NodeRunResult(node.NodeId, node.Name, item.Status, item.Outputs, item.Error, Decision: item.Decision,
+                    Number: item.Number)).ToList(),
                 Decision: recorded.Decision);
             if (recorded.Status == RunStatus.Waiting)
             {
@@ -406,8 +408,48 @@ public sealed class PipelineExecutor
 
         bool Unsettled(DagNode node) => !results.ContainsKey(node.NodeId) && !progress.Waiting.ContainsKey(node.NodeId);
 
+        var itemWires = new HashSet<DagWire>(dag.Wires.Where(wire => ItemWires.Carries(dag, wire)), ReferenceEqualityComparer.Instance);
+        IEnumerable<DagWire> ItemWiresOutOf(DagNode node) => dag.WiresOutOf(node.NodeId).Where(itemWires.Contains);
+
+        var itemsAlong = new Dictionary<DagWire, Channel<NumberedItem>>(ReferenceEqualityComparer.Instance);
+        Channel<NumberedItem> ItemsAlong(DagWire wire) =>
+            itemsAlong.TryGetValue(wire, out var channel) ? channel : itemsAlong[wire] = Channel.CreateUnbounded<NumberedItem>();
+
+        // A node set to fail as a whole holds its items until every one has answered, so nothing runs for an item of a
+        // node that then fails.
+        bool SendsEachItemOn(DagNode node) =>
+            string.Equals(node.OnItemError, ModelNames.OnItemErrorContinue, StringComparison.OrdinalIgnoreCase) && ItemWiresOutOf(node).Any();
+
+        Action<NodeRunResult>? SendingEachItemOn(DagNode node)
+        {
+            if (!SendsEachItemOn(node)) return null;
+            var sending = ItemWiresOutOf(node).Select(wire => (Wire: wire, Writer: ItemsAlong(wire).Writer)).ToList();
+            return item =>
+            {
+                foreach (var (wire, writer) in sending)
+                    if (WireDeliveries.ItemAlong(dag, wire, item) is { } numbered)
+                        writer.TryWrite(numbered);
+            };
+        }
+
+        void ReleaseItems(NodeRunResult result, bool eachItemWentOn)
+        {
+            foreach (var wire in ItemWiresOutOf(dag.Node(result.NodeId)!))
+            {
+                var writer = ItemsAlong(wire).Writer;
+                if (!eachItemWentOn)
+                    foreach (var item in WireDeliveries.ItemsAlong(dag, wire, result))
+                        writer.TryWrite(item);
+                writer.TryComplete();
+            }
+        }
+
+        foreach (var settled in results.Values.ToList())
+            ReleaseItems(settled, eachItemWentOn: false);
+
         async Task TakeAsync(NodeRunResult result)
         {
+            ReleaseItems(result, eachItemWentOn: result.Items is not null && SendsEachItemOn(dag.Node(result.NodeId)!));
             if (result.Status == RunStatus.Waiting)
                 progress.Waiting[result.NodeId] = result;
             else if (!progress.Settle(dag, result) && AnswerReachingNoWire(dag, result) is { } reason)
@@ -445,24 +487,34 @@ public sealed class PipelineExecutor
                 }
 
                 // A node behind a waiting one is not ready until the wait is over.
-                var ready = pending.Where(n => dag.WiresInto(n.NodeId).All(w => results.ContainsKey(w.From.Node.NodeId))).ToList();
+                bool Started(Guid nodeId) => calling.Values.Any(node => node.NodeId == nodeId);
+                var ready = pending.Where(n => dag.WiresInto(n.NodeId).All(w =>
+                    results.ContainsKey(w.From.Node.NodeId) || itemWires.Contains(w) && Started(w.From.Node.NodeId))).ToList();
                 pending = pending.Except(ready).ToList();
+                var fedWhileSending = ready.Where(n => dag.WiresInto(n.NodeId).Any(w => !results.ContainsKey(w.From.Node.NodeId))).ToList();
 
                 // A node no wire carried into is on a path not taken: it is recorded and nothing is called for it, so a
                 // node where paths meet runs once, from the paths that carried.
-                var notTaken = ready.Where(n => dag.WiresInto(n.NodeId).Any() && !dag.WiresInto(n.NodeId).Any(deliveries.ContainsKey)).ToList();
+                var notTaken = ready.Except(fedWhileSending)
+                    .Where(n => dag.WiresInto(n.NodeId).Any() && !dag.WiresInto(n.NodeId).Any(deliveries.ContainsKey)).ToList();
                 foreach (var node in notTaken)
                 {
                     var result = new NodeRunResult(node.NodeId, node.Name, RunStatus.NotTaken, NoOutputs, null);
                     progress.Settle(dag, result);
+                    ReleaseItems(result, eachItemWentOn: false);
                     await PersistStatusAsync(rid, result, cancellationToken);
                 }
 
-                foreach (var node in ready.Except(notTaken))
+                var starting = ready.Except(notTaken).ToList();
+                foreach (var node in starting)
+                {
+                    var itemWire = dag.WiresInto(node.NodeId).FirstOrDefault(itemWires.Contains);
+                    var items = itemWire is not null && (fedWhileSending.Contains(node) || deliveries.ContainsKey(itemWire)) ? ItemsAlong(itemWire).Reader : null;
                     calling[RunNodeGuardedAsync(gate, dag, node, rid, DeliveredInto(dag, node, deliveries), runParams,
-                        progress.Trying.TryGetValue(node.NodeId, out var made) ? made : [], rehearsal, cancellationToken)] = node;
+                        progress.Trying.TryGetValue(node.NodeId, out var made) ? made : [], rehearsal, items, SendingEachItemOn(node), cancellationToken)] = node;
+                }
 
-                if (notTaken.Count > 0) continue;
+                if (notTaken.Count > 0 || starting.Any(node => ItemWiresOutOf(node).Any())) continue;
                 if (calling.Count == 0) break;
                 await TakeTheNextAnswerAsync();
             }
@@ -683,15 +735,19 @@ public sealed class PipelineExecutor
         }
     }
 
+    // A node fed items one at a time takes a calling place only once its first item arrives, so other nodes can run while it waits.
     private async Task<NodeRunResult> RunNodeGuardedAsync(
         SemaphoreSlim gate, PipelineDag dag, DagNode node, Guid runId,
         IReadOnlyDictionary<DagWire, WireDelivery> deliveries, JsonElement runParams,
-        IReadOnlyList<AttemptRecord> attemptsMade, bool rehearsal, CancellationToken cancellationToken)
+        IReadOnlyList<AttemptRecord> attemptsMade, bool rehearsal, ChannelReader<NumberedItem>? items, Action<NodeRunResult>? answered,
+        CancellationToken cancellationToken)
     {
+        if (items is not null && !await items.WaitToReadAsync(cancellationToken))
+            return new NodeRunResult(node.NodeId, node.Name, RunStatus.NotTaken, NoOutputs, null);
         await gate.WaitAsync(cancellationToken);
         try
         {
-            return await RunNodeAsync(dag, node, runId, deliveries, runParams, attemptsMade, rehearsal, cancellationToken);
+            return await RunNodeAsync(dag, node, runId, deliveries, runParams, attemptsMade, rehearsal, items, answered, cancellationToken);
         }
         finally
         {
@@ -814,10 +870,21 @@ public sealed class PipelineExecutor
             ? new RunSubject(named.Id, named.Name)
             : null;
 
+    private static ChannelReader<NumberedItem> NumberedAfresh(JsonElement list)
+    {
+        var values = list.EnumerateArray().ToList();
+        var channel = Channel.CreateUnbounded<NumberedItem>();
+        for (var index = 0; index < values.Count; index++)
+            channel.Writer.TryWrite(new NumberedItem(values[index], new ItemNumber(index, values.Count)));
+        channel.Writer.Complete();
+        return channel.Reader;
+    }
+
     private async Task<NodeRunResult> RunNodeAsync(
         PipelineDag dag, DagNode node, Guid runId,
         IReadOnlyDictionary<DagWire, WireDelivery> deliveries, JsonElement runParams,
-        IReadOnlyList<AttemptRecord> attemptsMade, bool rehearsal, CancellationToken cancellationToken)
+        IReadOnlyList<AttemptRecord> attemptsMade, bool rehearsal, ChannelReader<NumberedItem>? items, Action<NodeRunResult>? answered,
+        CancellationToken cancellationToken)
     {
         // Mark the node (aggregate) running before its service is called so the editor animates it live; the terminal status
         // is written by RunAsync from the value returned here.
@@ -858,8 +925,10 @@ public sealed class PipelineExecutor
 
         // Fan-out: if the node has a collection input and it carries a list, run the node once per item.
         var collection = node.CollectionInput;
+        if (collection != null && items is not null)
+            return await RunFanOutAsync(node, runId, inputs, collection.PortName, items, answered, rehearsal, cancellationToken);
         if (collection != null && inputs.TryGetValue(collection.PortName, out var collValue) && collValue.ValueKind == JsonValueKind.Array)
-            return await RunFanOutAsync(node, runId, inputs, collection.PortName, collValue, rehearsal, cancellationToken);
+            return await RunFanOutAsync(node, runId, inputs, collection.PortName, NumberedAfresh(collValue), answered, rehearsal, cancellationToken);
 
         AwaitedThing? awaited = null;
         if (node.Waits is { } wait)
@@ -957,15 +1026,18 @@ public sealed class PipelineExecutor
     // Run the node once per item of its collection input (bounded), writing a per-item NodeRun for each,
     // and gather each output port into a list. onItemError chooses fail-fast vs collect-partial.
     private async Task<NodeRunResult> RunFanOutAsync(
-        DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> baseInputs,
-        string collectionPort, JsonElement items, bool rehearsal, CancellationToken cancellationToken)
+        DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> baseInputs, string collectionPort,
+        ChannelReader<NumberedItem> items, Action<NodeRunResult>? answered, bool rehearsal, CancellationToken cancellationToken)
     {
-        var itemList = items.EnumerateArray().ToList();
-        var total = itemList.Count;
         using var itemGate = new SemaphoreSlim(_maxConcurrency);
-        var results = await Task.WhenAll(itemList.Select((item, i) =>
-            RunItemAsync(node, runId, baseInputs, collectionPort, item, i, total, itemGate, rehearsal, cancellationToken)));
+        var running = new List<Task<NodeRunResult>>();
+        await foreach (var item in items.ReadAllAsync(cancellationToken))
+            running.Add(RunItemAsync(node, runId, baseInputs, collectionPort, item, itemGate, answered, rehearsal, cancellationToken));
+        var results = (await Task.WhenAll(running)).OrderBy(result => result.Number!.Index).ToArray();
+        if (results.FirstOrDefault(result => result.Status == RunStatus.Cancelled) is { } stopped)
+            return new NodeRunResult(node.NodeId, node.Name, RunStatus.Cancelled, NoOutputs, stopped.Error, Items: results);
 
+        var total = results.Length;
         var failures = results.Count(r => r.Status != RunStatus.Succeeded);
         var continueOnError = string.Equals(node.OnItemError, ModelNames.OnItemErrorContinue, StringComparison.OrdinalIgnoreCase);
 
@@ -983,18 +1055,27 @@ public sealed class PipelineExecutor
     }
 
     private async Task<NodeRunResult> RunItemAsync(
-        DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> baseInputs,
-        string collectionPort, JsonElement item, int index, int total, SemaphoreSlim itemGate, bool rehearsal, CancellationToken cancellationToken)
+        DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> baseInputs, string collectionPort, NumberedItem item,
+        SemaphoreSlim itemGate, Action<NodeRunResult>? answered, bool rehearsal, CancellationToken cancellationToken)
     {
         await itemGate.WaitAsync(cancellationToken);
         try
         {
+            var (index, total) = (item.Number.Index, item.Number.Total);
+            if (StopOf(runId) is { } stop)
+            {
+                var stopped = new NodeRunResult(node.NodeId, node.Name, RunStatus.Cancelled, NoOutputs, stop.Reason, Number: item.Number);
+                await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, stopped.Status, stopped.Error, cancellationToken, index, total), "persist item stopped");
+                return stopped;
+            }
             await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, RunStatus.Running, null, cancellationToken, index, total), "persist item running");
-            var inputs = new Dictionary<string, JsonElement>(baseInputs, StringComparer.Ordinal) { [collectionPort] = item };
-            var (result, _) = await AttemptAsync(node, runId, inputs, index, total, [], rehearsal, cancellationToken);
+            var inputs = new Dictionary<string, JsonElement>(baseInputs, StringComparer.Ordinal) { [collectionPort] = item.Value };
+            var (attempted, _) = await AttemptAsync(node, runId, inputs, index, total, [], rehearsal, cancellationToken);
+            var result = attempted with { Number = item.Number };
             await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, result.Status, result.Error, cancellationToken, index, total, result.Outputs,
                 result.Decision), "persist item terminal");
             if (!rehearsal) await RecordProducedAsync(runId, node, index, result, cancellationToken);
+            answered?.Invoke(result);
             return result;
         }
         finally

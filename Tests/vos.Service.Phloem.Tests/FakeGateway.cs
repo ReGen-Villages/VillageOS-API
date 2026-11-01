@@ -121,6 +121,14 @@ internal sealed class FakeGateway : IMyceliumGateway
 
     public Func<Guid, string, bool> RefuseNodeRunWrite { get; set; } = (_, _) => false;
 
+    private readonly List<(string Name, int Index, int Total)> _itemNumbersWritten = new();
+
+    public List<(int Index, int Total)> ItemRecordsOf(string nodeName)
+    {
+        lock (NodeStatuses)
+            return _itemNumbersWritten.Where(item => item.Name == nodeName).Select(item => (item.Index, item.Total)).Distinct().OrderBy(item => item.Index).ToList();
+    }
+
     public Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken ct, int? index = null, int total = 0,
         IReadOnlyDictionary<string, JsonElement>? outputs = null, Guid? decision = null)
     {
@@ -128,6 +136,7 @@ internal sealed class FakeGateway : IMyceliumGateway
         {
             NodeStatuses.Add((nodeName, status));
             NodeRunsPersisted.Add((nodeName, index, status, outputs));
+            if (index is int numbered) _itemNumbersWritten.Add((nodeName, numbered, total));
             if (error is not null) NodeErrorsWritten.Add((nodeName, status, error));
         }
         if (RefuseNodeRunWrite(nodeId, status)) throw new HttpRequestException("the model refused the write");
@@ -137,7 +146,8 @@ internal sealed class FakeGateway : IMyceliumGateway
             {
                 if (!_itemRecords.TryGetValue((runId, nodeId), out var items))
                     _itemRecords[(runId, nodeId)] = items = new SortedList<int, NodeRecord>();
-                items[item] = new NodeRecord(status, outputs ?? new Dictionary<string, JsonElement>(), Error: error, Decision: decision);
+                items[item] = new NodeRecord(status, outputs ?? new Dictionary<string, JsonElement>(), Error: error, Decision: decision,
+                    Number: new ItemNumber(item, total));
             }
             else
             {
