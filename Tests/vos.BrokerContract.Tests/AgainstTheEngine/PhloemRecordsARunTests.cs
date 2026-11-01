@@ -164,10 +164,10 @@ public class PhloemRecordsARunTests : IClassFixture<TheEngine>
 
     private async Task<IReadOnlyList<string?>> ValuesAssertedAsync(Guid thingId, string property)
     {
-        var facts = await _engine.Admin.GetFromJsonAsync<JsonElement>($"/api/things/{thingId}/properties/{property}/facts");
-        return facts.GetProperty("entries").EnumerateArray()
-            .Where(fact => fact.GetProperty("kind").GetString() == "asserted")
-            .Select(fact => fact.GetProperty("value") is { ValueKind: JsonValueKind.Null } ? null : fact.GetProperty("value").ToString())
+        var history = await _engine.Admin.GetFromJsonAsync<JsonElement>($"/api/things/{thingId}/properties/{property}/history");
+        return history.GetProperty("samples").EnumerateArray()
+            .Where(sample => sample.GetProperty("source").GetString() == "fact")
+            .Select(sample => sample.GetProperty("value") is { ValueKind: JsonValueKind.Null } ? null : sample.GetProperty("value").ToString())
             .ToList();
     }
 

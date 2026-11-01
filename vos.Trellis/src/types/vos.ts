@@ -284,23 +284,6 @@ export interface ThingStates {
   OutOfBoundsCount: number;
 }
 
-
-/** One PropertyValueAsserted/Retracted record from the Commit Log (provenance audit trail). */
-export interface PropertyFact {
-  kind: 'asserted' | 'retracted';
-  sequenceNumber: number;
-  committedAt: string;
-  author?: string;
-  value?: unknown;
-}
-
-export interface PropertyFactsResponse {
-  entityId: string;
-  property: string;
-  count: number;
-  entries: PropertyFact[];
-}
-
 export interface RelationshipRangesResponse {
   RelationshipId: string;
   RelationshipName: string;
