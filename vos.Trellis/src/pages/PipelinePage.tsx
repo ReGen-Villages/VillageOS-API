@@ -519,7 +519,7 @@ export function PipelinePage() {
       .filter((p) => p.direction === 'in')
       .map((p) => [p.portId, model.reachedAlong(p.portId, ROLE.Choice)] as const)),
   [selectedNode, model]);
-  const everyThing = useMemo(() => model.thingsNotUsedAsPredicates(), [model]);
+  const everyThing = useMemo(() => (selectedNodeId ? model.thingsNotUsedAsPredicates() : []), [model, selectedNodeId]);
   const nameOf = useCallback((thingId: string) => model.thing(thingId)?.Name ?? thingId, [model]);
 
   const portNameOf = (nodeId: string, portId: string | null | undefined) =>
