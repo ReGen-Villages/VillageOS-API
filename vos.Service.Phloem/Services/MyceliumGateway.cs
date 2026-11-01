@@ -765,7 +765,10 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
         var response = await client.PostAsync($"{MyceliumUrl}/api/relationships",
             JsonContent.Create(new { subjectId, predicateId, targetId }), cancellationToken);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+            throw new HttpRequestException(
+                $"The platform refused a relationship: {await ErrorOfAsync(response, cancellationToken)}",
+                null, response.StatusCode);
     }
 
     private async Task<Guid> ResolveByNameAsync(string name, CancellationToken cancellationToken)
