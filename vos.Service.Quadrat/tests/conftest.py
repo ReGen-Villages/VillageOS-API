@@ -34,3 +34,12 @@ def square(west, south, east, north):
         "type": "Polygon",
         "coordinates": [[[west, south], [east, south], [east, north], [west, north], [west, south]]],
     }
+
+
+def write_png(path, pixels):
+    """pixels is rows of (red, green, blue) triples."""
+    data = np.array(pixels, dtype="uint8")
+    with rasterio.open(path, "w", driver="PNG", height=data.shape[0], width=data.shape[1], count=3, dtype="uint8") as png:
+        for band in range(3):
+            png.write(data[:, :, band], band + 1)
+    return str(path)

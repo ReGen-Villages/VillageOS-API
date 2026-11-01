@@ -15,7 +15,7 @@ import sys
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from quadrat import Refusal, bbox_zone, describe, sample_point, zonal_stats
+from quadrat import Refusal, bbox_zone, decoded_tile, describe, sample_point, zonal_stats
 from vos_service import Config, ServiceHost, parse_args
 
 SERVICE_NAME = "Quadrat"
@@ -57,6 +57,7 @@ OPERATIONS = {"metadata": metadata, "point": point, "zonal": zonal}
 
 PORTS = [
     {"portName": "raster", "direction": "in", "type": "string", "required": True},
+    {"portName": "tile", "direction": "in", "type": "object", "required": False},
     {"portName": "lon", "direction": "in", "type": "number", "required": False},
     {"portName": "lat", "direction": "in", "type": "number", "required": False},
     {"portName": "bbox", "direction": "in", "type": "array", "required": False},
@@ -71,11 +72,24 @@ def read_envelope(payload: dict) -> tuple[dict, dict]:
     return payload.get("params") or {}, payload.get("inputs") or {}
 
 
+def read_tile(tile) -> tuple[int, int, int]:
+    coordinates = [tile.get(axis) if isinstance(tile, dict) else None for axis in ("z", "x", "y")]
+    if not all(isinstance(value, int) and not isinstance(value, bool) for value in coordinates):
+        raise Refusal("missing_input", "the 'tile' input is {\"z\": n, \"x\": n, \"y\": n}, three whole numbers")
+    return tuple(coordinates)
+
+
 def run_operation(params: dict, inputs: dict) -> dict:
     operation = OPERATIONS.get(params.get("operation"))
     if operation is None:
         raise Refusal("unknown_operation", f"params.operation is one of {', '.join(OPERATIONS)}; got {params.get('operation')!r}")
-    return operation(params, inputs)
+    if inputs.get("tile") is None:
+        if params.get("encoding") is not None:
+            raise Refusal("encoding_without_tile", "params.encoding says how a terrain tile holds elevation, and no 'tile' input says which tile the raster is")
+        return operation(params, inputs)
+    z, x, y = read_tile(inputs["tile"])
+    with decoded_tile(required(inputs, "raster"), z, x, y, params.get("encoding")) as decoded:
+        return operation(params, {**inputs, "raster": decoded})
 
 
 async def handle_node(payload: dict, request_number: int) -> dict:
