@@ -1032,8 +1032,6 @@ public sealed class PipelineExecutor
         await foreach (var item in items.ReadAllAsync(cancellationToken))
             running.Add(RunItemAsync(node, runId, baseInputs, collectionPort, item, itemGate, answered, rehearsal, cancellationToken));
         var results = (await Task.WhenAll(running)).OrderBy(result => result.Number!.Index).ToArray();
-        if (results.Length == 0)
-            return new NodeRunResult(node.NodeId, node.Name, RunStatus.NotTaken, NoOutputs, null);
         if (results.FirstOrDefault(result => result.Status == RunStatus.Cancelled) is { } stopped)
             return new NodeRunResult(node.NodeId, node.Name, RunStatus.Cancelled, NoOutputs, stopped.Error, Items: results);
 

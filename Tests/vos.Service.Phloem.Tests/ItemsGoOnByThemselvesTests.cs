@@ -232,6 +232,20 @@ public class ItemsGoOnByThemselvesTests
     }
 
     [Fact]
+    public async Task A_node_given_an_empty_list_still_succeeds_over_no_items()
+    {
+        var drawing = TestGraphs.ResultPathsPipeline(perItem: true, onItemError: "continue");
+        var gateway = new FakeGateway(drawing.Fixture.Build());
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(drawing.PipelineId, JsonSerializer.SerializeToElement(new { readings = Array.Empty<string>() }), CancellationToken.None);
+
+        result.Nodes.Single(node => node.Name == "Check reading").Status.Should().Be(RunStatus.Succeeded);
+        result.Success.Should().BeFalse();
+        result.Error.Should().Be("'Check reading' succeeded, and no success wire leaves it.");
+    }
+
+    [Fact]
     public async Task A_stop_starts_no_more_items_on_any_node()
     {
         var drawing = TestGraphs.ItemsGoOnPipeline();
