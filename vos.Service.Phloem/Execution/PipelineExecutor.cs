@@ -1041,6 +1041,8 @@ public sealed class PipelineExecutor
         var results = (await Task.WhenAll(running)).OrderBy(result => result.Number!.Index).ToArray();
         if (results.Length == 0)
             return new NodeRunResult(node.NodeId, node.Name, RunStatus.NotTaken, NoOutputs, null);
+        if (results.FirstOrDefault(result => result.Status == RunStatus.Cancelled) is { } stopped)
+            return new NodeRunResult(node.NodeId, node.Name, RunStatus.Cancelled, NoOutputs, stopped.Error, Items: results);
 
         var total = results.Length;
         var failures = results.Count(r => r.Status != RunStatus.Succeeded);
@@ -1067,6 +1069,12 @@ public sealed class PipelineExecutor
         try
         {
             var (index, total) = (item.Number.Index, item.Number.Total);
+            if (StopOf(runId) is { } stop)
+            {
+                var stopped = new NodeRunResult(node.NodeId, node.Name, RunStatus.Cancelled, NoOutputs, stop.Reason, Number: item.Number);
+                await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, stopped.Status, stopped.Error, cancellationToken, index, total), "persist item stopped");
+                return stopped;
+            }
             await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, RunStatus.Running, null, cancellationToken, index, total), "persist item running");
             var inputs = new Dictionary<string, JsonElement>(baseInputs, StringComparer.Ordinal) { [collectionPort] = item.Value };
             var (attempted, _) = await AttemptAsync(node, runId, inputs, index, total, [], rehearsal, cancellationToken);

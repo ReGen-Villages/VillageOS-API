@@ -132,6 +132,31 @@ public class ItemsGoOnByThemselvesTests
     }
 
     [Fact]
+    public async Task A_stop_starts_no_more_items_on_any_node()
+    {
+        var drawing = TestGraphs.ItemsGoOnPipeline();
+        var north = Held();
+        var gateway = new FakeGateway(drawing.Fixture.Build())
+        {
+            OnCallAsync = (subdomain, envelope) =>
+                subdomain == "check" && ReadingOf(envelope) == "North" ? north.Task : Task.FromResult(Echo(envelope)),
+        };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock(), maxConcurrency: 1);
+        var runId = Guid.NewGuid();
+
+        var running = executor.RunAsync(drawing.PipelineId, Readings, CancellationToken.None, runId: runId);
+        await Settle.UntilAsync(() => Called(gateway, "check").Contains("North"), "North is being checked while South and East wait their turn");
+        var stopping = executor.StopAsync(Guid.NewGuid(), runId, CancellationToken.None);
+        north.TrySetResult(Echo(JsonSerializer.SerializeToElement(new { inputs = new { @in = "North" } })));
+        await running;
+        await stopping;
+
+        Called(gateway, "check").Should().Equal("North");
+        Called(gateway, "record").Should().BeEmpty();
+        gateway.RunStatusOf(runId).Should().Be(RunStatus.Cancelled);
+    }
+
+    [Fact]
     public async Task An_item_keeps_its_number_on_every_node_it_reaches()
     {
         var drawing = TestGraphs.ItemsGoOnPipeline();
