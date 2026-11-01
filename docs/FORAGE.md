@@ -218,7 +218,9 @@ inherited by every site and take all of them out of the state their runs are sta
 
 ## The run
 
-`POST /handle { subjectId }` **accepts** a run and answers `202` at once; the fetching happens after.
+`POST /handle { subjectId }` **accepts** a run and answers `202` at once; the fetching happens after,
+under a token swapped from the call's while it is answered. When Mycelium will not swap the call's
+token, it answers `503` with `success: false` and starts nothing.
 The body is whatever the platform posts for a service call — the call record's own fields — and the
 subject is read from it through the classifier every called service shares, so this service
 declares no request shape of its own. The subject is a site or a source, and the model says which (see

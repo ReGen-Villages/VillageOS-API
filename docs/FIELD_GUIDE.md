@@ -849,7 +849,9 @@ slice, stamped with the sequence number it was taken at, and from then on a **st
 every change to those Things and no others: created, deleted, a property changed, a relationship
 added, a Thing entering the slice because it was later typed into a watched kind. A subscriber that
 will read the slice another way declines the snapshot and is answered with the sequence number
-alone.
+alone. A service that reads a slice once and does not follow it asks for a **one-off read** with the
+same selector instead: it is answered the same snapshot and registers nothing, which matters because
+the server checks every open subscription on every write until it is closed.
 
 Every change on the stream carries the sequence number it was committed at, so a client that
 drops its connection resumes from the last sequence it applied and misses nothing. A derived
@@ -890,7 +892,7 @@ property; a derived property refuses every write.
 
 ### 37. Metabolism: a simulation that runs in the model
 A relationship *Home-4 consumes Energy pool* carries a quantity, a property name on the target, and
-a frequency in seconds. Creating it calls Metabolism, which runs a loop: every so many
+a frequency in seconds — at least one, fractions allowed. Creating it calls Metabolism, which runs a loop: every so many
 seconds it takes that quantity from the pool's property — through the server, as a durable,
 exactly-once change — and adds it to a running total on the relationship itself. `produces` is the
 mirror image. Loops start staggered, so a seed with twenty relationships does not hammer the server
@@ -1007,20 +1009,32 @@ The **Pipelines** page in the console is the editor.
   row says it starts its drawing only when
   the orchestrator receives the state's entries; otherwise it names the drawing and the service that
   receives them, and offers **Handle with the orchestrator**, which rebinds the state's connection.
-  Clicking a row places a **start node** standing for it; *By hand* places a start whose ports are filled from the run's parameters. Beside
+  Clicking a row places a **start node** standing for it; *By hand* places a start whose ports are
+  filled from the run's parameters, except `subject`, which reaches the start as `{id, name}` read from
+  the model, so a run whose subject names no Thing is refused. Beside
   the catalysts the **roster** lists the model's pipelines; one opens from it, and the first opens on
   arrival.
 - **The outputs**, in the rail on the right, offer the answer, the other pipelines and the external
-  systems; clicking one places an **end node**, and the value wired into an end becomes the run's
-  published result or what the system is told. An end standing for a system writes a **sent
-  message** holding that value, related to the system along the connection it is told through,
-  which the server delivers once; a system naming no such connection refuses the run. The **services** stand under the outputs: clicking
-  one drops a node bound to its connection, with the typed ports the service declares.
+  systems; clicking one places an **end node**. The answer places the **Output node**, where every
+  path ends, and the value wired into it becomes the run's published result. An end standing for
+  another pipeline or a system is refused by the orchestrator when the pipeline is read: what tells a
+  system and what starts another pipeline are the tell and follow-on nodes (chapter 42), and the canvas
+  does not place those. The **services** stand under the outputs: clicking one drops a node bound to
+  its connection, with the typed ports the service declares.
 - **A boundary node stands for its catalyst or its outcome**, read through roles, never by name. The
   **findings** under the canvas list what stops a run, including an end standing for the wrong kind of
   Thing. On a screen narrower than a tablet's the rails sit above the canvas rather than beside it.
 - **Wiring** is dragging from an output port to an input port. Wires are type-checked; an
-  incompatible one is refused.
+  incompatible one is refused. A new wire carries on success. Clicking a wire shows what it is taken
+  on — success, fail, or a choice of the node it leaves — and at least one stays ticked. A fail wire is
+  drawn dashed, and a wire taken on a choice shows the choice's name.
+- **Choices and the Output rule.** Clicking a service node lists its **choices**, each with a name and
+  a rule over its inputs and outputs; a choice can be added, renamed, edited and removed. Under each
+  choice the inspector lists the Things its rule reads as `$things`: adding one lists only what the
+  node's in ports offer, and a switch beside it searches every Thing the page holds, turning itself off
+  after each addition. For each in port that offers Things, the inspector shows the one the node
+  chose, which can be changed or cleared. Clicking the Output node shows its rule; adding one starts it
+  as `$count(failures) = 0`, and removing it returns the node to failing the run on any fail wire.
 - **Field mapping** on a wire picks a part of the upstream value and places it at a named part of
   the downstream input, so several wires into one input merge into one composed object.
 - **A transform** on a wire reshapes the value in flight, in the same expression language Tributary
@@ -1039,21 +1053,41 @@ The **Pipelines** page in the console is the editor.
 **Phloem** is the orchestrator, a service like any other. A run reads the pipeline in one
 snapshot, builds the graph — each node's address, its ports, its wires — and checks it up front:
 the nodes are put in dependency order (a cycle is refused), every wire's types must agree, every
-required input must be filled by a wire, a choice or a parameter the run was given, and a node fans
-out over one collection input only. A drawing that fails is refused before anything runs: the run is
-recorded *refused* with every reason listed rather than the first. Then it runs each node once every
-wire into it has a settled source, independent nodes concurrently up to a bound, calling each
-through the server and routing its outputs to the inputs downstream. A node that fails halts
-everything that depends on it. A node may hold out ports of its own and answer under one of them,
-which is how a drawing branches: a node wired only from out ports nothing answered under is recorded
-*not taken* and never called.
+required input must be filled by a wire, a choice or a parameter the run was given, a node fans out
+over one collection input only, there is exactly one **Output node** and every node can reach it, and
+every choice a node holds has a wire taken on it. A drawing that fails is refused before anything
+runs: the run is recorded *refused* with every reason listed rather than the first. Then it starts
+each node as soon as every wire into it has a settled source, independent nodes concurrently up to a
+bound, calling each through the server and routing each wire that carries to the input it feeds.
+
+**Branching.** A node answers *success* or *fail*, and every wire is taken on one of those or on a
+choice the node holds; a wire carries only when the answer is what it is taken on. A node that fails
+follows its fail wires. A node's **choices** each carry a rule over what reached the node and what it
+answered, and may compare with Things the choice relates to: on a success the one choice whose rule
+holds is taken, or the one without a rule when none holds, and two holding, or none with no choice
+without a rule, fail the node. A node every wire into which carried nothing is recorded *not taken*
+and never called.
+
+**How the run ends.** The Output node may carry a rule, in the same language as wire transforms, read
+over what reached it and one entry for each fail wire that carried into it — the node it came from, the
+port and that node's error. The rule alone decides: true passes the run; false or nothing fails it with
+*its rule does not hold*; any other answer, or an error while evaluating it, fails the run and says
+why. A rule that does not compile refuses the run before anything runs. Without a rule, any fail wire
+carrying into the Output node fails the run.
+
+**Telling, starting and stopping.** A **tell node** stands for an external system and sends it what
+reached the node, as a sent message the server delivers once along the connection the system is told
+through; a system naming no such connection refuses the run. A **follow-on node** stands for a
+pipeline and starts a run of it, the new run related to this one. A **stop node** takes one Thing or a
+list and a reason, writes a stop request for each, and answers how many it wrote; its own run is never
+stopped by them. Each answers success or fail, passes on what reached it, and carries on towards the
+Output node.
 
 A node may carry a **retry policy**: while a call never reaches its service — a transport failure, a
 timeout, a server error from the door — it is called again after a pause in model minutes, and any
 answer from the service is final, a refusal among them. Each attempt is recorded as an attempt Thing
-the node run holds, and the node run stands at *trying* between attempts. When trying ends, a node
-related to a pipeline along the hand-over predicate starts a run of it with what reached the node,
-and the node and the run end *handed over*.
+the node run holds, and the node run stands at *trying* between attempts. A node that gives up fails
+like any other.
 
 A run and each node's run are recorded as Things, written *running* before the node's service is
 called and their final status after, so the console animates a run from the ordinary live stream and
@@ -1062,16 +1096,18 @@ Thing must enter it, the run records its answer as *waiting* — shown on the pa
 colour of its own — and resumes from its record when the vigil the orchestrator placed answers.
 **Cancel** writes a stop request for the run, with an optional reason, and is offered on a run that
 is running, waiting or trying: a run under way stops at its next node, a waiting run stops at once,
-and the reason is recorded on the run and on each node not finished.
+and the reason is recorded on the run and on each node not finished. A pipeline can also stop the
+runs about a Thing itself, with a stop node.
 
 **Drafts and rehearsals.** Only a published pipeline is started by the model; a draft runs only as a
 rehearsal, in which only services that declare they write nothing but their answer are called, and
-an end that would send or start something records what it would have done instead.
+a tell, follow-on or stop node records what it would have done instead.
 
 **Fan-out.** A node whose service declares a **collection** input runs once per item when that
 input receives a list — the other inputs are the same for every item — and each output is gathered
 into a list for downstream, an output marked as a collection into one flat list. The node may
-continue past a failed item, marking the run partial, or fail as a whole.
+continue past a failed item, marking the node partial, its failed items taking the fail wires and
+dropped where there are none; or it fails as a whole.
 
 A pipeline can also be started **from the model**. A `runs` predicate bound to Phloem makes
 creating *X runs Pipeline* start it, so any service can start a pipeline by creating one
@@ -1081,9 +1117,8 @@ by its identifier to find it. A **state connection** bound to Phloem starts a pi
 when a Thing enters the state, with the entering Thing as the run's `subject`: the name the
 Pipelines page gives a start node's port, carrying the Thing's id and name, which a wire narrows by
 its from-path. The run relates to that Thing along the predicate the run-subject role binds. A
-**cadence** starts the pipeline drawn from it every so many model minutes. And a run reaching an end
-node that stands for another pipeline starts that pipeline, the new run related to the one that
-started it.
+**cadence** starts the pipeline drawn from it every so many model minutes. And a follow-on node in
+another drawing starts the pipeline it stands for, the new run related to the one that started it.
 
 A start offers the Thing the relationship reaches, the states that Thing watches, and the message
 kind and external system the arriving Thing relates to. A published pipeline fits when everything its
@@ -1098,7 +1133,8 @@ along the pipeline-start predicate, and anything else is refused.
 ### 43. A service becomes a node
 A node is an ordinary service that recognises one extra shape of handle request — one carrying a
 run identifier and a node identifier, with **inputs by port name** and any fixed parameters — and
-answers with **outputs by port name**, or an error. Nothing else about the service changes. A
+answers **success or fail**, with **outputs by port name** and an error. Nothing else about the
+service changes. A
 service advertises its ports (name, direction, type, whether required, whether a collection) so
 the editor can check wires.
 
@@ -2439,7 +2475,7 @@ stream silent for thirty seconds as failed. Every stream ends when the server be
 | `ThingLeft`, `RelationshipLeft`, `ThingDeleted`, `RelationshipDeleted` | The identifier | Object stream |
 | `PropertyChanged`, `PropertyDeleted`, and the relationship pair | The name, and the value | Object stream |
 | `PropertyObserved` | A reading, delivered to a subscription that asked for readings | Object stream |
-| `StatesChanged`, `RelationshipStatesChanged` | The whole set of states the Thing now holds, never a difference | Events stream |
+| `StatesChanged`, `RelationshipStatesChanged` | The whole set of states the Thing now holds, never a difference, and `exitedStates`, the states this change left | Events stream |
 | `ModelChanged`, `ModelCleared` | | Events stream |
 | `ServiceHealthChanged`, `DaemonStatusChanged`, `ServiceRequestCompleted`, `EndpointServiceRequestCompleted` | The service, its status, the timing | Events stream |
 | `ActivityEvent` | Every notable act, for the feed | Events stream |

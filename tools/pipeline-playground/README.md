@@ -94,12 +94,12 @@ node may stand for it: `Every hour` starts the Hourly Tally drawing.
 | Diamond Fan | A wider fan-out/fan-in pipeline — layout + multi-input merge + report. |
 | Fan-out Scoring | A collection input that spreads into one run item each, `onItemError=continue`, with a seeded partial run showing fan-out progress. |
 | Water / Energy Self-Sufficiency | Param-bound site-analysis nodes. |
-| Site Analysis (Combined) | A capstone: a source feeding one wired input while others are param-bound, two analyses in parallel, merge → report → sink. |
+| Site Analysis (Combined) | A capstone: a source feeding one wired input while others are param-bound, two analyses in parallel, merge → report → publish → Output. |
 | Number Cruncher | A numeric chain mixing wired and param-bound inputs on the same node. |
-| Enrichment Batch | Fan-out into a sink. |
+| Enrichment Batch | Fan-out, then publish, ending at the Output node. |
 | Readings Arrive | A start standing for the kind of message the Sensor gateway sends, ending at the answer. |
-| Daily Report | A pipeline ending at the Reporting office, which is told the report. |
-| Branching Decision | A node holding out ports `accept` and `refuse` of its own and answering under one; the other branch is recorded not taken and the end is reached once. |
+| Daily Report | A tell node, The office is told, tells the Reporting office the report and passes it on to the Output node, Reported. |
+| Branching Decision | A node holding the choices `accept` and `refuse`; `accept` is taken when the strategy it was given is Nearest first or Cheapest first, `refuse` otherwise; the other branch is recorded not taken and the Output node is reached once. |
 | Hourly Tally | A start standing for the cadence `Every hour`, its `due` port wired into Echo, ending at `tally`. |
 
 Every drawing is published. Every service rehearses except Water Reserve, Energy Balance, Metabolism and

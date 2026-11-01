@@ -109,7 +109,7 @@ page. It is new on every delivery, so it is not a key for recognising a repeat; 
 
 ## Registration
 
-- `POST /api/mycelium/register` (Bearer) — `{ handlerId, serviceName, endpointUrl, startCommand, stopEndpoint, healthEndpoint }`, and an optional `logFilePrefix`: lowercase letters, digits and hyphens, the prefix of the file the service writes its own log under, so the broker's log routes can find it. A service that writes no log file sends none; any other value is refused with `400`
+- `POST /api/mycelium/register` (Bearer) — `{ handlerId, serviceName, endpointUrl, startCommand, stopEndpoint, healthEndpoint }`, and an optional `logFilePrefix`: lowercase letters, digits and hyphens, the prefix of the file the service writes its own log under, so the broker's log routes can find it. A service that writes no log file sends none; any other value is refused with `400`. An optional `logDirectory`, the full path of the folder a service started with `--logDirectory` writes in, is sent by such a service only; a folder outside the parent the broker allows is refused with `400`
 - There is no deregistration call for a service to make: `DELETE /api/mycelium/services/{handlerId}` is admin-only and refuses a service token. A service that stops answering `/health` is removed by the broker's liveness monitor.
 
 An open SSE subscription also counts as a liveness signal: a service that is actively streaming
@@ -118,6 +118,12 @@ is treated as healthy even if its `/health` is briefly unreachable.
 ## Subscriptions (live model data over SSE)
 
 Replaces GET-storm polling: take one snapshot, then follow changes.
+
+**Reading once registers nothing.** `POST /api/snapshots` (Bearer) takes the same selector as below and
+answers `{ watermark, snapshot }`, the snapshot a subscription would answer, with the same read access
+and refusals, and registers no subscription. Use it when you read and do not follow: the broker checks
+every registered subscription on every write until it is deleted. `includeLaterMatches`,
+`includeObservations`, `observationCadences` and `includeSnapshot` belong to a subscription only.
 
 ### `POST /api/subscriptions` (Bearer) → snapshot + watermark
 

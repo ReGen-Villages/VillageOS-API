@@ -50,8 +50,8 @@ Every invocation is configured by three params carried in the node envelope's `p
 | `property` | yes | Name of the property to read or write. |
 
 A missing or malformed param fails the node cleanly (the throw becomes
-`{ success: false, error: "…" }`), never an unhandled 500 — so Phloem records the failure and
-halts dependents.
+`{ result: "fail", error: "…" }`), never an unhandled 500 — so Phloem records the failure and
+follows the node's fail wires.
 
 ## `mode: "read"`
 
@@ -118,7 +118,7 @@ ModelBridge takes only the **standard launch settings** — no service-specific 
 [`SERVICES.md`](SERVICES.md) §4):
 
 ```bash
-dotnet run -- --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--audience=<aud>]
+dotnet run -- --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--audience=<aud>] [--logDirectory=<folder>]
 ```
 
 It registers with Mycelium as service name `ModelBridge`, start command `endpoint-service`.

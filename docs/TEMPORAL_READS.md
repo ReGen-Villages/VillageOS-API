@@ -64,7 +64,10 @@ Both write paths land in the same store. Sensor **observations** (`POST …/obse
 Fact-path **property changes** (asserting or retracting a value through the API) are both
 projected into Rings, each point provenance-tagged with the path it came from. So
 `GET …/properties/{p}/history` returns one unified timeline regardless of how each point was
-written, and `?timestamp=` as-of reads see both.
+written, each sample labelled `observation`, `fact` or `retraction` — a retraction carries no value —
+and `?timestamp=` as-of reads see both. A `CurrentOnly` property's history is its present value, one
+sample at the instant it was set, read from the model. The history reads answer for a Thing or a
+relationship that was retracted too, before and after the server lets it go from memory.
 
 ## Access is key-addressed — there are no stubs
 
@@ -261,7 +264,7 @@ POST /api/temporal/reduce
 The answer is the groups in key order — numeric where the key is a number, part by part where it is
 composite — with the capitals every Mycelium route answers in, beside how many samples the window held
 that could and could not be read, so an answer with no groups says whether the window was empty or
-unreadable. A group a cyclic fold produced sits at no instant, so only `all` can fold it further; a
+unreadable. A retraction sample is left out before anything is read and counted in `Retractions`. A group a cyclic fold produced sits at no instant, so only `all` can fold it further; a
 first step that could produce more than ten thousand groups, a parameter beside a function that does
 not read it, and an unknown fold or function are each refused with `400` and the reason. The read walks
 the property's retained samples once, so its cost follows the depth of history the property keeps and

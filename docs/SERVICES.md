@@ -130,7 +130,8 @@ client of its own. Both come from `vos.Service.Shared`.
 every service needs. There is one implementation; no service writes its own.
 
 - **Required flags:** `--port`, `--myceliumUrl`
-- **Optional flags:** `--issuer`, `--audience`
+- **Optional flags:** `--issuer`, `--audience`, `--logDirectory` (the folder the service writes its
+  log file to; four folders above the build output by default)
 - **Credentials, which are never flags:** `Token` (pre-minted service JWT for
   **outbound** Mycelium calls), `ApiKey` (a key exchanged for short-lived
   tokens, for a service that outlives any one token — §12) and
@@ -217,6 +218,12 @@ on every reconnect, so delivery is gap-free and exactly-once across drops. Call
 `UnsubscribeAsync(subscriptionId)` on shutdown. The wire contract and the resume
 semantics are documented in [`SERVICE_CONTRACT.md`](SERVICE_CONTRACT.md) § Subscriptions.
 
+**A service that reads once and never follows the stream does not subscribe.** It posts the same
+selector to `POST /api/snapshots`, which answers `{ watermark, snapshot }` and registers nothing, as
+Phloem does for every read of a drawing and a run. The broker checks every registered subscription on
+every write until it is deleted, so a subscription opened only to be read once costs every writer
+until somebody deletes it.
+
 Membership is mutable — no reconnect needed to change what you watch:
 
 ```csharp
@@ -259,7 +266,7 @@ sequenceDiagram
     participant B  as VillageOS Mycelium
 
     Note over MS,B: The service has started
-    MS->>B: POST /api/mycelium/register<br/>Authorization: Bearer {token}<br/>{ handlerId, serviceName, endpointUrl, logFilePrefix?, ... }
+    MS->>B: POST /api/mycelium/register<br/>Authorization: Bearer {token}<br/>{ handlerId, serviceName, endpointUrl, logFilePrefix?, logDirectory?, ... }
     B-->>MS: 200 OK
 
     Note over MS,B: Service runs
@@ -274,7 +281,9 @@ sequenceDiagram
 The registration may carry `logFilePrefix` — lowercase letters, digits and hyphens, the prefix of the
 file the service writes its own log under — so the broker's log routes can find that log by the
 service's connection id or name. The shared host sends the prefix of the log file it configured, and
-a service that writes no file sends none.
+a service that writes no file sends none. A service started with `--logDirectory` also sends
+`logDirectory`, that folder's full path; one writing to the default folder sends none. The broker
+refuses a folder outside the parent it allows (its `ServiceLogs:ParentDirectory` setting).
 
 A service does not withdraw its own registration: the removal route is
 admin-only, so the call would be refused whatever the service holds.
@@ -381,7 +390,10 @@ a test can reach it — code inside an entry point cannot be called from a test.
    see configuration and the environment as well as the command line.
 2. Reads the launch settings; `Console.WriteLine(<Settings>.UsageMessage)` and
    `Environment.Exit(1)` when `Parse` returns `null`.
-3. Calls `ServiceHost.ConfigureLogging(serviceName, logFileName)`. Pass
+3. Calls `ServiceHost.ConfigureLogging(serviceName, logFileName, settings.LogDirectory)`.
+   Every line goes to the console, in every environment, because whatever started
+   the service captures its standard output; it also goes to the file, in the
+   `--logDirectory` folder or four folders above the build output. Pass
    `writeToFile: false` under the Testing environment: writing files from shared
    build agents invites flaky tests.
 4. If a `VerificationKey` was supplied, calls
@@ -398,7 +410,10 @@ a test can reach it — code inside an entry point cannot be called from a test.
    myceliumUrl)` and `app.MapShutdown(serviceName)` for the rest. A service that
    keeps no registration calls `app.MapHealth(serviceName)` in place of the
    first.
-8. `app.Run()`.
+8. `app.Run()`, inside a `try` whose `catch` returns
+   `ServiceHost.FailedToStart(serviceName, error)`: it logs the failure, writes
+   one line naming it to standard error and exits with code `1`, because whatever
+   started the service reads its exit code and standard error, not its log file.
 
 `vos.Service.ModelBridge/Program.cs` is these steps and nothing else.
 EnergyBalance and WaterReserve follow them too. Echo, Delta, Tributary, Forage,
@@ -597,7 +612,7 @@ embedded as resources in the shared assembly. The validator runtime lives in
 
 | Schema | Producer → Consumer | Source of truth in code |
 |---|---|---|
-| `mycelium-register-request` | a registering microservice → Mycelium `POST /api/mycelium/register` | `MyceliumClientBase.RegisterAsync`, which sends the optional `logFilePrefix` when the host writes a log file |
+| `mycelium-register-request` | a registering microservice → Mycelium `POST /api/mycelium/register` | `MyceliumClientBase.RegisterAsync`, which sends the optional `logFilePrefix` when the host writes a log file, and `logDirectory` when the service was given a log folder |
 | `token-response` | Mycelium `POST /api/auth/token` → a microservice | No client checks a reply against it now: the key exchange (`ApiKeyTokenSource`) reads the same reply without the schema check |
 | `handle-request-metabolism` | Mycelium → Metabolism `POST /handle` | `vos.Service.Metabolism.Models.HandleRequest` |
 | `apply-quantity-request` | Metabolism → Mycelium `POST /api/things/{id}/properties/{path}/{decrements\|increments}` | `vos.Service.Metabolism.Services.MyceliumClient.ApplyQuantityAsync` |
@@ -920,6 +935,7 @@ streams, seed-loading, and JWT minting. Quick map for what calls what:
 | Properties | `/api/things/{id}/properties`, `…/properties/{name}` | GET, PUT, DELETE |
 | Relationships | `/api/relationships` | GET, POST, DELETE |
 | Mycelium registry | `/api/mycelium/register`, `/api/mycelium/services/{id}` | POST, DELETE |
+| A one-off read by selector | `/api/snapshots` | POST |
 | Subscriptions (SSE) | `/api/subscriptions`, `/api/subscriptions/{id}/stream` | POST, GET (SSE) |
 | System events (SSE) | `/api/events/stream` | GET (SSE) |
 
@@ -1145,18 +1161,26 @@ graph LR
 - The `carries` name is the model's to choose, and it is deliberately not `feeds`: that word already
   names matter moving between built things (a swale into a buffer, a compost station into a
   greenhouse), and a dashboard scope resolves a predicate **by name**.
+- **A wire is taken on something.** It relates along the predicate the `takenOn` role binds to the
+  Thing the `success` or `fail` role binds, or to one of its node's choices, and carries only when the
+  node's answer is what it is taken on. Every service node has the shared out port the `errorPort` role
+  binds, which carries the node's error.
+- **Every path ends at one Output node**, which stands for nothing and may carry a rule in `when` that
+  decides how the run ends (§16.3).
 - **Every role is a role Thing that binds the archetype playing it**, never a name. The role words are
   `pipeline`, `pipelineNode`, `connection`, `service`, `port`, `pipelineWire`, `inputConnector`,
-  `outputConnector`, `pipelineInput`, `pipelineOutput`, `pipelineRun` and `nodeRun`; each role Thing has a fixed identifier (the standard
+  `outputConnector`, `pipelineInput`, `pipelineOutput`, `pipelineRun`, `nodeRun`, `takenOn`, `success`,
+  `fail`, `errorPort`, `decisionPath` and `comparesWith`; each role Thing has a fixed identifier (the standard
   version 5 identifier of its word) and reaches the one Thing playing it along `binds`. A model that
   leaves a drawing role unbound is refused, naming each unbound role, and a role that binds two Things is
   refused naming both. The names below are only what the seed tool happens to choose. Phloem asks for the
   bound archetypes through the subscription selector (`boundTypes` for a role's members, `predicateRole` on
   a traversal rule), and the Trellis pipeline editor reads the same bindings off the model it has loaded,
   so renaming any of them changes nothing on either side.
-- Make any seed pipeline-ready with the `seed-migrate` tool in the private VillageOS repo (`tools/seed-migrate/pipeline-enable.js`),
-  which adds the archetypes, the Phloem Connection, example Echo node services with typed Ports, a demo
-  Pipeline, and a role Thing bound to each archetype and predicate playing a role.
+- The `seed-migrate` tool in the private VillageOS repo (`tools/seed-migrate/pipeline-enable.js`)
+  adds the archetypes, the Phloem Connection, example Echo node services with typed Ports, a demo
+  Pipeline, and a role Thing bound to each archetype and predicate playing a role. Its demo pipeline has
+  no Output node and its wire is taken on nothing, so Phloem refuses to run it until both are drawn.
 
 ### 16.2 Making a microservice a node — the envelope
 
@@ -1167,7 +1191,7 @@ request shape — the **node envelope** — and answers with **outputs**. It is 
 ```jsonc
 // orchestrator → node                          // node → orchestrator
 POST /handle                                     {
-{                                                  "success": true,
+{                                                  "result": "success",             // or "fail"
   "runId":  "<guid>",                              "outputs": { "echo": "hello" },  // by OUTPUT-port name
   "nodeId": "<guid>",                              "error": null
   "params": { /* static node params */ },        }
@@ -1205,12 +1229,20 @@ its block writes nothing but its answer; only such a block is called in a rehear
   item's list into one flat list. Several wires into one collection input are gathered as one list in wire
   order. The node service still sees one item per call (a
   scalar on the collection port, plus the item `index` in the envelope). The node property `onItemError`
-  chooses `fail` (any item fails → node fails) or `continue` (failed items become null holes → node `partial`).
-- **A node's own out ports, and a choice.** A node may hold `Port` Things of its own beside its service's:
-  out ports it answers under one of, so a drawing branches — a node wired only from out ports nothing
-  answered under is recorded `notTaken` and never called. An in port may offer Things along the
-  predicate the `choice` role binds, and the node names the one chosen along the same predicate, which
-  fills the input unless a wire or a parameter does.
+  chooses `fail` (any item fails → the node fails, and its failed items take its fail wires) or
+  `continue` (failed items take the fail wires, and are dropped where there are none → node `partial`).
+- **Branching: success, fail and the node's choices.** An answer of `fail` follows the node's fail
+  wires; with none, and no rule on the Output node saying otherwise, the run fails. A node holds its
+  choices — Things of the kind the `decisionPath` role binds. Each carries a rule in `when`, an
+  expression in the language of wire transforms over `{inputs, outputs}`, and sees the Things it relates
+  to along `comparesWith` as `$things`, a list of `{id, name}`. On a success the one choice whose rule
+  holds is taken, or the one without a rule when none holds; two holding, none holding with no choice
+  without a rule, or a rule answering anything but true or false fails the node. A node with no choices
+  carries on along its success wires. A node every wire into which carried nothing is recorded
+  `notTaken` and never called.
+- **A choice of Thing on an in port.** An in port may offer Things along the predicate the `choice` role
+  binds, and the node names the one chosen along the same predicate, which fills the input unless a wire
+  or a parameter does.
 - **A produced Thing.** An out port may carry `produces`. A Thing the node answers under it — a value with
   an `id`, an identifier, or a list of either — is related from the node run along the predicate the
   `producedThing` role binds.
@@ -1250,8 +1282,8 @@ app.MapPost("/handle", async (HttpContext ctx, MyNode node) =>
 ```
 
 `HandleNodeAsync` parses the envelope, resolves `ref` inputs, runs `ExecuteNodeAsync`, and shapes
-`{success,outputs,error}`. A throw becomes `{success:false,error:"…"}` — never an unhandled 500 — so the
-orchestrator records the failure and halts dependents cleanly. **Echo** (`EchoNode`) is the reference node
+`{result,outputs,error}`. A throw becomes `{result:"fail",error:"…"}` — never an unhandled 500 — so the
+orchestrator records the failure and follows the node's fail wires. **Echo** (`EchoNode`) is the reference node
 (`message` → `echo`). Non-.NET services implement the same JSON envelope directly.
 
 > **Node vs. spawner.** Being a node is one role; **spawning** a pipeline is a different one. Whatever
@@ -1277,8 +1309,14 @@ POST /api/endpoints/phloem   { "pipelineId": "<guid>", "parameters": { }, "async
 // → { "success": true, "accepted": true, "runId": "<guid>", "pipelineId": "<guid>" }
 ```
 
+**A subject in `parameters`.** Either spawn may name the run's subject as `parameters.subject`, an
+identifier or `{id, name}`. It is read from the model before any run is created: the run carries
+`{id, name}` with the model's name, and relates to the Thing along the predicate the `runSubject` role
+binds, as a run the model starts does. A subject that is not an identifier, or names no Thing the model
+holds, is answered `400` naming the value; no run is created and no run identifier is returned.
+
 Either body may also carry `"rehearsal": true`. **A pipeline without `published: true` is a draft**: the
-model never starts it — a state, a relationship, a cadence, an end or a hand-over naming it is refused —
+model never starts it — a state, a relationship, a cadence or a follow-on node naming it is refused —
 and a draft runs only as a rehearsal.
 
 **Spawn — graph (`X runs Pipeline`, fire-and-forget).** A pipeline can also be spawned **from the model**,
@@ -1310,11 +1348,12 @@ each instant due since its `lastDue`, every `intervalMinutes` of model time, wit
 run's `subject` and the instant as the parameter `due`; it writes `lastDue` first. Instants a clock
 jumped over, or that fell while the orchestrator was away, run once at the latest.
 
-**Spawn — an end standing for a pipeline.** A run ending at an end that stands for a pipeline starts a
-run of that pipeline on its own task, with the end's collected inputs as the new run's parameters and
-the subject first. The new run relates to the one that started it along the predicate the
-`startingRun` role binds, and the end node's output `startedRun` names the new run. An end standing
-for the pipeline it ends is refused before the run.
+**Spawn — a follow-on node.** A node of the kind the `pipelineFollowOn` role binds stands for a pipeline
+and starts a run of it on its own task, with what reached the node as the new run's parameters and the
+subject carried over; the run that started it carries on without waiting. The new run relates to the
+one that started it along the predicate the `startingRun` role binds (`startedBy` in the shipped
+template), and the node's output `startedRun` names the new run. A node standing for the pipeline it is
+in is refused before the run.
 
 **Which pipeline a start runs.** A start offers the Thing the relationship reaches, the states that
 Thing watches, and the message kind and external system the arriving Thing relates to. A published
@@ -1333,32 +1372,45 @@ sequenceDiagram
   participant Node as Node service
   Caller->>Mycelium: POST /api/endpoints/phloem {pipelineId}
   Mycelium->>Phloem: lazy-start + forward
-  Phloem->>Mycelium: load subgraph (subscription snapshot)
+  Phloem->>Mycelium: load subgraph (POST /api/snapshots)
   Phloem->>Phloem: build the graph + validate (no cycle + port types)
   loop each node once every wire into it has a settled source
     Phloem->>Mycelium: POST /api/endpoints/<node-subdomain> {runId,nodeId,params,inputs,rehearsal?}
     Mycelium->>Node: lazy-start + forward
-    Node-->>Phloem: {success, outputs}
+    Node-->>Phloem: {result, outputs, error}
   end
   Phloem-->>Caller: {runId, success, nodes[...]}
 ```
 
-**What a run does:** (1) load the pipeline's structural closure in one subscription snapshot; (2) build the
-graph (node→Connection subdomain, ports via the `is`-chain, wires by `PipelineWire`); (3) validate up front —
-an ordering of the nodes by dependency, which fails when the graph has a cycle (distinct from Hyphae's
-runtime oscillation), port-type compatibility, a required input nothing fills (no wire, no choice, and
-no parameter binding whose parameter the run was given), and a node with more than one collection
-input. Every problem is listed, each node's own among them, and a refused run is written once with
-status `refused` and every reason in `error`, before any node is called;
-(4) execute as nodes become ready — a node is ready when every wire into it has a settled source;
-independent nodes run concurrently, bounded — calling each via endpoint-forward and routing
-outputs→inputs; a node failure halts dependents, and a node wired only from out ports nothing answered
-under is recorded `notTaken` and never called; (5) **persist the run live**, best-effort — the node run
-is created with `startedUtc` and declares `outputs`, `finishedUtc` and `attempts`, and its terminal status
-writes `outputs` and `finishedUtc`, on **one `NodeRun` Thing per node** (deterministic id, so the SSE view
-sees a property change, not duplicate Things); a Thing answered under an out port marked `produces` is
-related from the node run along the predicate the `producedThing` role binds; the run itself keeps
-`parameters` as given and writes `finishedUtc` when it ends. A run carries `requestId`, the broker's
+**What a run does:** (1) load the pipeline's structural closure in one read of `POST /api/snapshots`,
+which registers nothing; (2) build the graph (node→Connection subdomain, ports via the `is`-chain, wires
+by `PipelineWire`); (3) validate up front — an ordering of the nodes by dependency, which fails when the
+graph has a cycle (distinct from Hyphae's runtime oscillation), port-type compatibility, a transform
+that does not compile, a required input nothing fills (no wire, no choice, and no parameter binding
+whose parameter the run was given), a node with more than one collection input, a pipeline without
+exactly one Output node, a node that cannot reach the Output node, a choice no wire leaving its node is
+taken on, more than one choice without a rule on one node, an Output node standing for a system or a
+pipeline, a node standing for the pipeline it is in, and a rule on the Output node that does not
+compile. Every problem is listed, each node's own among them, and a refused run is written once with
+status `refused` and every reason in `error`, before any node is called; (4) **record the run**: the
+run with its `is` and `of`, and each node run with its `is` and `has`, are written as one fragment. A
+run the broker refuses to record does not start, and its result carries the broker's reason;
+(5) execute — each node starts as soon as every wire into it has a settled source; independent nodes
+run concurrently, bounded — calling each via endpoint-forward and routing each wire that carries to the
+input it feeds. A node every wire into which carried nothing is recorded `notTaken` and never called;
+(6) **keep the run current** — the node run is created with `startedUtc` and declares `outputs`,
+`finishedUtc` and `attempts`, and its terminal status writes `outputs` and `finishedUtc`, on **one
+`NodeRun` Thing per node** (deterministic id, so the SSE view sees a property change, not duplicate
+Things), each change of state written as one fragment; a Thing answered under an out port marked
+`produces` is related from the node run along the predicate the `producedThing` role binds; the run
+itself keeps `parameters` as given and writes `finishedUtc` when it ends.
+
+**How a run ends.** The Output node may carry a rule in its `when` property, in the same language as
+wire transforms, read over `{inputs, failures}`: the values that reached the Output node, and one entry
+for each fail wire that carried into it, naming the node it came from, the port and that node's error.
+The rule alone decides whether the run passes: true passes the run; false or nothing fails it, with
+"its rule does not hold"; any other answer, or an error while evaluating it, fails the run and says
+why. Without a rule, any fail wire carrying into the Output node fails the run. A run carries `requestId`, the broker's
 request-log entry that started it, read from the `Vos-Request-Id` header on `/handle`.
 
 **Stopping a run.** A run is stopped by a stop request — a Thing of the kind the `stopRequest` role
@@ -1369,33 +1421,41 @@ ends at once, and a waiting run's vigil is retired; each node not finished is re
 the reason, and the run `cancelled` with the reason as its `error`, related to the request along
 `stoppedBy`.
 
-**Retrying and handing over.** A node carrying `attempts` (with optional `pauseMinutes`,
+**A stop node.** A pipeline can stop runs itself. A node of the kind the `pipelineStop` role binds takes
+`things` (one Thing or a list) and `reason`, and writes one stop request per Thing carrying the reason,
+related along `requestedBy` to its own run and along the `runStopping` connection to the Thing. It
+answers `requested`, the number written, or fails naming the Things it could not write a request for,
+and carries on. The run a request is `requestedBy` is never stopped by it.
+
+**Retrying.** A node carrying `attempts` (with optional `pauseMinutes`,
 `pauseGrowth`, `pauseSpread` and `tryingMinutes`) calls again while a call never reaches its service —
 a transport failure, a timeout, a server error from the door; any answer from the service is final, a
-refusal among them. Each attempt is an `Attempt` Thing the node run holds, its count on the node run's
-`attempts`, and the node run stands at `trying` between them. The pause is in model minutes, and a
-restarted orchestrator carries a trying node run on. When trying ends, a node relating to a pipeline
-along the predicate the `handsOverTo` role binds starts a run of it with what reached the node, and the
-node and the run end `handedOver`.
+refusal among them. Each attempt is an `Attempt` Thing the node run holds, written with its
+relationship as one fragment, its count on the node run's `attempts`, and the node run stands at
+`trying` between them. The pause is in model minutes, and a restarted orchestrator carries a trying
+node run on. A node that gives up fails like any other.
 
 **Rehearsing a draft.** A rehearsal ends `rehearsed`, or `cannotRehearse` at a node whose service does
-not rehearse or that waits; an end that would send or start does neither and is recorded `rehearsed`
-with what it would have sent as its outputs; the run carries `rehearsal`.
+not rehearse or that waits; a tell, follow-on or stop node does nothing and is recorded `rehearsed`
+with what it would have sent, started or stopped as its outputs; the run carries `rehearsal`.
 
 **A node may wait for a state.** A node that relates a range along `provenBy`, and the in port whose Thing
 must enter that range along `awaitsThrough`, is called and its answer recorded with status `waiting`.
 The node run carries its outputs before the wait, relates to the Thing it waits for along the predicate
 the `awaitedThing` role binds and to its vigil along the one the `heldVigil` role binds; the vigil names
-the connection the `runResumption` role binds, which the orchestrator accepts only for a vigil it placed,
-and the run resumes from its record when the vigil answers. On start the orchestrator reads every waiting
-run back and places a missing vigil again. A node that waits runs once, so a collection port on it is
-refused, and so is a wait through a port nothing fills.
+the connection the `runResumption` role binds. The orchestrator recognises a vigil by the type the
+broker's `vigil` role binds; it accepts an answer that arrives before it has recorded the node run
+holding the vigil, and resumes that run once the record is written. On start the orchestrator reads
+every waiting run back and places a missing vigil again. A node that waits runs once, so a collection
+port on it is refused, and so is a wait through a port nothing fills.
 
-**A run ending at an external system** sends what reached the end node: the end standing for the
-system writes a Thing under the archetype the `sentMessage` role binds, holding that value,
-held on the run along `has` and related to the system along the connection the system is told
-through (the predicate the `toldThrough` role binds). The broker delivers it once, as it does any
-relationship written along a connection. A system naming no such connection refuses the run.
+**A tell node** — of the kind the `pipelineTell` role binds — stands for an external system and sends it
+what reached the node: it writes a Thing under the archetype the `sentMessage` role binds, holding that
+value, held on the run along `has` and related to the system along the connection the system is told
+through (the predicate the `toldThrough` role binds), the message and its relationships as one fragment.
+The broker delivers it once, as it does any relationship written along a connection. A system naming
+no such connection refuses the run. The node answers success or fail, passes on what reached it, and
+carries on towards the Output node.
 
 *Internals:* `IMyceliumGateway` is the seam between orchestration and HTTP (so `PipelineExecutor` is
 unit-tested without a network); `PipelineGraph` + `PipelineDagBuilder` build the `PipelineDag`,
@@ -1412,8 +1472,8 @@ and a model may call its archetypes anything.
    ports (type-checked), **Save**.
 3. **Run:** click **Run** — the editor uses the async spawn and **animates each node live over SSE**
    (running → succeeded / failed / skipped / notTaken, and `waiting`, with a ring and colour of its own,
-   while a node waits for a state; a node run may also stand at `trying` between attempts and end
-   `handedOver`, and a run may end `handedOver`); **Cancel** writes a stop request for the run, and is
+   while a node waits for a state; a node run may also stand at `trying` between attempts); **Cancel**
+   writes a stop request for the run, and is
    offered on a run that is running, waiting or trying. Or create an `X runs Pipeline` relationship to
    trigger it from the model (fire-and-forget).
 
