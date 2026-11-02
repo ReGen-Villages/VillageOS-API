@@ -135,6 +135,7 @@ Body is a selector:
   "ids":   ["<guid>"],                // seed objects
   "names": ["Pump-01"],               // seed by name
   "types": ["Pump"],                  // seed by type (transitive `is`)
+  "typeIds": ["<archetype guid>"],    // the same, by the archetype's identifier, because names are not unique
   "boundTypes": ["<role thing guid>"],        // the archetype a role Thing binds, and every Thing that is it
   "boundArchetypes": ["<role thing guid>"],   // the one Thing a role binds, alone
   "traverse": [ { "predicate": "produces", "direction": "outgoing", "depth": 1 } ],  // or predicateRole
@@ -142,7 +143,7 @@ Body is a selector:
   "includeRelationships": true,
   "relationships": [ { "predicate": "holds", "direction": "outgoing" } ],  // which relationships travel; absent = every incident one
   "includeSnapshot": true,            // false = the watermark alone, no closure sent back
-  "includeLaterMatches": false        // true = the type-shaped parts go on matching after this moment
+  "includeLaterMatches": false        // true = the type-shaped parts and every depth-one traversal go on matching
 }
 ```
 
@@ -161,9 +162,13 @@ fixed the moment the subscription opens, so the only way to see a Thing made lat
 the whole model, on every connect. With it, a Thing of a type the selector names reaches you whenever
 it appears. Three things to know before you rely on it:
 
-- **Only the type-shaped parts follow.** `ids`, `names` and `traverse` still fix their part of the
-  membership when you open. A traversal is a walk of the model, and the match is asked inside every
-  commit for every subscriber.
+- **What follows.** `types`, `typeIds`, marked types and `boundTypes` follow. A depth-one traversal
+  follows too: a relationship along its predicate, from a Thing the selector picks outright, brings in
+  the Thing at its other end, which reaches nothing further; retracting that relationship sends
+  `ThingLeft` unless something else still holds the Thing. A Thing given when you opened leaves this
+  way only if one step alone reached it then. `ids`, `names` and deeper traversals still fix their part
+  when you open: a longer traversal is a walk of the model, and the match is asked inside every commit
+  for every subscriber.
 - **A relationship is covered when either of its ends is.** `"includeRelationships": false` turns
   that off.
 - **A Thing enters when its `is` relationship types it, and arrives whole.** A Thing is created before
@@ -224,6 +229,7 @@ on a launch command: you ask for the slice **by shape** and get exactly that clo
 | By name | `{ "names": ["Pump-01"] }` |
 | Every Thing of a type (transitive `is`) | `{ "types": ["Pump"] }` |
 | The same, without knowing what the model calls the type | `{ "boundTypes": ["<role thing guid>"] }` |
+| An archetype and its members by identifier, including ones made later | `{ "typeIds": ["<archetype guid>"], "includeLaterMatches": true }` |
 | Just the Thing playing a role, to write `X is Y` or a relationship along it | `{ "boundArchetypes": ["<role thing guid>"] }` |
 | A type **and** its neighbours along a relationship | `{ "types": ["OpenDataSource"], "traverse": [{ "predicate": "provides", "direction": "outgoing", "depth": 1 }] }` |
 | Drop inherited type-default values | add `"includeIsAncestors": false` |
