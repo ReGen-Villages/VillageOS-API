@@ -35,7 +35,7 @@ def value(properties, name):
 
 
 EVERY_ROLE = (set(G.ARCHETYPE_ROLE.values()) | set(G.PREDICATE_ROLE.values()) | set(G.ROOT_ROLE.values())
-              | set(G.TRIGGER_ROLE.values()) | set(G.RESULT_ROLE.values()) | {G.ERROR_PORT_ROLE})
+              | set(G.TRIGGER_ROLE.values()) | set(G.RESULT_ROLE.values()) | {G.ERROR_PORT_ROLE, G.STOPPING_CONNECTION_ROLE})
 SHARED_BY_EVERY_MODEL = {G.role_id(word) for word in EVERY_ROLE | {"role"}}
 
 
@@ -165,6 +165,48 @@ class RoleBindingTests(unittest.TestCase):
         for word in EVERY_ROLE:
             self.assertEqual(len(bound_in_seed(seed, word)), 1, word)
 
+    def test_merge_keeps_the_ports_of_a_stop_kind_the_target_binds_and_adds_none_of_its_own(self):
+        seed = {"Name": "Target",
+                "Things": [{"Id": "target-binds", "Name": "binds", "Properties": {}},
+                           {"Id": "target-has", "Name": "has", "Properties": {}},
+                           {"Id": G.role_id("pipelineStop"), "Name": "PipelineStop", "Properties": {}},
+                           {"Id": "target-stop", "Name": "Halt", "IsArchetype": True, "Properties": {}},
+                           {"Id": "target-things", "Name": "Halt things", "Properties": {}}],
+                "Relationships": [{"Id": "target-binding", "Name": "", "Subject": G.role_id("pipelineStop"),
+                                   "Predicate": "target-binds", "Target": "target-stop", "Properties": {}},
+                                  {"Id": "target-holds", "Name": "", "Subject": "target-stop",
+                                   "Predicate": "target-has", "Target": "target-things", "Properties": {}}]}
+        G.merge_into(G.build(), seed)
+
+        held = [r["Target"] for r in seed["Relationships"] if r["Subject"] == "target-stop" and r["Predicate"] == "target-has"]
+        self.assertEqual(held, ["target-things"])
+
+    def test_merge_keeps_the_service_of_a_stopping_connection_the_target_binds_and_adds_none_of_its_own(self):
+        seed = {"Name": "Target",
+                "Things": [{"Id": "target-binds", "Name": "binds", "Properties": {}},
+                           {"Id": "target-has", "Name": "has", "Properties": {}},
+                           {"Id": G.role_id("runStopping"), "Name": "RunStopping", "Properties": {}},
+                           {"Id": "target-stops", "Name": "halts", "Properties": {}},
+                           {"Id": "target-orchestrator", "Name": "runsPipeline service", "Properties": {}}],
+                "Relationships": [{"Id": "target-binding", "Name": "", "Subject": G.role_id("runStopping"),
+                                   "Predicate": "target-binds", "Target": "target-stops", "Properties": {}},
+                                  {"Id": "target-holds", "Name": "", "Subject": "target-stops",
+                                   "Predicate": "target-has", "Target": "target-orchestrator", "Properties": {}}]}
+        G.merge_into(G.build(), seed)
+
+        held = [r["Target"] for r in seed["Relationships"] if r["Subject"] == "target-stops" and r["Predicate"] == "target-has"]
+        self.assertEqual(held, ["target-orchestrator"])
+        self.assertEqual([t for t in seed["Things"] if t["Name"] == "Orchestrator service"], [])
+
+    def test_remove_leaves_the_stop_kind_its_ports(self):
+        seed = {"Name": "Target", "Things": [], "Relationships": []}
+        G.merge_into(G.build(), seed)
+        G.remove_from(G.build(), seed)
+
+        [stop_kind] = bound_in_seed(seed, "pipelineStop")
+        [has] = [t["Id"] for t in seed["Things"] if t["Name"] == "has"]
+        self.assertEqual(len([r for r in seed["Relationships"] if r["Subject"] == stop_kind and r["Predicate"] == has]), 3)
+
     def test_merge_binds_an_archetype_the_target_holds_by_name_but_never_bound(self):
         seed = {"Name": "Target",
                 "Things": [{"Id": "target-pipeline", "Name": "Pipeline", "Properties": {}}],
@@ -238,7 +280,7 @@ class CatalystVocabularyTests(unittest.TestCase):
         [connection_archetype] = self.bound("connection")
         [is_] = [tid for tid, t in self.kit.things.items() if t["Name"] == "is"]
         connections = {r["Subject"] for r in self.kit.rels.values() if r["Predicate"] == is_ and r["Target"] == connection_archetype}
-        for connection in connections - set(self.told_through().values()):
+        for connection in connections - set(self.told_through().values()) - set(self.bound("runStopping")):
             self.assertEqual(self.triggers_of(connection), ["http"], self.kit.things[connection]["Name"])
 
     def test_a_system_that_is_told_names_a_connection_written_along_and_bound_to_a_service(self):
@@ -449,6 +491,17 @@ class CatalystVocabularyTests(unittest.TestCase):
         run = self.validate(G.as_fragment(self.kit))
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
         self.assertIn("Branching Decision", run.stdout)
+        self.assertIn("Echo and Follow On", run.stdout)
+        self.assertIn("Stop the Runs About Them", run.stdout)
+
+    def test_the_fragment_validator_refuses_a_stop_node_in_a_model_binding_nothing_to_requested_by(self):
+        fragment = G.as_fragment(self.kit)
+        fragment["Relationships"] = [r for r in fragment["Relationships"] if r["Subject"] != G.role_id("requestedBy")]
+
+        run = self.validate(fragment)
+
+        self.assertEqual(run.returncode, 1, run.stdout + run.stderr)
+        self.assertIn("[Stop the Runs About Them] 'Stop their runs' stops runs, but the model binds nothing to the role requestedBy", run.stdout)
 
     def test_the_fragment_validator_refuses_a_choice_no_port_offers(self):
         [offers] = self.bound("choice")
@@ -501,7 +554,64 @@ class CatalystVocabularyTests(unittest.TestCase):
         stood = {(self.kit.things[r["Subject"]]["Name"], self.kit.things[r["Target"]]["Name"])
                  for r in self.kit.rels.values() if r["Predicate"] == stands_for}
         self.assertEqual(stood, {("A reading batch arrives", "reading batch"), ("The office is told", "Reporting office"),
-                                 ("The hour strikes", "Every hour")})
+                                 ("The hour strikes", "Every hour"), ("Boundary I/O Echo follows", "Boundary I/O Echo")})
+
+    def ports_held_by(self, holder):
+        [has] = [t["Id"] for t in self.kit.things.values() if t["Name"] == "has"]
+        [port_archetype] = self.bound("port")
+        [is_] = [t["Id"] for t in self.kit.things.values() if t["Name"] == "is"]
+        ports = {r["Subject"] for r in self.kit.rels.values() if r["Predicate"] == is_ and r["Target"] == port_archetype}
+        held = [self.kit.things[r["Target"]]["Properties"] for r in self.kit.rels.values()
+                if r["Subject"] == holder and r["Predicate"] == has and r["Target"] in ports]
+        return sorted((value(port, "portName"), value(port, "direction")) for port in held)
+
+    def test_a_follow_on_node_starts_the_boundary_echo_with_the_seed_echo_answered_and_passes_it_on(self):
+        [follow_on] = self.bound_instances("pipelineFollowOn")
+        self.assertEqual(self.kit.things[follow_on]["Name"], "Boundary I/O Echo follows")
+        self.assertEqual(self.ports_held_by(follow_on), [("seed", "in"), ("seed", "out")])
+        [carries] = [t["Id"] for t in self.kit.things.values() if t["Name"] == "carries"]
+        [has] = [t["Id"] for t in self.kit.things.values() if t["Name"] == "has"]
+        wires_out = [r["Target"] for r in self.kit.rels.values() if r["Subject"] == follow_on and r["Predicate"] == has and r["Target"] in self.wires()]
+        [reached] = [r["Target"] for r in self.kit.rels.values() if r["Subject"] in wires_out and r["Predicate"] == carries]
+        self.assertIn(reached, self.bound_instances("pipelineOutput"))
+
+    def test_a_stop_node_takes_its_ports_from_its_kind_which_holds_things_reason_and_requested(self):
+        [stop] = self.bound_instances("pipelineStop")
+        [stop_kind] = self.bound("pipelineStop")
+        self.assertEqual(self.kit.things[stop]["Name"], "Stop their runs")
+        self.assertEqual(self.ports_held_by(stop), [])
+        self.assertEqual(self.ports_held_by(stop_kind), [("reason", "in"), ("requested", "out"), ("things", "in")])
+
+    def test_the_stop_kind_is_a_pipeline_node(self):
+        [stop_kind] = self.bound("pipelineStop")
+        [node_archetype] = self.bound("pipelineNode")
+        [is_] = [t["Id"] for t in self.kit.things.values() if t["Name"] == "is"]
+        self.assertIn((stop_kind, is_, node_archetype), self.kit.rels)
+
+    def test_requested_by_is_bound_so_a_stop_request_names_the_run_that_wrote_it_and_spares_it(self):
+        [requested_by] = self.bound("requestedBy")
+        self.assertEqual(self.kit.things[requested_by]["Name"], "requestedBy")
+
+    def test_a_stop_request_is_a_kind_declaring_its_reason_empty_and_a_run_relates_to_the_one_that_stopped_it(self):
+        [stop_request] = self.bound("stopRequest")
+        self.assertTrue(self.kit.things[stop_request].get("IsArchetype"))
+        self.assertEqual(self.kit.things[stop_request]["Properties"]["reason"], {"typeInfo": "vos.String", "value": ""})
+        [stopped_by] = self.bound("stoppedBy")
+        self.assertIn(stopped_by, self.kit.predicates)
+
+    def test_a_stop_request_reaches_the_orchestrator_along_a_connection_the_model_triggers_and_its_service_answers(self):
+        [stops] = self.bound("runStopping")
+        [connection] = self.bound("connection")
+        [graph] = self.bound("graphTrigger")
+        [service] = self.bound("service")
+        [is_] = [t["Id"] for t in self.kit.things.values() if t["Name"] == "is"]
+        [has] = [t["Id"] for t in self.kit.things.values() if t["Name"] == "has"]
+        [triggered_by] = self.bound("trigger")
+        self.assertIn((stops, is_, connection), self.kit.rels)
+        self.assertIn((stops, triggered_by, graph), self.kit.rels)
+        [orchestrator] = [r["Target"] for r in self.kit.rels.values() if r["Subject"] == stops and r["Predicate"] == has]
+        self.assertIn((orchestrator, is_, service), self.kit.rels)
+        self.assertNotIn("Subdomain", self.kit.things[stops]["Properties"])
 
     def test_the_daily_report_tells_the_office_through_a_tell_node_wired_on_to_an_output_node_standing_for_nothing(self):
         [stands_for] = self.bound("standsFor")
