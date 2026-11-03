@@ -118,6 +118,14 @@ class Model:
                 stack.append(parent["Id"])
         return ports
 
+    def error_port(self):
+        bound = self.bound_to(ERROR_PORT)
+        if bound is None:
+            return []
+        port = self.things[bound]
+        return [{"id": bound, "portName": str(port["P"].get("portName", port["Name"])), "direction": "out",
+                 "type": str(port["P"].get("type", "")), "required": False}]
+
     def connections(self):
         res = []
         for t in self.things.values():
@@ -195,7 +203,8 @@ def main():
                     problems.append(f"[{pipe['Name']}] node '{t['Name']}' binds no connection")
                     ports = []
                 else:
-                    ports = m.resolve_ports(t["Id"]) + conn_by_id.get(conn["Id"], {}).get("ports", [])
+                    # Every service node has the error port without declaring it, as the orchestrator lists it last.
+                    ports = m.resolve_ports(t["Id"]) + conn_by_id.get(conn["Id"], {}).get("ports", []) + m.error_port()
                 # A Thing the node chose must be offered by one of its in ports along the same predicate, or
                 # the orchestrator refuses the run.
                 for chosen in m.reached_along(t["Id"], CHOICE):
