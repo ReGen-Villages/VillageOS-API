@@ -79,6 +79,7 @@ Mycelium launches your binary with `--key=value` flags. `--port` and `--mycelium
 | `--myceliumUrl` | ✓ | Base URL of Mycelium, e.g. `https://localhost:7243` |
 | `--issuer` | | JWT issuer to check against. **Required when `VerificationKey` is set** (startup fails otherwise); must match what Mycelium signs |
 | `--audience` | | **Your service's own name**, which an inbound token must carry as its recipient. **Required when `VerificationKey` is set** (startup fails otherwise). There is no shared default: a token addressed to another service, or to a signed-in person's browser, must not be accepted here. Mycelium works the name out from the connection that dispatches to you — treat it as opaque and check the value you were given |
+| `--logDirectory` | | The folder to write your log file in. Without it, the C# host writes four folders above its build output |
 
 ### Credentials
 
@@ -113,13 +114,16 @@ On startup, obtain a bearer token then register.
   "startCommand": "endpoint-service",
   "stopEndpoint": "http://localhost:<port>/shutdown",
   "healthEndpoint": "http://localhost:<port>/health",
-  "logFilePrefix": "yourservice-"
+  "logFilePrefix": "yourservice-",
+  "logDirectory": "/full/path/to/your/logs"
 }
 ```
 
 `logFilePrefix` is optional: lowercase letters, digits and hyphens, the prefix of the file the service
 writes its own log under, so the broker's log routes can find the newest one. A service that writes
-no log file leaves it out. A 2xx means you're registered.
+no log file leaves it out. `logDirectory` is optional too: the full path of the folder a service
+started with `--logDirectory` writes in; one writing to its default folder sends none. The broker
+refuses a folder outside the parent it allows. A 2xx means you're registered.
 
 ## Endpoints to expose
 
@@ -231,7 +235,7 @@ Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT car
 
 **Calling back into Mycelium.** If your handler writes back during `/handle` (Facts, Observations, relationships), authenticate those calls with the **inbound** request token, not the startup JWT from `Token` — otherwise a daemon shared by several models writes to whichever model launched it. Handlers built on `MyceliumClientBase` get this for free: add `app.UseMyceliumModelToken()` after `UseAuthorization()`, and `GetTokenAsync()` prefers the bearer of the work in hand.
 
-**Work that outlives the request.** A request bearer expires in 5 minutes, so anything you keep open past the call — a change subscription, most obviously — cannot lean on it. Exchange it at `POST /api/auth/service-token` for one naming the same model with a full lifetime, and replace that before it expires; a subscription can sit quiet for longer than a token lives, and once it has lapsed there is no valid token left to ask with. `AddInputChangeRecompute` does all of this for you, including running each recompute under its own model's token so your handler writes back where the subject actually lives.
+**Work that outlives the request.** A request bearer expires in 5 minutes, so anything you keep open past the call — a change subscription, most obviously — cannot lean on it. Exchange it at `POST /api/auth/service-token` for one naming the same model with a full lifetime, and replace that before it expires; a subscription can sit quiet for longer than a token lives, and once it has lapsed there is no valid token left to ask with. `AddInputChangeRecompute` does all of this for you, including running each recompute under its own model's token so your handler writes back where the subject actually lives. Work a `/handle` call starts and that runs on after the answer — a simulation loop, a discovery run — takes `HeldModelToken.SwapFromTheCallAsync` while the call is still being answered and acts through its `ActAsync`; when Mycelium will not swap the token, answer `503` and start nothing, since the work would be refused partway through.
 
 ## Deregistration & health
 

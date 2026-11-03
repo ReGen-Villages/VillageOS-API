@@ -139,7 +139,7 @@ Mycelium JWT addressed to Delta; `/health` stays open. Delta exposes no `/stats`
 Delta takes the **standard launch settings** (see [`SERVICES.md`](SERVICES.md) §4):
 
 ```bash
-dotnet run -- --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--audience=<aud>]
+dotnet run -- --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--audience=<aud>] [--logDirectory=<folder>]
 ```
 
 `--issuer` must match what Mycelium signed with and `--audience` must be Delta's own recipient

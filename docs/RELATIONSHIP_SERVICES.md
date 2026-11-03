@@ -230,7 +230,7 @@ Both `consumes` and `produces` are handled by a single `Metabolism` binary, diff
 | `quantity` | number | 1.0 | Amount per tick |
 | `propertyPath` | string | `"quantity"` | Property path to modify on the target |
 | `unit` | string | `""` | Unit label for logging |
-| `frequencySeconds` | number | 60 | Seconds between ticks |
+| `frequencySeconds` | number | 60 | Seconds between ticks: at least 1, fractions allowed. Under 1, `/handle` answers `400` |
 | `startDelaySeconds` | number | 0 | Initial delay in seconds before `startUtc` is considered. The first tick will not fire until this delay has elapsed |
 | `startUtc` | string (ISO 8601) | now | When to begin simulation (evaluated after `startDelaySeconds`) |
 | `endUtc` | string (ISO 8601) | 2099-12-31 | When to stop simulation |
@@ -550,7 +550,7 @@ On replay, the model's current value for a property is reconstructed from the **
 
 ### Log Files
 
-Handlers write to daily rolling log files in a `logs/` directory four levels above the service's build output — the repository root, when the service runs from its own `bin/` folder:
+Handlers write to daily rolling log files in the folder `--logDirectory` names (or `LogDirectory` in configuration), and by default in a `logs/` directory four levels above the service's build output — the repository root, when the service runs from its own `bin/` folder. Every line also goes to the console:
 
 - `consumes` handler: `logs/metabolism-consumes-YYYYMMDD.log`
 - `produces` handler: `logs/metabolism-produces-YYYYMMDD.log`
@@ -571,6 +571,7 @@ Normally Mycelium auto-starts handler daemons via the daemon lifecycle manager. 
 | `--myceliumUrl=<url>` | Yes | URL of the VillageOS Mycelium (e.g., `https://localhost:7243`) |
 | `--issuer=<issuer>` | No | JWT issuer Mycelium signs with. Must match for `/handle` authentication |
 | `--audience=<audience>` | No | This service's own recipient name, which an inbound token must carry. Must match for `/handle` authentication |
+| `--logDirectory=<folder>` | No | The folder the service writes its log file to; four levels above the build output by default |
 | `--mode=<mode>` | Metabolism only | `consumes` or `produces` |
 
 #### Credential settings

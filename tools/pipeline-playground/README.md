@@ -98,14 +98,17 @@ matched **through what the target's role Thing binds**, then by name — a match
 Things — so a model that calls its pipeline
 archetype something else keeps its own. One the target holds under the same name but has never bound comes
 to play the role as it reconciles, and the target's own role Things are kept — the binding is what says
-what an archetype is for, and the editor and the orchestrator both read it. Everything else is namespaced
-so it will not collide with a host model's own Things.
+what an archetype is for, and the editor and the orchestrator both read it. A model that binds its own stop
+kind keeps that kind's ports, and one that binds its own `stops` connection keeps that connection's
+service: the playground adds neither, which would leave a required port unfilled on every stop node or
+send each stop request to a second service. Everything else is namespaced so it will not collide with a
+host model's own Things.
 
 The playground also declares the three roots every archetype in a model sits under, `Configuration`,
 `Operation` and `Predicate`, bound by the `configuration`, `operation` and `predicate` roles, and places
 what it mints: the pipeline, node, port, wire, service, connection, external-system, message-kind and
 strategy archetypes under `Configuration`; every predicate it declares under `Predicate`; every role
-Thing `is Role`, and `Role` is under `Configuration`; the run, node-run and sent-message archetypes,
+Thing `is Role`, and `Role` is under `Configuration`; the run, node-run, sent-message and stop-request archetypes,
 which record what a run did, under `Operation`. Merged into a model that already binds the roots, the placements land on that model's own
 roots, like the rest of the shared vocabulary. Merged into one that does not, the roots arrive with the
 playground, and seed validation then holds the whole model to them.
@@ -148,13 +151,15 @@ node may stand for it: `Every hour` starts the Hourly Tally drawing.
 | Diamond Fan | A wider fan-out/fan-in pipeline — layout + multi-input merge + report. |
 | Fan-out Scoring | A collection input that spreads into one run item each, `onItemError=continue`, with a seeded partial run showing fan-out progress. |
 | Water / Energy Self-Sufficiency | Param-bound site-analysis nodes. |
-| Site Analysis (Combined) | A capstone: a source feeding one wired input while others are param-bound, two analyses in parallel, merge → report → sink. |
+| Site Analysis (Combined) | A capstone: a source feeding one wired input while others are param-bound, two analyses in parallel, merge → report → publish → Output. |
 | Number Cruncher | A numeric chain mixing wired and param-bound inputs on the same node. |
-| Enrichment Batch | Fan-out into a sink. |
+| Enrichment Batch | Fan-out, then publish, ending at the Output node. |
 | Readings Arrive | A start standing for the kind of message the Sensor gateway sends, ending at the answer. |
-| Daily Report | A pipeline ending at the Reporting office, which is told the report. |
-| Branching Decision | A node holding out ports `accept` and `refuse` of its own and answering under one; the other branch is recorded not taken and the end is reached once. |
+| Daily Report | A tell node, The office is told, tells the Reporting office the report and passes it on to the Output node, Reported. |
+| Branching Decision | A node holding the choices `accept` and `refuse`; `accept` is taken when the strategy it was given is Nearest first or Cheapest first, `refuse` otherwise; the other branch is recorded not taken and the Output node is reached once. |
 | Hourly Tally | A start standing for the cadence `Every hour`, its `due` port wired into Echo, ending at `tally`. |
+| Echo and Follow On | A follow-on node, Boundary I/O Echo follows, starts Boundary I/O Echo with the seed Echo answered as that run's `seed`, and passes the seed on to the Output node. |
+| Stop the Runs About Them | A stop node, Stop their runs, stops the runs about each Thing given in `things`, carrying `reason`, and passes on how many stop requests it wrote as `requested`. |
 
 Every drawing is published. Every service rehearses except Water Reserve, Energy Balance, Metabolism and
 Model Bridge, which nobody has yet checked to write nothing.
@@ -175,6 +180,12 @@ The contract read by `vos.Trellis/src/pipeline/model.ts` and `vos.Service.Phloem
   `carries`, the out port it takes its value from along `inputConnector` and the in port it delivers to
   along `outputConnector`, each predicate bound by a role of the same word, and carries `fromPath`,
   `toPath` and `transform` and no port names. A wire drawn as a relationship between two nodes is refused.
+- A **stop node** `is` the stop kind, which the `pipelineStop` role binds, and holds no ports of its own:
+  its `things`, `reason` and `requested` ports are the kind's. A **stop request** `is StopRequest`,
+  carries `reason`, names the run that wrote it along `requestedBy`, and is related along `stops` to
+  what it stops — a run, or a Thing whose runs stop. `stops` is a connection as well as a predicate, bound
+  by the `runStopping` role: the `graph` trigger fires it and it `has` the orchestrator service, so the
+  request reaches the orchestrator. A stopped run relates along `stoppedBy` to the request.
 - A seeded **run** `is PipelineRun`, points `of` its pipeline, and `has` `NodeRun` children (a per-item
   `NodeRun` carrying `index` / `total` drives fan-out progress).
 - An **external system** `is ExternalSystem` and `sends` or is `told` message kinds; a **message kind**

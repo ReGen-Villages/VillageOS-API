@@ -109,7 +109,7 @@ page. It is new on every delivery, so it is not a key for recognising a repeat; 
 
 ## Registration
 
-- `POST /api/mycelium/register` (Bearer) — `{ handlerId, serviceName, endpointUrl, startCommand, stopEndpoint, healthEndpoint }`, and an optional `logFilePrefix`: lowercase letters, digits and hyphens, the prefix of the file the service writes its own log under, so the broker's log routes can find it. A service that writes no log file sends none; any other value is refused with `400`
+- `POST /api/mycelium/register` (Bearer) — `{ handlerId, serviceName, endpointUrl, startCommand, stopEndpoint, healthEndpoint }`, and an optional `logFilePrefix`: lowercase letters, digits and hyphens, the prefix of the file the service writes its own log under, so the broker's log routes can find it. A service that writes no log file sends none; any other value is refused with `400`. An optional `logDirectory`, the full path of the folder a service started with `--logDirectory` writes in, is sent by such a service only; a folder outside the parent the broker allows is refused with `400`
 - There is no deregistration call for a service to make: `DELETE /api/mycelium/services/{handlerId}` is admin-only and refuses a service token. A service that stops answering `/health` is removed by the broker's liveness monitor.
 
 An open SSE subscription also counts as a liveness signal: a service that is actively streaming
@@ -118,6 +118,12 @@ is treated as healthy even if its `/health` is briefly unreachable.
 ## Subscriptions (live model data over SSE)
 
 Replaces GET-storm polling: take one snapshot, then follow changes.
+
+**Reading once registers nothing.** `POST /api/snapshots` (Bearer) takes the same selector as below and
+answers `{ watermark, snapshot }`, the snapshot a subscription would answer, with the same read access
+and refusals, and registers no subscription. Use it when you read and do not follow: the broker checks
+every registered subscription on every write until it is deleted. `includeLaterMatches`,
+`includeObservations`, `observationCadences` and `includeSnapshot` belong to a subscription only.
 
 ### `POST /api/subscriptions` (Bearer) → snapshot + watermark
 
@@ -129,6 +135,7 @@ Body is a selector:
   "ids":   ["<guid>"],                // seed objects
   "names": ["Pump-01"],               // seed by name
   "types": ["Pump"],                  // seed by type (transitive `is`)
+  "typeIds": ["<archetype guid>"],    // the same, by the archetype's identifier, because names are not unique
   "boundTypes": ["<role thing guid>"],        // the archetype a role Thing binds, and every Thing that is it
   "boundArchetypes": ["<role thing guid>"],   // the one Thing a role binds, alone
   "traverse": [ { "predicate": "produces", "direction": "outgoing", "depth": 1 } ],  // or predicateRole
@@ -136,7 +143,7 @@ Body is a selector:
   "includeRelationships": true,
   "relationships": [ { "predicate": "holds", "direction": "outgoing" } ],  // which relationships travel; absent = every incident one
   "includeSnapshot": true,            // false = the watermark alone, no closure sent back
-  "includeLaterMatches": false        // true = the type-shaped parts go on matching after this moment
+  "includeLaterMatches": false        // true = the type-shaped parts and every depth-one traversal go on matching
 }
 ```
 
@@ -155,9 +162,13 @@ fixed the moment the subscription opens, so the only way to see a Thing made lat
 the whole model, on every connect. With it, a Thing of a type the selector names reaches you whenever
 it appears. Three things to know before you rely on it:
 
-- **Only the type-shaped parts follow.** `ids`, `names` and `traverse` still fix their part of the
-  membership when you open. A traversal is a walk of the model, and the match is asked inside every
-  commit for every subscriber.
+- **What follows.** `types`, `typeIds`, marked types and `boundTypes` follow. A depth-one traversal
+  follows too: a relationship along its predicate, from a Thing the selector picks outright, brings in
+  the Thing at its other end, which reaches nothing further; retracting that relationship sends
+  `ThingLeft` unless something else still holds the Thing. A Thing given when you opened leaves this
+  way only if one step alone reached it then. `ids`, `names` and deeper traversals still fix their part
+  when you open: a longer traversal is a walk of the model, and the match is asked inside every commit
+  for every subscriber.
 - **A relationship is covered when either of its ends is.** `"includeRelationships": false` turns
   that off.
 - **A Thing enters when its `is` relationship types it, and arrives whole.** A Thing is created before
@@ -218,6 +229,7 @@ on a launch command: you ask for the slice **by shape** and get exactly that clo
 | By name | `{ "names": ["Pump-01"] }` |
 | Every Thing of a type (transitive `is`) | `{ "types": ["Pump"] }` |
 | The same, without knowing what the model calls the type | `{ "boundTypes": ["<role thing guid>"] }` |
+| An archetype and its members by identifier, including ones made later | `{ "typeIds": ["<archetype guid>"], "includeLaterMatches": true }` |
 | Just the Thing playing a role, to write `X is Y` or a relationship along it | `{ "boundArchetypes": ["<role thing guid>"] }` |
 | A type **and** its neighbours along a relationship | `{ "types": ["OpenDataSource"], "traverse": [{ "predicate": "provides", "direction": "outgoing", "depth": 1 }] }` |
 | Drop inherited type-default values | add `"includeIsAncestors": false` |

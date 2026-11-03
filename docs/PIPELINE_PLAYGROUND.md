@@ -16,6 +16,10 @@ The generator writes the same content to either of two places:
 - **A site seed** — the generator can also merge the same services and pipelines into a site model
   (`generate.py --into`), so you can build pipelines alongside real building data.
 
+Beside the examples, `declare_service.py` declares one service of your own in a seed from its
+`GET /manifest`, with a published pipeline that runs it; the tool's
+[README](../tools/pipeline-playground/README.md) says how.
+
 ## Load them
 
 Open the GUI and click **Switch Model** in the sidebar footer to open the seed picker, then choose
@@ -44,8 +48,10 @@ on arrival. On the right are the **outputs** and, under them, the **services**.
 - **Run** — starts the pipeline (enabled only once it is saved and passes validation). **Params** bar
   appears above the canvas when a node binds an input to a run parameter.
 - **History** — past runs of the loaded pipeline; selecting one replays its node statuses onto the canvas.
-- **Inspector** — click a node to bind its inputs to run parameters (or edit a boundary node's ports); click
-  a wire to set field paths and a transform.
+- **Inspector** — click a node to bind its inputs to run parameters (or edit a boundary node's ports), to
+  edit its choices and the Things each choice compares with, and to change which offered Thing it chose for
+  each in port that offers Things; click the Output node for its rule; click a wire to set what it is taken
+  on, its field paths and a transform.
 
 Full reference: [the Field Guide, Part VI](FIELD_GUIDE.md#41-building-one-on-the-canvas).
 
@@ -87,27 +93,34 @@ These bind inputs to **run parameters** — the **Params** bar appears above the
 | **Water Self-Sufficiency** | A `Water Reserve` node with three param-bound inputs. |
 | **Energy Self-Sufficiency** | An `Energy Balance` node with every input param-bound. |
 | **Number Cruncher** | A numeric chain mixing **wired and param-bound** inputs on the same node: `Random → Multiply (factor param) → Sum (offset param) → Output`. |
-| **Site Analysis (Combined)** | The capstone. A `Site Parameters` source supplies one wired input (`population`) while others are param-bound; `Water Reserve` and `Energy Balance` run in parallel, merge into a report, and end at a `Publish` sink. |
-| **Enrichment Batch** | Fan-out into a sink: a list of records is enriched one item at a time, then published. |
+| **Site Analysis (Combined)** | The capstone. A `Site Parameters` source supplies one wired input (`population`) while others are param-bound; `Water Reserve` and `Energy Balance` run in parallel, merge into a report, pass through a `Publish` node and end at the Output node. |
+| **Enrichment Batch** | Fan-out: a list of records is enriched one item at a time, then published, ending at the Output node. |
 
 ### Catalysts and outputs that stand for the world outside
 
 | Pipeline | What it shows |
 |----------|---------------|
 | **Readings Arrive** | A start standing for the kind of message the `Sensor gateway` sends — a batch of readings arriving at a connection — ending at the answer. |
-| **Daily Report** | A pipeline ending at the `Reporting office`, an external system that is told the report. The office is told through `tells Reporting office`, a connection bound to the `Publish` stand-in, so the rail also lists that connection as a relationship row; a run writes a sent message the server delivers to it once. |
+| **Daily Report** | A tell node, *The office is told*, stands for the `Reporting office`, an external system, and tells it the report; it passes the report on to the Output node, *Reported*. The office is told through `tells Reporting office`, a connection bound to the `Publish` stand-in, so the rail also lists that connection as a relationship row; a run writes a sent message the server delivers to it once. The canvas draws the tell node from the seed and does not place one of its own. |
 
 ### A drawing that branches
 
 | Pipeline | What it shows |
 |----------|---------------|
-| **Branching Decision** | A `Decide` node holding out ports `accept` and `refuse` of its own, beside the ports its service declares, with a `strategy` input that offers three Things to choose from. The node answers under one out port, so only that branch runs; the other branch is recorded *not taken*, and the end is reached once. The seed draws the node's own ports and its choice; the inspector does not yet edit them. |
+| **Branching Decision** | A `Decide` node holding the choices `accept` and `refuse`, with a `strategy` input that offers three Things to choose from. `accept` is taken when the strategy the node was given is *Nearest first* or *Cheapest first* — its rule compares with those two Things — and `refuse` otherwise, so only the wire taken on that choice runs; the other branch is recorded *not taken*, and the Output node is reached once. The inspector edits the strategy the node chose, its choices and what each choice compares with. |
 
 ### A drawing the clock starts
 
 | Pipeline | What it shows |
 |----------|---------------|
 | **Hourly Tally** | A start standing for the cadence `Every hour`, its `due` port wired into Echo, ending at `tally`. A cadence is a catalyst of its own: the orchestrator starts the drawing for each hour due, with the instant as `due`. |
+
+### Runs that start or stop other runs
+
+| Pipeline | What it shows |
+|----------|---------------|
+| **Echo and Follow On** | A follow-on node, *Boundary I/O Echo follows*, stands for the Boundary I/O Echo drawing. What Echo answered reaches its `seed` port, and becomes the `seed` parameter of a new Boundary I/O Echo run; the node passes the seed on to the Output node. |
+| **Stop the Runs About Them** | A stop node, *Stop their runs*, writes one stop request for each run or Thing given in `things`, carrying `reason`. A run given stops; a Thing given stops every run about it that is still going. The run that wrote the requests is never stopped by them. The node holds no ports of its own: `things`, `reason` and `requested`, the number of requests written, are its kind's. |
 
 Every drawing is published, so the model may start any of them. Every service rehearses except Water
 Reserve, Energy Balance, Metabolism and Model Bridge, which nobody has yet checked to write nothing.
@@ -130,6 +143,8 @@ Reserve, Energy Balance, Metabolism and Model Bridge, which nobody has yet check
 | Energy Self-Sufficiency | `solarPvAreaM2` = `12000`, `solarResourceKwhPerM2PerYear` = `1400`, `moduleEfficiency` = `0.17`, `performanceRatio` = `0.77`, `otherGenerationMwhPerYear` = `500`, `annualConsumptionMwhPerYear` = `3200` |
 | Number Cruncher | `factor` = `10`, `offset` = `5` |
 | Site Analysis (Combined) | `perCapitaConsumptionM3` = `55`, `storageCapacityM3` = `40000`, plus the Energy params above |
+| Echo and Follow On | `seed` = `hello` |
+| Stop the Runs About Them | `things` = a list of run or Thing identifiers, such as `["<run identifier>"]`; `reason` = a sentence saying why |
 
 > **`perCapitaConsumptionM3` is per person per *year*.** `55` is 150 litres per person per day
 > expressed annually — the same basis the site-analysis templates use. A per-day figure is silently
