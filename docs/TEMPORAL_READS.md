@@ -154,17 +154,23 @@ answers about the graph as it stood rather than the graph as it is now:
 | Instant asked for | Answer |
 |---|---|
 | Before the object joined the model | Left out. `GET /api/things/{id}?timestamp=` answers `404` |
-| While it stood | Included, with the values that stood then — see below for where they are |
+| While it stood, and it is still in the model | Included, with the values that stood then — see below for where they are |
+| While it stood, but it has been retracted since | Left out, unless the request says `retracted=true` |
 | At or after it was retracted | Left out — the same answer as before it arrived |
 
 The instant is taken when the object **joins the model**, not when a client composed it, so composing
 a relationship and inserting it later dates it from the insertion.
 
-Some time after a deletion the server lets the object go from memory. A Thing asked about by itself
-(`GET /api/things/{id}?timestamp=`) is still answered for an instant it stood, from the record of its
-lifetime kept on disk: the name it held then, its values, and its relationships live then, and only
-for a caller the Thing's categories admit. The whole-model read (`GET /api/model?timestamp=`) answers
-only what the server still holds.
+Both `GET /api/things/{id}?timestamp=` and `GET /api/model?timestamp=` leave out what was retracted
+since the instant, so the answer does not depend on whether the server still holds it. Add
+`&retracted=true` (or `=1`) to keep it; `false` and `0` are the default, and any other value is
+refused with `400`.
+
+Some time after a deletion the server lets the object go from memory. With the flag, both reads still
+answer for an instant it stood, from the record of its lifetime kept on disk: the name it held then,
+its values, its relationships live then, and values under names it no longer holds. A Thing read this
+way appears only for a caller the Thing's categories admit, and a relationship only when all three of
+its ends may be read at the instant.
 
 ## What a Thing at an instant carries
 
