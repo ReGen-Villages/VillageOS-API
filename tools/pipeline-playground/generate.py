@@ -65,6 +65,7 @@ ARCHETYPE_ROLE = {
     "PipelineOutput": "pipelineOutput",
     "PipelineTell": "pipelineTell",
     "PipelineFollowOn": "pipelineFollowOn",
+    "PipelineStop": "pipelineStop",
     "Port": "port",
     "Service": "service",
     "Connection": "connection",
@@ -74,6 +75,7 @@ ARCHETYPE_ROLE = {
     "ExternalSystem": "externalSystem",
     "MessageKind": "messageKind",
     "SentMessage": "sentMessage",
+    "StopRequest": "stopRequest",
     "Cadence": "cadence",
     "DecisionPath": "decisionPath",
 }
@@ -92,11 +94,14 @@ PREDICATE_ROLE = {
     "outputConnector": "outputConnector",
     "takenOn": "takenOn",
     "comparesWith": "comparesWith",
+    "requestedBy": "requestedBy",
+    "stoppedBy": "stoppedBy",
 }
 
 # The two results a wire is taken on, and the error port every service node has without declaring it.
 RESULT_ROLE = {"success": "success", "fail": "fail"}
 ERROR_PORT_ROLE = "errorPort"
+STOPPING_CONNECTION_ROLE = "runStopping"
 
 # The three roots every archetype sits under: what a model sets up, what then happens there, and what a
 # relationship runs along.
@@ -145,6 +150,7 @@ class Kit:
         self.role_of = {}         # id of a Thing playing a role -> the role's id (how a target's copy is found)
         self.role_things = set()  # ids of the role Things, which a target holds under the same ids or not at all
         self.predicates = set()   # ids of every predicate declared, whether or not a relationship runs along it
+        self.held_by_shared = {}  # id of a Thing a shared Thing holds -> the holder
         self._name = {}           # id -> Name (for readable relationship labels)
 
     def thing(self, tid, name, properties=None, shared=False, archetype=False):
@@ -194,9 +200,10 @@ class Kit:
         return self.bind(ARCHETYPE_ROLE[role], tid)
 
 
-def port_of(port_ids, node_id, service_id, name, direction):
-    """A port the node holds itself wins over its service's, as the orchestrator lists a node's own ports first."""
-    return port_ids.get((node_id, name, direction)) or port_ids[(service_id, name, direction)]
+def port_of(port_ids, node_id, also_held_by, name, direction):
+    """A port the node holds itself wins over its service's or its kind's, as the orchestrator lists a node's own
+    ports first."""
+    return port_ids.get((node_id, name, direction)) or port_ids[(also_held_by, name, direction)]
 
 
 def build():
@@ -217,16 +224,19 @@ def build():
     output_connector = k.predicate("outputConnector")
     taken_on = k.predicate("takenOn")
     compares_with = k.predicate("comparesWith")
-    # Declared for the orchestrator, which relates a run to its subject and a node run to each Thing the node
-    # produced.
+    # Declared for the orchestrator, which relates a run to its subject, a node run to each Thing the node
+    # produced, a stop request to the run that wrote it, and a stopped run to the request that stopped it.
     k.predicate("about")
     k.predicate("produced")
+    k.predicate("requestedBy")
+    k.predicate("stoppedBy")
 
     Pipeline = k.archetype("Pipeline")
     PipelineNode = k.archetype("PipelineNode")
     PipelineInput = k.archetype("PipelineInput")
     PipelineOutput = k.archetype("PipelineOutput")
-    run_by_the_orchestrator = {"tell": k.archetype("PipelineTell"), "followOn": k.archetype("PipelineFollowOn")}
+    run_by_the_orchestrator = {"tell": k.archetype("PipelineTell"), "followOn": k.archetype("PipelineFollowOn"),
+                               "stop": k.archetype("PipelineStop")}
     Port = k.archetype("Port")
     Service = k.archetype("Service")
     Connection = k.archetype("Connection", "PlatformServiceConnection")
@@ -236,6 +246,8 @@ def build():
     ExternalSystem = k.archetype("ExternalSystem")
     MessageKind = k.archetype("MessageKind")
     SentMessage = k.archetype("SentMessage")
+    StopRequest = k.archetype("StopRequest")
+    k.things[StopRequest]["Properties"]["reason"] = typed("", "vos.String")
     Cadence = k.archetype("Cadence")
     DecisionPath = k.archetype("DecisionPath")
 
@@ -278,6 +290,21 @@ def build():
         k.rel(pid, is_, Port)
         k.rel(owner_id, has, pid)
         return pid
+
+    stop_kind = run_by_the_orchestrator["stop"]
+    for (name, direction, type, required) in (("things", "in", "any", True), ("reason", "in", "string", False),
+                                              ("requested", "out", "number", False)):
+        k.held_by_shared[make_port(stop_kind, "PipelineStop", name, direction, type, required, False)] = stop_kind
+
+    # A stop request is related along this connection, so the broker sends it to the orchestrator; it has no
+    # subdomain, so no request reaches it as a door.
+    stops = k.bind(STOPPING_CONNECTION_ROLE, k.thing(stable_id(_TAG, "connection", "stops"), "stops", shared=True))
+    orchestrator = k.thing(stable_id(_TAG, "service", "orchestrator"), "Orchestrator service")
+    k.held_by_shared[orchestrator] = stops
+    k.rel(orchestrator, is_, Service)
+    k.rel(stops, is_, Connection)
+    k.rel(stops, triggered_by, graph)
+    k.rel(stops, has, orchestrator)
 
     # Each service → a Service (declaring its ports) wrapped in a PlatformServiceConnection (the palette
     # entry, carrying the Subdomain it is called at).
@@ -353,13 +380,15 @@ def build():
         k.rel(pipe_id, is_, Pipeline)
 
         node_id = {}
-        service_of = {}
+        ports_also_held_by = {}
         choice_by_key = {}
         for node in pipe["nodes"]:
             nid = stable_id(_TAG, "node", pipe["name"], node["key"])
             node_id[node["key"]] = nid
             if "service" in node:
-                service_of[node["key"]] = service_by_key[node["service"]]
+                ports_also_held_by[node["key"]] = service_by_key[node["service"]]
+            elif "kind" in node:
+                ports_also_held_by[node["key"]] = run_by_the_orchestrator[node["kind"]]
             x = _ORIGIN + node["at"]["col"] * _COL_WIDTH
             y = _ORIGIN + node["at"]["row"] * _ROW_HEIGHT
             props = {"x": typed(float(x), "vos.Double"), "y": typed(float(y), "vos.Double")}
@@ -389,11 +418,12 @@ def build():
             elif "kind" in node:
                 k.thing(nid, node["label"], props)
                 k.rel(nid, is_, run_by_the_orchestrator[node["kind"]])
-                for (pname, ptype) in node["passesOn"]:
+                for (pname, ptype) in node.get("passesOn", []):
                     for direction in ("in", "out"):
                         make_port(nid, f"{pipe['name']}.{node['key']}", pname, direction, ptype, direction == "in", False)
-                kind, key = node["standsFor"]
-                k.rel(nid, stands_for, stood_for[kind][key])
+                if node.get("standsFor"):
+                    kind, key = node["standsFor"]
+                    k.rel(nid, stands_for, stood_for[kind][key])
             else:
                 is_input = "input" in node
                 label = node.get("label", "Input" if is_input else "Output")
@@ -421,9 +451,9 @@ def build():
             k.rel(wid, is_, PipelineWire)
             k.rel(source, has, wid)
             k.rel(wid, carries, target)
-            out_port = error_port if wire["fromPort"] == "error" else port_of(port_ids, source, service_of.get(wire["from"]), wire["fromPort"], "out")
+            out_port = error_port if wire["fromPort"] == "error" else port_of(port_ids, source, ports_also_held_by.get(wire["from"]), wire["fromPort"], "out")
             k.rel(wid, input_connector, out_port)
-            k.rel(wid, output_connector, port_of(port_ids, target, service_of.get(wire["to"]), wire["toPort"], "in"))
+            k.rel(wid, output_connector, port_of(port_ids, target, ports_also_held_by.get(wire["to"]), wire["toPort"], "in"))
             for taken in wire.get("takenOn", ["success"]):
                 k.rel(wid, taken_on, results.get(taken) or choice_by_key[(wire["from"], taken)])
 
@@ -472,7 +502,7 @@ def build():
     for configured in (Pipeline, PipelineNode, Port, Service, Connection, PipelineWire, ExternalSystem,
                        MessageKind, Cadence, DecisionPath, strategy_kind):
         k.rel(configured, is_, Configuration)
-    for operational in (PipelineRun, NodeRun, SentMessage):
+    for operational in (PipelineRun, NodeRun, SentMessage, StopRequest):
         k.rel(operational, is_, Operation)
     for predicate in (binds, *sorted(k.predicates)):
         k.rel(predicate, is_, Predicate)
@@ -558,9 +588,13 @@ def merge_into(kit, seed):
     def m(i):
         return remap.get(i, i)
 
+    # A target's own Thing already holds what it needs: a second set of a kind's ports would leave a required one
+    # unfilled on every node of that kind, and a second service under a connection would be sent every call too.
+    held_by_a_kept_holder = {held for held, holder in kit.held_by_shared.items() if holder in remap}
+
     added_things = added_rels = 0
     for tid, t in kit.things.items():
-        if tid in remap or (tid in thing_ids and (tid in kit.role_things or tid == ROLE_ARCHETYPE)):
+        if tid in remap or tid in held_by_a_kept_holder or (tid in thing_ids and (tid in kit.role_things or tid == ROLE_ARCHETYPE)):
             continue
         if tid in thing_ids:
             for i, existing in enumerate(seed["Things"]):
@@ -573,6 +607,8 @@ def merge_into(kit, seed):
             added_things += 1
 
     for r in kit.rels.values():
+        if r["Subject"] in held_by_a_kept_holder or r["Target"] in held_by_a_kept_holder:
+            continue
         s, p, t = m(r["Subject"]), m(r["Predicate"]), m(r["Target"])
         key = (s, p, t)
         if key in rel_keys:
@@ -587,7 +623,7 @@ def merge_into(kit, seed):
 def remove_from(kit, seed):
     """Strip a previously-merged playground back out, leaving the reconciled shared vocabulary in place
     along with the role Things, what they bind, and where each sits under the roots."""
-    kept = kit.shared | kit.role_things
+    kept = kit.shared | kit.role_things | set(kit.held_by_shared)
     drop_things = {tid for tid in kit.things if tid not in kept}
     drop_rels = {r["Id"] for r in kit.rels.values() if r["Subject"] not in kept or r["Target"] not in kept}
     before_t, before_r = len(seed.get("Things", [])), len(seed.get("Relationships", []))
