@@ -39,4 +39,18 @@ describe('WireInspector', () => {
     expect(screen.getByLabelText('fail')).toBeDisabled();
     expect(screen.getByLabelText('success')).toBeEnabled();
   });
+
+  it('edits the item transform and the list transform each in its own field', () => {
+    const onSetPath = vi.fn();
+    render(<WireInspector wireId="w1" fromPortName="out" toPortName="in" paths={{ itemTransform: '$', listTransform: '$count($)' }}
+      onSetPath={onSetPath} results={results} takenOn={['success']} onSetTakenOn={vi.fn()} onClose={vi.fn()} />);
+
+    expect(screen.getByLabelText('Wire item transform')).toHaveValue('$');
+    expect(screen.getByLabelText('Wire list transform')).toHaveValue('$count($)');
+    fireEvent.change(screen.getByLabelText('Wire item transform'), { target: { value: '$uppercase($)' } });
+    fireEvent.change(screen.getByLabelText('Wire list transform'), { target: { value: '$reverse($)' } });
+
+    expect(onSetPath).toHaveBeenNthCalledWith(1, 'w1', 'itemTransform', '$uppercase($)');
+    expect(onSetPath).toHaveBeenNthCalledWith(2, 'w1', 'listTransform', '$reverse($)');
+  });
 });
