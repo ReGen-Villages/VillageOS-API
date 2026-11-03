@@ -113,7 +113,8 @@ CADENCES = [
 # the start for the kind of message the run comes from, ("cadence", key) at the start for the cadence that
 # starts it, or ("pipeline", name) for a pipeline a run is started by. A node the orchestrator runs itself has a
 # "kind": "tell" stands for ("externalSystem", key) and sends what reaches it there, "followOn" stands for
-# ("pipeline", name) and starts it; each takes in and passes on the ports in "passesOn". Node "at" is the canvas grid cell (column, row) — the generator turns it
+# ("pipeline", name) and starts it; each takes in and passes on the ports in "passesOn". "stop" stands for
+# nothing and holds no ports: it stops the runs about the Things reaching it, through its kind's ports. Node "at" is the canvas grid cell (column, row) — the generator turns it
 # into x/y. "params" binds an input port to a run-parameter key (Params bar on the Pipeline page); "onItemError"
 # = "continue" collects partial fan-out results instead of failing the run. A service node may hold
 # "outPorts" of its own, and may say what it "chooses": (port, the offered Thing's name) among what its service's
@@ -415,6 +416,40 @@ PIPELINES = [
         "wires": [
             {"from": "in", "fromPort": "due", "to": "echo", "toPort": "message"},
             {"from": "echo", "fromPort": "echo", "to": "out", "toPort": "tally"},
+        ],
+    },
+
+    # 17. A run that starts another: the follow-on node stands for Boundary I/O Echo, so what reaches its `seed`
+    #     port becomes that run's `seed` parameter, and it passes the seed on to the Output node.
+    {
+        "name": "Echo and Follow On",
+        "nodes": [
+            {"key": "in", "input": [("seed", "string")], "at": col(0)},
+            {"key": "echo", "service": "echo", "at": col(1)},
+            {"key": "follow", "kind": "followOn", "passesOn": [("seed", "string")], "at": col(2),
+             "label": "Boundary I/O Echo follows", "standsFor": ("pipeline", "Boundary I/O Echo")},
+            {"key": "out", "output": [("result", "string", True)], "at": col(3)},
+        ],
+        "wires": [
+            {"from": "in", "fromPort": "seed", "to": "echo", "toPort": "message"},
+            {"from": "echo", "fromPort": "echo", "to": "follow", "toPort": "seed"},
+            {"from": "follow", "fromPort": "seed", "to": "out", "toPort": "result"},
+        ],
+    },
+
+    # 18. A run that stops others: the stop node writes a stop request for each Thing given in the `things`
+    #     parameter, carrying the `reason` parameter, so the runs about those Things stop. Its ports are its kind's.
+    {
+        "name": "Stop the Runs About Them",
+        "nodes": [
+            {"key": "in", "input": [("things", "any"), ("reason", "string")], "at": col(0)},
+            {"key": "stop", "kind": "stop", "at": col(1), "label": "Stop their runs"},
+            {"key": "out", "output": [("requested", "number", True)], "at": col(2)},
+        ],
+        "wires": [
+            {"from": "in", "fromPort": "things", "to": "stop", "toPort": "things"},
+            {"from": "in", "fromPort": "reason", "to": "stop", "toPort": "reason"},
+            {"from": "stop", "fromPort": "requested", "to": "out", "toPort": "requested"},
         ],
     },
 ]
