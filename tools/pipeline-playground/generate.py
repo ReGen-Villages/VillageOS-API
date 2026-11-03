@@ -29,6 +29,7 @@ import shutil
 import sys
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from catalog import SERVICES, PIPELINES, MESSAGE_KINDS, EXTERNAL_SYSTEMS, CADENCES
@@ -134,6 +135,11 @@ def stable_id(*parts):
     return str(uuid.uuid5(_id_namespace, "/".join(str(p) for p in parts)))
 
 
+def canvas_position(col, row=0):
+    return {"x": typed(float(_ORIGIN + col * _COL_WIDTH), "vos.Double"),
+            "y": typed(float(_ORIGIN + row * _ROW_HEIGHT), "vos.Double")}
+
+
 def typed(value, type_info):
     return {"typeInfo": type_info, "value": value}
 
@@ -206,24 +212,107 @@ def port_of(port_ids, node_id, also_held_by, name, direction):
     return port_ids.get((node_id, name, direction)) or port_ids[(also_held_by, name, direction)]
 
 
+def declare_dag_vocabulary(k):
+    """What the orchestrator resolves a drawing from, every role it requires bound: the predicates, the
+    archetypes, the two results a wire is taken on, the error port and the trigger a service's connection is
+    reached over. Shared, so a merge reuses what a target already holds."""
+    v = SimpleNamespace()
+    v.is_ = k.predicate("is")
+    v.has = k.predicate("has")
+    v.carries = k.predicate("carries")
+    v.triggered_by = k.predicate("triggeredBy")
+    v.input_connector = k.predicate("inputConnector")
+    v.output_connector = k.predicate("outputConnector")
+    v.taken_on = k.predicate("takenOn")
+    v.compares_with = k.predicate("comparesWith")
+
+    v.Pipeline = k.archetype("Pipeline")
+    v.PipelineNode = k.archetype("PipelineNode")
+    v.PipelineInput = k.archetype("PipelineInput")
+    v.PipelineOutput = k.archetype("PipelineOutput")
+    v.Port = k.archetype("Port")
+    v.Service = k.archetype("Service")
+    v.Connection = k.archetype("Connection", "PlatformServiceConnection")
+    v.PipelineWire = k.archetype("PipelineWire")
+    v.DecisionPath = k.archetype("DecisionPath")
+
+    k.rel(v.carries, v.is_, v.PipelineWire)
+    # Every service's connection is a door reached over HTTP at its subdomain, which is what makes it a catalyst
+    # the Pipelines page lists. The trigger is a Thing the connection relates to, as the platform reads it.
+    v.http = k.thing(stable_id(_TAG, "trigger", "http"), "http", shared=True)
+    k.bind(TRIGGER_ROLE["http"], v.http)
+    k.rel(v.PipelineInput, v.is_, v.PipelineNode)  # boundary nodes are pipeline nodes too
+    k.rel(v.PipelineOutput, v.is_, v.PipelineNode)
+
+    v.results = {word: k.bind(role, k.thing(stable_id(_TAG, "result", word), word, shared=True))
+                 for word, role in RESULT_ROLE.items()}
+    v.error_port = k.thing(stable_id(_TAG, "port", "error"), "error", {
+        "portName": typed("error", "vos.String"),
+        "direction": typed("out", "vos.String"),
+        "type": typed("string", "vos.String"),
+    }, shared=True)
+    k.rel(v.error_port, v.is_, v.Port)
+    k.bind(ERROR_PORT_ROLE, v.error_port)
+    return v
+
+
+def declare_port(k, v, port_ids, owner_id, owner_key, name, direction, type, required, collection, tag=_TAG):
+    pid = stable_id(tag, "port", owner_key, name, direction)
+    port_ids[(owner_id, name, direction)] = pid
+    props = {
+        "portName": typed(name, "vos.String"),
+        "direction": typed(direction, "vos.String"),
+        "type": typed(type, "vos.String"),
+        "required": typed(required, "vos.Boolean"),
+    }
+    if collection:
+        props["collection"] = typed(True, "vos.Boolean")
+    k.thing(pid, f"{owner_key}.{direction}.{name}", props)
+    k.rel(pid, v.is_, v.Port)
+    k.rel(owner_id, v.has, pid)
+    return pid
+
+
+def place_under_roots(k, v, configured=(), operational=()):
+    """The three roots every archetype sits under, and where each Thing declared so far goes: the drawing
+    vocabulary and `configured` under Configuration, `operational` under Operation, every predicate under
+    Predicate, and every role Thing under Role. A target that already binds the roots is reused through the
+    roles, like the rest of the shared vocabulary."""
+    Configuration = k.bind(ROOT_ROLE["Configuration"],
+                           k.thing(stable_id(_TAG, "archetype", "Configuration"), "Configuration", shared=True, archetype=True))
+    Operation = k.bind(ROOT_ROLE["Operation"],
+                       k.thing(stable_id(_TAG, "archetype", "Operation"), "Operation", shared=True, archetype=True))
+    Predicate = k.bind(ROOT_ROLE["Predicate"],
+                       k.thing(stable_id(_TAG, "archetype", "Predicate"), "Predicate", shared=True, archetype=True))
+    binds = k.thing(stable_id(_TAG, "predicate", "binds"), "binds", shared=True)
+    for archetype in (v.Pipeline, v.PipelineNode, v.Port, v.Service, v.Connection, v.PipelineWire, v.DecisionPath, *configured):
+        k.rel(archetype, v.is_, Configuration)
+    for archetype in operational:
+        k.rel(archetype, v.is_, Operation)
+    for predicate in (binds, *sorted(k.predicates)):
+        k.rel(predicate, v.is_, Predicate)
+    Role = k.thing(ROLE_ARCHETYPE, "Role", archetype=True)
+    k.rel(Role, v.is_, Configuration)
+    for role in sorted(k.role_things):
+        k.rel(role, v.is_, Role)
+
+
 def build():
     k = Kit()
+    v = declare_dag_vocabulary(k)
+    is_, has, carries, triggered_by = v.is_, v.has, v.carries, v.triggered_by
+    input_connector, output_connector, taken_on, compares_with = v.input_connector, v.output_connector, v.taken_on, v.compares_with
+    Pipeline, PipelineNode, PipelineInput, PipelineOutput = v.Pipeline, v.PipelineNode, v.PipelineInput, v.PipelineOutput
+    Service, Connection, PipelineWire, DecisionPath = v.Service, v.Connection, v.PipelineWire, v.DecisionPath
+    http, results, error_port = v.http, v.results, v.error_port
 
-    is_ = k.predicate("is")
-    has = k.predicate("has")
     of = k.predicate("of")
-    carries = k.predicate("carries")
-    triggered_by = k.predicate("triggeredBy")
     sends = k.predicate("sends")
     told = k.predicate("told")
     told_through = k.predicate("toldThrough")
     arrives_at = k.predicate("arrivesAt")
     stands_for = k.predicate("standsFor")
     offers = k.predicate("offers")
-    input_connector = k.predicate("inputConnector")
-    output_connector = k.predicate("outputConnector")
-    taken_on = k.predicate("takenOn")
-    compares_with = k.predicate("comparesWith")
     # Declared for the orchestrator, which relates a run to its subject, a node run to each Thing the node
     # produced, a stop request to the run that wrote it, and a stopped run to the request that stopped it.
     k.predicate("about")
@@ -231,16 +320,8 @@ def build():
     k.predicate("requestedBy")
     k.predicate("stoppedBy")
 
-    Pipeline = k.archetype("Pipeline")
-    PipelineNode = k.archetype("PipelineNode")
-    PipelineInput = k.archetype("PipelineInput")
-    PipelineOutput = k.archetype("PipelineOutput")
     run_by_the_orchestrator = {"tell": k.archetype("PipelineTell"), "followOn": k.archetype("PipelineFollowOn"),
                                "stop": k.archetype("PipelineStop")}
-    Port = k.archetype("Port")
-    Service = k.archetype("Service")
-    Connection = k.archetype("Connection", "PlatformServiceConnection")
-    PipelineWire = k.archetype("PipelineWire")
     PipelineRun = k.archetype("PipelineRun")
     NodeRun = k.archetype("NodeRun")
     ExternalSystem = k.archetype("ExternalSystem")
@@ -249,47 +330,17 @@ def build():
     StopRequest = k.archetype("StopRequest")
     k.things[StopRequest]["Properties"]["reason"] = typed("", "vos.String")
     Cadence = k.archetype("Cadence")
-    DecisionPath = k.archetype("DecisionPath")
 
-    k.rel(carries, is_, PipelineWire)
-    # Every service's connection is a door reached over HTTP at its subdomain, which is what makes it a catalyst
-    # the Pipelines page lists; a system's told-through connection is written along instead. The trigger is a
-    # Thing the connection relates to, as the platform reads it.
-    http = k.thing(stable_id(_TAG, "trigger", "http"), "http", shared=True)
+    # A system's told-through connection is written along rather than reached at a subdomain.
     graph = k.thing(stable_id(_TAG, "trigger", "graph"), "graph", shared=True)
-    k.bind(TRIGGER_ROLE["http"], http)
     k.bind(TRIGGER_ROLE["graph"], graph)
-    k.rel(PipelineInput, is_, PipelineNode)  # boundary nodes are pipeline nodes too
-    k.rel(PipelineOutput, is_, PipelineNode)
     for kind in run_by_the_orchestrator.values():
         k.rel(kind, is_, PipelineNode)
-
-    results = {word: k.bind(role, k.thing(stable_id(_TAG, "result", word), word, shared=True)) for word, role in RESULT_ROLE.items()}
-    error_port = k.thing(stable_id(_TAG, "port", "error"), "error", {
-        "portName": typed("error", "vos.String"),
-        "direction": typed("out", "vos.String"),
-        "type": typed("string", "vos.String"),
-    }, shared=True)
-    k.rel(error_port, is_, Port)
-    k.bind(ERROR_PORT_ROLE, error_port)
 
     port_ids = {}
 
     def make_port(owner_id, owner_key, name, direction, type, required, collection):
-        pid = stable_id(_TAG, "port", owner_key, name, direction)
-        port_ids[(owner_id, name, direction)] = pid
-        props = {
-            "portName": typed(name, "vos.String"),
-            "direction": typed(direction, "vos.String"),
-            "type": typed(type, "vos.String"),
-            "required": typed(required, "vos.Boolean"),
-        }
-        if collection:
-            props["collection"] = typed(True, "vos.Boolean")
-        k.thing(pid, f"{owner_key}.{direction}.{name}", props)
-        k.rel(pid, is_, Port)
-        k.rel(owner_id, has, pid)
-        return pid
+        return declare_port(k, v, port_ids, owner_id, owner_key, name, direction, type, required, collection)
 
     stop_kind = run_by_the_orchestrator["stop"]
     for (name, direction, type, required) in (("things", "in", "any", True), ("reason", "in", "string", False),
@@ -389,9 +440,7 @@ def build():
                 ports_also_held_by[node["key"]] = service_by_key[node["service"]]
             elif "kind" in node:
                 ports_also_held_by[node["key"]] = run_by_the_orchestrator[node["kind"]]
-            x = _ORIGIN + node["at"]["col"] * _COL_WIDTH
-            y = _ORIGIN + node["at"]["row"] * _ROW_HEIGHT
-            props = {"x": typed(float(x), "vos.Double"), "y": typed(float(y), "vos.Double")}
+            props = canvas_position(node["at"]["col"], node["at"]["row"])
             if node.get("params"):
                 props["parameterBindings"] = typed(json.dumps(node["params"]), "vos.String")
             if node.get("onItemError"):
@@ -491,25 +540,8 @@ def build():
                         k.rel(item_id, is_, NodeRun)
                         k.rel(run_id, has, item_id)
 
-    # A target that already binds the roots is reused through the roles, like the rest of the shared vocabulary.
-    Configuration = k.bind(ROOT_ROLE["Configuration"],
-                           k.thing(stable_id(_TAG, "archetype", "Configuration"), "Configuration", shared=True, archetype=True))
-    Operation = k.bind(ROOT_ROLE["Operation"],
-                       k.thing(stable_id(_TAG, "archetype", "Operation"), "Operation", shared=True, archetype=True))
-    Predicate = k.bind(ROOT_ROLE["Predicate"],
-                       k.thing(stable_id(_TAG, "archetype", "Predicate"), "Predicate", shared=True, archetype=True))
-    binds = k.thing(stable_id(_TAG, "predicate", "binds"), "binds", shared=True)
-    for configured in (Pipeline, PipelineNode, Port, Service, Connection, PipelineWire, ExternalSystem,
-                       MessageKind, Cadence, DecisionPath, strategy_kind):
-        k.rel(configured, is_, Configuration)
-    for operational in (PipelineRun, NodeRun, SentMessage, StopRequest):
-        k.rel(operational, is_, Operation)
-    for predicate in (binds, *sorted(k.predicates)):
-        k.rel(predicate, is_, Predicate)
-    Role = k.thing(ROLE_ARCHETYPE, "Role", archetype=True)
-    k.rel(Role, is_, Configuration)
-    for role in sorted(k.role_things):
-        k.rel(role, is_, Role)
+    place_under_roots(k, v, configured=(ExternalSystem, MessageKind, Cadence, strategy_kind),
+                      operational=(PipelineRun, NodeRun, SentMessage, StopRequest))
     return k
 
 
@@ -554,13 +586,18 @@ def _roles_in(seed):
             if r.get("Predicate") in is_ids and r.get("Target") == ROLE_ARCHETYPE}
 
 
-def merge_into(kit, seed):
+def merge_into(kit, seed, found=None):
     """Merge the kit into a loaded seed in place, reusing the target's own vocabulary instead of duplicating
     it: a Thing playing a role is found through what the target's role Thing binds, so a model that renamed
     one keeps its name, and the built-in `is`/`has`/`of`/`binds` predicates are found by name. A Thing the
     target has under the same name but has never bound comes to play the role as it reconciles, because the
     binding is the only thing that says what it is for. A role Thing is matched by its identifier alone and
-    a target's own is kept, since every model declares it under the same one."""
+    a target's own is kept, since every model declares it under the same one.
+
+    `found` maps a kit Thing's id to the target's own Thing standing for it, found by the caller in a way of
+    its own. The target's Thing is kept as it is, with every relationship it already has; the kit adds only
+    what reaches it from a Thing the target did not hold."""
+    found = found or {}
     seed.setdefault("Things", [])
     seed.setdefault("Relationships", [])
     roles = _roles_in(seed)
@@ -584,6 +621,7 @@ def merge_into(kit, seed):
             existing = by_name.get(kit.things[sid]["Name"])
         if existing and existing != sid:
             remap[sid] = existing
+    remap.update(found)
 
     def m(i):
         return remap.get(i, i)
@@ -608,6 +646,8 @@ def merge_into(kit, seed):
 
     for r in kit.rels.values():
         if r["Subject"] in held_by_a_kept_holder or r["Target"] in held_by_a_kept_holder:
+            continue
+        if r["Subject"] in found and r["Target"] in remap:
             continue
         s, p, t = m(r["Subject"]), m(r["Predicate"]), m(r["Target"])
         key = (s, p, t)
