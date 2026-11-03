@@ -35,9 +35,11 @@ FAIL = "661cb599-dbca-56ca-a0dc-f9f162e587c3"
 ERROR_PORT = "9aa04638-d93e-5375-ba25-3f81ae1a25a4"
 DECISION_PATH = "75c2351b-0e8d-5c97-a20d-18e4d5c46363"
 COMPARES_WITH = "9bb384be-5a61-5fff-9ed9-c423a2c74c37"
-# Read only when bound: a model that binds neither draws no tell or follow-on node.
+# Read only when bound: a model that binds none of them draws no tell, follow-on or stop node.
 PIPELINE_TELL = "7fed4d74-0cb1-547d-85d8-bbcfc5992667"
 PIPELINE_FOLLOW_ON = "0ed6e1fc-cbac-5d4e-b3f0-ef83f4a09e43"
+PIPELINE_STOP = "a5f12016-a3f9-505c-95c7-d211fd84b8f2"
+REQUESTED_BY = "f0511a24-8925-5ac0-8f8e-971202c1741a"
 
 # The roles a DAG is resolved from. Bound to nothing, every question below answers "no" and a model
 # full of pipelines reads as empty — which is why Phloem refuses such a model outright.
@@ -180,7 +182,11 @@ def main():
         nodes = []
         for t in node_things:
             kind = ("input" if m.is_of(t["Id"], PIPELINE_INPUT) else "output" if m.is_of(t["Id"], PIPELINE_OUTPUT)
-                    else "tell" if m.is_of(t["Id"], PIPELINE_TELL) else "followOn" if m.is_of(t["Id"], PIPELINE_FOLLOW_ON) else None)
+                    else "tell" if m.is_of(t["Id"], PIPELINE_TELL) else "followOn" if m.is_of(t["Id"], PIPELINE_FOLLOW_ON)
+                    else "stop" if m.is_of(t["Id"], PIPELINE_STOP) else None)
+            if kind == "stop" and m.bound_to(REQUESTED_BY) is None:
+                problems.append(f"[{pipe['Name']}] '{t['Name']}' stops runs, but the model binds nothing to the role requestedBy, "
+                                "so its requests could not name the run that wrote them and would stop that run too")
             if kind:
                 ports = m.resolve_ports(t["Id"])
             else:
