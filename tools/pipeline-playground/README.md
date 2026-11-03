@@ -14,6 +14,7 @@ Stock Python 3.10+, no third-party dependencies. For *using* the generated pipel
 | --- | --- |
 | `catalog.py` | The content: the service catalog (`SERVICES`) and the example pipelines (`PIPELINES`). Edit this to add or change services and pipelines. |
 | `generate.py` | Turns the catalog into Things + Relationships and writes a standalone seed or merges into an existing one. |
+| `declare_service.py` | Declares one service in a seed from its `GET /manifest`, with a published pipeline that runs it. |
 | `validate_fragment.py` | Reimplements the Trellis + Phloem graph traversals and asserts every pipeline resolves and passes pre-run validation. |
 
 ## Use it
@@ -34,6 +35,59 @@ python3 generate.py --into /path/to/Some.seed.json --remove
 # check the output resolves the way Trellis and Phloem read it
 python3 validate_fragment.py PipelinePlayground.seed.json
 ```
+
+## Declare one service from its manifest
+
+A pipeline can use a service only when the model declares it: the service, its connection, its ports and
+the vocabulary Phloem refuses to work without. `declare_service.py` writes all of that into a seed in place
+from what the service says about itself at `GET /manifest`, plus what only the deployment knows: the
+subdomain the platform forwards calls to it under, the port it is started on and the program it is started
+from.
+
+```bash
+# from a saved manifest, or from a running service (--manifest http://localhost:5110/manifest)
+python3 declare_service.py --manifest quadrat.manifest.json --subdomain quadrat --port 5110 \
+    --program /srv/quadrat/app.py --into /path/to/Some.seed.json
+
+# take it out again, with the same --manifest, --subdomain and --namespace it went in with
+python3 declare_service.py --manifest quadrat.manifest.json --subdomain quadrat --into /path/to/Some.seed.json --remove
+```
+
+**What the manifest carries.** Either the bare list of ports an older service answers, or an object:
+
+```json
+{
+  "service": "Quadrat",
+  "rehearses": true,
+  "ports": [{"portName": "raster", "direction": "in", "type": "string", "required": true},
+            {"portName": "result", "direction": "out", "type": "object"}],
+  "settings": [{"name": "operation", "required": true, "values": ["metadata", "point", "zonal"]},
+               {"name": "resampling", "values": ["nearest", "bilinear"]}]
+}
+```
+
+- `service` names the service; `--name` overrides it, and the subdomain stands in when both are absent.
+- `rehearses` says the service writes nothing but its answer, so a rehearsal may call it. Absent, the
+  service does not rehearse.
+- each port names itself and its direction (`in` or `out`); `type` (empty is a wildcard), `required` and
+  `collection` are read as the catalog's ports are.
+- each setting is a value the node carries and the service reads from `params`, not from a port. The
+  node is written with the setting's `default`, else the first of its `values` when it is `required`, else
+  empty — declared empty because a property write on a Thing updates and never creates.
+
+**What it writes, or confirms the seed already holds:** the service (its program path, port and
+`rehearses`), its connection triggered over http and carrying the subdomain, one Port Thing per manifest
+port, and every role Phloem requires, bound. Then a published pipeline: an Input node filling each
+required in port, the service node carrying the settings, a wire from each out port to the Output node
+taken on success, and the error port wired to the Output node taken on fail. The seed is edited in place
+with a `.bak` beside it, as `generate.py --into` does, and running it a second time changes nothing.
+
+**A seed that already declares the service keeps its own Things.** The connection is found by its subdomain,
+the service as what the connection holds, and each port by its name and direction, on the service or a kind
+above it; what the manifest lists and the seed lacks is added, and the rest is left as it is. The
+vocabulary reconciles as the playground's does: through what the seed's role Things bind, then by name. The
+tool prints what it found and what it added. `--remove` takes out what it added and leaves the seed's own
+Things and the shared vocabulary.
 
 ## How it drops into any model
 
