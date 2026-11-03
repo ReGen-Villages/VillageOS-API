@@ -1,6 +1,9 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { SUBSCRIPTION_CHANGING, SUBSCRIPTION_OPENED, resubscribe, useSse, useSubscription, useDefaultSubscription } from './useSse';
+import {
+  SUBSCRIPTION_CHANGING, SUBSCRIPTION_OPENED, addToSubscription, removeFromSubscription, resubscribe, useSse, useSubscription,
+  useDefaultSubscription,
+} from './useSse';
 import { apiClient } from '../api/client';
 import type { SubscriptionSelector, SubscriptionOpened } from '../types/subscription';
 
@@ -535,6 +538,70 @@ describe('useSse', () => {
     expect(objectStreams()[1].url).toContain('lastEventId=12');
     page.unmount();
     unmount();
+  });
+
+  describe('adding to the open subscription', () => {
+    const requests = () => vi.mocked(globalThis.fetch).mock.calls
+      .map(([address, requestOptions]) => ({
+        address: String(address),
+        method: (requestOptions as RequestInit).method,
+        body: JSON.parse((requestOptions as RequestInit).body as string),
+      }))
+      .filter((request) => request.address.endsWith('/objects'));
+
+    it('asks the open subscription for the objects and answers with them as the store holds them', async () => {
+      const { unmount } = renderHook(() => useSse());
+      await waitFor(() => expect(objectStreams().length).toBe(1));
+      vi.mocked(globalThis.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          watermark: 9,
+          snapshot: {
+            things: [{ Id: 'k1', Name: 'Strategy', Properties: { rank: { typeInfo: 'vos.Int32', value: 2 } }, States: ['current'] }],
+            relationships: [{ Id: 'r1', SubjectId: 'k1', PredicateId: 'p', TargetId: 'k2', Properties: {} }],
+          },
+        }),
+      } as Response);
+
+      const covered = await addToSubscription({ typeIds: ['k1'] });
+
+      expect(requests()).toEqual([{ address: '/api/subscriptions/s1/objects', method: 'POST', body: { typeIds: ['k1'] } }]);
+      expect(covered!.things).toEqual([{ Id: 'k1', Name: 'Strategy', Properties: { rank: 2 }, States: ['current'] }]);
+      expect(covered!.relationships).toHaveLength(1);
+      expect(covered!.thingStates).toEqual(new Map([['k1', ['current']]]));
+      unmount();
+    });
+
+    it('answers null while no subscription is open, and asks the platform for nothing', async () => {
+      expect(await addToSubscription({ typeIds: ['k1'] })).toBeNull();
+      expect(requests()).toEqual([]);
+    });
+
+    it('reports a refused addition', async () => {
+      const { unmount } = renderHook(() => useSse());
+      await waitFor(() => expect(objectStreams().length).toBe(1));
+      vi.mocked(globalThis.fetch).mockResolvedValueOnce({ ok: false, status: 404 } as Response);
+
+      await expect(addToSubscription({ typeIds: ['k1'] })).rejects.toThrow('404');
+      unmount();
+    });
+
+    it('takes the objects out of the open subscription, and asks nothing for an empty list or no subscription', async () => {
+      await removeFromSubscription(['k1']);
+      expect(requests()).toEqual([]);
+
+      const { unmount } = renderHook(() => useSse());
+      await waitFor(() => expect(objectStreams().length).toBe(1));
+      await removeFromSubscription([]);
+      expect(requests()).toEqual([]);
+
+      await removeFromSubscription(['k1', 'r1']);
+      expect(requests()).toEqual([{ address: '/api/subscriptions/s1/objects', method: 'DELETE', body: { ids: ['k1', 'r1'] } }]);
+
+      vi.mocked(globalThis.fetch).mockResolvedValueOnce({ ok: false, status: 404 } as Response);
+      await expect(removeFromSubscription(['k1'])).rejects.toThrow('404');
+      unmount();
+    });
   });
 
   it('resets the watermark on full teardown so a model switch restarts from the fresh snapshot', async () => {

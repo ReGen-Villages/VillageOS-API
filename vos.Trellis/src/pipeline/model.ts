@@ -34,6 +34,8 @@ export const ROLE = {
   // An in port reaches the Things it offers, and a node reaches the one it chose, along the same predicate.
   Choice: '043b23a9-d2e8-5a8a-b81c-1a56bf0f525a',
   PipelineRun: 'b682b68f-0101-5ab4-a7a9-13c3e43df873',
+  // The orchestrator's record of one node's progress in a run, which the run holds along `has`.
+  NodeRun: 'ca731d14-5acb-5236-b0da-fe8b0836d0d7',
   Range: 'c081de17-c325-55b7-99ca-16fb835ae545',
   // A system outside the platform that sends it messages or is sent them, and a kind of message crossing
   // that boundary.
@@ -247,8 +249,21 @@ export class PipelineModel {
     return chosen;
   }
 
-  thingsNotUsedAsPredicates(): VosThing[] {
-    return this.things.filter((thing) => !this.usedAsPredicate.has(thing.Id));
+  /** The kinds of what the in ports offer: what each offered Thing directly `is`, each kind once. */
+  kindsOffered(ports: PortInformation[]): string[] {
+    const kinds = new Set<string>();
+    for (const port of ports) {
+      if (port.direction !== 'in') continue;
+      for (const offered of this.reachedAlong(port.portId, ROLE.Choice))
+        for (const kind of this.outgoing(offered.Id, 'is')) kinds.add(kind.Id);
+    }
+    return [...kinds];
+  }
+
+  /** Every Thing that `is` one of the kinds, directly or through its `is`-chain — the members, never a kind itself. */
+  thingsOfKinds(kindIds: string[]): VosThing[] {
+    return this.things.filter((thing) => !thing.IsArchetype
+      && kindIds.some((kindId) => this.isBeneath(thing.Id, kindId, new Set([thing.Id]))));
   }
 
   /** Subjects that reach `targetId` along the predicate the role binds. */

@@ -552,18 +552,26 @@ describe('what a node chose, and what a choice may compare with', () => {
     T('S1', 'Nearest first'); T('S2', 'Cheapest first'); T('LOOSE', 'Never offered');
     R('strategy', 'offers', 'S1'); R('strategy', 'offers', 'S2');
     T('N1', 'Decide'); R('N1', 'offers', 'S2'); R('N1', 'offers', 'LOOSE');
+    T('STRATEGY', 'Strategy'); T('TACTIC', 'Tactic'); T('OTHER', 'Unrelated kind');
+    things.find((thing) => thing.Id === 'STRATEGY')!.IsArchetype = true;
+    things.find((thing) => thing.Id === 'TACTIC')!.IsArchetype = true;
+    R('S1', 'is', 'STRATEGY'); R('S2', 'is', 'STRATEGY'); R('TACTIC', 'is', 'STRATEGY'); R('LOOSE', 'is', 'TACTIC');
+    R('N1', 'is', 'OTHER');
     return new PipelineModel(...withRoles(things, relationships));
   }
   const inPort = (portId: string) => ({ portId, portName: portId, direction: 'in' as const, type: 'any', required: false });
+  const outPort = (portId: string) => ({ ...inPort(portId), direction: 'out' as const });
 
   it('keys what the node chose by the in port offering it, and leaves out a Thing no port offers', () => {
     expect(offeringModel().chosenForEachInPort('N1', [inPort('strategy'), inPort('limit')])).toEqual({ strategy: 'S2' });
   });
 
-  it('lists every Thing but the predicates as what a choice may compare with', () => {
-    const listed = offeringModel().thingsNotUsedAsPredicates().map((thing) => thing.Id);
+  it('names the kinds the in ports offer once each, and not what an out port or the node reaches', () => {
+    expect(offeringModel().kindsOffered([inPort('strategy'), inPort('limit'), outPort('N1')])).toEqual(['STRATEGY']);
+  });
 
-    expect(listed).toEqual(expect.arrayContaining(['S1', 'S2', 'LOOSE', 'N1', 'strategy']));
-    expect(listed).not.toContain('offers');
+  it('lists every Thing of the kinds through the chain of kinds, never a kind itself', () => {
+    expect(offeringModel().thingsOfKinds(['STRATEGY']).map((thing) => thing.Id).sort()).toEqual(['LOOSE', 'S1', 'S2']);
+    expect(offeringModel().thingsOfKinds([])).toEqual([]);
   });
 });
