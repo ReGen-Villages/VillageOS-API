@@ -11,9 +11,11 @@ import type { VosThing, VosRelationship } from './vos';
 /** Which way a relationship is followed from the Things selected so far. */
 export type TraverseDirection = 'outgoing' | 'incoming' | 'both';
 
-/** One relationship to follow out from everything the selector has reached by the time the rule runs. */
+/** One relationship to follow out from everything the selector has reached by the time the rule runs.
+ *  The predicate is named by its word, or by the role Thing that binds it, so a model may call it anything. */
 export interface TraverseRule {
-  predicate: string;
+  predicate?: string;
+  predicateRole?: string;
   direction?: TraverseDirection;
   /** How many hops to follow. Omitted means one. */
   depth?: number;
@@ -28,6 +30,8 @@ export interface SubscriptionSelector {
   names?: string[];
   /** Things that `is` one of these, followed through the whole chain. */
   types?: string[];
+  /** The same as `types`, by the archetype's identifier, because names are not unique. */
+  typeIds?: string[];
   /** Role Thing ids: the archetype each role binds, and the Things that `is` it. */
   boundTypes?: string[];
   /** Role Thing ids: the one Thing each role binds, alone. Neither form carries the role Thing or its
@@ -40,10 +44,12 @@ export interface SubscriptionSelector {
   includeIsAncestors?: boolean;
   /** Include the relationships between the selected Things. Default true. */
   includeRelationships?: boolean;
-  /** Keep covering what `types` names as it appears, rather than only what it named when the
-   *  subscription opened: a Thing typed into a followed type later arrives as `ThingEntered`, and
-   *  one whose last matching `is` relationship is retracted leaves as `ThingLeft`. `ids`, `names` and
-   *  `traverse` cannot follow and fix their part of the membership when the subscription opens. */
+  /** Keep covering what `types`, `typeIds` and `boundTypes` name as it appears, rather than only what
+   *  they named when the subscription opened: a Thing typed into a followed type later arrives as
+   *  `ThingEntered`, and one whose last matching `is` relationship is retracted leaves as `ThingLeft`.
+   *  A one-step `traverse` rule keeps following too: a relationship written along its predicate from
+   *  a covered Thing brings the Thing at its other end. `ids`, `names` and a deeper traversal fix
+   *  their part of the membership when the subscription opens. */
   includeLaterMatches?: boolean;
   /** Hear the samples that land on the covered Things' observation-only properties, each series held
    *  to a cadence by the platform: at once while the series is slower than the cadence, once per
@@ -57,6 +63,14 @@ export interface SubscriptionSelector {
  *  every other one into a fixed set when it opens. */
 export const WHOLE_MODEL: SubscriptionSelector = { all: true };
 
+/** The objects a selector reached, as they stood when the platform answered. */
+export interface CoveredObjects {
+  things: VosThing[];
+  relationships: VosRelationship[];
+  /** The derived states each Thing held, empty for a Thing holding none. */
+  thingStates: Map<string, string[]>;
+}
+
 /** A subscription that has just opened, and the objects it answered with as they stood at
  *  `watermark`. */
 export interface SubscriptionOpened {
@@ -67,10 +81,5 @@ export interface SubscriptionOpened {
    * The model read fills the store for it instead, because only that honours the properties the
    * model says its pages are drawn with.
    */
-  covered: {
-    things: VosThing[];
-    relationships: VosRelationship[];
-    /** The derived states each Thing held at `watermark`, empty for a Thing holding none. */
-    thingStates: Map<string, string[]>;
-  } | null;
+  covered: CoveredObjects | null;
 }

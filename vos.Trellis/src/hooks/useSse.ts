@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useSyncExternalStore } from 'react';
 import { apiClient } from '../api/client';
 import { unwrapThing, unwrapRelationship } from '../utils/propertyMapper';
-import { WHOLE_MODEL, type SubscriptionOpened, type SubscriptionSelector } from '../types/subscription';
+import { WHOLE_MODEL, type CoveredObjects, type SubscriptionOpened, type SubscriptionSelector } from '../types/subscription';
 import type { VosThing, VosRelationship } from '../types/vos';
 import type { ConnectionState } from '../types/connection';
 import { HEARTBEAT_AS_EVENT, watchForSilence, type SilenceWatch } from './streamSilence';
@@ -262,20 +262,63 @@ async function openStreams() {
 function announceOpened(
   subscriptionId: string,
   watermark: number,
-  snapshot: { things?: (VosThing & { States: string[] })[]; relationships?: VosRelationship[] } | undefined,
+  snapshot: Snapshot | undefined,
   selector: SubscriptionSelector,
 ) {
-  const things = snapshot?.things ?? [];
   const opened: SubscriptionOpened = {
     subscriptionId,
     watermark,
-    covered: selector.all ? null : {
-      things: things.map(unwrapThing),
-      relationships: (snapshot?.relationships ?? []).map(unwrapRelationship),
-      thingStates: new Map(things.map((thing) => [thing.Id, thing.States])),
-    },
+    covered: selector.all ? null : coveredBy(snapshot),
   };
   deliverToListeners(SUBSCRIPTION_OPENED, opened);
+}
+
+type Snapshot = { things?: (VosThing & { States: string[] })[]; relationships?: VosRelationship[] };
+
+/** A snapshot in the shape the store holds: properties unwrapped as the model read gives them, and
+ *  the states beside the Things rather than on them. */
+function coveredBy(snapshot: Snapshot | undefined): CoveredObjects {
+  const things = snapshot?.things ?? [];
+  return {
+    things: things.map(unwrapThing),
+    relationships: (snapshot?.relationships ?? []).map(unwrapRelationship),
+    thingStates: new Map(things.map((thing) => [thing.Id, thing.States])),
+  };
+}
+
+/**
+ * Add what `selector` covers to the open subscription, for as long as it stays open, and answer with
+ * those objects as they stand. What is added is a fixed set: the platform follows later matches only
+ * for what the subscription was opened with. Null while no subscription is open; a caller that has
+ * to add to whichever subscription is open hears {@link SUBSCRIPTION_OPENED} and asks again, because
+ * a reopened subscription starts from its own declaration alone.
+ */
+export async function addToSubscription(selector: SubscriptionSelector): Promise<CoveredObjects | null> {
+  const subscriptionId = openSubscriptionId;
+  if (!subscriptionId) return null;
+  const token = await apiClient.ensureToken();
+  const response = await fetch(`${BASE_URL}/api/subscriptions/${subscriptionId}/objects`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(selector),
+  });
+  if (!response.ok) throw new Error(`The subscription refused the addition: ${response.status}`);
+  const { snapshot } = await response.json();
+  return coveredBy(snapshot);
+}
+
+/** Take objects out of the open subscription that an addition put in. Nothing to take out of a
+ *  subscription that is no longer open, since a reopened one never held them. */
+export async function removeFromSubscription(ids: string[]): Promise<void> {
+  const subscriptionId = openSubscriptionId;
+  if (!subscriptionId || ids.length === 0) return;
+  const token = await apiClient.ensureToken();
+  const response = await fetch(`${BASE_URL}/api/subscriptions/${subscriptionId}/objects`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ ids }),
+  });
+  if (!response.ok) throw new Error(`The subscription refused the removal: ${response.status}`);
 }
 
 /** How long an arriving page is given to make its declaration. Long enough for its code to be

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PortInformation } from '../../pipeline/model';
 import type { EditorChoice } from '../../pipeline/serialize';
@@ -13,7 +13,10 @@ interface Props {
   wiredInputs: Set<string>;
   /** In-port identifier → the Things that port offers. */
   offeredByPort: Record<string, VosThing[]>;
-  everyThing: VosThing[];
+  /** Every Thing the person may read of the kinds the in ports offer, once the page has been asked for them. */
+  widerList: VosThing[];
+  /** Whether a choice is searching the wider list, so the page can fetch it and let it go again. */
+  onWiden: (widened: boolean) => void;
   nameOf: (thingId: string) => string;
   onSetPorts: (nodeId: string, ports: PortInformation[]) => void;
   onSetBinding: (nodeId: string, port: string, parameterKey: string) => void;
@@ -32,9 +35,19 @@ const NO_FAILURE_REACHED = '$count(failures) = 0';
 /** The selected node: a boundary node's declared ports and the Output node's rule, or a service node's inputs bound
  *  to run parameters and the choices it holds. */
 export function NodeInspector({
-  nodeId, data, wiredInputs, offeredByPort, everyThing, nameOf, onSetPorts, onSetBinding, onSetChosen, onSetChoices, onSetRule, onClose,
+  nodeId, data, wiredInputs, offeredByPort, widerList, onWiden, nameOf, onSetPorts, onSetBinding, onSetChosen, onSetChoices, onSetRule, onClose,
 }: Props) {
   const { t } = useTranslation();
+  const [searchingChoices, setSearchingChoices] = useState<ReadonlySet<string>>(new Set());
+  const widened = searchingChoices.size > 0;
+  useEffect(() => { onWiden(widened); }, [widened, onWiden]);
+  useEffect(() => () => onWiden(false), [onWiden]);
+  const setSearching = (choiceId: string, searching: boolean) => setSearchingChoices((before) => {
+    const next = new Set(before);
+    if (searching) next.add(choiceId);
+    else next.delete(choiceId);
+    return next;
+  });
   const inputs = data.ports.filter((p) => p.direction === 'in');
   const bindings = data.parameterBindings ?? {};
   const chosen = data.chosen ?? {};
@@ -175,7 +188,9 @@ export function NodeInspector({
                 index={index + 1}
                 comparesWith={choice.comparesWith}
                 offered={offered}
-                everyThing={everyThing}
+                widerList={widerList}
+                searching={searchingChoices.has(choice.id)}
+                onSearch={(searching) => setSearching(choice.id, searching)}
                 nameOf={nameOf}
                 onChange={(comparesWith) => setChoice(index, { comparesWith })}
               />
@@ -195,18 +210,20 @@ interface ComparedThingsProperties {
   index: number;
   comparesWith: string[];
   offered: VosThing[];
-  everyThing: VosThing[];
+  widerList: VosThing[];
+  searching: boolean;
+  onSearch: (searching: boolean) => void;
   nameOf: (thingId: string) => string;
   onChange: (comparesWith: string[]) => void;
 }
 
-/** Adding lists only what the node's in ports offer until the person turns on the search of every Thing, which turns off after each addition. */
-function ComparedThings({ index, comparesWith, offered, everyThing, nameOf, onChange }: ComparedThingsProperties) {
+/** Adding lists only what the node's in ports offer until the person turns on the search of every Thing of
+ *  their kinds, which turns off after each addition. */
+function ComparedThings({ index, comparesWith, offered, widerList, searching, onSearch, nameOf, onChange }: ComparedThingsProperties) {
   const { t } = useTranslation();
-  const [searchEveryThing, setSearchEveryThing] = useState(false);
   const [additions, setAdditions] = useState(0);
   const offeredIds = new Set(offered.map((thing) => thing.Id));
-  const listed = searchEveryThing ? [...offered, ...everyThing.filter((thing) => !offeredIds.has(thing.Id))] : offered;
+  const listed = searching ? [...offered, ...widerList.filter((thing) => !offeredIds.has(thing.Id))] : offered;
   const addable = listed.filter((thing) => !comparesWith.includes(thing.Id));
 
   return (
@@ -229,14 +246,17 @@ function ComparedThings({ index, comparesWith, offered, everyThing, nameOf, onCh
         placeholder={t('pipeline.addCompared', { index })}
         onChange={(thingId) => {
           onChange([...comparesWith, thingId]);
-          setSearchEveryThing(false);
+          onSearch(false);
           setAdditions((count) => count + 1);
         }}
       />
       <label className="flex items-center gap-1 text-zinc-500">
-        <input type="checkbox" checked={searchEveryThing} onChange={(e) => setSearchEveryThing(e.target.checked)} />
-        {t('pipeline.searchEveryThing')}
+        <input type="checkbox" checked={searching} onChange={(e) => onSearch(e.target.checked)} />
+        {t('pipeline.searchOfferedKinds')}
       </label>
+      {searching && (
+        <div role="status" className="text-zinc-500">{t('pipeline.ofTheOfferedKinds', { count: widerList.length })}</div>
+      )}
     </div>
   );
 }

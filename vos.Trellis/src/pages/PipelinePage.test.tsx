@@ -1,7 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 
-vi.mock('../hooks/useSse', () => ({ useSubscription: () => {} }));
+const declaredSubscriptions: unknown[] = [];
+const hearsNothing = () => () => {};
+vi.mock('../hooks/useSse', () => ({
+  SUBSCRIPTION_OPENED: 'SubscriptionOpened',
+  useSubscription: (selector: unknown) => { declaredSubscriptions.push(selector); },
+  useSse: () => ({ connection: 'live', on: hearsNothing }),
+  addToSubscription: vi.fn().mockResolvedValue(null),
+  removeFromSubscription: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock('../api/pipelineApi', () => ({ pipelineApi: { spawnAsync: vi.fn(), cancel: vi.fn() } }));
 vi.mock('../api/modelApi', () => ({ modelApi: { applyFragment: vi.fn().mockResolvedValue({}) } }));
 vi.mock('../api/thingApi', () => ({ thingApi: { create: vi.fn(), addProperty: vi.fn(), setProperty: vi.fn(), remove: vi.fn() } }));
@@ -12,12 +20,18 @@ import { useModelStore } from '../stores/modelStore';
 import { ROLE } from '../pipeline/model';
 import { catalystFixture } from '../pipeline/catalysts.test.fixture';
 import { installResizeObserverDouble } from '../testResizeObserver';
+import { PIPELINE_PAGE } from '../pipeline/subscription';
+import { addToSubscription, removeFromSubscription } from '../hooks/useSse';
 import { PipelinePage } from './PipelinePage';
+
+const SEARCH_THE_OFFERED_KINDS = 'Search every Thing of the kinds the ports offer, not only what they offer';
 
 describe('PipelinePage', () => {
   let restore: () => void;
   beforeEach(() => {
     restore = installResizeObserverDouble().restore;
+    vi.mocked(addToSubscription).mockClear();
+    vi.mocked(removeFromSubscription).mockClear();
     const { things, relationships } = catalystFixture();
     useModelStore.setState({ things, relationships, loaded: true });
   });
@@ -139,7 +153,13 @@ describe('PipelinePage', () => {
       .toEqual(['choice2']);
   });
 
-  it('saves what a node chose and a Thing its choice compares with, found by searching every Thing', async () => {
+  it('declares the Things its roles reach, never the whole model', () => {
+    render(<PipelinePage />);
+    expect(declaredSubscriptions).toContainEqual(PIPELINE_PAGE);
+    expect(declaredSubscriptions).not.toContainEqual({ all: true });
+  });
+
+  it('saves what a node chose and a Thing its choice compares with, found by searching the offered kinds', async () => {
     const { id } = catalystFixture();
     render(<PipelinePage />);
     await waitFor(() => expect(screen.getByRole('textbox', { name: 'Pipeline name' })).toHaveValue('Digest'));
@@ -148,15 +168,47 @@ describe('PipelinePage', () => {
     fireEvent.click([...document.querySelectorAll('.react-flow__node')].filter((node) => /intake/.test(node.textContent ?? '')).at(-1)!);
     fireEvent.change(screen.getByLabelText('Chosen for cadence'), { target: { value: id.daily } });
     fireEvent.click(screen.getByText('+ add choice'));
-    fireEvent.click(screen.getByLabelText('Search every Thing, not only what the ports offer'));
+    fireEvent.click(screen.getByLabelText(SEARCH_THE_OFFERED_KINDS));
     const addCompared = screen.getByPlaceholderText('Add a Thing for choice 1 to compare with');
-    fireEvent.change(addCompared, { target: { value: 'Weather station' } });
-    fireEvent.click(within(addCompared.parentElement!).getByText('Weather station'));
+    fireEvent.change(addCompared, { target: { value: 'Weekly' } });
+    fireEvent.click(within(addCompared.parentElement!).getByText('Weekly'));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     const { relationshipApi } = await import('../api/relationshipApi');
     await waitFor(() => expect(vi.mocked(relationshipApi.create)).toHaveBeenCalledWith(expect.any(String), id.offers, id.daily));
-    expect(vi.mocked(relationshipApi.create)).toHaveBeenCalledWith(expect.any(String), id.comparesWith, id.weatherStation);
+    expect(vi.mocked(relationshipApi.create)).toHaveBeenCalledWith(expect.any(String), id.comparesWith, id.weekly);
+  });
+
+  // The page holds only what its roles reach, so the wider list is asked of the platform by the kinds
+  // the node's in ports offer, and what it answers is listed with a count — and taken away again when
+  // the search ends, except what the drawing now compares with.
+  it('asks the subscription for the offered kinds while a choice searches them, lists what arrives, and lets it go after', async () => {
+    const { id } = catalystFixture();
+    const stale = { Id: 'stale', Name: 'Fortnightly', Properties: {} };
+    vi.mocked(addToSubscription).mockResolvedValueOnce({
+      things: [stale],
+      relationships: [{ Id: 'stale-is', Name: '', SubjectId: 'stale', PredicateId: id.is, TargetId: id.rhythm, Properties: {} }],
+      thingStates: new Map(),
+    });
+    render(<PipelinePage />);
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Pipeline name' })).toHaveValue('Digest'));
+    fireEvent.click(within(screen.getByRole('list', { name: 'Services' })).getByRole('button', { name: /intake/ }));
+    fireEvent.click([...document.querySelectorAll('.react-flow__node')].filter((node) => /intake/.test(node.textContent ?? '')).at(-1)!);
+    fireEvent.click(screen.getByText('+ add choice'));
+    expect(addToSubscription).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByLabelText(SEARCH_THE_OFFERED_KINDS));
+
+    await waitFor(() => expect(addToSubscription).toHaveBeenCalledWith({ typeIds: [id.rhythm] }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('4 Things of those kinds'));
+    const addCompared = screen.getByPlaceholderText('Add a Thing for choice 1 to compare with');
+    fireEvent.change(addCompared, { target: { value: 'Fortnightly' } });
+    fireEvent.click(within(addCompared.parentElement!).getByText('Fortnightly'));
+
+    expect(screen.getByLabelText(SEARCH_THE_OFFERED_KINDS)).not.toBeChecked();
+    expect(screen.getByLabelText('Stop comparing with Fortnightly')).toBeInTheDocument();
+    expect(removeFromSubscription).not.toHaveBeenCalled();
+    expect(useModelStore.getState().things.some((thing) => thing.Id === 'stale')).toBe(true);
   });
 
   it('shows what a saved node chose and keeps it through a save', async () => {

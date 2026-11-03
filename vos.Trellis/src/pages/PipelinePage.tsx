@@ -20,7 +20,8 @@ import { Play, Save, FilePlus, MousePointerClick, Ban, History, SlidersHorizonta
 import { useModelStore } from '../stores/modelStore';
 import { useThemeStore } from '../stores/themeStore';
 import { useSubscription } from '../hooks/useSse';
-import { WHOLE_MODEL } from '../types/subscription';
+import { useWiderList } from '../hooks/useWiderList';
+import { PIPELINE_PAGE } from '../pipeline/subscription';
 import { PipelineModel, ROLE, judgeConnection, type ConnectionInformation, type PortInformation } from '../pipeline/model';
 import { savePipeline, loadPipeline, takenOnOf, type EditorNode, type EditorEdge, type EditorChoice } from '../pipeline/serialize';
 import { wireDrawing, withoutChoices, type WireData } from '../pipeline/wireDrawing';
@@ -31,7 +32,6 @@ import { EditorHistory } from '../pipeline/history';
 import { handStateToOrchestrator } from '../pipeline/handOver';
 import { pipelineApi } from '../api/pipelineApi';
 import { relationshipApi } from '../api/relationshipApi';
-import { reloadModelData } from '../hooks/useModelData';
 import { PipelineNodeView, type PipelineNodeData } from '../components/pipeline/PipelineNodeView';
 import { CatalystRail } from '../components/pipeline/CatalystRail';
 import { OutputRail } from '../components/pipeline/OutputRail';
@@ -65,7 +65,7 @@ let nodeSequence = 0;
  * service a node may call. A boundary node stands for the catalyst or the outcome it was placed from.
  */
 export function PipelinePage() {
-  useSubscription(WHOLE_MODEL);
+  useSubscription(PIPELINE_PAGE);
   const { t } = useTranslation();
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
@@ -272,13 +272,12 @@ export function PipelinePage() {
     });
   }, [place, t]);
 
-  // The rail's words after a hand-over come from the model read back, not from the press.
+  // The rail's words after a hand-over come from the binding the stream delivers, not from the press.
   const handOver = useCallback(async (row: CatalystRow) => {
     setBusy(true);
     setError(null);
     try {
       await handStateToOrchestrator(model, row, relationshipApi);
-      await reloadModelData({ silent: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : t('pipeline.catalysts.handOverFailed'));
     } finally {
@@ -519,7 +518,18 @@ export function PipelinePage() {
       .filter((p) => p.direction === 'in')
       .map((p) => [p.portId, model.reachedAlong(p.portId, ROLE.Choice)] as const)),
   [selectedNode, model]);
-  const everyThing = useMemo(() => (selectedNodeId ? model.thingsNotUsedAsPredicates() : []), [model, selectedNodeId]);
+  const [widened, setWidened] = useState(false);
+  const selectedPorts = (selectedNode?.data as PipelineNodeData | undefined)?.ports;
+  const kindsOffered = useMemo(
+    () => (widened && selectedPorts ? model.kindsOffered(selectedPorts) : null),
+    [widened, selectedPorts, model],
+  );
+  const referencedByTheDrawing = useCallback(() => new Set(stateReference.current.nodes.flatMap((n) => {
+    const d = n.data as unknown as PipelineNodeData;
+    return [...Object.values(d.chosen ?? {}), ...(d.choices ?? []).flatMap((choice) => choice.comparesWith)];
+  })), []);
+  useWiderList(kindsOffered, referencedByTheDrawing);
+  const widerList = useMemo(() => (kindsOffered ? model.thingsOfKinds(kindsOffered) : []), [model, kindsOffered]);
   const nameOf = useCallback((thingId: string) => model.thing(thingId)?.Name ?? thingId, [model]);
 
   const portNameOf = (nodeId: string, portId: string | null | undefined) =>
@@ -637,11 +647,13 @@ export function PipelinePage() {
           </ReactFlow>
           {selectedNode && (
             <NodeInspector
+              key={selectedNode.id}
               nodeId={selectedNode.id}
               data={selectedNode.data as unknown as PipelineNodeData}
               wiredInputs={wiredInputs}
               offeredByPort={offeredByPort}
-              everyThing={everyThing}
+              widerList={widerList}
+              onWiden={setWidened}
               nameOf={nameOf}
               onSetPorts={setBoundaryPorts}
               onSetBinding={setBinding}

@@ -69,7 +69,10 @@ const UNBOUNDED_DEPTH = 2147483647;
  *  Shape only, whichever way an id was minted: the platform decides that, not this. */
 const IDENTIFIER = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function ruleFor(predicate: string, direction: 'out' | 'in' | undefined, depth: number): TraverseRule {
+/** A rule naming its predicate by word, which this page always does, so the words can be asked for alongside. */
+type NamedTraverseRule = TraverseRule & { predicate: string };
+
+function ruleFor(predicate: string, direction: 'out' | 'in' | undefined, depth: number): NamedTraverseRule {
   const followed: TraverseDirection = direction === 'in' ? 'incoming' : 'outgoing';
   return { predicate, direction: followed, depth };
 }
@@ -172,9 +175,9 @@ function specificationWalks(specification: DashboardSpecification): RelationStep
 }
 
 /** The scope predicates the specification narrows by, each followed as far as it reaches. */
-function scopeRules(specification: DashboardSpecification): TraverseRule[] {
+function scopeRules(specification: DashboardSpecification): NamedTraverseRule[] {
   const seen = new Set<string>();
-  const rules: TraverseRule[] = [];
+  const rules: NamedTraverseRule[] = [];
   for (const binding of specificationBindings(specification)) {
     const scope = ('scope' in binding ? binding.scope : undefined) as ScopeReference | undefined;
     if (!scope) continue;
@@ -193,9 +196,9 @@ function scopeRules(specification: DashboardSpecification): TraverseRule[] {
  * two steps is reproduced by asking for its first step's relationship before its second's — not by asking
  * for both relationships in whatever order the specification happened to mention them.
  */
-function walkRules(walks: RelationStep[][]): TraverseRule[] {
+function walkRules(walks: RelationStep[][]): NamedTraverseRule[] {
   const deepest = walks.reduce((longest, walk) => Math.max(longest, walk.length), 0);
-  const rules: TraverseRule[] = [];
+  const rules: NamedTraverseRule[] = [];
   for (let position = 0; position < deepest; position++) {
     const seen = new Set<string>();
     for (const walk of walks) {

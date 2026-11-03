@@ -16,7 +16,7 @@ export interface CatalystFixture {
     | 'readingsStart' | 'readingsEnd' | 'refillStart' | 'digestEnd' | 'standsFor' | 'is' | 'has' | 'binds'
     | 'watcher' | 'watchesReorder' | 'reorderBinding' | 'conductor' | 'surplus' | 'drought' | 'storeSurplus'
     | 'dry' | 'watchesDry' | 'resumes' | 'everyHour' | 'readingsWire' | 'takenOn' | 'success' | 'fail'
-    | 'offers' | 'comparesWith' | 'daily',
+    | 'offers' | 'comparesWith' | 'daily' | 'rhythm' | 'weekly',
     string
   >;
 }
@@ -85,8 +85,13 @@ export function catalystFixture({ orchestrators = 1 }: { orchestrators?: number 
   const cadencePort = thing('Reader.in', { portName: 'cadence', direction: 'in', type: 'any', required: 'false' });
   relate(cadencePort, is, portArchetype);
   relate(reader, has, cadencePort);
+  // The port offers two of a kind; a third of that kind is offered by nothing, for the wider list to find.
+  const rhythm = thing('Rhythm', {}, true);
   const daily = thing('Daily');
-  relate(cadencePort, offers, thing('Hourly'));
+  const hourly = thing('Hourly');
+  const weekly = thing('Weekly');
+  for (const each of [daily, hourly, weekly]) relate(each, is, rhythm);
+  relate(cadencePort, offers, hourly);
   relate(cadencePort, offers, daily);
   const orchestratorArchetype = thing('Conductor kind', playing(ROLE.Orchestrator), true);
   relate(orchestratorArchetype, is, serviceArchetype);
@@ -201,7 +206,7 @@ export function catalystFixture({ orchestrators = 1 }: { orchestrators?: number 
       readingsStart, readingsEnd, refillStart, digestEnd, standsFor, is, has, binds: BINDS_ID,
       watcher, watchesReorder, reorderBinding: bindings.get(watchesReorder)!, conductor, surplus, drought, storeSurplus,
       dry, watchesDry, resumes, everyHour, readingsWire, takenOn, success, fail,
-      offers, comparesWith, daily,
+      offers, comparesWith, daily, rhythm, weekly,
     },
   };
 }

@@ -12,10 +12,11 @@ const nearest = thing('s1', 'Nearest first');
 const cheapest = thing('s2', 'Cheapest first');
 const site = thing('site', 'North field');
 const names = new Map([nearest, cheapest, site].map((t) => [t.Id, t.Name]));
+const SEARCH_THE_OFFERED_KINDS = 'Search every Thing of the kinds the ports offer, not only what they offer';
 
 function inspect(nodeId: string, data: PipelineNodeData, handlers: Partial<Parameters<typeof NodeInspector>[0]> = {}) {
   render(<NodeInspector nodeId={nodeId} data={data} wiredInputs={new Set()}
-    offeredByPort={{}} everyThing={[nearest, cheapest, site]} nameOf={(id) => names.get(id) ?? id}
+    offeredByPort={{}} widerList={[nearest, cheapest, site]} onWiden={vi.fn()} nameOf={(id) => names.get(id) ?? id}
     onSetPorts={vi.fn()} onSetBinding={vi.fn()} onSetChosen={vi.fn()} onSetChoices={vi.fn()} onSetRule={vi.fn()} onClose={vi.fn()} {...handlers} />);
 }
 
@@ -123,24 +124,57 @@ describe('NodeInspector', () => {
     expect(listedNames().some((name) => name.startsWith('North field'))).toBe(false);
     expect(listedNames().some((name) => name.startsWith('Nearest first'))).toBe(true);
 
-    fireEvent.click(screen.getByLabelText('Search every Thing, not only what the ports offer'));
+    fireEvent.click(screen.getByLabelText(SEARCH_THE_OFFERED_KINDS));
     fireEvent.focus(screen.getByPlaceholderText('Add a Thing for choice 1 to compare with'));
 
     expect(listedNames().some((name) => name.startsWith('North field'))).toBe(true);
   });
 
-  it('adds a Thing found by searching every Thing, and turns that search off again', () => {
+  it('adds a Thing found by searching the offered kinds, and turns that search off again', () => {
     const onSetChoices = vi.fn();
     const accept = { id: 'c1', name: 'Accept', when: '', comparesWith: ['s1'] };
 
     inspect('decide', decide({ choices: [accept] }), { ...offering, onSetChoices });
-    const search = screen.getByLabelText('Search every Thing, not only what the ports offer');
+    const search = screen.getByLabelText(SEARCH_THE_OFFERED_KINDS);
     fireEvent.click(search);
     fireEvent.focus(screen.getByPlaceholderText('Add a Thing for choice 1 to compare with'));
     fireEvent.click(screen.getByText('North field'));
 
     expect(onSetChoices).toHaveBeenCalledWith('decide', [{ ...accept, comparesWith: ['s1', 'site'] }]);
     expect(search).not.toBeChecked();
+  });
+
+  // The page fetches the wider list only while a choice is searching it, so it has to be told when one
+  // starts and when the last one stops — a search turned off by an addition, or by the inspector closing.
+  it('tells the page while any choice searches the offered kinds, and says how many Things they hold', () => {
+    const onWiden = vi.fn();
+    const choices = [
+      { id: 'c1', name: 'Accept', when: '', comparesWith: [] },
+      { id: 'c2', name: 'Refuse', when: '', comparesWith: [] },
+    ];
+
+    const { unmount } = render(<NodeInspector nodeId="decide" data={decide({ choices })} wiredInputs={new Set()}
+      offeredByPort={offering.offeredByPort} widerList={[nearest, cheapest, site]} onWiden={onWiden} nameOf={(id) => names.get(id) ?? id}
+      onSetPorts={vi.fn()} onSetBinding={vi.fn()} onSetChosen={vi.fn()} onSetChoices={vi.fn()} onSetRule={vi.fn()} onClose={vi.fn()} />);
+    expect(onWiden).toHaveBeenLastCalledWith(false);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+
+    const [first, second] = screen.getAllByLabelText(SEARCH_THE_OFFERED_KINDS);
+    fireEvent.click(first);
+    expect(onWiden).toHaveBeenLastCalledWith(true);
+    expect(screen.getByRole('status')).toHaveTextContent('3 Things of those kinds');
+
+    fireEvent.click(second);
+    fireEvent.click(first);
+    expect(onWiden).toHaveBeenLastCalledWith(true);
+
+    fireEvent.click(second);
+    expect(onWiden).toHaveBeenLastCalledWith(false);
+
+    fireEvent.click(first);
+    expect(onWiden).toHaveBeenLastCalledWith(true);
+    unmount();
+    expect(onWiden).toHaveBeenLastCalledWith(false);
   });
 
   it('shows the Things a choice compares with and stops comparing with one', () => {
