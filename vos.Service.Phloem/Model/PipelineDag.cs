@@ -97,9 +97,9 @@ public sealed record WireEnd(DagNode Node, DagPort Port);
 // A wire: an output port on one node carries its value to an input port on another. FromPath and
 // ToPath (both optional, empty = the whole payload) select a field of the upstream output
 // and place it at a field of the downstream input, so several wires can compose one input. An optional
-// Transform is a JSONata expression that reshapes the extracted value before placement. TakenOn holds the results
-// and decisions whose answer the wire carries.
-public sealed record DagWire(WireEnd From, WireEnd To, string FromPath = "", string ToPath = "", string Transform = "")
+// ItemTransform is a JSONata expression that reshapes each item before it goes on, and an optional ListTransform
+// reshapes the extracted value before placement. TakenOn holds the results and decisions whose answer the wire carries.
+public sealed record DagWire(WireEnd From, WireEnd To, string FromPath = "", string ToPath = "", string ListTransform = "", string ItemTransform = "")
 {
     public IReadOnlySet<Guid> TakenOn { get; init; } = new HashSet<Guid>();
 }

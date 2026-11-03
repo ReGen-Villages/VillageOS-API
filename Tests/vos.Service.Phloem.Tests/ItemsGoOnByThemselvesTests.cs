@@ -80,9 +80,9 @@ public class ItemsGoOnByThemselvesTests
     }
 
     [Fact]
-    public async Task Items_meet_on_a_wire_that_carries_a_transform_so_it_sees_the_whole_list()
+    public async Task Items_meet_on_a_wire_that_carries_a_list_transform_so_it_sees_the_whole_list()
     {
-        var drawing = TestGraphs.ItemsGoOnPipeline(transform: "$reverse($)");
+        var drawing = TestGraphs.ItemsGoOnPipeline(listTransform: "$reverse($)");
         var north = Held();
         var (gateway, executor) = Arrange(drawing, (subdomain, envelope) =>
             subdomain == "check" && ReadingOf(envelope) == "North" ? north.Task : Task.FromResult(Echo(envelope)));
@@ -99,6 +99,95 @@ public class ItemsGoOnByThemselvesTests
         gateway.Envelopes.Where(call => call.Subdomain == "record")
             .Select(call => (ReadingOf(call.Envelope), call.Envelope.GetProperty("index").GetInt32()))
             .Should().BeEquivalentTo([("East", 0), ("South", 1), ("North", 2)]);
+    }
+
+    [Fact]
+    public async Task An_item_transform_reshapes_each_item_and_the_item_goes_on_while_a_slower_item_is_still_calling()
+    {
+        var drawing = TestGraphs.ItemsGoOnPipeline(itemTransform: "$ & \" checked\"");
+        var north = Held();
+        var (gateway, executor) = Arrange(drawing, (subdomain, envelope) =>
+            subdomain == "check" && ReadingOf(envelope) == "North" ? north.Task : Task.FromResult(Echo(envelope)));
+
+        var running = executor.RunAsync(drawing.PipelineId, Readings, CancellationToken.None);
+        try
+        {
+            await Settle.UntilAsync(() => Called(gateway, "record").Contains("South checked"), "South reaches 'Record level' reshaped while North is still being checked");
+        }
+        finally
+        {
+            north.TrySetResult(Echo(JsonSerializer.SerializeToElement(new { inputs = new { @in = "North" } })));
+        }
+        var result = await running;
+
+        result.Success.Should().BeTrue();
+        Called(gateway, "record").Should().BeEquivalentTo("North checked", "South checked", "East checked");
+    }
+
+    [Fact]
+    public async Task A_wire_carrying_both_transforms_reshapes_each_item_before_the_list_transform_sees_them_all()
+    {
+        var drawing = TestGraphs.ItemsGoOnPipeline(listTransform: "$reverse($)", itemTransform: "$ & \" checked\"");
+        var (gateway, executor) = Arrange(drawing, (_, envelope) => Task.FromResult(Echo(envelope)));
+
+        var result = await executor.RunAsync(drawing.PipelineId, Readings, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        gateway.Envelopes.Where(call => call.Subdomain == "record")
+            .Select(call => (ReadingOf(call.Envelope), call.Envelope.GetProperty("index").GetInt32()))
+            .Should().BeEquivalentTo([("East checked", 0), ("South checked", 1), ("North checked", 2)]);
+    }
+
+    private const string RefusingNorth = "$ = \"North\" ? $error(\"no shape for North\") : $";
+
+    [Fact]
+    public async Task An_item_whose_item_transform_fails_fails_by_itself_without_a_call_and_the_other_items_go_on()
+    {
+        var drawing = TestGraphs.ItemsGoOnPipeline(itemTransform: RefusingNorth);
+        var (gateway, executor) = Arrange(drawing, (_, envelope) => Task.FromResult(Echo(envelope)));
+
+        await executor.RunAsync(drawing.PipelineId, Readings, CancellationToken.None);
+
+        Called(gateway, "record").Should().BeEquivalentTo("South", "East");
+        gateway.NodeErrorsWritten.Should().Contain(("Record level", RunStatus.Failed, "Wire transform failed: D3137: no shape for North"));
+    }
+
+    [Fact]
+    public async Task A_node_fed_items_that_meet_fails_without_a_call_when_an_item_transform_fails()
+    {
+        var drawing = TestGraphs.ItemsGoOnPipeline(listTransform: "$", itemTransform: RefusingNorth);
+        var (gateway, executor) = Arrange(drawing, (_, envelope) => Task.FromResult(Echo(envelope)));
+
+        await executor.RunAsync(drawing.PipelineId, Readings, CancellationToken.None);
+
+        Called(gateway, "record").Should().BeEmpty();
+        gateway.NodeErrorsWritten.Should().Contain(("Record level", RunStatus.Failed, "Wire transform failed: D3137: no shape for North"));
+    }
+
+    [Fact]
+    public async Task An_item_transform_reshapes_each_item_of_a_list_answered_by_a_node_that_ran_once()
+    {
+        var drawing = TestGraphs.ItemsGoOnPipeline(readingsReachCheck: false, itemTransform: "$ & \" checked\"");
+        var (gateway, executor) = Arrange(drawing, (subdomain, envelope) => Task.FromResult(subdomain == "check"
+            ? new NodeCallResult(200, "{\"result\":\"success\",\"outputs\":{\"out\":[\"North\",\"South\",\"East\"]}}")
+            : Echo(envelope)));
+
+        await executor.RunAsync(drawing.PipelineId, Readings, CancellationToken.None);
+
+        Called(gateway, "record").Should().BeEquivalentTo("North checked", "South checked", "East checked");
+    }
+
+    [Fact]
+    public async Task An_item_transform_sees_the_part_its_wire_picks_out_of_each_item()
+    {
+        var drawing = TestGraphs.ItemsGoOnPipeline(fromPath: "level", itemTransform: "$uppercase($)");
+        var (gateway, executor) = Arrange(drawing, (subdomain, envelope) => Task.FromResult(subdomain == "check"
+            ? new NodeCallResult(200, $"{{\"result\":\"success\",\"outputs\":{{\"out\":{{\"level\":\"{ReadingOf(envelope)} high\"}}}}}}")
+            : Echo(envelope)));
+
+        await executor.RunAsync(drawing.PipelineId, Readings, CancellationToken.None);
+
+        Called(gateway, "record").Should().BeEquivalentTo("NORTH HIGH", "SOUTH HIGH", "EAST HIGH");
     }
 
     [Theory]

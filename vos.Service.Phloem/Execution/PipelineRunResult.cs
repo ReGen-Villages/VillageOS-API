@@ -41,7 +41,7 @@ public sealed record NodeRunResult(
 
 public sealed record ItemNumber(int Index, int Total);
 
-public sealed record NumberedItem(JsonElement Value, ItemNumber Number);
+public sealed record NumberedItem(JsonElement Value, ItemNumber Number, string? ItemTransformError = null);
 
 public sealed record AwaitedThing(Guid Id, string Name);
 

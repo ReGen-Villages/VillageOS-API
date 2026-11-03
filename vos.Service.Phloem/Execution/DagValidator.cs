@@ -65,8 +65,14 @@ public static class DagValidator
             errors.Add($"{named}: type '{from.Port.Type}' is not compatible with '{to.Port.Type}'.");
 
         // A wire's JSONata transform must compile — caught here before any call, not as a silent runtime failure.
-        if (!string.IsNullOrEmpty(wire.Transform) && JsonataTransform.Validate(wire.Transform) is { } transformError)
-            errors.Add($"{named}: invalid transform — {transformError}");
+        if (!string.IsNullOrEmpty(wire.ListTransform) && JsonataTransform.Validate(wire.ListTransform) is { } transformError)
+            errors.Add($"{named}: invalid list transform — {transformError}");
+
+        if (string.IsNullOrEmpty(wire.ItemTransform)) return;
+        if (from.Node.CollectionInput is null)
+            errors.Add($"{named}: it carries an item transform, but '{from.Node.Name}' runs once, so no items travel along it.");
+        else if (JsonataTransform.Validate(wire.ItemTransform) is { } itemTransformError)
+            errors.Add($"{named}: invalid item transform — {itemTransformError}");
     }
 
     // A vigil is placed over one Thing, so a node that would run once per item, or wait for a Thing nothing

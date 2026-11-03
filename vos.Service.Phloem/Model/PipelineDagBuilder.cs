@@ -101,7 +101,8 @@ public static class PipelineDagBuilder
         return new DagWire(new WireEnd(from, outPort), new WireEnd(to, inPort),
             wire.PropertyString(ModelNames.FromPath) ?? string.Empty,
             wire.PropertyString(ModelNames.ToPath) ?? string.Empty,
-            wire.PropertyString(ModelNames.Transform) ?? string.Empty)
+            wire.PropertyString(ModelNames.ListTransform) ?? string.Empty,
+            wire.PropertyString(ModelNames.ItemTransform) ?? string.Empty)
         {
             TakenOn = takenOn,
         };

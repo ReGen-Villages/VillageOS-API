@@ -21,9 +21,9 @@ public static class ModelNames
     // downstream input; empty = the whole payload. Several wires into one input deep-merge by their to-paths.
     public const string FromPath = "fromPath";
     public const string ToPath = "toPath";
-    // An optional JSONata transform on a wire: reshape the (from-path-extracted) upstream value before
-    // it is placed at the to-path of the downstream input.
-    public const string Transform = "transform";
+    // JSONata on a wire, both optional: the item one runs on each item before the list one sees them all.
+    public const string ItemTransform = "itemTransform";
+    public const string ListTransform = "listTransform";
     public const string ParameterBindings = "parameterBindings";
     public const string Collection = "collection";
     // An out port whose answers are Things: the node run is related to each.
