@@ -2069,7 +2069,7 @@ empty.
 | Every request is refused as unavailable | The server is still rebuilding from its record or loading seeds; the console shows the progress, and `seeds status` reports it. If start-up failed, the progress reads *Failed* and the server's log says why |
 | The console says *not signed in* over a plain `http` address | Sessions need a secure `https` origin; use the server's own secure address or the reverse proxy |
 | The console's stream light is red and reads *Connection lost* | The stream has failed, or has sent nothing for thirty seconds while the browser still shows it open; the console retries on its own, waiting at most half a minute between tries. Amber *Connecting…* is a stream being opened and is not a fault. A red **Mycelium** light means the server itself does not answer |
-| A created Thing never appears on a page | The page's subscription did not cover it. A narrowed page is sent a Thing later typed into one of its kinds, but not one named by identifier or reached by a walk after the page opened; those arrive on the next open |
+| A created Thing never appears on a page | The page's subscription did not cover it. A narrowed page is sent a Thing later typed into one of its kinds, whether named, marked or bound by a role, or reached by one step of a walk, but not one named by identifier or name, or reached by a deeper walk, after the page opened; those arrive on the next open |
 | The graph never settles | **Pause** it and read it as it stands |
 | Search finds nothing | Check the case-sensitive, exact-match and pattern toggles; a pattern gives `.` and `(` special meaning |
 | Taproot: *Could not connect* | The server is not running, or the address is wrong: `--mycelium-url=` |
@@ -2497,8 +2497,10 @@ draw, the Things it names, the selected entity, the name Things a page offering 
 `namesPropertyOf` one step on from them, and one traversal rule per relationship its bindings
 walk — asked for in the order the walk takes them, because the platform applies each rule to what
 was selected before it — and it asks for readings too, so a figure bound to a reading moves without a
-reload, each series held to the platform's cadence. Two platform rules shape this: only the kinds a narrowed subscription names
-keep matching Things created later, so the ids, names and walks are refreshed by asking again; and a
+reload, each series held to the platform's cadence. Two platform rules shape this: in a narrowed subscription, the kinds it names by
+name, by identifier or by a mark, the kinds a role binds, and what one step of a walk reaches keep matching
+Things created later, while identifiers, names and deeper walks fix their part when the page opens and
+are refreshed by asking again; and a
 derived value's change is announced but never replayed after a reconnect, so a reconnect re-reads.
 
 **How the store applies a change.** Deletions, entries and departures are applied from the event

@@ -111,6 +111,13 @@ These bind inputs to **run parameters** — the **Params** bar appears above the
 |----------|---------------|
 | **Hourly Tally** | A start standing for the cadence `Every hour`, its `due` port wired into Echo, ending at `tally`. A cadence is a catalyst of its own: the orchestrator starts the drawing for each hour due, with the instant as `due`. |
 
+### Runs that start or stop other runs
+
+| Pipeline | What it shows |
+|----------|---------------|
+| **Echo and Follow On** | A follow-on node, *Boundary I/O Echo follows*, stands for the Boundary I/O Echo drawing. What Echo answered reaches its `seed` port, and becomes the `seed` parameter of a new Boundary I/O Echo run; the node passes the seed on to the Output node. |
+| **Stop the Runs About Them** | A stop node, *Stop their runs*, writes one stop request for each run or Thing given in `things`, carrying `reason`. A run given stops; a Thing given stops every run about it that is still going. The run that wrote the requests is never stopped by them. The node holds no ports of its own: `things`, `reason` and `requested`, the number of requests written, are its kind's. |
+
 Every drawing is published, so the model may start any of them. Every service rehearses except Water
 Reserve, Energy Balance, Metabolism and Model Bridge, which nobody has yet checked to write nothing.
 
@@ -132,6 +139,8 @@ Reserve, Energy Balance, Metabolism and Model Bridge, which nobody has yet check
 | Energy Self-Sufficiency | `solarPvAreaM2` = `12000`, `solarResourceKwhPerM2PerYear` = `1400`, `moduleEfficiency` = `0.17`, `performanceRatio` = `0.77`, `otherGenerationMwhPerYear` = `500`, `annualConsumptionMwhPerYear` = `3200` |
 | Number Cruncher | `factor` = `10`, `offset` = `5` |
 | Site Analysis (Combined) | `perCapitaConsumptionM3` = `55`, `storageCapacityM3` = `40000`, plus the Energy params above |
+| Echo and Follow On | `seed` = `hello` |
+| Stop the Runs About Them | `things` = a list of run or Thing identifiers, such as `["<run identifier>"]`; `reason` = a sentence saying why |
 
 > **`perCapitaConsumptionM3` is per person per *year*.** `55` is 150 litres per person per day
 > expressed annually — the same basis the site-analysis templates use. A per-day figure is silently
