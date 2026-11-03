@@ -16,8 +16,12 @@ describe('wireDrawing', () => {
   });
 
   it('says what a wire maps without naming a choice it is not taken on', () => {
-    expect(pathLabel('a', undefined, 'x')).toBe('a → · ƒ');
-    expect(wireDrawing({ transform: 'x' }, ['success'], undefined, choiceNames).label).toBe('ƒ');
+    expect(pathLabel('a', undefined, true)).toBe('a → · ƒ');
+    expect(wireDrawing({ listTransform: 'x' }, ['success'], undefined, choiceNames).label).toBe('ƒ');
+  });
+
+  it('marks a wire carrying only an item transform as transformed', () => {
+    expect(wireDrawing({ itemTransform: 'x' }, ['success'], undefined, choiceNames).label).toBe('ƒ');
   });
 });
 

@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 export interface WirePaths {
   fromPath?: string;
   toPath?: string;
-  transform?: string;
+  itemTransform?: string;
+  listTransform?: string;
 }
 
 interface Props {
@@ -21,7 +22,7 @@ interface Props {
 
 const FIELD = 'flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900';
 
-/** The selected wire: what it is taken on, the field it picks from the upstream value, where it lands it, and a transform on the way. */
+/** The selected wire: what it is taken on, the field it picks from the upstream value, where it lands it, and the transforms on the way. */
 export function WireInspector({ wireId, fromPortName, toPortName, paths, onSetPath, results, takenOn, onSetTakenOn, onClose }: Props) {
   const { t } = useTranslation();
   const toggle = (id: string) =>
@@ -55,15 +56,41 @@ export function WireInspector({ wireId, fromPortName, toPortName, paths, onSetPa
         <span className="w-16 truncate text-zinc-600 dark:text-zinc-300">{t('pipeline.toPath')}</span>
         <input aria-label={t('pipeline.wireToPath')} placeholder="e.g. a" value={paths.toPath ?? ''} onChange={(e) => onSetPath(wireId, 'toPath', e.target.value)} className={FIELD} />
       </label>
-      <div className="text-zinc-400 mt-2 mb-1">{t('pipeline.transformLabel')}</div>
-      <textarea
-        aria-label={t('pipeline.wireTransform')}
+      <TransformField
+        label={t('pipeline.itemTransformLabel')}
+        hint={t('pipeline.itemTransformHint')}
+        ariaLabel={t('pipeline.wireItemTransform')}
         placeholder='e.g. {"name": firstName & " " & lastName}'
-        value={paths.transform ?? ''}
-        onChange={(e) => onSetPath(wireId, 'transform', e.target.value)}
+        value={paths.itemTransform ?? ''}
+        onChange={(value) => onSetPath(wireId, 'itemTransform', value)}
+      />
+      <TransformField
+        label={t('pipeline.listTransformLabel')}
+        hint={t('pipeline.listTransformHint')}
+        ariaLabel={t('pipeline.wireListTransform')}
+        placeholder='e.g. {"count": $count($)}'
+        value={paths.listTransform ?? ''}
+        onChange={(value) => onSetPath(wireId, 'listTransform', value)}
+      />
+    </div>
+  );
+}
+
+function TransformField({ label, hint, ariaLabel, placeholder, value, onChange }: {
+  label: string; hint: string; ariaLabel: string; placeholder: string; value: string; onChange: (value: string) => void;
+}) {
+  return (
+    <>
+      <div className="text-zinc-400 mt-2">{label}</div>
+      <div className="text-zinc-400 mb-1 text-[10px] leading-snug">{hint}</div>
+      <textarea
+        aria-label={ariaLabel}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
         rows={2}
         className="w-full px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 font-mono"
       />
-    </div>
+    </>
   );
 }

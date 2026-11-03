@@ -151,7 +151,7 @@ def build(manifest, subdomain, name, port=None, program=None):
         out_name, in_name = k.things[out_port]["Properties"]["portName"]["value"], k.things[in_port]["Properties"]["portName"]["value"]
         wid = G.stable_id(TAG, "wire", subdomain, k.things[source]["Name"], out_name, k.things[target]["Name"], in_name)
         k.thing(wid, f"{k.things[source]['Name']}.{out_name} to {k.things[target]['Name']}.{in_name}",
-                {field: typed("", "vos.String") for field in ("fromPath", "toPath", "transform")})
+                {field: typed("", "vos.String") for field in ("fromPath", "toPath", "listTransform", "itemTransform")})
         k.rel(wid, v.is_, v.PipelineWire)
         k.rel(source, v.has, wid)
         k.rel(wid, v.carries, target)

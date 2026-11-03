@@ -1,21 +1,22 @@
 export interface WireData {
   fromPath?: string;
   toPath?: string;
-  transform?: string;
+  itemTransform?: string;
+  listTransform?: string;
   takenOn?: string[];
 }
 
-export function pathLabel(fromPath?: string, toPath?: string, transform?: string): string | undefined {
-  if (!fromPath && !toPath && !transform) return undefined;
+export function pathLabel(fromPath?: string, toPath?: string, transformed?: boolean): string | undefined {
+  if (!fromPath && !toPath && !transformed) return undefined;
   const paths = fromPath || toPath ? `${fromPath || '·'} → ${toPath || '·'}` : '';
-  return transform ? `${paths} ƒ`.trim() : paths;
+  return transformed ? `${paths} ƒ`.trim() : paths;
 }
 
 export function wireDrawing(
   data: WireData, takenOn: string[], failId: string | undefined, choiceNames: Map<string, string>,
 ): { label?: string; style?: { strokeDasharray: string } } {
   const chosen = takenOn.flatMap((id) => choiceNames.get(id) ?? []).join(', ');
-  const label = [chosen, pathLabel(data.fromPath, data.toPath, data.transform)].filter(Boolean).join(' · ') || undefined;
+  const label = [chosen, pathLabel(data.fromPath, data.toPath, Boolean(data.itemTransform || data.listTransform))].filter(Boolean).join(' · ') || undefined;
   return { label, style: failId && takenOn.includes(failId) ? { strokeDasharray: '6 4' } : undefined };
 }
 

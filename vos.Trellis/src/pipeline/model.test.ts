@@ -62,7 +62,7 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
   R(pipe.Id, is.Id, pipelineA.Id);
   R(pipe.Id, has.Id, gen.Id);
   R(pipe.Id, has.Id, ech.Id);
-  const wire = T('echo to message', { fromPath: '', toPath: '', transform: '' });
+  const wire = T('echo to message', { fromPath: '', toPath: '', itemTransform: '', listTransform: '' });
   R(wire.Id, is.Id, wireA.Id);
   R(gen.Id, has.Id, wire.Id);
   R(wire.Id, carries.Id, ech.Id);

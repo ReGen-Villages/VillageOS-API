@@ -196,7 +196,7 @@ PIPELINES = [
         ],
     },
 
-    # 5. A JSONata transform reshapes the upstream output on the wire before it reaches the input.
+    # 5. A JSONata list transform reshapes the upstream output on the wire before it reaches the input.
     {
         "name": "Wire Transform",
         "nodes": [
@@ -206,7 +206,7 @@ PIPELINES = [
         ],
         "wires": [
             {"from": "gen", "fromPort": "echo", "to": "echo", "toPort": "message",
-             "transform": '{"message": "shout: " & $}'},
+             "listTransform": '{"message": "shout: " & $}'},
             {"from": "echo", "fromPort": "echo", "to": "out", "toPort": "result"},
         ],
     },
@@ -450,6 +450,24 @@ PIPELINES = [
             {"from": "in", "fromPort": "things", "to": "stop", "toPort": "things"},
             {"from": "in", "fromPort": "reason", "to": "stop", "toPort": "reason"},
             {"from": "stop", "fromPort": "requested", "to": "out", "toPort": "requested"},
+        ],
+    },
+
+    # 19. An item transform: each record the first enrichment answers is reshaped on the wire and goes on to the
+    #     second enrichment by itself, without waiting for slower records.
+    {
+        "name": "Each Item Reshaped",
+        "nodes": [
+            {"key": "in", "input": [("records", "any")], "at": col(0)},
+            {"key": "first", "service": "enrich", "at": col(1), "onItemError": "continue", "label": "Enrich first"},
+            {"key": "again", "service": "enrich", "at": col(2), "onItemError": "continue", "label": "Enrich again"},
+            {"key": "out", "output": [("enriched", "any")], "at": col(3)},
+        ],
+        "wires": [
+            {"from": "in", "fromPort": "records", "to": "first", "toPort": "record"},
+            {"from": "first", "fromPort": "enriched", "to": "again", "toPort": "record",
+             "itemTransform": '{"record": $, "reshaped": true}'},
+            {"from": "again", "fromPort": "enriched", "to": "out", "toPort": "enriched"},
         ],
     },
 ]

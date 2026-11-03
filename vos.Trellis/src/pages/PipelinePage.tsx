@@ -331,7 +331,8 @@ export function PipelinePage() {
       target: e.target,
       targetHandle: e.targetHandle ?? '',
       fromPath: (e.data as WireData | undefined)?.fromPath,
-      transform: (e.data as WireData | undefined)?.transform,
+      itemTransform: (e.data as WireData | undefined)?.itemTransform,
+      listTransform: (e.data as WireData | undefined)?.listTransform,
       toPath: (e.data as WireData | undefined)?.toPath,
       takenOn: (e.data as WireData | undefined)?.takenOn,
     }));
@@ -382,7 +383,7 @@ export function PipelinePage() {
       position: { x: n.x, y: n.y },
       data: { label: n.label, kind: n.kind, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, parameterBindings: n.parameterBindings, standsForId: n.standsForId, choices: n.choices, chosen: n.chosen, rule: n.rule } as unknown as Record<string, unknown>,
     }));
-    const loadedEdges: Edge[] = loadedPipeline.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle, data: { fromPath: e.fromPath, toPath: e.toPath, transform: e.transform, takenOn: e.takenOn } }));
+    const loadedEdges: Edge[] = loadedPipeline.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle, data: { fromPath: e.fromPath, toPath: e.toPath, itemTransform: e.itemTransform, listTransform: e.listTransform, takenOn: e.takenOn } }));
     setNodes(loadedNodes);
     setEdges(loadedEdges);
     commitBaseline({ nodes: loadedNodes, edges: loadedEdges }); // a freshly loaded pipeline is the undo/rollback floor

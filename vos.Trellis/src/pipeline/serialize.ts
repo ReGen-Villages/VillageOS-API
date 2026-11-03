@@ -51,8 +51,9 @@ export interface EditorEdge {
    * dotted to-path of the downstream input. Empty = the whole payload. */
   fromPath?: string;
   toPath?: string;
-  /** On-wire JSONata transform: reshape the extracted value before it is placed at the to-path. */
-  transform?: string;
+  /** On-wire JSONata, run on each item before the list transform sees them all and its value is placed at the to-path. */
+  itemTransform?: string;
+  listTransform?: string;
   /** The results and choices the wire carries on: success, fail, or a choice of its source node. */
   takenOn?: string[];
 }
@@ -210,8 +211,8 @@ export async function savePipeline(
   const wireKey = (from: string, outPortId: string, to: string, inPortId: string) => `${from}|${outPortId}|${to}|${inPortId}`;
   const portNames = new Map(nodes.flatMap((n) => n.ports.map((p) => [p.portId, p.portName] as const)));
   const desired = edges
-    .map((e) => ({ from: nodeThingId.get(e.source), outPortId: e.sourceHandle, to: nodeThingId.get(e.target), inPortId: e.targetHandle, fromPath: e.fromPath ?? '', toPath: e.toPath ?? '', transform: e.transform ?? '', takenOn: takenOnOf(e.takenOn, model) }))
-    .filter((w): w is { from: string; outPortId: string; to: string; inPortId: string; fromPath: string; toPath: string; transform: string; takenOn: string[] } => Boolean(w.from && w.to));
+    .map((e) => ({ from: nodeThingId.get(e.source), outPortId: e.sourceHandle, to: nodeThingId.get(e.target), inPortId: e.targetHandle, fromPath: e.fromPath ?? '', toPath: e.toPath ?? '', itemTransform: e.itemTransform ?? '', listTransform: e.listTransform ?? '', takenOn: takenOnOf(e.takenOn, model) }))
+    .filter((w): w is { from: string; outPortId: string; to: string; inPortId: string; fromPath: string; toPath: string; itemTransform: string; listTransform: string; takenOn: string[] } => Boolean(w.from && w.to));
   const desiredKeys = new Set(desired.map((w) => wireKey(w.from, w.outPortId, w.to, w.inPortId)));
 
   const persistedNodeIds = existingPipelineId
@@ -226,7 +227,8 @@ export async function savePipeline(
     if (existing) {
       if (w.fromPath !== existing.fromPath) await thingApi.setProperty(existing.wireId, 'fromPath', STRING, w.fromPath);
       if (w.toPath !== existing.toPath) await thingApi.setProperty(existing.wireId, 'toPath', STRING, w.toPath);
-      if (w.transform !== existing.transform) await thingApi.setProperty(existing.wireId, 'transform', STRING, w.transform);
+      if (w.itemTransform !== existing.itemTransform) await thingApi.setProperty(existing.wireId, 'itemTransform', STRING, w.itemTransform);
+      if (w.listTransform !== existing.listTransform) await thingApi.setProperty(existing.wireId, 'listTransform', STRING, w.listTransform);
       await relateToExactly(existing.wireId, ROLE.TakenOn, w.takenOn, model);
       continue;
     }
@@ -235,7 +237,8 @@ export async function savePipeline(
     // does not create — so a path added later is an update rather than a call that answers "no such property".
     await thingApi.addProperty(wire.Id, 'fromPath', STRING, w.fromPath);
     await thingApi.addProperty(wire.Id, 'toPath', STRING, w.toPath);
-    await thingApi.addProperty(wire.Id, 'transform', STRING, w.transform);
+    await thingApi.addProperty(wire.Id, 'itemTransform', STRING, w.itemTransform);
+    await thingApi.addProperty(wire.Id, 'listTransform', STRING, w.listTransform);
     await relationshipApi.create(wire.Id, isId, wireArchetype);
     await relationshipApi.create(w.from, hasId, wire.Id);
     await relationshipApi.create(wire.Id, wireId, w.to);
@@ -342,7 +345,8 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
         targetHandle: wire.inPortId,
         fromPath: wire.fromPath || undefined,
         toPath: wire.toPath || undefined,
-        transform: wire.transform || undefined,
+        itemTransform: wire.itemTransform || undefined,
+        listTransform: wire.listTransform || undefined,
         takenOn: wire.takenOn.map((taken) => taken.thingId),
       });
     }
