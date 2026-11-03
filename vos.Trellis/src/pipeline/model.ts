@@ -142,7 +142,8 @@ export interface WireRead {
   inPortId: string;
   fromPath: string;
   toPath: string;
-  transform: string;
+  itemTransform: string;
+  listTransform: string;
   takenOn: RelationshipAndTarget[];
 }
 
@@ -556,7 +557,8 @@ export class PipelineModel {
       const stated = this.stated(held.Id);
       out.push({
         wireId: held.Id, targetId: target, outPortId: outPort.Id, inPortId: inPort.Id,
-        fromPath: String(stated.fromPath ?? ''), toPath: String(stated.toPath ?? ''), transform: String(stated.transform ?? ''),
+        fromPath: String(stated.fromPath ?? ''), toPath: String(stated.toPath ?? ''),
+        itemTransform: String(stated.itemTransform ?? ''), listTransform: String(stated.listTransform ?? ''),
         takenOn: this.relationshipsAndTargetsAlong(held.Id, ROLE.TakenOn),
       });
     }

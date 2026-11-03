@@ -493,7 +493,7 @@ public static class TestGraphs
         fx.Rel(fx.Get(FollowOnNode), standsFor, itself ? fx.Get("BoundaryDemo") : next);
         if (transformIntoTheFollowOn is not null)
         {
-            fx.State(fx.WireInto(fx.Get(FollowOnNode)), ModelNames.Transform, transformIntoTheFollowOn);
+            fx.State(fx.WireInto(fx.Get(FollowOnNode)), ModelNames.ListTransform, transformIntoTheFollowOn);
         }
         return new StartingFixture(fx, pipelineId, next.Id);
     }
@@ -670,9 +670,9 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
-    // Wire-transform demo: A → C over one wire carrying a JSONata transform
-    // that reshapes A's output before it reaches C's `in` input.
-    public static (GraphFixture Fixture, Guid PipelineId) WireTransformPipeline(string transform)
+    // Wire-transform demo: A → C over one wire carrying JSONata transforms
+    // that reshape A's output before it reaches C's `in` input.
+    public static (GraphFixture Fixture, Guid PipelineId) WireTransformPipeline(string listTransform, string itemTransform = "")
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
@@ -688,7 +688,7 @@ public static class TestGraphs
         fx.Publish(pipe);
         fx.Rel(pipe, vocabulary.Has, a);
         fx.Rel(pipe, vocabulary.Has, c);
-        fx.Wire(a, "out", c, "in", ("transform", transform));
+        fx.Wire(a, "out", c, "in", (ModelNames.ListTransform, listTransform), (ModelNames.ItemTransform, itemTransform));
 
         fx.EndEveryPath(pipe);
         return (fx, pipe.Id);
@@ -1173,7 +1173,7 @@ public static class TestGraphs
     // In → Check reading, once per reading → Record level, once per reading → Output. Check reading's fail runs from its
     // error port to Tell operator, also once per reading. checkAnswersAList marks Check reading's out port as a collection;
     // springPathBeside adds Read spring → Read level, which shares nothing with the readings.
-    public static (GraphFixture Fixture, Guid PipelineId) ItemsGoOnPipeline(string onItemError = "continue", string transform = "", string fromPath = "",
+    public static (GraphFixture Fixture, Guid PipelineId) ItemsGoOnPipeline(string onItemError = "continue", string listTransform = "", string itemTransform = "", string fromPath = "",
         AlsoFillingRecordLevel alsoFilling = AlsoFillingRecordLevel.Nothing, bool checkAnswersAList = false, bool springPathBeside = false,
         bool readingsReachCheck = true, bool checkRetries = false)
     {
@@ -1203,7 +1203,7 @@ public static class TestGraphs
             fx.Rel(pipe, vocabulary.Has, input);
             fx.Wire(input, "readings", check, "in");
         }
-        fx.Wire(check, "out", record, "in", (ModelNames.Transform, transform), (ModelNames.FromPath, fromPath));
+        fx.Wire(check, "out", record, "in", (ModelNames.ListTransform, listTransform), (ModelNames.ItemTransform, itemTransform), (ModelNames.FromPath, fromPath));
         fx.TakeOn(fx.WireBetween(check, fx.Get("error"), tell, fx.PortOf(tell, "in", "in")), vocabulary.Fail);
         if (alsoFilling == AlsoFillingRecordLevel.ASecondWire)
             fx.Wire(input, "readings", record, "in");

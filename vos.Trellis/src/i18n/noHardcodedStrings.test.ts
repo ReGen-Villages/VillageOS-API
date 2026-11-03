@@ -26,6 +26,7 @@ const SOURCE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ALLOWED = new Map<string, string>([
   ['e.g. user.id', 'A field path, the same in every language.'],
   ['e.g. {"name": firstName & " " & lastName}', 'A JSONata expression, the same in every language.'],
+  ['e.g. {"count": $count($)}', 'A JSONata expression, the same in every language.'],
   ['ReGen Villages', "The company's name. It is the mark's accessible name, and a proper noun is the same in every language."],
   ['Aa', 'The match-case switch, drawn as the two letters it compares rather than written as a word.'],
   ['العربية (السعودية)', 'A language is offered under its own name, so a reader finds it whatever language the page is in.'],

@@ -496,7 +496,7 @@ def build():
             source, target = node_id[wire["from"]], node_id[wire["to"]]
             wid = stable_id(_TAG, "wire", pipe["name"], wire["from"], wire["fromPort"], wire["to"], wire["toPort"], wire.get("toPath", ""))
             k.thing(wid, f"{k.things[source]['Name']}.{wire['fromPort']} to {k.things[target]['Name']}.{wire['toPort']}",
-                    {name: typed(wire.get(name, ""), "vos.String") for name in ("fromPath", "toPath", "transform")})
+                    {name: typed(wire.get(name, ""), "vos.String") for name in ("fromPath", "toPath", "listTransform", "itemTransform")})
             k.rel(wid, is_, PipelineWire)
             k.rel(source, has, wid)
             k.rel(wid, carries, target)

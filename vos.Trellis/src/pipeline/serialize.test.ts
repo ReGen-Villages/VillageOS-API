@@ -70,7 +70,7 @@ function graphWithVocabulary() {
     R(id, 'is', 'arch-port'); R(owner, 'has', id);
   };
   const heldWire = (id: string, from: string, outPort: string, to: string, inPort: string, values: Record<string, unknown> = {}) => {
-    T(id, `${outPort} to ${inPort}`, { fromPath: '', toPath: '', transform: '', ...values });
+    T(id, `${outPort} to ${inPort}`, { fromPath: '', toPath: '', itemTransform: '', listTransform: '', ...values });
     R(id, 'is', 'arch-wire'); R(from, 'has', id); R(id, 'carries', to);
     R(id, 'input-connector', outPort); R(id, 'output-connector', inPort);
     R(id, 'taken-on', 'success');
@@ -329,25 +329,25 @@ describe('loadPipeline — wire field-paths', () => {
   });
 });
 
-describe('savePipeline / loadPipeline — wire transform', () => {
-  it('persists a new wire’s transform', async () => {
+describe('savePipeline / loadPipeline — wire transforms', () => {
+  it.each(['itemTransform', 'listTransform'] as const)('persists a new wire’s %s', async (which) => {
     const model = buildModel();
-    const edges = [{ id: 'e', source: 'na', sourceHandle: 'out', target: 'nb', targetHandle: 'in', transform: '{"name": firstName}' }];
+    const edges = [{ id: 'e', source: 'na', sourceHandle: 'out', target: 'nb', targetHandle: 'in', [which]: '{"name": firstName}' }];
     await savePipeline('T', [node('na', 'A'), node('nb', 'B')], edges, model);
-    expect(thingAddProperty).toHaveBeenCalledWith('new-wire', 'transform', 'vos.String', '{"name": firstName}');
+    expect(thingAddProperty).toHaveBeenCalledWith('new-wire', which, 'vos.String', '{"name": firstName}');
   });
 
-  it('reconstructs a wire’s transform on load', () => {
+  it.each(['itemTransform', 'listTransform'] as const)('reconstructs a wire’s %s on load', (which) => {
     const { T, R, port, heldWire, things, relationships } = graphWithVocabulary();
 
     T('TP', 'TransformPipe'); R('TP', 'is', 'arch-pipeline');
     T('N1', 'N1'); R('N1', 'is', 'arch-node'); R('TP', 'has', 'N1');
     T('N2', 'N2'); R('N2', 'is', 'arch-node'); R('TP', 'has', 'N2');
     port('N1.out', 'out', 'out', 'N1'); port('N2.in', 'in', 'in', 'N2');
-    heldWire('W', 'N1', 'N1.out', 'N2', 'N2.in', { transform: '{"x": y}' });
+    heldWire('W', 'N1', 'N1.out', 'N2', 'N2.in', { [which]: '{"x": y}' });
 
     const loaded = loadPipeline('TP', new PipelineModel(...withRoles(things, relationships)))!;
-    expect(loaded.edges[0].transform).toBe('{"x": y}');
+    expect(loaded.edges[0][which]).toBe('{"x": y}');
   });
 });
 
@@ -384,7 +384,7 @@ describe('a wire held as a Thing', () => {
       buildModelWithHeldWires(), 'P');
 
     const declared = Object.fromEntries(thingAddProperty.mock.calls.map((c) => [c[1], c[3]]));
-    expect(declared).toEqual({ fromPath: '', toPath: '', transform: '' });
+    expect(declared).toEqual({ fromPath: '', toPath: '', itemTransform: '', listTransform: '' });
   });
 
   it('skips a wire that points at nothing, or at only one of its ports, because an editor writes one a piece at a time', () => {
@@ -447,14 +447,15 @@ describe('a wire held as a Thing', () => {
     expect(thingSetProperty.mock.calls).toEqual([['W1', 'fromPath', 'vos.String', 'body.id']]);
   });
 
-  it('re-writes a changed to-path and transform on the wire Thing', async () => {
+  it('re-writes a changed to-path and both transforms on the wire Thing', async () => {
     await savePipeline('P', [node('N1', 'Node1'), node('N2', 'Node2')],
-      [wire('svc.out', 'svc.in'), { ...wire('svc.trace', 'svc.context'), toPath: 'trace', transform: '$uppercase($)' }],
+      [wire('svc.out', 'svc.in'), { ...wire('svc.trace', 'svc.context'), toPath: 'trace', itemTransform: '$uppercase($)', listTransform: '$count($)' }],
       buildModelWithHeldWires(), 'P');
 
     expect(thingSetProperty.mock.calls).toEqual([
       ['W2', 'toPath', 'vos.String', 'trace'],
-      ['W2', 'transform', 'vos.String', '$uppercase($)'],
+      ['W2', 'itemTransform', 'vos.String', '$uppercase($)'],
+      ['W2', 'listTransform', 'vos.String', '$count($)'],
     ]);
   });
 });
@@ -504,7 +505,7 @@ describe('loadPipeline — a saved pipeline whose ports are stated in the overri
     R('IN.subject', 'is', 'arch-port'); R('IN', 'has', 'IN.subject');
     things.push({ Id: 'OUT.payload', Name: 'payload', Properties: {}, InheritedOverrides: stated({ portName: 'payload', direction: 'in', type: 'any', required: 'true' }) });
     R('OUT.payload', 'is', 'arch-port'); R('OUT', 'has', 'OUT.payload');
-    T('W', 'subject to payload', { fromPath: '', toPath: '', transform: '' });
+    T('W', 'subject to payload', { fromPath: '', toPath: '', itemTransform: '', listTransform: '' });
     R('W', 'is', 'arch-wire'); R('IN', 'has', 'W'); R('W', 'carries', 'OUT');
     R('W', 'input-connector', 'IN.subject'); R('W', 'output-connector', 'OUT.payload');
 

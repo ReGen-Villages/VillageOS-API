@@ -181,7 +181,7 @@ export function catalystFixture({ orchestrators = 1 }: { orchestrators?: number 
   const readingsArrive = pipeline('Readings arrive');
   const readingsStart = boundary(readingsArrive, 'A reading arrives', 'input', hourlyReading);
   const readingsEnd = boundary(readingsArrive, 'The answer', 'output');
-  const readingsWire = thing('payload to value', { fromPath: '', toPath: '', transform: '' });
+  const readingsWire = thing('payload to value', { fromPath: '', toPath: '', itemTransform: '', listTransform: '' });
   relate(readingsWire, is, wireArchetype);
   relate(readingsStart, has, readingsWire);
   relate(readingsWire, carries, readingsEnd);

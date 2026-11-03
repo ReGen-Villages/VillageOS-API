@@ -73,7 +73,7 @@ public sealed class PipelineExecutor
         }
         if (dag is null) return PipelineRunResult.Failed(rid, pipelineId, refusal!);
 
-        return await SweepAsync(rid, dag, runParams, new Progress(), rehearsal, cancellationToken);
+        return await SweepAsync(rid, dag, runParams, new Progress(_clock), rehearsal, cancellationToken);
     }
 
     public Task<bool> IsStopAsync(Guid relationshipId, CancellationToken cancellationToken) =>
@@ -307,7 +307,7 @@ public sealed class PipelineExecutor
     }
 
     // What a sweep has settled so far: a fresh run starts with nothing, a resumed one with its record.
-    private sealed class Progress
+    private sealed class Progress(TimeProvider clock)
     {
         public Dictionary<Guid, NodeRunResult> Results { get; } = new();
         // Keyed by the wire itself, since two wires between the same ports are equal as values.
@@ -325,7 +325,7 @@ public sealed class PipelineExecutor
         {
             Results[result.NodeId] = result;
             var carried = false;
-            foreach (var (wire, delivery) in WireDeliveries.From(dag, dag.Node(result.NodeId)!, result))
+            foreach (var (wire, delivery) in WireDeliveries.From(dag, dag.Node(result.NodeId)!, result, clock))
             {
                 Deliveries[wire] = delivery;
                 carried = true;
@@ -337,9 +337,9 @@ public sealed class PipelineExecutor
     // A node with no record is one the run had not reached, which only a node behind a wait can be; any other
     // missing record means the run would have to call that node again to carry on. An item caught in the middle of a
     // call may already have reached its service, so the run does not go on without it either.
-    private static (Progress Progress, string? CannotGoOn) ProgressFrom(PipelineDag dag, RunRecord record, string goingOn)
+    private (Progress Progress, string? CannotGoOn) ProgressFrom(PipelineDag dag, RunRecord record, string goingOn)
     {
-        var progress = new Progress();
+        var progress = new Progress(_clock);
         foreach (var node in dag.Nodes)
         {
             if (!record.Nodes.TryGetValue(node.NodeId, out var recorded)) continue;
@@ -435,7 +435,7 @@ public sealed class PipelineExecutor
             return item =>
             {
                 foreach (var (wire, writer) in sending)
-                    if (WireDeliveries.ItemAlong(dag, wire, item) is { } numbered)
+                    if (WireDeliveries.ItemAlong(dag, wire, item, _clock) is { } numbered)
                         writer.TryWrite(numbered);
             };
         }
@@ -446,7 +446,7 @@ public sealed class PipelineExecutor
             {
                 var writer = ItemsAlong(wire).Writer;
                 if (!eachItemWentOn)
-                    foreach (var item in WireDeliveries.ItemsAlong(dag, wire, result))
+                    foreach (var item in WireDeliveries.ItemsAlong(dag, wire, result, _clock))
                         writer.TryWrite(item);
                 writer.TryComplete();
             }
@@ -984,11 +984,12 @@ public sealed class PipelineExecutor
         foreach (var wire in dag.WiresInto(node.NodeId))
         {
             if (!deliveries.TryGetValue(wire, out var delivery)) continue;
+            if (delivery.ItemTransformError is { } itemTransformError) throw new InvalidOperationException(itemTransformError);
             var extracted = PayloadMapping.Extract(delivery.Value, wire.FromPath);
             if (extracted is null) continue; // the from-path is not present in the upstream output
-            var reshaped = string.IsNullOrEmpty(wire.Transform)
+            var reshaped = string.IsNullOrEmpty(wire.ListTransform)
                 ? extracted.Value
-                : new JsonataTransform(wire.Transform).Eval(extracted.Value, _clock);
+                : new JsonataTransform(wire.ListTransform).Eval(extracted.Value, _clock);
             var inPort = wire.To.Port.PortName;
             if (wire.To.Port.Collection)
             {
@@ -1090,7 +1091,9 @@ public sealed class PipelineExecutor
             }
             await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, RunStatus.Running, null, cancellationToken, index, total), "persist item running");
             var inputs = new Dictionary<string, JsonElement>(baseInputs, StringComparer.Ordinal) { [collectionPort] = item.Value };
-            var (attempted, _) = await AttemptAsync(node, runId, inputs, index, total, attemptsMade, rehearsal, cancellationToken);
+            var (attempted, _) = item.ItemTransformError is { } itemTransformError
+                ? (new NodeRunResult(node.NodeId, node.Name, RunStatus.Failed, NoOutputs, $"Wire transform failed: {itemTransformError}"), false)
+                : await AttemptAsync(node, runId, inputs, index, total, attemptsMade, rehearsal, cancellationToken);
             var result = attempted with { Number = item.Number };
             await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, result.Status, result.Error, cancellationToken, index, total, result.Outputs,
                 result.Decision), "persist item terminal");

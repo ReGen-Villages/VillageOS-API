@@ -360,7 +360,7 @@ class CatalystVocabularyTests(unittest.TestCase):
             properties = self.kit.things[wire]["Properties"]
             self.assertNotIn("fromPort", properties)
             self.assertNotIn("toPort", properties)
-            self.assertEqual(set(properties), {"fromPath", "toPath", "transform"})
+            self.assertEqual(set(properties), {"fromPath", "toPath", "listTransform", "itemTransform"})
 
     def test_every_wire_is_taken_on_a_result_or_a_decision_path(self):
         [is_] = [t["Id"] for t in self.kit.things.values() if t["Name"] == "is"]
@@ -493,6 +493,13 @@ class CatalystVocabularyTests(unittest.TestCase):
         self.assertIn("Branching Decision", run.stdout)
         self.assertIn("Echo and Follow On", run.stdout)
         self.assertIn("Stop the Runs About Them", run.stdout)
+        self.assertIn("Each Item Reshaped", run.stdout)
+
+    def test_each_item_reshaped_carries_an_item_transform_between_two_nodes_that_run_once_per_item(self):
+        wire = self.kit.things[G.stable_id(G._TAG, "wire", "Each Item Reshaped", "first", "enriched", "again", "record", "")]
+        self.assertEqual(value(wire["Properties"], "itemTransform"), '{"record": $, "reshaped": true}')
+        self.assertEqual(value(wire["Properties"], "listTransform"), "")
+        self.assertEqual(wire["Name"], "Enrich first.enriched to Enrich again.record")
 
     def test_the_fragment_validator_refuses_a_stop_node_in_a_model_binding_nothing_to_requested_by(self):
         fragment = G.as_fragment(self.kit)

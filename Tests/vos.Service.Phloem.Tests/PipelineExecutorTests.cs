@@ -365,6 +365,34 @@ public class PipelineExecutorTests
         gateway.Called.Should().BeEmpty("a pipeline that fails validation never calls a node");
     }
 
+    [Fact]
+    public async Task An_item_transform_on_a_wire_from_a_node_that_runs_once_is_refused_before_anything_is_called()
+    {
+        var (fx, pipelineId) = TestGraphs.WireTransformPipeline(listTransform: "", itemTransform: "$uppercase($)");
+        var gateway = new FakeGateway(fx.Build()) { OnCall = (_, _) => NodeOk(("out", "x")) };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.Error.Should().Contain("item transform").And.Contain("'A' runs once");
+        gateway.Called.Should().BeEmpty("a pipeline that fails validation never calls a node");
+    }
+
+    [Fact]
+    public async Task An_item_transform_that_does_not_compile_is_refused_before_anything_is_called()
+    {
+        var (fx, pipelineId) = TestGraphs.ItemsGoOnPipeline(itemTransform: "this is ( not valid jsonata");
+        var gateway = new FakeGateway(fx.Build()) { OnCall = (_, _) => NodeOk(("out", "x")) };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, JsonSerializer.SerializeToElement(new { readings = new[] { "North" } }), CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.Error.Should().Contain("invalid item transform");
+        gateway.Called.Should().BeEmpty("a pipeline that fails validation never calls a node");
+    }
+
     [Fact] // Input node output ports are filled from run params
     public async Task RunAsync_InputBoundaryNode_SeedsOutputPortsFromRunParams()
     {
