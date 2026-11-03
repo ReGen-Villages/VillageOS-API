@@ -16,6 +16,10 @@ The generator writes the same content to either of two places:
 - **A site seed** — the generator can also merge the same services and pipelines into a site model
   (`generate.py --into`), so you can build pipelines alongside real building data.
 
+Beside the examples, `declare_service.py` declares one service of your own in a seed from its
+`GET /manifest`, with a published pipeline that runs it; the tool's
+[README](../tools/pipeline-playground/README.md) says how.
+
 ## Load them
 
 Open the GUI and click **Switch Model** in the sidebar footer to open the seed picker, then choose

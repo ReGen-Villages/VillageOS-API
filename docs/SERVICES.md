@@ -1222,7 +1222,11 @@ its block writes nothing but its answer; only such a block is called in a rehear
   wins). Lets a source node be parameterized
   per-run without editing the graph; the editor's **Params** form supplies the values.
 - **Ports & `/manifest`.** A node advertises typed ports — `{ portName, direction: in|out, type, required }`
-  — so the editor can type-check wires; expose them at `GET /manifest`.
+  — so the editor can type-check wires; expose them at `GET /manifest`. The manifest may also say
+  `rehearses` (the service writes nothing but its answer, so a rehearsal may call it) and list `settings`,
+  each `{ name, required, values, default }`: the values a node carries as properties and the service
+  reads from `params`. `tools/pipeline-playground/declare_service.py` reads the manifest to declare the
+  service, its connection, its ports and a published pipeline that runs it in a seed.
 - **Collection inputs (fan-out).** A port may be `collection: true`: when that input receives a **list**,
   Phloem runs the node **once per item** (bounded), broadcasts the node's other inputs to every item, and
   **gathers** each output port into a list for downstream; an out port marked as a collection gathers every
