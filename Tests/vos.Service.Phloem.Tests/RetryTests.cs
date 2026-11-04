@@ -552,6 +552,32 @@ public class RetryTests
     }
 
     [Fact]
+    public async Task A_run_whose_record_has_lost_a_node_is_not_carried_on_and_the_person_is_told_why()
+    {
+        var (retry, gateway, executor, runId) = await ARunARestartStoppedAsync();
+        gateway.Records.Remove((runId, retry.In.Id));
+
+        var refusal = await executor.CarryOnAsync(runId, CancellationToken.None);
+
+        refusal.Should().Be("The record of 'In' is missing, so the run cannot be carried on without running it again.");
+        gateway.RunStatusOf(runId).Should().Be(RunStatus.Failed);
+        gateway.Called.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_run_whose_pipeline_can_no_longer_be_read_is_not_carried_on_and_the_person_is_told_why()
+    {
+        var (retry, gateway, executor, runId) = await ARunARestartStoppedAsync();
+        gateway.Graph = TestGraphs.DemoPipeline().Fixture.Build();
+
+        var refusal = await executor.CarryOnAsync(runId, CancellationToken.None);
+
+        refusal.Should().Be($"Pipeline {retry.PipelineId} not found in the loaded subgraph.");
+        gateway.RunStatusOf(runId).Should().Be(RunStatus.Failed);
+        gateway.Called.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task A_run_already_being_carried_on_is_not_carried_on_a_second_time_while_its_interrupted_node_is_still_to_be_called()
     {
         var (retry, gateway, executor, runId) = await ARunARestartStoppedAsync();
