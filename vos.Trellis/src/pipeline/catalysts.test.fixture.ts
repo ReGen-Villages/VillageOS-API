@@ -16,14 +16,20 @@ export interface CatalystFixture {
     | 'readingsStart' | 'readingsEnd' | 'refillStart' | 'digestEnd' | 'standsFor' | 'is' | 'has' | 'binds'
     | 'watcher' | 'watchesReorder' | 'reorderBinding' | 'conductor' | 'surplus' | 'drought' | 'storeSurplus'
     | 'dry' | 'watchesDry' | 'resumes' | 'everyHour' | 'readingsWire' | 'takenOn' | 'success' | 'fail'
-    | 'offers' | 'comparesWith' | 'daily' | 'rhythm' | 'weekly',
+    | 'offers' | 'comparesWith' | 'daily' | 'rhythm' | 'weekly' | 'tellKind' | 'followOnKind' | 'stopKind' | 'officeLine',
     string
   >;
 }
 
-/** How many services of the orchestrator's archetype the model holds: the page offers a hand-over only
- *  where there is exactly one. */
-export function catalystFixture({ orchestrators = 1 }: { orchestrators?: number } = {}): CatalystFixture {
+interface FixtureOptions {
+  /** How many services of the orchestrator's archetype the model holds: the page offers a hand-over only where
+   *  there is exactly one. */
+  orchestrators?: number;
+  bindsTellFollowOnAndStop?: boolean;
+  bindsRequestedBy?: boolean;
+}
+
+export function catalystFixture({ orchestrators = 1, bindsTellFollowOnAndStop = true, bindsRequestedBy = true }: FixtureOptions = {}): CatalystFixture {
   const things: VosThing[] = [];
   const relationships: VosRelationship[] = [];
   let sequence = 0;
@@ -125,6 +131,25 @@ export function catalystFixture({ orchestrators = 1 }: { orchestrators?: number 
   const dailyDigest = thing('daily digest');
   relate(dailyDigest, is, kindArchetype);
   relate(reportingOffice, tells, dailyDigest);
+  // No trigger, so it adds no row to the rail of catalysts.
+  const officeLine = thing('office line');
+  relate(officeLine, is, connectionArchetype);
+  relate(reportingOffice, thing('reachedThrough', playing(ROLE.ToldThrough)), officeLine);
+
+  const nodeKind = (name: string, roleId: string) => {
+    const id = thing(name, bindsTellFollowOnAndStop ? playing(roleId) : {}, true);
+    relate(id, is, nodeArchetype);
+    return id;
+  };
+  const tellKind = nodeKind('Herald', ROLE.PipelineTell);
+  const followOnKind = nodeKind('Relay', ROLE.PipelineFollowOn);
+  const stopKind = nodeKind('Halt', ROLE.PipelineStop);
+  for (const [portName, direction, type, required] of [['things', 'in', 'any', 'true'], ['reason', 'in', 'string', 'false'], ['requested', 'out', 'number', 'false']]) {
+    const port = thing(`Halt.${portName}`, { portName, direction, type, required });
+    relate(port, is, portArchetype);
+    relate(stopKind, has, port);
+  }
+  if (bindsRequestedBy) thing('askedBy', playing(ROLE.RequestedBy));
 
   const reservoir = thing('Reservoir', {}, true);
   const belowReorder = thing('below reorder');
@@ -206,7 +231,7 @@ export function catalystFixture({ orchestrators = 1 }: { orchestrators?: number 
       readingsStart, readingsEnd, refillStart, digestEnd, standsFor, is, has, binds: BINDS_ID,
       watcher, watchesReorder, reorderBinding: bindings.get(watchesReorder)!, conductor, surplus, drought, storeSurplus,
       dry, watchesDry, resumes, everyHour, readingsWire, takenOn, success, fail,
-      offers, comparesWith, daily, rhythm, weekly,
+      offers, comparesWith, daily, rhythm, weekly, tellKind, followOnKind, stopKind, officeLine,
     },
   };
 }

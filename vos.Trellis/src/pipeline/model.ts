@@ -57,7 +57,26 @@ export const ROLE = {
   // A stop request, and the orchestrator's own connection it is related to a run along; no run starts from it.
   StopRequest: '159ef90f-8089-5055-b5a9-8839d5e28e7a',
   RunStopping: '7acbab6c-58f3-5145-a9c0-18a907197131',
+  // A stop request names the run that wrote it, so a stop node never stops its own run.
+  RequestedBy: 'f0511a24-8925-5ac0-8f8e-971202c1741a',
+  // Nodes the orchestrator runs itself, calling no service, and the connection a system is told through.
+  PipelineTell: '7fed4d74-0cb1-547d-85d8-bbcfc5992667',
+  PipelineFollowOn: '0ed6e1fc-cbac-5d4e-b3f0-ef83f4a09e43',
+  PipelineStop: 'a5f12016-a3f9-505c-95c7-d211fd84b8f2',
+  ToldThrough: 'd94c1844-76e6-56fa-ae38-d10405d52826',
 } as const;
+
+/** A node that calls no service: where a run comes from and what it leaves behind, or one the orchestrator runs
+ *  itself to tell a system, start another pipeline, or stop runs. */
+export type NodeKind = 'input' | 'output' | 'tell' | 'followOn' | 'stop';
+
+export const NODE_KIND_ROLE: Record<NodeKind, string> = {
+  input: ROLE.PipelineInput,
+  output: ROLE.PipelineOutput,
+  tell: ROLE.PipelineTell,
+  followOn: ROLE.PipelineFollowOn,
+  stop: ROLE.PipelineStop,
+};
 
 const EVALUATION_INTERVAL_PROPERTY = 'EvaluationIntervalSeconds';
 
@@ -94,6 +113,7 @@ export interface ExternalSystemInformation {
   name: string;
   sends: MessageKindInformation[];
   told: MessageKindInformation[];
+  toldThroughConnectionId?: string;
 }
 
 /** A connection as a catalyst: how it is reached, what it calls, and what it starts. */
@@ -363,12 +383,16 @@ export class PipelineModel {
         .map((kind) => this.messageKind(kind))
         .sort((a, b) => a.name.localeCompare(b.name));
     return this.thingsOf(ROLE.ExternalSystem)
-      .map((system) => ({
-        id: system.Id,
-        name: system.Name,
-        sends: kinds(system.Id, ROLE.Sends),
-        told: kinds(system.Id, ROLE.Told),
-      }))
+      .map((system) => {
+        const through = this.reachedAlong(system.Id, ROLE.ToldThrough).find((connection) => this.isOf(connection.Id, ROLE.Connection));
+        return {
+          id: system.Id,
+          name: system.Name,
+          sends: kinds(system.Id, ROLE.Sends),
+          told: kinds(system.Id, ROLE.Told),
+          ...(through ? { toldThroughConnectionId: through.Id } : {}),
+        };
+      })
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
@@ -400,7 +424,8 @@ export class PipelineModel {
 
   /** What a Thing is as the end of a pipeline, and which end it may be. A kind of message may start a run
    *  where a system sends it and end one where a system is told it; a system may start one where it sends
-   *  anything, and may always be told; a door, a state and a predicate only start; a pipeline does both. */
+   *  anything; a door, a state, a predicate and a pipeline only start. A run tells a system and starts a pipeline
+   *  through a node wired on to its end, so neither is the end itself, as Phloem reads it. */
   endInformation(thingId: string): EndInformation {
     const thing = this.byId.get(thingId);
     const named = { id: thingId, name: thing?.Name ?? '' };
@@ -411,9 +436,9 @@ export class PipelineModel {
       return { ...named, kind: 'messageKind', mayStart: sent, mayEnd: told };
     }
     if (this.isOf(thingId, ROLE.ExternalSystem))
-      return { ...named, kind: 'externalSystem', mayStart: this.reachedAlong(thingId, ROLE.Sends).length > 0, mayEnd: true };
+      return { ...named, kind: 'externalSystem', mayStart: this.reachedAlong(thingId, ROLE.Sends).length > 0, mayEnd: false };
     if (this.isOf(thingId, ROLE.Pipeline))
-      return { ...named, kind: 'pipeline', mayStart: true, mayEnd: true };
+      return { ...named, kind: 'pipeline', mayStart: true, mayEnd: false };
     if (this.isOf(thingId, ROLE.Range))
       return { ...named, kind: 'state', mayStart: true, mayEnd: false };
     if (this.isOf(thingId, ROLE.Cadence))
@@ -507,16 +532,14 @@ export class PipelineModel {
     };
   }
 
-  /** Is this thing a boundary node — of the archetype bound as a pipeline's input, or as its output? */
-  boundaryKind(thingId: string): 'input' | 'output' | undefined {
-    if (this.isOf(thingId, ROLE.PipelineInput)) return 'input';
-    if (this.isOf(thingId, ROLE.PipelineOutput)) return 'output';
-    return undefined;
+  /** The kind of a node that calls no service, told by the archetype it is of; undefined for one that calls a service. */
+  nodeKind(thingId: string): NodeKind | undefined {
+    return (Object.keys(NODE_KIND_ROLE) as NodeKind[]).find((kind) => this.isOf(thingId, NODE_KIND_ROLE[kind]));
   }
 
-  /** A boundary node's own declared port child-Things, each with its Thing id — the save-diff needs the id
-   * to update a port in place or retract a removed one. Ports are declared directly on the node. */
-  boundaryPortRelationships(nodeId: string): { portId: string; port: PortInformation }[] {
+  /** The port child-Things a node declares itself, each with its Thing id — the save-diff needs the id to update
+   *  a port in place or retract a removed one. */
+  ownPortRelationships(nodeId: string): { portId: string; port: PortInformation }[] {
     return this.outgoing(nodeId, 'has')
       .filter((t) => this.isOf(t.Id, ROLE.Port))
       .map((t) => ({ portId: t.Id, port: this.toPort(t) }));

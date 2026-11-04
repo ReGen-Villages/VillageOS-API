@@ -64,6 +64,10 @@ function graphWithVocabulary() {
   T('arch-choice', 'Branch', playing(ROLE.DecisionPath));
   T('offers', 'proposes', playing(ROLE.Choice));
   T('compares-with', 'weighs', playing(ROLE.ComparesWith));
+  T('stands-for', 'speaksFor', playing(ROLE.StandsFor));
+  T('arch-tell', 'Herald', playing(ROLE.PipelineTell)); R('arch-tell', 'is', 'arch-node');
+  T('arch-follow-on', 'Relay', playing(ROLE.PipelineFollowOn)); R('arch-follow-on', 'is', 'arch-node');
+  T('arch-stop', 'Halt', playing(ROLE.PipelineStop)); R('arch-stop', 'is', 'arch-node');
 
   const port = (id: string, portName: string, direction: 'in' | 'out', owner: string) => {
     T(id, portName, { portName, direction, type: 'any', required: 'false' });
@@ -773,6 +777,89 @@ describe('savePipeline / loadPipeline — what a choice compares with, and what 
 
     await expect(savePipeline('First', [{ ...node('N1', 'A'), choices: [{ id: 'C9', name: 'Any', when: 'true', comparesWith: ['SITE'] }] }], [],
       new PipelineModel(...withRoles(things, relationships)))).rejects.toThrow(/compares-with role/);
+    expect(applyFragment).not.toHaveBeenCalled();
+  });
+});
+
+// A pipeline drawn as the playground's generator writes one: each node of a kind the orchestrator runs is only of its
+// kind, a tell and a follow-on node declare an in and an out port for each value they pass on, and a stop node's
+// ports are its kind's.
+function modelWithNodesTheOrchestratorRuns(): PipelineModel {
+  const { T, R, port, heldWire, things, relationships } = graphWithVocabulary();
+  for (const [name, direction] of [['things', 'in'], ['reason', 'in'], ['requested', 'out']] as const)
+    port(`arch-stop.${name}`, name, direction, 'arch-stop');
+  T('OFFICE', 'Reporting office');
+  T('NEXT', 'Next pipeline'); R('NEXT', 'is', 'arch-pipeline');
+
+  T('P', 'Hands on'); R('P', 'is', 'arch-pipeline');
+  T('TELL', 'The office is told'); R('TELL', 'is', 'arch-tell'); R('P', 'has', 'TELL'); R('TELL', 'stands-for', 'OFFICE');
+  port('TELL.in.payload', 'payload', 'in', 'TELL'); port('TELL.out.payload', 'payload', 'out', 'TELL');
+  T('FOLLOW', 'Next follows'); R('FOLLOW', 'is', 'arch-follow-on'); R('P', 'has', 'FOLLOW'); R('FOLLOW', 'stands-for', 'NEXT');
+  port('FOLLOW.in.payload', 'payload', 'in', 'FOLLOW'); port('FOLLOW.out.payload', 'payload', 'out', 'FOLLOW');
+  T('STOP', 'Stop their runs'); R('STOP', 'is', 'arch-stop'); R('P', 'has', 'STOP');
+  heldWire('W', 'TELL', 'TELL.out.payload', 'FOLLOW', 'FOLLOW.in.payload');
+
+  return new PipelineModel(...withRoles(things, relationships));
+}
+
+describe('nodes the orchestrator runs', () => {
+  it('loads a tell, a follow-on and a stop node as their kinds, with the ports each has and what each stands for', () => {
+    const loaded = loadPipeline('P', modelWithNodesTheOrchestratorRuns())!;
+    const read = (id: string) => loaded.nodes.find((node) => node.id === id)!;
+    const portsOf = (id: string) => read(id).ports.map((port) => `${port.direction} ${port.portName}`).sort();
+
+    expect(read('TELL')).toMatchObject({ kind: 'tell', connectionId: '', standsForId: 'OFFICE' });
+    expect(portsOf('TELL')).toEqual(['in payload', 'out payload']);
+    expect(read('FOLLOW')).toMatchObject({ kind: 'followOn', connectionId: '', standsForId: 'NEXT' });
+    expect(read('STOP')).toMatchObject({ kind: 'stop', connectionId: '' });
+    expect(portsOf('STOP')).toEqual(['in reason', 'in things', 'out requested']);
+    expect(loaded.edges).toEqual([expect.objectContaining({ source: 'TELL', sourceHandle: 'TELL.out.payload', target: 'FOLLOW', targetHandle: 'FOLLOW.in.payload' })]);
+  });
+
+  it('saves a loaded pipeline as it found it: each node under its kind, binding no connection, and the stop node writing no port of its own', async () => {
+    const model = modelWithNodesTheOrchestratorRuns();
+    const loaded = loadPipeline('P', model)!;
+
+    await savePipeline(loaded.name, loaded.nodes, loaded.edges, model, 'P');
+
+    const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
+    const kindOf = (id: string) => frag.Relationships.filter((r) => r.Subject === id && r.Name === 'is').map((r) => r.Target).sort();
+    expect(kindOf('TELL')).toEqual(['arch-node', 'arch-tell']);
+    expect(kindOf('FOLLOW')).toEqual(['arch-follow-on', 'arch-node']);
+    expect(kindOf('STOP')).toEqual(['arch-node', 'arch-stop']);
+    expect(frag.Relationships.filter((r) => ['TELL', 'FOLLOW', 'STOP'].includes(r.Subject) && r.Name === 'has').map((r) => r.Target).sort())
+      .toEqual(['FOLLOW.in.payload', 'FOLLOW.out.payload', 'TELL.in.payload', 'TELL.out.payload']);
+    expect(frag.Things.some((t) => t.Id.startsWith('arch-stop.'))).toBe(false);
+    expect(thingRemove).not.toHaveBeenCalled();
+    expect(relationshipRemove).not.toHaveBeenCalled();
+  });
+
+  it('saves a new tell node standing for the system it tells, with an in and an out port for what it passes on', async () => {
+    const model = modelWithNodesTheOrchestratorRuns();
+    const tell: EditorNode = {
+      id: 'n1', label: 'Tell the office', connectionId: '', x: 0, y: 0, kind: 'tell', standsForId: 'OFFICE',
+      ports: [
+        { portId: 'p.in', portName: 'payload', direction: 'in', type: 'any', required: true },
+        { portId: 'p.out', portName: 'payload', direction: 'out', type: 'any', required: false },
+      ],
+    };
+
+    await savePipeline('Fresh', [tell], [], model);
+
+    const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
+    const id = frag.Things.find((t) => t.Name === 'Tell the office')!.Id;
+    expect(frag.Relationships.filter((r) => r.Subject === id).map((r) => [r.Name, r.Target]).sort()).toEqual([
+      ['has', 'p.in'], ['has', 'p.out'], ['is', 'arch-node'], ['is', 'arch-tell'], ['standsFor', 'OFFICE'],
+    ]);
+    expect(frag.Things.find((t) => t.Id === 'p.in')!.Properties.required).toEqual({ typeInfo: 'vos.String', value: 'true' });
+  });
+
+  it('refuses a node of a kind the model binds nothing to, naming the roles a seed must bind', async () => {
+    const { things, relationships } = graphWithVocabulary();
+    things.splice(things.findIndex((t) => t.Id === 'arch-stop'), 1);
+    const stop: EditorNode = { id: 'n1', label: 'Stop', connectionId: '', x: 0, y: 0, kind: 'stop', ports: [] };
+
+    await expect(savePipeline('Fresh', [stop], [], new PipelineModel(...withRoles(things, relationships)))).rejects.toThrow(/binds no archetype/);
     expect(applyFragment).not.toHaveBeenCalled();
   });
 });

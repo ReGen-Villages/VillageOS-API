@@ -29,6 +29,7 @@ import { stopRun } from '../pipeline/stop';
 import { validatePipeline, validateEnds } from '../pipeline/validate';
 import { catalystRail, outputRail, type CatalystRow, type OutputRow } from '../pipeline/catalysts';
 import { EditorHistory } from '../pipeline/history';
+import { passedOn } from '../pipeline/passedOn';
 import { handStateToOrchestrator } from '../pipeline/handOver';
 import { pipelineApi } from '../api/pipelineApi';
 import { relationshipApi } from '../api/relationshipApi';
@@ -162,7 +163,7 @@ export function PipelinePage() {
       const stood = d.standsForId ? model.endInformation(d.standsForId) : undefined;
       return {
         id: n.id, label: d.label, ports: d.ports, parameterBindings: d.parameterBindings, kind: d.kind,
-        ...(stood ? { standsFor: { name: stood.name, mayStart: stood.mayStart, mayEnd: stood.mayEnd } } : {}),
+        ...(stood ? { standsFor: { name: stood.name, kind: stood.kind, mayStart: stood.mayStart, mayEnd: stood.mayEnd } } : {}),
       };
     });
     const validationEdges = edges.map((e) => ({
@@ -174,20 +175,13 @@ export function PipelinePage() {
     return [...validatePipeline(validationNodes, validationEdges), ...validateEnds(validationNodes, validationEdges)];
   }, [nodes, edges, model]);
 
-  // The drawing as the canvas paints it: a boundary node says what it stands for, read off the model so a
-  // rename reaches it, and what really happens at that end today — placing a node where a run comes from
-  // is not what starts it, and nothing sends to a system a run ends at yet.
+  // The drawing as the canvas paints it: a node says what it stands for, read off the model so a rename reaches
+  // it, and a start node says that placing it is not what starts a run.
   const canvasNodes = useMemo(() => nodes.map((n) => {
     const d = n.data as unknown as PipelineNodeData;
     if (!d.kind || !d.standsForId) return n;
     const standsFor = model.endInformation(d.standsForId);
-    const note = d.kind === 'input'
-      ? t('pipeline.note.startNotCalled')
-      : standsFor.kind === 'externalSystem'
-        ? t('pipeline.note.endNotSent', { name: standsFor.name })
-        : standsFor.kind === 'pipeline'
-          ? t('pipeline.note.endNotStarted', { name: standsFor.name })
-          : undefined;
+    const note = d.kind === 'input' ? t('pipeline.note.startNotCalled') : undefined;
     return { ...n, data: { ...n.data, standsFor, note } };
   }), [nodes, model, t]);
 
@@ -285,22 +279,33 @@ export function PipelinePage() {
     }
   }, [model, t]);
 
-  // What the run leaves behind: the answer to whoever started it, another pipeline, or a system told.
   const placeOutput = useCallback((row: OutputRow) => {
-    const portName = row.kind === 'answer' ? 'value' : row.kind === 'pipeline' ? 'subject' : 'payload';
-    place({
-      label: row.kind === 'answer' ? t('pipeline.boundaryOutput') : row.name,
-      kind: 'output',
-      ports: [{ portId: crypto.randomUUID(), portName, direction: 'in', type: 'any', required: true }],
-      ...(row.kind === 'answer' ? {} : { standsForId: row.id }),
-    });
-  }, [place, t]);
+    if (row.kind === 'answer')
+      place({
+        label: t('pipeline.boundaryOutput'),
+        kind: 'output',
+        ports: [{ portId: crypto.randomUUID(), portName: 'value', direction: 'in', type: 'any', required: true }],
+      });
+    else if (row.kind === 'stop')
+      place({ label: t('pipeline.outputs.stop'), kind: 'stop', ports: model.resolvePorts(model.boundTo(ROLE.PipelineStop)!) });
+    else
+      place({
+        label: row.name,
+        kind: row.kind === 'pipeline' ? 'followOn' : 'tell',
+        ports: passedOn(row.kind === 'pipeline' ? 'subject' : 'payload'),
+        standsForId: row.id,
+      });
+  }, [place, model, t]);
 
-  // Add / rename / remove a port on a boundary node (its ports are user-declared). Direction is fixed by the
-  // node kind (Input → output ports, Output → input ports).
-  const setBoundaryPorts = useCallback((nodeId: string, ports: PortInformation[]) => {
+  const setDeclaredPorts = useCallback((nodeId: string, ports: PortInformation[]) => {
     recordSnapshot();
     setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ports } } : n)));
+    setSavedId(null);
+  }, [setNodes, recordSnapshot]);
+
+  const setStandsFor = useCallback((nodeId: string, standsForId: string) => {
+    recordSnapshot();
+    setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, standsForId } } : n)));
     setSavedId(null);
   }, [setNodes, recordSnapshot]);
 
@@ -532,6 +537,10 @@ export function PipelinePage() {
   useWiderList(kindsOffered, referencedByTheDrawing);
   const widerList = useMemo(() => (kindsOffered ? model.thingsOfKinds(kindsOffered) : []), [model, kindsOffered]);
   const nameOf = useCallback((thingId: string) => model.thing(thingId)?.Name ?? thingId, [model]);
+  const selectedKind = (selectedNode?.data as PipelineNodeData | undefined)?.kind;
+  const standsForOptions = useMemo(() => outputs
+    .filter((row) => (selectedKind === 'tell' && row.kind === 'externalSystem') || (selectedKind === 'followOn' && row.kind === 'pipeline'))
+    .map((row) => ({ id: row.id, name: row.name })), [outputs, selectedKind]);
 
   const portNameOf = (nodeId: string, portId: string | null | undefined) =>
     (nodes.find((n) => n.id === nodeId)?.data as PipelineNodeData | undefined)?.ports.find((p) => p.portId === portId)?.portName ?? '';
@@ -656,7 +665,9 @@ export function PipelinePage() {
               widerList={widerList}
               onWiden={setWidened}
               nameOf={nameOf}
-              onSetPorts={setBoundaryPorts}
+              standsForOptions={standsForOptions}
+              onSetStandsFor={setStandsFor}
+              onSetPorts={setDeclaredPorts}
               onSetBinding={setBinding}
               onSetChosen={setChosen}
               onSetChoices={setChoices}

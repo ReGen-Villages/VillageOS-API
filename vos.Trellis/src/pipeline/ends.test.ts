@@ -14,12 +14,12 @@ describe('what a boundary node stands for', () => {
   it('types an end by what it stands for, and says whether a run may come from it or leave it behind', () => {
     expect(model.endInformation(id.hourlyReading)).toEqual({ id: id.hourlyReading, name: 'hourly reading', kind: 'messageKind', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.dailyDigest)).toMatchObject({ kind: 'messageKind', mayStart: false, mayEnd: true });
-    expect(model.endInformation(id.weatherStation)).toMatchObject({ kind: 'externalSystem', mayStart: true, mayEnd: true });
-    expect(model.endInformation(id.reportingOffice)).toMatchObject({ kind: 'externalSystem', mayStart: false, mayEnd: true });
+    expect(model.endInformation(id.weatherStation)).toMatchObject({ kind: 'externalSystem', mayStart: true, mayEnd: false });
+    expect(model.endInformation(id.reportingOffice)).toMatchObject({ kind: 'externalSystem', mayStart: false, mayEnd: false });
     expect(model.endInformation(id.intakeDoor)).toMatchObject({ kind: 'door', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.belowReorder)).toMatchObject({ kind: 'state', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.feeds)).toMatchObject({ kind: 'relationship', mayStart: true, mayEnd: false });
-    expect(model.endInformation(id.refill)).toMatchObject({ kind: 'pipeline', mayStart: true, mayEnd: true });
+    expect(model.endInformation(id.refill)).toMatchObject({ kind: 'pipeline', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.everyHour)).toMatchObject({ kind: 'cadence', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.reservoir)).toMatchObject({ kind: 'other', mayStart: false, mayEnd: false });
   });

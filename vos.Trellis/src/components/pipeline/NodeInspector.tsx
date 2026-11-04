@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { PortInformation } from '../../pipeline/model';
+import type { PipelineNamed, PortInformation } from '../../pipeline/model';
 import type { EditorChoice } from '../../pipeline/serialize';
+import { passedOn, removePassedOn, renamePassedOn } from '../../pipeline/passedOn';
 import type { VosThing } from '../../types/vos';
 import { ThingPicker } from '../common/ThingPicker';
 import type { PipelineNodeData } from './PipelineNodeView';
@@ -18,6 +19,9 @@ interface Props {
   /** Whether a choice is searching the wider list, so the page can fetch it and let it go again. */
   onWiden: (widened: boolean) => void;
   nameOf: (thingId: string) => string;
+  /** What a tell or follow-on node may stand for: the systems told through a connection, or the other pipelines. */
+  standsForOptions: PipelineNamed[];
+  onSetStandsFor: (nodeId: string, thingId: string) => void;
   onSetPorts: (nodeId: string, ports: PortInformation[]) => void;
   onSetBinding: (nodeId: string, port: string, parameterKey: string) => void;
   onSetChosen: (nodeId: string, chosen: Record<string, string>) => void;
@@ -32,10 +36,12 @@ const RULE = 'w-full px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc
 /** A new rule starts as what having no rule means, so the person edits a rule that already works. */
 const NO_FAILURE_REACHED = '$count(failures) = 0';
 
-/** The selected node: a boundary node's declared ports and the Output node's rule, or a service node's inputs bound
- *  to run parameters and the choices it holds. */
+/** The selected node: a boundary node's declared ports and the Output node's rule, what a tell or follow-on node
+ *  stands for and passes on, or the inputs of a service or stop node bound to run parameters and the choices a service
+ *  node holds. */
 export function NodeInspector({
-  nodeId, data, wiredInputs, offeredByPort, widerList, onWiden, nameOf, onSetPorts, onSetBinding, onSetChosen, onSetChoices, onSetRule, onClose,
+  nodeId, data, wiredInputs, offeredByPort, widerList, onWiden, nameOf, standsForOptions, onSetStandsFor,
+  onSetPorts, onSetBinding, onSetChosen, onSetChoices, onSetRule, onClose,
 }: Props) {
   const { t } = useTranslation();
   const [searchingChoices, setSearchingChoices] = useState<ReadonlySet<string>>(new Set());
@@ -69,7 +75,16 @@ export function NodeInspector({
         <span className="truncate">{data.label}</span>
         <button onClick={onClose} aria-label={t('pipeline.closeInspector')} className="text-zinc-400 hover:text-zinc-600">×</button>
       </div>
-      {data.kind ? (
+      {data.kind === 'tell' || data.kind === 'followOn' ? (
+        <PassedOn
+          nodeId={nodeId}
+          data={data}
+          standsForOptions={standsForOptions}
+          nameOf={nameOf}
+          onSetStandsFor={onSetStandsFor}
+          onSetPorts={onSetPorts}
+        />
+      ) : data.kind === 'input' || data.kind === 'output' ? (
         <div className="flex flex-col gap-1">
           <div className="text-zinc-400">{t('pipeline.ports', { direction: data.kind === 'input' ? t('pipeline.outputs.word') : t('pipeline.inputs') })}</div>
           {data.ports.map((p, i) => (
@@ -161,47 +176,104 @@ export function NodeInspector({
               ))}
             </>
           )}
-          <div className="text-zinc-400 mt-2">{t('pipeline.choicesLabel')}</div>
-          {choices.map((choice, index) => (
-            <div key={choice.id} className="flex flex-col gap-0.5 border-l-2 border-zinc-200 dark:border-zinc-700 pl-1">
-              <div className="flex items-center gap-1">
-                <input
-                  aria-label={t('pipeline.choiceName', { index: index + 1 })}
-                  value={choice.name}
-                  onChange={(e) => setChoice(index, { name: e.target.value })}
-                  className={FIELD}
-                />
-                <button
-                  onClick={() => onSetChoices(nodeId, choices.filter((_, at) => at !== index))}
-                  aria-label={t('pipeline.removeChoice', { name: choice.name })}
-                  className="text-zinc-400 hover:text-red-400 px-1"
-                >×</button>
-              </div>
-              <textarea
-                aria-label={t('pipeline.choiceRule', { index: index + 1 })}
-                value={choice.when}
-                onChange={(e) => setChoice(index, { when: e.target.value })}
-                rows={2}
-                className={RULE}
-              />
-              <ComparedThings
-                index={index + 1}
-                comparesWith={choice.comparesWith}
-                offered={offered}
-                widerList={widerList}
-                searching={searchingChoices.has(choice.id)}
-                onSearch={(searching) => setSearching(choice.id, searching)}
-                nameOf={nameOf}
-                onChange={(comparesWith) => setChoice(index, { comparesWith })}
-              />
-            </div>
-          ))}
-          <button
-            onClick={() => onSetChoices(nodeId, [...choices, { id: crypto.randomUUID(), name: `choice${choices.length + 1}`, when: '', comparesWith: [] }])}
-            className="text-blue-500 hover:text-blue-600 text-left"
-          >{t('pipeline.addChoice')}</button>
+          {data.kind !== 'stop' && (
+            <>
+              <div className="text-zinc-400 mt-2">{t('pipeline.choicesLabel')}</div>
+              {choices.map((choice, index) => (
+                <div key={choice.id} className="flex flex-col gap-0.5 border-l-2 border-zinc-200 dark:border-zinc-700 pl-1">
+                  <div className="flex items-center gap-1">
+                    <input
+                      aria-label={t('pipeline.choiceName', { index: index + 1 })}
+                      value={choice.name}
+                      onChange={(e) => setChoice(index, { name: e.target.value })}
+                      className={FIELD}
+                    />
+                    <button
+                      onClick={() => onSetChoices(nodeId, choices.filter((_, at) => at !== index))}
+                      aria-label={t('pipeline.removeChoice', { name: choice.name })}
+                      className="text-zinc-400 hover:text-red-400 px-1"
+                    >×</button>
+                  </div>
+                  <textarea
+                    aria-label={t('pipeline.choiceRule', { index: index + 1 })}
+                    value={choice.when}
+                    onChange={(e) => setChoice(index, { when: e.target.value })}
+                    rows={2}
+                    className={RULE}
+                  />
+                  <ComparedThings
+                    index={index + 1}
+                    comparesWith={choice.comparesWith}
+                    offered={offered}
+                    widerList={widerList}
+                    searching={searchingChoices.has(choice.id)}
+                    onSearch={(searching) => setSearching(choice.id, searching)}
+                    nameOf={nameOf}
+                    onChange={(comparesWith) => setChoice(index, { comparesWith })}
+                  />
+                </div>
+              ))}
+              <button
+                onClick={() => onSetChoices(nodeId, [...choices, { id: crypto.randomUUID(), name: `choice${choices.length + 1}`, when: '', comparesWith: [] }])}
+                className="text-blue-500 hover:text-blue-600 text-left"
+              >{t('pipeline.addChoice')}</button>
+            </>
+          )}
         </div>
       )}
+    </div>
+  );
+}
+
+interface PassedOnProperties {
+  nodeId: string;
+  data: PipelineNodeData;
+  standsForOptions: PipelineNamed[];
+  nameOf: (thingId: string) => string;
+  onSetStandsFor: (nodeId: string, thingId: string) => void;
+  onSetPorts: (nodeId: string, ports: PortInformation[]) => void;
+}
+
+/** What a tell node tells or a follow-on node starts, and each value it passes on, named once for its in port and
+ *  its out port. What it stands for stays listed after it stops being offered, because a select whose value is not
+ *  among its options shows the first one instead. */
+function PassedOn({ nodeId, data, standsForOptions, nameOf, onSetStandsFor, onSetPorts }: PassedOnProperties) {
+  const { t } = useTranslation();
+  const standing = data.standsForId;
+  const listed = standing && !standsForOptions.some((option) => option.id === standing)
+    ? [{ id: standing, name: nameOf(standing) }, ...standsForOptions]
+    : standsForOptions;
+  const taken = data.ports.filter((port) => port.direction === 'in');
+  const standsForLabel = data.kind === 'tell' ? t('pipeline.tells') : t('pipeline.starts');
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1">
+        <span className="w-16 text-zinc-400">{standsForLabel}</span>
+        <select aria-label={standsForLabel} value={standing ?? ''} onChange={(e) => onSetStandsFor(nodeId, e.target.value)} className={FIELD}>
+          {listed.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+        </select>
+      </div>
+      <div className="text-zinc-400 mt-2">{t('pipeline.passesOn')}</div>
+      {taken.map((port, index) => (
+        <div key={port.portId} className="flex items-center gap-1">
+          <input
+            aria-label={t('pipeline.portName', { index: index + 1 })}
+            value={port.portName}
+            onChange={(e) => onSetPorts(nodeId, renamePassedOn(data.ports, port.portId, e.target.value))}
+            className={FIELD}
+          />
+          <button
+            onClick={() => onSetPorts(nodeId, removePassedOn(data.ports, port.portId))}
+            aria-label={t('pipeline.removePort', { name: port.portName })}
+            className="text-zinc-400 hover:text-red-400 px-1"
+          >×</button>
+        </div>
+      ))}
+      <button
+        onClick={() => onSetPorts(nodeId, [...data.ports, ...passedOn(`port${taken.length + 1}`)])}
+        className="mt-1 text-blue-500 hover:text-blue-600 text-left"
+      >{t('pipeline.addPort')}</button>
     </div>
   );
 }

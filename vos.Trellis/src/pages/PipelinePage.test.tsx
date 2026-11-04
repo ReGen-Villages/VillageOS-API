@@ -37,12 +37,28 @@ describe('PipelinePage', () => {
   });
   afterEach(() => restore());
 
-  it('opens the first pipeline on arrival, with its start node saying what it stands for', async () => {
+  it('opens the first pipeline on arrival, saying its end stands for a system only a tell node wired on to it can tell', async () => {
     render(<PipelinePage />);
     await waitFor(() => expect(screen.getByRole('button', { name: /Digest/ })).toHaveAttribute('aria-current', 'true'));
     expect(screen.getByRole('textbox', { name: 'Pipeline name' })).toHaveValue('Digest');
     expect(screen.getByText('Reporting office', { selector: 'div' })).toBeInTheDocument();
-    expect(screen.getByText('Nothing sends to Reporting office yet; what reaches this node is kept on the run\'s record.')).toBeInTheDocument();
+    expect(within(screen.getByRole('list', { name: 'What stops this pipeline running' }))
+      .getByText("'The office is told' is the Output node and stands for 'Reporting office'; a tell node wired on to it tells a system")).toBeInTheDocument();
+  });
+
+  it('places a follow-on node from a pipeline row, a tell node from a system row and a stop node with its kind’s ports', async () => {
+    render(<PipelinePage />);
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Pipeline name' })).toHaveValue('Digest'));
+    const kinds = () => [...document.querySelectorAll('.react-flow__node')].map((node) => node.querySelector('span.font-mono.text-zinc-400')?.textContent);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Place a follow-on node starting Refill' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Place a tell node telling Reporting office' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Place a stop node' }));
+
+    await waitFor(() => expect(kinds().slice(-3)).toEqual(['follow-on', 'tell', 'stop']));
+    const stop = [...document.querySelectorAll('.react-flow__node')].at(-1) as HTMLElement;
+    expect(within(stop).getByText('things')).toBeInTheDocument();
+    expect(within(stop).getByText('requested')).toBeInTheDocument();
   });
 
   it('refuses a start standing for something that starts nothing, in the findings under the canvas', async () => {

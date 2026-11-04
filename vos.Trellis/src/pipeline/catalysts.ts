@@ -116,7 +116,7 @@ export function catalystRail(model: PipelineModel): [CatalystGroup, CatalystGrou
   return [{ side: 'external', rows: ordered(external) }, { side: 'internal', rows: ordered(internal) }];
 }
 
-export type OutputKind = 'answer' | 'pipeline' | 'externalSystem';
+export type OutputKind = 'answer' | 'pipeline' | 'externalSystem' | 'stop';
 
 export interface OutputRow {
   id: string;
@@ -126,14 +126,22 @@ export interface OutputRow {
   told?: string[];
 }
 
-/** What a run may leave behind: the answer to whatever started it, another pipeline, and the external
- *  systems that may be told. The open pipeline is not offered to itself. */
+/** What a run may leave behind: the answer to whatever started it, another pipeline started by a follow-on node,
+ *  a system told by a tell node, and the runs a stop node stops. Each node is offered only where the model binds its
+ *  kind, a system only where it names the connection it is told through, and a stop node only where a request can
+ *  name the run that wrote it, since Phloem refuses each of those otherwise. The open pipeline is not offered to itself. */
 export function outputRail(model: PipelineModel, openedPipelineId: string | null): OutputRow[] {
-  const pipelines = model.thingsOf(ROLE.Pipeline)
-    .filter((pipeline) => pipeline.Id !== openedPipelineId)
-    .map((pipeline) => ({ id: pipeline.Id, kind: 'pipeline' as const, name: pipeline.Name }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-  const systems = model.externalSystems()
-    .map((system) => ({ id: system.id, kind: 'externalSystem' as const, name: system.name, told: system.told.map((kind) => kind.name) }));
-  return [{ id: 'answer', kind: 'answer', name: '' }, ...pipelines, ...systems];
+  const pipelines = model.boundTo(ROLE.PipelineFollowOn)
+    ? model.thingsOf(ROLE.Pipeline)
+      .filter((pipeline) => pipeline.Id !== openedPipelineId)
+      .map((pipeline) => ({ id: pipeline.Id, kind: 'pipeline' as const, name: pipeline.Name }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+    : [];
+  const systems = model.boundTo(ROLE.PipelineTell)
+    ? model.externalSystems()
+      .filter((system) => system.toldThroughConnectionId)
+      .map((system) => ({ id: system.id, kind: 'externalSystem' as const, name: system.name, told: system.told.map((kind) => kind.name) }))
+    : [];
+  const stop = model.boundTo(ROLE.PipelineStop) && model.boundTo(ROLE.RequestedBy) ? [{ id: 'stop', kind: 'stop' as const, name: '' }] : [];
+  return [{ id: 'answer', kind: 'answer', name: '' }, ...pipelines, ...systems, ...stop];
 }
