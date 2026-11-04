@@ -210,24 +210,13 @@ export function DashboardPage() {
     }
   };
 
-  const handleStartAgain = async (runId: string) => {
+  const askTheOrchestrator = (ask: (runId: string) => Promise<unknown>, accepted: string, refused: string) => async (runId: string) => {
     try {
-      await pipelineApi.startAgain(runId);
-      toast.success(t('dashboard.restartStopped.startedAgain'));
+      await ask(runId);
+      toast.success(accepted);
       return true;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('dashboard.restartStopped.startAgainFailed'));
-      return false;
-    }
-  };
-
-  const handleCarryOn = async (runId: string) => {
-    try {
-      await pipelineApi.carryOn(runId);
-      toast.success(t('dashboard.restartStopped.carriedOn'));
-      return true;
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('dashboard.restartStopped.carryOnFailed'));
+      toast.error(err instanceof Error ? err.message : refused);
       return false;
     }
   };
@@ -297,7 +286,7 @@ export function DashboardPage() {
       <div className="flex-1 overflow-auto px-6 pb-6">
         <div className={`grid grid-cols-1 gap-6 ${feedCollapsed ? '' : 'lg:grid-cols-3'}`}>
           <div className={`space-y-6 ${feedCollapsed ? '' : 'lg:col-span-2'}`}>
-            <RunsARestartStoppedPanel runs={runsARestartStopped} mayChangeData={role === 'admin' || role === 'editor'} onStartAgain={handleStartAgain} onCarryOn={handleCarryOn} />
+            <RunsARestartStoppedPanel runs={runsARestartStopped} mayChangeData={role === 'admin' || role === 'editor'} onStartAgain={askTheOrchestrator(pipelineApi.startAgain, t('dashboard.restartStopped.startedAgain'), t('dashboard.restartStopped.startAgainFailed'))} onCarryOn={askTheOrchestrator(pipelineApi.carryOn, t('dashboard.restartStopped.carriedOn'), t('dashboard.restartStopped.carryOnFailed'))} />
             <ModelStatisticsCard things={things} relationships={relationships} wholeModelHeld={holdsWholeModel} />
             <EngineMetricsPanel metrics={connectionLost ? null : engineMetrics} />
             <ServicesPanel services={displayedServices} endpoints={endpointServices} onStart={handleStartService} onStop={handleStopService} onDelete={(thingId, name) => setDeleteTarget({ thingId, name })} onViewLogs={(connectionId, name) => navigate(`/logs?service=${connectionId}&name=${encodeURIComponent(name)}`)} onDownloadLogs={handleDownloadServiceLog} />
