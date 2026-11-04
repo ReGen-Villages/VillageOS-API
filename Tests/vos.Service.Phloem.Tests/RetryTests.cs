@@ -250,7 +250,7 @@ public class RetryTests
         gateway.Records[(runId, retry.Echo.Id)] = new NodeRecord(RunStatus.Trying, new Dictionary<string, JsonElement>(),
             [new AttemptRecord(1, anHourAgo, anHourAgo.AddSeconds(1), RunStatus.Failed, "the service was away")]);
 
-        var carriedOn = await executor.RecoverTryingAsync(CancellationToken.None);
+        var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
 
         carriedOn.Should().Be(1);
         await Settle.UntilAsync(() => gateway.StatusUpdates.Contains(RunStatus.Succeeded), "the run carries on to its end");
@@ -272,7 +272,7 @@ public class RetryTests
         gateway.Records[(runId, retry.Echo.Id)] = new NodeRecord(RunStatus.Trying, new Dictionary<string, JsonElement>(),
             [new AttemptRecord(1, anHourAgo, anHourAgo.AddSeconds(1), RunStatus.Failed, "the service was away")]);
 
-        await executor.RecoverTryingAsync(CancellationToken.None);
+        await executor.RecoverUnfinishedAsync(CancellationToken.None);
 
         await Settle.UntilAsync(() => gateway.StatusUpdates.Contains(RunStatus.Rehearsed), "the rehearsal carries on to its end");
         gateway.Envelopes.Single().Envelope.GetProperty(ModelNames.Rehearsal).GetBoolean().Should().BeTrue();
@@ -306,7 +306,7 @@ public class RetryTests
     {
         var (retry, gateway, executor, runId) = ArrangeARunStoppedPartWayThroughItsItems(RunStatus.Trying);
 
-        var carriedOn = await executor.RecoverTryingAsync(CancellationToken.None);
+        var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
 
         carriedOn.Should().Be(1);
         await Settle.UntilAsync(() => gateway.RunStatusOf(runId) is RunStatus.Succeeded or RunStatus.Failed, "the run carries on to its end");
@@ -339,7 +339,7 @@ public class RetryTests
         gateway.RecordItem(runId, check, new NodeRecord(RunStatus.Trying, new Dictionary<string, JsonElement>(),
             [new AttemptRecord(1, anHourAgo, anHourAgo.AddSeconds(1), RunStatus.Failed, "the service was away")], Number: new ItemNumber(1, 3)));
 
-        await executor.RecoverTryingAsync(CancellationToken.None);
+        await executor.RecoverUnfinishedAsync(CancellationToken.None);
 
         await Settle.UntilAsync(() => gateway.RunStatusOf(runId) is RunStatus.Succeeded or RunStatus.Failed, "the run carries on to its end");
         List<string> Called(string subdomain)
@@ -357,11 +357,134 @@ public class RetryTests
         var (retry, gateway, executor, runId) = ArrangeARunStoppedPartWayThroughItsItems(RunStatus.Running);
         gateway.RecordItem(runId, retry.Echo.Id, new NodeRecord(RunStatus.Trying, new Dictionary<string, JsonElement>(), Number: new ItemNumber(2, 3)));
 
-        var carriedOn = await executor.RecoverTryingAsync(CancellationToken.None);
+        var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
 
         carriedOn.Should().Be(0);
         gateway.Called.Should().BeEmpty();
         gateway.RunError.Should().Be("'Echo' was calling for item 2 of 3 when the orchestrator stopped, and that call may have reached its service, " +
-                                     "so the run cannot be carried on without calling it again.");
+                                     "which does not say it may be called again, so the run cannot be carried on without calling it again.");
+    }
+
+    [Fact]
+    public async Task A_restarted_orchestrator_calls_an_item_caught_in_the_middle_of_a_call_again_when_its_service_may_be_called_again()
+    {
+        var (retry, gateway, executor, runId) = ArrangeARunStoppedPartWayThroughItsItems(RunStatus.Running);
+        MayBeCalledAgain(retry, gateway);
+
+        var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
+
+        carriedOn.Should().Be(1);
+        await Settle.UntilAsync(() => gateway.RunStatusOf(runId) is RunStatus.Succeeded or RunStatus.Failed, "the run carries on to its end");
+        (gateway.RunStatusOf(runId), gateway.RunError).Should().Be((RunStatus.Succeeded, (string?)null));
+        ReadingsCalled(gateway).Should().BeEquivalentTo("South", "East");
+    }
+
+    private static (TestGraphs.RetryFixture Retry, FakeGateway Gateway, PipelineExecutor Executor, Guid RunId) ArrangeARunCaughtInTheMiddleOfACall()
+    {
+        var (retry, gateway, executor) = Arrange(_ => Answer());
+        var runId = Guid.NewGuid();
+        gateway.Runs[runId] = (retry.PipelineId, Seed());
+        gateway.Records[(runId, retry.In.Id)] = new NodeRecord(RunStatus.Succeeded, new Dictionary<string, JsonElement> { ["seed"] = JsonSerializer.SerializeToElement("world") });
+        gateway.Records[(runId, retry.Echo.Id)] = new NodeRecord(RunStatus.Running, new Dictionary<string, JsonElement>());
+        return (retry, gateway, executor, runId);
+    }
+
+    private static void MayBeCalledAgain(TestGraphs.RetryFixture retry, FakeGateway gateway)
+    {
+        retry.Fixture.State(retry.Fixture.Get("Service"), ModelNames.MayBeCalledAgain, true);
+        gateway.Graph = retry.Fixture.Build();
+    }
+
+    [Fact]
+    public async Task A_restarted_orchestrator_fails_a_run_whose_node_was_in_the_middle_of_a_call_with_nothing_paused_instead_of_leaving_it_running()
+    {
+        var (_, gateway, executor, runId) = ArrangeARunCaughtInTheMiddleOfACall();
+
+        var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
+
+        carriedOn.Should().Be(0);
+        gateway.Called.Should().BeEmpty();
+        gateway.RunStatusOf(runId).Should().Be(RunStatus.Failed);
+        gateway.RunError.Should().Be("'Echo' was calling its service when the orchestrator stopped, and that call may have reached its service, " +
+                                     "which does not say it may be called again, so the run cannot be carried on without calling it again.");
+    }
+
+    [Fact]
+    public async Task A_restarted_orchestrator_calls_a_node_caught_in_the_middle_of_a_call_again_when_its_service_may_be_called_again()
+    {
+        var (retry, gateway, executor, runId) = ArrangeARunCaughtInTheMiddleOfACall();
+        MayBeCalledAgain(retry, gateway);
+
+        var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
+
+        carriedOn.Should().Be(1);
+        await Settle.UntilAsync(() => gateway.RunStatusOf(runId) is RunStatus.Succeeded or RunStatus.Failed, "the run carries on to its end");
+        (gateway.RunStatusOf(runId), gateway.RunError).Should().Be((RunStatus.Succeeded, (string?)null));
+        gateway.Called.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task A_restarted_orchestrator_leaves_a_finished_run_alone_though_one_of_its_node_runs_still_says_running()
+    {
+        var (retry, gateway, executor, runId) = ArrangeARunCaughtInTheMiddleOfACall();
+        MayBeCalledAgain(retry, gateway);
+        gateway.RunStatuses[runId] = RunStatus.Succeeded;
+
+        var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
+
+        carriedOn.Should().Be(0);
+        gateway.Called.Should().BeEmpty();
+        (gateway.RunStatusOf(runId), gateway.RunError).Should().Be((RunStatus.Succeeded, (string?)null));
+    }
+
+    [Fact]
+    public async Task A_restarted_orchestrator_runs_a_start_node_caught_in_the_middle_of_its_step_again_since_it_calls_nothing()
+    {
+        var (retry, gateway, executor) = Arrange(_ => Answer());
+        var runId = Guid.NewGuid();
+        gateway.Runs[runId] = (retry.PipelineId, Seed());
+        gateway.Records[(runId, retry.In.Id)] = new NodeRecord(RunStatus.Running, new Dictionary<string, JsonElement>());
+
+        var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
+
+        carriedOn.Should().Be(1);
+        await Settle.UntilAsync(() => gateway.RunStatusOf(runId) is RunStatus.Succeeded or RunStatus.Failed, "the run carries on to its end");
+        (gateway.RunStatusOf(runId), gateway.RunError).Should().Be((RunStatus.Succeeded, (string?)null));
+        gateway.Called.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task A_restarted_orchestrator_fails_a_run_whose_tell_node_was_in_the_middle_of_its_step_since_the_message_may_be_sent()
+    {
+        var telling = TestGraphs.TellingPipeline();
+        var model = telling.Fixture.Build();
+        var gateway = new FakeGateway(model);
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, FastClock());
+        var runId = Guid.NewGuid();
+        Guid Named(string name) => model.Things.Single(thing => thing.Name == name).Id;
+        var world = new Dictionary<string, JsonElement> { ["seed"] = JsonSerializer.SerializeToElement("world") };
+        gateway.Runs[runId] = (telling.PipelineId, Seed());
+        gateway.Records[(runId, Named("In"))] = new NodeRecord(RunStatus.Succeeded, world);
+        gateway.Records[(runId, Named("Echo"))] = new NodeRecord(RunStatus.Succeeded, new Dictionary<string, JsonElement> { ["echo"] = world["seed"] });
+        gateway.Records[(runId, Named(TestGraphs.TellNode))] = new NodeRecord(RunStatus.Running, new Dictionary<string, JsonElement>());
+
+        var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
+
+        carriedOn.Should().Be(0);
+        gateway.MessagesSent.Should().BeEmpty();
+        gateway.RunError.Should().Be("'Tell the office' was running when the orchestrator stopped, and what it does may already be done, " +
+                                     "so the run cannot be carried on without doing it again.");
+    }
+
+    [Fact]
+    public void A_service_may_be_called_again_when_it_or_a_kind_above_it_says_so()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        fx.State(fx.Get("EchoProto"), ModelNames.MayBeCalledAgain, true);
+
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
+
+        dag.Node(fx.Get("Echo").Id)!.MayBeCalledAgain.Should().BeTrue();
+        dag.Node(fx.Get("Generate").Id)!.MayBeCalledAgain.Should().BeFalse();
     }
 }

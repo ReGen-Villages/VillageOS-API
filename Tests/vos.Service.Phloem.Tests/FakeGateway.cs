@@ -208,13 +208,15 @@ internal sealed class FakeGateway : IMyceliumGateway
         return Task.CompletedTask;
     }
 
-    public Task<IReadOnlyList<TryingNodeRun>> TryingNodeRunsAsync(CancellationToken ct)
+    public Task<IReadOnlyList<UnfinishedNodeRun>> UnfinishedNodeRunsAsync(CancellationToken ct)
     {
         lock (_model)
-            return Task.FromResult<IReadOnlyList<TryingNodeRun>>(Records.Where(record => record.Value.Status == RunStatus.Trying).Select(record => record.Key)
-                .Concat(_itemRecords.Where(items => items.Value.Values.Any(item => item.Status == RunStatus.Trying)).Select(items => items.Key))
-                .Select(key => new TryingNodeRun(key.RunId, key.NodeId)).ToList());
+            return Task.FromResult<IReadOnlyList<UnfinishedNodeRun>>(Records.Where(record => Unfinished(record.Value)).Select(record => record.Key)
+                .Concat(_itemRecords.Where(items => items.Value.Values.Any(Unfinished)).Select(items => items.Key))
+                .Select(key => new UnfinishedNodeRun(key.RunId, key.NodeId)).ToList());
     }
+
+    private static bool Unfinished(NodeRecord record) => record.Status is RunStatus.Trying or RunStatus.Running;
 
     public Task<RunRecord?> ReadRunRecordAsync(Guid runId, CancellationToken ct)
     {

@@ -80,6 +80,8 @@ public sealed class DagNode
 
     public bool Rehearses { get; init; }
 
+    public bool MayBeCalledAgain { get; init; }
+
     public IEnumerable<DagPort> OutputPorts => Ports.Where(p => p.IsOutput);
 
     // A node with more than one is refused before it runs.

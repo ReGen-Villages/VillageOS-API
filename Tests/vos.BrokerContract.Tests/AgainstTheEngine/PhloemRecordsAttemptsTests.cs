@@ -9,7 +9,7 @@ using Xunit;
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
 // The attempts a node run makes, as the engine holds them: written one by one, read back in order with the run's
-// record, and the node run found again while it stands between attempts.
+// record, and the node run found again while it stands between attempts or in the middle of a call.
 public class PhloemRecordsAttemptsTests : IClassFixture<TheEngine>
 {
     private readonly TheEngine _engine;
@@ -55,9 +55,23 @@ public class PhloemRecordsAttemptsTests : IClassFixture<TheEngine>
     {
         var (gateway, runId, nodeId) = await ANodeRunThatTriedAsync();
 
-        var trying = await gateway.TryingNodeRunsAsync(CancellationToken.None);
+        var unfinished = await gateway.UnfinishedNodeRunsAsync(CancellationToken.None);
 
-        trying.Should().Contain(new TryingNodeRun(runId, nodeId));
+        unfinished.Should().Contain(new UnfinishedNodeRun(runId, nodeId));
+    }
+
+    [FactAgainstTheEngine]
+    public async Task A_node_run_left_in_the_middle_of_a_call_is_found_on_start_and_a_finished_one_is_not()
+    {
+        var (gateway, runId, _) = await ANodeRunThatTriedAsync();
+        var (calling, finished) = (Guid.NewGuid(), Guid.NewGuid());
+        await gateway.SetNodeRunStatusAsync(runId, calling, "Check", RunStatus.Running, null, CancellationToken.None);
+        await gateway.SetNodeRunStatusAsync(runId, finished, "Record", RunStatus.Succeeded, null, CancellationToken.None);
+
+        var unfinished = await gateway.UnfinishedNodeRunsAsync(CancellationToken.None);
+
+        unfinished.Should().Contain(new UnfinishedNodeRun(runId, calling));
+        unfinished.Should().NotContain(new UnfinishedNodeRun(runId, finished));
     }
 
     private async Task BindOnceAsync(Role role, Guid played, Guid binds)

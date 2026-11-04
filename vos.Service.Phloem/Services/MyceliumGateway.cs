@@ -321,19 +321,19 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     // Attempts are numbered under their node run, so their identifiers are derived in a space of their own.
     private static readonly Guid AttemptsOfANodeRun = new("a77e3b1c-6d0e-4c4f-9b2a-5f1e2d3c4b5a");
 
-    public async Task<IReadOnlyList<TryingNodeRun>> TryingNodeRunsAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<UnfinishedNodeRun>> UnfinishedNodeRunsAsync(CancellationToken cancellationToken)
     {
         var graph = await NodeRunsAsync(cancellationToken);
-        var trying = new List<TryingNodeRun>();
+        var unfinished = new List<UnfinishedNodeRun>();
         foreach (var nodeRun in graph.Things)
         {
-            if (nodeRun.PropertyString(ModelNames.Status) != RunStatus.Trying
+            if (nodeRun.PropertyString(ModelNames.Status) is not (RunStatus.Trying or RunStatus.Running)
                 || !Guid.TryParse(nodeRun.PropertyString(ModelNames.NodeId), out var nodeId)
                 || graph.RelationshipsInto(nodeRun, ModelNames.Has).FirstOrDefault() is not { } held)
                 continue;
-            trying.Add(new TryingNodeRun(held.SubjectId, nodeId));
+            unfinished.Add(new UnfinishedNodeRun(held.SubjectId, nodeId));
         }
-        return trying;
+        return unfinished;
     }
 
     private static IReadOnlyDictionary<string, JsonElement> OutputsOf(GraphThing nodeRun) =>

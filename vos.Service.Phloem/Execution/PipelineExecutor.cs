@@ -240,18 +240,21 @@ public sealed class PipelineExecutor
         return placed;
     }
 
-    // On start: a node run, or an item, left mid-trying carries on from its record, its next attempt numbered after the
-    // ones made. Answers how many runs were carried on.
-    public async Task<int> RecoverTryingAsync(CancellationToken cancellationToken)
+    // On start: a run with a node or item paused between attempts, or caught in the middle of a call, carries on from its
+    // record, its next attempt numbered after the ones made, or is failed with the reason it cannot. Answers how many runs
+    // were carried on.
+    public async Task<int> RecoverUnfinishedAsync(CancellationToken cancellationToken)
     {
         var carriedOn = 0;
         var seen = new HashSet<Guid>();
-        foreach (var trying in await _gateway.TryingNodeRunsAsync(cancellationToken))
+        foreach (var trying in await _gateway.UnfinishedNodeRunsAsync(cancellationToken))
         {
             if (!seen.Add(trying.RunId)) continue;
             using var turn = await _turns.TakeAsync(trying.RunId, cancellationToken);
             var record = await _gateway.ReadRunRecordAsync(trying.RunId, cancellationToken);
-            if (record is null) continue;
+            // A run that ended while one of its node runs still said running, as an older orchestrator could leave it,
+            // is not called again.
+            if (record is null || RunStatus.IsFinished(record.Status)) continue;
             var (dag, refusal) = await LoadAsync(record.PipelineId, cancellationToken);
             var name = dag?.Node(trying.NodeId)?.Name ?? trying.NodeId.ToString();
             var (progress, cannotGoOn) = dag is null ? (null, refusal) : ProgressFrom(dag, record, "be carried on");
@@ -335,8 +338,8 @@ public sealed class PipelineExecutor
     }
 
     // A node with no record is one the run had not reached, which only a node behind a wait can be; any other
-    // missing record means the run would have to call that node again to carry on. An item caught in the middle of a
-    // call may already have reached its service, so the run does not go on without it either.
+    // missing record means the run would have to call that node again to carry on. A node or item caught in the middle
+    // of a call may already have reached its service, so it is called again only when its service says it may be.
     private (Progress Progress, string? CannotGoOn) ProgressFrom(PipelineDag dag, RunRecord record, string goingOn)
     {
         var progress = new Progress(_clock);
@@ -345,13 +348,24 @@ public sealed class PipelineExecutor
             if (!record.Nodes.TryGetValue(node.NodeId, out var recorded)) continue;
             if (recorded is { Status: RunStatus.Running, Items: { Count: > 0 } items })
             {
-                if (items.FirstOrDefault(item => item.Status == RunStatus.Running)?.Number is { } calling)
+                if (!node.MayBeCalledAgain && items.FirstOrDefault(item => item.Status == RunStatus.Running)?.Number is { } calling)
                     return (progress, $"'{node.Name}' was calling for item {calling.Index + 1} of {calling.Total} when the orchestrator stopped, " +
-                                      $"and that call may have reached its service, so the run cannot {goingOn} without calling it again.");
+                                      $"and that call may have reached its service, which does not say it may be called again, so the run cannot {goingOn} without calling it again.");
                 progress.ItemsMade[node.NodeId] = items.Where(item => item.Number is not null).ToDictionary(item => item.Number!.Index);
                 continue;
             }
-            if (recorded.Status == RunStatus.Running) continue;
+            if (recorded.Status == RunStatus.Running)
+            {
+                if (node.Kind is DagNodeKind.Input or DagNodeKind.Output || node.MayBeCalledAgain)
+                {
+                    progress.Trying[node.NodeId] = recorded.AttemptsMade;
+                    continue;
+                }
+                return (progress, node.Kind == DagNodeKind.Service
+                    ? $"'{node.Name}' was calling its service when the orchestrator stopped, and that call may have reached its service, " +
+                      $"which does not say it may be called again, so the run cannot {goingOn} without calling it again."
+                    : $"'{node.Name}' was running when the orchestrator stopped, and what it does may already be done, so the run cannot {goingOn} without doing it again.");
+            }
             var result = new NodeRunResult(node.NodeId, node.Name, recorded.Status, recorded.Outputs, recorded.Error,
                 Items: recorded.Items?.Select(item => new NodeRunResult(node.NodeId, node.Name, item.Status, item.Outputs, item.Error, Decision: item.Decision,
                     Number: item.Number)).ToList(),

@@ -170,6 +170,7 @@ public static class PipelineDagBuilder
             Waits = Judged(problems, () => WaitOf(graph, nodeThing, ports), null),
             Retries = Judged(problems, () => RetryPolicyOf(nodeThing), null),
             Rehearses = UpTheIsChain(graph, service).Any(kind => kind.CarriesFlag(ModelNames.Rehearses)),
+            MayBeCalledAgain = UpTheIsChain(graph, service).Any(kind => kind.CarriesFlag(ModelNames.MayBeCalledAgain)),
             OnItemError = string.Equals(nodeThing.PropertyString(ModelNames.OnItemError), ModelNames.OnItemErrorContinue, StringComparison.OrdinalIgnoreCase)
                 ? ModelNames.OnItemErrorContinue
                 : ModelNames.OnItemErrorFail,
