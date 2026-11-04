@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { NodeInspector } from './NodeInspector';
 import type { PipelineNodeData } from './PipelineNodeView';
 import type { VosThing } from '../../types/vos';
+import type { PortInformation } from '../../pipeline/model';
 
 const port = (portId: string, portName: string, direction: 'in' | 'out') =>
   ({ portId, portName, direction, type: 'any', required: false });
@@ -17,8 +18,12 @@ const SEARCH_THE_OFFERED_KINDS = 'Search every Thing of the kinds the ports offe
 function inspect(nodeId: string, data: PipelineNodeData, handlers: Partial<Parameters<typeof NodeInspector>[0]> = {}) {
   render(<NodeInspector nodeId={nodeId} data={data} wiredInputs={new Set()}
     offeredByPort={{}} widerList={[nearest, cheapest, site]} onWiden={vi.fn()} nameOf={(id) => names.get(id) ?? id}
+    standsForOptions={[]} onSetStandsFor={vi.fn()}
     onSetPorts={vi.fn()} onSetBinding={vi.fn()} onSetChosen={vi.fn()} onSetChoices={vi.fn()} onSetRule={vi.fn()} onClose={vi.fn()} {...handlers} />);
 }
+
+const passing = (prefix: string, portName: string) =>
+  [{ ...port(`${prefix}.in`, portName, 'in'), required: true }, port(`${prefix}.out`, portName, 'out')];
 
 const decide = (changes: Partial<PipelineNodeData> = {}): PipelineNodeData =>
   ({ label: 'Decide', ports: [port('decide.strategy', 'strategy', 'in'), port('decide.limit', 'limit', 'in')], ...changes });
@@ -70,6 +75,55 @@ describe('NodeInspector', () => {
 
     expect(onSetRule).toHaveBeenNthCalledWith(1, 'end', '$count(failures) < 3');
     expect(onSetRule).toHaveBeenNthCalledWith(2, 'end', undefined);
+  });
+
+  it.each([
+    ['tell', 'Tells'],
+    ['followOn', 'Starts'],
+  ] as const)('shows what a %s node stands for among those it may, and chooses another', (kind, label) => {
+    const onSetStandsFor = vi.fn();
+    const options = [{ id: 'office', name: 'Reporting office' }, { id: 'depot', name: 'Depot' }];
+
+    inspect('node', { label: 'Hand on', kind, ports: passing('a', 'payload'), standsForId: 'office' }, { standsForOptions: options, onSetStandsFor });
+    const standsFor = screen.getByLabelText(label);
+    expect(standsFor).toHaveValue('office');
+    expect([...standsFor.querySelectorAll('option')].map((option) => option.textContent)).toEqual(['Reporting office', 'Depot']);
+    fireEvent.change(standsFor, { target: { value: 'depot' } });
+
+    expect(onSetStandsFor).toHaveBeenCalledWith('node', 'depot');
+  });
+
+  it('still names what a node stands for once it is no longer among those offered', () => {
+    inspect('tell', { label: 'Tell', kind: 'tell', ports: [], standsForId: 'site' }, { standsForOptions: [{ id: 'office', name: 'Reporting office' }] });
+
+    expect(screen.getByLabelText('Tells')).toHaveValue('site');
+    expect(screen.getByRole('option', { name: 'North field' })).toBeInTheDocument();
+  });
+
+  it('adds, renames and removes what a tell node passes on as an in port and an out port together', () => {
+    const onSetPorts = vi.fn();
+    const ports = [...passing('a', 'payload'), ...passing('b', 'subject')];
+
+    inspect('tell', { label: 'Tell', kind: 'tell', ports }, { onSetPorts });
+    expect(screen.getAllByLabelText(/^Port \d name$/).map((field) => (field as HTMLInputElement).value)).toEqual(['payload', 'subject']);
+    fireEvent.change(screen.getByLabelText('Port 1 name'), { target: { value: 'report' } });
+    fireEvent.click(screen.getByLabelText('Remove port subject'));
+    fireEvent.click(screen.getByText('+ add port'));
+
+    const [renamed, removed, added] = onSetPorts.mock.calls.map(([, each]) => each as PortInformation[]);
+    expect(renamed.filter((each) => each.portName === 'report').map((each) => each.portId)).toEqual(['a.in', 'a.out']);
+    expect(removed.map((each) => each.portId)).toEqual(['a.in', 'a.out']);
+    expect(added.slice(4).map((each) => [each.portName, each.direction])).toEqual([['port3', 'in'], ['port3', 'out']]);
+  });
+
+  it('binds a stop node’s in ports to run parameters, and offers it neither ports to add nor choices', () => {
+    const ports = [port('things', 'things', 'in'), port('reason', 'reason', 'in'), port('requested', 'requested', 'out')];
+
+    inspect('stop', { label: 'Stop their runs', kind: 'stop', ports });
+
+    expect(screen.getAllByPlaceholderText('from param…')).toHaveLength(2);
+    expect(screen.queryByText('+ add port')).not.toBeInTheDocument();
+    expect(screen.queryByText('+ add choice')).not.toBeInTheDocument();
   });
 
   it('offers no rule on the start node', () => {
@@ -155,7 +209,7 @@ describe('NodeInspector', () => {
 
     const { unmount } = render(<NodeInspector nodeId="decide" data={decide({ choices })} wiredInputs={new Set()}
       offeredByPort={offering.offeredByPort} widerList={[nearest, cheapest, site]} onWiden={onWiden} nameOf={(id) => names.get(id) ?? id}
-      onSetPorts={vi.fn()} onSetBinding={vi.fn()} onSetChosen={vi.fn()} onSetChoices={vi.fn()} onSetRule={vi.fn()} onClose={vi.fn()} />);
+      standsForOptions={[]} onSetStandsFor={vi.fn()} onSetPorts={vi.fn()} onSetBinding={vi.fn()} onSetChosen={vi.fn()} onSetChoices={vi.fn()} onSetRule={vi.fn()} onClose={vi.fn()} />);
     expect(onWiden).toHaveBeenLastCalledWith(false);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
 

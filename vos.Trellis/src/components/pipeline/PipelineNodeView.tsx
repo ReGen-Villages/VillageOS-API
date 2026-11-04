@@ -1,13 +1,13 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
-import type { EndInformation, EndKind, NodeRunProgress, PortInformation } from '../../pipeline/model';
+import type { EndInformation, EndKind, NodeKind, NodeRunProgress, PortInformation } from '../../pipeline/model';
 import type { EditorChoice } from '../../pipeline/serialize';
 
 export interface PipelineNodeData {
   label: string;
-  /** Boundary node: 'input' (where the run comes from) or 'output' (what it leaves behind); absent for service nodes. */
-  kind?: 'input' | 'output';
+  /** Absent for a node calling a service. */
+  kind?: NodeKind;
   connectionId?: string;
   subdomain?: string;
   ports: PortInformation[];
@@ -47,6 +47,14 @@ const END_KIND_LABEL_KEY = {
   other: 'pipeline.endKind.other',
 } as const satisfies Record<EndKind, string>;
 
+const NODE_KIND_LABEL_KEY = {
+  input: 'pipeline.nodeKind.input',
+  output: 'pipeline.nodeKind.output',
+  tell: 'pipeline.nodeKind.tell',
+  followOn: 'pipeline.nodeKind.followOn',
+  stop: 'pipeline.nodeKind.stop',
+} as const satisfies Record<NodeKind, string>;
+
 /** A node on the pipeline canvas: one handle per port (inputs on the left, outputs on the right). A boundary
  *  node also says what it stands for, and what really happens there today. */
 export function PipelineNodeView({ data }: NodeProps) {
@@ -70,7 +78,7 @@ export function PipelineNodeView({ data }: NodeProps) {
               {d.progress.done}/{d.progress.reached}
             </span>
           )}
-          <span className="text-[10px] font-mono text-zinc-400">{d.kind ? d.kind : d.subdomain}</span>
+          <span className="text-[10px] font-mono text-zinc-400">{d.kind ? t(NODE_KIND_LABEL_KEY[d.kind]) : d.subdomain}</span>
         </span>
       </div>
       {d.standsFor && (

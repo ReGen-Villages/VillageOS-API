@@ -1,7 +1,7 @@
 import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { modelApi } from '../api/modelApi';
-import { PipelineModel, ROLE, type ChoiceInformation, type PortInformation } from './model';
+import { NODE_KIND_ROLE, PipelineModel, ROLE, type ChoiceInformation, type NodeKind, type PortInformation } from './model';
 import type { VosTypeName } from '../utils/constants';
 import i18n from '../i18n';
 
@@ -26,11 +26,11 @@ export interface EditorNode {
   ports: PortInformation[];
   /** Input-port name → run-parameter key. Persisted as a JSON `parameterBindings` property on the node. */
   parameterBindings?: Record<string, string>;
-  /** Boundary node: 'input' (a param source) or 'output' (the run's result sink). A boundary node
-   * binds no connection — its `ports` are user-declared and persisted as its own port child-Things. */
-  kind?: 'input' | 'output';
-  /** The Thing a boundary node stands for — its catalyst at the start, its outcome at the end — written
-   * as a relationship through the predicate the model binds to that role. */
+  /** Absent for a node calling a service. A node of any kind binds no connection; a stop node's ports are its kind's,
+   *  and every other kind's are declared by the person and persisted as its own port child-Things. */
+  kind?: NodeKind;
+  /** The Thing a node stands for — its catalyst at the start, its outcome at the end, the system a tell node tells, the
+   *  pipeline a follow-on node starts — written as a relationship through the predicate the model binds to that role. */
   standsForId?: string;
   choices?: EditorChoice[];
   /** In-port identifier → the Thing the node chose among those that port offers. */
@@ -121,9 +121,8 @@ export async function savePipeline(
   }
 
   const portArchetype = model.boundTo(ROLE.Port);
-  const boundaryArchetype = (kind: 'input' | 'output') =>
-    model.boundTo(kind === 'input' ? ROLE.PipelineInput : ROLE.PipelineOutput);
-  if (nodes.some((n) => n.kind) && (!portArchetype || !boundaryArchetype('input') || !boundaryArchetype('output')))
+  const kindArchetype = (kind: NodeKind) => model.boundTo(NODE_KIND_ROLE[kind]);
+  if (nodes.some((n) => n.kind && (!kindArchetype(n.kind) || (n.kind !== 'stop' && !portArchetype))))
     throw new Error(i18n.t('pipeline.noPortRoles'));
   const standsForId = model.boundTo(ROLE.StandsFor);
   if (nodes.some((n) => n.standsForId) && !standsForId)
@@ -161,17 +160,17 @@ export async function savePipeline(
       props.parameterBindings = env(STRING, JSON.stringify(n.parameterBindings));
     if (n.kind === 'output') props.when = env(STRING, n.rule ?? '');
     things.push({ Id: thingId, Name: n.label, Properties: props });
-    // Boundary nodes are pipeline nodes too (so the run + editor pick them up), plus the archetype bound
-    // as the pipeline's input or its output, which is what makes one a param source or a result sink.
+    // A node of a kind is a pipeline node too (so the run + editor find it), plus the archetype bound to its
+    // kind, which is what makes one a param source, a result sink, or a node the orchestrator runs itself.
     relationships.push({ Name: 'is', Subject: thingId, Predicate: isId, Target: nodeArchetype });
     relationships.push({ Name: 'has', Subject: pipelineId, Predicate: hasId, Target: thingId });
 
     if (n.kind) {
-      relationships.push({ Name: 'is', Subject: thingId, Predicate: isId, Target: boundaryArchetype(n.kind)! });
+      relationships.push({ Name: 'is', Subject: thingId, Predicate: isId, Target: kindArchetype(n.kind)! });
       // Each declared port is written under its own identifier, so renaming it updates the same Thing; a port no
       // longer declared is retracted.
-      const stale = new Set(model.boundaryPortRelationships(n.id).map((r) => r.portId));
-      for (const p of n.ports) {
+      const stale = new Set(model.ownPortRelationships(n.id).map((r) => r.portId));
+      for (const p of n.kind === 'stop' ? [] : n.ports) {
         stale.delete(p.portId);
         things.push({
           Id: p.portId,
@@ -257,17 +256,17 @@ export async function savePipeline(
     await relateToExactly(thingId, ROLE.Choice, Object.values(n.chosen ?? {}), model);
   }
 
-  // Ports removed from a boundary node (still on the canvas) are retracted, as is what it stood for before.
+  // Ports removed from a node of a kind (still on the canvas) are retracted, as is what it stood for before.
   for (const portId of portsToRetract) await thingApi.remove(portId);
   for (const choiceId of choicesToRetract) await thingApi.remove(choiceId);
   for (const relationshipId of standsForToRetract) await relationshipApi.remove(relationshipId);
 
   // Deleted nodes: persisted pipeline nodes no longer on the canvas are retracted, along with any port
-  // child-Things a removed boundary node declared (so they don't linger as orphans).
+  // child-Things a removed node declared (so they don't linger as orphans).
   const desiredThingIds = new Set(nodeThingId.values());
   for (const nid of persistedNodeIds)
     if (!desiredThingIds.has(nid)) {
-      for (const r of model.boundaryPortRelationships(nid)) await thingApi.remove(r.portId);
+      for (const r of model.ownPortRelationships(nid)) await thingApi.remove(r.portId);
       await thingApi.remove(nid);
     }
 
@@ -314,13 +313,13 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
       y: Number(stated.y ?? 80),
       parameterBindings: parseParameterBindings(stated.parameterBindings),
     };
-    // Boundary node: its ports are declared on the node itself, and it binds no connection.
-    const kind = model.boundaryKind(t.Id);
+    const kind = model.nodeKind(t.Id);
     if (kind) {
       const stood = model.standsFor(t.Id);
       const rule = kind === 'output' && typeof stated.when === 'string' && stated.when.trim() !== '' ? stated.when : undefined;
+      const ports = kind === 'stop' ? model.resolvePorts(t.Id) : model.ownPortRelationships(t.Id).map((r) => r.port);
       return {
-        ...base, kind, connectionId: '', ports: model.boundaryPortRelationships(t.Id).map((r) => r.port),
+        ...base, kind, connectionId: '', ports,
         ...(stood ? { standsForId: stood.thingId } : {}), ...(rule !== undefined ? { rule } : {}),
       };
     }

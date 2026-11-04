@@ -1,4 +1,4 @@
-import { wireEnds, type PortInformation } from './model';
+import { wireEnds, type EndKind, type NodeKind, type PortInformation } from './model';
 import i18n from '../i18n';
 
 // Pure pre-run validation for the pipeline editor: explains why a DAG will not run before the
@@ -10,10 +10,9 @@ export interface ValidationNode {
   label: string;
   ports: PortInformation[];
   parameterBindings?: Record<string, string>;
-  /** A boundary node: where a run comes from, or what it leaves behind. */
-  kind?: 'input' | 'output';
-  /** What a boundary node stands for, and which end it may be. */
-  standsFor?: { name: string; mayStart: boolean; mayEnd: boolean };
+  kind?: NodeKind;
+  /** What a node stands for, and which end it may be. */
+  standsFor?: { name: string; kind: EndKind; mayStart: boolean; mayEnd: boolean };
 }
 
 export interface ValidationEdge {
@@ -41,6 +40,11 @@ export type EndIssue =
 
 const key = (nodeId: string, port: string) => `${nodeId} ${port}`;
 
+const whyNoEnd = (kind: EndKind) =>
+  kind === 'externalSystem' ? 'pipeline.endTellsThroughANode'
+    : kind === 'pipeline' ? 'pipeline.endStartsThroughANode'
+      : 'pipeline.endCannotEnd';
+
 /** Whether each end of the drawing stands for something a run may come from or leave behind. A boundary
  *  node standing for nothing is fine: at the start it is a run started by hand, at the end the answer.
  *  Judged on the drawing, before anything runs, because the orchestrator reads none of this. */
@@ -56,7 +60,7 @@ export function validateEnds(nodes: ValidationNode[], _edges: ValidationEdge[]):
     if (node.kind === 'output' && !node.standsFor.mayEnd)
       issues.push({
         kind: 'end-cannot-end', nodeId: node.id, named: node.standsFor.name,
-        message: i18n.t('pipeline.endCannotEnd', { node: node.label, named: node.standsFor.name }),
+        message: i18n.t(whyNoEnd(node.standsFor.kind), { node: node.label, named: node.standsFor.name }),
       });
   }
   return issues;

@@ -481,7 +481,7 @@ describe('a saved port is read from what it states', () => {
   }
 
   it('reads a port name and direction stated in the override store', () => {
-    const port = modelWithASavedPort().boundaryPortRelationships('N1')[0].port;
+    const port = modelWithASavedPort().ownPortRelationships('N1')[0].port;
     expect(port.portName).toBe('subject');
     expect(port.direction).toBe('out');
     expect(port.type).toBe('any');
