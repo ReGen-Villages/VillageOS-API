@@ -1022,7 +1022,8 @@ export const it: PartialResources = {
   },
   entityDetail: {
     noDerivedStates: "nessuno stato derivato",
-    inMemoryHistory: "Cronologia in memoria — dal {{time}}. Le modifiche precedenti non vengono conservate.",
+    keepsNoHistory: "Senza cronologia: {{ranges}}.",
+    noRangeKeepsHistory: "Nessun intervallo di questa Thing conserva la cronologia degli stati.",
     none: "Nessuno.",
     spread: "Distribuisci tutti i pannelli",
     close: "Chiudi",

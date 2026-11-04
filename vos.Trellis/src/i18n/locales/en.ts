@@ -1020,7 +1020,8 @@ export const en = {
   },
   entityDetail: {
     noDerivedStates: "no derived states",
-    inMemoryHistory: "In-memory history — since {{time}}. Earlier changes are not retained.",
+    keepsNoHistory: "Keeps no history: {{ranges}}.",
+    noRangeKeepsHistory: "No range of this Thing keeps state history.",
     none: "None.",
     spread: "Spread all panels out",
     close: "Close",

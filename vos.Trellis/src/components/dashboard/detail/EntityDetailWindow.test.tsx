@@ -190,6 +190,49 @@ describe('EntityDetailWindow', () => {
     });
   });
 
+  function history(rangesKeepingHistory: string[], rangesKeepingNoHistory: string[], transitions = 0) {
+    mockGetStateTransitions.mockResolvedValue({
+      ThingId: 'catchment',
+      ThingName: 'CATCHMENT-7',
+      Coverage: {
+        From: '2026-07-17T00:00:00Z',
+        To: '2026-07-17T01:00:00Z',
+        RangesKeepingHistory: rangesKeepingHistory,
+        RangesKeepingNoHistory: rangesKeepingNoHistory,
+      },
+      Transitions: Array.from({ length: transitions }, (_, i) => ({
+        At: `2026-07-17T00:${String(10 + i).padStart(2, '0')}:00Z`,
+        Entered: ['Full'],
+        Exited: [],
+        States: ['Full'],
+      })),
+    });
+  }
+
+  it('names the ranges whose history is never kept, so an absent change reads as not kept rather than never happened', async () => {
+    history(['Full'], ['Low', 'Empty'], 1);
+    open();
+
+    expect(await screen.findByText('Keeps no history: Low, Empty.')).toBeInTheDocument();
+    expect(screen.getByText('+ Full')).toBeInTheDocument();
+  });
+
+  it('says no range keeps history where that is why the list is empty, not that nothing changed', async () => {
+    history([], ['Low', 'Empty']);
+    open();
+
+    expect(await screen.findByText('No range of this Thing keeps state history.')).toBeInTheDocument();
+    expect(screen.queryByText('No state changes recorded.')).not.toBeInTheDocument();
+  });
+
+  it('says nothing changed where a range keeps history and none was recorded', async () => {
+    history(['Full'], []);
+    open();
+
+    expect(await screen.findByText('No state changes recorded.')).toBeInTheDocument();
+    expect(screen.queryByText(/keeps no history/i)).not.toBeInTheDocument();
+  });
+
   it('names every service the platform ran on the Thing, when it ran and how it ended', async () => {
     open({ modelIndex: indexWithAService() });
 

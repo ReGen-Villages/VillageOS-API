@@ -1022,7 +1022,8 @@ export const de: PartialResources = {
   },
   entityDetail: {
     noDerivedStates: "keine abgeleiteten Zustände",
-    inMemoryHistory: "In-Memory-Verlauf — seit {{time}}. Frühere Änderungen werden nicht aufbewahrt.",
+    keepsNoHistory: "Ohne Verlauf: {{ranges}}.",
+    noRangeKeepsHistory: "Kein Bereich dieses Things führt einen Zustandsverlauf.",
     none: "Keine.",
     spread: "Alle Panels verteilen",
     close: "Schließen",
