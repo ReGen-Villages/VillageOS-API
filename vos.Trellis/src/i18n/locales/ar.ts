@@ -1107,7 +1107,8 @@ export const ar: WithArabicPluralForms<Resources> = {
   },
   entityDetail: {
     noDerivedStates: "لا حالات مُشتقّة",
-    inMemoryHistory: "سجل في الذاكرة — منذ {{time}}. لا يتم الاحتفاظ بالتغييرات الأقدم.",
+    keepsNoHistory: "بدون سجل: {{ranges}}.",
+    noRangeKeepsHistory: "لا يحتفظ أي نطاق من نطاقات هذه الـ Thing بسجل الحالة.",
     none: "لا شيء.",
     spread: "توزيع كل اللوحات",
     close: "إغلاق",

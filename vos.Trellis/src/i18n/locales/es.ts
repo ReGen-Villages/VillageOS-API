@@ -1022,7 +1022,8 @@ export const es: PartialResources = {
   },
   entityDetail: {
     noDerivedStates: "sin estados derivados",
-    inMemoryHistory: "Historial en memoria — desde {{time}}. Los cambios anteriores no se conservan.",
+    keepsNoHistory: "Sin historial: {{ranges}}.",
+    noRangeKeepsHistory: "Ningún rango de esta Thing conserva historial de estados.",
     none: "Ninguno.",
     spread: "Distribuir todos los paneles",
     close: "Cerrar",

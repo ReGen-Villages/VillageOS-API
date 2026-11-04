@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { X, GripHorizontal, LayoutGrid } from 'lucide-react';
 import type { ModelIndex } from '../../../api/dashboardApi';
 import { effectiveProperties } from '../../../utils/propertyMapper';
-import { formatDateTime, formatGuid, formatPropertyValue, formatTimestamp } from '../../../utils/formatters';
+import { formatGuid, formatPropertyValue, formatTimestamp } from '../../../utils/formatters';
 import { useNumberDisplaySettings } from '../../../hooks/useNumberDisplaySettings';
 import type { DeclaredPropertyTypes } from '../../../hooks/useDeclaredPropertyTypes';
 import type { NumberDisplaySettings } from '../../../utils/guiSettings';
@@ -68,14 +68,13 @@ function StatePills({ states }: { states: string[] }) {
   );
 }
 
-/** How far back the history reaches. Shown so an empty or short list reads as "not retained"
- *  rather than "never happened" — in-memory history only starts when the engine loaded the model. */
+/** The ranges the history can never show, so an absent change reads as "not kept" rather than "never happened". */
 function CoverageNote({ coverage }: { coverage: StateHistoryCoverage }) {
   const { t } = useTranslation();
-  if (coverage.Source !== 'in-memory') return null;
+  if (coverage.RangesKeepingNoHistory.length === 0) return null;
   return (
     <div className="mt-1.5 text-[10.5px] text-zinc-400 dark:text-zinc-500">
-      {t('entityDetail.inMemoryHistory', { time: formatDateTime(coverage.From) })}
+      {t('entityDetail.keepsNoHistory', { ranges: coverage.RangesKeepingNoHistory.join(', ') })}
     </div>
   );
 }
@@ -345,7 +344,9 @@ export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset,
               <div className="text-[11px] text-zinc-400">{t('entityDetail.stateHistoryUnavailable')}</div>
             )}
             {coverage && stateChanges.length === 0 && (
-              <div className="text-[11px] text-zinc-400">{t('entityDetail.noStateChanges')}</div>
+              <div className="text-[11px] text-zinc-400">
+                {t(coverage.RangesKeepingHistory.length === 0 ? 'entityDetail.noRangeKeepsHistory' : 'entityDetail.noStateChanges')}
+              </div>
             )}
             {stateChanges.length > 0 && (
               <ol className="mt-1 space-y-1.5">

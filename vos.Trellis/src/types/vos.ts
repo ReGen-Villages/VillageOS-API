@@ -357,13 +357,13 @@ export interface ThingsInStateResponse {
   Count?: number;
 }
 
-/** Window the returned state history covers. `Source` is "in-memory" while history comes from the
- *  live engine tracker — it starts at model load and is lost on restart — and becomes
- *  "reconstructed" once served from durable history, over a wider window and with no client change. */
+/** Only a range that names a State Thing is recorded, so a range keeping no history answers no
+ *  transitions however often it held. */
 export interface StateHistoryCoverage {
-  Source: 'in-memory' | 'reconstructed';
   From: string;
   To: string;
+  RangesKeepingHistory: string[];
+  RangesKeepingNoHistory: string[];
 }
 
 /** One change point: the states entered and exited at `At`, the full set after it, and the

@@ -156,18 +156,39 @@ public class StateCommandHandlerTests
         return thingId;
     }
 
+    private static string Coverage(string rangesKeepingHistory, string rangesKeepingNoHistory, string from = "2026-09-20T07:00:00Z", string to = "2026-09-20T12:00:00Z") =>
+        $"\"Coverage\":{{\"Source\":\"stateRecords\",\"From\":\"{from}\",\"To\":\"{to}\",\"RangesKeepingHistory\":[{rangesKeepingHistory}],\"RangesKeepingNoHistory\":[{rangesKeepingNoHistory}]}}";
+
+    private const string OneTransition =
+        "\"Transitions\":[{\"At\":\"2026-09-20T09:00:00Z\",\"Entered\":[\"hot\"],\"Exited\":[\"warm\"],\"States\":[\"hot\"],\"TriggeringProperty\":\"temperature\",\"OldValue\":20,\"NewValue\":31}]";
+
     [Fact]
     public async Task History_ReadsTheTransitionsInTheWindowAndPrintsEachWithItsCause()
     {
         var thingId = SetupSensor();
         _myceliumMock.Setup(b => b.GetStateTransitionsAsync(thingId, Start, End)).ReturnsAsync(Parse(
-            "{\"ThingName\":\"Sensor1\",\"Coverage\":{\"Source\":\"in-memory\",\"From\":\"2026-09-20T07:00:00Z\",\"To\":\"2026-09-20T12:00:00Z\"},"
-            + "\"Transitions\":[{\"At\":\"2026-09-20T09:00:00Z\",\"Entered\":[\"hot\"],\"Exited\":[\"warm\"],\"States\":[\"hot\"],\"TriggeringProperty\":\"temperature\",\"OldValue\":20,\"NewValue\":31}]}"));
+            "{\"ThingName\":\"Sensor1\"," + Coverage("\"hot\",\"warm\"", "") + "," + OneTransition + "}"));
 
         await ExecuteHandler("history Sensor1 2026-09-20T08:00:00Z 2026-09-20T12:00:00Z");
 
         Assert.Equal(
-            "Sensor1: state history, in-memory from 2026-09-20T07:00:00Z to 2026-09-20T12:00:00Z\n"
+            "Sensor1: state history from 2026-09-20T07:00:00Z to 2026-09-20T12:00:00Z\n"
+            + "2026-09-20T09:00:00Z  entered [hot]  left [warm]  (temperature: 20 -> 31)\n",
+            _writer.ToString());
+    }
+
+    [Fact]
+    public async Task History_NamesTheRangesThatKeepNoHistoryBeforeTheTransitions()
+    {
+        var thingId = SetupSensor();
+        _myceliumMock.Setup(b => b.GetStateTransitionsAsync(thingId, null, null)).ReturnsAsync(Parse(
+            "{\"ThingName\":\"Sensor1\"," + Coverage("\"hot\",\"warm\"", "\"cold\",\"tepid\"") + "," + OneTransition + "}"));
+
+        await ExecuteHandler("history Sensor1");
+
+        Assert.Equal(
+            "Sensor1: state history from 2026-09-20T07:00:00Z to 2026-09-20T12:00:00Z\n"
+            + "Keeps no history: cold, tepid.\n"
             + "2026-09-20T09:00:00Z  entered [hot]  left [warm]  (temperature: 20 -> 31)\n",
             _writer.ToString());
     }
@@ -177,11 +198,27 @@ public class StateCommandHandlerTests
     {
         var thingId = SetupSensor();
         _myceliumMock.Setup(b => b.GetStateTransitionsAsync(thingId, null, null))
-            .ReturnsAsync(Parse("{\"ThingName\":\"Sensor1\",\"Coverage\":{\"Source\":\"in-memory\",\"From\":\"a\",\"To\":\"b\"},\"Transitions\":[]}"));
+            .ReturnsAsync(Parse("{\"ThingName\":\"Sensor1\"," + Coverage("\"hot\"", "") + ",\"Transitions\":[]}"));
 
         await ExecuteHandler("history Sensor1");
 
         Assert.Contains("No state changes in the window.", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task History_WhereNoRangeKeepsHistory_SaysSoInsteadOfNoChanges()
+    {
+        var thingId = SetupSensor();
+        _myceliumMock.Setup(b => b.GetStateTransitionsAsync(thingId, null, null))
+            .ReturnsAsync(Parse("{\"ThingName\":\"Sensor1\"," + Coverage("", "\"cold\",\"hot\"") + ",\"Transitions\":[]}"));
+
+        await ExecuteHandler("history Sensor1");
+
+        Assert.Equal(
+            "Sensor1: state history from 2026-09-20T07:00:00Z to 2026-09-20T12:00:00Z\n"
+            + "Keeps no history: cold, hot.\n"
+            + "No range on Sensor1 keeps state history.\n",
+            _writer.ToString());
     }
 
     [Fact]
@@ -200,13 +237,13 @@ public class StateCommandHandlerTests
     {
         var thingId = SetupSensor();
         _myceliumMock.Setup(b => b.GetStateOccurrencesAsync(thingId, "hot", Start, null)).ReturnsAsync(Parse(
-            "{\"ThingName\":\"Sensor1\",\"StateName\":\"hot\",\"Coverage\":{\"Source\":\"in-memory\",\"From\":\"2026-09-20T07:00:00Z\",\"To\":\"2026-09-20T12:00:00Z\"},"
+            "{\"ThingName\":\"Sensor1\",\"StateName\":\"hot\"," + Coverage("\"hot\"", "\"cold\"") + ","
             + "\"Occurrences\":[{\"EnteredAt\":\"2026-09-20T09:00:00Z\",\"ExitedAt\":\"2026-09-20T10:00:00Z\"},{\"EnteredAt\":\"2026-09-20T11:00:00Z\",\"ExitedAt\":null}]}"));
 
         await ExecuteHandler("occurrences Sensor1 hot 2026-09-20T08:00:00Z");
 
         Assert.Equal(
-            "Sensor1 in 'hot', in-memory from 2026-09-20T07:00:00Z to 2026-09-20T12:00:00Z\n"
+            "Sensor1 in 'hot' from 2026-09-20T07:00:00Z to 2026-09-20T12:00:00Z\n"
             + "2026-09-20T09:00:00Z -> 2026-09-20T10:00:00Z\n"
             + "2026-09-20T11:00:00Z -> still in it\n",
             _writer.ToString());
@@ -217,11 +254,41 @@ public class StateCommandHandlerTests
     {
         var thingId = SetupSensor();
         _myceliumMock.Setup(b => b.GetStateOccurrencesAsync(thingId, "cold", null, null))
-            .ReturnsAsync(Parse("{\"ThingName\":\"Sensor1\",\"StateName\":\"cold\",\"Coverage\":{\"Source\":\"in-memory\",\"From\":\"a\",\"To\":\"b\"},\"Occurrences\":[]}"));
+            .ReturnsAsync(Parse("{\"ThingName\":\"Sensor1\",\"StateName\":\"cold\"," + Coverage("\"cold\"", "") + ",\"Occurrences\":[]}"));
 
         await ExecuteHandler("occurrences Sensor1 cold");
 
         Assert.Contains("Never in 'cold' in the window.", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task Occurrences_OfARangeKeepingNoHistory_SaysSoInsteadOfNever()
+    {
+        var thingId = SetupSensor();
+        _myceliumMock.Setup(b => b.GetStateOccurrencesAsync(thingId, "cold", null, null))
+            .ReturnsAsync(Parse("{\"ThingName\":\"Sensor1\",\"StateName\":\"cold\"," + Coverage("\"hot\"", "\"cold\"") + ",\"Occurrences\":[]}"));
+
+        await ExecuteHandler("occurrences Sensor1 cold");
+
+        Assert.Equal(
+            "Sensor1 in 'cold' from 2026-09-20T07:00:00Z to 2026-09-20T12:00:00Z\n"
+            + "'cold' keeps no history on Sensor1.\n",
+            _writer.ToString());
+    }
+
+    [Fact]
+    public async Task Occurrences_OfANameThatIsNoRangeOfTheThing_SaysSoInsteadOfNever()
+    {
+        var thingId = SetupSensor();
+        _myceliumMock.Setup(b => b.GetStateOccurrencesAsync(thingId, "frozen", null, null))
+            .ReturnsAsync(Parse("{\"ThingName\":\"Sensor1\",\"StateName\":\"frozen\"," + Coverage("\"hot\"", "\"cold\"") + ",\"Occurrences\":[]}"));
+
+        await ExecuteHandler("occurrences Sensor1 frozen");
+
+        Assert.Equal(
+            "Sensor1 in 'frozen' from 2026-09-20T07:00:00Z to 2026-09-20T12:00:00Z\n"
+            + "Sensor1 has no range 'frozen'.\n",
+            _writer.ToString());
     }
 
     [Fact]

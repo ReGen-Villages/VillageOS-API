@@ -82,7 +82,7 @@ describe('useEntityDetail', () => {
     mockGetStateTransitions.mockResolvedValue({
       ThingId: 'root',
       ThingName: 'ROOT-1',
-      Coverage: { Source: 'in-memory', From: '2026-07-17T00:00:00Z', To: '2026-07-17T01:00:00Z' },
+      Coverage: { From: '2026-07-17T00:00:00Z', To: '2026-07-17T01:00:00Z', RangesKeepingHistory: ['allocated'], RangesKeepingNoHistory: [] },
       Transitions: [],
     });
     vi.useFakeTimers();
@@ -217,7 +217,7 @@ describe('useEntityDetail', () => {
     mockGetStateTransitions.mockResolvedValue({
       ThingId: 'root',
       ThingName: 'ROOT-1',
-      Coverage: { Source: 'in-memory', From: '2026-07-17T00:00:00Z', To: '2026-07-17T01:00:00Z' },
+      Coverage: { From: '2026-07-17T00:00:00Z', To: '2026-07-17T01:00:00Z', RangesKeepingHistory: ['allocated'], RangesKeepingNoHistory: ['idle'] },
       Transitions: [
         { At: '2026-07-17T00:30:00Z', Entered: ['allocated'], Exited: [], States: ['allocated'], TriggeringProperty: 'temp', OldValue: 50, NewValue: 150 },
       ],
@@ -227,7 +227,7 @@ describe('useEntityDetail', () => {
     await settle();
 
     expect(result.current.stateChanges).toEqual([{ at: '2026-07-17T00:30:00Z', entered: ['allocated'], exited: [] }]);
-    expect(result.current.coverage?.Source).toBe('in-memory');
+    expect(result.current.coverage?.RangesKeepingNoHistory).toEqual(['idle']);
   });
 
   // A model with no active reactive engine 503s on state history. The window must still render

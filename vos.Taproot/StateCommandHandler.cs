@@ -91,7 +91,7 @@ public class StateCommandHandler
         if (args.Length < 1)
         {
             _writer.WriteLine("Usage: state history <thing> [start] [end]");
-            _writer.WriteLine("Each change of state the platform holds in memory for the thing: when, what was entered and left, and why.");
+            _writer.WriteLine("Each recorded change of state: when, what was entered and left, and why. A range keeps history only when it names a State Thing.");
             return;
         }
 
@@ -105,11 +105,18 @@ public class StateCommandHandler
             return;
 
         var answer = await _client!.GetStateTransitionsAsync(resolved.Id, from, to);
-        WriteCoverage(answer, $"{answer.GetStringOrDefault("ThingName")}: state history");
+        var thingName = answer.GetStringOrDefault("ThingName");
+        var coverage = answer.GetProperty("Coverage");
+        WriteWindow(coverage, $"{thingName}: state history");
+        var rangesKeepingNoHistory = Names(coverage, "RangesKeepingNoHistory");
+        if (rangesKeepingNoHistory.Length > 0)
+            _writer.WriteLine($"Keeps no history: {rangesKeepingNoHistory}.");
         var transitions = Rows(answer, "Transitions");
         if (transitions.Count == 0)
         {
-            _writer.WriteLine("No state changes in the window.");
+            _writer.WriteLine(Rows(coverage, "RangesKeepingHistory").Count == 0
+                ? $"No range on {thingName} keeps state history."
+                : "No state changes in the window.");
             return;
         }
 
@@ -128,7 +135,7 @@ public class StateCommandHandler
         if (args.Length < 2)
         {
             _writer.WriteLine("Usage: state occurrences <thing> <state-name> [start] [end]");
-            _writer.WriteLine("Each spell the thing has spent in the state, as the platform holds it in memory.");
+            _writer.WriteLine("Each recorded spell the thing has spent in the state.");
             return;
         }
 
@@ -141,12 +148,18 @@ public class StateCommandHandler
         if (!TryParseWindow(args, 2, out var from, out var to))
             return;
 
-        var answer = await _client!.GetStateOccurrencesAsync(resolved.Id, args[1], from, to);
-        WriteCoverage(answer, $"{answer.GetStringOrDefault("ThingName")} in '{args[1]}'");
+        var stateName = args[1];
+        var answer = await _client!.GetStateOccurrencesAsync(resolved.Id, stateName, from, to);
+        var thingName = answer.GetStringOrDefault("ThingName");
+        var coverage = answer.GetProperty("Coverage");
+        WriteWindow(coverage, $"{thingName} in '{stateName}'");
         var occurrences = Rows(answer, "Occurrences");
         if (occurrences.Count == 0)
         {
-            _writer.WriteLine($"Never in '{args[1]}' in the window.");
+            _writer.WriteLine(
+                Rows(coverage, "RangesKeepingNoHistory").Any(range => range.GetString() == stateName) ? $"'{stateName}' keeps no history on {thingName}."
+                : Rows(coverage, "RangesKeepingHistory").Any(range => range.GetString() == stateName) ? $"Never in '{stateName}' in the window."
+                : $"{thingName} has no range '{stateName}'.");
             return;
         }
 
@@ -175,26 +188,16 @@ public class StateCommandHandler
         return true;
     }
 
-    private void WriteCoverage(JsonElement answer, string heading)
-    {
-        if (answer.HasObjectProperty("Coverage"))
-        {
-            var coverage = answer.GetProperty("Coverage");
-            _writer.WriteLine($"{heading}, {coverage.GetStringOrDefault("Source")} from {coverage.GetStringOrDefault("From")} to {coverage.GetStringOrDefault("To")}");
-        }
-        else
-        {
-            _writer.WriteLine(heading);
-        }
-    }
+    private void WriteWindow(JsonElement coverage, string heading) =>
+        _writer.WriteLine($"{heading} from {coverage.GetStringOrDefault("From")} to {coverage.GetStringOrDefault("To")}");
 
     private static List<JsonElement> Rows(JsonElement answer, string name) =>
         answer.TryGetProperty(name, out var rows) && rows.ValueKind == JsonValueKind.Array
             ? rows.EnumerateArray().ToList()
             : [];
 
-    private static string Names(JsonElement transition, string name) =>
-        string.Join(", ", Rows(transition, name).Select(state => state.GetString()));
+    private static string Names(JsonElement element, string name) =>
+        string.Join(", ", Rows(element, name).Select(state => state.GetString()));
 
     private static string Value(JsonElement transition, string name) =>
         transition.TryGetProperty(name, out var value) ? value.FormatPropertyValue() : "";
@@ -261,10 +264,10 @@ public class StateCommandHandler
         _writer.WriteLine("    Get current states for a relationship (its own ranges).");
         _writer.WriteLine();
         _writer.WriteLine("  state history <thing> [start] [end]");
-        _writer.WriteLine("    Each change of state the platform holds in memory: when, what was entered and left, and why.");
+        _writer.WriteLine("    Each recorded change of state: when, what was entered and left, and why. Names the ranges that keep no history.");
         _writer.WriteLine();
         _writer.WriteLine("  state occurrences <thing> <state-name> [start] [end]");
-        _writer.WriteLine("    Each spell the thing has spent in the state.");
+        _writer.WriteLine("    Each recorded spell the thing has spent in the state.");
         _writer.WriteLine();
         _writer.WriteLine("  state query <state-name> [--type=<kind>] [--also-in=a,b] [--not-in=c] [--within=<thing>]");
         _writer.WriteLine("                           [--limit=N] [--properties=a,b] [--include-archetypes] [--count]");

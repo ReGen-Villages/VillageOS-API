@@ -1022,7 +1022,8 @@ export const nl: PartialResources = {
   },
   entityDetail: {
     noDerivedStates: "geen afgeleide statussen",
-    inMemoryHistory: "Geheugengeschiedenis — sinds {{time}}. Eerdere wijzigingen worden niet bewaard.",
+    keepsNoHistory: "Houdt geen geschiedenis bij: {{ranges}}.",
+    noRangeKeepsHistory: "Geen bereik van deze Thing houdt statusgeschiedenis bij.",
     none: "Geen.",
     spread: "Alle panelen uitspreiden",
     close: "Sluiten",
