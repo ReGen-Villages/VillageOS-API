@@ -552,6 +552,19 @@ public class RetryTests
     }
 
     [Fact]
+    public async Task A_run_already_being_carried_on_is_not_carried_on_a_second_time_while_its_interrupted_node_is_still_to_be_called()
+    {
+        var (retry, gateway, executor, runId) = await ARunARestartStoppedAsync();
+        gateway.RunStatuses[runId] = RunStatus.Running;
+
+        var refusal = await executor.CarryOnAsync(runId, CancellationToken.None);
+
+        refusal.Should().Be($"Run {runId} is not one a restart of the orchestrator stopped part way through a call.");
+        gateway.Records[(runId, retry.Echo.Id)].Status.Should().Be(RunStatus.Interrupted);
+        gateway.Called.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task A_person_starting_a_run_a_restart_stopped_again_gets_a_fresh_run_of_its_pipeline_with_its_parameters()
     {
         var (retry, gateway, executor, runId) = await ARunARestartStoppedAsync();
