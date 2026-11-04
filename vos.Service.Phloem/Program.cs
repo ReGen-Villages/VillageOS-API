@@ -72,8 +72,8 @@ try
             var executor = app.Services.GetRequiredService<PipelineExecutor>();
             var placedAgain = await executor.RecoverWaitsAsync(CancellationToken.None);
             if (placedAgain > 0) Log.Information("Placed {Count} vigil(s) again for runs that were waiting", placedAgain);
-            var carriedOn = await executor.RecoverTryingAsync(CancellationToken.None);
-            if (carriedOn > 0) Log.Information("Carried {Count} run(s) on from a node that was trying", carriedOn);
+            var carriedOn = await executor.RecoverUnfinishedAsync(CancellationToken.None);
+            if (carriedOn > 0) Log.Information("Carried {Count} run(s) on from a node that was trying or in the middle of a call", carriedOn);
         }
         catch (Exception ex)
         {

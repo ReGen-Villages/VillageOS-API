@@ -54,6 +54,9 @@ public static class ModelNames
     // rehearses writes nothing but its answer, so a rehearsal may call it; a run and the envelope say rehearsal.
     public const string Published = "published";
     public const string Rehearses = "rehearses";
+    // A service that answers a repeated call for the same run, node and item with its first answer, so a call a restart
+    // caught before it answered may be made again.
+    public const string MayBeCalledAgain = "mayBeCalledAgain";
     public const string Rehearsal = "rehearsal";
     // On a stop request: the sentence a person wrote, which each run it stops records as its error.
     public const string Reason = "reason";

@@ -103,7 +103,7 @@ public interface IMyceliumGateway
     // An attempt is a Thing the node run holds, and the node run's attempts count moves to the attempt's number.
     Task RecordAttemptAsync(Guid runId, Guid nodeId, int? index, AttemptRecord attempt, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<TryingNodeRun>> TryingNodeRunsAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<UnfinishedNodeRun>> UnfinishedNodeRunsAsync(CancellationToken cancellationToken);
 
     // Every Thing of the archetype the cadence role binds, none when the model binds nothing to it.
     Task<IReadOnlyList<Cadence>> CadencesAsync(CancellationToken cancellationToken);
