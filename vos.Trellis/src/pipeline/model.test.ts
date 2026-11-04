@@ -450,6 +450,23 @@ describe('run animation source', () => {
       { runId: older.Id, pipelineName: 'Rainfall reading', startedUtc: '2026-11-04T10:00:00Z', reason: 'older stopped' },
     ]);
   });
+
+  it('lists a run a restart stopped whose pipeline has since been deleted, with nothing it does not hold', () => {
+    const things: VosThing[] = [
+      { Id: 'is', Name: 'is', Properties: {} }, { Id: 'has', Name: 'has', Properties: {} },
+      { Id: 'run-kind', Name: 'PipelineRun', Properties: playing(ROLE.PipelineRun) },
+      { Id: 'run', Name: 'Run', Properties: { status: 'failed' } },
+      { Id: 'node-run', Name: 'NodeRun', Properties: { nodeId: 'node-gauge', status: 'interrupted' } },
+    ];
+    const relationships: VosRelationship[] = [
+      { Id: 'r1', Name: '', SubjectId: 'run', PredicateId: 'is', TargetId: 'run-kind', Properties: {} },
+      { Id: 'r2', Name: '', SubjectId: 'run', PredicateId: 'has', TargetId: 'node-run', Properties: {} },
+    ];
+
+    const model = new PipelineModel(...withRoles(things, relationships));
+
+    expect(model.runsARestartStopped()).toEqual([{ runId: 'run', pipelineName: '', startedUtc: '', reason: '' }]);
+  });
 });
 
 describe('loadPipeline', () => {

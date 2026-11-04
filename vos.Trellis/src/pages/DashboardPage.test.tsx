@@ -383,6 +383,7 @@ describe('DashboardPage runs a restart stopped', () => {
     vi.mocked(engineMetricsApi.getSummary).mockRejectedValue(new Error('no engine'));
     vi.mocked(configurationApi.getDefaultPropertyMode).mockRejectedValue(new Error('no such endpoint'));
     useModelStore.setState({ things, relationships, loaded: true, holdsWholeModel: true });
+    useToastStore.setState({ toasts: [] });
   });
 
   afterEach(() => {
@@ -412,17 +413,35 @@ describe('DashboardPage runs a restart stopped', () => {
     expect(within(row()).queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('says why the orchestrator refused to carry a run on and offers the asks again', async () => {
-    vi.mocked(pipelineApi.carryOn).mockRejectedValue(new Error('Run run-1 is not one a restart of the orchestrator stopped part way through a call.'));
+  it.each([
+    ['Start again', 'startAgain', 'The run was started again'],
+    ['Carry on', 'carryOn', 'The run is carrying on'],
+  ] as const)('says so when the orchestrator accepts %s', async (label, ask, said) => {
+    vi.mocked(pipelineApi[ask]).mockResolvedValue({ runId: 'run-1' });
     openDashboard();
     await act(async () => {});
 
-    fireEvent.click(within(row()).getByRole('button', { name: 'Carry on' }));
+    fireEvent.click(within(row()).getByRole('button', { name: label }));
     await act(async () => {});
 
-    expect(useToastStore.getState().toasts).toContainEqual(expect.objectContaining({
-      type: 'error', message: 'Run run-1 is not one a restart of the orchestrator stopped part way through a call.',
-    }));
-    expect(within(row()).getByRole('button', { name: 'Carry on' })).toBeEnabled();
+    expect(useToastStore.getState().toasts).toContainEqual(expect.objectContaining({ type: 'success', message: said }));
+  });
+
+  const refusal = 'Run run-1 is not one a restart of the orchestrator stopped part way through a call.';
+  it.each([
+    ['Start again', 'startAgain', new Error(refusal), refusal],
+    ['Carry on', 'carryOn', new Error(refusal), refusal],
+    ['Start again', 'startAgain', 'no reason', 'The run could not be started again'],
+    ['Carry on', 'carryOn', 'no reason', 'The run could not be carried on'],
+  ] as const)('says why the orchestrator refused %s and offers the asks again', async (label, ask, refused, said) => {
+    vi.mocked(pipelineApi[ask]).mockRejectedValue(refused);
+    openDashboard();
+    await act(async () => {});
+
+    fireEvent.click(within(row()).getByRole('button', { name: label }));
+    await act(async () => {});
+
+    expect(useToastStore.getState().toasts).toContainEqual(expect.objectContaining({ type: 'error', message: said }));
+    expect(within(row()).getByRole('button', { name: label })).toBeEnabled();
   });
 });
