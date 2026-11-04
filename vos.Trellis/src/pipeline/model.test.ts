@@ -408,6 +408,48 @@ describe('run animation source', () => {
     expect(runs[1].requestId).toBeUndefined();
     expect(model.runsOf('missing')).toEqual([]);
   });
+
+  it('lists every run a restart stopped part way through a call, newest first, leaving out one a person started again', () => {
+    const things: VosThing[] = [];
+    const relationships: VosRelationship[] = [];
+    let n = 0;
+    const T = (name: string, props: Record<string, unknown> = {}): VosThing => {
+      const t = { Id: `t${++n}`, Name: name, Properties: props };
+      things.push(t);
+      return t;
+    };
+    const is = T('is'), of = T('of'), has = T('has'), startedBy = T('startedBy');
+    const runArchetype = T('PipelineRun', playing(ROLE.PipelineRun)), repeats = T('repeats', playing(ROLE.RepeatedRun));
+    const rainfall = T('Rainfall reading'), reservoir = T('Reservoir level');
+    const relationship = (s: string, p: string, t: string) =>
+      relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
+    const run = (name: string, pipeline: VosThing, startedUtc: string, status: string, nodeStatus: string, item?: string) => {
+      const thing = T(name, { status, startedUtc, error: `${name} stopped` });
+      relationship(thing.Id, is.Id, runArchetype.Id);
+      relationship(thing.Id, of.Id, pipeline.Id);
+      const nodeRun = T(`NodeRun of ${name}`, { nodeId: 'node-gauge', status: nodeStatus, ...(item === undefined ? {} : { index: item, total: '2' }) });
+      relationship(thing.Id, has.Id, nodeRun.Id);
+      return thing;
+    };
+
+    const older = run('older', rainfall, '2026-11-04T10:00:00Z', 'failed', 'interrupted');
+    const newer = run('newer', reservoir, '2026-11-04T12:00:00Z', 'failed', 'interrupted');
+    const followedOn = run('followed on', rainfall, '2026-11-04T11:00:00Z', 'failed', 'interrupted');
+    relationship(run('follow-on', reservoir, '2026-11-04T11:01:00Z', 'succeeded', 'succeeded').Id, startedBy.Id, followedOn.Id);
+    const repeated = run('repeated', rainfall, '2026-11-04T09:00:00Z', 'failed', 'interrupted');
+    relationship(run('again', rainfall, '2026-11-04T13:00:00Z', 'succeeded', 'succeeded').Id, repeats.Id, repeated.Id);
+    run('failed on its own', rainfall, '2026-11-04T08:00:00Z', 'failed', 'failed');
+    run('being carried on', rainfall, '2026-11-04T07:00:00Z', 'running', 'interrupted');
+    run('an item failed', rainfall, '2026-11-04T06:00:00Z', 'failed', 'interrupted', '0');
+
+    const model = new PipelineModel(...withRoles(things, relationships));
+
+    expect(model.runsARestartStopped()).toEqual([
+      { runId: newer.Id, pipelineName: 'Reservoir level', startedUtc: '2026-11-04T12:00:00Z', reason: 'newer stopped' },
+      { runId: followedOn.Id, pipelineName: 'Rainfall reading', startedUtc: '2026-11-04T11:00:00Z', reason: 'followed on stopped' },
+      { runId: older.Id, pipelineName: 'Rainfall reading', startedUtc: '2026-11-04T10:00:00Z', reason: 'older stopped' },
+    ]);
+  });
 });
 
 describe('loadPipeline', () => {

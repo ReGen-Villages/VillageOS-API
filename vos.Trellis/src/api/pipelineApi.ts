@@ -36,4 +36,14 @@ export const pipelineApi = {
     apiClient.action(`start pipeline ${pipelineId}`, () =>
       apiClient.post<PipelineSpawnAccepted>('/api/endpoints/phloem', { pipelineId, parameters, async: true }),
     ),
+
+  startAgain: (runId: string) =>
+    apiClient.action(`start run ${runId} again`, () =>
+      apiClient.post<{ runId: string }>('/api/endpoints/phloem', { startAgain: runId }),
+    ),
+
+  carryOn: (runId: string) =>
+    apiClient.action(`carry run ${runId} on`, () =>
+      apiClient.post<{ runId: string }>('/api/endpoints/phloem', { carryOn: runId }),
+    ),
 };

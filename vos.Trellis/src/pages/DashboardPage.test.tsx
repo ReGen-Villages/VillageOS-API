@@ -32,8 +32,15 @@ vi.mock('../api/engineMetricsApi', () => ({ engineMetricsApi: { getSummary: vi.f
 vi.mock('../api/configurationApi', () => ({
   configurationApi: { getDefaultPropertyMode: vi.fn(), setDefaultPropertyMode: vi.fn() },
 }));
+vi.mock('../api/pipelineApi', () => ({ pipelineApi: { startAgain: vi.fn(), carryOn: vi.fn() } }));
+const account: { role: string | null } = { role: 'editor' };
+vi.mock('../hooks/useAuthentication', () => ({ useAuthentication: () => account }));
 
 import { myceliumApi } from '../api/myceliumApi';
+import { pipelineApi } from '../api/pipelineApi';
+import { ROLE } from '../pipeline/model';
+import { playing, withRoles } from '../pipeline/roles.test.fixture';
+import { useToastStore } from '../components/common/toastStore';
 import { endpointApi } from '../api/endpointApi';
 import { engineMetricsApi } from '../api/engineMetricsApi';
 import { configurationApi } from '../api/configurationApi';
@@ -351,5 +358,71 @@ describe('DashboardPage while the model loads and the connection opens', () => {
     warned.mockRestore();
 
     expect(screen.getByRole('img', { name: 'Connection lost' })).toBeInTheDocument();
+  });
+});
+
+describe('DashboardPage runs a restart stopped', () => {
+  const thing = (Id: string, Name: string, Properties: Record<string, unknown> = {}) => ({ Id, Name, Properties }) as VosThing;
+  const related = (SubjectId: string, PredicateId: string, TargetId: string) =>
+    ({ Id: `${SubjectId} ${PredicateId}`, Name: '', SubjectId, PredicateId, TargetId, Properties: {} });
+  const [things, relationships] = withRoles([
+    thing('is', 'is'), thing('of', 'of'), thing('has', 'has'),
+    thing('run-kind', 'PipelineRun', playing(ROLE.PipelineRun)),
+    thing('pipeline', 'Rainfall reading'),
+    thing('run-1', 'Run 1', { status: 'failed', startedUtc: '2026-11-04T10:00:00Z', error: "'Read the gauge' was calling its service" }),
+    thing('node-run-1', 'NodeRun Read the gauge', { nodeId: 'node-gauge', status: 'interrupted' }),
+  ], [related('run-1', 'is', 'run-kind'), related('run-1', 'of', 'pipeline'), related('run-1', 'has', 'node-run-1')]);
+  const row = () => screen.getByText('Rainfall reading').closest('li')!;
+
+  beforeEach(() => {
+    stream.connection = 'live';
+    streamHandlers.clear();
+    HTMLElement.prototype.scrollTo = () => {};
+    vi.mocked(myceliumApi.getServices).mockResolvedValue([]);
+    vi.mocked(endpointApi.getAll).mockResolvedValue([]);
+    vi.mocked(engineMetricsApi.getSummary).mockRejectedValue(new Error('no engine'));
+    vi.mocked(configurationApi.getDefaultPropertyMode).mockRejectedValue(new Error('no such endpoint'));
+    useModelStore.setState({ things, relationships, loaded: true, holdsWholeModel: true });
+  });
+
+  afterEach(() => {
+    account.role = 'editor';
+    vi.clearAllMocks();
+  });
+
+  it.each(['admin', 'editor'])('lets an %s start a run a restart stopped again', async (role) => {
+    account.role = role;
+    vi.mocked(pipelineApi.startAgain).mockResolvedValue({ runId: 'run-2' });
+    openDashboard();
+    await act(async () => {});
+
+    fireEvent.click(within(row()).getByRole('button', { name: 'Start again' }));
+    await act(async () => {});
+
+    expect(pipelineApi.startAgain).toHaveBeenCalledWith('run-1');
+    expect(within(row()).getByRole('button', { name: 'Carry on' })).toBeDisabled();
+  });
+
+  it.each(['viewer', null])('shows the run to a %s account without the asks', async (role) => {
+    account.role = role;
+    openDashboard();
+    await act(async () => {});
+
+    expect(within(row()).getByText("'Read the gauge' was calling its service")).toBeInTheDocument();
+    expect(within(row()).queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('says why the orchestrator refused to carry a run on and offers the asks again', async () => {
+    vi.mocked(pipelineApi.carryOn).mockRejectedValue(new Error('Run run-1 is not one a restart of the orchestrator stopped part way through a call.'));
+    openDashboard();
+    await act(async () => {});
+
+    fireEvent.click(within(row()).getByRole('button', { name: 'Carry on' }));
+    await act(async () => {});
+
+    expect(useToastStore.getState().toasts).toContainEqual(expect.objectContaining({
+      type: 'error', message: 'Run run-1 is not one a restart of the orchestrator stopped part way through a call.',
+    }));
+    expect(within(row()).getByRole('button', { name: 'Carry on' })).toBeEnabled();
   });
 });
