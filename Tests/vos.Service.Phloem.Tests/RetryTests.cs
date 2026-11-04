@@ -487,4 +487,83 @@ public class RetryTests
         dag.Node(fx.Get("Echo").Id)!.MayBeCalledAgain.Should().BeTrue();
         dag.Node(fx.Get("Generate").Id)!.MayBeCalledAgain.Should().BeFalse();
     }
+
+    private static async Task<(TestGraphs.RetryFixture Retry, FakeGateway Gateway, PipelineExecutor Executor, Guid RunId)> ARunARestartStoppedAsync()
+    {
+        var (retry, gateway, executor, runId) = ArrangeARunCaughtInTheMiddleOfACall();
+        await executor.RecoverUnfinishedAsync(CancellationToken.None);
+        return (retry, gateway, executor, runId);
+    }
+
+    [Fact]
+    public async Task A_restart_that_cannot_carry_a_run_on_marks_the_node_it_caught_interrupted()
+    {
+        var (retry, gateway, _, runId) = await ARunARestartStoppedAsync();
+
+        gateway.RunStatusOf(runId).Should().Be(RunStatus.Failed);
+        gateway.Records[(runId, retry.Echo.Id)].Status.Should().Be(RunStatus.Interrupted);
+    }
+
+    [Fact]
+    public async Task A_person_carrying_on_a_run_a_restart_stopped_calls_the_interrupted_node_again_and_the_run_finishes()
+    {
+        var (_, gateway, executor, runId) = await ARunARestartStoppedAsync();
+
+        var refusal = await executor.CarryOnAsync(runId, CancellationToken.None);
+
+        refusal.Should().BeNull();
+        await Settle.UntilAsync(() => gateway.RunStatusOf(runId) is RunStatus.Succeeded or RunStatus.Failed, "the run carries on to its end");
+        gateway.RunStatusOf(runId).Should().Be(RunStatus.Succeeded);
+        gateway.RunError.Should().BeEmpty("the reason the restart gave no longer holds");
+        gateway.Called.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task A_person_carrying_on_a_run_a_restart_stopped_part_way_through_its_items_calls_only_the_items_not_answered()
+    {
+        var (_, gateway, executor, runId) = ArrangeARunStoppedPartWayThroughItsItems(RunStatus.Running);
+        await executor.RecoverUnfinishedAsync(CancellationToken.None);
+
+        (await executor.CarryOnAsync(runId, CancellationToken.None)).Should().BeNull();
+
+        await Settle.UntilAsync(() => gateway.RunStatusOf(runId) is RunStatus.Succeeded or RunStatus.Failed, "the run carries on to its end");
+        gateway.RunStatusOf(runId).Should().Be(RunStatus.Succeeded);
+        ReadingsCalled(gateway).Should().BeEquivalentTo("South", "East");
+    }
+
+    [Theory]
+    [InlineData(RunStatus.Succeeded)]
+    [InlineData(RunStatus.Failed)]
+    public async Task A_run_no_restart_stopped_is_neither_carried_on_nor_started_again(string status)
+    {
+        var (retry, gateway, executor) = Arrange(_ => Answer());
+        var runId = Guid.NewGuid();
+        gateway.Runs[runId] = (retry.PipelineId, Seed());
+        gateway.RunStatuses[runId] = status;
+        gateway.Records[(runId, retry.In.Id)] = new NodeRecord(RunStatus.Succeeded, new Dictionary<string, JsonElement> { ["seed"] = JsonSerializer.SerializeToElement("world") });
+        gateway.Records[(runId, retry.Echo.Id)] = new NodeRecord(status, new Dictionary<string, JsonElement>());
+
+        var carryOn = await executor.CarryOnAsync(runId, CancellationToken.None);
+        var (startedAgain, startAgain) = await executor.StartAgainAsync(runId, CancellationToken.None);
+
+        var refused = $"Run {runId} is not one a restart of the orchestrator stopped part way through a call.";
+        (carryOn, startAgain, startedAgain).Should().Be((refused, refused, (Guid?)null));
+        gateway.Called.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_person_starting_a_run_a_restart_stopped_again_gets_a_fresh_run_of_its_pipeline_with_its_parameters()
+    {
+        var (retry, gateway, executor, runId) = await ARunARestartStoppedAsync();
+
+        var (startedAgain, refusal) = await executor.StartAgainAsync(runId, CancellationToken.None);
+
+        refusal.Should().BeNull();
+        startedAgain.Should().NotBe(runId);
+        await Settle.UntilAsync(() => gateway.RunStatusOf(startedAgain!.Value) is RunStatus.Succeeded or RunStatus.Failed, "the fresh run runs to its end");
+        gateway.RunStatusOf(startedAgain!.Value).Should().Be(RunStatus.Succeeded);
+        gateway.Runs[startedAgain.Value].PipelineId.Should().Be(retry.PipelineId);
+        gateway.Runs[startedAgain.Value].Parameters.GetProperty("seed").GetString().Should().Be("world");
+        gateway.RunStatusOf(runId).Should().Be(RunStatus.Failed, "the run it repeats is left as it was");
+    }
 }

@@ -262,7 +262,7 @@ public sealed class PipelineExecutor
 
             if (failure is not null)
             {
-                await BestEffort(() => _gateway.SetNodeRunStatusAsync(record.RunId, trying.NodeId, name, RunStatus.Failed, failure, cancellationToken), "fail the trying node");
+                await BestEffort(() => _gateway.SetNodeRunStatusAsync(record.RunId, trying.NodeId, name, RunStatus.Interrupted, failure, cancellationToken), "mark the caught node interrupted");
                 await FailRunAsync(record.RunId, record.PipelineId, failure, cancellationToken);
                 continue;
             }
@@ -280,6 +280,51 @@ public sealed class PipelineExecutor
         }
         return carriedOn;
     }
+
+    // A person's word that a call a restart caught may be made again stands in for the mark on its service. Answers
+    // why the run cannot be carried on, or nothing once it is carrying on.
+    public async Task<string?> CarryOnAsync(Guid runId, CancellationToken cancellationToken)
+    {
+        using var turn = await _turns.TakeAsync(runId, cancellationToken);
+        var record = await _gateway.ReadRunRecordAsync(runId, cancellationToken);
+        if (record is null || !StoppedByARestart(record)) return NotStoppedByARestart(runId);
+        var (dag, refusal) = await LoadAsync(record.PipelineId, cancellationToken);
+        if (dag is null) return refusal;
+        var (progress, cannotGoOn) = ProgressFrom(dag, record, "be carried on", aPersonSaysCaughtCallsMayBeMadeAgain: true);
+        if (cannotGoOn is not null) return cannotGoOn;
+
+        await _gateway.SetRunStatusAsync(runId, RunStatus.Running, cancellationToken, error: string.Empty);
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var ownTurn = await _turns.TakeAsync(runId, CancellationToken.None);
+                await SweepAsync(runId, dag, record.Parameters, progress, record.Rehearsal, CancellationToken.None);
+            }
+            catch (Exception ex) { _logger.LogError(ex, "Carrying on run {RunId} for a person failed", runId); }
+        });
+        return null;
+    }
+
+    public async Task<(Guid? RunId, string? Refusal)> StartAgainAsync(Guid runId, CancellationToken cancellationToken)
+    {
+        var record = await _gateway.ReadRunRecordAsync(runId, cancellationToken);
+        if (record is null || !StoppedByARestart(record)) return (null, NotStoppedByARestart(runId));
+
+        var fresh = Guid.NewGuid();
+        _ = Task.Run(async () =>
+        {
+            try { await RunAsync(record.PipelineId, record.Parameters, CancellationToken.None, fresh, rehearsal: record.Rehearsal); }
+            catch (Exception ex) { _logger.LogError(ex, "Starting run {RunId} again as {FreshRunId} failed", runId, fresh); }
+        });
+        return (fresh, null);
+    }
+
+    private static bool StoppedByARestart(RunRecord record) =>
+        record.Status == RunStatus.Failed && record.Nodes.Values.Any(node => node.Status == RunStatus.Interrupted);
+
+    private static string NotStoppedByARestart(Guid runId) =>
+        $"Run {runId} is not one a restart of the orchestrator stopped part way through a call.";
 
     private async Task<(PipelineDag? Dag, string? Refusal)> LoadAsync(Guid pipelineId, CancellationToken cancellationToken, Start? start = null)
     {
@@ -340,23 +385,26 @@ public sealed class PipelineExecutor
     // A node with no record is one the run had not reached, which only a node behind a wait can be; any other
     // missing record means the run would have to call that node again to carry on. A node or item caught in the middle
     // of a call may already have reached its service, so it is called again only when its service says it may be.
-    private (Progress Progress, string? CannotGoOn) ProgressFrom(PipelineDag dag, RunRecord record, string goingOn)
+    private (Progress Progress, string? CannotGoOn) ProgressFrom(PipelineDag dag, RunRecord record, string goingOn,
+        bool aPersonSaysCaughtCallsMayBeMadeAgain = false)
     {
         var progress = new Progress(_clock);
         foreach (var node in dag.Nodes)
         {
             if (!record.Nodes.TryGetValue(node.NodeId, out var recorded)) continue;
-            if (recorded is { Status: RunStatus.Running, Items: { Count: > 0 } items })
+            var caught = recorded.Status is RunStatus.Running or RunStatus.Interrupted;
+            var mayBeCalledAgain = node.MayBeCalledAgain || aPersonSaysCaughtCallsMayBeMadeAgain;
+            if (caught && recorded.Items is { Count: > 0 } items)
             {
-                if (!node.MayBeCalledAgain && items.FirstOrDefault(item => item.Status == RunStatus.Running)?.Number is { } calling)
+                if (!mayBeCalledAgain && items.FirstOrDefault(item => item.Status == RunStatus.Running)?.Number is { } calling)
                     return (progress, $"'{node.Name}' was calling for item {calling.Index + 1} of {calling.Total} when the orchestrator stopped, " +
                                       $"and that call may have reached its service, which does not say it may be called again, so the run cannot {goingOn} without calling it again.");
                 progress.ItemsMade[node.NodeId] = items.Where(item => item.Number is not null).ToDictionary(item => item.Number!.Index);
                 continue;
             }
-            if (recorded.Status == RunStatus.Running)
+            if (caught)
             {
-                if (node.Kind is DagNodeKind.Input or DagNodeKind.Output || node.MayBeCalledAgain)
+                if (node.Kind is DagNodeKind.Input or DagNodeKind.Output || mayBeCalledAgain)
                 {
                     progress.Trying[node.NodeId] = recorded.AttemptsMade;
                     continue;

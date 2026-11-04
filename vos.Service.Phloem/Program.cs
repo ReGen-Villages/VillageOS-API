@@ -190,6 +190,17 @@ try
                 });
                 return Results.Ok(new { success = true, accepted = true, pipelineId });
 
+            case SpawnKind.StartAgain:
+                var (startedAgain, notStartedAgain) = await executor.StartAgainAsync(trigger.TargetId, httpContext.RequestAborted);
+                return startedAgain is { } freshRunId
+                    ? Results.Ok(new { success = true, accepted = true, runId = freshRunId, startsAgain = trigger.TargetId })
+                    : Results.BadRequest(new { error = notStartedAgain });
+
+            case SpawnKind.CarryOn:
+                return await executor.CarryOnAsync(trigger.TargetId, httpContext.RequestAborted) is { } notCarriedOn
+                    ? Results.BadRequest(new { error = notCarriedOn })
+                    : Results.Ok(new { success = true, accepted = true, runId = trigger.TargetId });
+
             default:
                 return Results.BadRequest(new { error = trigger.Error });
         }
