@@ -58,6 +58,22 @@ public class HandleEndpointTests
         factory.RunsRecordedFor(Drawn).Should().Be(0);
     }
 
+    [Theory]
+    [InlineData("startAgain")]
+    [InlineData("carryOn")]
+    public async Task Handle_AskingToStartAgainOrCarryOnARunNoRestartStopped_IsRefusedSayingSo(string asked)
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+        var run = Guid.NewGuid();
+
+        var response = await client.PostAsync("/handle", new StringContent($"{{\"{asked}\": \"{run}\"}}", Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("error").GetString().Should().Be($"Run {run} is not one a restart of the orchestrator stopped part way through a call.");
+    }
+
     [Fact]
     public async Task Handle_AConnectionNothingIsDrawnFrom_IsRefusedByName()
     {

@@ -26,6 +26,28 @@ public class SpawnTriggerTests
         t.Async.Should().BeFalse(); // synchronous spawn-and-wait by default
     }
 
+    [Theory]
+    [InlineData("startAgain", SpawnKind.StartAgain)]
+    [InlineData("carryOn", SpawnKind.CarryOn)]
+    public void Resolve_ABodyNamingARunToStartAgainOrCarryOn_IsThatAskAboutThatRun(string asked, SpawnKind kind)
+    {
+        var run = Guid.NewGuid();
+
+        var t = SpawnTrigger.Resolve(Json($"{{\"{asked}\": \"{run}\"}}"));
+
+        (t.Kind, t.TargetId, t.Error).Should().Be((kind, run, (string?)null));
+    }
+
+    [Theory]
+    [InlineData("startAgain")]
+    [InlineData("carryOn")]
+    public void Resolve_ABodyNamingARunThatIsNotAnIdentifier_IsRefused(string asked)
+    {
+        var t = SpawnTrigger.Resolve(Json($"{{\"{asked}\": \"yesterday's run\"}}"));
+
+        (t.Kind, t.Error).Should().Be((SpawnKind.Invalid, $"'{asked}' must be a guid."));
+    }
+
     [Fact]
     public void Resolve_HttpBodyGivingParametersUnderTheClippedWord_CarriesNone()
     {

@@ -16,6 +16,9 @@ public static class RunStatus
     public const string Waiting = "waiting";
     // A call never reached the node's service and the node pauses before the next attempt.
     public const string Trying = "trying";
+    // The orchestrator stopped while the node was in the middle of a call, and the run could not be carried on
+    // without calling it again; a person may carry the run on.
+    public const string Interrupted = "interrupted";
     // The drawing was judged unable to run, so nothing ran.
     public const string Refused = "refused";
     // A rehearsal reached its ends; an end that would have sent or started something did neither.
