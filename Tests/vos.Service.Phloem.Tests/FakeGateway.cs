@@ -18,7 +18,7 @@ internal sealed class FakeGateway : IMyceliumGateway
     public List<(string Subdomain, JsonElement Envelope)> Envelopes { get; } = new();
     public List<string> StatusUpdates { get; } = new();
     public List<(string Name, string Status)> NodeStatuses { get; } = new();
-    public List<(Guid RunId, Guid PipelineId, RunSubject? Subject, Guid? RequestId, Guid? StartedBy)> RunsCreated { get; } = new();
+    public List<(Guid RunId, Guid PipelineId, RunSubject? Subject, Guid? RequestId, Guid? StartedBy, Guid? Repeats)> RunsCreated { get; } = new();
     public List<Guid> StartTargetsAsked { get; } = new();
     public List<Guid> RelatedFromAsked { get; } = new();
     public List<IReadOnlyCollection<Guid>> StartReadsWidenedBy { get; } = new();
@@ -80,11 +80,11 @@ internal sealed class FakeGateway : IMyceliumGateway
     public Exception? RunCreationFailure { get; set; }
 
     public Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct, RunSubject? subject = null, Guid? requestId = null, JsonElement? parameters = null, Guid? startedBy = null,
-        string? refusal = null, bool rehearsal = false)
+        string? refusal = null, bool rehearsal = false, Guid? repeats = null)
     {
         if (RunCreationFailure is not null) throw RunCreationFailure;
         if (rehearsal) lock (Rehearsals) Rehearsals.Add(runId);
-        lock (RunsCreated) RunsCreated.Add((runId, pipelineId, subject, requestId, startedBy));
+        lock (RunsCreated) RunsCreated.Add((runId, pipelineId, subject, requestId, startedBy, repeats));
         if (refusal is not null)
         {
             StatusUpdates.Add(RunStatus.Refused);

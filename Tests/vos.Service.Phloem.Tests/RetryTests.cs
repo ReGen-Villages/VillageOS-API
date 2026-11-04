@@ -591,7 +591,7 @@ public class RetryTests
     }
 
     [Fact]
-    public async Task A_person_starting_a_run_a_restart_stopped_again_gets_a_fresh_run_of_its_pipeline_with_its_parameters()
+    public async Task A_person_starting_a_run_a_restart_stopped_again_gets_a_fresh_run_of_its_pipeline_with_its_parameters_naming_the_run_it_repeats()
     {
         var (retry, gateway, executor, runId) = await ARunARestartStoppedAsync();
 
@@ -603,6 +603,8 @@ public class RetryTests
         gateway.RunStatusOf(startedAgain!.Value).Should().Be(RunStatus.Succeeded);
         gateway.Runs[startedAgain.Value].PipelineId.Should().Be(retry.PipelineId);
         gateway.Runs[startedAgain.Value].Parameters.GetProperty("seed").GetString().Should().Be("world");
+        var fresh = gateway.RunsCreated.Single(run => run.RunId == startedAgain.Value);
+        (fresh.Repeats, fresh.StartedBy).Should().Be(((Guid?)runId, (Guid?)null), "a run started again is no follow-on of the run it repeats");
         gateway.RunStatusOf(runId).Should().Be(RunStatus.Failed, "the run it repeats is left as it was");
     }
 }

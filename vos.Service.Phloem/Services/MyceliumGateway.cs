@@ -133,7 +133,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 
     public async Task CreateRunAsync(
         Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null, Guid? requestId = null,
-        JsonElement? parameters = null, Guid? startedBy = null, string? refusal = null, bool rehearsal = false)
+        JsonElement? parameters = null, Guid? startedBy = null, string? refusal = null, bool rehearsal = false, Guid? repeats = null)
     {
         // The result, the error and the finish are declared here with no value. Each is known only once the
         // run ends, and the property route sets a property the Thing already carries — so a run given one
@@ -159,6 +159,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         ], cancellationToken);
 
         if (startedBy is { } starter) await RelateIfBoundAsync(runId, PipelineRoles.StartingRun, starter, cancellationToken);
+        if (repeats is { } repeated) await RelateIfBoundAsync(runId, PipelineRoles.RepeatedRun, repeated, cancellationToken);
         if (subject is { } about) await RelateIfBoundAsync(runId, PipelineRoles.RunSubject, about.Id, cancellationToken);
     }
 

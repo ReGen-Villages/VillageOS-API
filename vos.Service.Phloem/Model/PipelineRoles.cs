@@ -62,6 +62,8 @@ public static class PipelineRoles
     public static readonly Role RunResumption = new("runResumption", new("50c894ed-a33d-56cc-a5a6-92aa82d32f4f"));
     // A run started by another run's end reaches the run that started it.
     public static readonly Role StartingRun = new("startingRun", new("9dd7221e-f438-5ccc-b89d-25c9cd56f45c"));
+    // A run a person started again reaches the run it repeats.
+    public static readonly Role RepeatedRun = new("repeatedRun", new("7a0975c1-510c-5585-b39e-31995807083f"));
     // One call of a node's service, held by the node run that made it; and the pipeline a node hands its subject
     // to when its trying ends without an answer.
     public static readonly Role Attempt = new("attempt", new("d3014b77-c8f2-51d8-bb74-098c26296944"));

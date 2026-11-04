@@ -54,7 +54,7 @@ public sealed class PipelineExecutor
     // one value carrying the Thing's id and name, so a wire narrows it to either by its from-path.
     public async Task<PipelineRunResult> RunAsync(
         Guid pipelineId, JsonElement runParams, CancellationToken cancellationToken, Guid? runId = null, RunSubject? subject = null,
-        Guid? requestId = null, Guid? startedBy = null, bool rehearsal = false)
+        Guid? requestId = null, Guid? startedBy = null, bool rehearsal = false, Guid? repeats = null)
     {
         var rid = runId ?? Guid.NewGuid();
         if (subject is not null) runParams = WithSubject(runParams, subject);
@@ -64,7 +64,7 @@ public sealed class PipelineExecutor
         var (dag, refusal) = await LoadAsync(pipelineId, cancellationToken, new Start(runParams, rehearsal));
         try
         {
-            await _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject, requestId, runParams, startedBy, refusal, rehearsal);
+            await _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject, requestId, runParams, startedBy, refusal, rehearsal, repeats);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -314,7 +314,7 @@ public sealed class PipelineExecutor
         var fresh = Guid.NewGuid();
         _ = Task.Run(async () =>
         {
-            try { await RunAsync(record.PipelineId, record.Parameters, CancellationToken.None, fresh, rehearsal: record.Rehearsal); }
+            try { await RunAsync(record.PipelineId, record.Parameters, CancellationToken.None, fresh, rehearsal: record.Rehearsal, repeats: runId); }
             catch (Exception ex) { _logger.LogError(ex, "Starting run {RunId} again as {FreshRunId} failed", runId, fresh); }
         });
         return (fresh, null);
