@@ -300,3 +300,49 @@ def test_a_raster_given_as_a_graph_reference_is_still_held_to_the_allowed_source
         body = run_node(client, {"operation": "metadata"}, {"raster": {"ref": {"thingId": thing, "property": "raster"}}}).json()
     assert body["result"] == "fail"
     assert body["error"].startswith("source_not_allowed:")
+
+
+def test_the_manifest_says_quadrat_rehearses_since_it_writes_nothing_but_its_answer(client):
+    assert client.get("/manifest").json()["rehearses"] is True
+
+
+def test_the_manifest_lists_the_node_settings_with_their_allowed_values(client):
+    settings = client.get("/manifest").json()["settings"]
+    assert settings == [
+        {"name": "operation", "required": True, "values": ["metadata", "point", "zonal"]},
+        {"name": "resampling", "required": False, "values": ["nearest", "bilinear"], "default": "nearest"},
+        {"name": "encoding", "required": False, "values": ["terrarium", "mapbox"]},
+    ]
+
+
+def test_every_value_the_manifest_offers_is_one_the_service_accepts(client, degrees_grid, terrain_png):
+    settings = {setting["name"]: setting["values"] for setting in client.get("/manifest").json()["settings"]}
+    point = {"raster": degrees_grid, "lon": 2.5, "lat": 7.5}
+    inputs = {"metadata": {"raster": degrees_grid}, "point": point, "zonal": {"raster": degrees_grid, "bbox": [0, 8, 2, 10]}}
+    for operation in settings["operation"]:
+        assert run_node(client, {"operation": operation}, inputs[operation]).json()["result"] == "success", operation
+    for resampling in settings["resampling"]:
+        assert run_node(client, {"operation": "point", "resampling": resampling}, point).json()["result"] == "success", resampling
+    tile = {"raster": terrain_png, "tile": {"z": 1, "x": 1, "y": 0}, "lon": 10, "lat": 80}
+    for encoding in settings["encoding"]:
+        assert run_node(client, {"operation": "point", "encoding": encoding}, tile).json()["result"] == "success", encoding
+
+
+@pytest.mark.parametrize("unset", ["", None])
+def test_a_setting_a_declared_node_carries_empty_is_read_as_not_set(client, degrees_grid, unset):
+    body = run_node(client, {"operation": "point", "resampling": unset, "encoding": unset}, {"raster": degrees_grid, "lon": 2.5, "lat": 7.5}).json()
+    assert body["result"] == "success"
+    assert body["outputs"]["result"]["value"] == 22.0
+    assert body["outputs"]["result"]["resampling"] == "nearest"
+
+
+def test_an_empty_encoding_beside_a_tile_is_still_an_unstated_encoding(client, terrain_png):
+    body = run_node(client, {"operation": "point", "encoding": ""}, {"raster": terrain_png, "tile": {"z": 1, "x": 1, "y": 0}, "lon": 10, "lat": 80}).json()
+    assert body["result"] == "fail"
+    assert body["error"].startswith("unstated_encoding:")
+
+
+def test_an_empty_operation_is_refused_naming_the_ones_there_are(client, degrees_grid):
+    body = run_node(client, {"operation": ""}, {"raster": degrees_grid}).json()
+    assert body["result"] == "fail"
+    assert body["error"].startswith("unknown_operation:") and "zonal" in body["error"]

@@ -36,6 +36,22 @@ The contract (arguments, `ApiKey` or `Token` and `VerificationKey` from the envi
 with `400`. `GET /manifest` lists the ports. An input given as a graph reference (`{"ref": {"thingId", "property"}}`)
 is read from the graph before the operation runs, and the source rules below then apply to what it held.
 
+### What the manifest carries
+
+`GET /manifest` is what a model needs to declare Quadrat, and `tools/pipeline-playground/declare_service.py` reads it
+for that:
+
+| | |
+|---|---|
+| `service` | `Quadrat` |
+| `rehearses` | `true`: Quadrat writes nothing but its answer, so a rehearsal may call it |
+| `ports` | `raster` (required), `tile`, `lon`, `lat`, `bbox`, `geometry` in; `result` out |
+| `settings` | `operation` (required: `metadata`, `point`, `zonal`), `resampling` (`nearest` or `bilinear`, default `nearest`; `point` only) and `encoding` (`terrarium` or `mapbox`; with a `tile` only) |
+
+The settings arrive in `params`, not through ports. A node declared from the manifest carries every setting, empty
+until someone sets it, so an empty `resampling` or `encoding` reads as not set. An empty `operation` is refused. The
+allowed values are read from the code, so the manifest cannot offer one the service would refuse.
+
 ### Where it reads from
 
 A request names a raster, but never decides where the service may look. Quadrat reads only from the sources it is
