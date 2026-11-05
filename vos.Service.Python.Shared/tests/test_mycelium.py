@@ -317,3 +317,23 @@ def test_unsubscribe_releases_the_subscription(mycelium):
     assert captured[0].method == "DELETE"
     assert captured[0].url.path == "/api/subscriptions/s-1"
     assert captured[0].headers["Authorization"] == "Bearer tok"
+
+
+def test_the_properties_of_a_thing_are_read_with_the_bearer(mycelium):
+    captured = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(200, json={"Mass": {"Value": 42}})
+
+    properties = run_against(handle, lambda c: mycelium.thing_properties("6d2b0c1e-0000-4000-8000-000000000003", client=c))
+    assert properties == {"Mass": {"Value": 42}}
+    assert captured[0].method == "GET"
+    assert captured[0].url.path == "/api/things/6d2b0c1e-0000-4000-8000-000000000003/properties"
+    assert captured[0].headers["authorization"] == "Bearer tok"
+
+
+def test_properties_that_cannot_be_read_raise_with_the_status(mycelium):
+    with pytest.raises(RuntimeError, match="404"):
+        run_against(lambda request: httpx.Response(404), lambda c: mycelium.thing_properties("6d2b0c1e-0000-4000-8000-000000000003", client=c))
+

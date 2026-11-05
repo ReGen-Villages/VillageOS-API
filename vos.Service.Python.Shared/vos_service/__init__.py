@@ -7,3 +7,4 @@ from .auth import verifier
 from .config import Config, parse_args, usage
 from .hosting import ServiceHost
 from .mycelium import MyceliumClient, PlatformRefusal, sediment_reading
+from .node import NodeContext, NodeService, NotANodeEnvelope, Port, Setting

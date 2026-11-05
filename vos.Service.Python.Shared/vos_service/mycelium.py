@@ -162,6 +162,19 @@ class MyceliumClient:
             async with platform_client(timeout=10) as c:
                 await c.delete(url, headers=headers)
 
+    async def thing_properties(self, thing_id, *, client: httpx.AsyncClient | None = None) -> dict:
+        """Every property of a Thing as the platform answers them, each as an object holding its `Value`."""
+        headers = {"Authorization": f"Bearer {await self.token(client=client)}"}
+        url = f"{self._config.mycelium_url}/api/things/{thing_id}/properties"
+        if client is not None:
+            res = await client.get(url, headers=headers)
+        else:
+            async with platform_client(timeout=10) as c:
+                res = await c.get(url, headers=headers)
+        if not res.is_success:
+            raise RuntimeError(f"reading the properties of thing {thing_id} returned {res.status_code}")
+        return res.json()
+
     async def _post(self, path: str, json_body, *, client: httpx.AsyncClient | None, timeout: float = 30) -> httpx.Response:
         headers = {"Authorization": f"Bearer {await self.token(client=client)}"}
         url = f"{self._config.mycelium_url}{path}"
