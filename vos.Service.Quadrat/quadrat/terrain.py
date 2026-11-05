@@ -42,7 +42,7 @@ def decode_elevation(red, green, blue, encoding):
 
 
 @contextmanager
-def decoded_tile(path, z, x, y, encoding):
+def decoded_tile(path, z, x, y, encoding, max_cells=None):
     """Yields the path to a temporary GeoTIFF of the tile's elevations in metres, placed where the tile is.
 
     The image is a plain PNG with no position of its own, so which tile it is, and how it holds elevation,
@@ -56,8 +56,12 @@ def decoded_tile(path, z, x, y, encoding):
             with rasterio.open(path) as image:
                 if image.count < 3:
                     raise Refusal("not_a_terrain_tile", f"{path} has {image.count} band(s); a terrain tile holds elevation in the red, green and blue bands")
-                red, green, blue = image.read([1, 2, 3])
                 height, width = image.height, image.width
+                if max_cells is not None and height * width > max_cells:
+                    raise Refusal(
+                        "too_many_cells",
+                        f"this image is {height * width} cells, and this service decodes at most {max_cells} in one request")
+                red, green, blue = image.read([1, 2, 3])
     except RasterioIOError as unreadable:
         raise Refusal("unreadable_raster", f"{path} could not be opened as an image: {unreadable}") from unreadable
     handle, decoded = tempfile.mkstemp(suffix=".tif", prefix="quadrat-tile-")

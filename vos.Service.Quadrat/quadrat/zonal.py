@@ -12,7 +12,7 @@ OPERATIONS = ["count", "mean", "min", "max", "median"]
 POLYGONS = ("Polygon", "MultiPolygon")
 
 
-def zonal_stats(path, geometry):
+def zonal_stats(path, geometry, max_cells=None):
     if geometry.get("type") not in POLYGONS:
         raise Refusal("unsupported_geometry", f"a zone is a Polygon or MultiPolygon, not {geometry.get('type')!r}")
     wanted = shape(geometry)
@@ -26,6 +26,13 @@ def zonal_stats(path, geometry):
         clipped = zone.intersection(box(*dataset.bounds))
         if clipped.is_empty or clipped.area == 0:
             raise Refusal("outside_raster", "the zone lies outside the raster")
+        if max_cells is not None:
+            window = _window_cells(dataset, clipped.bounds)
+            if window > max_cells:
+                raise Refusal(
+                    "too_many_cells",
+                    f"this zone needs a window of {window} cells of the raster to be read, and this service reads at most "
+                    f"{max_cells} in one request: use a smaller zone or a coarser raster")
         feature = {"type": "Feature", "properties": {}, "geometry": mapping(clipped)}
         counted = exact_extract(path, feature, OPERATIONS, output="geojson")[0]["properties"]
         covered_cells = clipped.area / abs(dataset.res[0] * dataset.res[1])
@@ -39,6 +46,17 @@ def zonal_stats(path, geometry):
             "covered_cells": covered_cells,
             "nodata_cells": max(0.0, covered_cells - count),
         }
+
+
+def _window_cells(dataset, bounds):
+    """The cells of the grid that the bounds touch, which is what a read of the zone must load, not the zone's area."""
+    west, south, east, north = bounds
+    transform = dataset.transform
+    columns = (west - transform.c) / abs(transform.a), (east - transform.c) / abs(transform.a)
+    rows = (north - transform.f) / transform.e, (south - transform.f) / transform.e
+    width = math.ceil(max(columns) - 1e-6) - math.floor(min(columns) + 1e-6)
+    height = math.ceil(max(rows) - 1e-6) - math.floor(min(rows) + 1e-6)
+    return max(width, 1) * max(height, 1)
 
 
 def _into_raster_crs(zone, dataset):

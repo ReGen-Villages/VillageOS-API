@@ -7,6 +7,7 @@ manifest. Registration is mocked so the tests never touch the network.
 
 import base64
 import time
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import AsyncMock, patch
 
 import jwt
@@ -18,10 +19,21 @@ from fastapi.testclient import TestClient
 import app as appmod
 from app import app, host
 from conftest import write_png
+from quadrat.limits import Limits
+from quadrat.pool import ReadPool
 from quadrat.sources import Sources
 
 THIS_HANDLER = "quadrat-handler"
 RUN = {"runId": "6d2b0c1e-0000-4000-8000-000000000001", "nodeId": "6d2b0c1e-0000-4000-8000-000000000002"}
+
+
+@pytest.fixture(autouse=True)
+def reads_in_this_process(monkeypatch):
+    """The tests patch things in this process, so their reads run in it; one test below uses real worker processes."""
+    pool = ReadPool(2, executor_factory=lambda: ThreadPoolExecutor(2))
+    monkeypatch.setattr(appmod, "pool", pool)
+    yield
+    pool.close()
 
 
 @pytest.fixture(autouse=True)
@@ -278,7 +290,7 @@ def test_an_error_nobody_expected_is_a_fail_answer_not_a_server_error(client, de
     def broken(raster):
         raise RuntimeError("the disk went away")
 
-    monkeypatch.setitem(appmod.OPERATIONS, "metadata", lambda params, inputs: broken(inputs["raster"]))
+    monkeypatch.setitem(appmod.OPERATIONS, "metadata", lambda params, inputs, limits: broken(inputs["raster"]))
     res = run_node(client, {"operation": "metadata"}, {"raster": degrees_grid})
     assert res.status_code == 200
     assert res.json()["result"] == "fail"
@@ -346,3 +358,72 @@ def test_an_empty_operation_is_refused_naming_the_ones_there_are(client, degrees
     body = run_node(client, {"operation": ""}, {"raster": degrees_grid}).json()
     assert body["result"] == "fail"
     assert body["error"].startswith("unknown_operation:") and "zonal" in body["error"]
+
+
+def test_a_zone_over_the_limit_is_a_fail_answer_naming_the_code(client, degrees_grid, monkeypatch):
+    monkeypatch.setattr(appmod, "limits", Limits(max_cells=3))
+    body = run_node(client, {"operation": "zonal"}, {"raster": degrees_grid, "bbox": [0, 8, 2, 10]}).json()
+    assert body["result"] == "fail"
+    assert body["error"].startswith("too_many_cells:")
+
+
+def test_a_terrain_tile_over_the_limit_is_a_fail_answer_naming_the_code(client, terrain_png, monkeypatch):
+    monkeypatch.setattr(appmod, "limits", Limits(max_cells=3))
+    body = run_node(client, {"operation": "point", "encoding": "terrarium"}, {"raster": terrain_png, "tile": {"z": 1, "x": 1, "y": 0}, "lon": 10, "lat": 80}).json()
+    assert body["result"] == "fail"
+    assert body["error"].startswith("too_many_cells:")
+
+
+def test_a_point_and_a_description_read_no_window_so_the_cell_limit_does_not_touch_them(client, degrees_grid, monkeypatch):
+    monkeypatch.setattr(appmod, "limits", Limits(max_cells=1))
+    assert run_node(client, {"operation": "point"}, {"raster": degrees_grid, "lon": 2.5, "lat": 7.5}).json()["result"] == "success"
+    assert run_node(client, {"operation": "metadata"}, {"raster": degrees_grid}).json()["result"] == "success"
+
+
+def test_the_node_runs_no_more_reads_at_once_than_the_limit_says():
+    assert appmod.node.max_concurrent == appmod.limits.max_concurrent_reads == 2
+
+
+def test_health_keeps_answering_while_a_large_read_runs_because_reads_run_in_worker_processes(tmp_path, monkeypatch):
+    import asyncio
+
+    import httpx
+    import numpy as np
+    import rasterio
+    from rasterio.transform import from_origin
+
+    from quadrat.pool import ReadPool
+
+    side = 2000
+    path = tmp_path / "large.tif"
+    with rasterio.open(path, "w", driver="GTiff", height=side, width=side, count=1, dtype="float32", crs="EPSG:4326",
+                       transform=from_origin(0, 10, 10 / side, 10 / side), tiled=True, blockxsize=256, blockysize=256, compress="deflate") as dataset:
+        rng = np.random.default_rng(1)
+        for top in range(0, side, 256):
+            height = min(256, side - top)
+            dataset.write(rng.random((height, side), dtype="float32"), 1, window=rasterio.windows.Window(0, top, side, height))
+
+    pool = ReadPool(workers=1)
+    monkeypatch.setattr(appmod, "pool", pool)
+    envelope = {**RUN, "params": {"operation": "zonal"}, "inputs": {"raster": str(path), "bbox": [0.0001, 0.0001, 9.9999, 9.9999]}}
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://quadrat.test") as http:
+            await http.post("/handle", json={**RUN, "params": {"operation": "metadata"}, "inputs": {"raster": str(path)}})
+            read = asyncio.create_task(http.post("/handle", json=envelope))
+            answered, slowest = 0, 0.0
+            while not read.done():
+                started = time.perf_counter()
+                assert (await http.get("/health")).status_code == 200
+                slowest = max(slowest, time.perf_counter() - started)
+                answered += 1
+                await asyncio.sleep(0.02)
+            return answered, slowest, read.result()
+
+    try:
+        answered, slowest, read = asyncio.run(go())
+    finally:
+        pool.close()
+    assert read.json()["result"] == "success"
+    assert answered >= 20, f"health answered only {answered} times during the read"
+    assert slowest < 1.0, f"health stalled for {slowest:.2f}s during the read"

@@ -127,3 +127,23 @@ def test_a_real_terrarium_tile_agrees_with_the_geotiff_of_the_same_tile():
     assert decoded["mean"] == pytest.approx(expected["mean"], abs=2)
     assert decoded["max"] == pytest.approx(expected["max"], abs=40)
     assert decoded["min"] == pytest.approx(expected["min"], abs=5)
+
+
+def test_a_tile_image_over_the_limit_is_refused_saying_how_many_cells_before_it_is_read(tmp_path, monkeypatch):
+    png = write_png(tmp_path / "tile.png", [[(128, 0, 0)] * 4] * 4)
+
+    def read(*args, **kwargs):
+        raise AssertionError("the image was read for a tile over the limit")
+
+    monkeypatch.setattr("rasterio.io.DatasetReader.read", read)
+    with pytest.raises(Refusal) as refusal:
+        with decoded_tile(png, 0, 0, 0, "terrarium", max_cells=15):
+            pass
+    assert refusal.value.code == "too_many_cells"
+    assert "16" in refusal.value.reason and "15" in refusal.value.reason
+
+
+def test_a_tile_image_at_exactly_the_limit_is_decoded(tmp_path):
+    png = write_png(tmp_path / "tile.png", [[(128, 0, 0)] * 4] * 4)
+    with decoded_tile(png, 0, 0, 0, "terrarium", max_cells=16) as raster:
+        assert describe(raster)["width"] == 4
