@@ -5,6 +5,7 @@ import time
 import uuid
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -281,3 +282,108 @@ def test_handle_still_requires_a_token_once_a_key_is_configured(client):
     config.verification_key = base64.b64encode(pair.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)).decode()
     config.issuer, config.audience = "VillageOS", "example"
     assert run(client).status_code == 401
+
+
+class Concurrency:
+    """Counts how many runs are inside the operation at once."""
+
+    def __init__(self, hold=0.05):
+        self.running = 0
+        self.peak = 0
+        self.hold = hold
+        self.lock = threading.Lock()
+        self.release = threading.Event()
+
+    def work(self, context):
+        with self.lock:
+            self.running += 1
+            self.peak = max(self.peak, self.running)
+        try:
+            time.sleep(self.hold)
+            return {}
+        finally:
+            with self.lock:
+                self.running -= 1
+
+    def blocked(self, context):
+        with self.lock:
+            self.running += 1
+            self.peak = max(self.peak, self.running)
+        try:
+            self.release.wait(10)
+            return {}
+        finally:
+            with self.lock:
+                self.running -= 1
+
+
+def serve(execute, **options):
+    node = NodeService(execute, PORTS, **options)
+    host = ServiceHost("Example", Config(port=5110, mycelium_url="https://mycelium.test", token="tok"), node.handle)
+    node.mount(host)
+    return httpx.AsyncClient(transport=httpx.ASGITransport(app=host.app), base_url="http://node.test")
+
+
+def test_no_more_runs_are_inside_the_operation_at_once_than_the_cap_allows():
+    counted = Concurrency()
+
+    async def go():
+        async with serve(counted.work, max_concurrent=2) as client:
+            return await asyncio.gather(*[client.post("/handle", json=ENVELOPE) for _ in range(8)])
+
+    answers = asyncio.run(go())
+    assert [phloem_reads(answer.json())[0] for answer in answers] == ["success"] * 8
+    assert counted.peak == 2
+
+
+def test_without_a_cap_every_run_goes_at_once():
+    counted = Concurrency(hold=0.2)
+
+    async def go():
+        async with serve(counted.work) as client:
+            await asyncio.gather(*[client.post("/handle", json=ENVELOPE) for _ in range(6)])
+
+    asyncio.run(go())
+    assert counted.peak > 2
+
+
+def test_health_answers_while_runs_are_held_and_others_wait_for_a_free_place():
+    counted = Concurrency()
+
+    async def go():
+        async with serve(counted.blocked, max_concurrent=1) as client:
+            runs = [asyncio.create_task(client.post("/handle", json=ENVELOPE)) for _ in range(4)]
+            await asyncio.sleep(0.3)
+            health = await asyncio.wait_for(client.get("/health"), timeout=2)
+            held = counted.running
+            counted.release.set()
+            return health, held, await asyncio.gather(*runs)
+
+    health, held, answers = asyncio.run(go())
+    assert health.status_code == 200
+    assert held == 1
+    assert counted.peak == 1
+    assert [phloem_reads(answer.json())[0] for answer in answers] == ["success"] * 4
+
+
+def test_a_run_that_fails_gives_its_place_back():
+    def work(context):
+        if context.input("fail"):
+            raise RuntimeError("no")
+        return {"ok": True}
+
+    async def go():
+        async with serve(work, max_concurrent=1) as client:
+            first = await client.post("/handle", json={**ENVELOPE, "inputs": {"fail": True}})
+            second = await asyncio.wait_for(client.post("/handle", json=ENVELOPE), timeout=2)
+            return first, second
+
+    first, second = asyncio.run(go())
+    assert phloem_reads(first.json())[0] == "fail"
+    assert phloem_reads(second.json()) == ("success", {"ok": True}, None)
+
+
+@pytest.mark.parametrize("cap", [0, -1])
+def test_a_cap_that_is_not_a_positive_number_is_refused_when_the_node_is_built(cap):
+    with pytest.raises(ValueError, match="max_concurrent"):
+        NodeService(lambda context: {}, PORTS, max_concurrent=cap)
