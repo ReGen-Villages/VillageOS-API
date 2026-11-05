@@ -56,8 +56,21 @@ def make_token(pair) -> str:
     return jwt.encode(claims, pair, algorithm="ES256")
 
 
+def phloem_reads(body):
+    """The answer as Phloem's PipelineExecutor.ParseNodeResponse reads it: `result` must be the string
+    success or fail, and a fail carries its error. An answer that says `success: true` fails every node."""
+    result = body.get("result") if isinstance(body, dict) else None
+    assert result in ("success", "fail"), f"Phloem fails an answer whose result is {result!r}: {body}"
+    if result == "fail":
+        assert isinstance(body.get("error"), str) and body["error"], "a fail answer says why"
+    return result
+
+
 def run_node(client, params, inputs):
-    return client.post("/handle", json={**RUN, "params": params, "inputs": inputs})
+    res = client.post("/handle", json={**RUN, "params": params, "inputs": inputs})
+    if res.status_code == 200:
+        phloem_reads(res.json())
+    return res
 
 
 def test_health_names_the_service(client):
@@ -70,7 +83,7 @@ def test_metadata_answers_the_rasters_shape(client, degrees_grid):
     res = run_node(client, {"operation": "metadata"}, {"raster": degrees_grid})
     body = res.json()
     assert res.status_code == 200
-    assert body["success"] is True
+    assert body["result"] == "success"
     assert body["outputs"]["result"]["width"] == 10
 
 
@@ -101,7 +114,7 @@ def test_a_zone_given_two_ways_is_refused(client, degrees_grid):
     polygon = {"type": "Polygon", "coordinates": [[[0, 8], [2, 8], [2, 10], [0, 10], [0, 8]]]}
     res = run_node(client, {"operation": "zonal"}, {"raster": degrees_grid, "bbox": [0, 8, 2, 10], "geometry": polygon})
     body = res.json()
-    assert body["success"] is False
+    assert body["result"] == "fail"
     assert "bbox" in body["error"] and "geometry" in body["error"]
 
 
@@ -109,7 +122,7 @@ def test_a_request_quadrat_will_not_answer_is_reported_with_its_code(client, deg
     res = run_node(client, {"operation": "point"}, {"raster": degrees_grid, "lon": 50, "lat": 50})
     body = res.json()
     assert res.status_code == 200
-    assert body["success"] is False
+    assert body["result"] == "fail"
     assert body["outputs"] == {}
     assert body["error"].startswith("outside_raster:")
 
@@ -118,14 +131,14 @@ def test_an_unreadable_raster_is_reported_not_raised(client, tmp_path):
     res = run_node(client, {"operation": "metadata"}, {"raster": str(tmp_path / "missing.tif")})
     body = res.json()
     assert res.status_code == 200
-    assert body["success"] is False
+    assert body["result"] == "fail"
     assert body["error"].startswith("unreadable_raster:")
 
 
 @pytest.mark.parametrize("params", [{}, {"operation": "histogram"}])
 def test_a_missing_or_unknown_operation_names_the_ones_there_are(client, degrees_grid, params):
     body = run_node(client, params, {"raster": degrees_grid}).json()
-    assert body["success"] is False
+    assert body["result"] == "fail"
     assert "metadata" in body["error"] and "point" in body["error"] and "zonal" in body["error"]
 
 
@@ -139,7 +152,7 @@ def test_an_operation_missing_an_input_says_which(client, degrees_grid, inputs, 
     operation = "zonal" if missing == "bbox" else "point" if missing in ("lon", "lat") else "metadata"
     inputs = {name: degrees_grid if value == "RASTER" else value for name, value in inputs.items()}
     body = run_node(client, {"operation": operation}, inputs).json()
-    assert body["success"] is False
+    assert body["result"] == "fail"
     assert missing in body["error"]
 
 
@@ -163,7 +176,7 @@ def test_handle_requires_a_token_once_a_key_is_configured(client, signing, degre
     assert client.post("/handle", json=body).status_code == 401
     ok = client.post("/handle", json=body, headers={"Authorization": f"Bearer {make_token(signing)}"})
     assert ok.status_code == 200
-    assert ok.json()["success"] is True
+    assert ok.json()["result"] == "success"
 
 
 @pytest.fixture
@@ -183,20 +196,20 @@ def test_a_zone_is_read_from_a_terrain_tile(client, terrain_png):
 
 def test_a_terrain_tile_with_no_encoding_is_reported_with_its_code(client, terrain_png):
     body = run_node(client, {"operation": "point"}, {"raster": terrain_png, "tile": {"z": 1, "x": 1, "y": 0}, "lon": 10, "lat": 80}).json()
-    assert body["success"] is False
+    assert body["result"] == "fail"
     assert body["error"].startswith("unstated_encoding:")
 
 
 def test_an_encoding_given_for_a_raster_that_is_not_a_tile_is_refused(client, degrees_grid):
     body = run_node(client, {"operation": "metadata", "encoding": "terrarium"}, {"raster": degrees_grid}).json()
-    assert body["success"] is False
+    assert body["result"] == "fail"
     assert body["error"].startswith("encoding_without_tile:")
 
 
 @pytest.mark.parametrize("tile", [{"z": 1, "x": 5, "y": 0}, {"z": 1}, "1/1/0"])
 def test_a_tile_that_does_not_exist_or_is_not_stated_fully_is_refused(client, terrain_png, tile):
     body = run_node(client, {"operation": "metadata", "encoding": "terrarium"}, {"raster": terrain_png, "tile": tile}).json()
-    assert body["success"] is False
+    assert body["result"] == "fail"
     assert body["error"].startswith(("invalid_tile:", "missing_input:"))
 
 
@@ -221,25 +234,69 @@ def raster_library_is_never_reached(monkeypatch):
 def test_a_raster_outside_the_allowed_folders_is_refused_before_it_is_opened(client, tmp_path, raster_library_is_never_reached, operation, inputs):
     outside = tmp_path.parent / "elsewhere.tif"
     body = run_node(client, {"operation": operation}, {"raster": str(outside), **inputs}).json()
-    assert body["success"] is False
+    assert body["result"] == "fail"
     assert body["error"].startswith("source_not_allowed:")
 
 
 @pytest.mark.parametrize("raster", ["https://data.example.org/dem.tif", "/vsicurl/https://data.example.org/dem.tif", "file:///etc/passwd"])
 def test_a_web_address_is_refused_before_it_is_opened(client, raster_library_is_never_reached, raster):
     body = run_node(client, {"operation": "metadata"}, {"raster": raster}).json()
-    assert body["success"] is False
+    assert body["result"] == "fail"
     assert body["error"].startswith("source_not_allowed:")
 
 
 def test_a_terrain_tile_outside_the_allowed_folders_is_refused_before_it_is_opened(client, tmp_path, raster_library_is_never_reached):
     body = run_node(client, {"operation": "metadata", "encoding": "terrarium"}, {"raster": str(tmp_path.parent / "tile.png"), "tile": {"z": 1, "x": 1, "y": 0}}).json()
-    assert body["success"] is False
+    assert body["result"] == "fail"
     assert body["error"].startswith("source_not_allowed:")
 
 
 def test_a_service_with_no_sources_configured_reads_nothing(client, degrees_grid, monkeypatch):
     monkeypatch.setattr(appmod, "sources", Sources())
     body = run_node(client, {"operation": "metadata"}, {"raster": degrees_grid}).json()
-    assert body["success"] is False
+    assert body["result"] == "fail"
+    assert body["error"].startswith("source_not_allowed:")
+
+
+def test_a_successful_answer_is_the_shape_phloem_reads_and_no_other(client, degrees_grid):
+    body = run_node(client, {"operation": "metadata"}, {"raster": degrees_grid}).json()
+    assert set(body) == {"result", "outputs", "error"}
+    assert body["result"] == "success"
+    assert body["error"] is None
+    assert set(body["outputs"]) == {"result"}
+
+
+def test_a_failed_answer_is_the_shape_phloem_reads_and_no_other(client, degrees_grid):
+    body = run_node(client, {"operation": "point"}, {"raster": degrees_grid, "lon": 50, "lat": 50}).json()
+    assert set(body) == {"result", "outputs", "error"}
+    assert body["result"] == "fail"
+    assert body["outputs"] == {}
+    assert body["error"].startswith("outside_raster:")
+
+
+def test_an_error_nobody_expected_is_a_fail_answer_not_a_server_error(client, degrees_grid, monkeypatch):
+    def broken(raster):
+        raise RuntimeError("the disk went away")
+
+    monkeypatch.setitem(appmod.OPERATIONS, "metadata", lambda params, inputs: broken(inputs["raster"]))
+    res = run_node(client, {"operation": "metadata"}, {"raster": degrees_grid})
+    assert res.status_code == 200
+    assert res.json()["result"] == "fail"
+    assert res.json()["error"] == "the disk went away"
+
+
+def test_a_raster_given_as_a_graph_reference_is_read_from_the_graph(client, degrees_grid):
+    thing = "6d2b0c1e-0000-4000-8000-000000000009"
+    with patch.object(host.mycelium, "thing_properties", new=AsyncMock(return_value={"Raster": {"Value": degrees_grid}})):
+        body = run_node(client, {"operation": "metadata"}, {"raster": {"ref": {"thingId": thing, "property": "raster"}}}).json()
+    assert body["result"] == "success"
+    assert body["outputs"]["result"]["width"] == 10
+
+
+def test_a_raster_given_as_a_graph_reference_is_still_held_to_the_allowed_sources(client, tmp_path, raster_library_is_never_reached):
+    thing = "6d2b0c1e-0000-4000-8000-000000000009"
+    outside = str(tmp_path.parent / "elsewhere.tif")
+    with patch.object(host.mycelium, "thing_properties", new=AsyncMock(return_value={"Raster": {"Value": outside}})):
+        body = run_node(client, {"operation": "metadata"}, {"raster": {"ref": {"thingId": thing, "property": "raster"}}}).json()
+    assert body["result"] == "fail"
     assert body["error"].startswith("source_not_allowed:")
