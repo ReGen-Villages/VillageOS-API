@@ -18,9 +18,16 @@ from fastapi.testclient import TestClient
 import app as appmod
 from app import app, host
 from conftest import write_png
+from quadrat.sources import Sources
 
 THIS_HANDLER = "quadrat-handler"
 RUN = {"runId": "6d2b0c1e-0000-4000-8000-000000000001", "nodeId": "6d2b0c1e-0000-4000-8000-000000000002"}
+
+
+@pytest.fixture(autouse=True)
+def readable(tmp_path, monkeypatch):
+    """The service reads only what it is configured with; these tests configure their own temporary folder."""
+    monkeypatch.setattr(appmod, "sources", Sources(directories=[str(tmp_path)]))
 
 
 @pytest.fixture
@@ -124,12 +131,13 @@ def test_a_missing_or_unknown_operation_names_the_ones_there_are(client, degrees
 
 @pytest.mark.parametrize("inputs, missing", [
     ({}, "raster"),
-    ({"raster": "r.tif", "lat": 1.0}, "lon"),
-    ({"raster": "r.tif", "lon": 1.0}, "lat"),
-    ({"raster": "r.tif"}, "bbox"),
+    ({"raster": "RASTER", "lat": 1.0}, "lon"),
+    ({"raster": "RASTER", "lon": 1.0}, "lat"),
+    ({"raster": "RASTER"}, "bbox"),
 ])
-def test_an_operation_missing_an_input_says_which(client, inputs, missing):
+def test_an_operation_missing_an_input_says_which(client, degrees_grid, inputs, missing):
     operation = "zonal" if missing == "bbox" else "point" if missing in ("lon", "lat") else "metadata"
+    inputs = {name: degrees_grid if value == "RASTER" else value for name, value in inputs.items()}
     body = run_node(client, {"operation": operation}, inputs).json()
     assert body["success"] is False
     assert missing in body["error"]
@@ -196,3 +204,42 @@ def test_the_manifest_declares_the_tile_port(client):
     ports = {p["portName"]: p for p in client.get("/manifest").json()["ports"]}
     assert ports["tile"]["direction"] == "in" and ports["tile"]["required"] is False
 
+
+@pytest.fixture
+def raster_library_is_never_reached(monkeypatch):
+    def reached(*args, **kwargs):
+        raise AssertionError("the raster library was handed a source the service does not allow")
+
+    monkeypatch.setattr("rasterio.open", reached)
+
+
+@pytest.mark.parametrize("operation, inputs", [
+    ("metadata", {}),
+    ("point", {"lon": 1, "lat": 1}),
+    ("zonal", {"bbox": [0, 0, 1, 1]}),
+])
+def test_a_raster_outside_the_allowed_folders_is_refused_before_it_is_opened(client, tmp_path, raster_library_is_never_reached, operation, inputs):
+    outside = tmp_path.parent / "elsewhere.tif"
+    body = run_node(client, {"operation": operation}, {"raster": str(outside), **inputs}).json()
+    assert body["success"] is False
+    assert body["error"].startswith("source_not_allowed:")
+
+
+@pytest.mark.parametrize("raster", ["https://data.example.org/dem.tif", "/vsicurl/https://data.example.org/dem.tif", "file:///etc/passwd"])
+def test_a_web_address_is_refused_before_it_is_opened(client, raster_library_is_never_reached, raster):
+    body = run_node(client, {"operation": "metadata"}, {"raster": raster}).json()
+    assert body["success"] is False
+    assert body["error"].startswith("source_not_allowed:")
+
+
+def test_a_terrain_tile_outside_the_allowed_folders_is_refused_before_it_is_opened(client, tmp_path, raster_library_is_never_reached):
+    body = run_node(client, {"operation": "metadata", "encoding": "terrarium"}, {"raster": str(tmp_path.parent / "tile.png"), "tile": {"z": 1, "x": 1, "y": 0}}).json()
+    assert body["success"] is False
+    assert body["error"].startswith("source_not_allowed:")
+
+
+def test_a_service_with_no_sources_configured_reads_nothing(client, degrees_grid, monkeypatch):
+    monkeypatch.setattr(appmod, "sources", Sources())
+    body = run_node(client, {"operation": "metadata"}, {"raster": degrees_grid}).json()
+    assert body["success"] is False
+    assert body["error"].startswith("source_not_allowed:")

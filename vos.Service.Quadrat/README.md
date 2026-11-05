@@ -26,13 +26,27 @@ A request Quadrat will not answer prints `{"refused": "<code>", "reason": "..."}
 ## As a service
 
 ```bash
-.venv/bin/python app.py --port=5110 --myceliumUrl=https://localhost:7243
+.venv/bin/python app.py --port=5110 --myceliumUrl=https://localhost:7243 --rasterDirectory=/data/rasters
 ```
 
 The contract (arguments, `ApiKey` or `Token` and `VerificationKey` from the environment, registration, `/health`,
 `/stats`, `/shutdown`) is the shared library's. Quadrat answers pipeline nodes: a `/handle` body carrying `runId` and
 `nodeId` ([docs/SERVICES.md §16.2](../docs/SERVICES.md)). Any other body is refused with `400`. `GET /manifest` lists
 the ports.
+
+### Where it reads from
+
+A request names a raster, but never decides where the service may look. Quadrat reads only from the sources it is
+started with, and **with none configured it reads nothing**:
+
+| Flag | Allows |
+|---|---|
+| `--rasterDirectory=<folder>` | Any file under that folder. Repeat the flag for more folders. `..` and links are resolved first, so a path cannot leave the folder by either |
+| `--rasterUrl=<address>` | Any `http` or `https` address under that one: the same scheme and host, and a path inside it. Repeat for more |
+
+A path or address outside them is refused as `source_not_allowed` before the raster library sees it. So are the raster
+library's own virtual file systems (`/vsicurl/…`, `/vsizip/…`) and driver or scheme prefixes (`s3://`, `zip://`,
+`NETCDF:"…"`), which are never allowed. The command line is not restricted: it reads what the person running it can.
 
 | | |
 |---|---|
@@ -46,7 +60,7 @@ the ports.
 
 A request Quadrat will not answer comes back as `{"success": false, "outputs": {}, "error": "<code>: <reason>"}` with
 the codes below, plus `missing_input`, `unknown_operation`, `ambiguous_zone`, `unstated_encoding`, `unknown_encoding`,
-`encoding_without_tile`, `invalid_tile` and `not_a_terrain_tile`.
+`encoding_without_tile`, `invalid_tile`, `not_a_terrain_tile` and `source_not_allowed`.
 
 ## Operations
 
