@@ -632,7 +632,8 @@ public class RetryTests
         gateway.RunCreationHeldUntil = recording.Task;
 
         var asked = executor.StartAgainAsync(runId, CancellationToken.None);
-        await Task.Delay(100);
+        await Settle.UntilAsync(() => gateway.RunCreationStarted, "the fresh run is being recorded");
+        await Settle.BeforeAssertingAbsenceAsync(TimeSpan.FromMilliseconds(100));
         var answeredBeforeRecorded = asked.IsCompleted;
         recording.SetResult();
         var (startedAgain, _) = await asked;
@@ -675,10 +676,9 @@ public class RetryTests
         gateway.RunCreationHeldUntil = recording.Task;
 
         var first = executor.StartAgainAsync(runId, CancellationToken.None).ContinueWith(ask => ask.Result.Refusal);
-        await Task.Delay(50);
+        await Settle.UntilAsync(() => gateway.RunCreationStarted, "the first ask is recording its fresh run");
         var second = executor.StartAgainAsync(runId, CancellationToken.None).ContinueWith(ask => ask.Result.Refusal);
         var carryOn = executor.CarryOnAsync(runId, CancellationToken.None);
-        await Task.Delay(50);
         recording.SetResult();
         var asks = await Task.WhenAll(first, second, carryOn);
 

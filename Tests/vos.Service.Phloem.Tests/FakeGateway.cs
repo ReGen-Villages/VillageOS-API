@@ -81,9 +81,12 @@ internal sealed class FakeGateway : IMyceliumGateway
 
     public Task RunCreationHeldUntil { get; set; } = Task.CompletedTask;
 
+    public bool RunCreationStarted { get; private set; }
+
     public async Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct, RunSubject? subject = null, Guid? requestId = null, JsonElement? parameters = null, Guid? startedBy = null,
         string? refusal = null, bool rehearsal = false, Guid? repeats = null)
     {
+        RunCreationStarted = true;
         await RunCreationHeldUntil;
         if (RunCreationFailure is not null) throw RunCreationFailure;
         if (rehearsal) lock (Rehearsals) Rehearsals.Add(runId);
