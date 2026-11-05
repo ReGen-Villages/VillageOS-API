@@ -62,6 +62,8 @@ public class PhloemRecordsWhatStartedARunTests : IClassFixture<TheEngine>
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         relationships!.Where(relationship => relationship.SubjectId == fresh && relationship.PredicateId == repeats)
             .Should().ContainSingle().Which.TargetId.Should().Be(stopped);
+        (await gateway.ReadRunRecordAsync(stopped, CancellationToken.None))!.RepeatedBy.Should().Be(fresh);
+        (await gateway.ReadRunRecordAsync(fresh, CancellationToken.None))!.RepeatedBy.Should().BeNull();
     }
 
     private async Task BindOnceAsync(Role role, Guid played, Guid binds)

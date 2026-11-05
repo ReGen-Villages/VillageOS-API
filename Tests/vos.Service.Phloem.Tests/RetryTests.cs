@@ -607,4 +607,84 @@ public class RetryTests
         (fresh.Repeats, fresh.StartedBy).Should().Be(((Guid?)runId, (Guid?)null), "a run started again is no follow-on of the run it repeats");
         gateway.RunStatusOf(runId).Should().Be(RunStatus.Failed, "the run it repeats is left as it was");
     }
+
+    [Fact]
+    public async Task A_run_a_person_started_again_is_neither_started_again_nor_carried_on_and_the_person_is_told_which_run_repeats_it()
+    {
+        var (_, gateway, executor, runId) = await ARunARestartStoppedAsync();
+        var (startedAgain, _) = await executor.StartAgainAsync(runId, CancellationToken.None);
+        await Settle.UntilAsync(() => gateway.RunStatusOf(startedAgain!.Value) is RunStatus.Succeeded or RunStatus.Failed, "the fresh run runs to its end");
+
+        var (secondStart, startAgain) = await executor.StartAgainAsync(runId, CancellationToken.None);
+        var carryOn = await executor.CarryOnAsync(runId, CancellationToken.None);
+
+        var refused = $"Run {runId} was started again as run {startedAgain}.";
+        (startAgain, carryOn, secondStart).Should().Be((refused, refused, (Guid?)null));
+        gateway.RunsCreated.Should().ContainSingle(run => run.Repeats == runId);
+        gateway.Called.Should().ContainSingle("only the fresh run called its service");
+    }
+
+    [Fact]
+    public async Task A_person_starting_a_run_again_is_answered_only_once_the_fresh_run_is_recorded_as_repeating_it()
+    {
+        var (_, gateway, executor, runId) = await ARunARestartStoppedAsync();
+        var recording = new TaskCompletionSource();
+        gateway.RunCreationHeldUntil = recording.Task;
+
+        var asked = executor.StartAgainAsync(runId, CancellationToken.None);
+        await Task.Delay(100);
+        var answeredBeforeRecorded = asked.IsCompleted;
+        recording.SetResult();
+        var (startedAgain, _) = await asked;
+
+        answeredBeforeRecorded.Should().BeFalse();
+        gateway.RunsCreated.Should().Contain(run => run.RunId == startedAgain && run.Repeats == runId);
+    }
+
+    [Fact]
+    public async Task A_run_whose_pipeline_can_no_longer_be_read_is_not_started_again_and_nothing_is_recorded_as_repeating_it()
+    {
+        var (retry, gateway, executor, runId) = await ARunARestartStoppedAsync();
+        gateway.Graph = TestGraphs.DemoPipeline().Fixture.Build();
+
+        var (startedAgain, refusal) = await executor.StartAgainAsync(runId, CancellationToken.None);
+
+        (startedAgain, refusal).Should().Be(((Guid?)null, $"Pipeline {retry.PipelineId} not found in the loaded subgraph."));
+        gateway.RunsCreated.Should().NotContain(run => run.Repeats == runId, "the run stays listed, to be started again once its pipeline reads");
+    }
+
+    [Fact]
+    public async Task A_run_whose_fresh_run_cannot_be_recorded_is_not_started_again_and_the_person_is_told_why()
+    {
+        var (_, gateway, executor, runId) = await ARunARestartStoppedAsync();
+        gateway.RunCreationFailure = new InvalidOperationException("The platform refused the fresh run.");
+
+        var (startedAgain, refusal) = await executor.StartAgainAsync(runId, CancellationToken.None);
+        gateway.RunCreationFailure = null;
+        var (later, _) = await executor.StartAgainAsync(runId, CancellationToken.None);
+
+        (startedAgain, refusal).Should().Be(((Guid?)null, "The platform refused the fresh run."));
+        later.Should().NotBeNull("a refused ask leaves the run to be started again");
+    }
+
+    [Fact]
+    public async Task Two_people_asking_at_once_to_start_a_run_again_or_carry_it_on_get_one_run_going_and_the_rest_refused()
+    {
+        var (_, gateway, executor, runId) = await ARunARestartStoppedAsync();
+        var recording = new TaskCompletionSource();
+        gateway.RunCreationHeldUntil = recording.Task;
+
+        var first = executor.StartAgainAsync(runId, CancellationToken.None).ContinueWith(ask => ask.Result.Refusal);
+        await Task.Delay(50);
+        var second = executor.StartAgainAsync(runId, CancellationToken.None).ContinueWith(ask => ask.Result.Refusal);
+        var carryOn = executor.CarryOnAsync(runId, CancellationToken.None);
+        await Task.Delay(50);
+        recording.SetResult();
+        var asks = await Task.WhenAll(first, second, carryOn);
+
+        asks.Count(refusal => refusal is null).Should().Be(1);
+        await Settle.UntilAsync(() => gateway.Called.Count == 1, "the one run going calls the interrupted node's service");
+        var going = gateway.RunsCreated.Count(run => run.Repeats == runId) + (gateway.RunStatusOf(runId) == RunStatus.Failed ? 0 : 1);
+        going.Should().Be(1);
+    }
 }

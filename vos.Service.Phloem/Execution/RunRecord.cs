@@ -15,7 +15,7 @@ public sealed record NodeRecord(string Status, IReadOnlyDictionary<string, JsonE
 
 // A run as the model holds it, read back so a waiting run resumes from its record rather than from memory.
 public sealed record RunRecord(Guid RunId, Guid PipelineId, JsonElement Parameters, IReadOnlyDictionary<Guid, NodeRecord> Nodes, bool Rehearsal = false,
-    string Status = "");
+    string Status = "", Guid? RepeatedBy = null);
 
 public sealed record VigilHolder(Guid RunId, Guid NodeId);
 
