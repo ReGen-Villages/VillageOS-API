@@ -18,6 +18,42 @@ A service installs it from the folder, as a path dependency, from its own `requi
 
 Nothing is published to a package index.
 
+## Answer pipeline nodes
+
+A service that is a pipeline node gives `NodeService` its operation and nothing else of the node contract
+([docs/SERVICES.md §16.2](../docs/SERVICES.md)). It is the counterpart of the C# `DagNodeService`.
+
+```python
+from vos_service import Config, NodeService, Port, ServiceHost, Setting, parse_args
+
+def echo(context):                                   # a plain function runs on a worker thread; an async one on the loop
+    return {"echo": context.input("message")}        # the outputs, by output-port name
+
+node = NodeService(
+    echo,
+    [Port.input("message", "string", required=True), Port.output("echo", "string")],
+    rehearses=True,                                  # writes nothing but its answer, so a rehearsal may call it
+    settings=[Setting("mode", values=["loud", "quiet"], default="quiet")],
+)
+host = ServiceHost("Example", parse_args(sys.argv[1:]) or Config(), node.handle)
+node.mount(host)
+```
+
+- **The request.** `runId` and `nodeId` (GUIDs), `params`, `inputs`, `index` (the item's place when a node runs once
+  per item, otherwise absent) and `rehearsal` (sent only when true) arrive as a `NodeContext`. A body without both
+  `runId` and `nodeId` is not a node's request and is refused with `400`. A field that is present but malformed is a
+  `fail` answer saying which.
+- **The answer.** `{"result": "success", "outputs": {...}, "error": null}`, or `{"result": "fail", "outputs": {},
+  "error": "<message>"}`. Phloem reads `result` and fails any answer without it, so a service never writes the answer
+  itself. Anything the operation raises is a `fail` answer carrying its message, never a server error.
+- **Graph references.** An input given as `{"ref": {"thingId": ..., "property": ...}}` is replaced by that
+  property's current value before the operation runs, as `DagNodeService` does. A reference that cannot be read, or to a
+  property the Thing lacks, fails the run before the operation is called. Any other value, including a malformed
+  `ref`, is a literal.
+- **`GET /manifest`.** Served from what the node declares: `{"service", "rehearses", "ports", "settings"}`, the shape
+  `tools/pipeline-playground/declare_service.py` reads to declare the service in a seed. It needs the same token as
+  `/handle` when a `VerificationKey` is set, as in the C# services.
+
 ## Test
 
 ```bash
