@@ -133,7 +133,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 
     public async Task CreateRunAsync(
         Guid runId, Guid pipelineId, CancellationToken cancellationToken, RunSubject? subject = null, Guid? requestId = null,
-        JsonElement? parameters = null, Guid? startedBy = null, string? refusal = null, bool rehearsal = false)
+        JsonElement? parameters = null, Guid? startedBy = null, string? refusal = null, bool rehearsal = false, Guid? repeats = null)
     {
         // The result, the error and the finish are declared here with no value. Each is known only once the
         // run ends, and the property route sets a property the Thing already carries — so a run given one
@@ -159,6 +159,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         ], cancellationToken);
 
         if (startedBy is { } starter) await RelateIfBoundAsync(runId, PipelineRoles.StartingRun, starter, cancellationToken);
+        if (repeats is { } repeated) await RelateIfBoundAsync(runId, PipelineRoles.RepeatedRun, repeated, cancellationToken);
         if (subject is { } about) await RelateIfBoundAsync(runId, PipelineRoles.RunSubject, about.Id, cancellationToken);
     }
 
@@ -239,12 +240,14 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     {
         var selector = new
         {
-            ids = new[] { runId },
-            names = new[] { ModelNames.Has, ModelNames.Of },
+            ids = new[] { runId, PipelineRoles.RepeatedRun.Id },
+            names = new[] { ModelNames.Has, ModelNames.Of, ModelNames.Binds },
             traverse = new object[]
             {
                 new { predicate = ModelNames.Has, direction = "outgoing", depth = 2 },
                 new { predicate = ModelNames.Of, direction = "outgoing", depth = 1 },
+                new { predicate = ModelNames.Binds, direction = "outgoing", depth = 1 },
+                new { predicateRole = PipelineRoles.RepeatedRun.Id, direction = "incoming", depth = 1 },
             },
             includeIsAncestors = false,
             includeRelationships = true,
@@ -252,11 +255,14 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             {
                 new { predicate = ModelNames.Has, direction = "outgoing" },
                 new { predicate = ModelNames.Of, direction = "outgoing" },
+                new { predicate = ModelNames.Binds, direction = "outgoing" },
+                new { predicateRole = PipelineRoles.RepeatedRun.Id, direction = "incoming" },
             },
         };
         var graph = await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
         if (graph.Thing(runId) is not { } run || graph.OutgoingTargets(run, ModelNames.Of).FirstOrDefault() is not { } pipeline)
             return null;
+        var repeatedBy = graph.IncomingAlong(run, PipelineRoles.RepeatedRun).FirstOrDefault()?.Id;
 
         var nodes = new Dictionary<Guid, NodeRecord>();
         var items = new Dictionary<Guid, SortedList<int, NodeRecord>>();
@@ -280,7 +286,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             if (nodes.TryGetValue(nodeId, out var aggregate))
                 nodes[nodeId] = aggregate with { Items = ofNode.Values.ToList() };
         return new RunRecord(runId, pipeline.Id, JsonOf(run.PropertyString(ModelNames.Parameters)), nodes, run.CarriesFlag(ModelNames.Rehearsal),
-            run.PropertyString(ModelNames.Status) ?? string.Empty);
+            run.PropertyString(ModelNames.Status) ?? string.Empty, repeatedBy);
     }
 
     private static IReadOnlyList<AttemptRecord> AttemptsOf(PipelineGraph graph, GraphThing nodeRun)

@@ -41,6 +41,31 @@ public class PhloemRecordsWhatStartedARunTests : IClassFixture<TheEngine>
         relationships.Should().NotContain(relationship => relationship.SubjectId == first && relationship.PredicateId == startedBy);
     }
 
+    [FactAgainstTheEngine]
+    public async Task A_run_a_person_started_again_reaches_the_run_it_repeats_along_the_predicate_the_repeatedRun_role_binds()
+    {
+        foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of, ModelNames.Binds })
+            await _engine.DeclareOnceAsync(predicate);
+        var binds = await _engine.TheOnlyThingNamedAsync(ModelNames.Binds);
+        await BindOnceAsync(PipelineRoles.PipelineRun, await _engine.DeclareOnceAsync("PipelineRun", isArchetype: true), binds);
+        var repeats = await _engine.DeclareOnceAsync("repeats");
+        await BindOnceAsync(PipelineRoles.RepeatedRun, repeats, binds);
+        var gateway = new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, _engine.AdminToken);
+        var pipeline = await _engine.DeclareAsync($"Pipeline {Guid.NewGuid():N}");
+        var stopped = Guid.NewGuid();
+        var fresh = Guid.NewGuid();
+
+        await gateway.CreateRunAsync(stopped, pipeline, CancellationToken.None);
+        await gateway.CreateRunAsync(fresh, pipeline, CancellationToken.None, repeats: stopped);
+
+        var relationships = await _engine.Admin.GetFromJsonAsync<List<RelationshipRead>>("/api/relationships",
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        relationships!.Where(relationship => relationship.SubjectId == fresh && relationship.PredicateId == repeats)
+            .Should().ContainSingle().Which.TargetId.Should().Be(stopped);
+        (await gateway.ReadRunRecordAsync(stopped, CancellationToken.None))!.RepeatedBy.Should().Be(fresh);
+        (await gateway.ReadRunRecordAsync(fresh, CancellationToken.None))!.RepeatedBy.Should().BeNull();
+    }
+
     private async Task BindOnceAsync(Role role, Guid played, Guid binds)
     {
         if (await _engine.FindAsync($"{role.Word} role") is not null) return;

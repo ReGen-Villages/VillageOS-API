@@ -18,7 +18,7 @@ internal sealed class FakeGateway : IMyceliumGateway
     public List<(string Subdomain, JsonElement Envelope)> Envelopes { get; } = new();
     public List<string> StatusUpdates { get; } = new();
     public List<(string Name, string Status)> NodeStatuses { get; } = new();
-    public List<(Guid RunId, Guid PipelineId, RunSubject? Subject, Guid? RequestId, Guid? StartedBy)> RunsCreated { get; } = new();
+    public List<(Guid RunId, Guid PipelineId, RunSubject? Subject, Guid? RequestId, Guid? StartedBy, Guid? Repeats)> RunsCreated { get; } = new();
     public List<Guid> StartTargetsAsked { get; } = new();
     public List<Guid> RelatedFromAsked { get; } = new();
     public List<IReadOnlyCollection<Guid>> StartReadsWidenedBy { get; } = new();
@@ -79,12 +79,18 @@ internal sealed class FakeGateway : IMyceliumGateway
 
     public Exception? RunCreationFailure { get; set; }
 
-    public Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct, RunSubject? subject = null, Guid? requestId = null, JsonElement? parameters = null, Guid? startedBy = null,
-        string? refusal = null, bool rehearsal = false)
+    public Task RunCreationHeldUntil { get; set; } = Task.CompletedTask;
+
+    public bool RunCreationStarted { get; private set; }
+
+    public async Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct, RunSubject? subject = null, Guid? requestId = null, JsonElement? parameters = null, Guid? startedBy = null,
+        string? refusal = null, bool rehearsal = false, Guid? repeats = null)
     {
+        RunCreationStarted = true;
+        await RunCreationHeldUntil;
         if (RunCreationFailure is not null) throw RunCreationFailure;
         if (rehearsal) lock (Rehearsals) Rehearsals.Add(runId);
-        lock (RunsCreated) RunsCreated.Add((runId, pipelineId, subject, requestId, startedBy));
+        lock (RunsCreated) RunsCreated.Add((runId, pipelineId, subject, requestId, startedBy, repeats));
         if (refusal is not null)
         {
             StatusUpdates.Add(RunStatus.Refused);
@@ -97,7 +103,6 @@ internal sealed class FakeGateway : IMyceliumGateway
             Runs[runId] = (pipelineId, recorded ?? default);
             RunStatuses[runId] = refusal is null ? RunStatus.Running : RunStatus.Refused;
         }
-        return Task.CompletedTask;
     }
 
     public List<(string Name, int? Index, string Status, IReadOnlyDictionary<string, JsonElement>? Outputs)> NodeRunsPersisted { get; } = new();
@@ -228,7 +233,10 @@ internal sealed class FakeGateway : IMyceliumGateway
                 record => _itemRecords.TryGetValue(record.Key, out var items) ? record.Value with { Items = items.Values.ToList() } : record.Value);
             bool rehearsal;
             lock (Rehearsals) rehearsal = Rehearsals.Contains(runId);
-            return Task.FromResult<RunRecord?>(new RunRecord(runId, run.PipelineId, run.Parameters, nodes, rehearsal, RunStatuses.GetValueOrDefault(runId, RunStatus.Running)));
+            Guid? repeatedBy;
+            lock (RunsCreated) repeatedBy = RunsCreated.Where(created => created.Repeats == runId).Select(created => (Guid?)created.RunId).FirstOrDefault();
+            return Task.FromResult<RunRecord?>(new RunRecord(runId, run.PipelineId, run.Parameters, nodes, rehearsal, RunStatuses.GetValueOrDefault(runId, RunStatus.Running),
+                repeatedBy));
         }
     }
 

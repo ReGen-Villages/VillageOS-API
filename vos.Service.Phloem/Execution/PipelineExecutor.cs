@@ -288,6 +288,7 @@ public sealed class PipelineExecutor
         using var turn = await _turns.TakeAsync(runId, cancellationToken);
         var record = await _gateway.ReadRunRecordAsync(runId, cancellationToken);
         if (record is null || !StoppedByARestart(record)) return NotStoppedByARestart(runId);
+        if (record.RepeatedBy is { } repeatedBy) return StartedAgain(runId, repeatedBy);
         var (dag, refusal) = await LoadAsync(record.PipelineId, cancellationToken);
         if (dag is null) return refusal;
         var (progress, cannotGoOn) = ProgressFrom(dag, record, "be carried on", aPersonSaysCaughtCallsMayBeMadeAgain: true);
@@ -306,18 +307,41 @@ public sealed class PipelineExecutor
         return null;
     }
 
+    // The fresh run is recorded under the run's turn before the person is answered, so a second ask finds it and is refused.
     public async Task<(Guid? RunId, string? Refusal)> StartAgainAsync(Guid runId, CancellationToken cancellationToken)
     {
+        using var turn = await _turns.TakeAsync(runId, cancellationToken);
         var record = await _gateway.ReadRunRecordAsync(runId, cancellationToken);
         if (record is null || !StoppedByARestart(record)) return (null, NotStoppedByARestart(runId));
+        if (record.RepeatedBy is { } repeatedBy) return (null, StartedAgain(runId, repeatedBy));
+
+        var (dag, refusal) = await LoadAsync(record.PipelineId, cancellationToken, new Start(record.Parameters, record.Rehearsal));
+        if (dag is null) return (null, refusal);
 
         var fresh = Guid.NewGuid();
-        _ = Task.Run(async () =>
+        var freshTurn = await _turns.TakeAsync(fresh, cancellationToken);
+        var sweeping = false;
+        try
         {
-            try { await RunAsync(record.PipelineId, record.Parameters, CancellationToken.None, fresh, rehearsal: record.Rehearsal); }
-            catch (Exception ex) { _logger.LogError(ex, "Starting run {RunId} again as {FreshRunId} failed", runId, fresh); }
-        });
-        return (fresh, null);
+            await _gateway.CreateRunAsync(fresh, record.PipelineId, cancellationToken, parameters: record.Parameters, rehearsal: record.Rehearsal, repeats: runId);
+            sweeping = true;
+            _ = Task.Run(async () =>
+            {
+                using var ownTurn = freshTurn;
+                try { await SweepAsync(fresh, dag, record.Parameters, new Progress(_clock), record.Rehearsal, CancellationToken.None); }
+                catch (Exception ex) { _logger.LogError(ex, "Starting run {RunId} again as {FreshRunId} failed", runId, fresh); }
+            });
+            return (fresh, null);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _logger.LogError(error, "Run {RunId} could not be started again, because its fresh run could not be recorded", runId);
+            return (null, error.Message);
+        }
+        finally
+        {
+            if (!sweeping) freshTurn.Dispose();
+        }
     }
 
     private static bool StoppedByARestart(RunRecord record) =>
@@ -325,6 +349,8 @@ public sealed class PipelineExecutor
 
     private static string NotStoppedByARestart(Guid runId) =>
         $"Run {runId} is not one a restart of the orchestrator stopped part way through a call.";
+
+    private static string StartedAgain(Guid runId, Guid repeatedBy) => $"Run {runId} was started again as run {repeatedBy}.";
 
     private async Task<(PipelineDag? Dag, string? Refusal)> LoadAsync(Guid pipelineId, CancellationToken cancellationToken, Start? start = null)
     {

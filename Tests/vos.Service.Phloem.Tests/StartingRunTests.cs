@@ -39,6 +39,7 @@ public class StartingRunTests
         var second = gateway.RunsCreated.Last();
         second.PipelineId.Should().Be(starting.NextPipelineId);
         second.StartedBy.Should().Be(first.RunId);
+        second.Repeats.Should().BeNull("a follow-on run does not repeat the run that started it");
         second.Subject.Should().Be(Plot);
         var parameters = gateway.Runs[second.RunId].Parameters;
         parameters.EnumerateObject().Select(parameter => parameter.Name).Should().Equal("subject", "result");
