@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 
 import app as appmod
 from app import app, host
+from conftest import write_png
 
 THIS_HANDLER = "quadrat-handler"
 RUN = {"runId": "6d2b0c1e-0000-4000-8000-000000000001", "nodeId": "6d2b0c1e-0000-4000-8000-000000000002"}
@@ -155,3 +156,43 @@ def test_handle_requires_a_token_once_a_key_is_configured(client, signing, degre
     ok = client.post("/handle", json=body, headers={"Authorization": f"Bearer {make_token(signing)}"})
     assert ok.status_code == 200
     assert ok.json()["success"] is True
+
+
+@pytest.fixture
+def terrain_png(tmp_path):
+    return write_png(tmp_path / "tile.png", [[(135, 170, 128), (128, 10, 0)], [(128, 20, 0), (128, 30, 0)]])
+
+
+def test_a_point_is_read_from_a_terrain_tile(client, terrain_png):
+    res = run_node(client, {"operation": "point", "encoding": "terrarium"}, {"raster": terrain_png, "tile": {"z": 1, "x": 1, "y": 0}, "lon": 10, "lat": 80})
+    assert res.json()["outputs"]["result"]["value"] == 1962.5
+
+
+def test_a_zone_is_read_from_a_terrain_tile(client, terrain_png):
+    res = run_node(client, {"operation": "zonal", "encoding": "terrarium"}, {"raster": terrain_png, "tile": {"z": 1, "x": 1, "y": 0}, "bbox": [0, 0, 180, 85.05112877980659]})
+    assert res.json()["outputs"]["result"]["count"] == pytest.approx(4.0, abs=0.01)
+
+
+def test_a_terrain_tile_with_no_encoding_is_reported_with_its_code(client, terrain_png):
+    body = run_node(client, {"operation": "point"}, {"raster": terrain_png, "tile": {"z": 1, "x": 1, "y": 0}, "lon": 10, "lat": 80}).json()
+    assert body["success"] is False
+    assert body["error"].startswith("unstated_encoding:")
+
+
+def test_an_encoding_given_for_a_raster_that_is_not_a_tile_is_refused(client, degrees_grid):
+    body = run_node(client, {"operation": "metadata", "encoding": "terrarium"}, {"raster": degrees_grid}).json()
+    assert body["success"] is False
+    assert body["error"].startswith("encoding_without_tile:")
+
+
+@pytest.mark.parametrize("tile", [{"z": 1, "x": 5, "y": 0}, {"z": 1}, "1/1/0"])
+def test_a_tile_that_does_not_exist_or_is_not_stated_fully_is_refused(client, terrain_png, tile):
+    body = run_node(client, {"operation": "metadata", "encoding": "terrarium"}, {"raster": terrain_png, "tile": tile}).json()
+    assert body["success"] is False
+    assert body["error"].startswith(("invalid_tile:", "missing_input:"))
+
+
+def test_the_manifest_declares_the_tile_port(client):
+    ports = {p["portName"]: p for p in client.get("/manifest").json()["ports"]}
+    assert ports["tile"]["direction"] == "in" and ports["tile"]["required"] is False
+

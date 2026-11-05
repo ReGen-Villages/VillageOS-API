@@ -38,13 +38,15 @@ the ports.
 |---|---|
 | `params.operation` | `metadata`, `point` or `zonal` |
 | `params.resampling` | `point` only: `nearest` (default) or `bilinear` |
-| `inputs.raster` | Path to the raster. Required |
+| `inputs.raster` | Path to the raster, or to a terrain tile PNG when `inputs.tile` is given. Required |
+| `inputs.tile`, `params.encoding` | A terrain tile: `{"z": n, "x": n, "y": n}` and `terrarium` or `mapbox`. See [Terrain tiles](#terrain-tiles) |
 | `inputs.lon`, `inputs.lat` | `point`: the WGS84 coordinate |
 | `inputs.bbox` or `inputs.geometry` | `zonal`: `[west, south, east, north]` or a GeoJSON Polygon or MultiPolygon, not both |
 | `outputs.result` | What the command line prints |
 
 A request Quadrat will not answer comes back as `{"success": false, "outputs": {}, "error": "<code>: <reason>"}` with
-the codes below, plus `missing_input`, `unknown_operation` and `ambiguous_zone`.
+the codes below, plus `missing_input`, `unknown_operation`, `ambiguous_zone`, `unstated_encoding`, `unknown_encoding`,
+`encoding_without_tile`, `invalid_tile` and `not_a_terrain_tile`.
 
 ## Operations
 
@@ -53,6 +55,25 @@ the codes below, plus `missing_input`, `unknown_operation` and `ambiguous_zone`.
 | `metadata` | CRS, size, resolution, bounds (own CRS and WGS84), bands, dtype, nodata |
 | `point` | The value at a coordinate; `nearest` or `bilinear`; `null` on a nodata cell |
 | `zonal` | `count`, `mean`, `min`, `max`, `median` over a polygon, weighted by how much of each cell the polygon covers; nodata cells left out and reported as `nodata_cells` |
+
+## Terrain tiles
+
+Elevation is often served as PNG map tiles whose red, green and blue bytes hold the height. A PNG has no position of
+its own, so Quadrat is told which tile it is and how the bytes are read, and guesses neither:
+
+| `encoding` | Elevation in metres |
+|---|---|
+| `terrarium` | `red * 256 + green + blue / 256 - 32768` |
+| `mapbox` | `-10000 + (red * 65536 + green * 256 + blue) * 0.1` |
+
+`tile` is the web-mercator `{z}/{x}/{y}` the image was fetched as, with `y` counted down from the north. Quadrat
+places the decoded image on that tile and answers `metadata`, `point` and `zonal` as for any raster. An encoding that
+is not stated or not one of these is refused (`unstated_encoding`, `unknown_encoding`), as is an `encoding` with no
+`tile`.
+
+A tile is small (a 256 pixel Terrarium tile at zoom 10 has cells of 153 web-mercator metres, about 100 m on the ground at this latitude), so the limits below
+apply with force: on the Tatra tile the 256 pixel PNG reads a maximum 18 m below the 512 pixel GeoTIFF of the same
+tile, and its mean agrees to within 0.5 m.
 
 ## Sample data
 
