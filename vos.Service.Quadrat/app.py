@@ -1,31 +1,23 @@
 """Quadrat — the VillageOS raster reader, a managed microservice and pipeline node (FastAPI).
 
-The contract — arguments, inbound JWT validation, registration, the four endpoints — is implemented once
-in vos.Service.Python.Shared. This file is what Quadrat adds to it: the node envelope
-(docs/SERVICES.md §16.2) mapped onto the quadrat package, and the manifest that declares its ports.
+The contract — arguments, inbound JWT validation, registration, the four endpoints, and the pipeline node's
+envelope, answer and manifest (docs/SERVICES.md §16.2) — is implemented once in vos.Service.Python.Shared. This
+file is what Quadrat adds to it: the operations over the quadrat package, and the ports they read and write.
 
 Run:  .venv/bin/python app.py --port=5110 --myceliumUrl=https://localhost:7243
 """
 
 from __future__ import annotations
 
-import asyncio
 import sys
 
-from fastapi import Request
-from fastapi.responses import JSONResponse
-
 from quadrat import Refusal, Sources, bbox_zone, decoded_tile, describe, sample_point, zonal_stats
-from vos_service import Config, ServiceHost, parse_args
+from vos_service import Config, NodeContext, NodeService, Port, ServiceHost, parse_args
 
 SERVICE_NAME = "Quadrat"
 
 config = parse_args(sys.argv[1:]) or Config()
 sources = Sources.from_args(sys.argv[1:])
-
-
-class NotANodeEnvelope(Exception):
-    """A body Quadrat does not read: it answers only pipeline nodes."""
 
 
 def required(inputs: dict, name: str):
@@ -57,20 +49,14 @@ def zonal(params: dict, inputs: dict) -> dict:
 OPERATIONS = {"metadata": metadata, "point": point, "zonal": zonal}
 
 PORTS = [
-    {"portName": "raster", "direction": "in", "type": "string", "required": True},
-    {"portName": "tile", "direction": "in", "type": "object", "required": False},
-    {"portName": "lon", "direction": "in", "type": "number", "required": False},
-    {"portName": "lat", "direction": "in", "type": "number", "required": False},
-    {"portName": "bbox", "direction": "in", "type": "array", "required": False},
-    {"portName": "geometry", "direction": "in", "type": "object", "required": False},
-    {"portName": "result", "direction": "out", "type": "object", "required": False},
+    Port.input("raster", "string", required=True),
+    Port.input("tile", "object"),
+    Port.input("lon", "number"),
+    Port.input("lat", "number"),
+    Port.input("bbox", "array"),
+    Port.input("geometry", "object"),
+    Port.output("result", "object"),
 ]
-
-
-def read_envelope(payload: dict) -> tuple[dict, dict]:
-    if not isinstance(payload, dict) or "runId" not in payload or "nodeId" not in payload:
-        raise NotANodeEnvelope("Quadrat answers pipeline nodes: a request carrying both runId and nodeId, with params and inputs")
-    return payload.get("params") or {}, payload.get("inputs") or {}
 
 
 def read_tile(tile) -> tuple[int, int, int]:
@@ -95,27 +81,14 @@ def run_operation(params: dict, inputs: dict) -> dict:
         return operation(params, {**inputs, "raster": decoded})
 
 
-async def handle_node(payload: dict, request_number: int) -> dict:
-    params, inputs = read_envelope(payload)
-    try:
-        result = await asyncio.to_thread(run_operation, params, inputs)
-    except Refusal as refusal:
-        return {"success": False, "outputs": {}, "error": str(refusal)}
-    return {"success": True, "outputs": {"result": result}, "error": None}
+def execute(context: NodeContext) -> dict:
+    return {"result": run_operation(context.params, context.inputs)}
 
 
-host = ServiceHost(SERVICE_NAME, config, handle_node, title="VillageOS Quadrat Raster Reader")
+node = NodeService(execute, PORTS)
+host = ServiceHost(SERVICE_NAME, config, node.handle, title="VillageOS Quadrat Raster Reader")
+node.mount(host)
 app = host.app
-
-
-@app.exception_handler(NotANodeEnvelope)
-async def refuse_a_body_that_is_not_a_node(_: Request, refused: NotANodeEnvelope) -> JSONResponse:
-    return JSONResponse({"error": str(refused)}, status_code=400)
-
-
-@app.get("/manifest")
-def manifest() -> dict:
-    return {"service": SERVICE_NAME, "ports": PORTS}
 
 
 def main() -> None:

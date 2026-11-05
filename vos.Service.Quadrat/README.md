@@ -30,9 +30,11 @@ A request Quadrat will not answer prints `{"refused": "<code>", "reason": "..."}
 ```
 
 The contract (arguments, `ApiKey` or `Token` and `VerificationKey` from the environment, registration, `/health`,
-`/stats`, `/shutdown`) is the shared library's. Quadrat answers pipeline nodes: a `/handle` body carrying `runId` and
-`nodeId` ([docs/SERVICES.md §16.2](../docs/SERVICES.md)). Any other body is refused with `400`. `GET /manifest` lists
-the ports.
+`/stats`, `/shutdown`) and the pipeline node's envelope, answer and manifest are the shared library's
+([`NodeService`](../vos.Service.Python.Shared/README.md#answer-pipeline-nodes)). Quadrat answers pipeline nodes: a
+`/handle` body carrying `runId` and `nodeId` ([docs/SERVICES.md §16.2](../docs/SERVICES.md)). Any other body is refused
+with `400`. `GET /manifest` lists the ports. An input given as a graph reference (`{"ref": {"thingId", "property"}}`)
+is read from the graph before the operation runs, and the source rules below then apply to what it held.
 
 ### Where it reads from
 
@@ -58,8 +60,9 @@ library's own virtual file systems (`/vsicurl/…`, `/vsizip/…`) and driver or
 | `inputs.bbox` or `inputs.geometry` | `zonal`: `[west, south, east, north]` or a GeoJSON Polygon or MultiPolygon, not both |
 | `outputs.result` | What the command line prints |
 
-A request Quadrat will not answer comes back as `{"success": false, "outputs": {}, "error": "<code>: <reason>"}` with
-the codes below, plus `missing_input`, `unknown_operation`, `ambiguous_zone`, `unstated_encoding`, `unknown_encoding`,
+The answer is `{"result": "success", "outputs": {"result": ...}, "error": null}`, the shape Phloem reads. A request
+Quadrat will not answer comes back as `{"result": "fail", "outputs": {}, "error": "<code>: <reason>"}` with the codes
+below, plus `missing_input`, `unknown_operation`, `ambiguous_zone`, `unstated_encoding`, `unknown_encoding`,
 `encoding_without_tile`, `invalid_tile`, `not_a_terrain_tile` and `source_not_allowed`.
 
 ## Operations
