@@ -16,8 +16,8 @@ export function RunsARestartStoppedPanel({ runs, mayChangeData, onStartAgain, on
   const { t } = useTranslation();
   const [asked, setAsked] = useState<ReadonlySet<string>>(new Set());
 
-  // The orchestrator answers before it records the fresh run, so an accepted ask keeps the buttons off until the
-  // run leaves the list, or a second Start again would start a second run.
+  // The run leaves the list only once the model's change reaches the page, so an accepted ask keeps the buttons off
+  // until then, rather than offering an ask the orchestrator would now refuse.
   const ask = async (runId: string, asking: (runId: string) => Promise<boolean>) => {
     setAsked((previous) => new Set(previous).add(runId));
     if (await asking(runId)) return;
