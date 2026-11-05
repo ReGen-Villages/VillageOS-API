@@ -15,12 +15,13 @@ import sys
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from quadrat import Refusal, bbox_zone, decoded_tile, describe, sample_point, zonal_stats
+from quadrat import Refusal, Sources, bbox_zone, decoded_tile, describe, sample_point, zonal_stats
 from vos_service import Config, ServiceHost, parse_args
 
 SERVICE_NAME = "Quadrat"
 
 config = parse_args(sys.argv[1:]) or Config()
+sources = Sources.from_args(sys.argv[1:])
 
 
 class NotANodeEnvelope(Exception):
@@ -83,6 +84,8 @@ def run_operation(params: dict, inputs: dict) -> dict:
     operation = OPERATIONS.get(params.get("operation"))
     if operation is None:
         raise Refusal("unknown_operation", f"params.operation is one of {', '.join(OPERATIONS)}; got {params.get('operation')!r}")
+    if inputs.get("raster") is not None:
+        inputs = {**inputs, "raster": sources.permit(inputs["raster"])}
     if inputs.get("tile") is None:
         if params.get("encoding") is not None:
             raise Refusal("encoding_without_tile", "params.encoding says how a terrain tile holds elevation, and no 'tile' input says which tile the raster is")
