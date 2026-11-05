@@ -104,6 +104,7 @@ class NodeService:
         if max_concurrent is not None and max_concurrent < 1:
             raise ValueError(f"max_concurrent is a positive number of runs, or None for no limit; got {max_concurrent}")
         self._run = execute
+        self.max_concurrent = max_concurrent
         self._places = asyncio.Semaphore(max_concurrent) if max_concurrent is not None else None
         self.ports = list(ports)
         self.rehearses = rehearses

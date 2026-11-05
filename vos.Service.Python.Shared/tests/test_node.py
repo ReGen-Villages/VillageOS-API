@@ -387,3 +387,8 @@ def test_a_run_that_fails_gives_its_place_back():
 def test_a_cap_that_is_not_a_positive_number_is_refused_when_the_node_is_built(cap):
     with pytest.raises(ValueError, match="max_concurrent"):
         NodeService(lambda context: {}, PORTS, max_concurrent=cap)
+
+
+def test_the_cap_a_node_was_built_with_can_be_read_back():
+    assert NodeService(lambda context: {}, PORTS, max_concurrent=3).max_concurrent == 3
+    assert NodeService(lambda context: {}, PORTS).max_concurrent is None
