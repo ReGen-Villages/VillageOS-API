@@ -554,7 +554,8 @@ export class PipelineModel {
       .map((t) => ({ portId: t.Id, port: this.toPort(t) }));
   }
 
-  /** Every callable connection (carries a Subdomain and binds a service) — the editor palette. */
+  /** Every callable connection (carries a Subdomain and binds a service that declares a port) — the editor palette.
+   *  A service with no port gives a step nothing to take or hand on, which leaves out the platform's own connections. */
   connections(): ConnectionInformation[] {
     const result: ConnectionInformation[] = [];
     for (const t of this.things) {
@@ -563,13 +564,9 @@ export class PipelineModel {
       if (typeof subdomain !== 'string' || subdomain.length === 0) continue;
       const service = this.outgoing(t.Id, 'has').find((s) => this.isOf(s.Id, ROLE.Service));
       if (!service) continue;
-      result.push({
-        connectionId: t.Id,
-        name: t.Name,
-        subdomain,
-        serviceId: service.Id,
-        ports: this.resolvePorts(service.Id),
-      });
+      const ports = this.resolvePorts(service.Id);
+      if (ports.length === 0) continue;
+      result.push({ connectionId: t.Id, name: t.Name, subdomain, serviceId: service.Id, ports });
     }
     return result;
   }

@@ -51,6 +51,10 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
   R(echConn.Id, is.Id, connA.Id);
   R(genConn.Id, has.Id, generatorService.Id);
   R(echConn.Id, has.Id, echoService.Id);
+  const orchestratorService = T('orchestratorSvc'), orchestratorConn = T('runsPipeline', { Subdomain: 'phloem' });
+  R(orchestratorService.Id, is.Id, serviceA.Id);
+  R(orchestratorConn.Id, is.Id, connA.Id);
+  R(orchestratorConn.Id, has.Id, orchestratorService.Id);
 
   const gen = T('Generate'), ech = T('Echo');
   R(gen.Id, is.Id, nodeA.Id);
@@ -111,7 +115,7 @@ function heldWireModel(): { model: PipelineModel; carriesId: string } {
 }
 
 describe('PipelineModel', () => {
-  it('lists callable connections with subdomain and resolved ports', () => {
+  it('lists callable connections with subdomain and resolved ports, leaving out one whose service declares no port', () => {
     const { model } = demoModel();
     const conns = model.connections();
     expect(conns.map((c) => c.subdomain).sort()).toEqual(['echo', 'generate']);

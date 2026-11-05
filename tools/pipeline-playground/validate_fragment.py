@@ -137,7 +137,10 @@ class Model:
             svc = next((s for s in self.outgoing(t["Id"], "has") if self.is_of(s["Id"], SERVICE)), None)
             if not svc:
                 continue
-            res.append({"id": t["Id"], "name": t["Name"], "subdomain": sub, "ports": self.resolve_ports(svc["Id"])})
+            ports = self.resolve_ports(svc["Id"])
+            if not ports:
+                continue
+            res.append({"id": t["Id"], "name": t["Name"], "subdomain": sub, "ports": ports})
         return res
 
     def reached_along(self, subj, role):
@@ -178,8 +181,6 @@ def main():
     for c in sorted(conns, key=lambda c: c["name"]):
         ins = [p["portName"] for p in c["ports"] if p["direction"] == "in"]
         outs = [p["portName"] for p in c["ports"] if p["direction"] == "out"]
-        if not c["ports"]:
-            problems.append(f"service '{c['name']}' resolved no ports")
         print(f"  - {c['name']:22} @{c['subdomain']:16} in[{','.join(ins)}] out[{','.join(outs)}]")
 
     pipelines = [t for t in m.things.values() if m.is_of(t["Id"], PIPELINE)]
