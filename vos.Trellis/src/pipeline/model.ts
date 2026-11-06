@@ -59,6 +59,8 @@ export const ROLE = {
   RunStopping: '7acbab6c-58f3-5145-a9c0-18a907197131',
   // A stop request names the run that wrote it, so a stop node never stops its own run.
   RequestedBy: 'f0511a24-8925-5ac0-8f8e-971202c1741a',
+  // A run a person started again reaches the run it repeats.
+  RepeatedRun: '7a0975c1-510c-5585-b39e-31995807083f',
   // Nodes the orchestrator runs itself, calling no service, and the connection a system is told through.
   PipelineTell: '7fed4d74-0cb1-547d-85d8-bbcfc5992667',
   PipelineFollowOn: '0ed6e1fc-cbac-5d4e-b3f0-ef83f4a09e43',
@@ -144,6 +146,13 @@ export interface RunInformation {
   startedUtc: string;
   /** The request-log entry the run started from, where a request started it. */
   requestId?: string;
+}
+
+export interface RunARestartStopped {
+  runId: string;
+  pipelineName: string;
+  startedUtc: string;
+  reason: string;
 }
 
 export interface PortInformation {
@@ -655,6 +664,24 @@ export class PipelineModel {
         status: String(t.Properties.status ?? ''),
         startedUtc: String(t.Properties.startedUtc ?? ''),
         ...(typeof requestId === 'string' && requestId ? { requestId } : {}),
+      });
+    }
+    return runs.sort((a, b) => b.startedUtc.localeCompare(a.startedUtc));
+  }
+
+  /** Runs, newest first, that the orchestrator will start again or carry on: failed with a node a restart caught in
+   *  the middle of a call, the same test it applies. */
+  runsARestartStopped(): RunARestartStopped[] {
+    const runs: RunARestartStopped[] = [];
+    for (const run of this.things) {
+      if (run.Properties.status !== 'failed' || !this.isOf(run.Id, ROLE.PipelineRun)) continue;
+      if (!Object.values(this.nodeRunStatuses(run.Id)).includes('interrupted')) continue;
+      if (this.reachingAlong(run.Id, ROLE.RepeatedRun).length > 0) continue;
+      runs.push({
+        runId: run.Id,
+        pipelineName: this.outgoing(run.Id, 'of')[0]?.Name ?? '',
+        startedUtc: String(run.Properties.startedUtc ?? ''),
+        reason: String(run.Properties.error ?? ''),
       });
     }
     return runs.sort((a, b) => b.startedUtc.localeCompare(a.startedUtc));

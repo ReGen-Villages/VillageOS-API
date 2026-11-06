@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ModelStatisticsCard } from '../components/dashboard/ModelStatisticsCard';
@@ -19,6 +19,10 @@ import { useActivityStore } from '../stores/activityStore';
 import { useModelStore } from '../stores/modelStore';
 import { toast } from '../components/common/toastStore';
 import { PropertyModePanel } from '../components/dashboard/PropertyModePanel';
+import { RunsARestartStoppedPanel } from '../components/dashboard/RunsARestartStoppedPanel';
+import { pipelineApi } from '../api/pipelineApi';
+import { PipelineModel } from '../pipeline/model';
+import { useAuthentication } from '../hooks/useAuthentication';
 import { Power, PanelRightOpen, FileCode2, RefreshCw } from 'lucide-react';
 import { RegenLogo } from '../components/auth/RegenLogo';
 
@@ -56,6 +60,8 @@ export function DashboardPage() {
   const events = useActivityStore((s) => s.events);
   const { on, connection } = useSse();
   const { t } = useTranslation();
+  const { role } = useAuthentication();
+  const runsARestartStopped = useMemo(() => new PipelineModel(things, relationships).runsARestartStopped(), [things, relationships]);
 
   const toggleFeedCollapsed = useCallback(() => {
     setFeedCollapsed((previous) => {
@@ -204,6 +210,17 @@ export function DashboardPage() {
     }
   };
 
+  const askTheOrchestrator = (ask: (runId: string) => Promise<unknown>, accepted: string, refused: string) => async (runId: string) => {
+    try {
+      await ask(runId);
+      toast.success(accepted);
+      return true;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : refused);
+      return false;
+    }
+  };
+
   const handleShutdown = async () => {
     setShowShutdown(false);
     try {
@@ -269,6 +286,7 @@ export function DashboardPage() {
       <div className="flex-1 overflow-auto px-6 pb-6">
         <div className={`grid grid-cols-1 gap-6 ${feedCollapsed ? '' : 'lg:grid-cols-3'}`}>
           <div className={`space-y-6 ${feedCollapsed ? '' : 'lg:col-span-2'}`}>
+            <RunsARestartStoppedPanel runs={runsARestartStopped} mayChangeData={role === 'admin' || role === 'editor'} onStartAgain={askTheOrchestrator(pipelineApi.startAgain, t('dashboard.restartStopped.startedAgain'), t('dashboard.restartStopped.startAgainFailed'))} onCarryOn={askTheOrchestrator(pipelineApi.carryOn, t('dashboard.restartStopped.carriedOn'), t('dashboard.restartStopped.carryOnFailed'))} />
             <ModelStatisticsCard things={things} relationships={relationships} wholeModelHeld={holdsWholeModel} />
             <EngineMetricsPanel metrics={connectionLost ? null : engineMetrics} />
             <ServicesPanel services={displayedServices} endpoints={endpointServices} onStart={handleStartService} onStop={handleStopService} onDelete={(thingId, name) => setDeleteTarget({ thingId, name })} onViewLogs={(connectionId, name) => navigate(`/logs?service=${connectionId}&name=${encodeURIComponent(name)}`)} onDownloadLogs={handleDownloadServiceLog} />
