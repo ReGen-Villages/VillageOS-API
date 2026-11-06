@@ -1,5 +1,6 @@
 import unittest
 
+import generate as G
 import validate_fragment as V
 
 
@@ -24,6 +25,25 @@ class PredicateNamesAreMatchedExactly(unittest.TestCase):
 
         self.assertEqual(model.outgoing("subject", "has"), [])
         self.assertIsNone(model.bound.get("subject"))
+
+
+class ThePaletteListsServicesAStepCanWire(unittest.TestCase):
+    def test_a_connection_whose_service_declares_no_port_is_left_out(self):
+        kit = G.build()
+        [connection_kind] = [tid for tid, role in kit.role_of.items() if role == G.role_id("connection")]
+        [service_kind] = [tid for tid, role in kit.role_of.items() if role == G.role_id("service")]
+        [is_] = [tid for tid, t in kit.things.items() if t["Name"] == "is"]
+        [has] = [tid for tid, t in kit.things.items() if t["Name"] == "has"]
+        service = kit.thing("portless-service", "registersEndpoint service")
+        connection = kit.thing("portless-connection", "registersEndpoint", {"Subdomain": G.typed("delta", "vos.String")})
+        kit.rel(service, is_, service_kind)
+        kit.rel(connection, is_, connection_kind)
+        kit.rel(connection, has, service)
+
+        listed = [c["subdomain"] for c in V.Model(G.as_fragment(kit)).connections()]
+
+        self.assertNotIn("delta", listed)
+        self.assertIn("echo", listed)
 
 
 if __name__ == "__main__":
