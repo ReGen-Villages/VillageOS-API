@@ -12,12 +12,20 @@ from __future__ import annotations
 import sys
 
 from quadrat import Refusal, Sources, bbox_zone, decoded_tile, describe, sample_point, zonal_stats
-from vos_service import Config, NodeContext, NodeService, Port, ServiceHost, parse_args
+from quadrat.point import RESAMPLINGS
+from quadrat.terrain import ENCODINGS
+from vos_service import Config, NodeContext, NodeService, Port, ServiceHost, Setting, parse_args
 
 SERVICE_NAME = "Quadrat"
 
 config = parse_args(sys.argv[1:]) or Config()
 sources = Sources.from_args(sys.argv[1:])
+
+
+def setting(params: dict, name: str, default=None):
+    """A node declared from the manifest carries every setting, empty until someone sets it; empty is not set."""
+    value = params.get(name)
+    return default if value is None or value == "" else value
 
 
 def required(inputs: dict, name: str):
@@ -32,7 +40,7 @@ def metadata(params: dict, inputs: dict) -> dict:
 
 def point(params: dict, inputs: dict) -> dict:
     raster = required(inputs, "raster")
-    return sample_point(raster, required(inputs, "lon"), required(inputs, "lat"), params.get("resampling", "nearest"))
+    return sample_point(raster, required(inputs, "lon"), required(inputs, "lat"), setting(params, "resampling", "nearest"))
 
 
 def zonal(params: dict, inputs: dict) -> dict:
@@ -67,25 +75,32 @@ def read_tile(tile) -> tuple[int, int, int]:
 
 
 def run_operation(params: dict, inputs: dict) -> dict:
-    operation = OPERATIONS.get(params.get("operation"))
+    operation = OPERATIONS.get(setting(params, "operation"))
     if operation is None:
         raise Refusal("unknown_operation", f"params.operation is one of {', '.join(OPERATIONS)}; got {params.get('operation')!r}")
     if inputs.get("raster") is not None:
         inputs = {**inputs, "raster": sources.permit(inputs["raster"])}
     if inputs.get("tile") is None:
-        if params.get("encoding") is not None:
+        if setting(params, "encoding") is not None:
             raise Refusal("encoding_without_tile", "params.encoding says how a terrain tile holds elevation, and no 'tile' input says which tile the raster is")
         return operation(params, inputs)
     z, x, y = read_tile(inputs["tile"])
-    with decoded_tile(required(inputs, "raster"), z, x, y, params.get("encoding")) as decoded:
+    with decoded_tile(required(inputs, "raster"), z, x, y, setting(params, "encoding")) as decoded:
         return operation(params, {**inputs, "raster": decoded})
+
+
+SETTINGS = [
+    Setting("operation", required=True, values=list(OPERATIONS)),
+    Setting("resampling", values=RESAMPLINGS, default="nearest"),
+    Setting("encoding", values=list(ENCODINGS)),
+]
 
 
 def execute(context: NodeContext) -> dict:
     return {"result": run_operation(context.params, context.inputs)}
 
 
-node = NodeService(execute, PORTS)
+node = NodeService(execute, PORTS, rehearses=True, settings=SETTINGS)
 host = ServiceHost(SERVICE_NAME, config, node.handle, title="VillageOS Quadrat Raster Reader")
 node.mount(host)
 app = host.app
