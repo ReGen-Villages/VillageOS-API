@@ -66,6 +66,22 @@ A path or address outside them is refused as `source_not_allowed` before the ras
 library's own virtual file systems (`/vsicurl/…`, `/vsizip/…`) and driver or scheme prefixes (`s3://`, `zip://`,
 `NETCDF:"…"`), which are never allowed. The command line is not restricted: it reads what the person running it can.
 
+#### Rasters at a web address
+
+An allowed address is read with byte-range requests, so a Cloud Optimized GeoTIFF is fetched a block at a time and a
+point or a small zone never downloads the file. In the tests, describing a 15 MB COG, reading a point from it and
+reading a zone from it each fetched under a quarter of it. A GeoTIFF that is not tiled still works but is fetched in
+much larger pieces.
+
+- **Redirects are refused** (`redirected`). The raster library follows them and cannot be told not to, so before it
+  reads, Quadrat asks the host for one byte itself and stops at a redirect. A host that begins redirecting between
+  that check and the read is the one thing left to the host's own trustworthiness.
+- **Only `.tif` and `.tiff`** are opened over the web. A `.vrt` is a file that points at other files, so it is not one.
+- **A host that does not answer is given up on**, as `unreadable_raster`: 5 seconds to connect and 20 seconds per
+  request, with no retries. Set `GDAL_HTTP_TIMEOUT`, `GDAL_HTTP_CONNECTTIMEOUT` or `GDAL_HTTP_MAX_RETRY` in the
+  service's environment to change them. The environment's own value wins.
+- Directory listings are not requested (`GDAL_DISABLE_READDIR_ON_OPEN`), so a read makes no requests beyond the file.
+
 | | |
 |---|---|
 | `params.operation` | `metadata`, `point` or `zonal` |
@@ -79,7 +95,7 @@ library's own virtual file systems (`/vsicurl/…`, `/vsizip/…`) and driver or
 The answer is `{"result": "success", "outputs": {"result": ...}, "error": null}`, the shape Phloem reads. A request
 Quadrat will not answer comes back as `{"result": "fail", "outputs": {}, "error": "<code>: <reason>"}` with the codes
 below, plus `missing_input`, `unknown_operation`, `ambiguous_zone`, `unstated_encoding`, `unknown_encoding`,
-`encoding_without_tile`, `invalid_tile`, `not_a_terrain_tile`, `source_not_allowed`, `too_many_cells` and `read_failed`.
+`encoding_without_tile`, `invalid_tile`, `not_a_terrain_tile`, `source_not_allowed`, `redirected`, `too_many_cells` and `read_failed`.
 
 ### Limits
 

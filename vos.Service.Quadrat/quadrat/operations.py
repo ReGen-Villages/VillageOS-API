@@ -2,6 +2,7 @@ from .limits import Limits
 from .metadata import describe
 from .point import RESAMPLINGS, sample_point
 from .refusal import Refusal
+from .remote import confirm_reachable, is_address
 from .sources import Sources
 from .terrain import ENCODINGS, decoded_tile
 from .zonal import zonal_stats
@@ -57,6 +58,8 @@ def run_operation(params: dict, inputs: dict, sources: Sources, limits: Limits) 
         raise Refusal("unknown_operation", f"params.operation is one of {', '.join(OPERATIONS)}; got {params.get('operation')!r}")
     if inputs.get("raster") is not None:
         inputs = {**inputs, "raster": sources.permit(inputs["raster"])}
+        if is_address(inputs["raster"]):
+            confirm_reachable(inputs["raster"])
     if inputs.get("tile") is None:
         if setting(params, "encoding") is not None:
             raise Refusal("encoding_without_tile", "params.encoding says how a terrain tile holds elevation, and no 'tile' input says which tile the raster is")
