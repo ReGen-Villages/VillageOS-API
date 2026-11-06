@@ -1,3 +1,7 @@
+import subprocess
+import sys
+from pathlib import Path
+
 import numpy as np
 import pytest
 import rasterio
@@ -43,3 +47,51 @@ def write_png(path, pixels):
         for band in range(3):
             png.write(data[:, :, band], band + 1)
     return str(path)
+
+
+class WebHost:
+    """A web server in its own process, serving a folder, that can say what was asked of it."""
+
+    def __init__(self, process, port):
+        self._process = process
+        self.base = f"http://127.0.0.1:{port}"
+
+    def address(self, name):
+        return f"{self.base}/{name}"
+
+    def requests(self):
+        import json
+        import urllib.request
+        with urllib.request.urlopen(f"{self.base}/__log") as answer:
+            return json.load(answer)
+
+    def bytes_served(self):
+        return sum(request["bytes"] for request in self.requests())
+
+
+@pytest.fixture
+def web_host(tmp_path):
+    import subprocess
+    import sys
+    folder = tmp_path / "web"
+    folder.mkdir()
+    process = subprocess.Popen(
+        [sys.executable, str(Path(__file__).parent / "range_server.py"), str(folder)], stdout=subprocess.PIPE, text=True)
+    host = WebHost(process, int(process.stdout.readline()))
+    host.folder = folder
+    yield host
+    process.kill()
+    process.wait()
+
+
+@pytest.fixture
+def big_cog(web_host):
+    """A 2048 by 2048 float32 Cloud Optimized GeoTIFF, about 15 MB, over lon 0..10 and lat 0..10, served by web_host as big.tif."""
+    size = 2048
+    values = np.random.default_rng(1).random((size, size), dtype="float32")
+    with rasterio.open(
+        web_host.folder / "big.tif", "w", driver="COG", height=size, width=size, count=1, dtype="float32",
+        crs="EPSG:4326", transform=from_origin(0, 10, 10 / size, 10 / size), compress="deflate", blocksize=256,
+    ) as dataset:
+        dataset.write(values, 1)
+    return web_host.address("big.tif")
