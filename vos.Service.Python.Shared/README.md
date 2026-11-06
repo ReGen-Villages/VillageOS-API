@@ -50,6 +50,10 @@ node.mount(host)
   property's current value before the operation runs, as `DagNodeService` does. A reference that cannot be read, or to a
   property the Thing lacks, fails the run before the operation is called. Any other value, including a malformed
   `ref`, is a literal.
+- **Limiting runs.** `NodeService(..., max_concurrent=2)` lets at most that many runs be inside the operation at once.
+  A run over the limit waits for a place without holding a thread, so `/health` keeps answering, and a failed run
+  gives its place back. A service whose operation takes memory in proportion to the request sets it to bound the
+  total; with none, every run goes at once.
 - **`GET /manifest`.** Served from what the node declares: `{"service", "rehearses", "ports", "settings"}`, the shape
   `tools/pipeline-playground/declare_service.py` reads to declare the service in a seed. It needs the same token as
   `/handle` when a `VerificationKey` is set, as in the C# services.

@@ -91,10 +91,21 @@ class NodeService:
     worker thread so a slow read does not hold up `/health`, or a coroutine function. Anything it raises is a
     `fail` answer carrying the message, never a server error. Hand `handle` to a `ServiceHost`, then
     `mount` the node on that host.
+
+    `max_concurrent` limits how many runs are inside the operation at once. A run over the limit waits for a
+    place without holding a thread, so `/health` keeps answering, and the limit bounds what the operations can
+    use between them.
     """
 
-    def __init__(self, execute: Execute, ports: Sequence[Port], *, rehearses: bool = False, settings: Sequence[Setting] = ()):
+    def __init__(
+        self, execute: Execute, ports: Sequence[Port], *, rehearses: bool = False, settings: Sequence[Setting] = (),
+        max_concurrent: int | None = None,
+    ):
+        if max_concurrent is not None and max_concurrent < 1:
+            raise ValueError(f"max_concurrent is a positive number of runs, or None for no limit; got {max_concurrent}")
         self._run = execute
+        self.max_concurrent = max_concurrent
+        self._places = asyncio.Semaphore(max_concurrent) if max_concurrent is not None else None
         self.ports = list(ports)
         self.rehearses = rehearses
         self.settings = list(settings)
@@ -144,6 +155,12 @@ class NodeService:
             return _fail(str(failed) or type(failed).__name__)
 
     async def _execute(self, context: NodeContext):
+        if self._places is None:
+            return await self._call(context)
+        async with self._places:
+            return await self._call(context)
+
+    async def _call(self, context: NodeContext):
         if inspect.iscoroutinefunction(self._run):
             return await self._run(context)
         outcome = await asyncio.to_thread(self._run, context)

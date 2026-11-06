@@ -79,7 +79,37 @@ library's own virtual file systems (`/vsicurl/…`, `/vsizip/…`) and driver or
 The answer is `{"result": "success", "outputs": {"result": ...}, "error": null}`, the shape Phloem reads. A request
 Quadrat will not answer comes back as `{"result": "fail", "outputs": {}, "error": "<code>: <reason>"}` with the codes
 below, plus `missing_input`, `unknown_operation`, `ambiguous_zone`, `unstated_encoding`, `unknown_encoding`,
-`encoding_without_tile`, `invalid_tile`, `not_a_terrain_tile` and `source_not_allowed`.
+`encoding_without_tile`, `invalid_tile`, `not_a_terrain_tile`, `source_not_allowed`, `too_many_cells` and `read_failed`.
+
+### Limits
+
+What one request may ask of the service is set when it starts, never by a request. A request over a limit is refused
+before anything is read:
+
+| Flag | Default | Limits |
+|---|---|---|
+| `--maxCells=<n>` | `4000000` | The cells of the raster a zonal read must load: the whole cells the zone's bounding box touches, clipped to the raster. A terrain tile image is counted by its size. Point and description reads load no window and are not counted |
+| `--maxConcurrentReads=<n>` | `2` | Reads going at once. The rest wait their turn |
+
+Over the cell limit is refused as `too_many_cells`, saying how many cells the zone needs and how many are allowed. A flag
+that is not a positive whole number stops the service from starting.
+
+**Reads run in worker processes**, as many as `--maxConcurrentReads`. The raster library holds Python's global lock for
+most of a large read, so in a thread it stalled everything else in the service: during four 4-million-cell reads
+`/health` took up to 4.6 seconds to answer, against 29 milliseconds with worker processes. A worker the raster library
+brings down takes only itself with it, and the request is refused as `read_failed` and can be sent again.
+
+The defaults rest on what a read was measured to take (a float32 raster on a Windows development machine; yours will
+differ, so measure before raising them):
+
+| Window | Time | Peak memory of the read |
+|---|---|---|
+| 1 million cells | 0.6 s | 130 MB |
+| 4 million cells | 2.5 s | 490 MB |
+| 16 million cells | 8.8 s | 1,350 MB |
+
+That is about 85 bytes per cell, so the defaults keep one read near half a gigabyte and the two that may run at once near
+a gigabyte (measured: 988 MB for four requests at the default, 1,831 MB with `--maxConcurrentReads=4`).
 
 ## Operations
 
