@@ -620,6 +620,12 @@ class CatalystVocabularyTests(unittest.TestCase):
         self.assertIn((orchestrator, is_, service), self.kit.rels)
         self.assertNotIn("Subdomain", self.kit.things[stops]["Properties"])
 
+    def test_a_run_reaches_the_run_that_started_it_and_the_run_it_repeats_along_predicates_the_model_binds(self):
+        [started_by] = self.bound("startingRun")
+        [repeats] = self.bound("repeatedRun")
+        self.assertEqual((self.kit.things[started_by]["Name"], self.kit.things[repeats]["Name"]), ("startedBy", "repeats"))
+        self.assertTrue({started_by, repeats} <= self.kit.predicates)
+
     def test_the_daily_report_tells_the_office_through_a_tell_node_wired_on_to_an_output_node_standing_for_nothing(self):
         [stands_for] = self.bound("standsFor")
         [tell] = self.bound_instances("pipelineTell")

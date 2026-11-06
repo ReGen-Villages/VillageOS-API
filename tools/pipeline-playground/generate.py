@@ -97,6 +97,8 @@ PREDICATE_ROLE = {
     "comparesWith": "comparesWith",
     "requestedBy": "requestedBy",
     "stoppedBy": "stoppedBy",
+    "startedBy": "startingRun",
+    "repeats": "repeatedRun",
 }
 
 # The two results a wire is taken on, and the error port every service node has without declaring it.
@@ -314,11 +316,14 @@ def build():
     stands_for = k.predicate("standsFor")
     offers = k.predicate("offers")
     # Declared for the orchestrator, which relates a run to its subject, a node run to each Thing the node
-    # produced, a stop request to the run that wrote it, and a stopped run to the request that stopped it.
+    # produced, a stop request to the run that wrote it, a stopped run to the request that stopped it, and a run
+    # to the run whose end started it or the run a person started again in its place.
     k.predicate("about")
     k.predicate("produced")
     k.predicate("requestedBy")
     k.predicate("stoppedBy")
+    k.predicate("startedBy")
+    k.predicate("repeats")
 
     run_by_the_orchestrator = {"tell": k.archetype("PipelineTell"), "followOn": k.archetype("PipelineFollowOn"),
                                "stop": k.archetype("PipelineStop")}
