@@ -1,5 +1,7 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using vos.Service.Forage.Configuration;
 using vos.Service.Forage.Helpers;
 using vos.Service.Forage.Services;
 using vos.Tests.Shared;
@@ -38,11 +40,41 @@ public class SlicedWindowFetcherTests
         ["latitude"] = "52.52",
     };
 
-    private static SlicedWindowFetcher Slicing(ISourceFetcher inner, int daysPerSlice = 365, TimeProvider? clock = null) =>
-        new(inner, daysPerSlice, clock ?? new ClockThatWaitsNoTime(), NullLogger<SlicedWindowFetcher>.Instance);
+    private static SlicedWindowFetcher Slicing(
+        ISourceFetcher inner,
+        int daysPerSlice = 365,
+        TimeProvider? clock = null,
+        int attemptsPerSlice = ForageLaunchSettings.DefaultAttemptsPerSlice,
+        ILogger<SlicedWindowFetcher>? logger = null) =>
+        new(inner, daysPerSlice, attemptsPerSlice, clock ?? new ClockThatWaitsNoTime(),
+            logger ?? NullLogger<SlicedWindowFetcher>.Instance);
 
     private static SourceOutcome TooManyRequests(TimeSpan wait) =>
         new(Source, false, "429: Minutely API request limit exceeded.", RetryAfter: wait);
+
+    private static SourceOutcome TimedOut() =>
+        new(Source, false, """504: {"error":"Service timeout"}""", TimedOut: true);
+
+    private static SourceOutcome Answered(int call) =>
+        new(Source, true, null, Written: new Dictionary<string, string> { [$"call{call}"] = "written" });
+
+    private sealed class LevelledLogger : ILogger<SlicedWindowFetcher>
+    {
+        public List<(LogLevel Level, string Line)> Lines { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Lines.Add((logLevel, formatter(state, exception)));
+
+        public List<(LogLevel Level, string Line)> AskedAgainAfterATimeout() =>
+            Lines.Where(entry => entry.Line.StartsWith(SlicedWindowFetcher.TimedOutSliceAskedAgain, StringComparison.Ordinal))
+                .ToList();
+    }
 
     private static (DateOnly Start, DateOnly End) WindowOf(IReadOnlyDictionary<string, string> call) =>
         (DateOnly.Parse(call[CoveringSourceResolver.WindowStartPlaceholder]),
@@ -139,13 +171,66 @@ public class SlicedWindowFetcherTests
         var clock = new ClockThatWaitsNoTime();
         var inner = new RecordingFetcher(_ => TooManyRequests(TimeSpan.FromMinutes(1)));
 
-        var outcome = await Slicing(inner, clock: clock).FetchAsync(
+        var outcome = await Slicing(inner, clock: clock, attemptsPerSlice: 4).FetchAsync(
             Site, Source, Endpoint, Window("2016-09-23", "2026-09-22"), default);
 
         outcome.Resolved.Should().BeFalse();
         outcome.Reason.Should().Contain("Minutely API request limit exceeded.").And.Contain("2016-09-23");
-        inner.Calls.Should().HaveCount(SlicedWindowFetcher.MostAttemptsAtOneSlice);
-        clock.Waits.Should().HaveCount(SlicedWindowFetcher.MostAttemptsAtOneSlice - 1, "nothing is waited for after the last attempt");
+        inner.Calls.Should().HaveCount(4);
+        clock.Waits.Should().HaveCount(3, "nothing is waited for after the last attempt");
+    }
+
+    [Fact]
+    public async Task A_slice_that_timed_out_once_is_asked_for_again_at_once_and_the_slices_after_it_are_fetched()
+    {
+        var clock = new ClockThatWaitsNoTime();
+        var logger = new LevelledLogger();
+        var inner = new RecordingFetcher(call => call == 2 ? TimedOut() : Answered(call));
+
+        var outcome = await Slicing(inner, daysPerSlice: 10, clock: clock, logger: logger).FetchAsync(
+            Site, Source, Endpoint, Window("2026-01-01", "2026-01-30"), default);
+
+        outcome.Resolved.Should().BeTrue();
+        inner.Calls.Should().HaveCount(4, "three slices, the second asked for twice");
+        WindowOf(inner.Calls[2]).Should().Be(WindowOf(inner.Calls[1]), "the slice that timed out is the one asked for again");
+        WindowOf(inner.Calls[3]).Should().Be((new DateOnly(2026, 1, 21), new DateOnly(2026, 1, 30)));
+        outcome.Written.Should().HaveCount(3, "every slice that answered is reported");
+        clock.Waits.Should().BeEmpty("a timeout names no wait");
+        logger.AskedAgainAfterATimeout().Should().ContainSingle()
+            .Which.Level.Should().Be(LogLevel.Information);
+        logger.AskedAgainAfterATimeout()[0].Line.Should().Contain("2026-01-11").And.Contain("2026-01-20");
+    }
+
+    [Fact]
+    public async Task A_slice_that_times_out_every_time_is_asked_for_as_often_as_the_limit_allows_and_leaves_the_source_unresolved()
+    {
+        var clock = new ClockThatWaitsNoTime();
+        var logger = new LevelledLogger();
+        var inner = new RecordingFetcher(_ => TimedOut());
+
+        var outcome = await Slicing(inner, daysPerSlice: 10, clock: clock, attemptsPerSlice: 5, logger: logger)
+            .FetchAsync(Site, Source, Endpoint, Window("2026-01-01", "2026-01-30"), default);
+
+        outcome.Resolved.Should().BeFalse();
+        outcome.Reason.Should().Contain("Service timeout").And.Contain("2026-01-01 to 2026-01-10");
+        inner.Calls.Should().HaveCount(5);
+        inner.Calls.Select(WindowOf).Distinct().Should().ContainSingle("the slices after the one that failed are not asked for");
+        logger.AskedAgainAfterATimeout().Should().HaveCount(4, "nothing is asked again after the last attempt");
+        clock.Waits.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Timeouts_and_refusals_for_too_many_requests_at_one_slice_count_against_one_limit()
+    {
+        var clock = new ClockThatWaitsNoTime();
+        var inner = new RecordingFetcher(call => call == 2 ? TooManyRequests(TimeSpan.FromSeconds(40)) : TimedOut());
+
+        var outcome = await Slicing(inner, daysPerSlice: 10, clock: clock, attemptsPerSlice: 3)
+            .FetchAsync(Site, Source, Endpoint, Window("2026-01-01", "2026-01-30"), default);
+
+        outcome.Resolved.Should().BeFalse();
+        inner.Calls.Should().HaveCount(3);
+        clock.Waits.Should().Equal([TimeSpan.FromSeconds(40)]);
     }
 
     [Fact]
@@ -199,7 +284,7 @@ public class SlicedWindowFetcherTests
     }
 
     [Fact]
-    public async Task A_failure_that_names_no_wait_is_not_asked_for_again()
+    public async Task A_refusal_answered_in_time_and_naming_no_wait_is_not_asked_for_again()
     {
         var clock = new ClockThatWaitsNoTime();
         var inner = new RecordingFetcher(_ => new SourceOutcome(Source, false, "503 from the provider"));
@@ -229,6 +314,14 @@ public class SlicedWindowFetcherTests
     public void A_slice_covering_no_day_is_refused()
     {
         var refused = () => Slicing(new RecordingFetcher(), daysPerSlice: 0);
+
+        refused.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public void A_slice_allowed_no_attempt_is_refused()
+    {
+        var refused = () => Slicing(new RecordingFetcher(), attemptsPerSlice: 0);
 
         refused.Should().Throw<ArgumentOutOfRangeException>();
     }

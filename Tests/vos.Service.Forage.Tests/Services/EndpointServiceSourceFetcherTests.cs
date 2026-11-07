@@ -83,6 +83,21 @@ public class EndpointServiceSourceFetcherTests
         outcome.Resolved.Should().BeFalse();
         outcome.Reason.Should().Contain("503").And.Contain("portal is down for maintenance");
         outcome.RetryAfter.Should().BeNull("only a refusal for too many requests says that asking again later will work");
+        outcome.TimedOut.Should().BeFalse("a refusal answered in time is not a timeout");
+    }
+
+    [Fact]
+    public async Task FetchAsync_TheBrokerTimingOutTheForwardedCall_IsATimeout()
+    {
+        var handler = new MockHttpMessageHandler(_ =>
+            Text(HttpStatusCode.GatewayTimeout, """{"error":"Service timeout"}"""));
+
+        var outcome = await Fetcher(handler).FetchAsync(Site, "OpenMeteo", "OpenMeteoEndpoint", Coordinates, default);
+
+        outcome.Resolved.Should().BeFalse();
+        outcome.TimedOut.Should().BeTrue();
+        outcome.Reason.Should().Contain("504").And.Contain("Service timeout");
+        outcome.RetryAfter.Should().BeNull();
     }
 
     private static HttpResponseMessage TooManyRequests(Action<HttpResponseMessage>? stating = null)
@@ -185,6 +200,7 @@ public class EndpointServiceSourceFetcherTests
 
         outcome.Resolved.Should().BeFalse();
         outcome.Reason.Should().Contain("No answer within");
+        outcome.TimedOut.Should().BeTrue();
     }
 
     [Fact]
@@ -222,6 +238,7 @@ public class EndpointServiceSourceFetcherTests
 
         outcome.Resolved.Should().BeFalse();
         outcome.Reason.Should().NotContain("No answer within");
+        outcome.TimedOut.Should().BeFalse();
     }
 
     [Fact]
