@@ -1,3 +1,4 @@
+from .classes import classify, histogram
 from .limits import Limits
 from .metadata import describe
 from .point import RESAMPLINGS, sample_point
@@ -30,18 +31,30 @@ def point(params, inputs, limits):
     return sample_point(raster, required(inputs, "lon"), required(inputs, "lat"), setting(params, "resampling", "nearest"))
 
 
-def zonal(params, inputs, limits):
-    raster = required(inputs, "raster")
+def zone(inputs):
     if inputs.get("bbox") is not None and inputs.get("geometry") is not None:
         raise Refusal("ambiguous_zone", "give the zone as a 'bbox' or as a 'geometry', not both")
     if inputs.get("bbox") is not None:
-        return zonal_stats(raster, bbox_zone(*inputs["bbox"]), limits.max_cells)
+        return bbox_zone(*inputs["bbox"])
     if inputs.get("geometry") is not None:
-        return zonal_stats(raster, inputs["geometry"], limits.max_cells)
+        return inputs["geometry"]
     raise Refusal("missing_input", "a zone is required: give a 'bbox' or a 'geometry'")
 
 
-OPERATIONS = {"metadata": metadata, "point": point, "zonal": zonal}
+def zonal(params, inputs, limits):
+    return zonal_stats(required(inputs, "raster"), zone(inputs), limits.max_cells)
+
+
+def histogram_of(params, inputs, limits):
+    return histogram(required(inputs, "raster"), zone(inputs), limits.max_cells)
+
+
+def classification(params, inputs, limits):
+    raster, classes = required(inputs, "raster"), required(inputs, "classes")
+    return classify(raster, zone(inputs), classes, limits.max_cells)
+
+
+OPERATIONS = {"metadata": metadata, "point": point, "zonal": zonal, "histogram": histogram_of, "classify": classification}
 
 
 def read_tile(tile):

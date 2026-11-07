@@ -95,3 +95,21 @@ def big_cog(web_host):
     ) as dataset:
         dataset.write(values, 1)
     return web_host.address("big.tif")
+
+
+@pytest.fixture
+def land_cover_grid(tmp_path):
+    """Ten by ten one-degree cells over lon 0..10, lat 0..10 holding land-cover codes: 10 over the northern half
+    (50 cells), 20 over the south-west (25), 30 over the south-middle (20), and nodata in the last column of the
+    southern half (5)."""
+    values = np.full((10, 10), 10, dtype="uint8")
+    values[5:, :5] = 20
+    values[5:, 5:9] = 30
+    values[5:, 9] = 255
+    path = tmp_path / "land-cover.tif"
+    with rasterio.open(
+        path, "w", driver="GTiff", height=10, width=10, count=1, dtype="uint8",
+        crs="EPSG:4326", transform=from_origin(0, 10, 1, 1), nodata=255,
+    ) as dataset:
+        dataset.write(values, 1)
+    return str(path)

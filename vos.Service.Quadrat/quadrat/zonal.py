@@ -1,4 +1,5 @@
 import math
+from contextlib import contextmanager
 
 import numpy
 import shapely
@@ -12,7 +13,13 @@ OPERATIONS = ["count", "mean", "min", "max", "median"]
 POLYGONS = ("Polygon", "MultiPolygon")
 
 
-def zonal_stats(path, geometry, max_cells=None):
+@contextmanager
+def zone_window(path, geometry, max_cells=None):
+    """The raster opened and the part of the zone that lies on it, in the raster's own CRS, once the zone has passed every check.
+
+    A zone is refused here, before any cell is read, when it is not a valid polygon, lies outside the raster, or
+    needs a window of more cells than `max_cells`.
+    """
     if geometry.get("type") not in POLYGONS:
         raise Refusal("unsupported_geometry", f"a zone is a Polygon or MultiPolygon, not {geometry.get('type')!r}")
     wanted = shape(geometry)
@@ -33,6 +40,11 @@ def zonal_stats(path, geometry, max_cells=None):
                     "too_many_cells",
                     f"this zone needs a window of {window} cells of the raster to be read, and this service reads at most "
                     f"{max_cells} in one request: use a smaller zone or a coarser raster")
+        yield dataset, clipped
+
+
+def zonal_stats(path, geometry, max_cells=None):
+    with zone_window(path, geometry, max_cells) as (dataset, clipped):
         feature = {"type": "Feature", "properties": {}, "geometry": mapping(clipped)}
         counted = exact_extract(path, feature, OPERATIONS, output="geojson")[0]["properties"]
         covered_cells = clipped.area / abs(dataset.res[0] * dataset.res[1])
