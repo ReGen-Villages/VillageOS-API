@@ -1367,7 +1367,7 @@ export const it: PartialResources = {
     endKind: {
       messageKind: "messaggio",
       externalSystem: "sistema",
-      door: "porta",
+      httpConnection: "connessione HTTP",
       state: "stato",
       relationship: "relazione",
       pipeline: "pipeline",

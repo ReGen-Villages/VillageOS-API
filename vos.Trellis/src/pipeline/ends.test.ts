@@ -21,7 +21,7 @@ describe('what a boundary node stands for', () => {
     expect(model.endInformation(id.dailyDigest)).toMatchObject({ kind: 'messageKind', mayStart: false, mayEnd: true });
     expect(model.endInformation(id.weatherStation)).toMatchObject({ kind: 'externalSystem', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.reportingOffice)).toMatchObject({ kind: 'externalSystem', mayStart: false, mayEnd: false });
-    expect(model.endInformation(id.intakeDoor)).toMatchObject({ kind: 'door', mayStart: true, mayEnd: false });
+    expect(model.endInformation(id.intakeConnection)).toMatchObject({ kind: 'httpConnection', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.belowReorder)).toMatchObject({ kind: 'state', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.feeds)).toMatchObject({ kind: 'relationship', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.refill)).toMatchObject({ kind: 'pipeline', mayStart: true, mayEnd: false });
@@ -35,7 +35,7 @@ describe('what a boundary node stands for', () => {
   });
 
   it('reads a connection trigger off the connection or the nearest kind above it', () => {
-    expect(model.triggerOf(id.intakeDoor)).toBe('http');
+    expect(model.triggerOf(id.intakeConnection)).toBe('http');
     expect(model.triggerOf(id.feeds)).toBe('graph');
     expect(model.triggerOf(id.reservoir)).toBe('');
   });
@@ -43,7 +43,7 @@ describe('what a boundary node stands for', () => {
 
 describe('a trigger the model names in its own words', () => {
   it.each([
-    ['intakeDoor', 'http', 'door'],
+    ['intakeConnection', 'http', 'httpConnection'],
     ['feeds', 'graph', 'relationship'],
     ['watchesDry', 'state', 'state'],
   ] as const)('reads %s by the role its trigger plays, not by the trigger\'s name', (connection, trigger, kind) => {

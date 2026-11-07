@@ -1287,7 +1287,7 @@ public sealed class PipelineExecutor
 
     private sealed record CallOutcome(NodeRunResult Result, bool ReachedTheService);
 
-    // A call that threw, or that the broker's door answered for a service it could not reach, never reached the
+    // A call that threw, or that the broker answered for a service it could not reach, never reached the
     // service; any other answer came from it.
     private async Task<CallOutcome> CallOnceAsync(
         DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> inputs, int? index, bool rehearsal, CancellationToken cancellationToken)

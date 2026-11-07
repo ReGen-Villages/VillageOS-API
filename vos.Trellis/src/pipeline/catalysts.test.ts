@@ -6,7 +6,7 @@ describe('the rail of catalysts', () => {
   const { model, id } = catalystFixture();
   const [external, internal] = catalystRail(model);
 
-  it('lists what an external system sends, at the door it arrives at, with the pipeline drawn for it', () => {
+  it('lists what an external system sends, at the HTTP connection it arrives at, with the pipeline drawn for it', () => {
     const row = external.rows.find((each) => each.who === 'Weather station');
     expect(row).toMatchObject({
       kind: 'message', what: 'hourly reading', standsForId: id.hourlyReading, today: 'Reader',
@@ -14,14 +14,14 @@ describe('the rail of catalysts', () => {
     });
   });
 
-  it('lists a door nothing is said to send to, from anybody, saying what reads it today', () => {
-    const row = external.rows.find((each) => each.standsForId === id.spareDoor);
+  it('lists an HTTP connection nothing is said to send to, from anybody, saying what reads it today', () => {
+    const row = external.rows.find((each) => each.standsForId === id.spareConnection);
     expect(row).toMatchObject({ kind: 'message', who: '', what: 'spare', today: 'Reader' });
     expect(row?.starts).toBeUndefined();
   });
 
-  it('does not list a door twice once a kind arriving at it is listed', () => {
-    expect(external.rows.filter((each) => each.standsForId === id.intakeDoor)).toEqual([]);
+  it('does not list an HTTP connection twice once a kind arriving at it is listed', () => {
+    expect(external.rows.filter((each) => each.standsForId === id.intakeConnection)).toEqual([]);
   });
 
   it('lists a watched state as the kind it judges entering it, with the pipeline the connection starts', () => {
@@ -81,7 +81,7 @@ describe('the rail of catalysts', () => {
     expect(internal.rows.find((each) => each.standsForId === id.overdue)?.offersOrchestrator).toBe(true);
   });
 
-  it('offers the orchestrator on no door and no relationship, which it cannot start a run from', () => {
+  it('offers the orchestrator on no HTTP connection and no relationship, which it cannot start a run from', () => {
     const others = [...external.rows, ...internal.rows.filter((each) => each.kind === 'relationship')];
     expect(others.length).toBeGreaterThan(0);
     expect(others.every((each) => !each.offersOrchestrator && each.handling === undefined)).toBe(true);

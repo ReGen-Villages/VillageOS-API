@@ -83,7 +83,7 @@ public class PositionLookupEndpointTests
     }
 
     // The Willow Bend site itself sits outside the fixture register's bounds, which is exactly the
-    // situation of a register next door: nothing is asked of any provider, and the caller is told to
+    // situation of a neighbouring register: nothing is asked of any provider, and the caller is told to
     // draw — in the same words as a deployment registering no lookup at all, because the caller does
     // the same thing in both.
     [Fact]

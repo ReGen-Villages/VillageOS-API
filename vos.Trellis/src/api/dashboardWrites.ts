@@ -8,7 +8,7 @@ export interface EndpointAnswer {
 }
 
 /**
- * The post a writing widget makes: the body to the door the specification names, through the same port a
+ * The post a writing widget makes: the body to the route the specification names, through the same port a
  * `service` binding reads through, so a page holding no credential decides for itself what a post
  * does. Nothing here says who is asking; the platform holds the session and is what an endpoint
  * would have to be told the caller by.
@@ -20,7 +20,7 @@ export interface EndpointAnswer {
 export async function postToEndpoint(reads: ModelReads, via: string, body: Record<string, unknown>): Promise<EndpointAnswer> {
   let answer: EndpointAnswer;
   try {
-    answer = ((await reads.fromService(doorOf(via), body)) as EndpointAnswer | null) ?? {};
+    answer = ((await reads.fromService(routeOf(via), body)) as EndpointAnswer | null) ?? {};
   } catch (refusal) {
     answer = { error: refusal instanceof Error ? refusal.message : String(refusal) };
   }
@@ -31,6 +31,6 @@ export async function postToEndpoint(reads: ModelReads, via: string, body: Recor
 
 /** Where a `via` posts: a route on the platform itself where the specification wrote one by its path, and
  *  otherwise the endpoint the forwarder resolves by that name. */
-function doorOf(via: string): string {
+function routeOf(via: string): string {
   return via.startsWith('/') ? via : `/api/endpoints/${via}`;
 }

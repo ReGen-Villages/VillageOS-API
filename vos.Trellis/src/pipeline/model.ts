@@ -90,7 +90,7 @@ const EVALUATION_INTERVAL_PROPERTY = 'EvaluationIntervalSeconds';
 const REQUEST_ID_PROPERTY = 'requestId';
 
 /** What a boundary node may stand for, told by what the Thing it points at is. */
-export type EndKind = 'messageKind' | 'externalSystem' | 'door' | 'state' | 'relationship' | 'pipeline' | 'cadence' | 'other';
+export type EndKind = 'messageKind' | 'externalSystem' | 'httpConnection' | 'state' | 'relationship' | 'pipeline' | 'cadence' | 'other';
 
 /** A Thing at one end of a pipeline: what it is, and whether a run may come from it or leave it behind. */
 export interface EndInformation {
@@ -116,13 +116,13 @@ const TRIGGER_KIND_ROLE: Record<Exclude<TriggerKind, ''>, string> = {
 };
 
 const END_KIND_OF_TRIGGER: Record<TriggerKind, EndKind | undefined> = {
-  http: 'door',
+  http: 'httpConnection',
   graph: 'relationship',
   state: 'state',
   '': undefined,
 };
 
-/** A kind of message an external system sends or is told, and the door it arrives at where one is declared. */
+/** A kind of message an external system sends or is told, and the HTTP connection it arrives at where one is declared. */
 export interface MessageKindInformation {
   id: string;
   name: string;
@@ -228,7 +228,7 @@ export class PipelineModel {
   private readonly boundCache = new Map<string, string | undefined>();
   private readonly statedCache = new WeakMap<VosThing, Record<string, unknown>>();
   // Relationships indexed by target, for the reads that ask what points at a Thing: which node stands for
-  // a catalyst, which door a kind arrives at. Built once with the subject index.
+  // a catalyst, which HTTP connection a kind arrives at. Built once with the subject index.
   private readonly byTarget: Map<string, VosRelationship[]>;
 
   constructor(things: VosThing[], relationships: VosRelationship[]) {
@@ -371,7 +371,7 @@ export class PipelineModel {
   }
 
   /** Every connection the model holds, as the catalyst its trigger makes it, whether or not a pipeline
-   *  can call it: a door reached over HTTP, a predicate written along, a state watched. */
+   *  can call it: an HTTP connection, a predicate written along, a state watched. */
   catalystConnections(): CatalystConnection[] {
     const resumption = this.boundTo(ROLE.RunResumption);
     return this.thingsOf(ROLE.Connection).filter((connection) => connection.Id !== resumption).map((connection) => {
@@ -403,9 +403,9 @@ export class PipelineModel {
   }
 
   private messageKind(kind: VosThing): MessageKindInformation {
-    const door = this.reachedAlong(kind.Id, ROLE.ArrivesAt)
+    const arrivesAt = this.reachedAlong(kind.Id, ROLE.ArrivesAt)
       .find((c) => this.isOf(c.Id, ROLE.Connection));
-    return { id: kind.Id, name: kind.Name, ...(door ? { arrivesAtConnectionId: door.Id } : {}) };
+    return { id: kind.Id, name: kind.Name, ...(arrivesAt ? { arrivesAtConnectionId: arrivesAt.Id } : {}) };
   }
 
   /** Every external system the model holds, with the kinds of message it sends and is told. */
@@ -457,7 +457,7 @@ export class PipelineModel {
 
   /** What a Thing is as the end of a pipeline, and which end it may be. A kind of message may start a run
    *  where a system sends it and end one where a system is told it; a system may start one where it sends
-   *  anything; a door, a state, a predicate and a pipeline only start. A run tells a system and starts a pipeline
+   *  anything; an HTTP connection, a state, a predicate and a pipeline only start. A run tells a system and starts a pipeline
    *  through a node wired on to its end, so neither is the end itself, as Phloem reads it. */
   endInformation(thingId: string): EndInformation {
     const thing = this.byId.get(thingId);
