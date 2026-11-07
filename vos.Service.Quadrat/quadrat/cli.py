@@ -27,7 +27,7 @@ def build_parser():
         zone.add_argument("--geometry", help="a GeoJSON file holding a Polygon, a Feature or a FeatureCollection")
         zone.add_argument("--bbox", nargs=4, type=float, metavar=("WEST", "SOUTH", "EAST", "NORTH"))
         if name == "classify":
-            command.add_argument("--classes", required=True, help='a JSON file: [{"label": "trees", "values": [10, 11]}, ...]')
+            command.add_argument("--classes", required=True, help='a JSON file: [{"label": "trees", "values": [10, 11]}, {"label": "low", "max": 200}, ...]')
     return parser
 
 

@@ -1,3 +1,5 @@
+import math
+
 import numpy
 import shapely
 from exactextract import exact_extract
@@ -25,11 +27,19 @@ def histogram(path, geometry, max_cells=None):
 
 
 def classify(path, geometry, classes, max_cells=None):
-    """The same measure grouped by a class table stated in the request: [{"label": ..., "values": [...]}].
+    """The same measure grouped by a class table stated in the request.
 
-    A value no class names is reported as unclassified with its values, never put in a class by guess.
+    A class names exact values, `{"label": ..., "values": [...]}`, or a range, `{"label": ..., "min": ..., "max": ...}`
+    that takes every value from `min` up to but not including `max` (either bound may be left out). A cell no class
+    names is reported as unclassified, never put in a class by guess.
     """
     table = _checked(classes)
+    if any(entry["values"] is None for entry in table):
+        return _classified_by_cell(path, geometry, table, max_cells)
+    return _classified_by_value(path, geometry, table, max_cells)
+
+
+def _classified_by_value(path, geometry, table, max_cells):
     measured = _measured(path, geometry, max_cells)
     covered, area = measured["covered_cells"], measured["area_m2"]
     by_value = {entry["value"]: entry for entry in measured["classes"]}
@@ -47,6 +57,44 @@ def classify(path, geometry, classes, max_cells=None):
         "covered_cells": covered,
         "area_m2": area,
     }
+
+
+def _classified_by_cell(path, geometry, table, max_cells):
+    """Ranges need each cell's value, not a count per distinct value, so the cells of the zone window are read."""
+    with zone_window(path, geometry, max_cells) as (dataset, clipped):
+        feature = {"type": "Feature", "properties": {}, "geometry": mapping(clipped)}
+        read = exact_extract(path, feature, ["values", "coverage"], output="geojson")[0]["properties"]
+        values = numpy.atleast_1d(numpy.asarray(read["values"], dtype="float64"))
+        weights = numpy.atleast_1d(numpy.asarray(read["coverage"], dtype="float64"))
+        covered = clipped.area / abs(dataset.res[0] * dataset.res[1])
+        area = _ground_area(clipped, dataset)
+        taken = numpy.zeros(len(values), dtype=bool)
+        grouped = []
+        for entry in table:
+            inside = _inside(entry, values)
+            taken |= inside
+            cells = float(weights[inside].sum())
+            grouped.append({"label": entry["label"], "cells": cells, **_share(cells, covered, area)})
+        left = ~taken
+        cells = float(weights[left].sum())
+        gap = max(0.0, covered - float(weights.sum()))
+        return {
+            "classes": grouped,
+            "unclassified": {
+                "cells": cells, **_share(cells, covered, area),
+                "min": _plain(values[left].min()) if left.any() else None,
+                "max": _plain(values[left].max()) if left.any() else None,
+            },
+            "nodata": {"cells": gap, **_share(gap, covered, area)},
+            "covered_cells": covered,
+            "area_m2": area,
+        }
+
+
+def _inside(entry, values):
+    if entry["values"] is not None:
+        return numpy.isin(values, entry["values"])
+    return (values >= entry["min"]) & (values < entry["max"])
 
 
 def _measured(path, geometry, max_cells):
@@ -91,20 +139,54 @@ def _ground_area(clipped, dataset):
 
 
 def _checked(classes):
-    unclear = 'classes is a list of {"label": text, "values": [numbers]}, each label once and each value in one class'
+    unclear = (
+        'classes is a list of {"label": text, "values": [numbers]} or {"label": text, "min": number and/or "max": number}, '
+        "each label once, no value in more than one class and no ranges that overlap (a range takes min up to, not including, max)"
+    )
     if not isinstance(classes, list) or not classes:
         raise Refusal("invalid_classes", unclear)
-    labels, seen = set(), set()
+    table, labels = [], set()
     for entry in classes:
-        if not isinstance(entry, dict) or set(entry) != {"label", "values"}:
+        if not isinstance(entry, dict) or not isinstance(entry.get("label"), str) or not entry["label"] or entry["label"] in labels:
             raise Refusal("invalid_classes", unclear)
-        label, values = entry["label"], entry["values"]
-        if not isinstance(label, str) or not label or label in labels:
+        labels.add(entry["label"])
+        table.append(_clear(entry, unclear))
+    _apart(table, unclear)
+    return table
+
+
+def _clear(entry, unclear):
+    keys = set(entry) - {"label"}
+    if keys == {"values"}:
+        values = entry["values"]
+        if not isinstance(values, list) or not values or not all(_is_number(v) for v in values):
             raise Refusal("invalid_classes", unclear)
-        if not isinstance(values, list) or not values or any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in values):
-            raise Refusal("invalid_classes", unclear)
-        if seen.intersection(values):
-            raise Refusal("invalid_classes", f"{unclear}; {sorted(seen.intersection(values))} is in more than one class")
-        labels.add(label)
-        seen.update(values)
-    return classes
+        return {"label": entry["label"], "values": values}
+    if not keys or not keys <= {"min", "max"} or not all(_is_number(entry[key]) for key in keys):
+        raise Refusal("invalid_classes", unclear)
+    low, high = entry.get("min", -math.inf), entry.get("max", math.inf)
+    if not low < high:
+        raise Refusal("invalid_classes", f"{unclear}; {entry['label']!r} has no value between its min and max")
+    return {"label": entry["label"], "values": None, "min": low, "max": high}
+
+
+def _is_number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def _apart(table, unclear):
+    ranges = [entry for entry in table if entry["values"] is None]
+    seen = set()
+    for entry in table:
+        if entry["values"] is None:
+            continue
+        if seen.intersection(entry["values"]):
+            raise Refusal("invalid_classes", f"{unclear}; {sorted(seen.intersection(entry['values']))} is in more than one class")
+        seen.update(entry["values"])
+    for i, first in enumerate(ranges):
+        for second in ranges[i + 1:]:
+            if first["min"] < second["max"] and second["min"] < first["max"]:
+                raise Refusal("invalid_classes", f"{unclear}; {first['label']!r} and {second['label']!r} overlap")
+        inside = [v for v in seen if first["min"] <= v < first["max"]]
+        if inside:
+            raise Refusal("invalid_classes", f"{unclear}; {sorted(inside)} is in more than one class")

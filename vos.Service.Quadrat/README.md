@@ -92,7 +92,7 @@ much larger pieces.
 | `inputs.tile`, `params.encoding` | A terrain tile: `{"z": n, "x": n, "y": n}` and `terrarium` or `mapbox`. See [Terrain tiles](#terrain-tiles) |
 | `inputs.lon`, `inputs.lat` | `point`: the WGS84 coordinate |
 | `inputs.bbox` or `inputs.geometry` | `zonal`, `histogram`, `classify`: `[west, south, east, north]` or a GeoJSON Polygon or MultiPolygon, not both |
-| `inputs.classes` | `classify`: the class table, `[{"label": "trees", "values": [10, 11]}, ...]`. Required |
+| `inputs.classes` | `classify`: the class table, `[{"label": "trees", "values": [10, 11]}, {"label": "low", "max": 200}, ...]`. Required |
 | `outputs.result` | What the command line prints |
 
 The answer is `{"result": "success", "outputs": {"result": ...}, "error": null}`, the shape Phloem reads. A request
@@ -150,22 +150,41 @@ a gigabyte (measured: 988 MB for four requests at the default, 1,831 MB with `--
 | `metadata` | CRS, size, resolution, bounds (own CRS and WGS84), bands, dtype, nodata |
 | `point` | The value at a coordinate; `nearest` or `bilinear`; `null` on a nodata cell |
 | `zonal` | `count`, `mean`, `min`, `max`, `median` over a polygon, weighted by how much of each cell the polygon covers; nodata cells left out and reported as `nodata_cells` |
-| `histogram` | The cells, share and ground area of each distinct value over a polygon, for a raster of class codes. See [Land cover](#land-cover-histogram-and-classify) |
-| `classify` | The same, grouped by a class table the request states; values no class names are reported as `unclassified` |
+| `histogram` | The cells, share and ground area of each distinct value over a polygon, for a raster of class codes. See [Land cover](#land-cover-and-measurements-histogram-and-classify) |
+| `classify` | The same, grouped by a class table the request states, of exact values (land cover) or ranges (elevation, slope, rainfall); cells no class names are reported as `unclassified` |
 
-### Land cover: `histogram` and `classify`
+### Land cover and measurements: `histogram` and `classify`
 
-Both answer *how much of the zone is each kind of cell*, for a raster of class codes (a land-cover map).
+Both answer *how much of the zone is each kind of cell*. `histogram` is for a raster of class codes (a land-cover map);
+`classify` also takes ranges, so it serves a measurement such as elevation, slope or rainfall.
 
 - **`histogram`** counts the cells of each distinct value: `classes: [{"value", "cells", "fraction", "area_m2"}]`,
   with the cells that hold no data under `nodata`, and the zone's `covered_cells` and `area_m2`.
-- **`classify`** groups those values into the classes the request states, in the order given: `classes: [{"label",
-  "cells", "fraction", "area_m2"}]`. A class with no cells is still listed. A value that no class names is never put
-  in one by guess: it is reported under `unclassified` with its `values`.
+- **`classify`** groups cells into the classes the request states, in the order given: `classes: [{"label",
+  "cells", "fraction", "area_m2"}]`. A class with no cells is still listed. A cell that no class names is never put
+  in one by guess: it is reported under `unclassified`.
 
-A class table is `[{"label": "trees", "values": [10, 11]}]`. Each label is used once and each value belongs to one
-class; anything else is refused as `invalid_classes`. What a code means is the request's to say, so Quadrat holds no
-table for any land-cover product.
+A class table is a list of classes, each one of two kinds, and a table may mix them:
+
+```json
+[
+  {"label": "trees", "values": [10, 11]},
+  {"label": "low",  "max": 200},
+  {"label": "mid",  "min": 200, "max": 400},
+  {"label": "high", "min": 400}
+]
+```
+
+- **Exact values** (`values`) suit a raster of codes, where 10 is a name, not a size. A code means what the request
+  says it means, so Quadrat holds no table for any land-cover product.
+- **A range** (`min` and/or `max`) suits a measurement, where the numbers have size. It takes every value from `min`
+  up to but **not including** `max`, so a value on the edge of two ranges belongs to the upper one and no value is
+  counted twice. Leave a bound out for an open end. Values are compared as stored in the raster.
+- Each label is used once, no value belongs to two classes, ranges may touch but not overlap, and `min` is below
+  `max`. Anything else is refused as `invalid_classes`.
+- `unclassified` of a table with exact values only lists the `values` that were left over. A table with a range
+  reports the `min` and `max` of the left-over values instead (`null` when nothing is left over), because a
+  measurement has no short list of values.
 
 - **Cells** are weighted by how much of each the zone covers, as in `zonal`, so an edge cell counts for its part.
 - **`fraction`** is the share of the zone's covered cells, including the nodata ones, so the fractions of the classes
@@ -173,8 +192,10 @@ table for any land-cover product.
 - **`area_m2`** is that share of the zone's ground area on the WGS84 ellipsoid. It takes the cells across the zone to
   be of one size, which is close for a zone the size of a site and loses accuracy for a very large one on a
   web-mercator raster (see the limits of raster data below).
-- A raster whose zone holds more than 1000 distinct values is a measurement, not a classification, and is refused as
-  `too_many_values`. The cell limit applies as it does to `zonal`.
+- `histogram` counts each distinct value, so a raster whose zone holds more than 1000 of them is a measurement and
+  is refused as `too_many_values`: classify it by ranges instead. A table of exact values is refused the same way.
+- The cell limit applies as it does to `zonal`. Ranges need each cell's value, which takes about 50 bytes a cell:
+  roughly 200 MiB at the default 4,000,000-cell limit for each read in flight (`--maxConcurrentReads`).
 
 ## Terrain tiles
 

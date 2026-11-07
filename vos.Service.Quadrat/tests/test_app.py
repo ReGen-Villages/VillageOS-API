@@ -459,3 +459,10 @@ def test_a_classification_without_classes_is_refused_as_a_missing_input(client, 
 def test_a_histogram_without_a_zone_is_refused_as_a_missing_input(client, land_cover_grid):
     body = run_node(client, {"operation": "histogram"}, {"raster": land_cover_grid}).json()
     assert body["error"].startswith("missing_input:")
+
+
+def test_a_classification_by_ranges_is_read_through_the_node(client, degrees_grid):
+    classes = [{"label": "low", "max": 50}, {"label": "high", "min": 50}]
+    body = run_node(client, {"operation": "classify"}, {"raster": degrees_grid, "bbox": [0, 0, 10, 10], "classes": classes}).json()
+    assert body["result"] == "success", body
+    assert [entry["cells"] for entry in body["outputs"]["result"]["classes"]] == [pytest.approx(50), pytest.approx(49)]
