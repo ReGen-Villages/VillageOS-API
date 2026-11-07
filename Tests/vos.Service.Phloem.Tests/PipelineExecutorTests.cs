@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
 using vos.Service.Shared;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Phloem.Tests;
@@ -70,6 +71,20 @@ public class PipelineExecutorTests
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("the run kind is not a type");
+        gateway.Called.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenRecordingTheRunOutlastsTheClient_FailsTheRunRatherThanThrowing()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        var gateway = new FakeGateway(fx.Build()) { RunCreationFailure = ElapsedClientTimeout.New() };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+
+        var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.Error.Should().Contain("HttpClient.Timeout");
         gateway.Called.Should().BeEmpty();
     }
 

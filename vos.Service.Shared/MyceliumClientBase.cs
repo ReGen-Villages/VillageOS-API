@@ -264,8 +264,10 @@ public abstract class MyceliumClientBase
                        && stated.TryGetDouble(out var read) ? read : 1.0;
             return new ModelTimeReading(instant, rate);
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
+            // Judged by the caller's token, not the exception's type: the client's own timeout throws an
+            // OperationCanceledException too, and that one is a broker too slow to answer, not a caller stopping.
             // Said at debug, and by the caller once rather than once an interval: a broker that is
             // away for an hour would otherwise write the same warning several hundred times.
             Logger.LogDebug(exception, "Could not read the model clock");
