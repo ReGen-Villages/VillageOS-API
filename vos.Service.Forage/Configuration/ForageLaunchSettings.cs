@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using vos.Service.Shared.Configuration;
 
 namespace vos.Service.Forage.Configuration;
@@ -23,10 +24,10 @@ public sealed record ForageLaunchSettings(
     // burst of connections against public data portals that would read as abuse.
     public const int DefaultMaxConcurrentSources = 4;
 
-    // A provider that accepts the connection and then goes quiet is more common than one that
-    // refuses outright, and it is the failure most likely to be met in production. Longer than a
-    // healthy source needs, short enough that one silent provider cannot hold up the run even when
-    // each slice it times out is asked for again.
+    // A provider that accepts the connection and then goes quiet is ended by Mycelium's limit on the
+    // request it passes on, which answers that the fetch timed out. This is the backstop for a broker
+    // that does not answer at all: longer than Mycelium's limit, short enough that such a broker cannot
+    // hold up the run.
     public static readonly TimeSpan DefaultSourceTimeout = TimeSpan.FromSeconds(60);
 
     // How much of a source's window one fetch asks for. A year of hourly readings is a body of a
@@ -90,6 +91,20 @@ public sealed record ForageLaunchSettings(
         return raw is not null && int.TryParse(raw, out var attempts) && attempts > 0
             ? attempts
             : DefaultAttemptsPerSlice;
+    }
+
+    // Mycelium's limit ends a fetch the fetching service is slow to answer, so the source timeout, which ends
+    // one the broker never answers at all, has to outlast it.
+    public void WarnWhenTheSourceTimeoutIsNotLongerThanThePlatformsLimit(ILogger<ForageLaunchSettings> logger)
+    {
+        if (Service.PassedOnRequestLimit is not { } limit || SourceTimeout > limit)
+            return;
+
+        logger.LogWarning(
+            "--sourceTimeoutSeconds is {SourceTimeoutSeconds} seconds, which is not longer than the " +
+            "{PassedOnRequestLimitSeconds} seconds Mycelium allows a fetch it passes on, so Forage can give up on a " +
+            "fetch that is still being answered. Set --sourceTimeoutSeconds above {PassedOnRequestLimitSeconds} seconds.",
+            SourceTimeout.TotalSeconds, limit.TotalSeconds, limit.TotalSeconds);
     }
 
     public static string UsageMessage => ServiceLaunchSettings.BuildUsageMessage(

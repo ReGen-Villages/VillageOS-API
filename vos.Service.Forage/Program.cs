@@ -80,6 +80,9 @@ try
 
     var app = builder.Build();
 
+    launchSettings.WarnWhenTheSourceTimeoutIsNotLongerThanThePlatformsLimit(
+        app.Services.GetRequiredService<ILogger<ForageLaunchSettings>>());
+
     if (authEnabled)
     {
         app.UseAuthentication();
