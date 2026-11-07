@@ -31,10 +31,9 @@ public class FindingsEndpointTests
 
     private static HttpResponseMessage Answer(HttpRequestMessage request, BrokerSnapshot model)
     {
-        var path = request.RequestUri!.AbsolutePath;
-        if (request.Method == HttpMethod.Post && path == "/api/subscriptions")
+        if (ModelStub.IsDeclarationRead(request))
             return ModelStub.Json(Reading(request, model));
-        if (path.EndsWith("/ranges", StringComparison.Ordinal))
+        if (request.RequestUri!.AbsolutePath.EndsWith("/ranges", StringComparison.Ordinal))
             return ModelStub.Json("""{"ThingId":"x","ThingName":"Study","OwnRanges":[],"InheritedRanges":[]}""");
         return new HttpResponseMessage(HttpStatusCode.OK);
     }
@@ -128,6 +127,32 @@ public class FindingsEndpointTests
         body.Should().NotContain(BrokerSnapshot.ContactOf(WillowBend.SubmissionId).ToString());
     }
 
+    // The read naming the contact carries the address a ticket is checked against. The declarations a form
+    // needs are held between requests; this one is not, so nothing personal outlives the request.
+    [Fact]
+    public async Task The_read_naming_the_contact_is_made_again_on_every_request()
+    {
+        var contact = BrokerSnapshot.ContactOf(WillowBend.SubmissionId).ToString();
+        var readsNamingTheContact = 0;
+        var model = BrokerSnapshot.WithTwoSubmissions();
+        await using var factory = new IntakeWebApplicationFactory
+        {
+            HandlerCallback = request =>
+            {
+                if (request.Method == HttpMethod.Post
+                    && request.Content!.ReadAsStringAsync().GetAwaiter().GetResult().Contains(contact, StringComparison.OrdinalIgnoreCase))
+                    readsNamingTheContact++;
+                return Answer(request, model);
+            },
+        };
+        using var client = factory.CreateClient();
+
+        await AskAsync(factory, client, WillowBend.SubmissionId, ThisAddress);
+        await AskAsync(factory, client, WillowBend.SubmissionId, ThisAddress);
+
+        readsNamingTheContact.Should().Be(2);
+    }
+
     [Fact]
     public async Task A_request_carrying_no_ticket_is_refused()
     {
@@ -215,7 +240,7 @@ public class FindingsEndpointTests
     {
         await using var factory = new IntakeWebApplicationFactory
         {
-            HandlerCallback = request => request.RequestUri!.AbsolutePath == "/api/subscriptions"
+            HandlerCallback = request => ModelStub.IsDeclarationRead(request)
                 ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
                 : new HttpResponseMessage(HttpStatusCode.OK),
         };
@@ -249,24 +274,27 @@ public class FindingsEndpointTests
         Identifiers(answered, "things").Should().Contain(ThisSite.ToString());
     }
 
-    // The broker reaps what a caller leaves behind, so a release nobody could make is worth a line in the
-    // log and nothing more. Losing the read with it would be a page a submitter cannot open because a
-    // subscription could not be tidied up.
+    // A read made once goes through the route that registers nothing: there is no subscription to release,
+    // and nothing left for the broker to check on every later write.
     [Fact]
-    public async Task A_release_that_fails_does_not_lose_the_read_that_succeeded()
+    public async Task A_findings_read_registers_nothing_on_the_broker()
     {
+        var paths = new List<string>();
         var model = BrokerSnapshot.WithTwoSubmissions();
         await using var factory = new IntakeWebApplicationFactory
         {
-            HandlerCallback = request => request.Method == HttpMethod.Delete
-                ? throw new HttpRequestException("mycelium is already gone")
-                : Answer(request, model),
+            HandlerCallback = request =>
+            {
+                paths.Add(request.RequestUri!.AbsolutePath);
+                return Answer(request, model);
+            },
         };
         using var client = factory.CreateClient();
 
         var response = await AskAsync(factory, client, WillowBend.SubmissionId, ThisAddress);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+        paths.Should().NotContain(path => path.StartsWith("/api/subscriptions", StringComparison.Ordinal));
     }
 
     [Fact]
