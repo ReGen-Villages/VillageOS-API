@@ -33,7 +33,7 @@ public class MyceliumGatewayTests
     private static readonly Guid HasPredicateId = Guid.Parse("18181818-1818-1818-1818-181818181818");
 
     private static (MyceliumGateway Gateway, MockHttpMessageHandler Handler) NewGateway(
-        Func<HttpRequestMessage, HttpResponseMessage>? respond = null, TimeSpan? cadenceStreamRetry = null)
+        Func<HttpRequestMessage, HttpResponseMessage>? respond = null, TimeSpan? cadenceStreamRetry = null, TimeSpan? disposeWait = null)
     {
         var handler = new MockHttpMessageHandler(respond ?? new BrokerApplyingItsWriteRules().Respond);
         var gateway = new MyceliumGateway(
@@ -43,6 +43,7 @@ public class MyceliumGatewayTests
             "svc-token")
         {
             CadenceStreamRetry = cadenceStreamRetry ?? TimeSpan.FromSeconds(2),
+            DisposeWait = disposeWait ?? TimeSpan.FromSeconds(5),
         };
         return (gateway, handler);
     }
@@ -357,10 +358,6 @@ public class MyceliumGatewayTests
                  PipelineRoles.CompletionRange.Id, PipelineRoles.AwaitsThrough.Id, PipelineRoles.PipelineTell.Id, PipelineRoles.PipelineFollowOn.Id,
                  PipelineRoles.PipelineStop.Id, PipelineRoles.RequestedBy.Id]));
 
-        // After the nodes come the kind each service or node is and that kind's own ports, then what each role binds,
-        // the two ports each wire connects, the system or pipeline a node stands for, the connection a system is told
-        // through, what a port offers and a node chose, the state a waiting node waits for, and the Things a node's
-        // choice compares with.
         var rules = selector.GetProperty("traverse").EnumerateArray().ToList();
         rules.Select(rule => rule.TryGetProperty("predicateRole", out var role) ? role.GetString() : rule.GetProperty("predicate").GetString())
             .Should().Equal(ModelNames.Has, ModelNames.Is, ModelNames.Has, ModelNames.Binds,
@@ -508,8 +505,6 @@ public class MyceliumGatewayTests
         });
     }
 
-    // A restarted orchestrator reads the runs it holds, so a run is held from its first write; the edge travels in
-    // the run's own fragment and costs no call of its own.
     [Fact]
     public async Task CreateRunAsync_HoldsTheRunUnderTheOrchestratorInTheSameFragment()
     {
@@ -525,7 +520,6 @@ public class MyceliumGatewayTests
         RequestsTo(handler, "/api/relationships", HttpMethod.Post).Should().BeEmpty();
     }
 
-    // A model binding no orchestrator records the run; only a restart cannot find it.
     [Fact]
     public async Task CreateRunAsync_WhenTheModelBindsNoOrchestrator_RecordsTheRunUnheld()
     {
@@ -541,7 +535,6 @@ public class MyceliumGatewayTests
         (await CreatedRelationships(handler)).Should().HaveCount(2);
     }
 
-    // A finished run is let go: the one edge the orchestrator holds it by is found among its relationships and deleted.
     [Fact]
     public async Task SetRunStatusAsync_Finished_ReleasesTheRunFromTheOrchestrator()
     {
@@ -580,8 +573,6 @@ public class MyceliumGatewayTests
         change.GetProperty("relationships").EnumerateArray().Should().BeEmpty();
     }
 
-    // A person carrying an interrupted run on makes it unfinished again, so the run is held again, in the status
-    // fragment; the broker takes an edge it already holds as nothing new.
     [Fact]
     public async Task SetRunStatusAsync_Running_HoldsTheRunAgainInTheStatusFragment()
     {
@@ -599,7 +590,6 @@ public class MyceliumGatewayTests
             .Should().Equal((OrchestratorId, PredicateId, runId));
     }
 
-    // Only what the orchestrator holds is read: the runs under way and their node runs, never every node run ever recorded.
     [Fact]
     public async Task WaitingAndUnfinishedNodeRunsAreReadFromWhatTheOrchestratorHolds()
     {
@@ -1421,6 +1411,24 @@ public class MyceliumGatewayTests
         },
     };
 
+    private sealed class StreamThatNeverAnswers : Stream
+    {
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            new(new TaskCompletionSource<int>().Task);
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            new TaskCompletionSource<int>().Task;
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
     // A stream the stand-in broker keeps open: the test sends each frame, and ends it when the case is about a drop.
     private sealed class OpenStream
     {
@@ -1448,7 +1456,6 @@ public class MyceliumGatewayTests
     private static string ThingMovedFrame(string kind, Guid thingId, object? thing = null) =>
         $"event: {kind}\ndata: {JsonSerializer.Serialize(new { Kind = kind, EntityId = thingId, Thing = thing })}\n\n";
 
-    // Answered from what the gateway holds, so a look costs nothing once the subscription is open.
     private static IReadOnlyList<Cadence> Held(MyceliumGateway gateway) =>
         gateway.CadencesAsync(CancellationToken.None).GetAwaiter().GetResult();
 
@@ -1555,8 +1562,6 @@ public class MyceliumGatewayTests
         await Settle.UntilAsync(() => Held(gateway).Count == 0, "the deleted cadence is let go");
     }
 
-    // A derived value is published live-only and never replayed, so a stream that dropped is not resumed: the
-    // gateway subscribes again and takes the fresh snapshot, letting the broker forget the subscription it left.
     [Fact]
     public async Task A_dropped_cadence_stream_is_subscribed_again_and_the_cadences_read_again()
     {
@@ -1619,8 +1624,22 @@ public class MyceliumGatewayTests
         handler.Requests.Count.Should().Be(asked, "nothing subscribes after the gateway is disposed");
     }
 
-    // The next look comes a second after the write, which can be before the stream delivers it; a held cadence
-    // read with the old instant would start the same run again.
+    [Fact]
+    public async Task Disposing_the_gateway_while_the_cadence_stream_ignores_the_stop_gives_up_after_its_wait()
+    {
+        var subscriptionId = Guid.NewGuid();
+        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/subscriptions" when request.Method == HttpMethod.Post => Json(HttpStatusCode.OK, SubscriptionAnswer(subscriptionId)),
+            var path when path == $"/api/subscriptions/{subscriptionId}/stream" =>
+                new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new StreamThatNeverAnswers()) },
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound),
+        }, disposeWait: TimeSpan.FromMilliseconds(50));
+        (await gateway.CadencesAsync(CancellationToken.None)).Should().BeEmpty();
+
+        await Settle.ForAsync(gateway.DisposeAsync().AsTask(), "disposing gives up on a stream that never answers the stop");
+    }
+
     [Fact]
     public async Task The_instant_a_cadence_is_marked_due_moves_the_held_cadence_before_the_stream_carries_it()
     {
@@ -1644,8 +1663,6 @@ public class MyceliumGatewayTests
         (await gateway.CadencesAsync(CancellationToken.None)).Single().LastDue.Should().Be(noon);
     }
 
-    // A look fails the way it did when every look was a read, so the keeper backs off as before; once a
-    // subscription opens the looks answer again.
     [Fact]
     public async Task CadencesAsync_WhileNoSubscriptionCanBeOpened_Fails_AndAnswersOnceOneOpens()
     {

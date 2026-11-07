@@ -79,8 +79,6 @@ public class PhloemKeepsACadenceTests : IClassFixture<TheEngine>
         (await gateway.CadencesAsync(CancellationToken.None)).Should().NotContain(cadence => cadence.Name == "Cadence");
     }
 
-    // The orchestrator holds the cadences from one subscription; a change and a new cadence reach it over the
-    // stream, with no further read.
     [FactAgainstTheEngine]
     public async Task A_cadence_edited_after_the_subscription_opened_and_one_typed_in_later_reach_the_held_cadences()
     {

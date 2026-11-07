@@ -168,7 +168,6 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
         return await gateway.LoadPipelineSubgraphAsync(pipeline, CancellationToken.None);
     }
 
-    // The drawing read used to select every port and wire the model holds; it reaches this pipeline's by traversal now.
     [FactAgainstTheEngine]
     public async Task Loading_one_pipeline_carries_none_of_another_pipelines_ports_or_wires()
     {
@@ -184,7 +183,6 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
         DagValidator.Validate(PipelineDagBuilder.Build(graph, studio.Pipeline)).Should().BeEmpty();
     }
 
-    // A service's ports can sit on the prototype it is, which the has walk alone does not reach.
     [FactAgainstTheEngine]
     public async Task A_services_ports_declared_on_the_prototype_it_is_are_read()
     {

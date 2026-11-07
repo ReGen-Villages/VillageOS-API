@@ -4,9 +4,8 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Phloem.Model;
 
-// The cadences of one model as the broker's stream keeps them, so a look costs no read. Nothing is answered before
-// the first snapshot; a failure to take one is answered until a snapshot replaces it, so a look fails the way a
-// failed read did and the keeper backs off as before.
+// A failed snapshot is answered as a failure until one replaces it, so a look fails the way a failed read did and
+// the keeper backs off as before.
 public sealed class HeldCadences
 {
     private readonly object _lock = new();

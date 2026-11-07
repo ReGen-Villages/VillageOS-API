@@ -6,7 +6,6 @@ using Xunit;
 
 namespace vos.Service.Phloem.Tests;
 
-// The cadences the orchestrator holds between looks, moved by the broker's stream rather than by a read.
 public class HeldCadencesTests
 {
     private static readonly DateTimeOffset Nine = new(2026, 10, 15, 9, 0, 0, TimeSpan.Zero);

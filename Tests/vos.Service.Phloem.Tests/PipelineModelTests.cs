@@ -940,8 +940,6 @@ public class PipelineModelTests
             .Contain("The wire from 'Echo' to 'Generate' is drawn as a relationship between the two nodes; a wire is a Thing the node it leaves has, related to the two ports it connects.");
     }
 
-    // The drawing read brings what a relationship points at, never the predicate it runs along, so the shape is
-    // judged without the predicate: nothing legitimate relates two nodes of one pipeline to each other.
     [Fact]
     public void Build_AWireDrawnAsARelationshipAlongAPredicateTheReadDoesNotHold_IsRefused()
     {

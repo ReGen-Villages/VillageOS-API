@@ -186,8 +186,6 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
         waits.Should().ContainSingle(wait => wait.RunId == runId).Which.Should().Be(new HeldWait(runId, nodeId, village.Plot, vigilId));
     }
 
-    // The read a restart makes is the size of what is under way: a finished run is let go by the orchestrator, so
-    // however many were ever run, none of them travels.
     [FactAgainstTheEngine]
     public async Task A_restarted_orchestrator_reads_the_waiting_node_run_and_none_of_the_many_finished()
     {

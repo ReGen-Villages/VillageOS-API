@@ -32,6 +32,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
     private int _disposed;
 
     public TimeSpan CadenceStreamRetry { get; init; } = TimeSpan.FromSeconds(2);
+    public TimeSpan DisposeWait { get; init; } = TimeSpan.FromSeconds(5);
 
     public MyceliumGateway(IHttpClientFactory httpClientFactory, ILogger<MyceliumGateway> logger, string myceliumUrl, string? serviceToken = null, string? apiKey = null)
         : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey) { }
@@ -53,16 +54,11 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
 
     public async Task<PipelineGraph> LoadPipelineSubgraphAsync(Guid pipelineId, CancellationToken cancellationToken)
     {
-        // Pull the whole structural closure in one snapshot. Two things the traversal will not reach on its own
-        // are asked for outright: the built-in predicate Things, because includeRelationships does not pull
-        // predicate Things; and the role Things with what each binds, so that a role missing from the snapshot
-        // means the model binds it to nothing rather than that this pipeline plays that role nowhere. See
-        // SelectorResolver. The rules run in order over everything selected so far: the `has` walk brings the
-        // nodes, their connections and services, their wires and the ports a node declares itself; one `is` step
-        // then brings the kind a service or node is, and one more `has` step that kind's ports, which the walk
-        // from the pipeline never reaches because includeIsAncestors closes over `is` only after the traversal.
-        // After those come the two ports each wire connects, the system an end stands for, the connection that
-        // system is told through, and the state a waiting node waits for, along the predicates those roles bind.
+        // The predicate Things and the role Things are asked for outright: includeRelationships does not pull predicate
+        // Things, and a role missing from the snapshot has to mean the model binds it to nothing. The rules run in
+        // order: the `has` walk, then one `is` step for the kind a service or node is, then one `has` step for that
+        // kind's ports, which the walk from the pipeline never reaches because includeIsAncestors closes over `is`
+        // only after the traversal.
         // Only outgoing relationships travel: every edge the drawing is read along runs outward from a Thing in the
         // answer, and without the rule the broker also returns every `is` written to an ancestor such as Connection.
         var selector = new
@@ -244,9 +240,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
     private static string OutputsText(IReadOnlyDictionary<string, JsonElement> outputs) =>
         JsonSerializer.Serialize(outputs);
 
-    // The orchestrator holds a run while it is unfinished: held again when a person carries an interrupted run on,
-    // let go at its finish. The broker takes an edge it already holds as nothing new, so holding travels in the
-    // status fragment and costs no call of its own.
+    // The broker takes an edge it already holds as nothing new, so holding the run travels in the status fragment at
+    // no extra call.
     public async Task SetRunStatusAsync(Guid runId, string status, CancellationToken cancellationToken, string? error = null)
     {
         var changed = new Dictionary<string, string?> { [ModelNames.Status] = status };
@@ -257,7 +252,6 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         if (finished) await ReleaseAsync(runId, cancellationToken);
     }
 
-    // A model binding no orchestrator records the run unheld; only a restart cannot find it.
     private async Task<IReadOnlyList<(Guid Subject, Guid Predicate, Guid Target)>> HoldingAsync(Guid runId, CancellationToken cancellationToken)
     {
         if (await TryBoundAsync(PipelineRoles.Orchestrator, cancellationToken) is not { } orchestrator)
@@ -269,8 +263,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         return [(orchestrator, await ResolveByNameAsync(ModelNames.Has, cancellationToken), runId)];
     }
 
-    // The broker names the edge, so it is found among the orchestrator's relationships before it is deleted: one
-    // read the size of the runs under way, one delete.
+    // The broker names the edge, so it has to be found among the orchestrator's relationships before it can be deleted.
     private async Task ReleaseAsync(Guid runId, CancellationToken cancellationToken)
     {
         if (await TryBoundAsync(PipelineRoles.Orchestrator, cancellationToken) is not { } orchestrator) return;
@@ -504,8 +497,6 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         return waits;
     }
 
-    // The runs the orchestrator holds, with their node runs: the orchestrator holds a run from its first write until
-    // its finish, so the read is the size of what is under way rather than of every node run ever recorded.
     private async Task<PipelineGraph> HeldRunsAsync(CancellationToken cancellationToken)
     {
         var selector = new
@@ -706,18 +697,14 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         return await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
     }
 
-    // Answered from the cadences one subscription keeps current, so a look costs no broker request. The first look
-    // opens the subscription and waits for its snapshot; a look while none can be opened fails as a failed read did.
     public Task<IReadOnlyList<Cadence>> CadencesAsync(CancellationToken cancellationToken)
     {
         lock (_followLock) _followingCadences ??= FollowCadencesAsync(_stopping.Token);
         return _cadences.CurrentAsync(cancellationToken);
     }
 
-    // A dropped stream is not resumed: a derived value is published live-only and never replayed, so the gateway
-    // subscribes again and takes the fresh snapshot. The subscription it leaves is deleted, because the broker checks
-    // every subscription it holds on every write. A broker that cannot be reached is asked less often the longer it
-    // keeps failing, on the keeper's own schedule.
+    // A derived value is published live-only and never replayed, so a dropped stream is not resumed: the gateway
+    // subscribes again and takes the fresh snapshot.
     private async Task FollowCadencesAsync(CancellationToken stopping)
     {
         var failuresInARow = 0;
@@ -748,8 +735,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         }
     }
 
-    // One subscription on the kind the cadence role binds, following its members: a cadence made later arrives as
-    // an entry, one unmade as a departure. A kind of cadence is not one, so the archetype is left out of what is held.
+    // A kind of cadence is not one, so the archetype is left out of what is held.
     private async Task<SubscribeResult> SubscribeToCadencesAsync(CancellationToken cancellationToken)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
@@ -820,7 +806,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         await _stopping.CancelAsync();
         if (_followingCadences is { } following)
         {
-            try { await following.WaitAsync(TimeSpan.FromSeconds(5)); }
+            try { await following.WaitAsync(DisposeWait); }
             catch (Exception) { }
         }
         _stopping.Dispose();
