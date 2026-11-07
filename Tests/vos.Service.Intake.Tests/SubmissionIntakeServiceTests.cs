@@ -38,31 +38,36 @@ public class SubmissionIntakeServiceTests
     // ticket is checked against the address in it before anything is written.
     private static Submission Document => SubmissionReader.Read(DocumentText);
 
-    private static SubmissionIntakeService Service(
-        Func<HttpRequestMessage, HttpResponseMessage> respond) =>
-        ServiceAnswering(new MockHttpMessageHandler(respond), ReadingASeededModel());
+    private static SubmissionIntakeService Service(Func<HttpRequestMessage, HttpResponseMessage> respond)
+    {
+        var declared = new DeclaredBroker(SeededModel.Build());
+        return ServiceAnswering(new MockHttpMessageHandler(request => declared.Answer(request) ?? respond(request)));
+    }
 
     // For a test whose answers must be able to overlap; a handler answering synchronously runs
     // each call to completion before the next starts, whatever the caller did.
-    private static SubmissionIntakeService Service(
-        Func<HttpRequestMessage, Task<HttpResponseMessage>> respond) =>
-        ServiceAnswering(MockHttpMessageHandler.AnsweringAsynchronously(respond), ReadingASeededModel());
+    private static SubmissionIntakeService Service(Func<HttpRequestMessage, Task<HttpResponseMessage>> respond)
+    {
+        var declared = new DeclaredBroker(SeededModel.Build());
+        return ServiceAnswering(MockHttpMessageHandler.AnsweringAsynchronously(
+            async request => declared.Answer(request) ?? await respond(request)));
+    }
 
     // Built once, so a test can ask the model which Thing a role binds and compare it with what was written.
     private static readonly DeclaredModel SeededModel = DeclaredModel.Seeded();
 
-    private static StubSubscriptions ReadingASeededModel() => new(SeededModel.Build());
-
-    private static SubmissionIntakeService ServiceAnswering(
-        HttpMessageHandler answers, ISubscriptionClient read) =>
-        new(new IntakeMyceliumClient(
-                new PerCallHttpClientFactory(answers),
-                NullLogger<IntakeMyceliumClient>.Instance,
-                "http://localhost",
-                "test-token"),
-            read,
-            NullLogger<SubmissionIntakeService>.Instance,
+    private static SubmissionIntakeService ServiceAnswering(HttpMessageHandler answers)
+    {
+        var mycelium = new IntakeMyceliumClient(
+            new PerCallHttpClientFactory(answers),
+            NullLogger<IntakeMyceliumClient>.Instance,
+            "http://localhost",
+            "test-token");
+        return new SubmissionIntakeService(
+            mycelium,
+            new HeldDeclarations(mycelium, TimeProvider.System),
             new ModelClock(new FakeTimeProvider(WillowBend.ArrivedAt)));
+    }
 
     // A clock that does not move, so an arrival time can be asserted rather than bounded.
     private sealed class FakeTimeProvider(DateTime now) : TimeProvider
@@ -70,38 +75,63 @@ public class SubmissionIntakeServiceTests
         public override DateTimeOffset GetUtcNow() => new(now, TimeSpan.Zero);
     }
 
-    // A service reading its vocabularies out of the model a test built, against archetypes that
-    // answer.
-    private static (SubmissionIntakeService Service, StubSubscriptions Read) ServiceReading(DeclaredModel model)
+    // A broker answering every declaration read with the model a test built, recording what it was asked
+    // for; every other call falls through to the responder the test gave.
+    private sealed class DeclaredBroker(SnapshotDocument model)
     {
-        var read = new StubSubscriptions(model.Build());
-        return (ServiceAnswering(new MockHttpMessageHandler(Holds), read), read);
+        private static readonly JsonSerializerOptions AsTheBrokerWritesIt = new(JsonSerializerDefaults.Web);
+
+        public SubscriptionSelector? AskedFor { get; private set; }
+
+        public int Reads { get; private set; }
+
+        public HttpResponseMessage? Answer(HttpRequestMessage request)
+        {
+            if (!IsDeclarationRead(request)) return null;
+            Reads++;
+            AskedFor = JsonSerializer.Deserialize<SubscriptionSelector>(
+                request.Content!.ReadAsStringAsync().GetAwaiter().GetResult(), AsTheBrokerWritesIt);
+            return Json(JsonSerializer.Serialize(new SnapshotReadResult(0, model), AsTheBrokerWritesIt));
+        }
     }
 
-    // A subscription left open per submission is a subscription per wizard save, and a wizard saves as the
-    // planner types.
+    // A service reading its declarations out of the model a test built, against a broker that answers
+    // everything else the way the responder says.
+    private static (SubmissionIntakeService Service, DeclaredBroker Read) ServiceReading(
+        DeclaredModel model, Func<HttpRequestMessage, HttpResponseMessage>? respond = null)
+    {
+        var read = new DeclaredBroker(model.Build());
+        var otherwise = respond ?? Holds;
+        return (ServiceAnswering(new MockHttpMessageHandler(request => read.Answer(request) ?? otherwise(request))), read);
+    }
+
+    // A wizard posts the whole submission again on every save, and what it is composed against changes only
+    // when the model does.
     [Fact]
-    public async Task Each_read_releases_its_subscription()
+    public async Task A_second_submission_reads_no_declaration_again()
     {
         var (service, read) = ServiceReading(DeclaredModel.Seeded());
+        await service.SubmitAsync(Document, CancellationToken.None);
+        read.Reads.Should().Be(2, "the submission's shape and its vocabularies are each one read");
 
         await service.SubmitAsync(Document, CancellationToken.None);
 
-        read.Released.Should().Be(2, "the submission's shape and its vocabularies are each one read");
+        read.Reads.Should().Be(2);
     }
 
-    // The vocabulary was already read by the time the release runs, so a broker that cannot release the
-    // subscription must not take the submission down with it — the planner would see a failure for work
-    // that had succeeded.
     [Fact]
-    public async Task A_release_that_fails_does_not_lose_the_submission()
+    public async Task A_declaration_read_opens_no_subscription()
     {
-        var (service, read) = ServiceReading(DeclaredModel.Seeded());
-        read.FailRelease = true;
+        var paths = new List<string>();
+        var (service, _) = ServiceReading(DeclaredModel.Seeded(), request =>
+        {
+            paths.Add(request.RequestUri!.AbsolutePath);
+            return Holds(request);
+        });
 
-        var composed = await service.SubmitAsync(Document, CancellationToken.None);
+        await service.SubmitAsync(Document, CancellationToken.None);
 
-        composed.SiteId.Should().Be(StableIdentity.Derive(WillowBend.SubmissionId, "site"));
+        paths.Should().NotContain(path => path.StartsWith("/api/subscriptions", StringComparison.Ordinal));
     }
 
     // A model seeded with the archetypes but not the vocabularies would take a submission and write the
@@ -124,12 +154,9 @@ public class SubmissionIntakeServiceTests
     {
         // The vocabulary is missing too, so both gates would refuse. That is what makes the refusal below
         // an ordering test rather than an assertion that only one gate exists.
-        var read = new StubSubscriptions(DeclaredModel.Seeded().Without("AllocationCategory").Without("Site").Build());
-        var service = ServiceAnswering(
-            new MockHttpMessageHandler(request => IsFragment(request)
-                ? Json("{}")
-                : new HttpResponseMessage(HttpStatusCode.NotFound)),
-            read);
+        var (service, read) = ServiceReading(
+            DeclaredModel.Seeded().Without("AllocationCategory").Without("Site"),
+            request => IsFragment(request) ? Json("{}") : new HttpResponseMessage(HttpStatusCode.NotFound));
 
         var refusal = await Assert.ThrowsAsync<ModelNotSeededError>(
             () => service.SubmitAsync(Document, CancellationToken.None));
@@ -339,14 +366,12 @@ public class SubmissionIntakeServiceTests
             .Without("Parcel").WithArchetype("Plot").Bound(LandIntakeRoles.Parcel, "Plot")
             .Without("studies").With("examines").Bound(LandIntakeRoles.StudiedSite, "examines");
         string? captured = null;
-        var service = ServiceAnswering(
-            new MockHttpMessageHandler(request =>
-            {
-                if (IsFragment(request))
-                    captured = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
-                return Holds(request);
-            }),
-            new StubSubscriptions(model.Build()));
+        var (service, _) = ServiceReading(model, request =>
+        {
+            if (IsFragment(request))
+                captured = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return Holds(request);
+        });
 
         await service.SubmitAsync(Document, CancellationToken.None);
 
@@ -365,11 +390,9 @@ public class SubmissionIntakeServiceTests
     [Fact]
     public async Task A_model_that_was_never_seeded_is_refused_as_a_fault_of_the_deployment()
     {
-        var service = ServiceAnswering(
-            new MockHttpMessageHandler(request => IsFragment(request)
-                ? Json("{}")
-                : new HttpResponseMessage(HttpStatusCode.NotFound)),
-            new StubSubscriptions(new DeclaredModel().Build()));
+        var (service, _) = ServiceReading(
+            new DeclaredModel(),
+            request => IsFragment(request) ? Json("{}") : new HttpResponseMessage(HttpStatusCode.NotFound));
 
         var refusal = await Assert.ThrowsAsync<ModelNotSeededError>(
             () => service.SubmitAsync(Document, CancellationToken.None));

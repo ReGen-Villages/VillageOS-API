@@ -18,42 +18,36 @@ public sealed class IntakeMyceliumClient(
 {
     private static readonly JsonSerializerOptions AsTheBrokerReadsIt = new(JsonSerializerDefaults.Web);
 
-    // A read of the model kept exactly as the broker wrote it, for one call.
-    //
-    // Beside ScopedRead rather than through it, because that path reads a snapshot into
-    // SnapshotDocument — the fields a service was written to need. What a submitter is
-    // answered with is the broker's own envelope, so that it carries what draws each figure now and
-    // whatever the model starts declaring later; a typed read would silently drop the difference.
-    //
-    // A release that fails must not lose a read that succeeded, and the broker reaps what a caller
-    // leaves behind — so the failure is logged where whoever runs the deployment reads it and the answer
-    // still goes back.
+    // A read of the model kept exactly as the broker wrote it. What a submitter is answered with is the
+    // broker's own envelope, so that it carries what draws each figure now and whatever the model starts
+    // declaring later; a typed read would silently drop the difference.
     public async Task<JsonDocument> ReadAsync(SubscriptionSelector selector, CancellationToken cancellation)
+    {
+        var response = await ReadOnceAsync(selector, cancellation);
+        using var answered = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellation));
+        return JsonDocument.Parse(answered.RootElement.GetProperty("snapshot").GetRawText());
+    }
+
+    public async Task<SnapshotDocument> ReadSnapshotAsync(SubscriptionSelector selector, CancellationToken cancellation)
+    {
+        var response = await ReadOnceAsync(selector, cancellation);
+        var answered = await response.Content.ReadFromJsonAsync<SnapshotReadResult>(AsTheBrokerReadsIt, cancellation);
+        return answered?.Snapshot ?? throw new HttpRequestException("Reading the model answered no snapshot.");
+    }
+
+    // Through the route that registers nothing, so a read made once leaves nothing for the broker to check
+    // on every later write.
+    private async Task<HttpResponseMessage> ReadOnceAsync(SubscriptionSelector selector, CancellationToken cancellation)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
         var response = await client.PostAsJsonAsync(
-            $"{MyceliumUrl}/api/subscriptions", selector, AsTheBrokerReadsIt, cancellation);
+            $"{MyceliumUrl}/api/snapshots", selector, AsTheBrokerReadsIt, cancellation);
 
         if (!response.IsSuccessStatusCode)
             throw new HttpRequestException(
                 $"Reading the model failed ({(int)response.StatusCode} {response.StatusCode}).",
                 null, response.StatusCode);
-
-        var opened = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellation));
-        try
-        {
-            if (opened.RootElement.TryGetProperty("subscriptionId", out var subscription)
-                && subscription.TryGetGuid(out var identifier))
-            {
-                await ReleaseAsync(client, identifier, cancellation);
-            }
-
-            return JsonDocument.Parse(opened.RootElement.GetProperty("snapshot").GetRawText());
-        }
-        finally
-        {
-            opened.Dispose();
-        }
+        return response;
     }
 
     // One Thing's ranges, own and inherited, as the broker answers them. A verdict reads its
@@ -118,18 +112,6 @@ public sealed class IntakeMyceliumClient(
         {
             Logger.LogWarning(error, "Intake's call through endpoint '{Subdomain}' failed", subdomain);
             return null;
-        }
-    }
-
-    private async Task ReleaseAsync(HttpClient client, Guid subscriptionId, CancellationToken cancellation)
-    {
-        try
-        {
-            await client.DeleteAsync($"{MyceliumUrl}/api/subscriptions/{subscriptionId}", cancellation);
-        }
-        catch (Exception exception)
-        {
-            Logger.LogWarning(exception, "Intake could not release the subscription {SubscriptionId}", subscriptionId);
         }
     }
 

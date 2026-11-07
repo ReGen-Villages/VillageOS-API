@@ -39,16 +39,15 @@ public class IntakeReadsASubmissionsShapeTests : IClassFixture<TheEngine>
         foreach (var site in new[] { "Willow Bend", "Alder Ford", "Birch Hollow" })
             await _engine.RelateAsync(await _engine.DeclareAsync(site), isPredicate, bound[LandIntakeRoles.Site]);
 
-        var subscriptions = new SubscriptionClient(
-            _engine.ClientFactory, NullLogger<SubscriptionClient>.Instance, TheEngine.Url, _engine.AdminToken);
-        var subscribed = await subscriptions.SubscribeAsync(SubmissionShapeReader.Selector());
-        await subscriptions.UnsubscribeAsync(subscribed.SubscriptionId);
+        var mycelium = new IntakeMyceliumClient(
+            _engine.ClientFactory, NullLogger<IntakeMyceliumClient>.Instance, TheEngine.Url, _engine.AdminToken);
+        var snapshot = await mycelium.ReadSnapshotAsync(SubmissionShapeReader.Selector(), CancellationToken.None);
 
-        var shape = SubmissionShapeReader.Read(subscribed.Snapshot);
+        var shape = SubmissionShapeReader.Read(snapshot);
 
         shape.Archetypes.Site.Should().Be(new DeclaredTerm("siteKind", bound[LandIntakeRoles.Site]));
         shape.Studies.Id.Should().Be(bound[LandIntakeRoles.StudiedSite]);
-        subscribed.Snapshot.Relationships.Should().NotContain(edge => edge.PredicateId == isPredicate,
+        snapshot.Relationships.Should().NotContain(edge => edge.PredicateId == isPredicate,
             "a Thing built on an archetype is not part of what the archetype is");
     }
 }

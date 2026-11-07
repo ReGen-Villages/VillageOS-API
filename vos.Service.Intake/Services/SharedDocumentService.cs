@@ -16,7 +16,7 @@ public sealed record SharedFile(ShareOutcome Outcome, string? Address = null, Sh
 // the retention pass takes it with a rejected submission.
 public sealed class SharedDocumentService(
     IntakeMyceliumClient mycelium,
-    ISubscriptionClient subscriptions,
+    HeldDeclarations declarations,
     DocumentStore store,
     ModelClock time,
     ILogger<SharedDocumentService> logger)
@@ -32,8 +32,8 @@ public sealed class SharedDocumentService(
         var address = await AddressOfAsync(submissionId, cancellation);
         if (address is null || !ticketIssuedFor(address)) return new SharedFile(ShareOutcome.NotYourSubmission);
 
-        var declared = await subscriptions.ReadAsync(
-            SharedDocumentReader.DeclarationSelector(), SharedDocumentReader.ReadDeclarations, logger, cancellation);
+        var declared = await declarations.ReadAsync(
+            SharedDocumentReader.DeclarationSelector(), SharedDocumentReader.ReadDeclarations, cancellation);
         if (declared is null) return new SharedFile(ShareOutcome.NotTakenHere);
 
         var stored = await store.SaveAsync(submissionId, fileName, bytes, cancellation);
@@ -70,15 +70,14 @@ public sealed class SharedDocumentService(
         var address = await AddressOfAsync(submissionId, cancellation);
         if (address is null || !ticketIssuedFor(address)) return null;
 
-        var declared = await subscriptions.ReadAsync(
-            SharedDocumentReader.DeclarationSelector(), SharedDocumentReader.ReadDeclarations, logger, cancellation);
+        var declared = await declarations.ReadAsync(
+            SharedDocumentReader.DeclarationSelector(), SharedDocumentReader.ReadDeclarations, cancellation);
         if (declared is null) return ([], address);
 
         var project = StableIdentity.Derive(submissionId, "project");
-        var documents = await subscriptions.ReadAsync(
-            SharedDocumentReader.ListingSelector(project, declared.PredicateName),
-            snapshot => SharedDocumentReader.Listing(snapshot, project, declared.Predicate), logger, cancellation);
-        return (documents, address);
+        var listing = await mycelium.ReadSnapshotAsync(
+            SharedDocumentReader.ListingSelector(project, declared.PredicateName), cancellation);
+        return (SharedDocumentReader.Listing(listing, project, declared.Predicate), address);
     }
 
     // Takes the files of every submission the model no longer holds. The retention pass prunes
@@ -91,14 +90,14 @@ public sealed class SharedDocumentService(
         var held = store.SubmissionsHeld();
         if (held.Count == 0) return 0;
 
-        var declared = await subscriptions.ReadAsync(
-            SharedDocumentReader.DeclarationSelector(), SharedDocumentReader.ReadDeclarations, logger, cancellation);
+        var declared = await declarations.ReadAsync(
+            SharedDocumentReader.DeclarationSelector(), SharedDocumentReader.ReadDeclarations, cancellation);
         if (declared is null) return 0;
 
         var records = held.Select(submissionId => StableIdentity.Derive(submissionId, SubmissionFragmentComposer.SubmissionRole)).ToList();
-        var standing = await subscriptions.ReadAsync(
-            new SubscriptionSelector { Ids = records, IncludeRelationships = false },
-            snapshot => snapshot.Things.Select(thing => thing.Id).ToHashSet(), logger, cancellation);
+        var standing = (await mycelium.ReadSnapshotAsync(
+                new SubscriptionSelector { Ids = records, IncludeRelationships = false }, cancellation))
+            .Things.Select(thing => thing.Id).ToHashSet();
 
         var forgotten = 0;
         foreach (var (submissionId, record) in held.Zip(records))

@@ -1,20 +1,17 @@
 using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Models;
-using vos.Service.Shared.Subscriptions;
 using vos.Service.Shared;
 
 namespace vos.Service.Intake.Services;
 
-public sealed class SubmissionIntakeService(
-    IntakeMyceliumClient mycelium, ISubscriptionClient subscriptions, ILogger<SubmissionIntakeService> logger,
-    ModelClock time)
+public sealed class SubmissionIntakeService(IntakeMyceliumClient mycelium, HeldDeclarations declarations, ModelClock time)
 {
     public async Task<ComposedSubmission> SubmitAsync(Submission submission, CancellationToken cancellation)
     {
         // None of these reads uses another's answer, and a wizard posts the whole submission again on every save,
         // so awaiting them one after another would make every save wait for each in turn.
-        var shape = subscriptions.ReadAsync(
-            SubmissionShapeReader.Selector(), SubmissionShapeReader.Read, logger, cancellation);
+        var shape = declarations.ReadAsync(
+            SubmissionShapeReader.Selector(), SubmissionShapeReader.Read, cancellation);
         var has = ResolvePredicateAsync(SubmissionFragmentComposer.HasPredicateName, cancellation);
         var isEdge = ResolvePredicateAsync(SubmissionFragmentComposer.IsPredicateName, cancellation);
         var arrival = ArrivalTimeAsync(submission.SubmissionId, cancellation);
@@ -53,12 +50,10 @@ public sealed class SubmissionIntakeService(
             : time.GetUtcNow().UtcDateTime;
     }
 
-    // The vocabularies a submitted word is resolved against, read from the model on every submission: a
-    // term added to the model has to reach the next submission, and a copy held here would be the list in
-    // code this read exists to remove.
+    // The vocabularies a submitted word is resolved against, read from the model rather than listed in code: a
+    // term added to the model reaches the next submission once the held declarations have run their time.
     private Task<DeclaredVocabulary> ReadDeclaredVocabularyAsync(CancellationToken cancellation) =>
-        subscriptions.ReadAsync(
-            DeclaredVocabularyReader.Selector(), DeclaredVocabularyReader.Read, logger, cancellation);
+        declarations.ReadAsync(DeclaredVocabularyReader.Selector(), DeclaredVocabularyReader.Read, cancellation);
 
     // A predicate the model already holds is used as it stands. One it does not gets an identifier derived
     // from its name rather than a fresh one, so two submissions into the same model relate their Things
