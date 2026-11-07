@@ -4,9 +4,6 @@ namespace vos.Service.Tributary.Services;
 
 public sealed class PassedOnRequestLimit
 {
-    // Time for the answer to reach Mycelium before Mycelium's own limit cuts the request off.
-    public static readonly TimeSpan MarginForTheAnswer = TimeSpan.FromSeconds(2);
-
     public const int MostEndpointsRemembered = 1000;
 
     private readonly TimeSpan? _limit;
@@ -23,7 +20,7 @@ public sealed class PassedOnRequestLimit
 
     public PassedOnRequestDeadline StartDeadline(CancellationToken requestAborted) =>
         _limit is { } limit
-            ? PassedOnRequestDeadline.Start(limit, MarginForTheAnswer, _clock, requestAborted)
+            ? PassedOnRequestDeadline.Start(limit, _clock, requestAborted)
             : PassedOnRequestDeadline.None(requestAborted);
 
     public void WarnOnceWhenNotShorter(Guid endpointId, string endpointName, TimeSpan statedTimeout)
@@ -55,6 +52,9 @@ public enum AwaitedStep
 
 public sealed class PassedOnRequestDeadline : IDisposable
 {
+    // Time for the answer to reach Mycelium before Mycelium's own limit cuts the request off.
+    public static readonly TimeSpan MarginForTheAnswer = TimeSpan.FromSeconds(2);
+
     private readonly CancellationTokenSource? _deadline;
     private readonly CancellationTokenSource? _deadlineOrAborted;
     private readonly TimeSpan _limit;
@@ -78,10 +78,9 @@ public sealed class PassedOnRequestDeadline : IDisposable
     public static PassedOnRequestDeadline None(CancellationToken requestAborted) =>
         new(requestAborted, null, null, TimeSpan.Zero, TimeSpan.Zero);
 
-    public static PassedOnRequestDeadline Start(
-        TimeSpan limit, TimeSpan margin, TimeProvider clock, CancellationToken requestAborted)
+    public static PassedOnRequestDeadline Start(TimeSpan limit, TimeProvider clock, CancellationToken requestAborted)
     {
-        var allowed = limit > margin ? limit - margin : TimeSpan.Zero;
+        var allowed = limit > MarginForTheAnswer ? limit - MarginForTheAnswer : TimeSpan.Zero;
         var deadline = new CancellationTokenSource(allowed, clock);
         var deadlineOrAborted = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token, requestAborted);
         return new PassedOnRequestDeadline(deadlineOrAborted.Token, deadline, deadlineOrAborted, limit, allowed);

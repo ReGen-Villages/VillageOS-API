@@ -41,7 +41,6 @@ public sealed class EndpointCallService
         TimeProvider clock,
         ILogger<EndpointCallService> logger)
     {
-        _passedOnRequestLimit = passedOnRequestLimit;
         _mycelium = mycelium;
         _httpClientFactory = httpClientFactory;
         _observationService = observationService;
@@ -49,6 +48,7 @@ public sealed class EndpointCallService
         _subscriptions = subscriptions;
         _diskCache = diskCache;
         _unavailability = unavailability;
+        _passedOnRequestLimit = passedOnRequestLimit;
         _clock = clock;
         _logger = logger;
     }
