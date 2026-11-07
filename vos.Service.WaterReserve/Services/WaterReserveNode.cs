@@ -5,7 +5,7 @@ namespace vos.Service.WaterReserve.Services;
 
 // The WaterReserve analysis as a pipeline node, and the only form left: population +
 // per-capita rate + stored volume in; emergency reserve, days-of-supply, and % annual consumption out.
-// A site analysis works all four out for itself, so nothing dispatches this to a study any more
+// A site analysis works all four out for itself, so nothing calls this for a study any more
 // — a pipeline run supplies the three inputs on wired ports and takes the answer back.
 public sealed class WaterReserveNode : DagNodeService
 {
@@ -40,7 +40,7 @@ public sealed class WaterReserveNode : DagNodeService
             ("daysOfSupply", result.DaysOfSupply)));
     }
 
-    // Matched on the value kind rather than read straight through: a port wired to a withheld roll-up
+    // Matched on the value kind rather than read straight through: a port wired to a withheld derived property
     // arrives present-but-null, and GetDouble() answers that with .NET's own message, which names no port.
     private static double Number(NodeContext context, string port) =>
         context.Input(port) is { ValueKind: JsonValueKind.Number } value

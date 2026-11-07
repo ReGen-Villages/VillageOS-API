@@ -192,7 +192,7 @@ public class MyceliumClientTests
         });
 
         var sut = CreateClient(handler);
-        var result = await sut.CreateThingAsync("X");
+        var result = await sut.CreateThingAsync("X", null);
 
         result.Should().NotBeNull();
         result!.Value.Id.Should().Be(newId);
@@ -233,7 +233,7 @@ public class MyceliumClientTests
         });
         var sut = CreateClient(handler);
 
-        (await sut.CreateThingAsync("X")).Should().BeNull();
+        (await sut.CreateThingAsync("X", null)).Should().BeNull();
     }
 
     [Fact]
@@ -242,7 +242,7 @@ public class MyceliumClientTests
         var handler = new MockHttpMessageHandler(_ => throw new HttpRequestException("boom"));
         var sut = CreateClient(handler);
 
-        (await sut.CreateThingAsync("X")).Should().BeNull();
+        (await sut.CreateThingAsync("X", null)).Should().BeNull();
     }
 
     [Fact]
@@ -277,6 +277,44 @@ public class MyceliumClientTests
         var sut = CreateClient(handler);
 
         (await sut.CreateRelationshipAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid())).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ApplyFragmentAsync_PostsTheFragmentToTheFragmentRoute()
+    {
+        string? posted = null;
+        var handler = new MockHttpMessageHandler(req =>
+        {
+            if (req.Method != HttpMethod.Post || req.RequestUri!.AbsolutePath != "/api/model/fragment")
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            posted = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+        var sut = CreateClient(handler);
+
+        (await sut.ApplyFragmentAsync(new { Name = "observed", Things = Array.Empty<object>() })).Should().BeTrue();
+        posted.Should().Be("""{"Name":"observed","Things":[]}""");
+    }
+
+    [Fact]
+    public async Task ApplyFragmentAsync_Refused_ReturnsFalse()
+    {
+        var handler = new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+        {
+            Content = new StringContent("unknown key", Encoding.UTF8, "text/plain")
+        });
+        var sut = CreateClient(handler);
+
+        (await sut.ApplyFragmentAsync(new { Name = "observed" })).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ApplyFragmentAsync_TransportThrows_ReturnsFalse()
+    {
+        var handler = new MockHttpMessageHandler(_ => throw new HttpRequestException("boom"));
+        var sut = CreateClient(handler);
+
+        (await sut.ApplyFragmentAsync(new { Name = "observed" })).Should().BeFalse();
     }
 
     [Fact]
@@ -369,6 +407,125 @@ public class MyceliumClientTests
             new[] { new ObservationSample("temp", 1.0, DateTime.UtcNow) });
 
         ok.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SubmitObservationsAsync_QueueFullOnce_SendsTheSameBatchAgainAfterRetryAfter()
+    {
+        var bodies = new List<string>();
+        var handler = new MockHttpMessageHandler(req =>
+        {
+            bodies.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+            return bodies.Count == 1 ? MyceliumStub.ReadingsQueueFull("1") : new HttpResponseMessage(HttpStatusCode.Accepted);
+        });
+        var clock = new ClockThatWaitsNoTime();
+        var sut = CreateClient(handler, clock);
+
+        var ok = await sut.SubmitObservationsAsync(Guid.NewGuid(), OneReading());
+
+        ok.Should().BeTrue();
+        bodies.Should().HaveCount(2);
+        bodies[1].Should().Be(bodies[0], "the batch sent again is the one the broker refused");
+        clock.Waits.Should().Equal([TimeSpan.FromSeconds(1)], "the wait is the one Retry-After gave");
+    }
+
+    [Fact]
+    public async Task SubmitObservationsAsync_QueueFullEveryTime_DropsTheBatchAfterTheBoundAndSaysSo()
+    {
+        var handler = new MockHttpMessageHandler(_ => MyceliumStub.ReadingsQueueFull("1"));
+        var clock = new ClockThatWaitsNoTime();
+        var logger = new CapturingLogger<MyceliumClient>();
+        var sut = CreateClient(handler, clock, logger);
+
+        var ok = await sut.SubmitObservationsAsync(Guid.NewGuid(), OneReading());
+
+        ok.Should().BeFalse();
+        handler.Requests.Should().HaveCount(MyceliumClient.MostAttemptsAtOneBatch);
+        clock.Waits.Should().HaveCount(MyceliumClient.MostAttemptsAtOneBatch - 1, "nothing is waited for after the last attempt");
+        logger.Lines.Should().ContainSingle(line => line.Contains("Dropped") && line.Contains("attempts"));
+    }
+
+    [Fact]
+    public async Task SubmitObservationsAsync_QueueFullWithoutRetryAfter_DropsTheBatchAtOnce()
+    {
+        var handler = new MockHttpMessageHandler(_ => MyceliumStub.ReadingsQueueFull(retryAfter: null));
+        var clock = new ClockThatWaitsNoTime();
+        var sut = CreateClient(handler, clock);
+
+        var ok = await sut.SubmitObservationsAsync(Guid.NewGuid(), OneReading());
+
+        ok.Should().BeFalse();
+        handler.Requests.Should().HaveCount(1);
+        clock.Waits.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SubmitObservationsAsync_RefusedForAnotherReasonWithRetryAfter_DropsTheBatchAtOnce()
+    {
+        var handler = new MockHttpMessageHandler(_ =>
+        {
+            var refusal = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+            refusal.Headers.TryAddWithoutValidation("Retry-After", "1");
+            return refusal;
+        });
+        var clock = new ClockThatWaitsNoTime();
+        var sut = CreateClient(handler, clock);
+
+        var ok = await sut.SubmitObservationsAsync(Guid.NewGuid(), OneReading());
+
+        ok.Should().BeFalse();
+        handler.Requests.Should().HaveCount(1);
+        clock.Waits.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SubmitObservationsAsync_RetryAfterLongerThanTheLongestAllowed_DropsTheBatchAtOnce()
+    {
+        var handler = new MockHttpMessageHandler(_ => MyceliumStub.ReadingsQueueFull("3600"));
+        var clock = new ClockThatWaitsNoTime();
+        var sut = CreateClient(handler, clock);
+
+        var ok = await sut.SubmitObservationsAsync(Guid.NewGuid(), OneReading());
+
+        ok.Should().BeFalse();
+        handler.Requests.Should().HaveCount(1);
+        clock.Waits.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SubmitObservationsAsync_RetryAfterExactlyTheLongestAllowed_IsWaitedFor()
+    {
+        var longest = MyceliumClient.LongestWaitForARefusedBatch;
+        var attempts = 0;
+        var handler = new MockHttpMessageHandler(_ => ++attempts == 1
+            ? MyceliumStub.ReadingsQueueFull(((int)longest.TotalSeconds).ToString())
+            : new HttpResponseMessage(HttpStatusCode.Accepted));
+        var clock = new ClockThatWaitsNoTime();
+        var sut = CreateClient(handler, clock);
+
+        var ok = await sut.SubmitObservationsAsync(Guid.NewGuid(), OneReading());
+
+        ok.Should().BeTrue();
+        clock.Waits.Should().Equal([longest]);
+    }
+
+    [Fact]
+    public async Task SubmitObservationsAsync_CallGivenUpWhileTheQueueIsFull_DropsTheBatchWithoutSendingItAgain()
+    {
+        using var callGivenUp = new CancellationTokenSource();
+        var handler = new MockHttpMessageHandler(_ =>
+        {
+            callGivenUp.Cancel();
+            return MyceliumStub.ReadingsQueueFull("1");
+        });
+        var logger = new CapturingLogger<MyceliumClient>();
+        var sut = CreateClient(handler, new ClockThatWaitsNoTime(), logger);
+
+        var ok = await sut.SubmitObservationsAsync(Guid.NewGuid(), OneReading(), callGivenUp.Token);
+
+        ok.Should().BeFalse();
+        handler.Requests.Should().HaveCount(1);
+        logger.Lines.Should().ContainSingle(line => line.Contains("Dropped") && line.Contains("given up"));
     }
 
     [Fact]
@@ -485,14 +642,55 @@ public class MyceliumClientTests
         (await sut.DepositAssetAsync(new byte[] { 1 }, "image/png")).Should().BeNull();
     }
 
-    private static MyceliumClient CreateClient(HttpMessageHandler handler)
+    // Bug 7873: on a loaded build agent the broker answered a relationship write in up to fifteen seconds,
+    // and a client that gave it ten reported the source as failed while the write went on to land.
+    [Theory]
+    [InlineData("FindThingByNameAsync")]
+    [InlineData("CreateThingAsync")]
+    [InlineData("CreateRelationshipAsync")]
+    [InlineData("SetPropertyModeAsync")]
+    [InlineData("GetEffectivePropertiesAsync")]
+    public async Task Bug7873_every_broker_call_waits_the_thirty_seconds_the_forwarder_gives_the_call_around_it(string call)
+    {
+        var factory = new RecordingFactory(new MockHttpMessageHandler(_ => JsonResponse("{}")));
+        var sut = new MyceliumClient(
+            factory, Substitute.For<ILogger<MyceliumClient>>(), "http://localhost", new ClockThatWaitsNoTime(), "test-token");
+
+        Task made = call switch
+        {
+            "FindThingByNameAsync" => sut.FindThingByNameAsync("a-thing"),
+            "CreateThingAsync" => sut.CreateThingAsync("a-thing", null),
+            "CreateRelationshipAsync" => sut.CreateRelationshipAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()),
+            "SetPropertyModeAsync" => sut.SetPropertyModeAsync(Guid.NewGuid(), "level", "Live"),
+            "GetEffectivePropertiesAsync" => sut.GetEffectivePropertiesAsync(Guid.NewGuid()),
+            _ => throw new ArgumentOutOfRangeException(nameof(call)),
+        };
+        await made;
+
+        factory.LastClient!.Timeout.Should().Be(TimeSpan.FromSeconds(30),
+            "the broker on a loaded agent answers in up to fifteen seconds, and the forwarder waits thirty for the call");
+    }
+
+    private sealed class RecordingFactory(HttpMessageHandler handler) : IHttpClientFactory
+    {
+        public HttpClient? LastClient { get; private set; }
+
+        public HttpClient CreateClient(string name) => LastClient = new HttpClient(handler, disposeHandler: false);
+    }
+
+    private static MyceliumClient CreateClient(
+        HttpMessageHandler handler, ClockThatWaitsNoTime? clock = null, ILogger<MyceliumClient>? logger = null)
     {
         // Fresh HttpClient per CreateClient call so MyceliumClientBase.CreateAuthenticatedClientAsync
         // can set client.Timeout without tripping the "already started" guard on a reused client.
         var factory = new PerCallFactory(handler);
-        var logger = Substitute.For<ILogger<MyceliumClient>>();
-        return new MyceliumClient(factory, logger, "http://localhost", "test-token");
+        return new MyceliumClient(
+            factory, logger ?? Substitute.For<ILogger<MyceliumClient>>(), "http://localhost",
+            clock ?? new ClockThatWaitsNoTime(), "test-token");
     }
+
+    private static ObservationSample[] OneReading() =>
+        [new ObservationSample("temp", 21.0, new DateTime(2026, 3, 3, 0, 0, 0, DateTimeKind.Utc))];
 
     private sealed class PerCallFactory : IHttpClientFactory
     {

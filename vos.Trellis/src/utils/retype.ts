@@ -10,7 +10,7 @@ export function declaredTypes(things: VosThing[]): VosThing[] {
 // Repoint ONE of a Thing's types to a different archetype. Multiple inheritance is a first-class
 // feature, so this never collapses the rest: with `fromArchetypeId` it replaces only that type relationship; without
 // it (the single-type case) it replaces the Thing's lone type relationship. The human-in-the-loop reclassification —
-// e.g. a mis-classified element becomes a SolarArray, changing what reactive roll-ups and analysis pick up.
+// e.g. a mis-classified element becomes a SolarArray, changing what reactive derived properties and analysis pick up.
 export async function retypeThing(
   thingId: string,
   newArchetypeId: string,

@@ -11,6 +11,7 @@ import { thingApi } from './thingApi';
 import { relationshipApi } from './relationshipApi';
 import { buildModelIndex } from './dashboardApi';
 import { dashboardPages, dashboardWriteContext } from './dashboardPages';
+import { PAGE_ROLE_ID } from './platformRoles';
 
 function thing(Id: string, Name: string, IsArchetype = false): VosThing {
   return { Id, Name, Properties: {}, IsArchetype };
@@ -25,11 +26,14 @@ const PAGE: DashboardSpecification = {
   composed: { kind: 'Spring', columns: [] },
 };
 
+const THINGS = [
+  thing('is', 'is'), thing('binds', 'binds'), thing(PAGE_ROLE_ID, 'Page'),
+  thing('dashboard', 'Dashboard', true), thing('kept', 'Springs by flow'), thing('spring', 'Spring', true),
+];
+const PAGE_ROLE_BINDS = relationship('b1', PAGE_ROLE_ID, 'binds', 'dashboard');
+
 function index() {
-  return buildModelIndex(
-    [thing('is', 'is'), thing('dashboard', 'Dashboard', true), thing('kept', 'Springs by flow'), thing('spring', 'Spring', true)],
-    [relationship('i1', 'kept', 'is', 'dashboard'), relationship('i2', 'spring', 'is', 'spring')],
-  );
+  return buildModelIndex(THINGS, [PAGE_ROLE_BINDS, relationship('i1', 'kept', 'is', 'dashboard'), relationship('i2', 'spring', 'is', 'spring')]);
 }
 
 beforeEach(() => {
@@ -38,12 +42,12 @@ beforeEach(() => {
 });
 
 describe('what the writes need from the model', () => {
-  it('finds the Dashboard kind and the `is` predicate', () => {
+  it('finds the page kind through the page role, and the `is` predicate', () => {
     expect(dashboardWriteContext(index())).toMatchObject({ dashboardArchetypeId: 'dashboard', isPredicateId: 'is' });
   });
 
-  it('is nothing where the model declares no Dashboard kind, since a kept page would be of no kind', () => {
-    expect(dashboardWriteContext(buildModelIndex([thing('is', 'is')], []))).toBeNull();
+  it('is nothing where no role binds a page kind, since a kept page would be of no kind', () => {
+    expect(dashboardWriteContext(buildModelIndex(THINGS, [relationship('i1', 'kept', 'is', 'dashboard')]))).toBeNull();
   });
 });
 

@@ -10,14 +10,45 @@ public static class RunStatus
     public const string Skipped = "skipped";
     public const string Cancelled = "cancelled";
     public const string Partial = "partial";
+    // Every wire into the node was settled and none carried a value: the branch was not the one taken.
+    public const string NotTaken = "notTaken";
+    // The node's service has answered and the run waits for the Thing it names to enter the node's state.
+    public const string Waiting = "waiting";
+    // A call never reached the node's service and the node pauses before the next attempt.
+    public const string Trying = "trying";
+    // The orchestrator stopped while the node was in the middle of a call, and the run could not be carried on
+    // without calling it again; a person may carry the run on.
+    public const string Interrupted = "interrupted";
+    // The drawing was judged unable to run, so nothing ran.
+    public const string Refused = "refused";
+    // A rehearsal reached its ends; an end that would have sent or started something did neither.
+    public const string Rehearsed = "rehearsed";
+    // A rehearsal stopped at a node whose service does not rehearse, or that waits.
+    public const string CannotRehearse = "cannotRehearse";
+
+    public static bool IsFinished(string status) => status is not (Running or Waiting or Trying);
 }
 
+// Decision is the decision path a successful answer named. Items holds each item's own answer when the node ran
+// once per item, and Number is an item's place among the items where they were spread out.
 public sealed record NodeRunResult(
     Guid NodeId,
     string Name,
     string Status,
     IReadOnlyDictionary<string, JsonElement> Outputs,
-    string? Error);
+    string? Error,
+    AwaitedThing? Awaits = null,
+    IReadOnlyList<NodeRunResult>? Items = null,
+    Guid? Decision = null,
+    ItemNumber? Number = null);
+
+public sealed record ItemNumber(int Index, int Total);
+
+public sealed record NumberedItem(JsonElement Value, ItemNumber Number, string? ItemTransformError = null);
+
+public sealed record AwaitedThing(Guid Id, string Name);
+
+public enum ResumeOutcome { Resumed, AlreadyResumed, NotHeld }
 
 // The synchronous result Phloem returns to whoever spawned the run. Result is the
 // pipeline's published output — the Output boundary node's collected inputs — or null when the pipeline has

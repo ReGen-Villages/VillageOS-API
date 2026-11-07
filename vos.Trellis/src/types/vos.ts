@@ -47,7 +47,7 @@ export interface VosThing {
    *  what says from what. Own definitions only — a member computing its own value carries the value and
    *  not the formula, so read the formula off the archetype by walking `is`, the way an inherited value
    *  is read. */
-  RollupProperties?: Record<string, DerivedDefinition>;
+  DerivedProperties?: Record<string, DerivedDefinition>;
 }
 
 /** How one computed value is worked out. One form is described and never both: `Expression` for a
@@ -72,7 +72,6 @@ export interface DerivedDefinition {
 export interface InheritedPropertySet {
   SourceId: string;
   SourceName: string;
-  InheritedAt: string;
   Properties: Record<string, unknown>;
   /** As on {@link VosThing} — a value stored under an inherited name keeps the write kind the
    *  declaration gave it. */
@@ -259,7 +258,6 @@ export interface RangeDto {
 export interface InheritedRangeSetDto {
   SourceId: string;
   SourceName: string;
-  InheritedAt: string;
   Ranges: RangeDto[];
   Inherited: InheritedRangeSetDto[];
 }
@@ -284,23 +282,6 @@ export interface ThingStates {
   CurrentStates: string[];
   RangeEvaluations: RangeEvaluation[];
   OutOfBoundsCount: number;
-}
-
-
-/** One PropertyValueAsserted/Retracted record from the Commit Log (provenance audit trail). */
-export interface PropertyFact {
-  kind: 'asserted' | 'retracted';
-  sequenceNumber: number;
-  committedAt: string;
-  author?: string;
-  value?: unknown;
-}
-
-export interface PropertyFactsResponse {
-  entityId: string;
-  property: string;
-  count: number;
-  entries: PropertyFact[];
 }
 
 export interface RelationshipRangesResponse {
@@ -376,13 +357,13 @@ export interface ThingsInStateResponse {
   Count?: number;
 }
 
-/** Window the returned state history covers. `Source` is "in-memory" while history comes from the
- *  live engine tracker — it starts at model load and is lost on restart — and becomes
- *  "reconstructed" once served from durable history, over a wider window and with no client change. */
+/** Only a range that names a State Thing is recorded, so a range keeping no history answers no
+ *  transitions however often it held. */
 export interface StateHistoryCoverage {
-  Source: 'in-memory' | 'reconstructed';
   From: string;
   To: string;
+  RangesKeepingHistory: string[];
+  RangesKeepingNoHistory: string[];
 }
 
 /** One change point: the states entered and exited at `At`, the full set after it, and the

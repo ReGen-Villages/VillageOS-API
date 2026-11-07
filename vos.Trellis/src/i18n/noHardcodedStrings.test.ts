@@ -26,6 +26,7 @@ const SOURCE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ALLOWED = new Map<string, string>([
   ['e.g. user.id', 'A field path, the same in every language.'],
   ['e.g. {"name": firstName & " " & lastName}', 'A JSONata expression, the same in every language.'],
+  ['e.g. {"count": $count($)}', 'A JSONata expression, the same in every language.'],
   ['ReGen Villages', "The company's name. It is the mark's accessible name, and a proper noun is the same in every language."],
   ['Aa', 'The match-case switch, drawn as the two letters it compares rather than written as a word.'],
   ['العربية (السعودية)', 'A language is offered under its own name, so a reader finds it whatever language the page is in.'],
@@ -34,6 +35,8 @@ const ALLOWED = new Map<string, string>([
   ['No user logged in', 'Reached only by calling the password change without a signed-in person, which no page does.'],
   ['No token to refresh', 'Reached only by refreshing a session that was never opened, which no page does.'],
   ['Refresh failed: {}', 'The session timer that refreshes a token signs the person out on this, and never shows it.'],
+  ['The subscription refused the addition: {}', 'The wider list writes it to the console and shows the list it already has; never shown on the page.'],
+  ['The subscription refused the removal: {}', 'Taking objects out of a subscription is best effort; the failure is swallowed and never shown.'],
   ['This page was handed no way to reduce a property series.', 'A findings page is always built with its reader; this names a programming mistake.'],
   ['A findings page reduces no Things by time bucket.', 'A findings page is built without that reading; this names a programming mistake.'],
   ['A findings page calls no service.', 'A findings page is built without that reading; this names a programming mistake.'],

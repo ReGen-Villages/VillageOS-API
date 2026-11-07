@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { TableWidget, Widget } from '../../../types/dashboard';
 import type { ResolveContext, Row } from '../../../api/dashboardApi';
 import { unimplementedWordsIn } from '../../../api/bindingVocabulary';
+import { widgetNeedsOneEntity } from '../../../api/selectedEntity';
 import { KpiCard } from './KpiCard';
 import { Funnel } from './Funnel';
 import { BulletChart } from './BulletChart';
@@ -29,15 +30,20 @@ export function WidgetRenderer({
   widget,
   context,
   openDetail,
+  entityToChoose,
 }: {
   widget: Widget;
   context: ResolveContext;
   openDetail?: (thingId: string) => void;
+  /** The word for the compared entity while none is selected and several could be. */
+  entityToChoose?: string;
 }) {
   // Asked before anything resolves, because a widget drawn from a question this build only half
   // understands shows a figure rather than a gap — and a figure is read as an answer.
   const unanswered = unimplementedWordsIn(widget);
   if (unanswered.length > 0) return <UnknownWidget reason={{ unanswered }} />;
+  // An empty figure here would read as no value, when the value is only waiting for an entity.
+  if (entityToChoose && widgetNeedsOneEntity(widget)) return <ChooseOneEntity title={widget.title} label={entityToChoose} />;
 
   switch (widget.type) {
     case 'kpi':
@@ -77,6 +83,15 @@ export function WidgetRenderer({
     default:
       return <UnknownWidget reason={{ unknownType: (widget as { type?: unknown }).type }} />;
   }
+}
+
+function ChooseOneEntity({ title, label }: { title?: string; label: string }) {
+  const { t } = useTranslation();
+  return (
+    <WidgetCard title={title}>
+      <p className="mt-2 text-[13px] leading-relaxed text-zinc-500 dark:text-zinc-400">{t('widgets.chooseOneEntity', { label })}</p>
+    </WidgetCard>
+  );
 }
 
 /** A widget this build did not draw, and which of the two reasons it was. The specification is model data, so

@@ -25,7 +25,7 @@ Approachable for a general reader as well as an engineer.
 | [RELATIONSHIP_SERVICES.md](RELATIONSHIP_SERVICES.md) | How a relationship in the graph can trigger a microservice ("handled predicates"), and the built-in `is` inheritance. |
 | [METABOLISM.md](METABOLISM.md) | The consume/produce simulation service behind the `consumes` / `produces` predicates. |
 | [TRIBUTARY.md](TRIBUTARY.md) | Pulling data in from external HTTP APIs (with JSONata response transforms) as configuration, not code. |
-| [DELTA.md](DELTA.md) | The endpoint-registration service that provisions and validates data-source endpoints. |
+| [DELTA.md](DELTA.md) | The endpoint-registration service that checks data-source registrations against the model's template tree. |
 | [MODELBRIDGE.md](MODELBRIDGE.md) | The generic bridge between a pipeline and the model (read a property, or write a computed result back). |
 | [TEMPORAL_READS.md](TEMPORAL_READS.md) | How "what is true now" and "what was true at a past moment" are served from different places, and why current-state reads stay fast however long the history grows. |
 | [LAND_INTAKE.md](LAND_INTAKE.md) | Taking in a piece of land and analysing it — the intake wizard, the public pages, open-data discovery, the site analysis with its calculations worked through, and what guards a route a stranger may post to. Written for a general reader; render to a print-ready PDF with [tools/docs-pdf](../tools/docs-pdf/). |

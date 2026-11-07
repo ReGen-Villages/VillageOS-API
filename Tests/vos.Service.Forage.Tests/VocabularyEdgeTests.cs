@@ -26,15 +26,16 @@ public class VocabularyEdgeTests
     private static Dictionary<string, Guid> CatchmentWithOneSource() => Names(
         "WillowBend", "Portugal", "isIn", "covers", "resolvedBy", "is",
         "FlowSurvey", "FlowSurveyEndpoint",
-        "Catchment", "FlowRegime", "flowsAs", "steady", "flashy");
+        "Catchment", "FlowRegime", "flowsAs", "steady", "flashy", "DiscoveredVocabulary");
 
     private static Archetype[] DeclaredArchetypes() =>
     [
         new("Catchment"),
-        new("FlowRegime", DiscoveredVocabularyResolver.ArchetypeFlag, new Dictionary<string, string>
+        new("FlowRegime", Values: new Dictionary<string, string>
         {
             [DiscoveredVocabularyResolver.ResolvedFromProperty] = "\"flowRegime\"",
         }),
+        new("DiscoveredVocabulary", BoundBy: DiscoveredVocabularyResolver.DiscoveredVocabularyRole),
     ];
 
     private static Edge[] DeclaredModel(params Edge[] extraEdges) =>
@@ -44,6 +45,7 @@ public class VocabularyEdgeTests
         new Edge("FlowSurvey", "resolvedBy", "FlowSurveyEndpoint"),
         new Edge("WillowBend", "is", "Catchment"),
         new Edge("Catchment", "flowsAs", "FlowRegime"),
+        new Edge("FlowRegime", "is", "DiscoveredVocabulary"),
         new Edge("steady", "is", "FlowRegime"),
         new Edge("flashy", "is", "FlowRegime"),
         .. extraEdges,
@@ -259,7 +261,7 @@ public class VocabularyEdgeTests
     }
 
     // The words came from the fetches, but the declaration read can still fail — and the site has
-    // already left the state that dispatches runs, so nothing retries by itself. The run must not
+    // already left the state that starts runs, so nothing retries by itself. The run must not
     // guess: no relationship is written, and the failure is the run's to report.
     [Fact]
     public async Task A_failed_declaration_read_writes_no_edge()
@@ -268,7 +270,7 @@ public class VocabularyEdgeTests
         var recorder = new EdgeRecorder();
         var declarationReads = 0;
 
-        // The read that fails is the one asking for the declarations, told by the mark it asks for: a
+        // The read that fails is the one asking for the declarations, told by the role it asks for: a
         // run reads the model more than once before it, and failing those would leave this path unrun
         // while the assertion below still held.
         await using var factory = new ForageWebApplicationFactory();
@@ -278,7 +280,7 @@ public class VocabularyEdgeTests
             if (request.Method == HttpMethod.Post
                 && request.RequestUri!.AbsolutePath == "/api/subscriptions"
                 && request.Content!.ReadAsStringAsync().GetAwaiter().GetResult()
-                    .Contains(DiscoveredVocabularyResolver.ArchetypeFlag, StringComparison.Ordinal))
+                    .Contains(DiscoveredVocabularyResolver.DiscoveredVocabularyRole.Id.ToString(), StringComparison.Ordinal))
             {
                 declarationReads++;
                 return new HttpResponseMessage(HttpStatusCode.BadGateway);

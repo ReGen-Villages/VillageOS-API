@@ -26,11 +26,12 @@ public class DeltaAndTributaryDeclareAThingTests : IClassFixture<TheEngine>
         _engine.ClientFactory, NullLogger<DeltaClient>.Instance, TheEngine.Url, _engine.AdminToken);
 
     private TributaryClient Tributary() => new(
-        _engine.ClientFactory, NullLogger<TributaryClient>.Instance, TheEngine.Url, _engine.AdminToken);
+        _engine.ClientFactory, NullLogger<TributaryClient>.Instance, TheEngine.Url, TimeProvider.System,
+        serviceToken: _engine.AdminToken);
 
     private static JsonElement Json(string raw) => JsonDocument.Parse(raw).RootElement;
 
-    [Fact]
+    [FactAgainstTheEngine]
     public async Task Delta_declares_an_endpoint_template_with_the_keys_it_narrows()
     {
         var created = await Delta().CreateThingAsync(new RegisterEndpointRequest
@@ -50,7 +51,7 @@ public class DeltaAndTributaryDeclareAThingTests : IClassFixture<TheEngine>
     // A key an endpoint must supply is declared by name with nothing in it, which is a
     // property carrying an empty string — and an empty string is a value like any other, so it needs
     // its type as much as a filled one does.
-    [Fact]
+    [FactAgainstTheEngine]
     public async Task Delta_declares_a_key_an_endpoint_must_supply_with_nothing_in_it()
     {
         var created = await Delta().CreateThingAsync(new RegisterEndpointRequest
@@ -65,7 +66,7 @@ public class DeltaAndTributaryDeclareAThingTests : IClassFixture<TheEngine>
 
     // Tributary forwards what a caller sent, so the values are whatever arrived as JSON —
     // the case the type has to be worked out for rather than known.
-    [Fact]
+    [FactAgainstTheEngine]
     public async Task Tributary_declares_an_entity_from_the_reading_that_first_sighted_it()
     {
         var created = await Tributary().CreateThingAsync($"Reservoir_{Guid.NewGuid():N}",
@@ -87,7 +88,7 @@ public class DeltaAndTributaryDeclareAThingTests : IClassFixture<TheEngine>
     // A reading that arrives whole is still a measurement, and the next one may not be. The
     // property's type is decided by the first write, so recording 3 as an integer is a property that
     // cannot hold 3.5 afterwards.
-    [Fact]
+    [FactAgainstTheEngine]
     public async Task Tributary_holds_a_whole_reading_as_a_measurement_so_the_next_one_fits()
     {
         var client = Tributary();
@@ -107,7 +108,7 @@ public class DeltaAndTributaryDeclareAThingTests : IClassFixture<TheEngine>
     // Every name the writer can send is one the engine takes. The engine serves the names it
     // accepts, so this is held against what it says rather than against a second list kept by
     // hand — the same way the client's property-type set is checked.
-    [Fact]
+    [FactAgainstTheEngine]
     public async Task Every_type_the_services_can_write_is_one_the_engine_accepts()
     {
         var accepted = await _engine.Admin.GetFromJsonAsync<string[]>("/api/properties/types");

@@ -1,8 +1,12 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+#if VOS_ENGINE_IS_STAGED
 using vos.Mycelium.Testing;
+#endif
 using vos.Service.Shared;
+using vos.Service.Shared.Roles;
+using vos.Service.Shared.Subscriptions;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -20,8 +24,6 @@ public sealed class TheEngine : IAsyncLifetime
     // by concatenation, so this is a base without a trailing slash rather than a host to reach.
     public const string Url = "http://localhost";
 
-    private MyceliumTestHost _host = null!;
-
     public string AdminToken { get; private set; } = "";
 
     public IHttpClientFactory ClientFactory { get; private set; } = null!;
@@ -29,6 +31,14 @@ public sealed class TheEngine : IAsyncLifetime
     // Signed in as the administrator, for a test to arrange a model with and to read back
     // what a service wrote.
     public HttpClient Admin { get; private set; } = null!;
+
+#if !VOS_ENGINE_IS_STAGED
+    public Task InitializeAsync() => throw new InvalidOperationException(
+        "No engine is staged, so this case cannot run. Mark it [FactAgainstTheEngine], which skips it here.");
+
+    public Task DisposeAsync() => Task.CompletedTask;
+#else
+    private MyceliumTestHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -53,23 +63,24 @@ public sealed class TheEngine : IAsyncLifetime
         _host.Dispose();
         return Task.CompletedTask;
     }
+#endif
 
     // A Thing, written the way the engine takes one. Tests arrange with this so that an
     // arrangement cannot be refused for the reason a case is looking for in the service.
     public async Task<Guid> DeclareAsync(
-        string name, bool isArchetype = false, IReadOnlyDictionary<string, object?>? properties = null)
+        string name, bool isArchetype = false, IReadOnlyDictionary<string, object?>? properties = null, Guid? identifier = null)
     {
-        var identifier = Guid.NewGuid();
+        var id = identifier ?? Guid.NewGuid();
         var written = await Admin.PostAsJsonAsync("/api/things", new
         {
-            Id = identifier,
+            Id = id,
             Name = name,
             IsArchetype = isArchetype,
             Properties = TypedProperties.Typed(properties),
         });
 
         written.EnsureSuccessStatusCode();
-        return identifier;
+        return id;
     }
 
     // A relationship, written the way the engine takes one, for the same reason as a Thing.
@@ -84,6 +95,15 @@ public sealed class TheEngine : IAsyncLifetime
     public async Task<Guid> DeclareOnceAsync(
         string name, bool isArchetype = false, IReadOnlyDictionary<string, object?>? properties = null) =>
         await FindAsync(name) ?? await DeclareAsync(name, isArchetype, properties);
+
+    // The role Thing under the identifier every model declares it by, binding the Thing along `binds`, as a
+    // template declares a role.
+    public async Task BindAsync(Role role, Guid boundId)
+    {
+        var roleId = await FindAsync(role.Word) ?? await DeclareAsync(role.Word, identifier: role.Id);
+        var binds = await DeclareOnceAsync(RoleBindings.BindsPredicateName);
+        await RelateAsync(roleId, binds, boundId);
+    }
 
     // The Thing of that name, or null. Names are not unique in a model, and the route
     // refuses an ambiguous one rather than picking — which is a failure worth surfacing here too,

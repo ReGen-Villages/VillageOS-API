@@ -9,14 +9,16 @@ This document is the language-agnostic contract. Working reference implementatio
 | C# / .NET | [`vos.Service.CSharp.Echo`](../vos.Service.CSharp.Echo) | ASP.NET minimal API (canonical) | ✓ build + tests |
 | Go | [`vos.Service.Go.Echo`](../vos.Service.Go.Echo) | standard library, zero deps | ✓ build + tests |
 | Node / TypeScript | [`vos.Service.Node.Echo`](../vos.Service.Node.Echo) | built-ins, zero runtime deps | ✓ typecheck + tests |
-| Python | [`vos.Service.Python.Echo`](../vos.Service.Python.Echo) | FastAPI | ✓ pytest |
+| Python | [`vos.Service.Python.Echo`](../vos.Service.Python.Echo) | FastAPI, on [`vos.Service.Python.Shared`](../vos.Service.Python.Shared) | ✓ pytest |
 | Rust | [`vos.Service.Rust.Echo`](../vos.Service.Rust.Echo) | Axum | ✓ build + tests + clippy |
 
 Each reference is an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Swap that for your predicate logic.
 
+A Python service does not reimplement the contract. [`vos.Service.Python.Shared`](../vos.Service.Python.Shared) (the package `vos_service`) carries the arguments, inbound JWT validation, registration, the four standard endpoints and the write and subscribe calls, and, for a service that is a pipeline node, the node envelope and its answer (`NodeService`, as C# nodes get theirs from `DagNodeService`), as the C# services get them from `vos.Auth.Shared` and `vos.Service.Shared`; a Python service installs it by path from its own `requirements.txt` and supplies only its handler and any routes of its own. Start from a copy of the Python echo folder.
+
 ## A note on `is`
 
-`is` is the one **built-in** predicate. Mycelium applies `is` inheritance in-process and **never dispatches it to an external handler** — only predicates like `consumes`/`produces` are mapped to external services. So you cannot write an external "is handler"; register your service for a custom predicate (or `consumes`/`produces`) instead.
+`is` and `binds` are the two **built-in** predicates. Mycelium applies `is` inheritance in-process, reads `binds` — along which a role Thing reaches the one Thing playing that role — in-process too, and **never sends either to an external handler** — only predicates like `consumes`/`produces` are mapped to external services. So you cannot write an external "is handler"; register your service for a custom predicate (or `consumes`/`produces`) instead.
 
 ## Things and relations, not strings
 
@@ -77,6 +79,7 @@ Mycelium launches your binary with `--key=value` flags. `--port` and `--mycelium
 | `--myceliumUrl` | ✓ | Base URL of Mycelium, e.g. `https://localhost:7243` |
 | `--issuer` | | JWT issuer to check against. **Required when `VerificationKey` is set** (startup fails otherwise); must match what Mycelium signs |
 | `--audience` | | **Your service's own name**, which an inbound token must carry as its recipient. **Required when `VerificationKey` is set** (startup fails otherwise). There is no shared default: a token addressed to another service, or to a signed-in person's browser, must not be accepted here. Mycelium works the name out from the connection that dispatches to you — treat it as opaque and check the value you were given |
+| `--logDirectory` | | The folder to write your log file in. Without it, the C# host writes four folders above its build output |
 
 ### Credentials
 
@@ -110,11 +113,17 @@ On startup, obtain a bearer token then register.
   "endpointUrl": "http://localhost:<port>",
   "startCommand": "endpoint-service",
   "stopEndpoint": "http://localhost:<port>/shutdown",
-  "healthEndpoint": "http://localhost:<port>/health"
+  "healthEndpoint": "http://localhost:<port>/health",
+  "logFilePrefix": "yourservice-",
+  "logDirectory": "/full/path/to/your/logs"
 }
 ```
 
-A 2xx means you're registered.
+`logFilePrefix` is optional: lowercase letters, digits and hyphens, the prefix of the file the service
+writes its own log under, so the broker's log routes can find the newest one. A service that writes
+no log file leaves it out. `logDirectory` is optional too: the full path of the folder a service
+started with `--logDirectory` writes in; one writing to its default folder sends none. The broker
+refuses a folder outside the parent it allows. A 2xx means you're registered.
 
 ## Endpoints to expose
 
@@ -129,8 +138,9 @@ A 2xx means you're registered.
 
 **Timing guarantee.** When the trigger relationship arrives inside a `POST /api/model/fragment`
 batch, `/handle` is called only after the whole fragment is applied — every Thing, relationship, and
-property value in the batch is readable, and roll-ups are recomputed. A handler never observes a
-half-applied fragment. Multiple handled relationships in one fragment are dispatched in creation order.
+property value in the batch is readable, and derived properties are recomputed. A handler never
+observes a half-applied fragment. The services of several handled relationships in one fragment are
+called in creation order.
 
 **`POST /handle`** receives (camelCase JSON):
 
@@ -152,11 +162,11 @@ Return any 2xx once the work is done. A reasonable body:
 ```
 
 **What your answer costs.** Mycelium judges the handler's outcome, not the transport: a status
-outside 2xx, or a 2xx whose body says `"success": false`, records the dispatch as **failed**, and
+outside 2xx, or a 2xx whose body says `"success": false`, records the call as **failed**, and
 the reconciler sends it again — so answer that way only when a retry could succeed, and keep the
 work behind a claim per `relationshipId` (below) so the retry does not repeat it. A **`400`** is
 different: it says you read the body and turned it down, the same body would earn the same answer,
-so it is recorded as **refused** with your words and is never re-driven. A 2xx with no `success`
+so it is recorded as **refused** with your words and is never sent again. A 2xx with no `success`
 field, or a body that is not JSON, counts as done — unless the connection asks for an
 **acknowledgement** (`completion` of `ack` or `both`): then a 2xx means only accepted, and your
 service calls `POST /api/relationships/{relationshipId}/acknowledgement` once its work has committed.
@@ -165,7 +175,7 @@ service calls `POST /api/relationships/{relationshipId}/acknowledgement` once it
 Every call also carries a `Vos-Request-Id` header naming Mycelium's request-log entry for it, worth
 quoting in your own log. It is new on every delivery.
 
-**The same relationship can be delivered more than once.** Dispatch is at-least-once: when Mycelium
+**The same relationship can be delivered more than once.** Delivery is at-least-once: when Mycelium
 cannot confirm that a handler finished, it sends the relation again, and a handler that reconnects
 after a break is sent what it missed while it was away. Each delivery is a separate call to your
 `/handle`, and nothing in the payload says whether it is the first. `relationshipId` is the same on
@@ -221,11 +231,11 @@ anyone holding the public key can mint a token that such a handler accepts. Seve
 libraries behave this way unless told otherwise. Pin ES256 explicitly; a token claiming any other
 algorithm, `none` included, must be refused.
 
-Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT carrying `iss`/`aud` and the request's `vos:model_id`; the platform validates this same token before dispatch, so your handler should apply the identical checks. Reject with 401 on any failure.
+Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT carrying `iss`/`aud` and the request's `vos:model_id`; the platform validates this same token before the call, so your handler should apply the identical checks. Reject with 401 on any failure.
 
 **Calling back into Mycelium.** If your handler writes back during `/handle` (Facts, Observations, relationships), authenticate those calls with the **inbound** request token, not the startup JWT from `Token` — otherwise a daemon shared by several models writes to whichever model launched it. Handlers built on `MyceliumClientBase` get this for free: add `app.UseMyceliumModelToken()` after `UseAuthorization()`, and `GetTokenAsync()` prefers the bearer of the work in hand.
 
-**Work that outlives the request.** A request bearer expires in 5 minutes, so anything you keep open past the call — a change subscription, most obviously — cannot lean on it. Exchange it at `POST /api/auth/service-token` for one naming the same model with a full lifetime, and replace that before it expires; a subscription can sit quiet for longer than a token lives, and once it has lapsed there is no valid token left to ask with. `AddInputChangeRecompute` does all of this for you, including running each recompute under its own model's token so your handler writes back where the subject actually lives.
+**Work that outlives the request.** A request bearer expires in 5 minutes, so anything you keep open past the call — a change subscription, most obviously — cannot lean on it. Exchange it at `POST /api/auth/service-token` for one naming the same model with a full lifetime, and replace that before it expires; a subscription can sit quiet for longer than a token lives, and once it has lapsed there is no valid token left to ask with. `AddInputChangeRecompute` does all of this for you, including running each recompute under its own model's token so your handler writes back where the subject actually lives. Work a `/handle` call starts and that runs on after the answer — a simulation loop, a discovery run — takes `HeldModelToken.SwapFromTheCallAsync` while the call is still being answered and acts through its `ActAsync`; when Mycelium will not swap the token, answer `503` and start nothing, since the work would be refused partway through.
 
 ## Deregistration & health
 

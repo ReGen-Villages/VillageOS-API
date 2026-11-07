@@ -64,7 +64,10 @@ Both write paths land in the same store. Sensor **observations** (`POST …/obse
 Fact-path **property changes** (asserting or retracting a value through the API) are both
 projected into Rings, each point provenance-tagged with the path it came from. So
 `GET …/properties/{p}/history` returns one unified timeline regardless of how each point was
-written, and `?timestamp=` as-of reads see both.
+written, each sample labelled `observation`, `fact` or `retraction` — a retraction carries no value —
+and `?timestamp=` as-of reads see both. A `CurrentOnly` property's history is its present value, one
+sample at the instant it was set, read from the model. The history reads answer for a Thing or a
+relationship that was retracted too, before and after the server lets it go from memory.
 
 ## Access is key-addressed — there are no stubs
 
@@ -91,12 +94,14 @@ series pointing at the tier its data moved to. Stubs are avoided because:
   Sapwood, oldest in Heartwood), so there is no one "moved-to" tier to point at — only a union
   read across the intersecting tiers is correct;
 - data moves continually (a bucket leaving memory by count or by age, age-out, a restart putting
-  back in memory what never reached disk, late or out-of-order arrivals), so coverage is derived from what is actually stored on each read — reads stay correct
-  with no bookkeeping to maintain.
+  back in memory what never reached disk, late or out-of-order arrivals), so each tier keeps its
+  coverage from what it holds: Canopy works it out from its buckets, and a disk tier reads a series'
+  files once, on the series' first read or write after a start, keeps the span of bucket starts each
+  file holds, and keeps that current on every write and delete.
 
 The one thing a stub would buy — knowing where the data is without asking the tier — is provided
-instead by the per-tier coverage check: in-memory for Canopy, a small bucket-range index for the
-on-disk tiers.
+instead by the per-tier coverage check: in-memory for Canopy, and for the on-disk tiers the spans
+they keep, one per file per series and never one entry per bucket.
 
 ## Retention is per property
 
@@ -149,17 +154,23 @@ answers about the graph as it stood rather than the graph as it is now:
 | Instant asked for | Answer |
 |---|---|
 | Before the object joined the model | Left out. `GET /api/things/{id}?timestamp=` answers `404` |
-| While it stood | Included, with the values that stood then — see below for where they are |
+| While it stood, and it is still in the model | Included, with the values that stood then — see below for where they are |
+| While it stood, but it has been retracted since | Left out, unless the request says `retracted=true` |
 | At or after it was retracted | Left out — the same answer as before it arrived |
 
 The instant is taken when the object **joins the model**, not when a client composed it, so composing
 a relationship and inserting it later dates it from the insertion.
 
-Some time after a deletion the server lets the object go from memory. A Thing asked about by itself
-(`GET /api/things/{id}?timestamp=`) is still answered for an instant it stood, from the record of its
-lifetime kept on disk: the name it held then, its values, and its relationships live then, and only
-for a caller the Thing's categories admit. The whole-model read (`GET /api/model?timestamp=`) answers
-only what the server still holds.
+Both `GET /api/things/{id}?timestamp=` and `GET /api/model?timestamp=` leave out what was retracted
+since the instant, so the answer does not depend on whether the server still holds it. Add
+`&retracted=true` (or `=1`) to keep it; `false` and `0` are the default, and any other value is
+refused with `400`.
+
+Some time after a deletion the server lets the object go from memory. With the flag, both reads still
+answer for an instant it stood, from the record of its lifetime kept on disk: the name it held then,
+its values, its relationships live then, and values under names it no longer holds. A Thing read this
+way appears only for a caller the Thing's categories admit, and a relationship only when all three of
+its ends may be read at the instant.
 
 ## What a Thing at an instant carries
 
@@ -219,7 +230,7 @@ POST /api/temporal/aggregate
 | `measureProperty` | The property reduced per member. `Count` needs none; every other reduction does |
 | `windowSeconds` | How far back the window reaches from the model clock's now |
 | `bucketSeconds` | How wide each bucket is. The window must be a whole number of them, and at most ten thousand |
-| `within` | Only members this container reaches, at any depth, through the predicates the model marks as containment |
+| `within` | Only members this container reaches, at any depth, through the predicates the model's `containment` role binds, itself or as a kind they `is`. A model that binds none is refused |
 
 The window ends at the **model clock's** now — the same clock as every other temporal read on this
 page — and each bucket is closed at its end, so an event exactly at now falls in the last bucket and
@@ -259,7 +270,7 @@ POST /api/temporal/reduce
 The answer is the groups in key order — numeric where the key is a number, part by part where it is
 composite — with the capitals every Mycelium route answers in, beside how many samples the window held
 that could and could not be read, so an answer with no groups says whether the window was empty or
-unreadable. A group a cyclic fold produced sits at no instant, so only `all` can fold it further; a
+unreadable. A retraction sample is left out before anything is read and counted in `Retractions`. A group a cyclic fold produced sits at no instant, so only `all` can fold it further; a
 first step that could produce more than ten thousand groups, a parameter beside a function that does
 not read it, and an unknown fold or function are each refused with `400` and the reason. The read walks
 the property's retained samples once, so its cost follows the depth of history the property keeps and

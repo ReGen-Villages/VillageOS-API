@@ -23,6 +23,7 @@ import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { modelApi } from '../api/modelApi';
 import { useModelStore } from '../stores/modelStore';
+import { PAGE_ROLE_ID } from '../api/platformRoles';
 import { WIDGET_KINDS } from '../utils/gridLayout';
 import { en } from '../i18n/locales/en';
 import { DASHBOARD_SPECIFICATION_PROPERTY } from '../types/dashboard';
@@ -63,13 +64,18 @@ function seedStore() {
   useModelStore.setState({
     things: [
       thing('is', 'is'),
+      thing('binds', 'binds'),
+      thing(PAGE_ROLE_ID, 'Page'),
       thing('dashboard', 'Dashboard', {}, true),
       thing('page-springs', 'Springs', { [DASHBOARD_SPECIFICATION_PROPERTY]: JSON.stringify(SEEDED) }),
       thing('page-reservoirs', 'Reservoirs', { [DASHBOARD_SPECIFICATION_PROPERTY]: JSON.stringify(DESIGNED) }),
       thing('spring', 'Spring', {}, true),
       thing('s1', 'SPRING-1', { flow: 12.5 }),
     ],
-    relationships: [isA('page-springs', 'dashboard'), isA('page-reservoirs', 'dashboard'), isA('s1', 'spring')],
+    relationships: [
+      { Id: 'page-binds', SubjectId: PAGE_ROLE_ID, PredicateId: 'binds', TargetId: 'dashboard', Properties: {} },
+      isA('page-springs', 'dashboard'), isA('page-reservoirs', 'dashboard'), isA('s1', 'spring'),
+    ],
     loaded: true,
   });
 }

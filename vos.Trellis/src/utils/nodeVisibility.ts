@@ -2,11 +2,6 @@ import type Graph from 'graphology';
 import type { SearchOptions } from './searchFilter';
 import { buildStringMatcher } from './searchFilter';
 
-/** Check whether a thing is a containment predicate (stamped by the IFC importer). */
-export function isContainmentPredicate(props: Record<string, unknown> | undefined): boolean {
-  return props?.__IsMapContainmentPredicate === true;
-}
-
 /**
  * Build a label matcher for the Sigma nodeReducer.
  * Delegates to the shared `buildStringMatcher` so label-level dimming

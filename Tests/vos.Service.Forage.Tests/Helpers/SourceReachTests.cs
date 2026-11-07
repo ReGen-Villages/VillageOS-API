@@ -1,21 +1,22 @@
 using FluentAssertions;
 using vos.Service.Forage.Helpers;
+using vos.Service.Shared.Subscriptions;
 using Xunit;
 
 namespace vos.Service.Forage.Tests.Helpers;
 
 // The walk in the other direction: from a source, through the Places it covers and down
 // their nesting, to every site in them. A source added to the catalogue reached no existing site while
-// the only walk ran from a site outward, and a site already discovered was never dispatched again.
+// the only walk ran from a site outward, and a site already discovered was never called again.
 //
-// The sites are told from the Places around them by the mark the platform puts on the archetype every
-// site `is`. Nothing here names an archetype: named, a model calling its sites
+// The sites are told from the Places around them through the role the platform binds to the archetype
+// every site `is`. Nothing here names an archetype: named, a model calling its sites
 // something else would offer every source to nothing, and the only sign would be a catalogue nobody
 // fetched.
 public class SourceReachTests
 {
     private static ModelBuilder Model() =>
-        new ModelBuilder().Archetype("Site", CoveringSourceResolver.SiteArchetypeFlag);
+        new ModelBuilder().Archetype("Site").Bound(CoveringSourceResolver.SiteRole, "Site");
 
     private static ModelBuilder SiteIn(ModelBuilder model, string site, string place) =>
         model.Relate(site, CoveringSourceResolver.IsPredicateName, "Site")
@@ -198,15 +199,21 @@ public class SourceReachTests
     }
 
     [Fact]
-    public void SelectorForSource_AsksForTheCoverageArchetypeAloneAndEveryPredicateItCompares()
+    public void SelectorForSource_AsksForTheCoverageArchetypeAloneTheSiteRoleAndEveryPredicateItCompares()
     {
         // Alone, because a run mints against it and needs only its identity; with its members, every
-        // coverage in the model would arrive with it. The site archetype needs no asking: every site the
-        // nesting reaches brings its own `is` chain with the ancestors the broker closes over.
-        var selector = CoveringSourceResolver.SelectorForSource(Guid.NewGuid());
+        // coverage in the model would arrive with it. The site archetype's members need no asking: every site
+        // the nesting reaches brings its own `is` chain with the ancestors the broker closes over. The role
+        // Thing and its binding do, or nothing says which of those ancestors is the site archetype.
+        var source = Guid.NewGuid();
 
-        selector.MarkedArchetypes.Should().Equal(CoveringSourceResolver.SourceCoverageArchetypeFlag);
-        selector.MarkedTypes.Should().BeNullOrEmpty();
+        var selector = CoveringSourceResolver.SelectorForSource(source);
+
+        selector.BoundArchetypes.Should().Equal(CoveringSourceResolver.SourceCoverageRole.Id);
+        selector.BoundTypes.Should().BeNullOrEmpty();
+        selector.Ids.Should().Equal(source, CoveringSourceResolver.SiteRole.Id, CoveringSourceResolver.SourceCoverageRole.Id);
+        selector.Traverse.Should().Contain(RoleBindings.FollowBindings);
+        selector.Names.Should().Contain(RoleBindings.BindsPredicateName);
         selector.Names.Should().Contain(new[]
         {
             CoveringSourceResolver.IsInPredicate,

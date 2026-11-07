@@ -19,6 +19,7 @@ import { canSupport3D } from '../../utils/browserDetect';
 const BuildingDetail3D = lazy(() => import('../three/BuildingDetail3D'));
 import type { ChildElement } from '../three/BuildingDetail3D';
 import { storedTextOf } from '../../utils/ifcIdentity';
+import { thingsContainedBy } from '../../utils/containment';
 
 const TAB_LABEL_KEYS = {
   ranges: 'panels.node.tabRanges',
@@ -50,26 +51,10 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
   const classifyingProperty = useUiStore((s) => s.layoutSettings.classifyingProperty);
   const hasGeometry = thing.Properties?.geometry != null;
 
-  // Gather child elements with geometry via spatial-containment predicates.
-  // The system has no fixed vocabulary — we identify children purely by the
-  // generic `__IsMapContainmentPredicate` flag on the predicate Thing
-  // (any predicate the importer marks as a containment relationship qualifies).
-  // Each child's per-mesh color key is read from the user-configured
-  // classifying property (default 'ifcClass' for IFC seeds).
   const childElements = useMemo<ChildElement[]>(() => {
-    const spatialPredicateIds = new Set<string>();
-    for (const [, t] of allThings) {
-      if (t.Properties?.__IsMapContainmentPredicate === true) spatialPredicateIds.add(t.Id);
-    }
-    if (spatialPredicateIds.size === 0) return [];
-
     const children: ChildElement[] = [];
-    for (const relationship of relationships) {
-      if (relationship.SubjectId !== thing.Id) continue;
-      if (!spatialPredicateIds.has(relationship.PredicateId)) continue;
-
-      const child = allThings.get(relationship.TargetId);
-      if (!child?.Properties?.geometry) continue;
+    for (const child of thingsContainedBy(thing, allThings, relationships)) {
+      if (!child.Properties?.geometry) continue;
 
       children.push({
         geometryValue: child.Properties.geometry,

@@ -84,6 +84,36 @@ public class SelectorDemoTests
         body.Should().Contain("\"traverse\"").And.Contain("powers");
     }
 
+    // Declared by the shared site templates, so the demo slices on any seeded model.
+    [Fact]
+    public void The_demo_slices_by_what_every_seeded_model_declares_unless_asked_otherwise()
+    {
+        var unasked = SelectorDemo.SelectorFor(null);
+        unasked.Types.Should().Equal("OpenDataSource");
+        unasked.Traverse![0].Predicate.Should().Be("provides");
+
+        var asked = SelectorDemo.SelectorFor(new SelectorDemoRequest("Battery", null));
+        asked.Types.Should().Equal("Battery");
+        asked.Traverse![0].Predicate.Should().Be("provides");
+    }
+
+    [Fact]
+    public async Task SubscriptionClient_raises_a_refusal_with_the_platforms_status_and_words()
+    {
+        var handler = new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+        {
+            Content = new StringContent("""{"error":"no Thing is named Battery"}""", Encoding.UTF8, "application/json"),
+        });
+        var client = new SubscriptionClient(new TestHttpClientFactory(new HttpClient(handler)),
+            NullLogger.Instance, MyceliumUrl, serviceToken: "tok");
+
+        var refused = await Assert.ThrowsAsync<SubscriptionRefusedException>(
+            () => client.SubscribeAsync(SelectorDemo.SliceByTypeAndTraverse("Battery", "powers")));
+
+        refused.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        refused.Body.Should().Be("""{"error":"no Thing is named Battery"}""");
+    }
+
     private static SnapshotThing Thing(string name) =>
         new(Guid.NewGuid(), name, IsArchetype: false, new(), new(), Array.Empty<string>(), Array.Empty<Guid>());
 

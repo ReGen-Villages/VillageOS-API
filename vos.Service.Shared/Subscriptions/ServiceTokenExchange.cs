@@ -1,8 +1,21 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
 namespace vos.Service.Shared.Subscriptions;
+
+public static class ServiceTokenExchangeRegistration
+{
+    public static IServiceCollection AddServiceTokenExchange(this IServiceCollection services, string myceliumUrl)
+    {
+        services.TryAddSingleton<IServiceTokenExchange>(provider => new ServiceTokenExchange(
+            provider.GetRequiredService<IHttpClientFactory>(),
+            provider.GetRequiredService<ILogger<ServiceTokenExchange>>(), myceliumUrl));
+        return services;
+    }
+}
 
 // Trades a bearer a daemon already holds for one that outlives the request it arrived on.
 public interface IServiceTokenExchange

@@ -25,7 +25,6 @@ const stored = (
   [source]: {
     SourceId: source,
     SourceName: source,
-    InheritedAt: '2026-08-01T00:00:00Z',
     Properties: values,
     PropertyWriteKinds: kinds,
   },
@@ -177,7 +176,7 @@ describe('valueOrigin', () => {
     const site = thing('s', 'Willow Bend', {
       InheritedOverrides: {
         Site: {
-          SourceId: 'Site', SourceName: 'Site', InheritedAt: '2026-08-01T00:00:00Z',
+          SourceId: 'Site', SourceName: 'Site',
           Properties: {},
           Inherited: stored('Place', { latitude: 39.5 }, { latitude: 'FactOnly' }),
         },
@@ -192,7 +191,7 @@ describe('valueOrigin', () => {
     const site = thing('s', 'Willow Bend', {
       InheritedOverrides: {
         Contact: {
-          SourceId: 'Contact', SourceName: 'Contact', InheritedAt: '2026-08-01T00:00:00Z',
+          SourceId: 'Contact', SourceName: 'Contact',
           Properties: {},
           Inherited: stored('Party', { emailAddress: 'someone@example.com' }),
         },

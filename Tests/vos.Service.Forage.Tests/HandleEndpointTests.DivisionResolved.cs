@@ -40,13 +40,17 @@ public class HandleEndpointDivisionTests
         new Edge("ThinkHazard", "resolvedBy", "hazard-grading"),
     ];
 
-    // The two lookups as a template declares them: a mark each, an address, and — on the search — the
+    // The two lookups as a template declares them: a role binding each, an address, and — on the search — the
     // properties a run writes what it settled on into.
+    private static Binding[] TheLookupRoles() =>
+    [
+        new Binding(CoveringSourceResolver.AreaNameLookupRole, AreaNameEndpoint),
+        new Binding(CoveringSourceResolver.HazardDivisionLookupRole, SearchEndpoint),
+    ];
+
     private static Carrying[] TheTwoLookups() =>
     [
-        new Carrying(AreaNameEndpoint, CoveringSourceResolver.AreaNameLookupFlag, "true"),
         new Carrying(AreaNameEndpoint, "url", "\"https://example.test/reverse?lat={latitude}&lon={longitude}\""),
-        new Carrying(SearchEndpoint, CoveringSourceResolver.HazardDivisionLookupFlag, "true"),
         new Carrying(SearchEndpoint, "url", "\"https://example.test/administrativedivision?q={areaName}\""),
         new Carrying(SearchEndpoint, "divisionCodeProperty", "\"hazardPortalDivision\""),
         new Carrying(SearchEndpoint, "divisionNameProperty", "\"hazardPortalDivisionName\""),
@@ -96,7 +100,8 @@ public class HandleEndpointDivisionTests
                 };
             }
 
-            return RouteSubscription(req, ids, Edges(), Coordinates(), archetypes: null, carrying: TheTwoLookups())
+            return RouteSubscription(req, ids, Edges(), Coordinates(), archetypes: null, carrying: TheTwoLookups(),
+                       bindings: TheLookupRoles())
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -112,7 +117,7 @@ public class HandleEndpointDivisionTests
         graded.Should().ContainSingle().Which.Should().Contain("24889");
     }
 
-    // A run that made both lookups on every dispatch would call two providers for a site that needs
+    // A run that made both lookups on every service call would call two providers for a site that needs
     // neither, and would resolve over a division a project put on its own Place.
     [Fact]
     public async Task Handle_ASiteWhosePlaceCarriesADivision_LooksNothingUp()
@@ -132,7 +137,8 @@ public class HandleEndpointDivisionTests
                 return Ok("""{"success":true}""");
             }
 
-            return RouteSubscription(req, ids, Edges(), places, archetypes: null, carrying: TheTwoLookups())
+            return RouteSubscription(req, ids, Edges(), places, archetypes: null, carrying: TheTwoLookups(),
+                       bindings: TheLookupRoles())
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();

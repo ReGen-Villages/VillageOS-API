@@ -5,7 +5,7 @@ using Xunit;
 
 namespace vos.Service.Phloem.Tests;
 
-// One /handle, two spawn shapes — http {pipelineId,params} (sync) and a dispatched relationship
+// One /handle, two spawn shapes — http {pipelineId,parameters} (sync) and a relationship the broker sends
 // {subjectId, targetId, properties} (answered before the run finishes). SpawnTrigger classifies; which pipeline a
 // relationship's target starts is the model's answer, not the body's.
 public class SpawnTriggerTests
@@ -15,15 +15,45 @@ public class SpawnTriggerTests
     private static JsonElement Json(string s) => JsonDocument.Parse(s).RootElement;
 
     [Fact]
-    public void Resolve_HttpBody_IsHttpSpawnWithParams()
+    public void Resolve_HttpBody_IsHttpSpawnWithParameters()
     {
-        var body = JsonSerializer.Serialize(new { pipelineId = Pipe.ToString(), @params = new { k = 1 } });
+        var body = JsonSerializer.Serialize(new { pipelineId = Pipe.ToString(), parameters = new { k = 1 } });
         var t = SpawnTrigger.Resolve(Json(body));
 
         t.Kind.Should().Be(SpawnKind.Http);
         t.PipelineId.Should().Be(Pipe);
-        t.Params.GetProperty("k").GetInt32().Should().Be(1);
+        t.Parameters.GetProperty("k").GetInt32().Should().Be(1);
         t.Async.Should().BeFalse(); // synchronous spawn-and-wait by default
+    }
+
+    [Theory]
+    [InlineData("startAgain", SpawnKind.StartAgain)]
+    [InlineData("carryOn", SpawnKind.CarryOn)]
+    public void Resolve_ABodyNamingARunToStartAgainOrCarryOn_IsThatAskAboutThatRun(string asked, SpawnKind kind)
+    {
+        var run = Guid.NewGuid();
+
+        var t = SpawnTrigger.Resolve(Json($"{{\"{asked}\": \"{run}\"}}"));
+
+        (t.Kind, t.TargetId, t.Error).Should().Be((kind, run, (string?)null));
+    }
+
+    [Theory]
+    [InlineData("startAgain")]
+    [InlineData("carryOn")]
+    public void Resolve_ABodyNamingARunThatIsNotAnIdentifier_IsRefused(string asked)
+    {
+        var t = SpawnTrigger.Resolve(Json($"{{\"{asked}\": \"yesterday's run\"}}"));
+
+        (t.Kind, t.Error).Should().Be((SpawnKind.Invalid, $"'{asked}' must be a guid."));
+    }
+
+    [Fact]
+    public void Resolve_HttpBodyGivingParametersUnderTheClippedWord_CarriesNone()
+    {
+        var body = JsonSerializer.Serialize(new { pipelineId = Pipe.ToString(), @params = new { k = 1 } });
+
+        SpawnTrigger.Resolve(Json(body)).Parameters.ValueKind.Should().Be(JsonValueKind.Undefined);
     }
 
     [Fact]
@@ -38,11 +68,21 @@ public class SpawnTriggerTests
     }
 
     [Fact]
-    public void Resolve_DispatchedRelationship_CarriesTargetSubjectAndPropertiesAsParams()
+    public void Resolve_HttpBodyAskingForARehearsal_IsARehearsal_AndOneNotAskingIsNot()
+    {
+        var asked = SpawnTrigger.Resolve(Json(JsonSerializer.Serialize(new { pipelineId = Pipe.ToString(), rehearsal = true })));
+        var notAsked = SpawnTrigger.Resolve(Json(JsonSerializer.Serialize(new { pipelineId = Pipe.ToString() })));
+
+        asked.Rehearsal.Should().BeTrue();
+        notAsked.Rehearsal.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Resolve_CalledRelationship_CarriesTargetSubjectAndPropertiesAsParameters()
     {
         // What Mycelium posts for `X runs Pipeline` and for a Thing entering a watched state
         // (VosServiceBroker): the target is the pipeline in the first and the watching connection in the
-        // second, the subject is what entered, and the relationship's properties are the run params.
+        // second, the subject is what entered, and the relationship's properties are the run's parameters.
         var body = JsonSerializer.Serialize(new
         {
             relationshipId = "a0000000-0000-0000-0000-000000000001",
@@ -59,8 +99,8 @@ public class SpawnTriggerTests
         t.RelationshipId.Should().Be(Guid.Parse("a0000000-0000-0000-0000-000000000001"),
             "a write along a predicate is resolved through the relationship, which names the connection");
         t.Subject.Should().Be(new RunSubject(Subject, "Submission 42"));
-        t.Params.GetProperty("scenario").GetString().Should().Be("base");
-        t.Async.Should().BeTrue("a dispatched relationship is always answered before the run finishes");
+        t.Parameters.GetProperty("scenario").GetString().Should().Be("base");
+        t.Async.Should().BeTrue("a relationship the broker sends is always answered before the run finishes");
     }
 
     // A body naming no subject, or one that is not an identifier, is still a relationship to act on: the
@@ -68,7 +108,7 @@ public class SpawnTriggerTests
     [Theory]
     [InlineData("""{"targetId":"5628da90-0000-0000-0000-0000000000c1"}""")]
     [InlineData("""{"targetId":"5628da90-0000-0000-0000-0000000000c1","subjectId":"not-a-guid"}""")]
-    public void Resolve_DispatchedRelationshipWithoutASubject_HasNone(string body)
+    public void Resolve_CalledRelationshipWithoutASubject_HasNone(string body)
     {
         var t = SpawnTrigger.Resolve(Json(body));
 
@@ -78,7 +118,7 @@ public class SpawnTriggerTests
     }
 
     [Theory]
-    [InlineData("""{"params":{}}""")]                       // neither pipelineId nor targetId
+    [InlineData("""{"parameters":{}}""")]                   // neither pipelineId nor targetId
     [InlineData("""{"pipelineId":"not-a-guid"}""")]          // bad http id
     [InlineData("""{"targetId":"not-a-guid"}""")]            // bad relationship target
     [InlineData("""[]""")]                                    // not an object

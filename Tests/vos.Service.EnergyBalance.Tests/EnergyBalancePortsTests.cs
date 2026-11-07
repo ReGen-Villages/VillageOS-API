@@ -5,7 +5,7 @@ using Xunit;
 
 namespace vos.Service.EnergyBalance.Tests;
 
-// What the one service the site analysis still dispatches reads and writes.
+// What the one service the site analysis still calls reads and writes.
 //
 // These two claims were held across the analysis's services while there were several, in a test project
 // of their own. The model works every figure out for itself now except the energy verdict — a boolean

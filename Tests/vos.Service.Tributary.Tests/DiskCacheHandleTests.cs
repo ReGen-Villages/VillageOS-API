@@ -157,7 +157,7 @@ public class DiskCacheHandleTests : IDisposable
           "Endpoint.url":         {"Value":"https://api.test/data"},
           "Endpoint.httpMethod":  {"Value":"GET"},
           "Endpoint.cacheTtl":    {"Value":"300"},
-          "Endpoint.offsetParam": {"Value":"offset"},
+          "Endpoint.offsetParameter": {"Value":"offset"},
           "Endpoint.hasMorePath": {"Value":"more"},
           "Endpoint.itemsPath":   {"Value":"items"}
         }
@@ -167,7 +167,7 @@ public class DiskCacheHandleTests : IDisposable
         factory.HandlerCallback = req =>
             RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
                 ?? RouteKinds(req, thingId, DiskCache(),
-                    new Kind(EndpointKindRoles.Paging, "OffsetPaging", "offsetParam", "hasMorePath", "itemsPath"))
+                    new Kind(EndpointKindRoles.Paging, "OffsetPaging", "offsetParameter", "hasMorePath", "itemsPath"))
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -194,7 +194,7 @@ public class DiskCacheHandleTests : IDisposable
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
             RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKinds(req, thingId, DiskCache(), new Kind(EndpointKindRoles.Authentication, "TokenExchangeAuth"))
+                ?? RouteKinds(req, thingId, DiskCache(), new Kind(EndpointKindRoles.Authentication, "TokenExchangeAuthentication"))
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -202,7 +202,7 @@ public class DiskCacheHandleTests : IDisposable
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("DiskCache").And.Contain("TokenExchangeAuth");
+        body.Should().Contain("DiskCache").And.Contain("TokenExchangeAuthentication");
     }
 
     [Fact]

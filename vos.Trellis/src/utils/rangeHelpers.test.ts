@@ -136,7 +136,6 @@ describe('findRange', () => {
       InheritedRanges: [{
         SourceId: 's1',
         SourceName: 'Source',
-        InheritedAt: '2024-01-01',
         Ranges: [r],
         Inherited: [],
       }],
@@ -150,12 +149,10 @@ describe('findRange', () => {
       InheritedRanges: [{
         SourceId: 's1',
         SourceName: 'L1',
-        InheritedAt: '2024-01-01',
         Ranges: [],
         Inherited: [{
           SourceId: 's2',
           SourceName: 'L2',
-          InheritedAt: '2024-01-01',
           Ranges: [r],
           Inherited: [],
         }],
@@ -172,7 +169,6 @@ describe('findRange', () => {
       InheritedRanges: [{
         SourceId: 's1',
         SourceName: 'Source',
-        InheritedAt: '2024-01-01',
         Ranges: [inherited],
         Inherited: [],
       }],
@@ -226,7 +222,6 @@ describe('stateColor', () => {
       InheritedRanges: [{
         SourceId: 's1',
         SourceName: 'Parent',
-        InheritedAt: '2024-01-01',
         Ranges: [makeRange({
           Name: 'inherited-critical',
           Bindings: [makeBinding({ IsActive: true, IsInBounds: false, DeviationSeverity: 1.0 })],

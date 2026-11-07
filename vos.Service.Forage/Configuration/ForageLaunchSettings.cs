@@ -4,8 +4,8 @@ using vos.Service.Shared.Configuration;
 namespace vos.Service.Forage.Configuration;
 
 // The common service settings plus what a discovery run needs to bound itself: which endpoint
-// service performs the fetch, how many sources may be in flight at once, and how long any one
-// source may take.
+// service performs the fetch, how many sources may be in flight at once, how long any one
+// source may take, and how often one slice of a source is asked for.
 public sealed record ForageLaunchSettings(
     ServiceLaunchSettings Service,
     // The subdomain Mycelium forwards a fetch to. Configuration rather than a name in code: which
@@ -14,7 +14,8 @@ public sealed record ForageLaunchSettings(
     string FetcherSubdomain,
     int MaxConcurrentSources,
     TimeSpan SourceTimeout,
-    int SourceWindowDays)
+    int SourceWindowDays,
+    int AttemptsPerSlice)
 {
     public const string DefaultFetcherSubdomain = "tributary";
 
@@ -24,7 +25,8 @@ public sealed record ForageLaunchSettings(
 
     // A provider that accepts the connection and then goes quiet is more common than one that
     // refuses outright, and it is the failure most likely to be met in production. Longer than a
-    // healthy source needs, short enough that one silent provider cannot hold up the run.
+    // healthy source needs, short enough that one silent provider cannot hold up the run even when
+    // each slice it times out is asked for again.
     public static readonly TimeSpan DefaultSourceTimeout = TimeSpan.FromSeconds(60);
 
     // How much of a source's window one fetch asks for. A year of hourly readings is a body of a
@@ -32,6 +34,8 @@ public sealed record ForageLaunchSettings(
     // proven to carry. The reach itself is the model's to declare; how much of it this deployment
     // takes in one pass is not.
     public const int DefaultSourceWindowDays = 365;
+
+    public const int DefaultAttemptsPerSlice = 3;
 
     public static ForageLaunchSettings? Parse(string[]? arguments, IConfiguration? configuration = null)
     {
@@ -46,7 +50,8 @@ public sealed record ForageLaunchSettings(
             ReadFetcherSubdomain(reader),
             ReadMaxConcurrentSources(reader),
             ReadSourceTimeout(reader),
-            ReadSourceWindowDays(reader));
+            ReadSourceWindowDays(reader),
+            ReadAttemptsPerSlice(reader));
     }
 
     private static string ReadFetcherSubdomain(LaunchSettingReader reader)
@@ -79,11 +84,20 @@ public sealed record ForageLaunchSettings(
             : DefaultSourceWindowDays;
     }
 
+    private static int ReadAttemptsPerSlice(LaunchSettingReader reader)
+    {
+        var raw = reader.Read("attemptsPerSlice");
+        return raw is not null && int.TryParse(raw, out var attempts) && attempts > 0
+            ? attempts
+            : DefaultAttemptsPerSlice;
+    }
+
     public static string UsageMessage => ServiceLaunchSettings.BuildUsageMessage(
         " [--fetcherSubdomain=<name>] [--maxConcurrentSources=<n>] [--sourceTimeoutSeconds=<n>]"
-        + " [--sourceWindowDays=<n>]",
+        + " [--sourceWindowDays=<n>] [--attemptsPerSlice=<n>]",
         "\n  --fetcherSubdomain      Endpoint service Mycelium forwards each fetch to" +
         "\n  --maxConcurrentSources  Sources in flight at once during one run" +
         "\n  --sourceTimeoutSeconds  Longest any one source may take before it is recorded unresolved" +
-        "\n  --sourceWindowDays      How much of a source's window one fetch asks for");
+        "\n  --sourceWindowDays      How much of a source's window one fetch asks for" +
+        "\n  --attemptsPerSlice      Most times one slice is asked for when it times out or is refused for too many requests");
 }

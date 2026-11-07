@@ -41,7 +41,7 @@ const WIDGET_TYPE = /^\s*type\s*:\s*'([^']+)'\s*;/m;
 const WIDGET_UNION = /export type Widget =([\s\S]*?);/;
 const UNION_MEMBER = /\|\s*(\w+)/g;
 
-const DISPATCH_FUNCTION = /function widgetBindings\([\s\S]*?\n\}/;
+const WIDGET_BINDINGS_FUNCTION = /function widgetBindings\([\s\S]*?\n\}/;
 const ARM = /case '([^']+)':([\s\S]*?)(?=\n\s*case '|\n\s*\})/g;
 
 interface Holder {
@@ -70,8 +70,8 @@ function widgetUnionMembers(vocabulary: string): string[] {
 }
 
 function collectorArms(collector: string): Map<string, string> {
-  const dispatch = collector.match(DISPATCH_FUNCTION)?.[0] ?? '';
-  return new Map([...dispatch.matchAll(ARM)].map(([, widgetType, body]) => [widgetType, body]));
+  const bindings = collector.match(WIDGET_BINDINGS_FUNCTION)?.[0] ?? '';
+  return new Map([...bindings.matchAll(ARM)].map(([, widgetType, body]) => [widgetType, body]));
 }
 
 function reads(source: string, slot: string): boolean {

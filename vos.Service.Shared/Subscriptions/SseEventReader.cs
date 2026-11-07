@@ -31,7 +31,7 @@ public static class SseEventReader
 
             if (line is null) yield break;
 
-            if (line.Length == 0) // blank line dispatches the accumulated frame
+            if (line.Length == 0) // blank line delivers the accumulated frame
             {
                 if (hasData)
                 {

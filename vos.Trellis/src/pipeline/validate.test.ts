@@ -1,18 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import { validatePipeline, validateEnds, type ValidationNode, type ValidationEdge } from './validate';
+import type { NodeKind } from './model';
 
-const port = (portName: string, direction: 'in' | 'out', required = false): ValidationNode['ports'][number] => ({
+const port = (portName: string, direction: 'in' | 'out', required = false, portId = portName): ValidationNode['ports'][number] => ({
+  portId,
   portName,
   direction,
   type: '',
   required,
 });
 
-const node = (id: string, ports: ValidationNode['ports'], paramBindings?: Record<string, string>): ValidationNode => ({
+const node = (id: string, ports: ValidationNode['ports'], parameterBindings?: Record<string, string>): ValidationNode => ({
   id,
   label: id,
   ports,
-  paramBindings,
+  parameterBindings,
 });
 
 describe('validatePipeline', () => {
@@ -27,6 +29,25 @@ describe('validatePipeline', () => {
     const nodes = [node('src', [port('out1', 'out')]), node('dst', [port('in1', 'in', true)])];
     const edges: ValidationEdge[] = [{ source: 'src', sourceHandle: 'out1', target: 'dst', targetHandle: 'in1' }];
     expect(validatePipeline(nodes, edges)).toEqual([]);
+  });
+
+  it('accepts a wire from an out port whose node also has an in port of that name, telling the two apart by identifier', () => {
+    const nodes = [
+      node('upper', [port('text', 'in', true, 'upper.in.text'), port('text', 'out', false, 'upper.out.text')]),
+      node('rev', [port('text', 'in', true, 'rev.in.text')]),
+    ];
+    const edges: ValidationEdge[] = [{ source: 'upper', sourceHandle: 'upper.out.text', target: 'rev', targetHandle: 'rev.in.text' }];
+    expect(validatePipeline(nodes, edges)).toEqual([
+      expect.objectContaining({ kind: 'unbound-required-input', nodeId: 'upper', port: 'text' }),
+    ]);
+  });
+
+  it('reports a wire whose port is gone by the node and the port name it still finds', () => {
+    const nodes = [node('src', [port('out1', 'out', false, 'port-7')]), node('dst', [port('in1', 'in', false, 'port-8')])];
+    const edges: ValidationEdge[] = [{ source: 'src', sourceHandle: 'port-7', target: 'dst', targetHandle: 'removed-port' }];
+    expect(validatePipeline(nodes, edges)).toEqual([
+      expect.objectContaining({ kind: 'dangling-wire', message: expect.stringContaining('src.out1') }),
+    ]);
   });
 
   it('accepts a required input satisfied by a param binding', () => {
@@ -61,23 +82,35 @@ describe('validatePipeline', () => {
 });
 
 describe('validateEnds', () => {
-  const node = (id: string, kind: 'input' | 'output', standsFor?: { name: string; mayStart: boolean; mayEnd: boolean }) =>
+  const node = (id: string, kind: NodeKind, standsFor?: NonNullable<ValidationNode['standsFor']>) =>
     ({ id, label: id, ports: [], kind, standsFor });
 
   it('refuses a start standing for something a run cannot come from', () => {
-    const issues = validateEnds([node('start', 'input', { name: 'Reporting office', mayStart: false, mayEnd: true })], []);
+    const issues = validateEnds([node('start', 'input', { name: 'Reporting office', kind: 'externalSystem', mayStart: false, mayEnd: false })], []);
     expect(issues).toEqual([{ kind: 'start-cannot-start', nodeId: 'start', named: 'Reporting office', message: expect.stringContaining('Reporting office') }]);
   });
 
   it('refuses an end standing for something a run cannot leave behind', () => {
-    const issues = validateEnds([node('end', 'output', { name: 'below reorder', mayStart: true, mayEnd: false })], []);
+    const issues = validateEnds([node('end', 'output', { name: 'below reorder', kind: 'state', mayStart: true, mayEnd: false })], []);
     expect(issues).toEqual([{ kind: 'end-cannot-end', nodeId: 'end', named: 'below reorder', message: expect.stringContaining('below reorder') }]);
   });
 
-  it('accepts an end standing for an external system, and a boundary node standing for nothing', () => {
+  it.each([
+    ['an external system', 'externalSystem', "'end' is the Output node and stands for 'Reporting office'; a tell node wired on to it tells a system"],
+    ['a pipeline', 'pipeline', "'end' is the Output node and stands for 'Refill'; a follow-on node wired on to it starts a pipeline"],
+  ] as const)('refuses an end standing for %s in the words Phloem refuses it in', (_, kind, message) => {
+    const named = kind === 'pipeline' ? 'Refill' : 'Reporting office';
+    const issues = validateEnds([node('end', 'output', { name: named, kind, mayStart: kind === 'pipeline', mayEnd: false })], []);
+    expect(issues).toEqual([{ kind: 'end-cannot-end', nodeId: 'end', named, message }]);
+  });
+
+  it('accepts an end standing for a kind of message a system is told, a boundary node standing for nothing, and every other kind of node', () => {
     expect(validateEnds([
-      node('end', 'output', { name: 'Reporting office', mayStart: false, mayEnd: true }),
+      node('end', 'output', { name: 'daily digest', kind: 'messageKind', mayStart: false, mayEnd: true }),
       node('start', 'input'),
+      node('tell', 'tell', { name: 'Reporting office', kind: 'externalSystem', mayStart: false, mayEnd: false }),
+      node('follow', 'followOn', { name: 'Refill', kind: 'pipeline', mayStart: true, mayEnd: false }),
+      node('stop', 'stop'),
       { id: 'service', label: 'Echo', ports: [] },
     ], [])).toEqual([]);
   });

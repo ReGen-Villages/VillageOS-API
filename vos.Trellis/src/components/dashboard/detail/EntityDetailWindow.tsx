@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { X, GripHorizontal, LayoutGrid } from 'lucide-react';
 import type { ModelIndex } from '../../../api/dashboardApi';
 import { effectiveProperties } from '../../../utils/propertyMapper';
-import { formatDateTime, formatGuid, formatPropertyValue, formatTimestamp } from '../../../utils/formatters';
+import { formatGuid, formatPropertyValue, formatTimestamp } from '../../../utils/formatters';
 import { useNumberDisplaySettings } from '../../../hooks/useNumberDisplaySettings';
 import type { DeclaredPropertyTypes } from '../../../hooks/useDeclaredPropertyTypes';
 import type { NumberDisplaySettings } from '../../../utils/guiSettings';
@@ -20,7 +20,7 @@ import { useEntityDetail } from './useEntityDetail';
 import { DecisionExplanations } from './DecisionExplanations';
 import { decisionsOn } from './decisionExplanation';
 import type { ResolvedRelation } from './entityDetail';
-import type { ServiceDispatch } from './serviceHandling';
+import type { ServiceCall } from './serviceHandling';
 
 interface Props {
   modelIndex: ModelIndex;
@@ -68,65 +68,64 @@ function StatePills({ states }: { states: string[] }) {
   );
 }
 
-/** How far back the history reaches. Shown so an empty or short list reads as "not retained"
- *  rather than "never happened" — in-memory history only starts when the engine loaded the model. */
+/** The ranges the history can never show, so an absent change reads as "not kept" rather than "never happened". */
 function CoverageNote({ coverage }: { coverage: StateHistoryCoverage }) {
   const { t } = useTranslation();
-  if (coverage.Source !== 'in-memory') return null;
+  if (coverage.RangesKeepingNoHistory.length === 0) return null;
   return (
     <div className="mt-1.5 text-[10.5px] text-zinc-400 dark:text-zinc-500">
-      {t('entityDetail.inMemoryHistory', { time: formatDateTime(coverage.From) })}
+      {t('entityDetail.keepsNoHistory', { ranges: coverage.RangesKeepingNoHistory.join(', ') })}
     </div>
   );
 }
 
 /** Every service the platform ran on this Thing, oldest first, each with the connection it was
- *  reached through and how that dispatch ended. A service is a Thing, so its name opens its card. */
-function ServiceDispatches({
-  dispatches,
+ *  reached through and how that service call ended. A service is a Thing, so its name opens its card. */
+function ServiceCalls({
+  calls,
   openDetail,
 }: {
-  dispatches: ServiceDispatch[];
+  calls: ServiceCall[];
   openDetail: (thingId: string) => void;
 }) {
   const { t } = useTranslation();
   return (
     <>
       <ol className="mt-1 space-y-1.5">
-        {dispatches.map((dispatch) => (
-          <li key={dispatch.relationshipId} className="flex gap-2 text-[11.5px]">
+        {calls.map((call) => (
+          <li key={call.relationshipId} className="flex gap-2 text-[11.5px]">
             <span className="text-zinc-400 dark:text-zinc-500 font-mono whitespace-nowrap flex-shrink-0 w-[62px]">
-              {dispatch.at ? formatTimestamp(dispatch.at) : '—'}
+              {call.at ? formatTimestamp(call.at) : '—'}
             </span>
             <span className="min-w-0 flex-1">
               <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-                {dispatch.serviceId ? (
+                {call.serviceId ? (
                   <button
-                    onClick={() => openDetail(dispatch.serviceId!)}
+                    onClick={() => openDetail(call.serviceId!)}
                     className="font-semibold text-blue-600 dark:text-blue-400 hover:underline"
                   >
-                    {dispatch.serviceName}
+                    {call.serviceName}
                   </button>
                 ) : (
-                  <span className="font-semibold text-zinc-700 dark:text-zinc-200">{dispatch.serviceName}</span>
+                  <span className="font-semibold text-zinc-700 dark:text-zinc-200">{call.serviceName}</span>
                 )}
-                <span className="text-zinc-400 dark:text-zinc-500 truncate">{dispatch.connectionName}</span>
-                {dispatch.state && (
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${badgeTone(dispatch.state)}`}>
-                    {dispatch.state}
+                <span className="text-zinc-400 dark:text-zinc-500 truncate">{call.connectionName}</span>
+                {call.state && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${badgeTone(call.state)}`}>
+                    {call.state}
                   </span>
                 )}
               </span>
-              {dispatch.error && (
-                <span className="block text-[11px] text-red-600 dark:text-red-400 break-words">{dispatch.error}</span>
+              {call.error && (
+                <span className="block text-[11px] text-red-600 dark:text-red-400 break-words">{call.error}</span>
               )}
             </span>
           </li>
         ))}
       </ol>
-      {dispatches.some((dispatch) => !dispatch.at) && (
+      {calls.some((call) => !call.at) && (
         <div className="mt-1.5 text-[10.5px] text-zinc-400 dark:text-zinc-500">
-          {t('entityDetail.dispatchesSinceModelLoad')}
+          {t('entityDetail.serviceCallsSinceModelLoad')}
         </div>
       )}
     </>
@@ -203,7 +202,7 @@ function RelationGroups({
 
 export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset, index, total, spreadTick, zIndex, onClose, onFocus, onSpread, openDetail, declaredTypes }: Props) {
   const { t } = useTranslation();
-  const { loading, root, relations, statesById, stateChanges, coverage, dispatches } = useEntityDetail(modelIndex, thingId, detail, nonce);
+  const { loading, root, relations, statesById, stateChanges, coverage, calls } = useEntityDetail(modelIndex, thingId, detail, nonce);
   const decisions = useMemo(() => decisionsOn(thingId, modelIndex), [thingId, modelIndex]);
   const numbers = useNumberDisplaySettings();
 
@@ -321,10 +320,10 @@ export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset,
           </section>
         )}
 
-        {dispatches.length > 0 && (
+        {calls.length > 0 && (
           <section>
             <SectionTitle>{t('entityDetail.handledBy')}</SectionTitle>
-            <ServiceDispatches dispatches={dispatches} openDetail={openDetail} />
+            <ServiceCalls calls={calls} openDetail={openDetail} />
           </section>
         )}
 
@@ -345,7 +344,9 @@ export function EntityDetailWindow({ modelIndex, thingId, detail, nonce, offset,
               <div className="text-[11px] text-zinc-400">{t('entityDetail.stateHistoryUnavailable')}</div>
             )}
             {coverage && stateChanges.length === 0 && (
-              <div className="text-[11px] text-zinc-400">{t('entityDetail.noStateChanges')}</div>
+              <div className="text-[11px] text-zinc-400">
+                {t(coverage.RangesKeepingHistory.length === 0 ? 'entityDetail.noRangeKeepsHistory' : 'entityDetail.noStateChanges')}
+              </div>
             )}
             {stateChanges.length > 0 && (
               <ol className="mt-1 space-y-1.5">

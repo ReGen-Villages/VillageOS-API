@@ -8,7 +8,7 @@ using Xunit;
 
 namespace vos.Service.Forage.Tests.Services;
 
-// Why an analysis did not start. A run answers its dispatch before it fetches, so this is no longer
+// Why an analysis did not start. A run answers its service call before it fetches, so this is no longer
 // carried in a response body — it is the spawner's own answer, and it is asked for here rather than
 // through the endpoint, which now has nothing to say about it.
 //

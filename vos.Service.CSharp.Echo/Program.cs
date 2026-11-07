@@ -3,6 +3,7 @@ using vos.Service.CSharp.Echo.Services;
 using vos.Service.Shared;
 using vos.Service.Shared.Configuration;
 using vos.Service.Shared.DagNode;
+using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Subscriptions;
 using Serilog;
 
@@ -13,7 +14,7 @@ if (launchSettings == null)
 {
     Console.WriteLine(ServiceLaunchSettings.UsageMessage);
     Environment.Exit(1);
-    return;
+    return 1;
 }
 
 var servicePort = launchSettings.Port;
@@ -22,18 +23,7 @@ var serviceToken = launchSettings.Token;
 var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
-var logPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs", "echo-.log");
-Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Information()
-    .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
-    .Enrich.FromLogContext()
-    .Enrich.WithProperty("Service", "Echo")
-    .WriteTo.File(
-        path: logPath,
-        rollingInterval: RollingInterval.Day,
-        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}",
-        shared: true)
-    .CreateLogger();
+ServiceHost.ConfigureLogging("Echo", "echo-.log", launchSettings.LogDirectory);
 
 try
 {
@@ -157,14 +147,13 @@ var writeKindsEndpoint = app.MapPost("/demo/write-kinds", (WriteKindsDemoRequest
     DemoAnswer.OfAsync(() => new WriteKindsDemo(myceliumClient).RunAsync(req.ThingId, DateTime.UtcNow)));
 if (authEnabled) writeKindsEndpoint.RequireAuthorization();
 
-// Selector demo — POST optional { "type": "...", "predicate": "..." } (defaults to Battery/powers).
+// Selector demo — POST optional { "type": "...", "predicate": "..." }; a refused slice is answered as the platform gave it.
 var selectorEndpoint = app.MapPost("/demo/subscribe",
     async (SelectorDemoRequest? req, IHttpClientFactory httpFactory, ILoggerFactory loggerFactory) =>
 {
     var subscriptions = new SubscriptionClient(
         httpFactory, loggerFactory.CreateLogger("SelectorDemo"), myceliumUrl, serviceToken, apiKey: apiKey);
-    var selector = SelectorDemo.SliceByTypeAndTraverse(req?.Type ?? "Battery", req?.Predicate ?? "powers");
-    return await DemoAnswer.OfAsync(() => new SelectorDemo(subscriptions).RunAsync(selector));
+    return await DemoAnswer.OfAsync(() => new SelectorDemo(subscriptions).RunAsync(SelectorDemo.SelectorFor(req)));
 });
 if (authEnabled) selectorEndpoint.RequireAuthorization();
 
@@ -183,14 +172,16 @@ if (authEnabled) shutdownEndpoint.RequireAuthorization();
 app.Run();
 
 }
-catch (Exception ex)
+catch (Exception error)
 {
-    Log.Fatal(ex, "Echo endpoint service terminated unexpectedly");
+    return ServiceHost.FailedToStart("Echo", error);
 }
 finally
 {
     Log.CloseAndFlush();
 }
+
+return 0;
 
 // Exposed to WebApplicationFactory<Program> in the test project per docs/SERVICES.md.
 public partial class Program { }

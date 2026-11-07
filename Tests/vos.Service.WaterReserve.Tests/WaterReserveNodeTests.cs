@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using vos.Service.Shared.DagNode;
 using vos.Service.WaterReserve.Services;
 using vos.Tests.Shared;
 using Xunit;
@@ -22,7 +23,7 @@ public class WaterReserveNodeTests
 
         var response = await node.HandleNodeAsync(root);
 
-        response.Success.Should().BeTrue();
+        response.Result.Should().Be(NodeResponse.Succeeded);
         ((double)response.Outputs["daysOfSupply"]!).Should().BeApproximately(730.0, 1e-6);
         ((double)response.Outputs["percentOfAnnualConsumption"]!).Should().BeApproximately(200.0, 1e-9);
         ((double)response.Outputs["emergencyReserveM3"]!).Should().Be(100000);
@@ -37,7 +38,7 @@ public class WaterReserveNodeTests
 
         var response = await node.HandleNodeAsync(root);
 
-        response.Success.Should().BeFalse();
+        response.Result.Should().Be(NodeResponse.Failed);
         response.Error.Should().Contain("storageCapacityM3");
     }
 
@@ -49,7 +50,7 @@ public class WaterReserveNodeTests
 
         var response = await node.HandleNodeAsync(root);
 
-        response.Success.Should().BeFalse();
+        response.Result.Should().Be(NodeResponse.Failed);
         response.Error.Should().Contain("storageCapacityM3");
         response.Outputs.Should().BeEmpty();
     }

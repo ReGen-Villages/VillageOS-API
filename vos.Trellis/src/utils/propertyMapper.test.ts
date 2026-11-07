@@ -9,7 +9,6 @@ const inheritedSet = (
 ): InheritedPropertySet => ({
   SourceId: source.toLowerCase(),
   SourceName: source,
-  InheritedAt: '2024-01-01',
   Properties: props,
   ...(inherited ? { Inherited: inherited } : {}),
 });
@@ -81,7 +80,6 @@ describe('unwrapThing', () => {
         ParentType: {
           SourceId: 'p1',
           SourceName: 'Parent',
-          InheritedAt: '2024-01-01',
           Properties: { inherited: { typeInfo: 'vos.Integer', value: 99 } },
         },
       },
@@ -110,7 +108,6 @@ describe('unwrapThing', () => {
         Parent: {
           SourceId: 'p1',
           SourceName: 'Parent',
-          InheritedAt: '2024-01-01',
           Properties: { inherited: { typeInfo: 'vos.Integer', value: 99 } },
         },
       },
@@ -280,7 +277,7 @@ describe('the declaration a value arrives with', () => {
       Properties: {},
       InheritedOverrides: {
         Site: {
-          SourceId: 'site', SourceName: 'Site', InheritedAt: '2026-08-01',
+          SourceId: 'site', SourceName: 'Site',
           Properties: { statedAreaHectares: { typeInfo: 'vos.Double', value: 24, writeKind: 'FactOnly' } },
         },
       },
@@ -320,7 +317,7 @@ describe('statedProperties', () => {
   const thing = (properties: Record<string, unknown>, overrides?: Record<string, InheritedPropertySet>): VosThing =>
     ({ Id: 't', Name: 'port', Properties: properties, ...(overrides ? { InheritedOverrides: overrides } : {}) });
   const set = (values: Record<string, unknown>, inherited?: Record<string, InheritedPropertySet>): InheritedPropertySet =>
-    ({ SourceId: 's', SourceName: 'Socket', InheritedAt: '', Properties: values, ...(inherited ? { Inherited: inherited } : {}) });
+    ({ SourceId: 's', SourceName: 'Socket', Properties: values, ...(inherited ? { Inherited: inherited } : {}) });
 
   it('reads a value from the override store', () => {
     expect(statedProperties(thing({}, { a: set({ portName: 'subject' }) }))).toEqual({ portName: 'subject' });

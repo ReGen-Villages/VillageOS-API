@@ -49,24 +49,26 @@ describe('thingApi.getAll narrowing', () => {
   });
 });
 
-describe('thingApi.getByName', () => {
-  it('reads the one Thing with that name', async () => {
-    mockGet.mockResolvedValue({ Id: 'settings-1', Name: 'GUI_Settings', Properties: {} });
-    const thing = await thingApi.getByName('GUI_Settings');
-    expect(mockGet).toHaveBeenCalledWith('/api/things?name=GUI_Settings');
+describe('thingApi.getBoundBy', () => {
+  const ROLE = '1cb6206a-2726-5008-8188-698b299f5665';
+
+  it('reads the one Thing the role binds', async () => {
+    mockGet.mockResolvedValue({ Id: 'settings-1', Name: 'how this model is drawn', Properties: {} });
+    const thing = await thingApi.getBoundBy(ROLE);
+    expect(mockGet).toHaveBeenCalledWith(`/api/things?boundBy=${ROLE}`);
     expect(thing?.Id).toBe('settings-1');
   });
 
-  it('answers null when the model has no such Thing', async () => {
+  it('answers null when the model binds nothing under the role', async () => {
     mockGet.mockRejectedValue(new ApiError(404, 'not found'));
-    await expect(thingApi.getByName('GUI_Settings')).resolves.toBeNull();
+    await expect(thingApi.getBoundBy(ROLE)).resolves.toBeNull();
   });
 
   // A read that failed for any other reason is not the same as an absent Thing, and swallowing it
   // would silently load the model as though it declared nothing.
   it('lets any other failure through', async () => {
     mockGet.mockRejectedValue(new ApiError(500, 'boom'));
-    await expect(thingApi.getByName('GUI_Settings')).rejects.toThrow();
+    await expect(thingApi.getBoundBy(ROLE)).rejects.toThrow();
   });
 });
 
@@ -140,7 +142,7 @@ describe('thingApi.getAtInstant', () => {
       Name: 'One',
       Properties: {},
       InheritedOverrides: {
-        archetype: { SourceId: 'archetype', SourceName: 'Catchment', InheritedAt: '2026-09-22T09:14:03Z', Properties: { storedCubicMetres: 306 } },
+        archetype: { SourceId: 'archetype', SourceName: 'Catchment', Properties: { storedCubicMetres: 306 } },
       },
     });
 

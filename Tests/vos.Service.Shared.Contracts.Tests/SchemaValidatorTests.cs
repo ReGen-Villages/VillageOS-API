@@ -12,6 +12,7 @@ public class SchemaValidatorTests
     public static IEnumerable<object[]> PositiveFixtures() => new[]
     {
         new object[] { "mycelium-register-request",                "https://villageos/contracts/mycelium-register-request.schema.json",                "valid" },
+        new object[] { "mycelium-register-request",                "https://villageos/contracts/mycelium-register-request.schema.json",                "valid-with-log-folder" },
         new object[] { "token-response",                          "https://villageos/contracts/token-response.schema.json",                         "valid" },
         new object[] { "handle-request-metabolism",              "https://villageos/contracts/handle-request-metabolism.schema.json",              "valid" },
         new object[] { "handle-request-metabolism",              "https://villageos/contracts/handle-request-metabolism.schema.json",              "valid-minimal" },

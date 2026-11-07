@@ -404,6 +404,53 @@ func TestSelectorSubscribe(t *testing.T) {
 	s.unsubscribe(sub.SubscriptionID)
 }
 
+// Declared by the shared site templates, so the demo slices on any seeded model.
+func TestDemoSubscribeDefaultsToWhatEverySeededModelDeclares(t *testing.T) {
+	var body string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/subscriptions" && r.Method == http.MethodPost {
+			b, _ := io.ReadAll(r.Body)
+			body = string(b)
+			_, _ = w.Write([]byte(`{"subscriptionId":"s-1","watermark":1,"snapshot":{"things":[],"relationships":[]}}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	s := &service{cfg: config{MyceliumURL: srv.URL, Token: "tok"}, client: srv.Client()}
+	rec := httptest.NewRecorder()
+
+	s.demoSubscribe(rec, httptest.NewRequest(http.MethodPost, "/demo/subscribe", strings.NewReader("{}")))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(body, `"OpenDataSource"`) || !strings.Contains(body, `"provides"`) {
+		t.Fatalf("the demo asked for something else: %s", body)
+	}
+}
+
+// A refused slice is answered as the platform gave it, so the person trying the example reads the platform's words.
+func TestDemoSubscribePassesARefusalThroughAsGiven(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"no Thing is named Battery"}`))
+	}))
+	defer srv.Close()
+	s := &service{cfg: config{MyceliumURL: srv.URL, Token: "tok"}, client: srv.Client()}
+	rec := httptest.NewRecorder()
+
+	s.demoSubscribe(rec, httptest.NewRequest(http.MethodPost, "/demo/subscribe", strings.NewReader(`{"type":"Battery"}`)))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want the platform's 400", rec.Code)
+	}
+	if rec.Body.String() != `{"error":"no Thing is named Battery"}` {
+		t.Fatalf("the refusal was reworded: %s", rec.Body.String())
+	}
+}
+
 // The deregistration route is admin-only; the broker's liveness monitor removes a registration whose service stops answering.
 func TestShutdownDoesNotAskTheBrokerToWithdraw(t *testing.T) {
 	var got []capturedReq

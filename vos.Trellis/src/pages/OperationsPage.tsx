@@ -54,7 +54,10 @@ export function OperationsPage() {
 
   const entities = useMemo(() => (specification ? computeScopeEntities(specification, index) : []), [specification, index]);
 
-  const [scopeId, setScopeId] = useState<string | null>(null);
+  const [chosenScopeId, setScopeId] = useState<string | null>(null);
+  // With only one entity, All means that entity, and selecting it is what lets a figure that follows a relationship from it be drawn.
+  const scopeId = chosenScopeId ?? (entities.length === 1 ? entities[0].id : null);
+  const entityToChoose = specification?.compare && scopeId === null && entities.length > 1 ? specification.compare.label : undefined;
   const [nonce, setNonce] = useState(0);
   const [serverRefresh, setServerRefresh] = useState(0);
   // A press taken by a writing widget starts a new generation of broker reads: what it changed is
@@ -152,9 +155,11 @@ export function OperationsPage() {
         <div className="flex items-center gap-3">
           {specification.compare && entities.length > 0 && (
             <div className="inline-flex bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg p-0.5">
-              <ScopeButton active={scopeId === null} onClick={() => setScopeId(null)}>
-                {t('operationsPage.all')}
-              </ScopeButton>
+              {entities.length > 1 && (
+                <ScopeButton active={scopeId === null} onClick={() => setScopeId(null)}>
+                  {t('operationsPage.all')}
+                </ScopeButton>
+              )}
               {entities.map((e) => (
                 <ScopeButton key={e.id} active={scopeId === e.id} onClick={() => setScopeId(e.id)}>
                   {e.name}
@@ -176,6 +181,7 @@ export function OperationsPage() {
           context={context}
           isWide={isWide}
           openDetail={openDetail}
+          entityToChoose={entityToChoose}
           whenEmpty={<Centered>{t('operationsPage.emptyView')}</Centered>}
         />
       </div>

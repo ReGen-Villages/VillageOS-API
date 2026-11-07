@@ -12,7 +12,8 @@ import { toast } from '../components/common/toastStore';
 import { isVisibleRelationship } from '../utils/propertyUpdates';
 import i18n from '../i18n';
 import { unwrapRelationship, unwrapThing } from '../utils/propertyMapper';
-import { GUI_SETTINGS_TYPE_NAME, readModelLoadProperties } from '../utils/guiSettings';
+import { readModelLoadProperties } from '../utils/guiSettings';
+import { DISPLAY_SETTINGS_ROLE_ID } from '../api/platformRoles';
 import type { VosRelationship, VosThing } from '../types/vos';
 
 /** Coalesce a burst of SSE structural events into one store write. A high-throughput
@@ -27,16 +28,16 @@ type PropertyChange = { deleted: false; value: unknown } | { deleted: true };
 /**
  * The properties this model says its pages are drawn with, or none when it says nothing.
  *
- * Read before the model itself because it decides what to ask for. It costs one small request against
- * a route that already existed, next to a load that is megabytes — and the platform never narrows the
- * settings Thing, so this could not have ridden in the load it configures.
+ * Read before the model itself because it decides what to ask for. It costs one small request, next to a
+ * load that is megabytes — and the platform never narrows the settings Thing, so this could not have
+ * ridden in the load it configures.
  *
  * A model that says nothing, or a read that fails, loads everything. Narrowing on a guess would strip
  * properties a page needs; loading everything is only slower.
  */
 async function declaredModelLoadProperties(): Promise<string[]> {
   try {
-    const settings = await thingApi.getByName(GUI_SETTINGS_TYPE_NAME);
+    const settings = await thingApi.getBoundBy(DISPLAY_SETTINGS_ROLE_ID);
     const declared = readModelLoadProperties(settings?.Properties ?? null);
     // The navigation lists a model's dashboards on every page, and it reads each one out of this
     // property. A model that narrows its load without naming it is not asking for fewer dashboards
@@ -119,11 +120,16 @@ function carriedThing(data: unknown): { thing: VosThing; states: string[] } | un
   return thing ? { thing: unwrapThing(thing), states: thing.States } : undefined;
 }
 
-/** A derived-state event names its entity and the whole set of states it now holds — never a delta.
- *  One missing its state set is skipped rather than read as the entity having left every state. */
-function stateChange(data: unknown): { id: string; states: string[] } | undefined {
-  const event = data as { entityId?: string; currentStates?: string[] } | undefined;
-  return event?.entityId && event.currentStates ? { id: event.entityId, states: event.currentStates } : undefined;
+/** An event missing its state set is skipped rather than read as the entity having left every state. */
+function stateChange(data: unknown): { id: string; states: string[]; exited: string[] } | undefined {
+  const event = data as { entityId?: string; currentStates?: string[]; exitedStates?: string[] } | undefined;
+  return event?.entityId && event.currentStates
+    ? { id: event.entityId, states: event.currentStates, exited: event.exitedStates ?? [] }
+    : undefined;
+}
+
+function statesTouched(change: { states: string[]; exited: string[] } | undefined): string[] {
+  return change ? [...change.states, ...change.exited] : [];
 }
 
 function carriedRelationship(data: unknown): VosRelationship | undefined {
@@ -289,15 +295,13 @@ export function useModelData(): void {
       on('ModelCleared', () => useModelStore.getState().clear()),
       // The narrowed page's set is kept only while the store holds one: the events stream carries
       // every Thing's state changes, and a page reading across the whole model draws none of them,
-      // so keeping them there would grow with the model for no reader. The stream says what is held
-      // after the change and never which state was left, so a figure counting a state nobody
-      // entered waits for the page's cadence to see it empty.
+      // so keeping them there would grow with the model for no reader.
       on('StatesChanged', (data) => {
         const change = stateChange(data);
-        useUiStore.getState().statesMoved(change?.states ?? []);
+        useUiStore.getState().statesMoved(statesTouched(change));
         if (holdsNarrowedSet() && change) { pending.thingStates.set(change.id, change.states); schedule(); }
       }),
-      on('RelationshipStatesChanged', (data) => useUiStore.getState().statesMoved(stateChange(data)?.states ?? [])),
+      on('RelationshipStatesChanged', (data) => useUiStore.getState().statesMoved(statesTouched(stateChange(data)))),
     ];
     return () => {
       if (timer) clearTimeout(timer);

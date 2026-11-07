@@ -271,7 +271,7 @@ test("depositSediment: empty batch throws", async () => {
   await assert.rejects(depositSediment(CFG, []), /at least one reading/);
 });
 
-import { subscribe, unsubscribe, sliceByTypeAndTraverse, demoSubscribe } from "./index.js";
+import { subscribe, unsubscribe, sliceByTypeAndTraverse, demoSubscribe, demoAnswerFor, PlatformRefusal, type Selector } from "./index.js";
 
 function stubSelectorFetch(): { calls: Captured[]; restore: () => void } {
   const calls: Captured[] = [];
@@ -333,6 +333,43 @@ test("demoSubscribe summarises the closure and unsubscribes", async () => {
   } finally {
     s.restore();
   }
+});
+
+// Declared by the shared site templates, so the demo slices on any seeded model.
+test("demoSubscribe defaults to a kind and a relationship every seeded model declares", async () => {
+  const s = stubSelectorFetch();
+  try {
+    await demoSubscribe(CFG);
+    const asked = JSON.parse(s.calls[0].body) as Selector;
+    assert.deepEqual(asked.types, ["OpenDataSource"]);
+    assert.equal(asked.traverse?.[0].predicate, "provides");
+  } finally {
+    s.restore();
+  }
+});
+
+test("a slice the platform refuses is raised with the platform's status and words", async () => {
+  const s = stubFetch(() => ({ status: 400, json: { error: "no Thing is named Battery" } }));
+  try {
+    await assert.rejects(
+      subscribe(CFG, sliceByTypeAndTraverse("Battery", "powers")),
+      (refused: unknown) => refused instanceof PlatformRefusal && refused.status === 400 && refused.body.includes("Battery"),
+    );
+  } finally {
+    s.restore();
+  }
+});
+
+// A refused slice is answered as the platform gave it; any other failure is the service's own 500.
+test("the demo answers a refusal as the platform gave it and any other failure as its own", () => {
+  assert.deepEqual(demoAnswerFor(new PlatformRefusal(400, '{"error":"no Thing is named Battery"}')), {
+    status: 400,
+    body: '{"error":"no Thing is named Battery"}',
+  });
+  assert.deepEqual(demoAnswerFor(new Error("connect ECONNREFUSED")), {
+    status: 500,
+    body: JSON.stringify({ error: "connect ECONNREFUSED" }),
+  });
 });
 
 test("unsubscribe issues a DELETE", async () => {

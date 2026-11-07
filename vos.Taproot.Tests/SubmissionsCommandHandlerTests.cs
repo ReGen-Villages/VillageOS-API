@@ -6,8 +6,8 @@ namespace vos.Taproot.Tests;
 
 // `submissions` — what has arrived, and what a reviewer does with it.
 //
-// The model these read is built from marks rather than names, so every fixture spells its archetypes and
-// predicates differently from the shipped template. A handler that answered only to the shipped spelling
+// The model these read is built from role bindings rather than names, so every fixture spells its archetypes
+// and predicates differently from the shipped template. A handler that answered only to the shipped spelling
 // would pass against a fixture that copied it and fail against a project that renamed one.
 public class SubmissionsCommandHandlerTests
 {
@@ -22,6 +22,27 @@ public class SubmissionsCommandHandlerTests
     private static readonly Guid PromotedId = new("11111111-0000-0000-0000-000000000006");
     private static readonly Guid SubmissionId = new("11111111-0000-0000-0000-000000000007");
     private static readonly Guid SiteId = new("11111111-0000-0000-0000-000000000008");
+    private static readonly Guid BindsId = new("11111111-0000-0000-0000-00000000000c");
+
+    // The role Things under the identifiers every model declares them by, each binding one Thing of the
+    // fixture's own spelling.
+    private static readonly object[] RoleThings =
+    [
+        Thing(SubmissionsCommandHandler.ProposedSiteRoleId, "proposedSite"),
+        Thing(SubmissionsCommandHandler.DispositionArchetypeRoleId, "submissionDisposition"),
+        Thing(SubmissionsCommandHandler.DispositionPredicateRoleId, "resolvedAs"),
+        Thing(BindsId, "binds"),
+    ];
+
+    private static object ProposedSiteBinding() => Edge(SubmissionsCommandHandler.ProposedSiteRoleId, BindsId, ProposesId);
+
+    private static object DispositionArchetypeBinding() =>
+        Edge(SubmissionsCommandHandler.DispositionArchetypeRoleId, BindsId, DispositionArchetypeId);
+
+    private static object DispositionPredicateBinding() =>
+        Edge(SubmissionsCommandHandler.DispositionPredicateRoleId, BindsId, ResolvedAsId);
+
+    private static object[] Bindings() => [ProposedSiteBinding(), DispositionArchetypeBinding(), DispositionPredicateBinding()];
 
     private static JsonElement Parse(string json) => JsonSerializer.Deserialize<JsonElement>(json);
 
@@ -36,17 +57,14 @@ public class SubmissionsCommandHandlerTests
 
     private static object Held(object value) => new { Value = value, IsInherited = false };
 
-    // What a Thing gets from the archetype it `is`. A mark is an ordinary property on the
-    // archetype, so every term under it reads the mark too — which is what a real seeded model hands
-    // back, and what a reader counting carriers has to tell apart from the one that declares it.
+    // What a Thing gets from the archetype it `is`, which is what a real seeded model hands back.
     private static object Inherited(object value) => new { Value = value, IsInherited = true };
 
     // A model holding one submission. Its predicates and its disposition archetype are named
-    // nothing like the shipped template's, because a reader finds them by their marks.
+    // nothing like the shipped template's, because a reader finds them through their roles.
     private void AModelWithOneSubmission(Guid? disposition = null, DateTime? resolvedAt = null)
     {
-        _mycelium.Setup(client => client.GetAllThingsAsync()).ReturnsAsync(Json(new[]
-        {
+        ThingsAre(
             Thing(ProposesId, "puts-forward"),
             Thing(ResolvedAsId, "decided"),
             Thing(IsId, "is"),
@@ -54,37 +72,32 @@ public class SubmissionsCommandHandlerTests
             Thing(RejectedId, "binned"),
             Thing(PromotedId, "taken-on"),
             Thing(SubmissionId, "Willow Bend Submission"),
-            Thing(SiteId, "Willow Bend"),
-        }));
+            Thing(SiteId, "Willow Bend"));
 
-        var edges = new List<object>
-        {
+        List<object> edges =
+        [
+            .. Bindings(),
             Edge(SubmissionId, ProposesId, SiteId),
             Edge(RejectedId, IsId, DispositionArchetypeId),
             Edge(PromotedId, IsId, DispositionArchetypeId),
-        };
+        ];
         if (disposition is { } decided) edges.Add(Edge(SubmissionId, ResolvedAsId, decided));
-        _mycelium.Setup(client => client.GetAllRelationshipsAsync()).ReturnsAsync(Json(edges));
+        RelationshipsAre([.. edges]);
 
         _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
             new Dictionary<string, object>
             {
-                [ProposesId.ToString()] = new Dictionary<string, object>
-                    { ["__IsProposedSitePredicate"] = Held(true) },
-                [ResolvedAsId.ToString()] = new Dictionary<string, object>
-                    { ["__IsSubmissionDispositionPredicate"] = Held(true) },
-                [DispositionArchetypeId.ToString()] = new Dictionary<string, object>
-                    { ["__IsSubmissionDispositionArchetype"] = Held(true) },
-                [RejectedId.ToString()] = new Dictionary<string, object>
-                {
-                    ["__IsSubmissionDispositionArchetype"] = Inherited(true),
-                    ["daysBeforeColdStorage"] = Held(30),
-                },
-                [PromotedId.ToString()] = new Dictionary<string, object>
-                    { ["__IsSubmissionDispositionArchetype"] = Inherited(true) },
+                [RejectedId.ToString()] = new Dictionary<string, object> { ["daysBeforeColdStorage"] = Held(30) },
                 [SubmissionId.ToString()] = SubmissionProperties(resolvedAt),
             }));
     }
+
+    // Every model here declares the role Things; what each binds is the test's to say.
+    private void ThingsAre(params object[] things) =>
+        _mycelium.Setup(client => client.GetAllThingsAsync()).ReturnsAsync(Json(things.Concat(RoleThings).ToList()));
+
+    private void RelationshipsAre(params object[] edges) =>
+        _mycelium.Setup(client => client.GetAllRelationshipsAsync()).ReturnsAsync(Json(edges));
 
     private static Dictionary<string, object> SubmissionProperties(DateTime? resolvedAt)
     {
@@ -144,8 +157,7 @@ public class SubmissionsCommandHandlerTests
         var submissionArchetype = new Guid("11111111-0000-0000-0000-00000000000a");
         var siteArchetype = new Guid("11111111-0000-0000-0000-00000000000b");
         AModelWithOneSubmission();
-        _mycelium.Setup(client => client.GetAllThingsAsync()).ReturnsAsync(Json(new[]
-        {
+        ThingsAre(
             Thing(ProposesId, "puts-forward"),
             Thing(ResolvedAsId, "decided"),
             Thing(IsId, "is"),
@@ -155,15 +167,14 @@ public class SubmissionsCommandHandlerTests
             Thing(SubmissionId, "Willow Bend Submission"),
             Thing(SiteId, "Willow Bend"),
             Thing(submissionArchetype, "Arrival", isArchetype: true),
-            Thing(siteArchetype, "Place", isArchetype: true),
-        }));
-        _mycelium.Setup(client => client.GetAllRelationshipsAsync()).ReturnsAsync(Json(new[]
-        {
+            Thing(siteArchetype, "Place", isArchetype: true));
+        RelationshipsAre([
+            .. Bindings(),
             Edge(SubmissionId, ProposesId, SiteId),
             Edge(RejectedId, IsId, DispositionArchetypeId),
             Edge(PromotedId, IsId, DispositionArchetypeId),
             Edge(submissionArchetype, ProposesId, siteArchetype),
-        }));
+        ]);
 
         await Run("list");
 
@@ -182,8 +193,6 @@ public class SubmissionsCommandHandlerTests
         _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
             new Dictionary<string, object>
             {
-                [ProposesId.ToString()] = new Dictionary<string, object>
-                    { ["__IsProposedSitePredicate"] = Held(true) },
                 [SubmissionId.ToString()] = new Dictionary<string, object>
                 {
                     ["Arrival.submissionId"] = Held("willow-bend-2026-08"),
@@ -245,6 +254,18 @@ public class SubmissionsCommandHandlerTests
     }
 
     [Fact]
+    public async Task A_submission_named_in_another_case_is_not_the_one_named()
+    {
+        AModelWithOneSubmission();
+
+        await Run("reject willow bend submission");
+
+        Assert.Contains("No submission here answers to", _writer.ToString());
+        _mycelium.Verify(client => client.CreateRelationshipAsync(
+            It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Fact]
     public async Task A_name_no_submission_answers_to_is_refused_without_writing()
     {
         AModelWithOneSubmission();
@@ -263,8 +284,7 @@ public class SubmissionsCommandHandlerTests
     {
         var second = new Guid("11111111-0000-0000-0000-000000000009");
         AModelWithOneSubmission();
-        _mycelium.Setup(client => client.GetAllThingsAsync()).ReturnsAsync(Json(new[]
-        {
+        ThingsAre(
             Thing(ProposesId, "puts-forward"),
             Thing(ResolvedAsId, "decided"),
             Thing(IsId, "is"),
@@ -272,14 +292,13 @@ public class SubmissionsCommandHandlerTests
             Thing(RejectedId, "binned"),
             Thing(SubmissionId, "Willow Bend Submission"),
             Thing(second, "Willow Bend Submission"),
-            Thing(SiteId, "Willow Bend"),
-        }));
-        _mycelium.Setup(client => client.GetAllRelationshipsAsync()).ReturnsAsync(Json(new[]
-        {
+            Thing(SiteId, "Willow Bend"));
+        RelationshipsAre([
+            .. Bindings(),
             Edge(SubmissionId, ProposesId, SiteId),
             Edge(second, ProposesId, SiteId),
             Edge(RejectedId, IsId, DispositionArchetypeId),
-        }));
+        ]);
 
         await Run("reject Willow Bend Submission");
 
@@ -335,13 +354,23 @@ public class SubmissionsCommandHandlerTests
             It.IsAny<string>(), It.IsAny<string>()), Times.Once);
     }
 
-    // Every term under a marked archetype inherits the mark, so a reader counting carriers finds the
-    // archetype and all of its terms and calls a perfectly ordinary model ambiguous, so reject and
-    // promote both refused in every seeded model.
+    // The dispositions are read under the archetype the role binds, whatever the archetype or its members
+    // carry; nothing on a Thing says whether it is the archetype.
     [Fact]
-    public async Task The_archetype_is_found_even_though_every_disposition_under_it_reads_the_mark_too()
+    public async Task The_archetype_is_found_through_its_role_whatever_its_members_carry()
     {
         AModelWithOneSubmission();
+        _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
+            new Dictionary<string, object>
+            {
+                [DispositionArchetypeId.ToString()] = new Dictionary<string, object> { ["colour"] = Held("grey") },
+                [RejectedId.ToString()] = new Dictionary<string, object>
+                {
+                    ["colour"] = Inherited("grey"),
+                    ["daysBeforeColdStorage"] = Held(30),
+                },
+                [PromotedId.ToString()] = new Dictionary<string, object> { ["colour"] = Inherited("grey") },
+            }));
 
         await Run($"reject {SubmissionId}");
 
@@ -349,23 +378,18 @@ public class SubmissionsCommandHandlerTests
         _mycelium.Verify(client => client.CreateRelationshipAsync(SubmissionId, ResolvedAsId, RejectedId), Times.Once);
     }
 
-    // Owning it twice is the ambiguity the reader exists to refuse; inheriting it many times is not.
+    // A role bound twice is the ambiguity the reader exists to refuse.
     [Fact]
-    public async Task A_model_where_two_things_own_the_disposition_mark_writes_nothing()
+    public async Task A_model_binding_the_disposition_archetype_role_to_two_things_writes_nothing()
     {
         AModelWithOneSubmission();
-        _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
-            new Dictionary<string, object>
-            {
-                [ProposesId.ToString()] = new Dictionary<string, object>
-                    { ["__IsProposedSitePredicate"] = Held(true) },
-                [ResolvedAsId.ToString()] = new Dictionary<string, object>
-                    { ["__IsSubmissionDispositionPredicate"] = Held(true) },
-                [DispositionArchetypeId.ToString()] = new Dictionary<string, object>
-                    { ["__IsSubmissionDispositionArchetype"] = Held(true) },
-                [SiteId.ToString()] = new Dictionary<string, object>
-                    { ["__IsSubmissionDispositionArchetype"] = Held(true) },
-            }));
+        RelationshipsAre([
+            .. Bindings(),
+            Edge(SubmissionsCommandHandler.DispositionArchetypeRoleId, BindsId, SiteId),
+            Edge(SubmissionId, ProposesId, SiteId),
+            Edge(RejectedId, IsId, DispositionArchetypeId),
+            Edge(PromotedId, IsId, DispositionArchetypeId),
+        ]);
 
         await Run($"reject {SubmissionId}");
 
@@ -374,27 +398,18 @@ public class SubmissionsCommandHandlerTests
             It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
     }
 
-    // A mark nothing owns is a mark nothing declared: the Things reading it all got it from somewhere the
-    // model no longer holds, and there is no archetype left to gather terms under.
+    // A role the model binds to nothing declares no dispositions, and there is no archetype to gather
+    // them under.
     [Fact]
-    public async Task A_model_where_the_disposition_mark_is_only_ever_inherited_writes_nothing()
+    public async Task A_model_binding_the_disposition_archetype_role_to_nothing_writes_nothing()
     {
         AModelWithOneSubmission();
-        _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
-            new Dictionary<string, object>
-            {
-                [ProposesId.ToString()] = new Dictionary<string, object>
-                    { ["__IsProposedSitePredicate"] = Held(true) },
-                [ResolvedAsId.ToString()] = new Dictionary<string, object>
-                    { ["__IsSubmissionDispositionPredicate"] = Held(true) },
-                [DispositionArchetypeId.ToString()] = new Dictionary<string, object>
-                    { ["__IsSubmissionDispositionArchetype"] = Inherited(true) },
-                [RejectedId.ToString()] = new Dictionary<string, object>
-                {
-                    ["__IsSubmissionDispositionArchetype"] = Inherited(true),
-                    ["daysBeforeColdStorage"] = Held(30),
-                },
-            }));
+        RelationshipsAre(
+            ProposedSiteBinding(),
+            DispositionPredicateBinding(),
+            Edge(SubmissionId, ProposesId, SiteId),
+            Edge(RejectedId, IsId, DispositionArchetypeId),
+            Edge(PromotedId, IsId, DispositionArchetypeId));
 
         await Run($"reject {SubmissionId}");
 
@@ -410,15 +425,7 @@ public class SubmissionsCommandHandlerTests
     {
         AModelWithOneSubmission();
         _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
-            new Dictionary<string, object>
-            {
-                [ProposesId.ToString()] = new Dictionary<string, object>
-                    { ["__IsProposedSitePredicate"] = Held(true) },
-                [ResolvedAsId.ToString()] = new Dictionary<string, object>
-                    { ["__IsSubmissionDispositionPredicate"] = Held(true) },
-                [DispositionArchetypeId.ToString()] = new Dictionary<string, object>
-                    { ["__IsSubmissionDispositionArchetype"] = Held(true) },
-            }));
+            new Dictionary<string, object>()));
 
         await Run($"reject {SubmissionId}");
 
@@ -427,30 +434,24 @@ public class SubmissionsCommandHandlerTests
             It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
     }
 
-    // Marking two predicates would leave a reader with two answers and no way to choose, so it takes none.
+    // Binding the role to two predicates would leave a reader with two answers and no way to choose, so it
+    // takes none.
     [Fact]
-    public async Task A_model_marking_the_disposition_predicate_twice_writes_nothing()
+    public async Task A_model_binding_the_disposition_predicate_role_twice_writes_nothing()
     {
         AModelWithOneSubmission();
         var second = new Guid("11111111-0000-0000-0000-00000000000a");
-        _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
-            new Dictionary<string, object>
-            {
-                [ProposesId.ToString()] = new Dictionary<string, object>
-                    { ["__IsProposedSitePredicate"] = Held(true) },
-                [ResolvedAsId.ToString()] = new Dictionary<string, object>
-                    { ["__IsSubmissionDispositionPredicate"] = Held(true) },
-                [second.ToString()] = new Dictionary<string, object>
-                    { ["__IsSubmissionDispositionPredicate"] = Held(true) },
-                [DispositionArchetypeId.ToString()] = new Dictionary<string, object>
-                    { ["__IsSubmissionDispositionArchetype"] = Held(true) },
-                [RejectedId.ToString()] = new Dictionary<string, object>
-                    { ["daysBeforeColdStorage"] = Held(30) },
-            }));
+        RelationshipsAre([
+            .. Bindings(),
+            Edge(SubmissionsCommandHandler.DispositionPredicateRoleId, BindsId, second),
+            Edge(SubmissionId, ProposesId, SiteId),
+            Edge(RejectedId, IsId, DispositionArchetypeId),
+            Edge(PromotedId, IsId, DispositionArchetypeId),
+        ]);
 
         await Run($"reject {SubmissionId}");
 
-        Assert.Contains("marks no predicate", _writer.ToString());
+        Assert.Contains("binds no predicate", _writer.ToString());
         _mycelium.Verify(client => client.CreateRelationshipAsync(
             It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
     }
@@ -548,12 +549,6 @@ public class SubmissionsCommandHandlerTests
         _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
             new Dictionary<string, object>
             {
-                [ProposesId.ToString()] = new Dictionary<string, object>
-                    { ["__IsProposedSitePredicate"] = Held(true) },
-                [ResolvedAsId.ToString()] = new Dictionary<string, object>
-                    { ["__IsSubmissionDispositionPredicate"] = Held(true) },
-                [DispositionArchetypeId.ToString()] = new Dictionary<string, object>
-                    { ["__IsSubmissionDispositionArchetype"] = Held(true) },
                 [RejectedId.ToString()] = new Dictionary<string, object>
                     { ["daysBeforeColdStorage"] = Held("a month or so") },
                 [SubmissionId.ToString()] = SubmissionProperties(DateTime.UtcNow.AddDays(-31)),
@@ -572,12 +567,6 @@ public class SubmissionsCommandHandlerTests
         _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
             new Dictionary<string, object>
             {
-                [ProposesId.ToString()] = new Dictionary<string, object>
-                    { ["__IsProposedSitePredicate"] = Held(true) },
-                [ResolvedAsId.ToString()] = new Dictionary<string, object>
-                    { ["__IsSubmissionDispositionPredicate"] = Held(true) },
-                [DispositionArchetypeId.ToString()] = new Dictionary<string, object>
-                    { ["__IsSubmissionDispositionArchetype"] = Held(true) },
                 [RejectedId.ToString()] = new Dictionary<string, object>
                     { ["daysBeforeColdStorage"] = Held(30) },
                 [SubmissionId.ToString()] = new Dictionary<string, object>
@@ -604,23 +593,20 @@ public class SubmissionsCommandHandlerTests
     // The pass adds the marked predicate to what the caller names, so a model marking none leaves it with
     // no way to reach what a submission minted. Pruning the record alone would leave the site behind.
     [Fact]
-    public async Task A_model_marking_no_proposed_site_predicate_disposes_of_nothing()
+    public async Task A_model_binding_no_proposed_site_predicate_disposes_of_nothing()
     {
         AModelWithOneSubmission(disposition: RejectedId, resolvedAt: DateTime.UtcNow.AddDays(-31));
-        _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
-            new Dictionary<string, object>
-            {
-                [ResolvedAsId.ToString()] = new Dictionary<string, object>
-                    { ["__IsSubmissionDispositionPredicate"] = Held(true) },
-                [RejectedId.ToString()] = new Dictionary<string, object>
-                    { ["daysBeforeColdStorage"] = Held(30) },
-                [SubmissionId.ToString()] = SubmissionProperties(DateTime.UtcNow.AddDays(-31)),
-            }));
+        RelationshipsAre(
+            DispositionArchetypeBinding(),
+            DispositionPredicateBinding(),
+            Edge(SubmissionId, ProposesId, SiteId),
+            Edge(RejectedId, IsId, DispositionArchetypeId),
+            Edge(SubmissionId, ResolvedAsId, RejectedId));
 
         await Run("dispose has,studies");
 
         VerifyNothingWasPruned();
-        Assert.Contains("marks no predicate", _writer.ToString());
+        Assert.Contains("binds no predicate", _writer.ToString());
     }
 
     // The broker says what it took and this reports that rather than what it asked for, so an answer
@@ -697,7 +683,7 @@ public class SubmissionsCommandHandlerTests
     // A model that never declared the vocabulary answers with no submissions rather than throwing, because
     // an operator pointed at the wrong model needs to be told that, not given a stack trace.
     [Fact]
-    public async Task A_model_marking_no_predicate_lists_nothing()
+    public async Task A_model_binding_no_predicate_lists_nothing()
     {
         _mycelium.Setup(client => client.GetAllThingsAsync())
             .ReturnsAsync(Parse($$"""[{"Id":"{{SubmissionId}}","Name":"Something"}]"""));
@@ -760,7 +746,7 @@ public class SubmissionsCommandHandlerTests
         for (var other = 0; other < 500; other++)
             things.Add(Thing(Guid.NewGuid(), $"a building nobody is reviewing {other}"));
 
-        _mycelium.Setup(client => client.GetAllThingsAsync()).ReturnsAsync(Json(things));
+        ThingsAre([.. things]);
 
         await Run("list");
 
@@ -778,8 +764,6 @@ public class SubmissionsCommandHandlerTests
         _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
             new Dictionary<string, object>
             {
-                [ProposesId.ToString()] = new Dictionary<string, object>
-                    { ["__IsProposedSitePredicate"] = Held(true) },
                 [SubmissionId.ToString()] = new Dictionary<string, object>
                 {
                     ["submissionId"] = Held("willow-bend-2026-08"),

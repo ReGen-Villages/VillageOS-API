@@ -32,6 +32,8 @@ import { temporalApi } from './temporalApi';
 // stub port here would prove nothing about what the running application asks the broker — and the
 // sharing a refresh generation does now belongs to this object rather than to the context.
 import { brokerModelReads } from './brokerModelReads';
+import { PAGE_ROLE_ID } from './platformRoles';
+import { PROPERTY_NAME_ROLE } from './propertyNames';
 import {
   discoverDashboards,
   scopeEntities,
@@ -70,6 +72,8 @@ function model(): { things: VosThing[]; relationships: VosRelationship[] } {
   });
   const things: VosThing[] = [
     t('is', 'is'),
+    t('binds', 'binds'),
+    t(PAGE_ROLE_ID, 'Page'),
     t('arch-dash', 'Dashboard'),
     t('arch-vil', 'Village'),
     t('dash1', 'Operations Dashboard', { specification: JSON.stringify(SPECIFICATION) }),
@@ -84,8 +88,14 @@ function model(): { things: VosThing[]; relationships: VosRelationship[] } {
     TargetId,
     Properties: {},
   });
-  const relationships: VosRelationship[] = [r('dash1', 'arch-dash'), r('vil1', 'arch-vil'), r('vil2', 'arch-vil')];
+  const relationships: VosRelationship[] = [
+    pageRoleBinds('arch-dash'), r('dash1', 'arch-dash'), r('vil1', 'arch-vil'), r('vil2', 'arch-vil'),
+  ];
   return { things, relationships };
+}
+
+function pageRoleBinds(archetypeId: string): VosRelationship {
+  return { Id: `page-binds-${archetypeId}`, Name: '', SubjectId: PAGE_ROLE_ID, PredicateId: 'binds', TargetId: archetypeId, Properties: {} };
 }
 
 function contextFor(scopeId: string | null): ResolveContext {
@@ -143,17 +153,22 @@ function dashboardModel(names: string[]): { things: VosThing[]; relationships: V
   const specification = JSON.stringify({ title: 'T', sections: [] });
   const things: VosThing[] = [
     { Id: 'is', Name: 'is', Properties: {} },
+    { Id: 'binds', Name: 'binds', Properties: {} },
+    { Id: PAGE_ROLE_ID, Name: 'Page', Properties: {} },
     { Id: 'arch-dash', Name: 'Dashboard', Properties: {} },
     ...names.map((Name, i) => ({ Id: `dash-${i}`, Name, Properties: { specification } })),
   ];
-  const relationships: VosRelationship[] = names.map((_, i) => ({
-    Id: `dash-${i}-is`,
-    Name: `dash-${i} is Dashboard`,
-    SubjectId: `dash-${i}`,
-    PredicateId: 'is',
-    TargetId: 'arch-dash',
-    Properties: {},
-  }));
+  const relationships: VosRelationship[] = [
+    pageRoleBinds('arch-dash'),
+    ...names.map((_, i) => ({
+      Id: `dash-${i}-is`,
+      Name: `dash-${i} is Dashboard`,
+      SubjectId: `dash-${i}`,
+      PredicateId: 'is',
+      TargetId: 'arch-dash',
+      Properties: {},
+    })),
+  ];
   return { things: declared(things, relationships), relationships };
 }
 
@@ -192,9 +207,9 @@ describe('dashboard order and addresses', () => {
   it.each([
     ['in the order the model lists them', (things: VosThing[]) => things],
     ['in the opposite order', (things: VosThing[]) => [...things].reverse()],
-  ])('lists the pages under each of two types named Dashboard, %s', (_, ordered) => {
+  ])('lists only the pages under the kind the page role binds, not under a namesake, %s', (_, ordered) => {
     const { things, relationships } = dashboardModel(['Site submission']);
-    const fromAnotherTemplate: VosThing[] = [
+    const namesake: VosThing[] = [
       { Id: 'arch-dash-site', Name: 'Dashboard', IsArchetype: true, Properties: {} },
       { Id: 'dash-site', Name: 'Site operations', Properties: { specification: JSON.stringify({ title: 'T', sections: [] }) } },
     ];
@@ -203,12 +218,16 @@ describe('dashboard order and addresses', () => {
       SubjectId: 'dash-site', PredicateId: 'is', TargetId: 'arch-dash-site', Properties: {},
     });
 
-    const found = discoverDashboards(ordered([...things, ...fromAnotherTemplate]), relationships);
+    const found = discoverDashboards(ordered([...things, ...namesake]), relationships);
 
-    expect(found.map((d) => [d.name, d.routeKey])).toEqual([
-      ['Site operations', 'site-operations'],
-      ['Site submission', 'site-submission'],
-    ]);
+    expect(found.map((d) => [d.name, d.routeKey])).toEqual([['Site submission', 'site-submission']]);
+  });
+
+  it('lists no page where no role binds a page kind, whatever an archetype is called', () => {
+    const { things, relationships } = dashboardModel(['Site submission']);
+    const unbound = relationships.filter((r) => r.PredicateId !== 'binds');
+
+    expect(discoverDashboards(things, unbound)).toEqual([]);
   });
 });
 
@@ -329,7 +348,6 @@ describe('resolveBinding', () => {
         Village: {
           SourceId: 'arch-vil',
           SourceName: 'Village',
-          InheritedAt: '2024-01-01',
           Properties: { self_sufficiency_rate: 88.5 },
         },
       },
@@ -1140,7 +1158,7 @@ describe('verdict binding', () => {
       ThingId: 'study1',
       ThingName: 'Site Study',
       OwnRanges: [],
-      InheritedRanges: [{ SourceId: 'arch-study', SourceName: 'SiteStudy', InheritedAt: '', Ranges: ranges, Inherited: [] }],
+      InheritedRanges: [{ SourceId: 'arch-study', SourceName: 'SiteStudy', Ranges: ranges, Inherited: [] }],
     };
   }
 
@@ -1836,7 +1854,7 @@ describe('the working behind a figure', () => {
     const things = [
       { Id: 'is', Name: 'is', Properties: {} },
       { Id: 'studies', Name: 'studies', Properties: {} },
-      { Id: 'arch-study', Name: 'SiteStudy', IsArchetype: true, Properties: {}, RollupProperties: definitions },
+      { Id: 'arch-study', Name: 'SiteStudy', IsArchetype: true, Properties: {}, DerivedProperties: definitions },
       { Id: 'study1', Name: 'A study', Properties: own },
       { Id: 'site1', Name: 'A site', Properties: {} },
     ] as unknown as VosThing[];
@@ -1936,7 +1954,7 @@ describe('levers under a shortfall', () => {
       ThingId: 'study1',
       ThingName: 'Site Study',
       OwnRanges: [],
-      InheritedRanges: [{ SourceId: 'arch-study', SourceName: 'SiteStudy', InheritedAt: '', Ranges: ranges, Inherited: [] }],
+      InheritedRanges: [{ SourceId: 'arch-study', SourceName: 'SiteStudy', Ranges: ranges, Inherited: [] }],
     };
   }
 
@@ -1960,17 +1978,189 @@ describe('levers under a shortfall', () => {
     },
   };
 
-  function studyContext(definitions: Record<string, unknown>): ResolveContext {
+  function studyContext(
+    definitions: Record<string, unknown>,
+    named: { things: unknown[]; relationships: VosRelationship[] } = { things: [], relationships: [] },
+  ): ResolveContext {
     const things = [
       { Id: 'is', Name: 'is', Properties: {} },
-      { Id: 'arch-study', Name: 'SiteStudy', Properties: {}, IsArchetype: true, RollupProperties: definitions },
+      { Id: 'arch-study', Name: 'SiteStudy', Properties: {}, IsArchetype: true, DerivedProperties: definitions },
       { Id: 'study1', Name: 'Site Study', Properties: {} },
+      ...named.things,
     ] as unknown as VosThing[];
     const relationships: VosRelationship[] = [
       { Id: 'r1', Name: 'study1 is arch-study', SubjectId: 'study1', PredicateId: 'is', TargetId: 'arch-study', Properties: {} },
+      ...named.relationships,
     ];
     return { index: buildModelIndex(things, relationships), scopeId: 'study1', reads: brokerModelReads() };
   }
+
+  const PANEL_AREA_WORDS = { en: 'panel area', de: 'Modulfläche' };
+  const CONSUMPTION_WORDS = { en: 'consumption', de: 'Verbrauch' };
+
+  function edge(Id: string, SubjectId: string, PredicateId: string, TargetId: string): VosRelationship {
+    return { Id, Name: Id, SubjectId, PredicateId, TargetId, Properties: {} };
+  }
+
+  /** The archetypes the levers name, and one property name per [property, words, archetype id]. The
+   *  property-name archetype is the one the role binds, under a name no template uses. */
+  function namedInputs(...names: [string, Record<string, string>, string][]) {
+    return {
+      things: [
+        { Id: 'arch-generator', Name: 'Generator', Properties: {}, IsArchetype: true },
+        { Id: 'arch-solar', Name: 'SolarArray', Properties: {}, IsArchetype: true },
+        { Id: 'arch-tank', Name: 'Tank', Properties: {}, IsArchetype: true },
+        { Id: 'arch-name', Name: 'Label', Properties: {}, IsArchetype: true },
+        { Id: PROPERTY_NAME_ROLE, Name: 'propertyName', Properties: {} },
+        { Id: 'binds', Name: 'binds', Properties: {} },
+        { Id: 'names-property-of', Name: 'namesPropertyOf', Properties: {} },
+        ...names.map(([property, words], i) => ({
+          Id: `name-${i}`,
+          Name: `${property} name`,
+          Properties: { namedProperty: property, wording: JSON.stringify(words) },
+        })),
+      ],
+      relationships: [
+        edge('name-role-binds', PROPERTY_NAME_ROLE, 'binds', 'arch-name'),
+        edge('solar-is-generator', 'arch-solar', 'is', 'arch-generator'),
+        ...names.flatMap(([, , archetype], i) => [
+          edge(`name-${i}-is`, `name-${i}`, 'is', 'arch-name'),
+          edge(`name-${i}-names`, `name-${i}`, 'names-property-of', archetype),
+        ]),
+      ],
+    };
+  }
+
+  it('carries the name the model declares for an input on the archetype of the members holding it', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS,
+      namedInputs(['panelAreaM2', PANEL_AREA_WORDS, 'arch-solar']))) as Row[];
+
+    expect(rows[0].levers).toContainEqual(
+      { term: 'panelAreaM2', memberArchetype: 'SolarArray', direction: 'raise', words: PANEL_AREA_WORDS });
+  });
+
+  it('carries the name of an input the judged Thing holds itself, declared on its own archetype', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS,
+      namedInputs(['consumed', CONSUMPTION_WORDS, 'arch-study']))) as Row[];
+
+    expect(rows[0].levers).toContainEqual({ term: 'consumed', direction: 'lower', words: CONSUMPTION_WORDS });
+  });
+
+  it('finds a name declared on an archetype above the one the members are of', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS,
+      namedInputs(['panelAreaM2', PANEL_AREA_WORDS, 'arch-generator']))) as Row[];
+
+    expect(rows[0].levers).toContainEqual(
+      { term: 'panelAreaM2', memberArchetype: 'SolarArray', direction: 'raise', words: PANEL_AREA_WORDS });
+  });
+
+  it('prefers the name on the nearest archetype when one above names the property too', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS, namedInputs(
+      ['panelAreaM2', { en: 'generator area' }, 'arch-generator'],
+      ['panelAreaM2', PANEL_AREA_WORDS, 'arch-solar'],
+    ))) as Row[];
+
+    expect(rows[0].levers).toContainEqual(
+      { term: 'panelAreaM2', memberArchetype: 'SolarArray', direction: 'raise', words: PANEL_AREA_WORDS });
+  });
+
+  // One property can mean different things on different archetypes, so another archetype's name for it does not apply.
+  it('leaves an input with the model\'s own name when only another archetype names that property', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS,
+      namedInputs(['panelAreaM2', PANEL_AREA_WORDS, 'arch-tank']))) as Row[];
+
+    expect(rows[0].levers).toContainEqual({ term: 'panelAreaM2', memberArchetype: 'SolarArray', direction: 'raise' });
+  });
+
+  it('finds a name a model files under an archetype of its own below the marked one', async () => {
+    holding('EnergyShortOfTarget');
+    const named = namedInputs(['consumed', CONSUMPTION_WORDS, 'arch-study']);
+    named.things.push({ Id: 'arch-study-names', Name: 'StudyName', Properties: {}, IsArchetype: true });
+    named.relationships = named.relationships.map((relationship) =>
+      relationship.Id === 'name-0-is' ? { ...relationship, TargetId: 'arch-study-names' } : relationship);
+    named.relationships.push(edge('study-names-is-names', 'arch-study-names', 'is', 'arch-name'));
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS, named)) as Row[];
+
+    expect(rows[0].levers).toContainEqual({ term: 'consumed', direction: 'lower', words: CONSUMPTION_WORDS });
+  });
+
+  it('ignores a name that names a property of no archetype', async () => {
+    holding('EnergyShortOfTarget');
+    const named = namedInputs(['consumed', CONSUMPTION_WORDS, 'arch-study'], ['panelAreaM2', PANEL_AREA_WORDS, 'arch-solar']);
+    named.relationships = named.relationships.filter((relationship) => relationship.Id !== 'name-0-names');
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS, named)) as Row[];
+
+    expect(rows[0].levers).toContainEqual({ term: 'consumed', direction: 'lower' });
+    expect(rows[0].levers).toContainEqual(
+      { term: 'panelAreaM2', memberArchetype: 'SolarArray', direction: 'raise', words: PANEL_AREA_WORDS });
+  });
+
+  it('ignores a name that does not say which property it names', async () => {
+    holding('EnergyShortOfTarget');
+    const named = namedInputs(['consumed', CONSUMPTION_WORDS, 'arch-study']);
+    delete (named.things.at(-1) as { Properties: Record<string, unknown> }).Properties.namedProperty;
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS, named)) as Row[];
+
+    expect(rows[0].levers).toContainEqual({ term: 'consumed', direction: 'lower' });
+  });
+
+  it('survives an `is` chain that loops back on itself', async () => {
+    holding('EnergyShortOfTarget');
+    const named = namedInputs(['consumed', CONSUMPTION_WORDS, 'arch-study']);
+    named.relationships.push(edge('generator-is-solar', 'arch-generator', 'is', 'arch-solar'));
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS, named)) as Row[];
+
+    expect(rows[0].levers).toContainEqual({ term: 'panelAreaM2', memberArchetype: 'SolarArray', direction: 'raise' });
+  });
+
+  it('offers its levers when an `is` relationship names a Thing the page has not loaded', async () => {
+    holding('EnergyShortOfTarget');
+    const named = namedInputs(['consumed', CONSUMPTION_WORDS, 'arch-study']);
+    named.relationships.push(edge('unloaded-is-name', 'unloaded', 'is', 'arch-name'));
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS, named)) as Row[];
+
+    expect(rows[0].levers).toContainEqual({ term: 'consumed', direction: 'lower', words: CONSUMPTION_WORDS });
+  });
+
+  // A value written under a name the archetype declares is stored as an override, not as an own property.
+  it('reads a name whose values the model holds as overrides', async () => {
+    holding('EnergyShortOfTarget');
+    const named = namedInputs(['consumed', CONSUMPTION_WORDS, 'arch-study']);
+    const name = named.things.at(-1) as { Properties: Record<string, unknown>; InheritedOverrides?: unknown };
+    name.InheritedOverrides = {
+      'arch-name': { SourceId: 'arch-name', SourceName: 'PropertyName', Properties: name.Properties },
+    };
+    name.Properties = {};
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS, named)) as Row[];
+
+    expect(rows[0].levers).toContainEqual({ term: 'consumed', direction: 'lower', words: CONSUMPTION_WORDS });
+  });
+
+  it('leaves an input with the model\'s own name when its declared words are not words by language', async () => {
+    holding('EnergyShortOfTarget');
+    const named = namedInputs(['consumed', CONSUMPTION_WORDS, 'arch-study']);
+    (named.things.at(-1) as { Properties: Record<string, unknown> }).Properties.wording = 'consumption';
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS, named)) as Row[];
+
+    expect(rows[0].levers).toContainEqual({ term: 'consumed', direction: 'lower' });
+  });
 
   function holding(...states: string[]) {
     vi.mocked(stateApi.getThingsInState).mockImplementation(async (state: string) =>
@@ -2172,7 +2362,7 @@ describe('origin binding', () => {
         Id: 'site1', Name: 'Willow Bend', Properties: { untracked: 5 },
         InheritedOverrides: {
           Site: {
-            SourceId: 'arch-site', SourceName: 'Site', InheritedAt: '',
+            SourceId: 'arch-site', SourceName: 'Site',
             Properties: { latitude: 39.5, rainfallMillimetresPerYear: 700 },
             PropertyWriteKinds: { latitude: 'FactOnly', rainfallMillimetresPerYear: 'ObservationOnly' },
           },

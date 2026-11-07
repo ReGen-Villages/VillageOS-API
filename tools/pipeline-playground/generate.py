@@ -19,8 +19,8 @@ seed fragment or merges it into an existing seed in place.
 
 Idempotent by construction: every id is a deterministic UUIDv5 of a stable key, so a re-run replaces the
 same Things instead of forking duplicates. When merging, the target's own vocabulary is reused rather than
-doubled: the built-in `is`/`has`/`of` predicates are matched by name, each archetype by the role flag it
-carries — so a model that renamed one keeps its own.
+doubled: the built-in `is`/`has`/`of`/`binds` predicates are matched by name, and each archetype or predicate
+playing a role by what the target's role Thing binds — so a model that renamed one keeps its own.
 """
 
 import argparse
@@ -29,9 +29,10 @@ import shutil
 import sys
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from catalog import SERVICES, PIPELINES, MESSAGE_KINDS, EXTERNAL_SYSTEMS
+from catalog import SERVICES, PIPELINES, MESSAGE_KINDS, EXTERNAL_SYSTEMS, CADENCES
 
 # Shared with tools/simulator so ids are consistent across the ecosystem. With no --namespace this root is
 # used directly, keeping the standalone fragment's ids stable. --namespace NAME derives a per-model root
@@ -41,36 +42,82 @@ _ROOT_NAMESPACE = uuid.UUID("6f9b1e2c-4a7d-5b8e-9c0f-1d2e3a4b5c6d")
 _id_namespace = _ROOT_NAMESPACE
 _TAG = "pipeline-playground"
 
-# The role each archetype plays, as the flag it carries. This is the contract the Trellis editor and the
-# Phloem orchestrator both read; the archetype names this generator picks are its own choice and nothing
-# reads them, which is why a model may rename any of them and keep working.
-ROLE_FLAG = {
-    "Pipeline": "__IsPipelineArchetype",
-    "PipelineNode": "__IsPipelineNodeArchetype",
-    "PipelineInput": "__IsPipelineInputArchetype",
-    "PipelineOutput": "__IsPipelineOutputArchetype",
-    "Port": "__IsPortArchetype",
-    "Service": "__IsServiceArchetype",
-    "Connection": "__IsConnectionArchetype",
-    "PipelineWire": "__IsPipelineWireArchetype",
-    "PipelineRun": "__IsPipelineRunArchetype",
-    "NodeRun": "__IsNodeRunArchetype",
-    "ExternalSystem": "__IsExternalSystemArchetype",
-    "MessageKind": "__IsMessageKindArchetype",
-    "SentMessage": "__IsSentMessageArchetype",
+# The Trellis editor and the Phloem orchestrator find each role Thing by this identifier and follow what it
+# binds; nothing reads the archetype and predicate names below, so a model may rename any of them.
+ROLE_NAMESPACE = uuid.UUID("c33fcf16-6706-4f93-bfa5-8997bfaaf4bd")
+
+
+def role_id(word):
+    return str(uuid.uuid5(ROLE_NAMESPACE, word))
+
+
+# Every role Thing `is` this archetype, so a lookup by name passes over a role named like the Thing it binds.
+ROLE_ARCHETYPE = role_id("role")
+
+
+def role_name(word):
+    return word[0].upper() + word[1:]
+
+
+ARCHETYPE_ROLE = {
+    "Pipeline": "pipeline",
+    "PipelineNode": "pipelineNode",
+    "PipelineInput": "pipelineInput",
+    "PipelineOutput": "pipelineOutput",
+    "PipelineTell": "pipelineTell",
+    "PipelineFollowOn": "pipelineFollowOn",
+    "PipelineStop": "pipelineStop",
+    "Port": "port",
+    "Service": "service",
+    "Connection": "connection",
+    "PipelineWire": "pipelineWire",
+    "PipelineRun": "pipelineRun",
+    "NodeRun": "nodeRun",
+    "ExternalSystem": "externalSystem",
+    "MessageKind": "messageKind",
+    "SentMessage": "sentMessage",
+    "StopRequest": "stopRequest",
+    "Cadence": "cadence",
+    "DecisionPath": "decisionPath",
 }
 
-# The role each predicate plays, as the flag it carries: how a connection is reached, what an external
-# system sends and is told, where a kind of message arrives, what a boundary node stands for, and what a
-# run is about. The names are this generator's own choice.
-PREDICATE_FLAG = {
-    "triggeredBy": "__IsTriggerPredicate",
-    "sends": "__IsSendsPredicate",
-    "told": "__IsToldPredicate",
-    "toldThrough": "__IsToldThroughPredicate",
-    "arrivesAt": "__IsArrivesAtPredicate",
-    "standsFor": "__IsStandsForPredicate",
-    "about": "__IsRunSubjectPredicate",
+PREDICATE_ROLE = {
+    "triggeredBy": "trigger",
+    "sends": "sends",
+    "told": "told",
+    "toldThrough": "toldThrough",
+    "arrivesAt": "arrivesAt",
+    "standsFor": "standsFor",
+    "about": "runSubject",
+    "offers": "choice",
+    "produced": "producedThing",
+    "inputConnector": "inputConnector",
+    "outputConnector": "outputConnector",
+    "takenOn": "takenOn",
+    "comparesWith": "comparesWith",
+    "requestedBy": "requestedBy",
+    "stoppedBy": "stoppedBy",
+    "startedBy": "startingRun",
+    "repeats": "repeatedRun",
+}
+
+# The two results a wire is taken on, and the error port every service node has without declaring it.
+RESULT_ROLE = {"success": "success", "fail": "fail"}
+ERROR_PORT_ROLE = "errorPort"
+STOPPING_CONNECTION_ROLE = "runStopping"
+
+# The three roots every archetype sits under: what a model sets up, what then happens there, and what a
+# relationship runs along.
+ROOT_ROLE = {
+    "Configuration": "configuration",
+    "Operation": "operation",
+    "Predicate": "predicate",
+}
+
+# The platform recognises a trigger as the Thing the role for that word binds, never by the trigger's name.
+TRIGGER_ROLE = {
+    "http": "httpTrigger",
+    "graph": "graphTrigger",
 }
 
 
@@ -90,135 +137,252 @@ def stable_id(*parts):
     return str(uuid.uuid5(_id_namespace, "/".join(str(p) for p in parts)))
 
 
+def canvas_position(col, row=0):
+    return {"x": typed(float(_ORIGIN + col * _COL_WIDTH), "vos.Double"),
+            "y": typed(float(_ORIGIN + row * _ROW_HEIGHT), "vos.Double")}
+
+
 def typed(value, type_info):
     return {"typeInfo": type_info, "value": value}
 
 
 class Kit:
     """Accumulates the playground's Things and Relationships, keyed by deterministic id so the build is
-    idempotent. `shared` marks the generic vocabulary (is/has/of + the pipeline archetypes) that is matched
+    idempotent. `shared` holds the generic vocabulary (is/has/of/binds + the pipeline archetypes) that is matched
     against a target model's own at merge time rather than blindly duplicated."""
 
     def __init__(self):
         self.things = {}          # id -> Thing dict
         self.rels = {}            # dedup key -> Relationship dict
         self.shared = set()       # ids of the vocabulary reconciled against a target model
-        self.role_flag = {}       # archetype id -> the role flag it carries (how a target's copy is found)
+        self.role_of = {}         # id of a Thing playing a role -> the role's id (how a target's copy is found)
+        self.role_things = set()  # ids of the role Things, which a target holds under the same ids or not at all
+        self.predicates = set()   # ids of every predicate declared, whether or not a relationship runs along it
+        self.held_by_shared = {}  # id of a Thing a shared Thing holds -> the holder
         self._name = {}           # id -> Name (for readable relationship labels)
 
-    def thing(self, tid, name, properties=None, shared=False):
+    def thing(self, tid, name, properties=None, shared=False, archetype=False):
         if tid not in self.things:
             self.things[tid] = {"Id": tid, "Name": name, "Properties": properties or {}}
+            if archetype:
+                self.things[tid]["IsArchetype"] = True
             self._name[tid] = name
             if shared:
                 self.shared.add(tid)
         return tid
 
-    def rel(self, subject, predicate, target, properties=None):
-        key = (subject, predicate, target,
-               _prop(properties, "fromPort"), _prop(properties, "toPort"), _prop(properties, "toPath"))
+    def rel(self, subject, predicate, target):
+        key = (subject, predicate, target)
         if key not in self.rels:
             name = f"{self._name.get(subject, '?')} {self._name.get(predicate, '?')} {self._name.get(target, '?')}"
             self.rels[key] = {
                 "Id": stable_id(_TAG, "rel", *(str(k) for k in key)),
                 "Name": name,
                 "Subject": subject, "Predicate": predicate, "Target": target,
-                "Properties": properties or {},
+                "Properties": {},
             }
         return self.rels[key]
 
-    def predicate(self, name):
-        """A predicate found by name on merge: the built-in `is`, `has` and `of`, or one this generator
-        marks with the role it plays, so a target that already holds a predicate under the name gains the
-        mark as it reconciles, the way an archetype does."""
-        flag = PREDICATE_FLAG.get(name)
-        properties = {flag: typed(True, "vos.Boolean")} if flag else None
-        tid = self.thing(stable_id(_TAG, "predicate", name), name, properties, shared=True)
-        if flag:
-            self.role_flag[tid] = flag
+    def bind(self, word, tid):
+        """The role Thing for `word`, binding the Thing that plays it."""
+        binds = self.thing(stable_id(_TAG, "predicate", "binds"), "binds", shared=True)
+        role = role_id(word)
+        self.thing(role, role_name(word))
+        self.role_things.add(role)
+        self.rel(role, binds, tid)
+        self.role_of[tid] = role
         return tid
+
+    def predicate(self, name):
+        """A predicate found on merge by the role it plays, or by name: the built-in `is`, `has` and `of`, or
+        one a target already holds under the name, which then plays the role as it reconciles."""
+        tid = self.thing(stable_id(_TAG, "predicate", name), name, shared=True)
+        self.predicates.add(tid)
+        return self.bind(PREDICATE_ROLE[name], tid) if name in PREDICATE_ROLE else tid
 
     def archetype(self, role, name=None):
-        """An archetype that says what it is by the flag it carries. The name is this generator's own choice
-        and defaults to the role; nothing reads it."""
-        flag = ROLE_FLAG[role]
+        """An archetype that says what it is through the role Thing that binds it. The name is this
+        generator's own choice and defaults to the role; nothing reads it."""
         name = name or role
-        tid = self.thing(stable_id(_TAG, "archetype", name), name,
-                         {flag: typed(True, "vos.Boolean")}, shared=True)
-        self.role_flag[tid] = flag
-        return tid
+        tid = self.thing(stable_id(_TAG, "archetype", name), name, shared=True, archetype=True)
+        return self.bind(ARCHETYPE_ROLE[role], tid)
 
 
-def _prop(properties, name):
-    """A property's raw value out of the typed envelope (for building a dedup key); '' when absent."""
-    entry = (properties or {}).get(name)
-    return entry["value"] if isinstance(entry, dict) else ""
+def port_of(port_ids, node_id, also_held_by, name, direction):
+    """A port the node holds itself wins over its service's or its kind's, as the orchestrator lists a node's own
+    ports first."""
+    return port_ids.get((node_id, name, direction)) or port_ids[(also_held_by, name, direction)]
+
+
+def declare_dag_vocabulary(k):
+    """What the orchestrator resolves a drawing from, every role it requires bound: the predicates, the
+    archetypes, the two results a wire is taken on, the error port and the trigger a service's connection is
+    reached over. Shared, so a merge reuses what a target already holds."""
+    v = SimpleNamespace()
+    v.is_ = k.predicate("is")
+    v.has = k.predicate("has")
+    v.carries = k.predicate("carries")
+    v.triggered_by = k.predicate("triggeredBy")
+    v.input_connector = k.predicate("inputConnector")
+    v.output_connector = k.predicate("outputConnector")
+    v.taken_on = k.predicate("takenOn")
+    v.compares_with = k.predicate("comparesWith")
+
+    v.Pipeline = k.archetype("Pipeline")
+    v.PipelineNode = k.archetype("PipelineNode")
+    v.PipelineInput = k.archetype("PipelineInput")
+    v.PipelineOutput = k.archetype("PipelineOutput")
+    v.Port = k.archetype("Port")
+    v.Service = k.archetype("Service")
+    v.Connection = k.archetype("Connection", "PlatformServiceConnection")
+    v.PipelineWire = k.archetype("PipelineWire")
+    v.DecisionPath = k.archetype("DecisionPath")
+
+    k.rel(v.carries, v.is_, v.PipelineWire)
+    # Every service's connection is a door reached over HTTP at its subdomain, which is what makes it a catalyst
+    # the Pipelines page lists. The trigger is a Thing the connection relates to, as the platform reads it.
+    v.http = k.thing(stable_id(_TAG, "trigger", "http"), "http", shared=True)
+    k.bind(TRIGGER_ROLE["http"], v.http)
+    k.rel(v.PipelineInput, v.is_, v.PipelineNode)  # boundary nodes are pipeline nodes too
+    k.rel(v.PipelineOutput, v.is_, v.PipelineNode)
+
+    v.results = {word: k.bind(role, k.thing(stable_id(_TAG, "result", word), word, shared=True))
+                 for word, role in RESULT_ROLE.items()}
+    v.error_port = k.thing(stable_id(_TAG, "port", "error"), "error", {
+        "portName": typed("error", "vos.String"),
+        "direction": typed("out", "vos.String"),
+        "type": typed("string", "vos.String"),
+    }, shared=True)
+    k.rel(v.error_port, v.is_, v.Port)
+    k.bind(ERROR_PORT_ROLE, v.error_port)
+    return v
+
+
+def declare_port(k, v, port_ids, owner_id, owner_key, name, direction, type, required, collection, tag=_TAG):
+    pid = stable_id(tag, "port", owner_key, name, direction)
+    port_ids[(owner_id, name, direction)] = pid
+    props = {
+        "portName": typed(name, "vos.String"),
+        "direction": typed(direction, "vos.String"),
+        "type": typed(type, "vos.String"),
+        "required": typed(required, "vos.Boolean"),
+    }
+    if collection:
+        props["collection"] = typed(True, "vos.Boolean")
+    k.thing(pid, f"{owner_key}.{direction}.{name}", props)
+    k.rel(pid, v.is_, v.Port)
+    k.rel(owner_id, v.has, pid)
+    return pid
+
+
+def place_under_roots(k, v, configured=(), operational=()):
+    """The three roots every archetype sits under, and where each Thing declared so far goes: the drawing
+    vocabulary and `configured` under Configuration, `operational` under Operation, every predicate under
+    Predicate, and every role Thing under Role. A target that already binds the roots is reused through the
+    roles, like the rest of the shared vocabulary."""
+    Configuration = k.bind(ROOT_ROLE["Configuration"],
+                           k.thing(stable_id(_TAG, "archetype", "Configuration"), "Configuration", shared=True, archetype=True))
+    Operation = k.bind(ROOT_ROLE["Operation"],
+                       k.thing(stable_id(_TAG, "archetype", "Operation"), "Operation", shared=True, archetype=True))
+    Predicate = k.bind(ROOT_ROLE["Predicate"],
+                       k.thing(stable_id(_TAG, "archetype", "Predicate"), "Predicate", shared=True, archetype=True))
+    binds = k.thing(stable_id(_TAG, "predicate", "binds"), "binds", shared=True)
+    for archetype in (v.Pipeline, v.PipelineNode, v.Port, v.Service, v.Connection, v.PipelineWire, v.DecisionPath, *configured):
+        k.rel(archetype, v.is_, Configuration)
+    for archetype in operational:
+        k.rel(archetype, v.is_, Operation)
+    for predicate in (binds, *sorted(k.predicates)):
+        k.rel(predicate, v.is_, Predicate)
+    Role = k.thing(ROLE_ARCHETYPE, "Role", archetype=True)
+    k.rel(Role, v.is_, Configuration)
+    for role in sorted(k.role_things):
+        k.rel(role, v.is_, Role)
 
 
 def build():
     k = Kit()
+    v = declare_dag_vocabulary(k)
+    is_, has, carries, triggered_by = v.is_, v.has, v.carries, v.triggered_by
+    input_connector, output_connector, taken_on, compares_with = v.input_connector, v.output_connector, v.taken_on, v.compares_with
+    Pipeline, PipelineNode, PipelineInput, PipelineOutput = v.Pipeline, v.PipelineNode, v.PipelineInput, v.PipelineOutput
+    Service, Connection, PipelineWire, DecisionPath = v.Service, v.Connection, v.PipelineWire, v.DecisionPath
+    http, results, error_port = v.http, v.results, v.error_port
 
-    is_ = k.predicate("is")
-    has = k.predicate("has")
     of = k.predicate("of")
-    carries = k.predicate("carries")
-    triggered_by = k.predicate("triggeredBy")
     sends = k.predicate("sends")
     told = k.predicate("told")
     told_through = k.predicate("toldThrough")
     arrives_at = k.predicate("arrivesAt")
     stands_for = k.predicate("standsFor")
-    # Declared for the orchestrator, which relates a run to the Thing whose state entry started it.
+    offers = k.predicate("offers")
+    # Declared for the orchestrator, which relates a run to its subject, a node run to each Thing the node
+    # produced, a stop request to the run that wrote it, a stopped run to the request that stopped it, and a run
+    # to the run whose end started it or the run a person started again in its place.
     k.predicate("about")
+    k.predicate("produced")
+    k.predicate("requestedBy")
+    k.predicate("stoppedBy")
+    k.predicate("startedBy")
+    k.predicate("repeats")
 
-    Pipeline = k.archetype("Pipeline")
-    PipelineNode = k.archetype("PipelineNode")
-    PipelineInput = k.archetype("PipelineInput")
-    PipelineOutput = k.archetype("PipelineOutput")
-    Port = k.archetype("Port")
-    Service = k.archetype("Service")
-    Connection = k.archetype("Connection", "PlatformServiceConnection")
-    PipelineWire = k.archetype("PipelineWire")
+    run_by_the_orchestrator = {"tell": k.archetype("PipelineTell"), "followOn": k.archetype("PipelineFollowOn"),
+                               "stop": k.archetype("PipelineStop")}
     PipelineRun = k.archetype("PipelineRun")
     NodeRun = k.archetype("NodeRun")
     ExternalSystem = k.archetype("ExternalSystem")
     MessageKind = k.archetype("MessageKind")
-    k.archetype("SentMessage")
+    SentMessage = k.archetype("SentMessage")
+    StopRequest = k.archetype("StopRequest")
+    k.things[StopRequest]["Properties"]["reason"] = typed("", "vos.String")
+    Cadence = k.archetype("Cadence")
 
-    k.rel(carries, is_, PipelineWire)          # wires are the `carries` predicate, identified by this archetype
-    # Every service's connection is a door reached over HTTP at its subdomain, which is what makes it a catalyst
-    # the Pipelines page lists; a system's told-through connection is written along instead. The trigger is a
-    # Thing the connection relates to, as the platform reads it.
-    http = k.thing(stable_id(_TAG, "trigger", "http"), "http", shared=True)
+    # A system's told-through connection is written along rather than reached at a subdomain.
     graph = k.thing(stable_id(_TAG, "trigger", "graph"), "graph", shared=True)
-    k.rel(PipelineInput, is_, PipelineNode)  # boundary nodes are pipeline nodes too
-    k.rel(PipelineOutput, is_, PipelineNode)
+    k.bind(TRIGGER_ROLE["graph"], graph)
+    for kind in run_by_the_orchestrator.values():
+        k.rel(kind, is_, PipelineNode)
+
+    port_ids = {}
 
     def make_port(owner_id, owner_key, name, direction, type, required, collection):
-        pid = stable_id(_TAG, "port", owner_key, name, direction)
-        props = {
-            "portName": typed(name, "vos.String"),
-            "direction": typed(direction, "vos.String"),
-            "type": typed(type, "vos.String"),
-            "required": typed(required, "vos.Boolean"),
-        }
-        if collection:
-            props["collection"] = typed(True, "vos.Boolean")
-        k.thing(pid, f"{owner_key}.{direction}.{name}", props)
-        k.rel(pid, is_, Port)
-        k.rel(owner_id, has, pid)
-        return pid
+        return declare_port(k, v, port_ids, owner_id, owner_key, name, direction, type, required, collection)
+
+    stop_kind = run_by_the_orchestrator["stop"]
+    for (name, direction, type, required) in (("things", "in", "any", True), ("reason", "in", "string", False),
+                                              ("requested", "out", "number", False)):
+        k.held_by_shared[make_port(stop_kind, "PipelineStop", name, direction, type, required, False)] = stop_kind
+
+    # A stop request is related along this connection, so the broker sends it to the orchestrator; it has no
+    # subdomain, so no request reaches it as a door.
+    stops = k.bind(STOPPING_CONNECTION_ROLE, k.thing(stable_id(_TAG, "connection", "stops"), "stops", shared=True))
+    orchestrator = k.thing(stable_id(_TAG, "service", "orchestrator"), "Orchestrator service")
+    k.held_by_shared[orchestrator] = stops
+    k.rel(orchestrator, is_, Service)
+    k.rel(stops, is_, Connection)
+    k.rel(stops, triggered_by, graph)
+    k.rel(stops, has, orchestrator)
 
     # Each service → a Service (declaring its ports) wrapped in a PlatformServiceConnection (the palette
-    # entry, carrying the dispatch Subdomain).
+    # entry, carrying the Subdomain it is called at).
     connection_by_key = {}
     service_by_key = {}
+    offered_by_key = {}
+    strategy_kind = k.thing(stable_id(_TAG, "kind", "Strategy"), "Strategy", archetype=True)
     for svc in SERVICES:
-        svc_id = k.thing(stable_id(_TAG, "service", svc["key"]), f"{svc['label']} service")
+        svc_id = k.thing(stable_id(_TAG, "service", svc["key"]), f"{svc['label']} service",
+                         {"rehearses": typed(svc.get("rehearses", True), "vos.Boolean")})
         service_by_key[svc["key"]] = svc_id
         k.rel(svc_id, is_, Service)
         for (name, direction, type, required, collection) in svc["ports"]:
             make_port(svc_id, svc["key"], name, direction, type, required, collection)
+        # What an in port offers is related to the port itself, so every node bound to the service may choose
+        # among the same Things.
+        for port_name, names in svc.get("offers", {}).items():
+            for name in names:
+                offered_id = k.thing(stable_id(_TAG, "offered", svc["key"], port_name, name), name)
+                k.rel(offered_id, is_, strategy_kind)
+                k.rel(port_ids[(svc_id, port_name, "in")], offers, offered_id)
+                offered_by_key[(svc["key"], port_name, name)] = offered_id
 
         conn_id = k.thing(stable_id(_TAG, "connection", svc["key"]), svc["label"],
                           {"Subdomain": typed(svc["subdomain"], "vos.String")})
@@ -254,22 +418,36 @@ def build():
             k.rel(system_id, told_through, through_id)
         system_by_key[system["key"]] = system_id
 
-    stood_for = {"messageKind": kind_by_key, "externalSystem": system_by_key,
+    # lastDue is declared empty because the orchestrator's write updates a property and never creates one.
+    cadence_by_key = {}
+    for cadence in CADENCES:
+        cadence_id = k.thing(stable_id(_TAG, "cadence", cadence["key"]), cadence["label"], {
+            "intervalMinutes": typed(float(cadence["intervalMinutes"]), "vos.Double"),
+            "lastDue": typed(None, "vos.DateTime"),
+        })
+        k.rel(cadence_id, is_, Cadence)
+        cadence_by_key[cadence["key"]] = cadence_id
+
+    stood_for = {"messageKind": kind_by_key, "externalSystem": system_by_key, "cadence": cadence_by_key,
                  "pipeline": {pipe["name"]: stable_id(_TAG, "pipeline", pipe["name"]) for pipe in PIPELINES}}
 
     for pipe in PIPELINES:
-        pipe_id = k.thing(stable_id(_TAG, "pipeline", pipe["name"]), pipe["name"])
+        pipe_id = k.thing(stable_id(_TAG, "pipeline", pipe["name"]), pipe["name"], {"published": typed(True, "vos.Boolean")})
         k.rel(pipe_id, is_, Pipeline)
 
         node_id = {}
+        ports_also_held_by = {}
+        choice_by_key = {}
         for node in pipe["nodes"]:
             nid = stable_id(_TAG, "node", pipe["name"], node["key"])
             node_id[node["key"]] = nid
-            x = _ORIGIN + node["at"]["col"] * _COL_WIDTH
-            y = _ORIGIN + node["at"]["row"] * _ROW_HEIGHT
-            props = {"x": typed(float(x), "vos.Double"), "y": typed(float(y), "vos.Double")}
+            if "service" in node:
+                ports_also_held_by[node["key"]] = service_by_key[node["service"]]
+            elif "kind" in node:
+                ports_also_held_by[node["key"]] = run_by_the_orchestrator[node["kind"]]
+            props = canvas_position(node["at"]["col"], node["at"]["row"])
             if node.get("params"):
-                props["paramBindings"] = typed(json.dumps(node["params"]), "vos.String")
+                props["parameterBindings"] = typed(json.dumps(node["params"]), "vos.String")
             if node.get("onItemError"):
                 props["onItemError"] = typed(node["onItemError"], "vos.String")
 
@@ -278,6 +456,28 @@ def build():
                 k.thing(nid, label, props)
                 k.rel(nid, is_, PipelineNode)
                 k.rel(nid, has, connection_by_key[node["service"]])
+                for (pname, ptype) in node.get("outPorts", []):
+                    make_port(nid, f"{pipe['name']}.{node['key']}", pname, "out", ptype, False, False)
+                if node.get("chooses"):
+                    port_name, name = node["chooses"]
+                    k.rel(nid, offers, offered_by_key[(node["service"], port_name, name)])
+                for choice in node.get("choices", []):
+                    choice_id = k.thing(stable_id(_TAG, "decisionPath", pipe["name"], node["key"], choice["name"]), choice["name"],
+                                        {"when": typed(choice.get("when", ""), "vos.String")})
+                    k.rel(choice_id, is_, DecisionPath)
+                    k.rel(nid, has, choice_id)
+                    for port_name, name in choice.get("comparesWith", []):
+                        k.rel(choice_id, compares_with, offered_by_key[(node["service"], port_name, name)])
+                    choice_by_key[(node["key"], choice["name"])] = choice_id
+            elif "kind" in node:
+                k.thing(nid, node["label"], props)
+                k.rel(nid, is_, run_by_the_orchestrator[node["kind"]])
+                for (pname, ptype) in node.get("passesOn", []):
+                    for direction in ("in", "out"):
+                        make_port(nid, f"{pipe['name']}.{node['key']}", pname, direction, ptype, direction == "in", False)
+                if node.get("standsFor"):
+                    kind, key = node["standsFor"]
+                    k.rel(nid, stands_for, stood_for[kind][key])
             else:
                 is_input = "input" in node
                 label = node.get("label", "Input" if is_input else "Output")
@@ -295,15 +495,21 @@ def build():
 
             k.rel(pipe_id, has, nid)
 
+        # Every value is declared, empty where unset, because a property write on a Thing updates and does not
+        # create, so the page could never set one left out.
         for wire in pipe["wires"]:
-            props = {
-                "fromPort": typed(wire["fromPort"], "vos.String"),
-                "toPort": typed(wire["toPort"], "vos.String"),
-            }
-            for optional in ("fromPath", "toPath", "transform"):
-                if wire.get(optional):
-                    props[optional] = typed(wire[optional], "vos.String")
-            k.rel(node_id[wire["from"]], carries, node_id[wire["to"]], props)
+            source, target = node_id[wire["from"]], node_id[wire["to"]]
+            wid = stable_id(_TAG, "wire", pipe["name"], wire["from"], wire["fromPort"], wire["to"], wire["toPort"], wire.get("toPath", ""))
+            k.thing(wid, f"{k.things[source]['Name']}.{wire['fromPort']} to {k.things[target]['Name']}.{wire['toPort']}",
+                    {name: typed(wire.get(name, ""), "vos.String") for name in ("fromPath", "toPath", "listTransform", "itemTransform")})
+            k.rel(wid, is_, PipelineWire)
+            k.rel(source, has, wid)
+            k.rel(wid, carries, target)
+            out_port = error_port if wire["fromPort"] == "error" else port_of(port_ids, source, ports_also_held_by.get(wire["from"]), wire["fromPort"], "out")
+            k.rel(wid, input_connector, out_port)
+            k.rel(wid, output_connector, port_of(port_ids, target, ports_also_held_by.get(wire["to"]), wire["toPort"], "in"))
+            for taken in wire.get("takenOn", ["success"]):
+                k.rel(wid, taken_on, results.get(taken) or choice_by_key[(wire["from"], taken)])
 
         # Seeded run history: a PipelineRun -of-> pipeline, each carrying NodeRuns so the History
         # panel and node status rings show data with no live Phloem. A fan-out node also gets per-item NodeRuns
@@ -339,6 +545,8 @@ def build():
                         k.rel(item_id, is_, NodeRun)
                         k.rel(run_id, has, item_id)
 
+    place_under_roots(k, v, configured=(ExternalSystem, MessageKind, Cadence, strategy_kind),
+                      operational=(PipelineRun, NodeRun, SentMessage, StopRequest))
     return k
 
 
@@ -376,45 +584,60 @@ def as_fragment(kit):
     }
 
 
-def merge_into(kit, seed):
+def _roles_in(seed):
+    """The Things directly `is` Role, as the platform's seed validation requires of a role."""
+    is_ids = {t["Id"] for t in seed["Things"] if t["Name"] == "is"}
+    return {r.get("Subject") for r in seed["Relationships"]
+            if r.get("Predicate") in is_ids and r.get("Target") == ROLE_ARCHETYPE}
+
+
+def merge_into(kit, seed, found=None):
     """Merge the kit into a loaded seed in place, reusing the target's own vocabulary instead of duplicating
-    it: an archetype is found by the role flag it carries, so a model that renamed one keeps its name, and
-    the built-in `is`/`has`/`of` predicates are found by name. An archetype the target has under the same
-    name but has never marked is marked as it reconciles — the flag is the only thing that says what an
-    archetype is for, and a target left unmarked is one the editor and the orchestrator cannot read."""
+    it: a Thing playing a role is found through what the target's role Thing binds, so a model that renamed
+    one keeps its name, and the built-in `is`/`has`/`of`/`binds` predicates are found by name. A Thing the
+    target has under the same name but has never bound comes to play the role as it reconciles, because the
+    binding is the only thing that says what it is for. A role Thing is matched by its identifier alone and
+    a target's own is kept, since every model declares it under the same one.
+
+    `found` maps a kit Thing's id to the target's own Thing standing for it, found by the caller in a way of
+    its own. The target's Thing is kept as it is, with every relationship it already has; the kit adds only
+    what reaches it from a Thing the target did not hold."""
+    found = found or {}
     seed.setdefault("Things", [])
     seed.setdefault("Relationships", [])
+    roles = _roles_in(seed)
     by_name = {}
-    by_id = {}
-    carrier_of = {}
     for t in seed["Things"]:
-        by_name.setdefault(t["Name"], t["Id"])
-        by_id[t["Id"]] = t
-        for flag in ROLE_FLAG.values():
-            if _prop(t.get("Properties"), flag) is True:
-                carrier_of.setdefault(flag, t["Id"])
+        if t["Id"] not in roles:
+            by_name.setdefault(t["Name"], t["Id"])
+    binds_ids = {t["Id"] for t in seed["Things"] if t["Name"] == "binds"}
+    bound_by_role = {}
+    for r in seed["Relationships"]:
+        if r.get("Predicate") in binds_ids:
+            bound_by_role.setdefault(r.get("Subject"), r.get("Target"))
     thing_ids = {t["Id"] for t in seed["Things"]}
-    rel_keys = {(r.get("Subject"), r.get("Predicate"), r.get("Target"),
-                 _rel_prop(r, "fromPort"), _rel_prop(r, "toPort"), _rel_prop(r, "toPath"))
-                for r in seed["Relationships"]}
+    rel_keys = {(r.get("Subject"), r.get("Predicate"), r.get("Target")) for r in seed["Relationships"]}
 
     remap = {}
     for sid in kit.shared:
-        flag = kit.role_flag.get(sid)
-        existing = carrier_of.get(flag) if flag else None
+        role = kit.role_of.get(sid)
+        existing = bound_by_role.get(role) if role else None
         if existing is None:
             existing = by_name.get(kit.things[sid]["Name"])
-            if existing is not None and flag:
-                by_id[existing].setdefault("Properties", {})[flag] = typed(True, "vos.Boolean")
         if existing and existing != sid:
             remap[sid] = existing
+    remap.update(found)
 
     def m(i):
         return remap.get(i, i)
 
+    # A target's own Thing already holds what it needs: a second set of a kind's ports would leave a required one
+    # unfilled on every node of that kind, and a second service under a connection would be sent every call too.
+    held_by_a_kept_holder = {held for held, holder in kit.held_by_shared.items() if holder in remap}
+
     added_things = added_rels = 0
     for tid, t in kit.things.items():
-        if tid in remap:
+        if tid in remap or tid in held_by_a_kept_holder or (tid in thing_ids and (tid in kit.role_things or tid == ROLE_ARCHETYPE)):
             continue
         if tid in thing_ids:
             for i, existing in enumerate(seed["Things"]):
@@ -427,8 +650,12 @@ def merge_into(kit, seed):
             added_things += 1
 
     for r in kit.rels.values():
+        if r["Subject"] in held_by_a_kept_holder or r["Target"] in held_by_a_kept_holder:
+            continue
+        if r["Subject"] in found and r["Target"] in remap:
+            continue
         s, p, t = m(r["Subject"]), m(r["Predicate"]), m(r["Target"])
-        key = (s, p, t, _rel_prop(r, "fromPort"), _rel_prop(r, "toPort"), _rel_prop(r, "toPath"))
+        key = (s, p, t)
         if key in rel_keys:
             continue
         seed["Relationships"].append({**r, "Subject": s, "Predicate": p, "Target": t})
@@ -439,18 +666,15 @@ def merge_into(kit, seed):
 
 
 def remove_from(kit, seed):
-    """Strip a previously-merged playground back out (leaves the reconciled shared vocabulary in place)."""
-    drop_things = {tid for tid in kit.things if tid not in kit.shared}
-    drop_rels = {r["Id"] for r in kit.rels.values()}
+    """Strip a previously-merged playground back out, leaving the reconciled shared vocabulary in place
+    along with the role Things, what they bind, and where each sits under the roots."""
+    kept = kit.shared | kit.role_things | set(kit.held_by_shared)
+    drop_things = {tid for tid in kit.things if tid not in kept}
+    drop_rels = {r["Id"] for r in kit.rels.values() if r["Subject"] not in kept or r["Target"] not in kept}
     before_t, before_r = len(seed.get("Things", [])), len(seed.get("Relationships", []))
     seed["Things"] = [t for t in seed.get("Things", []) if t["Id"] not in drop_things]
     seed["Relationships"] = [r for r in seed.get("Relationships", []) if r.get("Id") not in drop_rels]
     return before_t - len(seed["Things"]), before_r - len(seed["Relationships"])
-
-
-def _rel_prop(rel, name):
-    entry = rel.get("Properties", {}).get(name)
-    return entry["value"] if isinstance(entry, dict) else ""
 
 
 def main():

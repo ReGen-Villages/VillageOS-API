@@ -33,7 +33,7 @@ export function buildRelationshipIndex(
   for (const r of relationships) {
     predicateIds.add(r.PredicateId);
     const predicate = thingMap.get(r.PredicateId);
-    if (predicate && predicate.Name.toLowerCase() === 'is') {
+    if (predicate && predicate.Name === 'is') {
       isTypeTargets.add(r.TargetId);
       if (!isSubjectToTypeName.has(r.SubjectId)) {
         const targetName = thingMap.get(r.TargetId)?.Name;

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using vos.Service.Shared;
+using vos.Service.Shared.Subscriptions;
 using vos.Service.Tributary.Helpers;
 
 namespace vos.Service.Tributary.Services;
@@ -94,7 +95,7 @@ public class ObservationIngestService
     // or created from it, whether or not the expression produced one.
     public async Task<ObservationIngestResult> CreateObservationsAsync(
         Guid endpointThingId, JsonataTransform query, string body, Guid? subjectId = null,
-        ObservedEdges? alreadyObserved = null)
+        ObservedEdges? alreadyObserved = null, CancellationToken cancellationToken = default)
     {
         if (!TryTransform(body, query, out var transformed, out var transformError))
             return new ObservationIngestResult(false, 0, 0, "Endpoint response transform failed", transformError);
@@ -106,7 +107,7 @@ public class ObservationIngestService
             _myceliumClient, endpointThingId, alreadyObserved ?? ObservedEdges.None);
 
         if (subjectId != null)
-            return await ObserveOntoSubjectAsync(subjectId.Value, readings, provenance);
+            return await ObserveOntoSubjectAsync(subjectId.Value, readings, provenance, cancellationToken);
 
         // Things scale with entities, observations with readings — so group by entity name and
         // touch each entity's structure once.
@@ -154,7 +155,7 @@ public class ObservationIngestService
 
             if (samples.Count > 0)
             {
-                if (!await _myceliumClient.SubmitObservationsAsync(entity.Value.Id, samples))
+                if (!await _myceliumClient.SubmitObservationsAsync(entity.Value.Id, samples, cancellationToken))
                     return new ObservationIngestResult(false, entitiesTouched, observationsSubmitted,
                         "Failed to submit observations for entity.", name);
                 observationsSubmitted += samples.Count;
@@ -171,7 +172,7 @@ public class ObservationIngestService
     // the words saying which half was refused.
     public async Task<string?> ObserveValueAsync(
         Guid endpointThingId, Guid subjectId, string property, object? value, DateTime? observedAt,
-        ObservedEdges? alreadyObserved = null)
+        ObservedEdges? alreadyObserved = null, CancellationToken cancellationToken = default)
     {
         var provenance = new ProvenanceWriter(
             _myceliumClient, endpointThingId, alreadyObserved ?? ObservedEdges.None);
@@ -180,14 +181,14 @@ public class ObservationIngestService
             return failure;
 
         if (!await _myceliumClient.SubmitObservationsAsync(
-                subjectId, [new ObservationSample(property, value, observedAt)]))
+                subjectId, [new ObservationSample(property, value, observedAt)], cancellationToken))
             return "Failed to submit observations for entity.";
 
         return null;
     }
 
     private async Task<ObservationIngestResult> ObserveOntoSubjectAsync(
-        Guid subjectId, List<Reading> readings, ProvenanceWriter provenance)
+        Guid subjectId, List<Reading> readings, ProvenanceWriter provenance, CancellationToken cancellationToken)
     {
         var samples = SamplesOf(readings);
 
@@ -202,7 +203,7 @@ public class ObservationIngestService
         if (await provenance.EnsureObservedAsync(subjectId) is { } failure)
             return new ObservationIngestResult(false, 1, 0, failure, null);
 
-        if (!await _myceliumClient.SubmitObservationsAsync(subjectId, samples))
+        if (!await _myceliumClient.SubmitObservationsAsync(subjectId, samples, cancellationToken))
             return new ObservationIngestResult(false, 1, 0, "Failed to submit observations for entity.", null);
 
         return new ObservationIngestResult(true, 1, samples.Count, null, null, WrittenOf(samples));
@@ -229,9 +230,10 @@ public class ObservationIngestService
         private readonly IEndpointMyceliumClient _myceliumClient;
         private readonly Guid _endpointThingId;
         private readonly IReadOnlySet<Guid> _alreadyObserved;
+        private readonly Guid? _predicateRootId;
 
-        // Resolved on the first Thing that needs it and kept for the rest of the call, so a fetch
-        // declaring several new entities looks the predicate up once.
+        // Created on the first Thing that needs it and kept for the rest of the call, so a fetch
+        // declaring several new entities creates the predicate once.
         private Guid? _predicateId;
 
         public ProvenanceWriter(
@@ -241,21 +243,22 @@ public class ObservationIngestService
             _endpointThingId = endpointThingId;
             _alreadyObserved = alreadyObserved.ObservedThingIds;
             _predicateId = alreadyObserved.PredicateId;
+            _predicateRootId = alreadyObserved.PredicateRootId;
         }
 
-        // Null when the relationship is in place. The two failures are named apart because one is a model with
-        // no predicate to relate through and the other is a write the model refused.
+        // Null when the relationship is in place. The two failures are named apart because one is a model that
+        // refused the predicate and its role and the other is a relationship the model refused.
         public async Task<string?> EnsureObservedAsync(Guid thingId)
         {
             if (_alreadyObserved.Contains(thingId)) return null;
 
             if (_predicateId == null)
             {
-                var predicate = await _myceliumClient.FindThingByNameAsync(ObservedEdges.PredicateName)
-                                ?? await _myceliumClient.CreateThingAsync(ObservedEdges.PredicateName);
-                if (predicate == null)
-                    return $"Failed to resolve or create '{ObservedEdges.PredicateName}' predicate.";
-                _predicateId = predicate.Value.Id;
+                var isPredicate = await _myceliumClient.FindThingByNameAsync("is");
+                var binds = await _myceliumClient.FindThingByNameAsync(RoleBindings.BindsPredicateName);
+                if (!await _myceliumClient.ApplyFragmentAsync(ObservedEdges.CreationFragment(isPredicate?.Id, binds?.Id, _predicateRootId)))
+                    return $"Failed to create the '{ObservedEdges.PredicateName}' predicate and bind its role.";
+                _predicateId = ObservedEdges.CreatedPredicateId;
             }
 
             if (!await _myceliumClient.CreateRelationshipAsync(_endpointThingId, _predicateId.Value, thingId))

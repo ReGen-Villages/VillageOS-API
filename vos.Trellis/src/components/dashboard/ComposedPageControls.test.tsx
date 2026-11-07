@@ -11,6 +11,7 @@ vi.mock('../../api/dashboardPages', async (importOriginal) => ({
 
 import { dashboardPages } from '../../api/dashboardPages';
 import { buildModelIndex } from '../../api/dashboardApi';
+import { PAGE_ROLE_ID } from '../../api/platformRoles';
 import { ComposedPageControls } from './ComposedPageControls';
 
 function thing(Id: string, Name: string, IsArchetype = false): VosThing {
@@ -21,8 +22,8 @@ function relationship(Id: string, SubjectId: string, PredicateId: string, Target
 }
 
 const index = buildModelIndex(
-  [thing('is', 'is'), thing('dashboard', 'Dashboard', true), thing('kept', 'Springs by flow')],
-  [relationship('i1', 'kept', 'is', 'dashboard')],
+  [thing('is', 'is'), thing('binds', 'binds'), thing(PAGE_ROLE_ID, 'Page'), thing('dashboard', 'Dashboard', true), thing('kept', 'Springs by flow')],
+  [relationship('b1', PAGE_ROLE_ID, 'binds', 'dashboard'), relationship('i1', 'kept', 'is', 'dashboard')],
 );
 
 const composed: DashboardDescriptor = {

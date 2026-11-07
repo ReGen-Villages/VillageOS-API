@@ -146,7 +146,7 @@ test('a manifest with no file address is refused by that name', () => {
 // the build publishes it from.
 test('the file address names the branch the build publishes the wiki from', () => {
   const pipeline = fs.readFileSync(path.join(REPO_ROOT, 'azure-pipelines.yml'), 'utf8');
-  const step = pipeline.slice(pipeline.indexOf("displayName: 'Publish Docs to Wiki'"));
+  const step = pipeline.slice(pipeline.indexOf("displayName: 'Publish the wiki to GitHub'"));
   const published = step.match(/'refs\/heads\/([^']+)'/);
   assert.ok(published, 'the build no longer names the branch the wiki is published from');
   assert.equal(manifest.wiki.repositoryFileAddress, `https://github.com/ReGen-Villages/VillageOS-API/blob/${published[1]}/`);

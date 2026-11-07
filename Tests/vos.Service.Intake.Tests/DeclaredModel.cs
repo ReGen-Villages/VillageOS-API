@@ -1,5 +1,6 @@
 using System.Text.Json;
 using vos.Service.Intake.Services;
+using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Tests;
@@ -12,21 +13,33 @@ public sealed class DeclaredModel
     private readonly List<SnapshotThing> _things = [];
     private readonly List<SnapshotRelationship> _edges = [];
 
-    // A model seeded from the land-intake template: every vocabulary, each under a marked
-    // archetype and reached through a marked predicate.
+    // A model seeded from the land-intake template: every vocabulary, each under an archetype a role
+    // binds and reached through a predicate a role binds.
     public static DeclaredModel Seeded()
     {
         var model = new DeclaredModel()
-            .WithArchetype("AllocationCategory", DeclaredVocabularyReader.AllocationCategoryArchetypeFlag)
-            .With("categorizedAs", DeclaredVocabularyReader.AllocationCategoryPredicateFlag)
-            .WithArchetype("BoundarySource", DeclaredVocabularyReader.BoundarySourceArchetypeFlag)
-            .With("obtainedBy", DeclaredVocabularyReader.BoundarySourcePredicateFlag)
-            .WithArchetype("HazardType", DeclaredVocabularyReader.HazardTypeArchetypeFlag)
-            .With("assesses", DeclaredVocabularyReader.HazardTypePredicateFlag)
-            .WithArchetype("HazardLevel", DeclaredVocabularyReader.HazardLevelArchetypeFlag)
-            .With("reportedAs", DeclaredVocabularyReader.ReportedLevelPredicateFlag)
-            .With("Earth", DeclaredVocabularyReader.RootPlaceFlag)
-            .With("isIn", DeclaredVocabularyReader.PlaceNestingPredicateFlag);
+            .WithArchetype("AllocationCategory").Bound(LandIntakeRoles.AllocationCategory, "AllocationCategory")
+            .With("categorizedAs").Bound(LandIntakeRoles.CategorizedAs, "categorizedAs")
+            .WithArchetype("BoundarySource").Bound(LandIntakeRoles.BoundarySource, "BoundarySource")
+            .With("obtainedBy").Bound(LandIntakeRoles.ObtainedBy, "obtainedBy")
+            .WithArchetype("HazardType").Bound(LandIntakeRoles.HazardType, "HazardType")
+            .With("assesses").Bound(LandIntakeRoles.Assesses, "assesses")
+            .WithArchetype("HazardLevel").Bound(LandIntakeRoles.HazardLevel, "HazardLevel")
+            .With("reportedAs").Bound(LandIntakeRoles.ReportedLevel, "reportedAs")
+            .With("Earth").Bound(LandIntakeRoles.RootPlace, "Earth")
+            .With("isIn").Bound(LandIntakeRoles.PlaceNesting, "isIn")
+            .WithArchetype("SiteStudy").Bound(LandIntakeRoles.SiteStudy, "SiteStudy")
+            .WithArchetype("Site").Bound(LandIntakeRoles.Site, "Site")
+            .WithArchetype("Parcel").Bound(LandIntakeRoles.Parcel, "Parcel")
+            .WithArchetype("Project").Bound(LandIntakeRoles.Project, "Project")
+            .WithArchetype("Contact").Bound(LandIntakeRoles.PersonalDetail, "Contact")
+            .WithArchetype("ProgrammeAllocation").Bound(LandIntakeRoles.ProgrammeAllocation, "ProgrammeAllocation")
+            .WithArchetype("HazardAssessment").Bound(LandIntakeRoles.HazardAssessment, "HazardAssessment")
+            .WithArchetype("SubmittedSource").Bound(LandIntakeRoles.SubmittedSource, "SubmittedSource")
+            .WithArchetype("Submission").Bound(LandIntakeRoles.Submission, "Submission")
+            .With("studies").Bound(LandIntakeRoles.StudiedSite, "studies")
+            .With("proposes").Bound(LandIntakeRoles.ProposedSite, "proposes")
+            .With("servedAfter").Bound(LandIntakeRoles.ServiceOrder, "servedAfter");
 
         foreach (var (category, share) in WillowBend.DefaultProgramme)
             model.Stating(category, (FormOptionsReader.DefaultShareProperty, share))
@@ -38,17 +51,17 @@ public sealed class DeclaredModel
         foreach (var level in WillowBend.HazardLevelNames)
             model.Relate(level, "is", "HazardLevel");
 
-        model.WithArchetype(
-            "WaterDemandComponent", DeclaredVocabularyReader.WaterDemandComponentArchetypeFlag);
+        model.WithArchetype("WaterDemandComponent").Bound(LandIntakeRoles.WaterDemandComponent, "WaterDemandComponent");
         foreach (var (demand, servingOrder) in WillowBend.WaterDemandNames)
             model.ArchetypeStating(demand, (DeclaredVocabularyReader.ServingOrderProperty, servingOrder))
                 .Relate(demand, "is", "WaterDemandComponent");
 
-        // The two position lookups the open-data catalogue registers: standalone marked Things, the way
-        // the catalogue declares them, with a reshape of their own for the caller to apply.
+        // The two position lookups the open-data catalogue registers: standalone Things each bound by its role,
+        // the way the catalogue declares them, with a reshape of their own for the caller to apply.
         model
+            .Bound(PositionLookupReader.ParcelLookupRole, WillowBend.ParcelRegisterName)
+            .Bound(PositionLookupReader.PlaceSearchRole, WillowBend.PlaceSearchName)
             .Stating(WillowBend.ParcelRegisterName,
-                (PositionLookupReader.ParcelLookupFlag, true),
                 (PositionLookupReader.TransformProperty, WillowBend.ParcelRegisterTransform),
                 (PositionLookupReader.AttributionProperty, WillowBend.ParcelRegisterAttribution),
                 (PositionLookupReader.SouthLatitudeProperty, 41.0),
@@ -56,13 +69,12 @@ public sealed class DeclaredModel
                 (PositionLookupReader.WestLongitudeProperty, -5.5),
                 (PositionLookupReader.EastLongitudeProperty, 10.0))
             .Stating(WillowBend.PlaceSearchName,
-                (PositionLookupReader.PlaceSearchFlag, true),
                 (PositionLookupReader.TransformProperty, WillowBend.PlaceSearchTransform),
                 (PositionLookupReader.AttributionProperty, WillowBend.PlaceSearchAttribution));
 
         // A deployment's model also says what a map may draw on, which a form reads beside the categories.
         model
-            .WithArchetype(FormOptionsReader.BasemapSourceArchetypeName)
+            .WithArchetype(BasemapSourceArchetype).Bound(LandIntakeRoles.BasemapSource, BasemapSourceArchetype)
             .Stating(
                 WillowBend.VectorBasemapName,
                 ("attribution", WillowBend.BasemapAttribution),
@@ -71,10 +83,12 @@ public sealed class DeclaredModel
                 (FormOptionsReader.TerrainEncodingProperty, WillowBend.TerrainEncoding),
                 (FormOptionsReader.TerrainExaggerationProperty, WillowBend.TerrainExaggeration),
                 (FormOptionsReader.BuildingSourceLayerProperty, WillowBend.BuildingSourceLayer))
-            .Relate(WillowBend.VectorBasemapName, "is", FormOptionsReader.BasemapSourceArchetypeName);
+            .Relate(WillowBend.VectorBasemapName, "is", BasemapSourceArchetype);
 
         return model;
     }
+
+    public const string BasemapSourceArchetype = "BasemapSource";
 
     public Guid Id(string name)
     {
@@ -95,6 +109,24 @@ public sealed class DeclaredModel
         _edges.Add(new SnapshotRelationship(
             Guid.NewGuid(), null, Id(subject), Id(predicate), Id(target),
             [], new Dictionary<string, InheritedPropertySet>(), []));
+        return this;
+    }
+
+    // The role Thing, under the identifier every model declares it by, binding the named Thing along `binds`. Held
+    // by identifier rather than by name: a predicate and the role binding it can share a word, as categorizedAs does.
+    public DeclaredModel Bound(Role role, string name)
+    {
+        if (_things.All(thing => thing.Id != role.Id))
+            _things.Add(Thing(role.Id, role.Word, isArchetype: false, []));
+        _edges.Add(new SnapshotRelationship(
+            Guid.NewGuid(), null, role.Id, Id(RoleBindings.BindsPredicateName), Id(name),
+            [], new Dictionary<string, InheritedPropertySet>(), []));
+        return this;
+    }
+
+    public DeclaredModel Unbound(Role role)
+    {
+        _edges.RemoveAll(edge => edge.SubjectId == role.Id);
         return this;
     }
 

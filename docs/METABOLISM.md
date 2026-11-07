@@ -74,7 +74,9 @@ The `properties` field contains the relationship's own properties, sent inline s
 
 ### Simulation lifecycle
 
-Each `/handle` request creates one simulation loop in the `Metabolism` engine:
+Each `/handle` request creates one simulation loop in the `Metabolism` engine, except when Mycelium
+will not swap the call's token for a longer-lived one: then it answers `503` and creates none. Each
+tick writes under the swapped token, so a loop outlives the five-minute token the call arrived with.
 
 ```mermaid
 stateDiagram-v2
@@ -117,7 +119,7 @@ The handler receives `RelationshipPropertyChanged` events over its Mycelium SSE 
 | Property | Effect |
 |----------|--------|
 | `quantity` | Changes the amount applied per tick |
-| `frequencySeconds` | Changes the tick interval |
+| `frequencySeconds` | Changes the tick interval; a change under one second is refused and logged, and the interval is kept |
 | `unit` | Updates the unit label |
 | `propertyPath` | Changes which property on the target is modified |
 | `startDelaySeconds` | Changes the initial delay (restarts the loop) |
@@ -178,7 +180,7 @@ These are set on the relationship (not the things) and control the simulation:
 | `quantity` | number | 1.0 | Amount per tick |
 | `propertyPath` | string | `"quantity"` | Which property on the target thing to modify |
 | `unit` | string | `""` | Unit label (for logging and display) |
-| `frequencySeconds` | number | 60 | Seconds between ticks |
+| `frequencySeconds` | number | 60 | Seconds between ticks: at least 1, fractions allowed. Under 1, `/handle` answers `400` |
 | `startDelaySeconds` | number | 0 | Delay before simulation begins |
 | `startUtc` | ISO 8601 | now | When to start ticking |
 | `endUtc` | ISO 8601 | 2099-12-31 | When to stop |
@@ -219,7 +221,7 @@ Relationships wire them: `consumes is PlatformServiceConnection`, `consumes trig
 `consumes has "consumes service"`, `"consumes service" is "Metabolism prototype"`,
 `"Metabolism prototype" is Service` — and the same for `produces`. The `Service` archetype carries the
 `ExecutablePathTemplate` that turns `ServiceAssembly` into a path, and relates to the `daemon` run
-mode; the trigger and the run mode are Things the seed declares, never words on a connection. The full shape, and the marks the platform finds the two archetypes by, are in
+mode; the trigger and the run mode are Things the seed declares, never words on a connection. The full shape, and the roles the platform finds the two archetypes through, are in
 [`RELATIONSHIP_SERVICES.md`](RELATIONSHIP_SERVICES.md#platformserviceconnection--service-configuration).
 
 `AutoStart: true` is important — it tells Mycelium to re-invoke the handler for all existing relationships when a seed is loaded. Since simulation state is in-memory (not serialized), simulations must be re-started on every load.
@@ -290,4 +292,4 @@ Mycelium can also trigger shutdown by POSTing to `/shutdown`, which follows the 
 
 ## Logging
 
-Logs go to `logs/metabolism-{mode}-YYYYMMDD.log` (rolling daily). File-only logging — no console sink. Mycelium does **not** redirect stdout (`RedirectStandardOutput = false`), so console output goes to Mycelium's own console or is lost. **Use file-based logging only (Serilog `WriteTo.File`) for reliable diagnostics.**
+Logs go to `logs/metabolism-{mode}-YYYYMMDD.log` (rolling daily), in the folder `--logDirectory` names or four folders above the build output. Every line also goes to the console, in every environment, because whatever started the service captures its standard output.

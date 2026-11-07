@@ -1,9 +1,6 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using System.Web;
-using vos.Service.Intake.Helpers;
-using vos.Service.Intake.Services;
 using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Tests;
@@ -41,19 +38,6 @@ public static class ModelStub
             new SubscribeResult(Guid.NewGuid(), 0, DeclaredModel.Seeded().Build()),
             new JsonSerializerOptions(JsonSerializerDefaults.Web));
 
-    private static readonly string[] ArchetypeNames =
-    [
-        SubmissionFragmentComposer.SiteArchetypeName,
-        SubmissionFragmentComposer.SiteStudyArchetypeName,
-        SubmissionFragmentComposer.ParcelArchetypeName,
-        SubmissionFragmentComposer.ProjectArchetypeName,
-        SubmissionFragmentComposer.ContactArchetypeName,
-        SubmissionFragmentComposer.ProgrammeAllocationArchetypeName,
-        SubmissionFragmentComposer.HazardAssessmentArchetypeName,
-        SubmissionFragmentComposer.SubmittedSourceArchetypeName,
-        SubmissionFragmentComposer.SubmissionArchetypeName,
-    ];
-
     // A lookup by identifier rather than by name — how the service asks whether a submission's
     // record is already there.
     public static bool IsThingLookupById(HttpRequestMessage request) =>
@@ -62,34 +46,4 @@ public static class ModelStub
         && Guid.TryParse(request.RequestUri.AbsolutePath["/api/things/".Length..], out _);
 
     public static HttpResponseMessage NotFound() => new(HttpStatusCode.NotFound);
-
-    public static string NameAsked(HttpRequestMessage request) =>
-        HttpUtility.ParseQueryString(request.RequestUri!.Query)["name"] ?? "";
-
-    // A model seeded from the analysis templates, which is the only kind a submission may enter.
-    // The archetypes answer with an identifier derived from their name, so two calls agree; everything
-    // else is left to the test, which is what it came to say something about.
-    public static Func<HttpRequestMessage, HttpResponseMessage> Seeded(
-        Func<HttpRequestMessage, HttpResponseMessage> answerTheRest) =>
-        request =>
-        {
-            if (IsFragment(request)) return answerTheRest(request);
-            var name = NameAsked(request);
-            return ArchetypeNames.Contains(name)
-                ? Json($$"""{"Id":"{{StableArchetypeId(name)}}","Name":"{{name}}"}""")
-                : answerTheRest(request);
-        };
-
-    // What Seeded answers a name lookup with, for a test that has to wrap the
-    // answering itself rather than hand it over.
-    public static HttpResponseMessage SeededAnswer(HttpRequestMessage request)
-    {
-        var name = NameAsked(request);
-        return ArchetypeNames.Contains(name)
-            ? Json($$"""{"Id":"{{StableArchetypeId(name)}}","Name":"{{name}}"}""")
-            : Holds(request);
-    }
-
-    public static Guid StableArchetypeId(string archetypeName) =>
-        StableIdentity.Derive(archetypeName, "archetype");
 }

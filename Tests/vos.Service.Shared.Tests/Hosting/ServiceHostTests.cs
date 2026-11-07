@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Shared;
@@ -167,6 +168,72 @@ public class ServiceHostTests
         (await registered.Task).Method.Should().Be(HttpMethod.Post);
     }
 
+    [Fact]
+    public async Task AddMyceliumRegistration_AnnouncesThePrefixTheHostWritesItsLogUnder()
+    {
+        const string prefix = "service-host-registration-test-";
+        foreach (var stale in LogFilesNamed(prefix)) stale.Delete();
+        var registered = new TaskCompletionSource<JsonElement>();
+        try
+        {
+            ServiceHost.ConfigureLogging("ServiceHostRegistrationTest", $"{prefix}.log", logDirectory: null);
+            await using var app = BuildApp(request =>
+            {
+                if (request.RequestUri!.AbsolutePath == "/api/mycelium/register")
+                    registered.TrySetResult(JsonDocument.Parse(request.Content!.ReadAsStringAsync().Result).RootElement.Clone());
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            }, withMyceliumRegistration: true);
+
+            await app.StartAsync();
+
+            await Settle.ForAsync(registered.Task, "startup announces the service to the broker");
+            (await registered.Task).GetProperty("logFilePrefix").GetString().Should().Be(prefix);
+            (await registered.Task).TryGetProperty("logDirectory", out _).Should().BeFalse(
+                "a service writing to the default folder leaves the broker to find it beside the executable");
+        }
+        finally
+        {
+            Serilog.Log.CloseAndFlush();
+            foreach (var file in LogFilesNamed(prefix)) file.Delete();
+        }
+    }
+
+    [Fact]
+    public async Task AddMyceliumRegistration_AnnouncesTheFolderTheServiceWasToldToWriteItsLogIn()
+    {
+        var folder = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), $"service-host-log-folder-{Guid.NewGuid():N}"));
+        var registered = new TaskCompletionSource<JsonElement>();
+        try
+        {
+            ServiceHost.ConfigureLogging("ServiceHostLogFolderTest", "service-host-log-folder-.log", Path.Combine(folder.FullName, "nested", ".."));
+            await using var app = BuildApp(request =>
+            {
+                if (request.RequestUri!.AbsolutePath == "/api/mycelium/register")
+                    registered.TrySetResult(JsonDocument.Parse(request.Content!.ReadAsStringAsync().Result).RootElement.Clone());
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            }, withMyceliumRegistration: true);
+
+            await app.StartAsync();
+
+            await Settle.ForAsync(registered.Task, "startup announces the service to the broker");
+            (await registered.Task).GetProperty("logDirectory").GetString().Should().Be(folder.FullName,
+                "the broker compares the folder as a full path");
+        }
+        finally
+        {
+            Serilog.Log.CloseAndFlush();
+            folder.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ConfigureLogging_WithTheFileSinkOff_AnnouncesNoFolder()
+    {
+        ServiceHost.ConfigureLogging("ServiceHostNoFileFolderTest", "no-file-.log", logDirectory: "/var/log/villageos", writeToFile: false);
+
+        ServiceHost.LogDirectory.Should().BeNull("there is no file for the broker to find");
+    }
+
     // The deregistration route is admin-only, so a service asking to withdraw itself is refused on
     // every shutdown. The broker's liveness monitor removes a registration whose service stops
     // answering, so shutdown must not ask at all.
@@ -218,7 +285,7 @@ public class ServiceHostTests
         const string prefix = "service-host-no-file-test-";
         var before = LogFilesNamed(prefix).Length;
 
-        ServiceHost.ConfigureLogging("ServiceHostTest", $"{prefix}.log", writeToFile: false);
+        ServiceHost.ConfigureLogging("ServiceHostTest", $"{prefix}.log", logDirectory: null, writeToFile: false);
         Serilog.Log.Information("a message that must not reach a file");
         Serilog.Log.CloseAndFlush();
 
@@ -233,7 +300,8 @@ public class ServiceHostTests
 
         try
         {
-            ServiceHost.ConfigureLogging("ServiceHostFileTest", $"{prefix}.log");
+            ServiceHost.ConfigureLogging("ServiceHostFileTest", $"{prefix}.log", logDirectory: null);
+            ServiceHost.LogFilePrefix.Should().Be(prefix, "the broker is told what the file is written under");
             Serilog.Log.Information("a message that must reach the file");
             Serilog.Log.CloseAndFlush();
 
@@ -245,5 +313,68 @@ public class ServiceHostTests
         {
             foreach (var file in LogFilesNamed(prefix)) file.Delete();
         }
+    }
+
+    [Fact]
+    public void ConfigureLogging_WithAFolder_WritesTheFileThere()
+    {
+        var folder = Directory.CreateTempSubdirectory("service-host-folder-test-");
+        try
+        {
+            ServiceHost.ConfigureLogging("ServiceHostFolderTest", "folder-test-.log", folder.FullName);
+            Serilog.Log.Information("a message that must reach the chosen folder");
+            Serilog.Log.CloseAndFlush();
+
+            var written = folder.GetFiles("folder-test-*.log");
+            written.Should().ContainSingle();
+            File.ReadAllText(written[0].FullName).Should().Contain("a message that must reach the chosen folder");
+        }
+        finally
+        {
+            folder.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ConfigureLogging_WithTheFileSinkOff_LeavesNoLogFilePrefix()
+    {
+        ServiceHost.ConfigureLogging("ServiceHostNoFileTest", "no-file-.log", logDirectory: null, writeToFile: false);
+
+        ServiceHost.LogFilePrefix.Should().BeNull("there is no file for the broker to find");
+    }
+
+    [Theory]
+    [InlineData("metabolism-outgoing-.log", "metabolism-outgoing-")]
+    [InlineData("intake-.log", "intake-")]
+    public void LogFilePrefixOf_IsTheFileNameWithoutItsExtension(string logFileName, string prefix) =>
+        ServiceHost.LogFilePrefixOf(logFileName).Should().Be(prefix);
+
+    [Fact]
+    public void FailedToStart_ReturnsExitCode1AndWritesTheReasonToStandardError()
+    {
+        var standardError = Console.Error;
+        var written = new StringWriter();
+        Console.SetError(written);
+        try
+        {
+            ServiceHost.FailedToStart(ServiceName, new IOException("address already in use"))
+                .Should().Be(1);
+        }
+        finally
+        {
+            Console.SetError(standardError);
+        }
+
+        written.ToString().Should().Contain($"{ServiceName} could not start: address already in use");
+    }
+
+    [Fact]
+    public void FailedToStart_LetsTheTestHostsStopThrough()
+    {
+        var stop = new HostAbortedException();
+
+        var failedToStart = () => ServiceHost.FailedToStart(ServiceName, stop);
+
+        failedToStart.Should().Throw<HostAbortedException>().Which.Should().BeSameAs(stop);
     }
 }

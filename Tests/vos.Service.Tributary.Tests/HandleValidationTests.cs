@@ -11,7 +11,7 @@ namespace vos.Service.Tributary.Tests;
 //   Empty-string url in the effective properties returns 400 with the documented "non-empty strings" message.
 //   Effective properties exposing url/httpMethod as raw keys (no Endpoint. prefix) route through EffectivePropertyResolver's exact-match branch and complete the happy path.
 // EffectivePropertyResolver itself is unit-tested in
-// Helpers/EffectivePropertyResolverTests.cs; these tests pin the end-to-end
+// vos.Service.Shared.Tests/EffectivePropertyResolverTests.cs; these tests pin the end-to-end
 // integration through Program.cs.
 public class HandleValidationTests
 {
@@ -72,7 +72,7 @@ public class HandleValidationTests
             return MyceliumStub.RouteFindThing(req, thingId, "EP")
                 ?? MyceliumStub.RouteEffectiveProperties(req, thingId, props)
                 ?? MyceliumStub.RouteKinds(req, thingId, new MyceliumStub.Kind(
-                    EndpointKindRoles.Authentication, "TokenExchangeAuth", "tokenUrl", "tokenRequest", "tokenPath"))
+                    EndpointKindRoles.Authentication, "TokenExchangeAuthentication", "tokenUrl", "tokenRequest", "tokenPath"))
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -81,7 +81,7 @@ public class HandleValidationTests
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("TokenExchangeAuth", "the refusal names the kind that was not satisfied");
+        body.Should().Contain("TokenExchangeAuthentication", "the refusal names the kind that was not satisfied");
         body.Should().Contain("tokenRequest").And.Contain("tokenPath", "and every key still outstanding");
         body.Should().NotContain("tokenUrl", "the one key the endpoint does supply is not reported missing");
         calledOut.Should().BeFalse("an endpoint that cannot satisfy its kind must not be called at all");
@@ -119,7 +119,7 @@ public class HandleValidationTests
     }
 
     [Fact]
-    public async Task Handle_RawUrlAndMethodKeys_HappyPath_DispatchesEndpoint()
+    public async Task Handle_RawUrlAndMethodKeys_HappyPath_CallsTheEndpoint()
     {
         var thingId = Guid.NewGuid();
         var props = """

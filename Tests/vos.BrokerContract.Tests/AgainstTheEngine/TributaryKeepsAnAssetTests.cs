@@ -23,7 +23,8 @@ public class TributaryKeepsAnAssetTests : IClassFixture<TheEngine>
     public TributaryKeepsAnAssetTests(TheEngine engine) => _engine = engine;
 
     private TributaryClient Tributary() => new(
-        _engine.ClientFactory, NullLogger<TributaryClient>.Instance, TheEngine.Url, _engine.AdminToken);
+        _engine.ClientFactory, NullLogger<TributaryClient>.Instance, TheEngine.Url, TimeProvider.System,
+        serviceToken: _engine.AdminToken);
 
     // Every case deposits its own bytes, so one case's dedup can never answer another's deposit.
     private static byte[] OwnBytes() => Guid.NewGuid().ToByteArray();
@@ -31,7 +32,7 @@ public class TributaryKeepsAnAssetTests : IClassFixture<TheEngine>
     private static string HashOf(byte[] bytes) =>
         Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
 
-    [Fact]
+    [FactAgainstTheEngine]
     public async Task A_deposit_answers_the_name_the_engine_computed_over_the_bytes()
     {
         var bytes = OwnBytes();
@@ -43,7 +44,7 @@ public class TributaryKeepsAnAssetTests : IClassFixture<TheEngine>
         ticket.Should().Be($"sha256:{HashOf(bytes)}");
     }
 
-    [Fact]
+    [FactAgainstTheEngine]
     public async Task Depositing_the_same_bytes_again_is_the_same_ticket()
     {
         var bytes = OwnBytes();
@@ -57,7 +58,7 @@ public class TributaryKeepsAnAssetTests : IClassFixture<TheEngine>
             + "200 must stay invisible to the client");
     }
 
-    [Fact]
+    [FactAgainstTheEngine]
     public async Task The_bytes_come_back_exactly_under_the_type_they_went_in_with()
     {
         var bytes = OwnBytes();
@@ -70,7 +71,7 @@ public class TributaryKeepsAnAssetTests : IClassFixture<TheEngine>
         (await served.Content.ReadAsByteArrayAsync()).Should().Equal(bytes);
     }
 
-    [Fact]
+    [FactAgainstTheEngine]
     public async Task A_type_the_media_map_does_not_know_is_served_back_exactly()
     {
         var bytes = OwnBytes();
@@ -83,7 +84,7 @@ public class TributaryKeepsAnAssetTests : IClassFixture<TheEngine>
         (await served.Content.ReadAsByteArrayAsync()).Should().Equal(bytes);
     }
 
-    [Fact]
+    [FactAgainstTheEngine]
     public async Task Tributary_finds_the_subject_a_keep_names()
     {
         var name = $"KeepSubject_{Guid.NewGuid():N}";
@@ -97,7 +98,7 @@ public class TributaryKeepsAnAssetTests : IClassFixture<TheEngine>
 
     // The worked shape of the feature: a blank string property sampled by time, and a ticket landing on it
     // as an ordinary observation with no time of its own, left for the model clock.
-    [Fact]
+    [FactAgainstTheEngine]
     public async Task A_ticket_rides_the_observation_route_the_keep_lane_writes_through()
     {
         var client = Tributary();

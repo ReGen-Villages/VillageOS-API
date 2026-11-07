@@ -27,20 +27,15 @@ public class ArchetypeDiagramTests
     {
         var diagram = ArchetypeDiagram();
 
-        var namedByTheComposer = new[]
-        {
-            SubmissionFragmentComposer.HasPredicateName,
-            SubmissionFragmentComposer.StudiesPredicateName,
-            SubmissionFragmentComposer.ProposesPredicateName,
-        };
+        var namedByTheComposer = new[] { SubmissionFragmentComposer.HasPredicateName };
 
-        // Written by the composer but never named by it: it finds each by the mark the model puts on it, so
+        // Written by the composer but never named by it: it finds each through the role that binds it, so
         // these are the land-intake template's spellings rather than this service's. A template that renamed
         // one leaves the drawing describing a spelling the model no longer uses and breaks nothing at
         // runtime, which is why they are kept apart from those above. `resolvedAs` joins them as a spelling
         // the model owns: no submission writes it, and the relationship is drawn because it is what a reviewer's
         // decision becomes.
-        var spelledByTheTemplate = new[] { "categorizedAs", "obtainedBy", "assesses", "resolvedAs" };
+        var spelledByTheTemplate = new[] { "studies", "proposes", "categorizedAs", "obtainedBy", "assesses", "resolvedAs" };
         var mayBeDrawn = namedByTheComposer.Concat(spelledByTheTemplate).ToList();
 
         var drawn = LabelledArrow.Matches(diagram)

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using vos.Service.Metabolism.Models;
+using vos.Service.Shared;
 
 namespace vos.Service.Metabolism.Services;
 
@@ -15,13 +16,16 @@ public class HandleRequestProcessor
         _logger = logger;
     }
 
-    public (SimulationEntry? entry, string? error) ProcessHandle(HandleRequest request)
+    public (SimulationEntry? entry, string? error) ProcessHandle(HandleRequest request, HeldModelToken token)
     {
         if (string.IsNullOrEmpty(request.SubjectId) || string.IsNullOrEmpty(request.TargetId))
             return (null, "Missing required fields: subjectId and targetId are required");
 
         var config = ExtractConfig(request);
-        var entry = _engine.Register(config);
+        if (SimulationConfig.RefusalOfFrequency(config.FrequencySeconds) is { } refusal)
+            return (null, refusal);
+
+        var entry = _engine.Register(config, token);
 
         _logger.LogInformation("Registered simulation for {RelId}: {Quantity} {Unit} every {Freq}s",
             config.RelationshipId, config.Quantity, config.Unit, config.FrequencySeconds);
@@ -34,7 +38,7 @@ public class HandleRequestProcessor
         decimal quantity = 1.0m;
         string propertyPath = "quantity";
         string unit = "";
-        int frequencySeconds = 60;
+        decimal frequencySeconds = 60m;
         var startUtc = DateTime.UtcNow;
         var endUtc = new DateTime(2099, 12, 31, 23, 59, 59, DateTimeKind.Utc);
         decimal startDelaySeconds = 0m;
@@ -53,7 +57,7 @@ public class HandleRequestProcessor
                 unit = unitProp.GetString() ?? "";
 
             if (props.TryGetProperty("frequencySeconds", out var freqProp) && freqProp.ValueKind == JsonValueKind.Number)
-                frequencySeconds = freqProp.GetInt32();
+                frequencySeconds = freqProp.GetDecimal();
 
             if (props.TryGetProperty("startUtc", out var startProp) && startProp.ValueKind == JsonValueKind.String)
                 startUtc = DateTime.Parse(startProp.GetString()!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);

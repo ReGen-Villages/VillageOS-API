@@ -4,15 +4,13 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { basename, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { VosThing, VosRelationship } from '../types/vos';
-import { PipelineModel, ARCHETYPE_FLAG, PREDICATE_FLAG, typesCompatible } from './model';
+import { PipelineModel, ROLE, judgeConnection, portOf, typesCompatible, wireEnds } from './model';
 import { loadPipeline } from './serialize';
-
-/** An archetype's own mark, which is the only thing that says what role it plays. */
-const marked = (roleFlag: string): Record<string, unknown> => ({ [roleFlag]: true });
+import { playing, withRoles } from './roles.test.fixture';
 
 // Build the demo model (Generate –carries(echo→message)→ Echo), node -has-> connection[subdomain] -has-> service.
-// Every archetype here is named something the editor has never heard of and says what it is by the flag it
-// carries, so a fixture that resolves at all proves nothing is found by name.
+// Every archetype here is named something the editor has never heard of and says what it is through the role
+// Thing that binds it, so a fixture that resolves at all proves nothing is found by name.
 function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchetypeId: string } {
   const things: VosThing[] = [];
   const relationships: VosRelationship[] = [];
@@ -26,12 +24,14 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
     relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
 
   const is = T('is'), has = T('has'), carries = T('carries');
-  const pipelineA = T('Workflow', marked(ARCHETYPE_FLAG.Pipeline)),
-    nodeA = T('Step', marked(ARCHETYPE_FLAG.PipelineNode)),
-    connA = T('Endpoint', marked(ARCHETYPE_FLAG.Connection)),
-    serviceA = T('Capability', marked(ARCHETYPE_FLAG.Service)),
-    portA = T('Socket', marked(ARCHETYPE_FLAG.Port)),
-    wireA = T('Link', marked(ARCHETYPE_FLAG.PipelineWire));
+  const pipelineA = T('Workflow', playing(ROLE.Pipeline)),
+    nodeA = T('Step', playing(ROLE.PipelineNode)),
+    connA = T('Endpoint', playing(ROLE.Connection)),
+    serviceA = T('Capability', playing(ROLE.Service)),
+    portA = T('Socket', playing(ROLE.Port)),
+    wireA = T('Link', playing(ROLE.PipelineWire)),
+    takesFrom = T('takesFrom', playing(ROLE.InputConnector)),
+    deliversTo = T('deliversTo', playing(ROLE.OutputConnector));
   R(carries.Id, is.Id, wireA.Id);
 
   const proto = T('EchoProto');
@@ -51,6 +51,10 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
   R(echConn.Id, is.Id, connA.Id);
   R(genConn.Id, has.Id, generatorService.Id);
   R(echConn.Id, has.Id, echoService.Id);
+  const orchestratorService = T('orchestratorSvc'), orchestratorConn = T('runsPipeline', { Subdomain: 'phloem' });
+  R(orchestratorService.Id, is.Id, serviceA.Id);
+  R(orchestratorConn.Id, is.Id, connA.Id);
+  R(orchestratorConn.Id, has.Id, orchestratorService.Id);
 
   const gen = T('Generate'), ech = T('Echo');
   R(gen.Id, is.Id, nodeA.Id);
@@ -62,9 +66,14 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
   R(pipe.Id, is.Id, pipelineA.Id);
   R(pipe.Id, has.Id, gen.Id);
   R(pipe.Id, has.Id, ech.Id);
-  R(gen.Id, carries.Id, ech.Id, { fromPort: 'echo', toPort: 'message' });
+  const wire = T('echo to message', { fromPath: '', toPath: '', itemTransform: '', listTransform: '' });
+  R(wire.Id, is.Id, wireA.Id);
+  R(gen.Id, has.Id, wire.Id);
+  R(wire.Id, carries.Id, ech.Id);
+  R(wire.Id, takesFrom.Id, pOut.Id);
+  R(wire.Id, deliversTo.Id, pIn.Id);
 
-  return { model: new PipelineModel(things, relationships), pipelineId: pipe.Id, pipelineArchetypeId: pipelineA.Id };
+  return { model: new PipelineModel(...withRoles(things, relationships)), pipelineId: pipe.Id, pipelineArchetypeId: pipelineA.Id };
 }
 
 // The same two nodes, wired by Things rather than relationships, and wired twice — the case a relationship cannot
@@ -84,14 +93,12 @@ function heldWireModel(): { model: PipelineModel; carriesId: string } {
     relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
 
   const is = T('is'), has = T('has');
-  const nodeA = T('Step', marked(ARCHETYPE_FLAG.PipelineNode));
-  const wireA = T('Link', marked(ARCHETYPE_FLAG.PipelineWire));
+  const nodeA = T('Step', playing(ROLE.PipelineNode));
+  const wireA = T('Link', playing(ROLE.PipelineWire));
 
-  const wireOne = T('w.echo', { fromPort: 'echo', toPort: 'message' });
-  const wireTwo = T('w.trace', { fromPort: 'trace', toPort: 'context' });
+  const wireOne = T('w.echo');
+  const wireTwo = T('w.trace');
   const carries = T('carries');
-  // Both shapes are read while one replaces the other, so the predicate keeps its own mark: this model
-  // holds three Things of the wire archetype and only one of them is the predicate.
   R(carries.Id, is.Id, wireA.Id);
 
   const gen = T('Generate'), ech = T('Echo');
@@ -104,11 +111,11 @@ function heldWireModel(): { model: PipelineModel; carriesId: string } {
     R(wire.Id, carries.Id, ech.Id);
   }
 
-  return { model: new PipelineModel(things, relationships), carriesId: carries.Id };
+  return { model: new PipelineModel(...withRoles(things, relationships)), carriesId: carries.Id };
 }
 
 describe('PipelineModel', () => {
-  it('lists dispatchable connections with subdomain and resolved ports', () => {
+  it('lists callable connections with subdomain and resolved ports, leaving out one whose service declares no port', () => {
     const { model } = demoModel();
     const conns = model.connections();
     expect(conns.map((c) => c.subdomain).sort()).toEqual(['echo', 'generate']);
@@ -117,7 +124,7 @@ describe('PipelineModel', () => {
     expect(gen.ports.find((p) => p.portName === 'echo')?.direction).toBe('out');
   });
 
-  it('identifies the wire predicate by the mark its archetype carries, not by name', () => {
+  it('identifies the wire predicate by the role its archetype is bound to, not by name', () => {
     const { model } = demoModel();
     expect(model.wirePredicateId()).toBe(model.predicateIdByName('carries'));
   });
@@ -129,17 +136,57 @@ describe('PipelineModel', () => {
 
   it('gives the archetype a save writes its `is` edge to, whatever the model calls it', () => {
     const { model, pipelineArchetypeId } = demoModel();
-    expect(model.archetypeCarrying(ARCHETYPE_FLAG.Pipeline)).toBe(pipelineArchetypeId);
-    expect(model.archetypeCarrying('__IsNothingAnyoneMarks')).toBeUndefined();
+    expect(model.boundTo(ROLE.Pipeline)).toBe(pipelineArchetypeId);
+    expect(model.boundTo('a role nothing binds')).toBeUndefined();
+  });
+
+  it('takes neither Thing a role binds when it binds two, rather than whichever the model lists first', () => {
+    const is: VosThing = { Id: 'is', Name: 'is', Properties: {} };
+    const workflow: VosThing = { Id: 'workflow', Name: 'Workflow', Properties: playing(ROLE.Pipeline) };
+    const routine: VosThing = { Id: 'routine', Name: 'Routine', Properties: playing(ROLE.Pipeline) };
+    const digest: VosThing = { Id: 'digest', Name: 'Digest', Properties: {} };
+    const model = new PipelineModel(...withRoles([is, workflow, routine, digest],
+      [{ Id: 'digest is', Name: '', SubjectId: digest.Id, PredicateId: is.Id, TargetId: workflow.Id, Properties: {} }]));
+
+    expect(model.boundTo(ROLE.Pipeline)).toBeUndefined();
+    expect(model.isOf(digest.Id, ROLE.Pipeline)).toBe(false);
+  });
+
+  it('follows only a predicate named exactly as asked, case included', () => {
+    const is: VosThing = { Id: 'is', Name: 'is', Properties: {} };
+    const recased: VosThing = { Id: 'Has', Name: 'Has', Properties: {} };
+    const pipeline: VosThing = { Id: 'pipeline', Name: 'Harvest', Properties: {} };
+    const node: VosThing = { Id: 'node', Name: 'Rain gauge', Properties: {} };
+    const model = new PipelineModel(...withRoles([is, recased, pipeline, node],
+      [{ Id: 'pipeline Has node', Name: '', SubjectId: pipeline.Id, PredicateId: recased.Id, TargetId: node.Id, Properties: {} }]));
+
+    expect(model.outgoing(pipeline.Id, 'has')).toEqual([]);
+    expect(model.predicateIdByName('has')).toBeUndefined();
+  });
+
+  it('counts a wire Thing as held only along a predicate named exactly "has"', () => {
+    const is: VosThing = { Id: 'is', Name: 'is', Properties: {} };
+    const recased: VosThing = { Id: 'Has', Name: 'Has', Properties: {} };
+    const wireArchetype: VosThing = { Id: 'wire', Name: 'Channel', Properties: playing(ROLE.PipelineWire) };
+    const first: VosThing = { Id: 'first', Name: 'First channel', Properties: {} };
+    const second: VosThing = { Id: 'second', Name: 'Second channel', Properties: {} };
+    const node: VosThing = { Id: 'node', Name: 'Rain gauge', Properties: {} };
+    const model = new PipelineModel(...withRoles([is, recased, wireArchetype, first, second, node], [
+      { Id: 'first is', Name: '', SubjectId: first.Id, PredicateId: is.Id, TargetId: wireArchetype.Id, Properties: {} },
+      { Id: 'second is', Name: '', SubjectId: second.Id, PredicateId: is.Id, TargetId: wireArchetype.Id, Properties: {} },
+      { Id: 'node Has first', Name: '', SubjectId: node.Id, PredicateId: recased.Id, TargetId: first.Id, Properties: {} },
+    ]));
+
+    expect(model.wirePredicateId()).toBe(first.Id);
   });
 
   it('does not count an archetype as playing its own role, so the picker lists pipelines and not the archetype', () => {
     const { model, pipelineId, pipelineArchetypeId } = demoModel();
-    expect(model.isOfArchetypeCarrying(pipelineId, ARCHETYPE_FLAG.Pipeline)).toBe(true);
-    expect(model.isOfArchetypeCarrying(pipelineArchetypeId, ARCHETYPE_FLAG.Pipeline)).toBe(false);
+    expect(model.isOf(pipelineId, ROLE.Pipeline)).toBe(true);
+    expect(model.isOf(pipelineArchetypeId, ROLE.Pipeline)).toBe(false);
   });
 
-  it('reaches a marked ancestor by either route, and gives up on an `is` cycle instead of walking forever', () => {
+  it('reaches the bound ancestor by either route, and gives up on an `is` cycle instead of walking forever', () => {
     const things: VosThing[] = [];
     const relationships: VosRelationship[] = [];
     let n = 0;
@@ -152,8 +199,8 @@ describe('PipelineModel', () => {
     const relationship = (s: string, t: string) =>
       relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: is.Id, TargetId: t, Properties: {} });
 
-    // A node under two archetypes that share one marked ancestor: it is reached twice, answered once.
-    const root = T('Step', marked(ARCHETYPE_FLAG.PipelineNode)), left = T('Left'), right = T('Right');
+    // A node under two archetypes that share one bound ancestor: it is reached twice, answered once.
+    const root = T('Step', playing(ROLE.PipelineNode)), left = T('Left'), right = T('Right');
     const node = T('N');
     relationship(left.Id, root.Id);
     relationship(right.Id, root.Id);
@@ -165,9 +212,9 @@ describe('PipelineModel', () => {
     relationship(loopB.Id, loopA.Id);
     relationship(inLoop.Id, loopA.Id);
 
-    const model = new PipelineModel(things, relationships);
-    expect(model.isOfArchetypeCarrying(node.Id, ARCHETYPE_FLAG.PipelineNode)).toBe(true);
-    expect(model.isOfArchetypeCarrying(inLoop.Id, ARCHETYPE_FLAG.PipelineNode)).toBe(false);
+    const model = new PipelineModel(...withRoles(things, relationships));
+    expect(model.isOf(node.Id, ROLE.PipelineNode)).toBe(true);
+    expect(model.isOf(inLoop.Id, ROLE.PipelineNode)).toBe(false);
   });
 });
 
@@ -193,36 +240,67 @@ describe('the vocabulary the editor holds', () => {
       expect(held).toEqual([]);
     });
 
-  /** The marks the page reads that the orchestrator does not: the range mark is the platform's own, the
-   *  orchestrator does not yet act on a kind of message, and its own prototype's mark is how the page finds
-   *  the service to bind a state to. */
-  const READ_BY_THE_PAGE_ALONE = new Set<string>([ARCHETYPE_FLAG.Range, ARCHETYPE_FLAG.MessageKind, ARCHETYPE_FLAG.Orchestrator]);
-
-  it('reads the same marks the orchestrator does', () => {
-    const phloem = readFileSync(
-      join(here, '..', '..', '..', 'vos.Service.Phloem', 'Model', 'PipelineArchetypes.cs'),
-      'utf-8',
-    );
-    for (const flag of Object.values(ARCHETYPE_FLAG))
-      if (!READ_BY_THE_PAGE_ALONE.has(flag)) expect(phloem).toContain(`"${flag}"`);
-  });
-
-  /** The predicate marks the page reads that the orchestrator does not: the first two are the platform's
-   *  own dispatch marks it never walks, and the orchestrator does not yet act on what a system sends, is
-   *  told, or where a kind of message arrives. The state-watch mark is the platform's too, but the
-   *  orchestrator walks it to the state a row stands for, so it is held to spelling it. */
-  const PREDICATES_READ_BY_THE_PAGE_ALONE = new Set<string>([
-    PREDICATE_FLAG.Trigger, PREDICATE_FLAG.JudgedThing,
-    PREDICATE_FLAG.Sends, PREDICATE_FLAG.Told, PREDICATE_FLAG.ArrivesAt,
+  /** The roles the page reads that the orchestrator does not: the range, trigger and judged-Thing roles are
+   *  the platform's own and the orchestrator never walks them, it does not yet act on a kind of message or on
+   *  what a system sends, is told, or where a kind of message arrives, and its own prototype's role is how the
+   *  page finds the service to bind a state to. */
+  const READ_BY_THE_PAGE_ALONE = new Set<string>([
+    ROLE.Range, ROLE.MessageKind, ROLE.Orchestrator,
+    ROLE.Trigger, ROLE.JudgedThing, ROLE.Sends, ROLE.Told, ROLE.ArrivesAt,
   ]);
 
-  it('reads the same predicate marks the orchestrator starts a run from', () => {
+  it('reads every shared role under the identifier the orchestrator reads it by', () => {
     const phloem = readFileSync(
-      join(here, '..', '..', '..', 'vos.Service.Phloem', 'Model', 'PipelinePredicates.cs'),
+      join(here, '..', '..', '..', 'vos.Service.Phloem', 'Model', 'PipelineRoles.cs'),
       'utf-8',
     );
-    for (const flag of Object.values(PREDICATE_FLAG))
-      if (!PREDICATES_READ_BY_THE_PAGE_ALONE.has(flag)) expect(phloem).toContain(`"${flag}"`);
+    for (const roleId of Object.values(ROLE))
+      if (!READ_BY_THE_PAGE_ALONE.has(roleId)) expect(phloem).toContain(`"${roleId}"`);
+  });
+});
+
+describe('judgeConnection', () => {
+  const upper = { id: 'upper', ports: [
+    { portId: 'upper.in.text', portName: 'text', direction: 'in' as const, type: 'number', required: true },
+    { portId: 'upper.out.text', portName: 'text', direction: 'out' as const, type: 'string', required: false },
+  ] };
+  const reverse = { id: 'reverse', ports: [
+    { portId: 'reverse.in.text', portName: 'text', direction: 'in' as const, type: 'string', required: true },
+    { portId: 'reverse.in.count', portName: 'count', direction: 'in' as const, type: 'number', required: false },
+  ] };
+  const connection = (sourceHandle: string, targetHandle: string) =>
+    ({ source: 'upper', sourceHandle, target: 'reverse', targetHandle });
+
+  it('accepts a wire from an out port of the node it leaves to an in port of the node it reaches', () => {
+    expect(judgeConnection([upper, reverse], connection('upper.out.text', 'reverse.in.text'))).toEqual({ kind: 'accept' });
+  });
+
+  it('names the two types when the ends do not match, read from the source then the target', () => {
+    expect(judgeConnection([upper, reverse], connection('upper.out.text', 'reverse.in.count')))
+      .toEqual({ kind: 'incompatible', from: 'string', to: 'number' });
+  });
+
+  it('ignores a connection whose source end is not an out port, or whose node is gone', () => {
+    expect(judgeConnection([upper, reverse], connection('upper.in.text', 'reverse.in.text'))).toEqual({ kind: 'ignore' });
+    expect(judgeConnection([reverse], connection('upper.out.text', 'reverse.in.text'))).toEqual({ kind: 'ignore' });
+  });
+});
+
+describe('portOf', () => {
+  const textIn = { portId: 'upper.in.text', portName: 'text', direction: 'in' as const, type: 'string', required: true };
+  const textOut = { portId: 'upper.out.text', portName: 'text', direction: 'out' as const, type: 'string', required: false };
+
+  it('finds a wire end by the port identifier in the direction asked, never by name', () => {
+    expect(portOf([textIn, textOut], 'upper.out.text', 'out')).toBe(textOut);
+    expect(portOf([textIn, textOut], 'upper.out.text', 'in')).toBeUndefined();
+    expect(portOf([textIn, textOut], 'text', 'out')).toBeUndefined();
+    expect(portOf(undefined, 'upper.out.text', 'out')).toBeUndefined();
+  });
+
+  it('takes a wire from an out port of the node it leaves to an in port of the node it reaches', () => {
+    const reverseIn = { ...textIn, portId: 'reverse.in.text' };
+    expect(wireEnds([textIn, textOut], 'upper.out.text', [reverseIn], 'reverse.in.text')).toEqual({ outPort: textOut, inPort: reverseIn });
+    expect(wireEnds([textIn, textOut], 'upper.in.text', [reverseIn], 'reverse.in.text')).toEqual({ outPort: undefined, inPort: reverseIn });
   });
 });
 
@@ -252,7 +330,7 @@ describe('run animation source', () => {
     relationships.push({ Id: 'rr1', Name: '', SubjectId: run.Id, PredicateId: has.Id, TargetId: nr1.Id, Properties: {} });
     relationships.push({ Id: 'rr2', Name: '', SubjectId: run.Id, PredicateId: has.Id, TargetId: nr2.Id, Properties: {} });
 
-    const model = new PipelineModel(things, relationships);
+    const model = new PipelineModel(...withRoles(things, relationships));
     expect(model.runStatus(run.Id)).toBe('running');
     expect(model.nodeRunStatuses(run.Id)).toEqual({ 'node-gen': 'succeeded', 'node-ech': 'running' });
     expect(model.runStatus('missing')).toBeUndefined();
@@ -277,9 +355,30 @@ describe('run animation source', () => {
     for (const nodeRun of [agg, i0, i1, i2])
       relationships.push({ Id: `r${++n}`, Name: '', SubjectId: run.Id, PredicateId: has.Id, TargetId: nodeRun.Id, Properties: {} });
 
-    const model = new PipelineModel(things, relationships);
+    const model = new PipelineModel(...withRoles(things, relationships));
     expect(model.nodeRunStatuses(run.Id)).toEqual({ 'node-score': 'running' });        // ring = aggregate only
-    expect(model.nodeRunProgress(run.Id)).toEqual({ 'node-score': { done: 2, total: 3 } }); // 2 of 3 items terminal
+    expect(model.nodeRunProgress(run.Id)).toEqual({ 'node-score': { done: 2, reached: 3, spreadOver: 3 } });
+  });
+
+  it('counts a node\'s progress over the items that reached it, so a node only some items reach can finish', () => {
+    const things: VosThing[] = [];
+    const relationships: VosRelationship[] = [];
+    let n = 0;
+    const T = (name: string, props: Record<string, unknown> = {}): VosThing => {
+      const t = { Id: `t${++n}`, Name: name, Properties: props };
+      things.push(t);
+      return t;
+    };
+    const has = T('has');
+    const run = T('PipelineRun', { status: 'succeeded' });
+    const north = T('NodeRun Record level #0', { nodeId: 'node-record', status: 'succeeded', index: '0', total: '3' });
+    const east = T('NodeRun Record level #2', { nodeId: 'node-record', status: 'succeeded', index: '2', total: '3' });
+    for (const nodeRun of [north, east])
+      relationships.push({ Id: `r${++n}`, Name: '', SubjectId: run.Id, PredicateId: has.Id, TargetId: nodeRun.Id, Properties: {} });
+
+    const model = new PipelineModel(...withRoles(things, relationships));
+
+    expect(model.nodeRunProgress(run.Id)).toEqual({ 'node-record': { done: 2, reached: 2, spreadOver: 3 } });
   });
 
   it('lists a pipeline\'s runs newest-first, scoped to that pipeline', () => {
@@ -291,7 +390,7 @@ describe('run animation source', () => {
       things.push(t);
       return t;
     };
-    const is = T('is'), of = T('of'), runArchetype = T('Execution', marked(ARCHETYPE_FLAG.PipelineRun));
+    const is = T('is'), of = T('of'), runArchetype = T('Execution', playing(ROLE.PipelineRun));
     const pipeA = T('Pipeline A'), pipeB = T('Pipeline B');
     const relationship = (s: string, p: string, t: string) =>
       relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
@@ -305,13 +404,72 @@ describe('run animation source', () => {
     relationship(a2.Id, of.Id, pipeA.Id);
     relationship(b1.Id, of.Id, pipeB.Id);
 
-    const model = new PipelineModel(things, relationships);
+    const model = new PipelineModel(...withRoles(things, relationships));
     const runs = model.runsOf(pipeA.Id);
     expect(runs.map((r) => r.runId)).toEqual([a2.Id, a1.Id]); // newest first, B excluded
     expect(runs[0]).toMatchObject({ status: 'failed', startedUtc: '2026-06-23T12:00:00Z' });
     expect(runs[0].requestId).toBe('01999a2b-0000-7000-8000-000000000001');
     expect(runs[1].requestId).toBeUndefined();
     expect(model.runsOf('missing')).toEqual([]);
+  });
+
+  it('lists every run a restart stopped part way through a call, newest first, leaving out one a person started again', () => {
+    const things: VosThing[] = [];
+    const relationships: VosRelationship[] = [];
+    let n = 0;
+    const T = (name: string, props: Record<string, unknown> = {}): VosThing => {
+      const t = { Id: `t${++n}`, Name: name, Properties: props };
+      things.push(t);
+      return t;
+    };
+    const is = T('is'), of = T('of'), has = T('has'), startedBy = T('startedBy');
+    const runArchetype = T('PipelineRun', playing(ROLE.PipelineRun)), repeats = T('repeats', playing(ROLE.RepeatedRun));
+    const rainfall = T('Rainfall reading'), reservoir = T('Reservoir level');
+    const relationship = (s: string, p: string, t: string) =>
+      relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
+    const run = (name: string, pipeline: VosThing, startedUtc: string, status: string, nodeStatus: string, item?: string) => {
+      const thing = T(name, { status, startedUtc, error: `${name} stopped` });
+      relationship(thing.Id, is.Id, runArchetype.Id);
+      relationship(thing.Id, of.Id, pipeline.Id);
+      const nodeRun = T(`NodeRun of ${name}`, { nodeId: 'node-gauge', status: nodeStatus, ...(item === undefined ? {} : { index: item, total: '2' }) });
+      relationship(thing.Id, has.Id, nodeRun.Id);
+      return thing;
+    };
+
+    const older = run('older', rainfall, '2026-11-04T10:00:00Z', 'failed', 'interrupted');
+    const newer = run('newer', reservoir, '2026-11-04T12:00:00Z', 'failed', 'interrupted');
+    const followedOn = run('followed on', rainfall, '2026-11-04T11:00:00Z', 'failed', 'interrupted');
+    relationship(run('follow-on', reservoir, '2026-11-04T11:01:00Z', 'succeeded', 'succeeded').Id, startedBy.Id, followedOn.Id);
+    const repeated = run('repeated', rainfall, '2026-11-04T09:00:00Z', 'failed', 'interrupted');
+    relationship(run('again', rainfall, '2026-11-04T13:00:00Z', 'succeeded', 'succeeded').Id, repeats.Id, repeated.Id);
+    run('failed on its own', rainfall, '2026-11-04T08:00:00Z', 'failed', 'failed');
+    run('being carried on', rainfall, '2026-11-04T07:00:00Z', 'running', 'interrupted');
+    run('an item failed', rainfall, '2026-11-04T06:00:00Z', 'failed', 'interrupted', '0');
+
+    const model = new PipelineModel(...withRoles(things, relationships));
+
+    expect(model.runsARestartStopped()).toEqual([
+      { runId: newer.Id, pipelineName: 'Reservoir level', startedUtc: '2026-11-04T12:00:00Z', reason: 'newer stopped' },
+      { runId: followedOn.Id, pipelineName: 'Rainfall reading', startedUtc: '2026-11-04T11:00:00Z', reason: 'followed on stopped' },
+      { runId: older.Id, pipelineName: 'Rainfall reading', startedUtc: '2026-11-04T10:00:00Z', reason: 'older stopped' },
+    ]);
+  });
+
+  it('lists a run a restart stopped whose pipeline has since been deleted, with nothing it does not hold', () => {
+    const things: VosThing[] = [
+      { Id: 'is', Name: 'is', Properties: {} }, { Id: 'has', Name: 'has', Properties: {} },
+      { Id: 'run-kind', Name: 'PipelineRun', Properties: playing(ROLE.PipelineRun) },
+      { Id: 'run', Name: 'Run', Properties: { status: 'failed' } },
+      { Id: 'node-run', Name: 'NodeRun', Properties: { nodeId: 'node-gauge', status: 'interrupted' } },
+    ];
+    const relationships: VosRelationship[] = [
+      { Id: 'r1', Name: '', SubjectId: 'run', PredicateId: 'is', TargetId: 'run-kind', Properties: {} },
+      { Id: 'r2', Name: '', SubjectId: 'run', PredicateId: 'has', TargetId: 'node-run', Properties: {} },
+    ];
+
+    const model = new PipelineModel(...withRoles(things, relationships));
+
+    expect(model.runsARestartStopped()).toEqual([{ runId: 'run', pipelineName: '', startedUtc: '', reason: '' }]);
   });
 });
 
@@ -322,7 +480,10 @@ describe('loadPipeline', () => {
     expect(loaded.name).toBe('Demo');
     expect(loaded.nodes.map((n) => n.label).sort()).toEqual(['Echo', 'Generate']);
     expect(loaded.edges).toHaveLength(1);
-    expect(loaded.edges[0]).toMatchObject({ sourceHandle: 'echo', targetHandle: 'message' });
+    const portNamed = (label: string, portId: string) =>
+      loaded.nodes.find((n) => n.label === label)!.ports.find((p) => p.portId === portId)?.portName;
+    expect(portNamed('Generate', loaded.edges[0].sourceHandle)).toBe('echo');
+    expect(portNamed('Echo', loaded.edges[0].targetHandle)).toBe('message');
   });
 
   it('returns null for a non-pipeline thing', () => {
@@ -330,7 +491,7 @@ describe('loadPipeline', () => {
     expect(loadPipeline('does-not-exist', model)).toBeNull();
   });
 
-  it('parses a node\'s paramBindings property', () => {
+  it('parses a node\'s parameterBindings property', () => {
     const things: VosThing[] = [];
     const relationships: VosRelationship[] = [];
     let n = 0;
@@ -341,20 +502,20 @@ describe('loadPipeline', () => {
     };
     const relationship = (s: string, p: string, t: string) =>
       relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
-    const is = T('is'), has = T('has'), pipelineArchetype = T('Workflow', marked(ARCHETYPE_FLAG.Pipeline)),
-      nodeArchetype = T('Step', marked(ARCHETYPE_FLAG.PipelineNode)),
-      connectionArchetype = T('Endpoint', marked(ARCHETYPE_FLAG.Connection));
+    const is = T('is'), has = T('has'), pipelineArchetype = T('Workflow', playing(ROLE.Pipeline)),
+      nodeArchetype = T('Step', playing(ROLE.PipelineNode)),
+      connectionArchetype = T('Endpoint', playing(ROLE.Connection));
     const conn = T('conn', { Subdomain: 'x' });
     relationship(conn.Id, is.Id, connectionArchetype.Id);
-    const node = T('N', { paramBindings: '{"message":"greeting"}' });
+    const node = T('N', { parameterBindings: '{"message":"greeting"}' });
     relationship(node.Id, is.Id, nodeArchetype.Id);
     relationship(node.Id, has.Id, conn.Id);
     const pipe = T('P');
     relationship(pipe.Id, is.Id, pipelineArchetype.Id);
     relationship(pipe.Id, has.Id, node.Id);
 
-    const loaded = loadPipeline(pipe.Id, new PipelineModel(things, relationships))!;
-    expect(loaded.nodes[0].paramBindings).toEqual({ message: 'greeting' });
+    const loaded = loadPipeline(pipe.Id, new PipelineModel(...withRoles(things, relationships)))!;
+    expect(loaded.nodes[0].parameterBindings).toEqual({ message: 'greeting' });
   });
 });
 
@@ -363,7 +524,7 @@ describe('loadPipeline', () => {
 // Thing's name and to direction `in`, and the wire drawn from it matched nothing.
 describe('a saved port is read from what it states', () => {
   const overridden = (values: Record<string, unknown>): VosThing['InheritedOverrides'] => ({
-    'arch-port': { SourceId: 'arch-port', SourceName: 'Socket', InheritedAt: '', Properties: values },
+    'arch-port': { SourceId: 'arch-port', SourceName: 'Socket', Properties: values },
   });
 
   function modelWithASavedPort() {
@@ -374,16 +535,16 @@ describe('a saved port is read from what it states', () => {
       things.push({ Id: id, Name: name, Properties: props, ...(overrides ? { InheritedOverrides: overrides } : {}) });
     const R = (s: string, p: string, t: string) => relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
     T('is', 'is'); T('has', 'has');
-    T('arch-port', 'Socket', { [ARCHETYPE_FLAG.Port]: true, portName: '', direction: '', type: '', required: false });
-    T('arch-node', 'Step', { [ARCHETYPE_FLAG.PipelineNode]: true });
+    T('arch-port', 'Socket', { ...playing(ROLE.Port), portName: '', direction: '', type: '', required: false });
+    T('arch-node', 'Step', playing(ROLE.PipelineNode));
     T('N1', 'Start'); R('N1', 'is', 'arch-node');
     T('P1', 'subject', {}, overridden({ portName: 'subject', direction: 'out', type: 'any', required: false }));
     R('P1', 'is', 'arch-port'); R('N1', 'has', 'P1');
-    return new PipelineModel(things, relationships);
+    return new PipelineModel(...withRoles(things, relationships));
   }
 
   it('reads a port name and direction stated in the override store', () => {
-    const port = modelWithASavedPort().boundaryPortRelationships('N1')[0].port;
+    const port = modelWithASavedPort().ownPortRelationships('N1')[0].port;
     expect(port.portName).toBe('subject');
     expect(port.direction).toBe('out');
     expect(port.type).toBe('any');
@@ -393,10 +554,10 @@ describe('a saved port is read from what it states', () => {
     expect(modelWithASavedPort().stated('nobody')).toEqual({});
   });
 
-  it('does not hand a member its archetype\'s mark by reading up the chain', () => {
+  it('takes the archetype a role binds as the archetype, never one of its members', () => {
     const model = modelWithASavedPort();
-    expect(model.archetypeCarrying(ARCHETYPE_FLAG.Port)).toBe('arch-port');
-    expect(model.thingsOfArchetypeCarrying(ARCHETYPE_FLAG.Port).map((t) => t.Id)).toEqual(['P1']);
+    expect(model.boundTo(ROLE.Port)).toBe('arch-port');
+    expect(model.thingsOf(ROLE.Port).map((t) => t.Id)).toEqual(['P1']);
   });
 });
 
@@ -411,24 +572,24 @@ describe('the wire predicate before any wire is drawn', () => {
     const T = (id: string, name: string, props: Record<string, unknown> = {}) => things.push({ Id: id, Name: name, Properties: props });
     const R = (s: string, p: string, t: string) => relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
     T('is', 'is'); T('has', 'has');
-    T('arch-wire', 'Link', { [ARCHETYPE_FLAG.PipelineWire]: true });
-    T('arch-node', 'Step', { [ARCHETYPE_FLAG.PipelineNode]: true });
+    T('arch-wire', 'Link', playing(ROLE.PipelineWire));
+    T('arch-node', 'Step', playing(ROLE.PipelineNode));
     T('carries', 'carries'); R('carries', 'is', 'arch-wire');
     return { things, relationships, T, R };
   }
 
   it('finds the predicate by its shape when nothing has used it yet', () => {
     const { things, relationships } = vocabularyAndNoWire();
-    expect(new PipelineModel(things, relationships).wirePredicateId()).toBe('carries');
+    expect(new PipelineModel(...withRoles(things, relationships)).wirePredicateId()).toBe('carries');
   });
 
   it('still never mistakes a held wire for the predicate, whichever the model lists first', () => {
     const { things, relationships, T, R } = vocabularyAndNoWire();
     T('N1', 'Node1'); R('N1', 'is', 'arch-node');
     T('N2', 'Node2'); R('N2', 'is', 'arch-node');
-    T('W', 'w', { fromPort: 'out', toPort: 'in' }); R('W', 'is', 'arch-wire'); R('N1', 'has', 'W');
+    T('W', 'w'); R('W', 'is', 'arch-wire'); R('N1', 'has', 'W');
     things.reverse();
-    expect(new PipelineModel(things, relationships).wirePredicateId()).toBe('carries');
+    expect(new PipelineModel(...withRoles(things, relationships)).wirePredicateId()).toBe('carries');
   });
 
   it('finds nothing where the model holds only wires and no predicate', () => {
@@ -437,6 +598,43 @@ describe('the wire predicate before any wire is drawn', () => {
     relationships.splice(0, relationships.length);
     T('N1', 'Node1'); R('N1', 'is', 'arch-node');
     T('W', 'w'); R('W', 'is', 'arch-wire'); R('N1', 'has', 'W');
-    expect(new PipelineModel(things, relationships).wirePredicateId()).toBeUndefined();
+    expect(new PipelineModel(...withRoles(things, relationships)).wirePredicateId()).toBeUndefined();
+  });
+});
+
+describe('what a node chose, and what a choice may compare with', () => {
+  function offeringModel(): PipelineModel {
+    const things: VosThing[] = [];
+    const relationships: VosRelationship[] = [];
+    let n = 0;
+    const T = (id: string, name: string, props: Record<string, unknown> = {}) => things.push({ Id: id, Name: name, Properties: props });
+    const R = (s: string, p: string, t: string) => relationships.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
+    T('is', 'is'); T('has', 'has');
+    T('offers', 'proposes', playing(ROLE.Choice));
+    T('strategy', 'strategy'); T('limit', 'limit');
+    T('S1', 'Nearest first'); T('S2', 'Cheapest first'); T('LOOSE', 'Never offered');
+    R('strategy', 'offers', 'S1'); R('strategy', 'offers', 'S2');
+    T('N1', 'Decide'); R('N1', 'offers', 'S2'); R('N1', 'offers', 'LOOSE');
+    T('STRATEGY', 'Strategy'); T('TACTIC', 'Tactic'); T('OTHER', 'Unrelated kind');
+    things.find((thing) => thing.Id === 'STRATEGY')!.IsArchetype = true;
+    things.find((thing) => thing.Id === 'TACTIC')!.IsArchetype = true;
+    R('S1', 'is', 'STRATEGY'); R('S2', 'is', 'STRATEGY'); R('TACTIC', 'is', 'STRATEGY'); R('LOOSE', 'is', 'TACTIC');
+    R('N1', 'is', 'OTHER');
+    return new PipelineModel(...withRoles(things, relationships));
+  }
+  const inPort = (portId: string) => ({ portId, portName: portId, direction: 'in' as const, type: 'any', required: false });
+  const outPort = (portId: string) => ({ ...inPort(portId), direction: 'out' as const });
+
+  it('keys what the node chose by the in port offering it, and leaves out a Thing no port offers', () => {
+    expect(offeringModel().chosenForEachInPort('N1', [inPort('strategy'), inPort('limit')])).toEqual({ strategy: 'S2' });
+  });
+
+  it('names the kinds the in ports offer once each, and not what an out port or the node reaches', () => {
+    expect(offeringModel().kindsOffered([inPort('strategy'), inPort('limit'), outPort('N1')])).toEqual(['STRATEGY']);
+  });
+
+  it('lists every Thing of the kinds through the chain of kinds, never a kind itself', () => {
+    expect(offeringModel().thingsOfKinds(['STRATEGY']).map((thing) => thing.Id).sort()).toEqual(['LOOSE', 'S1', 'S2']);
+    expect(offeringModel().thingsOfKinds([])).toEqual([]);
   });
 });

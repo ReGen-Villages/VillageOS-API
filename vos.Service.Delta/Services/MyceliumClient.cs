@@ -12,25 +12,32 @@ public class MyceliumClient : MyceliumClientBase
 
     public readonly record struct MyceliumThing(Guid Id, string Name, Dictionary<string, object?> Properties);
 
-    public async Task<MyceliumThing?> FindThingByNameAsync(string name)
+    public async Task<IReadOnlyDictionary<string, JsonElement>?> GetResolvedPropertiesAsync(Guid thingId)
     {
         try
         {
             var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
-            var encodedName = Uri.EscapeDataString(name);
-            var response = await client.GetAsync($"{MyceliumUrl}/api/things?name={encodedName}");
+            var response = await client.GetAsync($"{MyceliumUrl}{MyceliumRoutes.ThingProperties(thingId)}");
             if (!response.IsSuccessStatusCode)
             {
-                Logger.LogWarning("Failed to find thing by name {Name}. Status: {StatusCode}", name, response.StatusCode);
+                Logger.LogWarning("Failed to read the properties of thing {ThingId}. Status: {StatusCode}",
+                    thingId, response.StatusCode);
                 return null;
             }
 
             var root = await response.Content.ReadFromJsonAsync<JsonElement>();
-            return TryParseThing(root, out var thing) ? thing : null;
+            if (root.ValueKind != JsonValueKind.Object)
+                return null;
+
+            var resolved = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+            foreach (var property in root.EnumerateObject())
+                if (TryGetPropertyCaseInsensitive(property.Value, "Value", out var value))
+                    resolved[property.Name] = value;
+            return resolved;
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error finding thing by name {Name}", name);
+            Logger.LogError(ex, "Error reading the properties of thing {ThingId}", thingId);
             return null;
         }
     }
@@ -176,35 +183,22 @@ public class MyceliumClient : MyceliumClientBase
         return true;
     }
 
-    // Unwraps a potential JsonElement (produced by System.Text.Json when deserializing
-    // Dictionary<string, object>) into a CLR value and infers Mycelium type string.
+    // A request's values arrive as JsonElement; one with structure is written as its JSON text.
     private static (object? Value, string Type) ResolveMyceliumValue(object? value)
     {
-        if (value is JsonElement je)
-        {
-            return je.ValueKind switch
+        var unwrapped = value is JsonElement element
+            ? element.ValueKind switch
             {
-                JsonValueKind.String => (je.GetString(), "System.String"),
-                JsonValueKind.Number when je.TryGetInt64(out var l) => (l, "System.Int64"),
-                JsonValueKind.Number => (je.GetDouble(), "System.Double"),
-                JsonValueKind.True => (true, "System.Boolean"),
-                JsonValueKind.False => (false, "System.Boolean"),
-                JsonValueKind.Null => (null, "System.String"),
-                _ => (je.GetRawText(), "System.String")
-            };
-        }
+                JsonValueKind.String => element.GetString(),
+                JsonValueKind.Number when element.TryGetInt64(out var whole) => whole,
+                JsonValueKind.Number => element.GetDouble(),
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                JsonValueKind.Null => null,
+                _ => element.GetRawText(),
+            }
+            : value;
 
-        var type = value switch
-        {
-            string => "System.String",
-            int => "System.Int32",
-            long => "System.Int64",
-            double => "System.Double",
-            decimal => "System.Decimal",
-            bool => "System.Boolean",
-            _ => "System.String"
-        };
-
-        return (value, type);
+        return (unwrapped, TypedProperties.TypeNameFor(unwrapped));
     }
 }

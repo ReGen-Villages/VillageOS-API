@@ -13,11 +13,11 @@ export const thingApi = {
     return things.map(unwrapThing);
   },
 
-  /** The single Thing with this name, or null when the model has none — a model with nothing to say
-   *  is answered with a 404, which is an answer rather than a failure. */
-  getByName: async (name: string) => {
+  /** The one Thing a role binds, or null when the model binds nothing under it — a model with nothing to
+   *  say is answered with a 404, which is an answer rather than a failure. */
+  getBoundBy: async (roleId: string) => {
     try {
-      const thing = await apiClient.get<VosThing>(`/api/things?name=${encodeURIComponent(name)}`);
+      const thing = await apiClient.get<VosThing>(`/api/things?boundBy=${roleId}`);
       return unwrapThing(thing);
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) return null;

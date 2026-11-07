@@ -1,0 +1,4 @@
+# The library itself, installed from this folder, so a test run exercises the code in front of you
+-e .
+# Tests
+pytest>=8.0

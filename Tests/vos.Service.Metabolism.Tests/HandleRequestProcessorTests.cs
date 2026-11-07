@@ -2,6 +2,7 @@ using System.Text.Json;
 using vos.Service.Metabolism.Models;
 using vos.Service.Metabolism.Configuration;
 using vos.Service.Metabolism.Services;
+using vos.Service.Shared;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -142,7 +143,7 @@ public class HandleRequestProcessorTests
         var json = JsonDocument.Parse("""{"quantity": 3.0}""").RootElement;
         var request = new HandleRequest("rel-1", "sub-1", "tgt-1", "Test", null, json);
 
-        var (entry, error) = _processor.ProcessHandle(request);
+        var (entry, error) = _processor.ProcessHandle(request, HeldModelToken.None);
 
         error.Should().BeNull();
         entry.Should().NotBeNull();
@@ -155,7 +156,7 @@ public class HandleRequestProcessorTests
     {
         var request = new HandleRequest("rel-1", "", "tgt-1", null, null, null);
 
-        var (entry, error) = _processor.ProcessHandle(request);
+        var (entry, error) = _processor.ProcessHandle(request, HeldModelToken.None);
 
         entry.Should().BeNull();
         error.Should().Contain("subjectId");
@@ -166,7 +167,7 @@ public class HandleRequestProcessorTests
     {
         var request = new HandleRequest("rel-1", "sub-1", "", null, null, null);
 
-        var (entry, error) = _processor.ProcessHandle(request);
+        var (entry, error) = _processor.ProcessHandle(request, HeldModelToken.None);
 
         entry.Should().BeNull();
         error.Should().Contain("targetId");
@@ -177,7 +178,7 @@ public class HandleRequestProcessorTests
     {
         var request = new HandleRequest("rel-1", null!, "tgt-1", null, null, null);
 
-        var (entry, error) = _processor.ProcessHandle(request);
+        var (entry, error) = _processor.ProcessHandle(request, HeldModelToken.None);
 
         entry.Should().BeNull();
         error.Should().NotBeNull();

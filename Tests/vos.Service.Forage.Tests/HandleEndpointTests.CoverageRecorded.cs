@@ -43,7 +43,7 @@ public class HandleEndpointCoverageTests
     ];
 
     private static Archetype[] Archetypes() =>
-        [new Archetype("SourceCoverage", CoveringSourceResolver.SourceCoverageArchetypeFlag)];
+        [new Archetype("SourceCoverage", BoundBy: CoveringSourceResolver.SourceCoverageRole)];
 
     // The whole of what the coverage Things buy: the source whose answer stands is not called, and the
     // one still outstanding is. Before this, the first source to answer ended discovery for both.

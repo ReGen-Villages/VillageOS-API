@@ -1,0 +1,10 @@
+"""The VillageOS managed-microservice contract, for Python services.
+
+A service imports this and writes only its handler. The contract itself is in docs/SERVICE_CONTRACT.md.
+"""
+
+from .auth import verifier
+from .config import Config, parse_args, usage
+from .hosting import ServiceHost
+from .mycelium import AssetTooLarge, AssetUnavailable, MyceliumClient, PlatformRefusal, sediment_reading
+from .node import NodeContext, NodeService, NotANodeEnvelope, Port, Setting

@@ -16,9 +16,9 @@ function summary(): EngineMetricsSummary {
       DependencyEdges: 30,
       EstimatedBytes: 17088,
     },
-    Rollups: {
-      ThingsOwningRollups: 2,
-      RollupProperties: 5,
+    DerivedProperties: {
+      ThingsOwningDerivedProperties: 2,
+      Definitions: 5,
       MemberEdges: 40,
       EstimatedBytes: 5120,
     },
@@ -35,7 +35,7 @@ describe('EngineMetricsPanel', () => {
     expect(screen.getByText('Reactive computation')).toBeInTheDocument();
     expect(screen.getByText('12')).toBeInTheDocument(); // registered ranges
     expect(screen.getByText('30')).toBeInTheDocument(); // dependency edges
-    expect(screen.getByText('5')).toBeInTheDocument(); // roll-up definitions
+    expect(screen.getByText('5')).toBeInTheDocument(); // derived-property definitions
     expect(screen.getByText('40')).toBeInTheDocument(); // member edges
     expect(screen.getByText('16.7 KB')).toBeInTheDocument();
     expect(screen.getByText('5.0 KB')).toBeInTheDocument();

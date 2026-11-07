@@ -144,12 +144,12 @@ Thing, started by a relationship and kept current by a subscription.
 
 ```mermaid
 flowchart LR
-  ST["<b>SiteStudy</b><br/>inputs · outputs"] -->|"balancesEnergy<br/><i>(a connection, so the relationship dispatches)</i>"| SV["EnergyBalance"]
+  ST["<b>SiteStudy</b><br/>inputs · outputs"] -->|"balancesEnergy<br/><i>(a connection, so the relationship calls the service)</i>"| SV["EnergyBalance"]
   SV -.->|"reads inputs, writes outputs"| ST
 ```
 
 - **Handled predicate** — a predicate Thing bound to a service. Creating a relationship whose
-  predicate is one dispatches that service, handing it the subject. The model carries the trigger.
+  predicate is one calls that service, handing it the subject. The model carries the trigger.
 - **Connection** — the Thing that binds a predicate to a service. It is the predicate in the
   relationship above, which is why relating a study to a service is what starts it.
 - **Effective properties** — a Thing's own values plus everything it inherits through its `is` chain.
@@ -501,7 +501,7 @@ sequenceDiagram
   participant Provider as Outside provider
   Site->>Mycelium: coordinates written, coverage never worked out
   Note over Mycelium: the site enters SiteAwaitingDiscovery,<br/>which the discovery connection watches
-  Mycelium->>Forage: dispatch, naming the site as the subject
+  Mycelium->>Forage: service call, naming the site as the subject
   Forage-->>Mycelium: accepted — the fetching has not started
   Forage->>Mycelium: which sources cover this site,<br/>and what does each one's coverage already say?
   Mycelium-->>Forage: sources reached by walking<br/>isIn and covers relationships, and their coverages
@@ -519,17 +519,17 @@ sequenceDiagram
   Forage->>Mycelium: coverageMatchedAt on the Site
   Note over Site: coverage worked out and none outstanding:<br/>the site leaves SiteAwaitingDiscovery for SiteDiscovered
   Note over Site: a coverage left outstanding keeps it in<br/>SiteAwaitingDiscovery, and the next run asks only that source
-  Forage->>Mycelium: WillowBendStudy balancesEnergy EnergyBalance<br/>one relationship per marked connection
+  Forage->>Mycelium: WillowBendStudy balancesEnergy EnergyBalance<br/>one relationship per analysis connection
   Note over Mycelium: a connection bound to a service is a<br/>handled predicate, so the relationship starts it
-  Note over Mycelium: the site reaching SiteDiscovered is what<br/>closes the dispatch, not the call
+  Note over Mycelium: the site reaching SiteDiscovered is what<br/>closes the service call, not its reply
 ```
 
-**Nothing calls Forage.** The site entering `SiteAwaitingDiscovery` is what dispatches it, and the
-relationship that dispatch writes is what a reader asks afterwards to find out what started a run — see
+**Nothing calls Forage by hand.** The site entering `SiteAwaitingDiscovery` is what calls it, and the
+call record that writes is what a reader asks afterwards to find out what started a run — see
 [FORAGE.md](FORAGE.md#what-starts-a-run).
 
 **A source added to the catalogue reaches the sites already in the model the same way.** The source
-enters its own state, `SourceAwaitingSites`, and is dispatched from it; its run walks from the source
+enters its own state, `SourceAwaitingSites`, and Forage is called about it from there; its run walks from the source
 down through the Places it covers to every site in them and mints the coverages those sites' runs
 will look for, fetching nothing. One outstanding coverage puts a site back in `SiteAwaitingDiscovery`,
 and that site's run asks only the new source — see
@@ -537,7 +537,7 @@ and that site's run asks only the new source — see
 
 The analysis starts whatever mixture resolved, including none — a site whose sources were all
 unavailable is the case a planner most needs an answer about. Forage never calls a compute
-service: it writes the relationships and the platform dispatches, so there is one way to start an analysis
+service: it writes the relationships and the platform calls the services, so there is one way to start an analysis
 rather than two. The subject is the study, because that is where a service reads its inputs.
 See [FORAGE.md](FORAGE.md#starting-the-analysis).
 
@@ -625,7 +625,7 @@ and the harvest apportioned over the demands is worked out by the demands themse
 smaller of what it wants and what the demands before it left — so neither is a service's work.
 
 That one service runs **reactively** here, not as a step in a drawn pipeline. A relationship whose subject is the
-study and whose predicate is the connection bound to the service is what dispatches it: the service
+study and whose predicate is the connection bound to the service is what calls it: the service
 reads the study's effective properties, computes, writes what is its to write back as a Fact, and starts
 watching the study. Every later change to an input recomputes on its own.
 
@@ -672,12 +672,12 @@ because it looks like an answer.
 a boundary and programme shares, so a reservoir capacity is absent until a building model exists or
 somebody states one. A service that finds one of its inputs missing writes nothing, names it in its own log, and
 answers what it is waiting for; the watch it registered on the study is what brings it back when the
-figure arrives. A service that failed instead would have the broker record the dispatch failed and
-drive it again on every reconciliation for as long as the model lived.
+figure arrives. A service that failed instead would have the broker record the call failed and
+call it again on every reconciliation for as long as the model lived.
 
 ### What a service call looks like
 
-A dispatched relationship names the study; the service answers with what it computed:
+A handled relationship names the study; the service answers with what it computed:
 
 ```jsonc
 // Mycelium → the service                   // the service → Mycelium
@@ -747,8 +747,8 @@ from, and two readings of one value
 can come to disagree with nothing to notice.
 
 **A site is also related to the Place it sits in, and that is not a vocabulary.** Nothing is resolved
-against it — a submission names no Place. The producer relates every site to the one Place marked as the
-root, through the predicate marked as the nesting one, because discovery walks outwards from the site
+against it — a submission names no Place. The producer relates every site to the Place the `rootPlace`
+role binds, along the predicate the `placeNesting` role binds, because discovery walks outwards from the site
 through that relationship to find which sources cover it. A site related to no Place reaches none, every source
 then reads as covering nowhere, and the run reports neither a resolved source nor an unresolved one — a
 planner is told nothing was found rather than that nothing was looked for.
@@ -887,15 +887,18 @@ Two footprints are reduced from those shares, because several figures need them 
 defined in exactly one place:
 
 - **Built footprint** = residential + commercial + mobility = **8.88 ha** — the hard surface that
-  sheds rainwater.
+  sheds rainwater. Once the building model holds roofs, the built footprint is their area instead, and
+  the land set aside for building is reported against it as `builtFootprintDivergencePercent`.
 - **Productive footprint** = food and agriculture = **8.16 ha** — the land that grows food.
 
-Which categories roll into which footprint is **a flag each category carries in the model**, not a list
-of names in code. A category marked `__IsBuiltFootprintCategory` sheds rainwater into the built
-footprint and one marked `__IsProductiveFootprintCategory` grows food into the productive one, so a
-project whose programme divides differently moves a flag rather than changing anything that runs.
+Which categories count in which footprint is **a kind each category is in the model**, not a list
+of names in code. A category counts in a footprint when it `is` that footprint's kind: one that is a
+`BuiltFootprintCategory` sheds rainwater into the built footprint, one that is a
+`ProductiveFootprintCategory` grows food into the productive one, and one that is an
+`ArrayHostCategory` hosts the arrays. A project whose programme divides differently changes a
+category's `is` relationships rather than anything that runs.
 
-A category may carry both — a roofed growing area is hard surface the rain runs off *and* land that
+A category may be both kinds — a roofed growing area is hard surface the rain runs off *and* land that
 grows food — so the two footprints can overlap and together exceed the parcel. What must sum to the
 parcel is the per-category areas.
 
@@ -918,7 +921,7 @@ a module efficiency alone would overstate output by about a third.
 until the model holds arrays, and their measured area from then on; its consumption is population
 times energy per person until somebody states a figure or the model holds occupied spaces; and one set
 of energy ranges judges the balance throughout. The estimate stays on the study as
-`estimatedArrayAreaM2`, sized on the categories marked `__IsArrayHostCategory` (residential, in the
+`estimatedArrayAreaM2`, sized on the categories that are an `ArrayHostCategory` (residential, in the
 shipped programme) at the `arrayCoverageFraction` the shared study declares, and is reported against
 the measured area as `arrayAreaDivergencePercent`.
 
@@ -929,23 +932,25 @@ carrying only a boundary get a first answer: **people fed** (the growing land ti
 **people watered** (the harvest divided by what one person drinks in a year), and **people powered**
 (the generation the balance reads — the estimate until a building model arrives — divided by what one
 person consumes). For Willow Bend they come to about
-20, 900 and 290 people — the growing land is the binding constraint, which is itself the finding.
+21, 900 and 290 people — the growing land is the binding constraint, which is itself the finding.
 The submitter dashboard leads with them, and a population dialled in afterwards is what turns the
 percentages and the demand coverages from *not assessed* into verdicts.
 
 ### Food
 
 ```text
-  People fed       = 8.16 ha × 2.5 people/ha/yr                   = 20.4 people
-  Population fed   = 20.4 ÷ 320                                   = 6.4%
+  People fed       = 8.16 ha × 2.5 people/ha/yr × 1.04            = 21.2 people
+  Population fed   = 21.2 ÷ 320                                   = 6.6%
 ```
 
 The yield is a baseline times a factor for the climate. `peopleFedPerHectareBaseline` on the shared
 study archetype is 2.5: regenerative mixed farming producing a full diet supports roughly two to three
 people per hectare. Each climate zone Thing carries a `peopleFedMultiplier`, and the study multiplies
 the baseline by the multiplier of the zone its site is classified as. Willow Bend is `Csa`, whose
-multiplier is 1.0. Correcting the baseline moves the answer for every study; a site whose zone carries
-no multiplier, or which has no zone yet, reads as not assessed.
+multiplier is 1.04. Every class the shared template declares carries one; the Field Guide's
+[Appendix D](FIELD_GUIDE.md#appendix-d--how-every-site-figure-is-worked-out) gives each class's factor
+and where it comes from. Correcting the baseline moves the answer for every study; a site with no zone
+yet, or in a zone a project adds without a multiplier, reads as not assessed.
 
 Two lines of arithmetic, and both are declared on the study rather than run by a service. The result
 still carries which yield assumption produced it and which parcel area it read, and still moves on its
@@ -953,7 +958,7 @@ own when either changes — that is what a declared formula gives, without an ex
 number worked out in a page carries neither.
 
 Neither figure is rounded where it is computed. People fed is conceptually a whole number, but rounding
-20.4 to 20 leaves it disagreeing with the 6.4% worked out from it, so the rounding belongs where the two
+21.2 to 21 leaves it disagreeing with the 6.6% worked out from it, so the rounding belongs where the two
 are displayed together.
 
 > Yield-per-hectare is a coarse abstraction that hides crop mix, climate and diet. That is fine for
@@ -1008,7 +1013,7 @@ from having to be made twice.
 ```
 
 Different inputs, different outputs, different question — and every term is a value the study already
-holds, so the shared archetype declares each of these as a formula and no service is dispatched to work
+holds, so the shared archetype declares each of these as a formula and no service is called to work
 them out.
 
 ### Hazards
@@ -1055,7 +1060,9 @@ platform model carries; a word the vocabulary does not hold writes no
 relationship and is reported, and either way the word stays on the series as the record of what the portal
 answered. A division the
 portal holds no data about for a hazard is answered 404, so nothing is written and that hazard stays
-honestly unassessed. A site that carries no division code and whose position resolved to none has every
+honestly unassessed. The proxy in front of the portal answers 404 too while the portal restarts; that
+one is refused rather than taken as an answer, and the grading is asked again on the next run. A site
+that carries no division code and whose position resolved to none has every
 hazard call refused before the provider is contacted and reported with the unfilled placeholder named —
 the model gap said out loud, not an outage invented for the portal.
 
@@ -1105,8 +1112,9 @@ exercises.
 
 **A refusal says only what the caller can act on.** A submission naming a field wrongly is answered
 `400` with the field named, because whoever filled the form in can correct it. Anything wrong with the
-deployment — a model that was never seeded with the archetypes, for one — is answered `503` with
-nothing in the body, and what is actually wrong goes to the log. A stranger is not told the state of
+deployment — a model where a role the submission service reads its archetypes and predicates through
+binds nothing, for one — is answered `503` with nothing in the body, and what is actually wrong goes to
+the log, which names every such role in one line. A stranger is not told the state of
 the model they are submitting into.
 
 ### Why public intake gets its own service
@@ -1242,9 +1250,10 @@ application, so sharing a file is the point and reaching the broker through one 
 
 **`GET /submissions/form` answers what a form draws itself with and nothing else.** It demands no
 credential for the same reason `POST /submissions` demands none, and it spends the same request budget.
-The categories are found by the mark their archetype carries; the basemap sources by the archetype name
-[the Field Guide's map chapter](FIELD_GUIDE.md#95-the-map-and-its-basemap-sources) states for every client that draws a map;
-the themes a report's tiles are faced with by the mark `__IsThemeArchetype`, each with its colour, icon
+The categories are found through the role that binds their archetype; the basemap sources are the
+Things of the archetype the `basemapSource` role binds, whatever that archetype is called (see
+[the Field Guide's map chapter](FIELD_GUIDE.md#95-the-map-and-its-basemap-sources));
+the themes a report's tiles are faced with are the members of the archetype the `theme` role binds, each with its colour, icon
 and order as the model states them, and none where the model declares no themes. Each category and
 hazard carries its `wording` — its words in every language the model states them in — so the form
 offers a term in the reader's language and still submits it by its name. A model that was never
@@ -1289,10 +1298,10 @@ already cleared are answered in one wording.** Told apart, answering would say w
 to whoever tried one.
 
 **Three things decide what may travel, and all three are the model's.** Which page a submitter may read
-is the Thing marked `__IsSubmitterFindingsDashboard`; what never leaves the model is whatever `is` the
-archetype marked `__IsPersonalDetailArchetype`, dropped whatever walk reached it rather than by trusting
+is the Thing the `submitterFindingsDashboard` role binds; what never leaves the model is whatever `is`
+the archetype the `personalDetail` role binds, dropped whatever walk reached it rather than by trusting
 that no walk does; and the relationships the reading follows are the ones that page's own specification walks. A model
-missing either mark is a deployment that was never seeded for this, answered `503` as an unseeded model
+whose roles bind neither is a deployment that was never seeded for this, answered `503` as an unseeded model
 is — not `200` with a page drawn from a reading nothing was filtered out of.
 
 **The walk is rooted at one site.** A selector naming the archetypes instead would answer with every
@@ -1317,11 +1326,11 @@ minus its `thingId`: the service verifies the ticket was issued for the address 
 the submission's own site, and hands the platform's answer back in its own words, status included, so
 a question the platform refuses reaches the page with the reason. The satellite view's tiles come
 through `GET /basemaps/{registration}/{z}/{x}/{y}`, anonymous like the position lookups because the
-opening map is drawn before anything is verified: the route names a tile registration the model marks
-`__IsBasemapTileRegistration`, forwards the three placeholders through the fetching service — which
-keeps the bytes on its disk for the registration's cache life — and serves the bytes back with a
-`Cache-Control` of the same life. A registration without the mark is not served, whatever the route
-names, so this service is a proxy for the basemaps the model declares and for nothing else. Tiles are
+opening map is drawn before anything is verified: the route serves only the registration the
+`basemapTileRegistration` role binds, one per model, forwards the three placeholders through the
+fetching service — which keeps the bytes on its disk for the registration's cache life — and serves
+the bytes back with a `Cache-Control` of the same life. A route naming any other registration is not
+served, so this service is a proxy for the basemaps the model declares and for nothing else. Tiles are
 counted on a budget of their own, per address, not on the submission budget, so a map drawn never costs
 a submission its requests. Neither route hands a page the provider's address or any key.
 
@@ -1330,9 +1339,9 @@ them.** `POST /submissions/{submissionId}/documents`, under the ticket, is a for
 `file` and a `description`: any type, up to 25 MB, refused over that with the limit named. The bytes
 go to a folder beside the service (`--documentDirectory`, `documents` by default), keyed by submission
 and under a key of the store's own, so the name a person gave the file is a value on a Thing and never
-a path. The model gets what it declares for one — the archetype marked `__IsSharedDocumentArchetype`
-with the file's name, description, media type, size and when it was shared — related to the
-submission's project through the predicate marked `__IsSharedDocumentPredicate`, so the review page
+a path. The model gets what it declares for one — a Thing of the archetype the `sharedDocument` role
+binds, with the file's name, description, media type, size and when it was shared — related to the
+submission's project along the predicate the `shares` role binds, so the review page
 lists a submission's files from the model and never asks this service. `GET
 /submissions/{submissionId}/documents`, under the ticket, lists the same for the page that shared them.
 A model declaring no shared file takes none: the route says files are not taken here rather than
@@ -1380,15 +1389,15 @@ Most of land intake is the platform's general machinery, pointed at land by data
 
 | Capability | Where it lives |
 |---|---|
-| The energy verdict | The energy balance service, dispatched reactively |
+| The energy verdict | The energy balance service, called reactively |
 | Water storage, the food balance, land allocation and the footprints | Formulas and reductions the study declares |
 | The rainwater harvest, apportioned over the demands in serving order | Formulas on the study and on each of its demands |
 | Capacity figures needing no population, default programme shares, the intake-stage energy estimate | Declarations in the analysis templates |
-| Dispatching a service by relating a Thing to it | Handled predicates |
+| Calling a service by relating a Thing to it | Handled predicates |
 | Recomputing a service's outputs when its inputs move | The input-change subscription |
 | Bounding a chain where one computed value feeds another | The recompute round limit |
 | Fetching outside data as configuration, reshaping it, ingesting onto a Thing | Tributary |
-| Validating and registering data sources | Delta |
+| Checking data-source registrations against the model's template tree, and writing them | Delta |
 | Working out which sources cover a site, calling each, and starting the analysis from what resolved | Forage |
 | Rendering a report from a specification stored in the model | The dashboard pages |
 | Posting a whole submission in one idempotent call | Fragments |
@@ -1397,7 +1406,7 @@ Most of land intake is the platform's general machinery, pointed at land by data
 | The map, the wizard, and drawing a parcel with the drawn area checked against the stated area | `vos.Trellis` |
 | Anonymous submission: rate limits, size caps, field bounds, a verified address | `vos.Service.Intake`, guarded as [§9](#what-guards-the-route) describes |
 | The public form, the findings page and the plot-first page | A build of their own from `vos.Trellis`, drawn from the intake service because they hold no credential to read the model with — see [§9](#where-the-form-lives) |
-| The parcel boundary at a clicked position, and a place search, answered to a page with no credential | `POST /submissions/parcel-at-position` and `POST /submissions/place-search`, from the registrations marked in the model |
+| The parcel boundary at a clicked position, and a place search, answered to a page with no credential | `POST /submissions/parcel-at-position` and `POST /submissions/place-search`, from the registrations the `parcelLookup` and `placeSearch` roles bind |
 | Land-intake archetypes, registrations, compute connections, dashboard specification | Data in the platform's templates, not code |
 
 The one message the intake service sends is the verification code. A reviewer's decision is recorded
@@ -1448,8 +1457,8 @@ and reads the service's own log back, both when the submission lands and when it
 | Doc | Why it matters here |
 |---|---|
 | [TRIBUTARY.md](TRIBUTARY.md) | The fetcher — templates, auth modes, paging, and the proven site-ingest examples |
-| [DELTA.md](DELTA.md) | How registrations are validated and provisioned |
-| [SERVICES.md](SERVICES.md) | Section 14 for endpoint services and how a handled predicate dispatches one |
+| [DELTA.md](DELTA.md) | How registrations are checked against the model's template tree |
+| [SERVICES.md](SERVICES.md) | Section 14 for endpoint services and how a handled predicate calls one |
 | [SERVICE_CONTRACT.md](SERVICE_CONTRACT.md) | The wire contract, and the fact / observation / fragment write kinds |
 | [FIELD_GUIDE.md](FIELD_GUIDE.md) | The console and the command line, and the page-authoring contract in Part IX |
 

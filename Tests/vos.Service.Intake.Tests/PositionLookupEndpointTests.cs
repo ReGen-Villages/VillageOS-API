@@ -217,14 +217,12 @@ public class PositionLookupEndpointTests
     {
         var model = DeclaredModel.Seeded()
             .Stating(WillowBend.ParcelRegisterName,
-                (PositionLookupReader.ParcelLookupFlag, true),
                 (PositionLookupReader.TransformProperty, "this is ((( not JSONata"),
                 (PositionLookupReader.SouthLatitudeProperty, 41.0),
                 (PositionLookupReader.NorthLatitudeProperty, 51.5),
                 (PositionLookupReader.WestLongitudeProperty, -5.5),
                 (PositionLookupReader.EastLongitudeProperty, 10.0))
             .Stating(WillowBend.PlaceSearchName,
-                (PositionLookupReader.PlaceSearchFlag, true),
                 (PositionLookupReader.TransformProperty, "this is ((( not JSONata"));
         await using var factory = Answering(model, providerBody: "{}");
         using var client = factory.CreateClient();

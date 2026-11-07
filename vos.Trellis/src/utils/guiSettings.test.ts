@@ -10,6 +10,7 @@ import {
   NUMBER_DISPLAY_DEFAULTS,
 } from './guiSettings';
 import type { VosThing, VosRelationship } from '../types/vos';
+import { DISPLAY_SETTINGS_ROLE_ID } from '../api/platformRoles';
 
 let idCounter = 0;
 function uniqueId() {
@@ -38,18 +39,25 @@ function makeRelationship(
   };
 }
 
-/** Build the standard GUI_Settings type + GUI instance + is relationship. */
+/** The settings Thing as a model holds it: bound by the display settings role along `binds`. */
+function bound(settings: VosThing): { things: VosThing[]; relationships: VosRelationship[] } {
+  const binds = makeThing('binds');
+  const role: VosThing = { Id: DISPLAY_SETTINGS_ROLE_ID, Name: 'DisplaySettings', Properties: {} };
+  return { things: [binds, role, settings], relationships: [makeRelationship(role.Id, binds.Id, settings.Id)] };
+}
+
+/** Build the bound settings Thing + GUI instance + is relationship. */
 function buildGuiFixture(
   typeProperties: Record<string, unknown>,
   instanceProperties: Record<string, unknown> = {},
 ) {
   const isPredicate = makeThing('is');
-  const guiType = makeThing('GUI_Settings', typeProperties);
+  const settings = bound(makeThing('GUI_Settings', typeProperties));
   const gui = makeThing('GUI', instanceProperties);
-  const relationship = makeRelationship(gui.Id, isPredicate.Id, guiType.Id);
+  const relationship = makeRelationship(gui.Id, isPredicate.Id, settings.things[2].Id);
   return {
-    things: [isPredicate, guiType, gui],
-    relationships: [relationship],
+    things: [isPredicate, ...settings.things, gui],
+    relationships: [...settings.relationships, relationship],
   };
 }
 
@@ -58,15 +66,26 @@ beforeEach(() => {
 });
 
 describe('findGuiSettingsProperties', () => {
-  it('returns null when no GUI_Settings type exists', () => {
+  it('returns null when no role binds a settings Thing', () => {
     const things = [makeThing('Foo'), makeThing('Bar')];
     expect(findGuiSettingsProperties(things, [])).toBeNull();
   });
 
-  it('returns type properties when no instance is linked', () => {
-    const guiType = makeThing('GUI_Settings', { FlashEdgeSize: 2.0 });
-    const result = findGuiSettingsProperties([guiType], []);
+  it('returns the bound Thing\'s properties when no instance is linked, whatever the Thing is called', () => {
+    const { things, relationships } = bound(makeThing('how this model is drawn', { FlashEdgeSize: 2.0 }));
+    const result = findGuiSettingsProperties(things, relationships);
     expect(result).toEqual({ FlashEdgeSize: 2.0 });
+  });
+
+  it('does not take a Thing of the conventional name that no role binds for the settings', () => {
+    const namesake = makeThing('GUI_Settings', { FlashEdgeSize: 2.0 });
+    expect(findGuiSettingsProperties([namesake, makeThing('binds')], [])).toBeNull();
+  });
+
+  it('merges only an instance that `is` the settings Thing, not the role that binds it', () => {
+    const { things, relationships } = bound(makeThing('GUI_Settings', { FlashEdgeSize: 1.5 }));
+    things[1].Properties = { FlashEdgeSize: 99 };
+    expect(findGuiSettingsProperties(things, relationships)).toEqual({ FlashEdgeSize: 1.5 });
   });
 
   it('merges instance overrides over type defaults', () => {

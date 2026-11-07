@@ -2,6 +2,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.EnergyBalance.Services;
+using vos.Service.Shared.DagNode;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -25,7 +26,7 @@ public class EnergyBalanceNodeTests
 
         var response = await node.HandleNodeAsync(root);
 
-        response.Success.Should().BeTrue();
+        response.Result.Should().Be(NodeResponse.Succeeded);
         ((double)response.Outputs["totalGenerationMwhPerYear"]!).Should().BeApproximately(20900, 1e-6);
         ((bool)response.Outputs["netPositive"]!).Should().BeTrue();
     }
@@ -41,12 +42,12 @@ public class EnergyBalanceNodeTests
 
         var response = await node.HandleNodeAsync(root);
 
-        response.Success.Should().BeFalse();
+        response.Result.Should().Be(NodeResponse.Failed);
         response.Error.Should().Contain("annualConsumptionMwhPerYear");
         response.Outputs.Should().BeEmpty();
     }
 
-    // A port wired to a withheld roll-up arrives present-but-null, which is not the same as absent.
+    // A port wired to a withheld derived property arrives present-but-null, which is not the same as absent.
     // Reading it with GetDouble() raised .NET's own "target element has type 'Null'" — a message naming no
     // port, which is the failure this change exists to remove on the reactive side.
     [Fact]
@@ -60,7 +61,7 @@ public class EnergyBalanceNodeTests
 
         var response = await node.HandleNodeAsync(root);
 
-        response.Success.Should().BeFalse();
+        response.Result.Should().Be(NodeResponse.Failed);
         response.Error.Should().Contain("otherGenerationMwhPerYear");
     }
 

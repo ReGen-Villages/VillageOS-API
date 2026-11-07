@@ -1,45 +1,84 @@
 import type { VosThing, VosRelationship } from '../types/vos';
 import { statedProperties } from '../utils/propertyMapper';
 
-// Client-side mirror of Phloem's graph reads (vos.Service.Phloem): resolve a node's dispatch connection, its
+// Client-side mirror of Phloem's graph reads (vos.Service.Phloem): resolve the connection a node calls, its
 // ports (via the bound service's is-chain), and identify wires by the archetype their predicate is of.
-// `is`, `has` and `of` are the platform's own built-in predicates and are matched by name. Which Thing plays
-// which role is not a name at all: it is read from the flag the archetype carries, the same contract Phloem
-// reads, so a model may call every archetype below whatever suits it.
+// `is`, `has`, `of` and `binds` are the platform's own built-in predicates and are matched by name. Which Thing
+// plays which role is not a name at all: each role is a Thing the model declares under a fixed identifier, and
+// it binds the Thing playing it along `binds` — the same contract Phloem reads, so a model may call every
+// archetype and predicate below whatever suits it.
 
-export const ARCHETYPE_FLAG = {
-  Pipeline: '__IsPipelineArchetype',
-  PipelineNode: '__IsPipelineNodeArchetype',
+/** Each role's identifier is the standard version 5 identifier of the role's word, so every model declares the
+ *  same role Thing. Archetypes first; then the predicates the platform calls services on, what an external system
+ *  sends and is told, where a kind of message arrives, what a boundary node stands for, and which pipeline a
+ *  connection's trigger starts. */
+export const ROLE = {
+  Pipeline: 'f8bc9986-6eef-54d9-9940-4aca2497109b',
+  PipelineNode: 'f273f058-e3d6-5a20-aa37-34638ce64735',
   // Boundary nodes: a pipeline's external input ("from the start") and output ("at the end").
-  PipelineInput: '__IsPipelineInputArchetype',
-  PipelineOutput: '__IsPipelineOutputArchetype',
-  Connection: '__IsConnectionArchetype',
-  Service: '__IsServiceArchetype',
-  Port: '__IsPortArchetype',
-  PipelineWire: '__IsPipelineWireArchetype',
-  PipelineRun: '__IsPipelineRunArchetype',
-  Range: '__IsRangeArchetype',
+  PipelineInput: '634f9ae3-2cca-5dd9-84aa-fec4dff07a6d',
+  PipelineOutput: '880d2158-25a8-5b2b-8b6a-923f21ca153d',
+  Connection: 'd5a3c29f-67c1-55a5-b0e4-9241378bd08d',
+  Service: '768bb2e8-e738-5345-9126-c23ad1513197',
+  Port: '318d6995-e07b-5c83-acb5-86cd935ba4c6',
+  PipelineWire: 'adfe0071-bbaf-5e7f-abc3-255c08d8735a',
+  InputConnector: '1f13d260-b2cc-5757-a475-7eb9b7d2323f',
+  OutputConnector: '7788a338-5eb6-5733-a208-0cf90b4269dd',
+  // A wire reaches the result its node must answer, success or fail, or the node's choice it must name, for the wire to carry.
+  TakenOn: '840892f9-2d05-5e98-b573-0699851760c9',
+  Success: 'ffb97ba6-4853-5257-92e4-b71a87b79691',
+  Fail: '661cb599-dbca-56ca-a0dc-f9f162e587c3',
+  DecisionPath: '75c2351b-0e8d-5c97-a20d-18e4d5c46363',
+  // A choice reaches the Things its rule reads as `$things`.
+  ComparesWith: '9bb384be-5a61-5fff-9ed9-c423a2c74c37',
+  // An in port reaches the Things it offers, and a node reaches the one it chose, along the same predicate.
+  Choice: '043b23a9-d2e8-5a8a-b81c-1a56bf0f525a',
+  PipelineRun: 'b682b68f-0101-5ab4-a7a9-13c3e43df873',
+  // The orchestrator's record of one node's progress in a run, which the run holds along `has`.
+  NodeRun: 'ca731d14-5acb-5236-b0da-fe8b0836d0d7',
+  Range: 'c081de17-c325-55b7-99ca-16fb835ae545',
   // A system outside the platform that sends it messages or is sent them, and a kind of message crossing
-  // that boundary. Declared by the model like every other role; nothing here names either archetype.
-  ExternalSystem: '__IsExternalSystemArchetype',
-  MessageKind: '__IsMessageKindArchetype',
+  // that boundary.
+  ExternalSystem: '03164f47-30c0-5984-9215-a81317000ec5',
+  MessageKind: '0b2082d2-eec5-5eec-85dd-66431d776731',
+  Cadence: 'f3883eaf-4e52-5c0c-887b-1bc696578812',
   // The orchestrator's prototype: the rail binds a state's connection to the one service of it.
-  Orchestrator: '__IsOrchestratorArchetype',
+  Orchestrator: 'da0ee18e-c157-5f94-b2f8-cca2d7337929',
+  Trigger: 'd619eb5c-8cca-5234-8826-2f01bd6b4e7b',
+  StateWatch: '03590900-eb28-55bf-9731-e9a0c03dce82',
+  JudgedThing: '63d59765-a9b7-53b8-8a2b-0de3899add18',
+  Sends: 'ab3334f4-cb8e-5513-94b4-43debdb73acd',
+  Told: '08104fb0-e74f-511a-9598-62c20da9083c',
+  ArrivesAt: '79f0afcb-8c66-53dd-8081-43af167fc07a',
+  StandsFor: '4277647a-93f8-5860-8717-da2a12673dbf',
+  PipelineStart: '871174ab-c8e4-5712-81e1-b95accaea5ce',
+  // The orchestrator's own connection, which a vigil answers through to resume a waiting run; no run starts from it.
+  RunResumption: '50c894ed-a33d-56cc-a5a6-92aa82d32f4f',
+  // A stop request, and the orchestrator's own connection it is related to a run along; no run starts from it.
+  StopRequest: '159ef90f-8089-5055-b5a9-8839d5e28e7a',
+  RunStopping: '7acbab6c-58f3-5145-a9c0-18a907197131',
+  // A stop request names the run that wrote it, so a stop node never stops its own run.
+  RequestedBy: 'f0511a24-8925-5ac0-8f8e-971202c1741a',
+  // A run a person started again reaches the run it repeats.
+  RepeatedRun: '7a0975c1-510c-5585-b39e-31995807083f',
+  // Nodes the orchestrator runs itself, calling no service, and the connection a system is told through.
+  PipelineTell: '7fed4d74-0cb1-547d-85d8-bbcfc5992667',
+  PipelineFollowOn: '0ed6e1fc-cbac-5d4e-b3f0-ef83f4a09e43',
+  PipelineStop: 'a5f12016-a3f9-505c-95c7-d211fd84b8f2',
+  ToldThrough: 'd94c1844-76e6-56fa-ae38-d10405d52826',
 } as const;
 
-/** The marks on the predicates the page walks. The platform declares the first three and dispatches on
- *  them; the rest say what an external system sends and is told, where a kind of message arrives, what a
- *  boundary node stands for, and which pipeline a connection's trigger starts. */
-export const PREDICATE_FLAG = {
-  Trigger: '__IsTriggerPredicate',
-  StateWatch: '__IsStateWatchPredicate',
-  JudgedThing: '__IsJudgedThingPredicate',
-  Sends: '__IsSendsPredicate',
-  Told: '__IsToldPredicate',
-  ArrivesAt: '__IsArrivesAtPredicate',
-  StandsFor: '__IsStandsForPredicate',
-  PipelineStart: '__IsPipelineStartPredicate',
-} as const;
+/** A node that calls no service: where a run comes from and what it leaves behind, or one the orchestrator runs
+ *  itself to tell a system, start another pipeline, or stop runs. */
+export type NodeKind = 'input' | 'output' | 'tell' | 'followOn' | 'stop';
+
+export const NODE_KIND_ROLE: Record<NodeKind, string> = {
+  input: ROLE.PipelineInput,
+  output: ROLE.PipelineOutput,
+  tell: ROLE.PipelineTell,
+  followOn: ROLE.PipelineFollowOn,
+  stop: ROLE.PipelineStop,
+};
 
 const EVALUATION_INTERVAL_PROPERTY = 'EvaluationIntervalSeconds';
 
@@ -48,7 +87,7 @@ const EVALUATION_INTERVAL_PROPERTY = 'EvaluationIntervalSeconds';
 const REQUEST_ID_PROPERTY = 'requestId';
 
 /** What a boundary node may stand for, told by what the Thing it points at is. */
-export type EndKind = 'messageKind' | 'externalSystem' | 'door' | 'state' | 'relationship' | 'pipeline' | 'other';
+export type EndKind = 'messageKind' | 'externalSystem' | 'door' | 'state' | 'relationship' | 'pipeline' | 'cadence' | 'other';
 
 /** A Thing at one end of a pipeline: what it is, and whether a run may come from it or leave it behind. */
 export interface EndInformation {
@@ -76,9 +115,10 @@ export interface ExternalSystemInformation {
   name: string;
   sends: MessageKindInformation[];
   told: MessageKindInformation[];
+  toldThroughConnectionId?: string;
 }
 
-/** A connection as a catalyst: how it is reached, what it dispatches, and what it starts. */
+/** A connection as a catalyst: how it is reached, what it calls, and what it starts. */
 export interface CatalystConnection {
   connectionId: string;
   name: string;
@@ -94,12 +134,10 @@ export interface CatalystConnection {
   startsPipeline?: PipelineNamed;
 }
 
-/** A Thing plays a role when it holds that flag as its own property, set true. Inheritance hands an
- *  archetype's flag down to every member, so this reads own properties and never the inherited view.
- *  A flag written as anything but a boolean is not a mark: Phloem reads it the same strict way, and a
- *  model the editor accepted but the orchestrator refused would be the split this replaced. */
-function carriesFlag(thing: VosThing, roleFlag: string): boolean {
-  return thing.Properties[roleFlag] === true;
+export interface NodeRunProgress {
+  done: number;
+  reached: number;
+  spreadOver: number;
 }
 
 export interface RunInformation {
@@ -110,34 +148,45 @@ export interface RunInformation {
   requestId?: string;
 }
 
+export interface RunARestartStopped {
+  runId: string;
+  pipelineName: string;
+  startedUtc: string;
+  reason: string;
+}
+
 export interface PortInformation {
+  /** The port Thing's identifier; a wire relates to it, so renaming the port keeps the wire. */
+  portId: string;
   portName: string;
   direction: 'in' | 'out';
   type: string;
   required: boolean;
 }
 
-/** A wire as the editor reads it, whichever shape the model holds it in. */
 export interface WireRead {
   wireId: string;
-  shape: 'edge' | 'held';
   targetId: string;
-  fromPort: string;
-  toPort: string;
+  outPortId: string;
+  inPortId: string;
   fromPath: string;
   toPath: string;
-  transform: string;
+  itemTransform: string;
+  listTransform: string;
+  takenOn: RelationshipAndTarget[];
 }
 
-/** The five values a wire carries, read the same off a relationship and off a wire Thing. */
-function wireMapping(properties: Record<string, unknown>) {
-  return {
-    fromPort: String(properties.fromPort ?? ''),
-    toPort: String(properties.toPort ?? ''),
-    fromPath: String(properties.fromPath ?? ''),
-    toPath: String(properties.toPath ?? ''),
-    transform: String(properties.transform ?? ''),
-  };
+export interface RelationshipAndTarget {
+  relationshipId: string;
+  thingId: string;
+}
+
+/** A choice a node holds of where its run goes next, with the rule that decides it and the Things that rule compares with. */
+export interface ChoiceInformation {
+  id: string;
+  name: string;
+  when: string;
+  comparesWith: string[];
 }
 
 export interface ConnectionInformation {
@@ -158,6 +207,7 @@ export class PipelineModel {
   // predicate does.
   private readonly usedAsPredicate: Set<string>;
   private readonly roleCache = new Map<string, boolean>();
+  private readonly boundCache = new Map<string, string | undefined>();
   private readonly statedCache = new WeakMap<VosThing, Record<string, unknown>>();
   // Relationships indexed by target, for the reads that ask what points at a Thing: which node stands for
   // a catalyst, which door a kind arrives at. Built once with the subject index.
@@ -180,39 +230,87 @@ export class PipelineModel {
     }
   }
 
-  /** The predicate Thing carrying a mark — the one a relationship in that role is written through.
-   *  Undefined where the model marks none, which is a relationship this editor cannot write. */
-  predicateCarrying(predicateFlag: string): string | undefined {
-    return this.things.find((t) => carriesFlag(t, predicateFlag))?.Id;
+  /** The Thing a role binds: the archetype a Thing of that role `is`, or the predicate a relationship in that
+   *  role is written through. Undefined where the model binds the role to nothing, which is a model this editor
+   *  cannot author, and where it binds two, which seed validation refuses because a role is one Thing's job. */
+  boundTo(roleId: string): string | undefined {
+    if (this.boundCache.has(roleId)) return this.boundCache.get(roleId);
+    const played = this.outgoing(roleId, 'binds');
+    const bound = played.length === 1 ? played[0].Id : undefined;
+    this.boundCache.set(roleId, bound);
+    return bound;
   }
 
-  /** Targets reached from `subjectId` along any predicate carrying the mark. */
-  reachedAlong(subjectId: string, predicateFlag: string): VosThing[] {
-    const out: VosThing[] = [];
-    for (const relationship of this.bySubject.get(subjectId) ?? []) {
-      const predicate = this.byId.get(relationship.PredicateId);
-      if (!predicate || !carriesFlag(predicate, predicateFlag)) continue;
-      const target = this.byId.get(relationship.TargetId);
-      if (target) out.push(target);
+  /** Targets reached from `subjectId` along the predicate the role binds. */
+  reachedAlong(subjectId: string, roleId: string): VosThing[] {
+    return this.relationshipsAlong(subjectId, roleId).map((relationship) => this.byId.get(relationship.TargetId)!);
+  }
+
+  relationshipsAndTargetsAlong(subjectId: string, roleId: string): RelationshipAndTarget[] {
+    return this.relationshipsAlong(subjectId, roleId)
+      .map((relationship) => ({ relationshipId: relationship.Id, thingId: relationship.TargetId }));
+  }
+
+  private relationshipsAlong(subjectId: string, roleId: string): VosRelationship[] {
+    const predicateId = this.boundTo(roleId);
+    return (this.bySubject.get(subjectId) ?? []).filter((relationship) =>
+      relationship.PredicateId === predicateId && this.byId.has(relationship.TargetId));
+  }
+
+  choicesOf(nodeId: string): ChoiceInformation[] {
+    return this.outgoing(nodeId, 'has')
+      .filter((held) => this.isOf(held.Id, ROLE.DecisionPath))
+      .map((choice) => ({
+        id: choice.Id,
+        name: choice.Name,
+        when: String(this.stated(choice.Id).when ?? ''),
+        comparesWith: this.reachedAlong(choice.Id, ROLE.ComparesWith).map((compared) => compared.Id),
+      }));
+  }
+
+  /** In-port identifier → the Thing the node chose among those that port offers. */
+  chosenForEachInPort(nodeId: string, ports: PortInformation[]): Record<string, string> {
+    const chosen: Record<string, string> = {};
+    for (const thing of this.reachedAlong(nodeId, ROLE.Choice)) {
+      const offering = ports.find((port) => port.direction === 'in'
+        && this.reachedAlong(port.portId, ROLE.Choice).some((offered) => offered.Id === thing.Id));
+      if (offering) chosen[offering.portId] = thing.Id;
     }
-    return out;
+    return chosen;
   }
 
-  /** Subjects that reach `targetId` along any predicate carrying the mark. */
-  private reachingAlong(targetId: string, predicateFlag: string): VosThing[] {
+  /** The kinds of what the in ports offer: what each offered Thing directly `is`, each kind once. */
+  kindsOffered(ports: PortInformation[]): string[] {
+    const kinds = new Set<string>();
+    for (const port of ports) {
+      if (port.direction !== 'in') continue;
+      for (const offered of this.reachedAlong(port.portId, ROLE.Choice))
+        for (const kind of this.outgoing(offered.Id, 'is')) kinds.add(kind.Id);
+    }
+    return [...kinds];
+  }
+
+  /** Every Thing that `is` one of the kinds, directly or through its `is`-chain — the members, never a kind itself. */
+  thingsOfKinds(kindIds: string[]): VosThing[] {
+    return this.things.filter((thing) => !thing.IsArchetype
+      && kindIds.some((kindId) => this.isBeneath(thing.Id, kindId, new Set([thing.Id]))));
+  }
+
+  /** Subjects that reach `targetId` along the predicate the role binds. */
+  private reachingAlong(targetId: string, roleId: string): VosThing[] {
+    const predicateId = this.boundTo(roleId);
     const out: VosThing[] = [];
     for (const relationship of this.byTarget.get(targetId) ?? []) {
-      const predicate = this.byId.get(relationship.PredicateId);
-      if (!predicate || !carriesFlag(predicate, predicateFlag)) continue;
+      if (relationship.PredicateId !== predicateId) continue;
       const subject = this.byId.get(relationship.SubjectId);
       if (subject) out.push(subject);
     }
     return out;
   }
 
-  /** Every Thing that is of an archetype carrying the mark — the members, never the archetype itself. */
-  thingsOfArchetypeCarrying(roleFlag: string): VosThing[] {
-    return this.things.filter((t) => !t.IsArchetype && this.isOfArchetypeCarrying(t.Id, roleFlag));
+  /** Every Thing that `is` what the role binds — the members, never the archetype itself. */
+  thingsOf(roleId: string): VosThing[] {
+    return this.things.filter((t) => !t.IsArchetype && this.isOf(t.Id, roleId));
   }
 
   /** The name of the trigger a connection is reached by: its own, or the nearest declared above it along
@@ -224,7 +322,7 @@ export class PipelineModel {
       const id = queue.shift()!;
       if (seen.has(id)) continue;
       seen.add(id);
-      const trigger = this.reachedAlong(id, PREDICATE_FLAG.Trigger)[0];
+      const trigger = this.reachedAlong(id, ROLE.Trigger)[0];
       if (trigger) return trigger.Name.trim().toLowerCase();
       for (const parent of this.outgoing(id, 'is')) queue.push(parent.Id);
     }
@@ -233,9 +331,9 @@ export class PipelineModel {
 
   private bindingOf(connectionId: string): { relationshipId: string; service: VosThing } | undefined {
     for (const relationship of this.bySubject.get(connectionId) ?? []) {
-      if (this.byId.get(relationship.PredicateId)?.Name.toLowerCase() !== 'has') continue;
+      if (this.byId.get(relationship.PredicateId)?.Name !== 'has') continue;
       const service = this.byId.get(relationship.TargetId);
-      if (service && this.isOfArchetypeCarrying(service.Id, ARCHETYPE_FLAG.Service))
+      if (service && this.isOf(service.Id, ROLE.Service))
         return { relationshipId: relationship.Id, service };
     }
     return undefined;
@@ -244,18 +342,19 @@ export class PipelineModel {
   /** The one service of the orchestrator's archetype. None where the model holds none or several, since
    *  binding a state to one of several would be a guess. */
   orchestratorService(): VosThing | undefined {
-    const services = this.thingsOfArchetypeCarrying(ARCHETYPE_FLAG.Orchestrator);
+    const services = this.thingsOf(ROLE.Orchestrator);
     return services.length === 1 ? services[0] : undefined;
   }
 
   /** Every connection the model holds, as the catalyst its trigger makes it, whether or not a pipeline
-   *  can dispatch it: a door reached over HTTP, a predicate written along, a state watched. */
+   *  can call it: a door reached over HTTP, a predicate written along, a state watched. */
   catalystConnections(): CatalystConnection[] {
-    return this.thingsOfArchetypeCarrying(ARCHETYPE_FLAG.Connection).map((connection) => {
-      const watched = this.reachedAlong(connection.Id, PREDICATE_FLAG.StateWatch)
-        .find((range) => this.isOfArchetypeCarrying(range.Id, ARCHETYPE_FLAG.Range));
-      const started = this.reachedAlong(connection.Id, PREDICATE_FLAG.PipelineStart)
-        .find((pipeline) => this.isOfArchetypeCarrying(pipeline.Id, ARCHETYPE_FLAG.Pipeline));
+    const resumption = this.boundTo(ROLE.RunResumption);
+    return this.thingsOf(ROLE.Connection).filter((connection) => connection.Id !== resumption).map((connection) => {
+      const watched = this.reachedAlong(connection.Id, ROLE.StateWatch)
+        .find((range) => this.isOf(range.Id, ROLE.Range));
+      const started = this.reachedAlong(connection.Id, ROLE.PipelineStart)
+        .find((pipeline) => this.isOf(pipeline.Id, ROLE.Pipeline));
       const subdomain = connection.Properties.Subdomain;
       const interval = watched ? Number(watched.Properties[EVALUATION_INTERVAL_PROPERTY] ?? 0) : 0;
       const binding = this.bindingOf(connection.Id);
@@ -270,7 +369,7 @@ export class PipelineModel {
           watches: {
             rangeId: watched.Id,
             name: watched.Name,
-            kindJudged: this.reachedAlong(watched.Id, PREDICATE_FLAG.JudgedThing)[0]?.Name ?? '',
+            kindJudged: this.reachedAlong(watched.Id, ROLE.JudgedThing)[0]?.Name ?? '',
             everySeconds: Number.isFinite(interval) && interval > 0 ? interval : 0,
           },
         } : {}),
@@ -280,25 +379,29 @@ export class PipelineModel {
   }
 
   private messageKind(kind: VosThing): MessageKindInformation {
-    const door = this.reachedAlong(kind.Id, PREDICATE_FLAG.ArrivesAt)
-      .find((c) => this.isOfArchetypeCarrying(c.Id, ARCHETYPE_FLAG.Connection));
+    const door = this.reachedAlong(kind.Id, ROLE.ArrivesAt)
+      .find((c) => this.isOf(c.Id, ROLE.Connection));
     return { id: kind.Id, name: kind.Name, ...(door ? { arrivesAtConnectionId: door.Id } : {}) };
   }
 
   /** Every external system the model holds, with the kinds of message it sends and is told. */
   externalSystems(): ExternalSystemInformation[] {
-    const kinds = (systemId: string, predicateFlag: string) =>
-      this.reachedAlong(systemId, predicateFlag)
-        .filter((kind) => this.isOfArchetypeCarrying(kind.Id, ARCHETYPE_FLAG.MessageKind))
+    const kinds = (systemId: string, roleId: string) =>
+      this.reachedAlong(systemId, roleId)
+        .filter((kind) => this.isOf(kind.Id, ROLE.MessageKind))
         .map((kind) => this.messageKind(kind))
         .sort((a, b) => a.name.localeCompare(b.name));
-    return this.thingsOfArchetypeCarrying(ARCHETYPE_FLAG.ExternalSystem)
-      .map((system) => ({
-        id: system.Id,
-        name: system.Name,
-        sends: kinds(system.Id, PREDICATE_FLAG.Sends),
-        told: kinds(system.Id, PREDICATE_FLAG.Told),
-      }))
+    return this.thingsOf(ROLE.ExternalSystem)
+      .map((system) => {
+        const through = this.reachedAlong(system.Id, ROLE.ToldThrough).find((connection) => this.isOf(connection.Id, ROLE.Connection));
+        return {
+          id: system.Id,
+          name: system.Name,
+          sends: kinds(system.Id, ROLE.Sends),
+          told: kinds(system.Id, ROLE.Told),
+          ...(through ? { toldThroughConnectionId: through.Id } : {}),
+        };
+      })
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
@@ -306,9 +409,9 @@ export class PipelineModel {
    *  that relationship's id. Undefined for a node standing for nothing, which at the end of a run is the
    *  answer and at the start is a run started by hand. */
   standsFor(nodeId: string): { thingId: string; relationshipId: string } | undefined {
+    const standsForId = this.boundTo(ROLE.StandsFor);
     for (const relationship of this.bySubject.get(nodeId) ?? []) {
-      const predicate = this.byId.get(relationship.PredicateId);
-      if (predicate && carriesFlag(predicate, PREDICATE_FLAG.StandsFor) && this.byId.has(relationship.TargetId))
+      if (relationship.PredicateId === standsForId && this.byId.has(relationship.TargetId))
         return { thingId: relationship.TargetId, relationshipId: relationship.Id };
     }
     return undefined;
@@ -317,12 +420,12 @@ export class PipelineModel {
   /** The pipeline drawn for a catalyst or an outcome: the one whose boundary node stands for the Thing,
    *  at the given end. */
   pipelineWhoseEndStandsFor(thingId: string, end: 'input' | 'output'): PipelineNamed | undefined {
-    const endFlag = end === 'input' ? ARCHETYPE_FLAG.PipelineInput : ARCHETYPE_FLAG.PipelineOutput;
-    for (const node of this.reachingAlong(thingId, PREDICATE_FLAG.StandsFor)) {
-      if (!this.isOfArchetypeCarrying(node.Id, endFlag)) continue;
+    const endRole = end === 'input' ? ROLE.PipelineInput : ROLE.PipelineOutput;
+    for (const node of this.reachingAlong(thingId, ROLE.StandsFor)) {
+      if (!this.isOf(node.Id, endRole)) continue;
       const pipeline = (this.byTarget.get(node.Id) ?? [])
         .map((relationship) => this.byId.get(relationship.SubjectId))
-        .find((subject) => subject && this.isOfArchetypeCarrying(subject.Id, ARCHETYPE_FLAG.Pipeline));
+        .find((subject) => subject && this.isOf(subject.Id, ROLE.Pipeline));
       if (pipeline) return { id: pipeline.Id, name: pipeline.Name };
     }
     return undefined;
@@ -330,23 +433,26 @@ export class PipelineModel {
 
   /** What a Thing is as the end of a pipeline, and which end it may be. A kind of message may start a run
    *  where a system sends it and end one where a system is told it; a system may start one where it sends
-   *  anything, and may always be told; a door, a state and a predicate only start; a pipeline does both. */
+   *  anything; a door, a state, a predicate and a pipeline only start. A run tells a system and starts a pipeline
+   *  through a node wired on to its end, so neither is the end itself, as Phloem reads it. */
   endInformation(thingId: string): EndInformation {
     const thing = this.byId.get(thingId);
     const named = { id: thingId, name: thing?.Name ?? '' };
     if (!thing) return { ...named, kind: 'other', mayStart: false, mayEnd: false };
-    if (this.isOfArchetypeCarrying(thingId, ARCHETYPE_FLAG.MessageKind)) {
-      const sent = this.reachingAlong(thingId, PREDICATE_FLAG.Sends).length > 0;
-      const told = this.reachingAlong(thingId, PREDICATE_FLAG.Told).length > 0;
+    if (this.isOf(thingId, ROLE.MessageKind)) {
+      const sent = this.reachingAlong(thingId, ROLE.Sends).length > 0;
+      const told = this.reachingAlong(thingId, ROLE.Told).length > 0;
       return { ...named, kind: 'messageKind', mayStart: sent, mayEnd: told };
     }
-    if (this.isOfArchetypeCarrying(thingId, ARCHETYPE_FLAG.ExternalSystem))
-      return { ...named, kind: 'externalSystem', mayStart: this.reachedAlong(thingId, PREDICATE_FLAG.Sends).length > 0, mayEnd: true };
-    if (this.isOfArchetypeCarrying(thingId, ARCHETYPE_FLAG.Pipeline))
-      return { ...named, kind: 'pipeline', mayStart: true, mayEnd: true };
-    if (this.isOfArchetypeCarrying(thingId, ARCHETYPE_FLAG.Range))
+    if (this.isOf(thingId, ROLE.ExternalSystem))
+      return { ...named, kind: 'externalSystem', mayStart: this.reachedAlong(thingId, ROLE.Sends).length > 0, mayEnd: false };
+    if (this.isOf(thingId, ROLE.Pipeline))
+      return { ...named, kind: 'pipeline', mayStart: true, mayEnd: false };
+    if (this.isOf(thingId, ROLE.Range))
       return { ...named, kind: 'state', mayStart: true, mayEnd: false };
-    if (this.isOfArchetypeCarrying(thingId, ARCHETYPE_FLAG.Connection)) {
+    if (this.isOf(thingId, ROLE.Cadence))
+      return { ...named, kind: 'cadence', mayStart: true, mayEnd: false };
+    if (this.isOf(thingId, ROLE.Connection)) {
       const trigger = this.triggerOf(thingId);
       const kind: EndKind = trigger === 'graph' ? 'relationship' : trigger === 'state' ? 'state' : 'door';
       return { ...named, kind, mayStart: true, mayEnd: false };
@@ -362,10 +468,9 @@ export class PipelineModel {
   outgoing(subjectId: string, predicateName: string): VosThing[] {
     const relationships = this.bySubject.get(subjectId);
     if (!relationships) return [];
-    const pn = predicateName.toLowerCase();
     const out: VosThing[] = [];
     for (const relationship of relationships) {
-      if (this.byId.get(relationship.PredicateId)?.Name.toLowerCase() === pn) {
+      if (this.byId.get(relationship.PredicateId)?.Name === predicateName) {
         const t = this.byId.get(relationship.TargetId);
         if (t) out.push(t);
       }
@@ -373,23 +478,24 @@ export class PipelineModel {
     return out;
   }
 
-  /** Is this Thing — directly or through its `is`-chain — of an archetype carrying the given role? The walk
-   *  starts above the Thing, so an archetype never plays its own role (memoised: pure over the graph). */
-  isOfArchetypeCarrying(thingId: string, roleFlag: string): boolean {
-    const key = `${thingId} ${roleFlag}`;
+  /** Does this Thing `is`, directly or through its `is`-chain, what the role binds? The walk starts above the
+   *  Thing, so an archetype never plays its own role (memoised: pure over the graph). */
+  isOf(thingId: string, roleId: string): boolean {
+    const key = `${thingId} ${roleId}`;
     const cached = this.roleCache.get(key);
     if (cached !== undefined) return cached;
-    const result = this.isOfArchetypeCarryingRec(thingId, roleFlag, new Set([thingId]));
+    const archetypeId = this.boundTo(roleId);
+    const result = archetypeId !== undefined && this.isBeneath(thingId, archetypeId, new Set([thingId]));
     this.roleCache.set(key, result);
     return result;
   }
 
-  private isOfArchetypeCarryingRec(thingId: string, roleFlag: string, seen: Set<string>): boolean {
+  private isBeneath(thingId: string, archetypeId: string, seen: Set<string>): boolean {
     for (const parent of this.outgoing(thingId, 'is')) {
       if (seen.has(parent.Id)) continue;
       seen.add(parent.Id);
-      if (carriesFlag(parent, roleFlag)) return true;
-      if (this.isOfArchetypeCarryingRec(parent.Id, roleFlag, seen)) return true;
+      if (parent.Id === archetypeId) return true;
+      if (this.isBeneath(parent.Id, archetypeId, seen)) return true;
     }
     return false;
   }
@@ -403,7 +509,7 @@ export class PipelineModel {
       if (seen.has(id)) continue;
       seen.add(id);
       for (const t of this.outgoing(id, 'has')) {
-        if (this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.Port)) ports.push(this.toPort(t));
+        if (this.isOf(t.Id, ROLE.Port)) ports.push(this.toPort(t));
       }
       for (const parent of this.outgoing(id, 'is')) stack.push(parent.Id);
     }
@@ -427,6 +533,7 @@ export class PipelineModel {
   private toPort(t: VosThing): PortInformation {
     const p = this.stated(t.Id);
     return {
+      portId: t.Id,
       portName: String(p.portName ?? t.Name),
       direction: String(p.direction ?? 'in').toLowerCase() === 'out' ? 'out' : 'in',
       type: String(p.type ?? ''),
@@ -434,91 +541,76 @@ export class PipelineModel {
     };
   }
 
-  /** Is this thing a boundary node — of the archetype marked as a pipeline's input, or as its output? */
-  boundaryKind(thingId: string): 'input' | 'output' | undefined {
-    if (this.isOfArchetypeCarrying(thingId, ARCHETYPE_FLAG.PipelineInput)) return 'input';
-    if (this.isOfArchetypeCarrying(thingId, ARCHETYPE_FLAG.PipelineOutput)) return 'output';
-    return undefined;
+  /** The kind of a node that calls no service, told by the archetype it is of; undefined for one that calls a service. */
+  nodeKind(thingId: string): NodeKind | undefined {
+    return (Object.keys(NODE_KIND_ROLE) as NodeKind[]).find((kind) => this.isOf(thingId, NODE_KIND_ROLE[kind]));
   }
 
-  /** A boundary node's own declared port child-Things, each with its Thing id — the save-diff needs the id
-   * to update a port in place or retract a removed one. Ports are declared directly on the node. */
-  boundaryPortRelationships(nodeId: string): { portId: string; port: PortInformation }[] {
+  /** The port child-Things a node declares itself, each with its Thing id — the save-diff needs the id to update
+   *  a port in place or retract a removed one. */
+  ownPortRelationships(nodeId: string): { portId: string; port: PortInformation }[] {
     return this.outgoing(nodeId, 'has')
-      .filter((t) => this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.Port))
+      .filter((t) => this.isOf(t.Id, ROLE.Port))
       .map((t) => ({ portId: t.Id, port: this.toPort(t) }));
   }
 
-  /** Every dispatchable connection (carries a Subdomain and binds a service) — the editor palette. */
+  /** Every callable connection (carries a Subdomain and binds a service that declares a port) — the editor palette.
+   *  A service with no port gives a step nothing to take or hand on, which leaves out the platform's own connections. */
   connections(): ConnectionInformation[] {
     const result: ConnectionInformation[] = [];
     for (const t of this.things) {
-      if (!this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.Connection)) continue;
+      if (!this.isOf(t.Id, ROLE.Connection)) continue;
       const subdomain = t.Properties.Subdomain;
       if (typeof subdomain !== 'string' || subdomain.length === 0) continue;
-      const service = this.outgoing(t.Id, 'has').find((s) => this.isOfArchetypeCarrying(s.Id, ARCHETYPE_FLAG.Service));
+      const service = this.outgoing(t.Id, 'has').find((s) => this.isOf(s.Id, ROLE.Service));
       if (!service) continue;
-      result.push({
-        connectionId: t.Id,
-        name: t.Name,
-        subdomain,
-        serviceId: service.Id,
-        ports: this.resolvePorts(service.Id),
-      });
+      const ports = this.resolvePorts(service.Id);
+      if (ports.length === 0) continue;
+      result.push({ connectionId: t.Id, name: t.Name, subdomain, serviceId: service.Id, ports });
     }
     return result;
   }
 
-  /** Outgoing wires from a node, in either shape the model may hold them in, with their port mapping and
-   * the optional field-paths. `wireId` is what the save edits and removes the wire through, and
-   * `shape` says which call that is: a relationship for a wire drawn as a relationship, a Thing for one held. */
+  /** A wire missing its target node or either port is skipped: the save writes a wire a piece at a time. */
   outgoingWires(subjectId: string): WireRead[] {
-    const relationships = this.bySubject.get(subjectId);
-    if (!relationships) return [];
     const out: WireRead[] = [];
-    for (const relationship of relationships) {
-      // Drawn as a relationship: the predicate is of the wire archetype and the relationship carries the mapping.
-      if (this.isOfArchetypeCarrying(relationship.PredicateId, ARCHETYPE_FLAG.PipelineWire)) {
-        out.push({ wireId: relationship.Id, shape: 'edge', targetId: relationship.TargetId, ...wireMapping(relationship.Properties) });
-        continue;
-      }
-      // Held as a Thing: the node `has` a Thing of the wire archetype, and that Thing points at the node
-      // the wire carries into. A wire pointing at nothing that is a node is half-drawn and is skipped.
+    for (const relationship of this.bySubject.get(subjectId) ?? []) {
       const held = this.byId.get(relationship.TargetId);
-      if (!held || !this.isOfArchetypeCarrying(held.Id, ARCHETYPE_FLAG.PipelineWire)) continue;
+      if (!held || !this.isOf(held.Id, ROLE.PipelineWire)) continue;
       const target = (this.bySubject.get(held.Id) ?? [])
         .map((r) => r.TargetId)
-        .find((id) => this.isOfArchetypeCarrying(id, ARCHETYPE_FLAG.PipelineNode));
-      if (!target) continue;
-      out.push({ wireId: held.Id, shape: 'held', targetId: target, ...wireMapping(this.stated(held.Id)) });
+        .find((id) => this.isOf(id, ROLE.PipelineNode));
+      const [outPort] = this.reachedAlong(held.Id, ROLE.InputConnector);
+      const [inPort] = this.reachedAlong(held.Id, ROLE.OutputConnector);
+      if (!target || !outPort || !inPort) continue;
+      const stated = this.stated(held.Id);
+      out.push({
+        wireId: held.Id, targetId: target, outPortId: outPort.Id, inPortId: inPort.Id,
+        fromPath: String(stated.fromPath ?? ''), toPath: String(stated.toPath ?? ''),
+        itemTransform: String(stated.itemTransform ?? ''), listTransform: String(stated.listTransform ?? ''),
+        takenOn: this.relationshipsAndTargetsAlong(held.Id, ROLE.TakenOn),
+      });
     }
     return out;
   }
 
   /** Id of a predicate Thing matched by name (only ever the built-in is/has on the write path). */
   predicateIdByName(name: string): string | undefined {
-    return this.things.find((t) => t.Name.toLowerCase() === name.toLowerCase())?.Id;
+    return this.things.find((t) => t.Name === name)?.Id;
   }
 
-  /** Id of the wire predicate — the predicate Thing of the archetype the model marks as holding wires.
+  /** Id of the wire predicate — the predicate Thing of the archetype the model binds as holding wires.
    *  A wire held as a Thing is of that same archetype, so being of it does not tell the two apart. The
    *  one the model already uses as a predicate answers first; before any wire is drawn nothing uses it,
    *  so the shape decides: a held wire is always held by a node along `has`, and a predicate never is. */
   wirePredicateId(): string | undefined {
-    const ofTheWireArchetype = this.things.filter((t) => this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.PipelineWire));
+    const ofTheWireArchetype = this.things.filter((t) => this.isOf(t.Id, ROLE.PipelineWire));
     return ofTheWireArchetype.find((t) => this.usedAsPredicate.has(t.Id))?.Id
       ?? ofTheWireArchetype.find((t) => !this.isHeld(t.Id))?.Id;
   }
 
   private isHeld(thingId: string): boolean {
-    return (this.byTarget.get(thingId) ?? []).some((r) => this.byId.get(r.PredicateId)?.Name.toLowerCase() === 'has');
-  }
-
-  /** Id of the archetype this model marks with the given role — the Thing an `is` relationship is written to.
-   *  Undefined when the model marks the role on nothing, which is a model this editor cannot author.
-   *  Seed validation refuses a model that marks one role on two archetypes, so the first is the only one. */
-  archetypeCarrying(roleFlag: string): string | undefined {
-    return this.things.find((t) => carriesFlag(t, roleFlag))?.Id;
+    return (this.byTarget.get(thingId) ?? []).some((r) => this.byId.get(r.PredicateId)?.Name === 'has');
   }
 
   /** Live per-node status for a run, keyed by the node Thing id — the SSE animation source.
@@ -534,16 +626,18 @@ export class PipelineModel {
     return out;
   }
 
-  /** Fan-out progress per node: from the per-item records (those carrying an `index`), how many have
-   * reached a terminal status out of the total. Empty for non-fan-out nodes. */
-  nodeRunProgress(runId: string): Record<string, { done: number; total: number }> {
-    const out: Record<string, { done: number; total: number }> = {};
+  /** Fan-out progress per node, from the per-item records (those carrying an `index`): how many of the items that
+   * reached the node have finished, and how many items there were where they were spread out. Items can go on to
+   * different nodes, so a node's own count is the records it has, not the first count. Empty for non-fan-out nodes. */
+  nodeRunProgress(runId: string): Record<string, NodeRunProgress> {
+    const out: Record<string, NodeRunProgress> = {};
     for (const nodeRun of this.outgoing(runId, 'has')) {
       if (nodeRun.Properties.index === undefined) continue; // aggregate record
       const nodeId = nodeRun.Properties.nodeId;
       if (typeof nodeId !== 'string' || !nodeId) continue;
-      const entry = out[nodeId] ?? { done: 0, total: 0 };
-      entry.total = Math.max(entry.total, Number(nodeRun.Properties.total ?? 0));
+      const entry = out[nodeId] ?? { done: 0, reached: 0, spreadOver: 0 };
+      entry.reached += 1;
+      entry.spreadOver = Math.max(entry.spreadOver, Number(nodeRun.Properties.total ?? 0));
       if (String(nodeRun.Properties.status ?? '') !== 'running') entry.done += 1;
       out[nodeId] = entry;
     }
@@ -559,7 +653,7 @@ export class PipelineModel {
   runsOf(pipelineId: string): RunInformation[] {
     const runs: RunInformation[] = [];
     for (const t of this.things) {
-      if (!this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.PipelineRun)) continue;
+      if (!this.isOf(t.Id, ROLE.PipelineRun)) continue;
       if (!this.outgoing(t.Id, 'of').some((p) => p.Id === pipelineId)) continue;
       const requestId = t.Properties[REQUEST_ID_PROPERTY];
       runs.push({
@@ -571,6 +665,53 @@ export class PipelineModel {
     }
     return runs.sort((a, b) => b.startedUtc.localeCompare(a.startedUtc));
   }
+
+  /** Runs, newest first, that the orchestrator will start again or carry on: failed with a node a restart caught in
+   *  the middle of a call, the same test it applies. */
+  runsARestartStopped(): RunARestartStopped[] {
+    const runs: RunARestartStopped[] = [];
+    for (const run of this.things) {
+      if (run.Properties.status !== 'failed' || !this.isOf(run.Id, ROLE.PipelineRun)) continue;
+      if (!Object.values(this.nodeRunStatuses(run.Id)).includes('interrupted')) continue;
+      if (this.reachingAlong(run.Id, ROLE.RepeatedRun).length > 0) continue;
+      runs.push({
+        runId: run.Id,
+        pipelineName: this.outgoing(run.Id, 'of')[0]?.Name ?? '',
+        startedUtc: String(run.Properties.startedUtc ?? ''),
+        reason: String(run.Properties.error ?? ''),
+      });
+    }
+    return runs.sort((a, b) => b.startedUtc.localeCompare(a.startedUtc));
+  }
+}
+
+/** The port a wire end reaches: the one with this identifier in this direction, so an in port and an out port of one
+ *  name are never taken for each other. */
+export function portOf(ports: PortInformation[] | undefined, portId: string | null | undefined, direction: 'in' | 'out'): PortInformation | undefined {
+  return ports?.find((port) => port.portId === portId && port.direction === direction);
+}
+
+export function wireEnds(
+  sourcePorts: PortInformation[] | undefined, sourceHandle: string | null | undefined,
+  targetPorts: PortInformation[] | undefined, targetHandle: string | null | undefined,
+): { outPort?: PortInformation; inPort?: PortInformation } {
+  return { outPort: portOf(sourcePorts, sourceHandle, 'out'), inPort: portOf(targetPorts, targetHandle, 'in') };
+}
+
+export type ConnectionVerdict =
+  | { kind: 'accept' }
+  | { kind: 'ignore' }
+  | { kind: 'incompatible'; from: string; to: string };
+
+export function judgeConnection(
+  nodes: { id: string; ports: PortInformation[] }[],
+  connection: { source: string; sourceHandle?: string | null; target: string; targetHandle?: string | null },
+): ConnectionVerdict {
+  const portsOf = (nodeId: string) => nodes.find((node) => node.id === nodeId)?.ports;
+  const { outPort, inPort } = wireEnds(portsOf(connection.source), connection.sourceHandle, portsOf(connection.target), connection.targetHandle);
+  if (!outPort || !inPort) return { kind: 'ignore' };
+  if (!typesCompatible(outPort.type, inPort.type)) return { kind: 'incompatible', from: outPort.type || 'any', to: inPort.type || 'any' };
+  return { kind: 'accept' };
 }
 
 /** Are two ports type-compatible? Empty/"any" on either side is a wildcard (mirrors DagValidator). */

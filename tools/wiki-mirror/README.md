@@ -1,18 +1,17 @@
 # wiki-mirror
 
-Converts a clone of the **Azure DevOps project wiki** into the content the
+Converts the pages [`docs-to-wiki`](../docs-to-wiki/) generates into the content the
 **GitHub wiki** (`ReGen-Villages/VillageOS-API.wiki`) expects, rewriting every
 DevOps-specific link to its GitHub target so visitors who land on GitHub stay on
 GitHub.
 
-The Azure DevOps project wiki is canonical. The GitHub wiki is a generated
-mirror — **do not edit it directly**; edits are overwritten on the next
-`develop` build.
+The repository is canonical. The GitHub wiki is generated from it — **do not edit
+it directly**; edits are overwritten on the next `develop` build.
 
 ## What it does
 
-`sync-wiki.js <devops-wiki-dir> <output-dir>` walks the source wiki and, for each
-page:
+`sync-wiki.js <generated-dir> <manifest> <output-dir>` walks the generated pages and,
+for each page:
 
 - **Decodes percent-encoded filenames** — `API%2DReference.md` → `API-Reference.md`.
 - **Flattens subfolders** — `Services/Delta.md` → `Delta.md`. The build fails on
@@ -20,7 +19,7 @@ page:
 - **Rewrites internal links** — `[Delta](/Services/Delta)` →
   `[Delta](https://github.com/ReGen-Villages/VillageOS-API/wiki/Delta)`.
 - **Rewrites bare relative links** — `X.md` → `…/blob/develop/docs/X.md`. The branch is the one
-  the build's *Mirror Wiki to GitHub* step runs on; a test reads the build file to hold the two
+  the build's *Publish the wiki to GitHub* step runs on; a test reads the build file to hold the two
   together.
 - **Rewrites the DevOps `_wiki` root** → the GitHub wiki root.
 - **Strips private-only `_boards` links** to plain text (no public equivalent).
@@ -28,7 +27,7 @@ page:
 - **Carries the images** — copies the wiki's `.attachments` folder into the output and rewrites each
   `/.attachments/<name>` image link to the raw file on the GitHub wiki repository, so the diagrams
   render on GitHub.
-- **Generates `_Sidebar.md`** from the DevOps `.order` files (nested one level).
+- **Generates `_Sidebar.md`** from the manifest's page order, a child indented under its parent.
 
 ## Tests
 
@@ -42,17 +41,13 @@ The pure transforms (`convert`, `convertMermaid`, `buildSidebar`, `flatName`,
 
 ## CI integration
 
-The `Mirror Wiki to GitHub` step in [`azure-pipelines.yml`](../../azure-pipelines.yml)
-runs on `develop`: it clones the DevOps wiki, runs this converter, then force-pushes
-the result to the GitHub wiki. `develop` is the branch the public copy follows, and
-`Publish Docs to Wiki` runs on it first, so what is cloned here is `develop`'s own
-documentation.
+Every build runs *Generate and convert the wiki pages, and prove the publishing token* in
+[`azure-pipelines.yml`](../../azure-pipelines.yml): it runs `docs-to-wiki` and this converter,
+then proves `GITHUB_PAT` with a push that sends nothing. On `develop`, *Publish the wiki to GitHub*
+pushes the converted pages, replacing the GitHub wiki's whole content.
 
 One-time prerequisites:
 
 - **GitHub** — enable *Wikis* in repo Settings → Features (creates `.wiki.git`).
-- **`AZURE_DEVOPS_PAT`** — a secret pipeline variable holding a PAT with *Code: Read*
-  on the project wiki repo. `System.AccessToken` cannot be used here (it is scoped to
-  checked-out repos only, so cloning the wiki with it fails TF401019).
 - **`GITHUB_PAT`** — a secret pipeline variable holding a classic GitHub token with repo scope,
   which pushes to the GitHub wiki.

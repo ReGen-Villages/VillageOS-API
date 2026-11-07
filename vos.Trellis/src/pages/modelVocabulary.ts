@@ -1,53 +1,53 @@
 /**
- * How this client reads a model's own vocabulary: the Thing that owns a mark, and the terms declared
- * under it. Every page that finds something by a mark reads it through here, so there is one answer to
- * what owning a mark means rather than one per page.
+ * How this client reads a model's own vocabulary: the Thing a role binds, and the terms declared under it.
+ * Every page that finds something through a role reads it through here, so there is one answer to what a
+ * binding means rather than one per page.
  *
- * Nothing here names an archetype. A vocabulary is found by the mark its archetype owns, so a model that
- * renamed the archetype keeps answering and a project that declares a term of its own is offered it
- * without a line changing here.
+ * Nothing here names an archetype. A vocabulary is found through the role Thing that binds its archetype,
+ * so a model that renamed the archetype keeps answering and a project that declares a term of its own is
+ * offered it without a line changing here.
  */
 
 import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos';
+import { BINDS_PREDICATE_NAME, LAND_INTAKE_ROLE } from '../api/landIntakeRoles';
 import { wordingIn, type TermWording } from '../i18n/termWording';
 
 /** What a programme allocation is for. The intake service resolves a submitted word against the Things
- *  under whichever archetype carries this. */
-export const ALLOCATION_CATEGORY_ARCHETYPE_FLAG = '__IsAllocationCategoryArchetype';
-export const HAZARD_TYPE_ARCHETYPE_FLAG = '__IsHazardTypeArchetype';
-export const HAZARD_LEVEL_ARCHETYPE_FLAG = '__IsHazardLevelArchetype';
+ *  under whichever archetype this role binds. */
+export const ALLOCATION_CATEGORY_ROLE = LAND_INTAKE_ROLE.AllocationCategory;
+export const HAZARD_TYPE_ROLE = LAND_INTAKE_ROLE.HazardType;
+export const HAZARD_LEVEL_ROLE = LAND_INTAKE_ROLE.HazardLevel;
 
-/** The platform's one canonical predicate, and the only predicate name a reader may hold: it is the
- *  platform's own vocabulary rather than any model's, and nothing marks it. */
+/** The platform's one canonical predicate, and with `binds` the only predicate name a reader may hold: it
+ *  is the platform's own vocabulary rather than any model's, and nothing binds it. */
 export const IS_PREDICATE_NAME = 'is';
 
 /** A whole model as a page reads it. Properties come from the server resolved effective rather than own:
  *  seed normalization moves a Thing's own values into its overrides, and a reader looking only at own
- *  properties finds a model full of Things and reads nothing off them. Each property says which of the
- *  two it is, which is what lets a mark still be told from what inherited it. */
+ *  properties finds a model full of Things and reads nothing off them. */
 export interface ModelReading {
   things: readonly VosThing[];
   relationships: readonly VosRelationship[];
   properties: Readonly<Record<string, Record<string, EffectiveProperty>>>;
 }
 
-/** The terms declared under the archetype carrying a mark, by name, in the order a list should show
- *  them. A model declaring the mark on nothing, or on more than one Thing, has no vocabulary this can
- *  read — two carriers leave no way to say which one a term belongs to, so it answers with none rather
+/** The terms declared under the archetype a role binds, by name, in the order a list should show
+ *  them. A model binding the role to nothing, or to more than one Thing, has no vocabulary this can
+ *  read — two bindings leave no way to say which one a term belongs to, so it answers with none rather
  *  than picking. */
-export function termsMarked(reading: ModelReading, archetypeFlag: string): string[] {
-  return termThingsMarked(reading, archetypeFlag).map((term) => term.Name);
+export function termsBound(reading: ModelReading, roleId: string): string[] {
+  return termThingsBound(reading, roleId).map((term) => term.Name);
 }
 
 /** The property a term states its words in, as JSON text of words by language. */
 const WORDING_PROPERTY = 'wording';
 
-/** What each term under the given marks is called in each language, read from the term's own `wording`
+/** What each term under the given roles is called in each language, read from the term's own `wording`
  *  property. A term stating none is left out, and is shown by its name. */
-export function termWordingMarked(reading: ModelReading, archetypeFlags: readonly string[]): TermWording {
+export function termWordingBound(reading: ModelReading, roleIds: readonly string[]): TermWording {
   const wording: Record<string, Record<string, string>> = {};
-  for (const flag of archetypeFlags) {
-    for (const term of termThingsMarked(reading, flag)) {
+  for (const roleId of roleIds) {
+    for (const term of termThingsBound(reading, roleId)) {
       const words = wordingIn(reading.properties[term.Id]?.[WORDING_PROPERTY]?.Value);
       if (words && !(term.Name in wording)) wording[term.Name] = words;
     }
@@ -55,8 +55,8 @@ export function termWordingMarked(reading: ModelReading, archetypeFlags: readonl
   return wording;
 }
 
-function termThingsMarked(reading: ModelReading, archetypeFlag: string): VosThing[] {
-  const archetype = ownCarrierOf(reading, archetypeFlag);
+function termThingsBound(reading: ModelReading, roleId: string): VosThing[] {
+  const archetype = boundBy(reading, roleId);
   if (!archetype) return [];
 
   const names = new Map(reading.things.map((thing) => [thing.Id, thing]));
@@ -85,15 +85,16 @@ function termThingsMarked(reading: ModelReading, archetypeFlag: string): VosThin
 }
 
 /**
- * The one Thing that owns a mark.
- *
- * Own, not effective: a mark is an ordinary property on the archetype, so every term that `is` it
- * inherits the mark too. Counting inherited carriers finds one archetype and all of its terms, and a
- * vocabulary then reads as ambiguous the moment it has any terms at all.
+ * The one Thing a role binds, read from the role Thing's own `binds` relationships and never from a name.
+ * A role the model binds to nothing, or binds twice, answers with none: two bindings leave nothing able to
+ * say which Thing plays the role, and seed validation refuses such a model.
  */
-export function ownCarrierOf(reading: ModelReading, flag: string): string | null {
-  const owning = Object.keys(reading.properties).filter(
-    (id) => reading.properties[id][flag]?.IsInherited === false,
+export function boundBy(reading: ModelReading, roleId: string): string | null {
+  const binds = new Set(
+    reading.things.filter((thing) => thing.Name === BINDS_PREDICATE_NAME).map((thing) => thing.Id),
   );
-  return owning.length === 1 ? owning[0] : null;
+  const bound = reading.relationships
+    .filter((edge) => edge.SubjectId === roleId && binds.has(edge.PredicateId))
+    .map((edge) => edge.TargetId);
+  return bound.length === 1 ? bound[0] : null;
 }

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,8 +8,24 @@ namespace vos.Service.Tributary.Services;
 
 public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
 {
-    public MyceliumClient(IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, string? serviceToken = null, string? apiKey = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey) { }
+    // One batch's waits fit inside the 30 seconds the broker gives the call it forwards. A call writing
+    // several batches can still outlast that, so the call's cancellation also ends a wait.
+    public const int MostAttemptsAtOneBatch = 5;
+    public static readonly TimeSpan LongestWaitForARefusedBatch = TimeSpan.FromSeconds(5);
+
+    // The whole of that thirty seconds, for every call to the broker: on a loaded build agent one relationship
+    // write took fifteen, and a shorter wait reported the source as failed while the write went on to land.
+    public static readonly TimeSpan BrokerPatience = TimeSpan.FromSeconds(30);
+
+    private readonly TimeProvider _clock;
+
+    public MyceliumClient(
+        IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, TimeProvider clock,
+        string? serviceToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
+    {
+        _clock = clock;
+    }
 
     public readonly record struct MyceliumThing(Guid Id, string Name);
 
@@ -16,7 +33,7 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
     {
         try
         {
-            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+            var client = await CreateAuthenticatedClientAsync(BrokerPatience);
             var encodedName = Uri.EscapeDataString(name);
             var response = await client.GetAsync($"{MyceliumUrl}/api/things?name={encodedName}");
             if (!response.IsSuccessStatusCode)
@@ -35,11 +52,11 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
     }
 
-    public async Task<MyceliumThing?> CreateThingAsync(string name, Dictionary<string, object?>? properties = null)
+    public async Task<MyceliumThing?> CreateThingAsync(string name, Dictionary<string, object?>? properties)
     {
         try
         {
-            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+            var client = await CreateAuthenticatedClientAsync(BrokerPatience);
             // Not the reading as it arrived: a source states its values bare, and the broker takes each
             // one with its type on it — worked out from the value, because only the caller's JSON says
             // what a reading is.
@@ -67,11 +84,32 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
     }
 
+    public async Task<bool> ApplyFragmentAsync(object fragment)
+    {
+        try
+        {
+            var client = await CreateAuthenticatedClientAsync(BrokerPatience);
+            var response = await client.PostAsync($"{MyceliumUrl}/api/model/fragment",
+                new StringContent(JsonSerializer.Serialize(fragment), System.Text.Encoding.UTF8, "application/json"));
+            if (response.IsSuccessStatusCode)
+                return true;
+
+            Logger.LogWarning("The model refused a fragment. Status: {Status}. Error: {Error}",
+                response.StatusCode, await response.Content.ReadAsStringAsync());
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error applying a fragment");
+            return false;
+        }
+    }
+
     public async Task<bool> CreateRelationshipAsync(Guid subjectId, Guid predicateId, Guid targetId)
     {
         try
         {
-            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+            var client = await CreateAuthenticatedClientAsync(BrokerPatience);
             var payload = new { subjectId, predicateId, targetId };
 
             var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/relationships", payload);
@@ -93,7 +131,8 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
     }
 
-    public async Task<bool> SubmitObservationsAsync(Guid thingId, IReadOnlyList<ObservationSample> samples)
+    public async Task<bool> SubmitObservationsAsync(
+        Guid thingId, IReadOnlyList<ObservationSample> samples, CancellationToken cancellationToken = default)
     {
         if (samples.Count == 0) return true;
         try
@@ -109,13 +148,39 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
                     : new { property = s.Property, value };
             });
 
-            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/things/{thingId}/observations", payload);
-            if (response.IsSuccessStatusCode)
-                return true;
+            // A full readings queue refuses the batch whole, so sending it again queues nothing twice.
+            for (var attempt = 1; ; attempt++)
+            {
+                var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/things/{thingId}/observations", payload);
+                if (response.IsSuccessStatusCode)
+                    return true;
 
-            var error = await response.Content.ReadAsStringAsync();
-            Logger.LogWarning("Failed to submit {Count} observations to thing {ThingId}. Status: {StatusCode}. Error: {Error}",
-                samples.Count, thingId, response.StatusCode, error);
+                var error = await response.Content.ReadAsStringAsync();
+                if (response.StatusCode != HttpStatusCode.ServiceUnavailable
+                    || response.Headers.RetryAfter?.Delta is not { } wait
+                    || wait > LongestWaitForARefusedBatch)
+                {
+                    Logger.LogWarning("Failed to submit {Count} observations to thing {ThingId}. Status: {StatusCode}. Error: {Error}",
+                        samples.Count, thingId, response.StatusCode, error);
+                    return false;
+                }
+
+                if (attempt == MostAttemptsAtOneBatch)
+                {
+                    Logger.LogWarning("Dropped {Count} observations to thing {ThingId}: the broker's readings queue was still full after {Attempts} attempts. Error: {Error}",
+                        samples.Count, thingId, attempt, error);
+                    return false;
+                }
+
+                Logger.LogInformation("The broker's readings queue is full; sending {Count} observations to thing {ThingId} again in {Seconds} seconds",
+                    samples.Count, thingId, wait.TotalSeconds);
+                await Task.Delay(wait, _clock, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            Logger.LogWarning("Dropped {Count} observations to thing {ThingId}: the call they were part of was given up while the broker's readings queue was full",
+                samples.Count, thingId);
             return false;
         }
         catch (Exception ex)
@@ -168,7 +233,7 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
     {
         try
         {
-            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+            var client = await CreateAuthenticatedClientAsync(BrokerPatience);
             var encoded = Uri.EscapeDataString(property);
             var request = new Dictionary<string, object> { ["Mode"] = mode };
             if (sampleSeconds is { } seconds) request["SampleSeconds"] = seconds;
@@ -193,7 +258,7 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
     {
         try
         {
-            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+            var client = await CreateAuthenticatedClientAsync(BrokerPatience);
             var response = await client.GetAsync($"{MyceliumUrl}{MyceliumRoutes.ThingProperties(thingId)}");
             if (!response.IsSuccessStatusCode)
             {

@@ -1,30 +1,34 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
-import type { EndInformation, EndKind, PortInformation } from '../../pipeline/model';
+import type { EndInformation, EndKind, NodeKind, NodeRunProgress, PortInformation } from '../../pipeline/model';
+import type { EditorChoice } from '../../pipeline/serialize';
 
 export interface PipelineNodeData {
   label: string;
-  /** Boundary node: 'input' (where the run comes from) or 'output' (what it leaves behind); absent for service nodes. */
-  kind?: 'input' | 'output';
+  /** Absent for a node calling a service. */
+  kind?: NodeKind;
   connectionId?: string;
   subdomain?: string;
   ports: PortInformation[];
   status?: string;
-  /** Input-port name → run-param key. */
-  paramBindings?: Record<string, string>;
-  /** Fan-out progress: terminal items / total. */
-  progress?: { done: number; total: number };
+  /** Input-port name → run-parameter key. */
+  parameterBindings?: Record<string, string>;
+  progress?: NodeRunProgress;
   /** The Thing a boundary node stands for, held by id on the drawing and read off the model for display. */
   standsForId?: string;
   standsFor?: EndInformation;
   /** What really happens at this end today, where drawing it is not what makes it happen. */
   note?: string;
+  choices?: EditorChoice[];
+  chosen?: Record<string, string>;
+  rule?: string;
   [key: string]: unknown;
 }
 
 const STATUS_RING: Record<string, string> = {
   running: 'ring-2 ring-blue-400 animate-pulse',
+  waiting: 'ring-2 ring-amber-400',
   succeeded: 'ring-2 ring-green-500',
   failed: 'ring-2 ring-red-500',
   skipped: 'ring-2 ring-zinc-400 opacity-60',
@@ -39,8 +43,17 @@ const END_KIND_LABEL_KEY = {
   state: 'pipeline.endKind.state',
   relationship: 'pipeline.endKind.relationship',
   pipeline: 'pipeline.endKind.pipeline',
+  cadence: 'pipeline.endKind.cadence',
   other: 'pipeline.endKind.other',
 } as const satisfies Record<EndKind, string>;
+
+const NODE_KIND_LABEL_KEY = {
+  input: 'pipeline.nodeKind.input',
+  output: 'pipeline.nodeKind.output',
+  tell: 'pipeline.nodeKind.tell',
+  followOn: 'pipeline.nodeKind.followOn',
+  stop: 'pipeline.nodeKind.stop',
+} as const satisfies Record<NodeKind, string>;
 
 /** A node on the pipeline canvas: one handle per port (inputs on the left, outputs on the right). A boundary
  *  node also says what it stands for, and what really happens there today. */
@@ -60,12 +73,12 @@ export function PipelineNodeView({ data }: NodeProps) {
       <div className="px-3 py-1.5 border-b border-zinc-200 dark:border-zinc-700 text-sm font-semibold text-zinc-900 dark:text-white flex items-center justify-between gap-2">
         <span className="truncate">{d.label}</span>
         <span className="flex items-center gap-1.5">
-          {d.progress && d.progress.total > 1 && (
+          {d.progress && d.progress.spreadOver > 1 && (
             <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 px-1 rounded bg-zinc-100 dark:bg-zinc-700">
-              {d.progress.done}/{d.progress.total}
+              {d.progress.done}/{d.progress.reached}
             </span>
           )}
-          <span className="text-[10px] font-mono text-zinc-400">{d.kind ? d.kind : d.subdomain}</span>
+          <span className="text-[10px] font-mono text-zinc-400">{d.kind ? t(NODE_KIND_LABEL_KEY[d.kind]) : d.subdomain}</span>
         </span>
       </div>
       {d.standsFor && (
@@ -77,11 +90,11 @@ export function PipelineNodeView({ data }: NodeProps) {
       <div className="flex justify-between gap-4 py-2 text-xs">
         <div className="flex flex-col gap-2">
           {inputs.map((p) => (
-            <div key={p.portName} className="relative pl-3 text-zinc-600 dark:text-zinc-300">
+            <div key={p.portId} className="relative pl-3 text-zinc-600 dark:text-zinc-300">
               <Handle
                 type="target"
                 position={Position.Left}
-                id={p.portName}
+                id={p.portId}
                 className="!w-2.5 !h-2.5 !bg-blue-500"
               />
               {p.portName}
@@ -91,12 +104,12 @@ export function PipelineNodeView({ data }: NodeProps) {
         </div>
         <div className="flex flex-col gap-2 items-end">
           {outputs.map((p) => (
-            <div key={p.portName} className="relative pr-3 text-zinc-600 dark:text-zinc-300">
+            <div key={p.portId} className="relative pr-3 text-zinc-600 dark:text-zinc-300">
               {p.portName}
               <Handle
                 type="source"
                 position={Position.Right}
-                id={p.portName}
+                id={p.portId}
                 className="!w-2.5 !h-2.5 !bg-green-500"
               />
             </div>

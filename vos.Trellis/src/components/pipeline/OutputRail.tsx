@@ -7,7 +7,7 @@ import { SidePanel } from '../common/SidePanel';
 interface Props {
   outputs: OutputRow[];
   connections: ConnectionInformation[];
-  /** Place an end node standing for the row's Thing, or for nothing where the row is the answer. */
+  /** Place the node the row stands for: the Output node, a follow-on, tell or stop node. */
   onPlaceOutput: (row: OutputRow) => void;
   onAddService: (connection: ConnectionInformation) => void;
 }
@@ -16,21 +16,22 @@ const RAIL_BOUNDS = { initial: 232, min: 168, max: 480 };
 const HEADING = 'px-3 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400';
 const ROW = 'w-full text-left rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-2.5 py-1.5 transition-colors';
 
-/** What a run may leave behind — the answer, another pipeline, an external system told — and under it
- *  every service a node may dispatch, read from the connections and ports the model declares. */
+/** What a run may leave behind — the answer, another pipeline started, an external system told, runs stopped — and
+ *  under it every service a node may call, read from the connections and ports the model declares. */
 export function OutputRail({ outputs, connections, onPlaceOutput, onAddService }: Props) {
   const { t } = useTranslation();
   const answer = outputs.find((row) => row.kind === 'answer');
   const pipelines = outputs.filter((row) => row.kind === 'pipeline');
   const systems = outputs.filter((row) => row.kind === 'externalSystem');
+  const stop = outputs.find((row) => row.kind === 'stop');
 
-  const placeButton = (row: OutputRow, label: string, body: string | undefined, hover: string) => (
+  const placeButton = (row: OutputRow, label: string, body: string | undefined, hover: string, title: string) => (
     <li key={row.id}>
       <button
         type="button"
         onClick={() => onPlaceOutput(row)}
-        aria-label={t('pipeline.outputs.placeTitle', { what: label })}
-        title={t('pipeline.outputs.placeTitle', { what: label })}
+        aria-label={title}
+        title={title}
         className={`${ROW} ${hover}`}
       >
         <span className="flex items-center gap-1">
@@ -51,13 +52,18 @@ export function OutputRail({ outputs, connections, onPlaceOutput, onAddService }
     >
       <div className="flex-1 overflow-y-auto">
         <ul className="space-y-1 p-2">
-          {answer && placeButton(answer, t('pipeline.outputs.answer'), t('pipeline.outputs.answerBody'), 'hover:border-blue-400')}
+          {answer && placeButton(
+            answer, t('pipeline.outputs.answer'), t('pipeline.outputs.answerBody'), 'hover:border-blue-400',
+            t('pipeline.outputs.placeTitle', { what: t('pipeline.outputs.answer') }),
+          )}
         </ul>
         {pipelines.length > 0 && (
           <>
             <h3 className={HEADING}>{t('pipeline.outputs.pipelines')}</h3>
             <ul className="space-y-1 p-2 pt-0">
-              {pipelines.map((row) => placeButton(row, row.name, undefined, 'hover:border-emerald-400'))}
+              {pipelines.map((row) => placeButton(
+                row, row.name, undefined, 'hover:border-emerald-400', t('pipeline.outputs.placeFollowOn', { what: row.name }),
+              ))}
             </ul>
           </>
         )}
@@ -69,7 +75,16 @@ export function OutputRail({ outputs, connections, onPlaceOutput, onAddService }
                 row, row.name,
                 row.told && row.told.length > 0 ? t('pipeline.outputs.told', { kinds: row.told.join(', ') }) : t('pipeline.outputs.toldNothing'),
                 'hover:border-violet-400',
+                t('pipeline.outputs.placeTell', { what: row.name }),
               ))}
+            </ul>
+          </>
+        )}
+        {stop && (
+          <>
+            <h3 className={HEADING}>{t('pipeline.outputs.stops')}</h3>
+            <ul className="space-y-1 p-2 pt-0">
+              {placeButton(stop, t('pipeline.outputs.stop'), t('pipeline.outputs.stopBody'), 'hover:border-amber-400', t('pipeline.outputs.placeStop'))}
             </ul>
           </>
         )}

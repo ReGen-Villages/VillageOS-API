@@ -133,10 +133,7 @@ describe('the subscription a dashboard opens', () => {
       try {
         const sent = new Set(opened.snapshot.things.flatMap((thing) => [thing.Id, thing.Name]));
         const named = [...(selector.ids ?? []), ...(selector.names ?? [])];
-        // The two names every page asks for are the client's own, not the specification's, and a model need
-        // not carry either — a model with no dashboards to list is the case.
-        const fromTheSpec = named.filter((ref) => !['Dashboard', 'GUI_Settings'].includes(ref));
-        expect(fromTheSpec.filter((ref) => !sent.has(ref)), `${name} names these and was not sent them`)
+        expect(named.filter((ref) => !sent.has(ref)), `${name} names these and was not sent them`)
           .toEqual([]);
       } finally {
         await release(opened.subscriptionId, token);

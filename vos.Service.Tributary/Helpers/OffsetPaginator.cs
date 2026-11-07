@@ -4,8 +4,8 @@ using System.Text.Json.Nodes;
 namespace vos.Service.Tributary.Helpers;
 
 public sealed record OffsetPaginationConfig(
-    string OffsetParam,
-    string? PageSizeParam,
+    string OffsetParameter,
+    string? PageSizeParameter,
     int? PageSize,
     string HasMorePath,
     string ItemsPath);

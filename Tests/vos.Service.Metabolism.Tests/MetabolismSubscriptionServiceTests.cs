@@ -8,6 +8,7 @@ using Moq;
 using vos.Service.Metabolism.Models;
 using vos.Service.Metabolism.Configuration;
 using vos.Service.Metabolism.Services;
+using vos.Service.Shared;
 using vos.Service.Shared.Subscriptions;
 using vos.Tests.Shared;
 using Xunit;
@@ -104,7 +105,7 @@ public class MetabolismSubscriptionServiceTests
         var relId = Guid.NewGuid();
         engine.Register(new SimulationConfig(
             relId.ToString(), "subj", "tgt", "SubjName", 1m, "u", "quantity", 60,
-            DateTime.UtcNow, DateTime.UtcNow.AddYears(1), StartDelaySeconds: 99999m));
+            DateTime.UtcNow, DateTime.UtcNow.AddYears(1), StartDelaySeconds: 99999m), HeldModelToken.None);
         await Settle.UntilAsync(() => fake.Added.Contains(relId),
             "Register announces the relationship to the subscription");
 

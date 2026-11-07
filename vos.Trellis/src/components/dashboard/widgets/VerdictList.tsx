@@ -1,4 +1,6 @@
+import { useTranslation } from 'react-i18next';
 import type { VerdictCandidate, VerdictRow, VerdictWidget } from '../../../types/dashboard';
+import { wordsInLanguage } from '../../../i18n/termWording';
 import type { Lever, ResolveContext, Row } from '../../../api/dashboardApi';
 import { asRows, nullableNumber } from '../../../api/dashboardApi';
 import { useBindings } from '../../../hooks/useDashboard';
@@ -79,11 +81,17 @@ function VerdictRowView({ row, verdicts }: { row: VerdictRow; verdicts: Row[] })
   );
 }
 
-/** The state's wording with `{term}` filled by the input's own name — the model's word, drawn the
- *  way the working widget draws it, with the members' archetype beside an input each member holds. */
+/** The state's wording with `{term}` filled by the name the model declares for the input, in the
+ *  reader's language. An input with no declared name is drawn by the model's word, the way the working
+ *  widget draws it, with the members' archetype beside an input each member holds; a declared name
+ *  needs no archetype, because it was declared for the property on that archetype. */
 function LeverLine({ wording, lever }: { wording: string; lever: Lever }) {
+  const { i18n } = useTranslation();
   const [before, after] = wording.split('{term}', 2);
-  const name = (
+  const declared = wordsInLanguage(lever.words, i18n.language);
+  const name = declared !== undefined ? (
+    <span className="text-zinc-600 dark:text-zinc-300">{declared}</span>
+  ) : (
     <>
       <span className="font-mono text-zinc-600 dark:text-zinc-300">{lever.term}</span>
       {lever.memberArchetype && (

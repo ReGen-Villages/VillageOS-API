@@ -59,7 +59,7 @@ public class SseEventReaderTests
     [Fact]
     public async Task Does_not_emit_a_frame_for_a_trailing_incomplete_block()
     {
-        // No blank line terminator -> the partial block is not dispatched.
+        // No blank line terminator -> the partial block is not delivered.
         var frames = await ReadAll("id: 9\ndata: partial");
 
         frames.Should().BeEmpty();

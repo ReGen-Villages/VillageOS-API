@@ -31,6 +31,9 @@ interface ModelState {
    *  for the same reason the index is; the version beside it is what says it moved. */
   thingStates: Map<string, string[]>;
   thingStatesVersion: number;
+  /** How many times a load has replaced what is held. A live batch changes what is held without
+   *  replacing it, and does not count. */
+  loadsApplied: number;
   loaded: boolean;
   /** Whether what is held is the whole model rather than one page's own set of Things. A figure
    *  about the model is drawn only while this is true: a page's set counted as the model is a
@@ -99,6 +102,7 @@ export const useModelStore = create<ModelState>((set) => ({
   relationships: [],
   thingStates: new Map(),
   thingStatesVersion: 0,
+  loadsApplied: 0,
   loaded: false,
   holdsWholeModel: false,
 
@@ -107,7 +111,9 @@ export const useModelStore = create<ModelState>((set) => ({
   // go with it: what the load replaces, the snapshot beside it re-seeds.
   setThings: (things) => {
     thingsById.forget();
-    set((s) => ({ things, thingStates: new Map(), thingStatesVersion: s.thingStatesVersion + 1 }));
+    set((s) => ({
+      things, thingStates: new Map(), thingStatesVersion: s.thingStatesVersion + 1, loadsApplied: s.loadsApplied + 1,
+    }));
   },
   setRelationships: (relationships) => {
     relationshipsById.forget();

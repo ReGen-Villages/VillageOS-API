@@ -14,7 +14,7 @@ using Xunit;
 
 namespace vos.Service.Phloem.Tests;
 
-// The /handle surface in vos.Service.Phloem/Program.cs driven end to end for a dispatched relationship:
+// The /handle surface in vos.Service.Phloem/Program.cs driven end to end for a relationship the broker sends:
 // the broker posts one body for a `runs` write and for a state entry, and what the target starts is read
 // from the model. The resolution rule is pinned in PipelineStartTests; these cover what the route does
 // with the answer.
@@ -24,6 +24,7 @@ public class HandleEndpointTests
     private static readonly Guid Watching = Guid.Parse("c0000000-0000-0000-0000-000000000001");
     private static readonly Guid Loose = Guid.Parse("c0000000-0000-0000-0000-000000000002");
     private static readonly Guid Submission = Guid.Parse("50000000-0000-0000-0000-000000000042");
+    private static readonly Guid HeldVigil = Guid.Parse("e0000000-0000-0000-0000-000000000001");
 
     [Fact]
     public async Task Handle_AStateEntry_StartsThePipelineDrawnFromItsConnection()
@@ -40,6 +41,37 @@ public class HandleEndpointTests
 
         // The run is recorded against the pipeline the connection was resolved to, after the request returned.
         await Settle.UntilAsync(() => factory.RunsRecordedFor(Drawn) == 1, "the run record reaches the broker");
+    }
+
+    [Fact]
+    public async Task Handle_TheAnswerToAVigilANodeRunHolds_ResumesThatRunRatherThanStartingOne()
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/handle", StateEntry(target: HeldVigil));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("accepted").GetBoolean().Should().BeTrue();
+        body.GetProperty("resumes").GetGuid().Should().Be(HeldVigil);
+        factory.RunsRecordedFor(Drawn).Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData("startAgain")]
+    [InlineData("carryOn")]
+    public async Task Handle_AskingToStartAgainOrCarryOnARunNoRestartStopped_IsRefusedSayingSo(string asked)
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+        var run = Guid.NewGuid();
+
+        var response = await client.PostAsync("/handle", new StringContent($"{{\"{asked}\": \"{run}\"}}", Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("error").GetString().Should().Be($"Run {run} is not one a restart of the orchestrator stopped part way through a call.");
     }
 
     [Fact]
@@ -83,6 +115,33 @@ public class HandleEndpointTests
     }
 
     [Fact]
+    public async Task Handle_ARelationshipWrittenAlongTheStopsConnection_IsAcknowledgedAsAStop_AndStartsNothing()
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/handle", StateEntry(target: Joined, relationship: WrittenAlongStops));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("stops").GetGuid().Should().Be(Joined);
+        body.TryGetProperty("pipelineId", out _).Should().BeFalse();
+        factory.RunsRecordedFor(Drawn).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Handle_AStopNamingNoStopRequest_IsRefused()
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/handle", new StringContent(
+            JsonSerializer.Serialize(new { relationshipId = WrittenAlongStops, targetId = Joined }), Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task Handle_ARelationshipTheModelDoesNotHold_IsRefused()
     {
         await using var factory = new PhloemWebApplicationFactory();
@@ -96,13 +155,32 @@ public class HandleEndpointTests
 
     private static readonly Guid Joined = Guid.Parse("70000000-0000-0000-0000-000000000001");
     private static readonly Guid WrittenAlongWatching = Guid.Parse("a0000000-0000-0000-0000-000000000007");
+    private static readonly Guid WrittenAlongStops = Guid.Parse("a0000000-0000-0000-0000-000000000008");
+    private static readonly Guid StopsConnection = Guid.Parse("c0000000-0000-0000-0000-000000000009");
 
-    public enum Start { ByHandAnsweredAtOnce, ByHandAwaited, ByADispatch }
+    public enum Start { ByHandAnsweredAtOnce, ByHandAwaited, ByAServiceCall }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Handle_ARunAskedForByHand_IsRecordedAsARehearsalOnlyWhenOneWasAskedFor(bool async)
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/handle", new StringContent(
+            JsonSerializer.Serialize(new { pipelineId = Drawn, async, rehearsal = true }), Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        await Settle.UntilAsync(() => factory.RunsRecordedFor(Drawn) == 1, "the run record reaches the broker");
+        JsonDocument.Parse(factory.RunRecordFor(Drawn)).RootElement.GetProperty("properties")
+            .GetProperty(ModelNames.Rehearsal).GetProperty("value").GetString().Should().Be("true");
+    }
 
     [Theory]
     [InlineData(Start.ByHandAnsweredAtOnce)]
     [InlineData(Start.ByHandAwaited)]
-    [InlineData(Start.ByADispatch)]
+    [InlineData(Start.ByAServiceCall)]
     public async Task Handle_RecordsTheBrokersRequestIdentifierOnTheRun_HoweverTheRunIsStarted(Start start)
     {
         await using var factory = new PhloemWebApplicationFactory();
@@ -110,7 +188,7 @@ public class HandleEndpointTests
         var requestId = Guid.NewGuid();
         using var request = new HttpRequestMessage(HttpMethod.Post, "/handle")
         {
-            Content = start == Start.ByADispatch
+            Content = start == Start.ByAServiceCall
                 ? StateEntry(target: Watching)
                 : new StringContent(
                     JsonSerializer.Serialize(new { pipelineId = Drawn, async = start == Start.ByHandAnsweredAtOnce }),
@@ -122,6 +200,20 @@ public class HandleEndpointTests
 
         await Settle.UntilAsync(() => factory.RunsRecordedFor(Drawn) == 1, "the run record reaches the broker");
         factory.RunRecordFor(Drawn).Should().Contain(requestId.ToString());
+    }
+
+    [Fact]
+    public async Task Handle_ARunStartedByHand_RecordsTheParametersItWasGiven()
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+        var body = JsonSerializer.Serialize(new { pipelineId = Drawn, parameters = new { site = "north" }, async = true });
+
+        (await client.PostAsync("/handle", new StringContent(body, Encoding.UTF8, "application/json"))).StatusCode
+            .Should().Be(HttpStatusCode.OK);
+
+        await Settle.UntilAsync(() => factory.RunsRecordedFor(Drawn) == 1, "the run record reaches the broker");
+        factory.RunRecordFor(Drawn).Should().Contain("north");
     }
 
     [Fact]
@@ -137,6 +229,90 @@ public class HandleEndpointTests
         await Settle.UntilAsync(() => factory.RunsRecordedFor(Drawn) == 1, "the run record reaches the broker");
         factory.RunRecordFor(Drawn).Should().NotContain("requestId");
     }
+
+    public static TheoryData<bool, object> SubjectsNamingTheSubmission => new()
+    {
+        { true, Submission.ToString() },
+        { false, Submission.ToString() },
+        { true, new { id = Submission.ToString(), name = "a name the model does not hold" } },
+        { false, new { id = Submission.ToString(), name = "a name the model does not hold" } },
+    };
+
+    [Theory]
+    [MemberData(nameof(SubjectsNamingTheSubmission))]
+    public async Task Handle_ARunStartedByHand_CarriesItsSubjectAsTheModelHoldsIt(bool async, object subject)
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/handle", ByHand(async, subject));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        await Settle.UntilAsync(() => factory.RunsRecordedFor(Drawn) == 1, "the run record reaches the broker");
+        var parameters = JsonDocument.Parse(JsonDocument.Parse(factory.RunRecordFor(Drawn)).RootElement
+            .GetProperty("properties").GetProperty(ModelNames.Parameters).GetProperty("value").GetString()!).RootElement;
+        parameters.GetProperty("subject").GetProperty("id").GetGuid().Should().Be(Submission);
+        parameters.GetProperty("subject").GetProperty("name").GetString().Should().Be("Submission 42");
+    }
+
+    public static TheoryData<bool, object, string> SubjectsNamingNoThing => new()
+    {
+        { true, Unheld.ToString(), Unheld.ToString() },
+        { false, Unheld.ToString(), Unheld.ToString() },
+        { true, new { id = Unheld.ToString(), name = "Submission 42" }, Unheld.ToString() },
+        { true, "Submission 42", "Submission 42" },
+        { false, "Submission 42", "Submission 42" },
+    };
+
+    [Theory]
+    [MemberData(nameof(SubjectsNamingNoThing))]
+    public async Task Handle_ARunStartedByHandWhoseSubjectNamesNoThing_IsRefusedNamingIt_AndNoRunIsRecorded(bool async, object subject, string named)
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/handle", ByHand(async, subject));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("error").GetString().Should().Contain(named);
+        body.TryGetProperty("runId", out _).Should().BeFalse();
+        factory.RunsRecordedFor(Drawn).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Handle_AStateEntry_LogsHowLongEachStepTookBeforeItWasAnswered()
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        await client.PostAsync("/handle", StateEntry(target: Watching));
+
+        factory.Log.Lines.Should().ContainSingle(line => line.StartsWith("Answered", StringComparison.Ordinal))
+            .Which.Should().MatchRegex(
+                $@"^Answered 200 for {Watching} in \d+ ms: checking for a stop \d+ ms, looking up the vigil \d+ ms, "
+                + @"finding the pipeline it starts \d+ ms$");
+    }
+
+    [Fact]
+    public async Task Handle_WhenAStepFails_StillLogsHowLongEachStepTook()
+    {
+        await using var factory = new PhloemWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var posting = () => client.PostAsync("/handle", StateEntry(target: Unreadable));
+
+        await posting.Should().ThrowAsync<HttpRequestException>("the test host passes the endpoint's failure through");
+        factory.Log.Lines.Should().ContainSingle(line => line.StartsWith("Gave no answer", StringComparison.Ordinal))
+            .Which.Should().MatchRegex($@"^Gave no answer for {Unreadable} after \d+ ms: .*looking up the vigil \d+ ms; .*503");
+    }
+
+    private static readonly Guid Unreadable = Guid.Parse("50000000-0000-0000-0000-000000000098");
+
+    private static readonly Guid Unheld = Guid.Parse("50000000-0000-0000-0000-000000000099");
+
+    private static StringContent ByHand(bool async, object subject) => new(
+        JsonSerializer.Serialize(new { pipelineId = Drawn, parameters = new { subject }, async }), Encoding.UTF8, "application/json");
 
     private static StringContent StateEntry(Guid target, Guid? relationship = null) => new(JsonSerializer.Serialize(new
     {
@@ -158,14 +334,21 @@ public class HandleEndpointTests
 
         public PhloemWebApplicationFactory() => _broker = new MockHttpMessageHandler(Respond);
 
+        public CapturingLogger<Program> Log { get; } = new();
+
         public int RunsRecordedFor(Guid pipelineId) => _broker.Requests.Count(request =>
-            request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/api/things"
-            && request.Content!.ReadAsStringAsync().Result.Contains(pipelineId.ToString()));
+            IsACreation(request) && request.Content!.ReadAsStringAsync().Result.Contains(pipelineId.ToString()));
 
         public string RunRecordFor(Guid pipelineId) => _broker.Requests
-            .Where(request => request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/api/things")
+            .Where(IsACreation)
             .Select(request => request.Content!.ReadAsStringAsync().Result)
-            .Single(body => body.Contains(pipelineId.ToString()));
+            .Where(body => body.Contains(pipelineId.ToString()))
+            .Select(body => JsonDocument.Parse(body).RootElement)
+            .Select(body => body.TryGetProperty("things", out var things) ? things[0].GetRawText() : body.GetRawText())
+            .Single();
+
+        private static bool IsACreation(HttpRequestMessage request) =>
+            request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath is "/api/things" or "/api/model/fragment";
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -177,21 +360,96 @@ public class HandleEndpointTests
             {
                 services.RemoveAll<IHttpClientFactory>();
                 services.AddSingleton<IHttpClientFactory>(new PerCallHttpClientFactory(_broker));
+                services.AddSingleton<Microsoft.Extensions.Logging.ILogger<Program>>(Log);
             });
         }
 
         private static HttpResponseMessage Respond(HttpRequestMessage request)
         {
             var uri = request.RequestUri!;
-            if (uri.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post)
-                return Json(OneDrawing());
+            if (uri.AbsolutePath == "/api/snapshots" && request.Method == HttpMethod.Post)
+            {
+                var selector = request.Content!.ReadAsStringAsync().Result;
+                if (selector.Contains(Unreadable.ToString())) return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+                return Json(selector.Contains(HeldVigil.ToString()) ? TheNodeRunHoldingTheVigil()
+                    : selector.Contains(PipelineRoles.RunStopping.Id.ToString()) ? TheStopsConnection()
+                    : OneDrawing());
+            }
             if (uri.AbsolutePath == "/api/things" && uri.Query.Contains("name="))
                 return Json(JsonSerializer.Serialize(new { Id = Guid.NewGuid(), Name = "a predicate", Properties = new { } }));
+            if (uri.AbsolutePath == $"/api/things/{Submission}" && request.Method == HttpMethod.Get)
+                return Json(JsonSerializer.Serialize(new { Id = Submission, Name = "Submission 42", Properties = new { } }));
+            if (uri.AbsolutePath == $"/api/things/{Unheld}" && request.Method == HttpMethod.Get)
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
             if (uri.AbsolutePath.StartsWith("/api/relationships/", StringComparison.Ordinal) && request.Method == HttpMethod.Get)
                 return uri.AbsolutePath.EndsWith(WrittenAlongWatching.ToString(), StringComparison.Ordinal)
                     ? Json(JsonSerializer.Serialize(new { Id = WrittenAlongWatching, SubjectId = Submission, PredicateId = Watching, TargetId = Joined, Properties = new { } }))
-                    : new HttpResponseMessage(HttpStatusCode.NotFound);
+                    : uri.AbsolutePath.EndsWith(WrittenAlongStops.ToString(), StringComparison.Ordinal)
+                        ? Json(JsonSerializer.Serialize(new { Id = WrittenAlongStops, SubjectId = Submission, PredicateId = StopsConnection, TargetId = Joined, Properties = new { } }))
+                        : new HttpResponseMessage(HttpStatusCode.NotFound);
             return new HttpResponseMessage(HttpStatusCode.OK);
+        }
+
+        private static string TheStopsConnection()
+        {
+            var binds = Guid.NewGuid();
+            return JsonSerializer.Serialize(new
+            {
+                snapshot = new
+                {
+                    things = new object[]
+                    {
+                        new { id = PipelineRoles.RunStopping.Id, name = "runStopping role", properties = new Dictionary<string, object>() },
+                        new { id = binds, name = "binds", properties = new Dictionary<string, object>() },
+                        new { id = StopsConnection, name = "stops", properties = new Dictionary<string, object>() },
+                    },
+                    relationships = new object[]
+                    {
+                        new { id = Guid.NewGuid(), subjectId = PipelineRoles.RunStopping.Id, predicateId = binds, targetId = StopsConnection, properties = new Dictionary<string, object>() },
+                    },
+                },
+            });
+        }
+
+        private static string TheNodeRunHoldingTheVigil()
+        {
+            var binds = Guid.NewGuid();
+            var waitsOn = Guid.NewGuid();
+            var has = Guid.NewGuid();
+            var isPredicate = Guid.NewGuid();
+            var vigilArchetype = Guid.NewGuid();
+            var nodeRun = Guid.NewGuid();
+            var run = Guid.NewGuid();
+            return JsonSerializer.Serialize(new
+            {
+                snapshot = new
+                {
+                    things = new object[]
+                    {
+                        new { id = HeldVigil, name = "Plot 7 enters decided", properties = new Dictionary<string, object>() },
+                        new { id = PipelineRoles.Vigil.Id, name = "vigil role", properties = new Dictionary<string, object>() },
+                        new { id = vigilArchetype, name = "Vigil", properties = new Dictionary<string, object>() },
+                        new { id = isPredicate, name = "is", properties = new Dictionary<string, object>() },
+                        new { id = PipelineRoles.HeldVigil.Id, name = "heldVigil role", properties = new Dictionary<string, object>() },
+                        new { id = binds, name = "binds", properties = new Dictionary<string, object>() },
+                        new { id = waitsOn, name = "waitsOn", properties = new Dictionary<string, object>() },
+                        new { id = has, name = "has", properties = new Dictionary<string, object>() },
+                        new { id = nodeRun, name = "NodeRun Review", properties = new Dictionary<string, object>
+                        {
+                            ["nodeId"] = new { typeInfo = "vos.String", value = Guid.NewGuid().ToString() },
+                        } },
+                        new { id = run, name = "PipelineRun", properties = new Dictionary<string, object>() },
+                    },
+                    relationships = new[]
+                    {
+                        new { id = Guid.NewGuid(), subjectId = PipelineRoles.Vigil.Id, predicateId = binds, targetId = vigilArchetype },
+                        new { id = Guid.NewGuid(), subjectId = HeldVigil, predicateId = isPredicate, targetId = vigilArchetype },
+                        new { id = Guid.NewGuid(), subjectId = PipelineRoles.HeldVigil.Id, predicateId = binds, targetId = waitsOn },
+                        new { id = Guid.NewGuid(), subjectId = nodeRun, predicateId = waitsOn, targetId = HeldVigil },
+                        new { id = Guid.NewGuid(), subjectId = run, predicateId = has, targetId = nodeRun },
+                    },
+                },
+            });
         }
 
         private static string OneDrawing()
@@ -203,14 +461,11 @@ public class HandleEndpointTests
             var hasPredicate = Guid.NewGuid();
             var standsFor = Guid.NewGuid();
             var arrival = Guid.NewGuid();
+            var binds = Guid.NewGuid();
+            var runArchetype = Guid.NewGuid();
+            var nodeRunArchetype = Guid.NewGuid();
 
-            object Thing(Guid id, string name, string? flag = null) => new
-            {
-                id, name,
-                properties = flag is null
-                    ? new Dictionary<string, object>()
-                    : new Dictionary<string, object> { [flag] = new { value = true, typeInfo = "vos.Boolean" } },
-            };
+            object Thing(Guid id, string name) => new { id, name, properties = new Dictionary<string, object>() };
             object Edge(Guid subject, Guid predicate, Guid target) =>
                 new { id = Guid.NewGuid(), subjectId = subject, predicateId = predicate, targetId = target };
 
@@ -220,19 +475,34 @@ public class HandleEndpointTests
                 {
                     things = new[]
                     {
-                        Thing(pipelineArchetype, "Workflow", PipelineArchetypes.PipelineFlag),
-                        Thing(startArchetype, "Doorway", PipelineArchetypes.PipelineInputFlag),
-                        Thing(connectionArchetype, "Binding", PipelineArchetypes.ConnectionFlag),
+                        Thing(pipelineArchetype, "Workflow"),
+                        Thing(startArchetype, "Doorway"),
+                        Thing(connectionArchetype, "Binding"),
                         Thing(isPredicate, "is"),
                         Thing(hasPredicate, "has"),
-                        Thing(standsFor, "standsFor", PipelinePredicates.StandsForFlag),
+                        Thing(binds, "binds"),
+                        Thing(standsFor, "standsFor"),
+                        Thing(PipelineRoles.Pipeline.Id, "pipeline role"),
+                        Thing(PipelineRoles.PipelineInput.Id, "pipelineInput role"),
+                        Thing(PipelineRoles.Connection.Id, "connection role"),
+                        Thing(PipelineRoles.StandsFor.Id, "standsFor role"),
                         Thing(Watching, "watchingConnection"),
                         Thing(Loose, "looseConnection"),
                         Thing(arrival, "Arrival"),
-                        Thing(Drawn, "Drawn from the state"),
+                        Thing(runArchetype, "Run"),
+                        Thing(nodeRunArchetype, "Step run"),
+                        Thing(PipelineRoles.PipelineRun.Id, "pipelineRun role"),
+                        Thing(PipelineRoles.NodeRun.Id, "nodeRun role"),
+                        new { id = Drawn, name = "Drawn from the state", properties = new Dictionary<string, object> { [ModelNames.Published] = new { value = true, typeInfo = "vos.Boolean" } } },
                     },
                     relationships = new[]
                     {
+                        Edge(PipelineRoles.Pipeline.Id, binds, pipelineArchetype),
+                        Edge(PipelineRoles.PipelineInput.Id, binds, startArchetype),
+                        Edge(PipelineRoles.Connection.Id, binds, connectionArchetype),
+                        Edge(PipelineRoles.StandsFor.Id, binds, standsFor),
+                        Edge(PipelineRoles.PipelineRun.Id, binds, runArchetype),
+                        Edge(PipelineRoles.NodeRun.Id, binds, nodeRunArchetype),
                         Edge(Watching, isPredicate, connectionArchetype),
                         Edge(Loose, isPredicate, connectionArchetype),
                         Edge(arrival, isPredicate, startArchetype),

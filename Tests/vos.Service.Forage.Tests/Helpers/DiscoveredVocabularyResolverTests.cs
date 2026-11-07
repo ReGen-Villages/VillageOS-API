@@ -6,12 +6,14 @@ using Xunit;
 
 namespace vos.Service.Forage.Tests.Helpers;
 
-// The whole resolution is read from the model's declaration: the marked archetype names the property its word arrives under, and the shape relationship
-// names the subject and the predicate. Nothing in the resolver names a vocabulary, so every scenario
-// here declares its own and the resolver has never heard of it.
+// The whole resolution is read from the model's declaration: an archetype of the kind the role binds names the property its word arrives under, and the
+// shape relationship names the subject and the predicate. Nothing in the resolver names a vocabulary, so every
+// scenario here declares its own and the resolver has never heard of it.
 public class DiscoveredVocabularyResolverTests
 {
     private readonly Guid _is = Guid.NewGuid();
+    private readonly Guid _binds = Guid.NewGuid();
+    private readonly Guid _kind = Guid.NewGuid();
     private readonly Guid _flowsAs = Guid.NewGuid();
     private readonly Guid _spring = Guid.NewGuid();
     private readonly Guid _flowRegime = Guid.NewGuid();
@@ -39,11 +41,13 @@ public class DiscoveredVocabularyResolverTests
         List<SnapshotThing> things =
         [
             Thing(_is, "is"),
+            Thing(_binds, RoleBindings.BindsPredicateName),
+            Thing(DiscoveredVocabularyResolver.DiscoveredVocabularyRole.Id, "DiscoveredVocabulary"),
+            Thing(_kind, "DiscoveredVocabulary", isArchetype: true),
             Thing(_flowsAs, "flowsAs"),
             Thing(_spring, "Spring", isArchetype: true),
             Thing(_flowRegime, "FlowRegime", isArchetype: true, new()
             {
-                [DiscoveredVocabularyResolver.ArchetypeFlag] = Value(true),
                 [DiscoveredVocabularyResolver.ResolvedFromProperty] = Value("flowRegime"),
             }),
             Thing(_steady, "steady"),
@@ -52,6 +56,8 @@ public class DiscoveredVocabularyResolverTests
         ];
         List<SnapshotRelationship> edges =
         [
+            Edge(DiscoveredVocabularyResolver.DiscoveredVocabularyRole.Id, _binds, _kind),
+            Edge(_flowRegime, _is, _kind),
             Edge(_spring, _flowsAs, _flowRegime),
             Edge(_steady, _is, _flowRegime),
             Edge(_flashy, _is, _flowRegime),
@@ -100,6 +106,20 @@ public class DiscoveredVocabularyResolverTests
 
         resolution.Edges.Should().BeEmpty();
         resolution.Unresolved.Should().ContainSingle();
+    }
+
+    [Fact]
+    public void A_predicate_named_Is_is_not_the_is_predicate_so_it_places_no_member()
+    {
+        var declared = Declared();
+        var recased = declared with
+        {
+            Things = [.. declared.Things.Select(thing => thing.Id == _is ? thing with { Name = "Is" } : thing)],
+        };
+
+        var resolution = DiscoveredVocabularyResolver.Resolve(recased, [Fetched(_willowBend, "steady")]);
+
+        resolution.Edges.Should().BeEmpty("Thing names are matched exactly, case included");
     }
 
     [Fact]
@@ -189,7 +209,7 @@ public class DiscoveredVocabularyResolverTests
     // Seed validation refuses the half-declared shape before any model loads; meeting one anyway must
     // resolve nothing rather than guess, and it is the validator's job to have said why.
     [Fact]
-    public void A_mark_without_the_word_property_resolves_nothing()
+    public void A_vocabulary_without_the_word_property_resolves_nothing()
     {
         var model = Declared();
         var stripped = model.Things.Single(thing => thing.Id == _flowRegime);
@@ -199,5 +219,38 @@ public class DiscoveredVocabularyResolverTests
 
         resolution.Edges.Should().BeEmpty();
         resolution.Unresolved.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void An_archetype_that_is_not_of_the_kind_is_not_a_vocabulary_however_it_is_declared()
+    {
+        var model = Declared();
+        model.Relationships.RemoveAll(edge => edge.SubjectId == _flowRegime && edge.TargetId == _kind);
+
+        var resolution = DiscoveredVocabularyResolver.Resolve(model, [Fetched(_willowBend, "steady")]);
+
+        resolution.Edges.Should().BeEmpty();
+        resolution.Unresolved.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void A_model_whose_role_binds_nothing_declares_no_vocabulary()
+    {
+        var model = Declared();
+        model.Relationships.RemoveAll(edge => edge.SubjectId == DiscoveredVocabularyResolver.DiscoveredVocabularyRole.Id);
+
+        var resolution = DiscoveredVocabularyResolver.Resolve(model, [Fetched(_willowBend, "steady")]);
+
+        resolution.Edges.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void The_declaration_read_asks_for_the_role_and_what_it_binds_rather_than_a_mark()
+    {
+        var selector = DiscoveredVocabularyResolver.SelectorFor([_willowBend]);
+
+        selector.Ids.Should().Contain(DiscoveredVocabularyResolver.DiscoveredVocabularyRole.Id);
+        selector.Names.Should().Contain(RoleBindings.BindsPredicateName);
+        selector.BoundTypes.Should().Equal(DiscoveredVocabularyResolver.DiscoveredVocabularyRole.Id);
     }
 }

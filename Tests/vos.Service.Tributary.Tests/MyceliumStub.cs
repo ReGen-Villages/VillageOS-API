@@ -1,4 +1,6 @@
 using vos.Service.Shared;
+using vos.Service.Shared.Roles;
+using vos.Service.Shared.Subscriptions;
 using vos.Service.Tributary.Helpers;
 using System.Text.RegularExpressions;
 using System.Net;
@@ -80,6 +82,18 @@ internal static class MyceliumStub
         return Json("""{"accepted":1}""");
     }
 
+    internal static HttpResponseMessage ReadingsQueueFull(string? retryAfter)
+    {
+        var refusal = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+        {
+            Content = new StringContent("""{"error":"The readings queue is full; nothing in this request was queued."}""",
+                Encoding.UTF8, "application/json")
+        };
+        if (retryAfter is not null)
+            refusal.Headers.TryAddWithoutValidation("Retry-After", retryAfter);
+        return refusal;
+    }
+
     // One kind an endpoint reaches, and the keys that kind requires of it.
     internal readonly record struct Kind(string Role, string Name, params string[] Requires);
 
@@ -87,14 +101,14 @@ internal static class MyceliumStub
     // Things are included because a real snapshot only carries them when the selector names them —
     // leaving them out here would make every test agree with a resolver that reads nothing.
     // Derives the relationships from the same effective-properties document the test already writes, the way
-    // Delta derives them from a seed. A test keeps declaring its endpoint's shape in one place, and
+    // a seed declares them beside its templates. A test keeps declaring its endpoint's shape in one place, and
     // the words it uses there are the ones the old string-valued keys used, so the tests read as they
     // did before while the service under test sees only relationships.
     private static readonly (string Key, string Word, string Role, string Kind)[] DerivedKinds =
     [
         ("responseKind", "binary", EndpointKindRoles.ResponseBody, "BinaryResponse"),
         ("responseKind", "json", EndpointKindRoles.ResponseBody, "JsonResponse"),
-        ("authKind", "tokenexchange", EndpointKindRoles.Authentication, "TokenExchangeAuth"),
+        ("authKind", "tokenexchange", EndpointKindRoles.Authentication, "TokenExchangeAuthentication"),
         ("pagingKind", "offset", EndpointKindRoles.Paging, "OffsetPaging"),
     ];
 
@@ -128,12 +142,15 @@ internal static class MyceliumStub
         if (request.Method != HttpMethod.Post || path != "/api/subscriptions")
             return null;
 
+        var bindsId = Guid.NewGuid();
         var things = new List<string>
         {
             Thing(endpointId, "endpoint"),
             Thing(ObservedPredicateId, ObservedEdges.PredicateName),
+            Thing(LandIntakeRoles.Observed.Id, "Observed"),
+            Thing(bindsId, RoleBindings.BindsPredicateName),
         };
-        var edges = new List<string>();
+        var edges = new List<string> { Edge(LandIntakeRoles.Observed.Id, bindsId, ObservedPredicateId) };
         foreach (var kind in kinds)
         {
             var roleId = Guid.NewGuid();

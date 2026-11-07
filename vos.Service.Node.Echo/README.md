@@ -89,10 +89,12 @@ Full wire contract (routes, status codes, 405/404 gating): [`docs/SERVICE_CONTRA
 
 A handler is passed no object identifiers at launch: it subscribes with a selector describing the
 slice it needs. This example exports `subscribe` / `unsubscribe` / `sliceByTypeAndTraverse` / `demoSubscribe`
-and a runnable demo at `POST /demo/subscribe { "type": "Battery", "predicate": "powers" }`.
+and a runnable demo at `POST /demo/subscribe { "type": "OpenDataSource", "predicate": "provides" }` — the
+defaults, which the platform's shared templates declare, so the demo slices on any seeded model. A slice
+the platform refuses is answered with the platform's own status and words.
 
 ```ts
-const sub = await subscribe(cfg, sliceByTypeAndTraverse("Battery", "powers"));
+const sub = await subscribe(cfg, sliceByTypeAndTraverse("OpenDataSource", "provides"));
 // sub.snapshot.things / sub.snapshot.relationships = exactly the requested closure
 ```
 

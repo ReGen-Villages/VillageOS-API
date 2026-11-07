@@ -72,9 +72,9 @@ namespace vos.Taproot
             _writer.WriteLine("  range validate <criteria>                   - Validate criteria syntax");
             _writer.WriteLine("  state <thing>                               - Get current states for a thing");
             _writer.WriteLine("  state relationship <id>                     - Get current states for a relationship");
-            _writer.WriteLine("  state history <thing> [start] [end]         - Each change of state held in memory, and what caused it");
-            _writer.WriteLine("  state occurrences <thing> <state> [start] [end] - Each spell spent in a state");
-            _writer.WriteLine("  engines [ranges|rollups]                    - Reactive-engine totals; drill in to per-reactor detail");
+            _writer.WriteLine("  state history <thing> [start] [end]         - Each recorded change of state, and what caused it");
+            _writer.WriteLine("  state occurrences <thing> <state> [start] [end] - Each recorded spell spent in a state");
+            _writer.WriteLine("  engines [ranges|derived]                    -Reactive-engine totals; drill in to per-reactor detail");
             _writer.WriteLine("  snapshots                                   - What snapshot reads cost against the writers");
             _writer.WriteLine("  state query <state-name> [options]          - Find things in a state; narrows like list things, plus");
             _writer.WriteLine("                                                --also-in=a,b --not-in=c --include-archetypes --count");
@@ -117,8 +117,8 @@ namespace vos.Taproot
             _writer.WriteLine();
             _writer.WriteLine("Pipelines:");
             _writer.WriteLine("  pipeline list                               - Every pipeline the model holds");
-            _writer.WriteLine("  pipeline run <pipeline> [json params] [--wait] - Start a run; --wait prints the per-node result");
-            _writer.WriteLine("  pipeline cancel <run-id>                    - Ask a running pipeline to stop");
+            _writer.WriteLine("  pipeline run <pipeline> [json parameters] [--wait] - Start a run; --wait prints the per-node result");
+            _writer.WriteLine("  pipeline cancel <run-id> [reason]           - Ask a running, waiting or trying pipeline to stop");
             _writer.WriteLine("  pipeline history <pipeline>                 - The runs of a pipeline, newest first");
             _writer.WriteLine();
             _writer.WriteLine("Mycelium:");

@@ -20,4 +20,10 @@ describe('LogPage', () => {
     render(<MemoryRouter><LogPage /></MemoryRouter>);
     expect(screen.getByText(words)).toBeInTheDocument();
   });
+
+  it('titles a service log by the name it was sent, not the connection id that names the stream', () => {
+    tail.connection = 'live';
+    render(<MemoryRouter initialEntries={['/logs?service=3f1c9d2e-0000-4000-8000-000000000001&name=Metabolism']}><LogPage /></MemoryRouter>);
+    expect(screen.getByText('Metabolism log')).toBeInTheDocument();
+  });
 });

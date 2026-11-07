@@ -8,10 +8,11 @@ Port `type` is a wire-compatibility tag: an empty type or "any" is a wildcard, s
 anything. A port with `collection` true drives fan-out on the Pipeline page (one run item per element).
 """
 
-# Each service becomes a palette entry: a PlatformServiceConnection (carrying the Subdomain a run dispatches
+# Each service becomes a palette entry: a PlatformServiceConnection (carrying the Subdomain a run calls
 # to) bound to a Service that declares the ports. `subdomain` values match real Managed Microservices where
 # one exists (echo, water-reserve, energy-balance, metabolism, model-bridge), so a saved pipeline can also be
-# Run against a live platform; the rest are dispatch-only stand-ins that still exercise the editor end to end.
+# Run against a live platform; the rest are call-only stand-ins that still exercise the editor end to end.
+# Every service rehearses except the real ones nobody has yet checked to write nothing, marked "rehearses": False.
 #
 # port tuple = (portName, direction, type, required, collection)
 def _in(name, type="any", required=False, collection=False):
@@ -48,12 +49,12 @@ SERVICES = [
     {"key": "sum", "label": "Sum", "subdomain": "sum",
      "ports": [_in("a", "number", required=True), _in("b", "number", required=True), _out("total", "number")]},
 
-    {"key": "water-reserve", "label": "Water Reserve", "subdomain": "water-reserve",
+    {"key": "water-reserve", "label": "Water Reserve", "subdomain": "water-reserve", "rehearses": False,
      "ports": [_in("population", "number", required=True),
                _in("perCapitaConsumptionM3", "number", required=True),
                _in("storageCapacityM3", "number", required=True),
                _out("daysOfSupply", "number")]},
-    {"key": "energy-balance", "label": "Energy Balance", "subdomain": "energy-balance",
+    {"key": "energy-balance", "label": "Energy Balance", "subdomain": "energy-balance", "rehearses": False,
      "ports": [_in("solarPvAreaM2", "number", required=True),
                _in("solarResourceKwhPerM2PerYear", "number", required=True),
                _in("moduleEfficiency", "number", required=True),
@@ -61,11 +62,11 @@ SERVICES = [
                _in("otherGenerationMwhPerYear", "number", required=True),
                _in("annualConsumptionMwhPerYear", "number", required=True),
                _out("percentOfConsumption", "number")]},
-    {"key": "metabolism", "label": "Metabolism", "subdomain": "metabolism",
+    {"key": "metabolism", "label": "Metabolism", "subdomain": "metabolism", "rehearses": False,
      "ports": [_in("intakeKcal", "number", required=True),
                _in("populationCount", "number", required=True),
                _out("balanceKcal", "number")]},
-    {"key": "model-bridge", "label": "Model Bridge", "subdomain": "model-bridge",
+    {"key": "model-bridge", "label": "Model Bridge", "subdomain": "model-bridge", "rehearses": False,
      "ports": [_in("query", "string", required=True), _out("result", "any")]},
 
     {"key": "score", "label": "Scorer", "subdomain": "score",
@@ -75,7 +76,12 @@ SERVICES = [
      "ports": [_in("record", "any", required=True, collection=True), _out("enriched", "any")]},
 
     {"key": "publish", "label": "Publish", "subdomain": "publish",
-     "ports": [_in("payload", "any", required=True)]},
+     "ports": [_in("payload", "any", required=True), _out("published", "any")]},
+
+    # Its `strategy` port offers the Things a node may choose between.
+    {"key": "decide", "label": "Decide", "subdomain": "decide",
+     "ports": [_in("in", "any", required=True), _in("strategy", "any"), _out("out", "any")],
+     "offers": {"strategy": ["Nearest first", "Cheapest first", "Soonest first"]}},
 ]
 
 
@@ -96,15 +102,27 @@ EXTERNAL_SYSTEMS = [
     {"key": "reporting-office", "label": "Reporting office", "sends": [], "told": ["daily-report"], "toldThrough": "publish"},
 ]
 
+# A cadence starts the pipeline drawn from it every intervalMinutes of model time.
+CADENCES = [
+    {"key": "every-hour", "label": "Every hour", "intervalMinutes": 60},
+]
+
 
 # A pipeline node is either a service node ("service": <catalog key>) or a boundary node
 # ("input"/"output": [port specs]). A boundary node may say what it "standsFor": ("messageKind", key) at
-# the start for the kind of message the run comes from, ("externalSystem", key) at the end for the system
-# the run tells, or ("pipeline", name) for a pipeline a run starts or is started by. Node "at" is the canvas grid cell (column, row) — the generator turns it
+# the start for the kind of message the run comes from, ("cadence", key) at the start for the cadence that
+# starts it, or ("pipeline", name) for a pipeline a run is started by. A node the orchestrator runs itself has a
+# "kind": "tell" stands for ("externalSystem", key) and sends what reaches it there, "followOn" stands for
+# ("pipeline", name) and starts it; each takes in and passes on the ports in "passesOn". "stop" stands for
+# nothing and holds no ports: it stops the runs about the Things reaching it, through its kind's ports. Node "at" is the canvas grid cell (column, row) — the generator turns it
 # into x/y. "params" binds an input port to a run-parameter key (Params bar on the Pipeline page); "onItemError"
-# = "continue" collects partial fan-out results instead of failing the run.
+# = "continue" collects partial fan-out results instead of failing the run. A service node may hold
+# "outPorts" of its own, and may say what it "chooses": (port, the offered Thing's name) among what its service's
+# port offers. A service node may hold "choices" of where its run goes next: each a name, an optional JSONata rule
+# in "when", and what the rule "comparesWith" as (port, the offered Thing's name). A wire is taken on "success"
+# unless its "takenOn" names "fail" or choices its node holds.
 #
-# Boundary port spec = (portName, type[, required]).
+# Boundary port spec = (portName, type[, required]); a node-held out port spec = (portName, type).
 def col(c, r=0):
     return {"col": c, "row": r}
 
@@ -117,8 +135,12 @@ PIPELINES = [
         "nodes": [
             {"key": "gen", "service": "generate", "at": col(0)},
             {"key": "echo", "service": "echo", "at": col(1)},
+            {"key": "out", "output": [("result", "any")], "at": col(2)},
         ],
-        "wires": [{"from": "gen", "fromPort": "echo", "to": "echo", "toPort": "message"}],
+        "wires": [
+            {"from": "gen", "fromPort": "echo", "to": "echo", "toPort": "message"},
+            {"from": "echo", "fromPort": "echo", "to": "out", "toPort": "result"},
+        ],
         "runs": [
             {"status": "succeeded", "startedUtc": "2026-07-20T09:15:00Z",
              "nodes": [{"node": "gen", "status": "succeeded"}, {"node": "echo", "status": "succeeded"}]},
@@ -174,16 +196,18 @@ PIPELINES = [
         ],
     },
 
-    # 5. A JSONata transform reshapes the upstream output on the wire before it reaches the input.
+    # 5. A JSONata list transform reshapes the upstream output on the wire before it reaches the input.
     {
         "name": "Wire Transform",
         "nodes": [
             {"key": "gen", "service": "generate", "at": col(0)},
             {"key": "echo", "service": "echo", "at": col(1)},
+            {"key": "out", "output": [("result", "any")], "at": col(2)},
         ],
         "wires": [
             {"from": "gen", "fromPort": "echo", "to": "echo", "toPort": "message",
-             "transform": '{"message": "shout: " & $}'},
+             "listTransform": '{"message": "shout: " & $}'},
+            {"from": "echo", "fromPort": "echo", "to": "out", "toPort": "result"},
         ],
     },
 
@@ -274,6 +298,7 @@ PIPELINES = [
             {"key": "merge", "service": "merge", "at": col(2, 1)},
             {"key": "report", "service": "format-report", "at": col(3, 1)},
             {"key": "publish", "service": "publish", "at": col(4, 1)},
+            {"key": "out", "output": [("published", "any")], "at": col(5, 1)},
         ],
         "wires": [
             {"from": "site", "fromPort": "population", "to": "water", "toPort": "population"},
@@ -281,6 +306,7 @@ PIPELINES = [
             {"from": "energy", "fromPort": "percentOfConsumption", "to": "merge", "toPort": "in", "toPath": "energy.percentOfConsumption"},
             {"from": "merge", "fromPort": "out", "to": "report", "toPort": "data"},
             {"from": "report", "fromPort": "text", "to": "publish", "toPort": "payload"},
+            {"from": "publish", "fromPort": "published", "to": "out", "toPort": "published"},
         ],
     },
 
@@ -307,10 +333,12 @@ PIPELINES = [
             {"key": "in", "input": [("records", "any")], "at": col(0)},
             {"key": "enrich", "service": "enrich", "at": col(1), "onItemError": "continue"},
             {"key": "publish", "service": "publish", "at": col(2)},
+            {"key": "out", "output": [("published", "any")], "at": col(3)},
         ],
         "wires": [
             {"from": "in", "fromPort": "records", "to": "enrich", "toPort": "record"},
             {"from": "enrich", "fromPort": "enriched", "to": "publish", "toPort": "payload"},
+            {"from": "publish", "fromPort": "published", "to": "out", "toPort": "published"},
         ],
     },
 
@@ -330,18 +358,116 @@ PIPELINES = [
         ],
     },
 
-    # 14. A run that ends outside: the end node stands for the system told the report.
+    # 14. A run that tells a system outside: the tell node stands for the system told the report, and passes the
+    #     report on to the Output node.
     {
         "name": "Daily Report",
         "nodes": [
             {"key": "site", "service": "site-params", "at": col(0)},
             {"key": "report", "service": "format-report", "at": col(1)},
-            {"key": "out", "output": [("payload", "any", True)], "at": col(2), "label": "The office is told",
+            {"key": "tell", "kind": "tell", "passesOn": [("payload", "any")], "at": col(2), "label": "The office is told",
              "standsFor": ("externalSystem", "reporting-office")},
+            {"key": "out", "output": [("payload", "any", True)], "at": col(3), "label": "Reported"},
         ],
         "wires": [
             {"from": "site", "fromPort": "population", "to": "report", "toPort": "data"},
-            {"from": "report", "fromPort": "text", "to": "out", "toPort": "payload"},
+            {"from": "report", "fromPort": "text", "to": "tell", "toPort": "payload"},
+            {"from": "tell", "fromPort": "payload", "to": "out", "toPort": "payload"},
+        ],
+    },
+
+    # 15. A drawing that branches: the decision node takes `accept` when the strategy it was given is nearest or
+    #     cheapest first, and `refuse` otherwise, so only the wire taken on that choice runs and the end is reached
+    #     once; its `strategy` input is filled with the Thing chosen on the node unless a wire or a parameter fills it.
+    {
+        "name": "Branching Decision",
+        "nodes": [
+            {"key": "in", "input": [("subject", "any")], "at": col(0, 1)},
+            {"key": "decide", "service": "decide", "at": col(1, 1),
+             "chooses": ("strategy", "Cheapest first"),
+             "choices": [
+                 {"name": "accept", "when": "inputs.strategy.id in $things.id",
+                  "comparesWith": [("strategy", "Nearest first"), ("strategy", "Cheapest first")]},
+                 {"name": "refuse"},
+             ]},
+            {"key": "accepted", "service": "echo", "label": "Accepted", "at": col(2, 0)},
+            {"key": "refused", "service": "echo", "label": "Refused", "at": col(2, 2)},
+            {"key": "out", "output": [("result", "any", True)], "at": col(3, 1)},
+        ],
+        "wires": [
+            {"from": "in", "fromPort": "subject", "to": "decide", "toPort": "in"},
+            {"from": "decide", "fromPort": "out", "to": "accepted", "toPort": "message", "takenOn": ["accept"]},
+            {"from": "decide", "fromPort": "out", "to": "refused", "toPort": "message", "takenOn": ["refuse"]},
+            {"from": "accepted", "fromPort": "echo", "to": "out", "toPort": "result"},
+            {"from": "refused", "fromPort": "echo", "to": "out", "toPort": "result"},
+        ],
+    },
+
+    # 16. A run the clock starts: the start node stands for the hourly cadence, and its `due` port carries the
+    #     instant the run was due.
+    {
+        "name": "Hourly Tally",
+        "nodes": [
+            {"key": "in", "input": [("due", "string")], "at": col(0), "label": "The hour strikes",
+             "standsFor": ("cadence", "every-hour")},
+            {"key": "echo", "service": "echo", "at": col(1)},
+            {"key": "out", "output": [("tally", "string", True)], "at": col(2)},
+        ],
+        "wires": [
+            {"from": "in", "fromPort": "due", "to": "echo", "toPort": "message"},
+            {"from": "echo", "fromPort": "echo", "to": "out", "toPort": "tally"},
+        ],
+    },
+
+    # 17. A run that starts another: the follow-on node stands for Boundary I/O Echo, so what reaches its `seed`
+    #     port becomes that run's `seed` parameter, and it passes the seed on to the Output node.
+    {
+        "name": "Echo and Follow On",
+        "nodes": [
+            {"key": "in", "input": [("seed", "string")], "at": col(0)},
+            {"key": "echo", "service": "echo", "at": col(1)},
+            {"key": "follow", "kind": "followOn", "passesOn": [("seed", "string")], "at": col(2),
+             "label": "Boundary I/O Echo follows", "standsFor": ("pipeline", "Boundary I/O Echo")},
+            {"key": "out", "output": [("result", "string", True)], "at": col(3)},
+        ],
+        "wires": [
+            {"from": "in", "fromPort": "seed", "to": "echo", "toPort": "message"},
+            {"from": "echo", "fromPort": "echo", "to": "follow", "toPort": "seed"},
+            {"from": "follow", "fromPort": "seed", "to": "out", "toPort": "result"},
+        ],
+    },
+
+    # 18. A run that stops others: the stop node writes a stop request for each Thing given in the `things`
+    #     parameter, carrying the `reason` parameter, so the runs about those Things stop. Its ports are its kind's.
+    {
+        "name": "Stop the Runs About Them",
+        "nodes": [
+            {"key": "in", "input": [("things", "any"), ("reason", "string")], "at": col(0)},
+            {"key": "stop", "kind": "stop", "at": col(1), "label": "Stop their runs"},
+            {"key": "out", "output": [("requested", "number", True)], "at": col(2)},
+        ],
+        "wires": [
+            {"from": "in", "fromPort": "things", "to": "stop", "toPort": "things"},
+            {"from": "in", "fromPort": "reason", "to": "stop", "toPort": "reason"},
+            {"from": "stop", "fromPort": "requested", "to": "out", "toPort": "requested"},
+        ],
+    },
+
+    # 19. An item transform: each record the first enrichment answers is reshaped on the wire and goes on to the
+    #     second enrichment by itself, without waiting for slower records.
+    {
+        "name": "Each Item Reshaped",
+        "nodes": [
+            {"key": "in", "input": [("records", "any")], "at": col(0)},
+            {"key": "first", "service": "enrich", "at": col(1), "onItemError": "continue", "label": "Enrich first"},
+            {"key": "again", "service": "enrich", "at": col(2), "onItemError": "continue", "label": "Enrich again"},
+            {"key": "out", "output": [("enriched", "any")], "at": col(3)},
+        ],
+        "wires": [
+            {"from": "in", "fromPort": "records", "to": "first", "toPort": "record"},
+            {"from": "first", "fromPort": "enriched", "to": "again", "toPort": "record",
+             "itemTransform": '{"record": $, "reshaped": true}'},
+            {"from": "again", "fromPort": "enriched", "to": "out", "toPort": "enriched"},
         ],
     },
 ]

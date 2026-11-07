@@ -5,7 +5,7 @@ public sealed record EnergyBalanceInputs(
     double SolarResourceKwhPerM2PerYear,   // GTI at optimum tilt
     double ModuleEfficiency,               // 0..1, measured at the panel under standard test conditions
     double PerformanceRatio,               // 0..1, everything lost between the panel and the meter
-    double OtherGenerationMwhPerYear,      // firm/dispatchable: wind + biomass + biogas
+    double OtherGenerationMwhPerYear,      // firm/callable: wind + biomass + biogas
     double AnnualConsumptionMwhPerYear);
 
 public sealed record EnergyBalanceOutputs(

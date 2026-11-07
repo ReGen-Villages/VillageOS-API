@@ -40,18 +40,12 @@ public class FindingsEndpointTests
     }
 
     // The platform resolves a selector into an object closure. A selector rooted at one site reaches that
-    // site and what its walks lead to; the declaration read names no site and takes the model whole.
+    // site and what its walks lead to; the declaration read walks no page predicate and takes the model whole.
     private static string Reading(HttpRequestMessage request, BrokerSnapshot model)
     {
         var asked = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
         using var selector = JsonDocument.Parse(asked);
-        var rootedAt = selector.RootElement.TryGetProperty("traverse", out var traverse)
-                       && traverse.ValueKind == JsonValueKind.Array
-                       && traverse.GetArrayLength() > 0
-            ? Guid.Parse(selector.RootElement.GetProperty("ids")[0].GetString()!)
-            : (Guid?)null;
-
-        return rootedAt is { } site ? model.OpenedReaching(site) : model.Opened();
+        return BrokerSnapshot.RootedAt(selector.RootElement) is { } site ? model.OpenedReaching(site) : model.Opened();
     }
 
     private static async Task<HttpResponseMessage> AskAsync(
@@ -203,14 +197,15 @@ public class FindingsEndpointTests
     [Fact]
     public async Task A_model_never_seeded_for_this_answers_that_it_cannot_and_says_no_more()
     {
-        await using var factory = Holding(BrokerSnapshot.WithTwoSubmissions().WithoutTheMarks());
+        await using var factory = Holding(BrokerSnapshot.WithTwoSubmissions()
+            .Unbound(FindingsReader.PageRole).Unbound(FindingsReader.PersonalDetailRole));
         using var client = factory.CreateClient();
 
         var response = await AskAsync(factory, client, WillowBend.SubmissionId, ThisAddress);
 
         response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
         var body = await response.Content.ReadAsStringAsync();
-        body.Should().NotContain(FindingsReader.FindingsDashboardFlag).And.NotContain("archetype");
+        body.Should().NotContain(FindingsReader.PageRole.Word).And.NotContain("archetype");
     }
 
     // The broker being unreachable is a deployment's problem, not the caller's, and is answered the way

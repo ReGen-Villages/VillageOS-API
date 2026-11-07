@@ -10,8 +10,8 @@ interface Props {
   onStart: (id: string) => void;
   onStop: (id: string) => void;
   onDelete?: (thingId: string, name: string) => void;
-  onViewLogs?: (serviceKey: string) => void;
-  onDownloadLogs?: (serviceKey: string) => void;
+  onViewLogs?: (connectionId: string, name: string) => void;
+  onDownloadLogs?: (connectionId: string) => void;
 }
 
 const healthColor: Record<HealthStatus, 'green' | 'yellow' | 'red' | 'gray'> = {
@@ -129,11 +129,11 @@ export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete, 
                   <Badge label={row.running ? t('dashboard.services.running') : t('dashboard.services.stopped')} color={row.running ? 'green' : 'red'} dot />
                 )}
                 {row.isExternal && <Badge label={t('dashboard.services.external')} color="purple" />}
-                {row.trigger === 'graph' && onViewLogs && (
-                  <button onClick={() => onViewLogs(row.name.toLowerCase())} className="p-1 text-zinc-400 hover:text-blue-400" title={t('dashboard.services.viewLog')}><ScrollText size={14} /></button>
+                {row.trigger === 'graph' && row.controlId && onViewLogs && (
+                  <button onClick={() => onViewLogs(row.controlId!, row.name)} className="p-1 text-zinc-400 hover:text-blue-400" title={t('dashboard.services.viewLog')}><ScrollText size={14} /></button>
                 )}
-                {row.trigger === 'graph' && onDownloadLogs && (
-                  <button onClick={() => onDownloadLogs(row.name.toLowerCase())} className="p-1 text-zinc-400 hover:text-blue-400" title={t('dashboard.services.downloadLog')}><HardDriveDownload size={14} /></button>
+                {row.trigger === 'graph' && row.controlId && onDownloadLogs && (
+                  <button onClick={() => onDownloadLogs(row.controlId!)} className="p-1 text-zinc-400 hover:text-blue-400" title={t('dashboard.services.downloadLog')}><HardDriveDownload size={14} /></button>
                 )}
                 {row.controlId && (row.running
                   ? <button onClick={() => onStop(row.controlId!)} className="p-1 text-red-400 hover:text-red-300" title={t('common.stop')}><Square size={14} /></button>

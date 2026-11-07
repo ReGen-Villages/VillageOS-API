@@ -1,14 +1,12 @@
 #!/usr/bin/env node
 'use strict';
 
-// Convert an Azure DevOps project-wiki git checkout into GitHub-wiki content.
+// Convert the pages tools/docs-to-wiki generates, which are written for an Azure DevOps project
+// wiki, into the flat, GitHub-flavoured form the GitHub wiki repository
+// (ReGen-Villages/VillageOS-API.wiki) expects, rewriting every DevOps-specific link to its GitHub
+// target so visitors stay on GitHub.
 //
-// The canonical wiki lives in the Azure DevOps project wiki. This tool transforms
-// a clone of that wiki into the flat, GitHub-flavoured form expected by the GitHub
-// wiki repo (ReGen-Villages/VillageOS-API.wiki), rewriting every DevOps-specific link to
-// its GitHub target so visitors stay on GitHub.
-//
-// Usage: node sync-wiki.js <devops-wiki-dir> <output-dir>
+// Usage: node sync-wiki.js <generated-dir> <manifest> <output-dir>
 //
 // The transforms (convert, buildSidebar, flatName) and the file walk (mirror) are exported for unit
 // tests; the CLI runs only when invoked directly.
@@ -20,16 +18,16 @@ const REPO = 'https://github.com/ReGen-Villages/VillageOS-API';
 const WIKI = `${REPO}/wiki`;
 // Where a file committed to the GitHub wiki repository is served raw, with its own content type.
 const RAW_WIKI = 'https://raw.githubusercontent.com/wiki/ReGen-Villages/VillageOS-API';
-// The folder the wiki generator attaches every image to, on both wikis.
+// The folder the wiki generator attaches every image to.
 const ATTACHMENTS = '.attachments';
-// The branch GitHub file links point at: the one the build mirrors the wiki from, which the build file
-// names in its "Mirror Wiki to GitHub" step. A link against any other branch answers 404, and the test
-// beside this reads the build file so the two cannot drift apart again.
+// The branch GitHub file links point at: the one the build publishes the wiki from, which the build
+// file names in its "Publish the wiki to GitHub" step. A link against any other branch answers 404,
+// and the test beside this reads the build file so the two cannot drift apart again.
 const REPO_BRANCH = 'develop';
 
-// Azure DevOps project wikis percent-encode reserved characters in file names
-// (e.g. a literal hyphen in "API-Reference" is stored as API%2DReference.md).
-// GitHub addresses pages by the decoded name, so decode before writing.
+// The generator percent-encodes a literal hyphen in a page name, as an Azure DevOps wiki stores
+// it (API-Reference is written as API%2DReference.md). GitHub addresses pages by the decoded
+// name, so decode before writing.
 function decodeName(name) {
   return decodeURIComponent(name);
 }
@@ -116,30 +114,24 @@ function convertMermaid(content) {
   return result.join('\n');
 }
 
-// Build a GitHub wiki _Sidebar.md from the DevOps .order files. `readOrder` is a
-// function (dir) => string[] | null returning the ordered base names in a folder
-// (null if no .order). Nested folders are rendered as indented sub-items.
-function buildSidebar(readOrder) {
-  const lines = [];
-  const top = readOrder('') || [];
-  for (const entry of top) {
-    const slug = decodeName(entry).replace(/ /g, '-');
-    lines.push(`- [${slug}](${WIKI}/${slug})`);
-    const children = readOrder(entry);
-    if (children) {
-      for (const child of children) {
-        const childSlug = decodeName(child).replace(/ /g, '-');
-        lines.push(`  - [${childSlug}](${WIKI}/${childSlug})`);
-      }
-    }
-  }
+// A GitHub wiki _Sidebar.md listing the manifest's pages in the order they are declared, a page
+// under a parent indented beneath it. Folders are flattened, so a page is linked by its last segment.
+function buildSidebar(pagePaths) {
+  const lines = pagePaths.map((pagePath) => {
+    const segments = pagePath.replace(/^\/+/, '').split('/');
+    const slug = pageSlug(pagePath);
+    return `${'  '.repeat(segments.length - 1)}- [${slug}](${WIKI}/${slug})`;
+  });
   return lines.join('\n') + '\n';
+}
+
+function pagePathsOf(manifestPath) {
+  return JSON.parse(fs.readFileSync(manifestPath, 'utf8')).pages.map((entry) => entry.page);
 }
 
 function listMarkdown(dir, base = dir) {
   const out = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === '.git') continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       out.push(...listMarkdown(full, base));
@@ -150,7 +142,7 @@ function listMarkdown(dir, base = dir) {
   return out;
 }
 
-function mirror(srcDir, outDir) {
+function mirror(srcDir, outDir, pagePaths) {
   fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(outDir, { recursive: true });
 
@@ -165,7 +157,7 @@ function mirror(srcDir, outDir) {
     if (seen.has(name)) {
       throw new Error(
         `Flatten collision: "${rel}" and "${seen.get(name)}" both map to "${name}". ` +
-          'Rename one page in the Azure DevOps wiki.'
+          'Rename one page in the manifest.'
       );
     }
     seen.set(name, rel);
@@ -173,28 +165,19 @@ function mirror(srcDir, outDir) {
     fs.writeFileSync(path.join(outDir, name), convert(content));
   }
 
-  const readOrder = (entry) => {
-    const orderPath = path.join(srcDir, entry, '.order');
-    if (!fs.existsSync(orderPath)) return null;
-    return fs
-      .readFileSync(orderPath, 'utf8')
-      .split('\n')
-      .map((l) => l.trim())
-      .filter(Boolean);
-  };
-  fs.writeFileSync(path.join(outDir, '_Sidebar.md'), buildSidebar(readOrder));
+  fs.writeFileSync(path.join(outDir, '_Sidebar.md'), buildSidebar(pagePaths));
 
   return seen.size;
 }
 
 function main(argv) {
-  const [srcDir, outDir] = argv;
-  if (!srcDir || !outDir) {
-    console.error('Usage: node sync-wiki.js <devops-wiki-dir> <output-dir>');
+  const [srcDir, manifestPath, outDir] = argv;
+  if (!srcDir || !manifestPath || !outDir) {
+    console.error('Usage: node sync-wiki.js <generated-dir> <manifest> <output-dir>');
     process.exit(2);
   }
 
-  const pages = mirror(srcDir, outDir);
+  const pages = mirror(srcDir, outDir, pagePathsOf(manifestPath));
   console.log(`Wrote ${pages} page(s) + _Sidebar.md to ${outDir}`);
 }
 
@@ -202,4 +185,4 @@ if (require.main === module) {
   main(process.argv.slice(2));
 }
 
-module.exports = { convert, convertMermaid, buildSidebar, flatName, pageSlug, decodeName, mirror, REPO_BRANCH };
+module.exports = { convert, convertMermaid, buildSidebar, flatName, pageSlug, decodeName, mirror, pagePathsOf, REPO_BRANCH };

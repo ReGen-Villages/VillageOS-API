@@ -29,14 +29,14 @@ describe('CatalystRail', () => {
     rail();
     expect(screen.getByText('starts Readings arrive')).toBeInTheDocument();
     expect(screen.getByText('starts Store surplus')).toBeInTheDocument();
-    expect(screen.getAllByText('today: dispatched to Reader')).toHaveLength(1);
-    expect(screen.getByText('today: dispatched to Handler')).toBeInTheDocument();
+    expect(screen.getAllByText('today: sent to Reader')).toHaveLength(1);
+    expect(screen.getByText('today: sent to Handler')).toBeInTheDocument();
   });
 
   it('says of a state drawn from but sent elsewhere both the drawing and the service that receives it', () => {
     rail();
     expect(screen.queryByText('starts Refill')).not.toBeInTheDocument();
-    expect(screen.getByText('drawn: Refill · today: dispatched to Watcher')).toBeInTheDocument();
+    expect(screen.getByText('drawn: Refill · today: sent to Watcher')).toBeInTheDocument();
   });
 
   it('says a state the orchestrator handles with nothing drawn is refused each time', () => {

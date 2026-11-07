@@ -32,7 +32,7 @@ public class EnginesCommandHandlerTests
          "Ranges":{"RegisteredRanges":12,"RangesWithBindings":3,"PropertyDependencyEdges":20,
                    "StateDependencyEdges":4,"BindingDependencyEdges":6,"DependencyEdges":30,
                    "EstimatedBytes":17088},
-         "Rollups":{"ThingsOwningRollups":2,"RollupProperties":5,"MemberEdges":40,"EstimatedBytes":5120},
+         "DerivedProperties":{"ThingsOwningDerivedProperties":2,"Definitions":5,"MemberEdges":40,"EstimatedBytes":5120},
          "EstimatedBytesTotal":22208}
         """;
 
@@ -54,7 +54,7 @@ public class EnginesCommandHandlerTests
         Assert.Contains("5.0 KB", output);
         Assert.Contains("21.7 KB", output);
         Assert.Contains("engines ranges", output);
-        Assert.Contains("engines rollups", output);
+        Assert.Contains("engines derived", output);
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public class EnginesCommandHandlerTests
             {"Ranges":[{"OwnerId":"a","OwnerName":"Tank-1","RangeName":"low_quantity",
                         "WatchedProperties":["quantity"],"WatchedStates":[],
                         "DependencyEdges":1,"BindingEdges":0,"EstimatedBytes":1184}],
-             "Rollups":[]}
+             "DerivedProperties":[]}
             """));
 
         await TestCulture.InAsync(TestCulture.Display, () => ExecuteHandler("ranges"));
@@ -77,11 +77,11 @@ public class EnginesCommandHandlerTests
     }
 
     [Fact]
-    public async Task Execute_Rollups_ListsAReductionByItsPathAndWhatItWatches()
+    public async Task Execute_DerivedProperties_ListsAReductionByItsPathAndWhatItWatches()
     {
         _myceliumMock.Setup(m => m.GetEngineReactorsAsync()).ReturnsAsync(Parse("""
             {"Ranges":[],
-             "Rollups":[{"OwnerId":"b","OwnerName":"SolarArray","PropertyName":"total_pv_area",
+             "DerivedProperties":[{"OwnerId":"b","OwnerName":"SolarArray","PropertyName":"total_pv_area",
                          "Watches":["area"],
                          "Function":"Sum","Path":"<-is","RelatedType":"SolarArray",
                          "PropertyPath":"area","Expression":null,
@@ -89,7 +89,7 @@ public class EnginesCommandHandlerTests
                          "Scope":"Owner","MaterializedEntries":0}]}
             """));
 
-        await ExecuteHandler("rollups");
+        await ExecuteHandler("derived");
 
         var lines = OutputLines();
         Assert.Equal("  SolarArray · total_pv_area = Sum(area) over SolarArray reached by <-is", lines[1]);
@@ -97,11 +97,11 @@ public class EnginesCommandHandlerTests
     }
 
     [Fact]
-    public async Task Execute_Rollups_ListsAnExpressionByItsTermsRatherThanAnEmptyReduction()
+    public async Task Execute_DerivedProperties_ListsAnExpressionByItsTermsRatherThanAnEmptyReduction()
     {
         _myceliumMock.Setup(m => m.GetEngineReactorsAsync()).ReturnsAsync(Parse("""
             {"Ranges":[],
-             "Rollups":[{"OwnerId":"c","OwnerName":"Reservoir-1","PropertyName":"days_of_supply",
+             "DerivedProperties":[{"OwnerId":"c","OwnerName":"Reservoir-1","PropertyName":"days_of_supply",
                          "Watches":["capacity_m3","draw_rate_m3_per_day"],
                          "Function":null,"Path":null,"RelatedType":null,
                          "PropertyPath":null,"Expression":"capacity_m3 / draw_rate_m3_per_day",
@@ -109,7 +109,7 @@ public class EnginesCommandHandlerTests
                          "Scope":"Owner","MaterializedEntries":0}]}
             """));
 
-        await ExecuteHandler("rollups");
+        await ExecuteHandler("derived");
 
         var lines = OutputLines();
         Assert.Equal("  Reservoir-1 · days_of_supply = capacity_m3 / draw_rate_m3_per_day", lines[1]);
@@ -121,7 +121,7 @@ public class EnginesCommandHandlerTests
     {
         _myceliumMock.Setup(m => m.GetEngineReactorsAsync()).ReturnsAsync(Parse("""
             {"Ranges":[],
-             "Rollups":[{"OwnerId":"d","OwnerName":"Site","PropertyName":"total_roof_area",
+             "DerivedProperties":[{"OwnerId":"d","OwnerName":"Site","PropertyName":"total_roof_area",
                          "Watches":["roof_area"],
                          "Function":"Sum","Path":"*","RelatedType":"Building",
                          "PropertyPath":"roof_area","Expression":null,
@@ -129,7 +129,7 @@ public class EnginesCommandHandlerTests
                          "Scope":"Owner","MaterializedEntries":0}]}
             """));
 
-        await ExecuteHandler("rollups");
+        await ExecuteHandler("derived");
 
         var lines = OutputLines();
         Assert.Equal("  Site · total_roof_area = Sum(roof_area) over every Building", lines[1]);
@@ -140,7 +140,7 @@ public class EnginesCommandHandlerTests
     public async Task Execute_EmptyDrillIn_SaysSoInsteadOfPrintingNothing()
     {
         _myceliumMock.Setup(m => m.GetEngineReactorsAsync())
-            .ReturnsAsync(Parse("""{"Ranges":[],"Rollups":[]}"""));
+            .ReturnsAsync(Parse("""{"Ranges":[],"DerivedProperties":[]}"""));
 
         await ExecuteHandler("ranges");
 
@@ -154,7 +154,7 @@ public class EnginesCommandHandlerTests
             {"Ranges":[{"OwnerId":"a","OwnerName":"Tank-2","RangeName":"scheduled_check",
                         "WatchedProperties":[],"WatchedStates":[],
                         "DependencyEdges":0,"BindingEdges":0,"EstimatedBytes":5242880}],
-             "Rollups":[]}
+             "DerivedProperties":[]}
             """));
 
         await TestCulture.InAsync(TestCulture.Display, () => ExecuteHandler("ranges"));
@@ -165,11 +165,11 @@ public class EnginesCommandHandlerTests
     }
 
     [Fact]
-    public async Task Execute_RollupWithoutAPropertyPath_PrintsTheBareReductionAndWatchesNothing()
+    public async Task Execute_DerivedPropertyWithoutAPropertyPath_PrintsTheBareReductionAndWatchesNothing()
     {
         _myceliumMock.Setup(m => m.GetEngineReactorsAsync()).ReturnsAsync(Parse("""
             {"Ranges":[],
-             "Rollups":[{"OwnerId":"b","OwnerName":"SolarArray","PropertyName":"panel_count",
+             "DerivedProperties":[{"OwnerId":"b","OwnerName":"SolarArray","PropertyName":"panel_count",
                          "Watches":[],
                          "Function":"Count","Path":"<-is","RelatedType":"SolarArray",
                          "PropertyPath":null,"Expression":null,
@@ -177,7 +177,7 @@ public class EnginesCommandHandlerTests
                          "Scope":"Owner","MaterializedEntries":0}]}
             """));
 
-        await ExecuteHandler("rollups");
+        await ExecuteHandler("derived");
 
         var lines = OutputLines();
         Assert.Equal("  SolarArray · panel_count = Count over SolarArray reached by <-is", lines[1]);
@@ -203,6 +203,6 @@ public class EnginesCommandHandlerTests
         var output = _writer.ToString();
         Assert.Contains("Usage:", output);
         Assert.Contains("engines ranges", output);
-        Assert.Contains("engines rollups", output);
+        Assert.Contains("engines derived", output);
     }
 }

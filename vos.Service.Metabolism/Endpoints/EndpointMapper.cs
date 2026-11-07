@@ -1,7 +1,9 @@
 using vos.Service.Metabolism.Configuration;
 using vos.Service.Metabolism.Models;
 using vos.Service.Metabolism.Services;
+using vos.Service.Shared;
 using vos.Service.Shared.Middleware;
+using vos.Service.Shared.Subscriptions;
 using Serilog;
 
 namespace vos.Service.Metabolism.Endpoints;
@@ -17,13 +19,21 @@ public static class EndpointMapper
     {
         var mode = direction.LaunchArgument;
 
-        var handleEndpoint = app.MapPost("/handle", (HandleRequest request, HandleRequestProcessor processor) =>
+        var handleEndpoint = app.MapPost("/handle", async (
+            HandleRequest request, HandleRequestProcessor processor,
+            IServiceTokenExchange tokenExchange, ILogger<HeldModelToken> tokenLogger, HttpContext httpContext) =>
         {
             incrementRequestCount();
 
+            var heldToken = await HeldModelToken.SwapFromTheCallAsync(tokenExchange, tokenLogger, httpContext.RequestAborted);
+            if (heldToken is null)
+                return Results.Json(
+                    new { success = false, error = "Mycelium would not swap this call's token for one that outlasts the simulation" },
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+
             try
             {
-                var (entry, error) = processor.ProcessHandle(request);
+                var (entry, error) = processor.ProcessHandle(request, heldToken);
                 if (error != null)
                     return Results.BadRequest(new { error });
 

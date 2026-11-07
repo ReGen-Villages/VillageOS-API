@@ -44,6 +44,10 @@ describe('the rail of catalysts', () => {
     expect(row).toMatchObject({ kind: 'relationship', who: '', what: 'feeds', today: 'Handler' });
   });
 
+  it('leaves out the connection a vigil resumes a waiting run through, which nothing a person draws starts', () => {
+    expect(internal.rows.find((each) => each.standsForId === id.resumes)).toBeUndefined();
+  });
+
   it('groups the two sides and orders the internal side state, relationship, clock', () => {
     expect(external.side).toBe('external');
     expect(internal.side).toBe('internal');
@@ -99,7 +103,7 @@ describe('the rail of catalysts', () => {
 describe('the rail of outputs', () => {
   const { model, id } = catalystFixture();
 
-  it('offers the answer, every other pipeline and every external system with what it is told', () => {
+  it('offers the answer, every other pipeline to start, every system told through a connection, and stopping runs', () => {
     const rows = outputRail(model, id.readingsArrive);
     expect(rows.map((row) => [row.kind, row.name])).toEqual([
       ['answer', ''],
@@ -107,14 +111,23 @@ describe('the rail of outputs', () => {
       ['pipeline', 'Refill'],
       ['pipeline', 'Store surplus'],
       ['externalSystem', 'Reporting office'],
-      ['externalSystem', 'Weather station'],
+      ['stop', ''],
     ]);
     expect(rows.find((row) => row.name === 'Reporting office')?.told).toEqual(['daily digest']);
-    expect(rows.find((row) => row.name === 'Weather station')?.told).toEqual([]);
   });
 
   it('offers every pipeline while none is open', () => {
     expect(outputRail(model, null).filter((row) => row.kind === 'pipeline').map((row) => row.name))
       .toEqual(['Digest', 'Readings arrive', 'Refill', 'Store surplus']);
+  });
+
+  it('offers only the answer on a model that binds none of the tell, follow-on and stop kinds', () => {
+    const rows = outputRail(catalystFixture({ bindsTellFollowOnAndStop: false }).model, null);
+    expect(rows.map((row) => row.kind)).toEqual(['answer']);
+  });
+
+  it('offers no stop node on a model that binds nothing for a stop request to name the run that wrote it, which Phloem refuses', () => {
+    const rows = outputRail(catalystFixture({ bindsRequestedBy: false }).model, null);
+    expect(rows.map((row) => row.kind)).not.toContain('stop');
   });
 });

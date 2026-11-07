@@ -32,6 +32,9 @@ import { usePlatformPagesStore } from '../stores/platformPagesStore';
 import { subscriptionForSpecification } from '../api/dashboardSubscription';
 import type { DashboardSpecification } from '../types/dashboard';
 import { useModelStore } from '../stores/modelStore';
+import { PAGE_ROLE_ID } from '../api/platformRoles';
+
+const PAGE_ROLE_BINDS: VosRelationship = { Id: 'page-binds', Name: '', SubjectId: PAGE_ROLE_ID, PredicateId: 'binds', TargetId: 'arch-dash', Properties: {} };
 import { useUiStore } from '../stores/uiStore';
 import { OperationsPage } from './OperationsPage';
 import { act } from '@testing-library/react';
@@ -52,6 +55,11 @@ const SPECIFICATION = {
           format: 'decimal1',
           unit: '%',
           target: 99,
+        },
+        {
+          type: 'kpi',
+          title: 'Water stored',
+          value: { kind: 'related', via: [{ predicate: 'has' }], property: 'storedCubicMetres' },
         },
       ],
     },
@@ -88,6 +96,8 @@ function seedStore() {
   const t = (Id: string, Name: string, Properties: Record<string, unknown> = {}): VosThing => ({ Id, Name, Properties });
   const things: VosThing[] = [
     t('is', 'is'),
+    t('binds', 'binds'),
+    t(PAGE_ROLE_ID, 'Page'),
     t('arch-dash', 'Dashboard'),
     t('arch-vil', 'Village'),
     t('dash1', 'Operations Dashboard', { specification: JSON.stringify(SPECIFICATION) }),
@@ -104,7 +114,7 @@ function seedStore() {
   });
   useModelStore.setState({
     things,
-    relationships: [r('dash1', 'arch-dash'), r('vil1', 'arch-vil'), r('vil2', 'arch-vil')],
+    relationships: [PAGE_ROLE_BINDS, r('dash1', 'arch-dash'), r('vil1', 'arch-vil'), r('vil2', 'arch-vil')],
     loaded: true,
   });
 }
@@ -198,6 +208,47 @@ describe('OperationsPage', () => {
     expect(declaredSubscriptions).toContainEqual(subscriptionForSpecification(SPECIFICATION as DashboardSpecification, null));
   });
 
+  it('asks for one entity on a figure that walks from it while All is showing, and draws it once one is chosen', async () => {
+    renderAt();
+    const askingForOne = 'Shown for one choice of “site” at a time: choose one above.';
+    expect(await screen.findByText(askingForOne)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'V-1' }));
+
+    await waitFor(() => expect(screen.queryByText(askingForOne)).toBeNull());
+    expect(screen.getByText('Water stored')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'All' }));
+
+    expect(await screen.findByText(askingForOne)).toBeInTheDocument();
+  });
+
+  // A model made from one site submission holds one site, and All of one is that one.
+  it('opens on the only entity a compared archetype has, and offers no All', async () => {
+    useModelStore.setState({
+      relationships: useModelStore.getState().relationships.filter((relationship) => relationship.SubjectId !== 'vil2'),
+    });
+
+    renderAt();
+
+    expect(await screen.findByRole('button', { name: 'V-1' })).toBeInTheDocument();
+    expect(screen.queryByText('All')).toBeNull();
+    expect(screen.queryByText(/choose one above/)).toBeNull();
+    await waitFor(() =>
+      expect(declaredSubscriptions).toContainEqual(subscriptionForSpecification(SPECIFICATION as DashboardSpecification, 'vil1')));
+  });
+
+  it('asks for no choice where the compared archetype has no entity to choose', async () => {
+    useModelStore.setState({
+      relationships: useModelStore.getState().relationships.filter((relationship) => !['vil1', 'vil2'].includes(relationship.SubjectId)),
+    });
+
+    renderAt();
+
+    expect(await screen.findByText('Water stored')).toBeInTheDocument();
+    expect(screen.queryByText(/choose one above/)).toBeNull();
+  });
+
   it('names the selected entity in what it declares', async () => {
     renderAt();
     await screen.findByText('96.5');
@@ -277,10 +328,13 @@ describe('OperationsPage section widths', () => {
     useModelStore.setState({
       things: [
         { Id: 'is', Name: 'is', Properties: {} },
+        { Id: 'binds', Name: 'binds', Properties: {} },
+        { Id: PAGE_ROLE_ID, Name: 'Page', Properties: {} },
         { Id: 'arch-dash', Name: 'Dashboard', Properties: {} },
         { Id: 'dash1', Name: 'Widths', Properties: { specification: JSON.stringify(WIDTH_SPECIFICATION) } },
       ],
       relationships: [
+        PAGE_ROLE_BINDS,
         { Id: 'dash1-is', Name: 'dash1 is arch-dash', SubjectId: 'dash1', PredicateId: 'is', TargetId: 'arch-dash', Properties: {} },
       ],
       loaded: true,

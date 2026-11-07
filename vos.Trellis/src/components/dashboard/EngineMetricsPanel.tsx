@@ -31,12 +31,12 @@ export function EngineMetricsPanel({ metrics }: Props) {
             bytes={metrics.Ranges.EstimatedBytes}
           />
           <EngineRow
-            label={t('dashboard.engines.rollups')}
-            reactors={metrics.Rollups.RollupProperties}
-            reactorsUnit={t('dashboard.engines.rollupsUnit')}
-            fanIn={metrics.Rollups.MemberEdges}
+            label={t('dashboard.engines.derivedProperties')}
+            reactors={metrics.DerivedProperties.Definitions}
+            reactorsUnit={t('dashboard.engines.derivedPropertiesUnit')}
+            fanIn={metrics.DerivedProperties.MemberEdges}
             fanInUnit={t('dashboard.engines.members')}
-            bytes={metrics.Rollups.EstimatedBytes}
+            bytes={metrics.DerivedProperties.EstimatedBytes}
           />
           <div className="flex justify-between mt-2 pt-2 border-t border-zinc-200 dark:border-zinc-700 text-xs">
             <span className="text-zinc-500 dark:text-zinc-400">{t('dashboard.engines.total')}</span>

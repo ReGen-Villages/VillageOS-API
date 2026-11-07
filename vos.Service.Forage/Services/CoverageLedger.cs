@@ -12,7 +12,7 @@ public sealed record OutstandingCall(CoveringSource Source, SourceCall Call, Gui
 
 // What the model already records about a run's calls, and what each call came to.
 //
-// A site was discovered exactly once ever while the state a run is dispatched by counted `observed`
+// A site was discovered exactly once ever while the state that starts a run counted `observed`
 // relationships: nothing removes one, so the first source to answer ended the occupancy for every source. The
 // coverage Things replace that count, and this is what fills them — so a partial failure leaves exactly
 // the calls that failed outstanding, and a source added to the catalogue later reaches a site already
@@ -113,17 +113,30 @@ public sealed class CoverageLedger
         if (outstanding.CoverageId is not { } coverageId) return;
 
         var now = _clock.GetUtcNow().UtcDateTime;
-        await _writer.WriteFactAsync(coverageId, LastAttemptAtProperty, now, cancellationToken);
-        await _writer.WriteFactAsync(coverageId, AttemptsProperty, outstanding.Attempts + 1, cancellationToken);
+        await WriteOntoCoverageAsync(outstanding, coverageId, LastAttemptAtProperty, now, cancellationToken);
+        await WriteOntoCoverageAsync(outstanding, coverageId, AttemptsProperty, outstanding.Attempts + 1, cancellationToken);
 
         if (outcome.Resolved)
         {
-            await _writer.WriteFactAsync(coverageId, ResolvedAtProperty, now, cancellationToken);
+            await WriteOntoCoverageAsync(outstanding, coverageId, ResolvedAtProperty, now, cancellationToken);
             return;
         }
 
-        await _writer.WriteFactAsync(
-            coverageId, FailureReasonProperty, outcome.Reason ?? string.Empty, cancellationToken);
+        await WriteOntoCoverageAsync(
+            outstanding, coverageId, FailureReasonProperty, outcome.Reason ?? string.Empty, cancellationToken);
+    }
+
+    // Sent once more when refused, because a coverage missing a stamp reads as a source never asked until
+    // the reconciler sends the whole run again.
+    private async Task WriteOntoCoverageAsync(
+        OutstandingCall outstanding, Guid coverageId, string property, object? value, CancellationToken cancellationToken)
+    {
+        if (await _writer.WriteFactAsync(coverageId, property, value, cancellationToken)) return;
+        if (await _writer.WriteFactAsync(coverageId, property, value, cancellationToken)) return;
+
+        _logger.LogError(
+            "Could not write {Property} onto the coverage of {Subject} by {Source} in two attempts; the coverage " +
+            "carries what earlier runs wrote", property, outstanding.Call.SubjectName, outstanding.Source.Name);
     }
 
     // Stamped whatever the run found, including nothing: a Thing no source covers was looked at, and

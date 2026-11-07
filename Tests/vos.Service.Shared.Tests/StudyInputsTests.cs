@@ -88,7 +88,7 @@ public class StudyInputsTests
         inputs.WaitingFor(["population", "storageCapacityM3"]).Should().Equal("storageCapacityM3");
     }
 
-    // A roll-up whose member type names no Thing the model holds withholds its number, which says the same
+    // A derived property whose member type names no Thing the model holds withholds its number, which says the same
     // about the study as carrying no such property at all.
     [Fact]
     public void A_name_whose_number_is_withheld_is_waited_for_as_well()

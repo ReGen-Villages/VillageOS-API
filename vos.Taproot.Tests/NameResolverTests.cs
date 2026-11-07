@@ -42,7 +42,7 @@ public class NameResolverTests
     }
 
     [Fact]
-    public async Task ResolveThingAsync_WithUniqueName_CaseInsensitive()
+    public async Task ResolveThingAsync_WithANameDifferingOnlyInCase_FindsNothing()
     {
         var expectedId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{expectedId}\",\"Name\":\"MyThing\"}}]");
@@ -50,6 +50,20 @@ public class NameResolverTests
 
         var resolver = new NameResolver(_myceliumMock.Object);
         var result = await resolver.ResolveThingAsync("MYTHING");
+
+        Assert.False(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task ResolveThingAsync_TwoThingsWhoseNamesDifferOnlyInCase_AreNotAmbiguous()
+    {
+        var expectedId = Guid.NewGuid();
+        var things = JsonSerializer.Deserialize<JsonElement>(
+            $"[{{\"Id\":\"{expectedId}\",\"Name\":\"MyThing\"}},{{\"Id\":\"{Guid.NewGuid()}\",\"Name\":\"mything\"}}]");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+
+        var resolver = new NameResolver(_myceliumMock.Object);
+        var result = await resolver.ResolveThingAsync("MyThing");
 
         Assert.True(result.IsSuccess);
         Assert.Equal(expectedId, result.Id);

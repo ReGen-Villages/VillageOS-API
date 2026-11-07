@@ -21,7 +21,7 @@ export function RetypeRow({ thingId, things, relationships }: Props) {
   const [saving, setSaving] = useState(false);
 
   const isPredicateId = useMemo(
-    () => things.find((t) => t.Name.toLowerCase() === 'is')?.Id,
+    () => things.find((t) => t.Name === 'is')?.Id,
     [things],
   );
 

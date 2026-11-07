@@ -1,8 +1,8 @@
 namespace vos.Service.Forage.Services;
 
-// Starts a run off the request that dispatched it. The platform gives a dispatch fifteen seconds, and a
+// Starts a run off the request that called it. The platform gives a service call fifteen seconds, and a
 // run over a catalogue of tens of sources fetched a few at a time outlasts that — so answering first is
-// what keeps finished work from being recorded as failed and driven a second time. What ends the dispatch
+// what keeps finished work from being recorded as failed and driven a second time. What ends the service call
 // instead is the model: the connection names a state, and the record stays in flight until the site
 // reaches it.
 //
@@ -28,8 +28,8 @@ public interface IDiscoveryRunStarter
 // can this hold go. It does not cover a source's run overlapping a site's run, which can mint the same
 // coverage too, and it holds within one process only.
 //
-// At most one run waits. A waiting run reads the model only once the run in flight ends, so a dispatch
-// arriving while one already waits would find nothing it will not; dropping it keeps a site dispatched
+// At most one run waits. A waiting run reads the model only once the run in flight ends, so a service call
+// arriving while one already waits would find nothing it will not; dropping it keeps a site called
 // faster than it is discovered from piling up runs.
 public sealed class DiscoveryRunStarter : IDiscoveryRunStarter
 {
@@ -84,7 +84,7 @@ public sealed class DiscoveryRunStarter : IDiscoveryRunStarter
         {
             _logger.LogInformation(
                 "A discovery run for {SubjectId} is already waiting and reads the model after the one in flight; " +
-                "this dispatch adds nothing to it", subjectId);
+                "this service call adds nothing to it", subjectId);
             return;
         }
 
@@ -106,7 +106,7 @@ public sealed class DiscoveryRunStarter : IDiscoveryRunStarter
             }
             catch (Exception exception)
             {
-                _logger.LogError(exception, "Discovery run failed after its dispatch had been accepted");
+                _logger.LogError(exception, "Discovery run failed after its service call had been accepted");
             }
             finally
             {

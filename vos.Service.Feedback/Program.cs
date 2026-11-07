@@ -15,10 +15,10 @@ if (settings is null)
 {
     Console.WriteLine(whyRefused);
     Environment.Exit(1);
-    return;
+    return 1;
 }
 
-ServiceHost.ConfigureLogging("Feedback", "feedback-.log", writeToFile: !builder.Environment.IsEnvironment("Testing"));
+ServiceHost.ConfigureLogging("Feedback", "feedback-.log", settings.Service.LogDirectory, writeToFile: !builder.Environment.IsEnvironment("Testing"));
 
 try
 {
@@ -108,13 +108,15 @@ try
 
     app.Run();
 }
-catch (Exception error) when (error is not HostAbortedException)
+catch (Exception error)
 {
-    Log.Fatal(error, "Feedback relay terminated unexpectedly");
+    return ServiceHost.FailedToStart("Feedback", error);
 }
 finally
 {
     Log.CloseAndFlush();
 }
+
+return 0;
 
 public partial class Program;

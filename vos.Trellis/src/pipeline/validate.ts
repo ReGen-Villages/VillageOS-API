@@ -1,19 +1,18 @@
-import type { PortInformation } from './model';
+import { wireEnds, type EndKind, type NodeKind, type PortInformation } from './model';
 import i18n from '../i18n';
 
 // Pure pre-run validation for the pipeline editor: explains why a DAG will not run before the
-// user hits Run, instead of a silent dispatch failure. Kept pure so it is trivially unit-tested and can
+// user hits Run, instead of a silent service-call failure. Kept pure so it is trivially unit-tested and can
 // drive both a canvas marker and the Run button's enabled state.
 
 export interface ValidationNode {
   id: string;
   label: string;
   ports: PortInformation[];
-  paramBindings?: Record<string, string>;
-  /** A boundary node: where a run comes from, or what it leaves behind. */
-  kind?: 'input' | 'output';
-  /** What a boundary node stands for, and which end it may be. */
-  standsFor?: { name: string; mayStart: boolean; mayEnd: boolean };
+  parameterBindings?: Record<string, string>;
+  kind?: NodeKind;
+  /** What a node stands for, and which end it may be. */
+  standsFor?: { name: string; kind: EndKind; mayStart: boolean; mayEnd: boolean };
 }
 
 export interface ValidationEdge {
@@ -41,6 +40,11 @@ export type EndIssue =
 
 const key = (nodeId: string, port: string) => `${nodeId} ${port}`;
 
+const whyNoEnd = (kind: EndKind) =>
+  kind === 'externalSystem' ? 'pipeline.endTellsThroughANode'
+    : kind === 'pipeline' ? 'pipeline.endStartsThroughANode'
+      : 'pipeline.endCannotEnd';
+
 /** Whether each end of the drawing stands for something a run may come from or leave behind. A boundary
  *  node standing for nothing is fine: at the start it is a run started by hand, at the end the answer.
  *  Judged on the drawing, before anything runs, because the orchestrator reads none of this. */
@@ -56,7 +60,7 @@ export function validateEnds(nodes: ValidationNode[], _edges: ValidationEdge[]):
     if (node.kind === 'output' && !node.standsFor.mayEnd)
       issues.push({
         kind: 'end-cannot-end', nodeId: node.id, named: node.standsFor.name,
-        message: i18n.t('pipeline.endCannotEnd', { node: node.label, named: node.standsFor.name }),
+        message: i18n.t(whyNoEnd(node.standsFor.kind), { node: node.label, named: node.standsFor.name }),
       });
   }
   return issues;
@@ -65,39 +69,35 @@ export function validateEnds(nodes: ValidationNode[], _edges: ValidationEdge[]):
 export function validatePipeline(nodes: ValidationNode[], edges: ValidationEdge[]): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const byId = new Map(nodes.map((n) => [n.id, n]));
-  const hasPort = (n: ValidationNode, name: string, direction: 'in' | 'out') =>
-    n.ports.some((p) => p.portName === name && p.direction === direction);
-
-  // A wire is dangling if either endpoint node, or the named port on it, no longer exists. Only
+  // A wire is dangling if either endpoint node, or the port on it, no longer exists. Only
   // well-formed wires count toward satisfying a required input.
   const wiredInputs = new Set<string>();
   for (const e of edges) {
     const source = byId.get(e.source);
     const dst = byId.get(e.target);
-    const wellFormed =
-      source !== undefined &&
-      dst !== undefined &&
-      hasPort(source, e.sourceHandle, 'out') &&
-      hasPort(dst, e.targetHandle, 'in');
-    if (!wellFormed) {
+    const { outPort, inPort } = wireEnds(source?.ports, e.sourceHandle, dst?.ports, e.targetHandle);
+    if (!outPort || !inPort) {
       issues.push({
         kind: 'dangling-wire',
         source: e.source,
         sourceHandle: e.sourceHandle,
         target: e.target,
         targetHandle: e.targetHandle,
-        message: i18n.t('pipeline.danglingWire', { from: `${e.source}.${e.sourceHandle}`, to: `${e.target}.${e.targetHandle}` }),
+        message: i18n.t('pipeline.danglingWire', {
+          from: `${source?.label ?? e.source}.${outPort?.portName ?? e.sourceHandle}`,
+          to: `${dst?.label ?? e.target}.${inPort?.portName ?? e.targetHandle}`,
+        }),
       });
       continue;
     }
-    wiredInputs.add(key(e.target, e.targetHandle));
+    wiredInputs.add(key(e.target, inPort.portName));
   }
 
   // Every required input port must be satisfied by a wire or a run-param binding.
   for (const n of nodes) {
     for (const p of n.ports) {
       if (p.direction !== 'in' || !p.required) continue;
-      const satisfied = wiredInputs.has(key(n.id, p.portName)) || Boolean(n.paramBindings?.[p.portName]);
+      const satisfied = wiredInputs.has(key(n.id, p.portName)) || Boolean(n.parameterBindings?.[p.portName]);
       if (!satisfied) {
         issues.push({
           kind: 'unbound-required-input',

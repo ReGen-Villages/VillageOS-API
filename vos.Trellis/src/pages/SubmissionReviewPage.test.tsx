@@ -3,9 +3,9 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos';
 import {
   COLD_STORAGE_PERIOD_PROPERTY,
-  DISPOSITION_ARCHETYPE_FLAG,
-  DISPOSITION_PREDICATE_FLAG,
-  PROPOSED_SITE_PREDICATE_FLAG,
+  DISPOSITION_ARCHETYPE_ROLE,
+  DISPOSITION_PREDICATE_ROLE,
+  PROPOSED_SITE_ROLE,
 } from './submissionReview';
 
 vi.mock('../api/thingApi', () => ({
@@ -41,12 +41,14 @@ const edge = (Id: string, SubjectId: string, PredicateId: string, TargetId: stri
 
 const held = (Value: unknown): EffectiveProperty => ({ Value, Type: 'vos.String', IsInherited: false });
 
-/** What a Thing gets from the archetype it `is`. A mark is an ordinary property on the archetype, so
- *  every term under it reads the mark too — which is what a real seeded model hands back. */
-const inherited = (Value: unknown): EffectiveProperty => ({ Value, Type: 'vos.String', IsInherited: true });
-
+/** The role Things under the identifiers every model declares them by, and `binds`, which a role reaches
+ *  the Thing playing it along. */
 const THINGS: VosThing[] = [
   thing('is', 'is'),
+  thing('binds', 'binds'),
+  thing(PROPOSED_SITE_ROLE, 'proposedSite'),
+  thing(DISPOSITION_PREDICATE_ROLE, 'resolvedAs'),
+  thing(DISPOSITION_ARCHETYPE_ROLE, 'submissionDisposition'),
   thing('puts-forward', 'puts-forward'),
   thing('decided', 'decided'),
   thing('covers', 'covers'),
@@ -58,6 +60,9 @@ const THINGS: VosThing[] = [
 ];
 
 const EDGES: VosRelationship[] = [
+  edge('b1', PROPOSED_SITE_ROLE, 'binds', 'puts-forward'),
+  edge('b2', DISPOSITION_PREDICATE_ROLE, 'binds', 'decided'),
+  edge('b3', DISPOSITION_ARCHETYPE_ROLE, 'binds', 'verdict'),
   edge('e1', 'arrival-1', 'puts-forward', 'meadow'),
   edge('e2', 'binned', 'is', 'verdict'),
   edge('e3', 'taken-on', 'is', 'verdict'),
@@ -65,13 +70,11 @@ const EDGES: VosRelationship[] = [
 ];
 
 const PROPERTIES: Record<string, Record<string, EffectiveProperty>> = {
-  'puts-forward': { [PROPOSED_SITE_PREDICATE_FLAG]: held(true) },
-  decided: { [DISPOSITION_PREDICATE_FLAG]: held(true) },
-  verdict: { [DISPOSITION_ARCHETYPE_FLAG]: held(true) },
-  binned: { [DISPOSITION_ARCHETYPE_FLAG]: inherited(true), [COLD_STORAGE_PERIOD_PROPERTY]: held(30) },
-  'taken-on': { [DISPOSITION_ARCHETYPE_FLAG]: inherited(true) },
+  binned: { [COLD_STORAGE_PERIOD_PROPERTY]: held(30) },
   'arrival-1': { submissionId: held('sub-0001'), submittedAt: held('2026-08-20T09:00:00Z') },
 };
+
+const without = (binding: string): VosRelationship[] => EDGES.filter((one) => one.Id !== binding);
 
 function modelAnswers(
   things: VosThing[] = THINGS,
@@ -122,7 +125,7 @@ describe('what a reviewer sees', () => {
   });
 
   it('keeps a submission whose detail cannot be read, with what is known', async () => {
-    modelAnswers(THINGS, EDGES, { 'puts-forward': PROPERTIES['puts-forward'] });
+    modelAnswers(THINGS, EDGES, {});
     await shown();
 
     expect(screen.getByText('Meadow Lane arrival')).toBeInTheDocument();
@@ -142,11 +145,11 @@ describe('what a reviewer sees', () => {
     expect(screen.getByText(/No submissions have arrived/)).toBeInTheDocument();
   });
 
-  it('says so where the model marks no predicate as reaching a proposed site', async () => {
-    modelAnswers(THINGS, EDGES, { ...PROPERTIES, 'puts-forward': {} });
+  it('says so where the model binds no predicate to the role of reaching a proposed site', async () => {
+    modelAnswers(THINGS, without('b1'));
     await shown();
 
-    expect(screen.getByText(/marks no single predicate/)).toBeInTheDocument();
+    expect(screen.getByText(/binds no single predicate/)).toBeInTheDocument();
   });
 
   it('says the model could not be read rather than showing an empty queue', async () => {
@@ -205,13 +208,13 @@ describe('rejecting', () => {
     expect(screen.getByText('sub-0001')).toBeInTheDocument();
   });
 
-  it('writes nothing where the model marks no predicate to write a decision through', async () => {
-    modelAnswers(THINGS, EDGES, { ...PROPERTIES, decided: {} });
+  it('writes nothing where the model binds no predicate to write a decision through', async () => {
+    modelAnswers(THINGS, without('b2'));
     await shown();
     fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
 
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('marks no predicate')),
+      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('binds no predicate')),
     );
     expect(relationshipApi.create).not.toHaveBeenCalled();
   });
@@ -325,12 +328,12 @@ describe('promoting', () => {
     expect(modelApi.promote).not.toHaveBeenCalled();
   });
 
-  it('builds nothing where the model marks no predicate to write a decision through', async () => {
-    modelAnswers(THINGS, EDGES, { ...PROPERTIES, decided: {} });
+  it('builds nothing where the model binds no predicate to write a decision through', async () => {
+    modelAnswers(THINGS, without('b2'));
     await shown();
     await promoteWith('site-analysis.template.json', 'covers', 'Meadow Lane');
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('marks no predicate')));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('binds no predicate')));
     expect(modelApi.promote).not.toHaveBeenCalled();
   });
 

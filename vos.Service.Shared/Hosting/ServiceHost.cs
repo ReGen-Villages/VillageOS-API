@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,28 +16,52 @@ public static class ServiceHost
 {
     private const int ShutdownDelayMilliseconds = 300;
 
-    public static void ConfigureLogging(string serviceName, string logFileName, bool writeToFile = true)
+    // Told to the broker at registration, so its log routes can find this service's file.
+    public static string? LogFilePrefix { get; private set; }
+
+    // Only a folder the service was given is told, because the broker finds the default one beside the executable its connection declares.
+    public static string? LogDirectory { get; private set; }
+
+    public static string LogFilePrefixOf(string logFileName) => Path.GetFileNameWithoutExtension(logFileName);
+
+    private const string LogLineTemplate =
+        "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}";
+
+    // Whatever started the service captures its standard output, so every line goes to the console in every environment.
+    public static void ConfigureLogging(string serviceName, string logFileName, string? logDirectory, bool writeToFile = true)
     {
+        LogFilePrefix = writeToFile ? LogFilePrefixOf(logFileName) : null;
+        LogDirectory = writeToFile && logDirectory is not null ? Path.GetFullPath(logDirectory) : null;
         var configuration = new LoggerConfiguration()
             .MinimumLevel.Information()
             .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
             .Enrich.FromLogContext()
-            .Enrich.WithProperty("Service", serviceName);
+            .Enrich.WithProperty("Service", serviceName)
+            .WriteTo.Console(outputTemplate: LogLineTemplate);
 
         // Tests leave the file sink off: writing files from shared build agents invites flakiness.
         if (writeToFile)
         {
-            var logPath = Path.Combine(
-                AppContext.BaseDirectory, "..", "..", "..", "..", "logs", logFileName);
+            var folder = logDirectory ?? Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs");
 
             configuration = configuration.WriteTo.File(
-                path: logPath,
+                path: Path.Combine(folder, logFileName),
                 rollingInterval: RollingInterval.Day,
-                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}",
+                outputTemplate: LogLineTemplate,
                 shared: true);
         }
 
         Log.Logger = configuration.CreateLogger();
+    }
+
+    // Whatever started the service reads its exit code and standard error, not its log file. A test host stops a
+    // service by throwing HostAbortedException out of its entry point, which is not a failure.
+    public static int FailedToStart(string serviceName, Exception error)
+    {
+        if (error is HostAbortedException) ExceptionDispatchInfo.Throw(error);
+        Log.Fatal(error, "{Service} terminated unexpectedly", serviceName);
+        Console.Error.WriteLine($"{serviceName} could not start: {error.Message}");
+        return 1;
     }
 
     public static IServiceCollection AddMyceliumRegistration(
@@ -63,7 +88,7 @@ public static class ServiceHost
     // Short enough that a service launched before a simulation anchors the clock is stamping model
     // instants within seconds of the anchor, and one local request either way is nothing beside what
     // a service does for a single call it handles.
-    private static readonly TimeSpan ModelClockInterval = TimeSpan.FromSeconds(5);
+    public static readonly TimeSpan ModelClockInterval = TimeSpan.FromSeconds(5);
 
     // Returns nothing to gate on, unlike MapShutdown: the broker polls /health to decide whether the
     // service is alive, and it cannot do that behind authentication. The process id is how the broker

@@ -6,7 +6,7 @@ namespace vos.Service.Forage.Services;
 // Starts the analysis for a site by relating its study to each compute service.
 //
 // Forage calls no compute service. A connection bound to a service is a handled predicate, so
-// creating `study -connection-> prototype` is what dispatches it — the model carries the trigger, and a
+// creating `study -connection-> prototype` is what calls it — the model carries the trigger, and a
 // second way to start an analysis would be a second thing to keep in step with it. It also means the
 // analysis is a fact in the model rather than a call that happened, so what started one is answerable
 // afterwards.

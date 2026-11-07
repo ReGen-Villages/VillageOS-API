@@ -9,62 +9,25 @@ public sealed class SubmissionIntakeService(
     IntakeMyceliumClient mycelium, ISubscriptionClient subscriptions, ILogger<SubmissionIntakeService> logger,
     ModelClock time)
 {
-    // Every archetype a submission points its Things at. Order matters only to the refusal, which reports
-    // missing names in it.
-    private static readonly string[] ArchetypeNames =
-    [
-        SubmissionFragmentComposer.SiteArchetypeName,
-        SubmissionFragmentComposer.SiteStudyArchetypeName,
-        SubmissionFragmentComposer.ParcelArchetypeName,
-        SubmissionFragmentComposer.ProjectArchetypeName,
-        SubmissionFragmentComposer.ContactArchetypeName,
-        SubmissionFragmentComposer.ProgrammeAllocationArchetypeName,
-        SubmissionFragmentComposer.HazardAssessmentArchetypeName,
-        SubmissionFragmentComposer.SubmittedSourceArchetypeName,
-        SubmissionFragmentComposer.SubmissionArchetypeName,
-    ];
-
     public async Task<ComposedSubmission> SubmitAsync(Submission submission, CancellationToken cancellation)
     {
-        // None of these lookups reads another's answer, and a fragment upserts so a wizard posts the whole
-        // submission again on every save. Awaited one after another they would spend a round trip each on
-        // every keystroke's worth of progress, and one more again for every archetype added later.
-        var studies = ResolvePredicateAsync(SubmissionFragmentComposer.StudiesPredicateName, cancellation);
+        // None of these reads uses another's answer, and a wizard posts the whole submission again on every save,
+        // so awaiting them one after another would make every save wait for each in turn.
+        var shape = subscriptions.ReadAsync(
+            SubmissionShapeReader.Selector(), SubmissionShapeReader.Read, logger, cancellation);
         var has = ResolvePredicateAsync(SubmissionFragmentComposer.HasPredicateName, cancellation);
         var isEdge = ResolvePredicateAsync(SubmissionFragmentComposer.IsPredicateName, cancellation);
-        var proposes = ResolvePredicateAsync(SubmissionFragmentComposer.ProposesPredicateName, cancellation);
-        var servedAfter = ResolvePredicateAsync(
-            SubmissionFragmentComposer.ServedAfterPredicateName, cancellation);
         var arrival = ArrivalTimeAsync(submission.SubmissionId, cancellation);
-        var archetypeLookups = ArchetypeNames
-            .Select(name => mycelium.FindThingIdByNameAsync(name, cancellation))
-            .ToArray();
 
-        await Task.WhenAll(
-            [studies, has, isEdge, proposes, servedAfter, arrival, .. archetypeLookups.Cast<Task>()]);
+        await Task.WhenAll([shape, has, isEdge, arrival]);
 
-        // Kept against the name rather than the position it was asked in, so the two orderings cannot drift
-        // apart and hand a submission the Parcel archetype where it asked for the Site.
-        var found = ArchetypeNames
-            .Zip(archetypeLookups, (name, lookup) => (name, identifier: lookup.Result))
-            .ToDictionary(pair => pair.name, pair => pair.identifier);
-        RefuseAModelMissingAnyArchetype(found);
-
-        var predicates = new ResolvedPredicates(
-            await studies, await has, await isEdge, await proposes, await servedAfter);
-        var archetypes = new ResolvedArchetypes(
-            found[SubmissionFragmentComposer.SiteArchetypeName]!.Value,
-            found[SubmissionFragmentComposer.SiteStudyArchetypeName]!.Value,
-            found[SubmissionFragmentComposer.ParcelArchetypeName]!.Value,
-            found[SubmissionFragmentComposer.ProjectArchetypeName]!.Value,
-            found[SubmissionFragmentComposer.ContactArchetypeName]!.Value,
-            found[SubmissionFragmentComposer.ProgrammeAllocationArchetypeName]!.Value,
-            found[SubmissionFragmentComposer.HazardAssessmentArchetypeName]!.Value,
-            found[SubmissionFragmentComposer.SubmittedSourceArchetypeName]!.Value,
-            found[SubmissionFragmentComposer.SubmissionArchetypeName]!.Value);
+        var read = await shape;
+        var predicates = new ResolvedPredicates(read.Studies, await has, await isEdge, read.Proposes, read.ServedAfter);
+        var archetypes = read.Archetypes;
 
         // After the archetype gate rather than beside the lookups above. Both refuse an unseeded model, and
         // run together the one that answered first would decide which of the two refusals the planner saw.
+        // The study's archetype comes with it, found through its role rather than by a name.
         var vocabulary = await ReadDeclaredVocabularyAsync(cancellation);
 
         var composed = SubmissionFragmentComposer.Compose(
@@ -96,25 +59,6 @@ public sealed class SubmissionIntakeService(
     private Task<DeclaredVocabulary> ReadDeclaredVocabularyAsync(CancellationToken cancellation) =>
         subscriptions.ReadAsync(
             DeclaredVocabularyReader.Selector(), DeclaredVocabularyReader.Read, logger, cancellation);
-
-    // An archetype is never minted here. A model missing one was not seeded from the analysis templates,
-    // and a submission that quietly built untyped Things in it would leave nothing able to tell a parcel
-    // from a hazard — which is the whole reason the Things point at archetypes at all.
-    //
-    // Every missing name is reported rather than whichever lookup happened to answer first: an unseeded
-    // model is missing all of them, and naming one per attempt would take an attempt per archetype to
-    // describe.
-    private static void RefuseAModelMissingAnyArchetype(IReadOnlyDictionary<string, Guid?> found)
-    {
-        var missing = ArchetypeNames.Where(name => found[name] is null).ToArray();
-        if (missing.Length == 0)
-            return;
-
-        throw new ModelNotSeededError(
-            $"this model holds no {string.Join(", ", missing.Select(name => $"'{name}'"))} "
-            + "archetype, so a submission has nothing to relate its Things to. "
-            + "Seed the model from the analysis templates before submitting into it.");
-    }
 
     // A predicate the model already holds is used as it stands. One it does not gets an identifier derived
     // from its name rather than a fresh one, so two submissions into the same model relate their Things

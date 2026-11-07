@@ -18,17 +18,33 @@ public sealed class SlicedWindowFetcher : ISourceFetcher
 {
     private const string DateFormat = "yyyy-MM-dd";
 
+    // The wording stays fixed because a scenario run counts these lines to see a slow broker in a run that passed.
+    public const string TimedOutSliceAskedAgain = "Asking again for a slice that timed out";
+    // A waiting slice holds one of the few sources a run fetches at once, so a longer wait is left to the next pass.
+    public static readonly TimeSpan LongestWaitForARefusedSlice = TimeSpan.FromMinutes(5);
+
     private readonly ISourceFetcher _inner;
     private readonly int _daysPerSlice;
+    private readonly int _attemptsPerSlice;
+    private readonly TimeProvider _clock;
     private readonly ILogger<SlicedWindowFetcher> _logger;
 
-    public SlicedWindowFetcher(ISourceFetcher inner, int daysPerSlice, ILogger<SlicedWindowFetcher> logger)
+    public SlicedWindowFetcher(
+        ISourceFetcher inner,
+        int daysPerSlice,
+        int attemptsPerSlice,
+        TimeProvider clock,
+        ILogger<SlicedWindowFetcher> logger)
     {
         if (daysPerSlice <= 0)
             throw new ArgumentOutOfRangeException(nameof(daysPerSlice), "A slice covers at least one day");
+        if (attemptsPerSlice <= 0)
+            throw new ArgumentOutOfRangeException(nameof(attemptsPerSlice), "A slice is asked for at least once");
 
         _inner = inner;
         _daysPerSlice = daysPerSlice;
+        _attemptsPerSlice = attemptsPerSlice;
+        _clock = clock;
         _logger = logger;
     }
 
@@ -49,11 +65,11 @@ public sealed class SlicedWindowFetcher : ISourceFetcher
         var written = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var (start, end) in slices)
         {
-            var outcome = await _inner.FetchAsync(
-                subjectId, sourceName, endpointName, With(addressParameters, start, end), cancellationToken);
+            var outcome = await FetchSliceAsync(
+                subjectId, sourceName, endpointName, addressParameters, start, end, cancellationToken);
 
-            // The first slice that fails ends the fetch: the rest would ask the same provider for the
-            // same reason to refuse, and a source half written is reported unresolved either way.
+            // The first slice that still fails ends the fetch: the rest would ask the same provider for
+            // the same reason to refuse, and a source half written is reported unresolved either way.
             if (!outcome.Resolved)
                 return outcome with
                 {
@@ -67,6 +83,44 @@ public sealed class SlicedWindowFetcher : ISourceFetcher
         }
 
         return new SourceOutcome(sourceName, true, null, SubjectId: subjectId, Written: written);
+    }
+
+    // A provider limiting requests per minute refuses a long reach near its end, and a slow broker times out one slice of it; either way the next pass would ask for the whole reach again.
+    private async Task<SourceOutcome> FetchSliceAsync(
+        Guid subjectId,
+        string sourceName,
+        string endpointName,
+        IReadOnlyDictionary<string, string> addressParameters,
+        DateOnly start,
+        DateOnly end,
+        CancellationToken cancellationToken)
+    {
+        var sliceParameters = With(addressParameters, start, end);
+        for (var attempt = 1; ; attempt++)
+        {
+            var outcome = await _inner.FetchAsync(subjectId, sourceName, endpointName, sliceParameters, cancellationToken);
+            if (attempt == _attemptsPerSlice)
+                return outcome;
+
+            if (outcome.TimedOut)
+            {
+                _logger.LogInformation(
+                    TimedOutSliceAskedAgain + ": source {Source}, subject {Subject}, {From} to {To}, attempt {Attempt} of {Attempts}",
+                    sourceName, subjectId,
+                    start.ToString(DateFormat, CultureInfo.InvariantCulture),
+                    end.ToString(DateFormat, CultureInfo.InvariantCulture),
+                    attempt + 1, _attemptsPerSlice);
+                continue;
+            }
+
+            if (outcome.RetryAfter is not { } wait || wait > LongestWaitForARefusedSlice)
+                return outcome;
+
+            _logger.LogInformation(
+                "Source {Source} refused a slice for {Subject} for too many requests; asking again in {Seconds} seconds",
+                sourceName, subjectId, wait.TotalSeconds);
+            await Task.Delay(wait, _clock, cancellationToken);
+        }
     }
 
     // Null where the call carries no window, or one this deployment can take in a single pass.

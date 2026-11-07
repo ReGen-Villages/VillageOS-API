@@ -17,7 +17,7 @@ if (launchSettings == null)
 {
     Console.WriteLine(MetabolismLaunchSettings.UsageMessage);
     Environment.Exit(1);
-    return;
+    return 1;
 }
 
 var servicePort = launchSettings.Service.Port;
@@ -28,7 +28,7 @@ var apiKey = launchSettings.Service.ApiKey;
 var verificationKey = launchSettings.Service.VerificationKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
-ServiceHost.ConfigureLogging("Metabolism", $"metabolism-{direction.LaunchArgument}-.log", writeToFile: !isTestingEnv);
+ServiceHost.ConfigureLogging("Metabolism", $"metabolism-{direction.LaunchArgument}-.log", launchSettings.Service.LogDirectory, writeToFile: !isTestingEnv);
 
 try
 {
@@ -63,6 +63,7 @@ try
             sp.GetRequiredService<ILogger<Metabolism>>(),
             direction));
     builder.Services.AddSingleton<HandleRequestProcessor>();
+    builder.Services.AddServiceTokenExchange(myceliumUrl);
     builder.Services.AddSingleton<ISubscriptionClient>(sp =>
         new SubscriptionClient(
             sp.GetRequiredService<IHttpClientFactory>(),
@@ -112,14 +113,16 @@ try
 
     app.Run();
 }
-catch (Exception ex)
+catch (Exception error)
 {
-    Log.Fatal(ex, "Metabolism terminated unexpectedly");
+    return ServiceHost.FailedToStart("Metabolism", error);
 }
 finally
 {
     Log.CloseAndFlush();
 }
+
+return 0;
 
 // Elevates the implicit top-level Program class to public so WebApplicationFactory<Program> can name it in tests.
 public partial class Program { }

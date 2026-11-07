@@ -138,8 +138,8 @@ kept('markup tags', '<rect', '<nav');
 kept("an image element's own attributes: the file it shows, and the files a picture chooses between", 'src=', 'srcSet=');
 keptIn('feedback/screenCapture.ts', "the browser's own properties: what an image shows, and the stream a video plays", 'src', 'srcObject');
 kept("i18next's start-up", 'initReactI18next', '.init');
-kept("the platform's wire: the property envelope, a pipeline node's bindings, the service registry's figures",
-  'typeInfo', 'paramBindings', 'Stats', 'AverageResponseMs', 'TotalResponseMs');
+kept("the platform's wire: the property envelope, the service registry's figures",
+  'typeInfo', 'Stats', 'AverageResponseMs', 'TotalResponseMs');
 keptIn('components/map/MapView.tsx', "maplibre's export, aliased on import", 'config');
 keptIn('components/map/MapView.test.tsx', "the mocked maplibre module exports maplibre's name", 'config');
 

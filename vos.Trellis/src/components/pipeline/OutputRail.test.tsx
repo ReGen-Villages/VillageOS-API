@@ -13,24 +13,37 @@ function rail() {
 }
 
 describe('OutputRail', () => {
-  it('offers the answer, the other pipelines and the external systems with what each is told', () => {
+  it('offers the answer, the other pipelines, the systems told through a connection with what each is told, and stopping runs', () => {
     rail();
     expect(screen.getByText('The answer')).toBeInTheDocument();
     expect(screen.getByText('Refill')).toBeInTheDocument();
     expect(screen.queryByText('Readings arrive')).toBeNull();
     expect(screen.getByText('told daily digest')).toBeInTheDocument();
+    expect(screen.queryByText('Weather station')).toBeNull();
+    expect(screen.getByText('Stop their runs')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['Place an end node standing for The answer', 'answer'],
+    ['Place a follow-on node starting Refill', 'pipeline'],
+    ['Place a tell node telling Reporting office', 'externalSystem'],
+    ['Place a stop node', 'stop'],
+  ])('says what pressing "%s" places, and places it', (name, kind) => {
+    const { onPlaceOutput } = rail();
+    fireEvent.click(screen.getByRole('button', { name }));
+    expect(onPlaceOutput).toHaveBeenCalledWith(expect.objectContaining({ kind }));
+  });
+
+  it('says a system told through a connection is told nothing yet, and offers no stopping where the model binds no stop kind', () => {
+    const { model } = catalystFixture({ bindsTellFollowOnAndStop: false });
+    const silent = { id: 'office', kind: 'externalSystem' as const, name: 'Quiet office', told: [] };
+    render(<OutputRail outputs={[...outputRail(model, null), silent]} connections={[]} onPlaceOutput={vi.fn()} onAddService={vi.fn()} />);
+
     expect(screen.getByText('told nothing yet')).toBeInTheDocument();
+    expect(screen.queryByText('Stopping runs')).toBeNull();
   });
 
-  it('places an end node standing for what was pressed', () => {
-    const { id, onPlaceOutput } = rail();
-    fireEvent.click(screen.getByRole('button', { name: 'Place an end node standing for Reporting office' }));
-    expect(onPlaceOutput).toHaveBeenCalledWith(expect.objectContaining({ kind: 'externalSystem', id: id.reportingOffice }));
-    fireEvent.click(screen.getByRole('button', { name: 'Place an end node standing for The answer' }));
-    expect(onPlaceOutput).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'answer' }));
-  });
-
-  it('lists every service a node may dispatch under the outputs', () => {
+  it('lists every service a node may call under the outputs', () => {
     const { id, onAddService } = rail();
     const services = screen.getByRole('list', { name: 'Services' });
     fireEvent.click(within(services).getByRole('button', { name: /intake/ }));

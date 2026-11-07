@@ -1,4 +1,5 @@
 using System.Text.Json;
+using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Forage.Tests.Helpers;
@@ -39,6 +40,21 @@ internal sealed class ModelBuilder
     public ModelBuilder Relate(string subject, string predicate, string target)
     {
         _edges.Add(Edge(Id(subject), Id(predicate), Id(target)));
+        return this;
+    }
+
+    // The role Thing, under the identifier every model declares it by, binding the named Thing along `binds`. Held
+    // by identifier rather than by name: a predicate and the role binding it can share a word.
+    public ModelBuilder Bound(Role role, string name)
+    {
+        if (_things.All(thing => thing.Id != role.Id)) _things.Add(Thing(role.Id, role.Word));
+        _edges.Add(Edge(role.Id, Id(RoleBindings.BindsPredicateName), Id(name)));
+        return this;
+    }
+
+    public ModelBuilder Unbound(Role role)
+    {
+        _edges.RemoveAll(edge => edge.SubjectId == role.Id);
         return this;
     }
 
