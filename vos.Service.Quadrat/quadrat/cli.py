@@ -1,7 +1,7 @@
 import argparse
 import json
 
-from . import Refusal, bbox_zone, classify, describe, histogram, sample_point, zonal_stats
+from . import Refusal, bbox_zone, classify, describe, histogram, profile, sample_point, zonal_stats
 
 
 def build_parser():
@@ -15,6 +15,14 @@ def build_parser():
     point.add_argument("--lon", type=float, required=True)
     point.add_argument("--lat", type=float, required=True)
     point.add_argument("--resampling", default="nearest", choices=("nearest", "bilinear"))
+
+    along = commands.add_parser("profile", help="the values at points along a WGS84 line")
+    along.add_argument("raster")
+    along.add_argument("--line", required=True, help="a GeoJSON file holding a LineString, a Feature or a FeatureCollection")
+    how = along.add_mutually_exclusive_group()
+    how.add_argument("--samples", type=int, help="how many points, the two ends included")
+    how.add_argument("--spacing", type=float, help="metres between points")
+    along.add_argument("--resampling", default="nearest", choices=("nearest", "bilinear"))
 
     for name, help_text in (
         ("zonal", "statistics over a WGS84 polygon"),
@@ -44,6 +52,8 @@ def run(arguments):
         return describe(arguments.raster)
     if arguments.command == "point":
         return sample_point(arguments.raster, arguments.lon, arguments.lat, arguments.resampling)
+    if arguments.command == "profile":
+        return profile(arguments.raster, read_geometry(arguments.line), arguments.resampling, arguments.spacing, arguments.samples)
     if arguments.bbox:
         zone = bbox_zone(*arguments.bbox)
     else:
