@@ -53,7 +53,7 @@ public enum AwaitedStep
 public sealed class PassedOnRequestDeadline : IDisposable
 {
     // Time for the answer to reach Mycelium before Mycelium's own limit cuts the request off.
-    public static readonly TimeSpan MarginForTheAnswer = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan MarginForTheAnswer = TimeSpan.FromSeconds(2);
 
     private readonly CancellationTokenSource? _deadline;
     private readonly CancellationTokenSource? _deadlineOrAborted;
