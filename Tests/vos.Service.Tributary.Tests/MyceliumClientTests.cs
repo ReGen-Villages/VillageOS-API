@@ -553,6 +553,32 @@ public class MyceliumClientTests
     }
 
     [Fact]
+    public async Task Bug8142_a_resent_write_given_up_before_the_broker_answered_it_does_not_say_the_queue_was_full()
+    {
+        using var callGivenUp = new CancellationTokenSource();
+        var sends = 0;
+        var handler = new MockHttpMessageHandler(_ =>
+        {
+            if (++sends == 1)
+                return MyceliumStub.ReadingsQueueFull("1");
+            callGivenUp.Cancel();
+            throw new TaskCanceledException(
+                "The request was canceled due to the configured HttpClient.Timeout of 30 seconds elapsing.",
+                new TimeoutException());
+        });
+        var logger = new CapturingLogger<MyceliumClient>();
+        var sut = CreateClient(handler, new ClockThatWaitsNoTime(), logger);
+
+        var ok = await sut.SubmitObservationsAsync(Guid.NewGuid(), OneReading(), callGivenUp.Token);
+
+        ok.Should().BeFalse();
+        handler.Requests.Should().HaveCount(2, "the refused batch was sent again before the call was given up");
+        var dropped = logger.Lines.Should().ContainSingle(line => line.Contains("Dropped")).Subject;
+        dropped.Should().NotContain("queue was full", "the broker had refused the first send but not answered the second");
+        dropped.Should().Contain("had not answered the write");
+    }
+
+    [Fact]
     public async Task SetPropertyModeAsync_PutsModeToPropertyModeRoute()
     {
         var thingId = Guid.NewGuid();
