@@ -135,6 +135,7 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         Guid thingId, IReadOnlyList<ObservationSample> samples, CancellationToken cancellationToken = default)
     {
         if (samples.Count == 0) return true;
+        var waitingAfterAQueueFullRefusal = false;
         try
         {
             var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
@@ -174,13 +175,19 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
 
                 Logger.LogInformation("The broker's readings queue is full; sending {Count} observations to thing {ThingId} again in {Seconds} seconds",
                     samples.Count, thingId, wait.TotalSeconds);
+                waitingAfterAQueueFullRefusal = true;
                 await Task.Delay(wait, _clock, cancellationToken);
+                waitingAfterAQueueFullRefusal = false;
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            Logger.LogWarning("Dropped {Count} observations to thing {ThingId}: the call they were part of was given up while the broker's readings queue was full",
-                samples.Count, thingId);
+            if (waitingAfterAQueueFullRefusal)
+                Logger.LogWarning("Dropped {Count} observations to thing {ThingId}: the call they were part of was given up while the broker's readings queue was full",
+                    samples.Count, thingId);
+            else
+                Logger.LogWarning("Dropped {Count} observations to thing {ThingId}: the broker had not answered the write when the call they were part of was given up",
+                    samples.Count, thingId);
             return false;
         }
         catch (Exception ex)
