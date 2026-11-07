@@ -117,7 +117,10 @@ public sealed record SnapshotRelationship(
 public sealed record ModelChangeEvent
 {
     public long Sequence { get; init; }
-    public string Kind { get; init; } = "";
+
+    // Read off the frame's event line, never off data: the broker writes the kind there as the number of
+    // its enumeration member, and a number cannot be read into this string.
+    [JsonIgnore] public string Kind { get; init; } = "";
     public Guid EntityId { get; init; }
     public string? PropertyName { get; init; }
     public JsonElement? Value { get; init; }
