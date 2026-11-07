@@ -45,6 +45,9 @@ export const ROLE = {
   // The orchestrator's prototype: the rail binds a state's connection to the one service of it.
   Orchestrator: 'da0ee18e-c157-5f94-b2f8-cca2d7337929',
   Trigger: 'd619eb5c-8cca-5234-8826-2f01bd6b4e7b',
+  HttpTrigger: '0d47297e-72b1-596b-8d10-839f31beaba7',
+  GraphTrigger: 'f68a3028-a744-56c1-8fed-1c136233cf02',
+  StateTrigger: 'ee172cef-4a89-53c6-b9d4-604b31137cb2',
   StateWatch: '03590900-eb28-55bf-9731-e9a0c03dce82',
   JudgedThing: '63d59765-a9b7-53b8-8a2b-0de3899add18',
   Sends: 'ab3334f4-cb8e-5513-94b4-43debdb73acd',
@@ -103,6 +106,22 @@ export interface PipelineNamed {
   name: string;
 }
 
+/** How a connection is reached, told by the role its trigger plays. Empty where its trigger plays none of them. */
+export type TriggerKind = 'http' | 'graph' | 'state' | '';
+
+const TRIGGER_KIND_ROLE: Record<Exclude<TriggerKind, ''>, string> = {
+  http: ROLE.HttpTrigger,
+  graph: ROLE.GraphTrigger,
+  state: ROLE.StateTrigger,
+};
+
+const END_KIND_OF_TRIGGER: Record<TriggerKind, EndKind | undefined> = {
+  http: 'door',
+  graph: 'relationship',
+  state: 'state',
+  '': undefined,
+};
+
 /** A kind of message an external system sends or is told, and the door it arrives at where one is declared. */
 export interface MessageKindInformation {
   id: string;
@@ -122,8 +141,7 @@ export interface ExternalSystemInformation {
 export interface CatalystConnection {
   connectionId: string;
   name: string;
-  /** The trigger's own name — the platform's are `http`, `graph` and `state`. Empty where none is declared. */
-  trigger: string;
+  trigger: TriggerKind;
   subdomain: string;
   serviceName: string;
   /** The `has` relationship binding the connection to its service, and that service. */
@@ -313,9 +331,9 @@ export class PipelineModel {
     return this.things.filter((t) => !t.IsArchetype && this.isOf(t.Id, roleId));
   }
 
-  /** The name of the trigger a connection is reached by: its own, or the nearest declared above it along
-   *  `is`, which is how the platform resolves it. Empty where nothing declares one. */
-  triggerOf(connectionId: string): string {
+  /** The trigger a connection is reached by: its own, or the nearest declared above it along `is`, which is how
+   *  the platform resolves it. */
+  triggerOf(connectionId: string): TriggerKind {
     const seen = new Set<string>();
     const queue = [connectionId];
     while (queue.length) {
@@ -323,10 +341,16 @@ export class PipelineModel {
       if (seen.has(id)) continue;
       seen.add(id);
       const trigger = this.reachedAlong(id, ROLE.Trigger)[0];
-      if (trigger) return trigger.Name.trim().toLowerCase();
+      if (trigger) return this.triggerKindPlayedBy(trigger.Id);
       for (const parent of this.outgoing(id, 'is')) queue.push(parent.Id);
     }
     return '';
+  }
+
+  private triggerKindPlayedBy(triggerId: string): TriggerKind {
+    const played = (Object.keys(TRIGGER_KIND_ROLE) as Exclude<TriggerKind, ''>[])
+      .find((kind) => this.boundTo(TRIGGER_KIND_ROLE[kind]) === triggerId);
+    return played ?? '';
   }
 
   private bindingOf(connectionId: string): { relationshipId: string; service: VosThing } | undefined {
@@ -453,9 +477,8 @@ export class PipelineModel {
     if (this.isOf(thingId, ROLE.Cadence))
       return { ...named, kind: 'cadence', mayStart: true, mayEnd: false };
     if (this.isOf(thingId, ROLE.Connection)) {
-      const trigger = this.triggerOf(thingId);
-      const kind: EndKind = trigger === 'graph' ? 'relationship' : trigger === 'state' ? 'state' : 'door';
-      return { ...named, kind, mayStart: true, mayEnd: false };
+      const kind = END_KIND_OF_TRIGGER[this.triggerOf(thingId)];
+      if (kind) return { ...named, kind, mayStart: true, mayEnd: false };
     }
     return { ...named, kind: 'other', mayStart: false, mayEnd: false };
   }

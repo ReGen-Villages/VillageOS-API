@@ -54,7 +54,9 @@ export function catalystFixture({ orchestrators = 1, bindsTellFollowOnAndStop = 
   const standsFor = thing('standsFor', playing(ROLE.StandsFor));
   const starts = thing('starts', playing(ROLE.PipelineStart));
 
-  const http = thing('http'), graph = thing('graph'), state = thing('state');
+  const http = thing('http', playing(ROLE.HttpTrigger));
+  const graph = thing('graph', playing(ROLE.GraphTrigger));
+  const state = thing('state', playing(ROLE.StateTrigger));
 
   const pipelineArchetype = thing('Workflow', playing(ROLE.Pipeline), true);
   const nodeArchetype = thing('Step', playing(ROLE.PipelineNode), true);
