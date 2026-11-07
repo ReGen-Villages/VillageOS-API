@@ -226,4 +226,26 @@ public class SourceReachTests
             CoveringSourceResolver.SourcedFromPredicate,
         });
     }
+
+    [Fact]
+    public void SelectorForSource_CarriesEachPredicateItReadsOutgoingAndNothingIncoming()
+    {
+        var selector = CoveringSourceResolver.SelectorForSource(Guid.NewGuid());
+
+        selector.Relationships.Should().NotBeNullOrEmpty();
+        selector.Relationships!.Select(rule => rule.Predicate).Should().BeEquivalentTo(
+        [
+            RoleBindings.BindsPredicateName,
+            CoveringSourceResolver.CoversPredicate,
+            CoveringSourceResolver.ResolvedByPredicate,
+            CoveringSourceResolver.ResolvesOntoPredicate,
+            CoveringSourceResolver.IsInPredicate,
+            CoveringSourceResolver.IsPredicateName,
+            CoveringSourceResolver.HasPredicate,
+            CoveringSourceResolver.AppliesToPredicate,
+            CoveringSourceResolver.SourcedFromPredicate,
+        ]);
+        selector.Relationships.Should().OnlyContain(rule => rule.Direction == "outgoing");
+        selector.Relationships.Should().OnlyContain(rule => rule.PredicateFlag == null && rule.PredicateRole == null);
+    }
 }
