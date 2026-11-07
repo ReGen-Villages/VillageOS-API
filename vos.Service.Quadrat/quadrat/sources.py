@@ -31,6 +31,10 @@ class Sources:
             urls=[value for key, value in flags if key == "--rasterUrl"],
         )
 
+    def with_directory(self, directory):
+        """These sources and one folder more, for one request: the folder a ticket's bytes were written to."""
+        return Sources([*self.directories, directory], self.urls)
+
     def permit(self, raster):
         """The path or address to open: the real path of an allowed file, or an allowed web address as given."""
         if not isinstance(raster, str) or not raster or "\0" in raster:
