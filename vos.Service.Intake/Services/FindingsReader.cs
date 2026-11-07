@@ -107,6 +107,25 @@ public static class FindingsReader
                     : Array.Empty<TraverseRule>(),
             ],
             BoundTypes = offersLevers ? [PropertyNameRole.Id] : null,
+            // Only the relationships the walks followed, and each reached Thing's own `is`. The archetypes are
+            // reached through their members, and without rules every other submitter's `is` edge onto a shared
+            // archetype would arrive with them, to be dropped by the reader at the cost of carrying them.
+            Relationships =
+            [
+                .. walked.Select(walk => new RelationshipRule
+                {
+                    Predicate = walk.Predicate,
+                    Direction = walk.Inbound ? "incoming" : "outgoing",
+                }),
+                new RelationshipRule { Predicate = SubmissionFragmentComposer.IsPredicateName, Direction = "outgoing" },
+                .. offersLevers
+                    ?
+                    [
+                        new RelationshipRule { Predicate = NamesPropertyOfPredicate, Direction = "outgoing" },
+                        new RelationshipRule { Predicate = RoleBindings.BindsPredicateName, Direction = "outgoing" },
+                    ]
+                    : Array.Empty<RelationshipRule>(),
+            ],
         };
     }
 

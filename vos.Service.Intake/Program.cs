@@ -11,7 +11,6 @@ using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
 using vos.Service.Shared;
 using vos.Service.Shared.Hosting;
-using vos.Service.Shared.Subscriptions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -113,13 +112,7 @@ try
             serviceToken,
             apiKey));
 
-    builder.Services.AddSingleton<ISubscriptionClient>(sp =>
-        new SubscriptionClient(
-            sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<SubscriptionClient>>(),
-            myceliumUrl,
-            serviceToken,
-            apiKey: apiKey));
+    builder.Services.AddSingleton<HeldDeclarations>();
 
     builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.AddModelClock<IntakeMyceliumClient>("Intake");
@@ -148,12 +141,11 @@ try
     builder.Services.AddHostedService<DocumentReclaimService>();
     builder.Services.AddSingleton(provider => new BasemapTileService(
         provider.GetRequiredService<IntakeMyceliumClient>(),
-        provider.GetRequiredService<ISubscriptionClient>(),
-        launchSettings.FetcherSubdomain,
-        provider.GetRequiredService<ILogger<BasemapTileService>>()));
+        provider.GetRequiredService<HeldDeclarations>(),
+        launchSettings.FetcherSubdomain));
     builder.Services.AddSingleton(provider => new PositionLookupService(
         provider.GetRequiredService<IntakeMyceliumClient>(),
-        provider.GetRequiredService<ISubscriptionClient>(),
+        provider.GetRequiredService<HeldDeclarations>(),
         launchSettings.FetcherSubdomain,
         provider.GetRequiredService<ILogger<PositionLookupService>>(),
         provider.GetRequiredService<ModelClock>()));
@@ -182,12 +174,12 @@ try
     // under its own credential and answers with the categories a submission may name and the imagery a map
     // may draw on, and nothing else.
     app.MapGet("/submissions/form", async (
-        HttpContext context, ISubscriptionClient subscriptions, ILogger<SubmissionIntakeService> logger) =>
+        HttpContext context, HeldDeclarations declarations, ILogger<SubmissionIntakeService> logger) =>
     {
         try
         {
-            return Results.Ok(await subscriptions.ReadAsync(
-                FormOptionsReader.Selector(), FormOptionsReader.Read, logger, context.RequestAborted));
+            return Results.Ok(await declarations.ReadAsync(
+                FormOptionsReader.Selector(), FormOptionsReader.Read, context.RequestAborted));
         }
         // A model nobody seeded is a fault in the deployment rather than in the request, answered the way
         // a submission into one is: the caller is a stranger's browser and is told neither what is wrong

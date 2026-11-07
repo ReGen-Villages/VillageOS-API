@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text.Json;
-using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Services;
 
@@ -11,16 +10,12 @@ public sealed record ServedTile(TileOutcome Outcome, byte[]? Bytes = null, strin
 // One tile of a basemap, fetched through the registration the route names — the broker's endpoint route
 // forwards to the fetching service, which reaches the provider and keeps the bytes on disk for the
 // registration's cache life — so a page is never handed the provider's address or any key.
-public sealed class BasemapTileService(
-    IntakeMyceliumClient mycelium,
-    ISubscriptionClient subscriptions,
-    string fetcherSubdomain,
-    ILogger<BasemapTileService> logger)
+public sealed class BasemapTileService(IntakeMyceliumClient mycelium, HeldDeclarations declarations, string fetcherSubdomain)
 {
     public async Task<ServedTile> TileAsync(string basemap, int z, int x, int y, CancellationToken cancellation)
     {
-        var registration = await subscriptions.ReadAsync(
-            BasemapTileReader.Selector(), snapshot => BasemapTileReader.Named(snapshot, basemap), logger, cancellation);
+        var registration = await declarations.ReadAsync(
+            BasemapTileReader.Selector(), snapshot => BasemapTileReader.Named(snapshot, basemap), cancellation);
         if (registration is null) return new ServedTile(TileOutcome.NoSuchBasemap);
 
         var body = await mycelium.CallEndpointAsync(fetcherSubdomain, new

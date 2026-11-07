@@ -23,7 +23,7 @@ public sealed record PlacesLookup(LookupOutcome Outcome, AnsweredPlaces? Places 
 // registration's own lookupTransform.
 public sealed class PositionLookupService(
     IntakeMyceliumClient mycelium,
-    ISubscriptionClient subscriptions,
+    HeldDeclarations declarations,
     string fetcherSubdomain,
     ILogger<PositionLookupService> logger,
     ModelClock clock)
@@ -39,8 +39,8 @@ public sealed class PositionLookupService(
     public async Task<ParcelLookup> ParcelAtAsync(
         double latitude, double longitude, CancellationToken cancellation)
     {
-        var registered = await subscriptions.ReadAsync(
-            PositionLookupReader.Selector(), PositionLookupReader.ParcelLookups, logger, cancellation);
+        var registered = await declarations.ReadAsync(
+            PositionLookupReader.Selector(), PositionLookupReader.ParcelLookups, cancellation);
         var covering = registered.Where(lookup => lookup.Covers(latitude, longitude)).ToList();
         if (covering.Count == 0) return new ParcelLookup(LookupOutcome.NothingAvailable);
 
@@ -75,8 +75,8 @@ public sealed class PositionLookupService(
 
     public async Task<PlacesLookup> PlacesAsync(string query, CancellationToken cancellation)
     {
-        var search = await subscriptions.ReadAsync(
-            PositionLookupReader.Selector(), PositionLookupReader.PlaceSearch, logger, cancellation);
+        var search = await declarations.ReadAsync(
+            PositionLookupReader.Selector(), PositionLookupReader.PlaceSearch, cancellation);
         if (search is null) return new PlacesLookup(LookupOutcome.NothingAvailable);
 
         var body = await mycelium.CallEndpointAsync(fetcherSubdomain, new

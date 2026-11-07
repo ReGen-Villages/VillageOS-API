@@ -66,7 +66,7 @@ public sealed class SharedDocumentEndpointTests : IDisposable
                 Fragments.Add(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
                 return new HttpResponseMessage(HttpStatusCode.OK);
             }
-            if (request.Method == HttpMethod.Post && path == "/api/subscriptions")
+            if (ModelStub.IsDeclarationRead(request))
                 return ModelStub.Json(Reading(request));
             if (path.EndsWith("/ranges", StringComparison.Ordinal))
                 return ModelStub.Json("""{"ThingId":"x","ThingName":"Study","OwnRanges":[],"InheritedRanges":[]}""");
