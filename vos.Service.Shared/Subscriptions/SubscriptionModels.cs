@@ -22,6 +22,10 @@ public sealed class SubscriptionSelector
     public bool IncludeIsAncestors { get; set; } = true;
     public bool IncludeRelationships { get; set; } = true;
 
+    // The broker's own default, so a selector that leaves it unset asks for what it asked for before the
+    // member existed.
+    public bool IncludeSnapshot { get; set; } = true;
+
     // Which relationships the snapshot carries and the stream admits. Without rules, IncludeRelationships
     // carries every active relationship touching a selected Thing in both directions — for a long-lived Thing,
     // every relationship ever made against it. Each rule names a direction and a predicate by name or by flag
@@ -121,4 +125,5 @@ public sealed record ModelChangeEvent
     public SnapshotRelationship? Relationship { get; init; }
 
     [JsonIgnore] public bool IsPropertyChange => Kind is "PropertyChanged" or "RelationshipPropertyChanged";
+    [JsonIgnore] public bool IsRelationshipPropertyChange => Kind is "RelationshipPropertyChanged";
 }
