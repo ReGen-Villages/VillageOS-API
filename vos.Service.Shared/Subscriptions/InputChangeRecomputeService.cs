@@ -63,9 +63,10 @@ public sealed record RecomputeInputs(
 // call that made it compute, and the bearer on that call names the caller's model. That bearer expires in
 // minutes, so it is exchanged for one that outlasts the subscription and replaced before it lapses.
 //
-// Watching the subject alone covers both ways an input moves, because Mycelium publishes a derived value
-// on the Thing that owns it: a param someone edited arrives as a property change on the subject, and a
-// derived property whose members changed arrives as a property change on the subject too.
+// A subscription holds each watched Thing and its type chain. Mycelium publishes a derived value on the
+// Thing that owns it, so a value someone edited and a derived property whose members changed both arrive
+// as a property change on the subject; a default edited on an archetype arrives on the archetype, and is
+// mapped back to every subject reading a Thing below it.
 //
 // A derived value is published live-only and never enters the journal, so a resumed stream does not
 // replay one. After a reconnect every watched subject is recomputed rather than trusted.
