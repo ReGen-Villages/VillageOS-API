@@ -991,6 +991,23 @@ public class CoveringSourceResolverTests
     }
 
     [Fact]
+    public void SelectorFor_CarriesEveryRelationshipASelectedThingHoldsOutgoingAndNoneWrittenIntoIt()
+    {
+        // Every relationship the walk reads starts at a selected Thing. The analysis relationships a study
+        // holds run through whichever connection the model declares, which no rule can name, so the one
+        // rule names no predicate. What it leaves out is what grows with the model: the isIn every other
+        // site writes into a shared Place, and the analysis relationship every other study writes.
+        var selector = CoveringSourceResolver.SelectorFor(Guid.NewGuid());
+
+        var rule = selector.Relationships.Should().ContainSingle().Subject;
+        rule.Direction.Should().Be("outgoing");
+        rule.Predicate.Should().BeEmpty();
+        rule.PredicateFlag.Should().BeNull();
+        rule.PredicateRole.Should().BeNull();
+        selector.IncludeRelationships.Should().BeTrue("the broker refuses rules beside no relationships");
+    }
+
+    [Fact]
     public void Resolve_IgnoresAnEdgeWhosePredicateThingIsAbsent()
     {
         // Predicate Things arrive because the selector names them. One missing must read as "not this

@@ -119,7 +119,7 @@ public static class CoveringSourceResolver
     private const int PlaceNestingDepth = 16;
 
     // The predicate Things are asked for BY NAME, because traversal brings what a relationship points at and
-    // the incident pass brings the relationships, but neither brings the Thing naming one. The walk below
+    // the relationship rules bring the relationships, but neither brings the Thing naming one. The walk below
     // compares those names, so a predicate left out here reads as "covers nothing" — a wrong answer
     // wearing the shape of a valid one.
     private static readonly string[] PredicatesRead =
@@ -225,6 +225,12 @@ public static class CoveringSourceResolver
             new TraverseRule { Predicate = SourcedFromPredicate },
         ],
         IncludeRelationships = true,
+        // Every relationship the walk reads is one a selected Thing holds outgoing, and one of them cannot be
+        // named: a study holds its analysis relationships through whichever connection the model declares, and
+        // a rule names a predicate by name, by flag or by the Thing a role binds — the role binds the connection
+        // archetype, not its members. So the rule names no predicate, and what it leaves out is the isIn every
+        // other site writes into a shared Place and every other study's analysis relationship.
+        Relationships = [new RelationshipRule { Direction = "outgoing" }],
     };
 
     // What a service call named. The subject's own `is` chain arrives with the ancestors the broker closes
@@ -237,7 +243,13 @@ public static class CoveringSourceResolver
         Names = [IsPredicateName, CoversPredicate, ResolvedByPredicate, RoleBindings.BindsPredicateName],
         Traverse = [RoleBindings.FollowBindings],
         IncludeRelationships = true,
+        Relationships = Outgoing(RoleBindings.BindsPredicateName, IsPredicateName, CoversPredicate, ResolvedByPredicate),
     };
+
+    // The relationships a selected Thing holds over these predicates, and nothing written into it: a
+    // subject that is a Place would otherwise bring the isIn of every site standing in it.
+    private static List<RelationshipRule> Outgoing(params string[] predicates) =>
+        [.. predicates.Select(predicate => new RelationshipRule { Predicate = predicate, Direction = "outgoing" })];
 
     // A site is whatever `is` the archetype the site role binds, directly or through intermediate types. A
     // source is whatever else covers a Place or is resolved by a registration — the two relationships that make
@@ -286,6 +298,11 @@ public static class CoveringSourceResolver
             new TraverseRule { Predicate = SourcedFromPredicate },
         ],
         IncludeRelationships = true,
+        // Named one by one, unlike the site's read: nothing open-ended is read here, and every site under a
+        // covered Place holds relationships this read never follows.
+        Relationships = Outgoing(
+            RoleBindings.BindsPredicateName, CoversPredicate, ResolvedByPredicate, ResolvesOntoPredicate,
+            IsInPredicate, IsPredicateName, HasPredicate, AppliesToPredicate, SourcedFromPredicate),
     };
 
     // The source, with a call for every subject the sites under the Places it covers would be called

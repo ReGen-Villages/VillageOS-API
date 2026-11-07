@@ -21,7 +21,7 @@ public static class EndpointKindResolver
     private const int TemplateChainDepth = 16;
 
     // The predicate Things are asked for BY NAME. Nothing else brings them: traversal adds the Things
-    // a relationship points at, and the incident pass adds the relationships, but the Thing naming a relationship is neither.
+    // a relationship points at, and the relationship rules add the relationships, but the Thing naming a relationship is neither.
     // The walk below compares that name, so a predicate left out here is a role that matches nothing
     // and reads as "reaches no kind" — a wrong answer that looks like a valid one.
     private static readonly string[] PredicatesRead = ["is", .. EndpointKindRoles.All];
@@ -29,8 +29,8 @@ public static class EndpointKindResolver
     public static SubscriptionSelector SelectorFor(Guid endpointId) => new()
     {
         // The `observed` and `predicate` roles and their bindings are asked for the provenance read, not for any kind.
-        // The endpoint's own relationships are in this snapshot already, but without the predicate the observed role
-        // binds, none of them can be told from any other relationship; asking here lets one read answer both.
+        // The endpoint's observed relationships are asked for through the role, and without the predicate the role
+        // binds none of them can be told from any other relationship; asking here lets one read answer both.
         Ids = [endpointId, LandIntakeRoles.Observed.Id, LandIntakeRoles.Predicate.Id],
         Names = [.. PredicatesRead, RoleBindings.BindsPredicateName],
         Traverse =
@@ -40,6 +40,14 @@ public static class EndpointKindResolver
             RoleBindings.FollowBindings,
         ],
         IncludeRelationships = true,
+        // Each relationship either reader follows starts at a selected Thing. Left open, the templates arrived
+        // with the `is` relationship of every registration beneath them, on every call.
+        Relationships =
+        [
+            .. PredicatesRead.Select(predicate => new RelationshipRule { Predicate = predicate, Direction = "outgoing" }),
+            new RelationshipRule { Predicate = RoleBindings.BindsPredicateName, Direction = "outgoing" },
+            new RelationshipRule { PredicateRole = LandIntakeRoles.Observed.Id, Direction = "outgoing" },
+        ],
     };
 
     // The kind the endpoint reaches for each role, nearest first. A role the endpoint reaches no kind

@@ -50,6 +50,21 @@ public class ObservedEdgesTests
         EndpointKindResolver.SelectorFor(Endpoint).Ids.Should().Contain(LandIntakeRoles.Predicate.Id);
     }
 
+    [Fact]
+    public void SelectorFor_CarriesTheProvenanceRelationshipsThroughTheObservedRole()
+    {
+        // The endpoint's observed relationships are its own outgoing ones, under whatever the model calls the
+        // predicate, so the rule names the role. Named by the word instead, a model binding the role to a
+        // predicate of another name would read every observed Thing as not yet observed.
+        var selector = EndpointKindResolver.SelectorFor(Endpoint);
+
+        var provenance = selector.Relationships.Should()
+            .ContainSingle(rule => rule.PredicateRole == LandIntakeRoles.Observed.Id).Subject;
+        provenance.Direction.Should().Be("outgoing");
+        provenance.Predicate.Should().BeEmpty("the broker refuses a rule naming a predicate both ways");
+        provenance.PredicateFlag.Should().BeNull();
+    }
+
     // Copied from open-data-sources.template.json in the platform repository; the two agree by this literal and by
     // nothing else.
     [Fact]
