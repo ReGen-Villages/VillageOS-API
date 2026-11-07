@@ -71,8 +71,6 @@ public class EndpointKindResolverTests
     [Fact]
     public void SelectorFor_CarriesIsEachKindRoleAndBindsOutgoingAndNothingIncoming()
     {
-        // The chain walk and the kind read both start at a selected Thing and follow outwards. Left open,
-        // the templates arrive with the is relationship of every registration beneath them.
         var selector = EndpointKindResolver.SelectorFor(Registration);
 
         selector.Relationships.Should().NotBeNullOrEmpty();

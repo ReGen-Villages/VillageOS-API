@@ -230,10 +230,6 @@ public class SourceReachTests
     [Fact]
     public void SelectorForSource_CarriesEachPredicateItReadsOutgoingAndNothingIncoming()
     {
-        // Every relationship Reach follows starts at a selected Thing: the source's covers, resolvedBy and
-        // resolvesOnto, each nested site's isIn, is and has, each coverage's appliesTo and sourcedFrom, and
-        // the role's binds. Named one by one, because a site under a covered Place holds relationships this
-        // read never follows, and there are as many sites as the Place contains.
         var selector = CoveringSourceResolver.SelectorForSource(Guid.NewGuid());
 
         selector.Relationships.Should().NotBeNullOrEmpty();

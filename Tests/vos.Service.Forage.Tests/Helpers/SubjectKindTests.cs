@@ -139,8 +139,6 @@ public class SubjectKindTests
     [Fact]
     public void KindSelectorFor_CarriesThePredicatesItComparesOutgoingAndNothingIncoming()
     {
-        // The subject's own is chain, its covers and resolvedBy, and the role's binds all start at a
-        // selected Thing. Left open, a subject that is a Place would bring the isIn of every site in it.
         var selector = CoveringSourceResolver.KindSelectorFor(Guid.NewGuid());
 
         selector.Relationships.Should().NotBeNullOrEmpty();

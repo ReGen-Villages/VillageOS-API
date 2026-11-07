@@ -6,9 +6,8 @@ using Xunit;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
-// Several sites stand in one Place, and a site's read asks for every Place in the model. Without
-// relationship rules the Place arrived with the isIn every other site wrote into it, so one site's read
-// grew with the number of sites. The engine resolves the selector Forage sends; its unit tests cannot.
+// Only the engine resolves the selector; without relationship rules one site's read grew with every other
+// site's isIn into the shared Place.
 public class ForageReadsOneSitesRelationshipsTests : IClassFixture<TheEngine>
 {
     private readonly TheEngine _engine;

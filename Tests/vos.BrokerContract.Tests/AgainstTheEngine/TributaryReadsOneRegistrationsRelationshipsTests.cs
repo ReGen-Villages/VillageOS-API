@@ -8,9 +8,8 @@ using Xunit;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
-// Several registrations are one template, and a registration's read walks up to that template. Without
-// relationship rules the template arrived with the is relationship of every registration beneath it, so one
-// registration's read grew with the catalogue. The kind and the provenance both still have to arrive.
+// Only the engine resolves the selector; without relationship rules one registration's read grew with every
+// other registration's `is` into the shared template.
 public class TributaryReadsOneRegistrationsRelationshipsTests : IClassFixture<TheEngine>
 {
     private readonly TheEngine _engine;

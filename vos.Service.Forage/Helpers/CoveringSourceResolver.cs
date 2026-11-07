@@ -225,11 +225,9 @@ public static class CoveringSourceResolver
             new TraverseRule { Predicate = SourcedFromPredicate },
         ],
         IncludeRelationships = true,
-        // Every relationship the walk reads is one a selected Thing holds outgoing, and one of them cannot be
-        // named: a study holds its analysis relationships through whichever connection the model declares, and
-        // a rule names a predicate by name, by flag or by the Thing a role binds — the role binds the connection
-        // archetype, not its members. So the rule names no predicate, and what it leaves out is the isIn every
-        // other site writes into a shared Place and every other study's analysis relationship.
+        // The one rule names no predicate: a study's analysis relationships run along whichever connection the
+        // model declares, and a rule cannot name an archetype's members. Outgoing alone still leaves out the isIn
+        // every other site writes into a shared Place.
         Relationships = [new RelationshipRule { Direction = "outgoing" }],
     };
 
@@ -246,8 +244,7 @@ public static class CoveringSourceResolver
         Relationships = Outgoing(RoleBindings.BindsPredicateName, IsPredicateName, CoversPredicate, ResolvedByPredicate),
     };
 
-    // The relationships a selected Thing holds over these predicates, and nothing written into it: a
-    // subject that is a Place would otherwise bring the isIn of every site standing in it.
+    // Outgoing only: a subject that is a Place would otherwise bring the isIn of every site standing in it.
     private static List<RelationshipRule> Outgoing(params string[] predicates) =>
         [.. predicates.Select(predicate => new RelationshipRule { Predicate = predicate, Direction = "outgoing" })];
 

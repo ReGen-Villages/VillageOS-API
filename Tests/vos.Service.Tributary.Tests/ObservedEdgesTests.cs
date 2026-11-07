@@ -53,9 +53,6 @@ public class ObservedEdgesTests
     [Fact]
     public void SelectorFor_CarriesTheProvenanceRelationshipsThroughTheObservedRole()
     {
-        // The endpoint's observed relationships are its own outgoing ones, under whatever the model calls the
-        // predicate, so the rule names the role. Named by the word instead, a model binding the role to a
-        // predicate of another name would read every observed Thing as not yet observed.
         var selector = EndpointKindResolver.SelectorFor(Endpoint);
 
         var provenance = selector.Relationships.Should()

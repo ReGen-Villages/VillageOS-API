@@ -40,12 +40,13 @@ public static class EndpointKindResolver
             RoleBindings.FollowBindings,
         ],
         IncludeRelationships = true,
-        // Each relationship either reader follows starts at a selected Thing. Left open, the templates arrived
-        // with the `is` relationship of every registration beneath them, on every call.
+        // Left open, the templates arrive with the `is` relationship of every registration beneath them.
         Relationships =
         [
             .. PredicatesRead.Select(predicate => new RelationshipRule { Predicate = predicate, Direction = "outgoing" }),
             new RelationshipRule { Predicate = RoleBindings.BindsPredicateName, Direction = "outgoing" },
+            // By the role, not the word: a model binding the role to a predicate of another name would otherwise
+            // read every observed Thing as not yet observed.
             new RelationshipRule { PredicateRole = LandIntakeRoles.Observed.Id, Direction = "outgoing" },
         ],
     };
