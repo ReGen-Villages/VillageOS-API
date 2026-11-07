@@ -939,4 +939,14 @@ public class PipelineModelTests
         DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), pipelineId)).Should()
             .Contain("The wire from 'Echo' to 'Generate' is drawn as a relationship between the two nodes; a wire is a Thing the node it leaves has, related to the two ports it connects.");
     }
+
+    [Fact]
+    public void Build_AWireDrawnAsARelationshipAlongAPredicateTheReadDoesNotHold_IsRefused()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        fx.Rel(fx.Get("Echo"), new GraphThing { Id = Guid.NewGuid(), Name = "a predicate the read never brings" }, fx.Get("Generate"));
+
+        DagValidator.Validate(PipelineDagBuilder.Build(fx.Build(), pipelineId)).Should()
+            .Contain("The wire from 'Echo' to 'Generate' is drawn as a relationship between the two nodes; a wire is a Thing the node it leaves has, related to the two ports it connects.");
+    }
 }

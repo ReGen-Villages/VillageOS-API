@@ -50,7 +50,7 @@ public class PublicPageProxyEndpointTests
         public HttpResponseMessage Answer(HttpRequestMessage request, BrokerSnapshot model)
         {
             var path = request.RequestUri!.AbsolutePath;
-            if (request.Method == HttpMethod.Post && path == "/api/subscriptions")
+            if (ModelStub.IsDeclarationRead(request))
                 return ModelStub.Json(Reading(request, model));
             if (path.EndsWith("/ranges", StringComparison.Ordinal))
                 return ModelStub.Json("""{"ThingId":"x","ThingName":"Study","OwnRanges":[],"InheritedRanges":[]}""");

@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using FluentAssertions;
+using vos.Tests.Shared;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Phloem.Model;
 using vos.Service.Phloem.Services;
@@ -57,6 +58,7 @@ public class PhloemKeepsACadenceTests : IClassFixture<TheEngine>
     public async Task A_cadence_is_read_with_its_interval_and_no_instant_until_the_orchestrator_marks_it_due()
     {
         var (gateway, cadenceId) = await AnHourlyCadenceAsync();
+        await using var _ = gateway;
         var noon = new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero);
 
         var before = (await gateway.CadencesAsync(CancellationToken.None)).Single(cadence => cadence.Id == cadenceId);
@@ -72,7 +74,27 @@ public class PhloemKeepsACadenceTests : IClassFixture<TheEngine>
     public async Task The_kind_of_cadence_is_not_read_as_one()
     {
         var (gateway, _) = await AnHourlyCadenceAsync();
+        await using var __ = gateway;
 
         (await gateway.CadencesAsync(CancellationToken.None)).Should().NotContain(cadence => cadence.Name == "Cadence");
     }
+
+    [FactAgainstTheEngine]
+    public async Task A_cadence_edited_after_the_subscription_opened_and_one_typed_in_later_reach_the_held_cadences()
+    {
+        var (gateway, cadenceId) = await AnHourlyCadenceAsync();
+        await using var _ = gateway;
+        (await gateway.CadencesAsync(CancellationToken.None)).Single(cadence => cadence.Id == cadenceId).IntervalMinutes.Should().Be(60);
+
+        var edited = await _engine.Admin.PutAsJsonAsync($"/api/things/{cadenceId}/properties",
+            new { name = ModelNames.IntervalMinutes, type = "vos.Double", value = "30" });
+        edited.EnsureSuccessStatusCode();
+        await Settle.UntilAsync(() => Held(gateway).Single(cadence => cadence.Id == cadenceId).IntervalMinutes == 30, "the edited interval reaches the held cadence");
+
+        var later = await _engine.DeclareAsync($"Every day {Guid.NewGuid():N}");
+        await _engine.RelateAsync(later, await _engine.TheOnlyThingNamedAsync(ModelNames.Is), await _engine.TheOnlyThingNamedAsync("Cadence"));
+        await Settle.UntilAsync(() => Held(gateway).Any(cadence => cadence.Id == later), "the cadence typed in later is held");
+    }
+
+    private static IReadOnlyList<Cadence> Held(MyceliumGateway gateway) => gateway.CadencesAsync(CancellationToken.None).GetAwaiter().GetResult();
 }

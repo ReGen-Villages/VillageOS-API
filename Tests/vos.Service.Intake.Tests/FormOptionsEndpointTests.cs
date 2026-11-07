@@ -7,6 +7,7 @@ using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
 using vos.Service.Shared.Roles;
 using vos.Service.Shared.Subscriptions;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Intake.Tests;
@@ -15,12 +16,133 @@ namespace vos.Service.Intake.Tests;
 // route demands none: the page asking is a stranger's browser, and there is nothing for it to hold.
 public class FormOptionsEndpointTests
 {
+    private static readonly JsonSerializerOptions AsTheBrokerWritesIt = new(JsonSerializerDefaults.Web);
+
     private static IntakeWebApplicationFactory AnsweringWith(SnapshotDocument model) => new()
     {
-        HandlerCallback = _ => ModelStub.Json(JsonSerializer.Serialize(
-            new SubscribeResult(Guid.NewGuid(), 0, model),
-            new JsonSerializerOptions(JsonSerializerDefaults.Web))),
+        HandlerCallback = _ => ModelStub.Json(JsonSerializer.Serialize(new SnapshotReadResult(0, model), AsTheBrokerWritesIt)),
     };
+
+    // A broker that counts what it is asked. A declaration read is a POST of a selector, whichever
+    // route it takes; a token exchange is answered with whatever token the test says the service holds now.
+    private sealed class CountingBroker(SnapshotDocument model)
+    {
+        public SnapshotDocument Model { get; set; } = model;
+        public HttpStatusCode Answers { get; set; } = HttpStatusCode.OK;
+        public Func<string>? TokenMinted { get; set; }
+        public List<HttpRequestMessage> Requests { get; } = [];
+
+        public int DeclarationReads => Requests.Count(request =>
+            request.Method == HttpMethod.Post
+            && request.RequestUri!.AbsolutePath is "/api/snapshots" or "/api/subscriptions");
+
+        public HttpResponseMessage Answer(HttpRequestMessage request)
+        {
+            Requests.Add(request);
+            if (request.RequestUri!.AbsolutePath == "/api/auth/token")
+                return ModelStub.Json(JsonSerializer.Serialize(new { token = TokenMinted!() }));
+            if (Answers != HttpStatusCode.OK) return new HttpResponseMessage(Answers);
+            return ModelStub.Json(JsonSerializer.Serialize(new SnapshotReadResult(0, Model), AsTheBrokerWritesIt));
+        }
+    }
+
+    private static IntakeWebApplicationFactory Counting(CountingBroker broker) => new() { HandlerCallback = broker.Answer };
+
+    private static async Task<JsonElement> FormAsync(HttpClient client)
+    {
+        var response = await client.GetAsync("/submissions/form");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    private static IEnumerable<string?> Categories(JsonElement form) =>
+        form.GetProperty("allocationCategories").EnumerateArray().Select(category => category.GetString());
+
+    // Every public request asks the model the same question, and the answer changes only when the model does.
+    [Fact]
+    public async Task Two_form_requests_make_one_declaration_read()
+    {
+        var broker = new CountingBroker(DeclaredModel.Seeded().Build());
+        await using var factory = Counting(broker);
+        using var client = factory.CreateClient();
+
+        await FormAsync(client);
+        await FormAsync(client);
+
+        broker.DeclarationReads.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Once_the_hold_has_run_a_changed_model_is_read_again()
+    {
+        var broker = new CountingBroker(DeclaredModel.Seeded().Build());
+        await using var factory = Counting(broker);
+        using var client = factory.CreateClient();
+        Categories(await FormAsync(client)).Should().NotContain("Vineyard");
+
+        broker.Model = DeclaredModel.Seeded().Relate("Vineyard", "is", "AllocationCategory").Build();
+        factory.Clock.Advance(HeldDeclarations.HeldFor);
+        var form = await FormAsync(client);
+
+        Categories(form).Should().Contain("Vineyard");
+        broker.DeclarationReads.Should().Be(2);
+    }
+
+    // A held declaration belongs to one model. The service's token names the model the broker binds its
+    // calls to, so a token naming another model reads afresh whatever the clock says.
+    [Fact]
+    public async Task A_token_naming_another_model_reads_again_within_the_hold()
+    {
+        var modelNamed = Guid.NewGuid();
+        // Expiring too soon to be held, so every call exchanges the key and gets the token the test mints now.
+        var broker = new CountingBroker(DeclaredModel.Seeded().Build())
+        {
+            TokenMinted = () => TestTokens.For(modelNamed, DateTimeOffset.UtcNow.AddSeconds(20)),
+        };
+        await using var factory = new IntakeWebApplicationFactory
+        {
+            Token = null, ApiKey = "vos_sk_a-key-the-broker-would-accept", HandlerCallback = broker.Answer,
+        };
+        using var client = factory.CreateClient();
+        await FormAsync(client);
+
+        modelNamed = Guid.NewGuid();
+        await FormAsync(client);
+
+        broker.DeclarationReads.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task A_read_that_failed_is_not_held()
+    {
+        var broker = new CountingBroker(DeclaredModel.Seeded().Build()) { Answers = HttpStatusCode.InternalServerError };
+        await using var factory = Counting(broker);
+        using var client = factory.CreateClient();
+        (await client.GetAsync("/submissions/form")).StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+
+        broker.Answers = HttpStatusCode.OK;
+        var response = await client.GetAsync("/submissions/form");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        broker.DeclarationReads.Should().Be(2);
+    }
+
+    // A subscription is checked by the broker on every later write until it is deleted; a read made once
+    // goes through the route that registers nothing.
+    [Fact]
+    public async Task A_declaration_read_registers_nothing_on_the_broker()
+    {
+        var broker = new CountingBroker(DeclaredModel.Seeded().Build());
+        await using var factory = Counting(broker);
+        using var client = factory.CreateClient();
+
+        await FormAsync(client);
+
+        broker.Requests.Select(request => request.RequestUri!.AbsolutePath).Should()
+            .NotContain(path => path.StartsWith("/api/subscriptions", StringComparison.Ordinal));
+        broker.Requests.Should().Contain(request =>
+            request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/api/snapshots");
+    }
 
     [Fact]
     public async Task It_answers_a_caller_holding_no_credential()

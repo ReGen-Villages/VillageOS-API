@@ -5,8 +5,8 @@ namespace vos.Service.Tributary.Helpers;
 
 // The `observed` relationships an endpoint already carries, read from the same scoped snapshot its kinds come
 // from. The ingest relates the endpoint to every Thing it writes onto, so a later run over the same
-// Thing has to know the relationship is already there. Reading it here costs no call of its own: every relationship
-// incident to the endpoint is in that snapshot whether or not anything looks at it.
+// Thing has to know the relationship is already there. Reading it here costs no call of its own: the endpoint's
+// read asks for its observed relationships through the role, beside the kinds.
 public sealed record ObservedEdges(Guid? PredicateId, IReadOnlySet<Guid> ObservedThingIds, Guid? PredicateRootId)
 {
     public const string PredicateName = "observed";

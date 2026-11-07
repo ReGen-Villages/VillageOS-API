@@ -56,7 +56,7 @@ public class EndpointKindResolverTests
     }
 
     // A predicate Thing is not pulled into a snapshot by being a predicate. Traversal adds the Things
-    // a relationship points AT, and the incident-relationship pass adds the relationships themselves — nothing adds
+    // a relationship points AT, and the relationship rules add the relationships themselves — nothing adds
     // the Thing naming the relationship. Resolve matches on that name, so a predicate the selector does not
     // ask for by name is a role that silently matches nothing and reads as "reaches no kind".
     [Fact]
@@ -66,6 +66,18 @@ public class EndpointKindResolverTests
 
         selector.Names.Should().Contain("is", "the chain walk compares the predicate Thing's name");
         selector.Names.Should().Contain(EndpointKindRoles.All);
+    }
+
+    [Fact]
+    public void SelectorFor_CarriesIsEachKindRoleAndBindsOutgoingAndNothingIncoming()
+    {
+        var selector = EndpointKindResolver.SelectorFor(Registration);
+
+        selector.Relationships.Should().NotBeNullOrEmpty();
+        selector.Relationships!.Select(rule => rule.Predicate)
+            .Should().Contain(["is", RoleBindings.BindsPredicateName, .. EndpointKindRoles.All]);
+        selector.Relationships.Should().OnlyContain(rule => rule.Direction == "outgoing");
+        selector.IncludeRelationships.Should().BeTrue("the broker refuses rules beside no relationships");
     }
 
     [Fact]

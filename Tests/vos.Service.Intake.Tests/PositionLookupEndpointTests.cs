@@ -49,7 +49,7 @@ public class PositionLookupEndpointTests
                     : new HttpResponseMessage(endpointAnswer);
             }
             return ModelStub.Json(JsonSerializer.Serialize(
-                new SubscribeResult(Guid.NewGuid(), 0, (model ?? DeclaredModel.Seeded()).Build()),
+                new SnapshotReadResult(0, (model ?? DeclaredModel.Seeded()).Build()),
                 new JsonSerializerOptions(JsonSerializerDefaults.Web)));
         },
     };
@@ -275,7 +275,7 @@ public class PositionLookupEndpointTests
                 request.RequestUri!.AbsolutePath == EndpointForwardPath
                     ? throw new HttpRequestException("the connection was torn down")
                     : ModelStub.Json(JsonSerializer.Serialize(
-                        new SubscribeResult(Guid.NewGuid(), 0, DeclaredModel.Seeded().Build()),
+                        new SnapshotReadResult(0, DeclaredModel.Seeded().Build()),
                         new JsonSerializerOptions(JsonSerializerDefaults.Web))),
         };
         using var client = factory.CreateClient();

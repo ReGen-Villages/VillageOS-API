@@ -118,6 +118,41 @@ public class FindingsReaderTests
         ], options => options.ExcludingMissingMembers());
     }
 
+    // Without rules the platform answers every relationship touching anything reached, and the archetypes are
+    // reached through their members: every other submitter's study arrives as an `is` edge on the shared
+    // archetype. The rules name the walked predicates in their walked directions, and `is` outgoing from what
+    // was reached, which is the edge the reader finds personal details through.
+    [Fact]
+    public void The_findings_read_carries_only_the_relationships_the_page_walks()
+    {
+        var selector = FindingsReader.FindingsSelector(ThisSite, BrokerSnapshot.PageSpecification);
+
+        selector.IncludeRelationships.Should().BeTrue();
+        selector.IncludeIsAncestors.Should().BeTrue("the reader walks `is` edges to the archetype carrying personal details");
+        selector.Relationships.Should().BeEquivalentTo(
+        [
+            new { Predicate = "has", Direction = "outgoing" },
+            new { Predicate = "obtainedBy", Direction = "outgoing" },
+            new { Predicate = "studies", Direction = "incoming" },
+            new { Predicate = "is", Direction = "outgoing" },
+        ], options => options.ExcludingMissingMembers());
+    }
+
+    [Fact]
+    public void A_page_offering_levers_also_carries_the_edges_that_name_its_inputs()
+    {
+        var offeringLevers = BrokerSnapshot.PageSpecification.Replace(
+            "\"reads\": \"the site makes what it uses\"",
+            "\"reads\": \"the site makes what it uses\", \"levers\": {\"raise\": \"More {term}\", \"lower\": \"Less {term}\"}");
+
+        var selector = FindingsReader.FindingsSelector(ThisSite, offeringLevers);
+
+        selector.Relationships.Should().ContainEquivalentOf(
+            new { Predicate = FindingsReader.NamesPropertyOfPredicate, Direction = "outgoing" }, options => options.ExcludingMissingMembers());
+        selector.Relationships.Should().ContainEquivalentOf(
+            new { Predicate = RoleBindings.BindsPredicateName, Direction = "outgoing" }, options => options.ExcludingMissingMembers());
+    }
+
     [Fact]
     public void A_page_offering_levers_also_reads_the_names_its_inputs_are_given_and_the_archetypes_they_name()
     {

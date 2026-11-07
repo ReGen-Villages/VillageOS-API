@@ -184,6 +184,49 @@ public class SubscriptionClientTests
         captured.RequestUri!.AbsoluteUri.Should().EndWith("/objects");
     }
 
+    // The broker writes the kind inside data as the number of its enumeration member and on the event line
+    // as its name. The event line is the one the client reads.
+    [Fact]
+    public async Task StreamAsync_names_a_change_by_its_event_line_when_data_carries_the_kind_as_a_number()
+    {
+        var entityId = Guid.NewGuid();
+        var wire = $"id: 43\nevent: RelationshipPropertyChanged\n" +
+                   $"data: {{\"Kind\":6,\"EntityId\":\"{entityId}\",\"PropertyName\":\"quantity\",\"Value\":7}}\n\n";
+        var (client, _) = Build(_ => Sse(wire));
+
+        using var cts = new CancellationTokenSource(Settle.Ceiling);
+        ModelChangeEvent? got = null;
+        await foreach (var e in client.StreamAsync(Guid.NewGuid(), fromSequence: 42, cts.Token))
+        {
+            got = e;
+            break;
+        }
+
+        got.Should().NotBeNull();
+        got!.Kind.Should().Be("RelationshipPropertyChanged");
+        got.IsRelationshipPropertyChange.Should().BeTrue();
+        got.EntityId.Should().Be(entityId);
+        got.PropertyName.Should().Be("quantity");
+    }
+
+    [Fact]
+    public async Task StreamAsync_drops_a_frame_that_names_no_event()
+    {
+        var wire = $"id: 43\ndata: {{\"Kind\":4,\"EntityId\":\"{Guid.NewGuid()}\"}}\n\n" +
+                   $"id: 44\nevent: PropertyChanged\ndata: {{\"Kind\":4,\"EntityId\":\"{Guid.NewGuid()}\"}}\n\n";
+        var (client, _) = Build(_ => Sse(wire));
+
+        using var cts = new CancellationTokenSource(Settle.Ceiling);
+        ModelChangeEvent? got = null;
+        await foreach (var e in client.StreamAsync(Guid.NewGuid(), fromSequence: 42, cts.Token))
+        {
+            got = e;
+            break;
+        }
+
+        got!.Sequence.Should().Be(44, "a frame with no event line is not a change");
+    }
+
     [Fact]
     public async Task StreamAsync_yields_parsed_change_events()
     {
@@ -258,7 +301,7 @@ public class SubscriptionClientTests
             connects++;
             // Each connection delivers one event then EOF, forcing a reconnect.
             var seq = connects == 1 ? 50 : 51;
-            return Sse($"id: {seq}\ndata: {{\"Kind\":\"PropertyChanged\",\"EntityId\":\"{entityId}\"}}\n\n");
+            return Sse($"id: {seq}\nevent: PropertyChanged\ndata: {{\"Kind\":4,\"EntityId\":\"{entityId}\"}}\n\n");
         });
 
         using var cts = new CancellationTokenSource(Settle.Ceiling);
