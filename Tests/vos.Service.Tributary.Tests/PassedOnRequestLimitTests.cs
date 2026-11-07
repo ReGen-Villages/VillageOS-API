@@ -11,15 +11,18 @@ public class PassedOnRequestLimitTests
     private static readonly TimeSpan Limit = TimeSpan.FromSeconds(30);
 
     [Fact]
-    public void StartDeadline_WhenTheLimitIsNoLongerThanTheMargin_HasPassedAtOnce()
+    public void StartDeadline_WhenTheLimitIsShorterThanTheMargin_TakesTheWholeLimit()
     {
+        var clock = new FakeTimeProvider();
         var limit = new PassedOnRequestLimit(
-            TimeSpan.FromSeconds(1), new FakeTimeProvider(), new CapturingLogger<PassedOnRequestLimit>());
+            TimeSpan.FromSeconds(1), clock, new CapturingLogger<PassedOnRequestLimit>());
 
         using var deadline = limit.StartDeadline(CancellationToken.None);
+        deadline.HasPassed.Should().BeFalse();
+        clock.Advance(TimeSpan.FromSeconds(1));
 
         deadline.HasPassed.Should().BeTrue();
-        deadline.Reason("EP").Should().Contain("within 0 of the 1 seconds");
+        deadline.Reason("EP").Should().Contain("within 1 of the 1 seconds");
     }
 
     [Fact]

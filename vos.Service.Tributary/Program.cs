@@ -100,6 +100,8 @@ try
 
     var app = builder.Build();
 
+    app.Services.GetRequiredService<PassedOnRequestLimit>().WarnWhenTooShortToAnswerFirst();
+
     if (authEnabled)
     {
         app.UseAuthentication();

@@ -18,6 +18,19 @@ public sealed class PassedOnRequestLimit
         _logger = logger;
     }
 
+    public void WarnWhenTooShortToAnswerFirst()
+    {
+        if (_limit is not { } limit || PassedOnRequestDeadline.LeavesTheMargin(limit))
+            return;
+
+        _logger.LogWarning(
+            "The platform allows {PassedOnRequestLimitSeconds} seconds for a passed-on request, too short to leave " +
+            "Tributary {MarginSeconds} seconds to answer with its own reason. Raise Mycelium's " +
+            "DaemonLauncher:PassedOnRequestLimitSeconds above {MarginSeconds}.",
+            limit.TotalSeconds, PassedOnRequestDeadline.MarginForTheAnswer.TotalSeconds,
+            PassedOnRequestDeadline.MarginForTheAnswer.TotalSeconds);
+    }
+
     public PassedOnRequestDeadline StartDeadline(CancellationToken requestAborted) =>
         _limit is { } limit
             ? PassedOnRequestDeadline.Start(limit, _clock, requestAborted)
@@ -54,7 +67,9 @@ public enum AwaitedStep
 public sealed class PassedOnRequestDeadline : IDisposable
 {
     // Time for the answer to reach Mycelium before Mycelium's own limit cuts the request off.
-    private static readonly TimeSpan MarginForTheAnswer = TimeSpan.FromSeconds(2);
+    public static readonly TimeSpan MarginForTheAnswer = TimeSpan.FromSeconds(2);
+
+    public static bool LeavesTheMargin(TimeSpan limit) => limit > MarginForTheAnswer;
 
     private readonly CancellationTokenSource? _deadline;
     private readonly CancellationTokenSource? _deadlineOrAborted;
@@ -81,7 +96,7 @@ public sealed class PassedOnRequestDeadline : IDisposable
 
     public static PassedOnRequestDeadline Start(TimeSpan limit, TimeProvider clock, CancellationToken requestAborted)
     {
-        var allowed = limit > MarginForTheAnswer ? limit - MarginForTheAnswer : TimeSpan.Zero;
+        var allowed = LeavesTheMargin(limit) ? limit - MarginForTheAnswer : limit;
         var deadline = new CancellationTokenSource(allowed, clock);
         var deadlineOrAborted = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token, requestAborted);
         return new PassedOnRequestDeadline(deadlineOrAborted.Token, deadline, deadlineOrAborted, limit, allowed);

@@ -138,6 +138,51 @@ public class PassedOnRequestLimitHandleTests
         }
     }
 
+    [Theory]
+    [InlineData("2", 2, true)]
+    [InlineData("3", 1, false)]
+    public async Task Handle_AtAShortLimit_TakesTheWholeLimitOnlyWhenTwoSecondsWouldLeaveNone(
+        string passedOnRequestLimitSeconds, int deadlineSeconds, bool warnsAtStartUp)
+    {
+        var thingId = Guid.NewGuid();
+        var subjectId = Guid.NewGuid();
+        const string props = ReshapedProperties;
+        var deadline = TimeSpan.FromSeconds(deadlineSeconds);
+
+        await using var host = await StalledHost.StartAsync(
+            passedOnRequestLimitSeconds,
+            stalls: request => IsObservationWrite(request, subjectId),
+            answers: request => request.RequestUri!.Host == "api.test"
+                ? Json("""{"regime":"steady"}""")
+                : RouteFindThing(request, thingId, "EP")
+                  ?? RouteEffectiveProperties(request, thingId, props)
+                  ?? RouteKindsFromProperties(request, thingId, props)
+                  ?? RouteRelationshipWrite(request));
+        var warningsAtStartUp = host.LimitLog.Lines.Count;
+
+        var answer = host.Client.PostAsJsonAsync("/handle", new { endpointName = "EP", subjectId });
+        await Settle.ForAsync(host.Stalled, "the readings reach the broker");
+        host.Clock.Advance(deadline - OneTick);
+        await Settle.BeforeAssertingAbsenceAsync(TimeSpan.FromMilliseconds(100));
+        answer.IsCompleted.Should().BeFalse("the deadline has not yet passed");
+        host.Clock.Advance(OneTick);
+        await Settle.ForAsync(answer, "Tributary answers at its deadline");
+
+        (await (await answer).Content.ReadAsStringAsync()).Should().Contain(
+            $"within {deadlineSeconds} of the {passedOnRequestLimitSeconds} seconds");
+        if (warnsAtStartUp)
+        {
+            warningsAtStartUp.Should().Be(1, "the warning is logged when Tributary starts, not on a request");
+            host.LimitLog.Lines.Should().ContainSingle().Which.Should()
+                .Contain($"allows {passedOnRequestLimitSeconds} seconds for a passed-on request")
+                .And.Contain("DaemonLauncher:PassedOnRequestLimitSeconds above 2");
+        }
+        else
+        {
+            host.LimitLog.Lines.Should().BeEmpty();
+        }
+    }
+
     [Fact]
     public async Task Handle_WhenTheDataSourceRefusesAsTheDeadlinePasses_PassesItsRefusalOn()
     {
@@ -296,6 +341,7 @@ public class PassedOnRequestLimitHandleTests
 
         public FakeTimeProvider Clock { get; } = new();
         public CapturingLogger<EndpointCallService> Log { get; } = new();
+        public CapturingLogger<PassedOnRequestLimit> LimitLog { get; } = new();
         public HttpClient Client { get; }
         public Task Stalled => _stalled.Task;
 
@@ -324,6 +370,7 @@ public class PassedOnRequestLimitHandleTests
                     services.AddSingleton<IHttpClientFactory>(new PerCallHttpClientFactory(handler));
                     services.AddSingleton<TimeProvider>(Clock);
                     services.AddSingleton<ILogger<EndpointCallService>>(Log);
+                    services.AddSingleton<ILogger<PassedOnRequestLimit>>(LimitLog);
                 });
             });
             _host = host;
