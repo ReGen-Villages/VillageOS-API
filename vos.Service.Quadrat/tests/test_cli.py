@@ -47,3 +47,25 @@ def test_an_inverted_bbox_is_refused_by_the_command_line(degrees_grid):
     done = run("zonal", degrees_grid, "--bbox", "4", "6", "2", "8")
     assert done.returncode == 2
     assert json.loads(done.stdout)["refused"] == "invalid_bbox"
+
+
+def test_histogram_prints_the_cells_of_each_value(land_cover_grid):
+    done = run("histogram", land_cover_grid, "--bbox", "0", "0", "10", "10")
+    assert done.returncode == 0
+    assert sorted(entry["value"] for entry in json.loads(done.stdout)["classes"]) == [10, 20, 30]
+
+
+def test_classify_reads_its_class_table_from_a_json_file(land_cover_grid, tmp_path):
+    table = tmp_path / "classes.json"
+    table.write_text(json.dumps([{"label": "trees", "values": [10]}]))
+    done = run("classify", land_cover_grid, "--bbox", "0", "0", "10", "10", "--classes", str(table))
+    assert done.returncode == 0
+    assert json.loads(done.stdout)["unclassified"]["values"] == [20, 30]
+
+
+def test_a_class_table_that_is_not_a_clear_one_is_refused_with_its_code(land_cover_grid, tmp_path):
+    table = tmp_path / "classes.json"
+    table.write_text("[]")
+    done = run("classify", land_cover_grid, "--bbox", "0", "0", "10", "10", "--classes", str(table))
+    assert done.returncode == 2
+    assert json.loads(done.stdout)["refused"] == "invalid_classes"

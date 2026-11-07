@@ -34,6 +34,7 @@ PORTS = [
     Port.input("lat", "number"),
     Port.input("bbox", "array"),
     Port.input("geometry", "object"),
+    Port.input("classes", "array"),
     Port.output("result", "object"),
 ]
 

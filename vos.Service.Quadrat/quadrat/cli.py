@@ -1,7 +1,7 @@
 import argparse
 import json
 
-from . import Refusal, bbox_zone, describe, sample_point, zonal_stats
+from . import Refusal, bbox_zone, classify, describe, histogram, sample_point, zonal_stats
 
 
 def build_parser():
@@ -16,11 +16,18 @@ def build_parser():
     point.add_argument("--lat", type=float, required=True)
     point.add_argument("--resampling", default="nearest", choices=("nearest", "bilinear"))
 
-    zonal = commands.add_parser("zonal", help="statistics over a WGS84 polygon")
-    zonal.add_argument("raster")
-    zone = zonal.add_mutually_exclusive_group(required=True)
-    zone.add_argument("--geometry", help="a GeoJSON file holding a Polygon, a Feature or a FeatureCollection")
-    zone.add_argument("--bbox", nargs=4, type=float, metavar=("WEST", "SOUTH", "EAST", "NORTH"))
+    for name, help_text in (
+        ("zonal", "statistics over a WGS84 polygon"),
+        ("histogram", "the cells and area of each distinct value over a WGS84 polygon"),
+        ("classify", "the cells and area of each class of a stated class table over a WGS84 polygon"),
+    ):
+        command = commands.add_parser(name, help=help_text)
+        command.add_argument("raster")
+        zone = command.add_mutually_exclusive_group(required=True)
+        zone.add_argument("--geometry", help="a GeoJSON file holding a Polygon, a Feature or a FeatureCollection")
+        zone.add_argument("--bbox", nargs=4, type=float, metavar=("WEST", "SOUTH", "EAST", "NORTH"))
+        if name == "classify":
+            command.add_argument("--classes", required=True, help='a JSON file: [{"label": "trees", "values": [10, 11]}, ...]')
     return parser
 
 
@@ -41,6 +48,11 @@ def run(arguments):
         zone = bbox_zone(*arguments.bbox)
     else:
         zone = read_geometry(arguments.geometry)
+    if arguments.command == "histogram":
+        return histogram(arguments.raster, zone)
+    if arguments.command == "classify":
+        with open(arguments.classes, encoding="utf-8") as file:
+            return classify(arguments.raster, zone, json.load(file))
     return zonal_stats(arguments.raster, zone)
 
 
