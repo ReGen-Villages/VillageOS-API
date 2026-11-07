@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import os
 import ssl
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
@@ -41,6 +43,23 @@ class PlatformRefusal(RuntimeError):
         super().__init__(f"the platform refused the subscription with {status}: {body}")
         self.status = status
         self.body = body
+
+
+class AssetUnavailable(RuntimeError):
+    """The store would not give the bytes a ticket names; `status` is what it answered."""
+
+    def __init__(self, status: int, ticket: str) -> None:
+        super().__init__(f"the asset store answered {status} for {ticket}")
+        self.status = status
+        self.ticket = ticket
+
+
+class AssetTooLarge(RuntimeError):
+    """The bytes a ticket names are more than the caller will take."""
+
+    def __init__(self, ticket: str, max_bytes: int, size: int | None = None) -> None:
+        held = f"{size} bytes" if size is not None else "more than that"
+        super().__init__(f"{ticket} holds {held}, and at most {max_bytes} bytes are taken")
 
 
 def _utc_now() -> datetime:
@@ -174,6 +193,41 @@ class MyceliumClient:
         if not res.is_success:
             raise RuntimeError(f"reading the properties of thing {thing_id} returned {res.status_code}")
         return res.json()
+
+    async def fetch_asset(self, ticket: str, destination, *, max_bytes: int, client: httpx.AsyncClient | None = None) -> str:
+        """Write the bytes a store ticket names to `destination` and return their content type.
+
+        The bytes are streamed to the file, never held whole, and a ticket larger than `max_bytes` is refused
+        (`AssetTooLarge`) by its declared size or as soon as it outgrows the limit, leaving no file.
+        """
+        headers = {"Authorization": f"Bearer {await self.token(client=client)}"}
+        url = f"{self._config.mycelium_url}/api/assets/{quote(ticket, safe=':')}"
+        if client is not None:
+            return await self._stream_asset(client, url, headers, ticket, destination, max_bytes)
+        async with platform_client(timeout=60) as c:
+            return await self._stream_asset(c, url, headers, ticket, destination, max_bytes)
+
+    @staticmethod
+    async def _stream_asset(client, url, headers, ticket, destination, max_bytes) -> str:
+        async with client.stream("GET", url, headers=headers) as res:
+            if not res.is_success:
+                raise AssetUnavailable(res.status_code, ticket)
+            declared = res.headers.get("content-length")
+            if declared is not None and declared.isdigit() and int(declared) > max_bytes:
+                raise AssetTooLarge(ticket, max_bytes, int(declared))
+            received = 0
+            try:
+                with open(destination, "wb") as file:
+                    async for chunk in res.aiter_bytes():
+                        received += len(chunk)
+                        if received > max_bytes:
+                            raise AssetTooLarge(ticket, max_bytes)
+                        file.write(chunk)
+            except BaseException:
+                with contextlib.suppress(FileNotFoundError):
+                    os.remove(destination)
+                raise
+            return res.headers.get("content-type", "application/octet-stream")
 
     async def _post(self, path: str, json_body, *, client: httpx.AsyncClient | None, timeout: float = 30) -> httpx.Response:
         headers = {"Authorization": f"Bearer {await self.token(client=client)}"}

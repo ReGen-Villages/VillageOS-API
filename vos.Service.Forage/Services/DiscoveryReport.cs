@@ -22,7 +22,8 @@ public sealed record SourceOutcome(
     Guid? SubjectId = null,
     IReadOnlyDictionary<string, string>? Written = null,
     Guid? SourceId = null,
-    TimeSpan? RetryAfter = null);
+    TimeSpan? RetryAfter = null,
+    bool TimedOut = false);
 
 // Everything one run did. Both halves are reported: what resolved is the answer, what did not is
 // the gap the analysis has to be able to report against. The site is not among them — a report is

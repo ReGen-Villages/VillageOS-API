@@ -54,6 +54,7 @@ node.mount(host)
   A run over the limit waits for a place without holding a thread, so `/health` keeps answering, and a failed run
   gives its place back. A service whose operation takes memory in proportion to the request sets it to bound the
   total; with none, every run goes at once.
+- **Reading an asset.** `await host.mycelium.fetch_asset(ticket, path, max_bytes=...)` writes the bytes a store ticket names to a file and returns their content type. It streams, so a large asset is never held whole, and stops at `max_bytes` (`AssetTooLarge`, from the declared size or as the bytes arrive, leaving no file). A ticket the store will not give raises `AssetUnavailable` with its `status`.
 - **`GET /manifest`.** Served from what the node declares: `{"service", "rehearses", "ports", "settings"}`, the shape
   `tools/pipeline-playground/declare_service.py` reads to declare the service in a seed. It needs the same token as
   `/handle` when a `VerificationKey` is set, as in the C# services.

@@ -95,7 +95,19 @@ much larger pieces.
 The answer is `{"result": "success", "outputs": {"result": ...}, "error": null}`, the shape Phloem reads. A request
 Quadrat will not answer comes back as `{"result": "fail", "outputs": {}, "error": "<code>: <reason>"}` with the codes
 below, plus `missing_input`, `unknown_operation`, `ambiguous_zone`, `unstated_encoding`, `unknown_encoding`,
-`encoding_without_tile`, `invalid_tile`, `not_a_terrain_tile`, `source_not_allowed`, `redirected`, `too_many_cells` and `read_failed`.
+`encoding_without_tile`, `invalid_tile`, `not_a_terrain_tile`, `source_not_allowed`, `redirected`, `invalid_ticket`, `ticket_not_found`, `ticket_unreadable`, `ticket_too_large`, `too_many_cells` and `read_failed`.
+
+#### Rasters held in the asset store
+
+`inputs.raster` may also be a store ticket, `sha256:` and 64 lowercase hexadecimal digits: the name the platform's
+asset store gives bytes Tributary kept (`GET /api/assets/{ticket}`). Quadrat fetches the bytes with its own service
+token, so authentication, caching and provider terms stay with Tributary, and a ticket needs no `--rasterDirectory` or
+`--rasterUrl`. The bytes are written to a folder of their own, read, and removed whether the read answers or refuses.
+That folder is allowed for that one request only, so another request cannot name a path inside it.
+
+A ticket is refused, before any read, as `invalid_ticket` (not shaped like one, so the store is never asked),
+`ticket_not_found` (the store answered 404), `ticket_unreadable` (any other refusal by the store) or
+`ticket_too_large` (more than `--maxTicketBytes`, below). Terrain tiles work the same way: the ticket names the PNG.
 
 ### Limits
 
@@ -106,6 +118,7 @@ before anything is read:
 |---|---|---|
 | `--maxCells=<n>` | `4000000` | The cells of the raster a zonal read must load: the whole cells the zone's bounding box touches, clipped to the raster. A terrain tile image is counted by its size. Point and description reads load no window and are not counted |
 | `--maxConcurrentReads=<n>` | `2` | Reads going at once. The rest wait their turn |
+| `--maxTicketBytes=<n>` | `268435456` | The most one store ticket may hold. It is written to disk while it is read; the store's declared size or the bytes as they arrive stop a larger one, and nothing is left behind |
 
 Over the cell limit is refused as `too_many_cells`, saying how many cells the zone needs and how many are allowed. A flag
 that is not a positive whole number stops the service from starting.
