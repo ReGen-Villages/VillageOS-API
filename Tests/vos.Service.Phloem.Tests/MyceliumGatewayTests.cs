@@ -29,16 +29,22 @@ public class MyceliumGatewayTests
     private static readonly Guid RequestedByPredicateId = Guid.Parse("14141414-1414-1414-1414-141414141414");
     private static readonly Guid RunStoppingPredicateId = Guid.Parse("15151515-1515-1515-1515-151515151515");
     private static readonly Guid HeldVigilPredicateId = Guid.Parse("16161616-1616-1616-1616-161616161616");
+    private static readonly Guid OrchestratorId = Guid.Parse("17171717-1717-1717-1717-171717171717");
+    private static readonly Guid HasPredicateId = Guid.Parse("18181818-1818-1818-1818-181818181818");
 
     private static (MyceliumGateway Gateway, MockHttpMessageHandler Handler) NewGateway(
-        Func<HttpRequestMessage, HttpResponseMessage>? respond = null)
+        Func<HttpRequestMessage, HttpResponseMessage>? respond = null, TimeSpan? cadenceStreamRetry = null, TimeSpan? disposeWait = null)
     {
         var handler = new MockHttpMessageHandler(respond ?? new BrokerApplyingItsWriteRules().Respond);
         var gateway = new MyceliumGateway(
             new PerCallHttpClientFactory(handler),
             NullLogger<MyceliumGateway>.Instance,
             MyceliumUrl,
-            "svc-token");
+            "svc-token")
+        {
+            CadenceStreamRetry = cadenceStreamRetry ?? TimeSpan.FromSeconds(2),
+            DisposeWait = disposeWait ?? TimeSpan.FromSeconds(5),
+        };
         return (gateway, handler);
     }
 
@@ -81,6 +87,7 @@ public class MyceliumGatewayTests
         (PipelineRoles.RequestedBy, RequestedByPredicateId),
         (PipelineRoles.RunStopping, RunStoppingPredicateId),
         (PipelineRoles.HeldVigil, HeldVigilPredicateId),
+        (PipelineRoles.Orchestrator, OrchestratorId),
     ];
 
     // The relationship to the Thing is the write the broker sends back as a stop, so it comes after the one naming the run.
@@ -340,8 +347,7 @@ public class MyceliumGatewayTests
         selector.TryGetProperty("markedTypes", out _).Should().BeFalse();
         selector.TryGetProperty("markedArchetypes", out _).Should().BeFalse();
 
-        selector.GetProperty("boundTypes").EnumerateArray().Select(role => role.GetGuid())
-            .Should().BeEquivalentTo([PipelineRoles.Port.Id, PipelineRoles.PipelineWire.Id]);
+        selector.TryGetProperty("boundTypes", out _).Should().BeFalse("every port and wire in the model is not this pipeline's");
 
         // The pipeline, and the Thing for every role, so one missing from the snapshot means the model binds it
         // to nothing rather than that this pipeline has no node playing it, beside the roles a tell or follow-on
@@ -352,14 +358,14 @@ public class MyceliumGatewayTests
                  PipelineRoles.CompletionRange.Id, PipelineRoles.AwaitsThrough.Id, PipelineRoles.PipelineTell.Id, PipelineRoles.PipelineFollowOn.Id,
                  PipelineRoles.PipelineStop.Id, PipelineRoles.RequestedBy.Id]));
 
-        // What each role binds, then the system or pipeline a node stands for, the connection a system is told
-        // through, what a port offers and a node chose, the state a waiting node waits for, and the Things a node's
-        // choice compares with, are reached after the nodes.
-        selector.GetProperty("traverse").EnumerateArray()
-            .Select(rule => rule.TryGetProperty("predicateRole", out var role) ? role.GetString() : rule.GetProperty("predicate").GetString())
-            .Should().Equal(ModelNames.Has, ModelNames.Binds, PipelineRoles.StandsFor.Id.ToString(),
+        var rules = selector.GetProperty("traverse").EnumerateArray().ToList();
+        rules.Select(rule => rule.TryGetProperty("predicateRole", out var role) ? role.GetString() : rule.GetProperty("predicate").GetString())
+            .Should().Equal(ModelNames.Has, ModelNames.Is, ModelNames.Has, ModelNames.Binds,
+                PipelineRoles.InputConnector.Id.ToString(), PipelineRoles.OutputConnector.Id.ToString(), PipelineRoles.StandsFor.Id.ToString(),
                 PipelineRoles.ToldThrough.Id.ToString(), PipelineRoles.Choice.Id.ToString(), PipelineRoles.CompletionRange.Id.ToString(),
                 PipelineRoles.ComparesWith.Id.ToString());
+        rules.Take(3).Select(rule => rule.GetProperty("depth").GetInt32()).Should().Equal(8, 1, 1);
+        rules.Should().OnlyContain(rule => rule.GetProperty("direction").GetString() == "outgoing");
     }
 
     [Fact]
@@ -495,7 +501,118 @@ public class MyceliumGatewayTests
         {
             (runId, PredicateId, PipelineRunArchetypeId),
             (runId, PredicateId, pipelineId),
+            (OrchestratorId, PredicateId, runId),
         });
+    }
+
+    [Fact]
+    public async Task CreateRunAsync_HoldsTheRunUnderTheOrchestratorInTheSameFragment()
+    {
+        var runId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway();
+
+        await gateway.CreateRunAsync(runId, Guid.NewGuid(), CancellationToken.None);
+
+        var fragment = await ReadJson(RequestsTo(handler, "/api/model/fragment", HttpMethod.Post).Single());
+        fragment.GetProperty("relationships").EnumerateArray()
+            .Select(edge => (edge.GetProperty("subject").GetGuid(), edge.GetProperty("target").GetGuid()))
+            .Should().Contain((OrchestratorId, runId));
+        RequestsTo(handler, "/api/relationships", HttpMethod.Post).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task CreateRunAsync_WhenTheModelBindsNoOrchestrator_RecordsTheRunUnheld()
+    {
+        var broker = new BrokerApplyingItsWriteRules();
+        var (gateway, handler) = NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/snapshots" && request.Method == HttpMethod.Post
+            && request.Content!.ReadAsStringAsync().Result.Contains(PipelineRoles.Orchestrator.Id.ToString())
+                ? Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""")
+                : broker.Respond(request));
+
+        await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        (await CreatedRelationships(handler)).Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task SetRunStatusAsync_Finished_ReleasesTheRunFromTheOrchestrator()
+    {
+        var runId = Guid.NewGuid();
+        var otherRunId = Guid.NewGuid();
+        var holding = Guid.NewGuid();
+        var holdingAnother = Guid.NewGuid();
+        var broker = new BrokerApplyingItsWriteRules();
+        var (gateway, handler) = NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/snapshots" && request.Method == HttpMethod.Post
+            && request.Content!.ReadAsStringAsync().Result.Contains(OrchestratorId.ToString())
+                ? Json(HttpStatusCode.OK, JsonSerializer.Serialize(new
+                {
+                    snapshot = new
+                    {
+                        things = new object[]
+                        {
+                            new { id = OrchestratorId, name = "Phloem prototype" },
+                            new { id = HasPredicateId, name = ModelNames.Has },
+                        },
+                        relationships = new object[]
+                        {
+                            new { id = holding, subjectId = OrchestratorId, predicateId = HasPredicateId, targetId = runId },
+                            new { id = holdingAnother, subjectId = OrchestratorId, predicateId = HasPredicateId, targetId = otherRunId },
+                        },
+                    },
+                }))
+                : broker.Respond(request));
+        await gateway.CreateRunAsync(runId, Guid.NewGuid(), CancellationToken.None);
+
+        await gateway.SetRunStatusAsync(runId, RunStatus.Succeeded, CancellationToken.None);
+
+        handler.Requests.Where(request => request.Method == HttpMethod.Delete).Select(request => request.RequestUri!.AbsolutePath)
+            .Should().Equal($"/api/relationships/{holding}");
+        var change = await ReadJson(RequestsTo(handler, "/api/model/fragment", HttpMethod.Post).Last());
+        change.GetProperty("relationships").EnumerateArray().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SetRunStatusAsync_Running_HoldsTheRunAgainInTheStatusFragment()
+    {
+        var runId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway();
+        await gateway.CreateRunAsync(runId, Guid.NewGuid(), CancellationToken.None);
+        var writtenBefore = handler.Requests.Count;
+
+        await gateway.SetRunStatusAsync(runId, RunStatus.Running, CancellationToken.None, error: string.Empty);
+
+        var change = handler.Requests.Skip(writtenBefore).Should().ContainSingle().Subject;
+        change.RequestUri!.AbsolutePath.Should().Be("/api/model/fragment");
+        (await ReadJson(change)).GetProperty("relationships").EnumerateArray()
+            .Select(edge => (edge.GetProperty("subject").GetGuid(), edge.GetProperty("predicate").GetGuid(), edge.GetProperty("target").GetGuid()))
+            .Should().Equal((OrchestratorId, PredicateId, runId));
+    }
+
+    [Fact]
+    public async Task WaitingAndUnfinishedNodeRunsAreReadFromWhatTheOrchestratorHolds()
+    {
+        var (gateway, handler) = NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/snapshots"
+                ? Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""")
+                : new HttpResponseMessage(HttpStatusCode.OK));
+
+        await gateway.WaitingNodeRunsAsync(CancellationToken.None);
+        await gateway.UnfinishedNodeRunsAsync(CancellationToken.None);
+
+        var selectors = await Task.WhenAll(RequestsTo(handler, "/api/snapshots", HttpMethod.Post).Select(ReadJson));
+        selectors.Should().HaveCount(2);
+        foreach (var selector in selectors)
+        {
+            selector.TryGetProperty("boundTypes", out _).Should().BeFalse("every node run ever recorded is not what a restart needs");
+            selector.GetProperty("ids").EnumerateArray().Select(id => id.GetGuid())
+                .Should().BeEquivalentTo([PipelineRoles.Orchestrator.Id, PipelineRoles.AwaitedThing.Id, PipelineRoles.HeldVigil.Id]);
+            selector.GetProperty("traverse").EnumerateArray()
+                .Select(rule => (rule.GetProperty("predicate").GetString(), rule.GetProperty("direction").GetString(), rule.GetProperty("depth").GetInt32()))
+                .Should().Equal((ModelNames.Binds, "outgoing", 1), (ModelNames.Has, "outgoing", 2));
+            selector.GetProperty("includeIsAncestors").GetBoolean().Should().BeFalse();
+        }
     }
 
     [Fact]
@@ -619,7 +736,7 @@ public class MyceliumGatewayTests
         await gateway.CreateRunAsync(runId, Guid.NewGuid(), CancellationToken.None, subject);
 
         var edges = await CreatedRelationships(handler);
-        edges.Should().HaveCount(3);
+        edges.Should().HaveCount(4);
         edges.Single(edge => edge.Predicate == RunSubjectPredicateId).Should().Be((runId, RunSubjectPredicateId, subject.Id));
     }
 
@@ -653,7 +770,7 @@ public class MyceliumGatewayTests
             Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None, new RunSubject(Guid.NewGuid(), "orphan"));
 
         await creating.Should().NotThrowAsync();
-        (await CreatedRelationships(handler)).Should().HaveCount(2);
+        (await CreatedRelationships(handler)).Should().HaveCount(3);
     }
 
     [Fact]
@@ -885,8 +1002,8 @@ public class MyceliumGatewayTests
 
         await gateway.SetRunStatusAsync(runId, RunStatus.Failed, CancellationToken.None, "boom");
 
-        handler.Requests.Skip(writtenBefore).Should().ContainSingle()
-            .Which.RequestUri!.AbsolutePath.Should().Be("/api/model/fragment");
+        handler.Requests.Skip(writtenBefore).Where(request => request.RequestUri!.AbsolutePath == "/api/model/fragment")
+            .Should().ContainSingle();
         (await PropertiesWrittenSinceCreation(handler, runId)).Select(written => written.Name).Should().BeEquivalentTo(
             [ModelNames.Status, ModelNames.Error, ModelNames.FinishedUtc]);
     }
@@ -1279,65 +1396,297 @@ public class MyceliumGatewayTests
         RequestsTo(handler, "/api/relationships", HttpMethod.Post).Should().BeEmpty();
     }
 
+    private static readonly DateTimeOffset Nine = new(2026, 10, 15, 9, 0, 0, TimeSpan.Zero);
+
+    private static string SubscriptionAnswer(Guid subscriptionId, params object[] things) =>
+        JsonSerializer.Serialize(new { subscriptionId, watermark = 12, snapshot = new { things, relationships = Array.Empty<object>() } });
+
+    private static object ACadenceStatingItsOwnValues(Guid id, string name, object? interval, string? lastDue = null) => new
+    {
+        id, name, isArchetype = false, states = Array.Empty<string>(),
+        properties = new Dictionary<string, object>
+        {
+            [ModelNames.IntervalMinutes] = new { value = interval, typeInfo = "vos.Double" },
+            [ModelNames.LastDue] = new { value = lastDue, typeInfo = "vos.DateTime" },
+        },
+    };
+
+    private sealed class StreamThatNeverAnswers : Stream
+    {
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            new(new TaskCompletionSource<int>().Task);
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            new TaskCompletionSource<int>().Task;
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    // A stream the stand-in broker keeps open: the test sends each frame, and ends it when the case is about a drop.
+    private sealed class OpenStream
+    {
+        private readonly System.IO.Pipelines.Pipe _pipe = new();
+
+        public HttpResponseMessage Response()
+        {
+            var content = new StreamContent(_pipe.Reader.AsStream());
+            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/event-stream");
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
+        }
+
+        public async Task SendAsync(string frame)
+        {
+            await _pipe.Writer.WriteAsync(System.Text.Encoding.UTF8.GetBytes(frame));
+            await _pipe.Writer.FlushAsync();
+        }
+
+        public Task EndAsync() => _pipe.Writer.CompleteAsync().AsTask();
+    }
+
+    private static string PropertyChangedFrame(Guid cadenceId, string property, object? value) =>
+        $"id: 13\nevent: PropertyChanged\ndata: {JsonSerializer.Serialize(new { Kind = "PropertyChanged", EntityId = cadenceId, PropertyName = property, Value = value })}\n\n";
+
+    private static string ThingMovedFrame(string kind, Guid thingId, object? thing = null) =>
+        $"event: {kind}\ndata: {JsonSerializer.Serialize(new { Kind = kind, EntityId = thingId, Thing = thing })}\n\n";
+
+    private static IReadOnlyList<Cadence> Held(MyceliumGateway gateway) =>
+        gateway.CadencesAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+    private static (MyceliumGateway Gateway, MockHttpMessageHandler Handler) ABrokerHoldingCadences(
+        OpenStream stream, params object[] cadences)
+    {
+        var subscriptionId = Guid.NewGuid();
+        return NewGateway(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/subscriptions" when request.Method == HttpMethod.Post => Json(HttpStatusCode.OK, SubscriptionAnswer(subscriptionId, cadences)),
+            var path when path == $"/api/subscriptions/{subscriptionId}/stream" => stream.Response(),
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound),
+        }, cadenceStreamRetry: TimeSpan.FromMilliseconds(10));
+    }
+
     [Fact]
-    public async Task CadencesAsync_ReadsEachCadenceButNotItsKind_WhereverItStatesItsValues()
+    public async Task CadencesAsync_OpensOneSubscriptionOnTheCadenceKindWithLaterMatches_AndReadsEachCadenceButNotItsKind()
     {
         var kind = Guid.NewGuid();
         var hourly = Guid.NewGuid();
         var daily = Guid.NewGuid();
         var unset = Guid.NewGuid();
-        var snapshot = JsonSerializer.Serialize(new
-        {
-            snapshot = new
+        var stream = new OpenStream();
+        var (gateway, handler) = ABrokerHoldingCadences(stream,
+            new { id = kind, name = "Cadence", isArchetype = true, properties = new Dictionary<string, object>(), states = Array.Empty<string>() },
+            new
             {
-                things = new object[]
+                id = hourly, name = "Every hour", isArchetype = false, states = Array.Empty<string>(),
+                properties = new Dictionary<string, object>(),
+                inheritedOverrides = new Dictionary<string, object>
                 {
-                    new { id = kind, name = "Cadence", isArchetype = true, properties = new Dictionary<string, object>(), states = Array.Empty<string>() },
-                    new
+                    [kind.ToString()] = new
                     {
-                        id = hourly, name = "Every hour", isArchetype = false, states = Array.Empty<string>(),
-                        properties = new Dictionary<string, object>(),
-                        inheritedOverrides = new Dictionary<string, object>
+                        sourceName = "Cadence",
+                        properties = new Dictionary<string, object>
                         {
-                            [kind.ToString()] = new
-                            {
-                                sourceName = "Cadence",
-                                properties = new Dictionary<string, object>
-                                {
-                                    [ModelNames.IntervalMinutes] = new { value = 60, typeInfo = "vos.Double" },
-                                    [ModelNames.LastDue] = new { value = "2026-10-15T09:00:00.0000000+00:00", typeInfo = "vos.DateTime" },
-                                },
-                            },
+                            [ModelNames.IntervalMinutes] = new { value = 60, typeInfo = "vos.Double" },
+                            [ModelNames.LastDue] = new { value = "2026-10-15T09:00:00.0000000+00:00", typeInfo = "vos.DateTime" },
                         },
                     },
-                    new
-                    {
-                        id = daily, name = "Every day", isArchetype = false, states = Array.Empty<string>(),
-                        properties = new Dictionary<string, object> { [ModelNames.IntervalMinutes] = new { value = "1440", typeInfo = "vos.String" } },
-                    },
-                    new
-                    {
-                        id = unset, name = "Not yet set", isArchetype = false, states = Array.Empty<string>(),
-                        properties = new Dictionary<string, object> { [ModelNames.IntervalMinutes] = new { value = (double?)null, typeInfo = "vos.Double" } },
-                    },
                 },
-                relationships = Array.Empty<object>(),
             },
-        });
-        var (gateway, handler) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/snapshots" && request.Method == HttpMethod.Post
-            ? Json(HttpStatusCode.OK, snapshot)
-            : new HttpResponseMessage(HttpStatusCode.OK));
+            new
+            {
+                id = daily, name = "Every day", isArchetype = false, states = Array.Empty<string>(),
+                properties = new Dictionary<string, object> { [ModelNames.IntervalMinutes] = new { value = "1440", typeInfo = "vos.String" } },
+            },
+            ACadenceStatingItsOwnValues(unset, "Not yet set", null));
+        await using var _ = gateway;
 
         var cadences = await gateway.CadencesAsync(CancellationToken.None);
+        var again = await gateway.CadencesAsync(CancellationToken.None);
 
         cadences.Should().BeEquivalentTo(new[]
         {
-            new Cadence(hourly, "Every hour", 60, new DateTimeOffset(2026, 10, 15, 9, 0, 0, TimeSpan.Zero)),
+            new Cadence(hourly, "Every hour", 60, Nine),
             new Cadence(daily, "Every day", 1440, null),
             new Cadence(unset, "Not yet set", 0, null),
         });
-        (await ReadJson(RequestsTo(handler, "/api/snapshots", HttpMethod.Post).Single()))
-            .GetProperty("boundTypes").EnumerateArray().Single().GetGuid().Should().Be(PipelineRoles.Cadence.Id);
+        again.Should().BeEquivalentTo(cadences);
+        var opened = await ReadJson(RequestsTo(handler, "/api/subscriptions", HttpMethod.Post).Single());
+        opened.GetProperty("boundTypes").EnumerateArray().Single().GetGuid().Should().Be(PipelineRoles.Cadence.Id);
+        opened.GetProperty("includeLaterMatches").GetBoolean().Should().BeTrue("a cadence made after the subscription opened is a cadence too");
+        opened.GetProperty("includeIsAncestors").GetBoolean().Should().BeFalse();
+        opened.GetProperty("includeRelationships").GetBoolean().Should().BeFalse();
+        RequestsTo(handler, "/api/snapshots").Should().BeEmpty("a look reads nothing from the broker");
+    }
+
+    [Fact]
+    public async Task A_cadence_edited_on_the_stream_is_due_at_its_new_interval_without_a_read()
+    {
+        var hourly = Guid.NewGuid();
+        var stream = new OpenStream();
+        var (gateway, handler) = ABrokerHoldingCadences(stream, ACadenceStatingItsOwnValues(hourly, "Every hour", 60, Nine.ToString("o")));
+        await using var _ = gateway;
+        (await gateway.CadencesAsync(CancellationToken.None)).Single().IntervalMinutes.Should().Be(60);
+
+        await stream.SendAsync(PropertyChangedFrame(hourly, ModelNames.IntervalMinutes, 30));
+        await Settle.UntilAsync(() => Held(gateway).Single().IntervalMinutes == 30, "the edited interval reaches the held cadence");
+
+        CadenceSchedule.DueAt(Held(gateway).Single(), Nine.AddMinutes(31), Nine.AddMinutes(29)).Should().Equal(Nine.AddMinutes(30));
+        handler.Requests.Select(request => $"{request.Method} {request.RequestUri!.AbsolutePath}")
+            .Should().OnlyContain(call => call.StartsWith("POST /api/subscriptions") || call.StartsWith("GET /api/subscriptions/"));
+        RequestsTo(handler, "/api/subscriptions", HttpMethod.Post).Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task A_cadence_typed_into_the_kind_later_is_held_and_one_typed_out_or_deleted_is_let_go()
+    {
+        var hourly = Guid.NewGuid();
+        var daily = Guid.NewGuid();
+        var stream = new OpenStream();
+        var (gateway, _) = ABrokerHoldingCadences(stream, ACadenceStatingItsOwnValues(hourly, "Every hour", 60));
+        await using var _ = gateway;
+        (await gateway.CadencesAsync(CancellationToken.None)).Should().ContainSingle();
+
+        await stream.SendAsync(ThingMovedFrame("ThingEntered", daily, ACadenceStatingItsOwnValues(daily, "Every day", 1440)));
+        await Settle.UntilAsync(() => Held(gateway).Count == 2, "the cadence typed in later is held");
+        Held(gateway).Should().Contain(new Cadence(daily, "Every day", 1440, null));
+
+        await stream.SendAsync(ThingMovedFrame("ThingLeft", daily));
+        await Settle.UntilAsync(() => Held(gateway).Count == 1, "the cadence typed out is let go");
+        await stream.SendAsync(ThingMovedFrame("ThingDeleted", hourly));
+        await Settle.UntilAsync(() => Held(gateway).Count == 0, "the deleted cadence is let go");
+    }
+
+    [Fact]
+    public async Task A_dropped_cadence_stream_is_subscribed_again_and_the_cadences_read_again()
+    {
+        var hourly = Guid.NewGuid();
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var firstStream = new OpenStream();
+        var secondStream = new OpenStream();
+        var opened = 0;
+        var (gateway, handler) = NewGateway(request => (request.RequestUri!.AbsolutePath, request.Method.Method) switch
+        {
+            ("/api/subscriptions", "POST") => Json(HttpStatusCode.OK, ++opened == 1
+                ? SubscriptionAnswer(first, ACadenceStatingItsOwnValues(hourly, "Every hour", 60))
+                : SubscriptionAnswer(second, ACadenceStatingItsOwnValues(hourly, "Every hour", 30))),
+            (var path, "GET") when path == $"/api/subscriptions/{first}/stream" => firstStream.Response(),
+            (var path, "GET") when path == $"/api/subscriptions/{second}/stream" => secondStream.Response(),
+            (_, "DELETE") => throw new HttpRequestException("the broker that held the subscription is gone"),
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound),
+        }, cadenceStreamRetry: TimeSpan.FromMilliseconds(10));
+        await using var _ = gateway;
+        (await gateway.CadencesAsync(CancellationToken.None)).Single().IntervalMinutes.Should().Be(60);
+
+        await firstStream.EndAsync();
+        await Settle.UntilAsync(() => Held(gateway).Single().IntervalMinutes == 30, "the second subscription's snapshot replaces the first");
+
+        RequestsTo(handler, "/api/subscriptions", HttpMethod.Post).Should().HaveCount(2);
+        handler.Requests.Where(request => request.Method == HttpMethod.Delete).Select(request => request.RequestUri!.AbsolutePath)
+            .Should().Equal($"/api/subscriptions/{first}");
+    }
+
+    [Fact]
+    public async Task A_frame_that_is_not_a_change_is_passed_over_and_the_next_one_applied()
+    {
+        var hourly = Guid.NewGuid();
+        var stream = new OpenStream();
+        var (gateway, _) = ABrokerHoldingCadences(stream, ACadenceStatingItsOwnValues(hourly, "Every hour", 60));
+        await using var _ = gateway;
+        (await gateway.CadencesAsync(CancellationToken.None)).Should().ContainSingle();
+
+        await stream.SendAsync("event: PropertyChanged\ndata: not a change\n\n");
+        await stream.SendAsync("data: {\"EntityId\":\"" + hourly + "\"}\n\n");
+        await stream.SendAsync(PropertyChangedFrame(hourly, ModelNames.IntervalMinutes, 15));
+
+        await Settle.UntilAsync(() => Held(gateway).Single().IntervalMinutes == 15, "the change after the unreadable frames is applied");
+    }
+
+    [Fact]
+    public async Task Disposing_the_gateway_while_no_subscription_can_be_opened_stops_the_following()
+    {
+        var (gateway, handler) = NewGateway(request => request.RequestUri!.AbsolutePath == "/api/subscriptions"
+            ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+            : new HttpResponseMessage(HttpStatusCode.NotFound), cadenceStreamRetry: TimeSpan.FromMilliseconds(10));
+        var looking = () => gateway.CadencesAsync(CancellationToken.None);
+        await looking.Should().ThrowAsync<HttpRequestException>();
+
+        await Settle.ForAsync(gateway.DisposeAsync().AsTask(), "disposing waits for the following to stop");
+        var asked = handler.Requests.Count;
+        await Settle.BeforeAssertingAbsenceAsync(TimeSpan.FromMilliseconds(200));
+
+        handler.Requests.Count.Should().Be(asked, "nothing subscribes after the gateway is disposed");
+    }
+
+    [Fact]
+    public async Task Disposing_the_gateway_while_the_cadence_stream_ignores_the_stop_gives_up_after_its_wait()
+    {
+        var subscriptionId = Guid.NewGuid();
+        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/subscriptions" when request.Method == HttpMethod.Post => Json(HttpStatusCode.OK, SubscriptionAnswer(subscriptionId)),
+            var path when path == $"/api/subscriptions/{subscriptionId}/stream" =>
+                new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new StreamThatNeverAnswers()) },
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound),
+        }, disposeWait: TimeSpan.FromMilliseconds(50));
+        (await gateway.CadencesAsync(CancellationToken.None)).Should().BeEmpty();
+
+        await Settle.ForAsync(gateway.DisposeAsync().AsTask(), "disposing gives up on a stream that never answers the stop");
+    }
+
+    [Fact]
+    public async Task The_instant_a_cadence_is_marked_due_moves_the_held_cadence_before_the_stream_carries_it()
+    {
+        var hourly = Guid.NewGuid();
+        var noon = new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero);
+        var stream = new OpenStream();
+        var subscriptionId = Guid.NewGuid();
+        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/subscriptions" when request.Method == HttpMethod.Post =>
+                Json(HttpStatusCode.OK, SubscriptionAnswer(subscriptionId, ACadenceStatingItsOwnValues(hourly, "Every hour", 60))),
+            var path when path == $"/api/subscriptions/{subscriptionId}/stream" => stream.Response(),
+            var path when path == $"/api/things/{hourly}/properties" => new HttpResponseMessage(HttpStatusCode.OK),
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound),
+        });
+        await using var _ = gateway;
+        (await gateway.CadencesAsync(CancellationToken.None)).Single().LastDue.Should().BeNull();
+
+        await gateway.SetLastDueAsync(hourly, noon, CancellationToken.None);
+
+        (await gateway.CadencesAsync(CancellationToken.None)).Single().LastDue.Should().Be(noon);
+    }
+
+    [Fact]
+    public async Task CadencesAsync_WhileNoSubscriptionCanBeOpened_Fails_AndAnswersOnceOneOpens()
+    {
+        var hourly = Guid.NewGuid();
+        var subscriptionId = Guid.NewGuid();
+        var stream = new OpenStream();
+        var brokerIsAway = true;
+        var (gateway, _) = NewGateway(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/subscriptions" when request.Method == HttpMethod.Post => brokerIsAway
+                ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+                : Json(HttpStatusCode.OK, SubscriptionAnswer(subscriptionId, ACadenceStatingItsOwnValues(hourly, "Every hour", 60))),
+            var path when path == $"/api/subscriptions/{subscriptionId}/stream" => stream.Response(),
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound),
+        }, cadenceStreamRetry: TimeSpan.FromMilliseconds(10));
+        await using var _ = gateway;
+
+        var looking = () => gateway.CadencesAsync(CancellationToken.None);
+        await looking.Should().ThrowAsync<HttpRequestException>();
+        await looking.Should().ThrowAsync<HttpRequestException>("the failure stands until a subscription opens");
+
+        brokerIsAway = false;
+        await Settle.UntilAsync(() => gateway.CadencesAsync(CancellationToken.None).IsCompletedSuccessfully, "the next attempt opens a subscription");
+        (await gateway.CadencesAsync(CancellationToken.None)).Should().ContainSingle();
     }
 
     [Fact]
@@ -1514,7 +1863,9 @@ public class MyceliumGatewayTests
 
         await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
-        var lookup = await ReadJson(RequestsTo(handler, "/api/snapshots", HttpMethod.Post).Single());
+        var lookups = await Task.WhenAll(RequestsTo(handler, "/api/snapshots", HttpMethod.Post).Select(ReadJson));
+        lookups.Where(asked => asked.TryGetProperty("boundTypes", out _)).Should().BeEmpty();
+        var lookup = lookups.Single(asked => asked.GetProperty("ids").EnumerateArray().Any(id => id.GetGuid() == PipelineRoles.PipelineRun.Id));
         lookup.GetProperty("ids").EnumerateArray().Select(id => id.GetGuid())
             .Should().BeEquivalentTo([PipelineRoles.PipelineRun.Id]);
         lookup.TryGetProperty("boundTypes", out _).Should().BeFalse();

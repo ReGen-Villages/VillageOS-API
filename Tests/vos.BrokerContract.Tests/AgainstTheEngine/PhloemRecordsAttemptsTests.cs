@@ -26,6 +26,7 @@ public class PhloemRecordsAttemptsTests : IClassFixture<TheEngine>
         await BindOnceAsync(PipelineRoles.PipelineRun, await _engine.DeclareOnceAsync("PipelineRun", isArchetype: true), binds);
         await BindOnceAsync(PipelineRoles.NodeRun, await _engine.DeclareOnceAsync("NodeRun", isArchetype: true), binds);
         await BindOnceAsync(PipelineRoles.Attempt, await _engine.DeclareOnceAsync("Attempt", isArchetype: true), binds);
+        await BindOnceAsync(PipelineRoles.Orchestrator, await _engine.DeclareOnceAsync("Phloem prototype", isArchetype: true), binds);
         var gateway = new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, _engine.AdminToken);
         var runId = Guid.NewGuid();
         var nodeId = Guid.NewGuid();

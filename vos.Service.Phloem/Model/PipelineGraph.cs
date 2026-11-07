@@ -87,6 +87,10 @@ public sealed class PipelineGraph
         Into(target).Where(rel => Thing(rel.PredicateId) is { } predicate
             && string.Equals(predicate.Name, predicateName, StringComparison.Ordinal));
 
+    public IEnumerable<GraphRelationship> RelationshipsFrom(GraphThing subject, string predicateName) =>
+        From(subject).Where(rel => Thing(rel.PredicateId) is { } predicate
+            && string.Equals(predicate.Name, predicateName, StringComparison.Ordinal));
+
     public IReadOnlyCollection<GraphThing> Things => _things.Values;
 
     public GraphThing? Thing(Guid id) => _things.TryGetValue(id, out var t) ? t : null;
@@ -170,15 +174,6 @@ public sealed class PipelineGraph
         foreach (var rel in Into(target))
             if (rel.PredicateId == predicate.Id && Thing(rel.SubjectId) is { } subject)
                 yield return subject;
-    }
-
-    // Outgoing relationships whose predicate Thing `is` what the role binds — how a wire is found without naming
-    // either the predicate or the archetype it comes from.
-    public IEnumerable<GraphRelationship> OutgoingByPredicateOf(GraphThing subject, Role role)
-    {
-        foreach (var rel in From(subject))
-            if (Thing(rel.PredicateId) is { } predicate && IsOf(predicate, role))
-                yield return rel;
     }
 
     // Things the subject has that play the held role, each with the Thing it points at that plays the target

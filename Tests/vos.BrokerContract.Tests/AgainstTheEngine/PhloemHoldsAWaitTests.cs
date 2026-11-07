@@ -5,6 +5,7 @@ using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
 using vos.Service.Phloem.Services;
 using vos.Service.Shared.Roles;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
@@ -33,6 +34,7 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
 
         await BindOnceAsync(PipelineRoles.PipelineRun, await _engine.DeclareOnceAsync("PipelineRun", isArchetype: true));
         await BindOnceAsync(PipelineRoles.NodeRun, await _engine.DeclareOnceAsync("NodeRun", isArchetype: true));
+        await BindOnceAsync(PipelineRoles.Orchestrator, await _engine.DeclareOnceAsync("Phloem prototype", isArchetype: true));
         await BindOnceAsync(PipelineRoles.AwaitedThing, await _engine.DeclareOnceAsync("awaits"));
         await BindOnceAsync(PipelineRoles.HeldVigil, await _engine.DeclareOnceAsync("waitsOn"));
 
@@ -182,6 +184,50 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
         var waits = await Gateway().WaitingNodeRunsAsync(CancellationToken.None);
 
         waits.Should().ContainSingle(wait => wait.RunId == runId).Which.Should().Be(new HeldWait(runId, nodeId, village.Plot, vigilId));
+    }
+
+    [FactAgainstTheEngine]
+    public async Task A_restarted_orchestrator_reads_the_waiting_node_run_and_none_of_the_many_finished()
+    {
+        var village = await AVillageWithAPlotToWaitForAsync();
+        var gateway = Gateway();
+        var finished = new List<Guid>();
+        for (var run = 0; run < 25; run++)
+        {
+            var runId = Guid.NewGuid();
+            var nodeId = Guid.NewGuid();
+            await gateway.CreateRunAsync(runId, village.PipelineId, CancellationToken.None);
+            await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Running, null, CancellationToken.None);
+            await gateway.SetNodeRunStatusAsync(runId, nodeId, "Review", RunStatus.Succeeded, null, CancellationToken.None, outputs: Noticed);
+            await gateway.SetRunStatusAsync(runId, RunStatus.Succeeded, CancellationToken.None);
+            finished.Add(runId);
+        }
+        var (waitingRun, waitingNode) = await AWaitingNodeRunAsync(gateway, village);
+        var transport = new RecordingTransport(_engine.Transport);
+        var restarted = new MyceliumGateway(new PerCallHttpClientFactory(transport), NullLogger<MyceliumGateway>.Instance, TheEngine.Url, _engine.AdminToken);
+
+        var waits = await restarted.WaitingNodeRunsAsync(CancellationToken.None);
+
+        waits.Should().ContainSingle(wait => wait.RunId == waitingRun).Which.NodeId.Should().Be(waitingNode);
+        var read = transport.SnapshotBodies.Should().ContainSingle().Subject;
+        read.Should().Contain(waitingRun.ToString());
+        read.Should().NotContainAny(finished.Select(runId => runId.ToString()));
+    }
+
+    private sealed class RecordingTransport(HttpMessageHandler inner) : DelegatingHandler(inner)
+    {
+        public List<string> SnapshotBodies { get; } = new();
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var response = await base.SendAsync(request, cancellationToken);
+            if (request.RequestUri!.AbsolutePath == "/api/snapshots")
+            {
+                await response.Content.LoadIntoBufferAsync(cancellationToken);
+                SnapshotBodies.Add(await response.Content.ReadAsStringAsync(cancellationToken));
+            }
+            return response;
+        }
     }
 
     [FactAgainstTheEngine]
