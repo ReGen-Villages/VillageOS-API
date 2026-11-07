@@ -147,8 +147,11 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
         try { change = JsonSerializer.Deserialize<ModelChangeEvent>(frame.Data, Json); }
         catch (JsonException) { return null; }
         if (change is null) return null;
-        change = change with { Kind = frame.EventType };
-        return long.TryParse(frame.Id, out var seq) ? change with { Sequence = seq } : change;
+        return change with
+        {
+            Kind = frame.EventType,
+            Sequence = long.TryParse(frame.Id, out var sequence) ? sequence : change.Sequence,
+        };
     }
 
     // Delay before a reconnect; returns false if cancelled (caller should stop).
