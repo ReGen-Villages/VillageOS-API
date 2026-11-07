@@ -669,6 +669,18 @@ public class RetryTests
     }
 
     [Fact]
+    public async Task A_run_whose_fresh_run_the_broker_records_too_slowly_is_not_started_again_and_the_person_is_told_why()
+    {
+        var (_, gateway, executor, runId) = await ARunARestartStoppedAsync();
+        gateway.RunCreationFailure = ElapsedClientTimeout.New();
+
+        var (startedAgain, refusal) = await executor.StartAgainAsync(runId, CancellationToken.None);
+
+        startedAgain.Should().BeNull();
+        refusal.Should().Contain("HttpClient.Timeout");
+    }
+
+    [Fact]
     public async Task Two_people_asking_at_once_to_start_a_run_again_or_carry_it_on_get_one_run_going_and_the_rest_refused()
     {
         var (_, gateway, executor, runId) = await ARunARestartStoppedAsync();

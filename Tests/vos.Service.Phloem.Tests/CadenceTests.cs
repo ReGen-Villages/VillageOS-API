@@ -130,6 +130,18 @@ public class CadenceTests
     }
 
     [Fact]
+    public async Task A_cadence_whose_mark_the_broker_answers_too_slowly_starts_nothing_and_the_look_goes_on()
+    {
+        var (_, gateway, keeper, _, _) = Arrange(1, lastDue: null);
+        gateway.LastDueFailure = ElapsedClientTimeout.New();
+
+        var runs = await keeper.LookAsync(CancellationToken.None);
+
+        runs.Should().BeEmpty();
+        gateway.RunsCreated.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task A_cadence_nothing_is_drawn_from_is_marked_due_and_starts_nothing()
     {
         var (fixture, gateway, keeper, _, _) = Arrange(1, lastDue: null);
@@ -166,6 +178,19 @@ public class CadenceTests
         failedInARow.Should().Be(3);
         failures.Should().Be(0);
         logger.Entries.Should().Equal(LogLevel.Warning, LogLevel.Information);
+    }
+
+    [Fact]
+    public async Task A_look_the_broker_answers_too_slowly_is_a_failed_look_and_the_looking_goes_on()
+    {
+        var fixture = TestGraphs.CadencePipeline();
+        var gateway = new FakeGateway(fixture.Fixture.Build()) { CadencesFailure = ElapsedClientTimeout.New() };
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
+        var keeper = new CadenceKeeper(gateway, new PipelineStarter(gateway), executor, new ModelClock(), NullLogger<CadenceKeeper>.Instance);
+
+        var failures = await keeper.LookReportingFailuresAsync(0, CancellationToken.None);
+
+        failures.Should().Be(1);
     }
 
     [Fact]
