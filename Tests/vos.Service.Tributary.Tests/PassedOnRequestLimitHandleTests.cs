@@ -139,6 +139,38 @@ public class PassedOnRequestLimitHandleTests
     }
 
     [Fact]
+    public async Task Handle_WhenTheDataSourceRefusesAsTheDeadlinePasses_PassesItsRefusalOn()
+    {
+        var thingId = Guid.NewGuid();
+        const string props = ReshapedProperties;
+        StalledHost? host = null;
+
+        await using (host = await StalledHost.StartAsync(
+            PassedOnRequestLimitSeconds,
+            stalls: _ => false,
+            answers: request =>
+            {
+                if (request.RequestUri!.Host == "api.test")
+                {
+                    host!.Clock.Advance(Deadline);
+                    return new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+                    {
+                        Content = new StringContent("""{"error":"slow down"}""")
+                    };
+                }
+                return RouteFindThing(request, thingId, "EP")
+                    ?? RouteEffectiveProperties(request, thingId, props)
+                    ?? RouteKindsFromProperties(request, thingId, props);
+            }))
+        {
+            var response = await host.Client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+            response.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+            (await response.Content.ReadAsStringAsync()).Should().Contain("slow down");
+        }
+    }
+
+    [Fact]
     public async Task Handle_WithNoPassedOnRequestLimit_SetsNoDeadline()
     {
         var thingId = Guid.NewGuid();

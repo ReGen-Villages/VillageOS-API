@@ -112,11 +112,9 @@ public sealed class EndpointCallService
             return AtTheDeadline(request, deadline);
         }
 
-        return deadline.HasPassed && !Succeeded(answer) ? AtTheDeadline(request, deadline) : answer;
+        // An answer carrying no error holds the data source's own words or what was written, so it stands.
+        return deadline.HasPassed && answer.Error is not null ? AtTheDeadline(request, deadline) : answer;
     }
-
-    private static bool Succeeded(EndpointCallResult answer) =>
-        answer.Error is null && answer.StatusCode is >= 200 and < 300;
 
     private EndpointCallResult AtTheDeadline(EndpointCallRequest request, PassedOnRequestDeadline deadline)
     {
