@@ -118,7 +118,7 @@ public sealed class EndpointCallService
 
     private EndpointCallResult AtTheDeadline(EndpointCallRequest request, PassedOnRequestDeadline deadline)
     {
-        var reason = deadline.Reason(request.EndpointName ?? string.Empty);
+        var reason = deadline.Reason(request.EndpointName);
         _logger.LogWarning("Answered the request for endpoint {EndpointName} at its deadline: {Reason}",
             request.EndpointName, reason);
         return Problem(504, "No answer before the deadline", reason);

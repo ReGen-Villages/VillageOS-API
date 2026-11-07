@@ -25,14 +25,15 @@ public sealed class PassedOnRequestLimit
 
     public void WarnOnceWhenNotShorter(Guid endpointId, string endpointName, TimeSpan statedTimeout)
     {
-        if (_limit is not { } limit || statedTimeout < limit || _endpointsWarnedAbout.ContainsKey(endpointId))
+        if (_limit is not { } limit || statedTimeout < limit || !_endpointsWarnedAbout.TryAdd(endpointId, 0))
             return;
 
-        // Counting takes every lock in the dictionary, so it is done only on the way to a warning.
-        if (_endpointsWarnedAbout.Count >= MostEndpointsRemembered)
+        // Counting takes every lock in the dictionary, so it is done only after a new endpoint is recorded.
+        if (_endpointsWarnedAbout.Count > MostEndpointsRemembered)
+        {
             _endpointsWarnedAbout.Clear();
-        if (!_endpointsWarnedAbout.TryAdd(endpointId, 0))
-            return;
+            _endpointsWarnedAbout.TryAdd(endpointId, 0);
+        }
 
         _logger.LogWarning(
             "Endpoint {EndpointName} has a timeout of {TimeoutSeconds} seconds, which is not shorter than the " +
@@ -86,7 +87,7 @@ public sealed class PassedOnRequestDeadline : IDisposable
         return new PassedOnRequestDeadline(deadlineOrAborted.Token, deadline, deadlineOrAborted, limit, allowed);
     }
 
-    public string Reason(string endpointName)
+    public string Reason(string? endpointName)
     {
         var what = Awaiting switch
         {
