@@ -60,13 +60,15 @@ public sealed class EndpointServiceSourceFetcher : MyceliumClientBase, ISourceFe
             var body = await response.Content.ReadAsStringAsync(bounded.Token);
             return new SourceOutcome(sourceName, false, $"{(int)response.StatusCode}: {Summarize(body)}",
                 SubjectId: subjectId,
-                RetryAfter: response.StatusCode == HttpStatusCode.TooManyRequests ? WaitAsked(response) : null);
+                RetryAfter: response.StatusCode == HttpStatusCode.TooManyRequests ? WaitAsked(response) : null,
+                TimedOut: response.StatusCode == HttpStatusCode.GatewayTimeout);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             return new SourceOutcome(
                 sourceName, false, $"No answer within {_sourceTimeout.TotalSeconds:0} seconds.",
-                SubjectId: subjectId);
+                SubjectId: subjectId,
+                TimedOut: true);
         }
         catch (Exception exception)
         {

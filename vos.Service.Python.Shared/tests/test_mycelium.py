@@ -6,7 +6,7 @@ import httpx
 import jwt
 import pytest
 
-from vos_service import Config, MyceliumClient, PlatformRefusal, sediment_reading
+from vos_service import AssetTooLarge, AssetUnavailable, Config, MyceliumClient, PlatformRefusal, sediment_reading
 
 
 @pytest.fixture
@@ -337,3 +337,48 @@ def test_properties_that_cannot_be_read_raise_with_the_status(mycelium):
     with pytest.raises(RuntimeError, match="404"):
         run_against(lambda request: httpx.Response(404), lambda c: mycelium.thing_properties("6d2b0c1e-0000-4000-8000-000000000003", client=c))
 
+
+
+TICKET = "sha256:" + "ab" * 32
+
+
+def test_an_asset_is_streamed_to_a_file_with_its_content_type(mycelium, tmp_path):
+    captured = []
+
+    def handle(request):
+        captured.append(request)
+        return httpx.Response(200, content=b"\x89PNG bytes", headers={"Content-Type": "image/png"})
+
+    destination = tmp_path / "held"
+    kind = run_against(handle, lambda c: mycelium.fetch_asset(TICKET, destination, max_bytes=1000, client=c))
+    assert kind == "image/png"
+    assert destination.read_bytes() == b"\x89PNG bytes"
+    assert captured[0].method == "GET"
+    assert captured[0].url.path == f"/api/assets/{TICKET}"
+    assert captured[0].headers["authorization"] == "Bearer tok"
+
+
+def test_an_asset_larger_than_the_limit_is_refused_by_its_declared_size_before_it_is_read(mycelium, tmp_path):
+    handle = lambda request: httpx.Response(200, content=b"x" * 50, headers={"Content-Length": "50"})
+    with pytest.raises(AssetTooLarge, match="50"):
+        run_against(handle, lambda c: mycelium.fetch_asset(TICKET, tmp_path / "held", max_bytes=10, client=c))
+    assert not (tmp_path / "held").exists()
+
+
+def test_an_asset_that_outgrows_the_limit_while_streaming_is_refused_and_leaves_nothing(mycelium, tmp_path):
+    async def chunks():
+        for _ in range(10):
+            yield b"x" * 10
+
+    handle = lambda request: httpx.Response(200, content=chunks())
+    with pytest.raises(AssetTooLarge):
+        run_against(handle, lambda c: mycelium.fetch_asset(TICKET, tmp_path / "held", max_bytes=25, client=c))
+    assert not (tmp_path / "held").exists()
+
+
+@pytest.mark.parametrize("status", [400, 401, 403, 404, 500])
+def test_an_asset_the_platform_will_not_give_raises_with_the_status(mycelium, tmp_path, status):
+    with pytest.raises(AssetUnavailable) as refused:
+        run_against(lambda request: httpx.Response(status), lambda c: mycelium.fetch_asset(TICKET, tmp_path / "held", max_bytes=10, client=c))
+    assert refused.value.status == status
+    assert not (tmp_path / "held").exists()
