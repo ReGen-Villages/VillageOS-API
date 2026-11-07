@@ -92,6 +92,10 @@ try
     builder.Services.AddSingleton(sp =>
         new DiskResponseCache(cacheDirectory, sp.GetRequiredService<TimeProvider>()));
     builder.Services.AddSingleton(ProviderUnavailability.FromConfiguration(builder.Configuration));
+    builder.Services.AddSingleton(sp => new PassedOnRequestLimit(
+        launchSettings.PassedOnRequestLimit,
+        sp.GetRequiredService<TimeProvider>(),
+        sp.GetRequiredService<ILogger<PassedOnRequestLimit>>()));
     builder.Services.AddSingleton<EndpointCallService>();
 
     var app = builder.Build();
@@ -106,9 +110,11 @@ try
     var handleEndpoint = app.MapPost("/handle", async (
         EndpointCallRequest request,
         EndpointCallService endpointCallService,
+        PassedOnRequestLimit passedOnRequestLimit,
         HttpContext httpContext) =>
     {
-        var result = await endpointCallService.ExecuteAsync(request, httpContext.RequestAborted);
+        using var deadline = passedOnRequestLimit.StartDeadline(httpContext.RequestAborted);
+        var result = await endpointCallService.ExecuteAsync(request, deadline);
         if (result.RetryAfter is { } providersWait)
             httpContext.Response.Headers.RetryAfter = providersWait.ToString();
         return ToHttpResult(result);

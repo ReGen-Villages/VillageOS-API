@@ -26,6 +26,7 @@ public sealed class EndpointCallService
 
     private readonly DiskResponseCache _diskCache;
     private readonly ProviderUnavailability _unavailability;
+    private readonly PassedOnRequestLimit _passedOnRequestLimit;
     private readonly TimeProvider _clock;
 
     public EndpointCallService(
@@ -36,6 +37,7 @@ public sealed class EndpointCallService
         ISubscriptionClient subscriptions,
         DiskResponseCache diskCache,
         ProviderUnavailability unavailability,
+        PassedOnRequestLimit passedOnRequestLimit,
         TimeProvider clock,
         ILogger<EndpointCallService> logger)
     {
@@ -46,6 +48,7 @@ public sealed class EndpointCallService
         _subscriptions = subscriptions;
         _diskCache = diskCache;
         _unavailability = unavailability;
+        _passedOnRequestLimit = passedOnRequestLimit;
         _clock = clock;
         _logger = logger;
     }
@@ -95,16 +98,44 @@ public sealed class EndpointCallService
         }
     }
 
-    public async Task<EndpointCallResult> ExecuteAsync(EndpointCallRequest request, CancellationToken cancellationToken = default)
+    // A call cut short by the deadline answers with what it was waiting on, so Mycelium is told why instead
+    // of giving up on the request.
+    public async Task<EndpointCallResult> ExecuteAsync(EndpointCallRequest request, PassedOnRequestDeadline deadline)
     {
+        EndpointCallResult answer;
+        try
+        {
+            answer = await AnswerAsync(request, deadline);
+        }
+        catch (OperationCanceledException) when (deadline.HasPassed)
+        {
+            return AtTheDeadline(request, deadline);
+        }
+
+        // An answer carrying no error holds the data source's own words or what was written, so it stands.
+        return deadline.HasPassed && answer.Error is not null ? AtTheDeadline(request, deadline) : answer;
+    }
+
+    private EndpointCallResult AtTheDeadline(EndpointCallRequest request, PassedOnRequestDeadline deadline)
+    {
+        var reason = deadline.Reason(request.EndpointName ?? string.Empty);
+        _logger.LogWarning("Answered the request for endpoint {EndpointName} at its deadline: {Reason}",
+            request.EndpointName, reason);
+        return Problem(504, "No answer before the deadline", reason);
+    }
+
+    private async Task<EndpointCallResult> AnswerAsync(EndpointCallRequest request, PassedOnRequestDeadline deadline)
+    {
+        var cancellationToken = deadline.Token;
+
         if (string.IsNullOrWhiteSpace(request.EndpointName))
             return Refusal.BadRequest("Request must include a non-empty endpointName.").ToResult();
 
-        var thing = await _mycelium.FindThingByNameAsync(request.EndpointName);
+        var thing = await _mycelium.FindThingByNameAsync(request.EndpointName, cancellationToken);
         if (thing == null)
             return new Refusal(404, $"Endpoint thing not found: {request.EndpointName}").ToResult();
 
-        var effective = await _mycelium.GetEffectivePropertiesAsync(thing.Value.Id);
+        var effective = await _mycelium.GetEffectivePropertiesAsync(thing.Value.Id, cancellationToken);
         if (effective == null)
             return Problem(500, "Endpoint resolution failed", "Failed to resolve effective properties for endpoint thing.");
 
@@ -139,8 +170,11 @@ public sealed class EndpointCallService
         // a dedicated structural key like requestContentType, not an entry in the headers map.
         if (!EndpointCallChecks.TryOptionalText(effective, "acceptHeader", out var acceptHeader, out refusal))
             return refusal.ToResult();
-        if (!EndpointCallChecks.TryTimeout(effective, out var timeout, out refusal))
+        if (!EndpointCallChecks.TryTimeout(effective, out var statedTimeout, out refusal))
             return refusal.ToResult();
+        if (statedTimeout is { } stated)
+            _passedOnRequestLimit.WarnOnceWhenNotShorter(thing.Value.Id, request.EndpointName, stated);
+        var timeout = statedTimeout ?? OutboundRequest.DefaultTimeout;
         if (!EndpointCallChecks.TryUnavailability(effective, _unavailability, out var unavailability, out refusal))
             return refusal.ToResult();
         if (!EndpointCallChecks.TryCredential(kinds.Authentication, effective, out var credentialPlan, out refusal))
@@ -160,6 +194,7 @@ public sealed class EndpointCallService
 
         var endpointUri = address.Uri;
         var normalizedMethod = address.Method;
+        deadline.Awaiting = AwaitedStep.DataSource;
 
         try
         {
@@ -170,7 +205,7 @@ public sealed class EndpointCallService
             {
                 try
                 {
-                    credential = await _tokenExchangeCache.GetTokenAsync(tokenFetch);
+                    credential = await _tokenExchangeCache.GetTokenAsync(tokenFetch, cancellationToken);
                 }
                 catch (Exception tokenEx)
                 {
@@ -231,7 +266,7 @@ public sealed class EndpointCallService
                     return EndpointCallResult.Refused(Words(), servedContentType, binaryStatus, binaryRetryAfter);
 
                 if (keep != null && binaryStatus is >= 200 and < 300
-                    && await KeepAsync(keep, bytes, servedContentType, thing.Value.Id, endpoint.Observed, cancellationToken) is { } notKept)
+                    && await KeepAsync(keep, bytes, servedContentType, thing.Value.Id, endpoint.Observed, deadline) is { } notKept)
                     return notKept;
 
                 return EndpointCallResult.Body(BinaryEnvelope(bytes, servedContentType), "application/json");
@@ -267,7 +302,8 @@ public sealed class EndpointCallService
                             throw new PageNotAnsweredException(pageStatus, pageBody, pageContentType, pageRetryAfter, offset);
                         return pageBody;
                     },
-                    paging);
+                    paging,
+                    cancellationToken);
                 status = 200;
                 contentType = "application/json";
             }
@@ -286,7 +322,7 @@ public sealed class EndpointCallService
 
                 if (keep != null && status is >= 200 and < 300
                     && await KeepAsync(keep, Encoding.UTF8.GetBytes(body), contentType ?? "application/json",
-                        thing.Value.Id, endpoint.Observed, cancellationToken) is { } notKept)
+                        thing.Value.Id, endpoint.Observed, deadline) is { } notKept)
                     return notKept;
             }
 
@@ -295,6 +331,7 @@ public sealed class EndpointCallService
 
             if (reshape.Transform is { } transform && status is >= 200 and < 300)
             {
+                deadline.Awaiting = AwaitedStep.ReadingsWrite;
                 var ingestResult = await _observationService.CreateObservationsAsync(
                     thing.Value.Id, transform, body, request.SubjectId, endpoint.Observed, cancellationToken);
                 if (!ingestResult.Success)
@@ -318,7 +355,7 @@ public sealed class EndpointCallService
                 unanswered.Body, unanswered.ContentType ?? "application/json", unanswered.StatusCode,
                 unanswered.RetryAfter);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!deadline.HasPassed)
         {
             _logger.LogError(ex, "Endpoint call failed for {EndpointName}", request.EndpointName);
             return Problem(502, "Endpoint call failed", ex.Message);
@@ -346,19 +383,20 @@ public sealed class EndpointCallService
     // kept, anything else is the 502 every other broker write failure here produces.
     private async Task<EndpointCallResult?> KeepAsync(
         KeepPlan keep, byte[] bytes, string contentType, Guid endpointThingId, ObservedEdges observed,
-        CancellationToken cancellationToken)
+        PassedOnRequestDeadline deadline)
     {
-        var ticket = await _mycelium.DepositAssetAsync(bytes, contentType);
+        deadline.Awaiting = AwaitedStep.ResponseKept;
+        var ticket = await _mycelium.DepositAssetAsync(bytes, contentType, deadline.Token);
         if (ticket == null)
             return Problem(502, "Asset keeping failed", "The asset store did not accept the response bytes.");
 
-        var subject = await _mycelium.FindThingByNameAsync(keep.AssetSubject);
+        var subject = await _mycelium.FindThingByNameAsync(keep.AssetSubject, deadline.Token);
         if (subject == null)
             return Problem(502, "Asset keeping failed", $"Asset subject thing not found: {keep.AssetSubject}");
 
         if (await _observationService.ObserveValueAsync(
                 endpointThingId, subject.Value.Id, keep.AssetProperty, ticket, keep.ObservedAt, observed,
-                cancellationToken) is { } failure)
+                deadline.Token) is { } failure)
             return Problem(502, "Asset keeping failed", failure);
 
         return null;
