@@ -30,7 +30,7 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
     private sealed record TextStudio(Guid Pipeline, Guid Uppercase, Guid Reverse, Guid TextOut, Guid TextIn, Guid? Shout, Guid? Loud,
         Guid? Tell = null, Guid? Office = null, Guid? TellsTheOffice = null);
 
-    private async Task<TextStudio> DrawTextStudioAsync(bool uppercaseChooses, bool tellsTheOffice = false)
+    private async Task<TextStudio> DrawTextStudioAsync(bool uppercaseChooses, bool tellsTheOffice = false, bool portsOnAPrototype = false)
     {
         var firstDrawing = await _engine.FindAsync("carries") is null;
         var @is = await _engine.DeclareOnceAsync(ModelNames.Is);
@@ -55,13 +55,19 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
         if (firstDrawing) await _engine.RelateAsync(carries, @is, wireArchetype);
 
         var transform = await _engine.DeclareAsync("Transform service");
-        await _engine.RelateAsync(transform, @is, serviceArchetype);
+        var portHolder = transform;
+        if (portsOnAPrototype)
+        {
+            portHolder = await _engine.DeclareAsync("Transform prototype", isArchetype: true);
+            await _engine.RelateAsync(portHolder, @is, serviceArchetype);
+        }
+        await _engine.RelateAsync(transform, @is, portsOnAPrototype ? portHolder : serviceArchetype);
         async Task<Guid> PortAsync(string direction)
         {
             var port = await _engine.DeclareAsync($"transform.{direction}.text",
                 properties: new Dictionary<string, object?> { ["portName"] = "text", ["direction"] = direction, ["type"] = "string" });
             await _engine.RelateAsync(port, @is, portArchetype);
-            await _engine.RelateAsync(transform, has, port);
+            await _engine.RelateAsync(portHolder, has, port);
             return port;
         }
         var textIn = await PortAsync("in");
@@ -154,10 +160,40 @@ public class PhloemReadsAWiresPortsTests : IClassFixture<TheEngine>
         return new TextStudio(pipeline, uppercase, reverse, textOut, textIn, shout, loud, tell, office, tellsTheOfficeConnection);
     }
 
-    private async Task<PipelineDag> ReadAsync(Guid pipeline)
+    private async Task<PipelineDag> ReadAsync(Guid pipeline) => PipelineDagBuilder.Build(await LoadAsync(pipeline), pipeline);
+
+    private async Task<PipelineGraph> LoadAsync(Guid pipeline)
     {
         var gateway = new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, _engine.AdminToken);
-        return PipelineDagBuilder.Build(await gateway.LoadPipelineSubgraphAsync(pipeline, CancellationToken.None), pipeline);
+        return await gateway.LoadPipelineSubgraphAsync(pipeline, CancellationToken.None);
+    }
+
+    // The drawing read used to select every port and wire the model holds; it reaches this pipeline's by traversal now.
+    [FactAgainstTheEngine]
+    public async Task Loading_one_pipeline_carries_none_of_another_pipelines_ports_or_wires()
+    {
+        var studio = await DrawTextStudioAsync(uppercaseChooses: false);
+        var other = await DrawTextStudioAsync(uppercaseChooses: false);
+
+        var graph = await LoadAsync(studio.Pipeline);
+
+        var carried = graph.Things.Select(thing => thing.Id).ToHashSet();
+        carried.Should().Contain([studio.TextIn, studio.TextOut]);
+        carried.Should().NotContain([other.TextIn, other.TextOut, other.Uppercase, other.Reverse]);
+        graph.Things.Count(thing => thing.Name == "text to text").Should().Be(1, "the other pipeline's wire of the same name is not read");
+        DagValidator.Validate(PipelineDagBuilder.Build(graph, studio.Pipeline)).Should().BeEmpty();
+    }
+
+    // A service's ports can sit on the prototype it is, which the has walk alone does not reach.
+    [FactAgainstTheEngine]
+    public async Task A_services_ports_declared_on_the_prototype_it_is_are_read()
+    {
+        var studio = await DrawTextStudioAsync(uppercaseChooses: false, portsOnAPrototype: true);
+
+        var dag = await ReadAsync(studio.Pipeline);
+
+        DagValidator.Validate(dag).Should().BeEmpty();
+        dag.Node(studio.Uppercase)!.Ports.Select(port => port.Id).Should().Contain([studio.TextIn, studio.TextOut]);
     }
 
     [FactAgainstTheEngine]

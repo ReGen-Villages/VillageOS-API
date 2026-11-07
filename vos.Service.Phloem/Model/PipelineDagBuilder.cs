@@ -42,14 +42,18 @@ public static class PipelineDagBuilder
         var nodesById = nodes.ToDictionary(node => node.NodeId);
 
         // A wire leaving the pipeline, or touching a node that could not be read, is left out; the node's problem is
-        // already listed.
+        // already listed. Nothing legitimate relates two nodes of one pipeline to each other, so a relationship from
+        // node to node along anything but `is` or `has` is a wire drawn in the old shape, judged without its predicate:
+        // the drawing read brings what a relationship points at, never the predicate it runs along.
         var wires = new List<DagWire>();
         foreach (var nodeThing in nodeThings)
         {
             if (!nodesById.TryGetValue(nodeThing.Id, out var from)) continue;
 
-            foreach (var rel in graph.OutgoingByPredicateOf(nodeThing, PipelineRoles.PipelineWire))
-                if (nodesById.TryGetValue(rel.TargetId, out var to))
+            var heldOrKind = graph.OutgoingTargets(nodeThing, ModelNames.Has).Concat(graph.OutgoingTargets(nodeThing, ModelNames.Is))
+                .Select(reached => reached.Id).ToHashSet();
+            foreach (var targetId in graph.TargetIdsFrom(nodeThing).Distinct())
+                if (!heldOrKind.Contains(targetId) && nodesById.TryGetValue(targetId, out var to))
                     problems.Add($"The wire from '{from.Name}' to '{to.Name}' is drawn as a relationship between the two nodes; "
                         + "a wire is a Thing the node it leaves has, related to the two ports it connects.");
 
