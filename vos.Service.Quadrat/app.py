@@ -16,6 +16,7 @@ from quadrat.operations import OPERATIONS, run_operation
 from quadrat.point import RESAMPLINGS
 from quadrat.pool import ReadPool
 from quadrat.terrain import ENCODINGS
+from quadrat.tickets import held, names_a_ticket
 from vos_service import Config, NodeContext, NodeService, Port, ServiceHost, Setting, parse_args
 
 SERVICE_NAME = "Quadrat"
@@ -45,7 +46,11 @@ SETTINGS = [
 
 
 async def execute(context: NodeContext) -> dict:
-    return {"result": await pool.run(run_operation, context.params, context.inputs, sources, limits)}
+    raster = context.inputs.get("raster")
+    if not names_a_ticket(raster):
+        return {"result": await pool.run(run_operation, context.params, context.inputs, sources, limits)}
+    async with held(host.mycelium, raster, limits.max_ticket_bytes, sources) as (path, readable):
+        return {"result": await pool.run(run_operation, context.params, {**context.inputs, "raster": path}, readable, limits)}
 
 
 node = NodeService(execute, PORTS, rehearses=True, settings=SETTINGS, max_concurrent=limits.max_concurrent_reads)
