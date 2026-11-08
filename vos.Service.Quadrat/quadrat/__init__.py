@@ -2,6 +2,7 @@ from . import remote
 
 remote.configure()
 
+from .classes import classify, histogram
 from .limits import Limits
 from .metadata import describe
 from .point import sample_point

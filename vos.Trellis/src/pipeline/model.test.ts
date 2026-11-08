@@ -1,5 +1,6 @@
 /// <reference types="node" />
 import { describe, it, expect } from 'vitest';
+import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { basename, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -246,7 +247,8 @@ describe('the vocabulary the editor holds', () => {
    *  page finds the service to bind a state to. */
   const READ_BY_THE_PAGE_ALONE = new Set<string>([
     ROLE.Range, ROLE.MessageKind, ROLE.Orchestrator,
-    ROLE.Trigger, ROLE.JudgedThing, ROLE.Sends, ROLE.Told, ROLE.ArrivesAt,
+    ROLE.Trigger, ROLE.HttpTrigger, ROLE.GraphTrigger, ROLE.StateTrigger,
+    ROLE.JudgedThing, ROLE.Sends, ROLE.Told, ROLE.ArrivesAt,
   ]);
 
   it('reads every shared role under the identifier the orchestrator reads it by', () => {
@@ -257,7 +259,26 @@ describe('the vocabulary the editor holds', () => {
     for (const roleId of Object.values(ROLE))
       if (!READ_BY_THE_PAGE_ALONE.has(roleId)) expect(phloem).toContain(`"${roleId}"`);
   });
+
+  // The platform reads these three and Phloem does not, so the check above cannot catch a wrong one.
+  it.each([
+    [ROLE.HttpTrigger, 'httpTrigger'],
+    [ROLE.GraphTrigger, 'graphTrigger'],
+    [ROLE.StateTrigger, 'stateTrigger'],
+  ])('names the trigger role %s by the version 5 identifier of its word, %s', (roleId, word) => {
+    expect(roleId).toBe(roleIdentityOf(word));
+  });
 });
+
+const ROLE_NAMESPACE = 'c33fcf16-6706-4f93-bfa5-8997bfaaf4bd';
+
+function roleIdentityOf(word: string): string {
+  const hash = createHash('sha1').update(Buffer.from(ROLE_NAMESPACE.replace(/-/g, ''), 'hex')).update(word, 'utf-8').digest();
+  hash[6] = (hash[6] & 0x0f) | 0x50;
+  hash[8] = (hash[8] & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 
 describe('judgeConnection', () => {
   const upper = { id: 'upper', ports: [
