@@ -72,6 +72,10 @@ public sealed class EndpointCallService
             subscribed = await _subscriptions.SubscribeAsync(
                 EndpointKindResolver.SelectorFor(endpointId), cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
         catch (Exception exception)
         {
             _logger.LogError(exception, "Failed to read which kinds endpoint {EndpointId} reaches", endpointId);
@@ -207,7 +211,7 @@ public sealed class EndpointCallService
                 {
                     credential = await _tokenExchangeCache.GetTokenAsync(tokenFetch, cancellationToken);
                 }
-                catch (Exception tokenEx)
+                catch (Exception tokenEx) when (!deadline.HasPassed)
                 {
                     _logger.LogError(tokenEx, "Token acquisition failed for {EndpointName}", request.EndpointName);
                     return Problem(502, "Token acquisition failed", "Failed to obtain an authentication token for the endpoint.");

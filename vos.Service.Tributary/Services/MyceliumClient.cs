@@ -47,7 +47,7 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error finding thing by name {Name}", name);
+            LogFailure(ex, cancellationToken, "Error finding thing by name {Name}", name);
             return null;
         }
     }
@@ -80,7 +80,7 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error creating thing {ThingName}", name);
+            LogFailure(ex, cancellationToken, "Error creating thing {ThingName}", name);
             return null;
         }
     }
@@ -102,7 +102,7 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error applying a fragment");
+            LogFailure(ex, cancellationToken, "Error applying a fragment");
             return false;
         }
     }
@@ -127,7 +127,7 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex,
+            LogFailure(ex, cancellationToken,
                 "Error creating relationship {Subject} -[{Predicate}]-> {Target}",
                 subjectId, predicateId, targetId);
             return false;
@@ -236,7 +236,7 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error depositing {ByteLength} bytes to the asset store", bytes.Length);
+            LogFailure(ex, cancellationToken, "Error depositing {ByteLength} bytes to the asset store", bytes.Length);
             return null;
         }
     }
@@ -262,7 +262,7 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error setting mode on {ThingId}.{Property}", thingId, property);
+            LogFailure(ex, cancellationToken, "Error setting mode on {ThingId}.{Property}", thingId, property);
             return false;
         }
     }
@@ -296,9 +296,18 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error getting effective properties for thing {ThingId}", thingId);
+            LogFailure(ex, cancellationToken, "Error getting effective properties for thing {ThingId}", thingId);
             return null;
         }
+    }
+
+    // A call its caller gave up on is recorded once, by the caller that knows why, so it is not an error here.
+    private void LogFailure(
+        Exception exception, CancellationToken cancellationToken, string message, params object?[] arguments)
+    {
+        if (exception is OperationCanceledException && cancellationToken.IsCancellationRequested)
+            return;
+        Logger.LogError(exception, message, arguments);
     }
 
     private static bool TryParseThing(JsonElement element, out MyceliumThing? thing)

@@ -77,6 +77,46 @@ public class PassedOnRequestLimitHandleTests
     }
 
     [Fact]
+    public async Task Handle_WhenTheBrokerHasNotAnsweredWhichKindsTheEndpointReachesByTheDeadline_AnswersSo()
+    {
+        var thingId = Guid.NewGuid();
+        const string props = ReshapedProperties;
+
+        await AssertAnsweredAtTheDeadlineAsync(
+            stalls: request => request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/api/subscriptions",
+            answers: request => RouteFindThing(request, thingId, "EP")
+                ?? RouteEffectiveProperties(request, thingId, props),
+            handleRequest: new { endpointName = "EP" },
+            reason: "The broker had not answered with the settings of endpoint EP within 28 of the 30 seconds");
+    }
+
+    [Fact]
+    public async Task Handle_WhenTheDataSourcesSignInHasNotAnsweredByTheDeadline_AnswersSo()
+    {
+        var thingId = Guid.NewGuid();
+        const string props = """
+        {
+          "Endpoint.url":        {"Value":"https://features.test/query"},
+          "Endpoint.httpMethod": {"Value":"GET"},
+          "Endpoint.authKind":   {"Value":"tokenExchange"},
+          "Esri.tokenUrl":       {"Value":"https://tokens.test/generateToken"},
+          "Esri.tokenRequest":   {"Value":{"username":"alice","password":"s3cret","f":"json"}},
+          "Esri.tokenPath":      {"Value":"token"},
+          "Esri.expiryPath":     {"Value":"expires"},
+          "Esri.expiryUnit":     {"Value":"epochMillis"}
+        }
+        """;
+
+        await AssertAnsweredAtTheDeadlineAsync(
+            stalls: request => request.RequestUri!.Host == "tokens.test",
+            answers: request => RouteFindThing(request, thingId, "EP")
+                ?? RouteEffectiveProperties(request, thingId, props)
+                ?? RouteKindsFromProperties(request, thingId, props),
+            handleRequest: new { endpointName = "EP" },
+            reason: "The data source had not answered within 28 of the 30 seconds");
+    }
+
+    [Fact]
     public async Task Handle_WhenTheBrokerHasNotKeptTheResponseByTheDeadline_AnswersSo()
     {
         var thingId = Guid.NewGuid();
@@ -216,6 +256,45 @@ public class PassedOnRequestLimitHandleTests
     }
 
     [Fact]
+    public async Task Handle_WhenABrokerWriteFailsBeforeTheDeadline_StillLogsItsError()
+    {
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":           {"Value":"https://tiles.test/tile/1/0/1"},
+          "Endpoint.httpMethod":    {"Value":"GET"},
+          "Endpoint.assetProperty": {"Value":"surfaceMap"},
+          "Endpoint.assetSubject":  {"Value":"SiteAlpha"}
+        }
+        """;
+        Kind[] kinds =
+        [
+            new Kind(EndpointKindRoles.ResponseBody, "BinaryResponse"),
+            new Kind(EndpointKindRoles.Keeping, "ModelAsset", "assetProperty", "assetSubject"),
+        ];
+
+        await using var host = await StalledHost.StartAsync(
+            PassedOnRequestLimitSeconds,
+            stalls: _ => false,
+            answers: request =>
+            {
+                if (request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/api/assets")
+                    throw new HttpRequestException("The broker closed the connection.");
+                return request.RequestUri!.Host == "tiles.test"
+                    ? Binary(PngBytes, "image/png")
+                    : RouteFindThing(request, thingId, "EP")
+                      ?? RouteEffectiveProperties(request, thingId, props)
+                      ?? RouteKinds(request, thingId, kinds);
+            });
+
+        var response = await host.Client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
+        host.BrokerLog.ErrorLines.Should().ContainSingle().Which.Should().Contain("The broker closed the connection.");
+        host.Log.Lines.Should().NotContain(line => line.Contains("at its deadline"));
+    }
+
+    [Fact]
     public async Task Handle_WithNoPassedOnRequestLimit_SetsNoDeadline()
     {
         var thingId = Guid.NewGuid();
@@ -330,7 +409,8 @@ public class PassedOnRequestLimitHandleTests
         (await response.Content.ReadAsStringAsync()).Should().Contain(reason)
             .And.Contain("the platform allows a passed-on request");
         host.Log.Lines.Should().ContainSingle(line => line.Contains("at its deadline") && line.Contains(reason));
-        host.Log.Lines.Should().NotContain(line => line.Contains("Endpoint call failed"));
+        host.Log.ErrorLines.Should().BeEmpty();
+        host.BrokerLog.ErrorLines.Should().BeEmpty();
     }
 
     private sealed class StalledHost : IAsyncDisposable
@@ -342,6 +422,7 @@ public class PassedOnRequestLimitHandleTests
         public FakeTimeProvider Clock { get; } = new();
         public CapturingLogger<EndpointCallService> Log { get; } = new();
         public CapturingLogger<PassedOnRequestLimit> LimitLog { get; } = new();
+        public CapturingLogger<MyceliumClient> BrokerLog { get; } = new();
         public HttpClient Client { get; }
         public Task Stalled => _stalled.Task;
 
@@ -371,6 +452,7 @@ public class PassedOnRequestLimitHandleTests
                     services.AddSingleton<TimeProvider>(Clock);
                     services.AddSingleton<ILogger<EndpointCallService>>(Log);
                     services.AddSingleton<ILogger<PassedOnRequestLimit>>(LimitLog);
+                    services.AddSingleton<ILogger<MyceliumClient>>(BrokerLog);
                 });
             });
             _host = host;
