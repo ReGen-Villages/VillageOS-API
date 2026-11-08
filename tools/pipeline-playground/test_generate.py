@@ -250,7 +250,7 @@ class CatalystVocabularyTests(unittest.TestCase):
         self.assertEqual([t["Id"] for t in stands_for], ["target-stands-for"])
         self.assertEqual(bound_in_seed(seed, "standsFor"), ["target-stands-for"])
 
-    def test_every_sent_kind_arrives_at_a_door_and_every_told_kind_is_a_kind(self):
+    def test_every_sent_kind_arrives_at_an_http_connection_and_every_told_kind_is_a_kind(self):
         [sends] = self.bound("sends")
         [told] = self.bound("told")
         [arrives_at] = self.bound("arrivesAt")
@@ -263,9 +263,9 @@ class CatalystVocabularyTests(unittest.TestCase):
         self.assertTrue(sent and told_kinds)
         self.assertTrue(set(sent + told_kinds) <= kinds)
         for kind in sent:
-            doors = [r["Target"] for r in rels if r["Subject"] == kind and r["Predicate"] == arrives_at]
-            self.assertEqual(len(doors), 1, self.kit.things[kind]["Name"])
-            self.assertIn("Subdomain", self.kit.things[doors[0]]["Properties"])
+            connections = [r["Target"] for r in rels if r["Subject"] == kind and r["Predicate"] == arrives_at]
+            self.assertEqual(len(connections), 1, self.kit.things[kind]["Name"])
+            self.assertIn("Subdomain", self.kit.things[connections[0]]["Properties"])
 
     def triggers_of(self, connection):
         [triggered_by] = self.bound("trigger")

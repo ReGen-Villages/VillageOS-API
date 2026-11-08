@@ -1367,7 +1367,7 @@ export const nl: PartialResources = {
     endKind: {
       messageKind: "bericht",
       externalSystem: "systeem",
-      door: "deur",
+      httpConnection: "HTTP-verbinding",
       state: "toestand",
       relationship: "relatie",
       pipeline: "pijplijn",

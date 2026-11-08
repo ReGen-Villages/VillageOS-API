@@ -244,12 +244,12 @@ def seed_declaring_its_own_service(binding_the_roles=True):
         *role_things,
         {"Id": "v-is", "Name": "is", "Properties": {}},
         {"Id": "v-has", "Name": "has", "Properties": {}},
-        {"Id": "v-connection-kind", "Name": "Door", "IsArchetype": True, "Properties": {}},
+        {"Id": "v-connection-kind", "Name": "Connection kind", "IsArchetype": True, "Properties": {}},
         {"Id": "v-service-kind", "Name": "Programme", "IsArchetype": True, "Properties": {}},
         {"Id": "v-prototype", "Name": "Raster prototype", "IsArchetype": True,
          "Properties": {"ServicePort": {"typeInfo": "vos.LongInteger", "value": 7110}}},
         {"Id": "v-service", "Name": "The reader", "Properties": {"ExecutablePath": {"typeInfo": "vos.String", "value": "/opt/reader"}}},
-        {"Id": "v-connection", "Name": "Reader door", "Properties": {"Subdomain": {"typeInfo": "vos.String", "value": "Raster"}}},
+        {"Id": "v-connection", "Name": "Reader connection", "Properties": {"Subdomain": {"typeInfo": "vos.String", "value": "Raster"}}},
         {"Id": "v-port-raster", "Name": "the raster", "Properties": {"portName": {"typeInfo": "vos.String", "value": "raster"},
                                                                      "direction": {"typeInfo": "vos.String", "value": "in"},
                                                                      "type": {"typeInfo": "vos.String", "value": "string"},
@@ -353,7 +353,7 @@ class SeedAlreadyDeclaringTheServiceTests(unittest.TestCase):
 
     def test_what_was_found_and_what_was_added_is_reported(self):
         lines = D.describe(self.seed, self.kit, self.declared, self.found)
-        self.assertIn("found connection 'Reader door'", lines)
+        self.assertIn("found connection 'Reader connection'", lines)
         self.assertIn("found service 'The reader'", lines)
         self.assertIn("found in port 'raster'", lines)
         self.assertIn("added in port 'lon'", lines)

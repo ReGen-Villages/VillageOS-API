@@ -51,7 +51,7 @@ export function CatalystRail({ groups, onPlace, onOpenPipeline, onHandOver }: Pr
     );
   };
 
-  // The kind is said once for each run of rows of that kind, not on every row: twenty doors in a row
+  // The kind is said once for each run of rows of that kind, not on every row: twenty HTTP connections in a row
   // are twenty rows under one heading.
   const rowView = (row: CatalystRow, index: number, rows: CatalystRow[]) => (
     <li key={row.id} className="rounded-md px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800">

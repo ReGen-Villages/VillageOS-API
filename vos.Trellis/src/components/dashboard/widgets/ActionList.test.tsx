@@ -47,7 +47,7 @@ const ASSIGN: ActionWidget = {
 };
 
 /** A widget that administers rather than decides: the same row is pressed as often as needed, and
- *  the door is a platform route named by its path. */
+ *  it posts to a platform route named by its path. */
 const ADMINISTER: ActionWidget = {
   type: 'action',
   title: 'Model access',

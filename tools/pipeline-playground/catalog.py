@@ -86,7 +86,7 @@ SERVICES = [
 
 
 # The systems outside the platform it hears from and tells, and the kinds of message that cross that
-# boundary. A kind a system sends arrives at a door — one of SERVICES, reached over HTTP at its subdomain —
+# boundary. A kind a system sends arrives at an HTTP connection — one of SERVICES, at its subdomain —
 # and is what a pipeline drawn for it starts from; a kind a system is told is what a pipeline may end at.
 # Both stand on the Pipeline page's rails: the senders on the left among the catalysts, the told on the
 # right among the outputs.

@@ -1472,7 +1472,7 @@ export const ar: WithArabicPluralForms<Resources> = {
     endKind: {
       messageKind: "رسالة",
       externalSystem: "نظام",
-      door: "باب",
+      httpConnection: "اتصال HTTP",
       state: "حالة",
       relationship: "علاقة",
       pipeline: "خط أنابيب",

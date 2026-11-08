@@ -1367,7 +1367,7 @@ export const de: PartialResources = {
     endKind: {
       messageKind: "Nachricht",
       externalSystem: "System",
-      door: "Tür",
+      httpConnection: "HTTP-Verbindung",
       state: "Zustand",
       relationship: "Beziehung",
       pipeline: "Pipeline",

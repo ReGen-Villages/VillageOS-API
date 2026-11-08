@@ -11,7 +11,7 @@ export interface CatalystFixture {
   relationships: VosRelationship[];
   /** The Things a test names, by the part each plays. */
   id: Record<
-    | 'intakeDoor' | 'spareDoor' | 'weatherStation' | 'hourlyReading' | 'reportingOffice' | 'dailyDigest'
+    | 'intakeConnection' | 'spareConnection' | 'weatherStation' | 'hourlyReading' | 'reportingOffice' | 'dailyDigest'
     | 'belowReorder' | 'overdue' | 'reservoir' | 'feeds' | 'readingsArrive' | 'refill' | 'digest'
     | 'readingsStart' | 'readingsEnd' | 'refillStart' | 'digestEnd' | 'standsFor' | 'is' | 'has' | 'binds'
     | 'watcher' | 'watchesReorder' | 'reorderBinding' | 'conductor' | 'surplus' | 'drought' | 'storeSurplus'
@@ -60,7 +60,7 @@ export function catalystFixture({ orchestrators = 1, bindsTellFollowOnAndStop = 
 
   const pipelineArchetype = thing('Workflow', playing(ROLE.Pipeline), true);
   const nodeArchetype = thing('Step', playing(ROLE.PipelineNode), true);
-  const inputArchetype = thing('Doorway', playing(ROLE.PipelineInput), true);
+  const inputArchetype = thing('Beginning', playing(ROLE.PipelineInput), true);
   const outputArchetype = thing('Outcome', playing(ROLE.PipelineOutput), true);
   const connectionArchetype = thing('Binding', playing(ROLE.Connection), true);
   const serviceArchetype = thing('Capability', playing(ROLE.Service), true);
@@ -118,15 +118,15 @@ export function catalystFixture({ orchestrators = 1, bindsTellFollowOnAndStop = 
     bindings.set(id, relate(id, has, boundService));
     return id;
   };
-  const intakeDoor = connection('intake', http, reader, { Subdomain: 'intake' });
-  const spareDoor = connection('spare', http, reader, { Subdomain: 'spare' });
+  const intakeConnection = connection('intake', http, reader, { Subdomain: 'intake' });
+  const spareConnection = connection('spare', http, reader, { Subdomain: 'spare' });
 
   const weatherStation = thing('Weather station');
   relate(weatherStation, is, systemArchetype);
   const hourlyReading = thing('hourly reading');
   relate(hourlyReading, is, kindArchetype);
   relate(weatherStation, sends, hourlyReading);
-  relate(hourlyReading, arrivesAt, intakeDoor);
+  relate(hourlyReading, arrivesAt, intakeConnection);
 
   const reportingOffice = thing('Reporting office');
   relate(reportingOffice, is, systemArchetype);
@@ -228,7 +228,7 @@ export function catalystFixture({ orchestrators = 1, bindsTellFollowOnAndStop = 
     things: held,
     relationships: heldRelationships,
     id: {
-      intakeDoor, spareDoor, weatherStation, hourlyReading, reportingOffice, dailyDigest,
+      intakeConnection, spareConnection, weatherStation, hourlyReading, reportingOffice, dailyDigest,
       belowReorder, overdue, reservoir, feeds, readingsArrive, refill, digest,
       readingsStart, readingsEnd, refillStart, digestEnd, standsFor, is, has, binds: BINDS_ID,
       watcher, watchesReorder, reorderBinding: bindings.get(watchesReorder)!, conductor, surplus, drought, storeSurplus,

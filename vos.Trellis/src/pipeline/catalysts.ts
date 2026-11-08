@@ -4,7 +4,7 @@ import { ROLE, type PipelineModel, type PipelineNamed, type CatalystConnection }
 // sets a run off, and what a run may leave behind. A site that adds a system, a state or a connection
 // adds a row the same way.
 
-/** The kinds of catalyst the platform calls services on: a message arriving at a door, a Thing entering a
+/** The kinds of catalyst the platform calls services on: a message arriving at an HTTP connection, a Thing entering a
  *  state, a relationship written along a predicate, and a state the clock re-checks on an interval. */
 export type CatalystKind = 'message' | 'state' | 'relationship' | 'clock';
 
@@ -12,7 +12,7 @@ export interface CatalystRow {
   id: string;
   kind: CatalystKind;
   /** Who or what the catalyst is about: the sending system, or the kind of Thing entering the state.
-   *  Empty for a door nobody in particular is said to send to, or a predicate. */
+   *  Empty for an HTTP connection nobody in particular is said to send to, or a predicate. */
   who: string;
   /** The act: the kind of message, the state, the predicate. */
   what: string;
@@ -27,7 +27,7 @@ export interface CatalystRow {
   /** For a state watched through one connection: what the broker sends its entries to. */
   handling?: StateHandling;
   /** Whether the row may be handed to the orchestrator: a state it does not handle yet, in a model holding
-   *  exactly one. Never a door or a relationship, which reach the orchestrator without naming the drawing. */
+   *  exactly one. Never an HTTP connection or a relationship, which reach the orchestrator without naming the drawing. */
   offersOrchestrator: boolean;
 }
 
@@ -61,27 +61,28 @@ export function catalystRail(model: PipelineModel): [CatalystGroup, CatalystGrou
   const internal: CatalystRow[] = [];
 
   const startedBy = (thingId: string) => model.pipelineWhoseEndStandsFor(thingId, 'input');
-  const startedAt = (door: CatalystConnection | undefined) => door && (startedBy(door.connectionId) ?? door.startsPipeline);
+  const startedAt = (arrivesAt: CatalystConnection | undefined) =>
+    arrivesAt && (startedBy(arrivesAt.connectionId) ?? arrivesAt.startsPipeline);
 
-  const doorsCovered = new Set<string>();
+  const connectionsCovered = new Set<string>();
   for (const system of model.externalSystems())
     for (const kind of system.sends) {
-      const door = kind.arrivesAtConnectionId ? byId.get(kind.arrivesAtConnectionId) : undefined;
-      if (door) doorsCovered.add(door.connectionId);
-      const starts = startedBy(kind.id) ?? startedBy(system.id) ?? startedAt(door);
+      const arrivesAt = kind.arrivesAtConnectionId ? byId.get(kind.arrivesAtConnectionId) : undefined;
+      if (arrivesAt) connectionsCovered.add(arrivesAt.connectionId);
+      const starts = startedBy(kind.id) ?? startedBy(system.id) ?? startedAt(arrivesAt);
       external.push({
         id: `message:${system.id}:${kind.id}`, kind: 'message', who: system.name, what: kind.name,
-        standsForId: kind.id, ...(starts ? { starts } : {}), today: door?.serviceName ?? '', offersOrchestrator: false,
+        standsForId: kind.id, ...(starts ? { starts } : {}), today: arrivesAt?.serviceName ?? '', offersOrchestrator: false,
       });
     }
 
   const seenRanges = new Set<string>();
   for (const connection of connections) {
     if (connection.trigger === 'http') {
-      if (doorsCovered.has(connection.connectionId)) continue;
+      if (connectionsCovered.has(connection.connectionId)) continue;
       const starts = startedAt(connection);
       external.push({
-        id: `door:${connection.connectionId}`, kind: 'message', who: '', what: connection.subdomain || connection.name,
+        id: `httpConnection:${connection.connectionId}`, kind: 'message', who: '', what: connection.subdomain || connection.name,
         standsForId: connection.connectionId, ...(starts ? { starts } : {}), today: connection.serviceName, offersOrchestrator: false,
       });
     } else if (connection.trigger === 'graph') {
