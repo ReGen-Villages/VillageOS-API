@@ -66,7 +66,7 @@ public sealed class PipelineExecutor
         {
             await _gateway.CreateRunAsync(rid, pipelineId, cancellationToken, subject, requestId, runParams, startedBy, refusal, rehearsal);
         }
-        catch (Exception error) when (error is not OperationCanceledException)
+        catch (Exception error) when (!cancellationToken.IsCancellationRequested)
         {
             _logger.LogError(error, "Run {RunId} of pipeline {PipelineId} could not be recorded, so it does not start", rid, pipelineId);
             return PipelineRunResult.Failed(rid, pipelineId, refusal ?? error.Message);
@@ -333,7 +333,7 @@ public sealed class PipelineExecutor
             });
             return (fresh, null);
         }
-        catch (Exception error) when (error is not OperationCanceledException)
+        catch (Exception error) when (!cancellationToken.IsCancellationRequested)
         {
             _logger.LogError(error, "Run {RunId} could not be started again, because its fresh run could not be recorded", runId);
             return (null, error.Message);

@@ -54,7 +54,7 @@ public sealed class CadenceKeeper : BackgroundService
             if (failuresInARow > 0) _logger.LogInformation("Looking at the cadences works again");
             return 0;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             if (failuresInARow == 0) _logger.LogWarning(ex, "Looking at the cadences failed; looking again less often until it works");
             return failuresInARow + 1;
@@ -89,7 +89,7 @@ public sealed class CadenceKeeper : BackgroundService
             {
                 await _gateway.SetLastDueAsync(cadence.Id, due[^1], cancellationToken);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
                 ReportUnlessAlreadySaid(cadence, ex,"Cadence '{Cadence}' could not be marked due, so nothing is started from it");
                 continue;
