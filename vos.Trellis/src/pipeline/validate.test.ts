@@ -91,8 +91,8 @@ describe('validateEnds', () => {
   });
 
   it('refuses an end standing for something a run cannot leave behind', () => {
-    const issues = validateEnds([node('end', 'output', { name: 'below reorder', kind: 'state', mayStart: true, mayEnd: false })], []);
-    expect(issues).toEqual([{ kind: 'end-cannot-end', nodeId: 'end', named: 'below reorder', message: expect.stringContaining('below reorder') }]);
+    const issues = validateEnds([node('end', 'output', { name: 'running low', kind: 'state', mayStart: true, mayEnd: false })], []);
+    expect(issues).toEqual([{ kind: 'end-cannot-end', nodeId: 'end', named: 'running low', message: expect.stringContaining('running low') }]);
   });
 
   it.each([

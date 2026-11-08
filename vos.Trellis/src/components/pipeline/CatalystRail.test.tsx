@@ -20,7 +20,7 @@ describe('CatalystRail', () => {
     const internal = screen.getByRole('region', { name: 'From the model' });
     expect(within(external).getByText('Weather station · hourly reading')).toBeInTheDocument();
     expect(within(external).getByText('anybody · spare')).toBeInTheDocument();
-    expect(within(internal).getByText('Reservoir · below reorder')).toBeInTheDocument();
+    expect(within(internal).getByText('Reservoir · running low')).toBeInTheDocument();
     expect(within(internal).getByText('Reservoir · overdue · every 60 s')).toBeInTheDocument();
     expect(within(internal).getByText('feeds')).toBeInTheDocument();
   });
@@ -56,8 +56,8 @@ describe('CatalystRail', () => {
   it('offers the orchestrator on each state it does not handle yet, and hands that row over', () => {
     const { id, onHandOver } = rail();
     expect(screen.getAllByRole('button', { name: /with the orchestrator$/ })).toHaveLength(3);
-    fireEvent.click(screen.getByRole('button', { name: 'Handle Reservoir · below reorder with the orchestrator' }));
-    expect(onHandOver).toHaveBeenCalledWith(expect.objectContaining({ standsForId: id.belowReorder }));
+    fireEvent.click(screen.getByRole('button', { name: 'Handle Reservoir · running low with the orchestrator' }));
+    expect(onHandOver).toHaveBeenCalledWith(expect.objectContaining({ standsForId: id.runningLow }));
   });
 
   it('opens the pipeline a catalyst starts when its words are pressed', () => {
@@ -68,8 +68,8 @@ describe('CatalystRail', () => {
 
   it('places a start node standing for the row, and one standing for nothing from the start by hand', () => {
     const { id, onPlace } = rail();
-    fireEvent.click(screen.getByRole('button', { name: 'Place a start node standing for Reservoir · below reorder' }));
-    expect(onPlace).toHaveBeenCalledWith(expect.objectContaining({ kind: 'state', standsForId: id.belowReorder }));
+    fireEvent.click(screen.getByRole('button', { name: 'Place a start node standing for Reservoir · running low' }));
+    expect(onPlace).toHaveBeenCalledWith(expect.objectContaining({ kind: 'state', standsForId: id.runningLow }));
     fireEvent.click(screen.getByRole('button', { name: 'Place a start by hand' }));
     expect(onPlace).toHaveBeenLastCalledWith(undefined);
   });

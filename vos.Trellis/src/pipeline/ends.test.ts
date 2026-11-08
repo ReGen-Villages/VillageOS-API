@@ -22,7 +22,7 @@ describe('what a boundary node stands for', () => {
     expect(model.endInformation(id.weatherStation)).toMatchObject({ kind: 'externalSystem', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.reportingOffice)).toMatchObject({ kind: 'externalSystem', mayStart: false, mayEnd: false });
     expect(model.endInformation(id.intakeConnection)).toMatchObject({ kind: 'httpConnection', mayStart: true, mayEnd: false });
-    expect(model.endInformation(id.belowReorder)).toMatchObject({ kind: 'state', mayStart: true, mayEnd: false });
+    expect(model.endInformation(id.runningLow)).toMatchObject({ kind: 'state', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.feeds)).toMatchObject({ kind: 'relationship', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.refill)).toMatchObject({ kind: 'pipeline', mayStart: true, mayEnd: false });
     expect(model.endInformation(id.everyHour)).toMatchObject({ kind: 'cadence', mayStart: true, mayEnd: false });
