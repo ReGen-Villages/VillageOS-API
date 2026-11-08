@@ -25,9 +25,9 @@ describe('the rail of catalysts', () => {
   });
 
   it('lists a watched state as the kind it judges entering it, with the pipeline the connection starts', () => {
-    const row = internal.rows.find((each) => each.standsForId === id.belowReorder);
+    const row = internal.rows.find((each) => each.standsForId === id.runningLow);
     expect(row).toMatchObject({
-      kind: 'state', who: 'Reservoir', what: 'below reorder', today: 'Watcher',
+      kind: 'state', who: 'Reservoir', what: 'running low', today: 'Watcher',
       starts: { id: id.refill, name: 'Refill' },
     });
     expect(row?.everySeconds).toBeUndefined();
@@ -61,8 +61,8 @@ describe('the rail of catalysts', () => {
   });
 
   it('says which connection a state is watched through, what binds it, and that the orchestrator does not handle it', () => {
-    const row = internal.rows.find((each) => each.standsForId === id.belowReorder);
-    expect(row?.handling).toEqual({ connectionId: id.watchesReorder, bindingId: id.reorderBinding, byOrchestrator: false });
+    const row = internal.rows.find((each) => each.standsForId === id.runningLow);
+    expect(row?.handling).toEqual({ connectionId: id.watchesRunningLow, bindingId: id.runningLowBinding, byOrchestrator: false });
     expect(row?.offersOrchestrator).toBe(true);
   });
 
