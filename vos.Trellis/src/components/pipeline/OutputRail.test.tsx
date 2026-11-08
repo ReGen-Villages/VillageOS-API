@@ -47,6 +47,6 @@ describe('OutputRail', () => {
     const { id, onAddService } = rail();
     const services = screen.getByRole('list', { name: 'Services' });
     fireEvent.click(within(services).getByRole('button', { name: /intake/ }));
-    expect(onAddService).toHaveBeenCalledWith(expect.objectContaining({ connectionId: id.intakeDoor, subdomain: 'intake' }));
+    expect(onAddService).toHaveBeenCalledWith(expect.objectContaining({ connectionId: id.intakeConnection, subdomain: 'intake' }));
   });
 });

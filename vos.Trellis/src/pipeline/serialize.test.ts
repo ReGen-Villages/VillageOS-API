@@ -477,12 +477,12 @@ describe('savePipeline / loadPipeline — what a boundary node stands for', () =
     const { catalystFixture } = await import('./catalysts.test.fixture');
     const { model, id } = catalystFixture();
     const loaded = loadPipeline(id.readingsArrive, model)!;
-    const nodes = loaded.nodes.map((node) => (node.id === id.readingsStart ? { ...node, standsForId: id.intakeDoor } : node));
+    const nodes = loaded.nodes.map((node) => (node.id === id.readingsStart ? { ...node, standsForId: id.intakeConnection } : node));
     await savePipeline(loaded.name, nodes, loaded.edges, model, id.readingsArrive);
 
     const fragment = JSON.parse(vi.mocked(modelApi.applyFragment).mock.calls[0][0]);
     const written = fragment.Relationships.filter((relationship: { Predicate: string }) => relationship.Predicate === id.standsFor);
-    expect(written).toEqual([{ Name: 'standsFor', Subject: id.readingsStart, Predicate: id.standsFor, Target: id.intakeDoor }]);
+    expect(written).toEqual([{ Name: 'standsFor', Subject: id.readingsStart, Predicate: id.standsFor, Target: id.intakeConnection }]);
     expect(vi.mocked(relationshipApi.remove)).toHaveBeenCalledWith(model.standsFor(id.readingsStart)!.relationshipId);
   });
 

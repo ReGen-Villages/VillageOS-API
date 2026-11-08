@@ -1365,7 +1365,7 @@ export const en = {
     endKind: {
       messageKind: "message",
       externalSystem: "system",
-      door: "door",
+      httpConnection: "HTTP connection",
       state: "state",
       relationship: "relationship",
       pipeline: "pipeline",

@@ -71,7 +71,7 @@ describe('PipelinePage', () => {
       relationships.push({ Id: `${subject}-${predicate}-${target}`, Name: '', SubjectId: subject, PredicateId: predicate, TargetId: target, Properties: {} });
     relate('misdrawn', id.is, named('Workflow'));
     relate('misdrawn-start', id.is, named('Step'));
-    relate('misdrawn-start', id.is, named('Doorway'));
+    relate('misdrawn-start', id.is, named('Beginning'));
     relate('misdrawn', id.has, 'misdrawn-start');
     relate('misdrawn-start', id.standsFor, id.reportingOffice);
     useModelStore.setState({ things, relationships, loaded: true });
@@ -94,11 +94,11 @@ describe('PipelinePage', () => {
       { Id: 'of', Name: 'of', Properties: {} },
       { Id: 'run-kind', Name: 'Execution', IsArchetype: true, Properties: {} },
       { Id: ROLE.PipelineRun, Name: 'pipelineRun role', Properties: {} },
-      { Id: 'from-a-door', Name: 'run 1', Properties: { status: 'succeeded', startedUtc: '2026-10-03T11:00:00Z', requestId: 'r-door' } },
+      { Id: 'from-a-request', Name: 'run 1', Properties: { status: 'succeeded', startedUtc: '2026-10-03T11:00:00Z', requestId: 'r-request' } },
       { Id: 'by-hand', Name: 'run 2', Properties: { status: 'failed', startedUtc: '2026-10-03T12:00:00Z' } },
     );
     relate(ROLE.PipelineRun, id.binds, 'run-kind');
-    for (const run of ['from-a-door', 'by-hand']) {
+    for (const run of ['from-a-request', 'by-hand']) {
       relate(run, id.is, 'run-kind');
       relate(run, 'of', id.digest);
     }
@@ -110,8 +110,8 @@ describe('PipelinePage', () => {
     fireEvent.change(history, { target: { value: 'by-hand' } });
     expect(screen.queryByRole('link', { name: /Request/ })).toBeNull();
 
-    fireEvent.change(history, { target: { value: 'from-a-door' } });
-    expect(screen.getByRole('link', { name: /Request/ })).toHaveAttribute('href', '/requests?entry=r-door');
+    fireEvent.change(history, { target: { value: 'from-a-request' } });
+    expect(screen.getByRole('link', { name: /Request/ })).toHaveAttribute('href', '/requests?entry=r-request');
   });
 
   it('shows a run paused at a waiting node as waiting, with the node marked, and offers Cancel, which stops a waiting run at once', async () => {
@@ -233,7 +233,7 @@ describe('PipelinePage', () => {
       relationships.push({ Id: `${subject}-${predicate}-${target}`, Name: '', SubjectId: subject, PredicateId: predicate, TargetId: target, Properties: {} });
     things.push({ Id: 'reads-daily', Name: 'Reads daily', Properties: { x: 200, y: 0 } });
     relate('reads-daily', id.is, things.find((thing) => thing.Name === 'Step')!.Id);
-    relate('reads-daily', id.has, id.intakeDoor);
+    relate('reads-daily', id.has, id.intakeConnection);
     relate(id.digest, id.has, 'reads-daily');
     relate('reads-daily', id.offers, id.daily);
     useModelStore.setState({ things, relationships, loaded: true });

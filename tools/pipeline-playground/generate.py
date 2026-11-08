@@ -239,7 +239,7 @@ def declare_dag_vocabulary(k):
     v.DecisionPath = k.archetype("DecisionPath")
 
     k.rel(v.carries, v.is_, v.PipelineWire)
-    # Every service's connection is a door reached over HTTP at its subdomain, which is what makes it a catalyst
+    # Every service's connection is an HTTP connection at its subdomain, which is what makes it a catalyst
     # the Pipelines page lists. The trigger is a Thing the connection relates to, as the platform reads it.
     v.http = k.thing(stable_id(_TAG, "trigger", "http"), "http", shared=True)
     k.bind(TRIGGER_ROLE["http"], v.http)
@@ -353,7 +353,7 @@ def build():
         k.held_by_shared[make_port(stop_kind, "PipelineStop", name, direction, type, required, False)] = stop_kind
 
     # A stop request is related along this connection, so the broker sends it to the orchestrator; it has no
-    # subdomain, so no request reaches it as a door.
+    # subdomain, so no HTTP request reaches it.
     stops = k.bind(STOPPING_CONNECTION_ROLE, k.thing(stable_id(_TAG, "connection", "stops"), "stops", shared=True))
     orchestrator = k.thing(stable_id(_TAG, "service", "orchestrator"), "Orchestrator service")
     k.held_by_shared[orchestrator] = stops
@@ -391,7 +391,7 @@ def build():
         k.rel(conn_id, triggered_by, http)
         connection_by_key[svc["key"]] = conn_id
 
-    # Each kind of message → a MessageKind arriving at the door that reads it; each external system → an
+    # Each kind of message → a MessageKind arriving at the HTTP connection that reads it; each external system → an
     # ExternalSystem that sends and is told its kinds.
     kind_by_key = {}
     for (key, label, arrives_at_service) in MESSAGE_KINDS:

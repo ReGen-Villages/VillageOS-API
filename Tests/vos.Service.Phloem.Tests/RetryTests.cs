@@ -163,7 +163,7 @@ public class RetryTests
     }
 
     [Fact]
-    public async Task A_door_answering_for_a_service_it_cannot_reach_is_retried()
+    public async Task The_broker_answering_for_a_service_it_cannot_reach_is_retried()
     {
         var (retry, gateway, executor) = Arrange(call => call < 2 ? new NodeCallResult(503, "") : Answer(), policy: [("attempts", 2), ("pauseMinutes", 0)]);
 
@@ -666,6 +666,18 @@ public class RetryTests
 
         (startedAgain, refusal).Should().Be(((Guid?)null, "The platform refused the fresh run."));
         later.Should().NotBeNull("a refused ask leaves the run to be started again");
+    }
+
+    [Fact]
+    public async Task A_run_whose_fresh_run_the_broker_records_too_slowly_is_not_started_again_and_the_person_is_told_why()
+    {
+        var (_, gateway, executor, runId) = await ARunARestartStoppedAsync();
+        gateway.RunCreationFailure = ElapsedClientTimeout.New();
+
+        var (startedAgain, refusal) = await executor.StartAgainAsync(runId, CancellationToken.None);
+
+        startedAgain.Should().BeNull();
+        refusal.Should().Contain("HttpClient.Timeout");
     }
 
     [Fact]

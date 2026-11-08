@@ -251,7 +251,7 @@ def main():
                         problems.append(f"[{pipe['Name']}] required input '{p['portName']}' on '{n['name']}' unwired/unbound")
 
         # What each node stands for (model.ts endInformation): a start may stand for a kind some system sends, a
-        # system that sends, a door, a cadence or a pipeline; a tell node for a system naming the connection it is
+        # system that sends, an HTTP connection, a cadence or a pipeline; a tell node for a system naming the connection it is
         # told through (Phloem refuses the run otherwise), a follow-on node for a pipeline. The Output node stands
         # for nothing, as Phloem reads it.
         stands = []
@@ -295,9 +295,9 @@ def main():
             if not m.is_of(kind["Id"], MESSAGE_KIND):
                 problems.append(f"system '{system['Name']}' reaches '{kind['Name']}', which is not a kind of message")
         for kind in sent:
-            doors = [d for d in m.reached_along(kind["Id"], ARRIVES_AT) if d["Id"] in conn_by_id]
-            if not doors:
-                problems.append(f"'{kind['Name']}' is sent by '{system['Name']}' and arrives at no door")
+            arrives_at = [c for c in m.reached_along(kind["Id"], ARRIVES_AT) if c["Id"] in conn_by_id]
+            if not arrives_at:
+                problems.append(f"'{kind['Name']}' is sent by '{system['Name']}' and arrives at no HTTP connection")
         print(f"  - {system['Name']:22} sends[{','.join(k['Name'] for k in sent)}] told[{','.join(k['Name'] for k in told)}]")
 
     if problems:
