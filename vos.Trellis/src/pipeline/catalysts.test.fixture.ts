@@ -12,9 +12,9 @@ export interface CatalystFixture {
   /** The Things a test names, by the part each plays. */
   id: Record<
     | 'intakeConnection' | 'spareConnection' | 'weatherStation' | 'hourlyReading' | 'reportingOffice' | 'dailyDigest'
-    | 'belowReorder' | 'overdue' | 'reservoir' | 'feeds' | 'readingsArrive' | 'refill' | 'digest'
+    | 'runningLow' | 'overdue' | 'reservoir' | 'feeds' | 'readingsArrive' | 'refill' | 'digest'
     | 'readingsStart' | 'readingsEnd' | 'refillStart' | 'digestEnd' | 'standsFor' | 'is' | 'has' | 'binds'
-    | 'watcher' | 'watchesReorder' | 'reorderBinding' | 'conductor' | 'surplus' | 'drought' | 'storeSurplus'
+    | 'watcher' | 'watchesRunningLow' | 'runningLowBinding' | 'conductor' | 'surplus' | 'drought' | 'storeSurplus'
     | 'dry' | 'watchesDry' | 'resumes' | 'everyHour' | 'readingsWire' | 'takenOn' | 'success' | 'fail'
     | 'offers' | 'comparesWith' | 'daily' | 'rhythm' | 'weekly' | 'tellKind' | 'followOnKind' | 'stopKind' | 'officeLine',
     string
@@ -154,15 +154,15 @@ export function catalystFixture({ orchestrators = 1, bindsTellFollowOnAndStop = 
   if (bindsRequestedBy) thing('askedBy', playing(ROLE.RequestedBy));
 
   const reservoir = thing('Reservoir', {}, true);
-  const belowReorder = thing('below reorder');
-  relate(belowReorder, is, rangeArchetype);
-  relate(belowReorder, judges, reservoir);
+  const runningLow = thing('running low');
+  relate(runningLow, is, rangeArchetype);
+  relate(runningLow, judges, reservoir);
   const overdue = thing('overdue', { EvaluationIntervalSeconds: 60 });
   relate(overdue, is, rangeArchetype);
   relate(overdue, judges, reservoir);
 
-  const watchesReorder = connection('watches reorder', state, watcher);
-  relate(watchesReorder, watches, belowReorder);
+  const watchesRunningLow = connection('watches running low', state, watcher);
+  relate(watchesRunningLow, watches, runningLow);
   const watchesOverdue = connection('watches overdue', state, watcher);
   relate(watchesOverdue, watches, overdue);
   const feeds = connection('feeds', graph, handler);
@@ -215,8 +215,8 @@ export function catalystFixture({ orchestrators = 1, bindsTellFollowOnAndStop = 
   relate(readingsWire, inputConnector, portOf.get(readingsStart)!);
   relate(readingsWire, outputConnector, portOf.get(readingsEnd)!);
   const refill = pipeline('Refill');
-  const refillStart = boundary(refill, 'A reservoir runs low', 'input', belowReorder);
-  relate(watchesReorder, starts, refill);
+  const refillStart = boundary(refill, 'A reservoir runs low', 'input', runningLow);
+  relate(watchesRunningLow, starts, refill);
   const digest = pipeline('Digest');
   const digestEnd = boundary(digest, 'The office is told', 'output', reportingOffice);
   const storeSurplus = pipeline('Store surplus');
@@ -229,9 +229,9 @@ export function catalystFixture({ orchestrators = 1, bindsTellFollowOnAndStop = 
     relationships: heldRelationships,
     id: {
       intakeConnection, spareConnection, weatherStation, hourlyReading, reportingOffice, dailyDigest,
-      belowReorder, overdue, reservoir, feeds, readingsArrive, refill, digest,
+      runningLow, overdue, reservoir, feeds, readingsArrive, refill, digest,
       readingsStart, readingsEnd, refillStart, digestEnd, standsFor, is, has, binds: BINDS_ID,
-      watcher, watchesReorder, reorderBinding: bindings.get(watchesReorder)!, conductor, surplus, drought, storeSurplus,
+      watcher, watchesRunningLow, runningLowBinding: bindings.get(watchesRunningLow)!, conductor, surplus, drought, storeSurplus,
       dry, watchesDry, resumes, everyHour, readingsWire, takenOn, success, fail,
       offers, comparesWith, daily, rhythm, weekly, tellKind, followOnKind, stopKind, officeLine,
     },
