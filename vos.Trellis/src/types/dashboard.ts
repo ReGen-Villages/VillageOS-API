@@ -766,7 +766,7 @@ export interface ActionChoice {
  *  decision into the specification. */
 export interface ActionRecords {
   /** The endpoint that accepts the act, by the name `POST /api/endpoints/{name}` forwards to — or,
-   *  beginning with `/`, a route on the platform itself, posted to as written. Either names a door,
+   *  beginning with `/`, a route on the platform itself, posted to as written. Either names a route,
    *  not an outcome. */
   via: string;
   /** The archetype the minted Thing `is`, where a press mints one. Declared here rather than left to
@@ -816,11 +816,11 @@ export interface FormWidget {
    *  Absent, nothing is offered and the form is the press alone. */
   preview?: { act: string; label: string };
   writes: {
-    /** The endpoint that accepts the act — a door, not an outcome, exactly as on an action widget. */
+    /** The endpoint that accepts the act — a route, not an outcome, exactly as on an action widget. */
     via: string;
     /** The name the endpoint accepts this act under, sent as `view`. */
     act: string;
-    /** The archetype the minted Thing `is`. Absent where the door mints no Thing — a platform route
+    /** The archetype the minted Thing `is`. Absent where the route mints no Thing — a platform route
      *  that records an account rather than a Thing. */
     archetype?: string;
   };

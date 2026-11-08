@@ -163,7 +163,7 @@ public class RetryTests
     }
 
     [Fact]
-    public async Task A_door_answering_for_a_service_it_cannot_reach_is_retried()
+    public async Task The_broker_answering_for_a_service_it_cannot_reach_is_retried()
     {
         var (retry, gateway, executor) = Arrange(call => call < 2 ? new NodeCallResult(503, "") : Answer(), policy: [("attempts", 2), ("pauseMinutes", 0)]);
 

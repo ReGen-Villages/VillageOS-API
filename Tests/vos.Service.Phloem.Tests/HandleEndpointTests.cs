@@ -476,7 +476,7 @@ public class HandleEndpointTests
                     things = new[]
                     {
                         Thing(pipelineArchetype, "Workflow"),
-                        Thing(startArchetype, "Doorway"),
+                        Thing(startArchetype, "Beginning"),
                         Thing(connectionArchetype, "Binding"),
                         Thing(isPredicate, "is"),
                         Thing(hasPredicate, "has"),
