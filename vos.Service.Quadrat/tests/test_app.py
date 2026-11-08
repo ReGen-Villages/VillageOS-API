@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 
 import app as appmod
 from app import app, host
-from conftest import write_png
+from conftest import square, write_png
 from quadrat.limits import Limits
 from quadrat.pool import ReadPool
 from quadrat.sources import Sources
@@ -147,11 +147,12 @@ def test_an_unreadable_raster_is_reported_not_raised(client, tmp_path):
     assert body["error"].startswith("unreadable_raster:")
 
 
-@pytest.mark.parametrize("params", [{}, {"operation": "histogram"}])
+@pytest.mark.parametrize("params", [{}, {"operation": "hillshade"}])
 def test_a_missing_or_unknown_operation_names_the_ones_there_are(client, degrees_grid, params):
     body = run_node(client, params, {"raster": degrees_grid}).json()
     assert body["result"] == "fail"
     assert "metadata" in body["error"] and "point" in body["error"] and "zonal" in body["error"]
+    assert "histogram" in body["error"] and "classify" in body["error"]
 
 
 @pytest.mark.parametrize("inputs, missing", [
@@ -242,6 +243,8 @@ def raster_library_is_never_reached(monkeypatch):
     ("metadata", {}),
     ("point", {"lon": 1, "lat": 1}),
     ("zonal", {"bbox": [0, 0, 1, 1]}),
+    ("histogram", {"bbox": [0, 0, 1, 1]}),
+    ("classify", {"bbox": [0, 0, 1, 1], "classes": [{"label": "a", "values": [1]}]}),
 ])
 def test_a_raster_outside_the_allowed_folders_is_refused_before_it_is_opened(client, tmp_path, raster_library_is_never_reached, operation, inputs):
     outside = tmp_path.parent / "elsewhere.tif"
@@ -321,7 +324,7 @@ def test_the_manifest_says_quadrat_rehearses_since_it_writes_nothing_but_its_ans
 def test_the_manifest_lists_the_node_settings_with_their_allowed_values(client):
     settings = client.get("/manifest").json()["settings"]
     assert settings == [
-        {"name": "operation", "required": True, "values": ["metadata", "point", "zonal"]},
+        {"name": "operation", "required": True, "values": ["metadata", "point", "zonal", "histogram", "classify"]},
         {"name": "resampling", "required": False, "values": ["nearest", "bilinear"], "default": "nearest"},
         {"name": "encoding", "required": False, "values": ["terrarium", "mapbox"]},
     ]
@@ -330,7 +333,8 @@ def test_the_manifest_lists_the_node_settings_with_their_allowed_values(client):
 def test_every_value_the_manifest_offers_is_one_the_service_accepts(client, degrees_grid, terrain_png):
     settings = {setting["name"]: setting["values"] for setting in client.get("/manifest").json()["settings"]}
     point = {"raster": degrees_grid, "lon": 2.5, "lat": 7.5}
-    inputs = {"metadata": {"raster": degrees_grid}, "point": point, "zonal": {"raster": degrees_grid, "bbox": [0, 8, 2, 10]}}
+    zone = {"raster": degrees_grid, "bbox": [0, 8, 2, 10]}
+    inputs = {"metadata": {"raster": degrees_grid}, "point": point, "zonal": zone, "histogram": zone, "classify": {**zone, "classes": [{"label": "all", "values": [1]}]}}
     for operation in settings["operation"]:
         assert run_node(client, {"operation": operation}, inputs[operation]).json()["result"] == "success", operation
     for resampling in settings["resampling"]:
@@ -427,3 +431,38 @@ def test_health_keeps_answering_while_a_large_read_runs_because_reads_run_in_wor
     assert read.json()["result"] == "success"
     assert answered >= 20, f"health answered only {answered} times during the read"
     assert slowest < 1.0, f"health stalled for {slowest:.2f}s during the read"
+
+
+def test_the_manifest_declares_the_classes_port(client):
+    ports = {p["portName"]: p for p in client.get("/manifest").json()["ports"]}
+    assert ports["classes"]["direction"] == "in" and ports["classes"]["required"] is False
+
+
+def test_a_histogram_is_read_through_the_node(client, land_cover_grid):
+    body = run_node(client, {"operation": "histogram"}, {"raster": land_cover_grid, "bbox": [0, 0, 10, 10]}).json()
+    assert body["result"] == "success", body
+    assert {entry["value"] for entry in body["outputs"]["result"]["classes"]} == {10, 20, 30}
+
+
+def test_a_classification_is_read_through_the_node(client, land_cover_grid):
+    classes = [{"label": "trees", "values": [10]}, {"label": "open", "values": [20, 30]}]
+    body = run_node(client, {"operation": "classify"}, {"raster": land_cover_grid, "geometry": square(0, 0, 10, 10), "classes": classes}).json()
+    assert body["result"] == "success", body
+    assert [entry["label"] for entry in body["outputs"]["result"]["classes"]] == ["trees", "open"]
+
+
+def test_a_classification_without_classes_is_refused_as_a_missing_input(client, land_cover_grid):
+    body = run_node(client, {"operation": "classify"}, {"raster": land_cover_grid, "bbox": [0, 0, 10, 10]}).json()
+    assert body["error"].startswith("missing_input:") and "classes" in body["error"]
+
+
+def test_a_histogram_without_a_zone_is_refused_as_a_missing_input(client, land_cover_grid):
+    body = run_node(client, {"operation": "histogram"}, {"raster": land_cover_grid}).json()
+    assert body["error"].startswith("missing_input:")
+
+
+def test_a_classification_by_ranges_is_read_through_the_node(client, degrees_grid):
+    classes = [{"label": "low", "max": 50}, {"label": "high", "min": 50}]
+    body = run_node(client, {"operation": "classify"}, {"raster": degrees_grid, "bbox": [0, 0, 10, 10], "classes": classes}).json()
+    assert body["result"] == "success", body
+    assert [entry["cells"] for entry in body["outputs"]["result"]["classes"]] == [pytest.approx(50), pytest.approx(49)]
