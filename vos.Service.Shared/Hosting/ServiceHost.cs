@@ -79,16 +79,15 @@ public static class ServiceHost
         services.AddSingleton<ModelClock>();
         return services.AddHostedService(provider => new ModelClockFollower(
             provider.GetRequiredService<ModelClock>(),
-            cancellationToken => provider.GetRequiredService<TClient>().ReadModelTimeAsync(cancellationToken),
+            cancellationToken => provider.GetRequiredService<TClient>().ListenForModelClockAsync(cancellationToken),
             provider.GetRequiredService<ILogger<ModelClockFollower>>(),
             serviceName,
-            ModelClockInterval));
+            ModelClockReconnectDelay));
     }
 
-    // Short enough that a service launched before a simulation anchors the clock is stamping model
-    // instants within seconds of the anchor, and one local request either way is nothing beside what
-    // a service does for a single call it handles.
-    public static readonly TimeSpan ModelClockInterval = TimeSpan.FromSeconds(5);
+    // How long a change of the clock can go unheard: the stream carries a change as it happens, and a
+    // dropped stream is opened again, and the clock read again, after this.
+    public static readonly TimeSpan ModelClockReconnectDelay = TimeSpan.FromSeconds(2);
 
     // Returns nothing to gate on, unlike MapShutdown: the broker polls /health to decide whether the
     // service is alive, and it cannot do that behind authentication. The process id is how the broker

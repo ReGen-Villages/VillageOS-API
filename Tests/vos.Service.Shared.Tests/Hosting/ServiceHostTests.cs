@@ -1,3 +1,4 @@
+using System.IO.Pipelines;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -75,6 +76,36 @@ public class ServiceHostTests
             .And.BeBefore(modelInstant.AddDays(1), "it runs on from that instant, not from this machine's");
         clock.OffsetFromWallClock().Should().BeLessThan(TimeSpan.FromDays(-1),
             "a model anchored a year back stands a year behind this machine");
+    }
+
+    [Fact]
+    public async Task AddModelClock_TakesAChangeTheBrokerAnnouncesOnTheSystemEvents()
+    {
+        var modelInstant = new DateTimeOffset(2025, 9, 20, 3, 0, 0, TimeSpan.Zero);
+        var firstReading = "{\"now\":\"" + modelInstant.ToString("o") + "\",\"rate\":60}";
+        var announcements = new Pipe();
+        await using var app = BuildApp(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/api/time" => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(firstReading, Encoding.UTF8, "application/json"),
+            },
+            "/api/events/stream" => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamContent(announcements.Reader.AsStream()),
+            },
+            _ => new HttpResponseMessage(HttpStatusCode.OK),
+        }, withModelClock: true);
+        await app.StartAsync();
+        var clock = app.Services.GetRequiredService<ModelClock>();
+        await Settle.UntilAsync(() => clock.Rate == 60, "the first reading anchors the clock at the rate the broker answered");
+
+        var announced = "event: ModelClockChanged\ndata: {\"Now\":\"" + modelInstant.AddHours(1).ToString("o") + "\",\"Rate\":300,\"Simulated\":true}\n\n";
+        await announcements.Writer.WriteAsync(Encoding.UTF8.GetBytes(announced));
+
+        await Settle.UntilAsync(() => clock.Rate == 300, "the announced rate reaches the service's clock");
+        clock.GetUtcNow().Should().BeOnOrAfter(modelInstant.AddHours(1), "the clock runs on from the announced instant");
+        await announcements.Writer.CompleteAsync();
     }
 
     [Fact]
