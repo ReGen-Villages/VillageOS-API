@@ -363,6 +363,22 @@ public class SubmissionEndpointTests
     }
 
     [Fact]
+    public async Task A_mailer_whose_own_timeout_elapses_is_answered_as_a_relay_that_is_not_working()
+    {
+        await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
+        factory.Mailer.Refuses = ElapsedClientTimeout.New();
+        using var client = factory.CreateClient();
+
+        var response = await AskForACodeAsync(client, AnasAddress);
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        (await RefusalReading.ReadAsync(response)).Code.Should().Be(RefusalCode.CodeSendingUnavailable);
+
+        factory.Mailer.Refuses = null;
+        (await AskForACodeAsync(client, AnasAddress)).StatusCode.Should().Be(HttpStatusCode.Accepted);
+    }
+
+    [Fact]
     public async Task Asking_to_verify_something_that_is_not_an_address_is_refused_by_name()
     {
         await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };

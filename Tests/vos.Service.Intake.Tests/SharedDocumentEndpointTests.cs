@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Services;
 using vos.Service.Intake.Models;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Intake.Tests;
@@ -273,5 +274,29 @@ public sealed class SharedDocumentEndpointTests : IDisposable
 
         forgotten.Should().Be(0);
         File.Exists(Path.Combine(_folder, WillowBend.SubmissionId, "kept.pdf")).Should().BeTrue();
+    }
+
+    // Read as the host stopping, the client's own timeout once ended the hourly pass for good.
+    [Fact]
+    public async Task The_hourly_pass_survives_a_broker_slower_than_the_clients_own_timeout()
+    {
+        var (factory, _) = Holding(runsTheReclaimPass: false);
+        await using var __ = factory;
+        Directory.CreateDirectory(Path.Combine(_folder, WillowBend.SubmissionId));
+        await File.WriteAllBytesAsync(Path.Combine(_folder, WillowBend.SubmissionId, "kept.pdf"), SomeBytes);
+        factory.HandlerCallback = _ => throw ElapsedClientTimeout.New();
+        var logger = new CapturingLogger<DocumentReclaimService>();
+        var pass = new DocumentReclaimService(factory.Services.GetRequiredService<SharedDocumentService>(), logger);
+
+        var started = pass.StartAsync(CancellationToken.None);
+        await Settle.UntilAsync(() => logger.Lines.Count > 0 || pass.ExecuteTask!.IsCompleted,
+            "the pass either logged the failed hour or ended");
+
+        pass.ExecuteTask!.IsCompleted.Should().BeFalse("the pass waits for the next hour rather than ending");
+        logger.Lines.Should().ContainSingle(line => line.Contains("could not be reclaimed this hour"));
+        File.Exists(Path.Combine(_folder, WillowBend.SubmissionId, "kept.pdf")).Should().BeTrue();
+
+        await started;
+        await pass.StopAsync(CancellationToken.None);
     }
 }
