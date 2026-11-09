@@ -299,7 +299,7 @@ try
         {
             await mailer.SendAsync(emailAddress, code, context.RequestAborted);
         }
-        catch (Exception error) when (error is not OperationCanceledException)
+        catch (Exception error) when (!context.RequestAborted.IsCancellationRequested)
         {
             // The address is a stranger's, so a server refusing it says nothing about this deployment
             // being unwell — but neither this service nor the submitter can tell the two apart, and what
