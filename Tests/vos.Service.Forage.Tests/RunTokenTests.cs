@@ -5,7 +5,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
 using FluentAssertions;
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Tests.Shared;
 using Xunit;
 using static vos.Service.Forage.Tests.ModelSnapshotStub;

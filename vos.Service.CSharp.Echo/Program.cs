@@ -1,4 +1,4 @@
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Service.CSharp.Echo.Services;
 using vos.Service.Shared;
 using vos.Service.Shared.Configuration;

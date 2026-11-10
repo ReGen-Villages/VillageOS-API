@@ -1,7 +1,7 @@
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text.Json;
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Service.Shared;
 
 namespace vos.Service.Feedback;

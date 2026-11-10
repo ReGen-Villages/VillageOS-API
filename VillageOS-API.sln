@@ -9,7 +9,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Tributary.Tests
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Delta.Tests", "Tests\vos.Service.Delta.Tests\vos.Service.Delta.Tests.csproj", "{D617BFB1-752C-47FF-BA32-5E59E143BCBF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Auth.Shared", "vos.Auth.Shared\vos.Auth.Shared.csproj", "{A1AC1C9F-596B-43A8-B5AF-0C95266C3668}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Auth", "vos.Service.Auth\vos.Service.Auth.csproj", "{A1AC1C9F-596B-43A8-B5AF-0C95266C3668}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Taproot.Tests", "vos.Taproot.Tests\vos.Taproot.Tests.csproj", "{3F6FB066-C4D9-45E2-B4E8-460BA8470050}"
 EndProject
@@ -29,7 +29,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Metabolism.Test
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Tests.Shared", "Tests\vos.Tests.Shared\vos.Tests.Shared.csproj", "{CAC180D0-F60C-4DE5-8227-C2496D746F49}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Auth.Shared.Tests", "Tests\vos.Auth.Shared.Tests\vos.Auth.Shared.Tests.csproj", "{6D281360-FE67-41D2-AE81-332CA1E415CE}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Auth.Tests", "Tests\vos.Service.Auth.Tests\vos.Service.Auth.Tests.csproj", "{6D281360-FE67-41D2-AE81-332CA1E415CE}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Shared.Tests", "Tests\vos.Service.Shared.Tests\vos.Service.Shared.Tests.csproj", "{806216F3-A0EA-4A1D-8D46-21CB73979E1B}"
 EndProject

@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\vos.Auth.Shared\vos.Auth.Shared.csproj" />
+    <ProjectReference Include="..\vos.Service.Auth\vos.Service.Auth.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -129,7 +129,7 @@ public class ShippedComponentsDeclareOneVersionTests
     //
     // VillageOS carries the same search, and that is where the gap was found. Neither repository can
     // reference the other: nothing is packed to a feed, and this one is public while that one
-    // is not. So a rule learned in one is applied to both by hand, the way vos.Auth.Shared is.
+    // is not. So a rule learned in one is applied to both by hand, the way the claim names in VosClaims are.
     private static IEnumerable<string> FilesUnderTheRepository(string pattern)
     {
         var root = RepositoryRoot.Find();

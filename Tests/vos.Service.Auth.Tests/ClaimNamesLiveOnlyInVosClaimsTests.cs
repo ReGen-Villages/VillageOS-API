@@ -2,7 +2,7 @@ using FluentAssertions;
 using vos.Tests.Shared;
 using Xunit;
 
-namespace vos.Auth.Shared.Tests;
+namespace vos.Service.Auth.Tests;
 
 // VosClaimsTests pins each name against the spelling Mycelium mints, and that pin is only worth
 // something while the running code reads the constant. Code that spells a claim itself keeps the old
@@ -10,7 +10,7 @@ namespace vos.Auth.Shared.Tests;
 public class ClaimNamesLiveOnlyInVosClaimsTests
 {
     private const string ClaimLiteral = "\"vos:";
-    private static readonly string Declaration = Path.Combine("vos.Auth.Shared", "VosClaims.cs");
+    private static readonly string Declaration = Path.Combine("vos.Service.Auth", "VosClaims.cs");
 
     [Fact]
     public void Production_code_reads_every_claim_name_from_VosClaims()

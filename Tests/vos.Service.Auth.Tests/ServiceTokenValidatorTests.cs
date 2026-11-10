@@ -5,11 +5,11 @@ using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.IdentityModel.Tokens;
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Tests.Shared;
 using Xunit;
 
-namespace vos.Auth.Shared.Tests;
+namespace vos.Service.Auth.Tests;
 
 public class ServiceTokenValidatorTests
 {

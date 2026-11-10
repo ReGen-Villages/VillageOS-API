@@ -1,5 +1,5 @@
 using System.Text.Json;
-using vos.Auth.Shared;
+using vos.Service.Auth;
 using vos.Service.Delta.Helpers;
 using vos.Service.Delta.Models;
 using vos.Service.Delta.Services;

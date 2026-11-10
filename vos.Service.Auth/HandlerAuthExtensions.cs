@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace vos.Auth.Shared;
+namespace vos.Service.Auth;
 
 // Adds Mycelium-signed JWT auth to handler minimal-API apps. The key arrives as the VerificationKey
 // setting from Mycelium at startup; it is the public half of Mycelium's signing pair.
