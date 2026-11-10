@@ -144,6 +144,26 @@ public class SubscriptionClientTests
     }
 
     [Fact]
+    public async Task SubscribeAsync_sends_the_property_values_under_the_name_the_broker_binds()
+    {
+        HttpRequestMessage? captured = null;
+        var body = $$"""
+        { "subscriptionId": "{{Guid.NewGuid()}}", "watermark": 1,
+          "snapshot": { "watermark": 1, "things": [], "relationships": [] } }
+        """;
+        var (client, _) = Build(req => { captured = req; return Json(body); });
+
+        await client.SubscribeAsync(new SubscriptionSelector
+        {
+            Types = ["Vessel"],
+            PropertyValues = new Dictionary<string, string> { ["code"] = "A1" },
+        });
+
+        var sent = await captured!.Content!.ReadAsStringAsync();
+        sent.Should().Contain("\"propertyValues\":{\"code\":\"A1\"}");
+    }
+
+    [Fact]
     public async Task SubscribeAsync_sends_the_relationship_rules_under_the_names_the_broker_binds()
     {
         // A field the broker does not bind is dropped silently, and the read then carries every relationship
