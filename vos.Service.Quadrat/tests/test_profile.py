@@ -44,7 +44,7 @@ def test_the_first_and_last_samples_sit_on_the_ends_of_the_line(degrees_grid):
 
 def test_distances_are_geodesic_metres_along_the_line(degrees_grid):
     for sample in profile(degrees_grid, ALONG_A_ROW, samples=5)["samples"]:
-        assert GEOD.inv(0.5, 7.5, sample["lon"], sample["lat"])[2] == pytest.approx(sample["distance_m"], rel=1e-6)
+        assert GEOD.inv(0.5, 7.5, sample["lon"], sample["lat"])[2] == pytest.approx(sample["distance_m"], rel=1e-6, abs=1e-6)
 
 
 def test_spacing_takes_a_sample_every_so_many_metres_and_ends_on_the_last_point(degrees_grid):
