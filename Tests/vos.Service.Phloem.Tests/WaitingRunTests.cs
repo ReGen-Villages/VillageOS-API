@@ -11,13 +11,13 @@ using Xunit;
 namespace vos.Service.Phloem.Tests;
 
 // A run pauses at a node that waits for a Thing to enter a state, and resumes from its record in the model
-// when the vigil placed for it is answered.
+// when the platform answers the node run's watch.
 public class WaitingRunTests
 {
     private static readonly RunSubject Plot = new(Guid.NewGuid(), "Plot 7");
 
     private static (TestGraphs.WaitingFixture Waiting, FakeGateway Gateway, PipelineExecutor Executor) Arrange(
-        TestGraphs.WaitingFixture? fixture = null, ILogger<PipelineExecutor>? log = null, TimeProvider? real = null)
+        TestGraphs.WaitingFixture? fixture = null, ILogger<PipelineExecutor>? log = null)
     {
         var waiting = fixture ?? TestGraphs.WaitingPipeline();
         var gateway = new FakeGateway(waiting.Fixture.Build())
@@ -29,25 +29,7 @@ public class WaitingRunTests
                 _ => NodeFail($"unexpected {subdomain}"),
             },
         };
-        return (waiting, gateway, new PipelineExecutor(gateway, log ?? NullLogger<PipelineExecutor>.Instance, new ModelClock(), real: real));
-    }
-
-    [Fact]
-    public async Task Placing_a_vigil_logs_how_long_it_took()
-    {
-        var log = new CapturingLogger<PipelineExecutor>();
-        var (waiting, _, executor) = Arrange(log: log);
-
-        var result = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
-
-        log.Lines.Should().ContainSingle(line => line.StartsWith("Placing a vigil", StringComparison.Ordinal))
-            .Which.Should().MatchRegex($@"^Placing a vigil for run {result.RunId} took \d+ ms$");
-    }
-
-    private static async Task<(Guid RunId, Guid VigilId)> WaitAsync(TestGraphs.WaitingFixture waiting, FakeGateway gateway, PipelineExecutor executor)
-    {
-        var result = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
-        return (result.RunId, gateway.HeldVigils[(result.RunId, waiting.Review.Id)]);
+        return (waiting, gateway, new PipelineExecutor(gateway, log ?? NullLogger<PipelineExecutor>.Instance, new ModelClock()));
     }
 
     [Fact]
@@ -62,10 +44,7 @@ public class WaitingRunTests
         gateway.Called.Should().Equal("review");
         gateway.Records[(result.RunId, waiting.Review.Id)].Status.Should().Be(RunStatus.Waiting);
         gateway.Records[(result.RunId, waiting.Review.Id)].Outputs["notice"].GetString().Should().Be("sent for review");
-        gateway.Awaited[(result.RunId, waiting.Review.Id)].Should().Be(Plot.Id);
-        var vigil = gateway.VigilsPlaced.Should().ContainSingle().Subject;
-        (vigil.SubjectId, vigil.RangeId).Should().Be((Plot.Id, waiting.Decided.Id));
-        gateway.HeldVigils[(result.RunId, waiting.Review.Id)].Should().Be(vigil.VigilId);
+        gateway.Watches[(result.RunId, waiting.Review.Id)].Should().Be(new Watch(Plot.Id, waiting.Decided.Id));
         gateway.Records.Should().NotContainKey((result.RunId, waiting.Publish.Id));
         gateway.StatusUpdates.Last().Should().Be(RunStatus.Waiting);
     }
@@ -90,7 +69,7 @@ public class WaitingRunTests
         var items = sortsPerItem ? JsonSerializer.SerializeToElement(new { items = new[] { "a" } }) : JsonSerializer.SerializeToElement(new { items = "a" });
         var waited = await executor.RunAsync(waiting.PipelineId, items, CancellationToken.None, subject: Plot);
 
-        await executor.ResumeAsync(gateway.HeldVigils[(waited.RunId, waiting.Review.Id)], CancellationToken.None);
+        await executor.ResumeAsync(waited.RunId, waiting.Review.Id, CancellationToken.None);
 
         var published = gateway.Envelopes.Last(sent => sent.Subdomain == "publish").Envelope.GetProperty("inputs").GetProperty("in");
         published.GetProperty("notice").GetString().Should().Be("sent for review");
@@ -114,7 +93,7 @@ public class WaitingRunTests
         var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
         var waited = await executor.RunAsync(waiting.PipelineId, JsonSerializer.SerializeToElement(new { items = new[] { "a", "b" } }), CancellationToken.None, subject: Plot);
 
-        await executor.ResumeAsync(gateway.HeldVigils[(waited.RunId, waiting.Review.Id)], CancellationToken.None);
+        await executor.ResumeAsync(waited.RunId, waiting.Review.Id, CancellationToken.None);
 
         JsonElement InputTo(string subdomain) => gateway.Envelopes.Last(sent => sent.Subdomain == subdomain).Envelope.GetProperty("inputs").GetProperty("in");
         InputTo("publish").GetProperty("sorted").GetRawText().Should().Be("[\"sorted a\"]");
@@ -138,7 +117,7 @@ public class WaitingRunTests
         var waited = await executor.RunAsync(waiting.PipelineId, JsonSerializer.SerializeToElement(new { items = new[] { "a", "b" } }), CancellationToken.None, subject: Plot);
         var recordedBeforeResuming = gateway.Called.Contains("record");
 
-        await executor.ResumeAsync(gateway.HeldVigils[(waited.RunId, waiting.Review.Id)], CancellationToken.None);
+        await executor.ResumeAsync(waited.RunId, waiting.Review.Id, CancellationToken.None);
 
         recordedBeforeResuming.Should().BeFalse();
         var recorded = gateway.Envelopes.Single(sent => sent.Subdomain == "record").Envelope;
@@ -147,19 +126,19 @@ public class WaitingRunTests
     }
 
     [Fact]
-    public async Task The_vigils_answer_resumes_the_run_from_its_record_without_calling_the_waiting_node_again()
+    public async Task An_answer_resumes_the_run_from_its_record_without_calling_the_waiting_node_again()
     {
         var (waiting, gateway, executor) = Arrange();
-        var (runId, vigilId) = await WaitAsync(waiting, gateway, executor);
+        var runId = await WaitingRunAsync(waiting, executor);
 
-        var outcome = await executor.ResumeAsync(vigilId, CancellationToken.None);
+        var outcome = await executor.ResumeAsync(runId, waiting.Review.Id, CancellationToken.None);
 
         outcome.Should().Be(ResumeOutcome.Resumed);
         gateway.Called.Should().Equal("review", "publish");
         gateway.Envelopes.Last().Envelope.GetProperty("inputs").GetProperty("in").GetString().Should().Be("sent for review");
         gateway.Records[(runId, waiting.Review.Id)].Status.Should().Be(RunStatus.Succeeded);
         gateway.Records[(runId, waiting.Publish.Id)].Status.Should().Be(RunStatus.Succeeded);
-        gateway.Awaited.Should().NotContainKey((runId, waiting.Review.Id));
+        gateway.Watches.Should().NotContainKey((runId, waiting.Review.Id));
         gateway.StatusUpdates.Last().Should().Be(RunStatus.Succeeded);
     }
 
@@ -167,17 +146,17 @@ public class WaitingRunTests
     public async Task A_resumed_run_reads_its_parameters_back_from_the_record()
     {
         var (waiting, gateway, executor) = Arrange();
-        var (runId, vigilId) = await WaitAsync(waiting, gateway, executor);
+        var runId = await WaitingRunAsync(waiting, executor);
         var resumed = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
 
-        await resumed.ResumeAsync(vigilId, CancellationToken.None);
+        await resumed.ResumeAsync(runId, waiting.Review.Id, CancellationToken.None);
 
         gateway.Runs[runId].Parameters.GetProperty(PipelineExecutor.SubjectParam).GetProperty("name").GetString().Should().Be("Plot 7");
         gateway.Records[(runId, waiting.Publish.Id)].Status.Should().Be(RunStatus.Succeeded);
     }
 
     [Fact]
-    public async Task Waits_in_parallel_branches_each_hold_a_vigil_and_the_run_ends_only_when_both_are_answered()
+    public async Task Waits_in_parallel_branches_each_hold_a_watch_and_the_run_ends_only_when_both_are_answered()
     {
         var (waiting, gateway, executor) = Arrange(TestGraphs.WaitingPipeline(approvedBeside: true));
         gateway.OnCall = (subdomain, envelope) => subdomain switch
@@ -189,28 +168,29 @@ public class WaitingRunTests
         var approve = waiting.Fixture.Get("Approve");
 
         var result = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
-        gateway.VigilsPlaced.Select(vigil => vigil.RangeId).Should().BeEquivalentTo([waiting.Decided.Id, waiting.Fixture.Get("approved").Id]);
+        gateway.Watches.Values.Select(watch => watch.RangeId).Should().BeEquivalentTo([waiting.Decided.Id, waiting.Fixture.Get("approved").Id]);
 
-        await executor.ResumeAsync(gateway.HeldVigils[(result.RunId, waiting.Review.Id)], CancellationToken.None);
+        await executor.ResumeAsync(result.RunId, waiting.Review.Id, CancellationToken.None);
         gateway.Called.Should().Contain("publish");
         gateway.StatusUpdates.Last().Should().Be(RunStatus.Waiting);
 
-        await executor.ResumeAsync(gateway.HeldVigils[(result.RunId, approve.Id)], CancellationToken.None);
+        await executor.ResumeAsync(result.RunId, approve.Id, CancellationToken.None);
         gateway.Records[(result.RunId, approve.Id)].Status.Should().Be(RunStatus.Succeeded);
         gateway.StatusUpdates.Last().Should().Be(RunStatus.Succeeded);
-        gateway.VigilsPlaced.Should().HaveCount(2);
+        gateway.WatchWrites.Where(write => write.Status == RunStatus.Waiting).Should().HaveCount(2);
+        gateway.Watches.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task A_second_answer_to_the_same_vigil_resumes_nothing()
+    public async Task Resuming_a_wait_already_resumed_finds_nothing_waiting()
     {
         var (waiting, gateway, executor) = Arrange();
-        var (_, vigilId) = await WaitAsync(waiting, gateway, executor);
-        await executor.ResumeAsync(vigilId, CancellationToken.None);
+        var runId = await WaitingRunAsync(waiting, executor);
+        await executor.ResumeAsync(runId, waiting.Review.Id, CancellationToken.None);
 
-        var again = await executor.ResumeAsync(vigilId, CancellationToken.None);
+        var again = await executor.ResumeAsync(runId, waiting.Review.Id, CancellationToken.None);
 
-        again.Should().Be(ResumeOutcome.AlreadyResumed);
+        again.Should().Be(ResumeOutcome.NothingWaiting);
         gateway.Called.Should().Equal("review", "publish");
     }
 
@@ -218,71 +198,12 @@ public class WaitingRunTests
     public async Task Two_answers_arriving_together_resume_the_run_once()
     {
         var (waiting, gateway, executor) = Arrange();
-        var (_, vigilId) = await WaitAsync(waiting, gateway, executor);
+        var runId = await WaitingRunAsync(waiting, executor);
 
-        var outcomes = await Task.WhenAll(executor.ResumeAsync(vigilId, CancellationToken.None), executor.ResumeAsync(vigilId, CancellationToken.None));
+        var outcomes = await Task.WhenAll(executor.ResumeAsync(runId, waiting.Review.Id, CancellationToken.None),
+            executor.ResumeAsync(runId, waiting.Review.Id, CancellationToken.None));
 
-        outcomes.Should().BeEquivalentTo([ResumeOutcome.Resumed, ResumeOutcome.AlreadyResumed]);
-        gateway.Called.Should().Equal("review", "publish");
-    }
-
-    [Fact]
-    public async Task A_start_is_told_apart_from_a_vigil_answer_while_a_vigil_placement_is_stalled()
-    {
-        var (waiting, gateway, executor) = Arrange();
-        var stalled = new TaskCompletionSource();
-        gateway.PlacementHeldUntil = stalled.Task;
-        var pausing = executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
-        await Settle.UntilAsync(() => gateway.PlacementStarted, "the run starts placing its vigil");
-
-        var checking = executor.TakesAsAVigilAnswerAsync(Guid.NewGuid(), new AnswerTimings(), CancellationToken.None);
-
-        await Settle.ForAsync(checking, "a start is checked without waiting for the stalled placement");
-        (await checking).Should().BeFalse();
-        stalled.SetResult();
-        await pausing;
-    }
-
-    // The broker answers a vigil over a Thing already in its state from inside the placement, before Phloem has the
-    // vigil's identifier, and waits for Phloem's reply.
-    [Fact]
-    public async Task An_answer_sent_from_inside_the_placement_is_replied_to_before_the_placement_returns_and_resumes_the_run()
-    {
-        var (waiting, gateway, executor) = Arrange();
-        var repliedInTime = false;
-        var taken = false;
-        gateway.OnVigilPlaced = vigilId =>
-        {
-            var answering = executor.TakesAsAVigilAnswerAsync(vigilId, new AnswerTimings(), CancellationToken.None);
-            repliedInTime = answering.Wait(Settle.Ceiling);
-            taken = repliedInTime && answering.Result;
-        };
-
-        var paused = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
-
-        paused.Error.Should().Be("The run waits for 'Plot 7' to enter 'decided' at 'Review'.");
-        repliedInTime.Should().BeTrue();
-        taken.Should().BeTrue();
-        await Settle.UntilAsync(() => gateway.StatusUpdates.LastOrDefault() == RunStatus.Succeeded, "the placement resumes the run it answered early");
-        gateway.Called.Should().Equal("review", "publish");
-    }
-
-    [Fact]
-    public async Task An_answer_whose_node_run_is_related_to_the_vigil_just_after_it_looked_resumes_the_run()
-    {
-        var (waiting, gateway, executor) = Arrange();
-        var (runId, vigilId) = await WaitAsync(waiting, gateway, executor);
-        gateway.HeldVigils.Remove((runId, waiting.Review.Id));
-        gateway.OnVigilLookedUp = _ =>
-        {
-            gateway.OnVigilLookedUp = _ => { };
-            gateway.HeldVigils[(runId, waiting.Review.Id)] = vigilId;
-        };
-
-        var taken = await executor.TakesAsAVigilAnswerAsync(vigilId, new AnswerTimings(), CancellationToken.None);
-
-        taken.Should().BeTrue();
-        await Settle.UntilAsync(() => gateway.StatusUpdates.LastOrDefault() == RunStatus.Succeeded, "the answer resumes the run once it finds it");
+        outcomes.Should().BeEquivalentTo([ResumeOutcome.Resumed, ResumeOutcome.NothingWaiting]);
         gateway.Called.Should().Equal("review", "publish");
     }
 
@@ -291,51 +212,25 @@ public class WaitingRunTests
     {
         var log = new CapturingLogger<PipelineExecutor>();
         var (waiting, gateway, executor) = Arrange(log: log);
-        var (_, vigilId) = await WaitAsync(waiting, gateway, executor);
+        var runId = await WaitingRunAsync(waiting, executor);
+        var nodeRunId = gateway.NodeRunIdOf(runId, waiting.Review.Id);
         gateway.RecordReadFailure = new HttpRequestException("broker unavailable");
 
-        var taken = await executor.TakesAsAVigilAnswerAsync(vigilId, new AnswerTimings(), CancellationToken.None);
+        var taken = await executor.TakesAsAnAnswerAsync(nodeRunId, new AnswerTimings(), CancellationToken.None);
 
         taken.Should().BeTrue();
-        await Settle.UntilAsync(() => log.Lines.Any(line => line.StartsWith($"Resuming the run waiting on vigil {vigilId} failed", StringComparison.Ordinal)),
+        await Settle.UntilAsync(() => log.Lines.Any(line => line.StartsWith($"Resuming run {runId} from node run {nodeRunId} failed", StringComparison.Ordinal)),
             "the failed resume is logged");
     }
 
     [Fact]
-    public async Task An_answer_no_placement_claims_is_let_go_after_the_broker_would_have_given_up()
-    {
-        var log = new CapturingLogger<PipelineExecutor>();
-        var real = new MovableClock();
-        var (waiting, gateway, executor) = Arrange(log: log, real: real);
-        var (_, vigilId) = await WaitAsync(waiting, gateway, executor);
-        var (_, laterVigilId) = await WaitAsync(waiting, gateway, executor);
-        gateway.HeldVigils.Clear();
-
-        await executor.TakesAsAVigilAnswerAsync(vigilId, new AnswerTimings(), CancellationToken.None);
-        real.Advance(TimeSpan.FromSeconds(16));
-        await executor.TakesAsAVigilAnswerAsync(laterVigilId, new AnswerTimings(), CancellationToken.None);
-
-        log.Lines.Should().ContainSingle(line => line.StartsWith("No placement claimed", StringComparison.Ordinal))
-            .Which.Should().Be($"No placement claimed the answer to vigil {vigilId} within 15 s, so it resumes nothing");
-        gateway.Called.Should().Equal("review", "review");
-    }
-
-    private sealed class MovableClock : TimeProvider
-    {
-        private long _timestamp;
-        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
-        public override long GetTimestamp() => _timestamp;
-        public void Advance(TimeSpan by) => _timestamp += by.Ticks;
-    }
-
-    [Fact]
-    public async Task A_vigil_no_node_run_holds_resumes_nothing()
+    public async Task Resuming_a_run_the_model_does_not_hold_finds_nothing_waiting()
     {
         var (_, gateway, executor) = Arrange();
 
-        var outcome = await executor.ResumeAsync(Guid.NewGuid(), CancellationToken.None);
+        var outcome = await executor.ResumeAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
-        outcome.Should().Be(ResumeOutcome.NotHeld);
+        outcome.Should().Be(ResumeOutcome.NothingWaiting);
         gateway.Called.Should().BeEmpty();
     }
 
@@ -343,11 +238,11 @@ public class WaitingRunTests
     public async Task A_record_missing_on_resume_fails_the_run_naming_the_node_and_calls_nothing_again()
     {
         var (waiting, gateway, executor) = Arrange();
-        var (runId, vigilId) = await WaitAsync(waiting, gateway, executor);
+        var runId = await WaitingRunAsync(waiting, executor);
         var start = waiting.Fixture.Get("A submission arrives");
         gateway.Records.Remove((runId, start.Id));
 
-        var outcome = await executor.ResumeAsync(vigilId, CancellationToken.None);
+        var outcome = await executor.ResumeAsync(runId, waiting.Review.Id, CancellationToken.None);
 
         outcome.Should().Be(ResumeOutcome.Resumed);
         gateway.Called.Should().Equal("review");
@@ -356,7 +251,7 @@ public class WaitingRunTests
     }
 
     [Fact]
-    public async Task A_record_a_best_effort_write_left_missing_is_written_again_before_the_vigil()
+    public async Task A_record_a_best_effort_write_left_missing_is_written_again_with_its_watch()
     {
         var waiting = TestGraphs.WaitingPipeline();
         var (_, gateway, executor) = Arrange(waiting);
@@ -367,11 +262,11 @@ public class WaitingRunTests
         var result = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
 
         gateway.Records[(result.RunId, waiting.Review.Id)].Status.Should().Be(RunStatus.Waiting);
-        gateway.VigilsPlaced.Should().ContainSingle();
+        gateway.Watches[(result.RunId, waiting.Review.Id)].Should().Be(new Watch(Plot.Id, waiting.Decided.Id));
     }
 
     [Fact]
-    public async Task A_record_that_cannot_be_written_fails_the_node_and_places_no_vigil()
+    public async Task A_waiting_record_that_cannot_be_written_fails_the_node_with_the_reason_and_leaves_no_watch()
     {
         var waiting = TestGraphs.WaitingPipeline();
         var (_, gateway, executor) = Arrange(waiting);
@@ -380,10 +275,10 @@ public class WaitingRunTests
         var result = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
 
         result.Success.Should().BeFalse();
-        gateway.VigilsPlaced.Should().BeEmpty();
+        gateway.Watches.Should().BeEmpty();
         var review = result.Nodes.Single(node => node.Name == "Review");
         review.Status.Should().Be(RunStatus.Failed);
-        review.Error.Should().Be("The record of 'Review' could not be written to the model, so the run could not resume from it.");
+        review.Error.Should().Be("'Review' cannot wait: the model refused the write");
         gateway.StatusUpdates.Last().Should().Be(RunStatus.Failed);
     }
 
@@ -397,48 +292,17 @@ public class WaitingRunTests
         gateway.Called.Should().BeEmpty();
         result.Nodes.Single(node => node.Name == "Review").Error
             .Should().Be("'Review' waits for the Thing reaching its port 'submission', but what reached it names no Thing.");
-        gateway.VigilsPlaced.Should().BeEmpty();
+        gateway.Watches.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task A_vigil_the_platform_refuses_fails_the_node_with_its_reason()
+    public async Task A_restarted_orchestrator_fails_a_wait_whose_Thing_neither_its_watch_nor_its_port_names()
     {
         var (waiting, gateway, executor) = Arrange();
-        gateway.PlacementRefusal = "Range 'decided' does not judge 'Plot 7'";
-
-        var result = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
-
-        var review = result.Nodes.Single(node => node.Name == "Review");
-        review.Status.Should().Be(RunStatus.Failed);
-        review.Error.Should().Be("'Review' cannot wait: the platform refused its vigil: Range 'decided' does not judge 'Plot 7'");
-        gateway.StatusUpdates.Last().Should().Be(RunStatus.Failed);
-    }
-
-    [Fact]
-    public async Task A_restarted_orchestrator_places_a_vigil_again_for_a_wait_whose_vigil_is_gone_and_leaves_a_live_one_alone()
-    {
-        var (waiting, gateway, executor) = Arrange();
-        var (gone, goneVigil) = await WaitAsync(waiting, gateway, executor);
-        var (kept, keptVigil) = await WaitAsync(waiting, gateway, executor);
-        gateway.LiveVigils.Remove(goneVigil);
-        var restarted = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock());
-
-        var placedAgain = await restarted.RecoverWaitsAsync(CancellationToken.None);
-
-        placedAgain.Should().Be(1);
-        var replacement = gateway.VigilsPlaced.Last();
-        (replacement.SubjectId, replacement.RangeId).Should().Be((Plot.Id, waiting.Decided.Id));
-        gateway.HeldVigils[(gone, waiting.Review.Id)].Should().Be(replacement.VigilId);
-        gateway.HeldVigils[(kept, waiting.Review.Id)].Should().Be(keptVigil);
-    }
-
-    [Fact]
-    public async Task A_restarted_orchestrator_fails_a_wait_whose_Thing_is_no_longer_named()
-    {
-        var (waiting, gateway, executor) = Arrange();
-        var (runId, vigilId) = await WaitAsync(waiting, gateway, executor);
-        gateway.LiveVigils.Remove(vigilId);
-        gateway.Awaited.Remove((runId, waiting.Review.Id));
+        var runId = await WaitingRunAsync(waiting, executor);
+        gateway.Watches[(runId, waiting.Review.Id)] = new Watch(null, waiting.Decided.Id);
+        var start = waiting.Fixture.Get("A submission arrives");
+        gateway.Records[(runId, start.Id)] = gateway.Records[(runId, start.Id)] with { Outputs = new Dictionary<string, JsonElement>() };
 
         await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
 
@@ -448,13 +312,13 @@ public class WaitingRunTests
     }
 
     [Fact]
-    public async Task A_pipeline_that_cannot_be_loaded_when_its_vigil_is_answered_fails_the_run_with_the_reason()
+    public async Task A_pipeline_that_cannot_be_loaded_when_its_wait_is_answered_fails_the_run_with_the_reason()
     {
         var (waiting, gateway, executor) = Arrange();
-        var (_, vigilId) = await WaitAsync(waiting, gateway, executor);
+        var runId = await WaitingRunAsync(waiting, executor);
         gateway.LoadFailure = new PipelineModelException("Node 'Review' waits for two states, so no one answer could resume it.");
 
-        var outcome = await executor.ResumeAsync(vigilId, CancellationToken.None);
+        var outcome = await executor.ResumeAsync(runId, waiting.Review.Id, CancellationToken.None);
 
         outcome.Should().Be(ResumeOutcome.Resumed);
         gateway.Called.Should().Equal("review");
@@ -466,8 +330,8 @@ public class WaitingRunTests
     public async Task A_restarted_orchestrator_fails_a_wait_whose_node_no_longer_waits()
     {
         var (waiting, gateway, executor) = Arrange();
-        var (runId, vigilId) = await WaitAsync(waiting, gateway, executor);
-        gateway.LiveVigils.Remove(vigilId);
+        var runId = await WaitingRunAsync(waiting, executor);
+        gateway.Watches[(runId, waiting.Review.Id)] = new Watch(Plot.Id, null);
         waiting.Fixture.Unrelate(waiting.Review, waiting.ProvenBy, waiting.Decided);
         waiting.Fixture.Unrelate(waiting.Review, waiting.AwaitsThrough, waiting.Submission);
         gateway.Graph = waiting.Fixture.Build();
@@ -476,15 +340,15 @@ public class WaitingRunTests
 
         gateway.Records[(runId, waiting.Review.Id)].Status.Should().Be(RunStatus.Failed);
         gateway.RunError.Should().Be("'Review' no longer waits for a state, so nothing could resume it.");
-        gateway.VigilsPlaced.Should().ContainSingle();
+        gateway.Watches.Should().BeEmpty();
     }
 
     [Fact]
     public async Task A_restarted_orchestrator_fails_a_wait_whose_pipeline_no_longer_loads_with_the_reason()
     {
         var (waiting, gateway, executor) = Arrange();
-        var (runId, vigilId) = await WaitAsync(waiting, gateway, executor);
-        gateway.LiveVigils.Remove(vigilId);
+        var runId = await WaitingRunAsync(waiting, executor);
+        gateway.Watches[(runId, waiting.Review.Id)] = new Watch(Plot.Id, null);
         gateway.LoadFailure = new PipelineModelException("Node 'Review' chose two Things for its port 'submission'.");
 
         await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
@@ -494,35 +358,7 @@ public class WaitingRunTests
     }
 
     [Fact]
-    public async Task A_restarted_orchestrator_fails_a_wait_whose_vigil_the_platform_refuses_to_place_again()
-    {
-        var (waiting, gateway, executor) = Arrange();
-        var (runId, vigilId) = await WaitAsync(waiting, gateway, executor);
-        gateway.LiveVigils.Remove(vigilId);
-        gateway.PlacementRefusal = "Range 'decided' does not judge 'Plot 7'";
-
-        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
-
-        gateway.Records[(runId, waiting.Review.Id)].Status.Should().Be(RunStatus.Failed);
-        gateway.RunError.Should().Be("'Review' cannot wait: the platform refused its vigil: Range 'decided' does not judge 'Plot 7'");
-    }
-
-    [Fact]
-    public async Task A_vigil_whose_placing_throws_fails_the_node_with_the_reason()
-    {
-        var (waiting, gateway, executor) = Arrange();
-        gateway.PlacementFailure = new HttpRequestException("the broker is away");
-
-        var result = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
-
-        var review = result.Nodes.Single(node => node.Name == "Review");
-        review.Status.Should().Be(RunStatus.Failed);
-        review.Error.Should().Be("'Review' cannot wait: its vigil could not be placed: the broker is away");
-        gateway.StatusUpdates.Last().Should().Be(RunStatus.Failed);
-    }
-
-    [Fact]
-    public async Task A_record_that_cannot_be_read_back_is_written_again_in_full_and_then_fails_the_waiting_node_rather_than_placing_a_vigil()
+    public async Task A_record_that_cannot_be_read_back_is_written_again_in_full_and_then_fails_the_waiting_node_retracting_its_watch()
     {
         var (waiting, gateway, executor) = Arrange();
         gateway.RecordReadFailure = new HttpRequestException("the broker is away");
@@ -532,8 +368,194 @@ public class WaitingRunTests
         gateway.NodeRunsPersisted.Where(node => node.Name == "Review" && node.Status == RunStatus.Waiting).Should().HaveCount(2);
         result.Nodes.Single(node => node.Name == "Review").Error
             .Should().Be("The record of 'Review' could not be written to the model, so the run could not resume from it.");
-        gateway.VigilsPlaced.Should().BeEmpty();
+        gateway.Watches.Should().BeEmpty();
         gateway.StatusUpdates.Last().Should().Be(RunStatus.Failed);
+    }
+
+    private static async Task<Guid> WaitingRunAsync(TestGraphs.WaitingFixture waiting, PipelineExecutor executor) =>
+        (await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot)).RunId;
+
+    [Fact]
+    public async Task A_node_that_waits_writes_its_waiting_status_and_both_relationships_of_its_watch_in_one_write()
+    {
+        var (waiting, gateway, executor) = Arrange();
+
+        var runId = await WaitingRunAsync(waiting, executor);
+
+        gateway.NodeRunsPersisted.Where(node => node.Name == "Review" && node.Status == RunStatus.Waiting).Should().ContainSingle();
+        gateway.WatchWrites.Should().Equal(("Review", RunStatus.Waiting, new Watch(Plot.Id, waiting.Decided.Id)));
+        gateway.Watches[(runId, waiting.Review.Id)].Should().Be(new Watch(Plot.Id, waiting.Decided.Id));
+    }
+
+    [Fact]
+    public async Task An_answer_naming_the_node_run_resumes_the_run_and_ends_the_wait_in_one_write()
+    {
+        var (waiting, gateway, executor) = Arrange();
+        var runId = await WaitingRunAsync(waiting, executor);
+
+        var taken = await executor.TakesAsAnAnswerAsync(gateway.NodeRunIdOf(runId, waiting.Review.Id), new AnswerTimings(), CancellationToken.None);
+
+        taken.Should().BeTrue();
+        await Settle.UntilAsync(() => gateway.RunStatusOf(runId) == RunStatus.Succeeded, "the answer resumes the run");
+        gateway.Called.Should().Equal("review", "publish");
+        gateway.ResumesWritten.Should().Equal((runId, waiting.Review.Id));
+        gateway.WatchWrites.Last().Should().Be(("Review", RunStatus.Succeeded, new Watch(Plot.Id, waiting.Decided.Id)));
+        gateway.NodeRunsPersisted.Where(node => node.Name == "Review" && node.Status == RunStatus.Succeeded).Should().ContainSingle();
+        gateway.Watches.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_Thing_that_is_not_a_node_run_is_not_taken_for_an_answer()
+    {
+        var (_, _, executor) = Arrange();
+
+        (await executor.TakesAsAnAnswerAsync(Plot.Id, new AnswerTimings(), CancellationToken.None)).Should().BeFalse();
+    }
+
+    // The platform answers a Thing already in the range as the watch commits, while the sweep that wrote it still holds the run.
+    [Fact]
+    public async Task An_answer_arriving_while_the_placing_sweep_holds_the_run_resumes_it_once_that_sweep_ends()
+    {
+        var (waiting, gateway, executor) = Arrange();
+        Task<bool>? answering = null;
+        gateway.OnWatchPlaced = nodeRunId => answering ??= executor.TakesAsAnAnswerAsync(nodeRunId, new AnswerTimings(), CancellationToken.None);
+
+        var paused = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
+
+        paused.Error.Should().Be("The run waits for 'Plot 7' to enter 'decided' at 'Review'.");
+        answering.Should().NotBeNull();
+        (await answering!).Should().BeTrue();
+        await Settle.UntilAsync(() => gateway.RunStatusOf(paused.RunId) == RunStatus.Succeeded, "the early answer resumes the run");
+        gateway.StatusUpdates.Should().ContainInOrder(RunStatus.Waiting, RunStatus.Running, RunStatus.Succeeded);
+        gateway.Called.Should().Equal("review", "publish");
+        gateway.ResumesWritten.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task A_second_answer_to_the_same_wait_resumes_nothing()
+    {
+        var (waiting, gateway, executor) = Arrange();
+        var runId = await WaitingRunAsync(waiting, executor);
+        var nodeRunId = gateway.NodeRunIdOf(runId, waiting.Review.Id);
+
+        await executor.TakesAsAnAnswerAsync(nodeRunId, new AnswerTimings(), CancellationToken.None);
+        await executor.TakesAsAnAnswerAsync(nodeRunId, new AnswerTimings(), CancellationToken.None);
+
+        await Settle.UntilAsync(() => gateway.RunStatusOf(runId) == RunStatus.Succeeded, "the first answer resumes the run");
+        await executor.TakesAsAnAnswerAsync(nodeRunId, new AnswerTimings(), CancellationToken.None);
+        gateway.Called.Should().Equal("review", "publish");
+        gateway.ResumesWritten.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task A_sweep_another_branch_ends_early_retracts_the_watch_of_its_waiting_node_in_that_nodes_own_write()
+    {
+        var (waiting, gateway, executor) = Arrange(TestGraphs.WaitingPipeline(approvedBeside: true));
+        var approve = waiting.Fixture.Get("Approve");
+        gateway.OnCall = (subdomain, _) => subdomain switch
+        {
+            "review" => NodeOk(("notice", "sent for review")),
+            _ => NodeFail($"{subdomain} is away"),
+        };
+
+        var result = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
+
+        result.Success.Should().BeFalse();
+        var ended = gateway.WatchWrites.Where(write => write.Name == "Review" && write.Status != RunStatus.Waiting).Should().ContainSingle().Subject;
+        ended.Watch.Should().Be(new Watch(Plot.Id, waiting.Decided.Id));
+        gateway.Records[(result.RunId, waiting.Review.Id)].Status.Should().Be(ended.Status);
+        gateway.Watches.Should().BeEmpty();
+        gateway.Records[(result.RunId, approve.Id)].Status.Should().Be(RunStatus.Failed);
+    }
+
+    [Fact]
+    public async Task A_watch_the_platform_refuses_fails_the_node_with_its_reason()
+    {
+        var (waiting, gateway, executor) = Arrange();
+        gateway.WatchRefusal = "Range 'decided' does not judge 'Plot 7'";
+
+        var result = await executor.RunAsync(waiting.PipelineId, default, CancellationToken.None, subject: Plot);
+
+        var review = result.Nodes.Single(node => node.Name == "Review");
+        review.Status.Should().Be(RunStatus.Failed);
+        review.Error.Should().Be("'Review' cannot wait: Range 'decided' does not judge 'Plot 7'");
+        gateway.Watches.Should().BeEmpty();
+        gateway.StatusUpdates.Last().Should().Be(RunStatus.Failed);
+    }
+
+    [Fact]
+    public async Task A_restarted_orchestrator_resumes_a_waiting_node_run_whose_answer_the_platform_already_holds_as_done()
+    {
+        var (waiting, gateway, executor) = Arrange();
+        var runId = await WaitingRunAsync(waiting, executor);
+        gateway.Answers[(runId, waiting.Review.Id)] = WaitAnswer.Done;
+
+        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
+
+        gateway.Called.Should().Equal("review", "publish");
+        gateway.Records[(runId, waiting.Review.Id)].Status.Should().Be(RunStatus.Succeeded);
+        gateway.RunStatusOf(runId).Should().Be(RunStatus.Succeeded);
+    }
+
+    [Fact]
+    public async Task A_restarted_orchestrator_leaves_a_wait_alone_while_the_platform_is_still_answering_it()
+    {
+        var (waiting, gateway, executor) = Arrange();
+        var runId = await WaitingRunAsync(waiting, executor);
+        gateway.Answers[(runId, waiting.Review.Id)] = WaitAnswer.Underway;
+        var writesBefore = gateway.NodeRunsPersisted.Count;
+
+        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
+
+        gateway.Called.Should().Equal("review");
+        gateway.NodeRunsPersisted.Should().HaveCount(writesBefore);
+        gateway.RunStatusOf(runId).Should().Be(RunStatus.Waiting);
+    }
+
+    [Fact]
+    public async Task A_restarted_orchestrator_leaves_a_whole_unanswered_watch_alone()
+    {
+        var (waiting, gateway, executor) = Arrange();
+        await WaitingRunAsync(waiting, executor);
+        var writesBefore = gateway.NodeRunsPersisted.Count;
+
+        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
+
+        gateway.NodeRunsPersisted.Should().HaveCount(writesBefore);
+    }
+
+    // A model copied from elsewhere can arrive without a relationship to a Thing the copy did not carry.
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    public async Task A_restarted_orchestrator_writes_a_watch_missing_a_relationship_again_reading_the_awaited_Thing_from_its_port(bool keepsAwaits, bool keepsWatches)
+    {
+        var (waiting, gateway, executor) = Arrange();
+        var runId = await WaitingRunAsync(waiting, executor);
+        gateway.Watches[(runId, waiting.Review.Id)] = new Watch(keepsAwaits ? Plot.Id : null, keepsWatches ? waiting.Decided.Id : null);
+
+        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
+
+        gateway.Watches[(runId, waiting.Review.Id)].Should().Be(new Watch(Plot.Id, waiting.Decided.Id));
+        gateway.WatchWrites.Last().Should().Be(("Review", RunStatus.Waiting, new Watch(Plot.Id, waiting.Decided.Id)));
+        gateway.Records[(runId, waiting.Review.Id)].Status.Should().Be(RunStatus.Waiting);
+        gateway.Called.Should().Equal("review");
+    }
+
+    [Fact]
+    public async Task A_restarted_orchestrator_fails_a_wait_it_cannot_watch_again_with_the_platforms_reason()
+    {
+        var (waiting, gateway, executor) = Arrange();
+        var runId = await WaitingRunAsync(waiting, executor);
+        gateway.Watches[(runId, waiting.Review.Id)] = new Watch(null, waiting.Decided.Id);
+        gateway.WatchRefusal = "No Thing 'Plot 7' in the model";
+
+        await new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
+
+        gateway.Records[(runId, waiting.Review.Id)].Status.Should().Be(RunStatus.Failed);
+        gateway.RunError.Should().Be("'Review' cannot wait: No Thing 'Plot 7' in the model");
+        gateway.Watches.Should().BeEmpty();
     }
 
     private static NodeCallResult NodeOk(params (string Port, string Value)[] outputs) =>
