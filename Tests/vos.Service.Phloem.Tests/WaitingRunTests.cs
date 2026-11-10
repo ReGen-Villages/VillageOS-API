@@ -544,6 +544,26 @@ public class WaitingRunTests
     }
 
     [Fact]
+    public async Task A_restarted_orchestrator_fails_a_wait_whose_wire_into_it_no_longer_reads_and_goes_on_to_the_next()
+    {
+        var log = new CapturingLogger<PipelineExecutor>();
+        var (waiting, gateway, executor) = Arrange(log: log);
+        var broken = await WaitingRunAsync(waiting, executor);
+        var answered = await WaitingRunAsync(waiting, executor);
+        gateway.Watches[(broken, waiting.Review.Id)] = new Watch(null, waiting.Decided.Id);
+        gateway.Answers[(answered, waiting.Review.Id)] = WaitAnswer.Done;
+        waiting.Fixture.State(waiting.Fixture.WireInto(waiting.Review), ModelNames.ListTransform, "$error('the wire no longer reads')");
+        gateway.Graph = waiting.Fixture.Build();
+
+        await new PipelineExecutor(gateway, log, new ModelClock()).RecoverWaitsAsync(CancellationToken.None);
+
+        gateway.Records[(broken, waiting.Review.Id)].Status.Should().Be(RunStatus.Failed);
+        gateway.Records[(broken, waiting.Review.Id)].Error.Should().Be("'Review' waited for a Thing the model no longer names, so nothing could resume it.");
+        log.Lines.Should().Contain(line => line.StartsWith($"Could not read the Thing reaching 'Review' in run {broken}", StringComparison.Ordinal));
+        gateway.RunStatusOf(answered).Should().NotBe(RunStatus.Waiting);
+    }
+
+    [Fact]
     public async Task A_restarted_orchestrator_fails_a_wait_it_cannot_watch_again_with_the_platforms_reason()
     {
         var (waiting, gateway, executor) = Arrange();

@@ -253,7 +253,6 @@ internal sealed class FakeGateway : IMyceliumGateway
         }
     }
 
-    // The two relationships each node run holds, and the platform's answer to each wait as a test sets it.
     public Dictionary<(Guid RunId, Guid NodeId), Watch> Watches { get; } = new();
     public Dictionary<(Guid RunId, Guid NodeId), WaitAnswer> Answers { get; } = new();
     public List<(string Name, string Status, Watch Watch)> WatchWrites { get; } = new();
@@ -298,13 +297,10 @@ internal sealed class FakeGateway : IMyceliumGateway
         return Task.CompletedTask;
     }
 
-    public List<Guid> NodeRunsLookedUp { get; } = new();
-
     public Task<HeldNodeRun?> NodeRunAsync(Guid thingId, CancellationToken ct)
     {
         lock (_model)
         {
-            NodeRunsLookedUp.Add(thingId);
             return Task.FromResult(_nodeRuns.TryGetValue(thingId, out var key) && Records.ContainsKey(key) ? new HeldNodeRun(key.RunId, key.NodeId) : null);
         }
     }

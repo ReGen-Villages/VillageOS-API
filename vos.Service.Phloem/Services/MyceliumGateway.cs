@@ -239,7 +239,6 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway, IAsy
         return changed;
     }
 
-    // The two relationships of a watch, to write with a waiting status or to retract with any other.
     private async Task<(IReadOnlyList<(Guid Subject, Guid Predicate, Guid Target)> Written, IReadOnlyList<(Guid Subject, Guid Predicate, Guid Target)> Retracted)>
         WatchEdgesAsync(Guid nodeRunId, string status, Watch? watch, CancellationToken cancellationToken)
     {
