@@ -35,6 +35,9 @@ PORTS = [
     Port.input("bbox", "array"),
     Port.input("geometry", "object"),
     Port.input("classes", "array"),
+    Port.input("line", "object"),
+    Port.input("spacing", "number"),
+    Port.input("samples", "number"),
     Port.output("result", "object"),
 ]
 

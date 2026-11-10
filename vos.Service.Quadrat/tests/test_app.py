@@ -324,7 +324,7 @@ def test_the_manifest_says_quadrat_rehearses_since_it_writes_nothing_but_its_ans
 def test_the_manifest_lists_the_node_settings_with_their_allowed_values(client):
     settings = client.get("/manifest").json()["settings"]
     assert settings == [
-        {"name": "operation", "required": True, "values": ["metadata", "point", "zonal", "histogram", "classify"]},
+        {"name": "operation", "required": True, "values": ["metadata", "point", "zonal", "histogram", "classify", "profile"]},
         {"name": "resampling", "required": False, "values": ["nearest", "bilinear"], "default": "nearest"},
         {"name": "encoding", "required": False, "values": ["terrarium", "mapbox"]},
     ]
@@ -334,11 +334,13 @@ def test_every_value_the_manifest_offers_is_one_the_service_accepts(client, degr
     settings = {setting["name"]: setting["values"] for setting in client.get("/manifest").json()["settings"]}
     point = {"raster": degrees_grid, "lon": 2.5, "lat": 7.5}
     zone = {"raster": degrees_grid, "bbox": [0, 8, 2, 10]}
-    inputs = {"metadata": {"raster": degrees_grid}, "point": point, "zonal": zone, "histogram": zone, "classify": {**zone, "classes": [{"label": "all", "values": [1]}]}}
+    inputs = {"metadata": {"raster": degrees_grid}, "point": point, "zonal": zone, "histogram": zone, "classify": {**zone, "classes": [{"label": "all", "values": [1]}]},
+              "profile": {"raster": degrees_grid, "line": {"type": "LineString", "coordinates": [[0.5, 7.5], [4.5, 7.5]]}, "samples": 3}}
     for operation in settings["operation"]:
         assert run_node(client, {"operation": operation}, inputs[operation]).json()["result"] == "success", operation
     for resampling in settings["resampling"]:
         assert run_node(client, {"operation": "point", "resampling": resampling}, point).json()["result"] == "success", resampling
+        assert run_node(client, {"operation": "profile", "resampling": resampling}, inputs["profile"]).json()["result"] == "success", resampling
     tile = {"raster": terrain_png, "tile": {"z": 1, "x": 1, "y": 0}, "lon": 10, "lat": 80}
     for encoding in settings["encoding"]:
         assert run_node(client, {"operation": "point", "encoding": encoding}, tile).json()["result"] == "success", encoding
@@ -466,3 +468,33 @@ def test_a_classification_by_ranges_is_read_through_the_node(client, degrees_gri
     body = run_node(client, {"operation": "classify"}, {"raster": degrees_grid, "bbox": [0, 0, 10, 10], "classes": classes}).json()
     assert body["result"] == "success", body
     assert [entry["cells"] for entry in body["outputs"]["result"]["classes"]] == [pytest.approx(50), pytest.approx(49)]
+
+
+def test_a_profile_is_read_through_the_node(client, degrees_grid):
+    line = {"type": "LineString", "coordinates": [[0.5, 7.5], [4.5, 7.5]]}
+    body = run_node(client, {"operation": "profile"}, {"raster": degrees_grid, "line": line, "samples": 5}).json()
+    assert body["result"] == "success", body
+    assert [sample["value"] for sample in body["outputs"]["result"]["samples"]] == [20, 21, 22, 23, 24]
+
+
+def test_a_profile_takes_its_resampling_from_the_setting(client, degrees_grid):
+    line = {"type": "LineString", "coordinates": [[1.5, 7.5], [2.5, 7.5]]}
+    body = run_node(client, {"operation": "profile", "resampling": "bilinear"}, {"raster": degrees_grid, "line": line, "spacing": 55000}).json()
+    assert body["outputs"]["result"]["resampling"] == "bilinear"
+
+
+def test_a_profile_without_a_line_is_refused_as_a_missing_input(client, degrees_grid):
+    body = run_node(client, {"operation": "profile"}, {"raster": degrees_grid, "samples": 5}).json()
+    assert body["error"].startswith("missing_input:") and "line" in body["error"]
+
+
+def test_a_profile_over_the_sample_limit_is_refused(client, degrees_grid, monkeypatch):
+    monkeypatch.setattr(appmod, "limits", Limits(max_samples=3))
+    line = {"type": "LineString", "coordinates": [[0.5, 7.5], [4.5, 7.5]]}
+    body = run_node(client, {"operation": "profile"}, {"raster": degrees_grid, "line": line, "samples": 5}).json()
+    assert body["error"].startswith("too_many_samples:")
+
+
+def test_the_manifest_declares_the_profile_ports(client):
+    ports = {p["portName"]: p for p in client.get("/manifest").json()["ports"]}
+    assert {name: (ports[name]["direction"], ports[name]["required"]) for name in ("line", "spacing", "samples")} == {name: ("in", False) for name in ("line", "spacing", "samples")}
