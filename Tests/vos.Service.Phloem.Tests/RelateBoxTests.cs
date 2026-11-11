@@ -127,6 +127,62 @@ public class RelateBoxTests
     }
 
     [Fact]
+    public async Task A_refused_relationship_whose_second_read_also_fails_fails_the_box_with_the_refusal()
+    {
+        var (box, gateway, executor) = Arrange();
+        gateway.RefuseRelationship = (_, _, _) =>
+        {
+            gateway.ReachedAlongFailure = new HttpRequestException("503 from the broker");
+            return "500 the write was lost";
+        };
+
+        var result = await RunAsync(box, executor);
+
+        result.Nodes.Single(node => node.NodeId == box.Relate.Id).Error.Should().Be(
+            $"'{TestGraphs.RelateBox}' could not relate 'Willow Bend study' along 'balancesEnergy': The platform refused a relationship: 500 the write was lost");
+        gateway.Watches.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_relate_box_whose_inputs_cannot_be_put_together_fails_saying_so_and_writes_nothing()
+    {
+        var (box, gateway, executor) = Arrange();
+        box.Fixture.State(box.SubjectWire, ModelNames.ListTransform, "$error(\"no shape for the study\")");
+        gateway.Graph = box.Fixture.Build();
+
+        var result = await RunAsync(box, executor);
+
+        result.Nodes.Single(node => node.NodeId == box.Relate.Id).Error.Should().Contain("could not be put together").And.Contain("no shape for the study");
+        gateway.RelationshipsWritten.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_relate_box_standing_for_a_connection_that_names_two_states_refuses_the_run()
+    {
+        var box = TestGraphs.RelateBoxPipeline();
+        box.Fixture.Rel(box.Connection, box.Fixture.Get("provenBy"), box.Fixture.Thing("EnergyWorkedOutAgain"));
+        var (_, gateway, executor) = Arrange(box);
+
+        var result = await RunAsync(box, executor);
+
+        result.Error.Should().Contain($"Node '{TestGraphs.RelateBox}' stands for 'balancesEnergy', which names two states its work is proven by.");
+        gateway.RunStatusOf(result.RunId).Should().Be(RunStatus.Refused);
+    }
+
+    [Fact]
+    public async Task A_relate_box_standing_for_a_connection_that_binds_no_service_refuses_the_run()
+    {
+        var box = TestGraphs.RelateBoxPipeline();
+        box.Fixture.Unrelate(box.Connection, box.Fixture.Get("has"), box.Service);
+        var (_, gateway, executor) = Arrange(box);
+
+        var result = await RunAsync(box, executor);
+
+        result.Error.Should().Contain($"Node '{TestGraphs.RelateBox}' stands for 'balancesEnergy', which binds no service, so nothing would be called.");
+        gateway.RunStatusOf(result.RunId).Should().Be(RunStatus.Refused);
+    }
+
+    [Fact]
     public async Task A_rehearsal_records_what_a_relate_box_would_have_related_and_writes_nothing()
     {
         var (box, gateway, executor) = Arrange();
