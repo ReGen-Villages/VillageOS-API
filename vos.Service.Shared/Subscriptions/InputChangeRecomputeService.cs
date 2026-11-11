@@ -98,8 +98,8 @@ public sealed class InputChangeRecomputeService : IHostedService
         _environment = environment;
         _logger = logger;
         _launchToken = launchToken;
-        _replacementLeadTime = replacementLeadTime ?? TimeSpan.FromHours(2);
-        _replacementCheckInterval = replacementCheckInterval ?? TimeSpan.FromMinutes(15);
+        _replacementLeadTime = replacementLeadTime ?? ModelScopedBearer.ReplacementLeadTime;
+        _replacementCheckInterval = replacementCheckInterval ?? ModelScopedBearer.ReplacementCheckInterval;
     }
 
     // Start following a subject, in the model the work in hand belongs to. Called when the service

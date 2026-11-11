@@ -17,19 +17,13 @@ public static class LaunchTokenRegistration
             launchToken,
             provider.GetRequiredService<IServiceTokenExchange>(),
             provider.GetRequiredService<ILogger<LaunchTokenRenewal>>(),
-            LaunchTokenRenewal.CheckInterval));
+            ModelScopedBearer.ReplacementCheckInterval));
         return launchToken;
     }
 }
 
 internal sealed class LaunchTokenRenewal : BackgroundService
 {
-    private static readonly TimeSpan ReplacementLeadTime = TimeSpan.FromHours(2);
-
-    // Checked often rather than timed once: a timer stops while the machine sleeps, so one set for when the
-    // token falls due can fire after it has expired, and an expired token cannot be swapped.
-    public static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(15);
-
     private readonly LaunchToken _launchToken;
     private readonly IServiceTokenExchange _exchange;
     private readonly ILogger _logger;
@@ -76,7 +70,7 @@ internal sealed class LaunchTokenRenewal : BackgroundService
             return false;
         }
 
-        if (!held.IsDueForReplacement(now, ReplacementLeadTime))
+        if (!held.IsDueForReplacement(now, ModelScopedBearer.ReplacementLeadTime))
             return true;
 
         var replacement = await _exchange.ExchangeAsync(held.Token, cancellationToken);
