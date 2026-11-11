@@ -52,8 +52,8 @@ The shape:
   (`EsriEndpoint is Endpoint`), never a scalar field.
 - The graph is single-rooted (`Endpoint`), acyclic, and closed. A registration nominates
   a template via an `is` relationship (or defaults to the root); its admissible
-  properties are the **union of property keys along that template's chain**
-  (`AllowedKeys`).
+  properties are the **union of property keys along that template's chain**, and Delta refuses a
+  registration stating any other key.
 - A property's effective value is **closest-ancestor-wins**: the nearest template in the
   chain that declares a non-blank value for the key. A blank value is *structural* — it
   makes the key admissible without supplying an inherited default.
@@ -78,7 +78,7 @@ value and whether it is expected to be overridden.
 
 | Role | Meaning | Examples |
 |------|---------|----------|
-| **required-structural** | A structural key (declared blank on a template) that a registration MUST fill. Admissible via `AllowedKeys`; rejected if missing at use. | `url`; `tokenUrl`, `tokenRequest` (when minting a token); `assetProperty`, `assetSubject` (when keeping retrievals) |
+| **required-structural** | A structural key (declared blank on a template) that a registration MUST fill. Admissible because the template declares it; rejected if missing at use. | `url`; `tokenUrl`, `tokenRequest` (when minting a token); `assetProperty`, `assetSubject` (when keeping retrievals) |
 | **canonical-default** | A value a *child* template fixes to define a source type's identity — not normally overridden per registration. | `tokenPath`, `expiryPath`, `expiryUnit`; `offsetParameter`, `pageSizeParameter`, `hasMorePath`, `itemsPath` |
 | **sensible-default** | Has a built-in fallback (in code or a generic template default); commonly overridden per endpoint. | `httpMethod` (GET), `requestContentType` (application/json), `timeout` (30s), `tokenParameter` (token), `unavailableAnswer` and `unavailableRetryAfter` (the words and the wait a proxy's 404 is read with — see *404 is the exception* below) |
 | **optional** | May be absent entirely; the feature is simply off. | `responseTransform` (absent → the body is returned unchanged, nothing is ingested), `headers`, `queryParams`, `acceptHeader`, `token` (pre-minted), `tokenHeader` / `tokenScheme`, `pageSize`, `observedAtParameter` |
