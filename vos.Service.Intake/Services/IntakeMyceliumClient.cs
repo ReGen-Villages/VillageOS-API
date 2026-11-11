@@ -12,9 +12,9 @@ public sealed class IntakeMyceliumClient(
     IHttpClientFactory httpClientFactory,
     ILogger<IntakeMyceliumClient> logger,
     string myceliumUrl,
-    string? serviceToken,
+    LaunchToken? launchToken,
     string? apiKey = null)
-    : MyceliumClientBase(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
+    : MyceliumClientBase(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey)
 {
     private static readonly JsonSerializerOptions AsTheBrokerReadsIt = new(JsonSerializerDefaults.Web);
 

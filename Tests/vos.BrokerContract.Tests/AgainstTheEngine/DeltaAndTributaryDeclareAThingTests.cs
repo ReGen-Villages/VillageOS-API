@@ -23,11 +23,11 @@ public class DeltaAndTributaryDeclareAThingTests : IClassFixture<TheEngine>
     public DeltaAndTributaryDeclareAThingTests(TheEngine engine) => _engine = engine;
 
     private DeltaClient Delta() => new(
-        _engine.ClientFactory, NullLogger<DeltaClient>.Instance, TheEngine.Url, _engine.AdminToken);
+        _engine.ClientFactory, NullLogger<DeltaClient>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
 
     private TributaryClient Tributary() => new(
         _engine.ClientFactory, NullLogger<TributaryClient>.Instance, TheEngine.Url, TimeProvider.System,
-        serviceToken: _engine.AdminToken);
+        launchToken: new LaunchToken(_engine.AdminToken));
 
     private static JsonElement Json(string raw) => JsonDocument.Parse(raw).RootElement;
 

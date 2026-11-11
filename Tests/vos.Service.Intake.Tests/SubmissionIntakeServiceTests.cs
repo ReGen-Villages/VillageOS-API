@@ -62,7 +62,7 @@ public class SubmissionIntakeServiceTests
             new PerCallHttpClientFactory(answers),
             NullLogger<IntakeMyceliumClient>.Instance,
             "http://localhost",
-            "test-token");
+            new LaunchToken("test-token"));
         return new SubmissionIntakeService(
             mycelium,
             new HeldDeclarations(mycelium, TimeProvider.System),

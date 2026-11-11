@@ -57,7 +57,7 @@ public class TributaryReadsOneRegistrationsRelationshipsTests : IClassFixture<Th
     private async Task<SnapshotDocument> ReadAsync(Guid endpoint)
     {
         var subscriptions = new SubscriptionClient(
-            _engine.ClientFactory, NullLogger<SubscriptionClient>.Instance, TheEngine.Url, _engine.AdminToken);
+            _engine.ClientFactory, NullLogger<SubscriptionClient>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
         var subscribed = await subscriptions.SubscribeAsync(EndpointKindResolver.SelectorFor(endpoint));
         await subscriptions.UnsubscribeAsync(subscribed.SubscriptionId);
         return subscribed.Snapshot;

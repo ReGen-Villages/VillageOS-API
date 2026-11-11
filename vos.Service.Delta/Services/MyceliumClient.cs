@@ -7,8 +7,8 @@ namespace vos.Service.Delta.Services;
 
 public class MyceliumClient : MyceliumClientBase
 {
-    public MyceliumClient(IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, string? serviceToken = null, string? apiKey = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey) { }
+    public MyceliumClient(IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, LaunchToken? launchToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey) { }
 
     public readonly record struct MyceliumThing(Guid Id, string Name, Dictionary<string, object?> Properties);
 

@@ -22,11 +22,11 @@ public sealed class EndpointServiceSourceFetcher : MyceliumClientBase, ISourceFe
         IHttpClientFactory httpClientFactory,
         ILogger<EndpointServiceSourceFetcher> logger,
         string myceliumUrl,
-        string? serviceToken,
+        LaunchToken? launchToken,
         string fetcherSubdomain,
         TimeSpan sourceTimeout,
         string? apiKey = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
+        : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey)
     {
         _fetcherSubdomain = fetcherSubdomain;
         _sourceTimeout = sourceTimeout;

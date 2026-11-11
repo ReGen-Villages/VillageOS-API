@@ -21,11 +21,11 @@ public class TributaryRecordsWhichRegistrationObservedTests : IClassFixture<TheE
     public TributaryRecordsWhichRegistrationObservedTests(TheEngine engine) => _engine = engine;
 
     private SubscriptionClient Subscriptions() => new(
-        _engine.ClientFactory, NullLogger<SubscriptionClient>.Instance, TheEngine.Url, _engine.AdminToken);
+        _engine.ClientFactory, NullLogger<SubscriptionClient>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
 
     private TributaryClient Tributary() => new(
         _engine.ClientFactory, NullLogger<TributaryClient>.Instance, TheEngine.Url, TimeProvider.System,
-        serviceToken: _engine.AdminToken);
+        launchToken: new LaunchToken(_engine.AdminToken));
 
     private Task<string?> ObserveAsync(Guid endpoint, Guid site, ObservedEdges edges) =>
         new ObservationIngestService(Tributary(), NullLogger<ObservationIngestService>.Instance, new ModelClock())

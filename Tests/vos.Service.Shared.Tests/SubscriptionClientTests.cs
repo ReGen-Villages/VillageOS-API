@@ -26,7 +26,7 @@ public class SubscriptionClientTests
         Func<HttpRequestMessage, HttpResponseMessage> respond)
     {
         var handler = new MockHttpMessageHandler(respond);
-        var client = new SubscriptionClient(new FreshClientFactory(handler), NullLogger.Instance, Url, Token)
+        var client = new SubscriptionClient(new FreshClientFactory(handler), NullLogger.Instance, Url, new LaunchToken(Token))
         {
             ReconnectDelay = TimeSpan.FromMilliseconds(5),
         };

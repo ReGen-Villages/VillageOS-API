@@ -4,6 +4,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Forage.Services;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -20,7 +21,7 @@ public class MyceliumRelationshipClientTests
         new(new PerCallHttpClientFactory(handler),
             logger ?? NullLogger<MyceliumRelationshipClient>.Instance,
             "http://localhost:7243",
-            "test-token");
+            new LaunchToken("test-token"));
 
     private static HttpResponseMessage Json(HttpStatusCode status, string body) =>
         new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };

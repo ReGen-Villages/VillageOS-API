@@ -40,9 +40,10 @@ try
 
     // One credential for the whole service: the ingest tool and the model clear present the same thing,
     // and a key is exchanged once rather than once per caller.
+    var launchToken = builder.Services.AddLaunchToken(launchSettings.Service.Token, launchSettings.Service.MyceliumUrl);
     builder.Services.AddSingleton(sp => new ServiceCredential(
         sp.GetRequiredService<IHttpClientFactory>(), sp.GetRequiredService<ILogger<ServiceCredential>>(),
-        launchSettings.Service.MyceliumUrl, launchSettings.Service.Token, launchSettings.Service.ApiKey));
+        launchSettings.Service.MyceliumUrl, launchToken, launchSettings.Service.ApiKey));
     builder.Services.AddSingleton<IModelIngestRunner>(sp => new ModelIngestRunner(
         launchSettings.ModelIngestDll ?? "", launchSettings.Service.MyceliumUrl,
         sp.GetRequiredService<ServiceCredential>(), sp.GetRequiredService<ILogger<ModelIngestRunner>>()));

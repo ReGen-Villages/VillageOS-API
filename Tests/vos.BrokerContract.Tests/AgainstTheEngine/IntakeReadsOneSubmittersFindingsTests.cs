@@ -3,6 +3,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Intake.Services;
 using Xunit;
+using vos.Service.Shared;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
@@ -55,7 +56,7 @@ public class IntakeReadsOneSubmittersFindingsTests : IClassFixture<TheEngine>
         var alderRise = await SubmittedAsync($"Alder Rise {Guid.NewGuid():N}");
 
         var mycelium = new IntakeMyceliumClient(
-            _engine.ClientFactory, NullLogger<IntakeMyceliumClient>.Instance, TheEngine.Url, _engine.AdminToken);
+            _engine.ClientFactory, NullLogger<IntakeMyceliumClient>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
         using var reading = await mycelium.ReadAsync(
             FindingsReader.FindingsSelector(willowBend.Site, PageSpecification), CancellationToken.None);
 

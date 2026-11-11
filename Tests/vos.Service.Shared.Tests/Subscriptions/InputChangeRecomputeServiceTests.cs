@@ -382,7 +382,7 @@ public class InputChangeRecomputeServiceTests
     [Fact]
     public async Task A_change_in_a_model_other_than_the_one_that_started_the_daemon_recomputes()
     {
-        await using var harness = await Harness.StartedAsync(startupModel: ModelOne);
+        await using var harness = await Harness.StartedAsync(launchModel: ModelOne);
         await harness.WatchAsync(OtherStudy, ModelTwo);
 
         await harness.ClientFor(ModelTwo).EmitAsync(OtherStudy, "population");
@@ -563,7 +563,7 @@ public class InputChangeRecomputeServiceTests
     [Fact]
     public async Task A_subject_offered_with_no_model_scoped_token_in_hand_is_not_followed()
     {
-        await using var harness = await Harness.StartedAsync(startupToken: null);
+        await using var harness = await Harness.StartedAsync(withLaunchToken: false);
 
         harness.Service.Watch(Study);
 
@@ -571,14 +571,27 @@ public class InputChangeRecomputeServiceTests
     }
 
     [Fact]
-    public async Task With_no_request_in_hand_the_startup_token_names_the_model()
+    public async Task With_no_request_in_hand_the_launch_token_names_the_model()
     {
-        await using var harness = await Harness.StartedAsync(startupModel: ModelOne);
+        await using var harness = await Harness.StartedAsync(launchModel: ModelOne);
 
         harness.Service.Watch(Study);
         await harness.WaitForSubscriptionAsync(ModelOne);
 
         harness.ClientFor(ModelOne).Members.Should().Contain(Study);
+    }
+
+    [Fact]
+    public async Task With_no_request_in_hand_the_follower_starts_from_the_launch_token_as_it_now_stands()
+    {
+        await using var harness = await Harness.StartedAsync(launchModel: ModelOne);
+        var renewed = TestTokens.For(ModelOne, DateTimeOffset.UtcNow.AddHours(23));
+        harness.LaunchToken!.Replace(renewed);
+
+        harness.Service.Watch(Study);
+        await harness.WaitForSubscriptionAsync(ModelOne);
+
+        harness.Exchange.Calls.First().Should().Be(renewed);
     }
 
     [Fact]
@@ -628,7 +641,7 @@ public class InputChangeRecomputeServiceTests
         services.AddSingleton<IHostEnvironment>(new FakeEnvironment());
         services.AddSingleton(spy);
         services.AddInputChangeRecompute<RecomputeSpy>(
-            "TestCompute", "http://mycelium", serviceToken: null,
+            "TestCompute", "http://mycelium", launchToken: null,
             handler => handler.InputProperties,
             (handler, subjectId, _) => handler.RecordAsync(subjectId));
 
@@ -653,6 +666,7 @@ public class InputChangeRecomputeServiceTests
         private readonly object _clientsLock = new();
 
         public FakeTokenExchange Exchange { get; } = new();
+        public LaunchToken? LaunchToken { get; }
         public InputChangeRecomputeService Service { get; }
         public int FailSubscribesBefore { get; init; }
 
@@ -664,7 +678,7 @@ public class InputChangeRecomputeServiceTests
 
         public Harness(
             bool failFirstRecompute = false, string environmentName = "Development",
-            Guid? startupModel = null, bool noStartupToken = false,
+            Guid? launchModel = null, bool noLaunchToken = false,
             TimeSpan? replacementLeadTime = null, TimeSpan? replacementCheckInterval = null)
         {
             var failNext = failFirstRecompute;
@@ -681,11 +695,11 @@ public class InputChangeRecomputeServiceTests
                     throw new InvalidOperationException("recompute failed");
                 });
 
+            LaunchToken = noLaunchToken ? null : new LaunchToken(TestTokens.For(launchModel ?? ModelOne));
             Service = new InputChangeRecomputeService(
                 NewClient, Exchange, inputs,
                 new FakeEnvironment { EnvironmentName = environmentName }, NullLogger.Instance,
-                startupToken: noStartupToken ? null : TestTokens.For(startupModel ?? ModelOne),
-                replacementLeadTime, replacementCheckInterval);
+                LaunchToken, replacementLeadTime, replacementCheckInterval);
         }
 
         private ISubscriptionClient NewClient(Func<Task<string?>> currentToken)
@@ -699,11 +713,11 @@ public class InputChangeRecomputeServiceTests
         }
 
         public static async Task<Harness> StartedAsync(
-            bool failFirstRecompute = false, Guid? startupModel = null, string? startupToken = "present",
+            bool failFirstRecompute = false, Guid? launchModel = null, bool withLaunchToken = true,
             TimeSpan? replacementLeadTime = null, TimeSpan? replacementCheckInterval = null)
         {
             var harness = new Harness(
-                failFirstRecompute, startupModel: startupModel, noStartupToken: startupToken is null,
+                failFirstRecompute, launchModel: launchModel, noLaunchToken: !withLaunchToken,
                 replacementLeadTime: replacementLeadTime, replacementCheckInterval: replacementCheckInterval);
             await harness.StartAsync();
             return harness;

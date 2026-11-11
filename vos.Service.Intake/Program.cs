@@ -34,7 +34,7 @@ var publicFormOrigins = launchSettings.PublicFormOrigins;
 
 var servicePort = launchSettings.Service.Port;
 var myceliumUrl = launchSettings.Service.MyceliumUrl;
-var serviceToken = launchSettings.Service.Token;
+var launchToken = builder.Services.AddLaunchToken(launchSettings.Service.Token, myceliumUrl);
 // Nothing launches this service, so no token is ever minted for it and none is refreshed when one
 // expires. The key is the credential it runs on, and every client it reaches the broker with holds it.
 var apiKey = launchSettings.Service.ApiKey;
@@ -109,7 +109,7 @@ try
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<IntakeMyceliumClient>>(),
             myceliumUrl,
-            serviceToken,
+            launchToken,
             apiKey));
 
     builder.Services.AddSingleton<HeldDeclarations>();

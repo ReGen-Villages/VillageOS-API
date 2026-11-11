@@ -13,7 +13,7 @@ public static class InputChangeRecomputeRegistration
     // Wire the subscription that keeps a compute service's results current. The handler type is
     // resolved per recompute rather than captured, so it follows whatever the container holds.
     public static IServiceCollection AddInputChangeRecompute<THandler>(
-        this IServiceCollection services, string serviceName, string myceliumUrl, string? serviceToken,
+        this IServiceCollection services, string serviceName, string myceliumUrl, LaunchToken? launchToken,
         Func<THandler, IReadOnlySet<string>> inputProperties,
         Func<THandler, Guid, CancellationToken, Task> recompute)
         where THandler : notnull
@@ -35,7 +35,7 @@ public static class InputChangeRecomputeRegistration
             provider.GetRequiredService<RecomputeInputs>(),
             provider.GetRequiredService<IHostEnvironment>(),
             provider.GetRequiredService<ILogger<InputChangeRecomputeService>>(),
-            serviceToken));
+            launchToken));
 
         return services.AddHostedService(provider => provider.GetRequiredService<InputChangeRecomputeService>());
     }
@@ -77,7 +77,7 @@ public sealed class InputChangeRecomputeService : IHostedService
     private readonly RecomputeInputs _inputs;
     private readonly IHostEnvironment _environment;
     private readonly ILogger _logger;
-    private readonly string? _startupToken;
+    private readonly LaunchToken? _launchToken;
     private readonly TimeSpan _replacementLeadTime;
     private readonly TimeSpan _replacementCheckInterval;
 
@@ -89,7 +89,7 @@ public sealed class InputChangeRecomputeService : IHostedService
 
     public InputChangeRecomputeService(
         SubscriptionClientFactory subscriptionClientFor, IServiceTokenExchange tokenExchange,
-        RecomputeInputs inputs, IHostEnvironment environment, ILogger logger, string? startupToken = null,
+        RecomputeInputs inputs, IHostEnvironment environment, ILogger logger, LaunchToken? launchToken = null,
         TimeSpan? replacementLeadTime = null, TimeSpan? replacementCheckInterval = null)
     {
         _subscriptionClientFor = subscriptionClientFor;
@@ -97,9 +97,9 @@ public sealed class InputChangeRecomputeService : IHostedService
         _inputs = inputs;
         _environment = environment;
         _logger = logger;
-        _startupToken = startupToken;
-        _replacementLeadTime = replacementLeadTime ?? TimeSpan.FromHours(2);
-        _replacementCheckInterval = replacementCheckInterval ?? TimeSpan.FromMinutes(15);
+        _launchToken = launchToken;
+        _replacementLeadTime = replacementLeadTime ?? ModelScopedBearer.ReplacementLeadTime;
+        _replacementCheckInterval = replacementCheckInterval ?? ModelScopedBearer.ReplacementCheckInterval;
     }
 
     // Start following a subject, in the model the work in hand belongs to. Called when the service
@@ -109,7 +109,7 @@ public sealed class InputChangeRecomputeService : IHostedService
     // subject itself. A service reading only what it writes passes none.
     public void Watch(Guid subjectId, params Guid[] readsFrom)
     {
-        var bearer = ModelScopedBearer.Read(MyceliumModelToken.Current ?? _startupToken);
+        var bearer = ModelScopedBearer.Read(MyceliumModelToken.Current ?? _launchToken?.Current);
         if (bearer is null)
         {
             _logger.LogWarning(

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
 using vos.Service.Phloem.Services;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
 using vos.Service.Shared.Roles;
@@ -40,7 +41,7 @@ public class MyceliumGatewayTests
             new PerCallHttpClientFactory(handler),
             NullLogger<MyceliumGateway>.Instance,
             MyceliumUrl,
-            "svc-token")
+            new LaunchToken("svc-token"))
         {
             CadenceStreamRetry = cadenceStreamRetry ?? TimeSpan.FromSeconds(2),
             DisposeWait = disposeWait ?? TimeSpan.FromSeconds(5),

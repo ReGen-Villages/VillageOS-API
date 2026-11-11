@@ -8,6 +8,7 @@ using vos.Service.Forage.Configuration;
 using vos.Service.Forage.Helpers;
 using vos.Service.Forage.Services;
 using vos.Service.Shared.Configuration;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -36,7 +37,7 @@ public class SourceFetchingTests
                 windowDays,
                 attemptsPerSlice),
             "http://localhost:7243",
-            "token",
+            new LaunchToken("token"),
             apiKey: null);
         return services.BuildServiceProvider();
     }
