@@ -26,6 +26,8 @@ variables:
     value: $[ replace(replace(or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), \
 eq(variables['System.PullRequest.TargetBranch'], 'main')), 'True', 'Release'), \
 'False', 'Debug') ]
+  - name: engineMayBeStaged
+    value: $[ ne(variables['System.PullRequest.IsFork'], 'True') ]
 
 """
 
@@ -37,6 +39,15 @@ jobs:
   displayName: 'Build'
 """ + TIMEOUT + """\
   steps:
+"""
+
+ENGINE_STEPS = """\
+  - checkout: platform
+    displayName: 'Check out the platform'
+    condition: and(succeeded(), eq(variables['engineMayBeStaged'], 'True'))
+  - script: ./ci/stage-the-engine.sh
+    displayName: 'Stage the engine from platform develop'
+    condition: and(succeeded(), eq(variables['engineMayBeStaged'], 'True'))
 """
 
 PUBLISH_STEP = "  - bash: echo publish\n    displayName: 'Publish the wiki to GitHub'\n"
@@ -53,12 +64,18 @@ SUMMARY_STEP = """\
     condition: always()
 """
 
-COMPLIANT = PREAMBLE + JOB + PUBLISH_STEP + ON_DEVELOP_ONLY + "\n" + SUMMARY_STEP
+COMPLIANT = PREAMBLE + JOB + ENGINE_STEPS + PUBLISH_STEP + ON_DEVELOP_ONLY + "\n" + SUMMARY_STEP
 
 # Steps at column zero and no job: what the guard must report, and a shape its step reader must still
 # read correctly to report only that.
 STEPS_IN_NO_JOB = PREAMBLE + """\
 steps:
+- checkout: platform
+  displayName: 'Check out the platform'
+  condition: and(succeeded(), eq(variables['engineMayBeStaged'], 'True'))
+- script: ./ci/stage-the-engine.sh
+  displayName: 'Stage the engine from platform develop'
+  condition: and(succeeded(), eq(variables['engineMayBeStaged'], 'True'))
 - bash: echo publish
   displayName: 'Publish the wiki to GitHub'
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
@@ -175,7 +192,7 @@ class CheckBuildFileTests(unittest.TestCase):
         self.assertEqual([], problems(commented))
 
     def test_the_last_step_in_the_file_having_no_condition_is_reported(self):
-        unconditional = PREAMBLE + JOB + SUMMARY_STEP + "\n" + PUBLISH_STEP
+        unconditional = PREAMBLE + JOB + ENGINE_STEPS + SUMMARY_STEP + "\n" + PUBLISH_STEP
 
         self.assertIn('"Publish the wiki to GitHub" has no condition', problems(unconditional)[-1])
 
@@ -230,6 +247,35 @@ class CheckBuildFileTests(unittest.TestCase):
             "  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))\n")
 
         self.assertIn('"publishVstsFeed"', problems(pushing)[0])
+
+
+    def test_a_platform_checkout_an_outside_pull_request_would_run_is_reported(self):
+        unconditioned = COMPLIANT.replace(
+            "    displayName: 'Check out the platform'\n"
+            "    condition: and(succeeded(), eq(variables['engineMayBeStaged'], 'True'))\n",
+            "    displayName: 'Check out the platform'\n")
+
+        self.assertIn('"Check out the platform"', problems(unconditioned)[0])
+
+    def test_engine_staging_that_an_outside_pull_request_would_run_is_reported(self):
+        widened = COMPLIANT.replace(
+            "    displayName: 'Stage the engine from platform develop'\n"
+            "    condition: and(succeeded(), eq(variables['engineMayBeStaged'], 'True'))\n",
+            "    displayName: 'Stage the engine from platform develop'\n"
+            "    condition: succeeded()\n")
+
+        self.assertIn('"Stage the engine from platform develop"', problems(widened)[0])
+
+    def test_an_engine_switch_that_lets_an_outside_pull_request_through_is_reported(self):
+        always = COMPLIANT.replace(
+            "value: $[ ne(variables['System.PullRequest.IsFork'], 'True') ]", "value: 'True'")
+
+        self.assertIn('engineMayBeStaged', problems(always)[0])
+
+    def test_a_build_that_stopped_staging_the_engine_is_reported(self):
+        unstaged = COMPLIANT.replace(ENGINE_STEPS, '')
+
+        self.assertIn('no step named "Check out the platform"', problems(unstaged)[0])
 
 
 if __name__ == '__main__':

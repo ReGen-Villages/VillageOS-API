@@ -25,6 +25,14 @@ pool:
   demands:
     - Agent.OS -equals Darwin
 
+# The private platform repository, read only for the engine the broker-contract suite runs against.
+resources:
+  repositories:
+    - repository: platform
+      type: git
+      name: VillageOS/VillageOS
+      ref: refs/heads/develop
+
 variables:
   # A pull request into main compiles Release as well as the merge itself, because a merge is too
   # late to learn that Release does not compile. The difference is not only optimization here:
@@ -51,6 +59,11 @@ variables:
   # over the dotnet an agent was running, and macOS then killed it on every start.
   - name: dotnetSdkVersion
     value: '10.0.403'
+  # Whether this build may read the private engine. A pull request from outside the organisation runs
+  # code its author wrote, so it never may; its engine cases compile and report as skipped.
+  # ci/check_build_file.py refuses a build file that widens this or the steps that read it.
+  - name: engineMayBeStaged
+    value: $[ ne(variables['System.PullRequest.IsFork'], 'True') ]
 
 # Every job says how long it may run. Left to the pool's default, a step that stops making progress
 # holds an agent for an hour, and a pull request in either repository waits behind it. The limit
@@ -65,6 +78,9 @@ jobs:
   # build would otherwise still be here — including one the guard below is meant to catch.
   - checkout: self
     clean: true
+    # A second checkout moves this one under a folder of its own unless it is named here, and every
+    # path below expects the repository at the sources directory.
+    path: s
 
   # Fail fast if proprietary engine code ever reappears in the public repo (it must not — the
   # engine lives only in the private VillageOS repo). Runs before the build, so a pull request that
@@ -91,6 +107,24 @@ jobs:
       version: '$(dotnetSdkVersion)'
       installationPath: '$(Agent.ToolsDirectory)/dotnet-$(dotnetSdkVersion)'
 
+  # The broker-contract suite runs a service's own client against the real engine. The platform build
+  # runs it too, but only after a change here has merged, so a client change that breaks a case would
+  # first fail somebody else's platform pull request. The checkout is deleted once the engine is
+  # staged: its source must not stay on the agent, and the engine's debug files would otherwise find it
+  # and count the engine in this repository's coverage.
+  - checkout: platform
+    displayName: 'Check out the platform'
+    condition: and(succeeded(), eq(variables['engineMayBeStaged'], 'True'))
+    fetchDepth: 1
+    path: platform
+
+  - script: |
+      set -euo pipefail
+      ./ci/stage-the-engine.sh "$(Pipeline.Workspace)/platform"
+      rm -rf "$(Pipeline.Workspace)/platform"
+    displayName: 'Stage the engine from platform develop'
+    condition: and(succeeded(), eq(variables['engineMayBeStaged'], 'True'))
+
   # Serves the wiki converters and the Trellis checks below. 22 rather than 20 because Vite asks for
   # ^20.19 || >=22.12 — a 20.x line that resolved below 20.19 would fail the GUI build, and 22 is the
   # version both Vite and Vitest name.
@@ -102,7 +136,9 @@ jobs:
   - script: dotnet restore
     displayName: 'Restore NuGet Packages'
 
-  - script: dotnet build --configuration $(buildConfiguration) --no-restore
+  # VosRequireEngine makes the suite refuse to build when staging produced nothing, rather than report
+  # a pass over cases that were all skipped.
+  - script: dotnet build --configuration $(buildConfiguration) --no-restore -p:VosRequireEngine=$(engineMayBeStaged)
     displayName: 'Build Solution'
 
   # The solution rather than a wildcard over the test projects: a wildcard starts a separate test run

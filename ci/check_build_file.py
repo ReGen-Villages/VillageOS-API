@@ -40,6 +40,14 @@ OWN_REPOSITORY = 'github.com/ReGen-Villages/VillageOS-API.git'
 # decided on rather than inherited.
 PACKAGING_MARKERS = ('dotnet pack', 'publishVstsFeed')
 
+# The engine is private and this repository is public. A pull request from outside the organisation
+# runs code its author wrote, so it must never check out the platform or stage the engine; widening
+# either step still builds green and hands that author the engine.
+ENGINE_SWITCH = 'engineMayBeStaged'
+OUTSIDE_PULL_REQUEST_EXCLUDED = "ne(variables['System.PullRequest.IsFork'], 'True')"
+ENGINE_CONDITION = "eq(variables['%s'], 'True')" % ENGINE_SWITCH
+ENGINE_STEPS = ('Check out the platform', 'Stage the engine from platform develop')
+
 
 def indented_block(build_file_text, opening):
     """The lines indented under the first line beginning with `opening`."""
@@ -63,10 +71,10 @@ def trigger_branches(build_file_text, opening):
     ]
 
 
-def build_configuration_value(build_file_text):
+def variable_value(build_file_text, name):
     block = indented_block(build_file_text, 'variables:')
     for index, line in enumerate(block):
-        if 'name: buildConfiguration' in line:
+        if line.strip() == '- name: %s' % name:
             for following in block[index + 1:]:
                 if 'value:' in following:
                     return following
@@ -132,7 +140,7 @@ def problems(build_file_text):
             'A pull request into develop or main must be built, and no other; the pr block names %s'
             % pull_request_branches)
 
-    configuration = build_configuration_value(build_file_text)
+    configuration = variable_value(build_file_text, 'buildConfiguration')
     if not configuration:
         found.append(
             'Nothing in the variables block gives buildConfiguration a value, so no branch chooses it')
@@ -166,6 +174,22 @@ def problems(build_file_text):
         elif DEVELOP not in condition or MAIN in condition:
             found.append(
                 '"%s" must run on develop only; its condition reads %s' % (step, condition.strip()))
+
+    if OUTSIDE_PULL_REQUEST_EXCLUDED not in variable_value(build_file_text, ENGINE_SWITCH):
+        found.append(
+            '%s must read %s, so a pull request from outside the organisation never reaches the '
+            'private engine' % (ENGINE_SWITCH, OUTSIDE_PULL_REQUEST_EXCLUDED))
+
+    for step in ENGINE_STEPS:
+        condition = step_condition(build_file_text, step)
+        if condition is None:
+            found.append(
+                'The build has no step named "%s", so a pull request merges without the engine tests '
+                'having run' % step)
+        elif ENGINE_CONDITION not in condition:
+            found.append(
+                '"%s" must run only when %s, or a pull request from outside the organisation reaches '
+                'the private engine' % (step, ENGINE_CONDITION))
 
     declared_jobs = jobs(build_file_text)
     if not declared_jobs:
