@@ -25,6 +25,8 @@ Mycelium launches a daemon with these flags (a service ignores ones it doesn't n
 | `--port` | Port the service listens on |
 | `--myceliumUrl` | Mycelium base URL |
 | `--issuer` / `--audience` | Expected JWT issuer/audience (validation must match what Mycelium signs) |
+| `--serviceCallLimitSeconds` | How long Mycelium waits for the service to answer a service call, in whole seconds (15 by default), so a service can keep its own waits shorter |
+| `--passedOnRequestLimitSeconds` | The same for a request Mycelium passes on to the service from another (30 by default) |
 | `--scheme=https` | Passed only when Mycelium runs with `Https:Only` on. It then addresses the daemon at `https://localhost:<port>`, so a service given this flag must answer `/handle`, `/health`, `/stats` and `/shutdown` over TLS; a self-registration naming an `http://` address is refused with `400`. The shared C# host does not act on the flag |
 
 Plain service-specific flags (e.g. `--mode=consumes`) are passed through verbatim.
