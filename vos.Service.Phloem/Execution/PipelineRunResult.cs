@@ -12,7 +12,7 @@ public static class RunStatus
     public const string Partial = "partial";
     // Every wire into the node was settled and none carried a value: the branch was not the one taken.
     public const string NotTaken = "notTaken";
-    // The node's service has answered and the run waits for the Thing it names to enter the node's state.
+    // The run waits for the Thing the node names to enter the node's state; a service node's service has answered by then.
     public const string Waiting = "waiting";
     // A call never reached the node's service and the node pauses before the next attempt.
     public const string Trying = "trying";

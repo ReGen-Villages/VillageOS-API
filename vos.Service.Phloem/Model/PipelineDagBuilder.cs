@@ -146,7 +146,7 @@ public static class PipelineDagBuilder
             return BuildOrchestratorNode(graph, nodeThing, DagNodeKind.Stop, errorPort, problems);
         }
         if (graph.IsOf(nodeThing, PipelineRoles.PipelineWait))
-            return BuildWaitNode(graph, nodeThing, errorPort, problems);
+            return BuildOrchestratorNode(graph, nodeThing, DagNodeKind.Wait, errorPort, problems);
 
         var connection = graph.OutgoingTargets(nodeThing, ModelNames.Has)
             .FirstOrDefault(t => graph.IsOf(t, PipelineRoles.Connection))
@@ -286,24 +286,6 @@ public static class PipelineDagBuilder
         return true;
     }
 
-    private static DagNode BuildWaitNode(PipelineGraph graph, GraphThing nodeThing, DagPort errorPort, List<string> problems)
-    {
-        var ports = ResolvePortThings(graph, nodeThing).Select(portThing => (Thing: portThing, Port: ToPort(portThing))).ToList();
-        return new DagNode
-        {
-            NodeId = nodeThing.Id,
-            Name = nodeThing.Name,
-            Kind = DagNodeKind.Wait,
-            Subdomain = string.Empty,
-            Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
-            Ports = [.. ports.Select(p => p.Port), errorPort],
-            ParameterBindings = ParseParameterBindings(nodeThing),
-            Waits = Judged(problems, () => WaitOf(graph, nodeThing, ports)
-                ?? throw new PipelineModelException($"Node '{nodeThing.Name}' is a wait node but names no state to wait for and no in port whose Thing must enter it."), null),
-            Follows = Judged(problems, () => FollowedBy(graph, nodeThing), null),
-        };
-    }
-
     private static FollowedPredicate? FollowedBy(PipelineGraph graph, GraphThing nodeThing)
     {
         var followed = graph.OutgoingAlong(nodeThing, PipelineRoles.ReachedAlong).ToList();
@@ -330,6 +312,11 @@ public static class PipelineDagBuilder
             ? Judged(problems, () => PipelineReachedAlong(graph, nodeThing, PipelineRoles.StandsFor, "stands for")
                 ?? throw new PipelineModelException($"Node '{nodeThing.Name}' is a follow-on node but stands for no pipeline."), null)
             : null,
+        Waits = kind == DagNodeKind.Wait
+            ? Judged(problems, () => WaitOf(graph, nodeThing, ResolvePortThings(graph, nodeThing).Select(portThing => (portThing, ToPort(portThing))).ToList())
+                ?? throw new PipelineModelException($"Node '{nodeThing.Name}' is a wait node but names no state to wait for and no in port whose Thing must enter it."), null)
+            : null,
+        Follows = kind == DagNodeKind.Wait ? Judged(problems, () => FollowedBy(graph, nodeThing), null) : null,
     };
 
     // A node reaching its own pipeline is refused, since a run would start another of itself without end.

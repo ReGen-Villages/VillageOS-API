@@ -173,7 +173,6 @@ public sealed class PipelineExecutor
     {
         if (awaitedId is not { } awaited)
             return resumed with { Status = RunStatus.Failed, Error = $"'{resumed.Name}' waited for a Thing the model no longer names, so what it reaches along '{followed.Name}' could not be read." };
-        var awaitedName = resumed.Outputs.Values.Select(ThingNamedBy).FirstOrDefault(named => named?.Id == awaited)?.Name ?? awaited.ToString();
         try
         {
             var reached = await _gateway.ReachedAlongAsync(awaited, followed.Id, cancellationToken);
@@ -187,7 +186,7 @@ public sealed class PipelineExecutor
         }
         catch (Exception ex)
         {
-            return resumed with { Status = RunStatus.Failed, Error = $"'{resumed.Name}' could not read what '{awaitedName}' reaches along '{followed.Name}': {ex.Message}" };
+            return resumed with { Status = RunStatus.Failed, Error = $"'{resumed.Name}' could not read what the Thing it waited for reaches along '{followed.Name}': {ex.Message}" };
         }
     }
 

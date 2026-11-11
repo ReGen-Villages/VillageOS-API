@@ -92,9 +92,50 @@ public class WaitBoxTests
         gateway.Called.Should().BeEmpty();
         gateway.Records[(waited.RunId, box.Wait.Id)].Status.Should().Be(RunStatus.Failed);
         gateway.Records[(waited.RunId, box.Wait.Id)].Error.Should().Be(
-            $"'{TestGraphs.WaitBox}' could not read what 'Submission 12' reaches along 'resolvedAs': 503 from the broker");
+            $"'{TestGraphs.WaitBox}' could not read what the Thing it waited for reaches along 'resolvedAs': 503 from the broker");
         gateway.Watches.Should().BeEmpty();
         gateway.RunStatusOf(waited.RunId).Should().Be(RunStatus.Failed);
+    }
+
+    [Fact]
+    public async Task A_wait_box_that_cannot_read_what_its_Thing_reaches_carries_its_reason_along_its_fail_wire()
+    {
+        var (box, gateway, executor) = Arrange(TestGraphs.WaitBoxPipeline(follows: true, reportsAFailure: true));
+        var waited = await executor.RunAsync(box.PipelineId, default, CancellationToken.None, subject: Submission);
+        gateway.ReachedAlongFailure = new HttpRequestException("503 from the broker");
+
+        await executor.ResumeAsync(waited.RunId, box.Wait.Id, CancellationToken.None);
+
+        gateway.Called.Should().Equal("report");
+        gateway.Envelopes.Single().Envelope.GetProperty("inputs").GetProperty("in").GetString().Should().EndWith("503 from the broker");
+    }
+
+    [Fact]
+    public async Task A_wait_box_whose_awaited_Thing_the_model_no_longer_names_fails_saying_what_could_not_be_read()
+    {
+        var (box, gateway, executor) = Arrange(TestGraphs.WaitBoxPipeline(follows: true));
+        var waited = await executor.RunAsync(box.PipelineId, default, CancellationToken.None, subject: Submission);
+        gateway.Watches[(waited.RunId, box.Wait.Id)] = new Watch(null, box.Decided.Id);
+        var start = box.Fixture.Get("A submission arrives");
+        gateway.Records[(waited.RunId, start.Id)] = gateway.Records[(waited.RunId, start.Id)] with { Outputs = new Dictionary<string, JsonElement>() };
+
+        await executor.ResumeAsync(waited.RunId, box.Wait.Id, CancellationToken.None);
+
+        gateway.Records[(waited.RunId, box.Wait.Id)].Error.Should().Be(
+            $"'{TestGraphs.WaitBox}' waited for a Thing the model no longer names, so what it reaches along 'resolvedAs' could not be read.");
+    }
+
+    [Fact]
+    public async Task A_wait_box_whose_inputs_cannot_be_put_together_fails_saying_so_and_places_no_watch()
+    {
+        var (box, gateway, executor) = Arrange();
+        box.Fixture.State(box.SubjectWire!, ModelNames.ListTransform, "$error(\"no shape for the Thing\")");
+        gateway.Graph = box.Fixture.Build();
+
+        var result = await executor.RunAsync(box.PipelineId, default, CancellationToken.None, subject: Submission);
+
+        result.Nodes.Single(node => node.NodeId == box.Wait.Id).Error.Should().Contain("could not be put together").And.Contain("no shape for the Thing");
+        gateway.Watches.Should().BeEmpty();
     }
 
     [Fact]
@@ -145,7 +186,7 @@ public class WaitBoxTests
         var result = await executor.RunAsync(box.PipelineId, default, CancellationToken.None, subject: Submission, rehearsal: true);
 
         gateway.Records[(result.RunId, box.Wait.Id)].Status.Should().Be(RunStatus.Rehearsed);
-        gateway.Records[(result.RunId, box.Wait.Id)].Outputs[ModelNames.Thing].GetProperty("id").GetGuid().Should().Be(Submission.Id);
+        gateway.Records[(result.RunId, box.Wait.Id)].Outputs[TestGraphs.WaitBoxPort].GetProperty("id").GetGuid().Should().Be(Submission.Id);
         gateway.Watches.Should().BeEmpty();
     }
 

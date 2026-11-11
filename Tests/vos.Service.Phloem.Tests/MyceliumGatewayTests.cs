@@ -884,12 +884,14 @@ public class MyceliumGatewayTests
         var submissionId = Guid.NewGuid();
         var resolvedAsId = Guid.NewGuid();
         var promotedId = Guid.NewGuid();
+        var unreadId = Guid.NewGuid();
         var from = $$"""
         {
           "snapshot": {
             "things": [ { "id": "{{submissionId}}", "name": "Submission 12", "properties": {} } ],
             "relationships": [
               { "id": "{{Guid.NewGuid()}}", "subjectId": "{{submissionId}}", "predicateId": "{{resolvedAsId}}", "targetId": "{{promotedId}}", "properties": {} },
+              { "id": "{{Guid.NewGuid()}}", "subjectId": "{{submissionId}}", "predicateId": "{{resolvedAsId}}", "targetId": "{{unreadId}}", "properties": {} },
               { "id": "{{Guid.NewGuid()}}", "subjectId": "{{submissionId}}", "predicateId": "{{Guid.NewGuid()}}", "targetId": "{{Guid.NewGuid()}}", "properties": {} }
             ]
           }
@@ -906,10 +908,11 @@ public class MyceliumGatewayTests
 
         var things = await gateway.ReachedAlongAsync(submissionId, resolvedAsId, CancellationToken.None);
 
-        things.Should().Equal(new RunSubject(promotedId, "promoted"));
+        things.Should().Equal([new RunSubject(promotedId, "promoted"), new RunSubject(unreadId, string.Empty)],
+            "a Thing the second read does not answer is still reached, and is handed on by its identifier alone");
         var selectors = RequestsTo(handler, "/api/snapshots", HttpMethod.Post).ToList();
         Rules(await ReadJson(selectors[0])).Should().Equal([(null, "outgoing")]);
-        (await ReadJson(selectors[1])).GetProperty("ids").EnumerateArray().Select(id => id.GetGuid()).Should().Equal(promotedId);
+        (await ReadJson(selectors[1])).GetProperty("ids").EnumerateArray().Select(id => id.GetGuid()).Should().Equal(promotedId, unreadId);
     }
 
     [Fact]

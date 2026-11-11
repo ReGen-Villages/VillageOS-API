@@ -1099,14 +1099,16 @@ public static class TestGraphs
     }
 
     public sealed record WaitBoxFixture(
-        GraphFixture Fixture, Guid PipelineId, GraphThing Wait, GraphThing Publish, GraphThing Decided, GraphThing? ResolvedAs);
+        GraphFixture Fixture, Guid PipelineId, GraphThing Wait, GraphThing Publish, GraphThing Decided, GraphThing? ResolvedAs, GraphThing? SubjectWire);
 
     public const string WaitBox = "Wait until decided";
+    public const string WaitBoxPort = "thing";
 
     // A start node hands the run's subject to a wait box, which calls nothing and waits for it to enter `decided`;
     // Publish then runs on the Thing waited for, or on what that Thing reaches along `resolvedAs` when the box follows it.
-    // The box's ports are declared once on its kind, as the shared site template declares them.
-    public static WaitBoxFixture WaitBoxPipeline(bool follows = false, bool namesAState = true, bool wired = true)
+    // The box's ports are declared once on its kind, as the shared site template declares them. reportsAFailure adds
+    // Report, reached along the box's fail wire.
+    public static WaitBoxFixture WaitBoxPipeline(bool follows = false, bool namesAState = true, bool wired = true, bool reportsAFailure = false)
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
@@ -1126,8 +1128,8 @@ public static class TestGraphs
 
         var waitKind = fx.Playing("PipelineWait", PipelineRoles.PipelineWait);
         fx.Rel(waitKind, vocabulary.Is, vocabulary.PipelineNode);
-        var awaited = Port(waitKind, ModelNames.Thing, "in");
-        Port(waitKind, ModelNames.Thing, "out");
+        var awaited = Port(waitKind, WaitBoxPort, "in");
+        Port(waitKind, WaitBoxPort, "out");
         Port(waitKind, ModelNames.Reached, "out");
         var wait = fx.Thing(WaitBox);
         fx.Rel(wait, vocabulary.Is, waitKind);
@@ -1149,11 +1151,17 @@ public static class TestGraphs
         fx.Rel(pipe, vocabulary.Has, start);
         fx.Rel(pipe, vocabulary.Has, wait);
         fx.Rel(pipe, vocabulary.Has, publish);
-        if (wired) fx.Wire(start, "subject", wait, ModelNames.Thing);
-        fx.Wire(wait, follows ? ModelNames.Reached : ModelNames.Thing, publish, "in");
+        var subjectWire = wired ? fx.Wire(start, "subject", wait, WaitBoxPort) : null;
+        fx.Wire(wait, follows ? ModelNames.Reached : WaitBoxPort, publish, "in");
+        if (reportsAFailure)
+        {
+            var report = ServiceNode(fx, vocabulary, InputOutputPrototype(fx, vocabulary, "ReportProto"), "Report", "report");
+            fx.Rel(pipe, vocabulary.Has, report);
+            fx.TakeOn(fx.WireBetween(wait, fx.Get("error"), report, fx.PortOf(report, "in", "in")), vocabulary.Fail);
+        }
 
         fx.EndEveryPath(pipe);
-        return new WaitBoxFixture(fx, pipe.Id, wait, publish, decided, resolvedAs);
+        return new WaitBoxFixture(fx, pipe.Id, wait, publish, decided, resolvedAs, subjectWire);
     }
 
     public sealed record ResultPathsFixture(GraphFixture Fixture, Guid PipelineId, GraphThing Check, GraphThing Record, GraphThing Tell, GraphThing End);
