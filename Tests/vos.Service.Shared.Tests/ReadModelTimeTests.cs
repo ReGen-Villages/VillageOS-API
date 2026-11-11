@@ -83,6 +83,6 @@ public class ReadModelTimeTests
         // A client per call, as the host's factory gives: the stream is opened with no timeout and the clock
         // read with one, and one shared HttpClient refuses a change of timeout once it has sent a request.
         var factory = new PerCallHttpClientFactory(new MockHttpMessageHandler(respond));
-        return new TestableMyceliumClient(factory, NullLogger.Instance, MyceliumUrl, serviceToken: "service-token");
+        return new TestableMyceliumClient(factory, NullLogger.Instance, MyceliumUrl, launchToken: new LaunchToken("service-token"));
     }
 }

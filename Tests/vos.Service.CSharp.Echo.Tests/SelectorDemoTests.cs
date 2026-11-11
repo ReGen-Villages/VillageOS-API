@@ -6,6 +6,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.CSharp.Echo.Services;
 using vos.Service.Shared.Subscriptions;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -73,7 +74,7 @@ public class SelectorDemoTests
             return new HttpResponseMessage(HttpStatusCode.OK);
         });
         var client = new SubscriptionClient(new TestHttpClientFactory(new HttpClient(handler)),
-            NullLogger.Instance, MyceliumUrl, serviceToken: "tok");
+            NullLogger.Instance, MyceliumUrl, launchToken: new LaunchToken("tok"));
 
         var result = await client.SubscribeAsync(SelectorDemo.SliceByTypeAndTraverse("Battery", "powers"));
 
@@ -105,7 +106,7 @@ public class SelectorDemoTests
             Content = new StringContent("""{"error":"no Thing is named Battery"}""", Encoding.UTF8, "application/json"),
         });
         var client = new SubscriptionClient(new TestHttpClientFactory(new HttpClient(handler)),
-            NullLogger.Instance, MyceliumUrl, serviceToken: "tok");
+            NullLogger.Instance, MyceliumUrl, launchToken: new LaunchToken("tok"));
 
         var refused = await Assert.ThrowsAsync<SubscriptionRefusedException>(
             () => client.SubscribeAsync(SelectorDemo.SliceByTypeAndTraverse("Battery", "powers")));

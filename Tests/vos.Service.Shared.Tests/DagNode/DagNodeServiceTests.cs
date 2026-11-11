@@ -134,7 +134,7 @@ public class DagNodeServiceTests
         private readonly bool _throw;
 
         public EchoNode(IHttpClientFactory httpClientFactory, bool @throw)
-            : base(httpClientFactory, NullLogger.Instance, DagNodeServiceTests.MyceliumUrl, DagNodeServiceTests.ServiceToken) => _throw = @throw;
+            : base(httpClientFactory, NullLogger.Instance, DagNodeServiceTests.MyceliumUrl, new LaunchToken(DagNodeServiceTests.ServiceToken)) => _throw = @throw;
 
         public override IReadOnlyList<PortDescriptor> Ports { get; } = new[]
         {

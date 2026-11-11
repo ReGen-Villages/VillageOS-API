@@ -165,7 +165,7 @@ public class MyceliumClientWriteKindsTests
         var handler = new MockHttpMessageHandler(respond);
         var http = new HttpClient(handler);
         var factory = new TestHttpClientFactory(http);
-        var client = new TestableMyceliumClient(factory, NullLogger.Instance, MyceliumUrl, ServiceToken)
+        var client = new TestableMyceliumClient(factory, NullLogger.Instance, MyceliumUrl, new LaunchToken(ServiceToken))
         {
             ViolationModeForTests = SchemaViolationMode.Throw, // schemas must accept the real payloads
         };

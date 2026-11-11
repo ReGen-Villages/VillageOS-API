@@ -12,19 +12,19 @@ namespace vos.Service.Shared.Tests;
 public class ServiceCredentialTests
 {
     private const string MyceliumUrl = "http://localhost:7243";
-    private const string StaticToken = "the.static.token";
+    private const string LaunchedWith = "the.launch.token";
 
     private static readonly DateTimeOffset Start = new(2026, 8, 24, 12, 0, 0, TimeSpan.Zero);
 
     private static ServiceCredential Credential(
-        string? serviceToken = null, string? apiKey = null,
+        LaunchToken? launchToken = null, string? apiKey = null,
         Func<HttpRequestMessage, HttpResponseMessage>? respond = null)
     {
         var handler = new MockHttpMessageHandler(
             respond ?? (_ => new HttpResponseMessage(HttpStatusCode.Forbidden)));
         return new ServiceCredential(
             new TestHttpClientFactory(new HttpClient(handler)), NullLogger.Instance, MyceliumUrl,
-            serviceToken, apiKey);
+            launchToken, apiKey);
     }
 
     private static HttpResponseMessage Minted(string token) => new(HttpStatusCode.OK)
@@ -42,27 +42,40 @@ public class ServiceCredentialTests
     }
 
     [Fact]
-    public async Task WithAStaticToken_ThatIsWhatItPresents()
+    public async Task WithALaunchToken_ThatIsWhatItPresents()
     {
-        var credential = Credential(serviceToken: StaticToken);
+        var credential = Credential(launchToken: new LaunchToken(LaunchedWith));
 
         credential.Holds.Should().BeTrue();
-        (await credential.GetTokenAsync()).Should().Be(StaticToken);
+        (await credential.GetTokenAsync()).Should().Be(LaunchedWith);
     }
 
     [Fact]
-    public async Task AKeyAnswersBeforeAStaticToken()
+    public async Task EveryCredentialSharingALaunchToken_PresentsItsReplacement()
+    {
+        var launchToken = new LaunchToken(LaunchedWith);
+        var first = Credential(launchToken: launchToken);
+        var second = Credential(launchToken: launchToken);
+
+        launchToken.Replace("the.replacement.token");
+
+        (await first.GetTokenAsync()).Should().Be("the.replacement.token");
+        (await second.GetTokenAsync()).Should().Be("the.replacement.token");
+    }
+
+    [Fact]
+    public async Task AKeyAnswersBeforeALaunchToken()
     {
         var minted = TestTokens.For(Guid.NewGuid(), Start.AddHours(1));
-        var credential = Credential(serviceToken: StaticToken, apiKey: "key-1", respond: _ => Minted(minted));
+        var credential = Credential(launchToken: new LaunchToken(LaunchedWith), apiKey: "key-1", respond: _ => Minted(minted));
 
         (await credential.GetTokenAsync()).Should().Be(minted);
     }
 
     [Fact]
-    public async Task AKeyThatCouldNotBeExchanged_PresentsNothingRatherThanTheStaticToken()
+    public async Task AKeyThatCouldNotBeExchanged_PresentsNothingRatherThanTheLaunchToken()
     {
-        var credential = Credential(serviceToken: StaticToken, apiKey: "key-1");
+        var credential = Credential(launchToken: new LaunchToken(LaunchedWith), apiKey: "key-1");
 
         credential.Holds.Should().BeTrue("a key it cannot exchange is still a credential the operator chose");
         (await credential.GetTokenAsync()).Should().BeNull();
@@ -71,7 +84,7 @@ public class ServiceCredentialTests
     [Fact]
     public async Task TheBearerTheWorkArrivedWith_AnswersBeforeAnythingLaunchedWith()
     {
-        var credential = Credential(serviceToken: StaticToken, apiKey: "key-1");
+        var credential = Credential(launchToken: new LaunchToken(LaunchedWith), apiKey: "key-1");
 
         string? presented = null;
         await MyceliumModelToken.ActingForAsync("inbound-model-token",

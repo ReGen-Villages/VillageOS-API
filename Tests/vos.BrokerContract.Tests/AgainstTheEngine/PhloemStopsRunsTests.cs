@@ -6,6 +6,7 @@ using vos.Service.Phloem.Model;
 using vos.Service.Phloem.Services;
 using vos.Service.Shared.Roles;
 using Xunit;
+using vos.Service.Shared;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
@@ -17,7 +18,7 @@ public class PhloemStopsRunsTests : IClassFixture<TheEngine>
 
     public PhloemStopsRunsTests(TheEngine engine) => _engine = engine;
 
-    private MyceliumGateway Gateway() => new(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, _engine.AdminToken);
+    private MyceliumGateway Gateway() => new(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
 
     private async Task<Guid> BindOnceAsync(Role role, Func<Task<Guid>> declare)
     {

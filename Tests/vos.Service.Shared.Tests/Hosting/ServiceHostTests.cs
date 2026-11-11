@@ -38,7 +38,7 @@ public class ServiceHostTests
             NullLogger<EndpointServiceMyceliumClient>.Instance,
             ServiceName,
             MyceliumUrl,
-            "svc-token"));
+            new LaunchToken("svc-token")));
 
         if (withMyceliumRegistration)
             builder.Services.AddMyceliumRegistration(ServiceName, port: 7100);

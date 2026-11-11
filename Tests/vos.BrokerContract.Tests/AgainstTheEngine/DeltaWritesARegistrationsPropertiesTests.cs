@@ -4,6 +4,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Delta.Models;
 using Xunit;
+using vos.Service.Shared;
 using DeltaClient = vos.Service.Delta.Services.MyceliumClient;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
@@ -18,7 +19,7 @@ public class DeltaWritesARegistrationsPropertiesTests : IClassFixture<TheEngine>
     [FactAgainstTheEngine]
     public async Task Delta_writes_each_value_a_registration_states_onto_the_registration()
     {
-        var delta = new DeltaClient(_engine.ClientFactory, NullLogger<DeltaClient>.Instance, TheEngine.Url, _engine.AdminToken);
+        var delta = new DeltaClient(_engine.ClientFactory, NullLogger<DeltaClient>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
         var isPredicate = await _engine.DeclareOnceAsync("is");
         var template = await _engine.DeclareAsync($"Endpoint_{Guid.NewGuid():N}", isArchetype: true,
             new Dictionary<string, object?> { ["url"] = "", ["pageSize"] = 0, ["paged"] = false });

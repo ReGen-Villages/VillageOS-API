@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using vos.Service.Forage.Configuration;
+using vos.Service.Shared;
 
 namespace vos.Service.Forage.Services;
 
@@ -16,14 +17,14 @@ public static class SourceFetching
         this IServiceCollection services,
         ForageLaunchSettings launchSettings,
         string myceliumUrl,
-        string? serviceToken,
+        LaunchToken? launchToken,
         string? apiKey)
     {
         services.AddSingleton(provider => new EndpointServiceSourceFetcher(
             provider.GetRequiredService<IHttpClientFactory>(),
             provider.GetRequiredService<ILogger<EndpointServiceSourceFetcher>>(),
             myceliumUrl,
-            serviceToken,
+            launchToken,
             launchSettings.FetcherSubdomain,
             launchSettings.SourceTimeout,
             apiKey));

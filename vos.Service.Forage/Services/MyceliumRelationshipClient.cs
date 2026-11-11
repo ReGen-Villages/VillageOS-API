@@ -14,8 +14,8 @@ public sealed class MyceliumRelationshipClient : MyceliumClientBase, ICoverageWr
 {
     public MyceliumRelationshipClient(
         IHttpClientFactory httpClientFactory, ILogger<MyceliumRelationshipClient> logger,
-        string myceliumUrl, string? serviceToken = null, string? apiKey = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey) { }
+        string myceliumUrl, LaunchToken? launchToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey) { }
 
     public async Task<Guid?> MintAsync(string name, CancellationToken cancellationToken)
     {

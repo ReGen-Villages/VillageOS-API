@@ -582,6 +582,19 @@ public class InputChangeRecomputeServiceTests
     }
 
     [Fact]
+    public async Task With_no_request_in_hand_the_follower_starts_from_the_launch_token_as_it_now_stands()
+    {
+        await using var harness = await Harness.StartedAsync(startupModel: ModelOne);
+        var renewed = TestTokens.For(ModelOne, DateTimeOffset.UtcNow.AddHours(23));
+        harness.LaunchToken!.Replace(renewed);
+
+        harness.Service.Watch(Study);
+        await harness.WaitForSubscriptionAsync(ModelOne);
+
+        harness.Exchange.Calls.First().Should().Be(renewed);
+    }
+
+    [Fact]
     public void AddInputChangeRecompute_resolves_the_service_and_runs_it_as_a_hosted_service()
     {
         using var provider = Registered();
@@ -628,7 +641,7 @@ public class InputChangeRecomputeServiceTests
         services.AddSingleton<IHostEnvironment>(new FakeEnvironment());
         services.AddSingleton(spy);
         services.AddInputChangeRecompute<RecomputeSpy>(
-            "TestCompute", "http://mycelium", serviceToken: null,
+            "TestCompute", "http://mycelium", launchToken: null,
             handler => handler.InputProperties,
             (handler, subjectId, _) => handler.RecordAsync(subjectId));
 
@@ -653,6 +666,7 @@ public class InputChangeRecomputeServiceTests
         private readonly object _clientsLock = new();
 
         public FakeTokenExchange Exchange { get; } = new();
+        public LaunchToken? LaunchToken { get; }
         public InputChangeRecomputeService Service { get; }
         public int FailSubscribesBefore { get; init; }
 
@@ -681,11 +695,11 @@ public class InputChangeRecomputeServiceTests
                     throw new InvalidOperationException("recompute failed");
                 });
 
+            LaunchToken = noStartupToken ? null : new LaunchToken(TestTokens.For(startupModel ?? ModelOne));
             Service = new InputChangeRecomputeService(
                 NewClient, Exchange, inputs,
                 new FakeEnvironment { EnvironmentName = environmentName }, NullLogger.Instance,
-                startupToken: noStartupToken ? null : TestTokens.For(startupModel ?? ModelOne),
-                replacementLeadTime, replacementCheckInterval);
+                LaunchToken, replacementLeadTime, replacementCheckInterval);
         }
 
         private ISubscriptionClient NewClient(Func<Task<string?>> currentToken)

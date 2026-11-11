@@ -16,8 +16,8 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
 {
     public EnergyBalanceReactiveHandler(
         IHttpClientFactory httpClientFactory, ILogger<EnergyBalanceReactiveHandler> logger,
-        string myceliumUrl, string? serviceToken = null, string? apiKey = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
+        string myceliumUrl, LaunchToken? launchToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey)
     {
     }
 

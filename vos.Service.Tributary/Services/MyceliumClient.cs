@@ -21,8 +21,8 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
 
     public MyceliumClient(
         IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, TimeProvider clock,
-        string? serviceToken = null, string? apiKey = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
+        LaunchToken? launchToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, launchToken, apiKey: apiKey)
     {
         _clock = clock;
     }

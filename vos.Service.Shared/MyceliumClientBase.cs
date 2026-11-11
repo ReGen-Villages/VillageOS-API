@@ -49,14 +49,14 @@ public abstract class MyceliumClientBase
     }
 
     protected MyceliumClientBase(
-        IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null,
+        IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, LaunchToken? launchToken = null,
         Func<Task<string?>>? tokenProvider = null, string? apiKey = null)
     {
         HttpClientFactory = httpClientFactory;
         Logger = logger;
         MyceliumUrl = myceliumUrl;
         _tokenProvider = tokenProvider;
-        _credential = new ServiceCredential(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey);
+        _credential = new ServiceCredential(httpClientFactory, logger, myceliumUrl, launchToken, apiKey);
     }
 
     private const string NoCredential = "neither ApiKey nor Token is set";

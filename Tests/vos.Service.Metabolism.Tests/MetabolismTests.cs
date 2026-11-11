@@ -246,7 +246,7 @@ public class MetabolismTests : IAsyncLifetime
             new HttpClient(mock, disposeHandler: false) { BaseAddress = new Uri("http://test-mycelium") });
 
         var myceliumLogger = new Mock<ILogger<MyceliumClient>>();
-        var myceliumClient = new MyceliumClient(httpFactory.Object, myceliumLogger.Object, "http://test-mycelium", direction, serviceToken: "fake-jwt");
+        var myceliumClient = new MyceliumClient(httpFactory.Object, myceliumLogger.Object, "http://test-mycelium", direction, launchToken: new LaunchToken("fake-jwt"));
 
         engineLogger ??= new Mock<ILogger<Services.Metabolism>>().Object;
         var engine = new Services.Metabolism(myceliumClient, engineLogger, direction);

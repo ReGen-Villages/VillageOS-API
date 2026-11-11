@@ -386,7 +386,8 @@ public class MyceliumClientBaseTests
         var handler = new MockHttpMessageHandler(respond);
         var httpClient = new HttpClient(handler);
         var factory = new TestHttpClientFactory(httpClient);
-        var client = new TestableMyceliumClient(factory, logger ?? NullLogger.Instance, MyceliumUrl, serviceToken, tokenProvider, apiKey);
+        var client = new TestableMyceliumClient(factory, logger ?? NullLogger.Instance, MyceliumUrl,
+            serviceToken is null ? null : new LaunchToken(serviceToken), tokenProvider, apiKey);
         return (client, handler);
     }
 

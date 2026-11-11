@@ -5,6 +5,7 @@ using vos.Service.Phloem.Model;
 using vos.Service.Phloem.Services;
 using vos.Service.Shared.Roles;
 using Xunit;
+using vos.Service.Shared;
 
 namespace vos.BrokerContract.Tests.AgainstTheEngine;
 
@@ -76,7 +77,7 @@ public class PhloemStartsTheMostSpecificPipelineTests : IClassFixture<TheEngine>
         var document = await _engine.DeclareAsync($"an arriving document {Guid.NewGuid():N}");
         await _engine.RelateAsync(document, arrivals.OfKind, arrivals.Kind);
         await _engine.RelateAsync(document, arrivals.From, system);
-        var gateway = new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, _engine.AdminToken);
+        var gateway = new MyceliumGateway(_engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, new LaunchToken(_engine.AdminToken));
         return await new PipelineStarter(gateway).ResolveAsync(arrivals.Connection, null, document, CancellationToken.None);
     }
 

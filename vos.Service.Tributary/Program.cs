@@ -35,7 +35,7 @@ if (launchSettings == null)
 
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
-var serviceToken = launchSettings.Token;
+var launchToken = builder.Services.AddLaunchToken(launchSettings.Token, myceliumUrl);
 var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
@@ -69,7 +69,7 @@ try
             sp.GetRequiredService<ILogger<MyceliumClient>>(),
             myceliumUrl,
             sp.GetRequiredService<TimeProvider>(),
-            serviceToken, apiKey: apiKey));
+            launchToken, apiKey: apiKey));
     builder.Services.AddSingleton<IEndpointMyceliumClient>(sp => sp.GetRequiredService<MyceliumClient>());
     // Reads which kinds an endpoint reaches. A scoped snapshot, not a property read, because a kind
     // is a Thing the endpoint relates to rather than a word it carries.
@@ -78,7 +78,7 @@ try
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<SubscriptionClient>>(),
             myceliumUrl,
-            serviceToken, apiKey: apiKey));
+            launchToken, apiKey: apiKey));
     builder.Services.AddModelClock<MyceliumClient>("Tributary");
     builder.Services.AddSingleton<ObservationIngestService>();
     // Per-process token-exchange cache. TimeProvider.System drives its refresh threshold;

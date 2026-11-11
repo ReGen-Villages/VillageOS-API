@@ -134,7 +134,7 @@ public class EndpointServiceMyceliumClientTests
             NullLogger<EndpointServiceMyceliumClient>.Instance,
             serviceName,
             MyceliumUrl,
-            serviceToken);
+            serviceToken is null ? null : new LaunchToken(serviceToken));
         return (client, handler);
     }
 

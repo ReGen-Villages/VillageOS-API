@@ -3,6 +3,7 @@ using System.Threading.Channels;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Shared.Subscriptions;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -35,7 +36,7 @@ public class AComputeServiceFollowsAnArchetypesEditTests : IClassFixture<TheEngi
             currentToken => new SubscriptionClient(
                 _engine.ClientFactory, NullLogger<SubscriptionClient>.Instance, TheEngine.Url, tokenProvider: currentToken),
             new ServiceTokenExchange(_engine.ClientFactory, NullLogger<ServiceTokenExchange>.Instance, TheEngine.Url),
-            inputs, new DevelopmentEnvironment(), log, startupToken: _engine.AdminToken);
+            inputs, new DevelopmentEnvironment(), log, launchToken: new LaunchToken(_engine.AdminToken));
         service.Watch(study);
         await service.StartAsync(CancellationToken.None);
         await log.UntilLoggedAsync("is following its inputs");

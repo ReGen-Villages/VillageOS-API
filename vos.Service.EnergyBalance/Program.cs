@@ -19,7 +19,7 @@ if (launchSettings == null)
 
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
-var serviceToken = launchSettings.Token;
+var launchToken = builder.Services.AddLaunchToken(launchSettings.Token, myceliumUrl);
 var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
@@ -46,19 +46,19 @@ try
             sp.GetRequiredService<ILogger<EndpointServiceMyceliumClient>>(),
             "EnergyBalance",
             myceliumUrl,
-            serviceToken, apiKey: apiKey));
+            launchToken, apiKey: apiKey));
 
     builder.Services.AddSingleton(sp =>
         new EnergyBalanceNode(sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<EnergyBalanceNode>>(), myceliumUrl, serviceToken, apiKey: apiKey));
+            sp.GetRequiredService<ILogger<EnergyBalanceNode>>(), myceliumUrl, launchToken, apiKey: apiKey));
 
     builder.Services.AddSingleton(sp =>
         new EnergyBalanceReactiveHandler(sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<EnergyBalanceReactiveHandler>>(), myceliumUrl, serviceToken, apiKey: apiKey));
+            sp.GetRequiredService<ILogger<EnergyBalanceReactiveHandler>>(), myceliumUrl, launchToken, apiKey: apiKey));
 
     // Recompute when an input moves, so a study's result never presents a stale number as current.
     builder.Services.AddInputChangeRecompute<EnergyBalanceReactiveHandler>(
-        "EnergyBalance", myceliumUrl, serviceToken, _ => EnergyBalanceReactiveHandler.InputProperties,
+        "EnergyBalance", myceliumUrl, launchToken, _ => EnergyBalanceReactiveHandler.InputProperties,
         (handler, studyId, ct) => handler.RecomputeAsync(studyId, ct));
 
     builder.Services.AddMyceliumRegistration("EnergyBalance", servicePort);

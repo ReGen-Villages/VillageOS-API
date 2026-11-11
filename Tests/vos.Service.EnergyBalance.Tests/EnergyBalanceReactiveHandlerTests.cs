@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.EnergyBalance.Services;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -24,7 +25,7 @@ public class EnergyBalanceReactiveHandlerTests
         RecordingHttpMessageHandler http, ILogger<EnergyBalanceReactiveHandler>? logger = null) =>
         new(new TestHttpClientFactory(new HttpClient(http)),
             logger ?? NullLogger<EnergyBalanceReactiveHandler>.Instance,
-            "http://mycelium", serviceToken: "test-token");
+            "http://mycelium", launchToken: new LaunchToken("test-token"));
 
     private static RecordingHttpMessageHandler Serving(string properties) =>
         new(request => request.Method == HttpMethod.Get
