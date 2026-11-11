@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO.Pipelines;
 using System.Net;
 using System.Net.Http.Json;
@@ -11,6 +12,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Serilog;
+using Serilog.Core;
+using Serilog.Events;
 using vos.Service.Shared;
 using vos.Service.Shared.Hosting;
 using vos.Tests.Shared;
@@ -364,6 +369,41 @@ public class ServiceHostTests
         {
             folder.Delete(recursive: true);
         }
+    }
+
+    // The fault this guards: the HTTP client wrote information lines for every call a service made,
+    // so a service retrying a refused call every few seconds filled its log and the broker's.
+    [Fact]
+    public async Task LevelsAndEnrichment_KeepsTheHttpClientsInformationLinesOutOfTheLog()
+    {
+        var sink = new CollectingSink();
+        using var logger = ServiceHost.LevelsAndEnrichment(ServiceName).WriteTo.Sink(sink).CreateLogger();
+        var services = new ServiceCollection();
+        services.AddLogging(logging => logging.AddSerilog(logger));
+        services.AddHttpClient(Options.DefaultName).ConfigurePrimaryHttpMessageHandler(
+            () => new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized)));
+        await using var provider = services.BuildServiceProvider();
+
+        await provider.GetRequiredService<IHttpClientFactory>().CreateClient().GetAsync($"{MyceliumUrl}/api/time");
+        provider.GetRequiredService<ILogger<ServiceHostTests>>().LogInformation("a line of the service's own");
+
+        sink.SourcesWritten().Should().NotContain(source => source.StartsWith("System.Net.Http.HttpClient"),
+            "a routine call is not worth a line; a failing one is logged by the service that made it");
+        sink.MessagesWritten().Should().Contain("a line of the service's own");
+    }
+
+    private sealed class CollectingSink : ILogEventSink
+    {
+        private readonly ConcurrentQueue<LogEvent> _events = new();
+
+        public void Emit(LogEvent logEvent) => _events.Enqueue(logEvent);
+
+        public IEnumerable<string> SourcesWritten() => _events
+            .Select(logEvent => logEvent.Properties.TryGetValue(Constants.SourceContextPropertyName, out var source)
+                ? ((ScalarValue)source).Value?.ToString() ?? ""
+                : "");
+
+        public IEnumerable<string> MessagesWritten() => _events.Select(logEvent => logEvent.RenderMessage());
     }
 
     [Fact]

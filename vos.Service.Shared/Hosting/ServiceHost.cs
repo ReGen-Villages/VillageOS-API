@@ -32,11 +32,7 @@ public static class ServiceHost
     {
         LogFilePrefix = writeToFile ? LogFilePrefixOf(logFileName) : null;
         LogDirectory = writeToFile && logDirectory is not null ? Path.GetFullPath(logDirectory) : null;
-        var configuration = new LoggerConfiguration()
-            .MinimumLevel.Information()
-            .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
-            .Enrich.FromLogContext()
-            .Enrich.WithProperty("Service", serviceName)
+        var configuration = LevelsAndEnrichment(serviceName)
             .WriteTo.Console(outputTemplate: LogLineTemplate);
 
         // Tests leave the file sink off: writing files from shared build agents invites flakiness.
@@ -53,6 +49,14 @@ public static class ServiceHost
 
         Log.Logger = configuration.CreateLogger();
     }
+
+    internal static LoggerConfiguration LevelsAndEnrichment(string serviceName) =>
+        new LoggerConfiguration()
+            .MinimumLevel.Information()
+            .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+            .MinimumLevel.Override("System.Net.Http.HttpClient", LogEventLevel.Warning)
+            .Enrich.FromLogContext()
+            .Enrich.WithProperty("Service", serviceName);
 
     // Whatever started the service reads its exit code and standard error, not its log file. A test host stops a
     // service by throwing HostAbortedException out of its entry point, which is not a failure.
