@@ -7,8 +7,12 @@ import os
 import sys
 import threading
 import time
+from pathlib import Path
 
-from quadrat.pool import ReadPool
+# Run as a script, Python looks for modules next to the script, not in the folder it was started from.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from quadrat.pool import ReadPool  # noqa: E402
 
 
 def start_heartbeat(path):
