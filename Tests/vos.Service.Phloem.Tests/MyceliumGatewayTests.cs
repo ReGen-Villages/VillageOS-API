@@ -357,14 +357,14 @@ public class MyceliumGatewayTests
             .Should().BeEquivalentTo(PipelineRoles.DagRoles.Select(role => role.Id).Append(pipelineId).Concat(
                 [PipelineRoles.ExternalSystem.Id, PipelineRoles.StandsFor.Id, PipelineRoles.ToldThrough.Id, PipelineRoles.Choice.Id,
                  PipelineRoles.CompletionRange.Id, PipelineRoles.AwaitsThrough.Id, PipelineRoles.PipelineTell.Id, PipelineRoles.PipelineFollowOn.Id,
-                 PipelineRoles.PipelineStop.Id, PipelineRoles.RequestedBy.Id, PipelineRoles.PipelineWait.Id, PipelineRoles.ReachedAlong.Id]));
+                 PipelineRoles.PipelineStop.Id, PipelineRoles.RequestedBy.Id, PipelineRoles.PipelineWait.Id, PipelineRoles.ReachedAlong.Id, PipelineRoles.PipelineRelate.Id]));
 
         var rules = selector.GetProperty("traverse").EnumerateArray().ToList();
         rules.Select(rule => rule.TryGetProperty("predicateRole", out var role) ? role.GetString() : rule.GetProperty("predicate").GetString())
             .Should().Equal(ModelNames.Has, ModelNames.Is, ModelNames.Has, ModelNames.Binds,
                 PipelineRoles.InputConnector.Id.ToString(), PipelineRoles.OutputConnector.Id.ToString(), PipelineRoles.StandsFor.Id.ToString(),
                 PipelineRoles.ToldThrough.Id.ToString(), PipelineRoles.Choice.Id.ToString(), PipelineRoles.CompletionRange.Id.ToString(),
-                PipelineRoles.ComparesWith.Id.ToString(), PipelineRoles.ReachedAlong.Id.ToString());
+                PipelineRoles.ComparesWith.Id.ToString(), PipelineRoles.ReachedAlong.Id.ToString(), ModelNames.Has);
         rules.Take(3).Select(rule => rule.GetProperty("depth").GetInt32()).Should().Equal(8, 1, 1);
         rules.Should().OnlyContain(rule => rule.GetProperty("direction").GetString() == "outgoing");
     }

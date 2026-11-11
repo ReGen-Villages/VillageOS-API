@@ -297,6 +297,22 @@ internal sealed class FakeGateway : IMyceliumGateway
         return Task.CompletedTask;
     }
 
+    public List<(Guid Subject, Guid Predicate, Guid Target)> RelationshipsWritten { get; } = new();
+    public Func<Guid, Guid, Guid, string?> RefuseRelationship { get; set; } = (_, _, _) => null;
+
+    public Task WriteRelationshipAsync(Guid subjectId, Guid predicateId, Guid targetId, CancellationToken ct)
+    {
+        if (RefuseRelationship(subjectId, predicateId, targetId) is { } refusal)
+            return Task.FromException(new HttpRequestException($"The platform refused a relationship: {refusal}"));
+        lock (_model)
+        {
+            RelationshipsWritten.Add((subjectId, predicateId, targetId));
+            var key = (subjectId, predicateId);
+            ReachedAlong[key] = [.. ReachedAlong.GetValueOrDefault(key) ?? [], new RunSubject(targetId, string.Empty)];
+        }
+        return Task.CompletedTask;
+    }
+
     public Dictionary<(Guid ThingId, Guid PredicateId), IReadOnlyList<RunSubject>> ReachedAlong { get; } = new();
     public Exception? ReachedAlongFailure { get; set; }
 

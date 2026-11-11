@@ -72,6 +72,7 @@ public static class PipelineRoles
     // and it hands on the Things that predicate reaches.
     public static readonly Role PipelineWait = new("pipelineWait", new("b5023bc8-1030-596b-8aa1-0b2f876a786a"));
     public static readonly Role ReachedAlong = new("reachedAlong", new("ff5b3754-1bf3-5be9-8515-349c20d8192b"));
+    public static readonly Role PipelineRelate = new("pipelineRelate", new("a1066623-6cef-5404-80fc-cc222fceee59"));
     public static readonly Role Cadence = new("cadence", new("f3883eaf-4e52-5c0c-887b-1bc696578812"));
     // Holds each run along `has` from its first write until its finish, so a restart reads the runs under way rather
     // than every run ever recorded.

@@ -147,6 +147,8 @@ public static class PipelineDagBuilder
         }
         if (graph.IsOf(nodeThing, PipelineRoles.PipelineWait))
             return BuildOrchestratorNode(graph, nodeThing, DagNodeKind.Wait, errorPort, problems);
+        if (graph.IsOf(nodeThing, PipelineRoles.PipelineRelate))
+            return BuildRelateNode(graph, nodeThing, errorPort, problems);
 
         var connection = graph.OutgoingTargets(nodeThing, ModelNames.Has)
             .FirstOrDefault(t => graph.IsOf(t, PipelineRoles.Connection))
@@ -318,6 +320,37 @@ public static class PipelineDagBuilder
             : null,
         Follows = kind == DagNodeKind.Wait ? Judged(problems, () => FollowedBy(graph, nodeThing), null) : null,
     };
+
+    // The state waited for is the one the connection is proven by, so the broker and every pipeline judge the work done
+    // by one declaration.
+    private static DagNode BuildRelateNode(PipelineGraph graph, GraphThing nodeThing, DagPort errorPort, List<string> problems)
+    {
+        var node = BuildOrchestratorNode(graph, nodeThing, DagNodeKind.Relate, errorPort, problems);
+        var read = Judged(problems, () => RelatingOf(graph, nodeThing), ((Relating, DagWait)?)null);
+        return read is { } relating
+            ? new DagNode
+            {
+                NodeId = node.NodeId, Name = node.Name, Kind = node.Kind, Subdomain = node.Subdomain, Params = node.Params,
+                Ports = node.Ports, ParameterBindings = node.ParameterBindings, Relates = relating.Item1, Waits = relating.Item2,
+                MayBeCalledAgain = true,
+            }
+            : node;
+    }
+
+    private static (Relating, DagWait)? RelatingOf(PipelineGraph graph, GraphThing nodeThing)
+    {
+        var connection = graph.OutgoingAlong(nodeThing, PipelineRoles.StandsFor).FirstOrDefault(target => graph.IsOf(target, PipelineRoles.Connection))
+            ?? throw new PipelineModelException($"Node '{nodeThing.Name}' is a relate node but stands for no connection.");
+        var service = graph.OutgoingTargets(connection, ModelNames.Has).FirstOrDefault(target => graph.IsOf(target, PipelineRoles.Service))
+            ?? throw new PipelineModelException($"Node '{nodeThing.Name}' stands for '{connection.Name}', which binds no service, so nothing would be called.");
+        var states = graph.OutgoingAlong(connection, PipelineRoles.CompletionRange).ToList();
+        if (states.Count == 0)
+            throw new PipelineModelException($"Node '{nodeThing.Name}' stands for '{connection.Name}', which names no state its work is proven by, "
+                + "so the run could not tell when the work is done.");
+        if (states.Count > 1)
+            throw new PipelineModelException($"Node '{nodeThing.Name}' stands for '{connection.Name}', which names two states its work is proven by.");
+        return (new Relating(connection.Id, connection.Name, service.Id), new DagWait(states[0].Id, states[0].Name, ModelNames.Thing));
+    }
 
     // A node reaching its own pipeline is refused, since a run would start another of itself without end.
     private static Starting? PipelineReachedAlong(PipelineGraph graph, GraphThing node, Role role, string reaching)
