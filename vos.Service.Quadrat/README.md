@@ -48,8 +48,8 @@ for that:
 |---|---|
 | `service` | `Quadrat` |
 | `rehearses` | `true`: Quadrat writes nothing but its answer, so a rehearsal may call it |
-| `ports` | `raster` (required), `tile`, `lon`, `lat`, `bbox`, `geometry` in; `result` out |
-| `settings` | `operation` (required: `metadata`, `point`, `zonal`, `histogram`, `classify`), `resampling` (`nearest` or `bilinear`, default `nearest`; `point` only) and `encoding` (`terrarium` or `mapbox`; with a `tile` only) |
+| `ports` | `raster` (required), `tile`, `lon`, `lat`, `bbox`, `geometry`, `classes`, `line`, `spacing`, `samples` in; `result` out |
+| `settings` | `operation` (required: `metadata`, `point`, `zonal`, `histogram`, `classify`, `profile`), `resampling` (`nearest` or `bilinear`, default `nearest`; `point` and `profile` only) and `encoding` (`terrarium` or `mapbox`; with a `tile` only) |
 
 The settings arrive in `params`, not through ports. A node declared from the manifest carries every setting, empty
 until someone sets it, so an empty `resampling` or `encoding` reads as not set. An empty `operation` is refused. The
@@ -260,6 +260,57 @@ tile, and its mean agrees to within 0.5 m.
 curl -o samples/tatra-z10-568-350.tif https://s3.amazonaws.com/elevation-tiles-prod/geotiff/10/568/350.tif
 curl -o samples/tatra-z10-568-350.terrarium.png https://s3.amazonaws.com/elevation-tiles-prod/terrarium/10/568/350.png
 ```
+
+## Contract and smoke tests
+
+Two checks sit above the unit tests, and they answer different questions.
+
+**The contract test** (`tests/test_contract.py`, part of `pytest`) pins what the rest of the platform depends on
+Quadrat being, from the platform's side of [docs/SERVICES.md §16.2](../docs/SERVICES.md): a manifest whose ports and
+settings are in the shape the editor and `declare_service.py` read; every operation answering the envelope Phloem
+parses (`result`, `outputs`, `error`, only the declared output port); a refusal answering `fail` with its code and no
+outputs; a body without both `runId` and `nodeId` not taken for a node call; and every input a request uses declared
+as a port, and every declared port used. It also feeds the real `/manifest` to the playground's `declare_service.py`
+and `validate_fragment.py`, so a manifest the declaration tooling cannot turn into a model Phloem accepts fails here
+rather than at a deployment.
+
+**The smoke test** (`smoke.py`) is pointed at a *running* Quadrat and asks whether it reads a real raster correctly over
+HTTP, as the platform would call it. `smoke_tatra.json` holds the checks for the public Tatra elevation tile (see
+[Sample data](#sample-data)): the tile is described; Kasprowy Wierch reads within a cell of its published height,
+1987 m (the tile has 1962 m under it: its cells are 76 m wide in the tile's projection and the summit is a narrow ridge); a point reads `nearest` and `bilinear`; a box is
+summarised; a line from the summit descends; the terrarium PNG of the same tile agrees with the GeoTIFF to a few
+metres; and a place far from the tile is refused with `outside_raster`. The expected values were measured once from the
+tile, so a change in how Quadrat reads fails them, and the published height is the check that does not depend on
+Quadrat's own reading. `tests/test_smoke.py` runs the script against a real Quadrat process on a grid whose values are
+known, so a script that always said pass would fail the tests.
+
+Run it against a service you started, from this folder:
+
+```powershell
+# Windows. Start-Process keeps the service running after the shell that started it ends; a background shell job may not.
+$svc = "D:\RegenRepos\VillageOS-API\vos.Service.Quadrat"
+$p = Start-Process -FilePath "$svc\.venv\Scripts\python.exe" -WorkingDirectory $svc -WindowStyle Hidden -PassThru `
+  -ArgumentList @("app.py", "--port=5611", "--myceliumUrl=http://127.0.0.1:9", "--rasterDirectory=$svc\samples") `
+  -RedirectStandardOutput "$env:TEMP\quadrat.out.log" -RedirectStandardError "$env:TEMP\quadrat.err.log"
+.venv\Scripts\python.exe smoke.py --url http://127.0.0.1:5611 --checks smoke_tatra.json --rasters samples
+Stop-Process -Id $p.Id -Force      # the worker processes end with it
+```
+
+```bash
+# Linux and macOS
+.venv/bin/python app.py --port=5611 --myceliumUrl=http://127.0.0.1:9 --rasterDirectory=samples &
+.venv/bin/python smoke.py --url http://127.0.0.1:5611 --checks smoke_tatra.json --rasters samples; kill %1
+```
+
+- `--myceliumUrl` is required even for a service that never registers. Without an `ApiKey` or `Token` in the
+  environment it does not try to, and without a `VerificationKey` it does not check tokens, so a local run needs no
+  platform. Pass `--token <jwt>` to `smoke.py` for a service that does verify them.
+- A raster named without a folder in the checks is looked for in `--rasters`, so the run does not depend on the folder
+  the service was started from. The service itself reads only what `--rasterDirectory` allows.
+- `smoke.py` uses the standard library only. It prints `PASS` or `FAIL` for each check with the value it got, and exits
+  1 if any failed.
+- A check that fails on a different machine because the tile was fetched again (the source may regenerate it) is a
+  reason to look at the new values, not to widen the tolerance blindly.
 
 ## Zones: a box or a polygon
 

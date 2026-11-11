@@ -7,14 +7,12 @@ manifest. Registration is mocked so the tests never touch the network.
 
 import base64
 import time
-from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import AsyncMock, patch
 
 import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
-from fastapi.testclient import TestClient
 
 import app as appmod
 from app import app, host
@@ -27,26 +25,7 @@ THIS_HANDLER = "quadrat-handler"
 RUN = {"runId": "6d2b0c1e-0000-4000-8000-000000000001", "nodeId": "6d2b0c1e-0000-4000-8000-000000000002"}
 
 
-@pytest.fixture(autouse=True)
-def reads_in_this_process(monkeypatch):
-    """The tests patch things in this process, so their reads run in it; one test below uses real worker processes."""
-    pool = ReadPool(2, executor_factory=lambda: ThreadPoolExecutor(2))
-    monkeypatch.setattr(appmod, "pool", pool)
-    yield
-    pool.close()
-
-
-@pytest.fixture(autouse=True)
-def readable(tmp_path, monkeypatch):
-    """The service reads only what it is configured with; these tests configure their own temporary folder."""
-    monkeypatch.setattr(appmod, "sources", Sources(directories=[str(tmp_path)]))
-
-
-@pytest.fixture
-def client():
-    with patch.object(host.mycelium, "register", new=AsyncMock(return_value=True)):
-        with TestClient(app) as c:
-            yield c
+pytestmark = pytest.mark.usefixtures("reads_in_this_process", "readable")
 
 
 @pytest.fixture

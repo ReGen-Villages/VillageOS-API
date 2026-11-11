@@ -113,3 +113,39 @@ def land_cover_grid(tmp_path):
     ) as dataset:
         dataset.write(values, 1)
     return str(path)
+
+
+@pytest.fixture
+def reads_in_this_process(monkeypatch):
+    """The tests patch things in this process, so their reads run in it; a test that wants worker processes builds its own pool."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    import app as appmod
+    from quadrat.pool import ReadPool
+
+    pool = ReadPool(2, executor_factory=lambda: ThreadPoolExecutor(2))
+    monkeypatch.setattr(appmod, "pool", pool)
+    yield
+    pool.close()
+
+
+@pytest.fixture
+def readable(tmp_path, monkeypatch):
+    """The service reads only what it is configured with; these tests configure their own temporary folder."""
+    import app as appmod
+    from quadrat.sources import Sources
+
+    monkeypatch.setattr(appmod, "sources", Sources(directories=[str(tmp_path)]))
+
+
+@pytest.fixture
+def client():
+    from unittest.mock import AsyncMock, patch
+
+    from fastapi.testclient import TestClient
+
+    import app as appmod
+
+    with patch.object(appmod.host.mycelium, "register", new=AsyncMock(return_value=True)):
+        with TestClient(appmod.app) as c:
+            yield c

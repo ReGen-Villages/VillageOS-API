@@ -1,0 +1,59 @@
+[
+  {
+    "name": "the Tatra GeoTIFF is described",
+    "operation": "metadata",
+    "inputs": {"raster": "tatra-z10-568-350.tif"},
+    "expect": {"outputs.result.crs": "EPSG:3857", "outputs.result.width": 512, "outputs.result.height": 512}
+  },
+  {
+    "name": "Kasprowy Wierch reads within a cell of its published height, 1987 m",
+    "operation": "point",
+    "inputs": {"raster": "tatra-z10-568-350.tif", "lon": 19.9814, "lat": 49.2319},
+    "expect": {"outputs.result.value": [1987, 60]}
+  },
+  {
+    "name": "the same point is the value this tile has under it (nearest)",
+    "operation": "point",
+    "inputs": {"raster": "tatra-z10-568-350.tif", "lon": 19.9814, "lat": 49.2319},
+    "expect": {"outputs.result.value": [1962.0, 1], "outputs.result.nodata": false}
+  },
+  {
+    "name": "the same point, interpolated between cell centres (bilinear)",
+    "operation": "point",
+    "params": {"resampling": "bilinear"},
+    "inputs": {"raster": "tatra-z10-568-350.tif", "lon": 19.9814, "lat": 49.2319},
+    "expect": {"outputs.result.value": [1957.64, 1]}
+  },
+  {
+    "name": "a box over the western Tatras is summarised",
+    "operation": "zonal",
+    "inputs": {"raster": "tatra-z10-568-350.tif", "bbox": [19.80, 49.20, 19.95, 49.30]},
+    "expect": {"outputs.result.mean": [1285.43, 1], "outputs.result.min": [813, 1], "outputs.result.max": [2132, 1], "outputs.result.nodata_cells": [0, 0.001]}
+  },
+  {
+    "name": "a line north from the summit descends, and its first sample is the summit point",
+    "operation": "profile",
+    "inputs": {"raster": "tatra-z10-568-350.tif", "line": {"type": "LineString", "coordinates": [[19.9814, 49.2319], [19.9814, 49.2419]]}, "samples": 3},
+    "expect": {"outputs.result.length_m": [1112, 2], "outputs.result.samples.0.value": [1962, 1], "outputs.result.samples.2.value": [1509, 1], "outputs.result.outside_samples": 0, "outputs.result.nodata_samples": 0}
+  },
+  {
+    "name": "the terrarium PNG of the same tile gives the same point, to a few metres",
+    "operation": "point",
+    "params": {"encoding": "terrarium"},
+    "inputs": {"raster": "tatra-z10-568-350.terrarium.png", "tile": {"z": 10, "x": 568, "y": 350}, "lon": 19.9814, "lat": 49.2319},
+    "expect": {"outputs.result.value": [1956.59, 1]}
+  },
+  {
+    "name": "the terrarium PNG of the same tile gives the same box, to a few metres",
+    "operation": "zonal",
+    "params": {"encoding": "terrarium"},
+    "inputs": {"raster": "tatra-z10-568-350.terrarium.png", "tile": {"z": 10, "x": 568, "y": 350}, "bbox": [19.80, 49.20, 19.95, 49.30]},
+    "expect": {"outputs.result.mean": [1285.93, 1], "outputs.result.min": [812.82, 2], "outputs.result.max": [2114.27, 2]}
+  },
+  {
+    "name": "a place far from the tile is refused with its code",
+    "operation": "point",
+    "inputs": {"raster": "tatra-z10-568-350.tif", "lon": 2.35, "lat": 48.85},
+    "fails": "outside_raster"
+  }
+]
