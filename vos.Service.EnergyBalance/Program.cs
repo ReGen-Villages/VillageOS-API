@@ -54,7 +54,9 @@ try
 
     builder.Services.AddSingleton(sp =>
         new EnergyBalanceReactiveHandler(sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<EnergyBalanceReactiveHandler>>(), myceliumUrl, launchToken, apiKey: apiKey));
+            sp.GetRequiredService<ILogger<EnergyBalanceReactiveHandler>>(), myceliumUrl, sp.GetRequiredService<ModelClock>(),
+            launchToken, apiKey: apiKey));
+    builder.Services.AddModelClock<EnergyBalanceReactiveHandler>("EnergyBalance");
 
     // Recompute when an input moves, so a study's result never presents a stale number as current.
     builder.Services.AddInputChangeRecompute<EnergyBalanceReactiveHandler>(
