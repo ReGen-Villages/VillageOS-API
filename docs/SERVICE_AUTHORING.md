@@ -14,7 +14,7 @@ This document is the language-agnostic contract. Working reference implementatio
 
 Each reference is an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Swap that for your predicate logic.
 
-A Python service does not reimplement the contract. [`vos.Service.Python.Shared`](../vos.Service.Python.Shared) (the package `vos_service`) carries the arguments, inbound JWT validation, registration, the four standard endpoints and the write and subscribe calls, and, for a service that is a pipeline node, the node envelope and its answer (`NodeService`, as C# nodes get theirs from `DagNodeService`), as the C# services get them from `vos.Auth.Shared` and `vos.Service.Shared`; a Python service installs it by path from its own `requirements.txt` and supplies only its handler and any routes of its own. Start from a copy of the Python echo folder.
+A Python service does not reimplement the contract. [`vos.Service.Python.Shared`](../vos.Service.Python.Shared) (the package `vos_service`) carries the arguments, inbound JWT validation, registration, the four standard endpoints and the write and subscribe calls, and, for a service that is a pipeline node, the node envelope and its answer (`NodeService`, as C# nodes get theirs from `DagNodeService`), as the C# services get them from `vos.Service.Auth` and `vos.Service.Shared`; a Python service installs it by path from its own `requirements.txt` and supplies only its handler and any routes of its own. Start from a copy of the Python echo folder.
 
 ## A note on `is`
 

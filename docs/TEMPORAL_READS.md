@@ -33,17 +33,21 @@ or not anything ever anchors it.
 
 ## Derived-state history is the exception
 
-A Thing's derived states (the ranges whose criteria hold) are computed, never stored — there is no
-state Fact and no state series in Rings. Their *history* is therefore served from a third place: the
-reactive engine's in-memory tracker, which records every change point as it happens.
+A Thing's derived states (the ranges whose criteria hold) are computed, never stored as a value —
+there is no state Fact and no state series in Rings. Their *history* is kept only for a range declared
+as a range Thing that carries `KeepsStateHistory: true`: each time the Thing enters that state the
+platform writes a relationship from the Thing to the range Thing, carrying the triggering property
+write, and closes it when the Thing leaves.
 
 - `GET /api/things/{id}/state-transitions` — change points: states entered and exited, plus the
   triggering property write.
 - `GET /api/things/{id}/states/{stateName}/occurrences` — intervals the Thing held one state.
 
-Both responses carry a `Coverage` block. While `Source` is `in-memory` the history only reaches back
-to when the engine loaded the model and is lost on restart, so absence of a transition is not
-evidence the state never held — read `Coverage.From` before drawing that conclusion.
+Both answer from those records in memory and on disk, so they answer the same after the Thing is
+deleted and after a restart. Both responses carry a `Coverage` block with `From`, `To`,
+`RangesKeepingHistory` and `RangesKeepingNoHistory`. A range that keeps no history answers no
+transitions, so absence of a transition is not evidence the state never held — read
+`RangesKeepingNoHistory` before drawing that conclusion.
 
 ## Rings: the tiered time-series store
 

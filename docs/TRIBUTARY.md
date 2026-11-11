@@ -168,10 +168,9 @@ look the same once they are in the model.
   the ordinary case: every run after the first, and every second registration writing onto a Site some
   other registration created. A relationship written only by whichever fetch happened to be first
   leaves every value after it with no source at all.
-- **One relationship per registration per Thing.** Running discovery twice leaves one. The
-  relationships the endpoint
-  already carries come back in the scoped read the call already makes for its kinds — they are in that
-  snapshot whether or not anything reads them — so the check costs no second call.
+- **One relationship per registration per Thing.** Running discovery twice leaves one. The scoped read
+  the call already makes for the endpoint's kinds also asks for the endpoint's observed relationships,
+  through the `observed` role, so the check costs no second call.
 - **An ingest that writes nothing relates nothing.** A source answering for a site it holds no values
   about leaves no relationship claiming otherwise. The relationship is written before the values, so a
   refused relationship leaves nothing behind that cannot be traced back.
