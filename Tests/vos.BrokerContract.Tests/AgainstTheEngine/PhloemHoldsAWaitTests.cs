@@ -222,6 +222,8 @@ public class PhloemHoldsAWaitTests : IClassFixture<TheEngine>
 
         (await WaitOfAsync(runId)).Should().BeNull();
         (await gateway.ReadRunRecordAsync(runId, CancellationToken.None))!.Nodes[nodeId].Watching.Should().BeNull();
+        await Settle.UntilAsync(async () => (await CallRecordsFromAsync(village.Plot)).Count == 0,
+            "the record that answered the wait goes with the watch, whatever its call state");
     }
 
     [FactAgainstTheEngine]
